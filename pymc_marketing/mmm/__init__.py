@@ -85,6 +85,8 @@ from pymc_marketing.mmm.preprocessing import (
 from pymc_marketing.mmm.scaling import (
     DataDerivedScaling,
     FixedScaling,
+    MaxAbsScaling,
+    MeanAbsScaling,
     Scaling,
     VariableScaling,
 )
@@ -123,6 +125,8 @@ __all__ = [
     "LogisticSaturation",
     "MMMBuilder",
     "MMMPlotSuiteFacade",
+    "MaxAbsScaling",
+    "MeanAbsScaling",
     "MediaConfig",
     "MediaConfigList",
     "MediaMuEffect",
