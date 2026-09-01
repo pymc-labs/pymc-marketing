@@ -57,6 +57,18 @@ def test_to_xarray():
     assert new_y.dims == ("test_dim",)
     np.testing.assert_array_equal(new_y.coords["test_dim"], customer_id)
 
+    # Test multidimensional input
+    matrix = np.arange(20).reshape(10, 2)
+
+    new_matrix = to_xarray(customer_id, matrix)
+
+    assert isinstance(new_matrix, xarray.DataArray)
+    assert new_matrix.dims == ("customer_id", "dim_1")
+    np.testing.assert_array_equal(
+        new_matrix.coords["customer_id"], customer_id
+    )
+    np.testing.assert_array_equal(new_matrix.values, matrix)
+
 
 @pytest.fixture(scope="module")
 def fitted_gg(test_summary_data) -> GammaGammaModel:

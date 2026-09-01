@@ -37,11 +37,16 @@ _DAYS_PER_MONTH = 30.4375
 
 def to_xarray(customer_id, *arrays, dim: str = "customer_id"):
     """Convert vector arrays to xarray with a common dim (default "customer_id")."""
-    dims = (dim,)
     coords = {dim: np.asarray(customer_id)}
 
     res = tuple(
-        xarray.DataArray(data=array, coords=coords, dims=dims) for array in arrays
+        xarray.DataArray(
+            data=array,
+            coords=coords,
+            dims=(dim,)
+            + tuple(f"dim_{i}" for i in range(1, np.asarray(array).ndim)),
+        )
+        for array in arrays
     )
 
     return res[0] if len(arrays) == 1 else res
