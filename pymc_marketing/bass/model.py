@@ -20,7 +20,9 @@ The recommended interface is :class:`BassModel` – a
 access to the PyMC model object.
 
 The standalone functions :func:`F`, :func:`f`, and :func:`create_bass_model`
-are still exposed for direct use.
+are still exposed for direct use. :func:`F` and :func:`f` take xtensor
+inputs; wrap plain arrays with :func:`pymc.dims.as_xtensor` to call them
+outside a model.
 
 Adapted from Wiki: https://en.wikipedia.org/wiki/Bass_diffusion_model
 
@@ -134,6 +136,8 @@ Create a basic Bass model for multiple products:
 
 """
 
+from contextlib import contextmanager
+from inspect import signature
 from typing import Any, TypedDict, cast
 
 import arviz as az
@@ -142,6 +146,7 @@ import numpy as np
 import numpy.typing as npt
 import pandas as pd
 import pymc as pm
+import pymc.dims as pmd
 import pytensor.tensor as pt
 import xarray as xr
 from matplotlib.axes import Axes
@@ -150,7 +155,14 @@ from numpy.typing import (
 )
 from pymc.model import Model
 from pymc.util import RandomState
-from pymc_extras.prior import Censored, Prior, VariableFactory, create_dim_handler
+from pymc_extras.prior import (
+    Censored,
+    MuAlreadyExistsError,
+    Prior,
+    UnsupportedDistributionError,
+    VariableFactory,
+)
+from pytensor.xtensor.type import XTensorVariable
 
 from pymc_marketing.bass import plotting
 from pymc_marketing.bass.data import to_bass_dataset
@@ -159,11 +171,27 @@ from pymc_marketing.model_config import parse_model_config
 from pymc_marketing.version import __version__
 
 
+def _check_time(t: object) -> None:
+    """Reject a ``t`` that ``pymc.dims`` cannot label on its own.
+
+    A scalar tensor converts cleanly, an array or a dim-less vector does not,
+    and the conversion error it raises does not say what to do about it.
+    """
+    if isinstance(t, XTensorVariable) or (
+        isinstance(t, pt.TensorVariable) and t.ndim == 0
+    ):
+        return
+    raise TypeError(
+        f"`t` must be an XTensorVariable, got {type(t).__name__}. "
+        "Wrap plain arrays with `pymc.dims.as_xtensor(t, dims=('T',))`."
+    )
+
+
 def F(
-    p: float | pt.TensorVariable,
-    q: float | pt.TensorVariable,
-    t: float | pt.TensorVariable,
-) -> pt.TensorVariable:
+    p: float | XTensorVariable,
+    q: float | XTensorVariable,
+    t: XTensorVariable | pt.TensorVariable,
+) -> XTensorVariable:
     r"""Installed base fraction (cumulative adoption proportion).
 
     This function calculates the cumulative proportion of adopters at time t,
@@ -171,16 +199,16 @@ def F(
 
     Parameters
     ----------
-    p : float or TensorVariable
+    p : float or XTensorVariable
         Coefficient of innovation (external influence)
-    q : float or TensorVariable
+    q : float or XTensorVariable
         Coefficient of imitation (internal influence)
-    t : array-like or TensorVariable
+    t : XTensorVariable or scalar TensorVariable
         Time points
 
     Returns
     -------
-    TensorVariable
+    XTensorVariable
         The cumulative proportion of adopters at each time point
 
     Notes
@@ -193,14 +221,15 @@ def F(
 
     When :math:`t=0`, :math:`F(t)=0`, and as :math:`t` approaches infinity, :math:`F(t)` approaches 1.
     """
-    return (1 - pt.exp(-(p + q) * t)) / (1 + (q / p) * pt.exp(-(p + q) * t))
+    _check_time(t)
+    return (1 - pmd.math.exp(-(p + q) * t)) / (1 + (q / p) * pmd.math.exp(-(p + q) * t))
 
 
 def f(
-    p: float | pt.TensorVariable,
-    q: float | pt.TensorVariable,
-    t: float | pt.TensorVariable,
-) -> pt.TensorVariable:
+    p: float | XTensorVariable,
+    q: float | XTensorVariable,
+    t: XTensorVariable | pt.TensorVariable,
+) -> XTensorVariable:
     r"""Installed base fraction rate of change (adoption rate).
 
     This function calculates the rate of new adoptions at time t as a
@@ -209,16 +238,16 @@ def f(
 
     Parameters
     ----------
-    p : float or TensorVariable
+    p : float or XTensorVariable
         Coefficient of innovation (external influence)
-    q : float or TensorVariable
+    q : float or XTensorVariable
         Coefficient of imitation (internal influence)
-    t : array-like or TensorVariable
+    t : XTensorVariable or scalar TensorVariable
         Time points
 
     Returns
     -------
-    TensorVariable
+    XTensorVariable
         The adoption rate at each time point as a fraction of potential market
 
     Notes
@@ -237,9 +266,93 @@ def f(
 
     The peak adoption rate occurs at time :math:`t^* = \frac{\ln(q/p)}{p+q}`
     """
-    return (p * pt.square(p + q) * pt.exp(t * (p + q))) / pt.square(
-        p * pt.exp(t * (p + q)) + q
+    _check_time(t)
+    exp_t = pmd.math.exp(t * (p + q))
+    return (p * (p + q) ** 2 * exp_t) / (p * exp_t + q) ** 2
+
+
+def _create_likelihood_variable(
+    prior: Prior | Censored,
+    name: str,
+    mu: XTensorVariable,
+    observed: XTensorVariable | None,
+) -> XTensorVariable:
+    """Create the outcome variable, observed or not.
+
+    ``create_likelihood_variable`` is for the observed case only: a
+    likelihood needs data, so pymc_extras refuses ``observed=None`` there
+    (pymc-devs/pymc-extras#731). Prior predictive still needs the outcome
+    node, so build it with ``create_variable`` and ``mu`` attached, keeping
+    the same guards the pymc_extras method applies.
+    """
+    if observed is not None:
+        return prior.create_likelihood_variable(
+            name, mu=mu, observed=observed, xdist=True
+        )
+
+    # Censored keeps its parameters on the wrapped distribution.
+    inner = prior.distribution if isinstance(prior, Censored) else prior
+    if "mu" not in signature(inner.pymc_distribution.dist).parameters:
+        raise UnsupportedDistributionError(
+            f"Likelihood distribution {inner.distribution!r} is not supported."
+        )
+    if "mu" in inner.parameters:
+        raise MuAlreadyExistsError(inner)
+
+    # TODO(pymc-devs/pymc-extras#731): drop this branch once observed=None is
+    # supported upstream. Rebind rather than mutate the copy's parameters, so
+    # the model keeps the caller's own tensors instead of deepcopied clones.
+    unobserved = inner.deepcopy()
+    unobserved.parameters = {**inner.parameters, "mu": mu}
+    outcome: Prior | Censored = (
+        Censored(unobserved, lower=prior.lower, upper=prior.upper)
+        if isinstance(prior, Censored)
+        else unobserved
     )
+    return outcome.create_variable(name, xdist=True)
+
+
+@contextmanager
+def _borrow_dims(prior: Prior | Censored, dims: tuple[str, ...]):
+    """Lend ``dims`` to ``prior`` for the block, leaving it as it was found.
+
+    Setting ``dims`` outright would leave the caller's prior carrying this
+    model's dims, so a config reused for a second model fails on dims that
+    model does not have. A copy is not used instead: ``Prior.__deepcopy__``
+    also copies ``parameters``, which would hand the model clones of any
+    tensor the caller passed in. ``Censored.dims`` forwards to the wrapped
+    distribution, so both types are covered.
+    """
+    original = prior.dims
+    prior.dims = dims
+    try:
+        yield prior
+    finally:
+        prior.dims = original
+
+
+def _observed_dims(
+    observed: Any, model: Model, combined_dims: tuple[str, ...]
+) -> tuple[str, ...]:
+    """Axis labels for ``observed``: its own, else the model's, else positional.
+
+    An ``xr.DataArray`` carries its labels; a registered ``pm.Data`` has them
+    on the model. Anything else is labelled positionally in ``combined_dims``
+    order.
+    """
+    own = getattr(observed, "dims", None)
+    if own:
+        return tuple(own)
+
+    # Name equality is not identity: a variable that never reached the model
+    # can share a name with one that did, and would borrow its dims.
+    name = getattr(observed, "name", None)
+    if name is not None and model.named_vars.get(name) is observed:
+        registered = model.named_vars_to_dims.get(name)
+        if registered and all(dim is not None for dim in registered):
+            return tuple(registered)
+
+    return combined_dims
 
 
 class BassPriors(TypedDict):
@@ -253,7 +366,7 @@ class BassPriors(TypedDict):
 
 def create_bass_model(
     t: pt.TensorLike,
-    observed: pt.TensorLike | None,
+    observed: pt.TensorLike | xr.DataArray | None,
     priors: BassPriors,
     coords: dict[str, Any],
     model: Model | None = None,
@@ -279,9 +392,15 @@ def create_bass_model(
     ----------
     t : pt.TensorLike
         Time points for which the adoption is modeled.
-    observed : pt.TensorLike | None
+    observed : pt.TensorLike or xr.DataArray or None
         Observed adoption data at each time point. If None, only
-        prior predictive sampling is possible.
+        prior predictive sampling is possible. Axis labels are read from
+        the data itself (an ``xr.DataArray``) or from the model (a
+        ``pm.Data`` registered with dims); anything else, such as a plain
+        array or a ``pm.Data`` without dims, is labelled positionally in
+        ``(T, ...)`` order with the extra dims following their first
+        appearance across the ``p``, ``q``, ``m`` and ``likelihood``
+        priors, in that order.
     priors : BassPriors
         Dictionary containing priors for:
         - 'm': Market potential prior
@@ -319,48 +438,49 @@ def create_bass_model(
     """
     model = model or pm.Model(coords=coords)
     with model:
-        parameter_dims = (
-            set(priors["p"].dims or ())
-            .union(priors["q"].dims or ())
-            .union(priors["m"].dims or ())
+        # Declaration order, not set order: `combined_dims` labels the axes of
+        # `observed` positionally, so an order that varies between processes
+        # would silently mislabel the data.
+        declared_dims = (
+            *(priors["p"].dims or ()),
+            *(priors["q"].dims or ()),
+            *(priors["m"].dims or ()),
+            *(getattr(priors["likelihood"], "dims", ()) or ()),
         )
-        likelihood_dims = set(getattr(priors["likelihood"], "dims", ()) or ())
-
         combined_dims = (
             "T",
-            *tuple(parameter_dims.union(likelihood_dims).difference(["T"])),
-        )
-        dim_handler = create_dim_handler(combined_dims)
-
-        m = dim_handler(priors["m"].create_variable("m"), priors["m"].dims)
-        p = dim_handler(priors["p"].create_variable("p"), priors["p"].dims)
-        q = dim_handler(priors["q"].create_variable("q"), priors["q"].dims)
-
-        time = dim_handler(t, "T")
-
-        adopters = pm.Deterministic("adopters", m * f(p, q, time), dims=combined_dims)
-
-        pm.Deterministic(
-            "innovators",
-            m * p * (1 - F(p, q, time)),
-            dims=combined_dims,
-        )
-        pm.Deterministic(
-            "imitators",
-            m * q * F(p, q, time) * (1 - F(p, q, time)),
-            dims=combined_dims,
+            *(dim for dim in dict.fromkeys(declared_dims) if dim != "T"),
         )
 
-        peak = (pt.log(q) - pt.log(p)) / (p + q)
-        peak_dims = tuple(parameter_dims) if parameter_dims else None
-        pm.Deterministic("peak", peak, dims=peak_dims)
+        time = pmd.as_xtensor(t, dims=("T",))
+        m = priors["m"].create_variable("m", xdist=True)
+        p = priors["p"].create_variable("p", xdist=True)
+        q = priors["q"].create_variable("q", xdist=True)
 
-        priors["likelihood"].dims = combined_dims
-        priors["likelihood"].create_likelihood_variable(  # type: ignore
-            "y",
-            mu=adopters,
-            observed=observed,
+        def deterministic(name: str, value: XTensorVariable) -> XTensorVariable:
+            """Store ``value`` with the dims it has, in ``combined_dims`` order."""
+            order = tuple(dim for dim in combined_dims if dim in value.dims)
+            return pmd.Deterministic(name, value, dims=order)
+
+        adopters = deterministic("adopters", m * f(p, q, time))
+        deterministic("innovators", m * p * (1 - F(p, q, time)))
+        deterministic("imitators", m * q * F(p, q, time) * (1 - F(p, q, time)))
+        deterministic("peak", (pmd.math.log(q) - pmd.math.log(p)) / (p + q))
+
+        observed_xt = (
+            None
+            if observed is None
+            else pmd.as_xtensor(
+                observed, dims=_observed_dims(observed, model, combined_dims)
+            )
         )
+        with _borrow_dims(priors["likelihood"], combined_dims) as likelihood:
+            _create_likelihood_variable(
+                likelihood,
+                "y",
+                mu=adopters,
+                observed=observed_xt,
+            )
 
     return model
 
