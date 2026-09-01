@@ -13,6 +13,29 @@ build:
   tools:
     python: "3.12"
   jobs:
+    post_checkout:
+      # Skip PR preview builds when no docs-relevant files changed.
+      # exit 183 cancels the build (shown as green on the PR, not a failure).
+      # Pushes to main are unaffected — live docs always rebuild.
+      #
+      # The path list mirrors the `changes` filter in .github/workflows/docs.yml
+      # so the RTD preview and the GH Actions `Docs` job agree on what counts as
+      # docs-relevant. Keep the two in sync.
+      # Ref: https://docs.readthedocs.com/platform/stable/guides/build/skip-build.html
+      - git fetch origin main --depth=1
+      - |
+        if [ "$READTHEDOCS_VERSION_TYPE" = "external" ]; then
+          CHANGED_FILES=$(git diff --name-only origin/main -- \
+            .readthedocs.yml \
+            pyproject.toml \
+            docs/ \
+            pymc_marketing/ \
+            scripts/generate_gallery.py 2>/dev/null || true)
+
+          if [ -z "$CHANGED_FILES" ]; then
+            exit 183;
+          fi
+        fi
     pre_build:
       # Install core dependencies first
       - pip install --upgrade pip setuptools wheel
