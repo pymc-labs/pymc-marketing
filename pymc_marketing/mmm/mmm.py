@@ -1811,6 +1811,9 @@ class MMM(RegressionModelBuilder):
             for dim in self.xarray_dataset.coords.dims
         }
 
+        if self.yearly_seasonality is not None:
+            self.model_coords[self.yearly_fourier.prefix] = self.yearly_fourier.nodes
+
         if bool(self.time_varying_intercept) or bool(self.time_varying_media):
             dates = pd.DatetimeIndex(self.xarray_dataset.coords["date"].values)
             self._time_index = xr.DataArray(np.arange(len(dates)), dims=("date",))
