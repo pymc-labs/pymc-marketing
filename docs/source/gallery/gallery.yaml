@@ -90,7 +90,7 @@ sections:
             notebook: mmm/mmm_time_slice_cross_validation
           - title: Metrics and Model Evaluation
             notebook: mmm/mmm_evaluation
-          - title: "Placebo Channels: How Much Credit Does the Model Give to Nothing?"
+          - title: "Placebo Channel Check"
             notebook: mmm/mmm_placebo_check
       - title: Causal Inference
         cards:
