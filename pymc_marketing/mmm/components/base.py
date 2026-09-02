@@ -745,7 +745,9 @@ class Transformation:
                 curve = mmm.saturation(x_curve, core_dim="saturation_x")
                 pmd.Deterministic("saturation_curve_contribution", curve)
 
-            mmm.add_original_scale_contribution_variable(["saturation_curve_contribution"])
+            mmm.add_original_scale_contribution_variable(
+                ["saturation_curve_contribution"]
+            )
             # → adds "saturation_curve_contribution_original_scale" to the model
 
         """
