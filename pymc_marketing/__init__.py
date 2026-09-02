@@ -25,9 +25,12 @@ del _warnings
 # Load the data accessor
 import pymc_marketing.data.fivetran  # noqa: E402
 
+# Register R2D2 deserializers
+import pymc_marketing.r2d2  # noqa: E402
+
 # Register SpecialPrior deserializers (LogNormalPrior, LaplacePrior, etc.)
 import pymc_marketing.special_priors  # noqa: E402, F401
 from pymc_marketing import bass, clv, customer_choice, mmm, pie  # noqa: E402
 from pymc_marketing.version import __version__  # noqa: E402
 
-__all__ = ["__version__", "bass", "clv", "customer_choice", "mmm", "pie"]
+__all__ = ["__version__", "bass", "clv", "customer_choice", "mmm", "pie", "r2d2"]

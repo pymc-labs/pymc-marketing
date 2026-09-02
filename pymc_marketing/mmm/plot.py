@@ -179,7 +179,7 @@ Notes
 -----
 - `MMM` exposes this suite via the `mmm.plot` property, which internally passes the model's
   `idata` into `MMMPlotSuite`.
-- Any PyMC model can use `MMMPlotSuite` directly if its `InferenceData` contains the needed
+- Any PyMC model can use `MMMPlotSuite` directly if its `DataTree` contains the needed
   groups/variables described above.
 """
 
@@ -205,6 +205,17 @@ from pymc_marketing.metrics import crps
 from pymc_marketing.mmm.utils import build_contributions
 
 __all__ = ["MMMPlotSuite"]
+
+
+def _tight_layout(fig: Figure, **kwargs) -> None:
+    """Lay out ``fig`` unless the caller's style already installed an engine.
+
+    ``fig.tight_layout()`` replaces a layout engine chosen by the ambient style
+    (``arviz-darkgrid`` turns constrained layout on, for instance) and makes
+    matplotlib warn. Skipping the call leaves that engine in charge.
+    """
+    if fig.get_layout_engine() is None:
+        fig.tight_layout(**kwargs)
 
 
 class MMMPlotSuite:
@@ -1388,7 +1399,7 @@ class MMMPlotSuite:
                 ax.set_xlabel(plot_dim)
                 ax.set_ylabel(var)
 
-        fig.tight_layout()
+        _tight_layout(fig)
         return fig, axes
 
     def channel_parameter(
@@ -1582,7 +1593,7 @@ class MMMPlotSuite:
                 ax.set_xlabel("channel" if has_channel_dim else "")
                 ax.set_ylabel(param_name)
 
-        fig.tight_layout()
+        _tight_layout(fig)
         return fig
 
     def prior_vs_posterior(
@@ -1825,7 +1836,7 @@ class MMMPlotSuite:
                 fontweight="bold",
                 y=1.02,
             )
-            fig.tight_layout()
+            _tight_layout(fig)
             return fig, axes
 
         # Non-scalar case: variable has the plot_dim dimension
@@ -1982,7 +1993,7 @@ class MMMPlotSuite:
             fontweight="bold",
             y=1.02,
         )
-        fig.tight_layout()
+        _tight_layout(fig)
         return fig, axes
 
     def saturation_scatterplot(
@@ -2435,7 +2446,7 @@ class MMMPlotSuite:
         Parameters
         ----------
         channel_contribution : str, optional
-            Name of the channel contribution variable in the InferenceData.
+            Name of the channel contribution variable in the DataTree.
         additional_dims : list[str], optional
             Additional dimensions to consider beyond 'channel'.
         additional_combinations : list[tuple], optional
@@ -2636,7 +2647,7 @@ class MMMPlotSuite:
             )
             ax_.set_title(title)
 
-        fig.tight_layout()
+        _tight_layout(fig)
         return fig, axes if n_subplots > 1 else (fig, axes[0][0])
 
     def _plot_budget_allocation_bars(
@@ -3027,7 +3038,7 @@ class MMMPlotSuite:
                 title="Allocated Contribution by Channel Over Time",
             )
 
-            fig.tight_layout()
+            _tight_layout(fig)
             return fig, ax
 
         # Multiple panels case
@@ -3483,7 +3494,7 @@ class MMMPlotSuite:
         if n_panels == 1:
             return axes_array[0, 0]
 
-        fig.tight_layout()
+        _tight_layout(fig)
         return fig, axes_array
 
     def uplift_curve(
@@ -4330,7 +4341,7 @@ class MMMPlotSuite:
         Parameters
         ----------
         results : xr.DataTree
-            Combined InferenceData produced by ``TimeSliceCrossValidator.run()``.
+            Combined DataTree produced by ``TimeSliceCrossValidator.run()``.
             Must contain:
 
             - A coordinate named 'cv'
@@ -4369,7 +4380,7 @@ class MMMPlotSuite:
 
         See Also
         --------
-        TimeSliceCrossValidator.run : Generate the combined InferenceData.
+        TimeSliceCrossValidator.run : Generate the combined DataTree.
         param_stability : Plot parameter stability across folds.
         cv_crps : Plot CRPS scores across folds.
         """
@@ -4385,14 +4396,14 @@ class MMMPlotSuite:
             or "metadata" not in results.cv_metadata.dataset
         ):
             raise ValueError(
-                "Provided InferenceData must include a 'cv_metadata' group with a 'metadata' DataArray."
+                "Provided DataTree must include a 'cv_metadata' group with a 'metadata' DataArray."
             )
         if (
             not hasattr(results, "posterior_predictive")
             or "y_original_scale" not in results.posterior_predictive.dataset
         ):
             raise ValueError(
-                "Provided InferenceData must include posterior_predictive['y_original_scale']."
+                "Provided DataTree must include posterior_predictive['y_original_scale']."
             )
 
         # Discover posterior_predictive dataarray we'll be working with
@@ -4692,7 +4703,7 @@ class MMMPlotSuite:
             labels.extend(_l)
         by_label = dict(zip(labels, handles, strict=False))
         if by_label:
-            plt.tight_layout(rect=[0, 0.07, 1, 1])
+            _tight_layout(fig, rect=[0, 0.07, 1, 1])
             ncol = min(4, len(by_label))
             fig.legend(
                 by_label.values(),
@@ -4702,7 +4713,7 @@ class MMMPlotSuite:
                 bbox_to_anchor=(0.5, 0.01),
             )
         else:
-            plt.tight_layout()
+            _tight_layout(fig)
 
         axes[-1].set_xlabel("date")
         return fig, axes
@@ -4721,7 +4732,7 @@ class MMMPlotSuite:
         Parameters
         ----------
         results : xr.DataTree
-            Combined InferenceData produced by ``TimeSliceCrossValidator.run()``.
+            Combined DataTree produced by ``TimeSliceCrossValidator.run()``.
             Must contain a coordinate named 'cv' which labels each CV fold.
         parameter : list of str
             List of parameter names to plot (e.g., ``["beta_channel"]``).
@@ -4743,12 +4754,12 @@ class MMMPlotSuite:
         TypeError
             If ``results`` is not an ``xr.DataTree`` object.
         ValueError
-            If the InferenceData does not contain a 'cv' coordinate.
+            If the DataTree does not contain a 'cv' coordinate.
             If unable to select specified dimensions from posterior.
 
         See Also
         --------
-        TimeSliceCrossValidator.run : Generate the combined InferenceData.
+        TimeSliceCrossValidator.run : Generate the combined DataTree.
         cv_predictions : Plot posterior predictive across folds.
         cv_crps : Plot CRPS scores across folds.
 
@@ -4792,9 +4803,7 @@ class MMMPlotSuite:
                 break
 
         if cv_labels is None:
-            raise ValueError(
-                "Provided InferenceData does not contain a 'cv' coordinate."
-            )
+            raise ValueError("Provided DataTree does not contain a 'cv' coordinate.")
 
         # Build posterior_list by selecting along cv for the posterior group
         posterior_list = []
@@ -4901,7 +4910,7 @@ class MMMPlotSuite:
         Parameters
         ----------
         results : xr.DataTree
-            Combined InferenceData produced by ``TimeSliceCrossValidator.run()``.
+            Combined DataTree produced by ``TimeSliceCrossValidator.run()``.
             Must contain:
 
             - A coordinate named 'cv'
@@ -4929,11 +4938,11 @@ class MMMPlotSuite:
             If ``results`` is not an ``xr.DataTree`` object.
         ValueError
             If required groups or variables are missing from ``results``.
-            If no 'cv' coordinate is found in the InferenceData.
+            If no 'cv' coordinate is found in the DataTree.
 
         See Also
         --------
-        TimeSliceCrossValidator.run : Generate the combined InferenceData.
+        TimeSliceCrossValidator.run : Generate the combined DataTree.
         cv_predictions : Plot posterior predictive across folds.
         param_stability : Plot parameter stability across folds.
 
@@ -4943,7 +4952,7 @@ class MMMPlotSuite:
         that measures the quality of probabilistic predictions. Lower values
         indicate better predictions.
         """
-        # Validate input is combined InferenceData
+        # Validate input is combined DataTree
         if not isinstance(results, xr.DataTree):
             raise TypeError(
                 "cv_crps expects an xr.DataTree returned by TimeSliceCrossValidator._combine_idata(...)"
@@ -4953,7 +4962,7 @@ class MMMPlotSuite:
             or "metadata" not in results["/cv_metadata"].dataset.data_vars
         ):
             raise ValueError(
-                "Provided InferenceData must include a 'cv_metadata' group with a 'metadata' DataArray."
+                "Provided DataTree must include a 'cv_metadata' group with a 'metadata' DataArray."
             )
         if (
             "posterior_predictive" not in results.children
@@ -4961,7 +4970,7 @@ class MMMPlotSuite:
             not in results["/posterior_predictive"].dataset.data_vars
         ):
             raise ValueError(
-                "Provided InferenceData must include posterior_predictive['y_original_scale']."
+                "Provided DataTree must include posterior_predictive['y_original_scale']."
             )
 
         # Helper: build prediction matrix for a given cv label and rows DataFrame
@@ -5074,10 +5083,10 @@ class MMMPlotSuite:
             cv_labels = list(results.posterior_predictive.dataset.coords["cv"].values)
         else:
             raise ValueError(
-                "No 'cv' coordinate found in provided InferenceData (checked cv_metadata and posterior_predictive)"
+                "No 'cv' coordinate found in provided DataTree (checked cv_metadata and posterior_predictive)"
             )
         if not cv_labels:
-            raise ValueError("No CV labels found in provided InferenceData")
+            raise ValueError("No CV labels found in provided DataTree")
         main_da = results.posterior_predictive["y_original_scale"].sel(cv=cv_labels[0])
         all_dims = list(main_da.dims)
 
@@ -5229,5 +5238,5 @@ class MMMPlotSuite:
             ax_test.legend(["test"], loc="best")
 
         fig.suptitle("CRPS per dimension", fontsize=14, fontweight="bold", y=1.02)
-        plt.tight_layout()
+        _tight_layout(fig)
         return fig, axes

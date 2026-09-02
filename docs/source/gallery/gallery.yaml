@@ -50,6 +50,10 @@ sections:
             thumb: mmm_example.png
           - title: Custom MMM with ROAS Parameterization
             notebook: mmm/mmm_roas_parametrization
+          - title: "Halo and Cannibalisation Effects in Multi-Dimensional MMMs"
+            notebook: mmm/mmm_halo
+          - title: "Splitting MMM Channel Impact Across Campaigns"
+            notebook: mmm/mmm_credibility_disaggregation
       - title: Data Connectors
         cards:
           - title: MMM Fivetran Connectors
@@ -62,6 +66,8 @@ sections:
             notebook: mmm/mmm_allocation_assessment
           - title: Multi-Objective Optimization
             notebook: mmm/mmm_multi_objective_optimization
+          - title: Combining an MMM and a Bayesian VAR in One Budget Decision
+            notebook: mmm/mmm_var_budget_optimization
       - title: Lift Test Calibration
         cards:
           - title: Introduction to Lift Test Calibration
@@ -70,6 +76,8 @@ sections:
             notebook: mmm/mmm_geolift_calibration
           - title: Mitigating Unobserved Confounders in MMMs with Lift Test Likelihoods
             notebook: mmm/mmm_roas
+          - title: Calibrating an MMM with ROAS Estimates
+            notebook: mmm/mmm_roas_calibration
       - title: Time-Varying Parameters
         cards:
           - title: MMM with time-varying media baseline
@@ -94,6 +102,12 @@ sections:
             notebook: mmm/mmm_upper_funnel_causal_approach
           - title: "Funnel-Aware MMM: Upper to Lower-Funnel Mediation via a custom `MuEffect`"
             notebook: mmm/mmm_funnel_mueffect
+          - title: "Advanced Funnel-Aware MMM: Geo-Level Mediation Through Lower-Funnel Spend"
+            notebook: mmm/mmm_funnel_mueffect_advanced
+          - title: "Funnel MMMs from YAML"
+            notebook: mmm/mmm_funnel_from_yml
+          - title: Long-Term Brand Effects in MMMs with Brand Metrics and a Bayesian VARX
+            notebook: mmm/mmm_brand_metrics_long_term
           - title: Causal Reasoning and Discovery
             notebook: mmm/mmm_causal_reasoning_and_discovery
       - title: Case Studies

@@ -22,9 +22,11 @@ import pytest
 import xarray as xr
 from arviz_plots import PlotCollection
 from matplotlib.figure import Figure
+from matplotlib.layout_engine import ConstrainedLayoutEngine
 
 from pymc_marketing.data.idata import MMMIDataWrapper
 from pymc_marketing.mmm.plotting.decomposition import DecompositionPlots
+from pymc_marketing.mmm.summary import MMMSummaryFactory
 
 matplotlib.use("Agg")
 
@@ -362,6 +364,25 @@ class TestWaterfall:
         simple_plots.waterfall()
         assert called == [], "waterfall must not call plt.gcf()"
 
+    def test_keeps_ambient_layout_engine(self, simple_plots, panel_plots):
+        """A layout engine installed by the caller's style must survive."""
+        with plt.rc_context({"figure.constrained_layout.use": True}):
+            with warnings.catch_warnings():
+                warnings.filterwarnings(
+                    "error", message="The figure layout has changed"
+                )
+                for plots in (simple_plots, panel_plots):
+                    fig, _axes = plots.waterfall()
+                    assert isinstance(fig.get_layout_engine(), ConstrainedLayoutEngine)
+
+    def test_lays_out_figure_without_ambient_engine(self, simple_plots):
+        """Without an ambient engine the figure is still laid out tightly."""
+        # Pinned explicitly: other test modules set this rcParam globally.
+        with plt.rc_context({"figure.constrained_layout.use": False}):
+            default_left = plt.rcParams["figure.subplot.left"]
+            fig, _axes = simple_plots.waterfall()
+        assert fig.axes[0].get_position().x0 != pytest.approx(default_left)
+
     def test_baseline_bar_present(self, simple_plots):
         """Waterfall must include a 'baseline' bar."""
         _fig, axes = simple_plots.waterfall()
@@ -386,6 +407,21 @@ class TestWaterfall:
         for ctrl in controls:
             assert ctrl in ytick_labels, (
                 f"Expected control '{ctrl}' in ytick labels, got: {ytick_labels}"
+            )
+
+    def test_waterfall_bar_values_match_summary_mean(self, simple_plots, simple_data):
+        """Waterfall bar heights must match mmm.summary.waterfall() mean column."""
+        summary_df = MMMSummaryFactory(simple_data).waterfall(hdi_probs=[0.94])
+        _fig, axes = simple_plots.waterfall()
+        ax = axes[0]
+        ytick_labels = [t.get_text() for t in ax.get_yticklabels()]
+
+        for label, patch in zip(ytick_labels, ax.patches, strict=True):
+            if label == "total":
+                continue
+            expected = summary_df.loc[summary_df["component"] == label, "mean"].iloc[0]
+            assert patch.get_width() == pytest.approx(expected), (
+                f"Bar for '{label}' width {patch.get_width()} != summary mean {expected}"
             )
 
     def test_shared_intercept_across_geos(self):

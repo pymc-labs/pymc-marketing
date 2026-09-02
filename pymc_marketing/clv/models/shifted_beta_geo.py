@@ -180,7 +180,6 @@ class ShiftedBetaGeoModel(CLVModel):
         super().__init__(
             model_config=model_config,
             sampler_config=sampler_config,
-            non_distributions=["dropout_covariate_cols"],
         )
 
     def _validate_cohorts(
@@ -277,10 +276,12 @@ class ShiftedBetaGeoModel(CLVModel):
             must_be_unique=["customer_id"],
         )
 
-        if np.any(
-            (data["recency"] < 1) | (data["recency"] > data["T"]) | (data["T"] < 2)
-        ):
-            raise ValueError("Model fitting requires 1 <= recency <= T, and T >= 2.")
+        if (data["recency"] < 1).any():
+            raise ValueError("Column recency must be at least 1")
+        if (data["recency"] > data["T"]).any():
+            raise ValueError("recency cannot be greater than T")
+        if (data["T"] < 2).any():
+            raise ValueError("Column T must be at least 2")
 
         self._validate_cohorts(data, check_param_dims=("alpha", "beta"))
 
@@ -373,11 +374,14 @@ class ShiftedBetaGeoModel(CLVModel):
                     beta[self.cohort_idx],
                 )
 
+            # float64 upper: pymc 6.2.0 cannot derive the logp of a discrete Censored
+            # with integer bounds (pymc-devs/pymc#8386, fixed in pymc 6.3). The cast
+            # also keeps ``dropout`` float64 across pymc versions; do not remove casually.
             pm.Censored(
                 "dropout",
                 dropout,
                 lower=None,
-                upper=self.data["T"],
+                upper=self.data["T"].to_numpy(dtype="float64"),
                 observed=self.data["recency"],
                 dims=("customer_id",),
             )

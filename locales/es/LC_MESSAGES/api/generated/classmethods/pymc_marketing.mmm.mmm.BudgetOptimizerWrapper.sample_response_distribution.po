@@ -154,8 +154,8 @@ msgstr "Devoluciones"
 
 #: 6b37131a3da24fe2882811df53387a7c of
 #: pymc_marketing.mmm.mmm.BudgetOptimizerWrapper.sample_response_distribution:31
-msgid ":obj:`az.InferenceData`"
-msgstr ":obj:`az.InferenceData`"
+msgid ":obj:`az.DataTree`"
+msgstr ":obj:`az.DataTree`"
 
 #: 2164f846982b471897fc401b1dcfab3b of
 #: pymc_marketing.mmm.mmm.BudgetOptimizerWrapper.sample_response_distribution:32

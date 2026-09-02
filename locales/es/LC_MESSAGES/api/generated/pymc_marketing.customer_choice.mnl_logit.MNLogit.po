@@ -300,9 +300,9 @@ msgstr ""
 
 #: ../source/api/generated/pymc_marketing.customer_choice.mnl_logit.MNLogit.rst:50:<autosummary>:1
 #: 44a9e6837cf74a4d81f6e0b089995c1b
-msgid "Fit a model using Variational Inference and return InferenceData."
+msgid "Fit a model using Variational Inference and return DataTree."
 msgstr ""
-"Ajuste un modelo utilizando Inferencia Variacional y devuelva InferenceData."
+"Ajuste un modelo utilizando Inferencia Variacional y devuelva DataTree."
 
 #: ../source/api/generated/pymc_marketing.customer_choice.mnl_logit.MNLogit.rst:50:<autosummary>:1
 #: 85d8912282a34fe68f564ada92fb9607
@@ -337,8 +337,8 @@ msgstr ""
 
 #: ../source/api/generated/pymc_marketing.customer_choice.mnl_logit.MNLogit.rst:50:<autosummary>:1
 #: 992c5abc698d40739196ad0218b6251b
-msgid "Build model from the InferenceData object."
-msgstr "Construir el modelo a partir del objeto InferenceData."
+msgid "Build model from the DataTree object."
+msgstr "Construir el modelo a partir del objeto DataTree."
 
 #: ../source/api/generated/pymc_marketing.customer_choice.mnl_logit.MNLogit.rst:50:<autosummary>:1
 #: 42bad8d22c2e46e09078d4032980f97a
@@ -403,8 +403,8 @@ msgstr ""
 
 #: ../source/api/generated/pymc_marketing.customer_choice.mnl_logit.MNLogit.rst:50:<autosummary>:1
 #: b9b102a6739045b785207862310262b3
-msgid "Create the attributes for the InferenceData object."
-msgstr "Cree los atributos para el objeto InferenceData."
+msgid "Create the attributes for the DataTree object."
+msgstr "Cree los atributos para el objeto DataTree."
 
 #: ../source/api/generated/pymc_marketing.customer_choice.mnl_logit.MNLogit.rst:50:<autosummary>:1
 #: 235927fd3e8b4bc0a7a39d4e6a857183
@@ -453,10 +453,10 @@ msgstr ""
 #: 08b263d4f6c44462b48bc8b3876de374
 msgid ""
 "Create  the model configuration and sampler configuration from the "
-"InferenceData to keyword arguments."
+"DataTree to keyword arguments."
 msgstr ""
 "Cree la configuración del modelo y la configuración del muestreador a partir"
-" de InferenceData como argumentos de palabra clave."
+" de DataTree como argumentos de palabra clave."
 
 #: ../source/api/generated/pymc_marketing.customer_choice.mnl_logit.MNLogit.rst:50:<autosummary>:1
 #: 7f2d53849e66496b83dd0441ecf52aa3
@@ -487,9 +487,9 @@ msgstr ""
 
 #: ../source/api/generated/pymc_marketing.customer_choice.mnl_logit.MNLogit.rst:50:<autosummary>:1
 #: 7a5fb7cf71614ee19dac5918e1b29477
-msgid "Create a ModelBuilder instance from an InferenceData object."
+msgid "Create a ModelBuilder instance from a DataTree object."
 msgstr ""
-"Cree una instancia de ModelBuilder a partir de un objeto InferenceData."
+"Cree una instancia de ModelBuilder a partir de un objeto DataTree."
 
 #: ../source/api/generated/pymc_marketing.customer_choice.mnl_logit.MNLogit.rst:50:<autosummary>:1
 #: 791429922d0d4b5993b08ac0ccc5c63f
@@ -723,8 +723,8 @@ msgstr ""
 
 #: ../source/api/generated/pymc_marketing.customer_choice.mnl_logit.MNLogit.rst:50:<autosummary>:1
 #: bde1cc58ce644550ad7869ee68e76b7b
-msgid "Set attributes on an InferenceData object."
-msgstr "Establecer atributos en un objeto InferenceData."
+msgid "Set attributes on a DataTree object."
+msgstr "Establecer atributos en un objeto DataTree."
 
 #: ../source/api/generated/pymc_marketing.customer_choice.mnl_logit.MNLogit.rst:50:<autosummary>:1
 #: f0d967aeebde457e9d106d4b808b5c8d

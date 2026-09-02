@@ -114,6 +114,16 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :img-top: ../gallery/images/mmm_roas_parametrization.png
 :link: ../notebooks/mmm/mmm_roas_parametrization.html
 :::
+
+:::{grid-item-card} Halo and Cannibalisation Effects in Multi-Dimensional MMMs
+:img-top: ../gallery/images/mmm_halo.png
+:link: ../notebooks/mmm/mmm_halo.html
+:::
+
+:::{grid-item-card} Splitting MMM Channel Impact Across Campaigns
+:img-top: ../gallery/images/mmm_credibility_disaggregation.png
+:link: ../notebooks/mmm/mmm_credibility_disaggregation.html
+:::
 ::::
 
 ### Data Connectors
@@ -146,6 +156,11 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :img-top: ../gallery/images/mmm_multi_objective_optimization.png
 :link: ../notebooks/mmm/mmm_multi_objective_optimization.html
 :::
+
+:::{grid-item-card} Combining an MMM and a Bayesian VAR in One Budget Decision
+:img-top: ../gallery/images/mmm_var_budget_optimization.png
+:link: ../notebooks/mmm/mmm_var_budget_optimization.html
+:::
 ::::
 
 ### Lift Test Calibration
@@ -166,6 +181,11 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :::{grid-item-card} Mitigating Unobserved Confounders in MMMs with Lift Test Likelihoods
 :img-top: ../gallery/images/mmm_roas.png
 :link: ../notebooks/mmm/mmm_roas.html
+:::
+
+:::{grid-item-card} Calibrating an MMM with ROAS Estimates
+:img-top: ../gallery/images/mmm_roas_calibration.png
+:link: ../notebooks/mmm/mmm_roas_calibration.html
 :::
 ::::
 
@@ -229,6 +249,21 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :::{grid-item-card} Funnel-Aware MMM: Upper to Lower-Funnel Mediation via a custom `MuEffect`
 :img-top: ../gallery/images/mmm_funnel_mueffect.png
 :link: ../notebooks/mmm/mmm_funnel_mueffect.html
+:::
+
+:::{grid-item-card} Advanced Funnel-Aware MMM: Geo-Level Mediation Through Lower-Funnel Spend
+:img-top: ../gallery/images/mmm_funnel_mueffect_advanced.png
+:link: ../notebooks/mmm/mmm_funnel_mueffect_advanced.html
+:::
+
+:::{grid-item-card} Funnel MMMs from YAML
+:img-top: ../gallery/images/mmm_funnel_from_yml.png
+:link: ../notebooks/mmm/mmm_funnel_from_yml.html
+:::
+
+:::{grid-item-card} Long-Term Brand Effects in MMMs with Brand Metrics and a Bayesian VARX
+:img-top: ../gallery/images/mmm_brand_metrics_long_term.png
+:link: ../notebooks/mmm/mmm_brand_metrics_long_term.html
 :::
 
 :::{grid-item-card} Causal Reasoning and Discovery
