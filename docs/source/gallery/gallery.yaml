@@ -31,6 +31,8 @@ sections:
             notebook: mmm/plot_interactive
           - title: "Cost-per-Unit: Model What Drives Revenue, Report What You Spend"
             notebook: mmm/mmm_cost_per_unit
+          - title: "We spent more. We bought fewer ads."
+            notebook: mmm/mmm_media_inflation
           - title: Parameter Recovery
             notebook: mmm/mmm_data_generator
           - title: MMM API Migration Guide

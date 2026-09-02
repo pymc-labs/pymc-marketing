@@ -69,6 +69,11 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :link: ../notebooks/mmm/mmm_cost_per_unit.html
 :::
 
+:::{grid-item-card} We spent more. We bought fewer ads.
+:img-top: ../gallery/images/mmm_media_inflation.png
+:link: ../notebooks/mmm/mmm_media_inflation.html
+:::
+
 :::{grid-item-card} Parameter Recovery
 :img-top: ../gallery/images/mmm_data_generator.png
 :link: ../notebooks/mmm/mmm_data_generator.html
