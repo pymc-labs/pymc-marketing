@@ -1,3 +1,12 @@
 div.cell_output img {
   height: auto !important;
 }
+
+/* Override pydata-sphinx-theme .toast:not(.show) rule that inadvertently hides
+   Read the Docs notification toasts.  The RTD addon sets class="raised toast"
+   on its <readthedocs-notification> host element, which Bootstrap's CSS
+   (.toast:not(.show) { display: none / opacity: 0 }) selects and hides.
+   See: https://github.com/readthedocs/addons/issues/413 */
+readthedocs-notification.toast:not(.show) {
+  display: block !important;
+}

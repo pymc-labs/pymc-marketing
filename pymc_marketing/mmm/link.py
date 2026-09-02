@@ -21,6 +21,7 @@ contribution graph construction).
 
 from __future__ import annotations
 
+import warnings
 from abc import ABC, abstractmethod
 from enum import StrEnum
 
@@ -39,6 +40,53 @@ class LinkFunction(StrEnum):
     LOG = "log"
 
 
+#: Likelihoods whose ``mu`` parameter is on the scale of the response, so the
+#: additive decomposition under the identity link is in the units of the target.
+#: This is about units only.  ``mu`` still need not equal ``E[y]``: under
+#: ``TruncatedNormal`` it does not, so ``*_original_scale`` will not reconcile
+#: against the posterior predictive mean.  See issue #2834.
+#: Three ``pymc.dims`` likelihoods take ``mu`` on the response scale and are
+#: still left out.  ``Poisson`` and ``NegativeBinomial`` are discrete while the
+#: likelihood is observed on the target divided by ``target_scale``, which is
+#: not integer-valued, so they cannot be used under this model at all.
+#: ``Beta`` needs the target inside ``(0, 1)``, which the scaling does not
+#: guarantee, and nothing checks the target against the likelihood support yet.
+#: See issue #2835.
+RESPONSE_SCALE_LIKELIHOODS = frozenset(
+    {
+        "Normal",
+        "StudentT",
+        "TruncatedNormal",
+        "Gamma",
+        "Laplace",
+        "InverseGamma",
+    }
+)
+
+#: Likelihoods whose ``mu`` parameter is on some other scale, mapped to the name
+#: of that scale.  Rejected under the identity link.
+NON_RESPONSE_SCALE_LIKELIHOODS = {"LogNormal": "log"}
+
+#: Likelihoods allowed for the non-identity links, which each need one specific
+#: distributional form for their counterfactual decomposition to be correct.
+LINK_LIKELIHOODS = {LinkFunction.LOG: frozenset({"LogNormal"})}
+
+
+def _distribution_name(likelihood: Prior) -> str:
+    """Return the distribution name of *likelihood*.
+
+    Wrappers such as ``Censored`` hold another prior in ``distribution``
+    instead of a name, so unwrap until a name is reached.  Objects without a
+    ``distribution`` at all, such as the ``SpecialPrior`` subclasses, fall
+    back to their class name, so the checks below compare a real name rather
+    than ``None``.
+    """
+    dist = getattr(likelihood, "distribution", None)
+    while dist is not None and not isinstance(dist, str):
+        dist = getattr(dist, "distribution", None)
+    return dist if dist is not None else type(likelihood).__name__
+
+
 class LinkSpec(ABC):
     """Strategy object that centralises all link-dependent behaviour.
 
@@ -50,6 +98,11 @@ class LinkSpec(ABC):
     * :meth:`validate_target` -- fit-time target checks.
     * :meth:`create_media_contribution_deterministic` -- graph for
       ``total_media_contribution_original_scale``.
+
+    One concrete helper is shared by all links:
+    :meth:`create_total_response_deterministic` (the mu-effect objective
+    ``total_response_original_scale``, registered by ``MMM.build_model`` only
+    when the model has mu effects).
     """
 
     link: LinkFunction
@@ -112,6 +165,62 @@ class LinkSpec(ABC):
         nodes.
         """
 
+    def create_total_response_deterministic(
+        self,
+        mu_var: XTensorVariable,
+        target_scale: XTensorVariable,
+    ) -> None:
+        """Register ``total_response_original_scale``.
+
+        The total predicted response (original scale, scalar per draw),
+        computed via :meth:`original_scale_transform` so it is correct for
+        every link.  Because ``mu_var`` already includes every additive
+        mu-effect, this is the natural objective for optimizing an effect's
+        lever, or a mediated funnel path, jointly with media
+        (:class:`~pymc_marketing.mmm.budget_optimizer.BudgetOptimizer` with
+        ``response_variable="total_response_original_scale"``).
+
+        The result is a scalar: the sum reduces **every** dimension, so a model
+        with extra dims (geo, product) totals across all of them. That is the
+        right contract for a single shared budget, and the wrong one if segments
+        hold separate budgets -- those want a per-segment objective and a
+        constraint per segment.
+
+        Parameters
+        ----------
+        mu_var : XTensorVariable
+            The finalized linear predictor, including every mu effect.
+        target_scale : XTensorVariable
+            The target scaling factor.
+
+        Warnings
+        --------
+        Unlike ``total_media_contribution_original_scale``, this quantity
+        includes the (approximately constant) baseline response.  For the
+        default mean utility the ``argmax`` is unchanged, but a risk-adjusted
+        utility function shifts the mean/variance trade-off, so those should
+        prefer a media or effect contribution response variable.  In an
+        optimization model the sum also runs over the full date coord, which
+        includes the ``adstock_periods`` carry-over tail, so an event window
+        landing in that tail would be optimized against periods outside the
+        intended plan.
+
+        This is a response total, not a media attribution: for the
+        direct-versus-mediated decomposition see
+        :class:`~pymc_marketing.mmm.incrementality.Incrementality`, which
+        computes proper counterfactuals.
+
+        Under the log link this sums ``exp(mu) * target_scale``, the conditional
+        *median* rather than the mean; :meth:`mean_correction` is the factor
+        between them. The argmax is unaffected, since that factor is per-draw
+        and budget-independent, but a reader taking the value itself as the
+        expected response is off by it.
+        """
+        pmd.Deterministic(
+            "total_response_original_scale",
+            self.original_scale_transform(mu_var, target_scale).sum(),
+        )
+
     @abstractmethod
     def mean_correction(
         self,
@@ -148,10 +257,24 @@ class LinkSpec(ABC):
     ) -> None:
         """Raise if *likelihood* is incompatible with *link*.
 
-        The identity link is compatible with any likelihood because the
-        additive decomposition does not depend on the distributional form.
+        The criterion is whether ``mu`` lives on the scale of the response.
+        Under the identity link every contribution Deterministic is a share of
+        ``mu``, so a likelihood that places ``mu`` on another scale (LogNormal
+        places it on the log scale) turns each ``*_original_scale`` variable
+        into a delta on that other scale multiplied by ``target_scale``, which
+        is not a contribution in any units.  Likelihoods that are not
+        recognised warn instead of raising, so custom priors keep building.
+
         The log link requires LogNormal so that the counterfactual
         decomposition (``exp(mu) - exp(mu - media)``) is correct.
+
+        The error message tells the reader to flip ``link`` and rebuild rather
+        than refit.  That works because the likelihood is handed the linear
+        predictor directly and ``inverse_link`` is never applied to it, so
+        ``link='identity'`` and ``link='log'`` with the same likelihood give
+        the same observed-variable graph and the same free variables.  Only
+        the ``*_original_scale`` Deterministics differ, so an existing
+        posterior is reinterpreted rather than invalidated.
 
         Parameters
         ----------
@@ -165,15 +288,47 @@ class LinkSpec(ABC):
         ValueError
             If the combination is known to produce incorrect downstream
             decomposition or optimisation results.
+
+        Warns
+        -----
+        UserWarning
+            If the likelihood is not one whose ``mu`` scale is known.
         """
+        dist_name = _distribution_name(likelihood)
+
         if link == LinkFunction.IDENTITY:
+            if dist_name in NON_RESPONSE_SCALE_LIKELIHOODS:
+                scale = NON_RESPONSE_SCALE_LIKELIHOODS[dist_name]
+                raise ValueError(
+                    f"Likelihood '{dist_name}' is not compatible with "
+                    f"link='identity'. Its 'mu' is on the {scale} scale, not on "
+                    f"the scale of the target, so every '*_original_scale' "
+                    f"contribution would be a {scale}-scale delta multiplied by "
+                    "'target_scale'. Use link='log' with LogNormal (it needs a "
+                    "strictly positive target), or keep link='identity' with a "
+                    "likelihood whose 'mu' is the response scale: "
+                    f"{sorted(RESPONSE_SCALE_LIKELIHOODS)}. "
+                    "To repair an already saved model without refitting:\n"
+                    "    kwargs = MMM.idata_to_init_kwargs(idata)\n"
+                    "    kwargs['link'] = 'log'  # or edit "
+                    "kwargs['model_config']['likelihood']\n"
+                    "    mmm = MMM(**kwargs)"
+                )
+            if dist_name not in RESPONSE_SCALE_LIKELIHOODS:
+                warnings.warn(
+                    f"Likelihood '{dist_name}' is "
+                    "not a known response-scale likelihood. With "
+                    "link='identity' the contribution decomposition assumes "
+                    "'mu' is on the scale of the target. Check that it is "
+                    "before reading '*_original_scale' variables. Known "
+                    "response-scale likelihoods: "
+                    f"{sorted(RESPONSE_SCALE_LIKELIHOODS)}.",
+                    UserWarning,
+                    stacklevel=2,
+                )
             return
 
-        dist_name = likelihood.distribution
-        compatible = {
-            LinkFunction.LOG: {"LogNormal"},
-        }
-        allowed = compatible.get(link, set())
+        allowed = LINK_LIKELIHOODS.get(link, frozenset())
         if dist_name not in allowed:
             raise ValueError(
                 f"Likelihood '{dist_name}' is not compatible with link='{link.value}'. "
@@ -290,7 +445,17 @@ class LogLinkSpec(LinkSpec):
         target_scale: XTensorVariable,
         output_var: str = "y",
     ) -> None:
-        """Register counterfactual ``total_media_contribution_original_scale`` and ``{output_var}_original_scale``."""
+        """Register counterfactual ``total_media_contribution_original_scale`` and ``{output_var}_original_scale``.
+
+        The counterfactual ``exp(mu) - exp(mu - media)`` is a median-scale
+        delta for whatever variable the likelihood puts ``mu`` on.  Under a
+        ``Censored(LogNormal)`` likelihood that is the latent uncensored
+        variable, so the result describes unconstrained demand rather than the
+        observed clipped response.  Note that
+        :meth:`LogLinkSpec.validate_target` rejects any non-positive target,
+        so the zero-inflated data that left-censoring at zero is meant for
+        cannot be fitted under this link at all.
+        """
         mu_media = channel_contribution.sum(dim="channel")
         y_hat = ptxm.exp(mu_var) * target_scale
         y_hat_no_media = ptxm.exp(mu_var - mu_media) * target_scale

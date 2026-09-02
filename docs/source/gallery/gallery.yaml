@@ -50,6 +50,10 @@ sections:
             thumb: mmm_example.png
           - title: Custom MMM with ROAS Parameterization
             notebook: mmm/mmm_roas_parametrization
+          - title: "Halo and Cannibalisation Effects in Multi-Dimensional MMMs"
+            notebook: mmm/mmm_halo
+          - title: "Splitting MMM Channel Impact Across Campaigns"
+            notebook: mmm/mmm_credibility_disaggregation
       - title: Data Connectors
         cards:
           - title: MMM Fivetran Connectors
@@ -102,6 +106,8 @@ sections:
             notebook: mmm/mmm_funnel_mueffect
           - title: "Advanced Funnel-Aware MMM: Geo-Level Mediation Through Lower-Funnel Spend"
             notebook: mmm/mmm_funnel_mueffect_advanced
+          - title: "Funnel MMMs from YAML"
+            notebook: mmm/mmm_funnel_from_yml
           - title: Long-Term Brand Effects in MMMs with Brand Metrics and a Bayesian VARX
             notebook: mmm/mmm_brand_metrics_long_term
           - title: Causal Reasoning and Discovery

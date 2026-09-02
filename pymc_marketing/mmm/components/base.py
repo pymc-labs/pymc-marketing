@@ -58,7 +58,7 @@ type SupportedPrior = (
     | InstanceOf[Variable]
     | InstanceOf[VariableFactory]
     | list
-    | InstanceOf[npt.NDArray[np.floating]]
+    | InstanceOf[np.ndarray]
 )
 
 
@@ -417,10 +417,40 @@ class Transformation:
         xr.Dataset
             The dataset with the sampled priors.
 
+        Notes
+        -----
+        Parameters supplied as constant tensors (instead of a :class:`Prior`)
+        are not random variables, so ``pm.sample_prior_predictive`` has nothing
+        to sample. They are wrapped in a ``pm.DiracDelta`` so their constant
+        value is returned for every draw (related to #1749).
+
         """
         coords = coords or {}
         with pm.Model(coords=coords):
             self._create_distributions()
+            for parameter_name, variable_name in self.variable_mapping.items():
+                constant = self.function_priors[parameter_name]
+                # Mirrors ``_create_distributions``' dispatch: anything without
+                # ``create_variable`` registered no random variable, so wrap it
+                # in a DiracDelta to give ``sample_prior_predictive`` something
+                # to sample.
+                if hasattr(constant, "create_variable"):
+                    continue
+                if isinstance(constant, XTensorVariable):
+                    if missing := set(constant.type.dims) - set(coords):
+                        raise ValueError(
+                            f"Not all dims {constant.type.dims} of the constant "
+                            f"parameter {parameter_name!r} are part of the model "
+                            f"coords. Missing: {sorted(missing)}. Pass them in the "
+                            "`coords` argument of `sample_prior`."
+                        )
+                    # pm.DiracDelta refuses XTensorVariable input, but the dims
+                    # it carries are the ones the draws should keep.
+                    pm.DiracDelta(
+                        variable_name, constant.values, dims=constant.type.dims
+                    )
+                else:
+                    pm.DiracDelta(variable_name, constant)
             prior_pred = pm.sample_prior_predictive(**sample_prior_predictive_kwargs)
             return prior_pred["/prior"].to_dataset()
 
