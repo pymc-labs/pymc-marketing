@@ -8,5 +8,45 @@
 # * Our guide about SEO techniques: https://docs.readthedocs.com/platform/stable/guides/technical-docs-seo-guide.html
 
 User-agent: *
+# Versions 0.17.x and older were built before canonical tags existed (#2119)
+# and compete with /en/stable/ for the same queries, splitting ranking
+# signals. Versions 0.18+ carry canonicals pointing at stable and stay
+# crawlable so Google can consolidate them itself. Minor versions are listed
+# explicitly because a "/en/0.1" prefix would also match 0.18 and 0.19.
+Disallow: /en/0.4
+Disallow: /en/0.5
+Disallow: /en/0.6
+Disallow: /en/0.7
+Disallow: /en/0.8
+Disallow: /en/0.9
+Disallow: /en/0.10
+Disallow: /en/0.11
+Disallow: /en/0.12
+Disallow: /en/0.13
+Disallow: /en/0.14
+Disallow: /en/0.15
+Disallow: /en/0.16
+Disallow: /en/0.17
+Disallow: /es/0.4
+Disallow: /es/0.5
+Disallow: /es/0.6
+Disallow: /es/0.7
+Disallow: /es/0.8
+Disallow: /es/0.9
+Disallow: /es/0.10
+Disallow: /es/0.11
+Disallow: /es/0.12
+Disallow: /es/0.13
+Disallow: /es/0.14
+Disallow: /es/0.15
+Disallow: /es/0.16
+Disallow: /es/0.17
+# Thin auto-generated per-method stub pages: ~80% of all pages, none of them
+# indexable content. Keeping crawlers out spends crawl budget on real pages.
+Disallow: /en/stable/api/generated/classmethods/
+Disallow: /en/latest/api/generated/classmethods/
+Disallow: /es/stable/api/generated/classmethods/
+Disallow: /es/latest/api/generated/classmethods/
 
 Sitemap: https://www.pymc-marketing.io/en/stable/sitemap.xml
+Sitemap: https://www.pymc-marketing.io/es/stable/sitemap.xml

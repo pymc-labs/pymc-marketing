@@ -67,6 +67,7 @@ MMM integration:
 >>> mmm = MMM(
 ...     adstock=GeometricAdstock(l_max=8),
 ...     saturation=LogisticSaturation(),
+...     yearly_seasonality=4,
 ...     model_config={
 ...         "likelihood": Prior("Normal", sigma=r2d2.error_sigma),
 ...         "gamma_control": r2d2.split("control"),
@@ -321,6 +322,7 @@ class R2D2:
     >>> mmm = MMM(
     ...     adstock=GeometricAdstock(l_max=8),
     ...     saturation=LogisticSaturation(),
+    ...     yearly_seasonality=4,
     ...     model_config={
     ...         "likelihood": Prior("Normal", sigma=r2d2.error_sigma),
     ...         "gamma_control": r2d2.split("control"),
