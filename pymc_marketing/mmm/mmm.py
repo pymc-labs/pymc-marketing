@@ -2289,9 +2289,12 @@ class MMM(RegressionModelBuilder):
         # Compute and save scales
         self._compute_scales()
 
-        with pm.Model(
-            coords=self.model_coords,
-        ) as self.model:
+        with pm.Model(coords=self.model_coords) as self.model:
+            if self.yearly_seasonality:
+                self.model.add_coord(
+                    self.yearly_fourier.prefix, self.yearly_fourier.nodes
+                )
+
             _channel_scale = pmd.Data("channel_scale", self.scalers._channel)
             _target_scale = pmd.Data("target_scale", self.scalers._target)
 
