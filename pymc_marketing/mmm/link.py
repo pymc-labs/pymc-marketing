@@ -40,18 +40,12 @@ class LinkFunction(StrEnum):
     LOG = "log"
 
 
-#: Likelihoods whose ``mu`` parameter is on the scale of the response, so the
-#: additive decomposition under the identity link is in the units of the target.
-#: This is about units only.  ``mu`` still need not equal ``E[y]``: under
-#: ``TruncatedNormal`` it does not, so ``*_original_scale`` will not reconcile
-#: against the posterior predictive mean.  See issue #2834.
-#: Three ``pymc.dims`` likelihoods take ``mu`` on the response scale and are
-#: still left out.  ``Poisson`` and ``NegativeBinomial`` are discrete while the
-#: likelihood is observed on the target divided by ``target_scale``, which is
-#: not integer-valued, so they cannot be used under this model at all.
-#: ``Beta`` needs the target inside ``(0, 1)``, which the scaling does not
-#: guarantee, and nothing checks the target against the likelihood support yet.
-#: See issue #2835.
+#: Likelihoods whose ``mu`` is on the response scale, so the identity-link
+#: decomposition is in the units of the target.  Entries are ``pymc``
+#: distribution names; ``"LogNormalPrior"`` is a class name because
+#: ``SpecialPrior`` objects have no ``distribution`` attribute.
+#: See #2834 (``mu`` need not equal ``E[y]``) and #2835 (likelihoods excluded
+#: because the scaled target violates their support).
 RESPONSE_SCALE_LIKELIHOODS = frozenset(
     {
         "Normal",
@@ -60,6 +54,7 @@ RESPONSE_SCALE_LIKELIHOODS = frozenset(
         "Gamma",
         "Laplace",
         "InverseGamma",
+        "LogNormalPrior",
     }
 )
 
@@ -70,6 +65,22 @@ NON_RESPONSE_SCALE_LIKELIHOODS = {"LogNormal": "log"}
 #: Likelihoods allowed for the non-identity links, which each need one specific
 #: distributional form for their counterfactual decomposition to be correct.
 LINK_LIKELIHOODS = {LinkFunction.LOG: frozenset({"LogNormal"})}
+
+
+def _response_scale_likelihoods_display() -> str:
+    """Render ``RESPONSE_SCALE_LIKELIHOODS`` for user-facing messages.
+
+    ``LogNormalPrior`` is a ``pymc_marketing.special_priors`` class admitted
+    by its class name, not a distribution accepted by ``Prior(...)``, so it
+    is listed separately to stop readers from trying
+    ``Prior("LogNormalPrior", ...)``.
+    """
+    names = sorted(RESPONSE_SCALE_LIKELIHOODS - {"LogNormalPrior"})
+    return (
+        f"{names} (Prior distribution names) or a "
+        "pymc_marketing.special_priors.LogNormalPrior instance passed "
+        "directly as the likelihood"
+    )
 
 
 def _distribution_name(likelihood: Prior) -> str:
@@ -307,7 +318,7 @@ class LinkSpec(ABC):
                     "'target_scale'. Use link='log' with LogNormal (it needs a "
                     "strictly positive target), or keep link='identity' with a "
                     "likelihood whose 'mu' is the response scale: "
-                    f"{sorted(RESPONSE_SCALE_LIKELIHOODS)}. "
+                    f"{_response_scale_likelihoods_display()}. "
                     "To repair an already saved model without refitting:\n"
                     "    kwargs = MMM.idata_to_init_kwargs(idata)\n"
                     "    kwargs['link'] = 'log'  # or edit "
@@ -322,7 +333,7 @@ class LinkSpec(ABC):
                     "'mu' is on the scale of the target. Check that it is "
                     "before reading '*_original_scale' variables. Known "
                     "response-scale likelihoods: "
-                    f"{sorted(RESPONSE_SCALE_LIKELIHOODS)}.",
+                    f"{_response_scale_likelihoods_display()}.",
                     UserWarning,
                     stacklevel=2,
                 )
