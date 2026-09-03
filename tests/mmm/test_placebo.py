@@ -26,17 +26,29 @@ from pymc_marketing.mmm.placebo import (
 )
 
 
-@pytest.fixture
-def spend() -> pd.DataFrame:
-    """Two geos of autocorrelated spend, so a shift has something to preserve."""
-    rng = np.random.default_rng(20260902)
+def _panel(n_geo: int = 2, n: int = 200, seed: int = 20260902) -> pd.DataFrame:
+    """Autocorrelated spend per geo, so a circular shift has something to preserve."""
+    rng = np.random.default_rng(seed)
     rows = []
-    for geo in ("geo_a", "geo_b"):
-        x = np.zeros(200)
-        for i in range(1, 200):
+    for geo in [f"geo_{c}" for c in "abcdef"][:n_geo]:
+        x = np.zeros(n)
+        for i in range(1, n):
             x[i] = 0.85 * x[i - 1] + rng.normal(scale=1.0)
         rows.append(pd.DataFrame({"geo": geo, "x1": x - x.min() + 1.0}))
     return pd.concat(rows, ignore_index=True)
+
+
+@pytest.fixture
+def spend() -> pd.DataFrame:
+    """Two geos of autocorrelated spend, so a shift has something to preserve."""
+    return _panel()
+
+
+@pytest.fixture
+def wide_panel() -> pd.DataFrame:
+    """Six geos. Pooling divides one bad group by the number of groups, so the
+    gap between a pooled bound and a per-group one widens with the group count."""
+    return _panel(n_geo=6, seed=7)
 
 
 def _contribution(values: dict[str, float], seed: int = 0) -> xr.DataArray:
@@ -77,9 +89,14 @@ class TestAddPlaceboChannel:
         v = g[name].to_numpy()
         assert abs(np.corrcoef(v[:-1], v[1:])[0, 1]) < 0.3
 
-    def test_alignment_is_destroyed(self, spend):
+    def test_alignment_is_destroyed_in_every_group(self, spend):
+        """Measured per group, because that is where the offsets are drawn.
+
+        Checking the pooled frame reads as though it ruled a near-copy out while
+        leaving one market unmeasured, which is the defect this suite missed.
+        """
         out, name = add_placebo_channel(spend, "x1", group_column="geo", seed=1)
-        assert abs(placebo_correlation(out, "x1", name)) <= 0.3
+        assert placebo_correlation(out, "x1", name, group_column="geo") <= 0.3
 
     def test_seed_is_deterministic(self, spend):
         a, name = add_placebo_channel(spend, "x1", group_column="geo", seed=7)
@@ -90,22 +107,45 @@ class TestAddPlaceboChannel:
     def test_the_guard_holds_for_every_seed(self, spend, seed):
         """A near-copy is not a placebo, and an unseeded caller must not get one."""
         out, name = add_placebo_channel(spend, "x1", group_column="geo", seed=seed)
-        assert abs(placebo_correlation(out, "x1", name)) <= 0.3
+        assert placebo_correlation(out, "x1", name, group_column="geo") <= 0.3
 
-    def test_a_loose_bound_admits_what_the_default_rejects(self, spend):
+    def test_no_group_slips_through_on_a_wide_panel(self, wide_panel):
+        """Regression: a pooled bound divides one bad group by the group count.
+
+        With six groups and the bound applied to the pooled series, a group
+        exceeded 0.3 in 63% of draws and reached 0.88. The bound is per group, so
+        no draw may leave any group above it.
+        """
+        for seed in range(40):
+            out, name = add_placebo_channel(
+                wide_panel, "x1", group_column="geo", seed=seed
+            )
+            assert placebo_correlation(out, "x1", name, group_column="geo") <= 0.3
+
+    def test_a_loose_bound_admits_what_the_default_rejects(self, wide_panel):
         """Positive control: the guard is doing the work, not the shift itself.
 
-        With the bound effectively switched off some seed produces a placebo the
-        default would refuse. If this never happened, the guard would be
-        untested and passing for the wrong reason.
+        With the bound switched off some seed produces a group the default would
+        refuse. If this never happened the guard would be untested and passing for
+        the wrong reason, which is how the pooled version survived its own suite.
         """
         worst = 0.0
-        for seed in range(60):
+        for seed in range(40):
             out, name = add_placebo_channel(
-                spend, "x1", group_column="geo", seed=seed, max_abs_corr=1.0
+                wide_panel, "x1", group_column="geo", seed=seed, max_abs_corr=1.0
             )
-            worst = max(worst, abs(placebo_correlation(out, "x1", name)))
+            worst = max(worst, placebo_correlation(out, "x1", name, group_column="geo"))
         assert worst > 0.3
+
+    def test_pooled_and_per_group_are_different_quantities(self, wide_panel):
+        """The pooled figure can sit far below the worst group, which is the whole
+        reason the bound is applied per group."""
+        out, name = add_placebo_channel(
+            wide_panel, "x1", group_column="geo", seed=3, max_abs_corr=1.0
+        )
+        pooled = abs(placebo_correlation(out, "x1", name))
+        per_group = placebo_correlation(out, "x1", name, group_column="geo")
+        assert per_group >= pooled
 
     def test_unreachable_bound_raises(self, spend):
         with pytest.raises(ValueError, match="no draw left"):
@@ -120,6 +160,28 @@ class TestAddPlaceboChannel:
     def test_the_real_column_is_untouched(self, spend):
         out, _ = add_placebo_channel(spend, "x1", group_column="geo", seed=1)
         pd.testing.assert_series_equal(out["x1"], spend["x1"])
+
+    def test_a_duplicated_index_is_not_an_error(self):
+        """A long panel indexed by date has one row per group per period.
+
+        Aligning the new column on those labels raised "cannot reindex on an axis
+        with duplicate labels" from inside pandas, which names nothing the caller
+        controls. The column is assigned positionally instead.
+        """
+        rng = np.random.default_rng(0)
+        dates = pd.date_range("2023-01-02", periods=60, freq="W")
+        X = pd.concat(
+            [
+                pd.DataFrame({"geo": g, "x1": rng.gamma(2, 1, 60)}, index=dates)
+                for g in ("A", "B")
+            ]
+        )
+        out, name = add_placebo_channel(X, "x1", group_column="geo", seed=1)
+        assert len(out) == len(X)
+        for _, group in out.groupby("geo", sort=False):
+            np.testing.assert_allclose(
+                np.sort(group["x1"].to_numpy()), np.sort(group[name].to_numpy())
+            )
 
 
 class TestSummarize:
