@@ -77,6 +77,12 @@ from pymc_marketing.mmm.optimization_variables import (
     OptimizationVariable,
     OptimizationVariables,
 )
+from pymc_marketing.mmm.placebo import (
+    add_placebo_channel,
+    contribution_share,
+    placebo_correlation,
+    summarize_placebo_contribution,
+)
 from pymc_marketing.mmm.plotting import MMMPlotSuiteFacade
 from pymc_marketing.mmm.preprocessing import (
     preprocessing_method_X,
@@ -148,16 +154,20 @@ __all__ = [
     "WeibullCDFAdstock",
     "WeibullPDFAdstock",
     "YearlyFourier",
+    "add_placebo_channel",
     "approx_hsgp_hyperparams",
+    "contribution_share",
     "create_complexity_penalizing_prior",
     "create_constrained_inverse_gamma_prior",
     "create_eta_prior",
     "create_m_and_L_recommendations",
     "merge_inference_data",
     "merge_models_and_idata",
+    "placebo_correlation",
     "preprocessing",
     "preprocessing_method_X",
     "preprocessing_method_y",
+    "summarize_placebo_contribution",
     "validating",
     "validation_method_X",
     "validation_method_y",
