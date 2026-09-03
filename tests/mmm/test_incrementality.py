@@ -2235,7 +2235,7 @@ class TestMediatedMuEffects:
             dates=incr.data.dates,
         )
 
-        assert evaluator.windowed_data_vars == ("lf_budget",)
+        assert evaluator.windowed_data_vars == ("funnel_lf_budget",)
         assert evaluator.non_date_dims["channel_contribution"] == ("channel",)
         assert evaluator.non_date_dims["funnel_effect_contribution"] == ()
 
@@ -2736,14 +2736,14 @@ class TestPostFitMutationGuard:
         test regardless of whether it passes or fails.
         """
         model = funnel_identity_fitted_mmm.model
-        original = model["lf_budget"].get_value(borrow=False).copy()
+        original = model["funnel_lf_budget"].get_value(borrow=False).copy()
         with model:
-            pm.set_data({"lf_budget": original + 5.0})
+            pm.set_data({"funnel_lf_budget": original + 5.0})
         try:
             yield funnel_identity_fitted_mmm
         finally:
             with model:
-                pm.set_data({"lf_budget": original})
+                pm.set_data({"funnel_lf_budget": original})
 
     def test_a_mutated_mediator_input_is_refused(self, mutated_lf_budget):
         """The mutation is caught and named, not silently evaluated.
@@ -2752,7 +2752,7 @@ class TestPostFitMutationGuard:
         an increment computed from the mutated budget instead of the fitted
         one, with nothing to say so.
         """
-        with pytest.raises(ValueError, match=r"'lf_budget'.*changed since"):
+        with pytest.raises(ValueError, match=r"'funnel_lf_budget'.*changed since"):
             mutated_lf_budget.incrementality.compute_incremental_contribution(
                 frequency="all_time"
             )

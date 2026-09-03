@@ -527,7 +527,8 @@ class TestDataVarMuEffect:
         with mmm.model:
             effect.create_data(mmm)
 
-        assert "feature" in mmm.model.named_vars
+        assert "test_feature" in mmm.model.named_vars
+        assert "feature" not in mmm.model.named_vars
 
     def test_set_data_updates_variables(self, dates, new_dates):
         """set_data updates pm.Data from new dataset."""
@@ -554,7 +555,10 @@ class TestDataVarMuEffect:
             def set_data(self, mmm, model, X):  # type: ignore
                 for var_name in self.data_vars:
                     if var_name in X.data_vars:
-                        pm.set_data({var_name: X[var_name].values}, model=model)
+                        pm.set_data(
+                            {self.model_data_name(var_name): X[var_name].values},
+                            model=model,
+                        )
 
         effect = TestEffect()
 
@@ -563,6 +567,45 @@ class TestDataVarMuEffect:
             model_copy = model.copy()
             model_copy.set_dim("date", len(new_dates), coord_values=new_dates)
             effect.set_data(mmm, model_copy, new_ds)
+
+    def test_two_effects_with_same_data_vars_do_not_collide(self, dates):
+        """Prefixed pm.Data names let two effects share dataset column names."""
+        rng = np.random.default_rng(42)
+        ds = xr.Dataset(
+            {
+                "shared": (("date",), rng.normal(size=len(dates))),
+            },
+            coords={"date": dates},
+        )
+        model = pm.Model(coords={"date": dates})
+        mmm = self._make_mock_mmm(model, ds)
+
+        class EffectA(DataVarMuEffect):
+            data_vars: list[str] = ["shared"]
+            prefix: str = "a"
+
+            def create_effect(self, mmm):  # type: ignore
+                return pt.as_tensor(0.0)
+
+            def set_data(self, mmm, model, X):  # type: ignore
+                pass
+
+        class EffectB(DataVarMuEffect):
+            data_vars: list[str] = ["shared"]
+            prefix: str = "b"
+
+            def create_effect(self, mmm):  # type: ignore
+                return pt.as_tensor(0.0)
+
+            def set_data(self, mmm, model, X):  # type: ignore
+                pass
+
+        with mmm.model:
+            EffectA().create_data(mmm)
+            EffectB().create_data(mmm)
+
+        assert "a_shared" in mmm.model.named_vars
+        assert "b_shared" in mmm.model.named_vars
 
 
 class TestMediaMuEffect:
@@ -738,7 +781,7 @@ class TestMediaMuEffect:
             effect.set_data(mmm, model_copy, new_ds)
 
         # Check that set_data didn't error and variables exist
-        var_name = "media_data"
+        var_name = f"{prefix}_media_data"
         assert var_name in model_copy.named_vars
 
     def test_serialization_roundtrip(self):
