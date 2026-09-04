@@ -177,6 +177,7 @@ numpydoc_xref_aliases = {
 typehints_document_rtype = False
 
 # intersphinx configuration to ease linking arviz docs
+_intersphinx_inv = Path(__file__).parent / "_inv"
 intersphinx_mapping = {
     "arviz": ("https://python.arviz.org/en/latest/", None),
     "examples": ("https://www.pymc.io/projects/examples/en/latest/", None),
@@ -186,7 +187,11 @@ intersphinx_mapping = {
     "pymc": ("https://www.pymc.io/projects/docs/en/stable/", None),
     "pytensor": ("https://pytensor.readthedocs.io/en/latest/", None),
     "python": ("https://docs.python.org/3/", None),
-    "scipy": ("https://docs.scipy.org/doc/scipy/", None),
+    # Vendored: docs.scipy.org/objects.inv intermittently times out on CI/RTD.
+    "scipy": (
+        "https://docs.scipy.org/doc/scipy/",
+        str(_intersphinx_inv / "scipy.objects.inv"),
+    ),
     "xarray": ("https://docs.xarray.dev/en/stable/", None),
 }
 
