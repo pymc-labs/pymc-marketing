@@ -314,6 +314,53 @@ class TestBetaGeoBetaBinomModel:
         assert len(idata.posterior.draw) == 10
         assert model.idata is idata
 
+    def _logp_inputs(self, data):
+        dataset = self.model._extract_predictive_variables(
+            data, customer_varnames=["frequency", "recency", "T"]
+        )
+        return dict(
+            alpha=dataset["alpha"],
+            beta=dataset["beta"],
+            gamma=dataset["gamma"],
+            delta=dataset["delta"],
+            x=dataset["frequency"],
+            t_x=dataset["recency"],
+            T=dataset["T"],
+        )
+
+    def test_logp_varies_across_draws(self):
+        """Every posterior draw must get its own data-dependent log-likelihood.
+
+        The previous implementation evaluated the customer scan for a single draw only
+        and broadcast that result, so each draw differed from the first one by the same
+        constant for every customer. Averaging over draws (as the reference-value tests
+        do) hides that, so the offsets are compared per customer here.
+        """
+        loglike = self.model._logp(**self._logp_inputs(self.pred_data))
+
+        assert loglike.dims == ("chain", "draw", "customer_id")
+        offsets = loglike - loglike.isel(chain=0, draw=0)
+        # A collapsed logp only shifts by the normalizer, which is customer-independent
+        assert float(offsets.std("customer_id").max()) > 1e-8
+
+    def test_logp_fn_is_compiled_once(self):
+        model = BetaGeoBetaBinomModel()
+        model.build_model(data=self.pred_data)
+        create_mock_fit(
+            {
+                "alpha": self.alpha_true,
+                "beta": self.beta_true,
+                "delta": self.delta_true,
+                "gamma": self.gamma_true,
+            }
+        )(model, chains=2, draws=5, rng=np.random.default_rng(42))
+
+        assert "_logp_fn" not in model.__dict__
+        model.expected_purchases(future_t=1)
+        compiled = model.__dict__["_logp_fn"]
+        model.expected_purchases(future_t=2)
+        assert model.__dict__["_logp_fn"] is compiled
+
     @pytest.mark.parametrize("test_t", [1, 3, 6])
     def test_expected_purchases(self, test_t):
         # Reference values from BG/BB MLE on donations dataset (22 test customers)
