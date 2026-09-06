@@ -197,6 +197,39 @@ class TestBetaGeoBetaBinom:
             rtol=1e-3,
         )
 
+    def test_logp_length_one_value_broadcasts_to_parameter_batch(self):
+        # Regression test for #2919: with a length-1 value against a batched
+        # parameter set, `x` was not broadcast to the batch length, so `scan`
+        # truncated to a single step and the data-dependent term was computed
+        # once (effectively for draw 0) and reused for every draw, collapsing
+        # the posterior variation of everything flowing through `_logp`.
+        alpha = np.full(6, 1.204)
+        beta = np.full(6, 0.750)
+        gamma = np.full(6, 0.657)
+        delta = np.full(6, 2.783)
+        T = np.full(6, 6)
+
+        # Single customer: t_x=3, x=2
+        value_one = np.array([[3.0, 2.0]])
+        value_tiled = np.repeat(value_one, 6, axis=0)
+
+        dist = BetaGeoBetaBinom.dist(
+            alpha=alpha, beta=beta, gamma=gamma, delta=delta, T=T
+        )
+        logp_one = pm.logp(dist, value_one).eval()
+        logp_tiled = pm.logp(dist, value_tiled).eval()
+
+        # A length-1 value must broadcast to the full parameter batch.
+        assert logp_one.shape == (6,)
+        np.testing.assert_allclose(logp_one, logp_tiled, rtol=1e-10)
+
+        # And it must agree with the scalar-parameter logp of that customer.
+        dist_scalar = BetaGeoBetaBinom.dist(
+            alpha=1.204, beta=0.750, gamma=0.657, delta=2.783, T=6
+        )
+        expected_first = pm.logp(dist_scalar, value_one[0]).eval()
+        np.testing.assert_allclose(logp_tiled[0], expected_first, rtol=1e-8)
+
     def test_invalid_value_logp(self):
         beta_geo_beta_binom = BetaGeoBetaBinom.dist(
             alpha=1.20, beta=0.75, gamma=0.66, delta=2.78, T=6
