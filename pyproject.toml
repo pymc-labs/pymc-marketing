@@ -36,6 +36,7 @@ dependencies = [
     # and uv>=0.12 otherwise falls back to a numba pre-release. Lift together with
     # the next pytensor bump that allows numba>=0.67.
     "numpy>=2.0,<2.5",
+    # CI runs pandas 3; 2.2+ is declared but not exercised by CI.
     "pandas>=2.2",
     "patsy",
     "preliz>=0.20.0,<1.0",

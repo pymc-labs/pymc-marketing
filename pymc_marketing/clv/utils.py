@@ -34,9 +34,16 @@ __all__ = [
 # CLV estimates for the "D", "W" and "H" time units.
 _DAYS_PER_MONTH = 30.4375
 
-# ``time_unit`` values are period aliases. pandas 3 removed the ``M`` and ``H``
-# offset aliases, so translate them before building a ``date_range``.
-_OFFSET_ALIASES = {"M": "ME", "H": "h"}
+# pandas 3 removed the "H" period alias ("h" replaces it) and numpy never
+# accepted "H" as a datetime unit. Normalise once at the public entry points.
+_PERIOD_ALIASES = {"H": "h"}
+# "M" stays the monthly period alias but pandas 3 needs "ME" for offsets.
+_OFFSET_ALIASES = {"M": "ME"}
+
+
+def _normalize_time_unit(time_unit: str) -> str:
+    """Return the pandas period alias for a public ``time_unit`` value."""
+    return _PERIOD_ALIASES.get(time_unit, time_unit)
 
 
 def to_xarray(customer_id, *arrays, dim: str = "customer_id"):
@@ -101,6 +108,7 @@ def customer_lifetime_value(
         DataArray containing estimated customer lifetime values
 
     """
+    time_unit = _normalize_time_unit(time_unit)
     if "future_spend" not in data.columns:
         raise ValueError("Required column future_spend missing")
 
@@ -138,7 +146,7 @@ def customer_lifetime_value(
         "W": _DAYS_PER_MONTH / 7,
         "M": 1.0,
         "D": _DAYS_PER_MONTH,
-        "H": _DAYS_PER_MONTH * 24,
+        "h": _DAYS_PER_MONTH * 24,
     }[time_unit]
 
     monetary_value = to_xarray(data["customer_id"], data["future_spend"])
@@ -212,13 +220,14 @@ def _find_first_transactions(
         Events after this date are truncated. If not given, defaults to the max 'datetime_col'.
     time_unit : string, optional
         Time granularity for study.
-        Default : 'D' for days. Possible values listed here:
-        https://numpy.org/devdocs/reference/arrays.datetime.html#datetime-units
+        Default: 'D' for days. Other options are 'W' (weekly), 'M' (monthly)
+        and 'H' (hourly).
     sort_transactions : bool, optional
         Default: True
         If raw data is already sorted in chronological order, set to `False` to improve computational efficiency.
 
     """
+    time_unit = _normalize_time_unit(time_unit)
     select_columns = [customer_id_col, datetime_col]
 
     if monetary_value_col:
@@ -267,7 +276,7 @@ def _find_first_transactions(
 
     # create a new column for flagging first transactions
     period_transactions = period_transactions.copy()
-    period_transactions.loc[:, "first"] = False
+    period_transactions["first"] = False
     # find all first transactions and store as an index
     first_transactions = (
         period_transactions.groupby(customer_id_col, sort=True, as_index=False)
@@ -330,8 +339,8 @@ def rfm_summary(
         A string that represents the timestamp format. Useful if Pandas doesn't recognize the provided format.
     time_unit : string, optional
         Time granularity for study.
-        Default: 'D' for days. Possible values listed here:
-        https://numpy.org/devdocs/reference/arrays.datetime.html#datetime-units
+        Default: 'D' for days. Other options are 'W' (weekly), 'M' (monthly)
+        and 'H' (hourly).
     time_scaler : int, optional
         Default: 1. Scales *recency* & *T* to a different time granularity.
         This is useful for datasets spanning many years, and running predictions in different time scales.
@@ -355,6 +364,7 @@ def rfm_summary(
         and *monetary_value* if specified
 
     """
+    time_unit = _normalize_time_unit(time_unit)
     if observation_period_end is None:
         observation_period_end_ts = (
             pandas.to_datetime(transactions[datetime_col], format=datetime_format)
@@ -486,8 +496,8 @@ def rfm_train_test_split(
         Events after this date are truncated. If not given, defaults to the max of *datetime_col*.
     time_unit : string, optional
         Time granularity for study.
-        Default: 'D' for days. Possible values listed here:
-        https://numpy.org/devdocs/reference/arrays.datetime.html#datetime-units
+        Default: 'D' for days. Other options are 'W' (weekly), 'M' (monthly)
+        and 'H' (hourly).
     time_scaler : int, optional
         Default: 1. Scales *recency* & *T* to a different time granularity.
         This is useful for datasets spanning many years, and running predictions in different time scales.
@@ -511,6 +521,7 @@ def rfm_train_test_split(
         and *monetary_value* if specified
 
     """
+    time_unit = _normalize_time_unit(time_unit)
     transaction_cols = [customer_id_col, datetime_col]
     if monetary_value_col:
         transaction_cols.append(monetary_value_col)
@@ -669,8 +680,8 @@ def rfm_segments(
         A string that represents the timestamp format. Useful if Pandas doesn't recognize the provided format.
     time_unit : string, optional
         Time granularity for study.
-        Default: 'D' for days. Possible values listed here:
-        https://numpy.org/devdocs/reference/arrays.datetime.html#datetime-units
+        Default: 'D' for days. Other options are 'W' (weekly), 'M' (monthly)
+        and 'H' (hourly).
     time_scaler : int, optional
         Default: 1. Scales *recency* & *T* to a different time granularity.
         This is useful for datasets spanning many years, and running predictions in different time scales.
@@ -684,6 +695,7 @@ def rfm_segments(
         Dataframe containing summarized RFM data, RFM scores, and segment assignments
 
     """
+    time_unit = _normalize_time_unit(time_unit)
     rfm_data = rfm_summary(
         transactions,
         customer_id_col=customer_id_col,
@@ -856,8 +868,8 @@ def _expected_cumulative_transactions(
         A string that represents the timestamp format. Useful if Pandas doesn't recognize the provided format.
     time_unit : string, optional
         Time granularity for study.
-        Default: 'D' for days. Possible values listed here:
-        https://numpy.org/devdocs/reference/arrays.datetime.html#datetime-units
+        Default: 'D' for days. Other options are 'W' (weekly), 'M' (monthly)
+        and 'H' (hourly).
     time_scaler : int, optional
         Default: 1. Scales *recency* & *T* to a different time granularity.
         This is useful for datasets spanning many years, and running predictions in different time scales.
@@ -878,6 +890,7 @@ def _expected_cumulative_transactions(
     A Note on Implementing the Pareto/NBD Model in MATLAB.
     http://brucehardie.com/notes/008/
     """
+    time_unit = _normalize_time_unit(time_unit)
     start_date = pandas.to_datetime(
         transactions[datetime_col], format=datetime_format
     ).min()

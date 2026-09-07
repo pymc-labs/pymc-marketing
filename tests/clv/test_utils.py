@@ -139,6 +139,7 @@ class TestCustomerLifetimeValue:
             ("W", 365.25 / 7),
             ("D", 365.25),
             ("H", 365.25 * 24),
+            ("h", 365.25 * 24),
         ],
     )
     def test_time_unit_scaling(self, time_unit, expected_periods):
@@ -230,6 +231,18 @@ class TestCustomerLifetimeValue:
             data=t,
         )
         np.testing.assert_equal(ggf_clv.values, utils_clv.values)
+
+    def test_expected_customer_lifetime_value_does_not_mutate_data(
+        self, test_summary_data, fitted_gg, fitted_bg
+    ):
+        data = test_summary_data.head().drop(columns="future_spend")
+        data_before = data.copy()
+
+        fitted_gg.expected_customer_lifetime_value(
+            transaction_model=fitted_bg, data=data
+        )
+
+        pd.testing.assert_frame_equal(data, data_before)
 
     @pytest.mark.parametrize("gg_map", (True, False))
     @pytest.mark.parametrize("transaction_model_map", (True, False))
@@ -1008,6 +1021,88 @@ def test_expected_cumulative_transactions_monthly_time_unit(fitted_bg, cdnow_tra
     assert isinstance(df_cum.index, pd.PeriodIndex)
     assert df_cum.index.freqstr == "M"
     assert (df_cum["actual"].diff().dropna() >= 0).all()
+
+
+@pytest.fixture
+def hourly_transactions() -> pd.DataFrame:
+    """Four customers with repeat purchases spread over three days at hour resolution."""
+    return pd.DataFrame(
+        {
+            "id": [1, 1, 1, 2, 2, 3, 3, 3, 3, 4, 4],
+            "date": [
+                "2024-01-01 00:10",
+                "2024-01-01 03:30",
+                "2024-01-02 05:00",
+                "2024-01-01 01:00",
+                "2024-01-01 22:00",
+                "2024-01-01 06:00",
+                "2024-01-01 06:20",
+                "2024-01-02 12:00",
+                "2024-01-03 08:00",
+                "2024-01-01 09:00",
+                "2024-01-02 09:30",
+            ],
+            "monetary_value": [
+                10.0,
+                12.0,
+                8.0,
+                5.0,
+                7.0,
+                20.0,
+                1.0,
+                3.0,
+                4.0,
+                9.0,
+                11.0,
+            ],
+        }
+    )
+
+
+@pytest.mark.parametrize("time_unit", ["H", "h"])
+def test_expected_cumulative_transactions_hourly_time_unit(
+    fitted_bg, hourly_transactions, time_unit
+):
+    """Hourly ``time_unit`` works with the ``H`` and ``h`` spellings on every pandas."""
+    t = 48
+    df_cum = _expected_cumulative_transactions(
+        fitted_bg,
+        hourly_transactions,
+        customer_id_col="id",
+        datetime_col="date",
+        t=t,
+        time_unit=time_unit,
+        set_index_date=True,
+    )
+
+    assert len(df_cum) == t
+    assert isinstance(df_cum.index, pd.PeriodIndex)
+    assert df_cum.index.freqstr == "h"
+    # Repeat transactions within the first 48 hours after the first purchase.
+    assert df_cum["actual"].iloc[-1] == 5
+    assert (df_cum["actual"].diff().dropna() >= 0).all()
+    assert (df_cum["predicted"].diff().dropna() > 0).all()
+
+
+@pytest.mark.parametrize("time_unit", ["H", "h"])
+def test_rfm_summary_hourly_time_unit(hourly_transactions, time_unit):
+    """``rfm_summary`` measures recency and T in hours for the ``H`` and ``h`` spellings."""
+    summary = rfm_summary(
+        hourly_transactions,
+        customer_id_col="id",
+        datetime_col="date",
+        monetary_value_col="monetary_value",
+        time_unit=time_unit,
+    ).set_index("customer_id")
+
+    assert list(summary.index) == [1, 2, 3, 4]
+    # Customer 3 buys twice inside the same hour, which counts as one period.
+    assert summary["frequency"].tolist() == [2, 1, 2, 1]
+    # Customer 1: first purchase in hour 00:00 of day 1, last in hour 05:00 of day 2.
+    assert summary.loc[1, "recency"] == pytest.approx(29.0)
+    # Observation period ends at the last transaction hour (day 3, 08:00).
+    assert summary.loc[1, "T"] == pytest.approx(56.0)
+    assert np.isfinite(summary[["recency", "T", "monetary_value"]]).all().all()
 
 
 def test_expected_cumulative_incremental_transactions_equals_r_btyd_walkthrough(
