@@ -31,7 +31,7 @@ __all__ = [
 
 # Average length of a calendar month: 365.25 / 12, where 365.25 accounts for
 # leap years. Using a flat 30 here understates a year by 5.25 days and inflates
-# CLV estimates for the "D", "W" and "H" time units.
+# CLV estimates for the "D", "W" and "h" time units.
 _DAYS_PER_MONTH = 30.4375
 
 # pandas 3 removed the "H" period alias ("h" replaces it) and numpy never
@@ -405,17 +405,16 @@ def rfm_summary(
     # subtract 1 from count, as we ignore the first order.
     customers["frequency"] = customers["count"] - 1
 
-    customers["recency"] = (
-        (pandas.to_datetime(customers["max"]) - pandas.to_datetime(customers["min"]))
-        / np.timedelta64(1, time_unit)  # type: ignore[call-overload]
-        / time_scaler
-    )
+    # Count recency and T in calendar periods, like the frequency column does.
+    # Every timestamp here is already aligned to a period start, so this equals
+    # the timedelta division for "D", "W" and "h" and also works for "M", which
+    # has no fixed numpy duration.
+    first_period = customers["min"].dt.to_period(time_unit).array.asi8
+    last_period = customers["max"].dt.to_period(time_unit).array.asi8
+    end_period = observation_period_end_ts.to_period(time_unit).ordinal
 
-    customers["T"] = (
-        (observation_period_end_ts - customers["min"])
-        / np.timedelta64(1, time_unit)  # type: ignore[call-overload]
-        / time_scaler
-    )
+    customers["recency"] = (last_period - first_period) / time_scaler
+    customers["T"] = (end_period - first_period) / time_scaler
 
     summary_columns = ["frequency", "recency", "T"]
 
