@@ -194,6 +194,19 @@ def test_plain_array_time_points_point_at_as_xtensor(func, t) -> None:
         func(0.03, 0.38, t)
 
 
+@pytest.mark.parametrize("func", [F, f], ids=["F", "f"])
+@pytest.mark.parametrize(
+    "t",
+    [1.0, 1, np.float64(1.0), np.array(1.0)],
+    ids=["float", "int", "np.float64", "0d-ndarray"],
+)
+def test_scalar_time_points_need_no_labels(func, t) -> None:
+    """A scalar `t` carries no axes, so it needs no `as_xtensor`."""
+    labelled = func(0.03, 0.38, pmd.as_xtensor(np.array([1.0]), dims=("T",))).eval()
+
+    np.testing.assert_allclose(func(0.03, 0.38, t).eval(), labelled[0])
+
+
 class TestBassModel:
     """Test the Bass model creation and behavior."""
 
