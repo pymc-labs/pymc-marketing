@@ -139,6 +139,7 @@ class TestCustomerLifetimeValue:
             ("W", 365.25 / 7),
             ("D", 365.25),
             ("H", 365.25 * 24),
+            ("h", 365.25 * 24),
         ],
     )
     def test_time_unit_scaling(self, time_unit, expected_periods):
@@ -230,6 +231,18 @@ class TestCustomerLifetimeValue:
             data=t,
         )
         np.testing.assert_equal(ggf_clv.values, utils_clv.values)
+
+    def test_expected_customer_lifetime_value_does_not_mutate_data(
+        self, test_summary_data, fitted_gg, fitted_bg
+    ):
+        data = test_summary_data.head().drop(columns="future_spend")
+        data_before = data.copy()
+
+        fitted_gg.expected_customer_lifetime_value(
+            transaction_model=fitted_bg, data=data
+        )
+
+        pd.testing.assert_frame_equal(data, data_before)
 
     @pytest.mark.parametrize("gg_map", (True, False))
     @pytest.mark.parametrize("transaction_model_map", (True, False))
@@ -987,6 +1000,175 @@ def test_expected_cumulative_transactions_dedups_inside_a_time_period(
         fitted_bg, cdnow_trans, "date", "id", 10, time_unit="D"
     )
     assert (by_week["actual"] >= by_day["actual"]).all()
+
+
+def test_expected_cumulative_transactions_monthly_time_unit(fitted_bg, cdnow_trans):
+    """Monthly ``time_unit`` builds the date range with the pandas 3 month-end offset alias."""
+    t = 3
+    df_cum = _expected_cumulative_transactions(
+        fitted_bg,
+        cdnow_trans,
+        customer_id_col="id",
+        datetime_col="date",
+        t=t,
+        datetime_format="%Y%m%d",
+        time_unit="M",
+        set_index_date=True,
+    )
+
+    assert list(df_cum.columns) == ["actual", "predicted"]
+    assert len(df_cum) == t
+    assert isinstance(df_cum.index, pd.PeriodIndex)
+    assert df_cum.index.freqstr == "M"
+    assert (df_cum["actual"].diff().dropna() >= 0).all()
+
+
+@pytest.fixture
+def hourly_transactions() -> pd.DataFrame:
+    """Four customers with repeat purchases spread over three days at hour resolution."""
+    return pd.DataFrame(
+        {
+            "id": [1, 1, 1, 2, 2, 3, 3, 3, 3, 4, 4],
+            "date": [
+                "2024-01-01 00:10",
+                "2024-01-01 03:30",
+                "2024-01-02 05:00",
+                "2024-01-01 01:00",
+                "2024-01-01 22:00",
+                "2024-01-01 06:00",
+                "2024-01-01 06:20",
+                "2024-01-02 12:00",
+                "2024-01-03 08:00",
+                "2024-01-01 09:00",
+                "2024-01-02 09:30",
+            ],
+            "monetary_value": [
+                10.0,
+                12.0,
+                8.0,
+                5.0,
+                7.0,
+                20.0,
+                1.0,
+                3.0,
+                4.0,
+                9.0,
+                11.0,
+            ],
+        }
+    )
+
+
+@pytest.mark.parametrize("time_unit", ["H", "h"])
+def test_expected_cumulative_transactions_hourly_time_unit(
+    fitted_bg, hourly_transactions, time_unit
+):
+    """Hourly ``time_unit`` works with the ``H`` and ``h`` spellings on every pandas."""
+    t = 48
+    df_cum = _expected_cumulative_transactions(
+        fitted_bg,
+        hourly_transactions,
+        customer_id_col="id",
+        datetime_col="date",
+        t=t,
+        time_unit=time_unit,
+        set_index_date=True,
+    )
+
+    assert len(df_cum) == t
+    assert isinstance(df_cum.index, pd.PeriodIndex)
+    assert df_cum.index.freqstr == "h"
+    # Repeat transactions within the first 48 hours after the first purchase.
+    assert df_cum["actual"].iloc[-1] == 5
+    assert (df_cum["actual"].diff().dropna() >= 0).all()
+    assert (df_cum["predicted"].diff().dropna() >= 0).all()
+    assert df_cum["predicted"].iloc[-1] > df_cum["predicted"].iloc[0]
+
+
+@pytest.mark.parametrize("time_unit", ["H", "h"])
+def test_rfm_summary_hourly_time_unit(hourly_transactions, time_unit):
+    """``rfm_summary`` measures recency and T in hours for the ``H`` and ``h`` spellings."""
+    summary = rfm_summary(
+        hourly_transactions,
+        customer_id_col="id",
+        datetime_col="date",
+        monetary_value_col="monetary_value",
+        time_unit=time_unit,
+    ).set_index("customer_id")
+
+    assert list(summary.index) == [1, 2, 3, 4]
+    # Customer 3 buys twice inside the same hour, which counts as one period.
+    assert summary["frequency"].tolist() == [2, 1, 2, 1]
+    # Customer 1: first purchase in hour 00:00 of day 1, last in hour 05:00 of day 2.
+    assert summary.loc[1, "recency"] == pytest.approx(29.0)
+    # Observation period ends at the last transaction hour (day 3, 08:00).
+    assert summary.loc[1, "T"] == pytest.approx(56.0)
+    assert np.isfinite(summary[["recency", "T", "monetary_value"]]).all().all()
+
+
+@pytest.fixture
+def sparse_monthly_transactions() -> pd.DataFrame:
+    """Three customers whose purchases span five calendar months."""
+    return pd.DataFrame(
+        {
+            "id": [1, 1, 2, 2, 3],
+            "date": [
+                "2024-01-05",
+                "2024-03-10",
+                "2024-01-20",
+                "2024-05-02",
+                "2024-02-11",
+            ],
+        }
+    )
+
+
+@pytest.mark.parametrize(
+    "time_unit, expected_recency, expected_T",
+    [
+        ("D", [65, 103, 0], [118, 103, 81]),
+        ("W", [9, 15, 0], [17, 15, 12]),
+        ("M", [2, 4, 0], [4, 4, 3]),
+        ("H", [1560, 2472, 0], [2832, 2472, 1944]),
+    ],
+)
+def test_rfm_summary_time_unit(
+    sparse_monthly_transactions, time_unit, expected_recency, expected_T
+):
+    """Recency and T are counted in calendar periods for every documented ``time_unit``.
+
+    Regression test: ``time_unit="M"`` used to raise because numpy has no
+    unambiguous month duration.
+    """
+    summary = rfm_summary(
+        sparse_monthly_transactions,
+        customer_id_col="id",
+        datetime_col="date",
+        time_unit=time_unit,
+    )
+
+    assert summary["customer_id"].tolist() == [1, 2, 3]
+    assert summary["frequency"].tolist() == [1, 1, 0]
+    np.testing.assert_allclose(summary["recency"], expected_recency)
+    np.testing.assert_allclose(summary["T"], expected_T)
+
+
+def test_rfm_train_test_split_monthly_time_unit(sparse_monthly_transactions):
+    """``rfm_train_test_split`` accepts ``time_unit="M"`` and counts the test window in months."""
+    actual = rfm_train_test_split(
+        sparse_monthly_transactions,
+        customer_id_col="id",
+        datetime_col="date",
+        train_period_end="2024-03-31",
+        test_period_end="2024-05-31",
+        time_unit="M",
+    ).set_index("customer_id")
+
+    assert actual["test_T"].tolist() == [2.0, 2.0, 2.0]
+    assert actual.loc[2, "test_frequency"] == 1
+    assert actual.loc[1, "test_frequency"] == 0
+    assert actual.loc[1, "recency"] == 2.0
+    assert actual.loc[1, "T"] == 2.0
 
 
 def test_expected_cumulative_incremental_transactions_equals_r_btyd_walkthrough(
