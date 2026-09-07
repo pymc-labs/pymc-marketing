@@ -1,0 +1,21 @@
+pyproject.toml
+  s_2bae8c2fd1f48c::t_f1a8563ef64335 39-42,44
+uv.lock
+  s_2bae8c2fd1f48c::t_bddd5c77eaa378 4112
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "305204736e7ac6b8bddf309bc79159656bec3279",
+  "prompts": {},
+  "sessions": {
+    "s_2bae8c2fd1f48c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3801c9d0-850f-4276-8942-0cd084dd7539",
+        "model": "claude-opus-5"
+      },
+      "human_author": "daimon <daimon@pymc-labs.com>"
+    }
+  }
+}
