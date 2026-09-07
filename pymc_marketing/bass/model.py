@@ -174,13 +174,13 @@ from pymc_marketing.version import __version__
 def _check_time(t: object) -> None:
     """Reject a ``t`` that ``pymc.dims`` cannot label on its own.
 
-    A scalar carries no axes, so it converts cleanly whatever its type. An
+    A 0-d number, array or tensor carries no axes, so it converts cleanly. An
     array or a dim-less vector does not, and the conversion error it raises
     does not say what to do about it.
     """
     if isinstance(t, XTensorVariable):
         return
-    scalar_like = (int, float, np.number, np.ndarray, pt.TensorVariable)
+    scalar_like = (int, float, np.number, np.ndarray, xr.DataArray, pt.TensorVariable)
     if isinstance(t, scalar_like) and np.ndim(t) == 0:
         return
     raise TypeError(

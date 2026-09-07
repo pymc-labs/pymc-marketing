@@ -197,8 +197,8 @@ def test_plain_array_time_points_point_at_as_xtensor(func, t) -> None:
 @pytest.mark.parametrize("func", [F, f], ids=["F", "f"])
 @pytest.mark.parametrize(
     "t",
-    [1.0, 1, np.float64(1.0), np.array(1.0)],
-    ids=["float", "int", "np.float64", "0d-ndarray"],
+    [1.0, 1, np.float64(1.0), np.array(1.0), xr.DataArray(1.0)],
+    ids=["float", "int", "np.float64", "0d-ndarray", "0d-dataarray"],
 )
 def test_scalar_time_points_need_no_labels(func, t) -> None:
     """A scalar `t` carries no axes, so it needs no `as_xtensor`."""
