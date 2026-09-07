@@ -194,6 +194,14 @@ def test_plain_array_time_points_point_at_as_xtensor(func, t) -> None:
         func(0.03, 0.38, t)
 
 
+# What each function gives at t=1 on the labelled path, which every scalar
+# spelling has to match. Built once: it is the same graph for all of them.
+AT_T_EQUALS_ONE = {
+    func: func(0.03, 0.38, pmd.as_xtensor(np.array([1.0]), dims=("T",))).eval()[0]
+    for func in (F, f)
+}
+
+
 @pytest.mark.parametrize("func", [F, f], ids=["F", "f"])
 @pytest.mark.parametrize(
     "t",
@@ -202,9 +210,7 @@ def test_plain_array_time_points_point_at_as_xtensor(func, t) -> None:
 )
 def test_scalar_time_points_need_no_labels(func, t) -> None:
     """A scalar `t` carries no axes, so it needs no `as_xtensor`."""
-    labelled = func(0.03, 0.38, pmd.as_xtensor(np.array([1.0]), dims=("T",))).eval()
-
-    np.testing.assert_allclose(func(0.03, 0.38, t).eval(), labelled[0])
+    np.testing.assert_allclose(func(0.03, 0.38, t).eval(), AT_T_EQUALS_ONE[func])
 
 
 class TestBassModel:

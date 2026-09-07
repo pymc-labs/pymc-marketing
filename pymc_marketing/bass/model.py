@@ -312,12 +312,16 @@ def _create_likelihood_variable(
         raise MuAlreadyExistsError(inner)
 
     # TODO(pymc-devs/pymc-extras#731): drop this branch once observed=None is
-    # supported upstream. The copy is what keeps `mu` off the caller's prior;
-    # it is taken for the dims, transform and the rest of the attributes. Its
-    # parameters are then replaced rather than mutated, so the model gets the
-    # caller's own tensors back instead of the clones the copy made of them.
-    unobserved = inner.deepcopy()
-    unobserved.parameters = {**inner.parameters, "mu": mu}
+    # supported upstream. Build a twin rather than mutate the caller's prior,
+    # and pass the caller's own parameter tensors through, since `deepcopy`
+    # would hand the model clones of them.
+    unobserved = Prior(
+        inner.distribution,
+        dims=inner.dims,
+        centered=inner.centered,
+        transform=inner.transform,
+        **{**inner.parameters, "mu": mu},
+    )
     outcome: Prior | Censored = (
         Censored(unobserved, lower=prior.lower, upper=prior.upper)
         if isinstance(prior, Censored)
