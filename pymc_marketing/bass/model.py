@@ -302,8 +302,10 @@ def _create_likelihood_variable(
         raise MuAlreadyExistsError(inner)
 
     # TODO(pymc-devs/pymc-extras#731): drop this branch once observed=None is
-    # supported upstream. Rebind rather than mutate the copy's parameters, so
-    # the model keeps the caller's own tensors instead of deepcopied clones.
+    # supported upstream. The copy is what keeps `mu` off the caller's prior;
+    # it is taken for the dims, transform and the rest of the attributes. Its
+    # parameters are then replaced rather than mutated, so the model gets the
+    # caller's own tensors back instead of the clones the copy made of them.
     unobserved = inner.deepcopy()
     unobserved.parameters = {**inner.parameters, "mu": mu}
     outcome: Prior | Censored = (
@@ -334,7 +336,9 @@ def _borrow_dims(prior: Prior | Censored, dims: tuple[str, ...]):
 
 
 def _observed_dims(
-    observed: Any, model: Model, combined_dims: tuple[str, ...]
+    observed: pt.TensorLike | xr.DataArray,
+    model: Model,
+    combined_dims: tuple[str, ...],
 ) -> tuple[str, ...]:
     """Axis labels for ``observed``: its own, else the model's, else positional.
 
