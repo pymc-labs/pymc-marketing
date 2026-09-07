@@ -34,6 +34,10 @@ __all__ = [
 # CLV estimates for the "D", "W" and "H" time units.
 _DAYS_PER_MONTH = 30.4375
 
+# ``time_unit`` values are period aliases. pandas 3 removed the ``M`` and ``H``
+# offset aliases, so translate them before building a ``date_range``.
+_OFFSET_ALIASES = {"M": "ME", "H": "h"}
+
 
 def to_xarray(customer_id, *arrays, dim: str = "customer_id"):
     """Convert vector arrays to xarray with a common dim (default "customer_id")."""
@@ -897,7 +901,9 @@ def _expected_cumulative_transactions(
     repeated_transactions = repeated_and_first_transactions[~first_trans_mask]
     first_transactions = repeated_and_first_transactions[first_trans_mask]
 
-    date_range = pandas.date_range(start_date, periods=t + 1, freq=time_unit)
+    date_range = pandas.date_range(
+        start_date, periods=t + 1, freq=_OFFSET_ALIASES.get(time_unit, time_unit)
+    )
     date_periods = date_range.to_period(time_unit)
 
     pred_cum_transactions = np.array([])

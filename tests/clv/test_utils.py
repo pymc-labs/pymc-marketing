@@ -989,6 +989,27 @@ def test_expected_cumulative_transactions_dedups_inside_a_time_period(
     assert (by_week["actual"] >= by_day["actual"]).all()
 
 
+def test_expected_cumulative_transactions_monthly_time_unit(fitted_bg, cdnow_trans):
+    """Monthly ``time_unit`` builds the date range with the pandas 3 month-end offset alias."""
+    t = 3
+    df_cum = _expected_cumulative_transactions(
+        fitted_bg,
+        cdnow_trans,
+        customer_id_col="id",
+        datetime_col="date",
+        t=t,
+        datetime_format="%Y%m%d",
+        time_unit="M",
+        set_index_date=True,
+    )
+
+    assert list(df_cum.columns) == ["actual", "predicted"]
+    assert len(df_cum) == t
+    assert isinstance(df_cum.index, pd.PeriodIndex)
+    assert df_cum.index.freqstr == "M"
+    assert (df_cum["actual"].diff().dropna() >= 0).all()
+
+
 def test_expected_cumulative_incremental_transactions_equals_r_btyd_walkthrough(
     cdnow_trans, fitted_pnbd
 ):

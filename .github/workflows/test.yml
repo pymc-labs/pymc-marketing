@@ -53,12 +53,13 @@ jobs:
         run: |
           sudo apt-get install graphviz graphviz-dev
           uv pip install -e .[test]
-      - name: Pin oldest versions of PyMC and extras
+      - name: Pin oldest versions of PyMC, extras and pandas
         if: ${{ matrix.config.oldest-pymc }}
         run: |
           OLDEST=$(grep '"pymc>=' pyproject.toml | head -1 | sed 's/.*>=//' | sed 's/[",].*//')
           PYMC_EXTRAS=$(grep '"pymc-extras' pyproject.toml | head -1 | sed 's/.*"\(pymc-extras[^"]*\)".*/\1/')
-          uv pip install "${PYMC_EXTRAS}" "pymc==${OLDEST}"
+          # The other legs resolve pandas 3.x; this leg keeps pandas 2.x covered.
+          uv pip install "${PYMC_EXTRAS}" "pymc==${OLDEST}" "pandas<3"
       - name: Check oldest version of PyMC
         if: ${{ matrix.config.oldest-pymc }}
         run: |
