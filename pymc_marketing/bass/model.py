@@ -170,6 +170,17 @@ from pymc_marketing.model_builder import ModelBuilder, SamplingMethod
 from pymc_marketing.model_config import parse_model_config
 from pymc_marketing.version import __version__
 
+#: What :func:`F` and :func:`f` accept for ``t``: a labelled xtensor, or any
+#: of these left 0-d. ``_SCALAR_LIKE`` below is the runtime half of this, kept
+#: beside it so the two cannot drift apart again.
+type TimeLike = (
+    float | np.number | npt.NDArray | xr.DataArray | XTensorVariable | pt.TensorVariable
+)
+
+# `isinstance` cannot take `TimeLike` itself, since `npt.NDArray` is a generic.
+# `int` is spelled out because `isinstance(1, float)` is False.
+_SCALAR_LIKE = (int, float, np.number, np.ndarray, xr.DataArray, pt.TensorVariable)
+
 
 def _check_time(t: object) -> None:
     """Reject a ``t`` that ``pymc.dims`` cannot label on its own.
@@ -180,8 +191,7 @@ def _check_time(t: object) -> None:
     """
     if isinstance(t, XTensorVariable):
         return
-    scalar_like = (int, float, np.number, np.ndarray, xr.DataArray, pt.TensorVariable)
-    if isinstance(t, scalar_like) and np.ndim(t) == 0:
+    if isinstance(t, _SCALAR_LIKE) and np.ndim(t) == 0:
         return
     raise TypeError(
         f"`t` must be an XTensorVariable or a scalar, got {type(t).__name__}. "
@@ -192,7 +202,7 @@ def _check_time(t: object) -> None:
 def F(
     p: float | XTensorVariable,
     q: float | XTensorVariable,
-    t: float | XTensorVariable | pt.TensorVariable,
+    t: TimeLike,
 ) -> XTensorVariable:
     r"""Installed base fraction (cumulative adoption proportion).
 
@@ -230,7 +240,7 @@ def F(
 def f(
     p: float | XTensorVariable,
     q: float | XTensorVariable,
-    t: float | XTensorVariable | pt.TensorVariable,
+    t: TimeLike,
 ) -> XTensorVariable:
     r"""Installed base fraction rate of change (adoption rate).
 
