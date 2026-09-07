@@ -55,6 +55,8 @@ from pymc_marketing.mmm.plotting import MMMPlotSuiteFacade
 from pymc_marketing.mmm.scaling import (
     DataDerivedScaling,
     FixedScaling,
+    MaxAbsScaling,
+    MeanAbsScaling,
     Scaling,
 )
 from pymc_marketing.serialization import serialization
@@ -2449,7 +2451,10 @@ def test_different_target_scaling(method, multi_dim_data, mock_pymc_sample) -> N
         channel_columns=["channel_1", "channel_2", "channel_3"],
         dims=("country",),
     )
-    assert mmm.scaling.target == DataDerivedScaling(method=method, dims=())
+    assert mmm.scaling.target.dims == ()
+    assert isinstance(
+        mmm.scaling.target, MaxAbsScaling if method == "max" else MeanAbsScaling
+    )
     mmm.fit(X, y)
     assert mmm.xarray_dataset._target.dims == ("date", "country")
     assert mmm.scalers._target.dims == ("country",)
@@ -2563,8 +2568,8 @@ def test_scaling_dict_doesnt_mutate() -> None:
 
     assert scaling == {}
     assert mmm.scaling == Scaling(
-        target=DataDerivedScaling(method="max", dims=dims),
-        channel=DataDerivedScaling(method="max", dims=dims),
+        target=MaxAbsScaling(dims=dims),
+        channel=MaxAbsScaling(dims=dims),
     )
 
 
@@ -4327,10 +4332,8 @@ class TestPydanticValidation:
             scaling=scaling_dict,
         )
         assert isinstance(mmm.scaling, Scaling)
-        assert isinstance(mmm.scaling.channel, DataDerivedScaling)
-        assert isinstance(mmm.scaling.target, DataDerivedScaling)
-        assert mmm.scaling.channel.method == "max"
-        assert mmm.scaling.target.method == "max"
+        assert isinstance(mmm.scaling.channel, MaxAbsScaling)
+        assert isinstance(mmm.scaling.target, MaxAbsScaling)
         assert mmm.scaling.channel.dims == ()
         assert mmm.scaling.target.dims == ()
 
@@ -4597,6 +4600,49 @@ def test_set_xarray_data_preserves_dtypes(multi_dim_data, mock_pymc_sample):
         len(X_new[mmm.date_column].unique()),
         len(mmm.xarray_dataset.coords["country"]),
     )
+
+
+def test_set_xarray_data_prescales_with_fixed_scaling(multi_dim_data):
+    """_set_xarray_data applies FixedScaling transform before pm.set_data."""
+    X, y = multi_dim_data
+
+    channel_scale = 10.0
+    target_scale = 100.0
+
+    mmm = MMM(
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+        scaling={
+            "channel": FixedScaling(dims=("country",), value=channel_scale),
+            "target": FixedScaling(dims=("country",), value=target_scale),
+        },
+        date_column="date",
+        target_column="target",
+        channel_columns=["channel_1", "channel_2", "channel_3"],
+        dims=("country",),
+    )
+    mmm.build_model(X, y)
+
+    # Create prediction data with known values
+    dataset_xarray = mmm._posterior_predictive_data_transformation(
+        X=X, y=y, include_last_observations=False
+    )
+    # Set channel values to a known constant
+    raw_channel = np.full_like(dataset_xarray._channel.values, 50.0)
+    dataset_xarray["_channel"].values = raw_channel
+    # Set target values to a known constant
+    raw_target = np.full_like(dataset_xarray._target.values, 200.0)
+    dataset_xarray["_target"].values = raw_target
+
+    model = mmm._set_xarray_data(dataset_xarray, model=mmm.model.copy())
+
+    # channel_data should be 50.0 / 10.0 = 5.0 (FixedScaling divides by scale)
+    channel_in_model = model.named_vars["channel_data"].get_value()
+    np.testing.assert_allclose(channel_in_model, 5.0, rtol=1e-6)
+
+    # target_data should be 200.0 / 100.0 = 2.0
+    target_in_model = model.named_vars["target_data"].get_value()
+    np.testing.assert_allclose(target_in_model, 2.0, rtol=1e-6)
 
 
 def test_integer_channel_data_is_cast_to_float(multi_dim_data):
