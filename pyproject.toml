@@ -36,7 +36,10 @@ dependencies = [
     # and uv>=0.12 otherwise falls back to a numba pre-release. Lift together with
     # the next pytensor bump that allows numba>=0.67.
     "numpy>=2.0,<2.5",
-    "pandas",
+    # pandas 3.0.5 breaks full-column `.loc` setitem, which mmm.data_conversion and
+    # mmm.builders.yaml rely on to coerce the date column to datetime. Lift once the
+    # pandas 3.0 compatibility work in #2240 lands.
+    "pandas<3.0.5",
     "patsy",
     "preliz>=0.20.0,<1.0",
     "pydantic>=2.1.0",
