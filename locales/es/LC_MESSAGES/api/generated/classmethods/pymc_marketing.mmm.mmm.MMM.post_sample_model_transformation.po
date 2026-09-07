@@ -21,14 +21,14 @@ msgstr ""
 "Generated-By: Babel 2.17.0\n"
 
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.mmm.MMM.post_sample_model_transformation.rst:2
-#: a24317f9ec3e4001a621d736b7eaf7f7
+#: ffbcfa901410424dab504e246b861b50
 msgid "MMM.post\\_sample\\_model\\_transformation"
 msgstr "MMM.post\\_sample\\_model\\_transformation"
 
-#: 6073608cc9c444f48ba0fda215f4e565 of
-#: pymc_marketing.mmm.mmm.BaseMMM.post_sample_model_transformation:2
+#: a55f7eab3069457f84263a80500e5c26 of
+#: pymc_marketing.mmm.mmm.MMM.post_sample_model_transformation:2
 msgid ""
 "Post-sample model transformation in order to store the HSGP state from fit."
 msgstr ""
-"Transformación del modelo posterior a la muestra con el fin de almacenar el "
-"estado de HSGP a partir del ajuste."
+"Transformación del modelo posterior a la muestra para almacenar el estado de"
+" HSGP a partir del ajuste."

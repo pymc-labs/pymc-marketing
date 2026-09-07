@@ -20,11 +20,11 @@ constructed per-fold from a YAML configuration or supplied to ``run()``.
 """
 
 import copy
+import warnings
 from collections.abc import Generator
 from dataclasses import dataclass
 from typing import Any, Literal, overload
 
-import arviz as az
 import numpy as np
 import pandas as pd
 import xarray as xr
@@ -32,6 +32,8 @@ from tqdm.auto import tqdm
 
 from pymc_marketing.mmm.builders.yaml import build_mmm_from_yaml
 from pymc_marketing.mmm.plot import MMMPlotSuite
+from pymc_marketing.mmm.plotting.cv import MMMCVPlotSuite
+from pymc_marketing.mmm.summary.cv import MMMCVSummaryFactory
 from pymc_marketing.mmm.types import MMMBuilder
 
 
@@ -49,8 +51,8 @@ class TimeSliceCrossValidationResult:
         Feature matrix used for testing in this fold.
     y_test : pd.Series
         Target variable used for testing in this fold.
-    idata : az.InferenceData
-        ArviZ InferenceData object containing posterior samples and predictions
+    idata : xr.DataTree
+        DataTree object containing posterior samples and predictions
         from the fitted model for this fold.
     """
 
@@ -58,7 +60,7 @@ class TimeSliceCrossValidationResult:
     y_train: pd.Series
     X_test: pd.DataFrame
     y_test: pd.Series
-    idata: az.InferenceData
+    idata: xr.DataTree
     mmm: MMMBuilder | None = None
 
 
@@ -103,14 +105,14 @@ class TimeSliceCrossValidator:
     See Also
     --------
     pymc_marketing.mmm.MMM : The Media Mix Model class.
-    pymc_marketing.mmm.plot.MMMPlotSuite : Plotting utilities for CV results.
+    pymc_marketing.mmm.plotting.cv.MMMCVPlotSuite : Plotting utilities for CV results.
 
     Notes
     -----
     This validator does not retain a fitted MMM instance; models are
     constructed per-fold from a YAML configuration or supplied to ``run()``.
 
-    Each fold stores its full InferenceData, which can consume significant
+    Each fold stores its full DataTree, which can consume significant
     memory for large models with many folds.
 
     Examples
@@ -173,20 +175,92 @@ class TimeSliceCrossValidator:
         # Optional sampler configuration that will be applied to the MMM prior to fitting
         # Can be provided here at construction or passed to run() to override per-run.
         self.sampler_config = sampler_config
+        self._plot_suite: Literal["legacy", "new"] = "legacy"
+        self._plot_suite_warned: bool = False
 
     @property
-    def plot(self) -> MMMPlotSuite:
-        """Use the MMMPlotSuite to plot the results."""
+    def plot_suite(self) -> Literal["legacy", "new"]:
+        """Which plot suite to use: 'legacy' (default) or 'new'."""
+        return self._plot_suite
+
+    @plot_suite.setter
+    def plot_suite(self, value: Literal["legacy", "new"]) -> None:
+        if value not in ("legacy", "new"):
+            raise ValueError(f"plot_suite must be 'legacy' or 'new', got {value!r}")
+        self._plot_suite = value
+        if value == "legacy":
+            self._plot_suite_warned = False
+
+    @property
+    def plot(self) -> MMMPlotSuite | MMMCVPlotSuite:
+        """Plotting suite for cross-validation results."""
         self._validate_model_was_built()
-        self._validate_idata_exists()
-        return MMMPlotSuite(idata=self.idata)
+        if self.plot_suite == "legacy":
+            if not hasattr(self, "idata") or self.idata is None:
+                raise ValueError(
+                    "idata is not available. Ensure TimeSliceCrossValidator.run() "
+                    "completed successfully."
+                )
+            if not self._plot_suite_warned:
+                warnings.warn(
+                    "The legacy MMMPlotSuite will be removed in pymc-marketing 2.0.0. "
+                    "Set cv.plot_suite = 'new' to opt in to the new namespace-based API. "
+                    "See the migration guide: "
+                    "https://www.pymc-marketing.io/en/stable/notebooks/mmm/mmm_plot_suite_migration_guide.html",
+                    FutureWarning,
+                    stacklevel=2,
+                )
+                self._plot_suite_warned = True
+            return MMMPlotSuite(idata=self.idata)
+        if not hasattr(self, "cv_idata"):
+            raise ValueError(
+                "cv_idata is not available. Ensure TimeSliceCrossValidator.run() "
+                "completed successfully."
+            )
+        return MMMCVPlotSuite(self.cv_idata)
+
+    @property
+    def summary(self) -> MMMCVSummaryFactory:
+        """Summary factory for cross-validation results.
+
+        Returns a factory for tabular CV summaries (predictions, parameter
+        stability, CRPS) suitable for JSON export to frontends.
+
+        Returns
+        -------
+        MMMCVSummaryFactory
+            Factory bound to the CV DataTree from ``run()``.
+
+        Examples
+        --------
+        .. code-block:: python
+
+            cv_idata = cv.run(X, y, mmm=mmm)
+
+            df_pred = cv.summary.predictions()
+            df_stab = cv.summary.param_stability(var_names=["alpha"])
+            df_crps = cv.summary.crps()
+
+            records = df_pred.to_dict(orient="records")
+
+        See Also
+        --------
+        MMMCVPlotSuite.summary : Same factory when accessed via ``cv.plot``
+        """
+        self._validate_model_was_built()
+        if not hasattr(self, "cv_idata"):
+            raise ValueError(
+                "cv_idata is not available. Ensure TimeSliceCrossValidator.run() "
+                "completed successfully."
+            )
+        return MMMCVSummaryFactory(self.cv_idata)
 
     def _validate_model_was_built(self) -> None:
         """Validate that at least one CV run has produced results.
 
         Ensures `self._cv_results` exists and is non-empty. If an
-        InferenceData is present on the last result, expose it as
-        `self.idata` for compatibility with the MMMPlotSuite API.
+        DataTree is present on the last result, expose it as
+        `self.idata` for backward compatibility.
         """
         if not hasattr(self, "_cv_results") or not self._cv_results:
             raise ValueError(
@@ -194,15 +268,8 @@ class TimeSliceCrossValidator:
             )
         last_result = self._cv_results[-1]
         if hasattr(last_result, "idata") and last_result.idata is not None:
-            # make idata accessible for plotting helpers
+            # make idata accessible for compatibility
             self.idata = last_result.idata
-
-    def _validate_idata_exists(self) -> None:
-        """Validate that `self.idata` is present and not None."""
-        if not hasattr(self, "idata") or self.idata is None:
-            raise ValueError(
-                "No InferenceData available on the validator. Run `TimeSliceCrossValidator.run(...)` first."
-            )
 
     def _create_metadata(self, cv_coord: pd.Index) -> xr.Dataset:
         """Build a cv_metadata Dataset that stores per-fold metadata.
@@ -250,8 +317,8 @@ class TimeSliceCrossValidator:
         self,
         results: list[TimeSliceCrossValidationResult],
         model_names: list[str],
-    ) -> az.InferenceData:
-        """Combine InferenceData objects from multiple CV results.
+    ) -> xr.DataTree:
+        """Combine DataTree objects from multiple CV results.
 
         Parameters
         ----------
@@ -262,15 +329,15 @@ class TimeSliceCrossValidator:
 
         Returns
         -------
-        az.InferenceData
-            Combined InferenceData with folds concatenated along 'cv' coordinate.
+        xr.DataTree
+            Combined DataTree with folds concatenated along 'cv' coordinate.
 
         Raises
         ------
         ValueError
-            If no InferenceData objects were produced during CV.
+            If no DataTree objects were produced during CV.
         """
-        cv_idata: az.InferenceData | None = None
+        cv_idata: xr.DataTree | None = None
         if results:
             # try to discover available groups from the first idata
             first_idata = results[0].idata
@@ -314,7 +381,7 @@ class TimeSliceCrossValidator:
                     # if concat fails, try to align then concat without coords
                     combined_ds = xr.concat(
                         [
-                            d.assign_coords({"cv": [n]})
+                            d.dataset.assign_coords({"cv": [n]})
                             for d, n in zip(ds_list, model_names, strict=False)
                         ],
                         dim="cv",
@@ -327,20 +394,22 @@ class TimeSliceCrossValidator:
             combined_kwargs["cv_metadata"] = ds_meta
 
             if combined_kwargs:
-                cv_idata = az.InferenceData(**combined_kwargs)
+                cv_idata = xr.DataTree.from_dict(
+                    {"/" + k: v for k, v in combined_kwargs.items()}
+                )
                 # persist for plot helpers
                 self.cv_idata = cv_idata
-        # Also expose the last fold's idata (if any) for compatibility with MMMPlotSuite
+        # Also expose the last fold's idata (if any) for compatibility
         if results:
             last = results[-1]
             if hasattr(last, "idata") and last.idata is not None:
                 self.idata = last.idata
-        # Always return the combined arviz.InferenceData. If none could be
+        # Always return the combined xr.DataTree. If none could be
         # constructed (e.g. folds did not produce idata), raise an error so the
         # caller knows something went wrong.
         if cv_idata is None:
             raise ValueError(
-                "No InferenceData objects were produced during CV; ensure models produce idata."
+                "No DataTree objects were produced during CV; ensure models produce idata."
             )
         return cv_idata
 
@@ -485,10 +554,10 @@ class TimeSliceCrossValidator:
         # Remove existing posterior_predictive groups if they exist to avoid conflicts
         # when extending idata with new predictions
         if mmm.idata is not None:
-            if "posterior_predictive" in mmm.idata.groups():
-                del mmm.idata.posterior_predictive
-            if "posterior_predictive_constant_data" in mmm.idata.groups():
-                del mmm.idata.posterior_predictive_constant_data
+            if "posterior_predictive" in mmm.idata:
+                del mmm.idata["posterior_predictive"]
+            if "posterior_predictive_constant_data" in mmm.idata:
+                del mmm.idata["posterior_predictive_constant_data"]
 
         # Run posterior predictions on combined data with extend_idata=True
         _ = mmm.sample_posterior_predictive(
@@ -612,7 +681,7 @@ class TimeSliceCrossValidator:
         df_lift_test: pd.DataFrame | None = ...,
         lift_test_date_column: str | None = ...,
         return_models: Literal[False] = ...,
-    ) -> az.InferenceData: ...
+    ) -> xr.DataTree: ...
 
     @overload
     def run(
@@ -627,7 +696,7 @@ class TimeSliceCrossValidator:
         df_lift_test: pd.DataFrame | None = ...,
         lift_test_date_column: str | None = ...,
         return_models: Literal[True] = ...,
-    ) -> tuple[az.InferenceData, list[MMMBuilder]]: ...
+    ) -> tuple[xr.DataTree, list[MMMBuilder]]: ...
 
     def run(
         self,
@@ -641,7 +710,7 @@ class TimeSliceCrossValidator:
         df_lift_test: pd.DataFrame | None = None,
         lift_test_date_column: str | None = None,
         return_models: bool = False,
-    ) -> az.InferenceData | tuple[az.InferenceData, list[MMMBuilder]]:
+    ) -> xr.DataTree | tuple[xr.DataTree, list[MMMBuilder]]:
         """Run the complete time-slice cross-validation loop.
 
         Executes cross-validation by iterating through all folds, fitting a model
@@ -669,7 +738,7 @@ class TimeSliceCrossValidator:
             ``MMM`` class), the instance itself is used after deep-copying.
             Mutually exclusive with ``yaml_path``.
         model_names : list of str, optional
-            Names to assign to each CV fold in the combined InferenceData.
+            Names to assign to each CV fold in the combined DataTree.
             If provided, length must match the number of splits. If not provided,
             names are generated from each model's ``_model_name`` attribute or
             as ``'Iteration {i}'``.
@@ -686,17 +755,17 @@ class TimeSliceCrossValidator:
             ``df_lift_test`` is provided.
         return_models : bool, optional
             If ``True``, return the fitted MMM instances for each fold
-            alongside the combined InferenceData. Default is ``False``.
+            alongside the combined DataTree. Default is ``False``.
 
         Returns
         -------
-        arviz.InferenceData
-            Combined InferenceData where each fold is concatenated along a new
+        xr.DataTree
+            Combined DataTree where each fold is concatenated along a new
             coordinate named 'cv'. Includes a 'cv_metadata' group with per-fold
             train/test data. Returned when ``return_models`` is ``False``
             (the default).
-        tuple[arviz.InferenceData, list[MMMBuilder]]
-            A tuple of the combined InferenceData and a list of fitted MMM
+        tuple[xr.DataTree, list[MMMBuilder]]
+            A tuple of the combined DataTree and a list of fitted MMM
             instances (one per fold). Returned when ``return_models`` is
             ``True``.
 
@@ -705,7 +774,7 @@ class TimeSliceCrossValidator:
         ValueError
             If neither ``yaml_path`` nor ``mmm`` is provided.
             If ``model_names`` length doesn't match the number of splits.
-            If no InferenceData objects are produced during CV.
+            If no DataTree objects are produced during CV.
 
         See Also
         --------
@@ -759,7 +828,7 @@ class TimeSliceCrossValidator:
         ... )
         >>> combined_idata = cv.run(X, y, mmm=mmm_builder)
 
-        Returning fitted models alongside the combined InferenceData:
+        Returning fitted models alongside the combined DataTree:
 
         >>> combined_idata, models = cv.run(X, y, mmm=mmm, return_models=True)
         """
@@ -837,7 +906,7 @@ class TimeSliceCrossValidator:
             results.append(result)
         # Persist results on the instance so plotting helpers can access them
         self._cv_results = results
-        # Build a combined InferenceData. We combine each fold's
+        # Build a combined DataTree. We combine each fold's
         # datasets along a new coordinate named 'cv' where each label is the
         # fold name determined above.
         cv_idata = self._combine_idata(results, model_name_labels)

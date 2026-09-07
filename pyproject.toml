@@ -5,7 +5,7 @@ requires = ["hatchling<2", "hatch-fancy-pypi-readme"]
 [project]
 name = "pymc-marketing"
 description = "Marketing Statistical Models in PyMC"
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 license = { file = "LICENSE" }
 dynamic = ["version", "readme"]
 maintainers = [{ name = "PyMC Labs", email = "info@pymc-labs.com" }]
@@ -13,9 +13,9 @@ classifiers = [
     "Development Status :: 5 - Production/Stable",
     "Programming Language :: Python",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "License :: OSI Approved :: Apache Software License",
     "Intended Audience :: Science/Research",
     "Topic :: Scientific/Engineering",
@@ -25,30 +25,37 @@ classifiers = [
 ]
 
 dependencies = [
-    "arviz>=0.13.0,<1.0.0",
+    "arviz-plots[matplotlib]>=1.2.0,<2.0",
+    # clv.plotting imports arviz_stats.ecdf_utils directly, so declare it rather than relying on
+    # the arviz meta-package to pull it in.
+    "arviz-stats>=1.2.0,<2.0",
+    "arviz>=1.2.0,<2.0",
     "matplotlib>=3.5.1",
     "narwhals",
-    "numpy>=2.0",
+    # numba<=0.66 (a hard requirement of pytensor 3.x) does not support numpy 2.5,
+    # and uv>=0.12 otherwise falls back to a numba pre-release. Lift together with
+    # the next pytensor bump that allows numba>=0.67.
+    "numpy>=2.0,<2.5",
     "pandas",
+    "patsy",
+    "preliz>=0.20.0,<1.0",
     "pydantic>=2.1.0",
-    # NOTE: Used as minimum pymc version with test.yml `OLDEST_PYMC_VERSION`
-    "pymc>=5.28.1",
-    "pytensor>=2.38.2",
+    "pymc-extras>=0.14.0,<0.15.0",
+    "pymc>=6.2.0,<6.3.0",
+    "pyprojroot",
+    "pyyaml",
     "scikit-learn>=1.1.1",
     "seaborn>=0.12.2",
     "tqdm",
-    "xarray>=2024.1.0",
     "xarray-einstats>=0.5.1",
-    "pyprojroot",
-    "pymc-extras>=0.9.2",
-    "preliz>=0.20.0",
-    "pyyaml",
+    "xarray>=2024.1.0",
 ]
 
 [project.optional-dependencies]
 dag = ["dowhy", "networkx", "osqp<1.0.0,>=0.6.2", "pygraphviz"]
+pie = ["pymc-bart>=0.12.0"]
 docs = [
-    "blackjax",
+    "blackjax<1.6",
     "fastprogress",
     "graphviz",
     "ipython!=8.7.0",
@@ -76,11 +83,14 @@ docs = [
     "osqp<1.0.0,>=0.6.2",
     "preliz>=0.20.0",
     "plotly>=6.3.0",
+    "impulso>=0.0.12"
 ]
 lint = ["mypy", "pandas-stubs", "pre-commit>=2.19.0", "ruff>=0.1.4"]
 test = [
-    "blackjax",
+    "blackjax<1.6",
     "fastprogress",
+    "h5netcdf>=1.8.1",
+    "h5py>=3.16.0",
     "nutpie>=0.16.7",
     "numpyro",
     "ipykernel",
@@ -90,6 +100,7 @@ test = [
     "polars>=1.0.0",
     "pyprojroot",
     "pytest-cov>=3.0.0",
+    "coverage>=7.1",
     "pytest-mock>=3.14.0",
     "pytest>=7.0.1",
     "pytest-split",
@@ -100,6 +111,9 @@ test = [
     "pygraphviz",
     "preliz>=0.20.0",
     "plotly>=6.3.0",
+    "pymc-bart>=0.12.0",
+    "watermark",
+    "ipywidgets>=8.1.8",
 ]
 
 [tool.hatch.build.targets.sdist]
@@ -160,12 +174,14 @@ ignore = [
     "S101", # Use of assert
 ]
 "scripts/*" = ["D", "E402"]
+"sandbox/*" = ["D", "E402", "RUF059"]
 
 [tool.ruff.lint.pycodestyle]
 max-line-length = 120
 
 [tool.ruff]
 extend-include = ["*.ipynb"]
+extend-exclude = ["docs/source/notebooks/*/dev"]
 
 [tool.pytest.ini_options]
 addopts = [
@@ -182,7 +198,10 @@ addopts = [
 markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
 ]
-filterwarnings = ["ignore::DeprecationWarning:bokeh.core.property.primitive:37"]
+filterwarnings = [
+    "ignore::DeprecationWarning:bokeh.core.property.primitive:37",
+    "ignore::SyntaxWarning:dowhy.*",
+]
 testpaths = "tests"
 
 [tool.mypy]
@@ -203,3 +222,12 @@ ignore_missing_imports = true
 
 [tool.mypy-scipy]
 ignore_missing_imports = true
+
+[dependency-groups]
+dev = [
+    "h5netcdf>=1.8.1",
+    "h5py>=3.16.0",
+    "mypy>=2.1.0",
+    "pandas-stubs>=3.0.3.260530",
+    "pyyaml>=6.0.3",
+]

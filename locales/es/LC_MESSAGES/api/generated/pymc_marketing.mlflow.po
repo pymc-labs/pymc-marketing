@@ -42,12 +42,12 @@ msgstr ""
 msgid ""
 "Autologging is supported for PyMC models and PyMC-Marketing models. This "
 "including logging of sampler diagnostics, model information, data used in "
-"the model, and InferenceData objects."
+"the model, and DataTree objects."
 msgstr ""
 "El autologging es compatible con modelos de PyMC y modelos de PyMC-"
 "Marketing. Esto incluye el registro de diagnósticos del muestreador, "
 "información del modelo, datos utilizados en el modelo y objetos de "
-"InferenceData."
+"DataTree."
 
 #: f79297458188486ab43e33b29588d0d5 of pymc_marketing.mlflow:10
 msgid ""
@@ -81,10 +81,10 @@ msgstr ""
 #: 44683d5d46a94945b379befb0416f322 of pymc_marketing.mlflow:16
 msgid ""
 ":func:`log_sample_diagnostics`: Log information derived from the "
-"InferenceData object."
+"DataTree object."
 msgstr ""
 ":func:`log_sample_diagnostics`: Registrar información derivada del objeto "
-"InferenceData."
+"DataTree."
 
 #: 1f074f2d2bb9413898ae560a1a0ac187 of pymc_marketing.mlflow:17
 msgid ""
@@ -243,8 +243,8 @@ msgstr ""
 
 #: ../source/api/generated/pymc_marketing.mlflow.rst:38:<autosummary>:1
 #: fc9223a16e7b4bc3afc381e1321a3041
-msgid "Log the InferenceData to MLflow."
-msgstr "Registre el InferenceData en MLflow."
+msgid "Log the DataTree to MLflow."
+msgstr "Registre el DataTree en MLflow."
 
 #: ../source/api/generated/pymc_marketing.mlflow.rst:38:<autosummary>:1
 #: 16ab9928533740ff8eb63930ee74ebe6

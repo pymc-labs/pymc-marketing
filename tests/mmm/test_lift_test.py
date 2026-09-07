@@ -42,7 +42,7 @@ from pymc_marketing.mmm.lift_test import (
     scale_lift_measurements,
     scale_target_for_lift_measurements,
 )
-from pymc_marketing.mmm.multidimensional import MMM
+from pymc_marketing.mmm.mmm import MMM
 
 
 @pytest.fixture(scope="module")
@@ -574,6 +574,71 @@ def test_add_cost_per_target_observations(dummy_mmm_model):
 
     obs_names = [rv.name for rv in model.model.observed_RVs]
     assert "cpt_calibration" in obs_names
+
+
+@pytest.mark.parametrize("target_per_cost", [False, True])
+def test_add_cost_per_target_observations_ratio_direction(
+    dummy_mmm_model, target_per_cost
+):
+    """`target_per_cost` flips mean(cost)/mean(target) to mean(target)/mean(cost)."""
+    model = dummy_mmm_model.model
+
+    dates = model.coords["date"]
+    channels = model.coords["channel"]
+    # Non-constant series so that the ratio of means differs from the mean of
+    # per-date ratios, pinning down which of the two the implementation uses.
+    cost_values = np.linspace(10.0, 50.0, len(dates) * len(channels)).reshape(
+        len(dates), len(channels)
+    )
+    target_values = np.linspace(4.0, 1.0, len(dates) * len(channels)).reshape(
+        len(dates), len(channels)
+    )
+    cost = as_xtensor(cost_values, dims=("date", "channel"))
+    target = as_xtensor(target_values, dims=("date", "channel"))
+    cost_mean = cost_values.mean(axis=0)
+    target_mean = target_values.mean(axis=0)
+
+    target_column = "roas" if target_per_cost else "cost_per_target"
+    calibration_df = pd.DataFrame(
+        {
+            "channel": [channels[0], channels[1]],
+            target_column: [1.0, 2.0],
+            "sigma": [0.5, 0.5],
+        }
+    )
+
+    add_cost_per_target_observations(
+        calibration_df=calibration_df,
+        model=model,
+        cost_value=cost,
+        target_value=target,
+        target_column=target_column,
+        name_prefix="ratio_calibration",
+        target_per_cost=target_per_cost,
+    )
+
+    # Ratio of means over dates for the two calibrated channels, not the mean
+    # of per-date ratios.
+    expected_mu = (
+        target_mean[:2] / cost_mean[:2]
+        if target_per_cost
+        else cost_mean[:2] / target_mean[:2]
+    )
+    observed = calibration_df[target_column].to_numpy()
+    sigma = calibration_df["sigma"].to_numpy()
+
+    logp = fast_eval(
+        pm.logp(
+            model["ratio_calibration"],
+            as_xtensor(observed, dims=("_ratio_calibration",)),
+        )
+    )
+    expected_logp = (
+        -0.5 * ((observed - expected_mu) / sigma) ** 2
+        - np.log(sigma)
+        - 0.5 * np.log(2 * np.pi)
+    )
+    np.testing.assert_allclose(logp, expected_logp, rtol=1e-6)
 
 
 def test_add_cost_per_target_observations_missing_columns(dummy_mmm_model):

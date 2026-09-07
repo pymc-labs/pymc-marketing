@@ -29,10 +29,10 @@ msgstr "RegressionModelBuilder.idata\\_to\\_init\\_kwargs"
 #: pymc_marketing.model_builder.ModelIO.idata_to_init_kwargs:2
 msgid ""
 "Create  the model configuration and sampler configuration from the "
-"InferenceData to keyword arguments."
+"DataTree to keyword arguments."
 msgstr ""
 "Cree la configuración del modelo y la configuración del muestreador a partir"
-" de InferenceData como argumentos de palabra clave."
+" de DataTree como argumentos de palabra clave."
 
 #: 5b25c8b4a5e9490680521232b15fde4b of
 #: pymc_marketing.model_builder.ModelIO.idata_to_init_kwargs:4

@@ -27,5 +27,5 @@ msgstr "CLVModel.build\\_from\\_idata"
 
 #: fb11c45291eb4108af2fe788aed17279 of
 #: pymc_marketing.clv.models.basic.CLVModel.build_from_idata:2
-msgid "Build the model from the InferenceData object."
-msgstr "Construya el modelo a partir del objeto InferenceData."
+msgid "Build the model from the DataTree object."
+msgstr "Construya el modelo a partir del objeto DataTree."

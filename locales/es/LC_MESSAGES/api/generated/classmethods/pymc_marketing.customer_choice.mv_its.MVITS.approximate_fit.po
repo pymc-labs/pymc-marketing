@@ -27,21 +27,21 @@ msgstr "MVITS.ajuste\\_aproximado"
 
 #: 04b8d527cda24858b9eccab3e9f47707 of
 #: pymc_marketing.model_builder.RegressionModelBuilder.approximate_fit:2
-msgid "Fit a model using Variational Inference and return InferenceData."
+msgid "Fit a model using Variational Inference and return DataTree."
 msgstr ""
-"Ajuste un modelo utilizando Inferencia Variacional y devuelva InferenceData."
+"Ajuste un modelo utilizando Inferencia Variacional y devuelva DataTree."
 
 #: 8e7b520c8c434a90bbdcc0cfc610091f of
 #: pymc_marketing.model_builder.RegressionModelBuilder.approximate_fit:4
 msgid ""
 "This performs variational inference via `pymc.fit`, then draws posterior "
 "samples from the fitted approximation via `Approximation.sample`, returning "
-"an `arviz.InferenceData` compatible with the rest of the API (same structure"
+"an `arviz.DataTree` compatible with the rest of the API (same structure"
 " as `.fit`)."
 msgstr ""
 "Esto realiza inferencia variacional a través de `pymc.fit`, luego extrae "
 "muestras posteriores de la aproximación ajustada mediante "
-"`Approximation.sample`, devolviendo un `arviz.InferenceData` compatible con "
+"`Approximation.sample`, devolviendo un `arviz.DataTree` compatible con "
 "el resto de la API (misma estructura que `.fit`)."
 
 #: 3a7cd1241bf14736ad302fd54889d131 of
@@ -180,8 +180,8 @@ msgstr "Devoluciones"
 
 #: 8dd0049ee4bd44c6baf22f6909f6ec22 of
 #: pymc_marketing.model_builder.RegressionModelBuilder.approximate_fit:32
-msgid ":obj:`az.InferenceData`"
-msgstr ":obj:`az.InferenceData`"
+msgid ":obj:`az.DataTree`"
+msgstr ":obj:`az.DataTree`"
 
 #: 458c30c2c8514b878a1d977c6b17eb98 of
 #: pymc_marketing.model_builder.RegressionModelBuilder.approximate_fit:33

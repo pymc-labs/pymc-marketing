@@ -32,20 +32,37 @@ There are three types of Fourier seasonality transformations available:
     from pymc_marketing.mmm import YearlyFourier
     from pymc_extras.prior import Prior
 
-    plt.style.use('arviz-darkgrid')
+    seed = sum(map(ord, "Yearly"))
+    rng = np.random.default_rng(seed)
 
     prior = Prior(
         "Normal",
-        mu=[0, 0, -1, 0],
+        mu=[0.5, 0, -1, 0],
         sigma=Prior("Gamma", mu=0.10, sigma=0.1, dims="fourier"),
         dims=("hierarchy", "fourier"),
     )
     yearly = YearlyFourier(n_order=2, prior=prior)
     coords = {"hierarchy": ["A", "B"]}
-    prior = yearly.sample_prior(coords=coords)
+    prior = yearly.sample_prior(coords=coords, random_seed=rng)
     curve = yearly.sample_curve(prior)
     fig, _ = yearly.plot_curve(curve, subplot_kwargs={"ncols": 1})
     fig.suptitle("Yearly Fourier Seasonality")
+    plt.show()
+
+This is the same curve from the figure above, but now decomposed into
+its individual sine and cosine components by passing ``sum=False`` to
+:meth:`~FourierBase.sample_curve`:
+
+.. plot::
+    :context: close-figs
+
+    # Reuse yearly and prior from the previous example
+    components = yearly.sample_curve(prior, sum=False)
+
+    fig, _ = yearly.plot_decomposition(components)
+    fig.suptitle(
+        "Yearly Fourier seasonality decomposed into basis functions"
+    )
     plt.show()
 
 Examples
@@ -73,21 +90,11 @@ Plot the prior fourier seasonality trend.
 .. plot::
     :context: close-figs
 
-    import pandas as pd
-    import pymc as pm
     import matplotlib.pyplot as plt
 
     from pymc_marketing.mmm import YearlyFourier
 
     yearly = YearlyFourier(n_order=3)
-
-    dates = pd.date_range("2023-01-01", periods=52, freq="W-MON")
-
-    dayofyear = dates.dayofyear.to_numpy()
-
-    with pm.Model() as model:
-        fourier_trend = yearly.apply(dayofyear)
-
     prior = yearly.sample_prior()
     curve = yearly.sample_curve(prior)
     yearly.plot_curve(curve)
@@ -238,7 +245,6 @@ from abc import abstractmethod
 from collections.abc import Iterable
 from typing import Any, Self
 
-import arviz as az
 import matplotlib.pyplot as plt
 import numpy as np
 import numpy.typing as npt
@@ -258,12 +264,18 @@ from pydantic import (
 )
 from pymc_extras.deserialize import deserialize
 from pymc_extras.prior import Prior, VariableFactory
+from pymc_extras.prior import sample_prior as sample_prior_variable
 from pytensor.xtensor import as_xtensor
 from pytensor.xtensor.type import XTensorVariable
 
 from pymc_marketing.constants import DAYS_IN_MONTH, DAYS_IN_WEEK, DAYS_IN_YEAR
 from pymc_marketing.mmm.dims import XTensorLike
-from pymc_marketing.plot import SelToString, plot_curve, plot_hdi, plot_samples
+from pymc_marketing.plot import (
+    SelToString,
+    plot_curve,
+    plot_hdi,
+    plot_samples,
+)
 from pymc_marketing.serialization import serialization
 
 X_NAME: str = "day"
@@ -460,31 +472,32 @@ class FourierBase(BaseModel):
 
         Examples
         --------
-        Save off the result before summing through the prefix dimension.
+        Save the per-component result before summing through the prefix
+        dimension by passing ``sum=False`` and registering a Deterministic
+        on the un-summed tensor.
 
         .. code-block:: python
 
             import pandas as pd
 
             import pymc as pm
+            import pymc.dims as pmd
 
             from pymc_marketing.mmm import YearlyFourier
 
             fourier = YearlyFourier(n_order=3)
 
-
-            def callback(result):
-                pm.Deterministic("fourier_trend", result, dims=("date", "fourier"))
-
-
             dates = pd.date_range("2023-01-01", periods=52, freq="W-MON")
 
-            coords = {
-                "date": dates,
-            }
+            coords = {"date": dates}
             with pm.Model(coords=coords) as model:
-                dayofyear = dates.dayofyear.to_numpy()
-                fourier.apply(dayofyear, result_callback=callback)
+                dayofyear = pmd.Data(
+                    "dayofyear", dates.dayofyear.to_numpy(), dims=("date",)
+                )
+                components = fourier.apply(dayofyear, sum=False)
+                pmd.Deterministic(
+                    "fourier_trend", components, dims=("date", fourier.prefix)
+                )
 
         """
         periods = dayofperiod / self.days_in_period
@@ -522,19 +535,25 @@ class FourierBase(BaseModel):
         """
         coords = coords or {}
         coords[self.prefix] = self.nodes
-        return self.prior.sample_prior(coords=coords, name=self.variable_name, **kwargs)
+        if "samples" in kwargs:
+            kwargs["draws"] = kwargs.pop("samples")
+        kwargs.setdefault("xdist", True)
+        return sample_prior_variable(
+            self.prior, coords=coords, name=self.variable_name, **kwargs
+        )
 
     def sample_curve(
         self,
-        parameters: az.InferenceData | xr.Dataset,
+        parameters: xr.DataTree | xr.Dataset,
         use_dates: bool = False,
         start_date: str | datetime.datetime | None = None,
+        sum: bool = True,
     ) -> xr.DataArray:
         """Create full period of the Fourier seasonality.
 
         Parameters
         ----------
-        parameters : az.InferenceData | xr.Dataset
+        parameters : xr.DataTree | xr.Dataset
             Inference data or dataset containing the Fourier parameters.
             Can be posterior or prior.
         use_dates : bool, optional
@@ -542,6 +561,10 @@ class FourierBase(BaseModel):
         start_date : datetime.datetime, optional
             Starting date for the Fourier curve. If not provided and use_dates is True,
             it will be derived from the current year or month. Defaults to None.
+        sum : bool, default True
+            Whether to sum the Fourier components. If ``False``, returns
+            individual components along the ``{prefix}`` dimension
+            (e.g. ``"fourier"``).
 
         Returns
         -------
@@ -578,7 +601,7 @@ class FourierBase(BaseModel):
             name = f"{self.prefix}_trend"
             pmd.Deterministic(
                 name,
-                self.apply(as_xtensor(dayofperiod, dims=(date_dim,))),
+                self.apply(as_xtensor(dayofperiod, dims=(date_dim,)), sum=sum),
             )
 
             return pm.sample_posterior_predictive(
@@ -655,6 +678,91 @@ class FourierBase(BaseModel):
             hdi_kwargs=hdi_kwargs,
             axes=axes,
             same_axes=same_axes,
+            colors=colors,
+            legend=legend,
+            sel_to_string=sel_to_string,
+        )
+
+    def plot_decomposition(
+        self,
+        curve: xr.DataArray,
+        n_samples: int = 10,
+        hdi_probs: float | list[float] | None = None,
+        random_seed: np.random.Generator | None = None,
+        subplot_kwargs: dict | None = None,
+        sample_kwargs: dict | None = None,
+        hdi_kwargs: dict | None = None,
+        axes: npt.NDArray[plt.Axes] | None = None,
+        same_axes: bool = False,
+        colors: Iterable[str] | None = None,
+        legend: bool | None = None,
+        sel_to_string: SelToString | None = None,
+    ) -> tuple[plt.Figure, npt.NDArray[plt.Axes]]:
+        """Plot the decomposition of the Fourier seasonality into individual components.
+
+        Parameters
+        ----------
+        curve : xr.DataArray
+            Sampled curve with individual components. Must have the
+            ``{prefix}`` dimension (e.g. ``"fourier"``), as returned by
+            :meth:`sample_curve` with ``sum=False``.
+        n_samples : int, optional
+            Number of sample curves to show per component.
+        hdi_probs : float or list of float, optional
+            HDI probability levels for the component bands.
+        random_seed : np.random.Generator, optional
+            Random seed for sample selection.
+        subplot_kwargs : dict, optional
+            Keyword arguments for the subplot layout.
+        sample_kwargs : dict, optional
+            Keyword arguments for sample line plotting.
+        hdi_kwargs : dict, optional
+            Keyword arguments for HDI band plotting.
+        axes : npt.NDArray[plt.Axes], optional
+            Pre-existing axes to plot on.
+        same_axes : bool, optional
+            Plot all component groups on the same axes. Default False.
+        colors : Iterable[str], optional
+            Colors for the component curves.
+        legend : bool, optional
+            Show legend. Default True.
+        sel_to_string : SelToString, optional
+            Function to convert selection dict to title string.
+
+        Returns
+        -------
+        tuple[plt.Figure, npt.NDArray[plt.Axes]]
+            Matplotlib figure and axes.
+
+        """
+        if "date" in curve.coords:
+            x_coord_name = "date"
+        elif "day" in curve.coords:
+            x_coord_name = "day"
+        else:
+            raise ValueError("Curve must have either 'day' or 'date' as a coordinate")
+
+        if self.prefix not in curve.dims:
+            raise ValueError(
+                f"Curve must have a '{self.prefix}' dimension. "
+                "Use sample_curve(..., sum=False) to get individual components."
+            )
+
+        if legend is None:
+            legend = True
+
+        return plot_curve(
+            curve,
+            non_grid_names={x_coord_name},
+            color_dim=self.prefix,
+            same_axes=same_axes,
+            axes=axes,
+            n_samples=n_samples,
+            hdi_probs=hdi_probs,
+            random_seed=random_seed,
+            subplot_kwargs=subplot_kwargs,
+            sample_kwargs=sample_kwargs,
+            hdi_kwargs=hdi_kwargs,
             colors=colors,
             legend=legend,
             sel_to_string=sel_to_string,
@@ -803,8 +911,6 @@ class YearlyFourier(FourierBase):
         from pymc_marketing.mmm import YearlyFourier
         from pymc_extras.prior import Prior
 
-        az.style.use("arviz-white")
-
         seed = sum(map(ord, "Yearly"))
         rng = np.random.default_rng(seed)
 
@@ -870,8 +976,6 @@ class MonthlyFourier(FourierBase):
         from pymc_marketing.mmm import MonthlyFourier
         from pymc_extras.prior import Prior
 
-        az.style.use("arviz-white")
-
         seed = sum(map(ord, "Monthly"))
         rng = np.random.default_rng(seed)
 
@@ -935,8 +1039,6 @@ class WeeklyFourier(FourierBase):
 
         from pymc_marketing.mmm import WeeklyFourier
         from pymc_extras.prior import Prior
-
-        az.style.use("arviz-white")
 
         seed = sum(map(ord, "Weekly"))
         rng = np.random.default_rng(seed)

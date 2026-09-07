@@ -1,5 +1,5 @@
 model:
-  class: pymc_marketing.mmm.multidimensional.MMM
+  class: pymc_marketing.mmm.mmm.MMM
   kwargs:
     date_column: "date"
     channel_columns:                                     # explicit for reproducibility

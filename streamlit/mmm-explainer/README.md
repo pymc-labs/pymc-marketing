@@ -3,27 +3,43 @@
 ## Overview
 
 This Streamlit application is designed to provide a dynamic and interactive visualization of key Marketing Mix Modeling (MMM) concepts, including adstock, saturation, and the use of Bayesian priors. It aims to help marketers, data scientists, and anyone interested in understanding MMM more deeply. Through this application, users can explore how different parameters affect adstock, saturation, and Bayesian priors.
+
 ## Run Locally
 
 You may wish to run the app locally rather than relying on the [deployment](https://pymc-marketing-app.streamlit.app/).
 
-To run the app, you need a Python environment with **Python 3.11 or newer**.
+Run the following commands from the repository root. The app supports **Python 3.12 or newer**. A dedicated virtual environment keeps the app's pinned dependencies separate from the package development environment.
 
-1. **Set up the environment:**
-   Create a new environment (or ensure your existing one uses Python 3.11 or higher).
+1. **Create and activate the environment:**
+
    ```bash
-   conda create -c conda-forge -n marketing_stream python=3.11 pymc-marketing
-   conda activate marketing_stream
-2. **Install App Dependencies:**
+   uv venv --python 3.12 .venv-streamlit
+   source .venv-streamlit/bin/activate
+   ```
 
-The Streamlit app has additional dependencies listed in `streamlit/mmm-explainer/requirements.txt`.
-Install them using:
+   On Windows PowerShell, activate it with:
 
-```bash
-pip install -r streamlit/mmm-explainer/requirements.txt
-```
-3. **Launch the App:**
-    streamlit run Visualise_Priors.py
+   ```powershell
+   .venv-streamlit\Scripts\Activate.ps1
+   ```
+
+2. **Install the app dependencies:**
+
+   ```bash
+   uv pip install -r streamlit/mmm-explainer/requirements.txt
+   ```
+
+   The requirements install the released `pymc-marketing` version used by the deployed app. If you are testing changes to the package itself, replace it with the current checkout:
+
+   ```bash
+   uv pip install --editable .
+   ```
+
+3. **Launch the app:**
+
+   ```bash
+   streamlit run streamlit/mmm-explainer/Visualise_Priors.py
+   ```
 
 ## Features
 

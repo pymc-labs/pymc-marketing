@@ -51,8 +51,8 @@ msgstr ""
 
 #: ../source/api/generated/pymc_marketing.model_builder.rst:25:<autosummary>:1
 #: d83d149af3b44d9faaaa1b0367bb5d7c
-msgid "Create a property accessor for an InferenceData object."
-msgstr "Cree un accesor de propiedad para un objeto InferenceData."
+msgid "Create a property accessor for a DataTree object."
+msgstr "Cree un accesor de propiedad para un objeto DataTree."
 
 #: ../source/api/generated/pymc_marketing.model_builder.rst:25:<autosummary>:1
 #: 0c0a6ead37f14a13913deaaa8279ad96

@@ -85,8 +85,8 @@ msgstr ""
 
 #: ../source/api/generated/pymc_marketing.clv.models.basic.CLVModel.rst:36:<autosummary>:1
 #: 499bf16a0fb741ba8d12262d44313501
-msgid "Build the model from the InferenceData object."
-msgstr "Construya el modelo a partir del objeto InferenceData."
+msgid "Build the model from the DataTree object."
+msgstr "Construya el modelo a partir del objeto DataTree."
 
 #: ../source/api/generated/pymc_marketing.clv.models.basic.CLVModel.rst:36:<autosummary>:1
 #: ffdec9c62fb447babc63e001d4324e75
@@ -174,9 +174,9 @@ msgstr ""
 
 #: ../source/api/generated/pymc_marketing.clv.models.basic.CLVModel.rst:36:<autosummary>:1
 #: ab36ea8e9d1f4015a6bebf5d7e0b9f5d
-msgid "Create the initialization kwargs from an InferenceData object."
+msgid "Create the initialization kwargs from a DataTree object."
 msgstr ""
-"Cree los kwargs de inicialización a partir de un objeto InferenceData."
+"Cree los kwargs de inicialización a partir de un objeto DataTree."
 
 #: ../source/api/generated/pymc_marketing.clv.models.basic.CLVModel.rst:36:<autosummary>:1
 #: 1bec425786fc470baf03c0d3b78eb2d0
@@ -205,9 +205,9 @@ msgstr ""
 
 #: ../source/api/generated/pymc_marketing.clv.models.basic.CLVModel.rst:36:<autosummary>:1
 #: 03178d63cc114193a8dc718fc4cd1a83
-msgid "Create a ModelBuilder instance from an InferenceData object."
+msgid "Create a ModelBuilder instance from a DataTree object."
 msgstr ""
-"Cree una instancia de ModelBuilder a partir de un objeto InferenceData."
+"Cree una instancia de ModelBuilder a partir de un objeto DataTree."
 
 #: ../source/api/generated/pymc_marketing.clv.models.basic.CLVModel.rst:36:<autosummary>:1
 #: a56570dfa5574a89b8e9105147a00092
@@ -236,8 +236,8 @@ msgstr ""
 
 #: ../source/api/generated/pymc_marketing.clv.models.basic.CLVModel.rst:36:<autosummary>:1
 #: 4922e83d58e54709a3b1fc7d77969998
-msgid "Set attributes on an InferenceData object."
-msgstr "Establecer atributos en un objeto InferenceData."
+msgid "Set attributes on a DataTree object."
+msgstr "Establecer atributos en un objeto DataTree."
 
 #: ../source/api/generated/pymc_marketing.clv.models.basic.CLVModel.rst:36:<autosummary>:1
 #: 867c4fe831d84801a75b77988e27045c

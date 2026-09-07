@@ -27,8 +27,8 @@ msgstr "NestedLogit.create_idata_attrs"
 
 #: c08a5ceb8e6849a99fe3481ceb90be14 of
 #: pymc_marketing.customer_choice.nested_logit.NestedLogit.create_idata_attrs:2
-msgid "Create the attributes for the InferenceData object."
-msgstr "Cree los atributos para el objeto InferenceData."
+msgid "Create the attributes for the DataTree object."
+msgstr "Cree los atributos para el objeto DataTree."
 
 #: 295fd9056eb34207858ebc0de7404714 of
 #: pymc_marketing.customer_choice.nested_logit.NestedLogit.create_idata_attrs
@@ -42,5 +42,5 @@ msgstr ":class:`python:dict`\\[:class:`python:str`, :class:`python:str`]"
 
 #: e198e7edf76341f1a0b60c20251ed87f of
 #: pymc_marketing.customer_choice.nested_logit.NestedLogit.create_idata_attrs:11
-msgid "The attributes for the InferenceData object."
-msgstr "Los atributos del objeto InferenceData."
+msgid "The attributes for the DataTree object."
+msgstr "Los atributos del objeto DataTree."

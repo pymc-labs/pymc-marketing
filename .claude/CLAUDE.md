@@ -2,9 +2,10 @@
 
 ## Environment
 
-- Activate conda env `pymc-marketing-dev` before running any commands.
+- Run `uv sync --extra test --extra lint` to set up the environment, then use `uv run` for Python commands (pytest, pre-commit, python, etc.). pytest and pre-commit live in those extras rather than in the default sync.
 - Run `pre-commit` every time you create or modify a file.
 - Temporary or test scripts that are not meant to be committed should be created in the `sandbox/` folder.
+- Do not insert hard line breaks inside a sentence; let the editor handle word wrap. Line breaks between sentences are fine.
 
 ## Skills (shared with Cursor)
 

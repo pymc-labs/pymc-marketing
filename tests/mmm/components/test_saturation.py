@@ -19,21 +19,16 @@ import pymc as pm
 import pytest
 import xarray as xr
 from pydantic import ValidationError
-from pymc_extras.deserialize import (
-    DESERIALIZERS,
-    register_deserialization,
-)
 from pymc_extras.prior import Prior
 from pytensor.xtensor import as_xtensor
 from pytensor.xtensor.type import XTensorVariable
 
 import pymc_marketing.mmm.components.saturation as saturation_module
 from pymc_marketing.mmm.components.saturation import (
-    SATURATION_TRANSFORMATIONS,
     LogisticSaturation,
     MichaelisMentenSaturation,
+    RootSaturation,
     SaturationTransformation,
-    saturation_from_dict,
 )
 from pymc_marketing.serialization import serialization
 
@@ -52,8 +47,8 @@ def model() -> pm.Model:
 
 def saturation_functions():
     return [
-        pytest.param(saturation(), id=name)
-        for name, saturation in SATURATION_TRANSFORMATIONS.items()
+        pytest.param(saturation_cls(), id=saturation_cls.__name__)
+        for saturation_cls in ALL_SATURATION_CLASSES
     ]
 
 
@@ -77,10 +72,38 @@ def test_apply_method(
     x = as_xtensor(x, dims=dims)
 
     with model:
-        y = saturation.apply(x, dims=dims)
+        y = saturation.apply(x)
 
     assert isinstance(y, XTensorVariable)
     assert y.eval().shape == x.type.shape
+
+
+def test_root_saturation_logp_is_differentiable_at_zero_input() -> None:
+    """RootSaturation gradients must stay finite at exactly-zero input.
+
+    In an MMM the saturation input is a function of random variables (e.g.
+    adstocked spend), and channels routinely have zero-spend periods. The
+    derivative ``d/dx (x ** alpha) = alpha * x ** (alpha - 1)`` is infinite at
+    ``x == 0`` for ``alpha < 1``, so the resulting NaN propagated into the
+    log-probability gradient of every upstream parameter and broke NUTS. The
+    transformation guards the gradient with ``pt.where`` so that ``f(0) = 0``
+    exactly and the derivative is finite everywhere.
+    """
+    x = np.linspace(0.0, 1.0, 30)
+    x[:5] = 0.0  # exact zero-spend periods
+    rng = np.random.default_rng(0)
+    y_obs = rng.normal(size=x.shape[0])
+    with pm.Model(coords={"time": range(x.shape[0])}) as model:
+        # The input depends on a free RV, as it does after adstock in an MMM.
+        scale = pm.HalfNormal("scale", 1)
+        x_tensor = as_xtensor(x, dims=("time",)) * scale
+        mu = RootSaturation().apply(x_tensor)
+        sigma = pm.HalfNormal("sigma", 1)
+        pm.Normal("obs", mu=mu.values, sigma=sigma, observed=y_obs, dims=("time",))
+
+    dlogp = model.compile_dlogp()
+    grad = dlogp(model.initial_point())
+    assert np.all(np.isfinite(grad))
 
 
 @pytest.mark.parametrize(
@@ -243,88 +266,6 @@ def test_sample_curve_with_bad_max_value(max_value) -> None:
         )
 
 
-def test_saturation_from_dict() -> None:
-    data = {
-        "lookup_name": "michaelis_menten",
-        "priors": {
-            "alpha": {"dist": "HalfNormal", "kwargs": {"sigma": 1}},
-            "lam": {
-                "dist": "HalfNormal",
-                "kwargs": {"sigma": 1},
-            },
-        },
-    }
-
-    with pytest.warns(FutureWarning, match="saturation_from_dict is deprecated"):
-        saturation = saturation_from_dict(data)
-    assert saturation == MichaelisMentenSaturation(
-        priors={
-            "alpha": Prior("HalfNormal", sigma=1),
-            "lam": Prior("HalfNormal", sigma=1),
-        }
-    )
-
-
-@pytest.mark.parametrize(
-    "lookup_name, saturation_cls",
-    list(SATURATION_TRANSFORMATIONS.items()),
-)
-def test_saturation_from_dict_without_priors(lookup_name, saturation_cls) -> None:
-    data = {
-        "lookup_name": lookup_name,
-    }
-
-    with pytest.warns(FutureWarning, match="saturation_from_dict is deprecated"):
-        saturation = saturation_from_dict(data)
-    assert saturation.default_priors == {
-        k: Prior.from_dict(v) for k, v in saturation.to_dict()["priors"].items()
-    }
-
-
-class ArbitraryObject:
-    def __init__(self, msg: str, value: int) -> None:
-        self.msg = msg
-        self.value = value
-        self.dims = ()
-
-    def create_variable(self, name: str):
-        return pm.Normal(name, mu=0, sigma=1)
-
-
-@pytest.fixture
-def register_arbitrary_deserialization():
-    register_deserialization(
-        lambda data: isinstance(data, dict) and data.keys() == {"msg", "value"},
-        lambda data: ArbitraryObject(**data),
-    )
-
-    yield
-
-    DESERIALIZERS.pop()
-
-
-def test_deserialization(
-    register_arbitrary_deserialization,
-) -> None:
-    data = {
-        "lookup_name": "logistic",
-        "prefix": "new",
-        "priors": {
-            "alpha": {"msg": "hello", "value": 1},
-        },
-    }
-
-    with pytest.warns(FutureWarning, match="saturation_from_dict is deprecated"):
-        instance = saturation_from_dict(data)
-    assert isinstance(instance, LogisticSaturation)
-    assert instance.prefix == "new"
-
-    alpha = instance.function_priors["alpha"]
-    assert isinstance(alpha, ArbitraryObject)
-    assert alpha.msg == "hello"
-    assert alpha.value == 1
-
-
 class TestSaturationRoundtrips:
     """Every SaturationTransformation subclass round-trips with all params."""
 
@@ -362,6 +303,7 @@ class TestSaturationRoundtrips:
         "pymc_marketing.mmm.components.saturation.MichaelisMentenSaturation",
         "pymc_marketing.mmm.components.saturation.RootSaturation",
         "pymc_marketing.mmm.components.saturation.InverseScaledLogisticSaturation",
+        "pymc_marketing.mmm.components.saturation.LogSaturation",
         "pymc_marketing.mmm.components.saturation.NoSaturation",
     ],
     ids=lambda s: s.rsplit(".", 1)[-1],

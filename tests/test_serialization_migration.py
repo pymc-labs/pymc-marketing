@@ -17,7 +17,6 @@ import json
 import subprocess
 import sys
 
-import arviz as az
 import numpy as np
 import xarray as xr
 
@@ -27,7 +26,7 @@ from pymc_marketing.serialization_migration import CURRENT_VERSION, migrate_idat
 def _make_v0_idata():
     """Create a minimal InferenceData with v0 (old-format) attrs."""
     posterior = xr.Dataset({"x": xr.DataArray(np.random.randn(4, 100))})
-    idata = az.InferenceData(posterior=posterior)
+    idata = xr.DataTree.from_dict({"/posterior": posterior})
     idata.attrs["id"] = "abc123"
     idata.attrs["model_type"] = "MMM"
     idata.attrs["version"] = "0.0.1"
@@ -144,7 +143,7 @@ class TestMigrateIdataCLI:
     def test_cli_migrates_file(self, tmp_path):
         """python -m pymc_marketing.serialization_migration <file> should migrate in-place."""
         posterior = xr.Dataset({"x": xr.DataArray(np.random.randn(4, 100))})
-        idata = az.InferenceData(posterior=posterior)
+        idata = xr.DataTree.from_dict({"/posterior": posterior})
         idata.attrs["model_type"] = "MMM"
         idata.attrs["version"] = "0.0.1"
         idata.attrs["adstock"] = json.dumps({"lookup_name": "geometric", "l_max": 4})
@@ -163,5 +162,5 @@ class TestMigrateIdataCLI:
         )
         assert result.returncode == 0
 
-        reloaded = az.from_netcdf(fname)
+        reloaded = xr.open_datatree(fname)
         assert "__serialization_version__" in reloaded.attrs

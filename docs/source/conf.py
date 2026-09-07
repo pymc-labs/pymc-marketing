@@ -17,7 +17,9 @@ import pymc_marketing  # isort:skip
 project = "PyMC-Marketing"
 author = "PyMC Labs"
 copyright = f"2022-%Y, {author}"
-html_title = "Open Source Marketing Analytics Solution"
+# Keep the <title> suffix short: Google truncates titles around 60 characters,
+# so a long suffix pushes each page's own keywords out of the visible snippet.
+html_title = "PyMC-Marketing"
 
 # The master toctree document.
 master_doc = "index"
@@ -67,12 +69,29 @@ else:
 
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
+# Notebooks under any "dev/" subdirectory are work-in-progress drafts kept
+# in-tree for contributors but not part of the published docs. Excluding them
+# stops MyST from parsing them, which silences the bulk of the toctree and
+# duplicate-label warnings reported in #1198 and (transitively) #1209.
 exclude_patterns = [
     "build",
     "jupyter_execute",
     "jupyter_cache",
     "**.ipynb_checkpoints",
+    "**/dev/**",
+    # Internal contributor-facing README for the gallery, not part of the
+    # published docs (#1210); excluding stops the 'document isn't included
+    # in any toctree' warning.
+    "gallery/README.md",
 ]
+
+# Suppress the harmless myst-parser override of mathjax3_config.processHtmlClass.
+# myst-parser intentionally extends the class list ("tex2jax_process" ->
+# "tex2jax_process|mathjax_process|math|output_area") so it can render math in
+# notebook output cells. Our config sets the same key, so myst flags it; the
+# resulting behaviour is what we want, so we silence the warning rather than
+# remove the explicit setting (which we keep for clarity).
+suppress_warnings = ["myst.mathjax"]
 
 # The reST default role (used for this markup: `text`) to use for all documents.
 # This sets the behaviour to be the same as in markdown
@@ -90,6 +109,16 @@ locale_dirs = ["../../locales"]
 
 # exclude method pages from toctree to make pages lighter and build faster
 remove_from_toctrees = ["**/classmethods/*"]
+
+# matplotlib plot directive configuration
+# plot_pre_code runs before every .. plot:: block; replaces the default
+# "import numpy as np / from matplotlib import pyplot as plt" preamble.
+plot_pre_code = (
+    "import numpy as np\n"
+    "import arviz  # registers arviz styles with matplotlib\n"
+    "from matplotlib import pyplot as plt\n"
+    "plt.style.use('arviz-darkgrid')\n"
+)
 
 # myst config
 nb_execution_mode = "auto"
@@ -139,7 +168,7 @@ numpydoc_xref_aliases = {
     "TensorVariable": ":class:`~pytensor.tensor.TensorVariable`",
     "RandomVariable": ":class:`~pytensor.tensor.random.RandomVariable`",
     "ndarray": ":class:`~numpy.ndarray`",
-    "InferenceData": ":class:`~arviz.InferenceData`",
+    "DataTree": ":class:`~xarray.DataTree`",
     "Model": ":class:`~pymc.Model`",
     "tensor_like": ":term:`tensor_like`",
     "unnamed_distribution": ":term:`unnamed_distribution`",
@@ -160,6 +189,26 @@ intersphinx_mapping = {
     "scipy": ("https://docs.scipy.org/doc/scipy/", None),
     "xarray": ("https://docs.xarray.dev/en/stable/", None),
 }
+
+# Prefer cross-reference roles over hard-coded URLs when pointing at an API of
+# any project listed above, e.g. {func}`pymc.sample` instead of a literal link
+# to the pymc docs. Renamed or moved objects then surface as a warning, which
+# the docs build turns into an error (-W), instead of silently rotting into a
+# 404 on the published site.
+
+# `sphinx-build docs/source docs/build -b linkcheck` catches the hard-coded
+# links that remain. Anchors are not checked: many targets render them client
+# side, which produces false positives.
+linkcheck_anchors = False
+linkcheck_timeout = 30
+linkcheck_retries = 2
+linkcheck_ignore = [
+    # Rate-limits or blocks CI traffic.
+    r"https://(www\.)?linkedin\.com/.*",
+    r"https://(twitter|x)\.com/.*",
+    r"https://calendly\.com/.*",
+    r"https://discord\.(gg|com)/.*",
+]
 
 
 # linkcode extension (links of [source] pointing to github)
@@ -218,12 +267,23 @@ notfound_urls_prefix = "/en/latest/"
 ogp_site_url = "https://www.pymc-marketing.io/en/stable/"
 ogp_canonical_url = "https://www.pymc-marketing.io/en/stable/"
 ogp_image = "https://www.pymc-marketing.io/en/stable/_images/marketing-logo-light.jpg"
-ogp_enable_meta_description = False
+# Auto-generate <meta name="description"> from the first paragraph of each
+# page. Pages that declare their own description (e.g. index.md) are skipped.
+ogp_enable_meta_description = True
 
 
 # sitemap extension configuration
 site_url = "https://www.pymc-marketing.io/"
 sitemap_url_scheme = f"{{lang}}{rtd_version}/{{link}}"
+# Keep thin auto-generated pages out of the sitemap so crawl budget goes to
+# real content. The classmethods stubs alone are ~80% of all pages and sit in
+# Search Console as "Crawled - currently not indexed".
+sitemap_excludes = [
+    "search.html",
+    "genindex.html",
+    "py-modindex.html",
+    "api/generated/classmethods/*",
+]
 
 
 # -- Options for HTML output ----------------------------------------------
@@ -231,7 +291,7 @@ sitemap_url_scheme = f"{{lang}}{rtd_version}/{{link}}"
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
 html_theme = "labs_sphinx_theme"
-html_extra_path = ["robots.txt"]
+html_extra_path = ["robots.txt", "llms.txt"]
 html_copy_source = (
     False  # don't include rst source files as _sources/...txt in the build
 )
@@ -254,7 +314,10 @@ html_context = {
     "github_version": "main",
     "doc_path": "docs/source/",
     "default_mode": "light",
-    "baseurl": "https://www.pymc-marketing.io/",
+    # No trailing slash: the theme's layout.html builds the canonical URL as
+    # "{baseurl}/{language}/stable/{pagename}.html". A trailing slash here
+    # produced broken canonicals ("https://www.pymc-marketing.io//en/...").
+    "baseurl": "https://www.pymc-marketing.io",
     "rtd_version": rtd_version,
     "translations": ["en", "es"],
 }
@@ -263,7 +326,10 @@ html_context = {
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
 html_static_path = ["_static/"]
-html_css_files = ["custom.css"]
+html_css_files = ["custom.css", "fold-code-cells.css"]
+# Folds notebook code cells by default so example pages lead with narrative
+# and outputs instead of walls of code (#2926).
+html_js_files = ["fold-code-cells.js"]
 
 # -- Options for LaTeX output ---------------------------------------------
 

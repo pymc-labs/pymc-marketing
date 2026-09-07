@@ -29,6 +29,11 @@ __all__ = [
     "to_xarray",
 ]
 
+# Average length of a calendar month: 365.25 / 12, where 365.25 accounts for
+# leap years. Using a flat 30 here understates a year by 5.25 days and inflates
+# CLV estimates for the "D", "W" and "H" time units.
+_DAYS_PER_MONTH = 30.4375
+
 
 def to_xarray(customer_id, *arrays, dim: str = "customer_id"):
     """Convert vector arrays to xarray with a common dim (default "customer_id")."""
@@ -54,7 +59,10 @@ def customer_lifetime_value(
 
     Compute the average lifetime value for a group of one or more customers
     and apply a discount rate for net present value estimations.
-    Note `future_t` is measured in months regardless of `time_unit` specified.
+
+    Note: ``future_t`` is always in months regardless of the ``time_unit``
+    used for the transaction model. The value is converted internally to
+    the given ``time_unit`` for computing expected purchases per period.
 
     Adapted from the legacy ``lifetimes`` library:
     https://github.com/CamDavidsonPilon/lifetimes/blob/41e394923ad72b17b5da93e88cfabab43f51abe2/lifetimes/utils.py#L449
@@ -62,7 +70,8 @@ def customer_lifetime_value(
     Parameters
     ----------
     transaction_model : ~CLVModel
-        Predictive model for future transactions. `BetaGeoModel` and `ParetoNBDModel` are currently supported.
+        Predictive model for future transactions. `BetaGeoModel`,
+        `ModifiedBetaGeoModel`, and `ParetoNBDModel` are currently supported.
     data : ~pandas.DataFrame
         DataFrame containing the following columns:
 
@@ -72,7 +81,8 @@ def customer_lifetime_value(
         * `T`: Time between the first purchase and the end of the observation period
         * `future_spend`: Predicted monetary values for each customer
     future_t : int, optional
-        The lifetime expected for the user in months. Default: 12
+        The number of months to project lifetime value for. This is always
+        specified in months, independent of ``time_unit``. Default: 12
     discount_rate : float, optional
         The monthly adjusted discount rate. Default: 0.00
     time_unit : string, optional
@@ -120,13 +130,16 @@ def customer_lifetime_value(
     else:
         steps = np.arange(1, future_t + 1)
 
-    factor = {"W": 4.345, "M": 1.0, "D": 30, "H": 30 * 24}[time_unit]
+    factor = {
+        "W": _DAYS_PER_MONTH / 7,
+        "M": 1.0,
+        "D": _DAYS_PER_MONTH,
+        "H": _DAYS_PER_MONTH * 24,
+    }[time_unit]
 
     monetary_value = to_xarray(data["customer_id"], data["future_spend"])
 
     clv = xarray.DataArray(0.0)
-
-    # TODO: Add an IF block to support ShiftedBetaGeoModelIndividual
 
     # initialize FOR loop with 0 purchases at future_t = 0
     prev_expected_purchases = 0
@@ -204,24 +217,28 @@ def _find_first_transactions(
     """
     select_columns = [customer_id_col, datetime_col]
 
+    if monetary_value_col:
+        select_columns.append(monetary_value_col)
+
+    transactions = transactions[select_columns].copy()
+    transactions[datetime_col] = pandas.to_datetime(
+        transactions[datetime_col], format=datetime_format
+    )
+
     if observation_period_end is None:
         observation_period_end = transactions[datetime_col].max()
 
     if isinstance(observation_period_end, pandas.Period):
         observation_period_end = observation_period_end.to_timestamp()
     if isinstance(observation_period_end, str):
-        observation_period_end = pandas.to_datetime(observation_period_end)
-
-    if monetary_value_col:
-        select_columns.append(monetary_value_col)
+        observation_period_end = pandas.to_datetime(
+            observation_period_end, format=datetime_format
+        )
 
     if sort_transactions:
-        transactions = transactions[select_columns].sort_values(select_columns).copy()
+        transactions = transactions.sort_values(select_columns)
 
     # convert date column into a DateTimeIndex for time-wise grouping and truncating
-    transactions[datetime_col] = pandas.to_datetime(
-        transactions[datetime_col], format=datetime_format
-    )
     transactions = (
         transactions.set_index(datetime_col).to_period(time_unit).to_timestamp()
     )
@@ -336,7 +353,8 @@ def rfm_summary(
     """
     if observation_period_end is None:
         observation_period_end_ts = (
-            pandas.to_datetime(transactions[datetime_col].max(), format=datetime_format)
+            pandas.to_datetime(transactions[datetime_col], format=datetime_format)
+            .max()
             .to_period(time_unit)
             .to_timestamp()
         )
@@ -489,9 +507,6 @@ def rfm_train_test_split(
         and *monetary_value* if specified
 
     """
-    if test_period_end is None:
-        test_period_end = transactions[datetime_col].max()
-
     transaction_cols = [customer_id_col, datetime_col]
     if monetary_value_col:
         transaction_cols.append(monetary_value_col)
@@ -500,6 +515,9 @@ def rfm_train_test_split(
     transactions[datetime_col] = pandas.to_datetime(
         transactions[datetime_col], format=datetime_format
     )
+    if test_period_end is None:
+        test_period_end = transactions[datetime_col].max()
+
     test_period_end = pandas.to_datetime(test_period_end, format=datetime_format)
     train_period_end = pandas.to_datetime(train_period_end, format=datetime_format)
 

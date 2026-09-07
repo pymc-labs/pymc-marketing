@@ -21,26 +21,12 @@ msgstr ""
 "Generated-By: Babel 2.17.0\n"
 
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.mmm.MMM.attrs_to_init_kwargs.rst:2
-#: 5769431524184ff8a151049e7f6b0e93
+#: 5cd863a1288e4b8fb49aa4b8341a11c0
 msgid "MMM.attrs\\_to\\_init\\_kwargs"
 msgstr "MMM.attrs\\_to\\_init\\_kwargs"
 
-#: c65783d2a0b644eebb5c3e0a2e94cf06 of
-#: pymc_marketing.mmm.mmm.BaseMMM.attrs_to_init_kwargs:2
-msgid "Convert attributes to initialization kwargs."
-msgstr "Convertir atributos a kwargs de inicialización."
-
-#: 708aeb53f78b4b18af5e70f4c5b72bfb of
-#: pymc_marketing.mmm.mmm.BaseMMM.attrs_to_init_kwargs
-msgid "Returns"
-msgstr "Devoluciones"
-
-#: f3df375bab5e438393f1258d5fd16ba2 of
-#: pymc_marketing.mmm.mmm.BaseMMM.attrs_to_init_kwargs:10
-msgid ":class:`python:dict`\\[:class:`python:str`, :obj:`Any`]"
-msgstr ":class:`python:dict`\\[:class:`python:str`, :obj:`Cualquiera`]"
-
-#: 1e47273f0a1d4936b2e12264e8d684f6 of
-#: pymc_marketing.mmm.mmm.BaseMMM.attrs_to_init_kwargs:11
-msgid "The initialization kwargs."
-msgstr "Los kwargs de inicialización."
+#: 211a10cd9ad94d9ab519b031c702475b of
+#: pymc_marketing.mmm.mmm.MMM.attrs_to_init_kwargs:2
+msgid "Convert the idata attributes to the model initialization kwargs."
+msgstr ""
+"Convierte los atributos idata a los kwargs de inicialización del modelo."

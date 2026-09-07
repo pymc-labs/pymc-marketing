@@ -170,9 +170,8 @@ def test_new_transformation_function_priors(new_transformation) -> None:
 
 
 def test_new_transformation_priors_at_init(new_transformation_class) -> None:
-    new_prior = {"a": {"dist": "HalfNormal", "kwargs": {"sigma": 2}}}
-    with pytest.warns(DeprecationWarning, match=r"a is automatically converted"):
-        new_transformation = new_transformation_class(priors=new_prior)
+    new_prior = {"a": Prior("HalfNormal", sigma=2)}
+    new_transformation = new_transformation_class(priors=new_prior)
     assert new_transformation.function_priors == {
         "a": Prior("HalfNormal", sigma=2),
         "b": Prior("HalfNormal", sigma=1),
@@ -237,6 +236,89 @@ def test_new_transformation_sample_prior(new_transformation) -> None:
     }
 
     assert set(prior.keys()) == {"new_a", "new_b"}
+
+
+def test_sample_prior_all_constant_tensors(new_transformation_class) -> None:
+    """Regression test for GitHub issue #1749.
+
+    sample_prior must succeed when all priors are constant tensors (no free
+    random variables). Previously it raised ``AttributeError`` because
+    ``pm.sample_prior_predictive`` returned an ``InferenceData`` without a
+    ``prior`` group when the model contained no stochastic nodes.
+    """
+    transformation = new_transformation_class(
+        priors={
+            "a": pt.as_tensor_variable(2.0),
+            "b": pt.as_tensor_variable(3.0),
+        }
+    )
+
+    prior = transformation.sample_prior()
+
+    assert isinstance(prior, xr.Dataset)
+    assert prior.sizes["chain"] == 1
+    assert prior.sizes["draw"] >= 1
+    assert set(prior.keys()) == {"new_a", "new_b"}
+    np.testing.assert_allclose(prior["new_a"].values, 2.0)
+    np.testing.assert_allclose(prior["new_b"].values, 3.0)
+
+
+def test_sample_prior_constant_tensor_with_coords(new_transformation_class) -> None:
+    """Constant vector tensors work correctly with coordinate dimensions."""
+    transformation = new_transformation_class(
+        priors={
+            "a": pt.as_tensor_variable([1.0, 2.0, 3.0]),
+            "b": pt.as_tensor_variable(0.5),
+        }
+    )
+
+    coords = {"channel": ["C1", "C2", "C3"]}
+    prior = transformation.sample_prior(coords=coords)
+
+    assert isinstance(prior, xr.Dataset)
+    assert prior.sizes["chain"] == 1
+    assert prior.sizes["draw"] >= 1
+    assert "new_a" in prior.data_vars
+    assert "new_b" in prior.data_vars
+    # Each draw holds the same constant vector; check the first draw.
+    np.testing.assert_allclose(prior["new_a"].values[0, 0], [1.0, 2.0, 3.0])
+
+
+def test_sample_prior_mixed_constant_and_prior(new_transformation_class) -> None:
+    """Constants must appear in the prior even when other params are sampled.
+
+    When a free random variable exists, constant tensors must still be included
+    in the returned dataset (not silently dropped).
+    """
+    transformation = new_transformation_class(
+        priors={
+            "a": Prior("HalfNormal", sigma=1),
+            "b": pt.as_tensor_variable(3.0),
+        }
+    )
+
+    prior = transformation.sample_prior()
+
+    assert isinstance(prior, xr.Dataset)
+    assert set(prior.keys()) == {"new_a", "new_b"}
+    np.testing.assert_allclose(prior["new_b"].values, 3.0)
+
+
+def test_sample_prior_constant_with_unknown_dims(new_transformation_class) -> None:
+    """A dims-carrying constant needs its coords, and says so.
+
+    Without the check, PyMC raises a bare ``KeyError``; the ``Prior`` path
+    raises an actionable ``ValueError`` for the same mistake.
+    """
+    transformation = new_transformation_class(
+        priors={
+            "a": as_xtensor(np.array([1.0, 2.0, 3.0]), dims=("channel",)),
+            "b": pt.as_tensor_variable(0.5),
+        }
+    )
+
+    with pytest.raises(ValueError, match=r"Missing: \['channel'\]"):
+        transformation.sample_prior()
 
 
 def create_curve(coords) -> xr.DataArray:
@@ -481,7 +563,7 @@ def test_apply_idx(new_transformation_class) -> None:
     coords = {"geo": ["A", "B"], "channel": ["TV", "Radio", "Online"]}
     with pm.Model(coords=coords) as model:
         idx = as_xtensor([0, 0, 0, 1, 1, 1], dims=("geo",))
-        Y = instance.apply(X, idx=idx, dims=("channel",))
+        Y = instance.apply(X, idx=idx)
 
         expected = instance.function(
             X,
@@ -532,7 +614,6 @@ def test_apply_idx_more_dims(new_transformation_class) -> None:
         Y = instance.apply(
             X,
             idx=(geo_idx, product_idx),
-            dims="channel",
         )
 
         expected = instance.function(
@@ -590,3 +671,26 @@ def test_exposed_priors_property() -> None:
     priors = {"x": dist}
     tfm = DummyTransformation(priors=priors)
     assert tfm.priors == {"x": dist}
+
+
+def test_call_reuses_existing_vars(new_transformation) -> None:
+    x = as_xtensor(np.array([1, 2, 3]), dims=("time",))
+    with pm.Model() as model:
+        new_transformation.apply(x)
+        n_vars_before = len(model.named_vars)
+        new_transformation(x)
+        assert len(model.named_vars) == n_vars_before
+
+
+def test_call_fallback_creates_distributions(new_transformation) -> None:
+    x = as_xtensor(np.array([1, 2, 3]), dims=("time",))
+    expected = np.array([6, 12, 18])
+    with pm.Model() as generative_model:
+        pm.Deterministic("y", new_transformation(x))
+    fixed = pm.do(generative_model, {"new_a": 2, "new_b": 3})
+    np.testing.assert_allclose(fixed["y"].eval(), expected)
+
+
+def test_call_outside_model_raises(new_transformation) -> None:
+    with pytest.raises(TypeError, match=r"on context stack"):
+        new_transformation(as_xtensor(np.array([1, 2, 3]), dims=("time",)))

@@ -13,13 +13,13 @@
 #   limitations under the License.
 
 
-import arviz as az
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import pymc as pm
 import pytensor.tensor as pt
 import pytest
+import xarray as xr
 
 from pymc_marketing.customer_choice.mixed_logit import MixedLogit
 
@@ -906,7 +906,7 @@ def test_sample(mxl, sample_df, utility_eqs_basic, mock_pymc_sample):
     assert "fit_data" in mxl.idata
 
     mxl.sample_posterior_predictive(choice_df=sample_df, extend_idata=True)
-    assert isinstance(mxl.idata, az.InferenceData)
+    assert isinstance(mxl.idata, xr.DataTree)
 
     mxl.fit(choice_df=sample_df, utility_equations=utility_eqs_basic)
 

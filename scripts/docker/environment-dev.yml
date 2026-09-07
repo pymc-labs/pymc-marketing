@@ -1,8 +1,0 @@
-# "dev" conda envs are to be used by devs in setting their local environments
-name: pymc-marketing-dev
-channels:
-  - conda-forge
-  - nodefaults
-dependencies:
-  # core
-  - pymc-marketing

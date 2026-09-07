@@ -39,14 +39,14 @@ msgstr "Parámetros"
 
 #: 9bab7e9de73a4b0aa2e0b7054a5f3f1d of
 #: pymc_marketing.customer_choice.nested_logit.NestedLogit.calculate_share_change:7
-msgid "**idata** : :obj:`az.InferenceData`"
-msgstr "**idata** : :obj:`az.InferenceData`"
+msgid "**idata** : :obj:`az.DataTree`"
+msgstr "**idata** : :obj:`az.DataTree`"
 
 #: 03ff01662ca44c79983cee161e26e4fa cbe16e2317b849dfb8da29f3cc7873f0 of
 #: pymc_marketing.customer_choice.nested_logit.NestedLogit.calculate_share_change:6
 #: pymc_marketing.customer_choice.nested_logit.NestedLogit.calculate_share_change:11
-msgid "az.InferenceData"
-msgstr "az.InferenceData"
+msgid "az.DataTree"
+msgstr "az.DataTree"
 
 #: 2b30485fe9424c459309f3fd03b9b132 of
 #: pymc_marketing.customer_choice.nested_logit.NestedLogit.calculate_share_change:8
@@ -61,8 +61,8 @@ msgstr ""
 
 #: 372756c9634d453aa3b4e8f45d51037a of
 #: pymc_marketing.customer_choice.nested_logit.NestedLogit.calculate_share_change:12
-msgid "**new_idata** : :obj:`az.InferenceData`"
-msgstr "**new_idata** : :obj:`az.InferenceData`"
+msgid "**new_idata** : :obj:`az.DataTree`"
+msgstr "**new_idata** : :obj:`az.DataTree`"
 
 #: 9c709f1aca8849b4be22a7bf2947bad4 of
 #: pymc_marketing.customer_choice.nested_logit.NestedLogit.calculate_share_change:13

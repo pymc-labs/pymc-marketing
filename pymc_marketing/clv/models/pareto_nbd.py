@@ -37,6 +37,7 @@ from xarray_einstats.stats import logsumexp as xr_logsumexp
 from pymc_marketing.clv.distributions import ParetoNBD
 from pymc_marketing.clv.models.basic import CLVModel
 from pymc_marketing.clv.utils import to_xarray
+from pymc_marketing.model_builder import SamplingMethod
 from pymc_marketing.model_config import ModelConfig
 
 
@@ -197,16 +198,13 @@ class ParetoNBDModel(CLVModel):
 
     def __init__(
         self,
-        data: pd.DataFrame | None = None,
         *,
         model_config: ModelConfig | None = None,
         sampler_config: dict | None = None,
     ):
         super().__init__(
-            data=data,
             model_config=model_config,
             sampler_config=sampler_config,
-            non_distributions=["purchase_covariate_cols", "dropout_covariate_cols"],
         )
 
     @property
@@ -238,9 +236,9 @@ class ParetoNBDModel(CLVModel):
         """All covariate column names."""
         return self.purchase_covariate_cols + self.dropout_covariate_cols
 
-    # TODO: This placeholder will be superceded by https://github.com/pymc-labs/pymc-marketing/pull/2305
     def _validate_data(self, data: pd.DataFrame) -> None:
         """Validate Pareto/NBD-specific data requirements."""
+        super()._validate_data(data)
         self._validate_cols(
             data,
             required_cols=[
@@ -253,28 +251,16 @@ class ParetoNBDModel(CLVModel):
             must_be_unique=["customer_id"],
         )
 
-    def build_model(self, data: pd.DataFrame | None = None) -> None:  # type: ignore[override]
+    def build_model(self, data: pd.DataFrame) -> None:  # type: ignore[override]
         """Build the model.
 
         Parameters
         ----------
-        data : pd.DataFrame, optional
+        data : pd.DataFrame
             Input data with customer_id, frequency, recency, and T columns.
-            If not provided, uses data from model initialization (deprecated).
         """
-        # TODO: Revise this logic when old API is removed in 1.0.
-        # Handle data parameter
-        if data is not None:
-            self._validate_data(data)
-            self.data = data
-        elif not hasattr(self, "data") or self.data is None:
-            raise ValueError(
-                f"{self._model_type}.build_model() requires data parameter. "
-                "Either pass data to build_model(data=...) or fit(data=...)"
-            )
-        else:
-            # Validate existing data from old API
-            self._validate_data(self.data)
+        self._validate_data(data)
+        self.data = data
 
         coords = {
             "purchase_covariate": self.purchase_covariate_cols,
@@ -350,11 +336,11 @@ class ParetoNBDModel(CLVModel):
                 dims=["customer_id", "obs_var"],
             )
 
-    def fit(
+    def fit(  # type: ignore[override]
         self,
-        data: pd.DataFrame | None = None,
-        method: str = "map",
-        fit_method: str | None = None,
+        data: pd.DataFrame,
+        *,
+        method: SamplingMethod = "map",
         **kwargs,
     ):  # type: ignore
         """Infer posteriors of model parameters to run predictions.
@@ -373,15 +359,6 @@ class ParetoNBDModel(CLVModel):
 
         """
         mode = get_default_mode()
-
-        if fit_method:
-            warnings.warn(
-                "'fit_method' is deprecated and will be removed in version 1.0. "
-                "Use 'method' instead.",
-                DeprecationWarning,
-                stacklevel=2,
-            )
-            method = fit_method
 
         if method == "mcmc":
             # Include rewrite in mode
@@ -506,7 +483,8 @@ class ParetoNBDModel(CLVModel):
                 s,
                 beta,
                 *customer_vars,
-            )
+            ),
+            compat="override",
         )
 
     def expected_purchases(

@@ -1,13 +1,12 @@
 ---
-og:description: Marketing Analytics Tools from PyMC Labs. Unlock the power of Marketing Mix Modeling (MMM), Customer Lifetime Value (CLV) and Customer Choice Analysis (CSA) analytics with PyMC-Marketing. This open-source marketing analytics tool empowers businesses to make smarter, data-driven decisions for maximizing ROI in marketing campaigns.
+og:description: "PyMC-Marketing is an open-source Python library for Bayesian Marketing Mix Modeling (MMM), Customer Lifetime Value (CLV), and media spend optimization. Built on PyMC by PyMC Labs, it provides adstock transformations, saturation curves, budget allocation, and CLV forecasting with full uncertainty quantification."
 ---
 
-:::{title} PyMC-Marketing
-:::
+# PyMC-Marketing: Open Source Bayesian Marketing Mix Modeling & CLV in Python
 
 ```{eval-rst}
 .. meta::
-   :description: Marketing Analytics Tools from PyMC Labs. Unlock the power of Marketing Mix Modeling (MMM), Customer Lifetime Value (CLV) and Customer Choice Analysis (CSA) analytics with PyMC-Marketing. This open-source marketing analytics tool empowers businesses to make smarter, data-driven decisions for maximizing ROI in marketing campaigns.
+   :description: PyMC-Marketing is an open-source Python library for Bayesian Marketing Mix Modeling (MMM), Customer Lifetime Value (CLV), and media spend optimization. Built on PyMC by PyMC Labs, it provides adstock transformations, saturation curves, budget allocation, and CLV forecasting with full uncertainty quantification.
 ```
 
 :::{image} _static/marketing-logo-dark.jpg
@@ -20,20 +19,23 @@ og:description: Marketing Analytics Tools from PyMC Labs. Unlock the power of Ma
 :class: only-light
 :::
 
-<h1 style="text-align: center;">Open Source Marketing Analytics Solution</h1>
+PyMC-Marketing is an open-source Python library for Bayesian marketing analytics, built and maintained by [PyMC Labs](https://www.pymc-labs.com). It provides production-ready implementations of Marketing Mix Modeling (MMM) and Customer Lifetime Value (CLV) models, enabling data scientists to measure media effectiveness, optimize marketing spend, and forecast customer value — all with full Bayesian uncertainty quantification. Whether you call it marketing mix modeling or media mix modeling, PyMC-Marketing is the most comprehensive open-source MMM solution available in Python.
 
 :::{div} sd-text-center
 [![Downloads](https://static.pepy.tech/badge/pymc-marketing)](https://pepy.tech/project/pymc-marketing)
 [![Downloads](https://static.pepy.tech/badge/pymc-marketing/month)](https://pepy.tech/project/pymc-marketing)
-[![Downloads](https://static.pepy.tech/badge/pymc-marketing/week)](https://pepy.tech/project/pymc-marketing)
+[![GitHub stars](https://img.shields.io/github/stars/pymc-labs/pymc-marketing?style=flat&logo=github&label=Stars)](https://github.com/pymc-labs/pymc-marketing)
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://github.com/pymc-labs/pymc-marketing/blob/main/LICENSE)
 :::
 
-<h1 style="text-align: center;">Powered by</h1>
+:::{div} sd-text-center sd-text-muted
+Powered by
+:::
 
 :::{image} _static/labs-logo-dark.png
 :align: center
 :target: https://www.pymc-labs.com
-:scale: 20 %
+:scale: 10 %
 :alt: PyMC Labs logo
 :class: only-dark
 :::
@@ -41,31 +43,41 @@ og:description: Marketing Analytics Tools from PyMC Labs. Unlock the power of Ma
 :::{image} _static/labs-logo-light.png
 :align: center
 :target: https://www.pymc-labs.com
-:scale: 20 %
+:scale: 10 %
 :alt: PyMC Labs logo
 :class: only-light
 :::
 
----
+## Trusted in production
 
-## 📞 Schedule a Free Strategy Consultation
+PyMC-Marketing is built and maintained by the **core developers of [PyMC](https://www.pymc.io)** — the Bayesian modeling library at the heart of the scientific Python stack. Data science teams use it to plan and defend real marketing budgets, with results validated against experiments and lift tests.
 
-Maximize your marketing ROI with a [free 30-minute strategy session](https://calendly.com/niall-oulton) with our PyMC-Marketing experts or [send us a message](https://www.pymc-labs.com/contact). Learn how Bayesian Marketing Mix Modeling and Customer Lifetime Value analytics can boost your organization by making smarter, data-driven decisions.
+:::{div} sd-text-center
+**750,000+ downloads** · **1,100+ GitHub stars** · **Apache-2.0 licensed** — free, open, and auditable
+:::
 
-For businesses looking to integrate PyMC-Marketing into their operational framework, [PyMC Labs](https://www.pymc-labs.com) offers expert consulting and training. Our team is proficient in state-of-the-art Bayesian modeling techniques, with a focus on Marketing Mix Models (MMMs) and Customer Lifetime Value (CLV).
+## Get started
 
-We provide the following professional services:
+PyMC-Marketing is built on top of **PyMC >= 6.0** and **ArviZ >= 1.2**. Since PyMC >= 6, installing with pip is fully supported — no conda environment required (Python >= 3.12).
 
-- **Custom Models**: Bespoke Bayesian models tailored to your business requirements and data structure.
-- **Training & Coaching**: Comprehensive training programs to master PyMC-Marketing and Bayesian marketing analytics.
-- **Implementation Support**: End-to-end integration into your existing data infrastructure and workflows.
-- **Strategic Advisory**: Expert guidance on marketing measurement strategy and data-driven decision frameworks.
-- **SaaS Solutions**: State-of-the-art software solutions to streamline your data-driven marketing initiatives.
+```bash
+pip install pymc-marketing
+```
 
-### PyMC Labs Client Testimonials
+```python
+from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation, MMM
 
-<iframe width="800" height="450" src="https://www.youtube.com/embed/_CVEygFxFRA" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>
+mmm = MMM(
+    adstock=GeometricAdstock(l_max=8),
+    saturation=LogisticSaturation(),
+    date_column="date_week",
+    channel_columns=["x1", "x2"],
+    control_columns=["event_1", "event_2", "t"],
+    yearly_seasonality=2,
+)
+```
 
+See how PyMC-Marketing compares to [Google Meridian, Meta Robyn, and other MMM frameworks](guide/mmm/comparison), or read the [benchmark comparison to Meridian](https://www.pymc-labs.com/blog-posts/pymc-marketing-vs-google-meridian).
 
 ## Quick links
 
@@ -163,6 +175,10 @@ Leverage our Bayesian MMM API to tailor your marketing strategies effectively. L
 | Out-of-sample Predictions                  | Forecast future marketing performance with credible intervals. Use this for simulations and scenario planning.                                                                                                                                                                                                                                                                          |
 | Budget Optimization                        | Allocate your marketing spend efficiently across various channels for maximum ROI. See the [budget optimization example notebook](https://www.pymc-marketing.io/en/stable/notebooks/mmm/mmm_budget_allocation_example.html)                                                                                                                                                             |
 | Experiment Calibration                     | Fine-tune your model based on empirical experiments for a more unified view of marketing. See the [lift test integration explanation](https://www.pymc-marketing.io/en/stable/notebooks/mmm/mmm_lift_test.html) for more details. [Here](https://www.pymc-marketing.io/en/stable/notebooks/mmm/mmm_roas.html) you can find a *Case Study: Unobserved Confounders, ROAS and Lift Tests*. |
+| ROAS / CAC Calibration                     | Calibrate your model with ROAS or cost-per-acquisition estimates via `add_cost_per_target_calibration`. See the [ROAS calibration notebook](https://www.pymc-marketing.io/en/latest/notebooks/mmm/mmm_roas_calibration.html) for a worked example.                                                                                                                                       |
+| Funnel Models                              | Model upper-funnel to lower-funnel mediation (e.g., awareness driving search and conversions) via custom `MuEffect`s. See the [introductory funnel-aware MMM notebook](https://www.pymc-marketing.io/en/latest/notebooks/mmm/mmm_funnel_mueffect.html) and the [advanced geo-level example](https://www.pymc-marketing.io/en/latest/notebooks/mmm/mmm_funnel_mueffect_advanced.html).     |
+
+Beyond short-term sales response, you can also measure long-term brand effects in MMMs by coupling brand-tracking metrics (e.g., awareness, consideration) with a Bayesian VARX model. See the [long-term brand effects notebook](https://www.pymc-marketing.io/en/latest/notebooks/mmm/mmm_brand_metrics_long_term.html) for a complete tutorial.
 
 ## Unlock Customer Lifetime Value (CLV) with PyMC
 
@@ -197,9 +213,30 @@ Analyze the impact of new product launches and understand customer choice behavi
 
 See our example notebooks for [saturated markets](https://www.pymc-marketing.io/en/stable/notebooks/customer_choice/mv_its_saturated.html) and [unsaturated markets](https://www.pymc-marketing.io/en/stable/notebooks/customer_choice/mv_its_unsaturated.html) to learn more about customer choice modeling with PyMC-Marketing.
 
+The customer choice module also includes a full family of **discrete choice and preference models**:
+
+- [Multinomial Logit](https://www.pymc-marketing.io/en/latest/notebooks/customer_choice/mnl_logit.html)
+- [Nested Logit](https://www.pymc-marketing.io/en/latest/notebooks/customer_choice/nested_logit.html)
+- [Mixed Logit](https://www.pymc-marketing.io/en/latest/notebooks/customer_choice/mixed_logit.html)
+- [Consideration Set Mixed Logit](https://www.pymc-marketing.io/en/latest/notebooks/customer_choice/consideration_set_logit.html)
+- [MaxDiff (Best-Worst Scaling)](https://www.pymc-marketing.io/en/latest/notebooks/customer_choice/maxdiff.html)
+- [Bayesian BLP: Structural Demand on Aggregate Shares](https://www.pymc-marketing.io/en/latest/notebooks/customer_choice/bayesian_blp.html) and its application to the [Nevo cereal panel](https://www.pymc-marketing.io/en/latest/notebooks/customer_choice/bayesian_blp_nevo.html)
+
+## Bass Diffusion Model
+
+Forecast the adoption of new products with the **Bass Diffusion Model**. The model captures how innovators and imitators drive cumulative adoption over time, which is useful for product launch forecasts, demand planning, and growth analysis.
+
+See the [Bass Diffusion Model example notebook](https://www.pymc-marketing.io/en/stable/notebooks/bass/bass_example.html) for a worked example.
+
+## Predicted Incrementality by Experimentation (PIE)
+
+Predict the *incremental* effect of ad campaigns that never ran an experiment with **PIE** (alpha). Randomised experiments — geo tests and ghost-ad holdouts — are the gold standard for measuring campaign incrementality, but they are costly and slow. PIE fits a Bayesian BART model on the corpus of campaigns that *did* run an experiment, learning the map from campaign features to measured incrementality, then predicts a full posterior of incrementality for the campaigns that never did.
+
+The `pymc_marketing.pie` module is in **alpha**: the API and defaults may change between releases. See the [PIE example notebook](https://www.pymc-marketing.io/en/stable/notebooks/pie/pie_example.html) for a worked example, including where predictions beat last-click attribution.
+
 ---
 
-<h1 style="text-align: center;">Resources</h1>
+## Resources
 
 ### Bolt's success story with PyMC-Marketing
 **Checkout the video below to see how Bolt leverages PyMC-Marketing to assess the impact of their marketing efforts.**
@@ -237,6 +274,36 @@ For more videos, webinars and resources, check out the [PyMC Labs YouTube channe
 - [Bayesian inference at scale: Running A/B tests with millions of observations](https://www.pymc-labs.com/blog-posts/bayesian-inference-at-scale-running-ab-tests-with-millions-of-observations/)
 
 For more blogposts and resources, check out the [PyMC Labs Blog](https://www.pymc-labs.com/blog-posts/).
+
+---
+
+## Frequently Asked Questions
+
+### What is PyMC-Marketing?
+
+PyMC-Marketing is an open-source Python library for Bayesian marketing analytics. It includes production-ready implementations of Marketing Mix Modeling (MMM) for measuring media effectiveness and optimizing marketing spend, Customer Lifetime Value (CLV) models for forecasting customer value over time, Customer Choice models for analyzing product launch impacts, and a Bass Diffusion Model for forecasting new product adoption.
+
+### How does PyMC-Marketing compare to Google Meridian or Meta Robyn?
+
+PyMC-Marketing is the only open-source framework that combines MMM, CLV, Customer Choice, and Bass Diffusion models in a single library, with full Bayesian uncertainty quantification via [PyMC](https://www.pymc.io). Unlike Robyn (frequentist ridge regression) or Meridian (limited to MMM), PyMC-Marketing gives you posterior distributions over all parameters, custom priors for incorporating domain knowledge, and a unified API across all model types. See the [full comparison](guide/mmm/comparison) and the [benchmark comparison to Meridian](https://www.pymc-labs.com/blog-posts/pymc-marketing-vs-google-meridian).
+
+### Is PyMC-Marketing free to use?
+
+Yes. PyMC-Marketing is completely free and open source under the [Apache 2.0 license](https://github.com/pymc-labs/pymc-marketing/blob/main/LICENSE). You can install it with `pip install pymc-marketing`.
+
+### What Python version does PyMC-Marketing require?
+
+PyMC-Marketing supports Python 3.12 and above.
+
+### Can PyMC-Marketing optimize my marketing budget?
+
+Yes. PyMC-Marketing includes built-in [budget optimization](https://www.pymc-marketing.io/en/stable/notebooks/mmm/mmm_budget_allocation_example.html) that allocates spend across channels to maximize ROI, accounting for diminishing returns via saturation curves and carry-over effects via adstock transformations.
+
+---
+
+## Need help with PyMC-Marketing?
+
+Book a [free 30-minute strategy session](https://calendly.com/niall-oulton) with our experts or [send us a message](https://www.pymc-labs.com/contact).
 
 :::{toctree}
 :hidden:

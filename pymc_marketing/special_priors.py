@@ -20,6 +20,7 @@ priors that do not inherit from the Prior class but have many
 of the same methods.
 """
 
+import copy
 import warnings
 from abc import ABC, abstractmethod
 from typing import Any
@@ -29,9 +30,13 @@ import pymc as pm
 import pymc.dims as pmd
 import pytensor.tensor as pt
 import xarray as xr
+from numpy.typing import (
+    ArrayLike,  # noqa: F401  # resolves pt.TensorLike's ForwardRef('ArrayLike') for sphinx_autodoc_typehints (#1197)
+)
 from pymc_extras.deserialize import deserialize, register_deserialization
 from pymc_extras.prior import (
     Prior,
+    Scaled,
     VariableFactory,
     _param_value_with_dims,
     sample_prior,
@@ -40,6 +45,45 @@ from pytensor.tensor import TensorVariable, as_tensor
 from pytensor.xtensor.type import XTensorVariable, as_xtensor
 
 from pymc_marketing.serialization import serialization
+
+
+def _is_xarray_dataarray_dict(data: Any) -> bool:
+    """Return True for dicts produced by ``xr.DataArray.to_dict()``."""
+    if not isinstance(data, dict):
+        return False
+    required = {"dims", "attrs", "data", "coords"}
+    return (
+        required.issubset(data.keys())
+        and "data_vars" not in data
+        and "dist" not in data
+        and "special_prior" not in data
+        and "lookup_name" not in data
+    )
+
+
+register_deserialization(
+    is_type=_is_xarray_dataarray_dict,
+    deserialize=xr.DataArray.from_dict,
+)
+
+
+def _serialize_scaled(obj: Scaled) -> dict:
+    return {
+        "__type__": f"{Scaled.__module__}.{Scaled.__qualname__}",
+        "dist": obj.dist.to_dict(),
+        "factor": obj.factor,
+    }
+
+
+def _deserialize_scaled(data: dict, context: Any = None) -> Scaled:
+    return Scaled(dist=deserialize(data["dist"]), factor=data["factor"])
+
+
+serialization.register(
+    Scaled,
+    serializer=_serialize_scaled,
+    deserializer=_deserialize_scaled,
+)
 
 
 class SpecialPrior(ABC):
@@ -137,6 +181,9 @@ class SpecialPrior(ABC):
 
                 if isinstance(value, np.ndarray):
                     return value.tolist()
+
+                if isinstance(value, xr.DataArray):
+                    return value.to_dict()
 
                 if hasattr(value, "to_dict"):
                     return value.to_dict()
@@ -894,3 +941,56 @@ def _deserialize_special_prior(data: dict) -> SpecialPrior:
 register_deserialization(
     is_type=_is_special_prior_type, deserialize=_deserialize_special_prior
 )
+
+
+def is_alternative_prior(data: Any) -> bool:
+    """Check if the data is a dictionary representing a Prior (alternative check)."""
+    return isinstance(data, dict) and isinstance(data.get("distribution"), str)
+
+
+def deserialize_alternative_prior(data: dict[str, Any]) -> Prior:
+    """Alternative deserializer that recursively handles all nested parameters.
+
+    This handles the flat ``{"distribution": ...}`` prior format used by the MMM
+    YAML schema, where any parameter might itself be a nested prior, and also
+    extracts the ``centered`` and ``transform`` parameters.
+
+    Examples
+    --------
+    This handles cases like:
+
+    .. code-block:: yaml
+
+        distribution: Gamma
+        alpha: 1
+        beta:
+            distribution: HalfNormal
+            sigma: 1
+            dims: channel
+        dims: [brand, channel]
+
+    """
+    data = copy.deepcopy(data)
+
+    distribution = data.pop("distribution")
+    dims = data.pop("dims", None)
+    centered = data.pop("centered", True)
+    transform = data.pop("transform", None)
+    parameters = data
+
+    # Recursively deserialize any nested parameters
+    parameters = {
+        key: value if not isinstance(value, dict) else deserialize(value)
+        for key, value in parameters.items()
+    }
+
+    return Prior(
+        distribution,
+        transform=transform,
+        centered=centered,
+        dims=dims,
+        **parameters,
+    )
+
+
+register_deserialization(is_alternative_prior, deserialize_alternative_prior)

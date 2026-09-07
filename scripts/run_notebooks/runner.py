@@ -88,6 +88,11 @@ _NOTEBOOKS.append(DOC_SOURCE / "guide" / "benefits" / "model_deployment.ipynb")
 # Notebooks to exclude from testing (relative to repo root)
 BLACKLIST: set[str] = {
     "docs/source/notebooks/mmm/mmm_chronos.ipynb",
+    # PIE relies on pymc-bart: variable importance and out-of-sample prediction
+    # need the real posterior trees, which the mocked sampler never fits (empty
+    # `all_trees`), so those cells fail under the mock. Validated via real
+    # execution instead; docs render the committed outputs.
+    "docs/source/notebooks/pie/pie_example.ipynb",
 }
 
 

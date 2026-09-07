@@ -11,7 +11,7 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
-"""InferenceData utilities and wrappers for PyMC-Marketing models."""
+"""DataTree utilities and wrappers for PyMC-Marketing models."""
 
 from pymc_marketing.data.idata.mmm_wrapper import MMMIDataWrapper
 from pymc_marketing.data.idata.schema import (
@@ -24,6 +24,9 @@ from pymc_marketing.data.idata.utils import (
     aggregate_idata_time,
     filter_idata_by_dates,
     filter_idata_by_dims,
+    get_posterior_predictive,
+    get_prior,
+    get_prior_predictive,
     subsample_draws,
 )
 
@@ -36,5 +39,8 @@ __all__ = [
     "aggregate_idata_time",
     "filter_idata_by_dates",
     "filter_idata_by_dims",
+    "get_posterior_predictive",
+    "get_prior",
+    "get_prior_predictive",
     "subsample_draws",
 ]

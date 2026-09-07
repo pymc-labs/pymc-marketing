@@ -13,6 +13,7 @@
 #   limitations under the License.
 """Utility functions for the Marketing Mix Modeling module."""
 
+import logging
 import warnings
 from collections.abc import Callable
 from typing import Any
@@ -21,8 +22,11 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 from pymc.logprob.basic import logcdf, logp
-from pytensor import Variable, graph_replace
 from pytensor import xtensor as ptx
+from pytensor.graph.basic import Variable
+from pytensor.graph.replace import graph_replace
+
+logger = logging.getLogger(__name__)
 
 
 def apply_sklearn_transformer_across_dim(
@@ -110,7 +114,6 @@ def create_new_spend_data(
         import arviz as az
 
         from pymc_marketing.mmm.utils import create_new_spend_data
-        az.style.use("arviz-white")
 
         spend = np.array([1, 2])
         adstock_max_lag = 3
@@ -232,100 +235,239 @@ def create_zero_dataset(
     end_date: str | pd.Timestamp,
     channel_xr: xr.Dataset | xr.DataArray | None = None,
     include_carryover: bool = True,
-) -> pd.DataFrame:
-    """Create a DataFrame for future prediction, with zeros (or supplied constants).
+    preserve_observed: bool = False,
+    carry_in_periods: int = 0,
+    carryover_periods: int | None = None,
+) -> xr.Dataset:
+    """Create an ``xr.Dataset`` for future prediction, with zero fills.
 
-    Creates a DataFrame with dates from start_date to end_date and all model dimensions,
-    filling channel and control columns with zeros or with values from channel_xr if provided.
+    Creates a dataset with dates from *start_date* to *end_date* and all model
+    dimensions, filling channel and control variables with zeros (or with values
+    from *channel_xr* if provided), under the canonical underscore names
+    (``_channel``, ``_control``).  Date-varying variables that the model's
+    ``mu_effects`` read are zero-filled too, under their own names, so that
+    ``MuEffect.set_data`` has something to set for a window other than the
+    training one.
 
-    If *channel_xr* is provided it must
+    Parameters
+    ----------
+    model
+        Fitted MMM instance.  Must have ``xarray_dataset``, ``date_column``,
+        ``channel_columns``, ``control_columns``, ``dims`` and ``adstock``
+        attributes.  ``mu_effects`` is read when present.
+    start_date, end_date
+        Date range for the prediction period.
+    channel_xr
+        Optional per-dimension channel values.  Data variables must be a subset
+        of ``model.channel_columns``.  Dimensions must be a subset of
+        ``model.dims`` and must **not** include the date dimension.  Values are
+        broadcast across every date in the generated range.
+    include_carryover
+        Whether to extend the date range *past* ``end_date`` by ``adstock.l_max``
+        periods, so that spend inside the window is scored with the carry-over it
+        produces after it.  The extension is trailing; nothing is prepended, and
+        the window therefore starts from a cold adstock state.
+    carry_in_periods
+        Number of leading dates to prepend, taken from the training index so
+        they are real observed dates.  ``_channel`` holds its observed spend on
+        them, so the adstock does not start cold.  Clips itself when the window
+        starts near the beginning of training.  The history has to run up to
+        the window at the training frequency: when it does not (a window
+        opening long after training ends), a ``UserWarning`` is issued and the
+        window starts cold, because year-old spend is not last period's.
+    carryover_periods
+        Periods to extend past *end_date* when *include_carryover*, defaulting
+        to ``model.adstock.l_max``.  Pass the *effective* carryover when an
+        effect chains a further adstock behind the model's own, or its tail is
+        truncated.
+    preserve_observed
+        Whether every non-decision variable -- controls, and the variables the
+        model's ``mu_effects`` read -- takes its **observed** value on each date
+        the training data covers, falling back to zero only on dates it does
+        not.  ``_channel`` is unaffected: it is the decision variable and stays
+        at zero (or at *channel_xr*).  The default ``False`` zero-fills
+        everything, which is the function's contract (a window with no
+        committed activity) and keeps ``_control`` exactly as existing callers
+        get it.  :meth:`~pymc_marketing.mmm.mmm.MMM.create_optimization_model`
+        opts in explicitly; the deprecated
+        :meth:`~pymc_marketing.mmm.mmm.BudgetOptimizerWrapper.sample_response_distribution`
+        relies on the default, since it scores an allocation against a zeroed
+        baseline.
 
-    • have data variables that are a subset of ``model.channel_columns``
-    • be indexed *only* by the dimensions in ``model.dims`` (no date dimension)
+    Returns
+    -------
+    xr.Dataset
+        Dataset with ``_channel`` (and optionally ``_control``) variables,
+        indexed by ``("date", *dims, "channel")``, plus one variable per
+        date-varying name the model's ``mu_effects`` read: zero-filled by
+        default, observed wherever the training data reaches when
+        *preserve_observed* is set.
 
-    The values in *channel_xr* are copied verbatim to the corresponding channel
-    columns and broadcast across every date in ``start_date … end_date``.
+    Notes
+    -----
+    By default the effect variables are zeros, which is what a future window
+    with no committed activity means.  In-sample that is a *change of scenario*
+    rather than a reconstruction of history: an exogenous series the effect
+    reads -- a category-demand index, a committed budget -- comes back as zero
+    rather than at its fitted value, so the response no longer matches the
+    posterior it was fitted to.  ``preserve_observed=True`` is the fix, and needs
+    no knowledge of which window it was handed: taking the observed value
+    wherever the training data reaches reproduces history in-sample and decays
+    to zeros on genuinely future dates.  This is *not* adstock carry-in, which
+    is a leading block of real spend before the window; that is
+    ``include_last_observations``.
+
+    For a scenario that is neither -- a planned promotional calendar, a
+    committed lower-funnel budget -- build the model with
+    :meth:`~pymc_marketing.mmm.mmm.MMM.create_optimization_model`,
+    ``pm.set_data`` those variables on it, and hand that model to
+    ``BudgetOptimizer`` directly.  That model's date axis is three blocks,
+    ``carry_in + decisions + carry_over``, each flank
+    :meth:`~pymc_marketing.mmm.mmm.MMM.effective_carryover_lags` wide, so pass
+    ``carry_in_periods=mmm.effective_carryover_lags()`` and
+    ``adstock_periods=mmm.effective_carryover_lags()`` along with
+    ``num_periods`` (``BudgetOptimizer`` checks that the three add up to the
+    axis and says so if they do not).
+
+    An effect variable whose coordinate labels do not cover the shared index
+    (a ``channel``-dimensioned variable carrying a subset of the channels, say)
+    is NaN-filled the moment xarray aligns it, and is refused here by name
+    rather than written into the model as NaN.
     """
-    # ---- 0. Basic integrity checks (unchanged) --------------------------------
-    if not hasattr(model, "X") or not isinstance(model.X, pd.DataFrame):
-        raise ValueError("'model.X' must be a pandas DataFrame.")
-
-    if not hasattr(model, "date_column") or model.date_column not in model.X.columns:
+    if not hasattr(model, "xarray_dataset"):
         raise ValueError(
-            "Model must expose `.date_column` and that column must be in `model.X`."
+            "Model must have a fitted 'xarray_dataset'. "
+            "Call `build_model` / `fit` first."
         )
 
-    required_attrs = ("channel_columns", "control_columns", "dims")
+    if not hasattr(model, "date_column"):
+        raise ValueError("Model must expose a `.date_column` attribute.")
+
+    required_attrs = ("channel_columns", "control_columns", "dims", "adstock")
     for attr in required_attrs:
         if not hasattr(model, attr):
             raise ValueError(f"Model must have a '{attr}' attribute.")
 
-    original_data = model.X
-    date_col = model.date_column
+    xa = model.xarray_dataset
     channel_cols = list(model.channel_columns)
     control_cols = (
         list(model.control_columns) if model.control_columns is not None else []
     )
-    dim_cols = list(model.dims)  # ensure list
+    dim_cols = list(model.dims)
 
-    # ---- 1. Infer date frequency ------------------------------------------------
-    date_series = pd.to_datetime(original_data[date_col])
-    inferred_freq = pd.infer_freq(date_series.unique())
-    if inferred_freq is None:  # fall-back if inference fails
+    # ---- 1. Infer date frequency from training data ---------------------------
+    training_dates = pd.DatetimeIndex(xa.coords["date"].values)
+    inferred_freq = pd.infer_freq(training_dates)
+    if inferred_freq is None:
         warnings.warn(
-            f"Could not infer frequency from '{date_col}'. Using weekly ('W').",
+            "Could not infer frequency from training dates. Using weekly ('W').",
             UserWarning,
             stacklevel=2,
         )
         inferred_freq = "W"
 
-    # ---- 2. Build the full Cartesian product of dates X dims -------------------
+    # ---- 2. Build date range --------------------------------------------------
     if include_carryover:
-        # if start_date are not timestamps, convert them to timestamps
         if not isinstance(start_date, pd.Timestamp):
             start_date = pd.Timestamp(start_date)
         if not isinstance(end_date, pd.Timestamp):
             end_date = pd.Timestamp(end_date)
+        lags = (
+            carryover_periods
+            if carryover_periods is not None
+            else getattr(model.adstock, "l_max", None)
+        )
+        if lags:
+            end_date += _convert_frequency_to_timedelta(lags, inferred_freq)
 
-        # Add the adstock lag to the end date
-        if hasattr(model.adstock, "l_max"):
-            end_date += _convert_frequency_to_timedelta(
-                model.adstock.l_max, inferred_freq
-            )
-
-    new_dates = pd.date_range(
-        start=start_date, end=end_date, freq=inferred_freq, name=date_col
-    )
+    new_dates = pd.date_range(start=start_date, end=end_date, freq=inferred_freq)
     if new_dates.empty:
         raise ValueError("Generated date range is empty. Check dates and frequency.")
 
-    date_df = pd.DataFrame(new_dates)
+    # ---- 2a. Leading dates that already happened ------------------------------
+    # Taken from the training index rather than generated, so they are real
+    # observed dates by construction and the count clips itself when the window
+    # starts at (or near) the beginning of training.
+    carry_in_dates = pd.DatetimeIndex([])
+    if carry_in_periods:
+        before = training_dates[training_dates < new_dates[0]]
+        carry_in_dates = pd.DatetimeIndex(before[-carry_in_periods:])
+        # The history has to be the spend *immediately* before the window. The
+        # last training dates are that only when they run up to the window at
+        # the training frequency; a window opening a year after training ends
+        # would otherwise be warmed with year-old spend as if it were last
+        # period's. Compared elementwise rather than with `DatetimeIndex.equals`,
+        # which is False across datetime64 units (the training coordinate may be
+        # microsecond-resolution, the generated range is nanosecond).
+        expected = pd.date_range(
+            end=new_dates[0], periods=len(carry_in_dates) + 1, freq=inferred_freq
+        )[:-1]
+        contiguous = len(carry_in_dates) == len(expected) and bool(
+            (carry_in_dates == expected).all()
+        )
+        if len(carry_in_dates) and not contiguous:
+            warnings.warn(
+                f"Requested {carry_in_periods} carry-in periods, but the training "
+                f"data ending {carry_in_dates[-1].date()} is not contiguous with "
+                f"the window starting {new_dates[0].date()}. Falling back to a "
+                "cold start (zeros).",
+                UserWarning,
+                stacklevel=2,
+            )
+            carry_in_dates = carry_in_dates[:0]
+        elif len(carry_in_dates) < carry_in_periods:
+            # Expected whenever the window opens at or near the start of
+            # training -- there is no spend to carry in -- so this is not a
+            # warning. Logged because a partially warm adstock is otherwise
+            # indistinguishable from a fully warm one, and that is the first
+            # thing to check when carry-over looks wrong.
+            logger.debug(
+                "carry-in clipped to %d of %d requested periods: only %d "
+                "training dates precede the window.",
+                len(carry_in_dates),
+                carry_in_periods,
+                len(before),
+            )
+        new_dates = pd.DatetimeIndex(carry_in_dates.append(new_dates))
 
-    if dim_cols:  # cross-join with dimension levels
-        unique_dims = original_data[dim_cols].drop_duplicates().reset_index(drop=True)
-        date_df["_k"] = 1
-        unique_dims["_k"] = 1
-        pred_df = pd.merge(date_df, unique_dims, on="_k").drop(columns="_k")
-    else:
-        pred_df = date_df.copy()
+    n_dates = len(new_dates)
 
-    # ---- 3. Initialise channel & control columns with zeros --------------------
-    for col in channel_cols + control_cols:
-        if col not in pred_df.columns:  # don't overwrite dim columns by accident
-            pred_df[col] = 0.0
+    # ---- 3. Dimension coordinates from training data --------------------------
+    dim_coords = {}
+    for dim in dim_cols:
+        dim_coords[dim] = xa.coords[dim].values
 
-    # ---- 4. Optional channel_xr injection --------------------------------------
+    # ---- 4. Build _channel variable -------------------------------------------
+    chan_shape = [n_dates]
+    chan_coords: dict = {"date": new_dates}
+    for dim in dim_cols:
+        chan_shape.append(len(dim_coords[dim]))
+        chan_coords[dim] = dim_coords[dim]
+    chan_shape.append(len(channel_cols))
+    chan_coords["channel"] = channel_cols
+
+    channel_data = np.zeros(chan_shape, dtype=float)
+
+    # Spend on the leading dates is not a decision -- it already happened -- so
+    # it is held at its observed value. Everything from the window onwards stays
+    # at zero for the optimizer to fill.
+    if len(carry_in_dates):
+        channel_data[: len(carry_in_dates)] = (
+            xa["_channel"].sel(date=carry_in_dates).to_numpy()
+        )
+
+    # ---- 4a. Inject channel_xr values -----------------------------------------
     if channel_xr is not None:
-        # --- 4.1 Normalise to Dataset ------------------------------------------
         if isinstance(channel_xr, xr.DataArray):
-            # Give the single DataArray a name equal to its channel (attr 'name')
             channel_name = channel_xr.name or "value"
             channel_xr = channel_xr.to_dataset(name=channel_name)
 
         if not isinstance(channel_xr, xr.Dataset):
-            raise TypeError("`channel_xr` must be an xarray Dataset or DataArray.")
+            raise TypeError(
+                "`channel_xr` must be an xarray Dataset or DataArray, "
+                f"got {type(channel_xr).__name__}."
+            )
 
-        # --- 4.2 Validate variables & dimensions -------------------------------
         invalid_vars = set(channel_xr.data_vars) - set(channel_cols)
         if invalid_vars:
             raise ValueError(
@@ -349,117 +491,147 @@ def create_zero_dataset(
                 f"{sorted(invalid_dims)}"
             )
 
-        if date_col in channel_xr.dims:
+        if "date" in channel_xr.dims:
             raise ValueError("`channel_xr` must NOT include the date dimension.")
 
-        # --- 4.3 Inject constants ----------------------------------------------
-        # Special-case: when there are NO dims (e.g., only channel dimension in the
-        # allocation which was pivoted into variables), xarray can't create an index
-        # for to_dataframe(). In this scenario, simply broadcast scalar values
-        # across all rows.
-        if len(channel_xr.dims) == 0:
-            for ch in channel_cols:
-                if ch in channel_xr.data_vars:
-                    # assign scalar value across all rows
-                    try:
-                        pred_df[ch] = channel_xr[ch].item()
-                    except Exception:
-                        pred_df[ch] = channel_xr[ch].values
+        for ch in channel_cols:
+            if ch in channel_xr.data_vars:
+                ch_idx = channel_cols.index(ch)
+                vals = channel_xr[ch].values
+                channel_data[..., ch_idx] = np.broadcast_to(
+                    vals, (n_dates, *vals.shape)
+                )
+
+    # ---- 5. Build _control variable -------------------------------------------
+    data_vars: dict = {
+        "_channel": xr.DataArray(
+            channel_data, dims=("date", *dim_cols, "channel"), coords=chan_coords
+        ),
+    }
+
+    if control_cols:
+        ctrl_shape = [n_dates]
+        ctrl_coords: dict = {"date": new_dates}
+        for dim in dim_cols:
+            ctrl_shape.append(len(dim_coords[dim]))
+            ctrl_coords[dim] = dim_coords[dim]
+        ctrl_shape.append(len(control_cols))
+        ctrl_coords["control"] = control_cols
+
+        if preserve_observed and "_control" in xa:
+            # Only the date axis is reindexed, deliberately. `build_model` calls
+            # `pmd.Data("control_data", xarray_dataset._control)`, so the model's
+            # `control` coord order *is* the training variable's, and inheriting
+            # it here is what keeps `pm.set_data` -- which writes positionally --
+            # aligned. Reordering to `model.control_columns` looks tidier and
+            # silently misaligns every control coefficient. (The zero-filled
+            # branch below does order by `control_columns`; that disagrees with
+            # the model whenever the two differ, and is harmless only because
+            # zeros are order-invariant.)
+            data_vars["_control"] = xa["_control"].reindex(date=new_dates, fill_value=0)
         else:
-            # Convert to DataFrame & merge when dims are present
-            channel_df = channel_xr.to_dataframe().reset_index()
-
-            # Left-join on every dimension; suffix prevents collisions during merge
-            pred_df = pred_df.merge(
-                channel_df,
-                on=dim_cols,
-                how="left",
-                suffixes=("", "_chan"),
+            data_vars["_control"] = xr.DataArray(
+                np.zeros(ctrl_shape, dtype=float),
+                dims=("date", *dim_cols, "control"),
+                coords=ctrl_coords,
             )
 
-        # --- 4.4 Copy merged values into official channel columns --------------
-        if len(channel_xr.dims) != 0:
-            for ch in channel_cols:
-                chan_col = f"{ch}_chan"
-                if chan_col in pred_df.columns:
-                    pred_df[ch] = pred_df[chan_col]
-                    pred_df.drop(columns=chan_col, inplace=True)
+    # ---- 6. Variables the model's mu_effects read ------------------------------
+    # Without these the effect's `pm.Data` keeps its fit-time length, because
+    # `DataVarMuEffect.set_data` skips any variable the dataset does not carry.
+    # That is invisible in-sample, where the lengths happen to agree, and a
+    # shape error for every other window.
+    # `getattr` rather than `isinstance(effect, DataVarMuEffect)`: only that
+    # subclass declares `data_vars`, but this module is a leaf -- it imports
+    # nothing from the package -- and `additive_effect` reaches back here
+    # through `events`, so naming the class would close an import cycle.
+    # Skip what sections 4 and 5 already built: `_channel` is the decision
+    # variable itself, so zero-filling it here would erase the allocation.
+    # Every effect that reads a variable is recorded, so an error can name them
+    # all rather than whichever happened to come last.
+    reads: dict[str, list[str]] = {}
+    for effect in getattr(model, "mu_effects", []):
+        for var_name in getattr(effect, "data_vars", []):
+            if var_name not in data_vars:
+                reads.setdefault(var_name, []).append(type(effect).__name__)
 
-            # Replace any remaining NaNs introduced by the merge
-            pred_df[channel_cols] = pred_df[channel_cols].fillna(0.0)
+    effect_vars: list[str] = []
+    for var_name, effect_names in reads.items():
+        readers = ", ".join(effect_names)
+        if var_name not in xa:
+            raise ValueError(
+                f"mu_effect {readers} reads {var_name!r}, but the model's "
+                "training dataset has no such variable, so its dims and coords "
+                "cannot be determined."
+            )
+        template = xa[var_name]
+        # Only date-varying variables need rebuilding. A window-independent one
+        # -- a population, a per-channel rate -- already has the right shape, so
+        # `set_data` has nothing to correct and zero-filling would overwrite a
+        # constant with zeros.
+        if "date" in template.dims:
+            # `reindex` alone keeps the observed value on every date the
+            # training data covers and fills 0 on the rest, which is exactly
+            # the carry-in rule. Zeroing first drops the observed part.
+            source = template if preserve_observed else xr.zeros_like(template)
+            data_vars[var_name] = source.reindex(date=new_dates, fill_value=0)
+            effect_vars.append(var_name)
 
-    # ---- 5. Bring in any “other” columns from the training data ----------------
-    other_cols = [
-        col
-        for col in original_data.columns
-        if col not in [date_col, *dim_cols, *channel_cols, *control_cols]
-    ]
-    for col in other_cols:
-        if col not in pred_df.columns:
-            pred_df[col] = 0.0
+    dataset = xr.Dataset(data_vars)
 
-    # ---- 6. Match original column order & dtypes ------------------------------
-    final_columns = original_data.columns
-    pred_df = pred_df.reindex(columns=final_columns)
-
-    for col in final_columns:
-        try:
-            pred_df[col] = pred_df[col].astype(original_data[col].dtype)
-        except Exception as e:
-            warnings.warn(
-                f"Could not cast '{col}' to {original_data[col].dtype}: {e}",
-                UserWarning,
-                stacklevel=2,
+    # A Dataset holds one index per dimension, so an effect variable whose
+    # labels do not cover the shared index -- a `channel`-dimensioned variable
+    # carrying a subset of the channels -- is NaN-filled on the missing labels
+    # the moment it is aligned, here or already in the training dataset. Nothing
+    # downstream can repair that: `pm.set_data` would write the NaN into the
+    # model and the optimizer would score it, failing somewhere inside scipy
+    # with no mention of the variable. Refuse it here, by name.
+    for var_name in effect_vars:
+        if bool(dataset[var_name].isnull().any()):
+            readers = ", ".join(reads[var_name])
+            raise ValueError(
+                f"mu_effect {readers} reads {var_name!r}, which contains NaN "
+                "after aligning it to the dataset's coordinates. Its labels do "
+                "not cover the shared index (for example a 'channel' dimension "
+                "carrying a subset of the model's channels), or the training "
+                "data itself has gaps. Give the variable the full set of "
+                "coordinate labels, or a dimension name of its own."
             )
 
-    return pred_df
+    return dataset
 
 
 def add_noise_to_channel_allocation(
-    df: pd.DataFrame,
+    df: pd.DataFrame | xr.Dataset,
     channels: list[str],
     rel_std: float = 0.05,
     seed: int | None = None,
-) -> pd.DataFrame:
-    """
-    Return *df* with additive Gaussian noise applied to *channels* columns.
+) -> pd.DataFrame | xr.Dataset:
+    """Add Gaussian noise to channel values.
 
-    Parameters
-    ----------
-    df : DataFrame
-        The original data (will **not** be modified in-place).
-    channels : list of str
-        Column names whose values represent media spends.
-    rel_std : float, default 0.05
-        Noise standard-deviation expressed as a fraction of the
-        *column mean* (i.e. `0.05` ⇒ 5 % of the mean spend).
-    seed : int or None
-        Optional seed for deterministic output.
-
-    Returns
-    -------
-    DataFrame
-        A copy of *df* with noisy spends.
+    Accepts both ``pd.DataFrame`` (with *channels* as columns) and
+    ``xr.Dataset`` (with a ``_channel`` data variable).  The return type
+    matches the input type.
     """
     rng = np.random.default_rng(seed)
 
-    # Per-channel scale (1-D ndarray), shape (n_channels,)
+    if isinstance(df, xr.Dataset):
+        da = df["_channel"]
+        non_channel_dims = tuple(d for d in da.dims if d != "channel")
+        ch_scale = (rel_std * da.mean(dim=non_channel_dims)).values
+        noise = rng.normal(loc=0.0, scale=ch_scale, size=da.shape)
+        noisy = xr.where(da == 0, 0.0, da + noise).clip(min=0.0)
+        result = df.copy()
+        result["_channel"] = noisy
+        return result
+
     scale: np.ndarray = (rel_std * df[channels].mean()).to_numpy()
-
-    # Draw all required noise in one call, shape (n_rows, n_channels)
     noise = rng.normal(loc=0.0, scale=scale, size=(len(df), len(channels)))
-
-    # Create the noisy copy
     noisy_df = df.copy()
     noisy_df[channels] += noise
-
-    # Override channels with zero spend, we don't want to add noise to those ones
     zero_spend_mask = df[channels] == 0
     noisy_df[zero_spend_mask] = 0.0
-
-    # Ensure no negative spends
     noisy_df[channels] = noisy_df[channels].clip(lower=0.0)
-
     return noisy_df
 
 
@@ -489,7 +661,7 @@ def build_contributions(
 
     Parameters
     ----------
-    idata : az.InferenceData-like
+    idata : xr.DataTree-like
         Must have `.posterior` attribute containing the contribution variables.
     var : list or tuple of str
         Posterior variable names to include (e.g., contribution variables).

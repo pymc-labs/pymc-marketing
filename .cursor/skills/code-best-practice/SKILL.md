@@ -118,7 +118,7 @@ def saturation(x, alpha):
 ## 3. Class Structure & Design Patterns
 
 ### Model Class Architecture
-Models should inherit from base classes (`BaseMMM`, `CLVModel`) and implement specific lifecycle methods:
+Models should inherit from base classes (`MMM`, `CLVModel`) and implement specific lifecycle methods:
 
 1.  **`__init__`**:
     -   Validate inputs using `validate_call` or `pydantic`.

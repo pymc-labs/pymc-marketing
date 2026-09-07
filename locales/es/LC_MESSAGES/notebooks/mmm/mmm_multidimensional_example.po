@@ -44,12 +44,12 @@ msgstr ""
 #, python-brace-format
 msgid ""
 "Even though the new {class}`MMM "
-"<pymc_marketing.mmm.multidimensional.MMM>` class is an experimental "
+"<pymc_marketing.mmm.mmm.MMM>` class is an experimental "
 "class, it is fully functional and can be used to create multidimensional "
 "marketing mix models. This model is under active development and will be "
 "further improved in the future (feedback welcome!)."
 msgstr ""
-"Aunque la nueva clase {class}`MMM <pymc_marketing.mmm.multidimensional.MMM>` "
+"Aunque la nueva clase {class}`MMM <pymc_marketing.mmm.mmm.MMM>` "
 "es experimental, es totalmente funcional y puede utilizarse para crear modelos "
 "de marketing mix multidimensionales. Este modelo está en desarrollo activo y "
 "se seguirá mejorando en el futuro (¡se agradecen comentarios!)."
@@ -587,9 +587,9 @@ msgstr "Optimización"
 #: 1b14e43c6ea54c65a39e326c3ba42a68
 msgid ""
 "If you want to run optimizations, then you need to use the "
-"`MultiDimensionalBudgetOptimizerWrapper`."
+"`BudgetOptimizerWrapper`."
 msgstr ""
-"Si quieres ejecutar optimizaciones, entonces necesitas usar `MultiDimensionalBudgetOptimizerWrapper`."
+"Si quieres ejecutar optimizaciones, entonces necesitas usar `BudgetOptimizerWrapper`."
 
 #: ../source/notebooks/mmm/mmm_multidimensional_example.ipynb:640002
 #: df4cbb26cc5942979bfac9525aefe41e

@@ -142,14 +142,6 @@ msgstr ""
 "Trazar distribuciones almacenadas en xarray.DataArray a través de las "
 "coordenadas."
 
-#: ../source/api/index.md:25:<autosummary>:1 ebbe47e572604a55a3742b387e387a06
-msgid ":py:obj:`prior <pymc_marketing.prior>`\\"
-msgstr ":py:obj:`prior <pymc_marketing.prior>`"
-
-#: ../source/api/index.md:25:<autosummary>:1 23bbc4f32cdd49c4880adb02fabd58df
-msgid "Class that represents a prior distribution."
-msgstr "Clase que representa una distribución previa."
-
 #: ../source/api/index.md:25:<autosummary>:1 e97dd6e68e6c4e98a31343cea98a08b7
 msgid ":py:obj:`special_priors <pymc_marketing.special_priors>`\\"
 msgstr ":py:obj:`special_priors <pymc_marketing.special_priors>`\\"

@@ -11,9 +11,8 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
-"""Tests for InferenceData schema validation."""
+"""Tests for DataTree schema validation."""
 
-import arviz as az
 import numpy as np
 import pandas as pd
 import pytest
@@ -61,59 +60,61 @@ def basic_schema() -> MMMIdataSchema:
 @pytest.fixture
 def valid_basic_idata(
     simple_dates: pd.DatetimeIndex, simple_channels: list[str]
-) -> az.InferenceData:
-    """Complete valid InferenceData for basic MMM schema."""
-    return az.InferenceData(
-        constant_data=xr.Dataset(
-            {
-                "channel_data": xr.DataArray(
-                    rng.uniform(0, 100, size=(52, 3)),
-                    dims=("date", "channel"),
-                    coords={"date": simple_dates, "channel": simple_channels},
-                ),
-                "target_data": xr.DataArray(
-                    rng.uniform(100, 1000, size=52),
-                    dims=("date",),
-                    coords={"date": simple_dates},
-                ),
-                "channel_scale": xr.DataArray(
-                    [100.0, 50.0, 75.0],
-                    dims=("channel",),
-                    coords={"channel": simple_channels},
-                ),
-                "target_scale": xr.DataArray(500.0),
-            }
-        ),
-        posterior=xr.Dataset(
-            {
-                "channel_contribution": xr.DataArray(
-                    rng.normal(size=(2, 10, 52, 3)),
-                    dims=("chain", "draw", "date", "channel"),
-                    coords={"date": simple_dates, "channel": simple_channels},
-                ),
-                "mu": xr.DataArray(
-                    rng.normal(size=(2, 10, 52)),
-                    dims=("chain", "draw", "date"),
-                    coords={"date": simple_dates},
-                ),
-            }
-        ),
-        fit_data=xr.Dataset(
-            {
-                "TV": xr.DataArray(
-                    np.ones(52), dims=("date",), coords={"date": simple_dates}
-                ),
-                "Radio": xr.DataArray(
-                    np.ones(52), dims=("date",), coords={"date": simple_dates}
-                ),
-                "Social": xr.DataArray(
-                    np.ones(52), dims=("date",), coords={"date": simple_dates}
-                ),
-                "target": xr.DataArray(
-                    np.ones(52), dims=("date",), coords={"date": simple_dates}
-                ),
-            }
-        ),
+) -> xr.DataTree:
+    """Complete valid DataTree for basic MMM schema."""
+    return xr.DataTree.from_dict(
+        {
+            "/constant_data": xr.Dataset(
+                {
+                    "channel_data": xr.DataArray(
+                        rng.uniform(0, 100, size=(52, 3)),
+                        dims=("date", "channel"),
+                        coords={"date": simple_dates, "channel": simple_channels},
+                    ),
+                    "target_data": xr.DataArray(
+                        rng.uniform(100, 1000, size=52),
+                        dims=("date",),
+                        coords={"date": simple_dates},
+                    ),
+                    "channel_scale": xr.DataArray(
+                        [100.0, 50.0, 75.0],
+                        dims=("channel",),
+                        coords={"channel": simple_channels},
+                    ),
+                    "target_scale": xr.DataArray(500.0),
+                }
+            ),
+            "/posterior": xr.Dataset(
+                {
+                    "channel_contribution": xr.DataArray(
+                        rng.normal(size=(2, 10, 52, 3)),
+                        dims=("chain", "draw", "date", "channel"),
+                        coords={"date": simple_dates, "channel": simple_channels},
+                    ),
+                    "mu": xr.DataArray(
+                        rng.normal(size=(2, 10, 52)),
+                        dims=("chain", "draw", "date"),
+                        coords={"date": simple_dates},
+                    ),
+                }
+            ),
+            "/fit_data": xr.Dataset(
+                {
+                    "TV": xr.DataArray(
+                        np.ones(52), dims=("date",), coords={"date": simple_dates}
+                    ),
+                    "Radio": xr.DataArray(
+                        np.ones(52), dims=("date",), coords={"date": simple_dates}
+                    ),
+                    "Social": xr.DataArray(
+                        np.ones(52), dims=("date",), coords={"date": simple_dates}
+                    ),
+                    "target": xr.DataArray(
+                        np.ones(52), dims=("date",), coords={"date": simple_dates}
+                    ),
+                }
+            ),
+        }
     )
 
 
@@ -298,7 +299,9 @@ def test_group_schema_validates_required_group_exists():
     )
 
     # Create idata without posterior group
-    idata = az.from_dict(prior={"a": np.ones((2, 10))})
+    idata = xr.DataTree.from_dict(
+        {"/prior": xr.Dataset({"a": (["chain", "draw"], np.ones((2, 10)))})}
+    )
 
     # Act
     errors = schema.validate_group(idata)
@@ -323,7 +326,9 @@ def test_group_schema_allows_missing_optional_group():
     )
 
     # Create idata without posterior_predictive group
-    idata = az.from_dict(posterior={"a": np.ones((2, 10))})
+    idata = xr.DataTree.from_dict(
+        {"/posterior": xr.Dataset({"a": (["chain", "draw"], np.ones((2, 10)))})}
+    )
 
     # Act
     errors = schema.validate_group(idata)
@@ -358,17 +363,19 @@ def test_group_schema_validates_required_variables():
 
     # Create idata with only one of the required variables
     dates = pd.date_range("2024-01-01", periods=52, freq="W")
-    idata = az.InferenceData(
-        posterior=xr.Dataset(
-            {
-                "mu": xr.DataArray(
-                    np.ones((2, 10, 52)),
-                    dims=("chain", "draw", "date"),
-                    coords={"date": dates},
-                ),
-                # Missing: channel_contribution
-            }
-        )
+    idata = xr.DataTree.from_dict(
+        {
+            "/posterior": xr.Dataset(
+                {
+                    "mu": xr.DataArray(
+                        np.ones((2, 10, 52)),
+                        dims=("chain", "draw", "date"),
+                        coords={"date": dates},
+                    ),
+                    # Missing: channel_contribution
+                }
+            )
+        }
     )
 
     # Act
@@ -409,17 +416,19 @@ def test_group_schema_allows_missing_optional_variables():
     # Create idata without optional variable
     dates = pd.date_range("2024-01-01", periods=52, freq="W")
     channels = ["TV", "Radio"]
-    idata = az.InferenceData(
-        posterior=xr.Dataset(
-            {
-                "channel_contribution": xr.DataArray(
-                    np.ones((2, 10, 52, 2)),
-                    dims=("chain", "draw", "date", "channel"),
-                    coords={"date": dates, "channel": channels},
-                ),
-                # Missing: control_contribution (but it's optional)
-            }
-        )
+    idata = xr.DataTree.from_dict(
+        {
+            "/posterior": xr.Dataset(
+                {
+                    "channel_contribution": xr.DataArray(
+                        np.ones((2, 10, 52, 2)),
+                        dims=("chain", "draw", "date", "channel"),
+                        coords={"date": dates, "channel": channels},
+                    ),
+                    # Missing: control_contribution (but it's optional)
+                }
+            )
+        }
     )
 
     # Act
@@ -449,16 +458,18 @@ def test_group_schema_delegates_variable_validation():
 
     # Create idata with variable but WRONG dimensions
     dates = pd.date_range("2024-01-01", periods=52, freq="W")
-    idata = az.InferenceData(
-        posterior=xr.Dataset(
-            {
-                "channel_contribution": xr.DataArray(
-                    np.ones((2, 10, 52)),
-                    dims=("chain", "draw", "date"),  # Missing "channel" dim
-                    coords={"date": dates},
-                ),
-            }
-        )
+    idata = xr.DataTree.from_dict(
+        {
+            "/posterior": xr.Dataset(
+                {
+                    "channel_contribution": xr.DataArray(
+                        np.ones((2, 10, 52)),
+                        dims=("chain", "draw", "date"),  # Missing "channel" dim
+                        coords={"date": dates},
+                    ),
+                }
+            )
+        }
     )
 
     # Act
@@ -620,16 +631,14 @@ def test_schema_factory_handles_custom_dims(custom_dims):
 
 
 def test_valid_idata_passes_validation(
-    basic_schema: MMMIdataSchema, valid_basic_idata: az.InferenceData
+    basic_schema: MMMIdataSchema, valid_basic_idata: xr.DataTree
 ) -> None:
     """Test that valid InferenceData passes schema validation."""
     # Act
     errors = basic_schema.validate(valid_basic_idata)
 
     # Assert
-    assert errors == [], (
-        f"Valid InferenceData should pass validation, got errors: {errors}"
-    )
+    assert errors == [], f"Valid DataTree should pass validation, got errors: {errors}"
 
 
 def test_invalid_idata_collects_all_errors():
@@ -649,24 +658,26 @@ def test_invalid_idata_collects_all_errors():
     dates = pd.date_range("2024-01-01", periods=52, freq="W")
     channels = ["TV", "Radio"]
 
-    idata = az.InferenceData(
-        # Missing: constant_data group
-        posterior=xr.Dataset(
-            {
-                "channel_contribution": xr.DataArray(
-                    np.random.normal(size=(2, 10, 52, 2)),
-                    dims=("chain", "draw", "date", "channel"),
-                    coords={"date": dates, "channel": channels},
-                ),
-                "mu": xr.DataArray(
-                    np.random.normal(size=(2, 10, 52)),
-                    dims=("chain", "draw", "date"),
-                    coords={"date": dates},
-                ),
-                # Missing: control_contribution
-                # Missing: yearly_seasonality_contribution
-            }
-        ),
+    idata = xr.DataTree.from_dict(
+        {
+            # Missing: constant_data group
+            "/posterior": xr.Dataset(
+                {
+                    "channel_contribution": xr.DataArray(
+                        np.random.normal(size=(2, 10, 52, 2)),
+                        dims=("chain", "draw", "date", "channel"),
+                        coords={"date": dates, "channel": channels},
+                    ),
+                    "mu": xr.DataArray(
+                        np.random.normal(size=(2, 10, 52)),
+                        dims=("chain", "draw", "date"),
+                        coords={"date": dates},
+                    ),
+                    # Missing: control_contribution
+                    # Missing: yearly_seasonality_contribution
+                }
+            ),
+        }
     )
 
     # Act
@@ -693,15 +704,17 @@ def test_invalid_idata_collects_all_errors():
 def test_validate_or_raise_raises_with_errors(basic_schema: MMMIdataSchema) -> None:
     """Test that validate_or_raise raises ValueError with error details."""
     # Create invalid idata (missing required group)
-    idata = az.from_dict(prior={"a": np.ones((2, 10))})  # Only prior, missing posterior
+    idata = xr.DataTree.from_dict(
+        {"/prior": xr.Dataset({"a": (["chain", "draw"], np.ones((2, 10)))})}
+    )  # Only prior, missing posterior
 
     # Act & Assert
-    with pytest.raises(ValueError, match=r"InferenceData validation failed"):
+    with pytest.raises(ValueError, match=r"DataTree validation failed"):
         basic_schema.validate_or_raise(idata)
 
 
 def test_validate_or_raise_silent_when_valid(
-    basic_schema: MMMIdataSchema, valid_basic_idata: az.InferenceData
+    basic_schema: MMMIdataSchema, valid_basic_idata: xr.DataTree
 ) -> None:
     """Test that validate_or_raise returns None for valid idata."""
     # Act - should not raise

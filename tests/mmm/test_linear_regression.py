@@ -16,7 +16,7 @@ import pandas as pd
 import pytest
 
 from pymc_marketing.mmm.linear_regression import FancyLinearRegression
-from pymc_marketing.mmm.multidimensional import MMM
+from pymc_marketing.mmm.mmm import MMM
 
 seed: int = sum(map(ord, "pymc_marketing"))
 rng: np.random.Generator = np.random.default_rng(seed=seed)

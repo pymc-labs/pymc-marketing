@@ -11,8 +11,6 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
-import os
-
 import arviz as az
 import numpy as np
 import pandas as pd
@@ -76,8 +74,8 @@ class TestBetaGeoBetaBinomModel:
         cls.pred_data_N = len(test_customer_ids)
 
         # Instantiate model with CDNOW data for testing
-        cls.model = BetaGeoBetaBinomModel(cls.data)
-        cls.model.build_model()
+        cls.model = BetaGeoBetaBinomModel()
+        cls.model.build_model(data=cls.data)
 
         # Mock an idata object for tests requiring a fitted model
         cls.N = len(cls.data)
@@ -107,16 +105,14 @@ class TestBetaGeoBetaBinomModel:
     def test_model(self, model_config):
         # this test requires a different setup from other models due to default_model_config containing NoneTypes
         default_model = BetaGeoBetaBinomModel(
-            data=self.data,
             model_config=None,
         )
         custom_model = BetaGeoBetaBinomModel(
-            data=self.data,
             model_config=model_config,
         )
 
         for model in (default_model, custom_model):
-            model.build_model()
+            model.build_model(data=self.data)
             assert isinstance(
                 model.model["alpha"].owner.op,
                 ViewOp | Elemwise
@@ -164,42 +160,37 @@ class TestBetaGeoBetaBinomModel:
             "gamma_log__": (),
         }
 
-    def test_missing_cols(self):
-        data_invalid = self.data.drop(columns="customer_id")
+    @pytest.mark.parametrize(
+        "missing_column",
+        ["customer_id", "frequency", "recency", "T"],
+    )
+    def test_missing_cols(self, missing_column):
+        data_invalid = self.data.drop(columns=missing_column)
 
         with pytest.raises(
             ValueError,
-            match=r"The following required columns are missing from the input data: \['customer_id'\]",
+            match=rf"The following required columns are missing from the input data: \['{missing_column}'\]",
         ):
             model = BetaGeoBetaBinomModel()
             model.build_model(data=data_invalid)
 
-        data_invalid = self.data.drop(columns="frequency")
-
-        with pytest.raises(
-            ValueError,
-            match=r"The following required columns are missing from the input data: \['frequency'\]",
-        ):
+    @pytest.mark.parametrize(
+        "data, match",
+        [
+            (
+                {"customer_id": [1], "frequency": [-1], "recency": [1], "T": [2]},
+                "Column frequency has negative values",
+            ),
+            (
+                {"customer_id": [1], "frequency": [1], "recency": [3], "T": [2]},
+                "recency cannot be greater than T",
+            ),
+        ],
+    )
+    def test_invalid_rfm_values(self, data, match):
+        with pytest.raises(ValueError, match=match):
             model = BetaGeoBetaBinomModel()
-            model.build_model(data=data_invalid)
-
-        data_invalid = self.data.drop(columns="recency")
-
-        with pytest.raises(
-            ValueError,
-            match=r"The following required columns are missing from the input data: \['recency'\]",
-        ):
-            model = BetaGeoBetaBinomModel()
-            model.build_model(data=data_invalid)
-
-        data_invalid = self.data.drop(columns="T")
-
-        with pytest.raises(
-            ValueError,
-            match=r"The following required columns are missing from the input data: \['T'\]",
-        ):
-            model = BetaGeoBetaBinomModel()
-            model.build_model(data=data_invalid)
+            model.build_model(data=pd.DataFrame(data))
 
     def test_customer_id_duplicate(self):
         with pytest.raises(
@@ -256,17 +247,16 @@ class TestBetaGeoBetaBinomModel:
                 "\nkappa_purchase~Pareto(1,1)"
                 "\nphi_dropout~Uniform(0,1)"
                 "\nkappa_dropout~Pareto(1,1)"
-                "\nalpha~Deterministic(f(kappa_purchase,phi_purchase))"
-                "\nbeta~Deterministic(f(kappa_purchase,phi_purchase))"
-                "\ngamma~Deterministic(f(kappa_dropout,phi_dropout))"
-                "\ndelta~Deterministic(f(kappa_dropout,phi_dropout))"
+                "\nalpha=Deterministic(f(kappa_purchase,phi_purchase))"
+                "\nbeta=Deterministic(f(kappa_purchase,phi_purchase))"
+                "\ngamma=Deterministic(f(kappa_dropout,phi_dropout))"
+                "\ndelta=Deterministic(f(kappa_dropout,phi_dropout))"
                 "\nrecency_frequency~BetaGeoBetaBinom(alpha,beta,gamma,delta,<constant>)"
             )
         model = BetaGeoBetaBinomModel(
-            data=self.data,
             model_config=model_config,
         )
-        model.build_model()
+        model.build_model(data=self.data)
 
         assert model.__repr__().replace(" ", "") == repr
 
@@ -283,13 +273,14 @@ class TestBetaGeoBetaBinomModel:
     )
     def test_model_convergence(self, method, rtol, model_config):
         model = BetaGeoBetaBinomModel(
-            data=self.sample_data,
             model_config=model_config,
         )
-        model.build_model()
+        model.build_model(data=self.sample_data)
 
         sample_kwargs = dict(random_seed=self.rng, chains=2) if method == "mcmc" else {}
-        model.fit(method=method, progressbar=False, **sample_kwargs)
+        model.fit(
+            data=self.sample_data, method=method, progressbar=False, **sample_kwargs
+        )
 
         fit = model.idata.posterior
         np.testing.assert_allclose(
@@ -312,12 +303,13 @@ class TestBetaGeoBetaBinomModel:
         mocker.patch("pymc.sample", mock_sample)
 
         idata = model.fit(
+            data=self.pred_data,
             tune=5,
             chains=2,
             draws=10,
             compute_convergence_checks=False,
         )
-        assert isinstance(idata, az.InferenceData)
+        assert isinstance(idata, xr.DataTree)
         assert len(idata.posterior.chain) == 2
         assert len(idata.posterior.draw) == 10
         assert model.idata is idata
@@ -465,16 +457,16 @@ class TestBetaGeoBetaBinomModel:
         assert est_prob_alive.mean() > est_prob_alive_t.mean()
 
     def test_distribution_new_customer(self) -> None:
-        mock_model = BetaGeoBetaBinomModel(
-            data=self.sample_data,
-        )
-        mock_model.build_model()
+        mock_model = BetaGeoBetaBinomModel()
+        mock_model.build_model(data=self.sample_data)
         mock_model.idata = az.from_dict(
             {
-                "alpha": [self.alpha_true],
-                "beta": [self.beta_true],
-                "delta": [self.delta_true],
-                "gamma": [self.gamma_true],
+                "posterior": {
+                    "alpha": np.array([[self.alpha_true]]),
+                    "beta": np.array([[self.beta_true]]),
+                    "delta": np.array([[self.delta_true]]),
+                    "gamma": np.array([[self.gamma_true]]),
+                }
             }
         )
 
@@ -550,11 +542,12 @@ class TestBetaGeoBetaBinomModel:
             rtol=rtol,
         )
 
-    def test_save_load(self):
-        self.model.save("test_model")
+    def test_save_load(self, tmp_path):
+        save_path = tmp_path / "test_model"
+        self.model.save(save_path)
         # Testing the valid case.
 
-        model2 = BetaGeoBetaBinomModel.load("test_model")
+        model2 = BetaGeoBetaBinomModel.load(save_path)
 
         # Check if the loaded model is indeed an instance of the class
         assert isinstance(self.model, BetaGeoBetaBinomModel)
@@ -563,4 +556,3 @@ class TestBetaGeoBetaBinomModel:
         assert self.model.model_config == model2.model_config
         assert self.model.sampler_config == model2.sampler_config
         assert self.model.idata == model2.idata
-        os.remove("test_model")

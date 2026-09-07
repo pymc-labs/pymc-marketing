@@ -27,8 +27,8 @@ msgstr "MNLogit.create\\_idata\\_attrs"
 
 #: afc7b96a895643f9b875217cf4b532cf of
 #: pymc_marketing.customer_choice.mnl_logit.MNLogit.create_idata_attrs:2
-msgid "Create the attributes for the InferenceData object."
-msgstr "Cree los atributos para el objeto InferenceData."
+msgid "Create the attributes for the DataTree object."
+msgstr "Cree los atributos para el objeto DataTree."
 
 #: 1ff66d98486d4e29a6328d5e2f3e6eb0 of
 #: pymc_marketing.customer_choice.mnl_logit.MNLogit.create_idata_attrs
@@ -42,5 +42,5 @@ msgstr ":class:`python:dict`\\[:class:`python:str`, :class:`python:str`]"
 
 #: 1af5502d9f474dea9e2c07e5d68229c3 of
 #: pymc_marketing.customer_choice.mnl_logit.MNLogit.create_idata_attrs:11
-msgid "The attributes for the InferenceData object."
-msgstr "Los atributos del objeto InferenceData."
+msgid "The attributes for the DataTree object."
+msgstr "Los atributos del objeto DataTree."

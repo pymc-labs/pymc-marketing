@@ -27,5 +27,5 @@ msgstr "GammaGammaModelIndividual.build\\_from\\_idata"
 
 #: 57cc437021084ddbbf0771d2fa4c5284 of
 #: pymc_marketing.clv.models.basic.CLVModel.build_from_idata:2
-msgid "Build the model from the InferenceData object."
-msgstr "Construya el modelo a partir del objeto InferenceData."
+msgid "Build the model from the DataTree object."
+msgstr "Construya el modelo a partir del objeto DataTree."

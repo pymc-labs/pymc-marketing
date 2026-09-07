@@ -181,6 +181,10 @@ class MMMPlotlyFactory:
         Line plots showing diminishing returns per channel
     adstock_curves(hdi_prob, amount, ...)
         Line plots showing carryover effects over time
+    waterfall(hdi_prob, ...)
+        Waterfall decomposition bar chart
+    channel_share(hdi_prob, ...)
+        Channel share of total contribution with HDI
 
     Examples
     --------
@@ -233,6 +237,7 @@ class MMMPlotlyFactory:
     --------
     MMMSummaryFactory : Data factory providing summary statistics
     MMMPlotSuite : Static matplotlib plotting functionality
+    MMM.summary : Tabular export for custom frontends
     """
 
     def __init__(
@@ -1673,3 +1678,61 @@ class MMMPlotlyFactory:
 
         fig.update_layout(hovermode="x")
         return fig
+
+    def waterfall(
+        self,
+        hdi_prob: float | None = 0.94,
+        auto_facet: bool = True,
+        single_dim_facet: Literal["col", "row"] = "row",
+        **plotly_kwargs,
+    ) -> go.Figure:
+        """Plot waterfall decomposition from summary data."""
+        hdi_probs = [hdi_prob] if hdi_prob else []
+        df = self.summary.waterfall(hdi_probs=hdi_probs)
+
+        nw_df, plotly_kwargs = self._prepare_summaries_for_bar_plot(
+            df=df,
+            required_column="component",
+            default_title="Contribution Waterfall",
+            auto_facet=auto_facet,
+            single_dim_facet=single_dim_facet,
+            plotly_kwargs=plotly_kwargs,
+        )
+
+        return self._plot_bar(
+            nw_df=nw_df,
+            x=plotly_kwargs.pop("x", "component"),
+            y="mean",
+            hdi_prob=hdi_prob,
+            yaxis_title="Contribution",
+            **plotly_kwargs,
+        )
+
+    def channel_share(
+        self,
+        hdi_prob: float | None = 0.94,
+        auto_facet: bool = True,
+        single_dim_facet: Literal["col", "row"] = "row",
+        **plotly_kwargs,
+    ) -> go.Figure:
+        """Plot channel share of total contribution with HDI."""
+        hdi_probs = [hdi_prob] if hdi_prob else []
+        df = self.summary.channel_share_hdi(hdi_probs=hdi_probs)
+
+        nw_df, plotly_kwargs = self._prepare_summaries_for_bar_plot(
+            df=df,
+            required_column="channel",
+            default_title="Channel Share of Contribution",
+            auto_facet=auto_facet,
+            single_dim_facet=single_dim_facet,
+            plotly_kwargs=plotly_kwargs,
+        )
+
+        return self._plot_bar(
+            nw_df=nw_df,
+            x=plotly_kwargs.pop("x", "channel"),
+            y="mean",
+            hdi_prob=hdi_prob,
+            yaxis_title="Share",
+            **plotly_kwargs,
+        )

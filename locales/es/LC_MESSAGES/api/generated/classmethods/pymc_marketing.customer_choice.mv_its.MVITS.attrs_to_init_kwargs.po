@@ -28,9 +28,9 @@ msgstr "MVITS.attrs\\_to\\_init\\_kwargs"
 #: e7ffcf3c9d994b17b7af36b4f15da20f of
 #: pymc_marketing.customer_choice.mv_its.MVITS.attrs_to_init_kwargs:2
 msgid ""
-"Convert the attributes of the InferenceData object to the __init__ kwargs."
+"Convert the attributes of the DataTree object to the __init__ kwargs."
 msgstr ""
-"Convierte los atributos del objeto InferenceData a los kwargs de __init__."
+"Convierte los atributos del objeto DataTree a los kwargs de __init__."
 
 #: 09ad0783d8ea4173a0cfc12fda889d48 of
 #: pymc_marketing.customer_choice.mv_its.MVITS.attrs_to_init_kwargs
@@ -49,8 +49,8 @@ msgstr "python:dict"
 
 #: 7f388458cdba410fbbfa910ddd9929fb of
 #: pymc_marketing.customer_choice.mv_its.MVITS.attrs_to_init_kwargs:8
-msgid "The attributes of the InferenceData object."
-msgstr "Los atributos del objeto InferenceData."
+msgid "The attributes of the DataTree object."
+msgstr "Los atributos del objeto DataTree."
 
 #: 15cd17f3db274dd59341fce4fec1b777 of
 #: pymc_marketing.customer_choice.mv_its.MVITS.attrs_to_init_kwargs

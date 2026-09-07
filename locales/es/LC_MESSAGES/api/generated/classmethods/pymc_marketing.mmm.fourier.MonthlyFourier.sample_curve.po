@@ -37,13 +37,13 @@ msgstr "Parámetros"
 
 #: 914faab0321d453b870ab60872bd7838 of
 #: pymc_marketing.mmm.fourier.FourierBase.sample_curve:7
-msgid "**parameters** : :obj:`az.InferenceData` | :obj:`xr.Dataset`"
-msgstr "**parámetros** : :obj:`az.InferenceData` | :obj:`xr.Dataset`"
+msgid "**parameters** : :obj:`az.DataTree` | :obj:`xr.Dataset`"
+msgstr "**parámetros** : :obj:`az.DataTree` | :obj:`xr.Dataset`"
 
 #: 04fb08bd7da1442bac80ce19da192f19 of
 #: pymc_marketing.mmm.fourier.FourierBase.sample_curve:6
-msgid "az.InferenceData | xr.Dataset"
-msgstr "az.InferenceData | xr.Dataset"
+msgid "az.DataTree | xr.Dataset"
+msgstr "az.DataTree | xr.Dataset"
 
 #: 3d13c3cebc0b4f46a89185861155122e of
 #: pymc_marketing.mmm.fourier.FourierBase.sample_curve:8

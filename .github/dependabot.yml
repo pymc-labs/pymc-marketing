@@ -12,3 +12,9 @@ updates:
     labels:
       - "dependencies"
       - "no releasenotes"
+    groups:
+      actions-all:
+        patterns:
+          - "actions/*"
+    cooldown:
+      default-days: 7
