@@ -4109,7 +4109,7 @@ requires-dist = [
     { name = "osqp", marker = "extra == 'dag'", specifier = ">=0.6.2,<1.0.0" },
     { name = "osqp", marker = "extra == 'docs'", specifier = ">=0.6.2,<1.0.0" },
     { name = "osqp", marker = "extra == 'test'", specifier = ">=0.6.2,<1.0.0" },
-    { name = "pandas", specifier = "<3.0.5" },
+    { name = "pandas", specifier = "<3" },
     { name = "pandas-stubs", marker = "extra == 'lint'" },
     { name = "papermill", marker = "extra == 'test'" },
     { name = "patsy" },
