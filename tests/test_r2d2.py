@@ -647,6 +647,44 @@ class TestR2D2WithMMM:
         # Verify the decomposition was built
         assert r2d2.built
 
+    def test_r2d2_with_mmm_control_and_fourier_build_model(self, mmm_data):
+        """R2D2 should build when sharing budget across control and Fourier."""
+        from pymc_marketing.mmm import MMM
+        from pymc_marketing.mmm.components.adstock import GeometricAdstock
+        from pymc_marketing.mmm.components.saturation import LogisticSaturation
+
+        r2d2 = R2D2(
+            r2=Prior("Beta", mu=0.8, sigma=0.2),
+            total_sigma=Prior("LogNormal", mu=0, sigma=1),
+            dims={"control": "control", "fourier": "fourier_mode"},
+        )
+        mmm = MMM(
+            date_column="date_week",
+            channel_columns=["x1", "x2"],
+            control_columns=["event_1", "event_2", "t"],
+            target_column="y",
+            adstock=GeometricAdstock(l_max=8),
+            saturation=LogisticSaturation(),
+            yearly_seasonality=1,
+            model_config={
+                "likelihood": Prior("Normal", sigma=r2d2.error_sigma, dims="date"),
+                "gamma_control": r2d2.split("control"),
+                "gamma_fourier": r2d2.split("fourier"),
+            },
+        )
+
+        X = mmm_data.drop("y", axis=1)
+        y = mmm_data["y"]
+
+        mmm.build_model(X, y)
+
+        expected_split = ["event_1", "event_2", "t", "sin_1", "cos_1"]
+        assert list(mmm.model.coords["r2d2_split"]) == expected_split
+        free_rv_names = {v.name for v in mmm.model.free_RVs}
+        assert "gamma_control" in free_rv_names
+        assert "gamma_fourier" in free_rv_names
+        assert mmm.model.dim_lengths["fourier_mode"].eval() == 2
+
     def test_r2d2_with_mmm_contribution_names(self, mmm_data):
         """R2D2 should produce variables that work with MMM contribution plotting."""
         from pymc_marketing.mmm import MMM
