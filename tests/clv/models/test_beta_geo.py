@@ -11,6 +11,7 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
+import json
 import warnings
 
 import arviz as az
@@ -26,11 +27,20 @@ from pymc_marketing.clv.distributions import BetaGeoNBD
 from pymc_marketing.clv.models.beta_geo import (
     BetaGeoModel,
     _covariate_dataset,
+    _iter_dots,
     create_dropout_covariates,
     create_purchase_covariates,
 )
 from pymc_marketing.serialization import serialization
-from pymc_marketing.terms import Dot, Named, Parameter, Transform
+from pymc_marketing.terms import (
+    Dot,
+    ModelTerm,
+    Named,
+    Parameter,
+    Product,
+    Transform,
+    collect_terms,
+)
 from tests.clv.conftest import create_mock_fit, mock_sample, set_model_fit
 
 
@@ -1397,3 +1407,256 @@ class TestDatasetInput:
         model = BetaGeoModel(model_config=_recipe_config())
         with pytest.raises(ValueError, match="do not match"):
             model.build_model(data=ds)
+
+
+def _alpha_config(spec: str) -> dict:
+    """Recipe config for the ``alpha`` parameter, by combination-matrix value."""
+    if spec == "default":
+        return {}
+    if spec == "scalar":
+        return {"alpha": Parameter("alpha", prior=Prior("HalfFlat"), xdist=False)}
+    if spec == "helper":
+        return {"alpha": create_purchase_covariates(PURCHASE_COLS)}
+    if spec == "custom-dot":
+        return {
+            "alpha": Named(
+                "alpha",
+                Parameter("alpha_scale", prior=Prior("HalfFlat"), xdist=False)
+                * Transform(
+                    Dot(
+                        var_name="purchase_data",
+                        name="purchase_coefficient_alpha",
+                        prior=Prior("Normal", mu=0, sigma=1, dims="purchase_covariate"),
+                    ),
+                    func=_ptx.math.exp,
+                ),
+                dims="customer_id",
+            )
+        }
+    raise ValueError(spec)
+
+
+def _dropout_config(spec: str) -> dict:
+    """Recipe config for the dropout parameters, by combination-matrix value."""
+    if spec == "hierarchical":
+        return {}
+    if spec == "nested":
+        return {
+            "a": Parameter("a", prior=Prior("Beta", alpha=2, beta=3), xdist=False),
+            "b": Parameter("b", prior=Prior("Beta", beta=3, alpha=2), xdist=False),
+        }
+    if spec == "helper":
+        a, b = create_dropout_covariates(DROPOUT_COLS)
+        return {"a": a, "b": b}
+    if spec == "custom":
+        phi_a = Parameter(
+            "phi_a", prior=Prior("Uniform", lower=0, upper=1), xdist=False
+        )
+        kappa_a = Parameter("kappa_a", prior=Prior("Pareto", alpha=1, m=1), xdist=False)
+        phi_b = Parameter(
+            "phi_b", prior=Prior("Uniform", lower=0, upper=1), xdist=False
+        )
+        kappa_b = Parameter("kappa_b", prior=Prior("Pareto", alpha=1, m=1), xdist=False)
+        return {
+            "a": Named("a", phi_a * kappa_a),
+            "b": Named("b", (1 - phi_b) * kappa_b),
+        }
+    raise ValueError(spec)
+
+
+_EXPECTED_FREE_RVS = {
+    "r": {"r"},
+    "default": {"alpha"},
+    "scalar": {"alpha"},
+    "helper": {"alpha_scale", "purchase_coefficient_alpha"},
+    "custom-dot": {"alpha_scale", "purchase_coefficient_alpha"},
+    "hierarchical": {"phi_dropout", "kappa_dropout"},
+    "nested": {"a", "b"},
+    "dropout-helper": {
+        "a_scale",
+        "b_scale",
+        "dropout_coefficient_a",
+        "dropout_coefficient_b",
+    },
+    "custom": {"phi_a", "kappa_a", "phi_b", "kappa_b"},
+}
+
+
+class TestAllCombinations:
+    """Every alpha x dropout x data combination the config contract allows."""
+
+    @pytest.mark.parametrize("data_kind", ["dataframe", "dataset"])
+    @pytest.mark.parametrize(
+        "dropout_spec", ["hierarchical", "nested", "helper", "custom"]
+    )
+    @pytest.mark.parametrize(
+        "alpha_spec", ["default", "scalar", "helper", "custom-dot"]
+    )
+    def test_combination(
+        self, alpha_spec, dropout_spec, data_kind, covariate_data, modeling_dataset
+    ):
+        config = {**_alpha_config(alpha_spec), **_dropout_config(dropout_spec)}
+        expect_error = alpha_spec == "custom-dot" and data_kind == "dataframe"
+        model = BetaGeoModel(model_config=config)
+
+        if expect_error:
+            with pytest.raises(ValueError, match="covariate columns are configured"):
+                model.build_model(data=covariate_data)
+            return
+
+        if data_kind == "dataframe":
+            data = covariate_data
+        else:
+            data = modeling_dataset
+            if alpha_spec not in ("helper", "custom-dot"):
+                data = data.drop_vars("purchase_data")
+            if dropout_spec != "helper":
+                data = data.drop_vars("dropout_data")
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", DeprecationWarning)
+            model.build_model(data=data)
+
+        expected = set(_EXPECTED_FREE_RVS["r"])
+        expected |= _EXPECTED_FREE_RVS[alpha_spec]
+        dropout_key = "dropout-helper" if dropout_spec == "helper" else dropout_spec
+        expected |= _EXPECTED_FREE_RVS[dropout_key]
+        free = {rv.name for rv in model.model.free_RVs}
+        assert expected <= free, f"missing {expected - free}"
+
+    def test_mixed_recipe_and_deprecated_dropout_keys(self, covariate_data):
+        """Partial migration: recipe for alpha, deprecated keys for dropout."""
+        config = {**_alpha_config("helper"), "dropout_covariate_cols": DROPOUT_COLS}
+        with warnings.catch_warnings(record=True) as record:
+            warnings.simplefilter("always", DeprecationWarning)
+            model = BetaGeoModel(model_config=config)
+        deprecations = [
+            str(w.message) for w in record if issubclass(w.category, DeprecationWarning)
+        ]
+        assert len(deprecations) == 1
+        assert "dropout_covariate_cols" in deprecations[0]
+
+        model.build_model(data=covariate_data)
+        free = {rv.name for rv in model.model.free_RVs}
+        assert {
+            "alpha_scale",
+            "purchase_coefficient_alpha",
+            "phi_dropout",
+            "kappa_dropout",
+        } <= free
+
+    def test_mixed_deprecated_purchase_keys_and_ab_recipes(self, covariate_data):
+        """Partial migration: deprecated purchase keys, recipes for dropout."""
+        a, b = create_dropout_covariates(DROPOUT_COLS)
+        config = {"purchase_covariate_cols": PURCHASE_COLS, "a": a, "b": b}
+        with warnings.catch_warnings(record=True) as record:
+            warnings.simplefilter("always", DeprecationWarning)
+            model = BetaGeoModel(model_config=config)
+        deprecations = [
+            str(w.message) for w in record if issubclass(w.category, DeprecationWarning)
+        ]
+        assert len(deprecations) == 1
+        assert "purchase_covariate_cols" in deprecations[0]
+
+        model.build_model(data=covariate_data)
+        free = {rv.name for rv in model.model.free_RVs}
+        assert {
+            "alpha_scale",
+            "purchase_coefficient_alpha",
+            "a_scale",
+            "b_scale",
+            "dropout_coefficient_a",
+            "dropout_coefficient_b",
+        } <= free
+
+
+class TestStructureAsData:
+    """Model structure is data: inspect, serialize, tweak, rebuild."""
+
+    def test_term_tree_inspection(self):
+        """Recipes are pure dataclass trees, inspectable without a model."""
+        alpha = create_purchase_covariates(PURCHASE_COLS)
+        terms = collect_terms([alpha.expr])
+        assert [type(term).__name__ for term in terms] == ["Parameter", "Transform"]
+        transform = terms[1]
+        assert isinstance(transform.inner, Product)
+        dot = transform.inner.right
+        assert isinstance(dot, Dot)
+        assert dot.var_name == "purchase_data"
+        assert dot.name == "purchase_coefficient_alpha"
+
+    def test_structure_as_data_roundtrip(self, covariate_data):
+        """Serialize a recipe, tweak a prior in the dict, deserialize, rebuild."""
+        model = BetaGeoModel(model_config=_recipe_config())
+        spec = serialization.serialize(model.model_config["alpha"])
+
+        spec_json = json.loads(json.dumps(spec))
+        dot_spec = spec_json["expr"]["right"]["inner"]["right"]
+        assert dot_spec["__type__"].endswith("Dot")
+        dot_spec["prior"]["kwargs"]["sigma"] = 10.0
+
+        restored = serialization.deserialize(spec_json)
+        tweaked = BetaGeoModel(model_config={"alpha": restored})
+        tweaked.build_model(data=covariate_data)
+
+        assert serialization.serialize(tweaked.model_config["alpha"]) != spec
+        coef_prior = next(_iter_dots(restored)).prior
+        assert coef_prior.parameters["sigma"] == 10.0
+
+    def test_structure_swap_via_recipes(self, covariate_data):
+        """One model class, four graphs: structure is configuration."""
+        custom_ab = {
+            "a": Named(
+                "a",
+                Parameter(
+                    "phi_a", prior=Prior("Uniform", lower=0, upper=1), xdist=False
+                )
+                * Parameter(
+                    "kappa_a", prior=Prior("Pareto", alpha=1, m=1), xdist=False
+                ),
+            ),
+            "b": Named(
+                "b",
+                (
+                    1
+                    - Parameter(
+                        "phi_b", prior=Prior("Uniform", lower=0, upper=1), xdist=False
+                    )
+                )
+                * Parameter(
+                    "kappa_b", prior=Prior("Pareto", alpha=1, m=1), xdist=False
+                ),
+            ),
+        }
+        configs = [
+            {},
+            _recipe_config(),
+            _recipe_config(
+                alpha=create_purchase_covariates(
+                    PURCHASE_COLS, scale_prior=Prior("LogNormal", mu=0, sigma=1)
+                )
+            ),
+            custom_ab,
+        ]
+        structures = []
+        for config in configs:
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", DeprecationWarning)
+                model = BetaGeoModel(model_config=dict(config))
+                model.build_model(data=covariate_data)
+            structures.append(
+                (
+                    frozenset(rv.name for rv in model.model.free_RVs),
+                    json.dumps(
+                        serialization.serialize(model.model_config["alpha"]),
+                        sort_keys=True,
+                    )
+                    if "alpha" in model.model_config
+                    and isinstance(model.model_config["alpha"], ModelTerm)
+                    else None,
+                )
+            )
+        # all four build; graphs and/or recipes differ structurally
+        assert structures[0] != structures[1]
+        assert structures[1] != structures[2]  # same names, different priors
+        assert structures[3] != structures[1]
