@@ -2464,13 +2464,8 @@ class MMM(RegressionModelBuilder):
                 # not to register one.
                 #
                 # Not transposed, unlike the log branch, which would change the
-                # dims order the likelihood sees.
-                #
-                # A MuEffect returning a term that is length 1 along "date"
-                # builds today but fails the shape check a registered
-                # Deterministic applies. There is no broadcast escape: xtensor
-                # rejects conflicting static shapes in both `broadcast` and
-                # `+`, so such an effect has to return a full-length term.
+                # dims order the likelihood sees, so "date" stays wherever the
+                # linear predictor already put it rather than moving to front.
                 mu_var = pmd.Deterministic("mu", mu_var)
 
             self._link_spec.create_media_contribution_deterministic(

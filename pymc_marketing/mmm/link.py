@@ -327,7 +327,7 @@ class LinkSpec(ABC):
     ) -> xr.DataArray:
         """Per-draw factor converting median-scale outputs to the response mean.
 
-        .. deprecated:: 1.1.0
+        .. deprecated:: 1.2.0
             Use :meth:`to_mean_scale`, or :meth:`mean_scale_factor` where a
             factor is what the caller needs.  A single multiplicative factor
             cannot express the identity-link correction, which depends on the
@@ -673,9 +673,13 @@ class IdentityLinkSpec(LinkSpec):
         # silently returning median-scale numbers labelled as means. They are
         # told apart by holding no parameters of their own.
         if getattr(likelihood, "parameters", None) is None:
+            wrapper = type(likelihood).__name__
+            # Censored resolves to the name it holds, Scaled to its own, so
+            # naming both would read as "Scaled holding 'Scaled'".
+            held = "" if dist_name == wrapper else f" holding '{dist_name}'"
             raise ValueError(
                 f"No mean correction is defined for a wrapped likelihood "
-                f"({type(likelihood).__name__} holding '{dist_name}'). The "
+                f"({wrapper}{held}). The "
                 f"wrapper moves the mean off 'mu', so the contributions cannot "
                 f"be read as means. Use central_tendency='median'."
             )
@@ -725,7 +729,7 @@ class IdentityLinkSpec(LinkSpec):
     ) -> xr.DataArray:
         """Refuse: the identity-link correction needs the likelihood.
 
-        .. deprecated:: 1.1.0
+        .. deprecated:: 1.2.0
             Use :meth:`to_mean_scale`, or :meth:`mean_scale_factor` where a
             factor is what the caller needs.
 

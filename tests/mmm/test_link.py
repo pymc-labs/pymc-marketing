@@ -21,7 +21,7 @@ import pymc.dims as pmd
 import pytest
 import xarray as xr
 from pydantic import ValidationError
-from pymc_extras.prior import Censored, Prior
+from pymc_extras.prior import Censored, Prior, Scaled
 from scipy import stats
 
 from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation, LogSaturation
@@ -857,6 +857,42 @@ class TestTruncatedNormalMeanCorrection:
         mmm = self._fit_truncated()
         assert "mu" in mmm.idata.posterior
 
+    def test_mu_keeps_the_predictor_dim_order_under_identity(self, mock_pymc_sample):
+        """ "date" stays last: the identity branch does not transpose.
+
+        The log branch moves "date" to the front, so a reader who assumes the
+        log ordering under identity indexes the wrong axis.
+        """
+        mmm = self._fit_truncated()
+
+        assert mmm.idata.posterior["mu"].dims == ("chain", "draw", "country", "date")
+
+    def test_mean_scale_parts_sum_to_the_truncated_mean(self, mock_pymc_sample):
+        """The corrected parts reconcile against E[y], which is the #2834 ask.
+
+        The per-term assertions above pin where the offset lands; this pins the
+        property a reader actually reads the decomposition for.
+        """
+        mmm = self._fit_truncated()
+        mean_ds = mmm.compute_counterfactual_contributions_dataset(
+            central_tendency="mean"
+        )
+        total = sum(mean_ds[var] for var in mean_ds.data_vars)
+
+        posterior = mmm.idata.posterior
+        target_scale = mmm.idata.constant_data["target_scale"].squeeze(drop=True)
+        mu = posterior["mu"]
+        sigma = posterior["y_sigma"]
+        expected = xr.apply_ufunc(
+            lambda m, s: stats.truncnorm.mean((0.0 - m) / s, np.inf, loc=m, scale=s),
+            mu,
+            sigma,
+        )
+
+        xr.testing.assert_allclose(
+            total, (expected * target_scale).transpose(*total.dims)
+        )
+
     def test_offset_matches_closed_form_truncated_mean(self, mock_pymc_sample):
         mmm = self._fit_truncated()
         median_ds = mmm.compute_counterfactual_contributions_dataset(
@@ -1003,6 +1039,21 @@ class TestTruncatedNormalMeanCorrection:
         with pytest.raises(ValueError, match="wrapped likelihood"):
             IdentityLinkSpec().to_mean_scale(
                 dataset, posterior, Censored(inner, lower=0), xr.DataArray(1.0)
+            )
+
+    def test_scaled_wrapper_is_named_once_in_the_rejection(self):
+        """Scaled resolves to its own class name, so do not print it twice.
+
+        Censored resolves to the name it holds, which reads well. Scaled does
+        not, and naming both gave "Scaled holding 'Scaled'".
+        """
+        posterior = xr.Dataset({"mu": xr.DataArray([[1.0]], dims=("chain", "date"))})
+        dataset = xr.Dataset({"intercept": posterior["mu"]})
+        likelihood = Scaled(Prior("TruncatedNormal", lower=0, sigma=1), factor=2)
+
+        with pytest.raises(ValueError, match=r"\(Scaled\)\. The wrapper"):
+            IdentityLinkSpec().to_mean_scale(
+                dataset, posterior, likelihood, xr.DataArray(1.0)
             )
 
     def test_fixed_sigma_is_used_instead_of_the_posterior(self):
