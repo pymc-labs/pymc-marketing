@@ -77,6 +77,8 @@ mmm = MMM(
 )
 ```
 
+If you are new to Marketing Mix Modeling, start with the {ref}`guided learning path <mmm_learning_path>`. It orders the example notebooks into stages, from the first fitted model to lift-test calibration.
+
 See how PyMC-Marketing compares to [Google Meridian, Meta Robyn, and other MMM frameworks](guide/mmm/comparison), or read the [benchmark comparison to Meridian](https://www.pymc-labs.com/blog-posts/pymc-marketing-vs-google-meridian).
 
 ## Quick links

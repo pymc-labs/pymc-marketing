@@ -11,6 +11,8 @@ sections:
     subsections:
       - title: Fundamentals
         cards:
+          - title: "Getting Started with MMM: A Guided Path"
+            notebook: mmm/mmm_learning_path
           - title: MMM Quickstart Guide
             notebook: mmm/mmm_quickstart
           - title: "MMM Example: Extensive Introduction Notebook"
