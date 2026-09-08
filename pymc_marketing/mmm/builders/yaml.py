@@ -156,12 +156,9 @@ def build_mmm_from_yaml(
 
     date_column = model_spec["kwargs"].get("date_column")
     if isinstance(X, pd.DataFrame) and date_column:
-        date_col_in_X = date_column in X.columns
-
         if date_column in X.columns:
-            X.loc[:, date_column] = pd.to_datetime(X[date_column])
-
-        if not date_col_in_X:
+            X = X.assign(**{date_column: pd.to_datetime(X[date_column])})
+        else:
             raise ValueError(
                 f"Date column '{date_column}' specified in config not found "
                 f"in either X or y data."
