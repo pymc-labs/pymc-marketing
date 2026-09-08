@@ -15,9 +15,9 @@
 """Composable model terms for building ``pymc.dims`` subgraphs from xarray data.
 
 ``pymc_marketing.terms`` provides a small set of built-in pieces
-(``Parameter`` / ``Intercept``, ``Dot``, ``Transform``) that compose with
-``+``, ``*``, and ``-`` into predictors.  **This module is not a full
-modeling toolkit** --- it does not ship complete hierarchical,
+(``Parameter`` / ``Intercept``, ``Dot``, ``Transform``, ``Named``, ``Ref``)
+that compose with ``+``, ``*``, and ``-`` into predictors.  **This module is
+not a full modeling toolkit** --- it does not ship complete hierarchical,
 domain-specific, or observation-model wrappers.  It is a **thin, expressive
 core** that lets you build what you need by subclassing ``ModelTerm`` and
 reusing the same helpers and operators that built-ins use.  If a term is
@@ -231,6 +231,23 @@ Gotchas
           model = pm.modelcontext(None)
           unique = list(dict.fromkeys(ds[self.data_source].values))
           model.add_coords({self.data_source: unique})
+
+- Built terms produce dimensional (``XTensorVariable``) tensors. Legacy
+  plain-tensor consumers (custom ``pm.Distribution`` subclasses whose
+  ``logp`` uses plain pytensor ops) require explicit conversion at the
+  boundary: ``pt.as_tensor_variable(x, allow_xtensor_conversion=True)``.
+- ``register_data`` must run before ``build_param``: building a term that
+  references a data variable before that variable is registered raises
+  ``KeyError``.
+- ``Parameter`` and ``Dot`` default to ``xdist=True`` (``pymc.dims``
+  variables). Not every PyMC distribution is available there (e.g.
+  ``Pareto``); pass ``xdist=False`` for a plain PyMC variable in that case.
+- Terms serialize via ``pymc_marketing.serialization`` (``to_dict`` /
+  ``from_dict`` are registered for the built-ins), so recipes stored in
+  ``model_config`` survive ``fit()`` (attrs are JSON-serialized at sampling
+  time) and ``save()`` / ``load()``. ``Transform`` functions must be in the
+  serializable-function registry (``exp``, ``log``, ``log1p``, ``sigmoid``,
+  ``sqrt``).
 """
 
 from __future__ import annotations
@@ -242,16 +259,23 @@ from typing import Any, cast
 import pymc as pm
 import pymc.dims as pmd
 import pytensor.tensor as pt
+import pytensor.xtensor as ptx
 import xarray as xr
+from pymc_extras.deserialize import DeserializableError
+from pymc_extras.deserialize import deserialize as pymc_extras_deserialize
 from pymc_extras.prior import Prior, VariableFactory
 from pytensor.xtensor.type import as_xtensor
+
+from pymc_marketing.serialization import SerializationError, serialization
 
 __all__ = [
     "Dot",
     "Intercept",
     "ModelTerm",
+    "Named",
     "Parameter",
     "Product",
+    "Ref",
     "Sum",
     "Transform",
     "build_param",
@@ -261,6 +285,82 @@ __all__ = [
     "register_data",
     "set_data",
 ]
+
+# Functions allowed inside ``Transform`` for serialization. Keys are stable
+# names; values must be ``pytensor.xtensor.math`` functions so composed
+# expressions round-trip through ``to_dict`` / ``from_dict``.
+_SERIALIZABLE_FUNCTIONS: dict[str, Callable] = {
+    "exp": ptx.math.exp,
+    "log": ptx.math.log,
+    "log1p": ptx.math.log1p,
+    "sigmoid": ptx.math.sigmoid,
+    "sqrt": ptx.math.sqrt,
+}
+
+
+def _as_plain_tensor(x: Any) -> pt.TensorVariable:
+    """Adapt a terms-built (xtensor) expression for plain-tensor consumers.
+
+    Plain pytensor consumers (custom ``pm.Distribution`` subclasses whose
+    ``logp`` uses plain pytensor ops) forbid implicit xtensor to tensor
+    conversion.
+    """
+    return cast(
+        "pt.TensorVariable", pt.as_tensor_variable(x, allow_xtensor_conversion=True)
+    )
+
+
+def _func_name(func: Callable) -> str:
+    """Look up the serializable name of a ``Transform`` function."""
+    for name, candidate in _SERIALIZABLE_FUNCTIONS.items():
+        if func is candidate:
+            return name
+    allowed = ", ".join(sorted(_SERIALIZABLE_FUNCTIONS))
+    raise SerializationError(
+        f"Function {func!r} is not serializable. Use one of: {allowed}, "
+        "or extend pymc_marketing.terms._SERIALIZABLE_FUNCTIONS."
+    )
+
+
+def _lookup_func(name: str) -> Callable:
+    """Resolve a serialized ``Transform`` function name."""
+    if name not in _SERIALIZABLE_FUNCTIONS:
+        allowed = ", ".join(sorted(_SERIALIZABLE_FUNCTIONS))
+        raise SerializationError(
+            f"Unknown serialized function {name!r}. Allowed: {allowed}."
+        )
+    return _SERIALIZABLE_FUNCTIONS[name]
+
+
+def _serialize_child(value: Any) -> Any:
+    """Serialize a child of a composed term to a JSON-safe value.
+
+    Numeric literals become ``{"__type__": "literal", ...}`` wrappers;
+    variable factories that are not registered in the type registry
+    (``Prior``, ``Censored``, ...) serialize via their own ``to_dict``.
+    """
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        return {"__type__": "literal", "value": value}
+    try:
+        return serialization.serialize(value)
+    except KeyError:
+        if hasattr(value, "to_dict"):
+            return value.to_dict()
+        raise
+
+
+def _deserialize_child(value: Any) -> Any:
+    """Deserialize a serialized term child back to a live object."""
+    if isinstance(value, dict):
+        if value.get("__type__") == "literal":
+            return value["value"]
+        if "__type__" in value:
+            return serialization.deserialize(value)
+        try:
+            return pymc_extras_deserialize(value)
+        except DeserializableError as err:
+            raise SerializationError(f"Cannot deserialize term child: {value}") from err
+    return value
 
 
 @dataclass
@@ -352,6 +452,7 @@ class ModelTerm:
         return Product(-1, self)
 
 
+@serialization.register
 @dataclass
 class Sum:
     """Container for additive composition via ``+``.
@@ -406,7 +507,17 @@ class Sum:
         for term in self.terms:
             set_data(term, ds=ds, model=model)
 
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize the sum and its children."""
+        return {"terms": [_serialize_child(term) for term in self.terms]}
 
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> Sum:
+        """Reconstruct a sum from its serialized form."""
+        return cls(terms=[_deserialize_child(term) for term in data["terms"]])
+
+
+@serialization.register
 @dataclass
 class Product:
     """Container for multiplicative composition via ``*``.
@@ -448,7 +559,23 @@ class Product:
         set_data(self.left, ds=ds, model=model)
         set_data(self.right, ds=ds, model=model)
 
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize the product and both operands."""
+        return {
+            "left": _serialize_child(self.left),
+            "right": _serialize_child(self.right),
+        }
 
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> Product:
+        """Reconstruct a product from its serialized form."""
+        return cls(
+            left=_deserialize_child(data["left"]),
+            right=_deserialize_child(data["right"]),
+        )
+
+
+@serialization.register
 @dataclass
 class Parameter(ModelTerm):
     """Named free parameter (scalar or dimensional via ``prior.dims``).
@@ -471,6 +598,10 @@ class Parameter(ModelTerm):
         (``Prior``, ``Censored``, ``Scaled``, custom) is accepted.
         When the prior carries ``dims`` (e.g. ``Prior(..., dims="cohort")``),
         ``get_coords`` will extract those coordinates from the dataset.
+    xdist : bool, optional
+        Create the variable through ``pymc.dims`` (default). Set to ``False``
+        for a plain PyMC variable, e.g. when the distribution is not
+        available in ``pymc.dims``.
 
     Examples
     --------
@@ -498,6 +629,7 @@ class Parameter(ModelTerm):
 
     name: str
     prior: VariableFactory = field(default_factory=lambda: Prior("Normal"))
+    xdist: bool = True
 
     def get_coords(self, ds: xr.Dataset) -> dict[str, Any]:
         """Collect coordinates from ``prior.dims`` present in the dataset."""
@@ -511,9 +643,29 @@ class Parameter(ModelTerm):
 
     def create_variable(self) -> pt.TensorVariable:
         """Build a free parameter variable."""
-        return self.prior.create_variable(self.name, xdist=True)
+        return self.prior.create_variable(self.name, xdist=self.xdist)
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize the parameter name, prior, and xdist flag."""
+        data: dict[str, Any] = {
+            "name": self.name,
+            "prior": _serialize_child(self.prior),
+        }
+        if not self.xdist:
+            data["xdist"] = False
+        return data
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> Parameter:
+        """Reconstruct a parameter from its serialized form."""
+        return cls(
+            name=data["name"],
+            prior=_deserialize_child(data["prior"]),
+            xdist=data.get("xdist", True),
+        )
 
 
+@serialization.register
 @dataclass
 class Intercept(Parameter):
     """GLM-style intercept term; same as :class:`Parameter` with a default name.
@@ -534,6 +686,7 @@ class Intercept(Parameter):
     prior: VariableFactory = field(default_factory=lambda: Prior("Normal"))
 
 
+@serialization.register
 @dataclass(kw_only=True)
 class Dot(ModelTerm):
     """Linear predictor term: ``data @ beta``.
@@ -553,6 +706,10 @@ class Dot(ModelTerm):
         Provide a distinct ``name`` to reference the same ``var_name`` from
         multiple terms (e.g. separate alpha and beta coefficient branches)
         without colliding on the coefficient variable name.
+    xdist : bool, optional
+        Create the coefficient variable through ``pymc.dims`` (default).
+        Set to ``False`` for a plain PyMC variable, e.g. when the
+        distribution is not available in ``pymc.dims``.
 
     Examples
     --------
@@ -582,6 +739,7 @@ class Dot(ModelTerm):
     var_name: str
     prior: VariableFactory
     name: str | None = None
+    xdist: bool = True
 
     def __post_init__(self):
         """Set the default coefficient name to ``{var_name}_beta``."""
@@ -612,10 +770,32 @@ class Dot(ModelTerm):
         """Build ``data @ beta`` tensor."""
         model = pm.modelcontext(None)
         data = model[self.var_name]
-        beta = self.prior.create_variable(self.name, xdist=True)
+        beta = self.prior.create_variable(self.name, xdist=self.xdist)
         return data @ beta
 
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize the data variable, coefficient prior, and name."""
+        data: dict[str, Any] = {
+            "var_name": self.var_name,
+            "prior": _serialize_child(self.prior),
+            "name": self.name,
+        }
+        if not self.xdist:
+            data["xdist"] = False
+        return data
 
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> Dot:
+        """Reconstruct a dot term from its serialized form."""
+        return cls(
+            var_name=data["var_name"],
+            prior=_deserialize_child(data["prior"]),
+            name=data["name"],
+            xdist=data.get("xdist", True),
+        )
+
+
+@serialization.register
 @dataclass
 class Transform(ModelTerm):
     """Apply a pytensor function to a term's output.
@@ -673,6 +853,124 @@ class Transform(ModelTerm):
     def set_data(self, ds: xr.Dataset, model: pm.Model | None = None) -> None:
         """Update shared data for the inner expression."""
         set_data(self.inner, ds=ds, model=model)
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize the inner expression and the applied function."""
+        return {
+            "inner": _serialize_child(self.inner),
+            "func": _func_name(self.func),
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> Transform:
+        """Reconstruct a transform from its serialized form."""
+        return cls(
+            inner=_deserialize_child(data["inner"]),
+            func=_lookup_func(data["func"]),
+        )
+
+
+@serialization.register
+@dataclass
+class Named(ModelTerm):
+    """Compose an expression into a named deterministic variable.
+
+    The inner expression is built lazily within the model context:
+    ``build_param`` creates ``pm.Deterministic(name, value, dims=dims)``.
+    Coordinates, data registration, and data updating delegate to the
+    inner expression. Useful for naming intermediate effects (scales,
+    link outputs) that should appear in the posterior.
+
+    Parameters
+    ----------
+    name : str
+        Name of the deterministic variable.
+    expr : Any
+        Inner expression accepted by ``build_param``.
+    dims : str or tuple of str, optional
+        Dimensions for the deterministic variable.
+
+    Examples
+    --------
+    .. code-block:: python
+
+        sigma = Named("sigma", Intercept(name="sigma_scale"), func=None)
+
+        # a scale built from other effects, referenced by later terms
+        a_scale = Named("a_scale", phi * kappa)
+        a = Named("a", Ref("a_scale") * effect, dims="customer_id")
+    """
+
+    name: str
+    expr: Any
+    dims: str | tuple[str, ...] | None = None
+
+    def get_coords(self, ds: xr.Dataset) -> dict[str, Any]:
+        """Collect coordinates from the inner expression."""
+        return get_coords(self.expr, ds)
+
+    def register_data(self, ds: xr.Dataset) -> None:
+        """Register shared data for the inner expression."""
+        register_data(self.expr, ds=ds)
+
+    def set_data(self, ds: xr.Dataset, model: pm.Model | None = None) -> None:
+        """Update shared data for the inner expression."""
+        set_data(self.expr, ds=ds, model=model)
+
+    def create_variable(self) -> pt.TensorVariable:
+        """Build the named deterministic from the inner expression."""
+        value = _as_plain_tensor(build_param(self.expr))
+        return pm.Deterministic(self.name, value, dims=self.dims)
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize the name, expression, and dims."""
+        data: dict[str, Any] = {
+            "name": self.name,
+            "expr": _serialize_child(self.expr),
+        }
+        if self.dims is not None:
+            data["dims"] = self.dims
+        return data
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> Named:
+        """Reconstruct a named term from its serialized form."""
+        return cls(
+            name=data["name"],
+            expr=_deserialize_child(data["expr"]),
+            dims=data.get("dims"),
+        )
+
+
+@serialization.register
+@dataclass
+class Ref(ModelTerm):
+    """Reference an already-built named variable in the active model.
+
+    Lets an effect expression composed outside the model depend on another
+    built effect (e.g. ``a`` on the ``a_scale`` deterministic) without
+    recreating its variables.
+
+    Parameters
+    ----------
+    name : str
+        Name of the referenced variable.
+    """
+
+    name: str
+
+    def create_variable(self) -> pt.TensorVariable:
+        """Resolve the referenced variable from the active model."""
+        return pm.modelcontext(None)[self.name]
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize the referenced name."""
+        return {"name": self.name}
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> Ref:
+        """Reconstruct a reference from its serialized form."""
+        return cls(name=data["name"])
 
 
 def get_coords(param: Any, ds: xr.Dataset) -> dict[str, Any]:

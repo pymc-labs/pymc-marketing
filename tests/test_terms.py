@@ -20,12 +20,13 @@ import numpy as np
 import pymc as pm
 import pymc.dims as pmd
 import pytensor.tensor as pt
-import pytensor.xtensor.math as ptx
+import pytensor.xtensor as ptx
 import pytest
 import xarray as xr
 from pymc_extras.prior import Prior
 from pytensor.graph.basic import Variable as PTVariable
 
+from pymc_marketing.serialization import SerializationError, serialization
 from pymc_marketing.terms import (
     Dot,
     Intercept,
@@ -196,14 +197,14 @@ def test_dot_set_data(simple_ds):
 def test_transform_create_variable():
     with pm.Model():
         inner = Intercept(name="sigma")
-        transformed = Transform(inner, func=ptx.exp)
+        transformed = Transform(inner, func=ptx.math.exp)
         result = transformed.create_variable()
         assert isinstance(result, PTVariable)
 
 
 def test_transform_with_dot(simple_ds):
     dot = Dot(var_name="x", prior=Prior("Normal", dims="feature"))
-    transformed = Transform(dot, func=ptx.exp)
+    transformed = Transform(dot, func=ptx.math.exp)
     coords = transformed.get_coords(simple_ds)
     with pm.Model(coords=coords):
         transformed.register_data(simple_ds)
@@ -213,7 +214,7 @@ def test_transform_with_dot(simple_ds):
 
 def test_transform_set_data(simple_ds):
     inner = Dot(var_name="x", prior=Prior("Normal", dims="feature"))
-    transformed = Transform(inner, func=ptx.exp)
+    transformed = Transform(inner, func=ptx.math.exp)
     coords = transformed.get_coords(simple_ds)
     with pm.Model(coords=coords) as model:
         transformed.register_data(simple_ds)
@@ -273,7 +274,7 @@ def test_build_param_prior():
 
 def test_build_param_transform():
     with pm.Model():
-        result = build_param(Transform(Intercept(name="sigma"), func=ptx.exp))
+        result = build_param(Transform(Intercept(name="sigma"), func=ptx.math.exp))
         assert isinstance(result, PTVariable)
 
 
@@ -332,7 +333,7 @@ def test_collect_terms_skips_constants():
 
 
 def test_collect_terms_includes_transform():
-    terms = [Transform(Intercept(name="a"), func=ptx.exp)]
+    terms = [Transform(Intercept(name="a"), func=ptx.math.exp)]
     result = collect_terms(terms)
     assert len(result) == 1
 
@@ -340,7 +341,7 @@ def test_collect_terms_includes_transform():
 def test_collect_coords(simple_ds):
     """collect_coords merges coordinates from multiple term trees."""
     mu = Intercept(name="mu") + Dot(var_name="x", prior=Prior("Normal", dims="feature"))
-    sigma = Transform(Intercept(name="sigma"), func=ptx.exp)
+    sigma = Transform(Intercept(name="sigma"), func=ptx.math.exp)
     coords = collect_coords(mu, sigma, ds=simple_ds)
     assert "feature" in coords
 
@@ -521,7 +522,7 @@ def test_collect_coords_multiplication(simple_ds):
     """CLV gotcha: `a + b * c` must collect coordinates from the Product child."""
     mu = Intercept(name="a") + Dot(
         var_name="x", prior=Prior("Normal", dims="feature")
-    ) * Transform(Intercept(name="scale"), func=ptx.exp)
+    ) * Transform(Intercept(name="scale"), func=ptx.math.exp)
     coords = collect_coords(mu, ds=simple_ds)
     assert "feature" in coords
 
@@ -554,7 +555,7 @@ def test_set_data_multiplication(simple_ds):
     """
     mu = Intercept(name="a") + Dot(
         var_name="x", prior=Prior("Normal", dims="feature")
-    ) * Transform(Intercept(name="scale"), func=ptx.exp)
+    ) * Transform(Intercept(name="scale"), func=ptx.math.exp)
     coords = collect_coords(mu, ds=simple_ds)
     with pm.Model(coords=coords) as model:
         register_data(mu, ds=simple_ds)
@@ -651,3 +652,57 @@ def test_parameter_create_variable():
         with pm.Model(coords={"product": ["p1", "p2", "p3"]}):
             v = p.create_variable()
             assert v is not None
+
+
+def test_serialize_parameter_roundtrip():
+    term = Parameter("alpha", prior=Prior("Normal", mu=0, sigma=1, dims="product"))
+    restored = serialization.deserialize(serialization.serialize(term))
+    assert restored == term
+    assert restored.prior.dims == ("product",)
+
+
+def test_serialize_dot_roundtrip():
+    dot = Dot(var_name="x", prior=Prior("Normal", dims="feature"), name="x_coef")
+    restored = serialization.deserialize(serialization.serialize(dot))
+    assert restored == dot
+    assert restored.name == "x_coef"
+
+
+def test_serialize_intercept_subclass_roundtrip():
+    term = Intercept("baseline", prior=Prior("Normal"))
+    restored = serialization.deserialize(serialization.serialize(term))
+    assert isinstance(restored, Intercept)
+    assert restored == term
+
+
+def test_serialize_composition_roundtrip():
+    alpha = Parameter("alpha_scale", prior=Prior("HalfFlat")) * Transform(
+        -Dot(
+            var_name="purchase_data",
+            name="purchase_coefficient_alpha",
+            prior=Prior("Normal", mu=0, sigma=1, dims="purchase_covariate"),
+        ),
+        func=ptx.math.exp,
+    )
+    restored = serialization.deserialize(serialization.serialize(alpha))
+    assert restored == alpha
+
+
+def test_serialize_sum_with_literals_roundtrip():
+    expr = Intercept(name="a") + 5 - Intercept(name="b")
+    restored = serialization.deserialize(serialization.serialize(expr))
+    assert restored == expr
+
+
+def test_serialize_unregistered_func_raises():
+    with pytest.raises(SerializationError, match="not serializable"):
+        serialization.serialize(Transform(Parameter("x"), func=pt.sqrt))
+
+
+def test_restored_term_builds(simple_ds):
+    dot = Dot(var_name="x", prior=Prior("Normal", dims="feature"))
+    restored = serialization.deserialize(serialization.serialize(dot))
+    coords = collect_coords(restored, ds=simple_ds)
+    with pm.Model(coords=coords):
+        register_data(restored, ds=simple_ds)
+        assert isinstance(build_param(restored), PTVariable)
