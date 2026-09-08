@@ -1,0 +1,19 @@
+docs/source/notebooks/mmm/mmm_roas_experimentation.ipynb
+  s_61bdfb5d2b7c53::t_62327a310a1851 739
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.2",
+  "base_commit_sha": "1b567ba83f977a9dff887ba7e834172fc924ddb1",
+  "prompts": {},
+  "sessions": {
+    "s_61bdfb5d2b7c53": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "47d4abae-715d-4c7c-830c-a7e1d63889de",
+        "model": "claude-opus-5"
+      },
+      "human_author": "root <root@e2b.local>"
+    }
+  }
+}
