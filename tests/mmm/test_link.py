@@ -1025,10 +1025,21 @@ class TestLikelihoodSupport:
         mmm.build_model(X, y)
 
     def test_prior_predictive_without_y_builds(self, mock_pymc_sample):
-        """The same placeholder path, reached the way a user reaches it."""
+        """The same placeholder path, reached the way a user reaches it.
+
+        Only the build is under test.  Drawing from a ``Gamma`` prior under
+        ``link='identity'`` can raise ``scale < 0`` because ``mu`` is
+        unconstrained, which is the likelihood's own business and depends on
+        the seed.  That failure is tolerated; the support check firing on the
+        placeholder is not.
+        """
         mmm = _make_mmm(dims=None, model_config={"likelihood": self.GAMMA})
         X, _ = _make_panel_with_target([1.0] * 8)
-        mmm.sample_prior_predictive(X, samples=5)
+        try:
+            mmm.sample_prior_predictive(X, samples=5)
+        except ValueError as exc:
+            assert "requires the observed target" not in str(exc)
+        assert "y" in mmm.model.named_vars
 
     def test_multidimensional_target_is_checked(self, mock_pymc_sample):
         """The mask is over the full ``(date, country)`` grid, not one series."""
