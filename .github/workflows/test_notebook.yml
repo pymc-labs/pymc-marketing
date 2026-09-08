@@ -10,7 +10,6 @@ on:
      - ".github/workflows/test_notebook.yml"
      - "scripts/run_notebooks/**.py"
      - "docs/source/notebooks/**.ipynb"
-     - "!docs/source/notebooks/mmm/**.ipynb"
      - "!docs/source/notebooks/*/dev/**.ipynb"
   push:
     branches: [main, v1.0.0]
@@ -21,7 +20,6 @@ on:
      - ".github/workflows/test_notebook.yml"
      - "scripts/run_notebooks/**.py"
      - "docs/source/notebooks/**.ipynb"
-     - "!docs/source/notebooks/mmm/**.ipynb"
      - "!docs/source/notebooks/*/dev/**.ipynb"
 
 concurrency:
