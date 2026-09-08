@@ -88,7 +88,7 @@ def test_sel_channel_x_index_is_pandas_index_after_selection(curve) -> None:
 
 
 def test_sel_unknown_channel_raises(curve) -> None:
-    with pytest.raises(KeyError, match="not found"):
+    with pytest.raises(KeyError, match="not all values found"):
         curve.sel(channel="Unknown")
 
 
@@ -123,10 +123,10 @@ def test_equals_different_scales(x, channels) -> None:
     assert not idx1.equals(idx2)
 
 
-def test_repr_contains_dims_and_n_x(curve) -> None:
-    r = repr(curve.xindexes["channel"])
-    assert "channel" in r
-    assert "5" in r  # n_x=5
+def test_repr_pins_exact_format(curve) -> None:
+    assert repr(curve.xindexes["channel"]) == (
+        "OriginalScaleIndex(scale_dims=['channel'], n_x=5)"
+    )
 
 
 def test_az_hdi_preserves_original_scale_index(curve) -> None:
@@ -217,3 +217,136 @@ def test_panel_2d_scale_partial_sel_returns_original_scale_index(x) -> None:
 
     result = partial.sel(country="US")
     np.testing.assert_allclose(result.coords["x"].values, x * 5000.0)
+
+
+def test_sel_channel_list_keeps_original_scale_index(curve) -> None:
+    result = curve.sel(channel=["TV", "Radio"])
+    assert result.sizes["channel"] == 2
+    assert isinstance(result.xindexes["channel"], OriginalScaleIndex)
+    # List selection keeps the scaled domain: the original domain is a
+    # different axis per channel.
+    np.testing.assert_allclose(result.coords["x"].values, np.linspace(0, 1, 5))
+
+
+def test_sel_channel_slice_works(curve) -> None:
+    """Slices on scale dims resolve through PandasIndex (monotonic labels)."""
+    channels_sorted = np.array(["Radio", "TV"])
+    channel_scale = xr.DataArray(
+        [1200.0, 5000.0], dims=["channel"], coords={"channel": channels_sorted}
+    )
+    da = xr.DataArray(
+        np.ones((2, 5)),
+        dims=["channel", "x"],
+        coords={"channel": channels_sorted, "x": np.linspace(0, 1, 5)},
+    )
+    curve_sorted = da.drop_indexes(["x", "channel"]).set_xindex(
+        ["x", "channel"], OriginalScaleIndex, channel_scale=channel_scale
+    )
+    result = curve_sorted.sel(channel=slice("Radio", "TV"))
+    assert list(result.coords["channel"].values) == ["Radio", "TV"]
+    assert isinstance(result.xindexes["channel"], OriginalScaleIndex)
+
+
+def test_isel_channel_list_keeps_original_scale_index(curve) -> None:
+    result = curve.isel(channel=[0, 1])
+    assert result.sizes["channel"] == 2
+    assert isinstance(result.xindexes["channel"], OriginalScaleIndex)
+
+
+def test_isel_channel_slice_keeps_original_scale_index(curve) -> None:
+    result = curve.isel(channel=slice(0, 2))
+    assert result.sizes["channel"] == 2
+    assert isinstance(result.xindexes["channel"], OriginalScaleIndex)
+
+
+def test_isel_x_scalar_keeps_scale_index(curve) -> None:
+    result = curve.isel(x=2)
+    assert "channel" in result.dims
+    assert "x" not in result.dims
+    assert isinstance(result.xindexes["channel"], OriginalScaleIndex)
+    # x falls back to its scaled scalar value, as with a dropped index
+    np.testing.assert_allclose(result.coords["x"].values, 0.5)
+
+
+def test_isel_fully_reduced_returns_scalar(curve) -> None:
+    result = curve.isel(channel=0, x=2)
+    assert "channel" not in result.dims
+    assert "x" not in result.dims
+    np.testing.assert_allclose(result.coords["x"].values, 0.5)
+
+
+def test_groupby_channel_works(curve) -> None:
+    groups = dict(list(curve.groupby("channel")))
+    assert set(groups) == {"TV", "Radio"}
+    # NOTE: groups keep scaled x because groupby reduces via a one-element
+    # list; see the "Known limitations" section of OriginalScaleIndex.
+    np.testing.assert_allclose(groups["TV"].coords["x"].values, np.linspace(0, 1, 5))
+
+
+def test_sel_combined_x_slice_is_spend_domain(curve, x) -> None:
+    combined = curve.sel(channel="TV", x=slice(0, 2500))
+    chained = curve.sel(channel="TV").sel(x=slice(0, 2500))
+    np.testing.assert_allclose(combined.coords["x"].values, [0.0, 1250.0, 2500.0])
+    np.testing.assert_allclose(combined.values, chained.values)
+    assert isinstance(combined.xindexes["x"], PandasIndex)
+
+
+def test_sel_combined_x_list_is_spend_domain(curve) -> None:
+    result = curve.sel(channel="TV", x=[1250.0, 5000.0])
+    np.testing.assert_allclose(result.coords["x"].values, [1250.0, 5000.0])
+    assert isinstance(result.xindexes["x"], PandasIndex)
+
+
+def test_sel_combined_x_slice_nearest_method(curve) -> None:
+    result = curve.sel(channel="TV", x=slice(1000, None))
+    np.testing.assert_allclose(
+        result.coords["x"].values, [1250.0, 2500.0, 3750.0, 5000.0]
+    )
+
+
+def test_sel_combined_scalar_x_raises(curve) -> None:
+    with pytest.raises(NotImplementedError, match="Chain the selection"):
+        curve.sel(channel="TV", x=2500.0)
+
+
+def test_sel_x_scalar_without_scale_dims_raises(curve) -> None:
+    with pytest.raises(NotImplementedError, match="scale dimensions"):
+        curve.sel(x=2500.0)
+
+
+def test_sel_x_slice_without_scale_dims_raises(curve) -> None:
+    with pytest.raises(NotImplementedError, match="scale dimensions"):
+        curve.sel(x=slice(0, 2500))
+
+
+def test_sel_x_with_partially_resolved_scale_dims_raises(curve) -> None:
+    with pytest.raises(NotImplementedError, match="Chain the selection"):
+        curve.sel(channel=["TV", "Radio"], x=2500.0)
+
+
+def test_sel_x_scalar_after_scale_dims_is_spend_domain(curve, x) -> None:
+    tv = curve.sel(channel="TV")
+    result = tv.sel(x=2500.0)
+    np.testing.assert_allclose(result.coords["x"].values, 2500.0)
+    np.testing.assert_allclose(result.values, tv.isel(x=2).values)
+
+
+def test_sel_x_nearest_after_scale_dims(curve) -> None:
+    tv = curve.sel(channel="TV")
+    result = tv.sel(x=2600.0, method="nearest")
+    np.testing.assert_allclose(result.coords["x"].values, 2500.0)
+
+
+def test_drop_indexes_escape_hatch(curve) -> None:
+    raw = curve.drop_indexes(["channel", "x"])
+    result = raw.sel(x=0.5)
+    np.testing.assert_allclose(result.coords["x"].values, 0.5)
+
+
+def test_create_variables_preserves_passed_variables(curve) -> None:
+    idx = curve.xindexes["channel"]
+    passed = {"x": xr.Variable("x", np.linspace(0, 1, 5), attrs={"units": "scaled"})}
+    result = idx.create_variables(passed)
+    assert result["x"] is passed["x"]
+    assert result["x"].attrs == {"units": "scaled"}
+    assert "channel" in result
