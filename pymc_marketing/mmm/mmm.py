@@ -2332,6 +2332,25 @@ class MMM(RegressionModelBuilder):
             ## TODO: Find a better way to save it or access it in the pytensor graph.
             self.target_data_scaled = target_data_scaled
 
+            # The likelihood observes this, not `_target`, so the support check
+            # has to run here rather than next to `validate_target` above: the
+            # scale can be negative and the switch above rewrites NaN/inf to
+            # zero, so the raw target's values are not the ones being fitted.
+            # `validate_likelihood_support` evaluates the variable only if the
+            # likelihood has a support to check, so the default `Normal` pays
+            # nothing.
+            #
+            # An all-zero target is the placeholder that `fit` and
+            # `sample_prior_predictive` substitute when no `y` is given
+            # (`model_builder.py:1546`, `:1772`). It has no support to respect,
+            # and failing it would break building a model in order to look at
+            # its prior, so skip the check rather than reject the placeholder.
+            if np.any(self.xarray_dataset["_target"].values != 0):
+                LinkSpec.validate_likelihood_support(
+                    self.model_config["likelihood"],
+                    target_data_scaled,
+                )
+
             for mu_effect in self.mu_effects:
                 mu_effect.create_data(self)
 
