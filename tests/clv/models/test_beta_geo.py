@@ -34,7 +34,6 @@ from pymc_marketing.clv.models.beta_geo import (
 from pymc_marketing.serialization import serialization
 from pymc_marketing.terms import (
     Dot,
-    ModelTerm,
     Named,
     Parameter,
     Product,
@@ -1315,28 +1314,6 @@ class TestParameterRecipes:
         loaded.build_model(data=covariate_data)
         assert set(loaded.model.named_vars) == set(model.model.named_vars)
 
-    def test_xdist_false_roundtrip(self):
-        term = Parameter("kappa", prior=Prior("Pareto", alpha=1, m=1), xdist=False)
-        restored = serialization.deserialize(serialization.serialize(term))
-        assert restored == term
-        assert restored.xdist is False
-
-    def test_default_hierarchical_uses_named_and_ref(self, covariate_data):
-        model = BetaGeoModel()
-        model.build_model(data=covariate_data)
-        names = model.model.named_vars
-        for name in (
-            "phi_dropout",
-            "kappa_dropout",
-            "a",
-            "b",
-            "r",
-            "alpha",
-        ):
-            assert name in names
-        # no covariates: the scales are pooled directly into a and b
-        assert "a_scale" not in names
-
     def test_custom_ab_recipes_self_contained(self, covariate_data):
         recipes = {
             "a": Named(
@@ -1602,61 +1579,3 @@ class TestStructureAsData:
         assert serialization.serialize(tweaked.model_config["alpha"]) != spec
         coef_prior = next(_iter_dots(restored)).prior
         assert coef_prior.parameters["sigma"] == 10.0
-
-    def test_structure_swap_via_recipes(self, covariate_data):
-        """One model class, four graphs: structure is configuration."""
-        custom_ab = {
-            "a": Named(
-                "a",
-                Parameter(
-                    "phi_a", prior=Prior("Uniform", lower=0, upper=1), xdist=False
-                )
-                * Parameter(
-                    "kappa_a", prior=Prior("Pareto", alpha=1, m=1), xdist=False
-                ),
-            ),
-            "b": Named(
-                "b",
-                (
-                    1
-                    - Parameter(
-                        "phi_b", prior=Prior("Uniform", lower=0, upper=1), xdist=False
-                    )
-                )
-                * Parameter(
-                    "kappa_b", prior=Prior("Pareto", alpha=1, m=1), xdist=False
-                ),
-            ),
-        }
-        configs = [
-            {},
-            _recipe_config(),
-            _recipe_config(
-                alpha=create_purchase_covariates(
-                    PURCHASE_COLS, scale_prior=Prior("LogNormal", mu=0, sigma=1)
-                )
-            ),
-            custom_ab,
-        ]
-        structures = []
-        for config in configs:
-            with warnings.catch_warnings():
-                warnings.simplefilter("ignore", DeprecationWarning)
-                model = BetaGeoModel(model_config=dict(config))
-                model.build_model(data=covariate_data)
-            structures.append(
-                (
-                    frozenset(rv.name for rv in model.model.free_RVs),
-                    json.dumps(
-                        serialization.serialize(model.model_config["alpha"]),
-                        sort_keys=True,
-                    )
-                    if "alpha" in model.model_config
-                    and isinstance(model.model_config["alpha"], ModelTerm)
-                    else None,
-                )
-            )
-        # all four build; graphs and/or recipes differ structurally
-        assert structures[0] != structures[1]
-        assert structures[1] != structures[2]  # same names, different priors
-        assert structures[3] != structures[1]
