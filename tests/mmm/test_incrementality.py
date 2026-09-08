@@ -1933,17 +1933,19 @@ class TestMediatedMuEffects:
     def test_an_ambiguous_predictor_name_stops_the_increment(
         self, funnel_identity_fitted_mmm, shadow_named_node
     ):
-        """A second node named ``mu`` is refused on the public path too.
+        """A second node named ``mu`` no longer creates an ambiguity.
 
-        The completeness check is the whole reason the predictor is recovered,
-        so a name that no longer identifies it has to stop the computation
-        rather than be resolved by whichever node the traversal reached first.
+        ``mu`` used to be anonymous under the identity link, so recovering it
+        meant scanning the graph, where a shadow node made the name useless and
+        the computation had to stop.  It is now registered as a Deterministic
+        under both links, so it resolves through ``named_vars``, where PyMC
+        enforces a unique name, and the shadow is simply not consulted.
         """
         shadow_named_node(funnel_identity_fitted_mmm, LINEAR_PREDICTOR)
         incr = funnel_identity_fitted_mmm.incrementality
 
-        with pytest.raises(ValueError, match="nodes named 'mu'"):
-            incr.compute_incremental_contribution(frequency="all_time")
+        result = incr.compute_incremental_contribution(frequency="all_time")
+        assert result is not None
 
     def test_a_frozen_predictor_says_the_check_was_skipped(
         self, funnel_log_link_fitted_mmm, monkeypatch

@@ -549,8 +549,10 @@ class Incrementality:
         if central_tendency == "median":
             return xr.DataArray(1.0)
 
-        correction = self.model._link_spec.mean_correction(
-            posterior, self.model.output_var
+        correction = self.model._link_spec.mean_scale_factor(
+            posterior,
+            self.model.model_config["likelihood"],
+            self.model.output_var,
         )
         if "chain" not in correction.dims:
             return correction
