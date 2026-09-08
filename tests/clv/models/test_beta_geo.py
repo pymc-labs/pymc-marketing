@@ -11,16 +11,26 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
+import warnings
+
 import arviz as az
 import numpy as np
 import pandas as pd
 import pymc as pm
+import pytensor.xtensor as _ptx
 import pytest
 import xarray as xr
 from pymc_extras.prior import Prior
 
 from pymc_marketing.clv.distributions import BetaGeoNBD
-from pymc_marketing.clv.models.beta_geo import BetaGeoModel
+from pymc_marketing.clv.models.beta_geo import (
+    BetaGeoModel,
+    _covariate_dataset,
+    create_dropout_covariates,
+    create_purchase_covariates,
+)
+from pymc_marketing.serialization import serialization
+from pymc_marketing.terms import Dot, Named, Parameter, Transform
 from tests.clv.conftest import create_mock_fit, mock_sample, set_model_fit
 
 
@@ -1092,3 +1102,298 @@ class TestBetaGeoModelWithCovariates:
                     err_msg=f"Tolerance exceeded for variable {var_name}",
                     rtol=0.2,
                 )
+
+
+PURCHASE_COLS = ["purchase_cov1", "purchase_cov2"]
+DROPOUT_COLS = ["dropout_cov"]
+
+
+@pytest.fixture
+def covariate_data():
+    rng = np.random.default_rng(42)
+    n = 10
+    frequency = rng.poisson(2.0, n).astype(float)
+    return pd.DataFrame(
+        {
+            "customer_id": range(n),
+            "frequency": frequency,
+            "recency": np.where(frequency > 0, rng.uniform(0, 20, n), 0.0),
+            "T": rng.uniform(20, 40, n),
+            "purchase_cov1": rng.normal(size=n),
+            "purchase_cov2": rng.normal(size=n),
+            "dropout_cov": rng.normal(size=n),
+        }
+    )
+
+
+def _mock_recipe_fit(model):
+    """Mock a fit for a covariate recipe model (nested a/b)."""
+    rng = np.random.default_rng(42)
+    chains, draws = 1, 20
+    mock_fit = az.from_dict(
+        {
+            "posterior": {
+                "r": rng.normal(2.0, 1e-2, size=(chains, draws)),
+                "alpha_scale": rng.normal(5.0, 1e-2, size=(chains, draws)),
+                "a_scale": rng.normal(0.5, 1e-2, size=(chains, draws)),
+                "b_scale": rng.normal(1.5, 1e-2, size=(chains, draws)),
+                "purchase_coefficient_alpha": rng.normal(
+                    0.0, 1e-2, size=(chains, draws, len(PURCHASE_COLS))
+                ),
+                "dropout_coefficient_a": rng.normal(
+                    0.0, 1e-2, size=(chains, draws, len(DROPOUT_COLS))
+                ),
+                "dropout_coefficient_b": rng.normal(
+                    0.0, 1e-2, size=(chains, draws, len(DROPOUT_COLS))
+                ),
+            }
+        },
+        dims={
+            "purchase_coefficient_alpha": ["purchase_covariate"],
+            "dropout_coefficient_a": ["dropout_covariate"],
+            "dropout_coefficient_b": ["dropout_covariate"],
+        },
+        coords={
+            "purchase_covariate": PURCHASE_COLS,
+            "dropout_covariate": DROPOUT_COLS,
+        },
+    )
+    set_model_fit(model, mock_fit)
+
+
+def _recipe_config(**overrides):
+    purchase, (a, b) = (
+        create_purchase_covariates(PURCHASE_COLS),
+        create_dropout_covariates(DROPOUT_COLS),
+    )
+    config = {"alpha": purchase, "a": a, "b": b}
+    config.update(overrides)
+    return {k: v for k, v in config.items() if v is not None}
+
+
+@pytest.fixture
+def modeling_dataset(covariate_data):
+    """Full modeling dataset: covariates plus the RFM variables."""
+    ds = _covariate_dataset(
+        covariate_data, purchase_cols=PURCHASE_COLS, dropout_cols=DROPOUT_COLS
+    )
+    ds["T"] = ("customer_id", covariate_data["T"].to_numpy())
+    ds["recency"] = ("customer_id", covariate_data["recency"].to_numpy())
+    ds["frequency"] = ("customer_id", covariate_data["frequency"].to_numpy())
+    return ds
+
+
+class TestParameterRecipes:
+    """Terms passed as parameter recipes through model_config."""
+
+    def test_recipes_build_without_deprecation_warning(self, covariate_data):
+        with pytest.warns(DeprecationWarning):
+            deprecated = BetaGeoModel(
+                model_config={
+                    "purchase_covariate_cols": PURCHASE_COLS,
+                    "dropout_covariate_cols": DROPOUT_COLS,
+                }
+            )
+        assert deprecated.purchase_covariate_cols == PURCHASE_COLS
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", DeprecationWarning)
+            model = BetaGeoModel(model_config=_recipe_config())
+            model.build_model(data=covariate_data)
+
+        assert model.purchase_covariate_cols == PURCHASE_COLS
+        assert model.dropout_covariate_cols == DROPOUT_COLS
+        names = model.model.named_vars
+        for name in (
+            "purchase_data",
+            "dropout_data",
+            "alpha_scale",
+            "a_scale",
+            "b_scale",
+            "purchase_coefficient_alpha",
+            "dropout_coefficient_a",
+            "dropout_coefficient_b",
+            "alpha",
+            "a",
+            "b",
+            "r",
+        ):
+            assert name in names
+
+    def test_deprecated_config_keys_warn(self, covariate_data):
+        with pytest.warns(DeprecationWarning) as record:
+            BetaGeoModel(
+                model_config={
+                    "purchase_covariate_cols": PURCHASE_COLS,
+                    "dropout_covariate_cols": DROPOUT_COLS,
+                    "purchase_coefficient": Prior("Normal"),
+                    "dropout_coefficient": Prior("Normal"),
+                }
+            )
+        messages = [str(w.message) for w in record]
+        for key in (
+            "purchase_covariate_cols",
+            "dropout_covariate_cols",
+            "purchase_coefficient",
+            "dropout_coefficient",
+        ):
+            assert any(key in message for message in messages)
+
+    def test_recipe_predictions(self, covariate_data):
+        model = BetaGeoModel(model_config=_recipe_config())
+        model.build_model(data=covariate_data)
+        _mock_recipe_fit(model)
+
+        result = model.expected_purchases_new_customer(t=10)
+        assert result.sizes["customer_id"] == len(covariate_data)
+        assert np.isfinite(result.values).all()
+
+    def test_ab_recipes_require_pair(self, covariate_data):
+        a, _ = create_dropout_covariates(DROPOUT_COLS)
+        with pytest.raises(ValueError, match="both 'a' and 'b'"):
+            BetaGeoModel(model_config={"a": a})
+
+    def test_custom_recipe_prediction_not_implemented(self, modeling_dataset):
+        alpha = Named(
+            "alpha",
+            Parameter("alpha_scale", prior=Prior("HalfFlat"), xdist=False)
+            * Transform(
+                Dot(
+                    var_name="purchase_data",
+                    name="purchase_coefficient_alpha",
+                    prior=Prior("Normal", dims="purchase_covariate"),
+                ),
+                func=_ptx.math.exp,
+            ),
+            dims="customer_id",
+        )
+        model = BetaGeoModel(model_config={"alpha": alpha})
+        model.build_model(data=modeling_dataset.drop_vars("dropout_data"))
+        _mock_recipe_fit(model)
+
+        with pytest.raises(NotImplementedError, match="Predictive methods"):
+            model.expected_purchases_new_customer(t=10)
+
+    def test_custom_recipe_on_dataframe_requires_columns(self, covariate_data):
+        alpha = Named(
+            "alpha",
+            Dot(
+                var_name="purchase_data",
+                name="purchase_coefficient_alpha",
+                prior=Prior("Normal", dims="purchase_covariate"),
+            ),
+            dims="customer_id",
+        )
+        model = BetaGeoModel(model_config={"alpha": alpha})
+        with pytest.raises(ValueError, match="purchase_data"):
+            model.build_model(data=covariate_data)
+
+    def test_save_load_recipe_roundtrip(self, covariate_data, tmp_path):
+        model = BetaGeoModel(model_config=_recipe_config())
+        model.build_model(data=covariate_data)
+        _mock_recipe_fit(model)
+
+        path = tmp_path / "recipe_model"
+        model.save(path)
+        loaded = BetaGeoModel.load(path)
+
+        assert loaded.model_config["alpha"] == model.model_config["alpha"]
+        assert loaded.model_config["a"] == model.model_config["a"]
+        assert loaded.model_config["b"] == model.model_config["b"]
+        assert loaded.purchase_covariate_cols == PURCHASE_COLS
+
+        loaded.build_model(data=covariate_data)
+        assert set(loaded.model.named_vars) == set(model.model.named_vars)
+
+    def test_xdist_false_roundtrip(self):
+        term = Parameter("kappa", prior=Prior("Pareto", alpha=1, m=1), xdist=False)
+        restored = serialization.deserialize(serialization.serialize(term))
+        assert restored == term
+        assert restored.xdist is False
+
+    def test_default_hierarchical_uses_named_and_ref(self, covariate_data):
+        model = BetaGeoModel()
+        model.build_model(data=covariate_data)
+        names = model.model.named_vars
+        for name in (
+            "phi_dropout",
+            "kappa_dropout",
+            "a",
+            "b",
+            "r",
+            "alpha",
+        ):
+            assert name in names
+        # no covariates: the scales are pooled directly into a and b
+        assert "a_scale" not in names
+
+    def test_custom_ab_recipes_self_contained(self, covariate_data):
+        recipes = {
+            "a": Named(
+                "a",
+                Parameter(
+                    "phi_a", prior=Prior("Uniform", lower=0, upper=1), xdist=False
+                )
+                * Parameter(
+                    "kappa_a", prior=Prior("Pareto", alpha=1, m=1), xdist=False
+                ),
+            ),
+            "b": Named(
+                "b",
+                (
+                    1
+                    - Parameter(
+                        "phi_b", prior=Prior("Uniform", lower=0, upper=1), xdist=False
+                    )
+                )
+                * Parameter(
+                    "kappa_b", prior=Prior("Pareto", alpha=1, m=1), xdist=False
+                ),
+            ),
+        }
+        model = BetaGeoModel(model_config=recipes)
+        model.build_model(data=covariate_data)
+        names = model.model.named_vars
+        for name in ("phi_a", "kappa_a", "phi_b", "kappa_b", "a", "b"):
+            assert name in names
+        free = {rv.name for rv in model.model.free_RVs}
+        assert {"phi_a", "kappa_a", "phi_b", "kappa_b"} <= free
+
+
+class TestDatasetInput:
+    """build_model accepts an xr.Dataset instead of a DataFrame."""
+
+    def test_dataset_builds_equivalent_model(self, covariate_data, modeling_dataset):
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            from_df = BetaGeoModel(model_config=_recipe_config())
+            from_ds = BetaGeoModel(model_config=_recipe_config())
+        from_df.build_model(data=covariate_data)
+        from_ds.build_model(data=modeling_dataset)
+
+        assert set(from_ds.model.named_vars) == set(from_df.model.named_vars)
+        logp_df = float(from_df.model.compile_logp()(from_df.model.initial_point()))
+        logp_ds = float(from_ds.model.compile_logp()(from_ds.model.initial_point()))
+        assert logp_df == pytest.approx(logp_ds)
+
+        pd.testing.assert_frame_equal(
+            from_ds.data.reindex(columns=covariate_data.columns),
+            covariate_data,
+            check_names=False,
+        )
+
+    def test_dataset_missing_variable_raises(self, modeling_dataset):
+        model = BetaGeoModel(model_config=_recipe_config())
+        with pytest.raises(ValueError, match="missing required variables"):
+            model.build_model(data=modeling_dataset.drop_vars(["T"]))
+
+    def test_dataset_unconfigured_covariates_raises(self, modeling_dataset):
+        model = BetaGeoModel()
+        with pytest.raises(ValueError, match="purchase_data"):
+            model.build_model(data=modeling_dataset)
+
+    def test_dataset_coordinate_mismatch_raises(self, modeling_dataset):
+        ds = modeling_dataset.assign_coords(purchase_covariate=["x1", "x2"])
+        model = BetaGeoModel(model_config=_recipe_config())
+        with pytest.raises(ValueError, match="do not match"):
+            model.build_model(data=ds)
