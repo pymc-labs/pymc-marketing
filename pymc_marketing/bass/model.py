@@ -216,7 +216,8 @@ def F(
     q : float or XTensorVariable
         Coefficient of imitation (internal influence)
     t : XTensorVariable or scalar
-        Time points
+        Time points. An array carries no axis labels, so wrap it with
+        :func:`pymc.dims.as_xtensor` first.
 
     Returns
     -------
@@ -255,7 +256,8 @@ def f(
     q : float or XTensorVariable
         Coefficient of imitation (internal influence)
     t : XTensorVariable or scalar
-        Time points
+        Time points. An array carries no axis labels, so wrap it with
+        :func:`pymc.dims.as_xtensor` first.
 
     Returns
     -------
@@ -296,6 +298,12 @@ def _create_likelihood_variable(
     (pymc-devs/pymc-extras#731). Prior predictive still needs the outcome
     node, so build it with ``create_variable`` and ``mu`` attached, keeping
     the same guards the pymc_extras method applies.
+
+    Both guards are repeated rather than left to ``Prior``. A distribution
+    with no ``mu`` is caught by ``Prior._checks`` anyway, but as a plain
+    ``ValueError``, so raising here is what keeps the error type equal to
+    the observed path. A ``mu`` the caller set has no such backstop: the
+    twin below would replace it without a word.
     """
     if observed is not None:
         return prior.create_likelihood_variable(
@@ -320,6 +328,7 @@ def _create_likelihood_variable(
         dims=inner.dims,
         centered=inner.centered,
         transform=inner.transform,
+        core_dims=inner.core_dims,
         **{**inner.parameters, "mu": mu},
     )
     outcome: Prior | Censored = (
@@ -419,8 +428,9 @@ def create_bass_model(
         ``pm.Data`` registered with dims); anything else, such as a plain
         array or a ``pm.Data`` without dims, is labelled positionally in
         ``(T, ...)`` order with the extra dims following their first
-        appearance across the ``p``, ``q``, ``m`` and ``likelihood``
-        priors, in that order.
+        appearance across the ``likelihood``, ``p``, ``q`` and ``m``
+        priors, in that order. An array laid out the way the ``likelihood``
+        prior declares it is therefore read the way it is laid out.
     priors : BassPriors
         Dictionary containing priors for:
         - 'm': Market potential prior
@@ -460,12 +470,14 @@ def create_bass_model(
     with model:
         # Declaration order, not set order: `combined_dims` labels the axes of
         # `observed` positionally, so an order that varies between processes
-        # would silently mislabel the data.
+        # would silently mislabel the data. The likelihood comes first because
+        # it is the variable `observed` has to line up with, so an unlabelled
+        # array laid out the way the likelihood declares it is read that way.
         declared_dims = (
+            *(priors["likelihood"].dims or ()),
             *(priors["p"].dims or ()),
             *(priors["q"].dims or ()),
             *(priors["m"].dims or ()),
-            *(getattr(priors["likelihood"], "dims", ()) or ()),
         )
         combined_dims = (
             "T",

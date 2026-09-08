@@ -20,6 +20,7 @@ import mlflow.artifacts
 import numpy as np
 import pandas as pd
 import pymc as pm
+import pymc.dims as pmd
 import pytest
 import xarray as xr
 from mlflow.client import MlflowClient
@@ -254,6 +255,30 @@ def test_multi_likelihood_type(multi_likelihood_model) -> None:
     assert run_data.params == {
         "observed_RVs_types": "['Normal', 'Gamma']",
     }
+
+
+def test_dims_censored_likelihood_type() -> None:
+    """`pymc.dims` builds a censored variable as a clip, not as a CensoredRV.
+
+    There is no distribution name on the op to read, so the name has to come
+    from the shape of the graph instead.
+    """
+    coords = {"T": np.arange(3)}
+    with pm.Model(coords=coords) as model:
+        pmd.Censored(
+            "y",
+            pmd.Normal.dist(mu=0, sigma=1),
+            lower=0,
+            upper=None,
+            dims=("T",),
+            observed=pmd.as_xtensor(np.ones(3), dims=("T",)),
+        )
+
+    mlflow.set_experiment("pymc-marketing-test-suite-dims-censored")
+    with mlflow.start_run() as run:
+        log_likelihood_type(model)
+
+    assert get_run_data(run.info.run_id).params == {"likelihood": "Censored"}
 
 
 @pytest.mark.parametrize(

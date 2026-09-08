@@ -883,6 +883,71 @@ class TestBassModelDims:
 
         assert logps[0] == logps[1]
 
+    def test_plain_array_follows_the_likelihood_layout(self) -> None:
+        """An unlabelled array is read the way the likelihood declares its dims.
+
+        There is nothing to read the labels from, so the axes are named
+        positionally. Naming them in any other order transposes the data
+        without saying so, and with two dims of the same length nothing
+        downstream catches it.
+        """
+        coords = {"T": np.arange(4), "country": ["a", "b"], "product": ["x", "y"]}
+
+        def priors() -> dict[str, Any]:
+            return make_priors(
+                m=Prior("Normal", mu=100, sigma=10, dims=("country",)),
+                p=Prior("Beta", alpha=1.5, beta=20, dims=("country",)),
+                q=Prior("Beta", alpha=2, beta=5, dims=("country",)),
+                likelihood=Prior("Poisson", dims=("product", "country")),
+            )
+
+        counts = xr.DataArray(
+            (np.arange(16, dtype=float) + 1.0).reshape(4, 2, 2),
+            dims=("T", "product", "country"),
+            coords=coords,
+        )
+
+        logps = []
+        for observed in [counts.values, counts]:
+            model = create_bass_model(
+                t=coords["T"], observed=observed, priors=priors(), coords=coords
+            )
+            assert model.named_vars_to_dims["y"] == ("T", "product", "country")
+            # The initial point holds the same value at every coord, where a
+            # transposed `observed` scores the same as a correct one. Pull the
+            # two countries apart so the comparison can fail.
+            point = {
+                name: value + np.array([0.0, 0.7])
+                for name, value in model.initial_point().items()
+            }
+            logp = model.compile_fn(model.logp(vars=[model["y"]], sum=True))
+            logps.append(float(logp(point)))
+
+        assert logps[0] == logps[1]
+
+    def test_observed_data_with_a_partial_dims_tuple(self) -> None:
+        """A ``pm.Data`` may be registered with a ``None`` among its dims.
+
+        Half a label is no label: carrying the ``None`` through would name an
+        axis the model has no coord for, so the fallback applies to the whole
+        variable.
+        """
+        coords = {"T": np.arange(4), "product": ["x", "y", "z"]}
+        priors = make_priors(m=Prior("Normal", mu=1000, sigma=200, dims=("product",)))
+        counts = np.arange(12, dtype=float).reshape(4, 3)
+
+        with pm.Model(coords=coords) as model:
+            y_obs = pm.Data("y_obs", counts, dims=(None, "product"))
+            create_bass_model(
+                t=coords["T"],
+                observed=y_obs,
+                priors=priors,
+                coords=coords,
+                model=model,
+            )
+
+        assert model.named_vars_to_dims["y"] == ("T", "product")
+
     def test_observed_dataarray_keeps_its_layout(self) -> None:
         """An xr.DataArray carries its own dims; both layouts must agree."""
         coords = {

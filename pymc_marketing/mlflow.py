@@ -202,6 +202,7 @@ import arviz as az
 import numpy.typing as npt
 import pandas as pd
 import pymc as pm
+import pytensor.scalar as ps
 import xarray as xr
 from pymc.model.core import Model
 from pytensor.tensor import TensorVariable
@@ -562,6 +563,14 @@ def log_model_graph(model: Model, path: str | Path) -> None:
 
 def _get_random_variable_name(rv) -> str:
     op = rv.owner.op
+
+    # `pymc.dims` builds a censored variable as `clip(rv, lower, upper)` rather
+    # than as the `CensoredRV` `pm.Censored` gives, so the op carries no name to
+    # report. This function only ever sees observed variables, where a clipped
+    # RV is a censored likelihood.
+    if getattr(op, "scalar_op", None) is ps.clip:
+        return "Censored"
+
     # A `pymc.dims` variable wraps the real RV in a generic `XRV`, which would
     # otherwise be reported as "X". The distribution is on the wrapped op.
     op = getattr(op, "core_op", op)
