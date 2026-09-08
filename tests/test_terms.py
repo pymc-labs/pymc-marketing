@@ -661,6 +661,13 @@ def test_serialize_parameter_roundtrip():
     assert restored.prior.dims == ("product",)
 
 
+def test_serialize_parameter_xdist_false_roundtrip():
+    term = Parameter("kappa", prior=Prior("Pareto", alpha=1, m=1), xdist=False)
+    restored = serialization.deserialize(serialization.serialize(term))
+    assert restored == term
+    assert restored.xdist is False
+
+
 def test_serialize_dot_roundtrip():
     dot = Dot(var_name="x", prior=Prior("Normal", dims="feature"), name="x_coef")
     restored = serialization.deserialize(serialization.serialize(dot))
