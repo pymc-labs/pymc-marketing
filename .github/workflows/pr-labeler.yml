@@ -25,8 +25,10 @@ jobs:
 
       # Eligibility runs before any expensive setup so skipped PRs cost
       # seconds, not minutes. Skipped: drafts, bot authors (already labeled
-      # by the Bot PRs workflow), and fork PRs from unaffiliated authors
-      # (GitHub withholds secrets/read-write tokens for those anyway).
+      # by the Bot PRs workflow), and every fork PR. GitHub withholds
+      # secrets from pull_request runs on forks regardless of the author's
+      # association, so ANTHROPIC_API_KEY is empty there and the labeler
+      # step cannot run. Maintainers label fork PRs by hand.
       - name: Check eligibility
         id: eligibility
         env:
@@ -39,10 +41,8 @@ jobs:
           skip=""
           if [[ "$PR_DRAFT" == "true" ]]; then
             skip="draft PR"
-          elif [[ "$ASSOCIATION" == "OWNER" || "$ASSOCIATION" == "MEMBER" || "$ASSOCIATION" == "COLLABORATOR" || "$ASSOCIATION" == "CONTRIBUTOR" ]]; then
-            :
           elif [[ "$FROM_FORK" == "true" ]]; then
-            skip="fork PR from unaffiliated author ($ASSOCIATION)"
+            skip="fork PR ($ASSOCIATION); secrets are unavailable to pull_request runs from forks"
           fi
 
           if [ -z "$skip" ]; then

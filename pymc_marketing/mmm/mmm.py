@@ -1042,9 +1042,16 @@ class MMM(RegressionModelBuilder):
 
         return serializable_config
 
+    @classmethod
+    def _model_config_formatting(cls, model_config: dict) -> dict:
+        return serialization.deserialize_model_config(model_config)
+
     def create_idata_attrs(self) -> dict[str, str]:
         """Return the idata attributes for the model."""
         attrs = super().create_idata_attrs()
+        attrs["model_config"] = json.dumps(
+            serialization.serialize_model_config(self.model_config)
+        )
         attrs["__serialization_version__"] = "1"
         attrs["dims"] = json.dumps(self.dims)
         attrs["date_column"] = self.date_column
@@ -2310,9 +2317,12 @@ class MMM(RegressionModelBuilder):
         # Compute and save scales
         self._compute_scales()
 
-        with pm.Model(
-            coords=self.model_coords,
-        ) as self.model:
+        with pm.Model(coords=self.model_coords) as self.model:
+            if self.yearly_seasonality:
+                self.model.add_coord(
+                    self.yearly_fourier.prefix, self.yearly_fourier.nodes
+                )
+
             _channel_scale = pmd.Data("channel_scale", self.scalers._channel)
             _target_scale = pmd.Data("target_scale", self.scalers._target)
 

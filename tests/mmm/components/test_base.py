@@ -671,3 +671,26 @@ def test_exposed_priors_property() -> None:
     priors = {"x": dist}
     tfm = DummyTransformation(priors=priors)
     assert tfm.priors == {"x": dist}
+
+
+def test_call_reuses_existing_vars(new_transformation) -> None:
+    x = as_xtensor(np.array([1, 2, 3]), dims=("time",))
+    with pm.Model() as model:
+        new_transformation.apply(x)
+        n_vars_before = len(model.named_vars)
+        new_transformation(x)
+        assert len(model.named_vars) == n_vars_before
+
+
+def test_call_fallback_creates_distributions(new_transformation) -> None:
+    x = as_xtensor(np.array([1, 2, 3]), dims=("time",))
+    expected = np.array([6, 12, 18])
+    with pm.Model() as generative_model:
+        pm.Deterministic("y", new_transformation(x))
+    fixed = pm.do(generative_model, {"new_a": 2, "new_b": 3})
+    np.testing.assert_allclose(fixed["y"].eval(), expected)
+
+
+def test_call_outside_model_raises(new_transformation) -> None:
+    with pytest.raises(TypeError, match=r"on context stack"):
+        new_transformation(as_xtensor(np.array([1, 2, 3]), dims=("time",)))

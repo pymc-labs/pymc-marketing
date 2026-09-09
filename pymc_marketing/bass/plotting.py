@@ -15,9 +15,11 @@
 
 Each function takes a fitted :class:`~pymc_marketing.bass.model.BassModel`
 and returns a ``(Figure, ndarray of Axes)`` tuple, following the convention
-of :func:`pymc_marketing.plot.plot_curve`. Multi-series models plot one
-subplot per coordinate of the faceting dimension (inferred from the data,
-or set with ``dim``); pass ``coord`` to select a single one.
+of :func:`pymc_marketing.plot.plot_curve`. Models plot one subplot per
+coordinate of the faceting dimension (inferred from the plotted variable,
+or set with ``dim``); pass ``coord`` to select a single one. The curves
+carry the dims their priors declare, so pooled ``p``, ``q`` and ``m`` give
+a single pooled curve even when the data has more dimensions.
 
 The functions are also exposed as ``plot_*`` methods on
 :class:`~pymc_marketing.bass.model.BassModel`.
@@ -64,8 +66,10 @@ def _select(da: xr.DataArray, dim: str | None, coord: str | None) -> xr.DataArra
         return da
     if dim is None or dim not in da.dims:
         raise ValueError(
-            "The model has no faceting dimension. "
-            "Remove the coord argument for single-series models."
+            f"The plotted variable has no {'faceting' if dim is None else repr(dim)} "
+            "dimension to select a coord from. The curves only carry the dims "
+            "their priors declare, so give `p`, `q` or `m` that dim to get one "
+            "curve per coordinate."
         )
     return da.sel({dim: coord})
 
@@ -116,8 +120,8 @@ def plot_adoption_curve(
     model : BassModel
         A fitted Bass model.
     dim : str, optional
-        Dimension to facet over. Inferred from the fitted data when not
-        given (the non-time, non-sample dimension).
+        Dimension to facet over. Inferred from the plotted variable when
+        not given (its non-time, non-sample dimension).
     coord : str, optional
         Plot a single coordinate along ``dim``. Default plots one
         subplot per coordinate.
@@ -195,8 +199,8 @@ def plot_cumulative(
     model : BassModel
         A fitted Bass model.
     dim : str, optional
-        Dimension to facet over. Inferred from the fitted data when not
-        given (the non-time, non-sample dimension).
+        Dimension to facet over. Inferred from the plotted variable when
+        not given (its non-time, non-sample dimension).
     coord : str, optional
         Plot a single coordinate along ``dim``. Default plots one
         subplot per coordinate.
@@ -263,8 +267,8 @@ def plot_decomposition(
     model : BassModel
         A fitted Bass model.
     dim : str, optional
-        Dimension to facet over. Inferred from the fitted data when not
-        given (the non-time, non-sample dimension).
+        Dimension to facet over. Inferred from the plotted variable when
+        not given (its non-time, non-sample dimension).
     coord : str, optional
         Plot a single coordinate along ``dim``. Default plots one
         subplot per coordinate.
@@ -367,8 +371,8 @@ def plot_peak(
     model : BassModel
         A fitted Bass model.
     dim : str, optional
-        Dimension to facet over. Inferred from the fitted data when not
-        given (the non-time, non-sample dimension).
+        Dimension to facet over. Inferred from the plotted variable when
+        not given (its non-time, non-sample dimension).
     coord : str, optional
         Plot a single coordinate along ``dim``. Default plots one
         subplot per coordinate.

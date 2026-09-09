@@ -187,6 +187,11 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :img-top: ../gallery/images/mmm_roas_calibration.png
 :link: ../notebooks/mmm/mmm_roas_calibration.html
 :::
+
+:::{grid-item-card} How Much Would One Lift Test Reduce ROAS Uncertainty?
+:img-top: ../gallery/images/mmm_roas_experimentation.png
+:link: ../notebooks/mmm/mmm_roas_experimentation.html
+:::
 ::::
 
 ### Time-Varying Parameters
