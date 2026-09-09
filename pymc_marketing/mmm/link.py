@@ -21,6 +21,7 @@ contribution graph construction).
 
 from __future__ import annotations
 
+import numbers
 import warnings
 from abc import ABC, abstractmethod
 from enum import StrEnum
@@ -91,15 +92,17 @@ def _distribution_name(likelihood: Prior) -> str:
 
 
 def _positive(likelihood: Prior, observed: np.ndarray):
-    return observed <= 0, "strictly positive"
+    return ~(observed > 0), "strictly positive"
 
 
 def _unit_interval(likelihood: Prior, observed: np.ndarray):
-    return (observed <= 0) | (observed >= 1), "strictly inside (0, 1)"
+    return ~((observed > 0) & (observed < 1)), "strictly inside (0, 1)"
 
 
 def _non_negative_integer(likelihood: Prior, observed: np.ndarray):
-    return (observed < 0) | (observed != np.floor(observed)), "a non-negative integer"
+    return ~((observed >= 0) & (observed == np.floor(observed))), (
+        "a non-negative integer"
+    )
 
 
 def _within_truncation(likelihood: Prior, observed: np.ndarray):
@@ -112,12 +115,13 @@ def _within_truncation(likelihood: Prior, observed: np.ndarray):
     bounds = {
         name: parameters[name]
         for name in ("lower", "upper")
-        if isinstance(parameters.get(name), int | float)
+        if isinstance(parameters.get(name), numbers.Real)
+        and not isinstance(parameters.get(name), bool)
     }
     if not bounds:
         return None
 
-    mask = np.zeros_like(observed, dtype=bool)
+    mask = ~np.isfinite(observed)
     if "lower" in bounds:
         mask |= observed < bounds["lower"]
     if "upper" in bounds:
@@ -125,6 +129,46 @@ def _within_truncation(likelihood: Prior, observed: np.ndarray):
 
     described = " and ".join(f"{name} {value}" for name, value in bounds.items())
     return mask, f"within its truncation ({described})"
+
+
+def _attribute_violation(offending: np.ndarray, target_scale) -> str:
+    """Describe the likely cause of *offending*, the violating observed values.
+
+    An exact ``0.0`` is ambiguous.  ``build_model`` rewrites a NaN or infinite
+    ratio to ``0.0``, so it can be the clamp's output, but a target that
+    genuinely contains zeros produces the same value under a healthy scale,
+    and that is by far the more common case.  The two are only
+    distinguishable with the scale in hand: the clamp fires for a finite
+    target exactly when the scale has a zero entry.  Without it, name both
+    rather than assert one.
+    """
+    if not np.all(offending == 0.0):
+        return " Fix the target, or choose a likelihood whose support covers it."
+
+    zeros = (
+        " Every violating value is exactly 0.0."
+        " That is either a zero in the target itself, which this likelihood"
+        " cannot observe, or the value build_model writes when"
+        " 'target / target_scale' is NaN or infinite."
+    )
+
+    if target_scale is None:
+        return (
+            zeros + " Check the target for zeros and 'target_scale' for a zero entry."
+        )
+
+    if np.any(np.asarray(target_scale, dtype=float) == 0.0):
+        return (
+            zeros + " 'target_scale' has a zero entry, which a target slice"
+            " whose maximum is zero produces, so the scale is the cause"
+            " rather than the target's own values."
+        )
+
+    return (
+        zeros + " 'target_scale' has no zero entry, so these are zeros in the"
+        " target rather than a scaling artefact. Remove or impute them, or"
+        " choose a likelihood whose support includes zero."
+    )
 
 
 #: Support checks by distribution name.  Each returns the mask of violating
@@ -395,7 +439,9 @@ class LinkSpec(ABC):
             )
 
     @staticmethod
-    def validate_likelihood_support(likelihood: Prior, observed) -> None:
+    def validate_likelihood_support(
+        likelihood: Prior, observed, target_scale=None
+    ) -> None:
         """Raise if *observed* falls outside the support of *likelihood*.
 
         *observed* is the value the likelihood is given, which is the target
@@ -422,6 +468,12 @@ class LinkSpec(ABC):
             The values handed to the likelihood.  A symbolic variable is
             evaluated only once a distribution with a checkable support has
             been found, so the default ``Normal`` costs no compile.
+        target_scale : array-like, optional
+            The scale the target was divided by.  Used only to attribute a
+            violation made of exact zeros: those are the clamp's output when
+            the scale has a zero entry, and ordinary target values when it
+            does not.  Omit it and the error names both possibilities rather
+            than picking one.
 
         Raises
         ------
@@ -451,7 +503,8 @@ class LinkSpec(ABC):
                 # not anticipate is worse than no check.
                 return
 
-        violation = check(likelihood, np.asarray(observed, dtype=float))
+        values = np.asarray(observed, dtype=float)
+        violation = check(likelihood, values)
         if violation is None:
             return
 
@@ -469,24 +522,7 @@ class LinkSpec(ABC):
             "model would build and then sample an '-inf' logp."
         )
 
-        values = np.asarray(observed, dtype=float)
-        if np.all(values[mask] == 0.0):
-            # `build_model` rewrites a NaN or infinite ratio to 0.0, so a
-            # violation made entirely of zeros usually means the scale is the
-            # problem rather than the target's own values.
-            message += (
-                " Every violating value is exactly 0.0, which is what "
-                "build_model writes when 'target / target_scale' is NaN or "
-                "infinite. Check 'target_scale' for a zero entry, which a "
-                "target slice whose maximum is zero produces, rather than "
-                "looking for bad values in the target itself."
-            )
-        else:
-            message += (
-                " Fix the target, or choose a likelihood whose support covers it."
-            )
-
-        raise ValueError(message)
+        raise ValueError(message + _attribute_violation(values[mask], target_scale))
 
 
 class IdentityLinkSpec(LinkSpec):

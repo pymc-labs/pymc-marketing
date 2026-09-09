@@ -1083,8 +1083,77 @@ class TestLikelihoodSupport:
                 )
             },
         )
-        with pytest.raises(ValueError, match="Check 'target_scale' for a zero entry"):
+        with pytest.raises(ValueError) as excinfo:
             mmm.build_model(X, y)
+
+        message = str(excinfo.value)
+        assert "'target_scale' has a zero entry" in message
+        assert "the scale is the cause" in message
+
+    def test_target_zeros_are_not_blamed_on_the_scale(self, mock_pymc_sample):
+        """Genuine zeros in the target look identical to the clamp's output.
+
+        A target containing zero weeks produces exact ``0.0`` observations
+        under a perfectly healthy scale, so attributing every all-zero
+        violation to a degenerate scale sends the reader hunting for a zero
+        entry that is not there.
+        """
+        mmm = _make_mmm(dims=None, model_config={"likelihood": self.GAMMA})
+        X, y = _make_panel_with_target([0.0, 5.0, 10.0, 0.0, 8.0, 3.0, 7.0, 2.0])
+        with pytest.raises(ValueError) as excinfo:
+            mmm.build_model(X, y)
+
+        message = str(excinfo.value)
+        assert "no zero entry" in message
+        assert "zeros in the target rather than a scaling artefact" in message
+
+    def test_zero_attribution_names_both_without_the_scale(self):
+        """The staticmethod has no scale to consult, so it asserts neither."""
+        likelihood = Prior("Gamma", dims=("date",))
+        with pytest.raises(ValueError) as excinfo:
+            LinkSpec.validate_likelihood_support(likelihood, np.array([0.0, 1.0]))
+
+        message = str(excinfo.value)
+        assert (
+            "Check the target for zeros and 'target_scale' for a zero entry" in message
+        )
+
+    @pytest.mark.parametrize(
+        "dist_name, kwargs",
+        [
+            ("Gamma", {}),
+            ("Beta", {}),
+            ("TruncatedNormal", {"sigma": 1, "lower": 0, "upper": 5}),
+        ],
+    )
+    def test_nan_is_never_silently_accepted(self, dist_name, kwargs):
+        """`np.nan <= 0` is False, so a naive mask lets NaN through."""
+        likelihood = Prior(dist_name, dims=("date",), **kwargs)
+        with pytest.raises(ValueError):
+            LinkSpec.validate_likelihood_support(likelihood, np.array([0.5, np.nan]))
+
+    def test_numpy_truncation_bounds_are_honoured(self):
+        """A numpy scalar bound is a bound.
+
+        ``Prior`` rejects ``np.int64`` and ``np.float32`` outright, so
+        ``np.float64`` is the only numpy bound reachable through it.  It
+        happens to subclass ``float``, but the check is written against
+        ``numbers.Real`` so it does not depend on that.
+        """
+        likelihood = Prior(
+            "TruncatedNormal",
+            sigma=1,
+            lower=np.float64(0),
+            upper=np.float64(5),
+            dims=("date",),
+        )
+        with pytest.raises(ValueError, match=r"lower 0.0 and upper 5.0"):
+            LinkSpec.validate_likelihood_support(likelihood, np.array([2.5, 6.0]))
+
+    def test_boolean_truncation_bound_is_not_treated_as_a_number(self):
+        """`isinstance(False, int)` is True; `lower=False` is not a bound."""
+        likelihood = Prior("TruncatedNormal", sigma=1, lower=False, dims=("date",))
+        LinkSpec.validate_likelihood_support(likelihood, np.array([-100.0, 100.0]))
 
     def test_unevaluable_observed_is_skipped(self):
         """A check that can break build_model is worse than no check."""

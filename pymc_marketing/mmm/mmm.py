@@ -2349,6 +2349,7 @@ class MMM(RegressionModelBuilder):
                 LinkSpec.validate_likelihood_support(
                     self.model_config["likelihood"],
                     target_data_scaled,
+                    target_scale=self.scalers["_target"].values,
                 )
 
             for mu_effect in self.mu_effects:
