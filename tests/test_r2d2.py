@@ -354,6 +354,28 @@ class TestR2D2:
             actual_names = list(model.coords["r2d2_split"])
             assert actual_names == expected_names
 
+    @pytest.mark.parametrize("centered", [True, False])
+    def test_parameterization_variable_names(self, centered):
+        """Centered and non-centered forms expose stable coefficient names."""
+        r2d2 = R2D2(
+            r2=Prior("Beta", mu=0.8, sigma=0.2),
+            total_sigma=Prior("HalfNormal", sigma=1),
+            dims={"control": "control"},
+            centered=centered,
+        )
+
+        with pm.Model(coords={"control": ["a", "b"]}) as model:
+            coefficient = r2d2.split("control").create_variable("beta")
+
+            assert coefficient.name == "beta"
+            free_rv_names = {rv.name for rv in model.free_RVs}
+            if centered:
+                assert "beta" in free_rv_names
+                assert "beta_offset" not in model.named_vars
+            else:
+                assert "beta_offset" in free_rv_names
+                assert "beta" in {det.name for det in model.deterministics}
+
 
 class TestR2D2Serialization:
     """Tests for R2D2 serialization."""
@@ -378,6 +400,20 @@ class TestR2D2Serialization:
         assert restored.total_sigma == r2d2.total_sigma
         assert restored.dims == r2d2.dims
         assert not restored.built  # Should not be built after deserialization
+
+    def test_non_centered_round_trip(self):
+        """Serialization round-trip should preserve non-centered sampling."""
+        r2d2 = R2D2(
+            r2=Prior("Beta", mu=0.8, sigma=0.2),
+            total_sigma=Prior("LogNormal", mu=0, sigma=1),
+            dims={"control": "control"},
+            centered=False,
+        )
+
+        restored = serialization.deserialize(serialization.serialize(r2d2))
+
+        assert isinstance(restored, R2D2)
+        assert restored.centered is False
 
     def test_split_round_trip(self):
         """R2D2Split serialization round-trip."""
