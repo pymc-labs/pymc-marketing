@@ -1432,7 +1432,7 @@ class BudgetOptimizer(BaseModel):
         ),
     )
 
-    model_config = ConfigDict(arbitrary_types_allowed=True)
+    model_config = ConfigDict(arbitrary_types_allowed=True, extra="forbid")
 
     _total_budget: SharedVariable = PrivateAttr()
     _budget_dims: list[str] = PrivateAttr()
