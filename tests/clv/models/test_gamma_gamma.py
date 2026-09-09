@@ -170,11 +170,24 @@ class TestGammaGammaModel(BaseTestGammaGammaModel):
         model = GammaGammaModel(model_config=model_config)
         model.fit(data=self.data, chains=2, progressbar=False, random_seed=rng)
         fit = model.idata.posterior
+
+        # The aggregated likelihood (Eq 1a) pins down q and the population mean
+        # spend p * v / (q - 1), but only weakly constrains p and v separately:
+        # the posterior runs along a p-v ridge, and under the default HalfFlat
+        # priors it is not identified at all. So assert point recovery on the
+        # identified quantities, and interval coverage on p and v.
+        np.testing.assert_allclose(fit["q"].mean(), self.q_true, rtol=0.15)
         np.testing.assert_allclose(
-            [fit["p"].mean(), fit["q"].mean(), fit["v"].mean()],
-            [self.p_true, self.q_true, self.v_true],
-            rtol=0.3,
+            (fit["p"] * fit["v"] / (fit["q"] - 1)).mean(),
+            self.p_true * self.v_true / (self.q_true - 1),
+            rtol=0.1,
         )
+        for name, true_value in (("p", self.p_true), ("v", self.v_true)):
+            low, high = np.percentile(fit[name].values, [3, 97])
+            assert low <= true_value <= high, (
+                f"94% credible interval for {name} "
+                f"[{low:.3f}, {high:.3f}] excludes {true_value}"
+            )
 
     @pytest.mark.parametrize("distribution", (True, False))
     def test_spend(self, distribution):

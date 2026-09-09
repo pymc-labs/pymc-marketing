@@ -213,9 +213,9 @@ class BaseGammaGammaModel(CLVModel):
         """
         # Use Gamma-Gamma estimates for the expected_spend values
         predicted_monetary_value = self.expected_customer_spend(data=data)
-        data.loc[:, "future_spend"] = predicted_monetary_value.mean(
-            ("chain", "draw")
-        ).copy()
+        data = data.assign(
+            future_spend=predicted_monetary_value.mean(("chain", "draw")).to_numpy()
+        )
 
         return customer_lifetime_value(
             transaction_model=transaction_model,

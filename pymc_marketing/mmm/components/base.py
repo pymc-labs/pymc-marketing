@@ -58,7 +58,7 @@ type SupportedPrior = (
     | InstanceOf[Variable]
     | InstanceOf[VariableFactory]
     | list
-    | InstanceOf[npt.NDArray[np.floating]]
+    | InstanceOf[np.ndarray]
 )
 
 
@@ -417,10 +417,40 @@ class Transformation:
         xr.Dataset
             The dataset with the sampled priors.
 
+        Notes
+        -----
+        Parameters supplied as constant tensors (instead of a :class:`Prior`)
+        are not random variables, so ``pm.sample_prior_predictive`` has nothing
+        to sample. They are wrapped in a ``pm.DiracDelta`` so their constant
+        value is returned for every draw (related to #1749).
+
         """
         coords = coords or {}
         with pm.Model(coords=coords):
             self._create_distributions()
+            for parameter_name, variable_name in self.variable_mapping.items():
+                constant = self.function_priors[parameter_name]
+                # Mirrors ``_create_distributions``' dispatch: anything without
+                # ``create_variable`` registered no random variable, so wrap it
+                # in a DiracDelta to give ``sample_prior_predictive`` something
+                # to sample.
+                if hasattr(constant, "create_variable"):
+                    continue
+                if isinstance(constant, XTensorVariable):
+                    if missing := set(constant.type.dims) - set(coords):
+                        raise ValueError(
+                            f"Not all dims {constant.type.dims} of the constant "
+                            f"parameter {parameter_name!r} are part of the model "
+                            f"coords. Missing: {sorted(missing)}. Pass them in the "
+                            "`coords` argument of `sample_prior`."
+                        )
+                    # pm.DiracDelta refuses XTensorVariable input, but the dims
+                    # it carries are the ones the draws should keep.
+                    pm.DiracDelta(
+                        variable_name, constant.values, dims=constant.type.dims
+                    )
+                else:
+                    pm.DiracDelta(variable_name, constant)
             prior_pred = pm.sample_prior_predictive(**sample_prior_predictive_kwargs)
             return prior_pred["/prior"].to_dataset()
 
@@ -653,6 +683,84 @@ class Transformation:
 
         """
         kwargs = self._create_distributions(idx=idx)
+        return self.function(x, dim=core_dim, **kwargs)
+
+    def __call__(
+        self,
+        x: XTensorLike,
+        *,
+        core_dim: str | None = None,
+    ) -> XTensorVariable:
+        """Apply the transformation, reusing variables from an active model context.
+
+        If called inside a ``pm.Model`` context that already contains this
+        transformation's variables (e.g. after :meth:`apply` has been called
+        during ``build_model``), the existing ``XTensorVariable``s are reused
+        rather than creating new ones.  Otherwise falls back to
+        :meth:`apply` behaviour (creates new distributions).
+
+        Parameters
+        ----------
+        x : XTensorLike
+            The data to transform.
+        core_dim : str, optional
+            The dimension along which to apply the transformation.
+
+        Returns
+        -------
+        XTensorVariable
+            The transformed data.
+
+        Examples
+        --------
+        Evaluate the saturation curve at a grid of points inside the fitted
+        model so that posterior uncertainty is propagated automatically:
+
+        .. code-block:: python
+
+            import numpy as np
+            import pytensor.xtensor as ptx
+
+            x_vals = np.linspace(0, 1, 200)
+            x_curve = ptx.as_xtensor(x_vals, dims=("saturation_x",))
+
+            with mmm.model:
+                mmm.model.add_coord("saturation_x", x_vals)
+                curve = mmm.saturation(x_curve, core_dim="saturation_x")
+                pmd.Deterministic("saturation_curve_contribution", curve)
+
+        To also obtain the curve in original (unscaled) target units, pass the
+        deterministic name to :meth:`~pymc_marketing.mmm.MMM.add_original_scale_contribution_variable`:
+
+        .. code-block:: python
+
+            import numpy as np
+            import pytensor.xtensor as ptx
+
+            x_vals = np.linspace(0, 1, 200)
+            x_curve = ptx.as_xtensor(x_vals, dims=("saturation_x",))
+
+            with mmm.model:
+                mmm.model.add_coord("saturation_x", x_vals)
+                curve = mmm.saturation(x_curve, core_dim="saturation_x")
+                pmd.Deterministic("saturation_curve_contribution", curve)
+
+            mmm.add_original_scale_contribution_variable(
+                ["saturation_curve_contribution"]
+            )
+            # → adds "saturation_curve_contribution_original_scale" to the model
+
+        """
+        model = pm.Model.get_context(error_if_none=False)
+        if model is not None and all(
+            v in model.named_vars for v in self.variable_mapping.values()
+        ):
+            kwargs = {
+                param: model.named_vars[var]
+                for param, var in self.variable_mapping.items()
+            }
+        else:
+            kwargs = self._create_distributions()
         return self.function(x, dim=core_dim, **kwargs)
 
 

@@ -31,17 +31,19 @@ variable each segment substitutes, how a segment maps to model-space tensors
 """
 
 from abc import ABC, abstractmethod
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 
 import numpy as np
 import pytensor.tensor as pt
 import pytensor.xtensor as ptx
+from pymc import Model
 from pytensor.xtensor import as_xtensor
 from pytensor.xtensor.type import XTensorVariable
 from xarray import DataArray
 
 __all__ = [
     "FLAT_DIM",
+    "LeverVariable",
     "MediaVariable",
     "OptimizationVariable",
     "OptimizationVariables",
@@ -211,6 +213,20 @@ class OptimizationVariable(ABC):
     ) -> list[tuple[float | None, float | None]]:
         """Default ``(low, high)`` bounds per flat entry."""
 
+    def budget_contribution(self, z: XTensorVariable) -> XTensorVariable | None:
+        """Monetary amount this variable draws from the shared budget.
+
+        Returns None by default, for a variable optimized in its own units: a
+        discount depth is not money. A variable that spends from the pot
+        returns that spend, and the default budget-sum constraint totals every
+        such contribution.
+
+        The amount must follow the same convention as the media budgets, which
+        are per-period rates rather than totals over the horizon, since the
+        constraint sums the contributions directly.
+        """
+        return None
+
 
 class MediaVariable(OptimizationVariable):
     """The media-budget decision variable.
@@ -263,9 +279,11 @@ class MediaVariable(OptimizationVariable):
         adstock_periods: int,
         channel_scales: float | np.ndarray,
         dtype: str,
+        scales_dims: tuple[str, ...] = ("channel",),
         date_dim: str = "date",
         budget_distribution_over_period_tensor: XTensorVariable | None = None,
         cost_per_unit_tensor: XTensorVariable | None = None,
+        carry_in_values: np.ndarray | None = None,
         flat_dim: str = FLAT_DIM,
     ) -> None:
         if np.dtype(dtype).kind != "f":
@@ -279,6 +297,7 @@ class MediaVariable(OptimizationVariable):
         self.num_periods = num_periods
         self.adstock_periods = adstock_periods
         self.channel_scales = channel_scales
+        self.scales_dims = tuple(scales_dims)
         self.dtype = dtype
         self.date_dim = date_dim
         self.budget_distribution_over_period_tensor = (
@@ -286,6 +305,18 @@ class MediaVariable(OptimizationVariable):
         )
         self.cost_per_unit_tensor = cost_per_unit_tensor
         self.flat_dim = flat_dim
+        self.carry_in_values = (
+            None if carry_in_values is None else np.asarray(carry_in_values)
+        )
+        if self.carry_in_values is not None:
+            expected = (self.carry_in_values.shape[0], *tuple(mask.shape))
+            if self.carry_in_values.shape != expected:
+                raise ValueError(
+                    f"{name}: carry_in_values has shape "
+                    f"{self.carry_in_values.shape}, expected "
+                    f"{expected} -- one leading period per carry-in date, over "
+                    "the same cells as the mask."
+                )
         self._bool_mask = np.asarray(self.mask.values).astype(bool)
         self._size = int(self._bool_mask.sum())
         if self._size == 0:
@@ -305,11 +336,119 @@ class MediaVariable(OptimizationVariable):
         """Shape of the full (unmasked) budget tensor."""
         return self._bool_mask.shape
 
+    @classmethod
+    def from_model(
+        cls,
+        model: Model,
+        name: str,
+        *,
+        num_periods: int,
+        adstock_periods: int,
+        mask: DataArray | None = None,
+        carry_in_values: np.ndarray | None = None,
+        carry_in_periods: int = 0,
+        scales: float | np.ndarray = 1.0,
+        date_dim: str = "date",
+        **kwargs,
+    ) -> "MediaVariable":
+        """Build a monetary variable by reading a named node's dims off a model.
+
+        The media budgets are one instance of a monetary decision; a
+        lower-funnel spend, or the reach an impression budget buys, is another.
+        What distinguishes them is which node they substitute and over which
+        dims they are decided, and both already live in the model, so callers
+        name the node and this reads the rest.
+
+        Parameters
+        ----------
+        model : Model
+            The model holding the node.
+        name : str
+            Name of the monetary node to optimize. Must carry named dims,
+            including *date_dim*.
+        num_periods, adstock_periods : int
+            Decision and carry-over period counts for the window.
+        mask : DataArray or None
+            Which cells to optimize, over the node's non-date dims. Defaults to
+            all of them.
+        carry_in_values : np.ndarray or None
+            Spend already made before the window, one leading period per row.
+        carry_in_periods : int
+            Read that many leading periods off the node itself when
+            *carry_in_values* is not given. Read after the name is validated,
+            so a typo is reported as a typo.
+        scales : float or np.ndarray
+            Scale factors converting monetary amounts into the node's units.
+        date_dim : str
+            The model's date dimension, which the node must vary over.
+        **kwargs
+            Passed through to the constructor.
+
+        Returns
+        -------
+        MediaVariable
+            A monetary variable over ``name``.
+
+        Raises
+        ------
+        ValueError
+            If ``name`` has no named dims, or does not vary over *date_dim*.
+        """
+        if name not in model.named_vars_to_dims:
+            raise ValueError(
+                f"spend variable '{name}' is not a variable with named dims in "
+                "the model, so the cells to optimize cannot be determined."
+            )
+        dims = tuple(model.named_vars_to_dims[name])
+        if date_dim not in dims:
+            raise ValueError(
+                f"spend variable '{name}' has dims {dims}, which do not include "
+                f"{date_dim!r}. A budget is spent over time; a quantity that "
+                "does not vary by date is a lever, not a spend."
+            )
+        if carry_in_periods and carry_in_values is None:
+            node = model[name]
+            if not hasattr(node, "get_value"):
+                raise ValueError(
+                    f"spend variable '{name}' is not a shared variable, so the "
+                    "spend made before the window cannot be read from it. "
+                    "Spend variables must be pm.Data nodes."
+                )
+            carry_in_values = np.asarray(node.get_value())[:carry_in_periods]
+
+        cell_dims = tuple(dim for dim in dims if dim != date_dim)
+        if mask is None:
+            shape = tuple(len(model.coords[dim]) for dim in cell_dims)
+            mask = DataArray(
+                np.ones(shape, dtype=bool),
+                dims=cell_dims,
+                coords={dim: list(model.coords[dim]) for dim in cell_dims},
+            )
+        return cls(
+            name=name,
+            mask=mask,
+            num_periods=num_periods,
+            adstock_periods=adstock_periods,
+            carry_in_values=carry_in_values,
+            channel_scales=scales,
+            dtype=model[name].dtype,
+            scales_dims=cell_dims,
+            date_dim=date_dim,
+            **kwargs,
+        )
+
     def scattered(self, z: XTensorVariable) -> XTensorVariable:
         """Scatter the flat slice into the full budget-dims tensor.
 
         Non-optimized cells are zero. Values remain in monetary units.
         """
+        if not self.dims:
+            # One budget, decided over nothing but date -- a single national
+            # spend. There are no cells to scatter into, the mask is 0-d, and
+            # pytensor cannot index with a scalar boolean. The constructor has
+            # already refused a mask that selects nothing, so the one cell here
+            # is always optimized and reshaping is the whole of the scatter.
+            return as_xtensor(z.values.reshape(()), dims=())
         budgets_zeros = pt.zeros(self.shape)
         budgets_zeros.name = "budgets_zeros"
         return as_xtensor(
@@ -358,7 +497,7 @@ class MediaVariable(OptimizationVariable):
 
         repeated_budgets = repeated_budgets / as_xtensor(
             self.channel_scales,
-            dims=() if np.ndim(self.channel_scales) == 0 else ("channel",),
+            dims=() if np.ndim(self.channel_scales) == 0 else self.scales_dims,
         )
 
         # Convert from monetary units to original units using date-specific
@@ -369,18 +508,32 @@ class MediaVariable(OptimizationVariable):
 
         repeated_budgets.name = "repeated_budgets"
 
-        repeated_budgets_with_carry_over = ptx.concat(
-            [
-                repeated_budgets.astype(self.dtype),
+        # The date axis is three blocks and only the middle one is decided:
+        # spend already made before the window (fixed, so the adstock does not
+        # start cold), the decisions, and zero-spend periods that catch the
+        # carry-over the decisions produce after the window closes.
+        blocks = []
+        if self.carry_in_values is not None:
+            blocks.append(
                 ptx.as_xtensor(
-                    pt.zeros(self.adstock_periods, dtype=self.dtype),
-                    dims=(self.date_dim,),
-                ),
-            ],
-            dim=self.date_dim,
+                    pt.as_tensor_variable(self.carry_in_values).astype(self.dtype),
+                    dims=(self.date_dim, *self.dims),
+                )
+            )
+        blocks.append(repeated_budgets.astype(self.dtype))
+        blocks.append(
+            ptx.as_xtensor(
+                pt.zeros(self.adstock_periods, dtype=self.dtype),
+                dims=(self.date_dim,),
+            )
         )
+        repeated_budgets_with_carry_over = ptx.concat(blocks, dim=self.date_dim)
         repeated_budgets_with_carry_over.name = "repeated_budgets_with_carry_over"
         return repeated_budgets_with_carry_over
+
+    def budget_contribution(self, z: XTensorVariable) -> XTensorVariable:
+        """Media spends its whole slice, already in monetary units."""
+        return self.scattered(z)
 
     def unpack(self, x: np.ndarray) -> DataArray:
         """Scatter a flat solution back into a labelled monetary ``DataArray``."""
@@ -421,6 +574,181 @@ class MediaVariable(OptimizationVariable):
         return [(0.0, float(total_budget))] * self.size
 
 
+class LeverVariable(OptimizationVariable):
+    """A non-media decision variable: one ``pm.Data`` node in native units.
+
+    Where :class:`MediaVariable` converts monetary budgets into channel data,
+    a lever is optimized directly in whatever units the model already uses for
+    it (a discount fraction, a price index), so the forward map is the identity
+    up to relabelling the flat dimension.
+
+    A lever only moves if the optimizer's ``response_variable`` can reach it.
+    The default ``total_media_contribution_original_scale`` is built from the
+    channel contribution alone, so a lever acting through a ``MuEffect`` is
+    invisible to it; score against ``total_response_original_scale``, which an
+    :class:`~pymc_marketing.mmm.mmm.MMM` with mu effects registers.
+
+    Levers do not participate in the default budget-sum constraint, which sums
+    the media tensor alone: a discount depth is not money drawn from a shared
+    pool. To constrain one, write a custom
+    :class:`~pymc_marketing.mmm.constraints.Constraint` and reach its segment
+    of the flat vector through
+    ``optimizer.optimization_variables.variable_slice(name)``.
+
+    Parameters
+    ----------
+    name : str
+        Name of the model's ``pm.Data`` node this lever substitutes.
+    dim : str
+        The node's single dimension, which must not be the date dim.
+    coords : list
+        Coordinates of ``dim``, in the model's order.
+    bounds : Sequence[tuple] or None
+        Declared ``(low, high)`` bounds per entry in the lever's native units,
+        or None to leave it unbounded.
+    initial_value : np.ndarray
+        The node's current value in the model, used as the warm start. It is
+        read once, when the optimizer is constructed, which matches the rest of
+        the optimizer: the objective graph is built and frozen at construction
+        too, and this node is substituted out of it entirely. Updating the
+        ``pm.Data`` node afterwards therefore changes neither the objective nor
+        the warm start; rebuild the optimizer to pick up a new value.
+    flat_dim : str
+        Name of the flat decision vector's dimension.
+    """
+
+    def __init__(
+        self,
+        name: str,
+        dim: str,
+        coords: list,
+        bounds: Sequence[tuple[float | None, float | None]] | None,
+        initial_value: np.ndarray,
+        flat_dim: str = FLAT_DIM,
+    ) -> None:
+        self.name = name
+        self.dim = dim
+        self.dims = (dim,)
+        self.coords = {dim: list(coords)}
+        self.bounds = list(bounds) if bounds is not None else None
+        self.initial_value = np.ravel(np.asarray(initial_value, dtype=float))
+        self.flat_dim = flat_dim
+        if self.initial_value.shape != (self.size,):
+            raise ValueError(
+                f"{name}: initial value has {self.initial_value.size} entries, "
+                f"expected {self.size} (the length of dim {dim!r})"
+            )
+        if self.bounds is not None and len(self.bounds) != self.size:
+            raise ValueError(
+                f"{name}: {len(self.bounds)} bounds pairs for {self.size} "
+                f"entries of dim {dim!r}"
+            )
+
+    @property
+    def size(self) -> int:
+        """Number of lever entries, the length of its dim."""
+        return len(self.coords[self.dim])
+
+    def to_model(self, z: XTensorVariable) -> XTensorVariable:
+        """Relabel the flat slice with the lever's own dim."""
+        return z.rename({self.flat_dim: self.dim})
+
+    def unpack(self, x: np.ndarray) -> DataArray:
+        """Label a flat solution slice with the lever's dim and coords."""
+        return DataArray(np.asarray(x, dtype=float), dims=self.dims, coords=self.coords)
+
+    def pack(self, da: DataArray) -> np.ndarray:
+        """Flatten labelled lever values into flat-vector order."""
+        if set(da.dims) != set(self.dims):
+            raise ValueError(
+                f"{self.name}: expected dims {list(self.dims)}, got {list(da.dims)}"
+            )
+        return (
+            align_to_model_coords(da, self.coords, label=self.name)
+            .transpose(*self.dims)
+            .values
+        )
+
+    @classmethod
+    def from_model(
+        cls,
+        model: Model,
+        name: str,
+        bounds: Sequence[tuple[float | None, float | None]] | None = None,
+        *,
+        date_dim: str = "date",
+        flat_dim: str = FLAT_DIM,
+    ) -> "LeverVariable":
+        """Build a lever by reading a named node's dim, coords and value off a model.
+
+        Everything a lever needs besides its bounds already lives in the model,
+        so callers name the node and this reads the rest, raising if the node
+        cannot serve as a lever.
+
+        Parameters
+        ----------
+        model : Model
+            The model holding the node.
+        name : str
+            Name of the node to optimize. Must carry named dims.
+        bounds : Sequence[tuple] or None
+            Declared ``(low, high)`` bounds per entry, in native units.
+        date_dim : str
+            The model's date dimension, which a lever may not vary over.
+        flat_dim : str
+            Name of the flat decision vector's dimension.
+
+        Returns
+        -------
+        LeverVariable
+            A lever over ``name``.
+
+        Raises
+        ------
+        ValueError
+            If ``name`` has no named dims in the model, or does not have
+            exactly one dim other than ``date_dim``.
+        """
+        if name not in model.named_vars_to_dims:
+            raise ValueError(
+                f"optimizable_vars entry '{name}' is not a variable "
+                "with named dims in the model."
+            )
+        dims = tuple(model.named_vars_to_dims[name])
+        if len(dims) != 1 or dims[0] == date_dim:
+            raise ValueError(
+                f"optimizable_vars entry '{name}' must have exactly "
+                f"one dim, and not the {date_dim!r} dim; got "
+                f"{dims}. Date-varying optimizable variables "
+                "are not supported."
+            )
+        return cls(
+            name=name,
+            dim=dims[0],
+            coords=list(model.coords[dims[0]]),
+            bounds=bounds,
+            initial_value=model[name].get_value(),
+            flat_dim=flat_dim,
+        )
+
+    def default_x0(self, total_budget: float) -> np.ndarray:
+        """Warm start at the lever's current model value, clipped to bounds."""
+        x0 = self.initial_value.copy()
+        if self.bounds is not None:
+            lows = np.array([-np.inf if lo is None else lo for lo, _ in self.bounds])
+            highs = np.array([np.inf if hi is None else hi for _, hi in self.bounds])
+            x0 = np.clip(x0, lows, highs)
+        return x0
+
+    def default_bounds(
+        self, total_budget: float
+    ) -> list[tuple[float | None, float | None]]:
+        """Return the declared native-unit bounds, or unbounded."""
+        if self.bounds is not None:
+            return list(self.bounds)
+        return [(None, None)] * self.size
+
+
 class OptimizationVariables:
     """The complete decision vector: an ordered list of variables.
 
@@ -450,7 +778,10 @@ class OptimizationVariables:
         names = [variable.name for variable in variables]
         if len(set(names)) != len(names):
             raise ValueError(f"Duplicate variable names: {names}")
-        self.variables = list(variables)
+        # A tuple, not a list: the slice layout is computed once below, so a
+        # variable appended later would silently desynchronise it from the
+        # flat input. The container is exposed publicly for constraints.
+        self.variables: tuple[OptimizationVariable, ...] = tuple(variables)
         self.flat_dim = flat_dim
         # Reject a variable naming a different flat dimension rather than
         # realigning it: a variable whose own tensors are keyed on its name is
@@ -479,6 +810,17 @@ class OptimizationVariables:
             flat_name, shape=(self.size,), dims=(flat_dim,)
         )
 
+        # Which variables spend is fixed once the layout is, and answering it
+        # builds a throwaway symbolic tensor per variable. Settled here so
+        # repeated `x0` calls -- a warm start, a sweep over budgets -- do not
+        # rebuild the same graphs to reach the same answer.
+        self._spending: tuple[OptimizationVariable, ...] = tuple(
+            variable
+            for variable in self.variables
+            if variable.budget_contribution(self.variable_slice(variable.name))
+            is not None
+        )
+
     def variable_slice(self, name: str) -> XTensorVariable:
         """Return the symbolic slice of the flat vector for variable ``name``.
 
@@ -491,6 +833,17 @@ class OptimizationVariables:
         if flat_slice == slice(0, self.size):
             return self.flat
         return self.flat.isel({self.flat_dim: flat_slice})
+
+    def budget_contributions(self) -> list[XTensorVariable]:
+        """Monetary contributions of every variable that spends from the pot."""
+        contributions = []
+        for variable in self.variables:
+            contribution = variable.budget_contribution(
+                self.variable_slice(variable.name)
+            )
+            if contribution is not None:
+                contributions.append(contribution)
+        return contributions
 
     def substitutions(self) -> dict[str, XTensorVariable]:
         """Model substitution dict: one entry per variable, one joint graph."""
@@ -547,10 +900,44 @@ class OptimizationVariables:
             for variable in self.variables
         }
 
+    def spending_variables(self) -> list[OptimizationVariable]:
+        """Return the variables that draw from the shared budget.
+
+        Read off ``budget_contribution`` rather than a second flag, so there is
+        one answer to "does this spend?" and it cannot disagree with itself.
+        Settled once at construction, since the layout it depends on is fixed
+        there too.
+        """
+        return list(self._spending)
+
     def x0(self, total_budget: float) -> np.ndarray:
-        """Default initial guess: each variable's ``default_x0`` concatenated."""
+        """Default initial guess: each variable's ``default_x0`` concatenated.
+
+        The budget is shared out across the *cells* of every spending variable,
+        so the guess sums to ``total_budget`` however many of them there are and
+        every spending cell starts at the same amount. With one spender this is
+        exactly ``default_x0(total_budget)``; with two, splitting matters --
+        giving each the whole budget would start the solver at twice it, outside
+        the equality constraint before the first step.
+
+        A variable that does not spend is handed the total untouched: it is in
+        its own units, and its default ignores the figure anyway.
+        """
+        spenders = self.spending_variables()
+        cells = sum(variable.size for variable in spenders)
+        shares = (
+            {
+                variable.name: total_budget * variable.size / cells
+                for variable in spenders
+            }
+            if cells
+            else {}
+        )
         return np.concatenate(
-            [variable.default_x0(total_budget) for variable in self.variables]
+            [
+                variable.default_x0(shares.get(variable.name, total_budget))
+                for variable in self.variables
+            ]
         )
 
     def bounds(

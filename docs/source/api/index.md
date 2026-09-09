@@ -23,8 +23,10 @@
   pie
   plot
   pytensor_utils
+  r2d2
   serialization
   serialization_migration
   special_priors
+  terms
   utils
 ```

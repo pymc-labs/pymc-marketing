@@ -113,7 +113,9 @@ def test_synthetic_corpus_schema():
     assert len(df) == 50
 
     for col in ("objective", "vertical", "audience_type"):
-        assert df[col].dtype == object, f"{col} should be object dtype"
+        assert not pd.api.types.is_numeric_dtype(df[col]), (
+            f"{col} should be a string column"
+        )
 
     assert (df["budget"] >= 1_000).all() and (df["budget"] <= 100_000).all()
     assert (df["exposure_rate"] >= 0.1).all() and (df["exposure_rate"] <= 0.9).all()

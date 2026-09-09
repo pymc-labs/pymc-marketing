@@ -1288,7 +1288,9 @@ class TestLogLinkIncrementality:
         )
 
         assert not np.isnan(gt).any()  # sanity check
-        xr.testing.assert_allclose(result, gt, rtol=1e-6)
+        # Increments are differences of ~1e15 response terms; a 1-ULP difference in
+        # the linear predictor (pytensor>=3.2) gives ~1e-6 relative error.
+        xr.testing.assert_allclose(result, gt, rtol=1e-5)
 
     def test_single_channel_equals_total_media_contribution(
         self, log_link_single_channel_fitted_mmm

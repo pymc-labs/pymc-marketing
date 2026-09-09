@@ -174,6 +174,7 @@ class TestMMMYamlConfig:
         assert cfg.model.class_ == "some.Class"
         assert cfg.data is None
         assert cfg.effects is None
+        assert cfg.extra_vars is None
         assert cfg.original_scale_vars is None
         assert cfg.calibration is None
         assert cfg.idata_path is None
@@ -183,6 +184,7 @@ class TestMMMYamlConfig:
             "model": {"class": "some.Class", "kwargs": {"x": 1}},
             "data": {"X_path": "data/X.csv", "y_path": "data/y.csv"},
             "effects": [{"class": "some.Effect", "kwargs": {}}],
+            "extra_vars": ["lower_spend", "lower_control"],
             "original_scale_vars": ["channel_contribution"],
             "calibration": [{"method_a": {"param": 1}}],
             "idata_path": "data/idata.nc",
@@ -192,6 +194,7 @@ class TestMMMYamlConfig:
         assert cfg.data is not None
         assert cfg.data.X_path == "data/X.csv"
         assert len(cfg.effects) == 1
+        assert cfg.extra_vars == ["lower_spend", "lower_control"]
         assert cfg.original_scale_vars == ["channel_contribution"]
         assert len(cfg.calibration) == 1
         assert cfg.calibration[0].method_name == "method_a"

@@ -374,11 +374,14 @@ class ShiftedBetaGeoModel(CLVModel):
                     beta[self.cohort_idx],
                 )
 
+            # float64 upper: pymc 6.2.0 cannot derive the logp of a discrete Censored
+            # with integer bounds (pymc-devs/pymc#8386, fixed in pymc 6.3). The cast
+            # also keeps ``dropout`` float64 across pymc versions; do not remove casually.
             pm.Censored(
                 "dropout",
                 dropout,
                 lower=None,
-                upper=self.data["T"],
+                upper=self.data["T"].to_numpy(dtype="float64"),
                 observed=self.data["recency"],
                 dims=("customer_id",),
             )
