@@ -824,7 +824,7 @@ def test_serialize_named_roundtrip():
     )
     restored = serialization.deserialize(serialization.serialize(term))
     assert restored == term
-    assert restored.dims == "customer_id"
+    assert restored.dims == ("customer_id",)
 
 
 def test_serialize_ref_roundtrip():

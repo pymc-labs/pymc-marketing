@@ -619,6 +619,11 @@ class Parameter(ModelTerm):
     name: str
     prior: VariableFactory = field(default_factory=lambda: Prior("Normal"))
 
+    @property
+    def dims(self) -> Any:
+        """Dims of the underlying prior (``None`` when it has none)."""
+        return getattr(self.prior, "dims", None)
+
     def get_coords(self, ds: xr.Dataset) -> dict[str, Any]:
         """Collect coordinates from ``prior.dims`` present in the dataset."""
         dims = getattr(self.prior, "dims", None)
@@ -882,6 +887,15 @@ class Named(ModelTerm):
     name: str
     expr: Any
     dims: str | tuple[str, ...] | None = None
+
+    def __post_init__(self):
+        """Normalize ``dims`` to a tuple, mirroring ``Prior``."""
+        if self.dims is None:
+            return
+        if isinstance(self.dims, str):
+            self.dims = (self.dims,)
+        elif not isinstance(self.dims, tuple):
+            self.dims = tuple(self.dims)
 
     def get_coords(self, ds: xr.Dataset) -> dict[str, Any]:
         """Collect coordinates from the inner expression."""
