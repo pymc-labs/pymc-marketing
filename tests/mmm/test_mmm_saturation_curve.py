@@ -269,6 +269,7 @@ def test_sample_saturation_curve_x_coords_scaled_when_original_scale_false(
     assert not isinstance(curves.xindexes.get("channel"), OriginalScaleIndex)
 
 
+@pytest.mark.parametrize("fitted_mmm", ["simple_fitted_mmm", "panel_fitted_mmm"])
 def test_sample_saturation_curve_original_scale_attaches_original_scale_index(
     fitted_mmm, request
 ):
@@ -278,6 +279,7 @@ def test_sample_saturation_curve_original_scale_attaches_original_scale_index(
     assert isinstance(curve.xindexes["channel"], OriginalScaleIndex)
 
 
+@pytest.mark.parametrize("fitted_mmm", ["simple_fitted_mmm", "panel_fitted_mmm"])
 def test_sample_saturation_curve_sel_channel_gives_original_domain_x(
     fitted_mmm, request
 ):
@@ -294,6 +296,7 @@ def test_sample_saturation_curve_sel_channel_gives_original_domain_x(
         assert float(ch_curve.coords["x"].values[0]) == pytest.approx(0.0)
 
 
+@pytest.mark.parametrize("fitted_mmm", ["simple_fitted_mmm", "panel_fitted_mmm"])
 def test_sample_saturation_curve_hdi_sel_channel_gives_original_domain_x(
     fitted_mmm, request
 ):
