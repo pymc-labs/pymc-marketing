@@ -231,6 +231,13 @@ Gotchas
           model = pm.modelcontext(None)
           unique = list(dict.fromkeys(ds[self.data_source].values))
           model.add_coords({self.data_source: unique})
+- The built-in terms serialize via ``pymc_marketing.serialization``
+  (``to_dict`` / ``from_dict`` are registered), so recipes stored in
+  ``model_config`` survive ``fit()`` (attrs are JSON-serialized at
+  sampling time) and ``save()`` / ``load()``. ``Transform`` functions are
+  serialized by name, resolved against ``pytensor.xtensor.math`` /
+  ``pytensor.xtensor.linalg`` and transforms registered with
+  ``pymc_extras.prior.register_tensor_transform``.
 """
 
 from __future__ import annotations
@@ -242,9 +249,14 @@ from typing import Any, cast
 import pymc as pm
 import pymc.dims as pmd
 import pytensor.tensor as pt
+import pytensor.xtensor as ptx
 import xarray as xr
-from pymc_extras.prior import Prior, VariableFactory
+from pymc_extras.deserialize import DeserializableError
+from pymc_extras.deserialize import deserialize as pymc_extras_deserialize
+from pymc_extras.prior import CUSTOM_TRANSFORMS, Prior, VariableFactory
 from pytensor.xtensor.type import as_xtensor
+
+from pymc_marketing.serialization import SerializationError, serialization
 
 __all__ = [
     "Dot",
@@ -261,6 +273,81 @@ __all__ = [
     "register_data",
     "set_data",
 ]
+
+# Modules searched when serializing ``Transform`` functions. Registered
+# custom transforms (``pymc_extras.prior.register_tensor_transform``) take
+# precedence; otherwise the function is looked up by name in these modules.
+_TRANSFORM_MODULES = ("math", "linalg")
+
+
+def _func_name(func: Callable) -> str:
+    """Resolve a transform function to its serializable name."""
+    for name, registered in CUSTOM_TRANSFORMS.items():
+        if registered is func:
+            return name
+    for module_name in _TRANSFORM_MODULES:
+        module = getattr(ptx, module_name)
+        for attr in dir(module):
+            if getattr(module, attr, None) is func:
+                return attr
+    name = getattr(func, "__name__", None)
+    if name is not None and getattr(ptx, name, None) is func:
+        return name
+    raise SerializationError(
+        f"Function {func!r} is not serializable. Use a "
+        "pytensor.xtensor.math function, or register it with "
+        "pymc_extras.prior.register_tensor_transform."
+    )
+
+
+def _lookup_func(name: str) -> Callable:
+    """Resolve a serialized transform function name."""
+    if name in CUSTOM_TRANSFORMS:
+        return CUSTOM_TRANSFORMS[name]
+    for module_name in _TRANSFORM_MODULES:
+        try:
+            return getattr(getattr(ptx, module_name), name)
+        except AttributeError:
+            continue
+    try:
+        return getattr(ptx, name)
+    except AttributeError as err:
+        raise SerializationError(
+            f"Unknown serialized function {name!r}. Use a "
+            "pytensor.xtensor.math function, or register it with "
+            "pymc_extras.prior.register_tensor_transform."
+        ) from err
+
+
+def _serialize_child(value: Any) -> Any:
+    """Serialize a child of a composed term to a JSON-safe value.
+
+    Numeric literals become ``{"__type__": "literal", ...}`` wrappers;
+    variable factories that are not registered in the type registry
+    (``Prior``, ``Censored``, ...) serialize via their own ``to_dict``.
+    """
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        return {"__type__": "literal", "value": value}
+    try:
+        return serialization.serialize(value)
+    except KeyError:
+        if hasattr(value, "to_dict"):
+            return value.to_dict()
+        raise
+
+
+def _deserialize_child(value: Any) -> Any:
+    """Deserialize a serialized term child back to a live object."""
+    if isinstance(value, dict):
+        if value.get("__type__") == "literal":
+            return value["value"]
+        if "__type__" in value:
+            return serialization.deserialize(value)
+        try:
+            return pymc_extras_deserialize(value)
+        except DeserializableError as err:
+            raise SerializationError(f"Cannot deserialize term child: {value}") from err
+    return value
 
 
 @dataclass
@@ -352,6 +439,7 @@ class ModelTerm:
         return Product(-1, self)
 
 
+@serialization.register
 @dataclass
 class Sum:
     """Container for additive composition via ``+``.
@@ -406,7 +494,17 @@ class Sum:
         for term in self.terms:
             set_data(term, ds=ds, model=model)
 
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize the sum and its children."""
+        return {"terms": [_serialize_child(term) for term in self.terms]}
 
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> Sum:
+        """Reconstruct a sum from its serialized form."""
+        return cls(terms=[_deserialize_child(term) for term in data["terms"]])
+
+
+@serialization.register
 @dataclass
 class Product:
     """Container for multiplicative composition via ``*``.
@@ -448,7 +546,23 @@ class Product:
         set_data(self.left, ds=ds, model=model)
         set_data(self.right, ds=ds, model=model)
 
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize the product and both operands."""
+        return {
+            "left": _serialize_child(self.left),
+            "right": _serialize_child(self.right),
+        }
 
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> Product:
+        """Reconstruct a product from its serialized form."""
+        return cls(
+            left=_deserialize_child(data["left"]),
+            right=_deserialize_child(data["right"]),
+        )
+
+
+@serialization.register
 @dataclass
 class Parameter(ModelTerm):
     """Named free parameter (scalar or dimensional via ``prior.dims``).
@@ -513,7 +627,17 @@ class Parameter(ModelTerm):
         """Build a free parameter variable."""
         return self.prior.create_variable(self.name, xdist=True)
 
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize the parameter name and prior."""
+        return {"name": self.name, "prior": _serialize_child(self.prior)}
 
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> Parameter:
+        """Reconstruct a parameter from its serialized form."""
+        return cls(name=data["name"], prior=_deserialize_child(data["prior"]))
+
+
+@serialization.register
 @dataclass
 class Intercept(Parameter):
     """GLM-style intercept term; same as :class:`Parameter` with a default name.
@@ -534,6 +658,7 @@ class Intercept(Parameter):
     prior: VariableFactory = field(default_factory=lambda: Prior("Normal"))
 
 
+@serialization.register
 @dataclass(kw_only=True)
 class Dot(ModelTerm):
     """Linear predictor term: ``data @ beta``.
@@ -615,7 +740,25 @@ class Dot(ModelTerm):
         beta = self.prior.create_variable(self.name, xdist=True)
         return data @ beta
 
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize the data variable, coefficient prior, and name."""
+        return {
+            "var_name": self.var_name,
+            "prior": _serialize_child(self.prior),
+            "name": self.name,
+        }
 
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> Dot:
+        """Reconstruct a dot term from its serialized form."""
+        return cls(
+            var_name=data["var_name"],
+            prior=_deserialize_child(data["prior"]),
+            name=data["name"],
+        )
+
+
+@serialization.register
 @dataclass
 class Transform(ModelTerm):
     """Apply a pytensor function to a term's output.
@@ -673,6 +816,21 @@ class Transform(ModelTerm):
     def set_data(self, ds: xr.Dataset, model: pm.Model | None = None) -> None:
         """Update shared data for the inner expression."""
         set_data(self.inner, ds=ds, model=model)
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize the inner expression and the applied function."""
+        return {
+            "inner": _serialize_child(self.inner),
+            "func": _func_name(self.func),
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> Transform:
+        """Reconstruct a transform from its serialized form."""
+        return cls(
+            inner=_deserialize_child(data["inner"]),
+            func=_lookup_func(data["func"]),
+        )
 
 
 def get_coords(param: Any, ds: xr.Dataset) -> dict[str, Any]:
