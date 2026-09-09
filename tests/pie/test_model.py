@@ -11,13 +11,18 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
+import sys
+
 import numpy as np
 import pandas as pd
 import pytest
+from pymc_bart.split_rules import ContinuousSplitRule, OneHotSplitRule
 from pymc_extras.prior import Prior
 from scipy.stats import pearsonr
 
+from pymc_marketing.bart import Bart
 from pymc_marketing.pie import PIEModel
+from pymc_marketing.terms import Dot
 
 EXPECTED_COLUMNS = [
     "campaign_id",
@@ -246,9 +251,11 @@ def test_negative_incrementality_is_allowed(default_model, small_corpus):
 
 def test_pymc_bart_missing_raises(small_corpus, monkeypatch):
     """build_model raises ImportError when pymc-bart is unavailable."""
-    import pymc_marketing.pie.model as pie_module
+    monkeypatch.setitem(sys.modules, "pymc_bart", None)
 
-    monkeypatch.setattr(pie_module, "pmb", None)
+    import pymc_marketing.bart as bart_module
+
+    monkeypatch.setattr(bart_module, "pmb", None)
 
     model = PIEModel(pre_determined_features=PRE, post_determined_features=POST)
     X, y = small_corpus
@@ -631,3 +638,141 @@ def test_pie_model_default_config_parses() -> None:
     assert isinstance(model.model_config["sigma"], Prior)
     assert model.model_config["bart"]["m"] == 200
     assert model.model_config["categorical_split"] == "onehot"
+
+
+def test_linear_mean_function_via_recipe(small_corpus):
+    """A Dot recipe in model_config['mu'] swaps BART for plain linear regression."""
+    X, y = small_corpus
+    model = PIEModel(
+        pre_determined_features=PRE,
+        post_determined_features=POST,
+        model_config={
+            "sigma": Prior("HalfNormal", sigma=1.0),
+            "mu": Dot(
+                var_name="X", name="mu_coef", prior=Prior("Normal", dims="feature")
+            ),
+        },
+    )
+    model.build_model(X, y)
+    assert model.model["mu_coef"] is not None
+    assert "bart" not in model.model.named_vars
+
+
+def test_linear_recipe_fit_and_predict(small_corpus):
+    """The linear (Dot) recipe fits and predicts without pymc-bart."""
+    X, y = small_corpus
+    model = PIEModel(
+        pre_determined_features=PRE,
+        post_determined_features=POST,
+        model_config={
+            "sigma": Prior("HalfNormal", sigma=1.0),
+            "mu": Dot(
+                var_name="X", name="mu_coef", prior=Prior("Normal", dims="feature")
+            ),
+        },
+    )
+    model.fit(X, y, draws=10, tune=5, chains=1, random_seed=0)
+    X_new = X.iloc[:20].reset_index(drop=True)
+    preds = model.predict(X_new)
+    assert len(preds) == 20
+    assert not np.isnan(preds).any()
+
+
+def test_custom_bart_recipe(small_corpus):
+    """A live Bart recipe in model_config['mu'] is honored."""
+    X, y = small_corpus
+    model = PIEModel(
+        pre_determined_features=PRE,
+        post_determined_features=POST,
+        model_config={
+            "sigma": Prior("HalfNormal", sigma=1.0),
+            "mu": Bart(
+                var_name="X",
+                y_name="y_obs",
+                m=10,
+                split_rules=[ContinuousSplitRule() for _ in PRE + POST],
+                name="bart",
+            ),
+        },
+    )
+    model.build_model(X, y)
+    assert "bart" in model.model.named_vars
+
+
+def test_mu_recipe_serialized_dict(small_corpus):
+    """A serialized term dict in model_config['mu'] is deserialized."""
+    X, y = small_corpus
+    bart = Bart(
+        var_name="X",
+        y_name="y_obs",
+        m=10,
+        split_rules=[
+            OneHotSplitRule() if col in PRE else ContinuousSplitRule()
+            for col in PRE + POST
+        ],
+        name="bart",
+    )
+    recipe = bart.to_dict()
+    model = PIEModel(
+        pre_determined_features=PRE,
+        post_determined_features=POST,
+        model_config={"sigma": Prior("HalfNormal", sigma=1.0), "mu": recipe},
+    )
+    model.build_model(X, y)
+    assert "bart" in model.model.named_vars
+
+
+def test_mu_recipe_dict_without_type_raises(small_corpus):
+    """A plain dict without '__type__' in model_config['mu'] raises ValueError."""
+    X, y = small_corpus
+    model = PIEModel(
+        pre_determined_features=PRE,
+        post_determined_features=POST,
+        model_config={"sigma": Prior("HalfNormal", sigma=1.0), "mu": {"m": 10}},
+    )
+    with pytest.raises(ValueError, match="ModelTerm or a serialized term dict"):
+        model.build_model(X, y)
+
+
+def test_make_split_rules_onehot_mode():
+    """The module helper maps encoders to OneHotSplitRule per column."""
+    from pymc_bart.split_rules import ContinuousSplitRule, OneHotSplitRule
+    from sklearn.preprocessing import LabelEncoder
+
+    import pymc_marketing.pie.model as pie_module
+
+    encoders = {"objective": LabelEncoder()}
+    rules = pie_module.make_split_rules("onehot", ["objective", "budget"], encoders)
+    assert isinstance(rules[0], OneHotSplitRule)
+    assert isinstance(rules[1], ContinuousSplitRule)
+
+
+def test_make_split_rules_continuous_mode():
+    """The module helper returns all-continuous rules in 'continuous' mode."""
+    from pymc_bart.split_rules import ContinuousSplitRule
+
+    import pymc_marketing.pie.model as pie_module
+
+    rules = pie_module.make_split_rules("continuous", ["a", "b"], {})
+    assert all(isinstance(rule, ContinuousSplitRule) for rule in rules)
+    assert len(rules) == 2
+
+
+def test_make_split_rules_invalid_mode_raises():
+    """The module helper validates the split mode."""
+    import pymc_marketing.pie.model as pie_module
+
+    with pytest.raises(ValueError, match="categorical_split"):
+        pie_module.make_split_rules("nope", ["a"], None)
+
+
+def test_deprecated_make_split_rules_wrapper(default_model, small_corpus):
+    """PIEModel._make_split_rules still works with a DeprecationWarning."""
+    X, y = small_corpus
+    default_model.build_model(X, y)
+    with pytest.warns(DeprecationWarning, match="make_split_rules"):
+        rules = default_model._make_split_rules(PRE + POST)
+    from pymc_bart.split_rules import OneHotSplitRule
+
+    assert isinstance(rules[0], OneHotSplitRule)
+    assert len(rules) == len(PRE + POST)

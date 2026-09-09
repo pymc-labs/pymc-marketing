@@ -35,6 +35,16 @@ sum of regularised regression trees. Because :math:`f` is sampled rather than
 point-estimated, the predicted incrementality for a new campaign with features
 :math:`x_\star` is a full posterior over :math:`f(x_\star)`.
 
+The mean function is expressed with the **terms** framework
+(:mod:`pymc_marketing.terms`): by default a
+:class:`~pymc_marketing.bart.Bart` term wrapping ``pymc_bart`` built from the
+``"bart"`` configuration keys, but the mean function is configuration, not
+code — ``model_config['mu']`` takes any term recipe
+(:class:`~pymc_marketing.bart.Bart`, :class:`~pymc_marketing.terms.Dot`,
+compositions thereof), so the ensemble is swapped for a plain linear
+regression by passing a ``Dot`` recipe. See the :class:`PIEModel` docstring
+for details.
+
 The approach rests on three assumptions:
 
 1. the RCT corpus is representative of the campaigns being predicted (predictions
@@ -55,12 +65,14 @@ References
 from __future__ import annotations
 
 import json
+import warnings
 from typing import Any
 
 import arviz as az
 import numpy as np
 import pandas as pd
 import pymc as pm
+import pymc.dims as pmd
 import xarray as xr
 from pydantic import Field, validate_call
 from pymc_extras.prior import Prior
@@ -68,14 +80,15 @@ from sklearn.preprocessing import LabelEncoder
 
 from pymc_marketing.model_builder import RegressionModelBuilder
 from pymc_marketing.model_config import parse_model_config
-
-try:
-    import pymc_bart as pmb
-    from pymc_bart.split_rules import ContinuousSplitRule, OneHotSplitRule
-except ImportError:  # pragma: no cover
-    pmb = None  # type: ignore[assignment]
-    ContinuousSplitRule = None  # type: ignore[assignment,misc]
-    OneHotSplitRule = None  # type: ignore[assignment,misc]
+from pymc_marketing.serialization import serialization
+from pymc_marketing.terms import (
+    ModelTerm,
+    build_param,
+    collect_coords,
+    collect_terms,
+    register_data,
+)
+from pymc_marketing.terms import set_data as set_term_data
 
 
 def _is_categorical(series: pd.Series) -> bool:
@@ -88,6 +101,53 @@ def _is_categorical(series: pd.Series) -> bool:
     backend without first casting to ``object``/``category``.
     """
     return not pd.api.types.is_numeric_dtype(series)
+
+
+def make_split_rules(
+    categorical_split: str,
+    column_names: list[str],
+    encoders: dict[str, LabelEncoder] | None = None,
+) -> list[Any]:
+    """Build BART split rules matching the training column order.
+
+    Parameters
+    ----------
+    categorical_split : str
+        Split rule mode: ``"onehot"`` assigns
+        :class:`~pymc_bart.split_rules.OneHotSplitRule` to label-encoded
+        categorical columns so splits are "level X vs not-X" rather than
+        "encoded value < c", or ``"continuous"`` to use ordered splits
+        everywhere.
+    column_names : list[str]
+        Feature columns, in the order they are fed to BART.
+    encoders : dict, optional
+        Label encoders keyed by column name; the keys determine which
+        columns are categorical in the ``"onehot"`` mode.
+
+    Returns
+    -------
+    list
+        One split rule per column, in order.
+
+    Raises
+    ------
+    ValueError
+        If ``categorical_split`` is not ``"onehot"`` or ``"continuous"``.
+    """
+    from pymc_bart.split_rules import ContinuousSplitRule, OneHotSplitRule
+
+    if categorical_split not in ("onehot", "continuous"):
+        raise ValueError(
+            f"categorical_split must be 'onehot' or 'continuous', "
+            f"got {categorical_split!r}."
+        )
+    if categorical_split == "onehot":
+        encoders = encoders or {}
+        return [
+            OneHotSplitRule() if col in encoders else ContinuousSplitRule()
+            for col in column_names
+        ]
+    return [ContinuousSplitRule() for _ in column_names]
 
 
 class PIEModel(RegressionModelBuilder):
@@ -131,6 +191,15 @@ class PIEModel(RegressionModelBuilder):
         - ``"categorical_split"``: ``"onehot"`` (default) or ``"continuous"``.
           Controls how label-encoded categorical columns are split by BART
           — see Notes.
+        - ``"mu"``: a :class:`~pymc_marketing.terms.ModelTerm` recipe (or its
+          serialized dict) for the likelihood mean, taking precedence over the
+          default BART recipe built from ``"bart"``. Terms configure their own
+          hyperparameters, so the model is a plain linear regression by
+          passing e.g.
+          ``Dot(var_name="X", name="mu_coef", prior=Prior("Normal", dims="feature"))``
+          — which removes the ``pymc-bart`` requirement — or a custom
+          :class:`~pymc_marketing.bart.Bart` instance. See
+          :mod:`pymc_marketing.bart` for the swappable BART term.
     sampler_config : dict, optional
         Passed to :func:`pymc.sample`. Defaults to ``{}``.
 
@@ -197,7 +266,7 @@ class PIEModel(RegressionModelBuilder):
     """
 
     _model_type = "PIE Model"
-    version = "0.1.0"
+    version = "0.2.0"
 
     @property
     def output_var(self) -> str:
@@ -233,6 +302,8 @@ class PIEModel(RegressionModelBuilder):
         self._encoders: dict[str, LabelEncoder] = {}
         self._feature_columns: list[str] = []
         self._target_scale: float = 1.0
+        self._mu_recipe: ModelTerm | None = None
+        self._recipe_sample_vars: list[str] = []
 
     @property
     def default_model_config(self) -> dict:
@@ -260,11 +331,103 @@ class PIEModel(RegressionModelBuilder):
         # Build a fresh dict (not a view of ``self.model_config``) so a
         # downstream mutation of the result cannot leak back into the model,
         # and tolerate a partial override that dropped a top-level key.
-        return {
-            key: self.model_config[key]
-            for key in ("bart", "sigma", "categorical_split")
-            if key in self.model_config
-        }
+        keys = ("bart", "sigma", "categorical_split", "mu")
+        return {key: self.model_config[key] for key in keys if key in self.model_config}
+
+    def _make_split_rules(self, column_names: list[str]) -> list[Any]:
+        """Build the split rules from the deprecated method entry point.
+
+        .. deprecated:: 0.2.0
+            Use :func:`pymc_marketing.pie.model.make_split_rules` instead.
+        """
+        warnings.warn(
+            "PIEModel._make_split_rules is deprecated; use "
+            "pymc_marketing.pie.model.make_split_rules instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return make_split_rules(
+            self.model_config.get("categorical_split", "onehot"),
+            column_names,
+            self._encoders,
+        )
+
+    def _default_bart_recipe(self) -> ModelTerm:
+        """Build the default BART recipe from the ``"bart"`` config keys."""
+        from pymc_marketing import bart as bart_module
+
+        if bart_module.pmb is None:
+            raise ImportError(
+                "pymc-bart is required for PIEModel. "
+                "Install it with: pip install 'pymc-marketing[pie]'"
+            )
+
+        bart_cfg = self.model_config.get("bart", {})
+        missing_bart_keys = {"m", "alpha", "beta"} - set(bart_cfg)
+        if missing_bart_keys:
+            raise ValueError(
+                f"model_config['bart'] is missing required keys: "
+                f"{sorted(missing_bart_keys)}. Nested config dicts are replaced "
+                "wholesale rather than deep-merged, so a partial 'bart' override "
+                "must restate every required key (m, alpha, beta)."
+            )
+        response = bart_cfg.get("response", "constant")
+        if response not in ("constant", "linear", "mix"):
+            raise ValueError(
+                "model_config['bart']['response'] must be 'constant', 'linear', "
+                f"or 'mix', got {response!r}."
+            )
+
+        from pymc_marketing.bart import Bart
+
+        return Bart(
+            var_name="X",
+            y_name="y_obs",
+            m=bart_cfg["m"],
+            alpha=bart_cfg["alpha"],
+            beta=bart_cfg["beta"],
+            response=response,
+            split_rules=make_split_rules(
+                self.model_config.get("categorical_split", "onehot"),
+                self._feature_columns,
+                self._encoders,
+            ),
+            name="bart",
+        )
+
+    def _resolve_mu_recipe(self) -> ModelTerm:
+        """Resolve the likelihood mean recipe from the model configuration.
+
+        ``model_config["mu"]`` (a live term or serialized dict) takes
+        precedence; otherwise a :class:`~pymc_marketing.bart.Bart` recipe is
+        built from the ``"bart"`` configuration keys.
+
+        Returns
+        -------
+        ModelTerm
+            Recipe for the likelihood mean over the observation dimension.
+        """
+        config = self.model_config
+        if "mu" in config:
+            recipe = config["mu"]
+            if isinstance(recipe, ModelTerm):
+                return recipe
+            if isinstance(recipe, dict) and "__type__" in recipe:
+                from pymc_marketing import bart as bart_module
+
+                if bart_module.pmb is None:
+                    raise ImportError(
+                        "pymc-bart is required to rebuild the serialized 'mu' "
+                        "recipe of PIEModel. Install it with: "
+                        "pip install 'pymc-marketing[pie]'"
+                    )
+                return serialization.deserialize(recipe)
+            raise ValueError(
+                "model_config['mu'] must be a ModelTerm or a serialized term "
+                "dict with a '__type__' key, got "
+                f"{type(recipe).__name__}."
+            )
+        return self._default_bart_recipe()
 
     def build_model(  # type: ignore[override]
         self,
@@ -284,12 +447,6 @@ class PIEModel(RegressionModelBuilder):
         y : pd.Series or np.ndarray
             Measured incrementality (one value per campaign).
         """
-        if pmb is None:
-            raise ImportError(
-                "pymc-bart is required for PIEModel. "
-                "Install it with: pip install 'pymc-marketing[pie]'"
-            )
-
         feature_cols = self.pre_determined_features + self.post_determined_features
         missing = set(feature_cols) - set(X.columns)
         if missing:
@@ -300,7 +457,7 @@ class PIEModel(RegressionModelBuilder):
 
         # Train only on the declared pre/post features, in a deterministic
         # order. Any other columns in X are dropped here so they are never
-        # label-encoded or fed to BART.
+        # label-encoded or fed to the mean-function recipe.
         self._feature_columns = feature_cols
         X = X.loc[:, feature_cols]
         X_encoded = X.copy()
@@ -324,61 +481,44 @@ class PIEModel(RegressionModelBuilder):
         self._target_scale = abs_max if abs_max > 0.0 else 1.0
         y_scaled = (y_vals / self._target_scale).astype(float)
 
-        cfg = self.model_config
-        missing_bart_keys = {"m", "alpha", "beta"} - set(cfg["bart"])
-        if missing_bart_keys:
-            raise ValueError(
-                f"model_config['bart'] is missing required keys: "
-                f"{sorted(missing_bart_keys)}. Nested config dicts are replaced "
-                "wholesale rather than deep-merged, so a partial 'bart' override "
-                "must restate every required key (m, alpha, beta)."
-            )
-        response = cfg["bart"].get("response", "constant")
-        if response not in ("constant", "linear", "mix"):
-            raise ValueError(
-                "model_config['bart']['response'] must be 'constant', 'linear', "
-                f"or 'mix', got {response!r}."
-            )
-        categorical_split = cfg.get("categorical_split", "onehot")
-        if categorical_split not in ("onehot", "continuous"):
-            raise ValueError(
-                f"model_config['categorical_split'] must be 'onehot' or 'continuous', "
-                f"got {categorical_split!r}."
-            )
-        if categorical_split == "onehot":
-            split_rules = [
-                OneHotSplitRule() if col in self._encoders else ContinuousSplitRule()
-                for col in self._feature_columns
-            ]
-        else:
-            split_rules = [ContinuousSplitRule() for _ in self._feature_columns]
+        recipe = self._resolve_mu_recipe()
+        self._mu_recipe = recipe
+        self._recipe_sample_vars = [
+            sample_var
+            for term in collect_terms([recipe])
+            for sample_var in getattr(term, "sample_vars", [])
+        ]
 
-        coords: dict[str, list] = {
-            "obs": X.index.tolist(),
-            "feature": X.columns.tolist(),
-        }
+        ds = xr.Dataset(
+            {
+                "X": (("obs", "feature"), X_encoded.to_numpy(dtype=float)),
+                "y_obs": (("obs",), y_scaled),
+            },
+            coords={
+                "obs": X_encoded.index.tolist(),
+                "feature": X_encoded.columns.tolist(),
+            },
+        )
+        coords = collect_coords(recipe, ds=ds)
+        coords["obs"] = ds.coords["obs"].values.tolist()
 
         with pm.Model(coords=coords) as self.model:
-            X_data = pm.Data(
-                "X", X_encoded.values.astype(float), dims=("obs", "feature")
-            )
-            y_data = pm.Data("y_obs", y_scaled, dims="obs")
-            # `Y` here is only used by BART for the leaf-prior `initval`
-            # (frozen at fit time). The likelihood's `observed=y_data` is what
-            # gets dummy-zeroed by `_data_setter` for out-of-sample prediction.
-            mu = pmb.BART(
-                "bart",
-                X=X_data,
-                Y=y_scaled,
-                m=cfg["bart"]["m"],
-                alpha=cfg["bart"]["alpha"],
-                beta=cfg["bart"]["beta"],
-                response=response,
-                split_rules=split_rules,
+            register_data(recipe, ds=ds)
+            model = pm.modelcontext(None)
+            if "y_obs" not in model:
+                pmd.Data("y_obs", ds["y_obs"])
+            mu_det = pmd.Deterministic("mu", build_param(recipe), dims="obs")
+            # Plain (non-dims) free variables: PGBART's logp machinery can
+            # only replace plain-tensor values, so any xtensor free variable
+            # breaks BART sampling.
+            sigma = self.model_config["sigma"].create_variable("sigma")
+            pmd.Normal(
+                self.output_var,
+                mu=mu_det,
+                sigma=sigma,
+                observed=model["y_obs"],
                 dims="obs",
             )
-            sigma = cfg["sigma"].create_variable("sigma")
-            pm.Normal(self.output_var, mu=mu, sigma=sigma, observed=y_data, dims="obs")
 
     def _data_setter(  # type: ignore[override]
         self,
@@ -426,14 +566,21 @@ class PIEModel(RegressionModelBuilder):
         else:
             y_data = np.zeros(len(X_encoded), dtype=float)
 
-        with self.model:
-            pm.set_data(
-                {
-                    "X": X_encoded.values.astype(float),
-                    "y_obs": y_data,
-                },
-                coords={"obs": X_encoded.index.tolist()},
+        if self._mu_recipe is None:
+            raise RuntimeError(
+                "The model has no mean-function recipe; call fit() or "
+                "build_model() before setting prediction data."
             )
+        ds_pred = xr.Dataset(
+            {"X": (("obs", "feature"), X_encoded.to_numpy(dtype=float))},
+            coords={
+                "obs": X_encoded.index.tolist(),
+                "feature": self._feature_columns,
+            },
+        )
+        with self.model:
+            set_term_data(self._mu_recipe, ds=ds_pred, model=self.model)
+            pm.set_data({"y_obs": y_data}, coords={"obs": X_encoded.index.tolist()})
 
     def sample_posterior_predictive(  # type: ignore[override]
         self,
@@ -464,10 +611,13 @@ class PIEModel(RegressionModelBuilder):
         """
         self._data_setter(X)
 
+        sample_vars = list(
+            dict.fromkeys([*self._recipe_sample_vars, "mu", self.output_var])
+        )
         with self.model:
             post_pred = pm.sample_posterior_predictive(
                 self.idata,
-                sample_vars=["bart", self.output_var],
+                sample_vars=sample_vars,
                 **kwargs,
             )
 

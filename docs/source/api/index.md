@@ -8,6 +8,7 @@
   :toctree: generated/
 
   bass
+  bart
   causal_utils
   clv
   customer_choice
