@@ -435,6 +435,15 @@ def _dataset_to_dataframe(
         *[(col, "dropout_data", "dropout_covariate") for col in dropout_cols],
     ]:
         data[col] = np.asarray(ds[var].sel({dim: col}))
+    # Carry over remaining customer-level variables (e.g. extra user
+    # columns such as dates) so the round-trip preserves them.
+    for name in map(str, ds.data_vars):
+        if name in data:
+            continue
+        values = np.asarray(ds[name])
+        if values.ndim != 1:
+            continue
+        data[name] = values
     return pd.DataFrame(data)
 
 
@@ -723,6 +732,12 @@ class BetaGeoModel(CLVModel):
             dot.var_name for term in spec.values() for dot in _iter_dots(term)
         }
 
+        spec = self._parameter_spec
+        terms = collect_terms(list(spec.values()))
+        data_bound = {
+            dot.var_name for term in spec.values() for dot in _iter_dots(term)
+        }
+
         if isinstance(data, xarray.Dataset):
             ds = data
             _validate_modeling_dataset(
@@ -746,6 +761,9 @@ class BetaGeoModel(CLVModel):
                 purchase_cols=self.purchase_covariate_cols,
                 dropout_cols=self.dropout_covariate_cols,
             )
+        # Persist the dataset the recipes actually bound so it survives
+        # serialization (see ``create_fit_data_group``).
+        self._modeling_data = ds
 
         coords = {
             "purchase_covariate": self.purchase_covariate_cols,
@@ -775,24 +793,24 @@ class BetaGeoModel(CLVModel):
             )
 
     def _check_dataframe_recipe_support(self, data_bound: set[str]) -> None:
-        """Raise for custom recipes the DataFrame path cannot data-bind.
+        """Raise for recipes the DataFrame path cannot data-bind.
 
-        Recipes that bind data variables need discoverable columns: either
-        the columns embedded by the covariate helpers, the deprecated
-        config keys, or an ``xr.Dataset`` passed to ``build_model``.
+        The DataFrame path can construct exactly two data variables: from
+        the purchase covariate columns (``purchase_data``) and the dropout
+        covariate columns (``dropout_data``). Any other recipe-bound
+        variable requires an ``xr.Dataset`` passed to ``build_model``.
         """
-        expected = {
-            "purchase_data": self.purchase_covariate_cols,
-            "dropout_data": self.dropout_covariate_cols,
+        can_provide = {
+            "purchase_data": bool(self.purchase_covariate_cols),
+            "dropout_data": bool(self.dropout_covariate_cols),
         }
-        for var_name, cols in expected.items():
-            if var_name in data_bound and not cols:
+        for var_name in sorted(data_bound):
+            if not can_provide.get(var_name, False):
                 raise ValueError(
-                    f"A recipe binds the data variable {var_name!r} but no "
-                    "covariate columns are configured. Pass columns via "
-                    "create_purchase_covariates / create_dropout_covariates, "
-                    "the deprecated config keys, or pass an xr.Dataset to "
-                    "build_model."
+                    f"A recipe binds the data variable {var_name!r} which cannot "
+                    "be constructed from a DataFrame. Pass the covariate columns "
+                    "(create_purchase_covariates / create_dropout_covariates), or "
+                    "an xr.Dataset to build_model."
                 )
 
     def _check_recipes_predictable(self) -> None:

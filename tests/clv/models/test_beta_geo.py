@@ -712,8 +712,11 @@ class TestBetaGeoModel:
 
         # Check if the loaded model is indeed an instance of the class
         assert isinstance(self.model, BetaGeoModel)
-        # Check if the loaded data matches with the model data
-        pd.testing.assert_frame_equal(self.model.data, model2.data, check_names=False)
+        # Check if the loaded data matches with the model data (column order
+        # may differ: reconstructed from the modeling dataset)
+        pd.testing.assert_frame_equal(
+            self.model.data, model2.data, check_names=False, check_like=True
+        )
         assert self.model.model_config == model2.model_config
         assert self.model.sampler_config == model2.sampler_config
         assert self.model.idata == model2.idata
@@ -1477,7 +1480,9 @@ class TestAllCombinations:
         model = BetaGeoModel(model_config=config)
 
         if expect_error:
-            with pytest.raises(ValueError, match="covariate columns are configured"):
+            with pytest.raises(
+                ValueError, match="cannot be constructed from a DataFrame"
+            ):
                 model.build_model(data=covariate_data)
             return
 
@@ -1579,3 +1584,99 @@ class TestStructureAsData:
         assert serialization.serialize(tweaked.model_config["alpha"]) != spec
         coef_prior = next(_iter_dots(restored)).prior
         assert coef_prior.parameters["sigma"] == 10.0
+
+
+class TestPersistence:
+    """Recipes and their bound data survive fit/save/load."""
+
+    def _custom_alpha_with_extra_var(self):
+        """An alpha recipe binding a data variable no helper knows about."""
+        return Named(
+            "alpha",
+            Parameter("alpha_scale", prior=Prior("HalfFlat"), xdist=False)
+            * Transform(
+                Dot(
+                    var_name="spend_data",
+                    name="spend_coefficient",
+                    prior=Prior("Normal", mu=0, sigma=1),
+                ),
+                func=_ptx.math.exp,
+            ),
+            dims="customer_id",
+        )
+
+    @pytest.fixture
+    def custom_dataset(self, covariate_data):
+        """Modeling dataset with an extra variable bound by a custom recipe."""
+        extra = np.random.default_rng(7).normal(size=len(covariate_data))
+        ds = xr.Dataset(
+            {"spend_data": ("customer_id", extra)},
+            coords={"customer_id": covariate_data["customer_id"].to_numpy()},
+        )
+        ds["T"] = ("customer_id", covariate_data["T"].to_numpy())
+        ds["recency"] = ("customer_id", covariate_data["recency"].to_numpy())
+        ds["frequency"] = ("customer_id", covariate_data["frequency"].to_numpy())
+        return ds
+
+    def test_custom_bound_data_survives_save_load(self, custom_dataset, tmp_path):
+        model = BetaGeoModel(
+            model_config={"alpha": self._custom_alpha_with_extra_var()}
+        )
+        model.build_model(data=custom_dataset)
+        _mock_recipe_fit(model)
+
+        path = tmp_path / "custom"
+        model.save(path)
+        loaded = BetaGeoModel.load(path)
+
+        assert "spend_data" in loaded.model.named_vars
+        assert "alpha" in loaded.model.named_vars
+        # recipe-bound variables are carried into the customer-level frame
+        assert "spend_data" in loaded.data.columns
+        np.testing.assert_allclose(
+            loaded.model["spend_data"].get_value(),
+            custom_dataset["spend_data"].values,
+        )
+
+    def test_fit_data_group_is_merged(self, covariate_data):
+        model = BetaGeoModel(model_config=_recipe_config())
+        model.build_model(data=covariate_data)
+
+        fit_data = model.create_fit_data_group()
+        assert "customer_id" in fit_data.coords
+        for column in ("T", "recency", "frequency"):
+            assert column in fit_data.data_vars
+        for variable in ("purchase_data", "dropout_data"):
+            assert variable in fit_data.data_vars
+
+    def test_load_old_shape_fit_data(self, covariate_data):
+        """Saved models from before the merge keep loading through the DataFrame path."""
+        model = BetaGeoModel(model_config=_recipe_config())
+        model.build_model(data=covariate_data)
+        _mock_recipe_fit(model)
+
+        old_fit_data = model.data.to_xarray()
+        assert "customer_id" not in old_fit_data.coords
+
+        idata = model.idata.copy()
+        idata = idata.drop_nodes("fit_data")
+        idata["/fit_data"] = old_fit_data
+
+        loaded = BetaGeoModel.build_from_idata(idata)
+        assert set(loaded.model.named_vars) == set(model.model.named_vars)
+
+    def test_refit_with_same_dataset(self, covariate_data, modeling_dataset):
+        model = BetaGeoModel(model_config=_recipe_config())
+        model.build_model(data=modeling_dataset)
+        model._prepare_fit(data=modeling_dataset)  # must not raise
+
+    def test_refit_with_different_dataset_raises(
+        self, covariate_data, modeling_dataset
+    ):
+        model = BetaGeoModel(model_config=_recipe_config())
+        model.build_model(data=modeling_dataset)
+        changed = modeling_dataset.assign(
+            T=("customer_id", modeling_dataset["T"].values + 1.0)
+        )
+        with pytest.raises(ValueError, match="built with different data"):
+            model._prepare_fit(data=changed)
