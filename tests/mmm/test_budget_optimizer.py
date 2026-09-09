@@ -40,7 +40,10 @@ from pymc_marketing.mmm.budget_optimizer import (
 from pymc_marketing.mmm.components.adstock import GeometricAdstock
 from pymc_marketing.mmm.components.saturation import LogisticSaturation
 from pymc_marketing.mmm.constraints import Constraint, build_default_sum_constraint
-from pymc_marketing.mmm.utility import _check_samples_dimensionality
+from pymc_marketing.mmm.utility import (
+    _check_samples_dimensionality,
+    diversification_ratio,
+)
 
 
 @pytest.fixture(scope="module")
@@ -734,6 +737,29 @@ def test_constraint_history_keyed_by_constraint(mmm_wrapper):
     assert history["spend_floor"][-1]["type"] == "ineq"
     assert history["default"][-1]["type"] == "eq"
     assert np.isclose(history["default"][-1]["value"], 0.0, atol=1e-6)
+
+
+def test_diversification_ratio_through_optimizer(mmm_wrapper):
+    """The docstring recipe runs through BudgetOptimizer to a finite optimum.
+
+    The utility sees the response as ``(sample, date, channel)``; reducing
+    over ``date`` gives the ``(sample, channel)`` shape the ratio needs.
+    """
+    optimizer = BudgetOptimizer(
+        model=mmm_wrapper,
+        num_periods=30,
+        response_variable="channel_contribution",
+        utility_function=lambda samples, budgets: diversification_ratio(
+            samples.sum(dim="date"), budgets
+        ),
+    )
+    result = optimizer.allocate_budget(total_budget=100.0)
+
+    assert result.scipy_result.success
+    assert np.isfinite(result.scipy_result.fun)
+    # The objective is the negated utility, and DR is bounded below by 1.
+    assert -result.scipy_result.fun >= 1.0 - 1e-6
+    np.testing.assert_allclose(result.budgets.sum(), 100.0, atol=1e-3)
 
 
 def test_allocate_budget_result_object(mmm_wrapper):

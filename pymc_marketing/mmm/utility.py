@@ -586,6 +586,33 @@ def diversification_ratio(
     This ratio provides insight into how individual asset volatilities and their correlations
     contribute to the overall portfolio risk.
 
+    Notes
+    -----
+    ``samples`` must have exactly two dims: ``sample`` and the asset dim that
+    ``budgets`` is labelled with. The response distributions
+    :class:`~pymc_marketing.mmm.budget_optimizer.BudgetOptimizer` passes to a
+    utility function do not have that shape out of the box: the default
+    ``response_variable`` is a 1D ``(sample,)`` total, and per-channel
+    variables carry a ``date`` dim as well. Reduce over ``date`` before calling
+    this function.
+
+    Examples
+    --------
+    Optimize for diversification of the per-channel contribution:
+
+    .. code-block:: python
+
+        from pymc_marketing.mmm.utility import diversification_ratio
+
+        optimizer = BudgetOptimizer(
+            model=model,
+            num_periods=num_periods,
+            response_variable="channel_contribution",
+            utility_function=lambda samples, budgets: diversification_ratio(
+                samples.sum(dim="date"), budgets
+            ),
+        )
+
     References
     ----------
     - Choueifaty, Y., & Coignard, Y. (2008). Toward Maximum Diversification. *Journal of Portfolio Management*.
@@ -593,15 +620,24 @@ def diversification_ratio(
     """
     samples = as_xtensor(samples)
     budgets = as_xtensor(budgets)
-    if samples.type.ndim != 2:
+    if samples.type.ndim != 2 or "sample" not in samples.dims:
         raise ValueError(
             "Function expected samples to be a 2D tensor variable with a 'sample' "
-            f"dim and an asset dim. Got {samples.type.ndim} dimensions."
+            f"dim and an asset dim. Got dims {samples.dims}."
         )
+    if budgets.type.ndim != 1:
+        raise ValueError(
+            "Function expected budgets to be a 1D tensor variable over the asset "
+            f"dim. Got dims {budgets.dims}."
+        )
+    [asset_dim] = budgets.dims
+    if asset_dim not in samples.dims:
+        raise ValueError(
+            f"budgets dim {asset_dim!r} not found in samples dims {samples.dims}."
+        )
+
     weights = budgets / budgets.sum()
     individual_volatilities = samples.std(dim="sample", ddof=1)
-
-    [asset_dim] = weights.dims
     cov_matrix = _covariance_matrix(samples, asset_dim=asset_dim)
 
     # w'Σw: rename one copy of the weights so the two asset axes of the
@@ -612,5 +648,4 @@ def diversification_ratio(
     )
     portfolio_volatility = ptx.math.sqrt(portfolio_var)
     weighted_avg_volatility = (weights * individual_volatilities).sum()
-    diversification_ratio = weighted_avg_volatility / portfolio_volatility
-    return diversification_ratio
+    return weighted_avg_volatility / portfolio_volatility
