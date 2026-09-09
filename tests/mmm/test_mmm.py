@@ -39,6 +39,7 @@ from pymc_marketing.mmm import (
     SoftPlusHSGP,
 )
 from pymc_marketing.mmm.additive_effect import (
+    DataVarMuEffect,
     EventAdditiveEffect,
     LinearTrendEffect,
     MuEffect,
@@ -470,6 +471,56 @@ class TestMultidimMMMEdgeCases:
         unbuilt = self._build_basic_mmm()
         with pytest.raises(ValueError, match="Model was not built"):
             unbuilt.scaled_channel("channel_1")
+
+    def test_mu_effects_share_one_pm_data_node(self, simple_mmm_data):
+        """MMM.build_model registers shared DataVarMuEffect inputs once."""
+        X_df = simple_mmm_data["X"]
+        y = simple_mmm_data["y"]
+        dates = pd.DatetimeIndex(X_df["date"])
+        channels = ["channel_1", "channel_2", "channel_3"]
+        shared_aux = np.linspace(0.1, 1.0, len(dates))
+
+        X = xr.Dataset(
+            {
+                "media": (["date", "channel"], X_df[channels].values),
+                "shared_aux": (["date"], shared_aux),
+            },
+            coords={"date": dates, "channel": channels},
+        )
+
+        class SharedEffectA(DataVarMuEffect):
+            data_vars: list[str] = ["shared_aux"]
+            prefix: str = "aux_a"
+
+            def create_effect(self, mmm):  # type: ignore
+                return pm.Deterministic(
+                    f"{self.prefix}_contrib", mmm.model["shared_aux"]
+                )
+
+        class SharedEffectB(DataVarMuEffect):
+            data_vars: list[str] = ["shared_aux"]
+            prefix: str = "aux_b"
+
+            def create_effect(self, mmm):  # type: ignore
+                return pm.Deterministic(
+                    f"{self.prefix}_contrib", 2.0 * mmm.model["shared_aux"]
+                )
+
+        mmm = (
+            MMM(
+                date_column="date",
+                channel_columns=channels,
+                target_column="target",
+                adstock=GeometricAdstock(l_max=4),
+                saturation=LogisticSaturation(),
+            )
+            .add_mu_effect(SharedEffectA())
+            .add_mu_effect(SharedEffectB())
+        )
+        mmm.build_model(X, y)
+
+        assert "shared_aux" in mmm.model.named_vars
+        assert sum(name == "shared_aux" for name in mmm.model.named_vars) == 1
 
     def test_heterogeneous_zero_slice_channel_scaled_tensor_is_finite(self):
         """Per-dim channel scaling with one zero slice must not produce Inf.

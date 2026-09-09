@@ -19,6 +19,7 @@ import pytensor.tensor as pt
 import pytest
 import xarray as xr
 from pymc_extras.prior import Prior
+from pytensor.graph.traversal import ancestors
 
 from pymc_marketing.mmm.additive_effect import (
     ControlMuEffect,
@@ -501,6 +502,17 @@ class TestDataVarMuEffect:
         )
         return MockMMM()
 
+    def _make_shared_var_setup(self, dates):
+        """Dataset and mock MMM with a single shared column for two effects."""
+        rng = np.random.default_rng(42)
+        ds = xr.Dataset(
+            {"shared": (("date",), rng.normal(size=len(dates)))},
+            coords={"date": dates},
+        )
+        model = pm.Model(coords={"date": dates})
+        mmm = self._make_mock_mmm(model, ds)
+        return mmm, ds, model, rng
+
     def test_concrete_subclass_create_data(self, dates):
         """Subclass registers data variables from xarray_dataset as pm.Data."""
         rng = np.random.default_rng(42)
@@ -564,17 +576,10 @@ class TestDataVarMuEffect:
             model_copy.set_dim("date", len(new_dates), coord_values=new_dates)
             effect.set_data(mmm, model_copy, new_ds)
 
-    def test_two_effects_with_same_data_vars_do_not_collide(self, dates):
+    @pytest.mark.parametrize("order", ["ab", "ba"], ids=["a_then_b", "b_then_a"])
+    def test_two_effects_with_same_data_vars_do_not_collide(self, dates, order):
         """Two effects sharing a dataset column reuse one pm.Data node."""
-        rng = np.random.default_rng(42)
-        ds = xr.Dataset(
-            {
-                "shared": (("date",), rng.normal(size=len(dates))),
-            },
-            coords={"date": dates},
-        )
-        model = pm.Model(coords={"date": dates})
-        mmm = self._make_mock_mmm(model, ds)
+        mmm, _, _, _ = self._make_shared_var_setup(dates)
 
         class EffectA(DataVarMuEffect):
             data_vars: list[str] = ["shared"]
@@ -583,8 +588,70 @@ class TestDataVarMuEffect:
             def create_effect(self, mmm):  # type: ignore
                 return pt.as_tensor(0.0)
 
-            def set_data(self, mmm, model, X):  # type: ignore
-                pass
+        class EffectB(DataVarMuEffect):
+            data_vars: list[str] = ["shared"]
+            prefix: str = "b"
+
+            def create_effect(self, mmm):  # type: ignore
+                return pt.as_tensor(0.0)
+
+        effects = [EffectA(), EffectB()]
+        if order == "ba":
+            effects.reverse()
+
+        with mmm.model:
+            for effect in effects:
+                effect.create_data(mmm)
+
+        assert "shared" in mmm.model.named_vars
+        assert sum(name == "shared" for name in mmm.model.named_vars) == 1
+
+    def test_shared_data_wired_through_create_effect(self, dates):
+        """Both effects read the same registered pm.Data inside create_effect."""
+        mmm, _, _, _ = self._make_shared_var_setup(dates)
+
+        class EffectA(DataVarMuEffect):
+            data_vars: list[str] = ["shared"]
+            prefix: str = "a"
+
+            def create_effect(self, mmm):  # type: ignore
+                return pm.Deterministic(f"{self.prefix}_contrib", mmm.model["shared"])
+
+        class EffectB(DataVarMuEffect):
+            data_vars: list[str] = ["shared"]
+            prefix: str = "b"
+
+            def create_effect(self, mmm):  # type: ignore
+                return pm.Deterministic(
+                    f"{self.prefix}_contrib", 2.0 * mmm.model["shared"]
+                )
+
+        with mmm.model:
+            effect_a = EffectA()
+            effect_b = EffectB()
+            effect_a.create_data(mmm)
+            effect_b.create_data(mmm)
+            contrib_a = effect_a.create_effect(mmm)
+            contrib_b = effect_b.create_effect(mmm)
+
+        shared = mmm.model["shared"]
+        assert shared in ancestors([contrib_a])
+        assert shared in ancestors([contrib_b])
+
+    def test_set_data_updates_shared_column(self, dates, new_dates):
+        """Default set_data updates the single shared pm.Data node."""
+        mmm, _, model, rng = self._make_shared_var_setup(dates)
+        new_ds = xr.Dataset(
+            {"shared": (("date",), rng.normal(size=len(new_dates)))},
+            coords={"date": new_dates},
+        )
+
+        class EffectA(DataVarMuEffect):
+            data_vars: list[str] = ["shared"]
+            prefix: str = "a"
+
+            def create_effect(self, mmm):  # type: ignore
+                return pt.as_tensor(0.0)
 
         class EffectB(DataVarMuEffect):
             data_vars: list[str] = ["shared"]
@@ -593,15 +660,19 @@ class TestDataVarMuEffect:
             def create_effect(self, mmm):  # type: ignore
                 return pt.as_tensor(0.0)
 
-            def set_data(self, mmm, model, X):  # type: ignore
-                pass
-
         with mmm.model:
-            EffectA().create_data(mmm)
-            EffectB().create_data(mmm)
+            effect_a = EffectA()
+            effect_b = EffectB()
+            effect_a.create_data(mmm)
+            effect_b.create_data(mmm)
+            model_copy = model.copy()
+            model_copy.set_dim("date", len(new_dates), coord_values=new_dates)
+            effect_b.set_data(mmm, model_copy, new_ds)
 
-        assert "shared" in mmm.model.named_vars
-        assert sum(name == "shared" for name in mmm.model.named_vars) == 1
+        np.testing.assert_allclose(
+            model_copy["shared"].get_value(borrow=False),
+            new_ds["shared"].values,
+        )
 
 
 class TestMediaMuEffect:
