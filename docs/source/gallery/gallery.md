@@ -19,11 +19,6 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 ::::{grid} 1 2 3 3
 :gutter: 3
 
-:::{grid-item-card} Getting Started with MMM: A Guided Path
-:img-top: ../gallery/images/mmm_learning_path.png
-:link: ../notebooks/mmm/mmm_learning_path.html
-:::
-
 :::{grid-item-card} MMM Quickstart Guide
 :img-top: ../gallery/images/mmm_quickstart.png
 :link: ../notebooks/mmm/mmm_quickstart.html
