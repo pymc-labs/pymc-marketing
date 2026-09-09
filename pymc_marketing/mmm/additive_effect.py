@@ -532,7 +532,10 @@ class DataVarMuEffect(MuEffect, ABC):
 
     Each dataset column in ``data_vars`` is registered once as ``pm.Data`` under
     its dataset name.  Multiple effects referencing the same column share that
-    node.  Inside ``create_effect``, read inputs with ``model[var_name]``.
+    node when the existing node is a data variable with matching dims and
+    shape.  A name that already belongs to a different kind of variable, or to
+    a data variable with different dims or shape, raises ``ValueError``.
+    Inside ``create_effect``, read inputs with ``model[var_name]``.
 
     Parameters
     ----------
@@ -549,16 +552,34 @@ class DataVarMuEffect(MuEffect, ABC):
     def create_data(self, mmm: Model) -> None:
         """Register each data variable as ``pm.Data``.
 
+        Reuses an existing data node when the name, dims, and shape match the
+        dataset column.  Raises if the name is taken by a different variable.
+
         Parameters
         ----------
         mmm : Model
             The MMM model instance.
         """
+        model = mmm.model
         for var_name in self.data_vars:
-            if var_name in mmm.model.named_vars:
-                continue
             da = mmm.xarray_dataset[var_name]
-            pmd.Data(var_name, da.values, dims=da.dims)
+            existing = model.named_vars.get(var_name)
+            if existing is None:
+                pmd.Data(var_name, da.values, dims=da.dims)
+                continue
+            if existing not in model.data_vars:
+                raise ValueError(
+                    f"Cannot register dataset column {var_name!r} as pm.Data: "
+                    "a non-data variable with that name already exists in the model."
+                )
+            existing_dims = tuple(model.named_vars_to_dims.get(var_name, ()))
+            existing_shape = tuple(existing.get_value().shape)
+            if existing_dims != tuple(da.dims) or existing_shape != tuple(da.shape):
+                raise ValueError(
+                    f"Cannot reuse pm.Data {var_name!r}: existing dims/shape "
+                    f"{existing_dims}/{existing_shape} do not match dataset column "
+                    f"{tuple(da.dims)}/{tuple(da.shape)}."
+                )
 
     @abstractmethod
     def create_effect(self, mmm: Model) -> XTensorVariable:

@@ -662,8 +662,7 @@ class FunnelEffect(DataVarMuEffect):
         # Lower-funnel spend responds to demand and to its own exogenous budget,
         # the latter a date-indexed pm.Data the evaluation has to window too.
         lf_spend = pmd.Deterministic(
-            f"{self.prefix}_lf_spend",
-            demand + lam * model["lf_budget"],
+            f"{self.prefix}_lf_spend", demand + lam * model["lf_budget"]
         )
         return pmd.Deterministic(
             f"{self.prefix}_effect_contribution",
@@ -717,8 +716,7 @@ class PartialChannelFunnelEffect(FunnelEffect):
         demand = pmd.Deterministic(f"{self.prefix}_demand", baseline + upper_on_demand)
         lam = pmd.HalfNormal(f"{self.prefix}_lambda", sigma=0.5)
         lf_spend = pmd.Deterministic(
-            f"{self.prefix}_lf_spend",
-            demand + lam * model["lf_budget"],
+            f"{self.prefix}_lf_spend", demand + lam * model["lf_budget"]
         )
         return pmd.Deterministic(
             f"{self.prefix}_effect_contribution",

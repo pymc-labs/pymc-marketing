@@ -540,6 +540,7 @@ class TestDataVarMuEffect:
             effect.create_data(mmm)
 
         assert "feature" in mmm.model.named_vars
+        assert mmm.model["feature"] in mmm.model.data_vars
 
     def test_set_data_updates_variables(self, dates, new_dates):
         """set_data updates pm.Data from new dataset."""
@@ -603,8 +604,9 @@ class TestDataVarMuEffect:
             for effect in effects:
                 effect.create_data(mmm)
 
-        assert "shared" in mmm.model.named_vars
-        assert sum(name == "shared" for name in mmm.model.named_vars) == 1
+        shared = mmm.model["shared"]
+        assert shared in mmm.model.data_vars
+        assert [v for v in mmm.model.data_vars if v.name == "shared"] == [shared]
 
     def test_shared_data_wired_through_create_effect(self, dates):
         """Both effects read the same registered pm.Data inside create_effect."""
@@ -667,12 +669,53 @@ class TestDataVarMuEffect:
             effect_b.create_data(mmm)
             model_copy = model.copy()
             model_copy.set_dim("date", len(new_dates), coord_values=new_dates)
+            effect_a.set_data(mmm, model_copy, new_ds)
+            np.testing.assert_allclose(
+                model_copy["shared"].get_value(borrow=False),
+                new_ds["shared"].values,
+            )
             effect_b.set_data(mmm, model_copy, new_ds)
+            np.testing.assert_allclose(
+                model_copy["shared"].get_value(borrow=False),
+                new_ds["shared"].values,
+            )
 
-        np.testing.assert_allclose(
-            model_copy["shared"].get_value(borrow=False),
-            new_ds["shared"].values,
+    def test_create_data_raises_on_non_data_name_collision(self, dates):
+        """A dataset column that matches a non-data variable must not be skipped."""
+        mmm, _, _, _ = self._make_shared_var_setup(dates)
+
+        class Effect(DataVarMuEffect):
+            data_vars: list[str] = ["shared"]
+            prefix: str = "a"
+
+            def create_effect(self, mmm):  # type: ignore
+                return pt.as_tensor(0.0)
+
+        with mmm.model:
+            pm.Normal("shared", 0, 1)
+            with pytest.raises(ValueError, match="non-data variable"):
+                Effect().create_data(mmm)
+
+    def test_create_data_raises_on_mismatched_existing_data(self, dates):
+        """An existing pm.Data with different dims or shape is not reused."""
+        ds = xr.Dataset(
+            {"shared": (("date",), np.ones(len(dates)))},
+            coords={"date": dates},
         )
+        model = pm.Model(coords={"date": dates, "other": ["a", "b"]})
+        mmm = self._make_mock_mmm(model, ds)
+
+        class Effect(DataVarMuEffect):
+            data_vars: list[str] = ["shared"]
+            prefix: str = "a"
+
+            def create_effect(self, mmm):  # type: ignore
+                return pt.as_tensor(0.0)
+
+        with mmm.model:
+            pmd.Data("shared", np.ones((len(dates), 2)), dims=("date", "other"))
+            with pytest.raises(ValueError, match=r"Cannot reuse pm\.Data"):
+                Effect().create_data(mmm)
 
 
 class TestMediaMuEffect:

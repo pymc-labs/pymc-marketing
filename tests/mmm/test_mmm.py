@@ -465,12 +465,47 @@ class TestMultidimMMMEdgeCases:
 
         np.testing.assert_allclose(by_name, by_index)
 
-        with pytest.raises(ValueError, match="not in channel_columns"):
+        with pytest.raises(ValueError, match="not in model channel coords"):
             mmm.scaled_channel("missing_channel")
 
         unbuilt = self._build_basic_mmm()
         with pytest.raises(ValueError, match="Model was not built"):
             unbuilt.scaled_channel("channel_1")
+
+    def test_scaled_channel_follows_dataset_coord_order(self, simple_mmm_data):
+        """Dataset channel coord order, not channel_columns, indexes the tensor."""
+        X_df = simple_mmm_data["X"]
+        y = simple_mmm_data["y"]
+        dates = pd.DatetimeIndex(X_df["date"])
+        channel_columns = ["channel_1", "channel_2", "channel_3"]
+        dataset_order = ["channel_3", "channel_1", "channel_2"]
+        t = np.arange(len(dates), dtype=float)
+        media = np.column_stack(
+            [
+                t + 1.0,
+                t**2 + 1.0,
+                np.full(len(dates), 7.0),
+            ]
+        )
+        X = xr.Dataset(
+            {"media": (["date", "channel"], media)},
+            coords={"date": dates, "channel": dataset_order},
+        )
+
+        mmm = self._build_basic_mmm()
+        mmm.build_model(X, y)
+
+        assert list(mmm.model_coords["channel"]) == dataset_order
+        assert list(mmm.channel_columns) == channel_columns
+
+        got = fast_eval(mmm.scaled_channel("channel_1"))
+        coord_idx = list(mmm.model_coords["channel"]).index("channel_1")
+        expected = fast_eval(mmm.channel_data_scaled.isel(channel=coord_idx))
+        np.testing.assert_allclose(got, expected)
+
+        columns_idx = mmm.channel_columns.index("channel_1")
+        wrong = fast_eval(mmm.channel_data_scaled.isel(channel=columns_idx))
+        assert not np.allclose(got, wrong)
 
     def test_mu_effects_share_one_pm_data_node(self, simple_mmm_data):
         """MMM.build_model registers shared DataVarMuEffect inputs once."""
@@ -519,8 +554,43 @@ class TestMultidimMMMEdgeCases:
         )
         mmm.build_model(X, y)
 
-        assert "shared_aux" in mmm.model.named_vars
-        assert sum(name == "shared_aux" for name in mmm.model.named_vars) == 1
+        shared = mmm.model["shared_aux"]
+        assert shared in mmm.model.data_vars
+        assert [v for v in mmm.model.data_vars if v.name == "shared_aux"] == [shared]
+
+    def test_mu_effect_column_named_like_channel_data_raises(self, simple_mmm_data):
+        """A dataset column colliding with an existing pm.Data of different shape errors."""
+        X_df = simple_mmm_data["X"]
+        y = simple_mmm_data["y"]
+        dates = pd.DatetimeIndex(X_df["date"])
+        channels = ["channel_1", "channel_2", "channel_3"]
+        X = xr.Dataset(
+            {
+                "media": (["date", "channel"], X_df[channels].values),
+                "channel_data": (["date"], np.linspace(0.1, 1.0, len(dates))),
+            },
+            coords={"date": dates, "channel": channels},
+        )
+
+        class CollidingEffect(DataVarMuEffect):
+            data_vars: list[str] = ["channel_data"]
+            prefix: str = "collide"
+
+            def create_effect(self, mmm):  # type: ignore
+                return pm.Deterministic(
+                    f"{self.prefix}_contrib", mmm.model["channel_data"]
+                )
+
+        mmm = MMM(
+            date_column="date",
+            channel_columns=channels,
+            target_column="target",
+            adstock=GeometricAdstock(l_max=4),
+            saturation=LogisticSaturation(),
+        ).add_mu_effect(CollidingEffect())
+
+        with pytest.raises(ValueError, match=r"Cannot reuse pm\.Data"):
+            mmm.build_model(X, y)
 
     def test_heterogeneous_zero_slice_channel_scaled_tensor_is_finite(self):
         """Per-dim channel scaling with one zero slice must not produce Inf.

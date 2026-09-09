@@ -2058,10 +2058,15 @@ class MMM(RegressionModelBuilder):
     def scaled_channel(self, channel: str) -> XTensorVariable:
         """Return scaled spend for a single channel by name.
 
+        Indexes ``channel_data_scaled`` by the model's ``channel`` coordinate,
+        which is the axis of the tensor.  For DataFrame input that matches
+        ``channel_columns``; for ``xr.Dataset`` input it follows the dataset
+        coordinate, which may be ordered differently.
+
         Parameters
         ----------
         channel : str
-            Channel name from ``channel_columns``.
+            Channel name present on the model's ``channel`` coordinate.
 
         Returns
         -------
@@ -2071,15 +2076,16 @@ class MMM(RegressionModelBuilder):
         Raises
         ------
         ValueError
-            If the model has not been built or *channel* is not in
-            ``channel_columns``.
+            If the model has not been built or *channel* is not in the
+            model's ``channel`` coordinate.
         """
         self._validate_model_was_built()
+        channels = list(self.model_coords["channel"])
         try:
-            channel_idx = self.channel_columns.index(channel)
+            channel_idx = channels.index(channel)
         except ValueError as err:
             raise ValueError(
-                f"Channel {channel!r} not in channel_columns {self.channel_columns!r}."
+                f"Channel {channel!r} not in model channel coords {channels!r}."
             ) from err
         return self.channel_data_scaled.isel(channel=channel_idx)
 
