@@ -1,0 +1,72 @@
+name: PR Release Notes Labeler
+
+on:
+  pull_request:
+    types: [opened, ready_for_review]
+
+permissions: {}
+
+concurrency:
+  group: pr-labeler-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  analyze:
+    # Keep existing exclusions: no draft, external-repository, or ordinary bot PRs.
+    if: >-
+      !github.event.pull_request.draft &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      (github.event.pull_request.user.type != 'Bot' ||
+       github.event.pull_request.user.login == 'copilot-swe-agent[bot]' ||
+       github.event.pull_request.user.login == 'copilot-swe-agent')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      # Execute only the trusted base revision; PR files/patches are fetched as data.
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          persist-credentials: false
+          sparse-checkout: .github/scripts
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Classify PR without executable model tools
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GH_TOKEN: ${{ github.token }}
+        run: python .github/scripts/issue_automation.py analyze pr-labeler
+      - uses: actions/upload-artifact@v7
+        with:
+          name: issue-result-pr-labeler
+          path: result.json
+          if-no-files-found: error
+          overwrite: true
+          retention-days: 1
+
+  publish:
+    needs: analyze
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          persist-credentials: false
+          sparse-checkout: .github/scripts
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - uses: actions/download-artifact@v8
+        with:
+          name: issue-result-pr-labeler
+      - name: Validate and publish release-note labels
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python .github/scripts/issue_automation.py publish pr-labeler
