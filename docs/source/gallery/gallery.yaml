@@ -116,7 +116,7 @@ sections:
         cards:
           - title: MMM End-to-End Case Study
             notebook: mmm/mmm_case_study
-          - title: Control Dimensionality and ROAS
+          - title: "When More Controls Affect ROAS Estimation: An R2D2 Case Study"
             notebook: mmm/mmm_control_dimensionality
           - title: Integrating Foundational Time Series Models with PyMC-Marketing MMM
             notebook: mmm/mmm_chronos

@@ -287,7 +287,7 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :link: ../notebooks/mmm/mmm_case_study.html
 :::
 
-:::{grid-item-card} Control Dimensionality and ROAS
+:::{grid-item-card} When More Controls Affect ROAS Estimation: An R2D2 Case Study
 :img-top: ../gallery/images/mmm_control_dimensionality.png
 :link: ../notebooks/mmm/mmm_control_dimensionality.html
 :::
