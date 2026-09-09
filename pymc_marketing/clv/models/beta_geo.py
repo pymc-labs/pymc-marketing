@@ -13,21 +13,438 @@
 #   limitations under the License.
 """Beta-Geometric Negative Binomial Distribution (BG/NBD) model for a non-contractual customer population across continuous time."""  # noqa: E501
 
+from __future__ import annotations
+
+import warnings
 from collections.abc import Sequence
-from typing import Literal
+from dataclasses import dataclass
+from typing import Any, Literal
 
 import numpy as np
 import pandas as pd
 import pymc as pm
+import pytensor.xtensor as ptx
 import xarray
 from pymc.util import RandomState
-from pymc_extras.prior import Prior
+from pymc_extras.prior import Prior, VariableFactory
 from scipy.special import betaln, expit, hyp2f1
 
 from pymc_marketing.clv.distributions import BetaGeoNBD
 from pymc_marketing.clv.models.basic import CLVModel
 from pymc_marketing.clv.utils import to_xarray
 from pymc_marketing.model_config import ModelConfig
+from pymc_marketing.serialization import serialization
+from pymc_marketing.terms import (
+    Dot,
+    ModelTerm,
+    Named,
+    Parameter,
+    Product,
+    Ref,
+    Sum,
+    Transform,
+    _as_plain_tensor,
+    _deserialize_child,
+    build_param,
+    collect_coords,
+    collect_terms,
+    register_data,
+)
+
+
+@serialization.register
+@dataclass
+class _Covariates(Named):
+    """A covariate recipe carrying the DataFrame columns it consumes."""
+
+    cols: Sequence[str] = ()
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize the named recipe with its columns."""
+        return {**super().to_dict(), "cols": list(self.cols)}
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> _Covariates:
+        """Reconstruct a covariate recipe from its serialized form."""
+        return cls(
+            name=data["name"],
+            expr=_deserialize_child(data["expr"]),
+            dims=data.get("dims"),
+            cols=data.get("cols", ()),
+        )
+
+
+def _covariate_dataset(
+    data: pd.DataFrame,
+    *,
+    purchase_cols: Sequence[str],
+    dropout_cols: Sequence[str],
+) -> xarray.Dataset:
+    """Build the single dataset all covariate terms share."""
+    data_vars = {}
+    if purchase_cols:
+        data_vars["purchase_data"] = (
+            ("customer_id", "purchase_covariate"),
+            data[purchase_cols].to_numpy(),
+        )
+    if dropout_cols:
+        data_vars["dropout_data"] = (
+            ("customer_id", "dropout_covariate"),
+            data[dropout_cols].to_numpy(),
+        )
+    return xarray.Dataset(
+        data_vars,
+        coords={
+            "customer_id": data["customer_id"].to_numpy(),
+            "purchase_covariate": list(purchase_cols),
+            "dropout_covariate": list(dropout_cols),
+        },
+    )
+
+
+def create_purchase_covariates(
+    purchase_covariate_cols: Sequence[str],
+    *,
+    scale_prior: VariableFactory | None = None,
+    coefficient_prior: VariableFactory | None = None,
+) -> _Covariates:
+    """Create the standard BG/NBD purchase-rate covariate recipe.
+
+    Composes ``alpha = alpha_scale * exp(-X @ beta)`` outside the model.
+    The columns become part of the returned term, so passing this recipe
+    replaces the deprecated ``purchase_covariate_cols`` config key.
+
+    Parameters
+    ----------
+    purchase_covariate_cols : sequence of str
+        DataFrame columns for the covariates.
+    scale_prior : VariableFactory, optional
+        Prior for ``alpha_scale``. Defaults to ``Prior("Weibull", alpha=2, beta=10)``.
+    coefficient_prior : VariableFactory, optional
+        Prior for the coefficients. Defaults to ``Prior("Normal", mu=0, sigma=1)``
+        with ``dims="purchase_covariate"``.
+
+    Returns
+    -------
+    _Covariates
+        The ``alpha`` recipe with the columns embedded.
+
+    Examples
+    --------
+    .. code-block:: python
+
+        from pymc_marketing.clv.models.beta_geo import create_purchase_covariates
+
+        alpha = create_purchase_covariates(["income", "age"])
+        model = BetaGeoModel(model_config={"alpha": alpha})
+    """
+    cols = list(purchase_covariate_cols)
+    scale = scale_prior or Prior("Weibull", alpha=2, beta=10)
+    coefficient = coefficient_prior or Prior("Normal", mu=0, sigma=1)
+    if hasattr(coefficient, "dims"):
+        coefficient.dims = "purchase_covariate"
+    expr = Parameter("alpha_scale", prior=scale, xdist=False) * Transform(
+        -Dot(
+            var_name="purchase_data",
+            name="purchase_coefficient_alpha",
+            prior=coefficient,
+        ),
+        func=ptx.math.exp,
+    )
+    return _Covariates("alpha", expr, dims="customer_id", cols=cols)
+
+
+def create_dropout_covariates(
+    dropout_covariate_cols: Sequence[str],
+    *,
+    a_prior: VariableFactory | None = None,
+    b_prior: VariableFactory | None = None,
+    coefficient_prior: VariableFactory | None = None,
+) -> tuple[_Covariates, _Covariates]:
+    """Create the standard nested BG/NBD dropout covariate recipes.
+
+    Composes ``a = a_scale * exp(X @ beta_a)`` and ``b = b_scale * exp(X @ beta_b)``
+    outside the model. The columns become part of the returned terms, so
+    passing these recipes replaces the deprecated ``dropout_covariate_cols``
+    config key.
+
+    Parameters
+    ----------
+    dropout_covariate_cols : sequence of str
+        DataFrame columns for the covariates.
+    a_prior : VariableFactory, optional
+        Prior for ``a_scale``. Defaults to ``Prior("Beta", alpha=2, beta=3)``.
+    b_prior : VariableFactory, optional
+        Prior for ``b_scale``. Defaults to ``Prior("Beta", alpha=3, beta=2)``.
+    coefficient_prior : VariableFactory, optional
+        Prior for the coefficients. Defaults to ``Prior("Normal", mu=0, sigma=1)``
+        with ``dims="dropout_covariate"``.
+
+    Returns
+    -------
+    tuple of _Covariates
+        The ``a`` and ``b`` recipes, in that order.
+    """
+    cols = list(dropout_covariate_cols)
+    a_scale = a_prior or Prior("Beta", alpha=2, beta=3)
+    b_scale = b_prior or Prior("Beta", alpha=3, beta=2)
+    coefficient = coefficient_prior or Prior("Normal", mu=0, sigma=1)
+    if hasattr(coefficient, "dims"):
+        coefficient.dims = "dropout_covariate"
+    a_expr = Parameter("a_scale", prior=a_scale, xdist=False) * Transform(
+        Dot(
+            var_name="dropout_data",
+            name="dropout_coefficient_a",
+            prior=coefficient,
+        ),
+        func=ptx.math.exp,
+    )
+    b_expr = Parameter("b_scale", prior=b_scale, xdist=False) * Transform(
+        Dot(
+            var_name="dropout_data",
+            name="dropout_coefficient_b",
+            prior=coefficient,
+        ),
+        func=ptx.math.exp,
+    )
+    return (
+        _Covariates("a", a_expr, dims="customer_id", cols=cols),
+        _Covariates("b", b_expr, dims="customer_id", cols=cols),
+    )
+
+
+def _default_purchase_recipe(config: ModelConfig) -> ModelTerm:
+    """Build the default ``alpha`` recipe from the model configuration."""
+    cols = list(config.get("purchase_covariate_cols") or [])
+    if cols:
+        coefficient_prior: Any = config.get("purchase_coefficient") or Prior(
+            "Normal", mu=0, sigma=1
+        )
+        coefficient_prior.dims = "purchase_covariate"
+        expr = Parameter("alpha_scale", prior=config["alpha"]) * Transform(
+            -Dot(
+                var_name="purchase_data",
+                name="purchase_coefficient_alpha",
+                prior=coefficient_prior,
+            ),
+            func=ptx.math.exp,
+        )
+        return _Covariates("alpha", expr, dims="customer_id", cols=cols)
+    return Parameter("alpha", prior=config["alpha"], xdist=False)
+
+
+def _default_nested_dropout_recipes(config: ModelConfig) -> dict[str, ModelTerm]:
+    """Build the default nested (``a``/``b``) dropout recipes from the model configuration."""
+    cols = list(config.get("dropout_covariate_cols") or [])
+    if cols:
+        coefficient_prior: Any = config.get("dropout_coefficient") or Prior(
+            "Normal", mu=0, sigma=1
+        )
+        coefficient_prior.dims = "dropout_covariate"
+        a_expr = Parameter("a_scale", prior=config["a"]) * Transform(
+            Dot(
+                var_name="dropout_data",
+                name="dropout_coefficient_a",
+                prior=coefficient_prior,
+            ),
+            func=ptx.math.exp,
+        )
+        b_expr = Parameter("b_scale", prior=config["b"]) * Transform(
+            Dot(
+                var_name="dropout_data",
+                name="dropout_coefficient_b",
+                prior=coefficient_prior,
+            ),
+            func=ptx.math.exp,
+        )
+        return {
+            "a": _Covariates("a", a_expr, dims="customer_id", cols=cols),
+            "b": _Covariates("b", b_expr, dims="customer_id", cols=cols),
+        }
+    return {
+        "a": Parameter("a", prior=config["a"], xdist=False),
+        "b": Parameter("b", prior=config["b"], xdist=False),
+    }
+
+
+def _default_hierarchical_dropout_recipes(config: ModelConfig) -> dict[str, ModelTerm]:
+    """Build the default hierarchical (``phi``/``kappa``) dropout recipes from the model configuration."""
+    cols = list(config.get("dropout_covariate_cols") or [])
+    recipes: dict[str, ModelTerm] = {
+        "phi_dropout": Parameter(
+            "phi_dropout", prior=config["phi_dropout"], xdist=False
+        ),
+        "kappa_dropout": Parameter(
+            "kappa_dropout", prior=config["kappa_dropout"], xdist=False
+        ),
+    }
+    if cols:
+        coefficient_prior: Any = config.get("dropout_coefficient") or Prior(
+            "Normal", mu=0, sigma=1
+        )
+        coefficient_prior.dims = "dropout_covariate"
+        recipes["a_scale"] = Named("a_scale", Ref("phi_dropout") * Ref("kappa_dropout"))
+        recipes["b_scale"] = Named(
+            "b_scale", (1 - Ref("phi_dropout")) * Ref("kappa_dropout")
+        )
+        recipes["a"] = _Covariates(
+            "a",
+            Ref("a_scale")
+            * Transform(
+                Dot(
+                    var_name="dropout_data",
+                    name="dropout_coefficient_a",
+                    prior=coefficient_prior,
+                ),
+                func=ptx.math.exp,
+            ),
+            dims="customer_id",
+            cols=cols,
+        )
+        recipes["b"] = _Covariates(
+            "b",
+            Ref("b_scale")
+            * Transform(
+                Dot(
+                    var_name="dropout_data",
+                    name="dropout_coefficient_b",
+                    prior=coefficient_prior,
+                ),
+                func=ptx.math.exp,
+            ),
+            dims="customer_id",
+            cols=cols,
+        )
+    else:
+        recipes["a"] = Named("a", Ref("phi_dropout") * Ref("kappa_dropout"))
+        recipes["b"] = Named("b", (1 - Ref("phi_dropout")) * Ref("kappa_dropout"))
+    return recipes
+
+
+def _iter_dots(term: Any):
+    """Yield every ``Dot`` reachable in a (possibly composed) term."""
+    if isinstance(term, Dot):
+        yield term
+    elif isinstance(term, Sum):
+        for child in term.terms:
+            yield from _iter_dots(child)
+    elif isinstance(term, Product):
+        yield from _iter_dots(term.left)
+        yield from _iter_dots(term.right)
+    elif isinstance(term, Transform):
+        yield from _iter_dots(term.inner)
+    elif isinstance(term, Named):
+        yield from _iter_dots(term.expr)
+
+
+def _validate_modeling_dataset(
+    ds: xarray.Dataset,
+    *,
+    purchase_cols: Sequence[str],
+    dropout_cols: Sequence[str],
+    data_bound: set[str],
+) -> None:
+    """Check a dataset has the variables the recipes need.
+
+    Parameters
+    ----------
+    ds : xr.Dataset
+        The modeling dataset.
+    purchase_cols : sequence of str
+        Effective purchase covariate columns.
+    dropout_cols : sequence of str
+        Effective dropout covariate columns.
+    data_bound : set of str
+        Data variable names bound by the recipes (``Dot.var_name`` values).
+
+    Raises
+    ------
+    ValueError
+        If required variables or coordinates are missing, if the dataset
+        provides covariate data no recipe binds, or if the covariate
+        coordinate labels do not match the effective columns.
+    """
+    required = {"customer_id", "T", "recency", "frequency"}
+    if purchase_cols:
+        required.add("purchase_data")
+    if dropout_cols:
+        required.add("dropout_data")
+    missing = required - (set(ds.data_vars) | set(ds.coords))
+    if missing:
+        raise ValueError(
+            "The dataset is missing required variables: "
+            f"{sorted(missing)}. 'customer_id' must be a coordinate; "
+            "'T', 'recency', and 'frequency' must be variables with the "
+            "'customer_id' dimension."
+        )
+    if "customer_id" not in ds.coords:
+        raise ValueError("The dataset must have 'customer_id' as a coordinate.")
+    if (
+        not purchase_cols
+        and "purchase_data" in ds.data_vars
+        and "purchase_data" not in data_bound
+    ):
+        raise ValueError(
+            "The dataset provides 'purchase_data' but no purchase covariate "
+            "columns are configured. Pass a purchase covariate recipe "
+            "(create_purchase_covariates) or the deprecated "
+            "'purchase_covariate_cols' config key."
+        )
+    if (
+        not dropout_cols
+        and "dropout_data" in ds.data_vars
+        and "dropout_data" not in data_bound
+    ):
+        raise ValueError(
+            "The dataset provides 'dropout_data' but no dropout covariate "
+            "columns are configured. Pass a dropout covariate recipe "
+            "(create_dropout_covariates) or the deprecated "
+            "'dropout_covariate_cols' config key."
+        )
+    for dim, cols in (
+        ("purchase_covariate", purchase_cols),
+        ("dropout_covariate", dropout_cols),
+    ):
+        if cols and dim in ds.coords and list(ds.coords[dim].values) != list(cols):
+            raise ValueError(
+                f"The dataset's {dim!r} coordinate labels {list(ds.coords[dim].values)} "
+                f"do not match the configured covariate columns {list(cols)}."
+            )
+
+
+def _dataset_to_dataframe(
+    ds: xarray.Dataset,
+    *,
+    purchase_cols: Sequence[str],
+    dropout_cols: Sequence[str],
+) -> pd.DataFrame:
+    """Reconstruct the modeling DataFrame from a modeling dataset.
+
+    Prediction methods and serialization operate on DataFrames; the
+    covariate columns are unwound from the ``purchase_data`` /
+    ``dropout_data`` variables using their covariate coordinates.
+    """
+    data: dict[str, Any] = {
+        "customer_id": np.asarray(ds.coords["customer_id"]),
+        "T": np.asarray(ds["T"]),
+        "recency": np.asarray(ds["recency"]),
+        "frequency": np.asarray(ds["frequency"]),
+    }
+    for col, var, dim in [
+        *[(col, "purchase_data", "purchase_covariate") for col in purchase_cols],
+        *[(col, "dropout_data", "dropout_covariate") for col in dropout_cols],
+    ]:
+        data[col] = np.asarray(ds[var].sel({dim: col}))
+    # Carry over remaining customer-level variables (e.g. extra user
+    # columns such as dates) so the round-trip preserves them.
+    for name in map(str, ds.data_vars):
+        if name in data:
+            continue
+        values = np.asarray(ds[name])
+        if values.ndim != 1:
+            continue
+        data[name] = values
+    return pd.DataFrame(data)
 
 
 class BetaGeoModel(CLVModel):
@@ -150,7 +567,14 @@ class BetaGeoModel(CLVModel):
     """  # noqa: E501
 
     _model_type = "BG/NBD"  # Beta-Geometric Negative Binomial Distribution
-    _skipped_config_keys = {"a", "b"}
+    _skipped_config_keys = {
+        "a",
+        "b",
+        "purchase_covariate_cols",
+        "dropout_covariate_cols",
+        "purchase_coefficient",
+        "dropout_coefficient",
+    }
 
     def __init__(
         self,
@@ -162,29 +586,98 @@ class BetaGeoModel(CLVModel):
             model_config=model_config,
             sampler_config=sampler_config,
         )
+        self._warn_deprecated_covariate_config()
+        self._resolve_parameter_recipes()
+
+    _DEPRECATED_CONFIG_KEYS = {
+        "purchase_covariate_cols": (
+            "Pass a term recipe instead, e.g. model_config={'alpha': "
+            "create_purchase_covariates(['cov'])}. The columns become part "
+            "of the term and are serialized with it."
+        ),
+        "dropout_covariate_cols": (
+            "Pass term recipes instead, e.g. model_config={'a': recipe, "
+            "'b': recipe} from create_dropout_covariates(['cov']). The "
+            "columns become part of the terms and are serialized with them."
+        ),
+        "purchase_coefficient": (
+            "Pass coefficient_prior= to create_purchase_covariates instead; "
+            "the prior becomes part of the serialized recipe."
+        ),
+        "dropout_coefficient": (
+            "Pass coefficient_prior= to create_dropout_covariates instead; "
+            "the prior becomes part of the serialized recipe."
+        ),
+    }
+
+    def _warn_deprecated_covariate_config(self) -> None:
+        """Warn when deprecated covariate configuration keys are used."""
+        for key, guidance in self._DEPRECATED_CONFIG_KEYS.items():
+            if self.model_config.get(key) or key in self.model_config:
+                warnings.warn(
+                    f"{key!r} in model_config is deprecated and will be removed "
+                    f"in a future release. {guidance}",
+                    DeprecationWarning,
+                    stacklevel=3,
+                )
+
+    def _resolve_parameter_recipes(self) -> None:
+        """Resolve the parameter terms for this instance, outside any PyMC context."""
+        config = self.model_config
+
+        alpha = config["alpha"]
+        self._alpha_recipe: ModelTerm = (
+            alpha if isinstance(alpha, ModelTerm) else _default_purchase_recipe(config)
+        )
+
+        a, b = config.get("a"), config.get("b")
+        if isinstance(a, ModelTerm) != isinstance(b, ModelTerm):
+            raise ValueError("Provide both 'a' and 'b' term recipes or neither.")
+        if isinstance(a, ModelTerm) and isinstance(b, ModelTerm):
+            self._dropout_recipes = {"a": a, "b": b}
+        elif "a" in config and "b" in config:
+            self._dropout_recipes = _default_nested_dropout_recipes(config)
+        else:
+            self._dropout_recipes = _default_hierarchical_dropout_recipes(config)
 
     @property
     def default_model_config(self) -> ModelConfig:
-        """Default model configuration."""
+        """Default model configuration.
+
+        The coefficient priors are part of the parameter recipes (and their
+        serialization); the deprecated ``purchase_coefficient`` /
+        ``dropout_coefficient`` keys still feed the legacy covariate path.
+        """
         return {
             "alpha": Prior("Weibull", alpha=2, beta=10),
             "r": Prior("Weibull", alpha=2, beta=1),
             "phi_dropout": Prior("Uniform", lower=0, upper=1),
             "kappa_dropout": Prior("Pareto", alpha=1, m=1),
-            "purchase_coefficient": Prior("Normal", mu=0, sigma=1),
-            "dropout_coefficient": Prior("Normal", mu=0, sigma=1),
-            "purchase_covariate_cols": [],
-            "dropout_covariate_cols": [],
         }
 
     @property
+    def _parameter_spec(self) -> dict[str, ModelTerm]:
+        """Ordered parameter terms for ``build_model``."""
+        spec: dict[str, ModelTerm] = {
+            "alpha": self._alpha_recipe,
+            **self._dropout_recipes,
+        }
+        spec["r"] = Parameter("r", prior=self.model_config["r"], xdist=False)
+        return spec
+
+    @property
     def purchase_covariate_cols(self) -> list[str]:
-        """Purchase covariate column names from model_config."""
+        """Purchase covariate column names from the recipe or model_config."""
+        if isinstance(self._alpha_recipe, _Covariates):
+            return list(self._alpha_recipe.cols)
         return list(self.model_config.get("purchase_covariate_cols", []))
 
     @property
     def dropout_covariate_cols(self) -> list[str]:
-        """Dropout covariate column names from model_config."""
+        """Dropout covariate column names from the recipes or model_config."""
+        for recipe in self._dropout_recipes.values():
+            if isinstance(recipe, _Covariates) and recipe.cols:
+                return list(recipe.cols)
         return list(self.model_config.get("dropout_covariate_cols", []))
 
     @property
@@ -207,16 +700,70 @@ class BetaGeoModel(CLVModel):
             must_be_unique=["customer_id"],
         )
 
-    def build_model(self, data: pd.DataFrame) -> None:  # type: ignore[override]
+    def build_model(self, data: pd.DataFrame | xarray.Dataset) -> None:  # type: ignore[override]
         """Build the model.
+
+        The parameter terms are composed outside the model context (see
+        ``_resolve_parameter_recipes``); this method only registers their
+        data, builds the variables, and attaches the likelihood.
 
         Parameters
         ----------
-        data : pd.DataFrame
+        data : pd.DataFrame or xr.Dataset
             Input data with customer_id, frequency, recency, and T columns.
+            A dataset may be passed instead. It must provide ``T``,
+            ``recency``, and ``frequency`` variables with the
+            ``customer_id`` coordinate, plus ``purchase_data`` /
+            ``dropout_data`` variables when the recipes use covariates
+            (covariate coordinates must match the configured columns). A
+            DataFrame is reconstructed from the dataset, so prediction
+            methods keep working on columns.
+
+        Raises
+        ------
+        ValueError
+            If the dataset is missing required variables, provides
+            covariate data without configured columns, or its covariate
+            coordinates do not match the configured columns.
         """
-        self._validate_data(data)
-        self.data = data
+        spec = self._parameter_spec
+        terms = collect_terms(list(spec.values()))
+        data_bound = {
+            dot.var_name for term in spec.values() for dot in _iter_dots(term)
+        }
+
+        spec = self._parameter_spec
+        terms = collect_terms(list(spec.values()))
+        data_bound = {
+            dot.var_name for term in spec.values() for dot in _iter_dots(term)
+        }
+
+        if isinstance(data, xarray.Dataset):
+            ds = data
+            _validate_modeling_dataset(
+                ds,
+                purchase_cols=self.purchase_covariate_cols,
+                dropout_cols=self.dropout_covariate_cols,
+                data_bound=data_bound,
+            )
+            self.data = _dataset_to_dataframe(
+                ds,
+                purchase_cols=self.purchase_covariate_cols,
+                dropout_cols=self.dropout_covariate_cols,
+            )
+            self._validate_data(self.data)
+        else:
+            self._validate_data(data)
+            self.data = data
+            self._check_dataframe_recipe_support(data_bound)
+            ds = _covariate_dataset(
+                self.data,
+                purchase_cols=self.purchase_covariate_cols,
+                dropout_cols=self.dropout_covariate_cols,
+            )
+        # Persist the dataset the recipes actually bound so it survives
+        # serialization (see ``create_fit_data_group``).
+        self._modeling_data = ds
 
         coords = {
             "purchase_covariate": self.purchase_covariate_cols,
@@ -224,138 +771,62 @@ class BetaGeoModel(CLVModel):
             "customer_id": self.data["customer_id"],
             "obs_var": ["recency", "frequency"],
         }
+        coords = {**coords, **collect_coords(*terms, ds=ds)}
+
         with pm.Model(coords=coords) as self.model:
-            # purchase rate priors
-            if self.purchase_covariate_cols:
-                purchase_data = pm.Data(
-                    "purchase_data",
-                    self.data[self.purchase_covariate_cols],
-                    dims=["customer_id", "purchase_covariate"],
-                )
-                self.model_config["purchase_coefficient"].dims = "purchase_covariate"
-                purchase_coefficient_alpha = self.model_config[
-                    "purchase_coefficient"
-                ].create_variable("purchase_coefficient_alpha")
+            for term in terms:
+                register_data(term, ds=ds)
 
-                alpha_scale = self.model_config["alpha"].create_variable("alpha_scale")
-                alpha = pm.Deterministic(
-                    "alpha",
-                    (
-                        alpha_scale
-                        * pm.math.exp(
-                            -pm.math.dot(purchase_data, purchase_coefficient_alpha)
-                        )
-                    ),
-                    dims="customer_id",
-                )
-            else:
-                alpha = self.model_config["alpha"].create_variable("alpha")
-
-            # dropout priors
-            if "a" in self.model_config and "b" in self.model_config:
-                if self.dropout_covariate_cols:
-                    dropout_data = pm.Data(
-                        "dropout_data",
-                        self.data[self.dropout_covariate_cols],
-                        dims=["customer_id", "dropout_covariate"],
-                    )
-
-                    self.model_config["dropout_coefficient"].dims = "dropout_covariate"
-                    dropout_coefficient_a = self.model_config[
-                        "dropout_coefficient"
-                    ].create_variable("dropout_coefficient_a")
-                    dropout_coefficient_b = self.model_config[
-                        "dropout_coefficient"
-                    ].create_variable("dropout_coefficient_b")
-
-                    a_scale = self.model_config["a"].create_variable("a_scale")
-                    b_scale = self.model_config["b"].create_variable("b_scale")
-                    a = pm.Deterministic(
-                        "a",
-                        a_scale
-                        * pm.math.exp(pm.math.dot(dropout_data, dropout_coefficient_a)),
-                        dims="customer_id",
-                    )
-                    b = pm.Deterministic(
-                        "b",
-                        b_scale
-                        * pm.math.exp(pm.math.dot(dropout_data, dropout_coefficient_b)),
-                        dims="customer_id",
-                    )
-                else:
-                    a = self.model_config["a"].create_variable("a")
-                    b = self.model_config["b"].create_variable("b")
-            else:
-                # hierarchical pooling of dropout rate priors
-                if self.dropout_covariate_cols:
-                    dropout_data = pm.Data(
-                        "dropout_data",
-                        self.data[self.dropout_covariate_cols],
-                        dims=["customer_id", "dropout_covariate"],
-                    )
-
-                    self.model_config["dropout_coefficient"].dims = "dropout_covariate"
-                    dropout_coefficient_a = self.model_config[
-                        "dropout_coefficient"
-                    ].create_variable("dropout_coefficient_a")
-                    dropout_coefficient_b = self.model_config[
-                        "dropout_coefficient"
-                    ].create_variable("dropout_coefficient_b")
-
-                    phi_dropout = self.model_config["phi_dropout"].create_variable(
-                        "phi_dropout"
-                    )
-                    kappa_dropout = self.model_config["kappa_dropout"].create_variable(
-                        "kappa_dropout"
-                    )
-
-                    a_scale = pm.Deterministic(
-                        "a_scale",
-                        phi_dropout * kappa_dropout,
-                    )
-                    b_scale = pm.Deterministic(
-                        "b_scale",
-                        (1.0 - phi_dropout) * kappa_dropout,
-                    )
-
-                    a = pm.Deterministic(
-                        "a",
-                        a_scale
-                        * pm.math.exp(pm.math.dot(dropout_data, dropout_coefficient_a)),
-                        dims="customer_id",
-                    )
-                    b = pm.Deterministic(
-                        "b",
-                        b_scale
-                        * pm.math.exp(pm.math.dot(dropout_data, dropout_coefficient_b)),
-                        dims="customer_id",
-                    )
-
-                else:
-                    phi_dropout = self.model_config["phi_dropout"].create_variable(
-                        "phi_dropout"
-                    )
-                    kappa_dropout = self.model_config["kappa_dropout"].create_variable(
-                        "kappa_dropout"
-                    )
-
-                    a = pm.Deterministic("a", phi_dropout * kappa_dropout)
-                    b = pm.Deterministic("b", (1.0 - phi_dropout) * kappa_dropout)
-
-            # r remains unchanged with or without covariates
-            r = self.model_config["r"].create_variable("r")
+            built = {name: build_param(term) for name, term in spec.items()}
 
             BetaGeoNBD(
                 name="recency_frequency",
-                a=a,
-                b=b,
-                r=r,
-                alpha=alpha,
+                alpha=_as_plain_tensor(built["alpha"]),
+                a=_as_plain_tensor(built["a"]),
+                b=_as_plain_tensor(built["b"]),
+                r=_as_plain_tensor(built["r"]),
                 T=self.data["T"],
                 observed=np.stack(
                     (self.data["recency"], self.data["frequency"]), axis=1
                 ),
                 dims=["customer_id", "obs_var"],
+            )
+
+    def _check_dataframe_recipe_support(self, data_bound: set[str]) -> None:
+        """Raise for recipes the DataFrame path cannot data-bind.
+
+        The DataFrame path can construct exactly two data variables: from
+        the purchase covariate columns (``purchase_data``) and the dropout
+        covariate columns (``dropout_data``). Any other recipe-bound
+        variable requires an ``xr.Dataset`` passed to ``build_model``.
+        """
+        can_provide = {
+            "purchase_data": bool(self.purchase_covariate_cols),
+            "dropout_data": bool(self.dropout_covariate_cols),
+        }
+        for var_name in sorted(data_bound):
+            if not can_provide.get(var_name, False):
+                raise ValueError(
+                    f"A recipe binds the data variable {var_name!r} which cannot "
+                    "be constructed from a DataFrame. Pass the covariate columns "
+                    "(create_purchase_covariates / create_dropout_covariates), or "
+                    "an xr.Dataset to build_model."
+                )
+
+    def _check_recipes_predictable(self) -> None:
+        """Raise for parameter recipes without a predictive evaluation."""
+        for name, recipe in [
+            ("alpha", self._alpha_recipe),
+            *self._dropout_recipes.items(),
+        ]:
+            if isinstance(recipe, (Parameter, _Covariates)):
+                continue
+            if not any(True for _ in _iter_dots(recipe)):
+                continue
+            raise NotImplementedError(
+                f"Predictive methods are not implemented for the {name!r} recipe "
+                f"({type(recipe).__name__}). Use the default recipes, "
+                "create_purchase_covariates, or create_dropout_covariates."
             )
 
     def _extract_predictive_variables(
@@ -368,6 +839,7 @@ class BetaGeoModel(CLVModel):
 
         Utility function assigning default customer arguments for predictive methods and converting to xarrays.
         """
+        self._check_recipes_predictable()
         self._validate_cols(
             data,
             required_cols=[

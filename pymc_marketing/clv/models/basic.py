@@ -122,7 +122,7 @@ class CLVModel(ModelBuilder):
         else:
             return f"{self._model_type}\n{self.model.str_repr()}"
 
-    def _prepare_fit(self, data: pd.DataFrame | None = None) -> None:
+    def _prepare_fit(self, data: pd.DataFrame | xr.Dataset | None = None) -> None:
         """Build the model on first fit, and reject a second fit on different data.
 
         CLV models bake the training data into the model graph, so refitting a built
@@ -135,11 +135,17 @@ class CLVModel(ModelBuilder):
                     "or call `build_model(data)` first."
                 )
             self.build_model(data)  # type: ignore[call-arg]
-        elif data is not None and not self.data.equals(data):  # type: ignore[attr-defined]
-            raise ValueError(
-                "The model was built with different data. "
-                "Create a new model instance to fit new data."
-            )
+        elif data is not None:
+            if isinstance(data, xr.Dataset):
+                modeling_data = getattr(self, "_modeling_data", None)
+                same = modeling_data is not None and bool(data.equals(modeling_data))
+            else:
+                same = bool(self.data.equals(data))  # type: ignore[attr-defined]
+            if not same:
+                raise ValueError(
+                    "The model was built with different data. "
+                    "Create a new model instance to fit new data."
+                )
 
     @classmethod
     def build_from_idata(cls, idata: xr.DataTree) -> None:
@@ -148,9 +154,18 @@ class CLVModel(ModelBuilder):
         model = cls(**kwargs)
 
         model.idata = idata
-        model.data = idata.fit_data.dataset.to_dataframe()
+        fit_data = idata.fit_data.dataset
+        if "customer_id" in fit_data.coords:
+            # New-shape fit_data: the modeling dataset (recipes may bind
+            # arbitrary data variables). The Dataset path validates and
+            # reconstructs the customer-level DataFrame.
+            model.build_model(fit_data)  # type: ignore[call-arg]
+        else:
+            # Old-shape fit_data: a plain DataFrame dump (customer_id as a
+            # variable on the "index" dimension).
+            model.data = fit_data.to_dataframe()  # type: ignore[attr-defined]
+            model.build_model(model.data)  # type: ignore[call-arg,attr-defined]
 
-        model.build_model(model.data)  # type: ignore
         if model.id != idata.attrs["id"]:
             msg = (
                 "The model id in the DataTree does not match the model id. "
@@ -159,7 +174,7 @@ class CLVModel(ModelBuilder):
                 "Investigate if the model structure or configuration has changed."
             )
             raise DifferentModelError(msg)
-        return model
+        return model  # type: ignore[return-value]
 
     def thin_fit_result(self, keep_every: int):
         """Return a copy of the model with a thinned fit result.
@@ -200,6 +215,20 @@ class CLVModel(ModelBuilder):
     @property
     def _serializable_model_config(self) -> dict:
         return self.model_config
+
+    def create_fit_data_group(self) -> xr.Dataset | None:
+        """Build the ``fit_data`` group stored alongside the posterior.
+
+        When the model persisted a modeling dataset (``_modeling_data`` set
+        during ``build_model``), it is merged with the customer-level
+        DataFrame so every recipe-bound data variable survives
+        serialization. Otherwise the base implementation is used.
+        """
+        modeling_data = getattr(self, "_modeling_data", None)
+        if modeling_data is None or getattr(self, "data", None) is None:
+            return super().create_fit_data_group()
+        customer_part = self.data.set_index("customer_id").to_xarray()  # type: ignore[attr-defined]
+        return xr.merge([customer_part, modeling_data], compat="no_conflicts")
 
     def fit_summary(self, **kwargs):
         """Compute the summary of the fit result."""
