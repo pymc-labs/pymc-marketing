@@ -168,6 +168,7 @@ from pymc_marketing.bass import plotting
 from pymc_marketing.bass.data import to_bass_dataset
 from pymc_marketing.model_builder import ModelBuilder, SamplingMethod
 from pymc_marketing.model_config import parse_model_config
+from pymc_marketing.terms import ModelTerm, Parameter, build_param
 from pymc_marketing.version import __version__
 
 #: What :func:`F` and :func:`f` accept for ``t``: a labelled xtensor, or any
@@ -387,10 +388,28 @@ def _observed_dims(
 class BassPriors(TypedDict):
     """Priors for the Bass diffusion model."""
 
-    m: Prior | Censored | VariableFactory
-    p: Prior | Censored | VariableFactory
-    q: Prior | Censored | VariableFactory
+    m: Prior | Censored | VariableFactory | ModelTerm
+    p: Prior | Censored | VariableFactory | ModelTerm
+    q: Prior | Censored | VariableFactory | ModelTerm
     likelihood: Prior | Censored
+
+
+def _build_prior(prior: Any, name: str) -> pmd.XTensorVariable:
+    """Build a prior or term recipe into its tensor.
+
+    ``Parameter(name, prior)`` builds exactly like the previous
+    ``prior.create_variable(name, xdist=True)``, so models configured with
+    plain priors keep an identical graph. Priors must be dims-native:
+    Bass composes them into ``pmd.Deterministic`` outputs.
+    """
+    if isinstance(prior, ModelTerm):
+        return cast("pmd.XTensorVariable", build_param(prior))
+    return cast("pmd.XTensorVariable", build_param(Parameter(name, prior=prior)))
+
+
+def _term_dims(value: Any) -> Any:
+    """Dims declared by a prior or term (``None`` when not annotated)."""
+    return getattr(value, "dims", None)
 
 
 def create_bass_model(
@@ -432,10 +451,10 @@ def create_bass_model(
         priors, in that order. An array laid out the way the ``likelihood``
         prior declares it is therefore read the way it is laid out.
     priors : BassPriors
-        Dictionary containing priors for:
-        - 'm': Market potential prior
-        - 'p': Innovation coefficient prior
-        - 'q': Imitation coefficient prior
+        Dictionary containing priors or term recipes for:
+        - 'm': Market potential prior or term
+        - 'p': Innovation coefficient prior or term
+        - 'q': Imitation coefficient prior or term
         - 'likelihood': Observation likelihood model
     coords : dict[str, Any]
         Coordinate values for dimensions in the model, including
@@ -475,9 +494,9 @@ def create_bass_model(
         # array laid out the way the likelihood declares it is read that way.
         declared_dims = (
             *(priors["likelihood"].dims or ()),
-            *(priors["p"].dims or ()),
-            *(priors["q"].dims or ()),
-            *(priors["m"].dims or ()),
+            *(_term_dims(priors["p"]) or ()),
+            *(_term_dims(priors["q"]) or ()),
+            *(_term_dims(priors["m"]) or ()),
         )
         combined_dims = (
             "T",
@@ -485,9 +504,9 @@ def create_bass_model(
         )
 
         time = pmd.as_xtensor(t, dims=("T",))
-        m = priors["m"].create_variable("m", xdist=True)
-        p = priors["p"].create_variable("p", xdist=True)
-        q = priors["q"].create_variable("q", xdist=True)
+        m = _build_prior(priors["m"], "m")
+        p = _build_prior(priors["p"], "p")
+        q = _build_prior(priors["q"], "q")
 
         def deterministic(name: str, value: XTensorVariable) -> XTensorVariable:
             """Store ``value`` with the dims it has, in ``combined_dims`` order."""
@@ -844,7 +863,11 @@ class BassModel(ModelBuilder):
         # identical either side of a save/load round trip, since `build_model` recomputes
         # the same sigma from `fit_data`.
         priors = dict(self.model_config)
-        if observed is not None and priors["m"] == self.default_model_config["m"]:
+        if (
+            observed is not None
+            and not isinstance(priors["m"], ModelTerm)
+            and priors["m"] == self.default_model_config["m"]
+        ):
             total_adopters = max(float(observed.sum()), 1.0)
             priors["m"] = Prior("HalfNormal", sigma=2 * total_adopters)
 
