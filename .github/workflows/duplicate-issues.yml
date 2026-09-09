@@ -1,0 +1,70 @@
+name: Duplicate Detection
+
+on:
+  issues:
+    types: [opened, edited]
+
+permissions: {}
+
+concurrency:
+  group: duplicates-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
+jobs:
+  analyze:
+    if: github.event.action == 'opened' || github.event.changes.body
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      issues: read
+    steps:
+      - name: Wait for edits to settle
+        env:
+          EVENT_ACTION: ${{ github.event.action }}
+        run: |
+          if [ "$EVENT_ACTION" = "opened" ]; then sleep 120; else sleep 300; fi
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+          sparse-checkout: .github/scripts
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Classify issue without executable model tools
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GH_TOKEN: ${{ github.token }}
+        run: python .github/scripts/issue_automation.py analyze duplicates
+      - uses: actions/upload-artifact@v7
+        with:
+          name: issue-result-duplicates
+          path: result.json
+          if-no-files-found: error
+          overwrite: true
+          retention-days: 1
+
+  publish:
+    needs: analyze
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+          sparse-checkout: .github/scripts
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - uses: actions/download-artifact@v8
+        with:
+          name: issue-result-duplicates
+      - name: Validate and publish bounded results
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python .github/scripts/issue_automation.py publish duplicates
