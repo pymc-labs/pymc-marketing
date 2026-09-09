@@ -37,6 +37,7 @@ from pytensor.graph import rewrite_graph
 
 from pymc_marketing.bass import BassModel
 from pymc_marketing.bass.model import F, create_bass_model, f
+from pymc_marketing.terms import Named, Parameter
 
 
 class BassModelComponents(BaseModel):
@@ -1476,3 +1477,65 @@ class TestBassModelClass:
         )
         assert isinstance(pp, xr.DataArray)
         assert "posterior_predictive" not in fitted_model.idata
+
+
+class TestBassModelTerms:
+    """Parameter recipes through BassPriors / model_config."""
+
+    def test_recipe_priors_build(self) -> None:
+        """m/p/q as term recipes compose through create_bass_model."""
+        priors = {
+            "m": Parameter("m", prior=Prior("HalfNormal", sigma=500)),
+            "p": Parameter(
+                "p", prior=Prior("Beta", alpha=1.5, beta=20, dims="product")
+            ),
+            "q": Named(
+                "q",
+                Parameter(
+                    "q_scale", prior=Prior("Beta", alpha=2, beta=5, dims="product")
+                )
+                * 2,
+                dims="product",
+            ),
+            "likelihood": Prior("NegativeBinomial", n=1.5, dims="product"),
+        }
+        model = create_bass_model(
+            t=np.arange(40),
+            observed=None,
+            priors=priors,
+            coords={"T": np.arange(40), "product": ["A", "B"]},
+        )
+
+        for var in ("m", "p", "q", "adopters", "innovators", "imitators", "peak"):
+            assert var in model.named_vars
+        assert model.named_vars_to_dims["adopters"] == ("T", "product")
+
+    def test_m_recipe_opts_out_of_rescale(self) -> None:
+        """A term recipe for ``m`` is the user's own prior: no data rescale."""
+        y = np.random.default_rng(42).poisson(lam=100, size=20)
+        model = BassModel(
+            model_config={"m": Parameter("m", prior=Prior("LogNormal", mu=3, sigma=1))}
+        )
+        model.build_model(data=y)
+
+        op = str(model.model["m"].owner.op)
+        assert "lognormal" in op
+        assert "halfnormal" not in op
+
+    def test_recipe_config_survives_save_load(self, mock_pymc_sample, tmp_path) -> None:
+        """Recipes serialize through the model attrs and survive save/load."""
+        y = np.random.default_rng(42).poisson(lam=100, size=20)
+        config = {
+            "m": Parameter("m", prior=Prior("HalfNormal", sigma=500)),
+            "p": Parameter("p", prior=Prior("Beta", alpha=1.5, beta=20)),
+            "q": Parameter("q", prior=Prior("Beta", alpha=2, beta=5)),
+        }
+        model = BassModel(model_config=dict(config))
+        model.fit(data=y, draws=5, tune=5, chains=1, random_seed=42)
+        path = tmp_path / "bass_terms.nc"
+        model.save(path)
+
+        loaded = BassModel.load(path)
+        assert isinstance(loaded.model_config["m"], Parameter)
+        assert loaded.model_config["m"] == config["m"]
+        assert loaded.id == model.id
