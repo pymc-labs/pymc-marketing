@@ -593,16 +593,22 @@ def diversification_ratio(
     """
     samples = as_xtensor(samples)
     budgets = as_xtensor(budgets)
-    samples = _check_samples_dimensionality(samples)
+    if samples.type.ndim != 2:
+        raise ValueError(
+            "Function expected samples to be a 2D tensor variable with a 'sample' "
+            f"dim and an asset dim. Got {samples.type.ndim} dimensions."
+        )
     weights = budgets / budgets.sum()
     individual_volatilities = samples.std(dim="sample", ddof=1)
 
     [asset_dim] = weights.dims
     cov_matrix = _covariance_matrix(samples, asset_dim=asset_dim)
 
-    # w'Σw
+    # w'Σw: rename one copy of the weights so the two asset axes of the
+    # covariance matrix are contracted separately.
     portfolio_var = ptx.dot(
-        weights.rename({asset_dim: f"{asset_dim}'"}, ptx.dot(cov_matrix, weights)),
+        weights.rename({asset_dim: f"{asset_dim}'"}),
+        ptx.dot(cov_matrix, weights),
     )
     portfolio_volatility = ptx.math.sqrt(portfolio_var)
     weighted_avg_volatility = (weights * individual_volatilities).sum()

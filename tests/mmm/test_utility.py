@@ -17,6 +17,7 @@ import pytensor.xtensor as ptx
 import pytest
 from pytensor import function
 from pytensor.xtensor import as_xtensor
+from scipy.linalg import hadamard
 
 from pymc_marketing.mmm.utility import (
     _calculate_roas_distribution_for_allocation,
@@ -25,6 +26,7 @@ from pymc_marketing.mmm.utility import (
     adjusted_value_at_risk_score,
     average_response,
     conditional_value_at_risk,
+    diversification_ratio,
     mean_tightness_score,
     portfolio_entropy,
     raroc,
@@ -305,6 +307,52 @@ def test_covariance_matrix_matches_numpy(data):
         atol=1e-8,
         err_msg=f"Mismatch for input data:\n{data}",
     )
+
+
+@pytest.mark.parametrize(
+    "data, budgets",
+    [
+        (np.array([[1.0, 2.0], [3.0, 5.0], [5.0, 4.0]]), np.array([1.0, 3.0])),
+        (
+            rng.normal(size=(500, 3)) @ np.array([[1, 0.5, 0], [0, 1, 0.2], [0, 0, 1]]),
+            np.array([1.0, 2.0, 3.0]),
+        ),
+        (rng.normal(size=(200, 4)), np.array([10.0, 20.0, 30.0, 40.0])),
+    ],
+)
+def test_diversification_ratio_matches_numpy(data, budgets):
+    """(w . sigma).sum() / sqrt(w' Sigma w) against a numpy reference."""
+    pt_data = ptx.xtensor("pt_data", dims=("sample", "channel"))
+    pt_budgets = ptx.xtensor("pt_budgets", dims=("channel",))
+    dr_func = function(
+        [pt_data, pt_budgets], diversification_ratio(pt_data, pt_budgets)
+    )
+
+    weights = budgets / budgets.sum()
+    numpy_result = (weights * data.std(axis=0, ddof=1)).sum() / np.sqrt(
+        weights @ np.cov(data, rowvar=False) @ weights
+    )
+
+    np.testing.assert_allclose(dr_func(data, budgets), numpy_result, rtol=1e-6)
+
+
+def test_diversification_ratio_independent_assets_is_sqrt_n():
+    """Uncorrelated assets with equal volatility and equal weights give sqrt(n)."""
+    # Columns 1.. of a Hadamard matrix sum to zero and are mutually orthogonal
+    # with equal norms, so the covariance matrix is a multiple of the identity.
+    data = hadamard(8)[:, 1:].astype(float)
+    budgets = np.ones(data.shape[1])
+    result = diversification_ratio(
+        as_xtensor(data, dims=("sample", "channel")),
+        as_xtensor(budgets, dims=("channel",)),
+    ).eval()
+    np.testing.assert_allclose(result, np.sqrt(data.shape[1]), rtol=1e-6)
+
+
+def test_diversification_ratio_rejects_1d_samples(test_data):
+    samples, budgets = test_data
+    with pytest.raises(ValueError, match="2D tensor variable"):
+        diversification_ratio(samples, budgets)
 
 
 # Test Cases
