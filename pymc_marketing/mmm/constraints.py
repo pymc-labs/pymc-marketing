@@ -116,6 +116,7 @@ def compile_constraints_for_scipy(constraints: list[Constraint] | dict, optimize
 
         compiled_constraints.append(
             {
+                "key": constraint.key,
                 "type": constraint.constraint_type,
                 "fun": compiled_fun,
                 "jac": compiled_jac,
