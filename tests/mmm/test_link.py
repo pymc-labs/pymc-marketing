@@ -36,6 +36,7 @@ from pymc_marketing.mmm.link import (
 from pymc_marketing.mmm.mmm import MMM, BudgetOptimizerWrapper
 from pymc_marketing.mmm.scaling import DataDerivedScaling, FixedScaling, Scaling
 from pymc_marketing.serialization import serialization
+from pymc_marketing.special_priors import LogNormalPrior
 
 
 def _make_positive_panel(
@@ -220,6 +221,27 @@ class TestLinkSpec:
         # since the check also runs on the load path.
         assert "idata_to_init_kwargs" in message
 
+    def test_identity_error_names_lognormal_prior_as_class_not_distribution(self):
+        # 'LogNormalPrior' is a special_priors class admitted by class name,
+        # not a distribution accepted by Prior(...); the message must not
+        # present it inside the distribution-name list.
+        with pytest.raises(ValueError) as excinfo:
+            LinkSpec.validate_likelihood_compatibility(
+                LinkFunction.IDENTITY, Prior("LogNormal", sigma=1)
+            )
+        message = str(excinfo.value)
+        assert "pymc_marketing.special_priors.LogNormalPrior" in message
+        assert "'LogNormalPrior'" not in message
+
+    def test_identity_warning_names_lognormal_prior_as_class_not_distribution(self):
+        with pytest.warns(UserWarning) as records:
+            LinkSpec.validate_likelihood_compatibility(
+                LinkFunction.IDENTITY, Prior("Weibull", alpha=1, beta=1)
+            )
+        message = str(records[0].message)
+        assert "pymc_marketing.special_priors.LogNormalPrior" in message
+        assert "'LogNormalPrior'" not in message
+
     def test_validate_likelihood_compat_identity_looks_through_censored(self):
         with warnings.catch_warnings():
             warnings.simplefilter("error")
@@ -256,6 +278,23 @@ class TestLinkSpec:
             _distribution_name(Censored(Prior("Normal", sigma=1), lower=0)) == "Normal"
         )
         assert _distribution_name(Unnamed()) == "Unnamed"
+
+    def test_validate_likelihood_compat_identity_accepts_lognormal_prior(self):
+        # LogNormalPrior's mean is the response-scale expectation, so it is
+        # admitted under identity via its class name (#2858).
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            LinkSpec.validate_likelihood_compatibility(
+                LinkFunction.IDENTITY, LogNormalPrior(std=1.0)
+            )
+
+    def test_validate_likelihood_compat_log_rejects_lognormal_prior(self):
+        # Under the log link mu is a log-scale predictor, not a
+        # response-scale mean, so LogNormalPrior stays rejected.
+        with pytest.raises(ValueError, match="not compatible with link='log'"):
+            LinkSpec.validate_likelihood_compatibility(
+                LinkFunction.LOG, LogNormalPrior(std=1.0)
+            )
 
     def test_validate_likelihood_compat_log_lognormal(self):
         LinkSpec.validate_likelihood_compatibility(
@@ -418,6 +457,49 @@ class TestBuildModelDeterministics:
         X, y = _make_positive_panel()
         with pytest.raises(ValueError, match="not compatible with link='identity'"):
             mmm.build_model(X, y)
+
+    def test_build_model_identity_lognormal_prior_builds(self, mock_pymc_sample):
+        # Regression test for #2858: LogNormalPrior takes mu on the response
+        # scale, so it must be admitted under link='identity' and build an
+        # observed variable without warnings.
+        mmm = _make_mmm(
+            link="identity",
+            model_config={
+                "likelihood": LogNormalPrior(
+                    std=Prior("HalfNormal", sigma=0.5, dims=("country",)),
+                    dims=("date", "country"),
+                ),
+            },
+        )
+        X, y = _make_positive_panel()
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", UserWarning)
+            mmm.build_model(X, y)
+        assert "y" in mmm.model.named_vars
+        assert np.isfinite(mmm.model.point_logps()["y"])
+
+    def test_build_model_identity_lognormal_prior_negative_mu_ninf(
+        self, mock_pymc_sample
+    ):
+        # A linear predictor that dips below zero must be rejected with -inf,
+        # not folded to |mu| (#2858).
+        mmm = _make_mmm(
+            link="identity",
+            model_config={
+                "likelihood": LogNormalPrior(
+                    std=Prior("HalfNormal", sigma=0.5, dims=("country",)),
+                    dims=("date", "country"),
+                ),
+            },
+        )
+        X, y = _make_positive_panel()
+        mmm.build_model(X, y)
+
+        bad_point = mmm.model.initial_point()
+        bad_point["intercept_contribution"] = np.full_like(
+            bad_point["intercept_contribution"], -50.0
+        )
+        assert np.isneginf(mmm.model.point_logps(point=bad_point)["y"])
 
     def test_build_model_identity_no_y_original_scale(self, mock_pymc_sample):
         mmm = _make_mmm(link="identity")
