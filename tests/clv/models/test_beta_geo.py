@@ -1680,3 +1680,70 @@ class TestPersistence:
         )
         with pytest.raises(ValueError, match="built with different data"):
             model._prepare_fit(data=changed)
+
+    def test_shared_group_referenced_by_multiple_recipes(
+        self, covariate_data, tmp_path
+    ):
+        """Several branches referencing one data variable share a single pmd.Data."""
+        shared = xr.Dataset(
+            {
+                "shared_data": (
+                    ("customer_id", "shared_covariate"),
+                    np.random.default_rng(7).normal(size=(len(covariate_data), 1)),
+                )
+            },
+            coords={
+                "customer_id": covariate_data["customer_id"].to_numpy(),
+                "shared_covariate": ["income"],
+            },
+        )
+        shared["T"] = ("customer_id", covariate_data["T"].to_numpy())
+        shared["recency"] = ("customer_id", covariate_data["recency"].to_numpy())
+        shared["frequency"] = ("customer_id", covariate_data["frequency"].to_numpy())
+
+        def dot(name):
+            return Dot(
+                var_name="shared_data",
+                name=name,
+                prior=Prior("Normal", dims="shared_covariate"),
+            )
+
+        recipes = {
+            "alpha": Named(
+                "alpha",
+                Parameter("alpha_scale", prior=Prior("HalfFlat"), xdist=False)
+                * Transform(-dot("purchase_coefficient_alpha"), func=_ptx.math.exp),
+                dims="customer_id",
+            ),
+            "a": Named(
+                "a",
+                Parameter("a_scale", prior=Prior("Beta", alpha=2, beta=3), xdist=False)
+                * Transform(dot("dropout_coefficient_a"), func=_ptx.math.exp),
+                dims="customer_id",
+            ),
+            "b": Named(
+                "b",
+                Parameter("b_scale", prior=Prior("Beta", beta=3, alpha=2), xdist=False)
+                * Transform(dot("dropout_coefficient_b"), func=_ptx.math.exp),
+                dims="customer_id",
+            ),
+        }
+        model = BetaGeoModel(model_config=recipes)
+        model.build_model(data=shared)
+
+        # guarded registration: one shared variable for all three branches
+        assert [k for k in model.model.named_vars if k == "shared_data"] == [
+            "shared_data"
+        ]
+        fit_data = model.create_fit_data_group()
+        assert "shared_data" in fit_data.data_vars
+
+        _mock_recipe_fit(model)
+        path = tmp_path / "shared_group"
+        model.save(path)
+        loaded = BetaGeoModel.load(path)
+        assert [k for k in loaded.model.named_vars if k == "shared_data"] == [
+            "shared_data"
+        ]
+        # 2-D bound variables persist in the modeling dataset (not the frame)
+        assert "shared_data" in loaded._modeling_data.data_vars
