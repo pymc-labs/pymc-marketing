@@ -69,7 +69,7 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :link: ../notebooks/mmm/mmm_cost_per_unit.html
 :::
 
-:::{grid-item-card} We spent more. We bought fewer ads.
+:::{grid-item-card} Why and how to account for media inflation in your media mix model (MMM)
 :img-top: ../gallery/images/mmm_media_inflation.png
 :link: ../notebooks/mmm/mmm_media_inflation.html
 :::
