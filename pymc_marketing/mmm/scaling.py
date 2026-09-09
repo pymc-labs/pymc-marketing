@@ -135,23 +135,42 @@ class VariableScaling(SerializableBaseModel, ABC):
 class DataDerivedScaling(VariableScaling):
     """Scale by a statistic of the data, computed at fit time.
 
+    Both reductions are **signed**: ``method="max"`` is ``data.max(...)`` and
+    ``method="mean"`` is ``data.mean(...)``, not the maximum or mean of the
+    absolute values.  Unlike :class:`FixedScaling`, which requires positive
+    values, nothing constrains the sign or magnitude of a computed scale, so
+    two cases are reachable and neither is reported:
+
+    * A slice whose reduction is **negative** gives a scale that flips the
+      sign of the scaled data.  The round trip still closes, because
+      ``original_scale_transform`` multiplies by the same scale again, but
+      the flip is invisible.
+    * A slice whose reduction is **exactly zero** gives a scale of zero, so
+      every scaled value is NaN or infinite.  ``MMM.build_model`` rewrites
+      those to ``0.0``, which replaces that slice's data with zeros rather
+      than scaling it.  Under a likelihood with positive support this raises
+      at build time; under ``Normal`` it fits on the zeros silently.
+
+    An all-zero target reaches the second case, which is what
+    ``sample_prior_predictive`` and ``fit`` produce when no ``y`` is given.
+
     Parameters
     ----------
     method : ``"max"`` | ``"mean"``
-        The scaling method.
+        The scaling method.  Signed, see above.
     dims : str or tuple of str
         The dimensions to perform the operation through (``"date"`` is always
         included implicitly).
 
     Examples
     --------
-    Max-absolute scaling (default behaviour):
+    Max scaling (default behaviour):
 
     .. code-block:: python
 
         DataDerivedScaling(method="max", dims=())
 
-    Mean-absolute scaling across a custom dimension:
+    Mean scaling across a custom dimension:
 
     .. code-block:: python
 
