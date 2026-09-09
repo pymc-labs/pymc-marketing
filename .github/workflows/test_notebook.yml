@@ -12,6 +12,7 @@ on:
      - "docs/source/notebooks/**.ipynb"
      - "!docs/source/notebooks/mmm/**.ipynb"
      - "!docs/source/notebooks/*/dev/**.ipynb"
+     - "docs/source/guide/**.ipynb"
   push:
     branches: [main, v1.0.0]
     paths:
@@ -23,6 +24,7 @@ on:
      - "docs/source/notebooks/**.ipynb"
      - "!docs/source/notebooks/mmm/**.ipynb"
      - "!docs/source/notebooks/*/dev/**.ipynb"
+     - "docs/source/guide/**.ipynb"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
