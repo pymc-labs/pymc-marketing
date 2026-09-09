@@ -1,0 +1,36 @@
+name: Issue automation security tests
+
+on:
+  pull_request:
+    paths:
+      - .github/scripts/issue_automation.py
+      - .github/scripts/test_issue_automation.py
+      - .github/workflows/pr-labeler.yml
+      - .github/workflows/triage.yml
+      - .github/workflows/duplicate-issues.yml
+      - .github/workflows/issue-automation-tests.yml
+  push:
+    branches: [main]
+    paths:
+      - .github/scripts/issue_automation.py
+      - .github/scripts/test_issue_automation.py
+      - .github/workflows/issue-automation-tests.yml
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+          sparse-checkout: |
+            .github/scripts
+            .github/workflows
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - run: pip install PyYAML==6.0.3
+      - run: python -m unittest discover -s .github/scripts -p test_issue_automation.py -v
