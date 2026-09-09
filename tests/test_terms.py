@@ -31,8 +31,10 @@ from pymc_marketing.terms import (
     Dot,
     Intercept,
     ModelTerm,
+    Named,
     Parameter,
     Product,
+    Ref,
     Sum,
     Transform,
     build_param,
@@ -720,3 +722,112 @@ def test_restored_term_builds(simple_ds):
     with pm.Model(coords=coords):
         register_data(restored, ds=simple_ds)
         assert isinstance(build_param(restored), PTVariable)
+
+
+def test_named_builds_pmd_deterministic():
+    coords = {"product": ["p1", "p2"]}
+    with pm.Model(coords=coords) as model:
+        term = Named(
+            "sigma",
+            Parameter("scale", prior=Prior("HalfNormal", dims="product")),
+            dims="product",
+        )
+        term.create_variable()
+
+    assert "sigma" in model.named_vars
+    assert model.named_vars_to_dims["sigma"] == ("product",)
+
+
+def test_named_dims_none_scalar():
+    with pm.Model() as model:
+        term = Named(
+            "sigma",
+            Parameter("scale", prior=Prior("HalfNormal")),
+            dims=None,
+        )
+        term.create_variable()
+
+    assert "sigma" in model.named_vars
+    assert model.named_vars_to_dims["sigma"] == ()
+
+
+def test_named_delegates_lifecycle(simple_ds):
+    term = Named(
+        "effect",
+        Transform(
+            Dot(var_name="x", prior=Prior("Normal", dims="feature")),
+            func=ptx.math.exp,
+        ),
+        dims="obs",
+    )
+    coords = term.get_coords(simple_ds)
+    assert "feature" in coords
+
+    with pm.Model(coords=coords) as model:
+        term.register_data(simple_ds)
+        term.create_variable()
+
+    assert "effect" in model.named_vars
+    assert model.named_vars_to_dims["effect"] == ("obs",)
+
+    ds2 = simple_ds.copy()
+    ds2["x"] = xr.DataArray(
+        np.roll(simple_ds["x"].values, 1, axis=0), dims=("obs", "feature")
+    )
+    term.set_data(ds2, model=model)
+    assert np.allclose(model["x"].get_value(), ds2["x"].values)
+
+
+def test_ref_resolves_built_variable():
+    coords = {"product": ["p1", "p2"]}
+    with pm.Model(coords=coords) as model:
+        scale = Named(
+            "a_scale",
+            Parameter("phi", prior=Prior("Uniform", lower=0, upper=1, dims="product")),
+            dims="product",
+        )
+        scale.create_variable()
+
+        effect = Named(
+            "a",
+            Ref("a_scale")
+            * Parameter("kappa", prior=Prior("HalfNormal", sigma=1, dims="product")),
+            dims="product",
+        )
+        effect.create_variable()
+
+    assert "a_scale" in model.named_vars
+    assert "a" in model.named_vars
+    assert model.named_vars_to_dims["a"] == ("product",)
+
+
+def test_ref_missing_raises():
+    with pm.Model():
+        ref = Ref("missing")
+        with pytest.raises(KeyError):
+            ref.create_variable()
+
+
+def test_serialize_named_roundtrip():
+    term = Named(
+        "alpha",
+        Parameter("alpha_scale", prior=Prior("HalfFlat"))
+        * Transform(
+            Dot(
+                var_name="purchase_data",
+                name="purchase_coefficient_alpha",
+                prior=Prior("Normal", mu=0, sigma=1, dims="purchase_covariate"),
+            ),
+            func=ptx.math.exp,
+        ),
+        dims="customer_id",
+    )
+    restored = serialization.deserialize(serialization.serialize(term))
+    assert restored == term
+    assert restored.dims == "customer_id"
+
+
+def test_serialize_ref_roundtrip():
+    term = Ref("a_scale")
+    restored = serialization.deserialize(serialization.serialize(term))
+    assert restored == term
