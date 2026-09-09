@@ -60,6 +60,24 @@ Rules
 - ``build_param`` accepts ``VariableFactory``, ``ModelTerm``, ``xr.DataArray``,
   or numeric literal.  ``Prior.create_variable`` is called with ``xdist=True``.
 
+Serialization
+^^^^^^^^^^^^^
+Built-in terms serialize through :mod:`pymc_marketing.serialization`
+(``to_dict`` / ``from_dict`` are registered), so recipes stored in
+``model_config`` survive ``fit()`` (attrs are JSON-serialized at sampling
+time) and ``save()`` / ``load()``. Custom terms are part of the same
+contract: decorate them with ``@serialization.register`` and implement
+``to_dict`` / ``from_dict`` --- serializing a composition that contains an
+unregistered term raises
+:class:`~pymc_marketing.serialization.SerializationError`.
+
+Children of composed terms (``Sum``, ``Product``, ``Transform``) must be
+registered terms, ``VariableFactory`` (``Prior``, ...), ``xr.DataArray``,
+``DeferredFactory``, or numeric literals. ``Transform`` functions serialize
+by name and are resolved with ``pymc_extras.prior._get_transform``:
+``pytensor.xtensor.math`` / ``pytensor.xtensor.linalg`` functions, or
+transforms registered with ``pymc_extras.prior.register_tensor_transform``.
+
 ``Parameter`` and ``Intercept``
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 These are the same kind of term: a named free parameter whose shape
@@ -246,6 +264,7 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from typing import Any, cast
 
+import numpy as np
 import pymc as pm
 import pymc.dims as pmd
 import pytensor.tensor as pt
@@ -253,10 +272,20 @@ import pytensor.xtensor as ptx
 import xarray as xr
 from pymc_extras.deserialize import DeserializableError
 from pymc_extras.deserialize import deserialize as pymc_extras_deserialize
-from pymc_extras.prior import CUSTOM_TRANSFORMS, Prior, VariableFactory
+from pymc_extras.prior import (
+    CUSTOM_TRANSFORMS,
+    Prior,
+    UnknownTransformError,
+    VariableFactory,
+    _get_transform,
+)
 from pytensor.xtensor.type import as_xtensor
 
-from pymc_marketing.serialization import SerializationError, serialization
+from pymc_marketing.serialization import (
+    DeferredFactory,
+    SerializationError,
+    serialization,
+)
 
 __all__ = [
     "Dot",
@@ -274,25 +303,20 @@ __all__ = [
     "set_data",
 ]
 
-# Modules searched when serializing ``Transform`` functions. Registered
-# custom transforms (``pymc_extras.prior.register_tensor_transform``) take
-# precedence; otherwise the function is looked up by name in these modules.
-_TRANSFORM_MODULES = ("math", "linalg")
-
 
 def _func_name(func: Callable) -> str:
-    """Resolve a transform function to its serializable name."""
+    """Resolve a transform function to its serializable name.
+
+    Scans the same modules, in the same order, as
+    ``pymc_extras.prior._get_transform`` so serialized names round-trip.
+    """
     for name, registered in CUSTOM_TRANSFORMS.items():
         if registered is func:
             return name
-    for module_name in _TRANSFORM_MODULES:
-        module = getattr(ptx, module_name)
+    for module in (ptx.math, ptx.linalg, ptx):
         for attr in dir(module):
             if getattr(module, attr, None) is func:
                 return attr
-    name = getattr(func, "__name__", None)
-    if name is not None and getattr(ptx, name, None) is func:
-        return name
     raise SerializationError(
         f"Function {func!r} is not serializable. Use a "
         "pytensor.xtensor.math function, or register it with "
@@ -300,48 +324,57 @@ def _func_name(func: Callable) -> str:
     )
 
 
-def _lookup_func(name: str) -> Callable:
-    """Resolve a serialized transform function name."""
-    if name in CUSTOM_TRANSFORMS:
-        return CUSTOM_TRANSFORMS[name]
-    for module_name in _TRANSFORM_MODULES:
-        try:
-            return getattr(getattr(ptx, module_name), name)
-        except AttributeError:
-            continue
+def _resolve_func(name: str) -> Callable:
+    """Resolve a serialized transform function name to a live callable."""
     try:
-        return getattr(ptx, name)
-    except AttributeError as err:
+        func = _get_transform(name, xdist=True)
+    except UnknownTransformError as err:
         raise SerializationError(
             f"Unknown serialized function {name!r}. Use a "
             "pytensor.xtensor.math function, or register it with "
             "pymc_extras.prior.register_tensor_transform."
         ) from err
+    if name.startswith("_") or not callable(func):
+        raise SerializationError(
+            f"Serialized function name {name!r} must resolve to a callable "
+            f"pytensor function, got {func!r}."
+        )
+    return func
 
 
 def _serialize_child(value: Any) -> Any:
     """Serialize a child of a composed term to a JSON-safe value.
 
-    Numeric literals become ``{"__type__": "literal", ...}`` wrappers;
-    variable factories that are not registered in the type registry
-    (``Prior``, ``Censored``, ...) serialize via their own ``to_dict``.
+    Numeric literals (bools, ints, floats, numpy scalars) become
+    ``{"__literal__": value}`` wrappers; registered terms serialize
+    through the type registry; pymc-extras objects (``Prior``,
+    ``Censored``, ...), ``xr.DataArray``, and ``DeferredFactory``
+    serialize via their own ``to_dict``.
     """
-    if isinstance(value, (int, float)) and not isinstance(value, bool):
-        return {"__type__": "literal", "value": value}
-    try:
+    if isinstance(value, (bool, int, float)):
+        return {"__literal__": value}
+    if isinstance(value, np.bool_):
+        return {"__literal__": bool(value)}
+    if isinstance(value, np.number):
+        return {"__literal__": value.item()}
+    if serialization.is_registered(value):
         return serialization.serialize(value)
-    except KeyError:
-        if hasattr(value, "to_dict"):
-            return value.to_dict()
-        raise
+    if isinstance(value, (VariableFactory, xr.DataArray, DeferredFactory)):
+        return value.to_dict()
+    raise SerializationError(
+        f"Cannot serialize term child of type {type(value).__name__}. "
+        "Register it with @serialization.register and implement "
+        "to_dict/from_dict, or use a supported child type "
+        "(VariableFactory, xr.DataArray, DeferredFactory, numeric literal)."
+    )
 
 
 def _deserialize_child(value: Any) -> Any:
     """Deserialize a serialized term child back to a live object."""
     if isinstance(value, dict):
-        if value.get("__type__") == "literal":
-            return value["value"]
-        if "__type__" in value:
+        if "__literal__" in value:
+            return value["__literal__"]
+        if value.get("__deferred__") or "__type__" in value:
             return serialization.deserialize(value)
         try:
             return pymc_extras_deserialize(value)
@@ -634,7 +667,11 @@ class Parameter(ModelTerm):
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> Parameter:
         """Reconstruct a parameter from its serialized form."""
-        return cls(name=data["name"], prior=_deserialize_child(data["prior"]))
+        prior = data.get("prior")
+        return cls(
+            name=data["name"],
+            prior=_deserialize_child(prior) if prior is not None else Prior("Normal"),
+        )
 
 
 @serialization.register
@@ -754,7 +791,7 @@ class Dot(ModelTerm):
         return cls(
             var_name=data["var_name"],
             prior=_deserialize_child(data["prior"]),
-            name=data["name"],
+            name=data.get("name"),
         )
 
 
@@ -774,7 +811,7 @@ class Transform(ModelTerm):
         (``ModelTerm``, ``Sum``, ``float``, ``Prior``, etc.).
     func : Callable
         A pytensor function applied to ``build_param(inner)``.
-        E.g., ``pytensor.xtensor.math.exp``, ``pt.math.sigmoid``.
+        E.g., ``pytensor.xtensor.math.exp``, ``ptx.math.sigmoid``.
 
     Examples
     --------
@@ -829,7 +866,7 @@ class Transform(ModelTerm):
         """Reconstruct a transform from its serialized form."""
         return cls(
             inner=_deserialize_child(data["inner"]),
-            func=_lookup_func(data["func"]),
+            func=_resolve_func(data["func"]),
         )
 
 

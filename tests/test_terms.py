@@ -14,6 +14,7 @@
 
 """Tests for pymc_marketing.terms."""
 
+import json
 from dataclasses import dataclass
 
 import numpy as np
@@ -23,10 +24,16 @@ import pytensor.tensor as pt
 import pytensor.xtensor as ptx
 import pytest
 import xarray as xr
-from pymc_extras.prior import CUSTOM_TRANSFORMS, Prior, register_tensor_transform
+from pymc_extras.prior import CUSTOM_TRANSFORMS, Prior
 from pytensor.graph.basic import Variable as PTVariable
 
-from pymc_marketing.serialization import SerializationError, serialization
+from pymc_marketing.model_builder import ModelBuilder
+from pymc_marketing.r2d2 import R2D2
+from pymc_marketing.serialization import (
+    DeferredFactory,
+    SerializationError,
+    serialization,
+)
 from pymc_marketing.terms import (
     Dot,
     Intercept,
@@ -699,18 +706,15 @@ def test_serialize_unregistered_func_raises():
         serialization.serialize(Transform(Parameter("x"), func=pt.sqrt))
 
 
-def test_serialize_registered_custom_transform_roundtrip():
+def test_serialize_registered_custom_transform_roundtrip(monkeypatch):
     def square(x):
         return x**2
 
-    register_tensor_transform("square", square)
-    try:
-        term = Transform(Parameter("x"), func=square)
-        restored = serialization.deserialize(serialization.serialize(term))
-        assert restored == term
-        assert restored.func is square
-    finally:
-        CUSTOM_TRANSFORMS.pop("square")
+    monkeypatch.setitem(CUSTOM_TRANSFORMS, "square", square)
+    term = Transform(Parameter("x"), func=square)
+    restored = serialization.deserialize(serialization.serialize(term))
+    assert restored == term
+    assert restored.func is square
 
 
 def test_restored_term_builds(simple_ds):
@@ -720,3 +724,167 @@ def test_restored_term_builds(simple_ds):
     with pm.Model(coords=coords):
         register_data(restored, ds=simple_ds)
         assert isinstance(build_param(restored), PTVariable)
+
+
+def test_serialize_shared_r2d2_decomposition_through_parameter():
+    """Regression: R2D2 splits wrapped in terms must share one decomposition.
+
+    Each deserialized R2D2Split otherwise builds its own decomposition, and
+    the second ``create_variable`` call collides on the ``r2d2_*`` names.
+    """
+    r2d2 = R2D2(
+        r2=Prior("Beta", alpha=2, beta=2),
+        total_sigma=Prior("HalfNormal"),
+        dims={"control": "control", "fourier": "fourier"},
+    )
+    config = {
+        "a": Parameter("a", prior=r2d2.split("control")),
+        "b": Parameter("b", prior=r2d2.split("fourier")),
+    }
+    serialized = serialization.serialize_model_config(config)
+    loaded = serialization.deserialize_model_config(json.loads(json.dumps(serialized)))
+
+    assert loaded["a"].prior.decomposition is loaded["b"].prior.decomposition
+
+    with pm.Model(coords={"control": ["c1", "c2"], "fourier": ["f1", "f2"]}) as model:
+        loaded["a"].prior.create_variable("a_coef")
+        loaded["b"].prior.create_variable("b_coef")
+        assert model["a_coef"] is not None
+        assert model["b_coef"] is not None
+
+
+@pytest.mark.parametrize(
+    "literal",
+    [
+        True,
+        False,
+        5,
+        2.5,
+        np.int64(3),
+        np.float64(2.5),
+        np.bool_(True),
+    ],
+)
+def test_serialize_json_roundtrip_with_numpy_literals(literal):
+    """Term children that are numpy scalars or bools survive a JSON dump."""
+    term = Parameter("a") * literal
+    serialized = json.dumps(serialization.serialize(term))
+    restored = serialization.deserialize(json.loads(serialized))
+
+    assert restored == term
+    assert restored.right == literal
+    assert not isinstance(restored.right, (np.number, np.bool_))
+
+
+def test_serialize_model_config_with_term_roundtrip():
+    """Terms in model_config round-trip through serialize/deserialize_model_config."""
+    config = {
+        "mu": Intercept(name="a")
+        + Dot(var_name="x", prior=Prior("Normal", dims="feature")),
+        "sigma": Transform(Parameter("sigma"), func=ptx.math.exp),
+    }
+    serialized = serialization.serialize_model_config(config)
+    json.dumps(serialized)
+    loaded = serialization.deserialize_model_config(json.loads(json.dumps(serialized)))
+
+    assert loaded["mu"] == config["mu"]
+    assert loaded["sigma"] == config["sigma"]
+
+
+def test_deserialize_unknown_func_raises():
+    term = Transform(Parameter("x"), func=ptx.math.exp)
+    data = serialization.serialize(term)
+    data["func"] = "nope"
+    with pytest.raises(SerializationError, match="Unknown serialized function"):
+        serialization.deserialize(data)
+
+
+def test_deserialize_non_callable_func_raises():
+    """Function names from a file must resolve to callables, not modules."""
+    term = Transform(Parameter("x"), func=ptx.math.exp)
+    data = serialization.serialize(term)
+    data["func"] = "basic"
+    with pytest.raises(SerializationError, match="callable"):
+        serialization.deserialize(data)
+
+
+@dataclass
+class UnregisteredWithToDict(ModelTerm):
+    """Custom term with to_dict but no @serialization.register."""
+
+    def to_dict(self) -> dict:
+        return {"k": 3}
+
+
+@dataclass
+class UnregisteredBare(ModelTerm):
+    """Custom term without to_dict and no @serialization.register."""
+
+
+@pytest.mark.parametrize("term", [UnregisteredWithToDict(), UnregisteredBare()])
+def test_serialize_unregistered_custom_term_raises(term):
+    """Unregistered custom terms fail at serialize time, not load time."""
+    with pytest.raises(SerializationError, match=r"serialization\.register"):
+        serialization.serialize(Sum(terms=[term]))
+
+
+def test_serialize_deferred_factory_roundtrip():
+    deferred = DeferredFactory(factory="builtins.dict", kwargs={"a": 1})
+    term = Parameter("a", prior=deferred)
+    restored = serialization.deserialize(serialization.serialize(term))
+    assert restored.prior == deferred
+
+
+def test_serialize_data_array_child_roundtrip():
+    """xr.DataArray children serialize via to_dict and load via pymc-extras."""
+    da = xr.DataArray([1.0, 2.0], dims="d")
+    term = Parameter("a", prior=da)
+    serialized = serialization.serialize(term)
+    json.dumps(serialized)
+    restored = serialization.deserialize(json.loads(json.dumps(serialized)))
+    assert restored.prior.equals(da)
+
+
+class _TermAttrsModel(ModelBuilder):
+    """Minimal builder to exercise create_idata_attrs with terms in config."""
+
+    _model_type = "terms_attrs_test"
+    version = "0.1"
+
+    @property
+    def default_model_config(self) -> dict:
+        return {"mu": None}
+
+    @property
+    def default_sampler_config(self) -> dict:
+        return {}
+
+    @property
+    def output_var(self) -> str:
+        return "y"
+
+    @property
+    def _serializable_model_config(self) -> dict:
+        return self.model_config
+
+    def build_model(self, X=None, y=None, **kwargs):
+        pass
+
+    def build_from_idata(self, idata):
+        pass
+
+    def _data_setter(self, X, y=None):
+        pass
+
+
+def test_model_builder_attrs_roundtrip_with_term():
+    """Terms in model_config survive the create_idata_attrs JSON dump."""
+    term = Intercept(name="a") + Dot(
+        var_name="x", prior=Prior("Normal", dims="feature")
+    )
+    model = _TermAttrsModel(model_config={"mu": term})
+
+    attrs = model.create_idata_attrs()
+    loaded = serialization.deserialize_model_config(json.loads(attrs["model_config"]))
+
+    assert loaded["mu"] == term
