@@ -249,6 +249,10 @@ Gotchas
           model = pm.modelcontext(None)
           unique = list(dict.fromkeys(ds[self.data_source].values))
           model.add_coords({self.data_source: unique})
+- ``Named`` builds a ``pmd.Deterministic``, so its expression leaves must
+  be dims-native: ``Parameter`` / ``Prior`` with ``xdist=True`` or
+  ``pytensor.xtensor`` expressions. Plain-tensor leaves (``xdist=False``)
+  will fail when the deterministic is built.
 - The built-in terms serialize via ``pymc_marketing.serialization``
   (``to_dict`` / ``from_dict`` are registered), so recipes stored in
   ``model_config`` survive ``fit()`` (attrs are JSON-serialized at
@@ -291,8 +295,10 @@ __all__ = [
     "Dot",
     "Intercept",
     "ModelTerm",
+    "Named",
     "Parameter",
     "Product",
+    "Ref",
     "Sum",
     "Transform",
     "build_param",
@@ -882,6 +888,117 @@ class Transform(ModelTerm):
             inner=_deserialize_child(data["inner"]),
             func=_resolve_func(data["func"]),
         )
+
+
+@serialization.register
+@dataclass
+class Named(ModelTerm):
+    """Compose an expression into a named deterministic variable.
+
+    The inner expression is built lazily within the model context:
+    ``build_param`` produces the value and ``pmd.Deterministic`` stores it
+    under ``name``. Coordinates, data registration, and data updating
+    delegate to the inner expression. Useful for naming intermediate
+    effects (scales, link outputs) that should appear in the posterior.
+
+    The expression leaves must be dims-native: ``Parameter`` / ``Prior``
+    with ``xdist=True`` or ``pytensor.xtensor`` expressions.
+
+    Parameters
+    ----------
+    name : str
+        Name of the deterministic variable.
+    expr : Any
+        Inner expression accepted by ``build_param``.
+    dims : str or tuple of str, optional
+        Dimensions for the deterministic variable.
+
+    Examples
+    --------
+    .. code-block:: python
+
+        from pymc_extras.prior import Prior
+        from pymc_marketing.terms import Named, Parameter
+
+        scale = Named(
+            "scale",
+            Parameter("scale", prior=Prior("HalfNormal"), dims="product"),
+            dims="product",
+        )
+
+        # an effect that references another built variable
+        effect = Named("effect", Ref("scale") * other_term, dims="customer_id")
+    """
+
+    name: str
+    expr: Any
+    dims: str | tuple[str, ...] | None = None
+
+    def get_coords(self, ds: xr.Dataset) -> dict[str, Any]:
+        """Collect coordinates from the inner expression."""
+        return get_coords(self.expr, ds)
+
+    def register_data(self, ds: xr.Dataset) -> None:
+        """Register shared data for the inner expression."""
+        register_data(self.expr, ds=ds)
+
+    def set_data(self, ds: xr.Dataset, model: pm.Model | None = None) -> None:
+        """Update shared data for the inner expression."""
+        set_data(self.expr, ds=ds, model=model)
+
+    def create_variable(self) -> pt.TensorVariable:
+        """Build the named deterministic from the inner expression."""
+        return pmd.Deterministic(self.name, build_param(self.expr), dims=self.dims)
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize the name, expression, and dims."""
+        data: dict[str, Any] = {
+            "name": self.name,
+            "expr": _serialize_child(self.expr),
+        }
+        if self.dims is not None:
+            data["dims"] = self.dims
+        return data
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> Named:
+        """Reconstruct a named term from its serialized form."""
+        return cls(
+            name=data["name"],
+            expr=_deserialize_child(data["expr"]),
+            dims=data.get("dims"),
+        )
+
+
+@serialization.register
+@dataclass
+class Ref(ModelTerm):
+    """Reference an already-built named variable in the active model.
+
+    Lets an effect expression composed outside the model depend on another
+    built effect (e.g. ``a`` on the ``a_scale`` deterministic) without
+    recreating its variables.
+
+    Parameters
+    ----------
+    name : str
+        Name of the referenced variable.
+    """
+
+    name: str
+
+    def create_variable(self) -> pt.TensorVariable:
+        """Resolve the referenced variable from the active model."""
+        return pm.modelcontext(None)[self.name]
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize the referenced name."""
+        return {"name": self.name}
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> Ref:
+        """Reconstruct a reference from its serialized form."""
+        return cls(name=data["name"])
 
 
 def get_coords(param: Any, ds: xr.Dataset) -> dict[str, Any]:
