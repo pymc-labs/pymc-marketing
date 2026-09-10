@@ -273,6 +273,78 @@ class TestParamStability:
         cv_plot.param_stability()
         assert len(plt.get_fignums()) == 1
 
+    def test_constrained_layout_by_default(self, cv_plot):
+        from matplotlib.layout_engine import ConstrainedLayoutEngine
+
+        fig, _axes = cv_plot.param_stability()
+        assert isinstance(fig.get_layout_engine(), ConstrainedLayoutEngine)
+
+    def test_layout_override_is_honoured(self, cv_plot):
+        fig, _axes = cv_plot.param_stability(figure_kwargs={"layout": "none"})
+        assert fig.get_layout_engine() is None
+
+    def test_variable_label_clears_channel_labels(self, cv_results_idata):
+        """Regression test for the variable label overlapping the channel labels.
+
+        The variable label is drawn left-aligned and the channel labels
+        right-aligned inside the same narrow left column, so wide channel names
+        are what push them into each other. Uses the channel names and the call
+        signature from the MMM case study, which is where this was reported.
+        """
+        from pymc_marketing.mmm.plotting.cv import MMMCVPlotSuite
+
+        channels = sorted(
+            [
+                "Direct Mail",
+                "Insert",
+                "Newspaper",
+                "Online Display",
+                "Radio",
+                "Social Media",
+                "TV",
+            ]
+        )
+        cv_labels = cv_results_idata["/posterior"].dataset.coords["cv"].values
+        rng = np.random.default_rng(SEED)
+        posterior = xr.Dataset(
+            {
+                "saturation_beta": xr.DataArray(
+                    rng.normal(size=(len(cv_labels), 2, 50, len(channels))),
+                    dims=["cv", "chain", "draw", "channel"],
+                    coords={
+                        "cv": cv_labels,
+                        "chain": np.arange(2),
+                        "draw": np.arange(50),
+                        "channel": channels,
+                    },
+                )
+            }
+        )
+        suite = MMMCVPlotSuite(
+            xr.DataTree.from_dict(
+                {
+                    "/posterior": posterior,
+                    "/cv_metadata": cv_results_idata.cv_metadata,
+                }
+            )
+        )
+
+        fig, axes = suite.param_stability(
+            var_names=["saturation_beta"], figsize=(12, 9)
+        )
+        fig.canvas.draw()
+
+        label_ax = np.ravel(axes)[0]
+        var_label = next(
+            t for t in label_ax.texts if t.get_text().strip() == "saturation_beta"
+        )
+        channel_labels = [t for t in label_ax.texts if t.get_text().strip() in channels]
+        assert len(channel_labels) == len(channels)
+        assert not any(
+            var_label.get_window_extent().overlaps(t.get_window_extent())
+            for t in channel_labels
+        )
+
 
 @pytest.fixture(scope="module")
 def cv_results_idata_geo():
