@@ -42,6 +42,8 @@ from pymc_marketing.terms import (
     Product,
     Sum,
     Transform,
+    _deserialize_child,
+    _serialize_child,
     build_param,
     collect_coords,
     collect_terms,
@@ -888,3 +890,73 @@ def test_model_builder_attrs_roundtrip_with_term():
     loaded = serialization.deserialize_model_config(json.loads(attrs["model_config"]))
 
     assert loaded["mu"] == term
+
+
+def test_frozen_term_dataclass_walk_shares_decomposition():
+    """Frozen custom terms do not bypass decomposition sharing (serialization walk)."""
+    from dataclasses import dataclass
+
+    r2d2 = R2D2(
+        r2=Prior("Beta", mu=0.8, sigma=0.4),
+        total_sigma=Prior("LogNormal", mu=0, sigma=1),
+        dims={"control": "control", "fourier": "fourier"},
+    )
+
+    @serialization.register
+    @dataclass(frozen=True)
+    class FrozenHolder:
+        prior: object
+
+        def to_dict(self):
+            return {"prior": _serialize_child(self.prior)}
+
+        @classmethod
+        def from_dict(cls, data):
+            return cls(prior=_deserialize_child(data["prior"]))
+
+    config = {
+        "a": Parameter("a", prior=r2d2.split("control")),
+        "b": FrozenHolder(prior=r2d2.split("fourier")),
+    }
+    loaded = serialization.deserialize_model_config(
+        json.loads(json.dumps(serialization.serialize_model_config(config)))
+    )
+
+    assert loaded["a"].prior.decomposition is loaded["b"].prior.decomposition
+
+
+def test_resolve_func_allows_registered_underscore_name(monkeypatch):
+    """Explicitly registered underscore names are loadable (not module noise)."""
+
+    def _secret(x):
+        return x
+
+    monkeypatch.setitem(CUSTOM_TRANSFORMS, "_secret", _secret)
+    term = Transform(Parameter("x"), func=_secret)
+    restored = serialization.deserialize(serialization.serialize(term))
+    assert restored.func is _secret
+
+
+def test_deserialize_custom_factory_error_names_register_deserialization():
+    """A VariableFactory pymc-extras cannot read back fails with guidance."""
+
+    class WriteOnlyFactory:
+        dims = None
+
+        def create_variable(self, name, xdist=False):
+            return pt.as_tensor_variable(1.0)
+
+        def to_dict(self):
+            return {"k": 2}
+
+    term = Parameter("a", prior=WriteOnlyFactory())
+    serialized = serialization.serialize(term)
+    with pytest.raises(SerializationError, match="register_deserialization"):
+        serialization.deserialize(serialized)
+
+
+def test_deserialize_child_passthrough_non_dict():
+    """Non-dict children pass through (defensive; _serialize_child emits dicts)."""
+    from pymc_marketing.terms import _deserialize_child
+
+    assert _deserialize_child(52) == 52

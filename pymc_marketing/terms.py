@@ -334,10 +334,18 @@ def _resolve_func(name: str) -> Callable:
             "pytensor.xtensor.math function, or register it with "
             "pymc_extras.prior.register_tensor_transform."
         ) from err
-    if name.startswith("_") or not callable(func):
+    if name not in CUSTOM_TRANSFORMS:
+        # The underscore rule only guards module-scan noise (dunder and
+        # non-function attributes); explicitly registered names opt out.
+        if name.startswith("_") or not callable(func):
+            raise SerializationError(
+                f"Serialized function name {name!r} must resolve to a "
+                f"callable pytensor function, got {func!r}."
+            )
+    if not callable(func):
         raise SerializationError(
-            f"Serialized function name {name!r} must resolve to a callable "
-            f"pytensor function, got {func!r}."
+            f"Serialized transform {name!r} resolved to {func!r}, which is "
+            "not callable."
         )
     return func
 
@@ -379,7 +387,13 @@ def _deserialize_child(value: Any) -> Any:
         try:
             return pymc_extras_deserialize(value)
         except DeserializableError as err:
-            raise SerializationError(f"Cannot deserialize term child: {value}") from err
+            raise SerializationError(
+                f"Cannot deserialize term child: {value}. If it is a custom "
+                "factory, register it with "
+                "pymc_extras.deserialize.register_deserialization "
+                "(with a to_dict/from_dict counterpart to "
+                "@serialization.register)."
+            ) from err
     return value
 
 
