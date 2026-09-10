@@ -270,7 +270,7 @@ from pymc_marketing.mmm.optimization_variables import (
     align_to_model_coords,
 )
 from pymc_marketing.mmm.utility import UtilityFunctionType, average_response
-from pymc_marketing.pytensor_utils import merge_models
+from pymc_marketing.pytensor_utils import SharedPosterior, merge_models
 from pymc_marketing.version import __version__
 
 DEFAULT_RESPONSE_VARIABLE = "total_media_contribution_original_scale"
@@ -549,7 +549,7 @@ def merge_inference_data(
 
     .. code-block:: python
 
-        from pymc_marketing.pytensor_utils import merge_models
+        from pymc_marketing.pytensor_utils import SharedPosterior, merge_models
         from pymc_marketing.mmm.budget_optimizer import (
             merge_inference_data,
             BudgetOptimizer,
@@ -1478,6 +1478,7 @@ class BudgetOptimizer(BaseModel):
     _budget_distribution_over_period_tensor: XTensorVariable | None = PrivateAttr()
     _cost_per_unit_tensor: XTensorVariable | None = PrivateAttr()
     _pymc_model: Model = PrivateAttr()
+    _shared_posterior: SharedPosterior = PrivateAttr()
     _variables: OptimizationVariables = PrivateAttr()
     _objective_and_grad: Callable = PrivateAttr()
     _constraints: dict = PrivateAttr()
@@ -1588,8 +1589,10 @@ class BudgetOptimizer(BaseModel):
         """Build optimization tensors and compile objective after Field validation."""
         # 1. The model is passed in already built (no optimization_model() call needed)
 
-        # 2. Shared variable for total_budget
+        # 2. Shared variables: total_budget, and the posterior draws every
+        #    extracted graph is conditioned on (see `set_posterior`).
         self._total_budget = shared(np.array(0.0, dtype="float64"), name="total_budget")
+        self._shared_posterior = SharedPosterior()
 
         # 3. Identify budget dimensions and shapes
         self._budget_dims = [
@@ -2084,6 +2087,11 @@ class BudgetOptimizer(BaseModel):
     def extract_response_distribution(self, response_variable: str) -> XTensorVariable:
         """Extract the response distribution graph, conditioned on posterior parameters.
 
+        The posterior draws enter the graph through shared variables owned by
+        this optimizer, so every graph it extracts -- the objective, custom
+        constraints, anything a caller compiles from this method -- follows
+        :meth:`set_posterior`.
+
         Examples
         --------
         ``BudgetOptimizer(...).extract_response_distribution("channel_contribution")``
@@ -2098,7 +2106,41 @@ class BudgetOptimizer(BaseModel):
             idata=_extract_dataset(self.idata, "posterior"),
             response_variable=response_variable,
             frozen_deterministics=self.frozen_deterministics,
+            shared_posterior=self._shared_posterior,
         )
+
+    def set_posterior(self, idata: Any) -> None:
+        """Rebind the compiled objective and constraints to a new posterior.
+
+        Swaps the posterior draws under every graph this optimizer has
+        compiled without extracting or compiling anything again.  This is
+        what makes repeated optimization against many posteriors -- one per
+        simulated experiment outcome, one per resampled posterior -- cost
+        one solve each rather than one compile each.
+
+        The new posterior must contain every variable the current one
+        supplied to the graphs, with the same non-sample dimensions.  The
+        number of draws may differ.  The budget mask and everything else
+        derived at construction time are kept as they are.
+
+        Parameters
+        ----------
+        idata : xr.DataTree or arviz.InferenceData
+            Inference data with a ``posterior`` group.
+
+        Examples
+        --------
+        .. code-block:: python
+
+            optimizer = BudgetOptimizer(model=model, idata=idata, num_periods=8)
+            baseline = optimizer.allocate_budget(total_budget=100.0)
+
+            optimizer.set_posterior(updated_idata)  # no recompile
+            updated = optimizer.allocate_budget(total_budget=100.0)
+        """
+        idata = _to_datatree(idata)
+        self._shared_posterior.set_posterior(_extract_dataset(idata, "posterior"))
+        self.idata = idata
 
     def _compile_objective_and_grad(self):
         """Compile the objective function and its gradient, both referencing `self._budgets_flat`."""

@@ -35,6 +35,7 @@ from pymc_marketing.mmm.mmm import (
 )
 from pymc_marketing.pytensor_utils import (
     ModelSamplerEstimator,
+    SharedPosterior,
     _prefix_model,
     extract_response_distribution,
     merge_models,
@@ -712,3 +713,87 @@ def test_extract_response_distribution_accepts_several_variables():
 
     with pytest.raises(ValueError, match="at least one variable"):
         extract_response_distribution(model, idata, [])
+
+
+def _slope_model_and_draws(draws: int, seed: int):
+    """A tiny dims model plus a prior-predictive ``posterior`` to condition on."""
+    data_values = np.array([1.0, 2.0, 3.0])
+    with pm.Model(coords={"d": [0, 1, 2]}) as model:
+        data = pmd.Data("data", data_values, dims="d")
+        slope = pmd.Normal("slope", mu=0.0, sigma=1.0)
+        pmd.Deterministic("doubled", 2.0 * data * slope)
+    with model:
+        prior = pm.sample_prior_predictive(draws=draws, random_seed=seed)
+    idata = xr.DataTree.from_dict({"/posterior": prior["/prior"].to_dataset()})
+    return model, idata, data_values
+
+
+def test_shared_posterior_rebinds_compiled_graph_without_recompile():
+    """Draws bound through ``SharedPosterior`` follow ``set_posterior``.
+
+    The compiled function is the same object before and after the rebind, the
+    values match what constants would have given for each posterior, and the
+    number of draws is free to change between rebinds.
+    """
+    model, idata_a, data_values = _slope_model_and_draws(draws=4, seed=1)
+    _, idata_b, _ = _slope_model_and_draws(draws=6, seed=2)
+
+    shared_posterior = SharedPosterior()
+    graph = extract_response_distribution(
+        model, idata_a, "doubled", shared_posterior=shared_posterior
+    )
+    assert set(shared_posterior.variables) == {"slope"}
+    assert shared_posterior.dims == {"slope": ("sample",)}
+
+    fn = function([], graph)
+
+    def expected(idata):
+        drawn = idata["posterior"]["slope"].values.reshape(-1)
+        return np.outer(drawn, 2.0 * data_values)
+
+    np.testing.assert_allclose(fn(), expected(idata_a))
+
+    shared_posterior.set_posterior(idata_b)
+    np.testing.assert_allclose(fn(), expected(idata_b))
+    assert fn().shape[0] == 6
+
+    # The constant path is untouched by the rebind: a graph extracted without
+    # ``shared_posterior`` still evaluates its own draws.
+    constant_graph = extract_response_distribution(model, idata_a, "doubled")
+    np.testing.assert_allclose(function([], constant_graph)(), expected(idata_a))
+
+
+def test_shared_posterior_is_reused_across_extractions():
+    """Two graphs extracted with the same instance share one variable per name."""
+    model, idata, _ = _slope_model_and_draws(draws=3, seed=3)
+    shared_posterior = SharedPosterior()
+    first = extract_response_distribution(
+        model, idata, "doubled", shared_posterior=shared_posterior
+    )
+    second = extract_response_distribution(
+        model, idata, "doubled", shared_posterior=shared_posterior
+    )
+    slope_var = shared_posterior.variables["slope"]
+    assert slope_var in set(ancestors([first]))
+    assert slope_var in set(ancestors([second]))
+
+
+def test_shared_posterior_set_posterior_validates_input():
+    """A posterior missing a bound variable, or with other dims, is refused."""
+    model, idata, _ = _slope_model_and_draws(draws=3, seed=4)
+    shared_posterior = SharedPosterior()
+    extract_response_distribution(
+        model, idata, "doubled", shared_posterior=shared_posterior
+    )
+
+    without_slope = idata["posterior"].to_dataset().drop_vars("slope")
+    with pytest.raises(KeyError, match=r"missing variables.*slope"):
+        shared_posterior.set_posterior(without_slope)
+
+    wrong_dims = (
+        idata["posterior"]
+        .to_dataset()
+        .assign(slope=lambda ds: ds["slope"].expand_dims(extra=[0, 1]))
+    )
+    with pytest.raises(ValueError, match=r"slope.*dims"):
+        shared_posterior.set_posterior(wrong_dims)

@@ -1601,3 +1601,60 @@ def test_spend_var_allocations_excludes_levers():
 
     assert set(result.spend_var_allocations) == {"lf_budget"}
     assert float(result.spend_var_allocations["lf_budget"]) == 7.0
+
+
+def test_set_posterior_rebinds_without_recompile(mmm_wrapper, dummy_idata):
+    """``set_posterior`` swaps the draws under the compiled objective in place.
+
+    After the swap the optimizer must agree with a fresh optimizer built on the
+    new posterior, while the compiled objective is the very same object, which
+    is what makes a loop over posteriors cost one solve each rather than one
+    compile each.  The new posterior also has a different number of draws.
+    """
+    posterior = dummy_idata["posterior"].to_dataset()
+    updated = posterior.isel(draw=[0]).assign(
+        saturation_beta=lambda ds: ds["saturation_beta"] * [3.0, 0.5]
+    )
+    updated_idata = xr.DataTree.from_dict({"/posterior": updated})
+
+    optimizer = BudgetOptimizer(
+        model=mmm_wrapper,
+        num_periods=30,
+        response_variable="total_media_contribution_original_scale",
+    )
+    compiled = optimizer._objective_and_grad
+    baseline, _ = optimizer.allocate_budget(total_budget=2.0)
+
+    optimizer.set_posterior(updated_idata)
+    assert optimizer._objective_and_grad is compiled
+    assert optimizer.idata is updated_idata
+    rebound, rebound_res = optimizer.allocate_budget(total_budget=2.0)
+
+    # The wrapper path takes its posterior from the wrapper, so the
+    # comparison optimizer needs a wrapper built on the updated draws.
+    fresh = BudgetOptimizer(
+        model=CustomModelWrapper(
+            base_model=mmm_wrapper.base_model,
+            idata=updated_idata,
+            channels=mmm_wrapper.channel_columns,
+        ),
+        num_periods=30,
+        response_variable="total_media_contribution_original_scale",
+    )
+    expected, expected_res = fresh.allocate_budget(total_budget=2.0)
+
+    np.testing.assert_allclose(rebound.values, expected.values, rtol=1e-6)
+    assert rebound_res.fun == pytest.approx(expected_res.fun, rel=1e-6)
+    # And the swap moved the allocation: the reweighted channel gets more.
+    assert not np.allclose(rebound.values, baseline.values)
+
+
+def test_set_posterior_requires_every_bound_variable(mmm_wrapper, dummy_idata):
+    optimizer = BudgetOptimizer(
+        model=mmm_wrapper,
+        num_periods=30,
+        response_variable="total_media_contribution_original_scale",
+    )
+    posterior = dummy_idata["posterior"].to_dataset().drop_vars("saturation_beta")
+    with pytest.raises(KeyError, match="saturation_beta"):
+        optimizer.set_posterior(xr.DataTree.from_dict({"/posterior": posterior}))
