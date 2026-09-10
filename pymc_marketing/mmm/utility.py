@@ -557,7 +557,8 @@ def diversification_ratio(
     The Diversification Ratio measures the effectiveness of diversification by comparing
     the weighted average volatility of individual assets to the overall portfolio volatility.
     A higher ratio indicates better diversification, as it reflects lower correlations among
-    assets, leading to reduced portfolio risk.
+    assets, leading to reduced portfolio risk. It provides insight into how individual asset
+    volatilities and their correlations contribute to the overall portfolio risk.
 
     The Diversification Ratio is calculated as:
 
@@ -583,8 +584,12 @@ def diversification_ratio(
     XTensorVariable
         Diversification Ratio.
 
-    This ratio provides insight into how individual asset volatilities and their correlations
-    contribute to the overall portfolio risk.
+    Raises
+    ------
+    ValueError
+        If ``samples`` is not 2D with a ``sample`` dim, if ``budgets`` is not
+        1D, or if the dim ``budgets`` is labelled with is not a dim of
+        ``samples``.
 
     Notes
     -----
@@ -594,29 +599,42 @@ def diversification_ratio(
     utility function do not have that shape out of the box: the default
     ``response_variable`` is a 1D ``(sample,)`` total, and per-channel
     variables carry a ``date`` dim as well. Reduce over ``date`` before calling
-    this function.
+    this function. The optimizer invokes the utility with keyword arguments,
+    so a wrapper's parameters must be named ``samples`` and ``budgets``.
 
-    Examples
-    --------
-    Optimize for diversification of the per-channel contribution:
-
-    .. code-block:: python
-
-        from pymc_marketing.mmm.utility import diversification_ratio
-
-        optimizer = BudgetOptimizer(
-            model=model,
-            num_periods=num_periods,
-            response_variable="channel_contribution",
-            utility_function=lambda samples, budgets: diversification_ratio(
-                samples.sum(dim="date"), budgets
-            ),
-        )
+    The ratio is undefined when the portfolio volatility is zero: a channel at
+    exactly zero budget contributes zero in every sample, and a channel driven
+    deep into saturation is numerically constant. Both give ``0 / 0`` for the
+    value and an infinite gradient, which the optimizer reports as an opaque
+    solver failure. The default bounds allow zero budgets, so pass
+    ``budget_bounds`` with strictly positive lower bounds when optimizing for
+    diversification.
 
     References
     ----------
     - Choueifaty, Y., & Coignard, Y. (2008). Toward Maximum Diversification. *Journal of Portfolio Management*.
     - Meucci, A. (2009). Managing Diversification. *Risk*, 22(5), 74-79.
+
+    Examples
+    --------
+    Optimize a fitted MMM for diversification of the per-channel contribution:
+
+    .. code-block:: python
+
+        from pymc_marketing.mmm.utility import diversification_ratio
+
+        optimizer = mmm.budget_optimizer(
+            start_date="2025-01-06",
+            end_date="2025-03-31",
+            response_variable="channel_contribution",
+            utility_function=lambda samples, budgets: diversification_ratio(
+                samples.sum(dim="date"), budgets
+            ),
+        )
+        result = optimizer.allocate_budget(
+            total_budget=100.0,
+            budget_bounds={channel: (1.0, 100.0) for channel in mmm.channel_columns},
+        )
     """
     samples = as_xtensor(samples)
     budgets = as_xtensor(budgets)

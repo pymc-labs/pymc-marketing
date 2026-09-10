@@ -740,11 +740,17 @@ def test_constraint_history_keyed_by_constraint(mmm_wrapper):
 
 
 def test_diversification_ratio_through_optimizer(mmm_wrapper):
-    """The docstring recipe runs through BudgetOptimizer to a finite optimum.
+    """The docstring recipe runs through BudgetOptimizer and actually optimizes.
 
     The utility sees the response as ``(sample, date, channel)``; reducing
     over ``date`` gives the ``(sample, channel)`` shape the ratio needs.
+
+    ``total_budget=10`` is deliberate: at 100 the fixture's saturation is so
+    flat that the gradient at the equal split is already within SLSQP's
+    tolerance, and the solver stops at the initial guess, which every
+    assertion here would then satisfy for free.
     """
+    total_budget = 10.0
     optimizer = BudgetOptimizer(
         model=mmm_wrapper,
         num_periods=30,
@@ -753,13 +759,20 @@ def test_diversification_ratio_through_optimizer(mmm_wrapper):
             samples.sum(dim="date"), budgets
         ),
     )
-    result = optimizer.allocate_budget(total_budget=100.0)
+    result = optimizer.allocate_budget(total_budget=total_budget)
 
     assert result.scipy_result.success
     assert np.isfinite(result.scipy_result.fun)
+    np.testing.assert_allclose(result.budgets.sum(), total_budget, atol=1e-3)
+
+    # The solution is not the initial guess (the equal split), and the
+    # utility there is genuinely higher than at the initial guess.
+    x0 = np.full(result.budgets.size, total_budget / result.budgets.size)
+    assert not np.allclose(result.budgets.values, x0)
+    objective_at_x0, _ = optimizer._objective_and_grad(x0)
+    assert result.scipy_result.fun < objective_at_x0
     # The objective is the negated utility, and DR is bounded below by 1.
     assert -result.scipy_result.fun >= 1.0 - 1e-6
-    np.testing.assert_allclose(result.budgets.sum(), 100.0, atol=1e-3)
 
 
 def test_allocate_budget_result_object(mmm_wrapper):
