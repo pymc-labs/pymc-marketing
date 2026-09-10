@@ -26,6 +26,7 @@ import pytest
 import xarray as xr
 from pymc_extras.prior import CUSTOM_TRANSFORMS, Prior
 from pytensor.graph.basic import Variable as PTVariable
+from pytensor.graph.traversal import ancestors
 
 from pymc_marketing.model_builder import ModelBuilder
 from pymc_marketing.r2d2 import R2D2
@@ -962,6 +963,8 @@ def test_deserialize_child_passthrough_non_dict():
     from pymc_marketing.terms import _deserialize_child
 
     assert _deserialize_child(52) == 52
+
+
 def test_named_builds_pmd_deterministic():
     coords = {"product": ["p1", "p2"]}
     with pm.Model(coords=coords) as model:
@@ -1039,8 +1042,6 @@ def test_ref_resolves_built_variable():
     assert model.named_vars_to_dims["a"] == ("product",)
 
     # the contract is the dependency edge, not just name existence
-    from pytensor.graph.traversal import ancestors
-
     assert model["a_scale"] in set(ancestors([model["a"]]))
 
 
@@ -1136,8 +1137,6 @@ def test_ref_reusable_in_multiple_named():
 
 def test_named_value_matches_expression():
     """The deterministic wraps the inner expression, not some other operand."""
-    import numpy as np
-
     with pm.Model() as model:
         term = Named(
             "doubled",
@@ -1164,6 +1163,52 @@ def test_named_bare_factory_named_not_param():
 
     assert "s_param" in model.named_vars
     assert "param" not in model.named_vars
+
+
+def test_named_nested_bare_factories_not_param():
+    """Bare factories nested in Sum/Product also avoid build_param's default.
+
+    Regression for the round-2 review: build_param's Sum/Product recursion
+    used to drop the threaded name, so any bare factory below the root was
+    built as ``param`` and two such ``Named`` terms collided.
+    """
+    with pm.Model(coords={"product": ["p1", "p2"]}) as model:
+        s1 = Named(
+            "s1",
+            Prior("HalfNormal", dims="product")
+            * Parameter("k1", prior=Prior("Normal", dims="product")),
+            dims="product",
+        )
+        s2 = Named(
+            "s2",
+            Prior("HalfNormal", dims="product")
+            * Parameter("k2", prior=Prior("Normal", dims="product")),
+            dims="product",
+        )
+        s1.create_variable()
+        s2.create_variable()
+
+    assert "param" not in model.named_vars
+    assert "s1_param_left" in model.named_vars
+    assert "s2_param_left" in model.named_vars
+    assert "kappa" not in model.named_vars
+
+
+def test_named_dims_permutation_transposes():
+    """dims aligns (transposes) the value; a permutation stays equal."""
+    coords = {"a": ["x", "y"], "b": [1, 2, 3]}
+    with pm.Model(coords=coords) as model:
+        term = Named(
+            "s",
+            Parameter("q", prior=Prior("Normal", dims=("a", "b"))),
+            dims=("b", "a"),
+        )
+        term.create_variable()
+
+    assert model.named_vars_to_dims["s"] == ("b", "a")
+    q_draw, s_draw = pm.draw([model["q"], model["s"]], draws=2, random_seed=42)
+    assert q_draw.shape == (2, 2, 3)  # (draws, a, b)
+    np.testing.assert_allclose(np.transpose(q_draw, (0, 2, 1)), s_draw)
 
 
 def test_named_reuse_raises():

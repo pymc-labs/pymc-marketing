@@ -72,12 +72,13 @@ contract: decorate them with ``@serialization.register`` and implement
 unregistered term raises
 :class:`~pymc_marketing.serialization.SerializationError`.
 
-Children of composed terms (``Sum``, ``Product``, ``Transform``) must be
-registered terms, ``VariableFactory`` (``Prior``, ...), ``xr.DataArray``,
-``DeferredFactory``, or numeric literals. ``Transform`` functions serialize
-by name and are resolved with ``pymc_extras.prior._get_transform``:
-``pytensor.xtensor.math`` / ``pytensor.xtensor.linalg`` functions, or
-transforms registered with ``pymc_extras.prior.register_tensor_transform``.
+Children of composed terms (``Sum``, ``Product``, ``Transform``, ``Named``)
+must be registered terms, ``VariableFactory`` (``Prior``, ...),
+``xr.DataArray``, ``DeferredFactory``, or numeric literals. ``Transform``
+functions serialize by name and are resolved with
+``pymc_extras.prior._get_transform``: ``pytensor.xtensor.math`` /
+``pytensor.xtensor.linalg`` functions, or transforms registered with
+``pymc_extras.prior.register_tensor_transform``.
 
 ``Parameter`` and ``Intercept``
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -915,11 +916,12 @@ class Named(ModelTerm):
         Name of the deterministic variable.
     expr : Any
         Inner expression accepted by ``build_param``.
-    dims : str or tuple of str, optional
+    dims : str or sequence of str, optional
         Dimensions for the deterministic variable. These **align** the
         built value onto ``dims`` (``pmd.Deterministic`` transposes), so
         they must be a permutation of the inner value's dims, not a new
         declaration - a value without those dims raises ``ValueError``.
+        Normalized to a tuple after construction.
 
     Examples
     --------
@@ -945,7 +947,7 @@ class Named(ModelTerm):
 
     name: str
     expr: Any
-    dims: str | tuple[str, ...] | None = None
+    dims: str | Sequence[str] | None = None
 
     def __post_init__(self):
         """Normalize ``dims`` to a tuple, mirroring ``Prior``."""
@@ -1014,7 +1016,9 @@ class Ref(ModelTerm):
     built effect (e.g. ``a`` on the ``a_scale`` deterministic) without
     recreating its variables. ``Ref`` resolves at **build time** and
     requires the referenced term to be built earlier in traversal order -
-    build once with ``Named``, reference afterwards with ``Ref``.
+    build once with ``Named``, reference afterwards with ``Ref``. Registered
+    ``pmd.Data`` variables also qualify as reference targets, since they
+    are dims-native; plain ``pm.Data`` tensors do not.
 
     Parameters
     ----------
@@ -1025,8 +1029,14 @@ class Ref(ModelTerm):
     --------
     .. code-block:: python
 
-        scale = Named("scale", Parameter("raw", prior=Prior("HalfNormal")))
-        effect = Named("effect", Ref("scale") * other_term)
+        from pymc_extras.prior import Prior
+        from pymc_marketing.terms import Named, Parameter, Ref
+
+        scale = Named("scale", Parameter("scale_raw", prior=Prior("HalfNormal")))
+        effect = Named(
+            "effect",
+            Ref("scale") * Parameter("kappa", prior=Prior("Normal")),
+        )
     """
 
     name: str
@@ -1046,13 +1056,15 @@ class Ref(ModelTerm):
         try:
             variable = model[self.name]
         except KeyError:
-            available = ", ".join(sorted(model.named_vars))
+            available = sorted(model.named_vars)
+            if len(available) > 20:
+                available = [*available[:20], f"... ({len(available) - 20} more)"]
             raise ValueError(
                 f"Ref({self.name!r}) cannot resolve: {self.name!r} is not "
                 "built yet. Terms build during build_param in traversal "
                 f"order, so a term referencing {self.name!r} must come "
                 f"after the term that builds it. Available named vars: "
-                f"{available}."
+                f"{', '.join(available)}."
             ) from None
 
         if not isinstance(variable, pmd.XTensorVariable):
@@ -1137,7 +1149,9 @@ def build_param(param: Any, name: str = "param") -> pt.TensorVariable | int | fl
         The term(s) or variable factory to build into a tensor.
     name : str
         Variable name used when building standalone ``VariableFactory``
-        objects. Terms handle their own naming internally.
+        objects (top level leaves get ``name`` directly; children of
+        ``Sum``/``Product`` get positional suffixes so siblings do not
+        collide). Terms handle their own naming internally.
 
     Returns
     -------
@@ -1152,11 +1166,13 @@ def build_param(param: Any, name: str = "param") -> pt.TensorVariable | int | fl
         return cast("pt.TensorVariable", param.create_variable())
     if isinstance(param, Sum):
         result: pt.TensorVariable | int | float = 0
-        for term in param.terms:
-            result = result + build_param(term)
+        for idx, term in enumerate(param.terms):
+            result = result + build_param(term, name=f"{name}_{idx}")
         return result
     if isinstance(param, Product):
-        return build_param(param.left) * build_param(param.right)
+        return build_param(param.left, name=f"{name}_left") * build_param(
+            param.right, name=f"{name}_right"
+        )
     if isinstance(param, VariableFactory):
         return param.create_variable(name, xdist=True)
     raise TypeError(f"Cannot build param from {type(param)}")
