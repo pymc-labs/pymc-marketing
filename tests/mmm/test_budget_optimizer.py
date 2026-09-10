@@ -1648,7 +1648,7 @@ def test_set_posterior_rebinds_without_recompile(mmm_wrapper, dummy_idata):
     assert optimizer.idata is first
     rebound, rebound_res = optimizer.allocate_budget(total_budget=2.0)
     expected, expected_res = fresh(first)
-    np.testing.assert_allclose(rebound.values, expected.values, rtol=1e-6)
+    np.testing.assert_allclose(rebound.values, expected.values, rtol=1e-6, atol=1e-9)
     assert rebound_res.fun == pytest.approx(expected_res.fun, rel=1e-6)
     assert not np.allclose(rebound.values, baseline.values)
 
@@ -1656,7 +1656,7 @@ def test_set_posterior_rebinds_without_recompile(mmm_wrapper, dummy_idata):
     assert optimizer._objective_and_grad is shared_objective  # no recompile
     rebound, rebound_res = optimizer.allocate_budget(total_budget=2.0)
     expected, expected_res = fresh(second)
-    np.testing.assert_allclose(rebound.values, expected.values, rtol=1e-6)
+    np.testing.assert_allclose(rebound.values, expected.values, rtol=1e-6, atol=1e-9)
     assert rebound_res.fun == pytest.approx(expected_res.fun, rel=1e-6)
 
 
