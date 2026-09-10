@@ -10,7 +10,6 @@ on:
      - ".github/workflows/test_notebook.yml"
      - "scripts/run_notebooks/**.py"
      - "docs/source/notebooks/**.ipynb"
-     - "!docs/source/notebooks/mmm/**.ipynb"
      - "!docs/source/notebooks/*/dev/**.ipynb"
      - "docs/source/guide/**.ipynb"
   push:
@@ -22,7 +21,6 @@ on:
      - ".github/workflows/test_notebook.yml"
      - "scripts/run_notebooks/**.py"
      - "docs/source/notebooks/**.ipynb"
-     - "!docs/source/notebooks/mmm/**.ipynb"
      - "!docs/source/notebooks/*/dev/**.ipynb"
      - "docs/source/guide/**.ipynb"
 

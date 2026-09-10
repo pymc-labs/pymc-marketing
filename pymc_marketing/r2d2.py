@@ -117,8 +117,8 @@ class R2D2Split:
     wherever a Prior is accepted (e.g., in model_config priors).
 
     When create_variable() is called, auto-builds the decomposition
-    if not already built, then creates a pmd.Normal coefficient with
-    mu=0, sigma=split, dims=component_dim.
+    if not already built, then creates a coefficient with the selected
+    centered or non-centered parameterization.
 
     Parameters
     ----------
@@ -179,8 +179,16 @@ class R2D2Split:
         split = self.decomposition._splits[self.component_name]
         dims = self.decomposition.dims[self.component_name]
 
-        # Create coefficient: beta ~ pmd.Normal(mu=0, sigma=split, dims=dims)
-        return pmd.Normal(name, mu=0, sigma=split, dims=dims)
+        if self.decomposition.centered:
+            # Centered: beta ~ Normal(0, split). This is the historical
+            # parameterization and is retained as the default.
+            return pmd.Normal(name, mu=0, sigma=split, dims=dims)
+
+        # Non-centered: beta_offset ~ Normal(0, 1), beta = split * beta_offset.
+        # Sampling a scale-free offset avoids the funnel induced by very small
+        # Dirichlet weights while preserving the same marginal prior on beta.
+        offset = pmd.Normal(name + "_offset", mu=0, sigma=1, dims=dims)
+        return pmd.Deterministic(name, split * offset, dims=dims)
 
     def to_dict(self) -> dict:
         """Serialize to dictionary."""
@@ -294,6 +302,11 @@ class R2D2:
     dims : dict[str, str]
         Maps component name to dim name.
         E.g., {"control": "control", "fourier": "fourier"}.
+    centered : bool, default=True
+        Whether to sample coefficients directly with their stochastic local
+        scales. If False, sample standard-normal offsets and construct the
+        coefficients deterministically; this can improve sampling when
+        Dirichlet weights are small.
 
     Example
     -------
@@ -335,6 +348,9 @@ class R2D2:
     - The ``r2`` prior controls global shrinkage (how much variance the model explains).
     - The ``total_sigma`` prior controls the overall scale of coefficients.
     - The Dirichlet prior (currently flat, a_π=1) splits model variance across components.
+    - ``centered`` selects the historical centered coefficient parameterization or
+      a non-centered offset parameterization, which can improve sampling when
+      local Dirichlet scales are small.
     - Use ``split("component_name")`` to get a lazy reference to a component's variance.
     - Use ``error_sigma`` to get the residual standard deviation.
     - This is single-level R2D2 (no varying effects).
@@ -343,6 +359,7 @@ class R2D2:
     r2: Prior
     total_sigma: Prior
     dims: dict[str, str]  # component_name -> dim_name
+    centered: bool = True
 
     def __post_init__(self) -> None:
         """Validate parameters and initialize state."""
@@ -498,11 +515,14 @@ class R2D2:
 
     def to_dict(self) -> dict:
         """Serialize to dictionary."""
-        return {
+        result = {
             "r2": self.r2.to_dict(),
             "total_sigma": self.total_sigma.to_dict(),
             "dims": self.dims,
         }
+        if not self.centered:
+            result["centered"] = False
+        return result
 
     @classmethod
     def from_dict(cls, data: dict) -> "R2D2":
@@ -517,6 +537,7 @@ class R2D2:
             r2=_deserialize_prior(data["r2"]),
             total_sigma=_deserialize_prior(data["total_sigma"]),
             dims=data["dims"],
+            centered=data.get("centered", True),
         )
 
 

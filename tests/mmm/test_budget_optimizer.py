@@ -1215,6 +1215,22 @@ def test_cost_per_unit_missing_coord_raises(mmm_wrapper):
         )
 
 
+def test_unknown_kwarg_raises(mmm_wrapper):
+    """An unknown field name raises instead of being silently dropped.
+
+    Regression for the ``custom_constraints`` -> ``constraints`` rename: a
+    stale keyword used to be ignored, leaving the optimizer with only the
+    default sum constraint and no error.
+    """
+    with pytest.raises(ValidationError, match="custom_constraints"):
+        BudgetOptimizer(
+            model=mmm_wrapper,
+            num_periods=30,
+            response_variable="total_media_contribution_original_scale",
+            custom_constraints=[],
+        )
+
+
 def test_budget_bounds_missing_coord_raises(mmm_wrapper):
     """A bounds DataArray missing a model coordinate raises instead of NaN bounds."""
     optimizer = BudgetOptimizer(

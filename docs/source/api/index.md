@@ -27,5 +27,6 @@
   serialization
   serialization_migration
   special_priors
+  terms
   utils
 ```
