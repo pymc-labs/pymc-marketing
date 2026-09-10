@@ -280,8 +280,13 @@ class TestParamStability:
         assert isinstance(fig.get_layout_engine(), ConstrainedLayoutEngine)
 
     def test_layout_override_is_honoured(self, cv_plot):
+        from matplotlib.layout_engine import ConstrainedLayoutEngine
+
+        # Figure.set_layout_engine("none") yields None only when no engine was
+        # set before, and a PlaceHolderLayoutEngine otherwise. Either way the
+        # point is that the constrained default is off.
         fig, _axes = cv_plot.param_stability(figure_kwargs={"layout": "none"})
-        assert fig.get_layout_engine() is None
+        assert not isinstance(fig.get_layout_engine(), ConstrainedLayoutEngine)
 
     def test_variable_label_clears_channel_labels(self, cv_results_idata):
         """Regression test for the variable label overlapping the channel labels.
@@ -290,6 +295,12 @@ class TestParamStability:
         right-aligned inside the same narrow left column, so wide channel names
         are what push them into each other. Uses the channel names and the call
         signature from the MMM case study, which is where this was reported.
+
+        Asserts both that the labels clear each other under the default and that
+        the default leaves more room than ``layout="none"``. The second check
+        does not depend on font metrics, so it still catches a revert to the old
+        default if label placement in matplotlib or arviz_plots ever shifts far
+        enough to invalidate the first.
         """
         from pymc_marketing.mmm.plotting.cv import MMMCVPlotSuite
 
@@ -329,21 +340,30 @@ class TestParamStability:
             )
         )
 
-        fig, axes = suite.param_stability(
-            var_names=["saturation_beta"], figsize=(12, 9)
-        )
-        fig.canvas.draw()
+        def label_geometry(**figure_kwargs):
+            """Clearance in pixels between the variable label and the channels."""
+            fig, axes = suite.param_stability(
+                var_names=["saturation_beta"], figsize=(12, 9), **figure_kwargs
+            )
+            fig.canvas.draw()
+            label_ax = np.ravel(axes)[0]
+            var_label = next(
+                t for t in label_ax.texts if t.get_text().strip() == "saturation_beta"
+            )
+            channel_labels = [
+                t for t in label_ax.texts if t.get_text().strip() in channels
+            ]
+            assert len(channel_labels) == len(channels)
+            var_box = var_label.get_window_extent()
+            boxes = [t.get_window_extent() for t in channel_labels]
+            overlaps = any(var_box.overlaps(b) for b in boxes)
+            return min(b.x0 for b in boxes) - var_box.x1, overlaps
 
-        label_ax = np.ravel(axes)[0]
-        var_label = next(
-            t for t in label_ax.texts if t.get_text().strip() == "saturation_beta"
-        )
-        channel_labels = [t for t in label_ax.texts if t.get_text().strip() in channels]
-        assert len(channel_labels) == len(channels)
-        assert not any(
-            var_label.get_window_extent().overlaps(t.get_window_extent())
-            for t in channel_labels
-        )
+        default_gap, default_overlaps = label_geometry()
+        unlaid_gap, _ = label_geometry(figure_kwargs={"layout": "none"})
+
+        assert not default_overlaps
+        assert default_gap > unlaid_gap
 
 
 @pytest.fixture(scope="module")
