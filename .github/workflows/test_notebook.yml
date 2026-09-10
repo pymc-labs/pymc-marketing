@@ -23,16 +23,6 @@ on:
      - "docs/source/notebooks/**.ipynb"
      - "!docs/source/notebooks/mmm/**.ipynb"
      - "!docs/source/notebooks/*/dev/**.ipynb"
-  merge_group:
-    paths:
-     - "pyproject.toml"
-     - "tests/**.py"
-     - "pymc_marketing/**"
-     - ".github/workflows/test_notebook.yml"
-     - "scripts/run_notebooks/**.py"
-     - "docs/source/notebooks/**.ipynb"
-     - "!docs/source/notebooks/mmm/**.ipynb"
-     - "!docs/source/notebooks/*/dev/**.ipynb"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}

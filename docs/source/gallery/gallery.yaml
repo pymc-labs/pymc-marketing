@@ -78,6 +78,8 @@ sections:
             notebook: mmm/mmm_roas
           - title: Calibrating an MMM with ROAS Estimates
             notebook: mmm/mmm_roas_calibration
+          - title: How Much Would One Lift Test Reduce ROAS Uncertainty?
+            notebook: mmm/mmm_roas_experimentation
       - title: Time-Varying Parameters
         cards:
           - title: MMM with time-varying media baseline
