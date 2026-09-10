@@ -1478,7 +1478,8 @@ class BudgetOptimizer(BaseModel):
     _budget_distribution_over_period_tensor: XTensorVariable | None = PrivateAttr()
     _cost_per_unit_tensor: XTensorVariable | None = PrivateAttr()
     _pymc_model: Model = PrivateAttr()
-    _shared_posterior: SharedPosterior = PrivateAttr()
+    _shared_posterior: SharedPosterior | None = PrivateAttr(default=None)
+    _mask_auto_detected: bool = PrivateAttr(default=False)
     _variables: OptimizationVariables = PrivateAttr()
     _objective_and_grad: Callable = PrivateAttr()
     _constraints: dict = PrivateAttr()
@@ -1589,10 +1590,10 @@ class BudgetOptimizer(BaseModel):
         """Build optimization tensors and compile objective after Field validation."""
         # 1. The model is passed in already built (no optimization_model() call needed)
 
-        # 2. Shared variables: total_budget, and the posterior draws every
-        #    extracted graph is conditioned on (see `set_posterior`).
+        # 2. Shared variable for total_budget. The posterior draws stay
+        #    constants until the first `set_posterior`, which is when they
+        #    become shared variables (see that method).
         self._total_budget = shared(np.array(0.0, dtype="float64"), name="total_budget")
-        self._shared_posterior = SharedPosterior()
 
         # 3. Identify budget dimensions and shapes
         self._budget_dims = [
@@ -1624,47 +1625,10 @@ class BudgetOptimizer(BaseModel):
         #    fall back to all cells when that variable is absent. Adaptor layers such
         #    as MMM.budget_optimizer deliberately do not narrow the mask themselves.
         if self.budgets_to_optimize is None:
-            try:
-                posterior_ds = _extract_dataset(self.idata, "posterior")
-            except (KeyError, TypeError):
-                posterior_ds = None
-
-            if (
-                posterior_ds is not None
-                and self.channel_contribution_var in posterior_ds.data_vars
-            ):
-                # Auto-detect non-zero channels from posterior
-                self.budgets_to_optimize = (
-                    posterior_ds[self.channel_contribution_var]
-                    .mean(("chain", "draw", self.date_dim))
-                    .astype(bool)
-                )
-            else:
-                ones = np.ones(self._budget_shape, dtype=bool)
-                self.budgets_to_optimize = xr.DataArray(
-                    ones, coords=self._budget_coords, dims=self._budget_dims
-                )
+            self._mask_auto_detected = True
+            self.budgets_to_optimize = self._auto_detect_mask(self.idata)
         else:
-            # Validate user-supplied mask against posterior channel contributions
-            try:
-                posterior_ds = _extract_dataset(self.idata, "posterior")
-            except (KeyError, TypeError):
-                posterior_ds = None
-
-            if (
-                posterior_ds is not None
-                and self.channel_contribution_var in posterior_ds.data_vars
-            ):
-                expected_mask = (
-                    posterior_ds[self.channel_contribution_var]
-                    .mean(("chain", "draw", self.date_dim))
-                    .astype(bool)
-                )
-                if np.any((self.budgets_to_optimize > expected_mask).values):
-                    raise ValueError(
-                        "budgets_to_optimize mask contains True values at coordinates where the model has no "
-                        "information."
-                    )
+            self._validate_mask_against_posterior(self.budgets_to_optimize, self.idata)
 
         # Align the mask with the model's coordinate order, not just its dim
         # order: every coordinate-bearing input is consumed positionally
@@ -1868,6 +1832,41 @@ class BudgetOptimizer(BaseModel):
         self._compiled_constraints = compile_constraints_for_scipy(
             constraints=self._constraints, optimizer=self
         )
+
+    def _posterior_channel_mask(self, idata: Any) -> DataArray | None:
+        """Cells the posterior has information about: non-zero mean channel contribution.
+
+        ``None`` when ``idata`` has no posterior or no channel-contribution
+        variable, in which case the mask cannot be derived from it.
+        """
+        try:
+            posterior_ds = _extract_dataset(idata, "posterior")
+        except (KeyError, TypeError):
+            return None
+        if self.channel_contribution_var not in posterior_ds.data_vars:
+            return None
+        return (
+            posterior_ds[self.channel_contribution_var]
+            .mean(("chain", "draw", self.date_dim))
+            .astype(bool)
+        )
+
+    def _auto_detect_mask(self, idata: Any) -> DataArray:
+        """Return the mask used when none is supplied: informed cells, or every cell."""
+        mask = self._posterior_channel_mask(idata)
+        if mask is not None:
+            return mask
+        ones = np.ones(self._budget_shape, dtype=bool)
+        return xr.DataArray(ones, coords=self._budget_coords, dims=self._budget_dims)
+
+    def _validate_mask_against_posterior(self, mask: DataArray, idata: Any) -> None:
+        """Reject a mask that optimizes a cell the posterior has no information about."""
+        expected_mask = self._posterior_channel_mask(idata)
+        if expected_mask is not None and np.any((mask > expected_mask).values):
+            raise ValueError(
+                "budgets_to_optimize mask contains True values at coordinates where the model has no "
+                "information."
+            )
 
     def _validate_date_length(self) -> None:
         """Check that the three date blocks add up to the model's date axis.
@@ -2087,10 +2086,11 @@ class BudgetOptimizer(BaseModel):
     def extract_response_distribution(self, response_variable: str) -> XTensorVariable:
         """Extract the response distribution graph, conditioned on posterior parameters.
 
-        The posterior draws enter the graph through shared variables owned by
-        this optimizer, so every graph it extracts -- the objective, custom
-        constraints, anything a caller compiles from this method -- follows
-        :meth:`set_posterior`.
+        Until the first :meth:`set_posterior` the draws enter the graph as
+        constants.  After it they enter through shared variables owned by
+        this optimizer, so every graph extracted here -- the objective,
+        custom constraints, anything a caller compiles from this method --
+        follows later rebinds.
 
         Examples
         --------
@@ -2110,23 +2110,42 @@ class BudgetOptimizer(BaseModel):
         )
 
     def set_posterior(self, idata: Any) -> None:
-        """Rebind the compiled objective and constraints to a new posterior.
+        """Point the compiled objective and constraints at a new posterior.
 
-        Swaps the posterior draws under every graph this optimizer has
-        compiled without extracting or compiling anything again.  This is
-        what makes repeated optimization against many posteriors -- one per
-        simulated experiment outcome, one per resampled posterior -- cost
-        one solve each rather than one compile each.
+        The first call moves the posterior draws out of the compiled graphs
+        and into shared variables, which costs one recompile of the objective
+        and the constraints.  Every later call swaps the draws in place, so a
+        loop over many posteriors -- one per resampled or updated posterior --
+        costs one solve each rather than one compile each.  Optimizers that
+        never call this keep the constant-folded graphs they have today.
 
-        The new posterior must contain every variable the current one
-        supplied to the graphs, with the same non-sample dimensions.  The
-        number of draws may differ.  The budget mask and everything else
-        derived at construction time are kept as they are.
+        The new posterior must hold every variable the graphs read, with the
+        same non-sample dimensions.  Coordinates are matched by label when
+        present, so a reordered ``channel`` axis is realigned.  The number of
+        draws may differ.  The budget mask is kept: when it was auto-detected
+        from the construction posterior and the new posterior would imply a
+        different one, the call raises rather than solve a different decision
+        problem on the old decision vector.
+
+        The rebind is local to this optimizer.  A model the optimizer was
+        built from keeps its own ``idata``; post-processing done there still
+        runs under the old draws.
 
         Parameters
         ----------
-        idata : xr.DataTree or arviz.InferenceData
-            Inference data with a ``posterior`` group.
+        idata : xr.DataTree, xr.Dataset or arviz.InferenceData
+            Inference data with a ``posterior`` group, or the posterior
+            dataset itself.
+
+        Raises
+        ------
+        KeyError
+            If the posterior lacks a variable the graphs read.
+        ValueError
+            If a variable's non-sample dimensions, lengths or coordinate
+            labels differ from the construction posterior, or if the mask
+            derived from the new posterior differs from the one in use.
+            Nothing is changed in that case.
 
         Examples
         --------
@@ -2135,10 +2154,48 @@ class BudgetOptimizer(BaseModel):
             optimizer = BudgetOptimizer(model=model, idata=idata, num_periods=8)
             baseline = optimizer.allocate_budget(total_budget=100.0)
 
-            optimizer.set_posterior(updated_idata)  # no recompile
+            optimizer.set_posterior(updated_idata)  # recompiles once
             updated = optimizer.allocate_budget(total_budget=100.0)
+
+            optimizer.set_posterior(another_idata)  # no recompile
         """
+        # Local import to avoid circular import at module load time
+        from pymc_marketing.pytensor_utils import SharedPosterior
+
+        if isinstance(idata, xr.Dataset):
+            idata = DataTree.from_dict({"/posterior": idata})
         idata = _to_datatree(idata)
+
+        # The mask fixes the decision vector the graphs were compiled for, so
+        # it cannot follow the posterior; it can only be checked against it.
+        current_mask = cast(DataArray, self.budgets_to_optimize)
+        if self._mask_auto_detected:
+            new_mask = align_to_model_coords(
+                self._auto_detect_mask(idata),
+                self._budget_coords,
+                label="budgets_to_optimize",
+            )
+            if not np.array_equal(new_mask.values, current_mask.values):
+                raise ValueError(
+                    "The new posterior implies a different auto-detected "
+                    "budgets_to_optimize mask than the one this optimizer was "
+                    f"built with ({current_mask.values.tolist()} -> "
+                    f"{new_mask.values.tolist()}). The mask fixes the decision "
+                    "vector the graphs were compiled for, so build a new optimizer "
+                    "or pass budgets_to_optimize explicitly."
+                )
+        else:
+            self._validate_mask_against_posterior(current_mask, idata)
+
+        if self._shared_posterior is None:
+            # First rebind: bind the new draws through shared variables and
+            # compile once against them. Later calls are set_value only.
+            self._shared_posterior = SharedPosterior()
+            self.idata = idata
+            self._compile_objective_and_grad()
+            self.set_constraints(constraints=list(self._constraints.values()))
+            return
+
         self._shared_posterior.set_posterior(_extract_dataset(idata, "posterior"))
         self.idata = idata
 

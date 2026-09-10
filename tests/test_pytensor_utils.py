@@ -728,6 +728,28 @@ def _slope_model_and_draws(draws: int, seed: int):
     return model, idata, data_values
 
 
+def _two_channel_model():
+    """``resp = beta * gamma`` over a labelled channel axis."""
+    with pm.Model(coords={"channel": ["a", "b"]}) as model:
+        beta = pmd.Normal("beta", dims="channel")
+        gamma = pmd.Normal("gamma", dims="channel")
+        pmd.Deterministic("resp", beta * gamma)
+    return model
+
+
+def _two_channel_posterior(beta, gamma, channel=("a", "b")):
+    return xr.Dataset(
+        {
+            "beta": (("chain", "draw", "channel"), np.asarray(beta, float)[None, None]),
+            "gamma": (
+                ("chain", "draw", "channel"),
+                np.asarray(gamma, float)[None, None],
+            ),
+        },
+        coords={"channel": list(channel)},
+    )
+
+
 def test_shared_posterior_rebinds_compiled_graph_without_recompile():
     """Draws bound through ``SharedPosterior`` follow ``set_posterior``.
 
@@ -743,7 +765,7 @@ def test_shared_posterior_rebinds_compiled_graph_without_recompile():
         model, idata_a, "doubled", shared_posterior=shared_posterior
     )
     assert set(shared_posterior.variables) == {"slope"}
-    assert shared_posterior.dims == {"slope": ("sample",)}
+    assert shared_posterior.dims["slope"][0] == "sample"
 
     fn = function([], graph)
 
@@ -763,19 +785,88 @@ def test_shared_posterior_rebinds_compiled_graph_without_recompile():
     np.testing.assert_allclose(function([], constant_graph)(), expected(idata_a))
 
 
-def test_shared_posterior_is_reused_across_extractions():
-    """Two graphs extracted with the same instance share one variable per name."""
-    model, idata, _ = _slope_model_and_draws(draws=3, seed=3)
+def test_shared_posterior_rebinds_every_graph_at_once():
+    """Two graphs extracted with one instance move together on one rebind.
+
+    A later extraction has to be conditioned on the draws already bound; a
+    different posterior would otherwise be silently ignored, so it raises.
+    """
+    model = _two_channel_model()
+    posterior_a = _two_channel_posterior([1.0, 1.0], [2.0, 2.0])
+    posterior_b = _two_channel_posterior([10.0, 10.0], [3.0, 3.0])
+
     shared_posterior = SharedPosterior()
-    first = extract_response_distribution(
-        model, idata, "doubled", shared_posterior=shared_posterior
+    resp = extract_response_distribution(
+        model, posterior_a, "resp", shared_posterior=shared_posterior
     )
-    second = extract_response_distribution(
-        model, idata, "doubled", shared_posterior=shared_posterior
+    beta = extract_response_distribution(
+        model, posterior_a, "beta", shared_posterior=shared_posterior
     )
-    slope_var = shared_posterior.variables["slope"]
-    assert slope_var in set(ancestors([first]))
-    assert slope_var in set(ancestors([second]))
+    resp_fn, beta_fn = function([], resp), function([], beta)
+    np.testing.assert_allclose(resp_fn(), [[2.0, 2.0]])
+    np.testing.assert_allclose(beta_fn(), [[1.0, 1.0]])
+
+    shared_posterior.set_posterior(posterior_b)
+    np.testing.assert_allclose(resp_fn(), [[30.0, 30.0]])
+    np.testing.assert_allclose(beta_fn(), [[10.0, 10.0]])
+
+    with pytest.raises(
+        ValueError, match=r"already binds '(beta|gamma)' to different draws"
+    ):
+        extract_response_distribution(
+            model, posterior_a, "resp", shared_posterior=shared_posterior
+        )
+    # Same draws as bound: fine, and the new graph reads the shared variable.
+    again = extract_response_distribution(
+        model, posterior_b, "resp", shared_posterior=shared_posterior
+    )
+    np.testing.assert_allclose(function([], again)(), [[30.0, 30.0]])
+
+
+def test_shared_posterior_rebind_is_atomic():
+    """A posterior that fails on one variable leaves every variable untouched."""
+    model = _two_channel_model()
+    shared_posterior = SharedPosterior()
+    graph = extract_response_distribution(
+        model,
+        _two_channel_posterior([1.0, 1.0], [2.0, 2.0]),
+        "resp",
+        shared_posterior=shared_posterior,
+    )
+    fn = function([], graph)
+
+    # beta is valid and comes first; gamma carries an extra dim and is not.
+    bad = _two_channel_posterior([5.0, 5.0], [9.0, 9.0]).assign(
+        gamma=lambda ds: ds["gamma"].expand_dims(extra=[0])
+    )
+    with pytest.raises(ValueError, match=r"'gamma' has dims"):
+        shared_posterior.set_posterior(bad)
+    np.testing.assert_allclose(
+        shared_posterior.variables["beta"].get_value(), [[1.0, 1.0]]
+    )
+    np.testing.assert_allclose(fn(), [[2.0, 2.0]])
+
+
+def test_shared_posterior_aligns_coordinates_on_rebind():
+    """Labelled coordinates are matched by label, not position; new labels are refused."""
+    model = _two_channel_model()
+    shared_posterior = SharedPosterior()
+    graph = extract_response_distribution(
+        model,
+        _two_channel_posterior([1.0, 2.0], [10.0, 10.0]),
+        "resp",
+        shared_posterior=shared_posterior,
+    )
+    fn = function([], graph)
+    np.testing.assert_allclose(fn(), [[10.0, 20.0]])
+
+    reordered = _two_channel_posterior([2.0, 1.0], [10.0, 10.0], channel=("b", "a"))
+    shared_posterior.set_posterior(reordered)
+    np.testing.assert_allclose(fn(), [[10.0, 20.0]])
+
+    relabelled = _two_channel_posterior([1.0, 2.0], [10.0, 10.0], channel=("a", "c"))
+    with pytest.raises(ValueError, match=r"channel coordinates"):
+        shared_posterior.set_posterior(relabelled)
 
 
 def test_shared_posterior_set_posterior_validates_input():
@@ -815,15 +906,33 @@ def test_shared_posterior_rejects_changed_non_sample_lengths():
         "doubled",
         shared_posterior=shared_posterior,
     )
-    assert repr(shared_posterior) == "SharedPosterior(beta(3, 2))"
+    assert "beta" in repr(shared_posterior)
 
     # A plain posterior Dataset (chain, draw) is accepted as well as a tree,
     # and a different draw count is fine.
     shared_posterior.set_posterior(posterior.isel(draw=[0]))
-    assert repr(shared_posterior) == "SharedPosterior(beta(1, 2))"
+    assert shared_posterior.variables["beta"].get_value().shape == (1, 2)
 
     three_channels = xr.Dataset(
         {"beta": (("chain", "draw", "channel"), np.zeros((1, 3, 3)))}
     )
     with pytest.raises(ValueError, match=r"beta.*Only the sample dimension"):
         shared_posterior.set_posterior(three_channels)
+
+
+def test_extract_response_distribution_one_variable_posterior():
+    """Regression: a posterior holding a single variable extracts on the constant path.
+
+    ``arviz.extract`` squeezes a one-variable group to a ``DataArray``, which
+    used to make the placeholder lookup fail with ``KeyError``.
+    """
+    with pm.Model(coords={"channel": ["a", "b"]}) as model:
+        beta = pmd.Normal("beta", dims="channel")
+        pmd.Deterministic("resp", 2.0 * beta)
+    posterior = xr.Dataset(
+        {"beta": (("chain", "draw", "channel"), np.array([[[1.0, 3.0]]]))}
+    )
+    graph = extract_response_distribution(
+        model, xr.DataTree.from_dict({"/posterior": posterior}), "resp"
+    )
+    np.testing.assert_allclose(function([], graph)(), [[2.0, 6.0]])
