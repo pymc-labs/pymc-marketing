@@ -668,6 +668,9 @@ def test_callback_functionality_parametrized(
 
         # Check constraints (default constraint should be present)
         assert "constraint_info" in first_iter
+        assert [c["key"] for c in first_iter["constraint_info"]] == ["default"]
+        assert set(result.constraint_history) == {"default"}
+        assert len(result.constraint_history["default"]) == len(callback_info)
 
         # Verify all iterations have same structure
         for iter_info in callback_info:
@@ -677,6 +680,7 @@ def test_callback_functionality_parametrized(
         # Unpack without callback
         optimal_budgets, opt_result = result
         assert result.callback_info is None
+        assert result.constraint_history == {}
 
     # Common checks
     assert isinstance(optimal_budgets, xr.DataArray)
@@ -685,6 +689,51 @@ def test_callback_functionality_parametrized(
 
     # Check budget allocation sums to total
     assert np.abs(optimal_budgets.sum().item() - total_budget) < 1e-3
+
+
+def test_constraint_history_keyed_by_constraint(mmm_wrapper):
+    """Constraint diagnostics can be read by key instead of by position.
+
+    The custom floor is never active (the equality pins the sum at the total
+    budget), so this checks the keying, not the solver: every key is present,
+    every key has one entry per iteration, and each entry is the same object
+    as its positional counterpart.
+    """
+
+    def spend_floor(budgets_sym, total_budget_sym, optimizer):
+        return budgets_sym.sum() - 10.0
+
+    optimizer = BudgetOptimizer(
+        model=mmm_wrapper,
+        num_periods=30,
+        response_variable="total_media_contribution_original_scale",
+        constraints=[
+            Constraint(
+                key="spend_floor",
+                constraint_type="ineq",
+                constraint_fun=spend_floor,
+            ),
+            build_default_sum_constraint(),
+        ],
+    )
+    result = optimizer.allocate_budget(total_budget=100.0, callback=True)
+
+    history = result.constraint_history
+    assert set(history) == {"spend_floor", "default"}
+    for key, entries in history.items():
+        assert len(entries) == len(result.callback_info)
+        assert all(entry["key"] == key for entry in entries)
+
+    # Regrouped entries are the same objects as the positional ones, found
+    # by key rather than by the compile order this view exists to hide.
+    last_iter = {
+        info["key"]: info for info in result.callback_info[-1]["constraint_info"]
+    }
+    assert history["spend_floor"][-1] is last_iter["spend_floor"]
+    assert history["default"][-1] is last_iter["default"]
+    assert history["spend_floor"][-1]["type"] == "ineq"
+    assert history["default"][-1]["type"] == "eq"
+    assert np.isclose(history["default"][-1]["value"], 0.0, atol=1e-6)
 
 
 def test_allocate_budget_result_object(mmm_wrapper):
