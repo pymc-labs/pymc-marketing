@@ -15,7 +15,8 @@
 """Composable model terms for building ``pymc.dims`` subgraphs from xarray data.
 
 ``pymc_marketing.terms`` provides a small set of built-in pieces
-(``Parameter`` / ``Intercept``, ``Dot``, ``Transform``) that compose with
+(``Parameter`` / ``Intercept``, ``Dot``, ``Transform``,
+``Named``, ``Ref``) that compose with
 ``+``, ``*``, and ``-`` into predictors.  **This module is not a full
 modeling toolkit** --- it does not ship complete hierarchical,
 domain-specific, or observation-model wrappers.  It is a **thin, expressive
@@ -71,12 +72,13 @@ contract: decorate them with ``@serialization.register`` and implement
 unregistered term raises
 :class:`~pymc_marketing.serialization.SerializationError`.
 
-Children of composed terms (``Sum``, ``Product``, ``Transform``) must be
-registered terms, ``VariableFactory`` (``Prior``, ...), ``xr.DataArray``,
-``DeferredFactory``, or numeric literals. ``Transform`` functions serialize
-by name and are resolved with ``pymc_extras.prior._get_transform``:
-``pytensor.xtensor.math`` / ``pytensor.xtensor.linalg`` functions, or
-transforms registered with ``pymc_extras.prior.register_tensor_transform``.
+Children of composed terms (``Sum``, ``Product``, ``Transform``, ``Named``)
+must be registered terms, ``VariableFactory`` (``Prior``, ...),
+``xr.DataArray``, ``DeferredFactory``, or numeric literals. ``Transform``
+functions serialize by name and are resolved with
+``pymc_extras.prior._get_transform``: ``pytensor.xtensor.math`` /
+``pytensor.xtensor.linalg`` functions, or transforms registered with
+``pymc_extras.prior.register_tensor_transform``.
 
 ``Parameter`` and ``Intercept``
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -236,7 +238,10 @@ Gotchas
   same covariate matrix).
 - ``build_param`` is not idempotent --- call it once to create PyMC
   variables, then sample. Calling it a second time tries to create
-  variables with the same name, causing a PyMC error.
+  variables with the same name, causing a PyMC error. ``Named`` is a
+  named wrapper with the same constraint: build once, reference
+  afterwards with ``Ref`` (which is freely reusable inside multiple
+  ``Named`` expressions).
 - Changing the number of observations in ``set_data`` requires rebuilding
   the model. This is a ``pmd.Data`` constraint (dimensional shared variables
   have fixed dimension sizes), not a framework limitation.
@@ -249,6 +254,10 @@ Gotchas
           model = pm.modelcontext(None)
           unique = list(dict.fromkeys(ds[self.data_source].values))
           model.add_coords({self.data_source: unique})
+- ``Named`` builds a ``pmd.Deterministic``, so its expression leaves must
+  be dims-native: ``Parameter`` / ``Prior`` with ``xdist=True`` or
+  ``pytensor.xtensor`` expressions. Plain-tensor leaves (``xdist=False``)
+  will fail when the deterministic is built.
 - The built-in terms serialize via ``pymc_marketing.serialization``
   (``to_dict`` / ``from_dict`` are registered), so recipes stored in
   ``model_config`` survive ``fit()`` (attrs are JSON-serialized at
@@ -291,8 +300,10 @@ __all__ = [
     "Dot",
     "Intercept",
     "ModelTerm",
+    "Named",
     "Parameter",
     "Product",
+    "Ref",
     "Sum",
     "Transform",
     "build_param",
@@ -403,7 +414,8 @@ class ModelTerm:
 
     Subclass ``ModelTerm`` to define reusable PyMC subgraph recipes.
     Custom terms compose with the built-ins (``Parameter``, ``Intercept``,
-    ``Dot``, ``Transform``) via ``+``, ``*``, and ``-`` and use the same
+    ``Dot``, ``Transform``, ``Named``, ``Ref``) via ``+``, ``*``, and ``-``
+    and use the same
     helpers (``collect_coords``, ``register_data``, ``build_param``,
     ``set_data``) --- no framework changes required.  See the module
     docstring **Extending** section for the full contract and an example.
@@ -884,6 +896,197 @@ class Transform(ModelTerm):
         )
 
 
+@serialization.register
+@dataclass
+class Named(ModelTerm):
+    """Compose an expression into a named deterministic variable.
+
+    The inner expression is built lazily within the model context:
+    ``build_param`` produces the value and ``pmd.Deterministic`` stores it
+    under ``name``. Coordinates, data registration, and data updating
+    delegate to the inner expression. Useful for naming intermediate
+    effects (scales, link outputs) that should appear in the posterior.
+
+    The expression leaves must be dims-native: ``Parameter`` / ``Prior``
+    with ``xdist=True`` or ``pytensor.xtensor`` expressions.
+
+    Parameters
+    ----------
+    name : str
+        Name of the deterministic variable.
+    expr : Any
+        Inner expression accepted by ``build_param``.
+    dims : str or sequence of str, optional
+        Dimensions for the deterministic variable. These **align** the
+        built value onto ``dims`` (``pmd.Deterministic`` transposes), so
+        they must be a permutation of the inner value's dims, not a new
+        declaration - a value without those dims raises ``ValueError``.
+        Normalized to a tuple after construction.
+
+    Examples
+    --------
+    .. code-block:: python
+
+        from pymc_extras.prior import Prior
+        from pymc_marketing.terms import Named, Parameter, Ref
+
+        scale = Named(
+            "scale",
+            Parameter("scale_raw", prior=Prior("HalfNormal", dims="product")),
+            dims="product",
+        )
+
+        # an effect that references another built variable: build once with
+        # ``Named``, reference afterwards with ``Ref``
+        effect = Named(
+            "effect",
+            Ref("scale") * Parameter("kappa", prior=Prior("Normal", dims="product")),
+            dims="product",
+        )
+    """
+
+    name: str
+    expr: Any
+    dims: str | Sequence[str] | None = None
+
+    def __post_init__(self):
+        """Normalize ``dims`` to a tuple, mirroring ``Prior``."""
+        if self.dims is None:
+            return
+        if isinstance(self.dims, str):
+            self.dims = (self.dims,)
+        elif not isinstance(self.dims, tuple):
+            self.dims = tuple(self.dims)
+
+    def get_coords(self, ds: xr.Dataset) -> dict[str, Any]:
+        """Collect coordinates from the inner expression.
+
+        ``Named`` does not declare its own coords: ``dims`` aligns the
+        built value onto an existing permutation, so coordinates arrive
+        from the inner expression's leaves.
+        """
+        return get_coords(self.expr, ds)
+
+    def register_data(self, ds: xr.Dataset) -> None:
+        """Register shared data for the inner expression."""
+        register_data(self.expr, ds=ds)
+
+    def set_data(self, ds: xr.Dataset, model: pm.Model | None = None) -> None:
+        """Update shared data for the inner expression."""
+        set_data(self.expr, ds=ds, model=model)
+
+    def create_variable(self) -> pt.TensorVariable:
+        """Build the named deterministic from the inner expression.
+
+        Bare ``VariableFactory`` children get a derived name (``<name>_param``)
+        so several ``Named`` terms do not collide on ``build_param``'s default.
+        """
+        return pmd.Deterministic(
+            self.name,
+            build_param(self.expr, name=f"{self.name}_param"),
+            dims=self.dims,
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize the name, expression, and dims."""
+        data: dict[str, Any] = {
+            "name": self.name,
+            "expr": _serialize_child(self.expr),
+        }
+        if self.dims is not None:
+            data["dims"] = self.dims
+        return data
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> Named:
+        """Reconstruct a named term from its serialized form."""
+        return cls(
+            name=data["name"],
+            expr=_deserialize_child(data["expr"]),
+            dims=data.get("dims"),
+        )
+
+
+@serialization.register
+@dataclass
+class Ref(ModelTerm):
+    """Reference an already-built named variable in the active model.
+
+    Lets an effect expression composed outside the model depend on another
+    built effect (e.g. ``a`` on the ``a_scale`` deterministic) without
+    recreating its variables. ``Ref`` resolves at **build time** and
+    requires the referenced term to be built earlier in traversal order -
+    build once with ``Named``, reference afterwards with ``Ref``. Registered
+    ``pmd.Data`` variables also qualify as reference targets, since they
+    are dims-native; plain ``pm.Data`` tensors do not.
+
+    Parameters
+    ----------
+    name : str
+        Name of the referenced variable.
+
+    Examples
+    --------
+    .. code-block:: python
+
+        from pymc_extras.prior import Prior
+        from pymc_marketing.terms import Named, Parameter, Ref
+
+        scale = Named("scale", Parameter("scale_raw", prior=Prior("HalfNormal")))
+        effect = Named(
+            "effect",
+            Ref("scale") * Parameter("kappa", prior=Prior("Normal")),
+        )
+    """
+
+    name: str
+
+    def create_variable(self) -> pt.TensorVariable:
+        """Resolve the referenced variable from the active model.
+
+        Raises
+        ------
+        ValueError
+            If the variable is not built yet, or if it is not
+            dims-native (referencing plain-tensor variables built by
+            non-terms model code fails later inside pytensor, so it is
+            rejected here with the offending name).
+        """
+        model = pm.modelcontext(None)
+        try:
+            variable = model[self.name]
+        except KeyError:
+            available = sorted(model.named_vars)
+            if len(available) > 20:
+                available = [*available[:20], f"... ({len(available) - 20} more)"]
+            raise ValueError(
+                f"Ref({self.name!r}) cannot resolve: {self.name!r} is not "
+                "built yet. Terms build during build_param in traversal "
+                f"order, so a term referencing {self.name!r} must come "
+                f"after the term that builds it. Available named vars: "
+                f"{', '.join(available)}."
+            ) from None
+
+        if not isinstance(variable, pmd.XTensorVariable):
+            raise ValueError(
+                f"Ref({self.name!r}) resolved to {variable!r}, which is not "
+                "dims-native. Ref must reference a dims-native variable "
+                "(built by terms or pmd distributions) - plain-tensor "
+                "variables cannot compose into pytensor.xtensor "
+                "expressions."
+            )
+        return variable
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize the referenced name."""
+        return {"name": self.name}
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> Ref:
+        """Reconstruct a reference from its serialized form."""
+        return cls(name=data["name"])
+
+
 def get_coords(param: Any, ds: xr.Dataset) -> dict[str, Any]:
     """Extract coordinates from a term or term composition.
 
@@ -946,7 +1149,9 @@ def build_param(param: Any, name: str = "param") -> pt.TensorVariable | int | fl
         The term(s) or variable factory to build into a tensor.
     name : str
         Variable name used when building standalone ``VariableFactory``
-        objects. Terms handle their own naming internally.
+        objects (top level leaves get ``name`` directly; children of
+        ``Sum``/``Product`` get positional suffixes so siblings do not
+        collide). Terms handle their own naming internally.
 
     Returns
     -------
@@ -961,11 +1166,13 @@ def build_param(param: Any, name: str = "param") -> pt.TensorVariable | int | fl
         return cast("pt.TensorVariable", param.create_variable())
     if isinstance(param, Sum):
         result: pt.TensorVariable | int | float = 0
-        for term in param.terms:
-            result = result + build_param(term)
+        for idx, term in enumerate(param.terms):
+            result = result + build_param(term, name=f"{name}_{idx}")
         return result
     if isinstance(param, Product):
-        return build_param(param.left) * build_param(param.right)
+        return build_param(param.left, name=f"{name}_left") * build_param(
+            param.right, name=f"{name}_right"
+        )
     if isinstance(param, VariableFactory):
         return param.create_variable(name, xdist=True)
     raise TypeError(f"Cannot build param from {type(param)}")
