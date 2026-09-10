@@ -797,3 +797,33 @@ def test_shared_posterior_set_posterior_validates_input():
     )
     with pytest.raises(ValueError, match=r"slope.*dims"):
         shared_posterior.set_posterior(wrong_dims)
+
+
+def test_shared_posterior_rejects_changed_non_sample_lengths():
+    """Only the sample axis may change length; a resized channel axis is refused."""
+    with pm.Model(coords={"channel": ["a", "b"]}) as model:
+        beta = pmd.Normal("beta", mu=0.0, sigma=1.0, dims="channel")
+        pmd.Deterministic("doubled", 2.0 * beta)
+    with model:
+        prior = pm.sample_prior_predictive(draws=3, random_seed=5)
+    posterior = prior["/prior"].to_dataset()
+
+    shared_posterior = SharedPosterior()
+    extract_response_distribution(
+        model,
+        xr.DataTree.from_dict({"/posterior": posterior}),
+        "doubled",
+        shared_posterior=shared_posterior,
+    )
+    assert repr(shared_posterior) == "SharedPosterior(beta(3, 2))"
+
+    # A plain posterior Dataset (chain, draw) is accepted as well as a tree,
+    # and a different draw count is fine.
+    shared_posterior.set_posterior(posterior.isel(draw=[0]))
+    assert repr(shared_posterior) == "SharedPosterior(beta(1, 2))"
+
+    three_channels = xr.Dataset(
+        {"beta": (("chain", "draw", "channel"), np.zeros((1, 3, 3)))}
+    )
+    with pytest.raises(ValueError, match=r"beta.*Only the sample dimension"):
+        shared_posterior.set_posterior(three_channels)
