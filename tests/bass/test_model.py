@@ -1482,6 +1482,11 @@ class TestBassModelClass:
 class TestBassModelTerms:
     """Parameter recipes through BassPriors / model_config."""
 
+    @staticmethod
+    def _graph_m_sigma(model: BassModel) -> float:
+        """Read the `m` prior scale out of the built graph."""
+        return float(model.model["m"].owner.inputs[-1].eval())
+
     def test_recipe_priors_build(self) -> None:
         """m/p/q as term recipes compose through create_bass_model."""
         priors = {
@@ -1511,16 +1516,19 @@ class TestBassModelTerms:
         assert model.named_vars_to_dims["adopters"] == ("T", "product")
 
     def test_m_recipe_opts_out_of_rescale(self) -> None:
-        """A term recipe for ``m`` is the user's own prior: no data rescale."""
+        """The only configuration where the rescale could bite.
+
+        Wrapping the *identical* default prior in a ``Parameter`` looks like a
+        no-op refactor but changes the fitted ``m`` scale from
+        ``2 * observed.sum()`` to the prior's own sigma.
+        """
         y = np.random.default_rng(42).poisson(lam=100, size=20)
         model = BassModel(
-            model_config={"m": Parameter("m", prior=Prior("LogNormal", mu=3, sigma=1))}
+            model_config={"m": Parameter("m", prior=Prior("HalfNormal", sigma=10))}
         )
         model.build_model(data=y)
 
-        op = str(model.model["m"].owner.op)
-        assert "lognormal" in op
-        assert "halfnormal" not in op
+        assert self._graph_m_sigma(model) == pytest.approx(10.0)
 
     def test_recipe_config_survives_save_load(self, mock_pymc_sample, tmp_path) -> None:
         """Recipes serialize through the model attrs and survive save/load."""
