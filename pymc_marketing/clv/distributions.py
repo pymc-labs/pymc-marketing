@@ -14,12 +14,13 @@
 """Distributions for the CLV module."""
 
 import numpy as np
+import pytensor
 import pytensor.tensor as pt
 from pymc.distributions.continuous import PositiveContinuous
 from pymc.distributions.dist_math import betaln, check_parameters
 from pymc.distributions.distribution import Discrete
 from pymc.distributions.shape_utils import rv_size_is_none
-from pytensor import scan
+from pytensor.compile.builders import OpFromGraph
 from pytensor.graph import vectorize_graph
 from pytensor.tensor.random.op import RandomVariable
 
@@ -263,6 +264,29 @@ class BetaGeoBetaBinomRV(RandomVariable):
 beta_geo_beta_binom = BetaGeoBetaBinomRV()
 
 
+def _bgbb_unnorm_logp_core(t_x, x, alpha, beta, gamma, delta, T):
+    """Unnormalized BG/BB log-likelihood for one customer and one parameter draw.
+
+    The number of terms summed over depends on ``T - t_x``, so this intermediate is
+    not rectangular and cannot be broadcast over directly. Callers wrap this in an
+    ``OpFromGraph`` to hide the variable-size vector behind a scalar signature.
+    """
+    i = pt.scalar("i", dtype=int)
+    died = pt.lt(t_x + i, T)
+
+    unnorm_logprob_customer_died_at_tx_plus_i = betaln(
+        alpha + x, beta + t_x - x + i
+    ) + betaln(gamma + died, delta + t_x + i)
+
+    # Maximum prevents invalid T - t_x values from crashing logp
+    i_vec = pt.arange(pt.maximum(T - t_x, 0) + 1)
+    unnorm_logprob_customer_died_at_tx_plus_i_vec = vectorize_graph(
+        unnorm_logprob_customer_died_at_tx_plus_i, replace={i: i_vec}
+    )
+
+    return pt.logsumexp(unnorm_logprob_customer_died_at_tx_plus_i_vec)
+
+
 class BetaGeoBetaBinom(Discrete):
     r"""Population-level distribution class for a discrete, non-contractual, Beta-Geometric/Beta-Binomial process.
 
@@ -297,44 +321,31 @@ class BetaGeoBetaBinom(Discrete):
         return super().dist([alpha, beta, gamma, delta, T], **kwargs)
 
     def logp(value, alpha, beta, gamma, delta, T):
-        """Log-likelihood of the distribution."""
-        t_x = pt.atleast_1d(value[..., 0])
-        x = pt.atleast_1d(value[..., 1])
+        """Log-likelihood of the distribution.
 
-        for param in (t_x, x, alpha, beta, gamma, delta, T):
-            if param.type.ndim > 1:
-                raise NotImplementedError(
-                    f"BetaGeoBetaBinom logp only implemented for vector parameters, got ndim={param.type.ndim}"
-                )
-
-        # Broadcast all the parameters so they are sequences.
-        # Potentially inefficient, but otherwise ugly logic needed to unpack arguments in the scan function,
-        # since sequences always precede non-sequences.
-        t_x, alpha, beta, gamma, delta, T = pt.broadcast_arrays(
-            t_x, alpha, beta, gamma, delta, T
+        All inputs are cast to ``floatX``, and the log-likelihood broadcasts over them
+        natively, so ``value`` may have any shape that broadcasts with the parameters.
+        """
+        floatX = pytensor.config.floatX
+        t_x = pt.cast(value[..., 0], floatX)
+        x = pt.cast(value[..., 1], floatX)
+        alpha, beta, gamma, delta, T = (
+            pt.cast(param, floatX) for param in (alpha, beta, gamma, delta, T)
         )
 
-        def logp_customer_died(t_x_i, x_i, alpha_i, beta_i, gamma_i, delta_i, T_i):
-            i = pt.scalar("i", dtype=int)
-            died = pt.lt(t_x_i + i, T_i)
-
-            unnorm_logprob_customer_died_at_tx_plus_i = betaln(
-                alpha_i + x_i, beta_i + t_x_i - x_i + i
-            ) + betaln(gamma_i + died, delta_i + t_x_i + i)
-
-            # Maximum prevents invalid T - t_x values from crashing logp
-            i_vec = pt.arange(pt.maximum(T_i - t_x_i, 0) + 1)
-            unnorm_logprob_customer_died_at_tx_plus_i_vec = vectorize_graph(
-                unnorm_logprob_customer_died_at_tx_plus_i, replace={i: i_vec}
-            )
-
-            return pt.logsumexp(unnorm_logprob_customer_died_at_tx_plus_i_vec)
-
-        unnorm_logp = scan(
-            fn=logp_customer_died,
-            outputs_info=[None],
-            sequences=[t_x, x, alpha, beta, gamma, delta, T],
-            return_updates=False,
+        # `_bgbb_unnorm_logp_core` sums over a data-dependent number of terms, which is
+        # not rectangular and so cannot be broadcast over directly. Wrapping it in an
+        # OpFromGraph hides that intermediate behind a scalar signature, which
+        # `pt.vectorize` then broadcasts over natively.
+        core_inputs = [
+            pt.scalar(name, dtype=floatX)
+            for name in ("t_x", "x", "alpha", "beta", "gamma", "delta", "T")
+        ]
+        core_op = OpFromGraph(
+            core_inputs, [_bgbb_unnorm_logp_core(*core_inputs)], inline=False
+        )
+        unnorm_logp = pt.vectorize(core_op, signature="(),(),(),(),(),(),()->()")(
+            t_x, x, alpha, beta, gamma, delta, T
         )
 
         logp = unnorm_logp - betaln(alpha, beta) - betaln(gamma, delta)
@@ -350,9 +361,6 @@ class BetaGeoBetaBinom(Discrete):
             -np.inf,
             logp,
         )
-
-        if value.ndim == 1:
-            logp = pt.specify_shape(logp, 1).squeeze(0)
 
         return check_parameters(
             logp,
