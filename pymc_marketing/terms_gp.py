@@ -231,6 +231,13 @@ class GPDataTerm(ModelTerm):
         """Name of the registered numeric index data variable."""
         return f"{self.var_name}_index"
 
+    def __post_init__(self) -> None:
+        """Normalize ``dims`` to a tuple for stable serialization round-trips."""
+        if isinstance(self.dims, str):
+            self.dims = (self.dims,)
+        elif self.dims is not None:
+            self.dims = tuple(self.dims)
+
     @property
     def extra_dims(self) -> tuple[str, ...]:
         """Dims beyond the time dimension."""
@@ -525,9 +532,6 @@ class HSGPTerm(GPDataTerm):
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> HSGPTerm:
         """Reconstruct a term from its serialized form."""
-        dims = data.get("dims")
-        if isinstance(dims, list):
-            dims = tuple(dims)
         return cls(
             var_name=data["var_name"],
             name=data["name"],
@@ -535,7 +539,7 @@ class HSGPTerm(GPDataTerm):
             ls=_deserialize_optional(data.get("ls")),
             m=data.get("m"),
             L=data.get("L"),
-            dims=dims,
+            dims=data.get("dims"),
             centered=data["centered"],
             drop_first=data["drop_first"],
             demeaned_basis=data["demeaned_basis"],
@@ -694,9 +698,6 @@ class HSGPPeriodicTerm(GPDataTerm):
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> HSGPPeriodicTerm:
         """Reconstruct a term from its serialized form."""
-        dims = data.get("dims")
-        if isinstance(dims, list):
-            dims = tuple(dims)
         return cls(
             var_name=data["var_name"],
             name=data["name"],
@@ -704,7 +705,7 @@ class HSGPPeriodicTerm(GPDataTerm):
             ls=_deserialize_optional(data.get("ls")),
             period=data["period"],
             m=data["m"],
-            dims=dims,
+            dims=data.get("dims"),
             demeaned_basis=data["demeaned_basis"],
             time_resolution=data["time_resolution"],
         )

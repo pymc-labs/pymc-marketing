@@ -14,6 +14,7 @@
 
 """Tests for pymc_marketing.terms_gp."""
 
+import json
 from dataclasses import dataclass
 from typing import Any
 
@@ -373,6 +374,28 @@ def test_serialize_hsgp_term_roundtrip():
     )
     restored = serialization.deserialize(serialization.serialize(term))
     assert restored == term
+    assert restored.dims == ("channel",)
+
+
+@pytest.mark.parametrize("dims", ["channel", ("channel", "product")], ids=str)
+def test_serialize_json_roundtrip_dims(dims):
+    """string and tuple dims both survive a JSON hop as tuples."""
+    term = HSGPTerm(name="trend", dims=dims, m=15, L=100)
+    assert term.dims == (("channel",) if dims == "channel" else dims)
+    data = json.loads(json.dumps(serialization.serialize(term)))
+    restored = serialization.deserialize(data)
+    assert restored == term
+    assert restored.dims == (("channel",) if dims == "channel" else dims)
+
+
+@pytest.mark.parametrize("term_cls", [SoftPlusHSGPTerm, HSGPTerm])
+def test_serialize_json_roundtrip_no_dims(term_cls):
+    """JSON hop with no dims configured."""
+    term = term_cls(name="trend", m=15, L=100)
+    data = json.loads(json.dumps(serialization.serialize(term)))
+    restored = serialization.deserialize(data)
+    assert restored == term
+    assert restored.dims is None
 
 
 def test_serialize_deferred_roundtrip():
