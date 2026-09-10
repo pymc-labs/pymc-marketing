@@ -293,6 +293,14 @@ class SharedPosterior:
         self._variables: dict[str, SharedVariable] = {}
         self._dims: dict[str, tuple[str, ...]] = {}
 
+    def __repr__(self) -> str:
+        """Show each bound variable with its current ``(sample, ...)`` shape."""
+        bound = ", ".join(
+            f"{name}{tuple(self._variables[name].get_value(borrow=True).shape)}"
+            for name in self._variables
+        )
+        return f"SharedPosterior({bound})"
+
     @property
     def variables(self) -> dict[str, SharedVariable]:
         """The shared variables, keyed by posterior variable name."""
@@ -325,8 +333,8 @@ class SharedPosterior:
         KeyError
             If the posterior lacks a variable this instance owns.
         ValueError
-            If a variable's non-sample dimensions differ from the ones it was
-            created with.
+            If a variable's non-sample dimensions differ, in name or length,
+            from the ones it was created with.
         """
         posterior = _posterior_sample_major(idata)
         missing = sorted(set(self._variables) - set(posterior.data_vars))
@@ -342,10 +350,21 @@ class SharedPosterior:
                     f"Posterior variable {name!r} has dims {tuple(posterior_da.dims)}, "
                     f"expected {dims}."
                 )
-            var.set_value(
-                posterior_da.transpose(*dims).values.astype(var.type.dtype),
-                borrow=True,
-            )
+            # Only the sample axis may change length: the compiled graphs were
+            # built against the other lengths (channels, geos, ...), and a
+            # mismatch would otherwise surface as a shape error deep inside
+            # the next function call rather than here.
+            new_values = posterior_da.transpose(*dims).values
+            old_shape = var.get_value(borrow=True).shape[1:]
+            if new_values.shape[1:] != old_shape:
+                raise ValueError(
+                    f"Posterior variable {name!r} has shape {new_values.shape[1:]} "
+                    f"over dims {dims[1:]}, expected {old_shape}. Only the "
+                    "sample dimension may change length between rebinds."
+                )
+            # astype always allocates, so the shared variable owns the array
+            # and borrow=True cannot alias the caller's data.
+            var.set_value(new_values.astype(var.type.dtype), borrow=True)
 
 
 @overload

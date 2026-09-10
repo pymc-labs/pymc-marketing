@@ -1623,6 +1623,9 @@ def test_set_posterior_rebinds_without_recompile(mmm_wrapper, dummy_idata):
         response_variable="total_media_contribution_original_scale",
     )
     compiled = optimizer._objective_and_grad
+    # The objective is compiled at construction, so the binding already
+    # exists: set_posterior is never a silent no-op on a fresh optimizer.
+    assert optimizer._shared_posterior.variables
     baseline, _ = optimizer.allocate_budget(total_budget=2.0)
 
     optimizer.set_posterior(updated_idata)
@@ -1647,6 +1650,27 @@ def test_set_posterior_rebinds_without_recompile(mmm_wrapper, dummy_idata):
     assert rebound_res.fun == pytest.approx(expected_res.fun, rel=1e-6)
     # And the swap moved the allocation: the reweighted channel gets more.
     assert not np.allclose(rebound.values, baseline.values)
+
+
+def test_set_posterior_accepts_inference_data_like_objects(mmm_wrapper, dummy_idata):
+    """Anything with ``groups()`` and group attributes converts like the constructor does."""
+
+    class LegacyInferenceData:
+        def __init__(self, posterior):
+            self.posterior = posterior
+
+        def groups(self):
+            return ["posterior"]
+
+    optimizer = BudgetOptimizer(
+        model=mmm_wrapper,
+        num_periods=30,
+        response_variable="total_media_contribution_original_scale",
+    )
+    posterior = dummy_idata["posterior"].to_dataset().isel(draw=[1])
+    optimizer.set_posterior(LegacyInferenceData(posterior))
+    assert isinstance(optimizer.idata, xr.DataTree)
+    assert optimizer.idata["posterior"].sizes["draw"] == 1
 
 
 def test_set_posterior_requires_every_bound_variable(mmm_wrapper, dummy_idata):
