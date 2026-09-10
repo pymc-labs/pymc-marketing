@@ -284,6 +284,7 @@ alone. A model whose response also travels through a ``MuEffect`` wants
 class ConstraintIterationInfo(TypedDict):
     """Constraint state at one solver iteration."""
 
+    key: str
     type: str
     value: float | np.ndarray
     jac: np.ndarray | None
@@ -331,7 +332,9 @@ class BudgetOptimizationResult:
         allocations draw from the budget; see :attr:`spend_var_allocations`.
     callback_info : list[OptimizationIterationInfo] or None
         Per-iteration diagnostics (``x``, ``fun``, ``jac``, constraint values)
-        when ``allocate_budget(callback=True)``; ``None`` otherwise.
+        when ``allocate_budget(callback=True)``; ``None`` otherwise. See
+        :attr:`constraint_history` for the same constraint diagnostics keyed
+        by constraint.
     """
 
     budgets: DataArray
@@ -366,6 +369,38 @@ class BudgetOptimizationResult:
             )
         """
         return {name: self.optimized_vars[name] for name in self.spend_var_names}
+
+    @property
+    def constraint_history(self) -> dict[str, list[ConstraintIterationInfo]]:
+        """Per-constraint diagnostics across iterations, keyed by constraint key.
+
+        ``callback_info`` lists constraints positionally at every iteration,
+        which only works if the caller remembers the order the optimizer
+        compiled them in. This view regroups the same entries by the
+        ``Constraint.key`` they were declared with, so a caller can ask for
+        one constraint by name. The auto-added sum constraint is under
+        ``"default"``.
+
+        Returns
+        -------
+        dict[str, list[ConstraintIterationInfo]]
+            One list per constraint, in iteration order. Empty when the run
+            was not made with ``callback=True``.
+
+        Examples
+        --------
+        Check that a custom inequality constraint holds at the last iteration:
+
+        .. code-block:: python
+
+            last = result.constraint_history["min_response_constraint"][-1]
+            assert last["value"] >= -1e-6
+        """
+        history: dict[str, list[ConstraintIterationInfo]] = {}
+        for iteration in self.callback_info or []:
+            for info in iteration.get("constraint_info", []):
+                history.setdefault(info["key"], []).append(info)
+        return history
 
     def __iter__(self):
         """Yield ``(budgets, scipy_result)`` for two-element unpacking."""
@@ -1432,7 +1467,7 @@ class BudgetOptimizer(BaseModel):
         ),
     )
 
-    model_config = ConfigDict(arbitrary_types_allowed=True)
+    model_config = ConfigDict(arbitrary_types_allowed=True, extra="forbid")
 
     _total_budget: SharedVariable = PrivateAttr()
     _budget_dims: list[str] = PrivateAttr()
@@ -2133,7 +2168,10 @@ class BudgetOptimizer(BaseModel):
             Whether to track optimization progress. When True, ``result.callback_info`` is
             populated with a list of dictionaries with optimization information at
             each iteration including 'x' (parameter values), 'fun' (objective value),
-            'jac' (gradient), and constraint information. Default is False.
+            'jac' (gradient), and 'constraint_info', a list with one entry per
+            constraint holding its 'key', 'type', 'value', and 'jac'. Use
+            ``result.constraint_history`` to read those entries by constraint key.
+            Default is False.
 
         Returns
         -------
@@ -2253,7 +2291,7 @@ class BudgetOptimizer(BaseModel):
             if self._compiled_constraints:
                 constraint_info: list[ConstraintIterationInfo] = []
 
-                for _, constraint in enumerate(self._compiled_constraints):
+                for constraint in self._compiled_constraints:
                     # Evaluate constraint function
                     c_val = constraint["fun"](xk)
                     # Evaluate constraint gradient
@@ -2261,6 +2299,7 @@ class BudgetOptimizer(BaseModel):
 
                     constraint_info.append(
                         {
+                            "key": constraint["key"],
                             "type": constraint["type"],
                             "value": float(c_val)
                             if np.ndim(c_val) == 0

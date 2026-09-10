@@ -61,6 +61,16 @@ def _make_positive_panel(
     return df, y
 
 
+def _make_panel_with_target(y_values, channels=("C1", "C2")):
+    """Single-dim panel whose target is exactly *y_values*."""
+    rng = np.random.default_rng(0)
+    n = len(y_values)
+    df = pd.DataFrame({"date": pd.date_range("2025-01-06", periods=n, freq="W-MON")})
+    for ch in channels:
+        df[ch] = rng.uniform(10, 100, n)
+    return df, pd.Series(np.asarray(y_values, dtype=float), name="y")
+
+
 def _make_mmm(link: str = "identity", dims=("country",), **kwargs) -> MMM:
     sat = LogSaturation() if link == "log" else LogisticSaturation()
     return MMM(
@@ -968,3 +978,260 @@ class TestTotalResponseDeterministic:
 
         assert float(before[0]) != float(after[0])
         assert float(before[1]) == float(after[1])
+
+
+class TestLikelihoodSupport:
+    """Target values outside the likelihood support are rejected at build time.
+
+    See issue #2835.  The likelihood observes ``target / target_scale``, so
+    every case here is stated in terms of that ratio rather than the target.
+    """
+
+    GAMMA = Prior("Gamma", sigma=Prior("HalfNormal", sigma=1), dims=("date",))
+
+    def test_negative_scaled_target_raises(self, mock_pymc_sample):
+        """One negative value, positive scale, so the ratio leaves the support."""
+        mmm = _make_mmm(dims=None, model_config={"likelihood": self.GAMMA})
+        X, y = _make_panel_with_target([-5.0, 3.0, 7.0, 2.0, 9.0, 4.0, 6.0, 8.0])
+        with pytest.raises(ValueError, match="1 of 8 values"):
+            mmm.build_model(X, y)
+
+    def test_negative_target_with_negative_scale_builds(self, mock_pymc_sample):
+        """An all-negative target scales to a positive ratio and must be allowed.
+
+        ``DataDerivedScaling`` reduces with ``max``, not ``max(abs(...))``, so
+        the scale is negative here and every observed value is positive.  A
+        check written against the raw target would reject a model that fits.
+        """
+        mmm = _make_mmm(dims=None, model_config={"likelihood": self.GAMMA})
+        X, y = _make_panel_with_target([-5.0, -3.0, -7.0, -2.0, -9.0, -4.0, -6.0, -8.0])
+        mmm.build_model(X, y)
+
+        assert float(mmm.scalers["_target"].values) < 0
+        assert np.all(mmm.target_data_scaled.eval() > 0)
+        logp = mmm.model.compile_logp()(mmm.model.initial_point())
+        assert np.isfinite(logp)
+
+    def test_all_zero_placeholder_target_is_skipped(self, mock_pymc_sample):
+        """An all-zero target is the no-``y`` placeholder, not data to reject.
+
+        ``fit`` and ``sample_prior_predictive`` substitute ``np.zeros`` when
+        no target is given, and the scale is then zero, so every observed
+        value is the clamped ``0.0``.  Rejecting that would make it impossible
+        to build a model in order to look at its prior.
+        """
+        mmm = _make_mmm(dims=None, model_config={"likelihood": self.GAMMA})
+        X, y = _make_panel_with_target([0.0] * 8)
+        mmm.build_model(X, y)
+
+    def test_prior_predictive_without_y_builds(self, mock_pymc_sample):
+        """The same placeholder path, reached the way a user reaches it.
+
+        Only the build is under test.  Drawing from a ``Gamma`` prior under
+        ``link='identity'`` can raise ``scale < 0`` because ``mu`` is
+        unconstrained, which is the likelihood's own business and depends on
+        the seed.  That failure is tolerated; the support check firing on the
+        placeholder is not.
+        """
+        mmm = _make_mmm(dims=None, model_config={"likelihood": self.GAMMA})
+        X, _ = _make_panel_with_target([1.0] * 8)
+        try:
+            mmm.sample_prior_predictive(X, samples=5)
+        except ValueError as exc:
+            assert "requires the observed target" not in str(exc)
+        assert "y" in mmm.model.named_vars
+
+    def test_multidimensional_target_is_checked(self, mock_pymc_sample):
+        """The mask is over the full ``(date, country)`` grid, not one series."""
+        mmm = _make_mmm(model_config={"likelihood": self.GAMMA})
+        X, y = _make_positive_panel()
+        y.iloc[0] = -1.0
+        with pytest.raises(ValueError, match="1 of 16 values"):
+            mmm.build_model(X, y)
+
+    def test_degenerate_scale_names_the_scale(self, mock_pymc_sample):
+        """A zero scale clamps a real target to 0.0; say so, not "bad values".
+
+        Country ``A``'s target has a maximum of zero, so its scale is zero and
+        every ratio is NaN or infinite.  ``build_model`` rewrites those to
+        ``0.0``, which is outside ``Gamma``'s support, and the user-visible
+        cause is the scale rather than anything in the target.
+        """
+        dates = pd.date_range("2025-01-06", periods=4, freq="W-MON")
+        rng = np.random.default_rng(0)
+        rows = [
+            {
+                "date": d,
+                "country": c,
+                "C1": rng.uniform(10, 100),
+                "C2": rng.uniform(10, 100),
+            }
+            for d in dates
+            for c in ("A", "B")
+        ]
+        X = pd.DataFrame(rows)
+        y = pd.Series([-2.0, 50.0, -2.0, 50.0, -2.0, 50.0, 0.0, 50.0], name="y")
+
+        per_country = DataDerivedScaling(method="max", dims=())
+        mmm = _make_mmm(
+            scaling=Scaling(target=per_country, channel=per_country),
+            model_config={
+                "likelihood": Prior(
+                    "Gamma",
+                    sigma=Prior("HalfNormal", sigma=1),
+                    dims=("date", "country"),
+                )
+            },
+        )
+        with pytest.raises(ValueError) as excinfo:
+            mmm.build_model(X, y)
+
+        message = str(excinfo.value)
+        assert "'target_scale' has a zero entry" in message
+        assert "the scale is the cause" in message
+
+    def test_target_zeros_are_not_blamed_on_the_scale(self, mock_pymc_sample):
+        """Genuine zeros in the target look identical to the clamp's output.
+
+        A target containing zero weeks produces exact ``0.0`` observations
+        under a perfectly healthy scale, so attributing every all-zero
+        violation to a degenerate scale sends the reader hunting for a zero
+        entry that is not there.
+        """
+        mmm = _make_mmm(dims=None, model_config={"likelihood": self.GAMMA})
+        X, y = _make_panel_with_target([0.0, 5.0, 10.0, 0.0, 8.0, 3.0, 7.0, 2.0])
+        with pytest.raises(ValueError) as excinfo:
+            mmm.build_model(X, y)
+
+        message = str(excinfo.value)
+        assert "no zero entry" in message
+        assert "zeros in the target rather than a scaling artefact" in message
+
+    def test_zero_attribution_names_both_without_the_scale(self):
+        """The staticmethod has no scale to consult, so it asserts neither."""
+        likelihood = Prior("Gamma", dims=("date",))
+        with pytest.raises(ValueError) as excinfo:
+            LinkSpec.validate_likelihood_support(likelihood, np.array([0.0, 1.0]))
+
+        message = str(excinfo.value)
+        assert (
+            "Check the target for zeros and 'target_scale' for a zero entry" in message
+        )
+
+    @pytest.mark.parametrize(
+        "dist_name, kwargs",
+        [
+            ("Gamma", {}),
+            ("Beta", {}),
+            ("TruncatedNormal", {"sigma": 1, "lower": 0, "upper": 5}),
+        ],
+    )
+    def test_nan_is_never_silently_accepted(self, dist_name, kwargs):
+        """`np.nan <= 0` is False, so a naive mask lets NaN through."""
+        likelihood = Prior(dist_name, dims=("date",), **kwargs)
+        with pytest.raises(ValueError):
+            LinkSpec.validate_likelihood_support(likelihood, np.array([0.5, np.nan]))
+
+    def test_numpy_truncation_bounds_are_honoured(self):
+        """A numpy scalar bound is a bound.
+
+        ``Prior`` rejects ``np.int64`` and ``np.float32`` outright, so
+        ``np.float64`` is the only numpy bound reachable through it.  It
+        happens to subclass ``float``, but the check is written against
+        ``numbers.Real`` so it does not depend on that.
+        """
+        likelihood = Prior(
+            "TruncatedNormal",
+            sigma=1,
+            lower=np.float64(0),
+            upper=np.float64(5),
+            dims=("date",),
+        )
+        with pytest.raises(ValueError, match=r"lower 0.0 and upper 5.0"):
+            LinkSpec.validate_likelihood_support(likelihood, np.array([2.5, 6.0]))
+
+    def test_boolean_truncation_bound_is_not_treated_as_a_number(self):
+        """`isinstance(False, int)` is True; `lower=False` is not a bound."""
+        likelihood = Prior("TruncatedNormal", sigma=1, lower=False, dims=("date",))
+        LinkSpec.validate_likelihood_support(likelihood, np.array([-100.0, 100.0]))
+
+    def test_unevaluable_observed_is_skipped(self):
+        """A check that can break build_model is worse than no check."""
+
+        class Unevaluable:
+            def eval(self):
+                raise RuntimeError("cannot evaluate")
+
+        likelihood = Prior("Gamma", dims=("date",))
+        LinkSpec.validate_likelihood_support(likelihood, Unevaluable())
+
+    def test_log_link_still_rejects_the_raw_target(self, mock_pymc_sample):
+        """``LogLinkSpec.validate_target`` is unchanged and fires first.
+
+        The scaled target here is strictly positive (the scale is negative),
+        so the support check would accept it.  The link-level rule is a
+        separate decision and still rejects it.
+        """
+        mmm = _make_mmm(link="log", dims=None)
+        X, y = _make_panel_with_target([-5.0, -3.0, -7.0, -2.0, -9.0, -4.0, -6.0, -8.0])
+        with pytest.raises(ValueError, match="strictly positive when using link='log'"):
+            mmm.build_model(X, y)
+
+    def test_unbounded_likelihood_is_not_checked(self, mock_pymc_sample):
+        """``Normal`` has no bound, so the same target builds fine."""
+        mmm = _make_mmm(dims=None)
+        X, y = _make_panel_with_target([-5.0, 3.0, 7.0, 2.0, 9.0, 4.0, 6.0, 8.0])
+        mmm.build_model(X, y)
+
+    def test_censored_wrapper_is_not_checked(self, mock_pymc_sample):
+        """Censoring at zero is what makes a zero valid; do not reject it.
+
+        ``_distribution_name`` unwraps to ``LogNormal``, so a naive lookup
+        would apply LogNormal's positivity rule to exactly the zero-inflated
+        data the wrapper exists for.
+        """
+        likelihood = Censored(
+            Prior("LogNormal", sigma=Prior("HalfNormal", sigma=1), dims=("date",)),
+            lower=0,
+        )
+        observed = np.array([0.0, 0.5, 1.0])
+        LinkSpec.validate_likelihood_support(likelihood, observed)
+
+    @pytest.mark.parametrize(
+        "dist_name, observed, expected",
+        [
+            ("LogNormal", [1.0, -1.0], "strictly positive"),
+            ("InverseGamma", [1.0, 0.0], "strictly positive"),
+            ("Beta", [0.5, 1.5], r"strictly inside \(0, 1\)"),
+            ("Poisson", [1.0, 1.5], "a non-negative integer"),
+            ("NegativeBinomial", [1.0, -2.0], "a non-negative integer"),
+        ],
+    )
+    def test_support_rules(self, dist_name, observed, expected):
+        likelihood = Prior(dist_name, dims=("date",))
+        with pytest.raises(ValueError, match=expected):
+            LinkSpec.validate_likelihood_support(likelihood, np.array(observed))
+
+    def test_truncated_normal_uses_its_bounds(self):
+        likelihood = Prior("TruncatedNormal", sigma=1, lower=0, upper=5, dims=("date",))
+        LinkSpec.validate_likelihood_support(likelihood, np.array([0.0, 2.5, 5.0]))
+        with pytest.raises(ValueError, match=r"lower 0 and upper 5"):
+            LinkSpec.validate_likelihood_support(likelihood, np.array([2.5, 6.0]))
+
+    def test_truncated_normal_without_numeric_bounds_is_skipped(self):
+        """A ``Prior`` bound has no single interval to report, so skip it."""
+        likelihood = Prior(
+            "TruncatedNormal", sigma=1, lower=Prior("Normal"), dims=("date",)
+        )
+        LinkSpec.validate_likelihood_support(likelihood, np.array([-100.0, 100.0]))
+
+    def test_error_names_the_distribution_and_the_count(self):
+        likelihood = Prior("Gamma", dims=("date",))
+        with pytest.raises(ValueError) as excinfo:
+            LinkSpec.validate_likelihood_support(
+                likelihood, np.array([1.0, -1.0, -2.0, 3.0])
+            )
+        message = str(excinfo.value)
+        assert "'Gamma'" in message
+        assert "strictly positive" in message
+        assert "2 of 4 values" in message
