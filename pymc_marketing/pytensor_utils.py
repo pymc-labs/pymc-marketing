@@ -19,6 +19,7 @@ from collections.abc import Sequence
 from typing import cast, overload
 
 import arviz as az
+import numpy as np
 import pandas as pd
 import xarray as xr
 from pymc.model.core import Model
@@ -263,16 +264,21 @@ class SharedPosterior:
     ``SharedPosterior`` instead binds the draws through shared variables, so
     :meth:`set_posterior` can point an already compiled function at a new set
     of draws without extracting or compiling again.  That is what makes a
-    loop over simulated posteriors (pre-posterior analysis, expected value of
-    sample information) affordable: the compile happens once.
+    loop over many posteriors (a resampled or updated posterior per
+    iteration) affordable: the compile happens once.
 
     One instance can back several graphs.  A variable is created the first
     time a graph needs it and reused by every later extraction that passes the
     same instance, so a single :meth:`set_posterior` call rebinds all of them
-    at once.
+    at once.  A later extraction must therefore be conditioned on the draws
+    the instance already holds; handing it a different posterior raises,
+    since the graph would otherwise silently read the bound draws.
 
-    The number of draws may change between rebinds; the remaining dimensions
-    of each variable may not.
+    Between rebinds the number of draws may change; every other dimension
+    must keep its name and length.  Coordinates on those dimensions are
+    matched by label when the new posterior carries them (a reordered
+    ``channel`` axis is realigned), and positionally when it does not.  A
+    rebind is atomic: every variable is validated before any is written.
 
     Examples
     --------
@@ -292,6 +298,7 @@ class SharedPosterior:
     def __init__(self) -> None:
         self._variables: dict[str, SharedVariable] = {}
         self._dims: dict[str, tuple[str, ...]] = {}
+        self._coords: dict[str, dict[str, np.ndarray]] = {}
 
     def __repr__(self) -> str:
         """Show each bound variable with its current ``(sample, ...)`` shape."""
@@ -311,12 +318,69 @@ class SharedPosterior:
         """The dimension order each variable is stored in, ``sample`` first."""
         return dict(self._dims)
 
+    def _aligned_values(self, name: str, posterior_da: xr.DataArray) -> np.ndarray:
+        """Return ``posterior_da`` laid out like the bound variable ``name``.
+
+        Validates the dimension names, realigns labelled coordinates to the
+        order the variable was created with, and checks every non-sample
+        length.  Raises ``ValueError`` on any mismatch; writes nothing.
+        """
+        dims = self._dims[name]
+        if set(posterior_da.dims) != set(dims):
+            raise ValueError(
+                f"Posterior variable {name!r} has dims {tuple(posterior_da.dims)}, "
+                f"expected {dims}."
+            )
+        for dim, labels in self._coords[name].items():
+            if dim not in posterior_da.coords:
+                continue
+            new_labels = np.asarray(posterior_da.coords[dim].values)
+            if set(new_labels.tolist()) != set(labels.tolist()):
+                raise ValueError(
+                    f"Posterior variable {name!r} has {dim} coordinates "
+                    f"{new_labels.tolist()}, expected {labels.tolist()}."
+                )
+            posterior_da = posterior_da.sel({dim: labels})
+        values = posterior_da.transpose(*dims).values
+        bound_shape = self._variables[name].get_value(borrow=True).shape[1:]
+        if values.shape[1:] != bound_shape:
+            raise ValueError(
+                f"Posterior variable {name!r} has shape {values.shape[1:]} over "
+                f"dims {dims[1:]}, expected {bound_shape}. Only the sample "
+                "dimension may change length between rebinds."
+            )
+        return values
+
     def _get_or_create(self, posterior_da: xr.DataArray, *, name: str, dtype: str):
-        """Return the xtensor view of ``name``'s shared variable, creating it if needed."""
+        """Return the xtensor view of ``name``'s shared variable, creating it if needed.
+
+        On reuse the draws handed in must be the ones already bound: the graph
+        will read the shared variable, so a different posterior here would be
+        silently ignored.
+        """
         if name not in self._variables:
             dims = tuple(str(dim) for dim in posterior_da.dims)
             self._variables[name] = shared(posterior_da.values.astype(dtype), name=name)
             self._dims[name] = dims
+            self._coords[name] = {
+                dim: np.asarray(posterior_da.coords[dim].values)
+                for dim in dims[1:]
+                if dim in posterior_da.coords
+            }
+        else:
+            var = self._variables[name]
+            if np.dtype(dtype) != np.dtype(var.type.dtype):
+                raise ValueError(
+                    f"Posterior variable {name!r} is bound as {var.type.dtype}, "
+                    f"but this graph wants {dtype}."
+                )
+            values = self._aligned_values(name, posterior_da)
+            if not np.array_equal(values, var.get_value(borrow=True)):
+                raise ValueError(
+                    f"This SharedPosterior already binds {name!r} to different draws. "
+                    "Extract every graph from the same posterior, then call "
+                    "set_posterior() to move all of them together."
+                )
         return as_xtensor(self._variables[name], dims=self._dims[name])
 
     def set_posterior(self, idata: xr.DataTree | xr.Dataset) -> None:
@@ -333,8 +397,9 @@ class SharedPosterior:
         KeyError
             If the posterior lacks a variable this instance owns.
         ValueError
-            If a variable's non-sample dimensions differ, in name or length,
-            from the ones it was created with.
+            If a variable's non-sample dimensions differ, in name, length or
+            coordinate labels, from the ones it was created with.  Nothing is
+            written in that case.
         """
         posterior = _posterior_sample_major(idata)
         missing = sorted(set(self._variables) - set(posterior.data_vars))
@@ -342,29 +407,17 @@ class SharedPosterior:
             raise KeyError(
                 f"Posterior is missing variables bound by this SharedPosterior: {missing}"
             )
-        for name, var in self._variables.items():
-            dims = self._dims[name]
-            posterior_da = posterior[name]
-            if set(posterior_da.dims) != set(dims):
-                raise ValueError(
-                    f"Posterior variable {name!r} has dims {tuple(posterior_da.dims)}, "
-                    f"expected {dims}."
-                )
-            # Only the sample axis may change length: the compiled graphs were
-            # built against the other lengths (channels, geos, ...), and a
-            # mismatch would otherwise surface as a shape error deep inside
-            # the next function call rather than here.
-            new_values = posterior_da.transpose(*dims).values
-            old_shape = var.get_value(borrow=True).shape[1:]
-            if new_values.shape[1:] != old_shape:
-                raise ValueError(
-                    f"Posterior variable {name!r} has shape {new_values.shape[1:]} "
-                    f"over dims {dims[1:]}, expected {old_shape}. Only the "
-                    "sample dimension may change length between rebinds."
-                )
+        # Validate everything first so a failure leaves the binding untouched
+        # rather than half-swapped between two posteriors.
+        prepared = {
+            name: self._aligned_values(name, posterior[name])
+            for name in self._variables
+        }
+        for name, values in prepared.items():
+            var = self._variables[name]
             # astype always allocates, so the shared variable owns the array
             # and borrow=True cannot alias the caller's data.
-            var.set_value(new_values.astype(var.type.dtype), borrow=True)
+            var.set_value(values.astype(var.type.dtype), borrow=True)
 
 
 @overload
