@@ -26,7 +26,7 @@ from __future__ import annotations
 
 import importlib
 import inspect
-from dataclasses import dataclass, fields, is_dataclass
+from dataclasses import dataclass, fields, is_dataclass, replace
 from typing import Any, Protocol, Self, runtime_checkable
 
 from pydantic import BaseModel, Field
@@ -397,11 +397,14 @@ def _merge_shared_decompositions(config: dict[str, Any]) -> dict[str, Any]:
             # Term compositions (Sum, Product, Parameter, Dot, Transform)
             # carry R2D2Split priors in their fields; descend so shared
             # decompositions merge instead of duplicating per field.
-            dataclass_params = getattr(obj, "__dataclass_params__", None)
-            if dataclass_params is not None and dataclass_params.frozen:
-                return obj
-            for dc_field in fields(obj):
-                setattr(obj, dc_field.name, walk(getattr(obj, dc_field.name)))
+            walked = {
+                dc_field.name: walk(getattr(obj, dc_field.name))
+                for dc_field in fields(obj)
+            }
+            if obj.__dataclass_params__.frozen:  # type: ignore[attr-defined]
+                return replace(obj, **walked)
+            for key, value in walked.items():
+                setattr(obj, key, value)
             return obj
         if isinstance(obj, dict):
             return {k: walk(v) for k, v in obj.items()}
