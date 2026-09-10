@@ -692,7 +692,13 @@ def test_callback_functionality_parametrized(
 
 
 def test_constraint_history_keyed_by_constraint(mmm_wrapper):
-    """Constraint diagnostics can be read by key instead of by position."""
+    """Constraint diagnostics can be read by key instead of by position.
+
+    The custom floor is never active (the equality pins the sum at the total
+    budget), so this checks the keying, not the solver: every key is present,
+    every key has one entry per iteration, and each entry is the same object
+    as its positional counterpart.
+    """
 
     def spend_floor(budgets_sym, total_budget_sym, optimizer):
         return budgets_sym.sum() - 10.0
@@ -718,13 +724,15 @@ def test_constraint_history_keyed_by_constraint(mmm_wrapper):
         assert len(entries) == len(result.callback_info)
         assert all(entry["key"] == key for entry in entries)
 
-    # Regrouped entries are the same objects as the positional ones
-    last_iter = result.callback_info[-1]["constraint_info"]
-    assert history["spend_floor"][-1] is last_iter[0]
-    assert history["default"][-1] is last_iter[1]
+    # Regrouped entries are the same objects as the positional ones, found
+    # by key rather than by the compile order this view exists to hide.
+    last_iter = {
+        info["key"]: info for info in result.callback_info[-1]["constraint_info"]
+    }
+    assert history["spend_floor"][-1] is last_iter["spend_floor"]
+    assert history["default"][-1] is last_iter["default"]
     assert history["spend_floor"][-1]["type"] == "ineq"
     assert history["default"][-1]["type"] == "eq"
-    assert history["spend_floor"][-1]["value"] >= -1e-6
     assert np.isclose(history["default"][-1]["value"], 0.0, atol=1e-6)
 
 

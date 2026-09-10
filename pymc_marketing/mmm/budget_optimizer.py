@@ -389,7 +389,7 @@ class BudgetOptimizationResult:
 
         Examples
         --------
-        Check that a custom inequality constraint holds at convergence:
+        Check that a custom inequality constraint holds at the last iteration:
 
         .. code-block:: python
 
