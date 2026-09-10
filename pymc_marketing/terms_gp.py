@@ -28,6 +28,15 @@ resolved from the dataset inside the model context (cached on the instance
 once resolved, so repeated builds reuse them). Explicit values always win
 over the deferred resolution.
 
+The GP graph itself is **delegated** to the existing
+:mod:`pymc_marketing.mmm.hsgp` classes: at ``create_variable`` time the term
+builds a transient :class:`~pymc_marketing.mmm.hsgp.HSGP` (or ``HSGPPeriodic``
+/ ``SoftPlusHSGP``) spec from its resolved fields and delegates variable
+creation to it, so the two implementations cannot drift. These terms own the
+modeling lifecycle: time-reference resolution (datetime coordinates welcome),
+shared data registration, frozen centering, and the ``terms`` composition and
+serialization contract.
+
 Defaults follow the assumptions of the existing HSGP classes:
 ``eta_mass=0.05``, ``eta_upper=1.0``, ``ls_lower=1.0``, ``ls_upper=None``,
 ``ls_mass=0.9``, ``cov_func="expquad"``, ``centered=False``,
@@ -138,14 +147,15 @@ import numpy as np
 import pymc as pm
 import pymc.dims as pmd
 import pytensor.tensor as pt
-import pytensor.xtensor as ptx
 import xarray as xr
-from pymc_extras.prior import Prior, VariableFactory
-from pytensor.tensor import as_tensor
-from pytensor.xtensor.type import as_xtensor
+from pymc_extras.prior import VariableFactory
 
 from pymc_marketing.hsgp_kwargs import CovFunc
 from pymc_marketing.mmm.hsgp import (
+    HSGP,
+    HSGPBase,
+    HSGPPeriodic,
+    SoftPlusHSGP,
     create_complexity_penalizing_prior,
     create_constrained_inverse_gamma_prior,
     create_eta_prior,
@@ -156,16 +166,9 @@ from pymc_marketing.terms import (
     ModelTerm,
     _deserialize_child,
     _serialize_child,
-    build_param,
 )
 
 __all__ = ["HSGPPeriodicTerm", "HSGPTerm", "SoftPlusHSGPTerm"]
-
-_GP_COV_FUNCS = {
-    "expquad": pm.gp.cov.ExpQuad,
-    "matern52": pm.gp.cov.Matern52,
-    "matern32": pm.gp.cov.Matern32,
-}
 
 
 def _serialize_optional(value: Any) -> Any:
@@ -287,17 +290,32 @@ class GPDataTerm(ModelTerm):
         coords = {dim: ds[dim].values for dim in da.dims if dim in ds.coords}
         pm.set_data({self.index_var: self._time_values(da)}, model=model, coords=coords)
 
-    def _prepare_X(self) -> tuple[pt.TensorVariable, str]:
-        """Return the registered time-index tensor and time dim."""
+    def _check_registered(self) -> pm.Model:
+        """Return the active model, raising if the time reference is unregistered."""
         model = pm.modelcontext(None)
         if self.X_mid is None or self.time_dim is None:
             raise ValueError(
                 "The data must be registered before creating a variable. "
                 f"Call `register_data` with a dataset containing {self.var_name!r}."
             )
-        X = model[self.index_var]
-        X_tensor = as_tensor(X, allow_xtensor_conversion=True)
-        return X_tensor, self.time_dim
+        return model
+
+    def _spec(self) -> HSGPBase:
+        """Build the wrapped HSGP spec from the resolved fields."""
+        raise NotImplementedError
+
+    def create_variable(self) -> pt.TensorVariable:
+        """Build the GP curve through the wrapped HSGP class.
+
+        The wrapped spec owns the basis coordinate, hyperparameter variables,
+        and the final deterministic; this term feeds it the frozen centering
+        value and the shared time index.
+        """
+        model = self._check_registered()
+        spec = self._spec()
+        spec.X_mid = self.X_mid
+        spec.register_data(model[self.index_var])
+        return spec.create_variable(self.name, xdist=True)
 
 
 @serialization.register
@@ -450,56 +468,33 @@ class HSGPTerm(GPDataTerm):
                 )
 
     def add_coords(self, ds: xr.Dataset) -> None:
-        """Resolve deferred values, then add the basis coordinate."""
-        self._resolve(ds)
-        m = cast("int", self.m)
-        model = pm.modelcontext(None)
-        model.add_coords({f"{self.name}_m": np.arange(m - 1 if self.drop_first else m)})
+        """Resolve deferred values.
 
-    def _build_gp(self, prefix: str) -> pt.TensorVariable:
-        """Build the linearized GP expression under a variable-name prefix."""
-        X_tensor, time_dim = self._prepare_X()
+        The basis coordinate is added by the wrapped HSGP class at build
+        time, so this only triggers the deferred hyperparameter resolution.
+        """
+        self._resolve(ds)
+
+    def _spec_kwargs(self) -> dict[str, Any]:
+        """Keyword arguments for the wrapped HSGP spec."""
+        dims = (cast("str", self.time_dim), *self.extra_dims)
+        return {
+            "ls": self.ls,
+            "eta": self.eta,
+            "m": cast("int", self.m),
+            "L": cast("float", self.L),
+            "dims": dims,
+            "centered": self.centered,
+            "drop_first": self.drop_first,
+            "cov_func": self.cov_func,
+            "demeaned_basis": self.demeaned_basis,
+        }
+
+    def _spec(self) -> HSGPBase:
+        """Build the wrapped :class:`~pymc_marketing.mmm.hsgp.HSGP` spec."""
         _check_scalar("eta", self.eta)
         _check_scalar("ls", self.ls)
-
-        eta = as_tensor(
-            build_param(self.eta, name=f"{prefix}_eta"),
-            allow_xtensor_conversion=True,
-        )
-        ls = as_tensor(
-            build_param(self.ls, name=f"{prefix}_ls"),
-            allow_xtensor_conversion=True,
-        )
-
-        cov_func = eta**2 * _GP_COV_FUNCS[self.cov_func.value](input_dim=1, ls=ls)
-        gp = pm.gp.HSGP(m=[self.m], L=[self.L], cov_func=cov_func)
-        phi, sqrt_psd = gp.prior_linearized(X_tensor[:, None] - self.X_mid)
-
-        if self.drop_first:
-            phi = phi[:, 1:]
-            sqrt_psd = sqrt_psd[1:]
-
-        if self.demeaned_basis:
-            phi = phi - phi.mean(axis=0).eval()
-
-        coord_name = f"{prefix}_m"
-        phi_x = as_xtensor(phi, dims=(time_dim, coord_name))
-        sqrt_psd_x = as_xtensor(sqrt_psd, dims=(coord_name,))
-
-        hsgp_coefs = Prior(
-            "Normal",
-            mu=0,
-            sigma=sqrt_psd_x,
-            dims=(*self.extra_dims, coord_name),
-            centered=self.centered,
-        ).create_variable(f"{prefix}_hsgp_coefs", xdist=True)
-
-        return phi_x.dot(hsgp_coefs)
-
-    def create_variable(self) -> pt.TensorVariable:
-        """Build the GP curve as a named deterministic."""
-        f = self._build_gp(self.name)
-        return pmd.Deterministic(self.name, f, dims=(self.time_dim, *self.extra_dims))
+        return HSGP(**self._spec_kwargs())
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize the term recipe.
@@ -584,14 +579,9 @@ class SoftPlusHSGPTerm(HSGPTerm):
 
     name: str = "tvp"
 
-    def add_coords(self, ds: xr.Dataset) -> None:
-        """Resolve deferred values, then add the raw basis coordinate."""
-        self._resolve(ds)
-        m = cast("int", self.m)
-        model = pm.modelcontext(None)
-        model.add_coords(
-            {f"{self.name}_raw_m": np.arange(m - 1 if self.drop_first else m)}
-        )
+    def _spec(self) -> SoftPlusHSGP:
+        """Build the wrapped :class:`~pymc_marketing.mmm.hsgp.SoftPlusHSGP`."""
+        return SoftPlusHSGP(**self._spec_kwargs())
 
     @staticmethod
     def deterministics_to_replace(name: str) -> list[str]:
@@ -602,17 +592,7 @@ class SoftPlusHSGPTerm(HSGPTerm):
         continuous.
 
         """
-        return [f"{name}_f_mean"]
-
-    def create_variable(self) -> pt.TensorVariable:
-        """Build the positive, mean-one GP multiplier."""
-        f = self._build_gp(f"{self.name}_raw")
-        f = pmd.math.softplus(f)
-
-        f_mean = pmd.Deterministic(f"{self.name}_f_mean", f.mean(dim=self.time_dim))
-
-        centered_f = f / f_mean
-        return pmd.Deterministic(self.name, centered_f)
+        return SoftPlusHSGP.deterministics_to_replace(name)
 
 
 @serialization.register
@@ -675,57 +655,27 @@ class HSGPPeriodicTerm(GPDataTerm):
     m: int
 
     def add_coords(self, ds: xr.Dataset) -> None:
-        """Freeze the centering value, then add the basis coordinate."""
+        """Freeze the centering value.
+
+        The basis coordinate is added by the wrapped HSGPPeriodic class at
+        build time.
+        """
         if self.X_mid is None:
             self.X_mid = float(self._time_values(ds[self.var_name]).mean())
-        model = pm.modelcontext(None)
-        model.add_coords({f"{self.name}_m": np.arange((self.m * 2) - 1)})
 
-    def _build_gp(self, prefix: str) -> pt.TensorVariable:
-        """Build the linearized periodic GP expression under a prefix."""
-        X_tensor, time_dim = self._prepare_X()
+    def _spec(self) -> HSGPBase:
+        """Build the wrapped :class:`~pymc_marketing.mmm.hsgp.HSGPPeriodic`."""
         _check_scalar("scale", self.scale)
         _check_scalar("ls", self.ls)
-
-        scale = as_tensor(
-            build_param(self.scale, name=f"{prefix}_scale"),
-            allow_xtensor_conversion=True,
+        dims = (cast("str", self.time_dim), *self.extra_dims)
+        return HSGPPeriodic(
+            scale=self.scale,
+            ls=self.ls,
+            period=self.period,
+            m=self.m,
+            dims=dims,
+            demeaned_basis=self.demeaned_basis,
         )
-        ls = as_tensor(
-            build_param(self.ls, name=f"{prefix}_ls"),
-            allow_xtensor_conversion=True,
-        )
-
-        cov_func = pm.gp.cov.Periodic(1, period=self.period, ls=ls)
-        gp = pm.gp.HSGPPeriodic(m=self.m, scale=scale, cov_func=cov_func)
-        (phi_cos, phi_sin), psd = gp.prior_linearized(X_tensor[:, None] - self.X_mid)
-
-        if self.demeaned_basis:
-            phi_cos = phi_cos - phi_cos.mean(axis=0).eval()
-            phi_sin = phi_sin - phi_sin.mean(axis=0).eval()
-
-        coord_name = f"{prefix}_m"
-        phi_cos_x = as_xtensor(phi_cos, dims=(time_dim, coord_name))
-        phi_sin_x = as_xtensor(phi_sin, dims=(time_dim, coord_name))
-        psd_x = as_xtensor(psd, dims=(coord_name,))
-        slice_idx = {coord_name: slice(1, None)}
-
-        sigma = ptx.concat([psd_x, psd_x.isel(slice_idx)], dim=coord_name)
-        hsgp_coefs = Prior(
-            "Normal",
-            mu=0,
-            sigma=sigma,
-            dims=(*self.extra_dims, coord_name),
-            centered=False,
-        ).create_variable(f"{prefix}_hsgp_coefs", xdist=True)
-
-        phi = ptx.concat([phi_cos_x, phi_sin_x.isel(slice_idx)], dim=coord_name)
-        return phi.dot(hsgp_coefs)
-
-    def create_variable(self) -> pt.TensorVariable:
-        """Build the periodic GP curve as a named deterministic."""
-        f = self._build_gp(self.name)
-        return pmd.Deterministic(self.name, f, dims=(self.time_dim, *self.extra_dims))
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize the term recipe."""
