@@ -65,8 +65,7 @@ References
 from __future__ import annotations
 
 import json
-import warnings
-from typing import Any
+from typing import Any, cast
 
 import arviz as az
 import numpy as np
@@ -133,7 +132,25 @@ def make_split_rules(
     ------
     ValueError
         If ``categorical_split`` is not ``"onehot"`` or ``"continuous"``.
+
+    Examples
+    --------
+    .. code-block:: python
+
+        from pymc_bart.split_rules import OneHotSplitRule
+        from sklearn.preprocessing import LabelEncoder
+
+        from pymc_marketing.pie.model import make_split_rules
+
+        encoders = {"objective": LabelEncoder()}
+        rules = make_split_rules("onehot", ["objective", "budget"], encoders)
+        assert isinstance(rules[0], OneHotSplitRule)
     """
+    if categorical_split not in ("onehot", "continuous"):
+        raise ValueError(
+            f"categorical_split must be 'onehot' or 'continuous', "
+            f"got {categorical_split!r}."
+        )
     from pymc_bart.split_rules import ContinuousSplitRule, OneHotSplitRule
 
     if categorical_split not in ("onehot", "continuous"):
@@ -267,6 +284,7 @@ class PIEModel(RegressionModelBuilder):
 
     _model_type = "PIE Model"
     version = "0.2.0"
+    _skipped_config_keys: set[str] = {"mu"}
 
     @property
     def output_var(self) -> str:
@@ -295,6 +313,13 @@ class PIEModel(RegressionModelBuilder):
         # rejects legacy dict-format priors with a migration hint; without it
         # they fail much later with an opaque AttributeError.
         self.model_config = parse_model_config(self.model_config)
+
+        categorical_split = self.model_config.get("categorical_split", "onehot")
+        if categorical_split not in ("onehot", "continuous"):
+            raise ValueError(
+                f"model_config['categorical_split'] must be 'onehot' or "
+                f"'continuous', got {categorical_split!r}."
+            )
 
         self.pre_determined_features = list(pre_determined_features)
         self.post_determined_features = list(post_determined_features)
@@ -332,25 +357,24 @@ class PIEModel(RegressionModelBuilder):
         # downstream mutation of the result cannot leak back into the model,
         # and tolerate a partial override that dropped a top-level key.
         keys = ("bart", "sigma", "categorical_split", "mu")
-        return {key: self.model_config[key] for key in keys if key in self.model_config}
-
-    def _make_split_rules(self, column_names: list[str]) -> list[Any]:
-        """Build the split rules from the deprecated method entry point.
-
-        .. deprecated:: 0.2.0
-            Use :func:`pymc_marketing.pie.model.make_split_rules` instead.
-        """
-        warnings.warn(
-            "PIEModel._make_split_rules is deprecated; use "
-            "pymc_marketing.pie.model.make_split_rules instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return make_split_rules(
-            self.model_config.get("categorical_split", "onehot"),
-            column_names,
-            self._encoders,
-        )
+        config = {
+            key: self.model_config[key] for key in keys if key in self.model_config
+        }
+        recipe = config.get("mu")
+        if isinstance(recipe, ModelTerm):
+            try:
+                serialization.serialize(cast("Any", recipe))
+            except KeyError as err:
+                # Not registered: falling back to a bare __dict__ dump would
+                # write an artifact that cannot be loaded back, so refuse
+                # here instead.
+                raise NotImplementedError(
+                    f"{type(recipe).__name__} is not registered for "
+                    "serialization, so a PIEModel with this 'mu' recipe "
+                    "cannot be saved. Register the term with "
+                    "@serialization.register."
+                ) from err
+        return config
 
     def _default_bart_recipe(self) -> ModelTerm:
         """Build the default BART recipe from the ``"bart"`` config keys."""
@@ -413,14 +437,6 @@ class PIEModel(RegressionModelBuilder):
             if isinstance(recipe, ModelTerm):
                 return recipe
             if isinstance(recipe, dict) and "__type__" in recipe:
-                from pymc_marketing import bart as bart_module
-
-                if bart_module.pmb is None:
-                    raise ImportError(
-                        "pymc-bart is required to rebuild the serialized 'mu' "
-                        "recipe of PIEModel. Install it with: "
-                        "pip install 'pymc-marketing[pie]'"
-                    )
                 return serialization.deserialize(recipe)
             raise ValueError(
                 "model_config['mu'] must be a ModelTerm or a serialized term "
@@ -486,7 +502,7 @@ class PIEModel(RegressionModelBuilder):
         self._recipe_sample_vars = [
             sample_var
             for term in collect_terms([recipe])
-            for sample_var in getattr(term, "sample_vars", [])
+            for sample_var in term.sample_vars
         ]
 
         ds = xr.Dataset(
@@ -508,10 +524,14 @@ class PIEModel(RegressionModelBuilder):
             if "y_obs" not in model:
                 pmd.Data("y_obs", ds["y_obs"])
             mu_det = pmd.Deterministic("mu", build_param(recipe), dims="obs")
-            # Plain (non-dims) free variables: PGBART's logp machinery can
+            # Plain (non-xdist) free variables: PGBART's logp machinery can
             # only replace plain-tensor values, so any xtensor free variable
-            # breaks BART sampling.
-            sigma = self.model_config["sigma"].create_variable("sigma")
+            # breaks BART sampling. A prior that carries dims is lifted for
+            # the likelihood afterwards.
+            sigma_prior = self.model_config["sigma"]
+            sigma = sigma_prior.create_variable("sigma")
+            if sigma_dims := getattr(sigma_prior, "dims", None):
+                sigma = pmd.as_xtensor(sigma, dims=sigma_dims)
             pmd.Normal(
                 self.output_var,
                 mu=mu_det,
@@ -627,6 +647,8 @@ class PIEModel(RegressionModelBuilder):
         group = post_pred[variable_name]
         if self.output_var in group:
             group[self.output_var] = group[self.output_var] * self._target_scale
+        if "mu" in group:
+            group["mu"] = group["mu"] * self._target_scale
 
         if extend_idata:
             self.idata.update(post_pred)  # type: ignore[union-attr]

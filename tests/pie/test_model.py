@@ -22,7 +22,7 @@ from scipy.stats import pearsonr
 
 from pymc_marketing.bart import Bart
 from pymc_marketing.pie import PIEModel
-from pymc_marketing.terms import Dot
+from pymc_marketing.terms import Dot, Transform
 
 EXPECTED_COLUMNS = [
     "campaign_id",
@@ -110,6 +110,21 @@ def generate_synthetic_rct_corpus(
     )
 
 
+def read_bart_m(model: PIEModel) -> int:
+    """Read the tree count wired into the model's BART RV."""
+    bart_rv = next(r for r in model.model.free_RVs if r.name == "bart")
+    for inp in bart_rv.owner.inputs:
+        if not hasattr(inp, "eval"):
+            continue
+        out = inp.eval()
+        if getattr(out, "ndim", 1) != 0:
+            continue
+        value = float(out)
+        if value.is_integer() and 0 < value <= 256:
+            return int(value)
+    raise AssertionError("No tree count input found on the BART RV")
+
+
 def test_synthetic_corpus_schema():
     """Generated corpus has the documented columns, dtypes, and value ranges."""
     df = generate_synthetic_rct_corpus(n_campaigns=50, seed=0)
@@ -175,13 +190,7 @@ def test_build_model(default_model, small_corpus):
     default_model.build_model(X, y)
 
     model = default_model.model
-    var_names = {
-        v.name for v in model.free_RVs + model.observed_RVs + model.deterministics
-    }
-
-    assert any("bart" in n for n in var_names), "Expected 'bart' variable"
-    assert any("sigma" in n for n in var_names), "Expected 'sigma' variable"
-    assert any("y" in n for n in var_names), "Expected 'y' observed"
+    assert sorted(model.named_vars) == ["X", "bart", "mu", "sigma", "y", "y_obs"]
 
     assert "obs" in model.coords
     assert "feature" in model.coords
@@ -279,20 +288,18 @@ def test_build_model_non_finite_y_raises(default_model, small_corpus):
         default_model.build_model(X, y_bad)
 
 
-def test_build_model_invalid_categorical_split_raises(small_corpus):
-    """An invalid categorical_split raises ValueError."""
-    X, y = small_corpus
-    model = PIEModel(
-        pre_determined_features=PRE,
-        post_determined_features=POST,
-        model_config={
-            "bart": {"m": 10, "alpha": 0.95, "beta": 2.0},
-            "sigma": Prior("HalfNormal", sigma=1.0),
-            "categorical_split": "not_a_valid_choice",
-        },
-    )
+def test_build_model_invalid_categorical_split_raises():
+    """An invalid categorical_split raises ValueError at construction."""
     with pytest.raises(ValueError, match="categorical_split"):
-        model.build_model(X, y)
+        PIEModel(
+            pre_determined_features=PRE,
+            post_determined_features=POST,
+            model_config={
+                "bart": {"m": 10, "alpha": 0.95, "beta": 2.0},
+                "sigma": Prior("HalfNormal", sigma=1.0),
+                "categorical_split": "not_a_valid_choice",
+            },
+        )
 
 
 def test_build_model_continuous_split_rules(small_corpus):
@@ -697,6 +704,8 @@ def test_custom_bart_recipe(small_corpus):
     )
     model.build_model(X, y)
     assert "bart" in model.model.named_vars
+    # The recipe, not the default (m=200), must reach the graph.
+    assert read_bart_m(model) == 10
 
 
 def test_mu_recipe_serialized_dict(small_corpus):
@@ -720,6 +729,8 @@ def test_mu_recipe_serialized_dict(small_corpus):
     )
     model.build_model(X, y)
     assert "bart" in model.model.named_vars
+    # The recipe, not the default (m=200), must reach the graph.
+    assert read_bart_m(model) == 10
 
 
 def test_mu_recipe_dict_without_type_raises(small_corpus):
@@ -766,13 +777,134 @@ def test_make_split_rules_invalid_mode_raises():
         pie_module.make_split_rules("nope", ["a"], None)
 
 
-def test_deprecated_make_split_rules_wrapper(default_model, small_corpus):
-    """PIEModel._make_split_rules still works with a DeprecationWarning."""
+def test_dimensional_sigma_prior_builds_on_default_path(small_corpus):
+    """A sigma prior carrying dims builds again on the default BART path."""
     X, y = small_corpus
-    default_model.build_model(X, y)
-    with pytest.warns(DeprecationWarning, match="make_split_rules"):
-        rules = default_model._make_split_rules(PRE + POST)
-    from pymc_bart.split_rules import OneHotSplitRule
+    model = PIEModel(
+        pre_determined_features=PRE,
+        post_determined_features=POST,
+        model_config={
+            "bart": {"m": 10, "alpha": 0.95, "beta": 2.0},
+            "sigma": Prior("HalfNormal", sigma=1.0, dims="obs"),
+        },
+    )
+    model.build_model(X, y)
+    sigma = model.model["sigma"]
+    assert sigma.eval().shape == y.shape
 
-    assert isinstance(rules[0], OneHotSplitRule)
-    assert len(rules) == len(PRE + POST)
+
+def test_mu_recipe_key_is_ignored_without_warning(small_corpus):
+    """model_config['mu'] is a declared key: no 'not used' warning."""
+    import warnings
+
+    X, y = small_corpus
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        model = PIEModel(
+            pre_determined_features=PRE,
+            post_determined_features=POST,
+            model_config={
+                "sigma": Prior("HalfNormal", sigma=1.0),
+                "mu": Dot(
+                    var_name="X", name="mu_coef", prior=Prior("Normal", dims="feature")
+                ),
+            },
+        )
+        model.build_model(X, y)
+
+
+def test_save_unregistered_recipe_raises():
+    """Saving with an unregistered 'mu' recipe fails loudly on the write side."""
+    from pymc_marketing.terms import ModelTerm
+
+    class Unregistered(ModelTerm):
+        def get_coords(self, ds):
+            return {}
+
+    model = PIEModel(
+        pre_determined_features=PRE,
+        post_determined_features=POST,
+        model_config={
+            "sigma": Prior("HalfNormal", sigma=1.0),
+            "mu": Unregistered(),
+        },
+    )
+    with pytest.raises(NotImplementedError, match="Unregistered"):
+        model._serializable_model_config
+
+
+def test_registered_bart_recipe_is_serializable(small_corpus):
+    """A registered Bart recipe in model_config serializes with __type__."""
+    from pymc_marketing.serialization import serialization
+
+    model = PIEModel(
+        pre_determined_features=PRE,
+        post_determined_features=POST,
+        model_config={
+            "sigma": Prior("HalfNormal", sigma=1.0),
+            "mu": Bart(
+                var_name="X",
+                y_name="y_obs",
+                m=10,
+                split_rules=[
+                    OneHotSplitRule() if col in PRE else ContinuousSplitRule()
+                    for col in PRE + POST
+                ],
+                name="bart",
+            ),
+        },
+    )
+    recipe = serialization.serialize(model.model_config["mu"])
+    assert "__type__" in recipe
+    assert recipe["__type__"] == "pymc_marketing.bart.Bart"
+
+
+def test_save_load_roundtrip_linear_recipe(small_corpus, tmp_path):
+    """A linear (Dot) recipe fits, saves, loads, and still predicts."""
+    X, y = small_corpus
+    model = PIEModel(
+        pre_determined_features=PRE,
+        post_determined_features=POST,
+        model_config={
+            "sigma": Prior("HalfNormal", sigma=1.0),
+            "mu": Dot(
+                var_name="X", name="mu_coef", prior=Prior("Normal", dims="feature")
+            ),
+        },
+    )
+    model.fit(X, y, draws=10, tune=5, chains=1, random_seed=0)
+
+    fname = tmp_path / "linear_model.nc"
+    model.save(fname)
+    loaded = PIEModel.load(fname)
+
+    assert loaded._feature_columns == model._feature_columns
+    X_new = X.iloc[:10].reset_index(drop=True)
+    preds = loaded.predict(X_new)
+    assert not np.isnan(np.asarray(preds)).any()
+
+
+def test_transform_wrapped_bart_recipe_keeps_sample_vars(small_corpus):
+    """sample_vars survive a Transform-wrapped recipe."""
+    import pytensor.xtensor as ptx
+
+    X, y = small_corpus
+    model = PIEModel(
+        pre_determined_features=PRE,
+        post_determined_features=POST,
+        model_config={
+            "sigma": Prior("HalfNormal", sigma=1.0),
+            "mu": Transform(
+                Bart(
+                    var_name="X",
+                    y_name="y_obs",
+                    m=10,
+                    split_rules=[ContinuousSplitRule() for _ in PRE + POST],
+                    name="bart",
+                ),
+                func=ptx.math.exp,
+            ),
+        },
+    )
+    model.build_model(X, y)
+    assert model._recipe_sample_vars == ["bart"]

@@ -7,8 +7,8 @@
   :recursive:
   :toctree: generated/
 
-  bass
   bart
+  bass
   causal_utils
   clv
   customer_choice

@@ -75,33 +75,25 @@ def test_get_coords(ds: xr.Dataset) -> None:
 
 
 def test_register_data_is_guarded(ds: xr.Dataset) -> None:
+    import pymc as pm
+
     term = make_term()
-    with __import__("pymc").Model(coords=term.get_coords(ds)) as model:
+    with pm.Model(coords=term.get_coords(ds)) as model:
         term.register_data(ds)
         term.register_data(ds)
         assert "X" in model
         assert "y_obs" in model
 
 
-def test_set_data_resizes_obs(ds: xr.Dataset) -> None:
-    term = make_term()
+def test_set_data_resizes_obs_and_target(ds: xr.Dataset) -> None:
     import pymc as pm
     import pymc.dims as pmd
-    import pymc_bart as pmb
-    from pytensor.xtensor.type import as_xtensor
 
+    term = make_term()
     coords = term.get_coords(ds)
     with pm.Model(coords=coords) as model:
         term.register_data(ds)
-        mu_plain = pmb.BART(
-            "bart",
-            X=model["X"].values,
-            Y=model["y_obs"].values,
-            m=term.m,
-            split_rules=term.split_rules,
-            dims=("obs",),
-        )
-        mu_det = pmd.Deterministic("mu", as_xtensor(mu_plain, dims=("obs",)))
+        mu_det = pmd.Deterministic("mu", build_param(term), dims="obs")
         pmd.Normal("y", mu=mu_det, sigma=1.0, observed=model["y_obs"], dims="obs")
         term.set_data(ds, model=model)
 
@@ -110,6 +102,7 @@ def test_set_data_resizes_obs(ds: xr.Dataset) -> None:
     )
     term.set_data(ds_new, model=model)
     assert model["X"].values.eval().shape == (7, 3)
+    assert model["y_obs"].values.eval().shape == (7,)
 
 
 def test_sample_vars() -> None:
@@ -201,3 +194,32 @@ def test_bart_dot_swappable(ds: xr.Dataset) -> None:
             prior = pm.sample_prior_predictive(draws=2)
         assert prior.prior["mu"].dims == ("chain", "draw", "obs")
         assert prior.prior["mu"].shape[-1] == 40
+
+
+def test_transposed_data_var_is_ordered_before_bart(ds: xr.Dataset) -> None:
+    """A data variable declared (feature, obs) cannot transpose into BART."""
+    import pymc as pm
+
+    transposed_ds = ds.transpose("feature", "obs")
+    term = make_term()
+    coords = collect_coords(term, ds=transposed_ds)
+    coords["obs"] = transposed_ds.coords["obs"].values.tolist()
+
+    with pm.Model(coords=coords):
+        register_data(term, ds=transposed_ds)
+        contribution = build_param(term)
+
+    assert contribution.eval().shape == (40,)
+
+
+def test_split_rules_as_classes_roundtrip() -> None:
+    """The pymc-bart spelling (classes) normalizes to instances."""
+    import pymc_bart
+
+    from pymc_marketing.serialization import serialization
+
+    rule_types = (pymc_bart.split_rules.ContinuousSplitRule,)
+    term = make_term(split_rules=list(rule_types))
+    assert isinstance(term.split_rules[0], rule_types[0])
+    rebuilt = serialization.deserialize(serialization.serialize(term))
+    assert [type(rule) for rule in rebuilt.split_rules] == list(rule_types)

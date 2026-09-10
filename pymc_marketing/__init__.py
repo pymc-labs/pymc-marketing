@@ -23,6 +23,8 @@ with _warnings.catch_warnings():
 del _warnings
 
 # Load the data accessor
+# Register the BART term serializer
+import pymc_marketing.bart  # noqa: E402
 import pymc_marketing.data.fivetran  # noqa: E402
 
 # Register R2D2 deserializers
@@ -35,6 +37,7 @@ from pymc_marketing.version import __version__  # noqa: E402
 
 __all__ = [
     "__version__",
+    "bart",
     "bass",
     "clv",
     "customer_choice",

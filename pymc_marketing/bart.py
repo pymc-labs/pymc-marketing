@@ -14,7 +14,7 @@
 """BART term for the ``pymc_marketing.terms`` framework.
 
 ``pymc_marketing.bart`` exposes :class:`Bart`, a :class:`~pymc_marketing.terms.ModelTerm`
-that wraps :func:`pymc_bart.pymc_bart.BART` so Bayesian Additive Regression Trees
+that wraps :class:`pymc_bart.BART` so Bayesian Additive Regression Trees
 can be composed like any other term in the ``pymc_marketing.terms`` vocabulary,
 e.g. interchangeably with :class:`~pymc_marketing.terms.Dot`.
 
@@ -37,26 +37,32 @@ Swap a BART mean function for a linear dot product:
 
 .. code-block:: python
 
+    import numpy as np
+    import pymc as pm
     import pymc.dims as pmd
     import xarray as xr
     from pymc_extras.prior import Prior
 
     from pymc_marketing.bart import Bart
     from pymc_marketing.terms import (
+        Dot,
         build_param,
         collect_coords,
         register_data,
     )
 
+    X = np.random.normal(size=(100, 4))
+    y = X.sum(axis=1)
     ds = xr.Dataset(
         {
             "X": (("obs", "feature"), X),
             "y_obs": (("obs",), y),
         },
     )
+
     mu = Bart(var_name="X", m=200)
     # ... or the plain linear alternative:
-    # mu = Dot(var_name="X", prior=Prior("Normal", dims="feature"))
+    # mu = Dot(var_name="X", name="mu_coef", prior=Prior("Normal", dims="feature"))
 
     coords = collect_coords(mu, ds=ds)
     with pm.Model(coords=coords) as model:
@@ -115,7 +121,10 @@ def _serialize_split_rules(rules: list[Any] | None) -> list[str] | None:
     """Serialize split rule instances to class names."""
     if rules is None:
         return None
-    return [rule.__class__.__name__ for rule in rules]
+    return [
+        rule.__name__ if isinstance(rule, type) else rule.__class__.__name__
+        for rule in rules
+    ]
 
 
 def _load_split_rules(names: list[str] | None) -> list[Any] | None:
@@ -145,7 +154,7 @@ def _load_split_rules(names: list[str] | None) -> list[Any] | None:
 class Bart(ModelTerm):
     """Bayesian Additive Regression Trees term.
 
-    Wraps :func:`pymc_bart.pymc_bart.BART` as a composable
+    Wraps :class:`pymc_bart.BART` as a composable
     :class:`~pymc_marketing.terms.ModelTerm`. Interchangeable with
     :class:`~pymc_marketing.terms.Dot` --- swapping the two changes the model
     graph but nothing else in the expression or lifecycle.
@@ -211,6 +220,16 @@ class Bart(ModelTerm):
             )
         if self.m < 1:
             raise ValueError(f"Bart m must be >= 1, got {self.m}.")
+        if not (0 < self.alpha < 1):
+            raise ValueError(f"Bart alpha must be in (0, 1), got {self.alpha}.")
+        if self.beta <= 0:
+            raise ValueError(f"Bart beta must be > 0, got {self.beta}.")
+        # Normalize to instances so ``get_coords``/``create_variable`` and
+        # ``to_dict`` see one canonical form; pymc-bart itself accepts both.
+        self.split_rules = [
+            rule() if isinstance(rule, type) else rule
+            for rule in (self.split_rules or [])
+        ] or None
 
     def get_coords(self, ds: xr.Dataset) -> dict[str, Any]:
         """Extract coordinates from the feature data variable."""
@@ -247,10 +266,23 @@ class Bart(ModelTerm):
                 f"Bart term requires target data '{self.y_name}' in the model. "
                 "Register it as pmd.Data before building the term."
             )
-        obs_dims = cast("tuple[str, ...]", X.dims)[:-1]
+        # Derive observation dims from the target rather than positionally
+        # off X, so a transposed data variable cannot silently swap the
+        # feature axis into BART.
+        X_dims = cast("tuple[str, ...]", X.dims)
+        y_dims = tuple(model[self.y_name].dims)
+        obs_dims = tuple(dim for dim in X_dims if dim in y_dims)
+        feature_dims = tuple(dim for dim in X_dims if dim not in y_dims)
+        if len(feature_dims) != 1:
+            raise ValueError(
+                f"Data variable '{self.var_name}' with dims {X.dims} is "
+                f"incompatible with target '{self.y_name}' of dims {y_dims}: "
+                "exactly one trailing feature dimension is expected."
+            )
+        X_ordered = X.transpose(*obs_dims, *feature_dims)
         mu_plain = pmb.BART(
             self.name,
-            X=X.values,
+            X=X_ordered.values,
             Y=model[self.y_name].values,
             m=self.m,
             alpha=self.alpha,
