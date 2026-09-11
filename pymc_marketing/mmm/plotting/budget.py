@@ -145,7 +145,7 @@ class BudgetPlots:
         Parameters
         ----------
         samples : xr.Dataset
-            Output of ``mmm.allocate_budget_to_maximize_response(...)`` or
+            Output of ``sample_response_distribution(...)`` or
             equivalent.  Must have:
 
             - a variable whose name contains ``"channel_contribution"``
