@@ -43,14 +43,16 @@ repos:
     hooks:
       - id: validate-api-docs
         name: Validate API Documentation Completeness
-        entry: python3 scripts/validate_api_docs.py
-        language: system
+        entry: python scripts/validate_api_docs.py
+        language: python
+        language_version: python3.12
         pass_filenames: false
         files: ^(docs/source/api/index\.md|pymc_marketing/.*\.py)$
       - id: validate-watermark
         name: Validate notebooks have watermark in last cell
-        entry: python3 scripts/validate_notebook_watermark.py
-        language: system
+        entry: python scripts/validate_notebook_watermark.py
+        language: python
+        language_version: python3.12
         files: \.ipynb$
         exclude: ^docs/source/notebooks/.*/dev/
       - id: validate-notebooks
