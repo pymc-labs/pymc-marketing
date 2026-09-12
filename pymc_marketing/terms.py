@@ -432,7 +432,9 @@ class Product:
         }
 
     def __add__(self, other: Any) -> Sum:
-        """Compose additively with another term or product."""
+        """Compose additively with another term, product or sum."""
+        if isinstance(other, Sum):
+            return Sum([self, *other.terms])
         return Sum([self, other])
 
     def __radd__(self, other: Any) -> Sum | Product:

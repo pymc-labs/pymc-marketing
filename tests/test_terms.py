@@ -461,6 +461,14 @@ def test_product_add():
     assert result.terms[1] == Intercept(name="b")
 
 
+def test_product_add_sum_flattens():
+    p = Product(Intercept(name="a"), 2.0)
+    result = p + Sum([Intercept(name="b"), Intercept(name="c")])
+    assert isinstance(result, Sum)
+    assert len(result.terms) == 3
+    assert result.terms[0] == p
+
+
 def test_product_radd_int():
     p = Product(Intercept(name="a"), 2.0)
     result = 3 + p
