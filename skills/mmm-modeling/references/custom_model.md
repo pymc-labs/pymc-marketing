@@ -344,7 +344,7 @@ with pm.Model(coords=coords):
     event_curve = pm.Deterministic("effect", effect.apply(X), dims=("date", "event"))
 ```
 
-The basis matrix `X` contains day offsets relative to each event window. See the [MMM components notebook](https://www.pymc-marketing.io/en/latest/notebooks/mmm/mmm_components.html) for the full `create_basis_matrix` helper.
+The basis matrix `X` contains day offsets relative to each event window. See the [MMM components notebook](https://www.pymc-marketing.io/en/stable/notebooks/mmm/mmm_components.html) for the full `create_basis_matrix` helper.
 
 ### AsymmetricGaussianBasis
 

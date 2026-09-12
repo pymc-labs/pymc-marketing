@@ -177,10 +177,10 @@ Leverage our Bayesian MMM API to tailor your marketing strategies effectively. L
 | Out-of-sample Predictions                  | Forecast future marketing performance with credible intervals. Use this for simulations and scenario planning.                                                                                                                                                                                                                                                                          |
 | Budget Optimization                        | Allocate your marketing spend efficiently across various channels for maximum ROI. See the [budget optimization example notebook](https://www.pymc-marketing.io/en/stable/notebooks/mmm/mmm_budget_allocation_example.html)                                                                                                                                                             |
 | Experiment Calibration                     | Fine-tune your model based on empirical experiments for a more unified view of marketing. See the [lift test integration explanation](https://www.pymc-marketing.io/en/stable/notebooks/mmm/mmm_lift_test.html) for more details. [Here](https://www.pymc-marketing.io/en/stable/notebooks/mmm/mmm_roas.html) you can find a *Case Study: Unobserved Confounders, ROAS and Lift Tests*. |
-| ROAS / CAC Calibration                     | Calibrate your model with ROAS or cost-per-acquisition estimates via `add_cost_per_target_calibration`. See the [ROAS calibration notebook](https://www.pymc-marketing.io/en/latest/notebooks/mmm/mmm_roas_calibration.html) for a worked example.                                                                                                                                       |
-| Funnel Models                              | Model upper-funnel to lower-funnel mediation (e.g., awareness driving search and conversions) via custom `MuEffect`s. See the [introductory funnel-aware MMM notebook](https://www.pymc-marketing.io/en/latest/notebooks/mmm/mmm_funnel_mueffect.html) and the [advanced geo-level example](https://www.pymc-marketing.io/en/latest/notebooks/mmm/mmm_funnel_mueffect_advanced.html).     |
+| ROAS / CAC Calibration                     | Calibrate your model with ROAS or cost-per-acquisition estimates via `add_cost_per_target_calibration`. See the [ROAS calibration notebook](https://www.pymc-marketing.io/en/stable/notebooks/mmm/mmm_roas_calibration.html) for a worked example.                                                                                                                                       |
+| Funnel Models                              | Model upper-funnel to lower-funnel mediation (e.g., awareness driving search and conversions) via custom `MuEffect`s. See the [introductory funnel-aware MMM notebook](https://www.pymc-marketing.io/en/stable/notebooks/mmm/mmm_funnel_mueffect.html) and the [advanced geo-level example](https://www.pymc-marketing.io/en/stable/notebooks/mmm/mmm_funnel_mueffect_advanced.html).     |
 
-Beyond short-term sales response, you can also measure long-term brand effects in MMMs by coupling brand-tracking metrics (e.g., awareness, consideration) with a Bayesian VARX model. See the [long-term brand effects notebook](https://www.pymc-marketing.io/en/latest/notebooks/mmm/mmm_brand_metrics_long_term.html) for a complete tutorial.
+Beyond short-term sales response, you can also measure long-term brand effects in MMMs by coupling brand-tracking metrics (e.g., awareness, consideration) with a Bayesian VARX model. See the [long-term brand effects notebook](https://www.pymc-marketing.io/en/stable/notebooks/mmm/mmm_brand_metrics_long_term.html) for a complete tutorial.
 
 ## Unlock Customer Lifetime Value (CLV) with PyMC
 
@@ -217,12 +217,12 @@ See our example notebooks for [saturated markets](https://www.pymc-marketing.io/
 
 The customer choice module also includes a full family of **discrete choice and preference models**:
 
-- [Multinomial Logit](https://www.pymc-marketing.io/en/latest/notebooks/customer_choice/mnl_logit.html)
-- [Nested Logit](https://www.pymc-marketing.io/en/latest/notebooks/customer_choice/nested_logit.html)
-- [Mixed Logit](https://www.pymc-marketing.io/en/latest/notebooks/customer_choice/mixed_logit.html)
-- [Consideration Set Mixed Logit](https://www.pymc-marketing.io/en/latest/notebooks/customer_choice/consideration_set_logit.html)
-- [MaxDiff (Best-Worst Scaling)](https://www.pymc-marketing.io/en/latest/notebooks/customer_choice/maxdiff.html)
-- [Bayesian BLP: Structural Demand on Aggregate Shares](https://www.pymc-marketing.io/en/latest/notebooks/customer_choice/bayesian_blp.html) and its application to the [Nevo cereal panel](https://www.pymc-marketing.io/en/latest/notebooks/customer_choice/bayesian_blp_nevo.html)
+- [Multinomial Logit](https://www.pymc-marketing.io/en/stable/notebooks/customer_choice/mnl_logit.html)
+- [Nested Logit](https://www.pymc-marketing.io/en/stable/notebooks/customer_choice/nested_logit.html)
+- [Mixed Logit](https://www.pymc-marketing.io/en/stable/notebooks/customer_choice/mixed_logit.html)
+- [Consideration Set Mixed Logit](https://www.pymc-marketing.io/en/stable/notebooks/customer_choice/consideration_set_logit.html)
+- [MaxDiff (Best-Worst Scaling)](https://www.pymc-marketing.io/en/stable/notebooks/customer_choice/maxdiff.html)
+- [Bayesian BLP: Structural Demand on Aggregate Shares](https://www.pymc-marketing.io/en/stable/notebooks/customer_choice/bayesian_blp.html) and its application to the [Nevo cereal panel](https://www.pymc-marketing.io/en/stable/notebooks/customer_choice/bayesian_blp_nevo.html)
 
 ## Bass Diffusion Model
 
