@@ -1601,3 +1601,155 @@ def test_spend_var_allocations_excludes_levers():
 
     assert set(result.spend_var_allocations) == {"lf_budget"}
     assert float(result.spend_var_allocations["lf_budget"]) == 7.0
+
+
+def _scaled(posterior: xr.Dataset, beta_scale) -> xr.DataTree:
+    scaled = posterior.assign(
+        saturation_beta=lambda ds: ds["saturation_beta"] * beta_scale
+    )
+    return xr.DataTree.from_dict({"/posterior": scaled})
+
+
+def test_set_posterior_rebinds_without_recompile(mmm_wrapper, dummy_idata):
+    """``set_posterior`` swaps the draws under the compiled objective.
+
+    The first call moves the draws into shared variables, which recompiles
+    once; every later call keeps the compiled objective object.  After each
+    swap the optimizer must agree with a fresh optimizer built on that
+    posterior.  The second posterior also has a different number of draws.
+    """
+    posterior = dummy_idata["posterior"].to_dataset()
+    first = _scaled(posterior.isel(draw=[0]), [3.0, 0.5])
+    second = _scaled(posterior, [0.5, 3.0])
+
+    optimizer = BudgetOptimizer(
+        model=mmm_wrapper,
+        num_periods=30,
+        response_variable="total_media_contribution_original_scale",
+    )
+    assert optimizer._shared_posterior is None  # constants until asked
+    constant_objective = optimizer._objective_and_grad
+    baseline, _ = optimizer.allocate_budget(total_budget=2.0)
+
+    def fresh(idata):
+        return BudgetOptimizer(
+            model=CustomModelWrapper(
+                base_model=mmm_wrapper.base_model,
+                idata=idata,
+                channels=mmm_wrapper.channel_columns,
+            ),
+            num_periods=30,
+            response_variable="total_media_contribution_original_scale",
+        ).allocate_budget(total_budget=2.0)
+
+    optimizer.set_posterior(first)
+    assert optimizer._objective_and_grad is not constant_objective  # one recompile
+    shared_objective = optimizer._objective_and_grad
+    assert optimizer.idata is first
+    rebound, rebound_res = optimizer.allocate_budget(total_budget=2.0)
+    expected, expected_res = fresh(first)
+    np.testing.assert_allclose(rebound.values, expected.values, rtol=1e-6, atol=1e-9)
+    assert rebound_res.fun == pytest.approx(expected_res.fun, rel=1e-6)
+    assert not np.allclose(rebound.values, baseline.values)
+
+    optimizer.set_posterior(second)
+    assert optimizer._objective_and_grad is shared_objective  # no recompile
+    rebound, rebound_res = optimizer.allocate_budget(total_budget=2.0)
+    expected, expected_res = fresh(second)
+    np.testing.assert_allclose(rebound.values, expected.values, rtol=1e-6, atol=1e-9)
+    assert rebound_res.fun == pytest.approx(expected_res.fun, rel=1e-6)
+
+
+def test_set_posterior_custom_constraint_follows_rebind(mmm_wrapper, dummy_idata):
+    """A constraint built from ``extract_response_distribution`` reads the new draws."""
+
+    def mean_response_floor(budgets_sym, total_budget_sym, optimizer):
+        response = optimizer.extract_response_distribution(
+            "total_media_contribution_original_scale"
+        )
+        return response.mean() - 1.0
+
+    optimizer = BudgetOptimizer(
+        model=mmm_wrapper,
+        num_periods=30,
+        response_variable="total_media_contribution_original_scale",
+        constraints=[
+            Constraint(
+                key="floor", constraint_type="ineq", constraint_fun=mean_response_floor
+            ),
+            build_default_sum_constraint(),
+        ],
+    )
+    x = np.array([1.0, 1.0])
+
+    def compiled_floor():
+        return next(c for c in optimizer._compiled_constraints if c["key"] == "floor")
+
+    floor = compiled_floor()
+    before = float(floor["fun"](x))
+
+    posterior = dummy_idata["posterior"].to_dataset()
+    optimizer.set_posterior(_scaled(posterior, 4.0))
+    floor = compiled_floor()
+    after_first = float(floor["fun"](x))
+    assert after_first != pytest.approx(before)
+
+    optimizer.set_posterior(_scaled(posterior, 8.0))
+    assert compiled_floor() is floor
+    assert float(floor["fun"](x)) != pytest.approx(after_first)
+
+
+def test_set_posterior_accepts_bare_posterior_dataset(mmm_wrapper, dummy_idata):
+    optimizer = BudgetOptimizer(
+        model=mmm_wrapper,
+        num_periods=30,
+        response_variable="total_media_contribution_original_scale",
+    )
+    optimizer.set_posterior(dummy_idata["posterior"].to_dataset().isel(draw=[1]))
+    assert isinstance(optimizer.idata, xr.DataTree)
+    assert optimizer.idata["posterior"].sizes["draw"] == 1
+
+
+def test_set_posterior_refuses_a_posterior_that_changes_the_auto_mask(
+    mmm_wrapper, dummy_idata
+):
+    """An auto-detected mask fixes the decision vector; a posterior implying another is refused."""
+    posterior = dummy_idata["posterior"].to_dataset()
+
+    def with_contributions(per_channel):
+        contribution = posterior["channel_contribution"] * xr.DataArray(
+            per_channel, dims="channel", coords={"channel": posterior["channel"]}
+        )
+        return xr.DataTree.from_dict(
+            {"/posterior": posterior.assign(channel_contribution=contribution)}
+        )
+
+    optimizer = BudgetOptimizer(
+        model=CustomModelWrapper(
+            base_model=mmm_wrapper.base_model,
+            idata=with_contributions([1.0, 0.0]),
+            channels=mmm_wrapper.channel_columns,
+        ),
+        num_periods=30,
+        response_variable="total_media_contribution_original_scale",
+    )
+    assert optimizer.budgets_to_optimize.values.tolist() == [True, False]
+
+    with pytest.raises(
+        ValueError, match=r"different auto-detected budgets_to_optimize"
+    ):
+        optimizer.set_posterior(with_contributions([0.0, 1.0]))
+    assert optimizer._shared_posterior is None  # nothing changed
+
+    optimizer.set_posterior(with_contributions([1.0, 0.0]))  # same mask: fine
+
+
+def test_set_posterior_requires_every_bound_variable(mmm_wrapper, dummy_idata):
+    optimizer = BudgetOptimizer(
+        model=mmm_wrapper,
+        num_periods=30,
+        response_variable="total_media_contribution_original_scale",
+    )
+    posterior = dummy_idata["posterior"].to_dataset().drop_vars("saturation_beta")
+    with pytest.raises(KeyError, match="saturation_beta"):
+        optimizer.set_posterior(xr.DataTree.from_dict({"/posterior": posterior}))
