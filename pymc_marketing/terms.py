@@ -431,6 +431,16 @@ class Product:
             **get_coords(self.right, ds),
         }
 
+    def __add__(self, other: Any) -> Sum:
+        """Compose additively with another term or product."""
+        return Sum([self, other])
+
+    def __radd__(self, other: Any) -> Sum | Product:
+        """Compose additively from the left; ``0 + product`` returns the product."""
+        if isinstance(other, int) and other == 0:
+            return self
+        return Sum([other, self])
+
     def __mul__(self, other: Any) -> Product:
         """Compose multiplicatively with another term."""
         return Product(self, other)

@@ -453,6 +453,35 @@ def test_product_rmul():
     assert isinstance(result, Product)
 
 
+def test_product_add():
+    p = Product(Intercept(name="a"), 2.0)
+    result = p + Intercept(name="b")
+    assert isinstance(result, Sum)
+    assert result.terms[0] == p
+    assert result.terms[1] == Intercept(name="b")
+
+
+def test_product_radd_int():
+    p = Product(Intercept(name="a"), 2.0)
+    result = 3 + p
+    assert isinstance(result, Sum)
+    assert result.terms[0] == 3
+    assert result.terms[1] == p
+
+
+def test_product_radd_zero():
+    p = Product(Intercept(name="a"), 2.0)
+    result = 0 + p
+    assert result == p
+
+
+def test_product_add_product():
+    result = -Intercept(name="a") + 3 * Parameter(name="b", prior=Prior("Normal"))
+    assert isinstance(result, Sum)
+    assert len(result.terms) == 2
+    assert all(isinstance(term, Product) for term in result.terms)
+
+
 def test_sum_rmul():
     s = Sum([Intercept(name="a")])
     result = 3 * s
