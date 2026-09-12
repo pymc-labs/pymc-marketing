@@ -1,0 +1,29 @@
+README.md
+  s_f0a59ddc7eb3de::t_d495c02a7238cc 13,67,92-93,150,265-270,286
+docs/source/index.md
+  s_f0a59ddc7eb3de::t_1cebfab18028c0 180-181,183,220-225
+docs/source/notebooks/clv/sbg.ipynb
+  s_f0a59ddc7eb3de::t_7be96eedb4d566 535
+docs/source/notebooks/mmm/mmm_fivetran_connectors.ipynb
+  s_f0a59ddc7eb3de::t_0ceeadae1dfd5e 2219-2221
+docs/source/notebooks/mmm/mmm_gam_options.ipynb
+  s_f0a59ddc7eb3de::t_ac7f31a5b89d46 19
+skills/mmm-modeling/references/custom_model.md
+  s_f0a59ddc7eb3de::t_189a7f0b79e245 347
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "25b8d2f5287034f7164a4e7a8eddde0b4e6e4365",
+  "prompts": {},
+  "sessions": {
+    "s_f0a59ddc7eb3de": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0062a816-af5e-448a-8865-7476c6e608a0",
+        "model": "claude-opus-5"
+      },
+      "human_author": "root <root@e2b.local>"
+    }
+  }
+}
