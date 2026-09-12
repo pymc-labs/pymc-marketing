@@ -29,7 +29,6 @@ from scipy.special import gammaln
 
 from pymc_marketing.mmm.components.adstock import GeometricAdstock
 from pymc_marketing.mmm.experimental._graph import (
-    Binding,
     BuildContext,
     Data,
     Equation,
@@ -281,7 +280,11 @@ def test_conditioned_equation_stops_missing_mechanism_inputs():
     )
     spend = Equation(mu=ancestor, name="B", observed="spend")
     root = Equation(
-        mu=spend * 2, likelihood=Prior("Normal", sigma=1), name="Y", observed="sales"
+        mu=spend * 2,
+        likelihood=Prior("Normal", sigma=1),
+        name="Y",
+        observed="sales",
+        dims="date",
     )
     with pm.Model() as model:
         context = BuildContext(ds, prediction=True, condition_on=("B",))
@@ -324,17 +327,31 @@ def test_missing_training_observations_do_not_create_imputation_variables(missin
         BuildContext(ds).build(equation)
 
 
-def test_binding_divides_observations_without_scaling_raw_data():
-    ds = xr.Dataset({"sales": ("date", [2.0, 6.0])}, coords={"date": [0, 1]})
-    equation = Equation(mu=0, likelihood=Prior("Normal", sigma=1), observed="sales")
-    binding = Binding(name="Y", observed="sales", dims=("date",), scale=2)
+def test_equation_dims_follow_observations_then_likelihood_then_scalar():
+    ds = xr.Dataset(
+        {"y": (("date", "geo"), [[1.0, 2.0], [3.0, 4.0]])},
+        coords={"date": [0, 1], "geo": ["a", "b"]},
+    )
+    scalar = Equation(mu=0, likelihood=Prior("Normal", sigma=1), name="scalar")
+    regional = Equation(
+        mu=0, likelihood=Prior("Normal", sigma=1, dims="geo"), name="regional"
+    )
+    observed = Equation(
+        mu=scalar + regional, likelihood=Prior("Normal", sigma=1), observed="y"
+    )
     with pm.Model() as model:
-        context = BuildContext(ds, bindings={equation: binding})
-        context.build(equation)
-        raw = context.build(Data("sales"))
-    assert_allclose(raw.eval(), [2, 6])
+        BuildContext(ds).build(observed)
+    assert model.named_vars_to_dims["scalar"] == ()
+    assert model["scalar"].ndim == 0
+    assert model.named_vars_to_dims["regional"] == ("geo",)
+    assert model.named_vars_to_dims["y"] == ("date", "geo")
+    expected = (
+        _normal_logp(0.2, 0, 1)
+        + _normal_logp(np.array([0.1, -0.1]), 0, 1).sum()
+        + _normal_logp(ds.y.values, 0.2 + np.array([0.1, -0.1]), 1).sum()
+    )
     assert_allclose(
-        model.compile_logp()({}), _normal_logp(np.array([1, 3]), 0, 1).sum()
+        model.compile_logp()({"scalar": 0.2, "regional": [0.1, -0.1]}), expected
     )
 
 

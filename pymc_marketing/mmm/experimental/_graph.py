@@ -163,7 +163,7 @@ class Data(GraphTerm):
 
 @dataclass(frozen=True)
 class Binding:
-    """Effective name, observations, dimensions, and divisor for an equation.
+    """Effective name, observations, and dimensions for an equation.
 
     Parameters
     ----------
@@ -173,34 +173,16 @@ class Binding:
         Dataset observation variable, or ``None`` for a latent equation.
     dims : tuple of str
         Named dimensions of the equation output.
-    scale : xarray.DataArray or float, default 1
-        Finite, nonzero divisor applied to observations; channel equations use one.
     """
 
     name: str
     observed: str | None
     dims: tuple[str, ...]
-    scale: xr.DataArray | float = 1.0
 
     def __post_init__(self) -> None:
         _name(self.name, "name")
         _name(self.observed, "observed", optional=True)
         object.__setattr__(self, "dims", _dimensions(self.dims))
-        if isinstance(self.scale, xr.DataArray):
-            if not set(self.scale.dims).issubset(self.dims):
-                raise ValueError("Scale dimensions must be equation dimensions.")
-            values = self.scale.values
-            object.__setattr__(self, "scale", self.scale.copy(deep=True))
-        else:
-            values = np.asarray(self.scale)
-            if values.ndim:
-                raise TypeError("A dimensional scale must be an xarray.DataArray.")
-        try:
-            valid = np.isfinite(values).all() and np.all(values != 0)
-        except TypeError as error:
-            raise ValueError("Equation scales must be finite and nonzero.") from error
-        if not valid:
-            raise ValueError("Equation scales must be finite and nonzero.")
 
 
 class Equation(GraphTerm):
@@ -213,23 +195,22 @@ class Equation(GraphTerm):
     likelihood : Prior, optional
         Distribution recipe, defaulting to the identity-link Normal likelihood.
     name : str, optional
-        Model variable name, overridden by an effective binding when supplied.
+        Model variable name, defaulting to ``observed``.
     observed : str, optional
-        Dataset observation variable; ``None`` leaves this to a workflow binding.
-        Without a binding, ``None`` declares a latent equation.
+        Dataset observation variable; ``None`` declares a latent equation.
     dims : tuple of str, optional
-        Output dimensions, inferred from observations or the context when omitted.
+        Output dimensions. When omitted, an observed equation uses the dimensions
+        of its observation variable, otherwise the likelihood dimensions, otherwise
+        it is a scalar. Parameter expressions never widen the output.
     parameters : mapping of str to object, optional
         Arbitrary symbolic distribution parameters, including non-``mu`` parameterizations.
         A parameter cannot also be specified in ``likelihood`` or through ``mu``.
 
     Notes
     -----
-    Prediction conditioning holds supplied intermediate observations fixed without updating posterior parameter draws.
+    Prediction conditioning holds supplied observations fixed without updating posterior parameter draws.
     It is a forward-prediction policy, not posterior inference with new evidence.
     Missing training observations are rejected rather than automatically imputed.
-    MMM outcome and channel slots supply their own observation bindings.
-    An outcome uses ``target_column`` unless ``observed`` overrides it; channel slots use the raw channel column.
     """
 
     def __init__(
@@ -331,7 +312,6 @@ class Equation(GraphTerm):
                 date=slice(0, context.history_length)
             )
             context._finite(history, binding.observed)
-            history = context._scaled_array(history, binding)
             prefix = pmd.as_xtensor(history)
             future = value.isel(date=slice(context.history_length, None))
             return pmd.concat([prefix, future], dim="date")
@@ -441,8 +421,8 @@ class BuildContext:
         Effective equation names whose observations are held fixed during prediction.
     history_length : int, default 0
         Number of measured historical rows prepended to a prediction dataset.
-    default_dims : tuple of str, default ("date",)
-        Dimensions for equations without explicit or observable dimensions.
+    default_dims : tuple of str, default ()
+        Dimensions for latent equations without explicit or likelihood dimensions.
 
     Attributes
     ----------
@@ -471,7 +451,7 @@ class BuildContext:
         prediction: bool = False,
         condition_on: Sequence[str] = (),
         history_length: int = 0,
-        default_dims: tuple[str, ...] = ("date",),
+        default_dims: tuple[str, ...] = (),
     ) -> None:
         if not isinstance(ds, xr.Dataset):
             raise TypeError("BuildContext requires an xarray.Dataset.")
@@ -615,27 +595,12 @@ class BuildContext:
             )
         return array.transpose(*binding.dims)
 
-    def _scaled_array(self, array: xr.DataArray, binding: Binding) -> xr.DataArray:
-        scale = binding.scale
-        if isinstance(scale, xr.DataArray):
-            array, scale = xr.align(array, scale, join="exact", copy=False)
-        return array / scale
-
     def _observations(self, binding: Binding) -> Any:
         observed = binding.observed
         if observed is None:
             raise ValueError("Cannot read observations for a latent equation.")
-        array = self._observation_array(binding)
-        self._finite(array, observed)
-        scaled = self._scaled_array(array, binding)
-        # Keep the raw mutable data container and apply the fixed divisor symbolically.
-        scale = (
-            pmd.as_xtensor(binding.scale)
-            if isinstance(binding.scale, xr.DataArray)
-            else binding.scale
-        )
-        self._finite(scaled, observed)
-        return self.data(observed) / scale
+        self._finite(self._observation_array(binding), observed)
+        return self.data(observed)
 
     def _bound_value(self, value: Any) -> Any:
         if isinstance(value, (ModelTerm, Sum, Product)):

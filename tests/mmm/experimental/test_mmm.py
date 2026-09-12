@@ -11,7 +11,7 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
-"""Behavioral contracts for experimental construction and posterior prediction."""
+"""Behavioral contracts of the experimental graph-first MMM: fitting and forecasting."""
 
 import numpy as np
 import pandas as pd
@@ -19,11 +19,12 @@ import pymc.dims as pmd
 import pytest
 import xarray as xr
 from pymc_extras.prior import Prior
+from scipy.special import gammaln
+from scipy.stats import norm
 
 from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation
-from pymc_marketing.mmm.experimental import MMM, Data, Equation
-from pymc_marketing.mmm.scaling import FixedScaling
-from pymc_marketing.terms import Dot, Parameter, Transform
+from pymc_marketing.mmm.experimental import MMM, Data, Equation, MediaTransform
+from pymc_marketing.terms import Intercept, Parameter, Transform
 
 SAMPLE_KWARGS = {
     "draws": 30,
@@ -34,354 +35,493 @@ SAMPLE_KWARGS = {
     "progressbar": False,
     "compute_convergence_checks": False,
 }
+PREDICT_KWARGS = {"random_seed": 7, "progressbar": False}
+
+ALPHA = 0.4
+LAM = 1.1
+L_MAX = 3
+CHANNELS = ["tv", "radio"]
+PRODUCTS = ["basic", "premium"]
+TARGETS = ["units", "revenue"]
+TRAIN_DATES = pd.date_range("2025-01-06", periods=12, freq="W-MON")
+FUTURE_DATES = pd.date_range(TRAIN_DATES[-1], periods=4, freq="W-MON")[1:]
 
 
-def _lag(values):
-    return pmd.concat(
-        [
-            pmd.zeros_like(values.isel(date=slice(0, 1))),
-            values.isel(date=slice(None, -1)),
-        ],
-        dim="date",
+def _adstock(spend, alpha, l_max):
+    """Normalized geometric adstock along axis 0 with zeros before the first row."""
+    weights = alpha ** np.arange(l_max)
+    weights = weights / weights.sum()
+    out = np.zeros_like(spend, dtype=float)
+    for lag, weight in enumerate(weights):
+        out[lag:] += weight * spend[: spend.shape[0] - lag]
+    return out
+
+
+def _sales_mean_oracle(posterior, spend, price, history):
+    """Mean sales (chain, draw, date, product, target) from raw spend and price arrays.
+
+    ``spend`` is (date, channel) including ``history`` leading rows that are dropped
+    after adstock; ``price`` is (date, product) for the returned dates only.
+    """
+    adstocked = _adstock(spend, ALPHA, L_MAX)[history:]
+    beta = posterior["saturation_beta"].transpose("chain", "draw", "channel", "target")
+    saturated = beta.values[:, :, None, :, :] * np.tanh(
+        LAM * adstocked[None, None, :, :, None] / 2
+    )
+    response = saturated.sum(axis=3)
+    intercept = posterior["intercept"].transpose("chain", "draw", "product", "target")
+    price_beta = posterior["price_beta"].transpose("chain", "draw", "target")
+    return (
+        intercept.values[:, :, None, :, :]
+        + response[:, :, :, None, :]
+        + price[None, None, :, :, None] * price_beta.values[:, :, None, None, :]
     )
 
 
-class Lag(Transform):
-    required_history = 1
-
-
-def test_complete_outcome_replacement_and_shared_parameter():
-    data = pd.DataFrame(
+def _multi_target_training():
+    rng = np.random.default_rng(11)
+    spend = rng.gamma(2.0, 1.0, size=(len(TRAIN_DATES), len(CHANNELS)))
+    price = rng.uniform(1.0, 3.0, size=(len(TRAIN_DATES), len(PRODUCTS)))
+    sales = 5.0 + rng.normal(size=(len(TRAIN_DATES), len(PRODUCTS), len(TARGETS)))
+    return xr.Dataset(
         {
-            "timestamp": pd.date_range("2026-01-01", periods=3),
-            "price": [1.0, 2.0, 3.0],
-            "orders": [5.0, 6.0, 7.0],
-        }
+            "spend": (("date", "channel"), spend),
+            "price": (("date", "product"), price),
+            "sales": (("date", "product", "target"), sales),
+        },
+        coords={
+            "date": TRAIN_DATES,
+            "channel": CHANNELS,
+            "product": PRODUCTS,
+            "target": TARGETS,
+        },
     )
-    shared = Parameter("shared_level", Prior("Normal"))
-    mmm = MMM(
-        date_column="timestamp",
-        target_column="unused_target",
-        channel_columns=["unused_channel"],
-        yearly_seasonality=3,
-    )
-    mmm.y = Equation(
-        name="purchase_process",
-        observed="orders",
-        mu=shared + shared + Data("price"),
-        likelihood=Prior("Normal", sigma=1),
-    )
-    model = mmm.build_model(data)
-    # Replacement must not retain any of the default stochastic components.
-    assert {rv.name for rv in model.free_RVs} == {"shared_level"}
-    assert {rv.name for rv in model.observed_RVs} == {"purchase_process"}
-    expected = -len(data) * np.log(2 * np.pi) / 2
-    actual = model.compile_logp(vars=model.observed_RVs)({"shared_level": 2.0})
-    np.testing.assert_allclose(actual, expected)
 
 
-def test_joint_fit_custom_history_and_conditioned_mechanism_pruning():
-    tv = np.linspace(0.5, 2.0, 8)
-    train = pd.DataFrame(
+def _multi_target_future(spend, price, *, channel=CHANNELS, coords=None):
+    return xr.Dataset(
         {
-            "date": pd.date_range("2026-01-01", periods=8),
-            "tv": tv,
-            "search": 2 * np.r_[0, tv[:-1]],
-            "revenue": 6 * np.r_[0, tv[:-1]],
-        }
+            "spend": (("date", "channel"), spend),
+            "price": (("date", "product"), price),
+        },
+        coords={
+            "date": FUTURE_DATES,
+            "channel": channel,
+            "product": PRODUCTS,
+            **(coords or {}),
+        },
     )
-    mmm = MMM(channel_columns=["tv", "search"])
-    mmm.media["search"].equation = Equation(
-        name="demand_process",
-        mu=2 * Lag(mmm.media["tv"].value, func=_lag),
-        likelihood=Prior("Normal", sigma=0.001),
+
+
+def _multi_target_recipe():
+    response = MediaTransform(
+        Data("spend"),
+        GeometricAdstock(l_max=L_MAX, priors={"alpha": ALPHA}),
+        LogisticSaturation(
+            priors={
+                "lam": LAM,
+                "beta": Prior("HalfNormal", sigma=1, dims=("channel", "target")),
+            }
+        ),
     )
-    mmm.y = Equation(
-        name="purchase_process",
-        observed="revenue",
-        mu=Parameter("response", Prior("Normal", mu=3, sigma=0.001))
-        * mmm.media["search"].value,
-        likelihood=Prior("Normal", sigma=0.01),
+    mean = (
+        Intercept(prior=Prior("Normal", dims=("product", "target")))
+        + Transform(response, lambda value: value.sum(dim="channel"))
+        + Data("price") * Parameter("price_beta", Prior("Normal", dims="target"))
     )
-    idata = mmm.fit(train, **SAMPLE_KWARGS)
-    observations = idata["observed_data"].dataset.copy(deep=True)
-    assert set(observations) == {"demand_process", "purchase_process"}
-    future = pd.DataFrame(
-        {"date": pd.date_range("2026-01-09", periods=2), "tv": [3.0, 4.0]}
+    return Equation(
+        observed="sales",
+        mu=Transform(
+            mean,
+            lambda value: pmd.Deterministic(
+                "sales_mean", value, dims=("date", "product", "target")
+            ),
+        ),
+        likelihood=Prior("Normal", sigma=Prior("HalfNormal", sigma=1)),
+    )
+
+
+@pytest.fixture(scope="module")
+def multi_target():
+    train = _multi_target_training()
+    rng = np.random.default_rng(23)
+    future = _multi_target_future(
+        rng.gamma(2.0, 1.0, size=(len(FUTURE_DATES), len(CHANNELS))),
+        rng.uniform(1.0, 3.0, size=(len(FUTURE_DATES), len(PRODUCTS))),
+    )
+    mmm = MMM(_multi_target_recipe())
+    mmm.fit(train, **SAMPLE_KWARGS)
+    return mmm, train, future
+
+
+def _forecast_mean(mmm, future, **kwargs):
+    return mmm.sample_posterior_predictive(
+        future, var_names=["sales", "sales_mean"], **PREDICT_KWARGS, **kwargs
+    )
+
+
+def _oracle_with_history(mmm, train, future):
+    spend = np.concatenate(
+        [train["spend"].values[-(L_MAX - 1) :], future["spend"].values]
+    )
+    return _sales_mean_oracle(
+        mmm.idata["posterior"].to_dataset(), spend, future["price"].values, L_MAX - 1
+    )
+
+
+def test_multi_target_forecast_matches_numpy_oracle(multi_target):
+    mmm, train, future = multi_target
+    prediction = _forecast_mean(mmm, future)
+
+    assert prediction["sales"].sizes == {
+        "chain": 1,
+        "draw": SAMPLE_KWARGS["draws"],
+        "date": len(FUTURE_DATES),
+        "product": len(PRODUCTS),
+        "target": len(TARGETS),
+    }
+    assert prediction["sales_mean"].sizes == prediction["sales"].sizes
+    np.testing.assert_array_equal(prediction["date"].values, FUTURE_DATES.values)
+    np.testing.assert_allclose(
+        prediction["sales_mean"]
+        .transpose("chain", "draw", "date", "product", "target")
+        .values,
+        _oracle_with_history(mmm, train, future),
+        atol=1e-10,
+    )
+
+
+def test_forecast_is_invariant_to_label_order(multi_target):
+    mmm, _, future = multi_target
+    reversed_labels = _multi_target_future(
+        future["spend"].values[:, ::-1],
+        future["price"].values,
+        channel=CHANNELS[::-1],
+        coords={"target": TARGETS[::-1]},
+    )
+
+    baseline = _forecast_mean(mmm, future)["sales_mean"]
+    reordered = _forecast_mean(mmm, reversed_labels)["sales_mean"]
+
+    assert list(reordered["target"].values) == TARGETS
+    np.testing.assert_allclose(reordered.values, baseline.values, atol=1e-10)
+
+
+def test_forecast_responds_to_future_spend(multi_target):
+    mmm, train, future = multi_target
+    scaled = future.assign(spend=future["spend"] * 1.7)
+
+    baseline = _forecast_mean(mmm, future)["sales_mean"]
+    prediction = _forecast_mean(mmm, scaled)["sales_mean"]
+
+    assert not np.allclose(prediction.values, baseline.values)
+    np.testing.assert_allclose(
+        prediction.transpose("chain", "draw", "date", "product", "target").values,
+        _oracle_with_history(mmm, train, scaled),
+        atol=1e-10,
+    )
+
+
+def test_forecast_without_history_pads_with_zeros(multi_target):
+    mmm, _, future = multi_target
+
+    with_history = _forecast_mean(mmm, future)["sales_mean"]
+    scenario = _forecast_mean(mmm, future, include_last_observations=False)[
+        "sales_mean"
+    ]
+
+    assert not np.allclose(scenario.values, with_history.values)
+    np.testing.assert_allclose(
+        scenario.transpose("chain", "draw", "date", "product", "target").values,
+        _sales_mean_oracle(
+            mmm.idata["posterior"].to_dataset(),
+            future["spend"].values,
+            future["price"].values,
+            0,
+        ),
+        atol=1e-10,
+    )
+
+
+@pytest.mark.parametrize(
+    ("alter", "match"),
+    [
+        pytest.param(
+            lambda future: future.assign_coords(
+                date=future["date"] + pd.Timedelta(weeks=1)
+            ),
+            "immediately follow training",
+            id="shifted-dates",
+        ),
+        pytest.param(
+            lambda future: future.assign_coords(target=TARGETS[:1]),
+            "labels for 'target' must match training",
+            id="target-subset",
+        ),
+        pytest.param(
+            lambda future: future.drop_vars("channel"),
+            "'channel' must provide coordinate labels",
+            id="unlabeled-channel",
+        ),
+    ],
+)
+def test_forecast_rejects_inconsistent_future_data(multi_target, alter, match):
+    mmm, _, future = multi_target
+    with pytest.raises(ValueError, match=match):
+        _forecast_mean(mmm, alter(future))
+
+
+def test_build_model_requires_every_observation_variable():
+    train = _multi_target_training().drop_vars("sales")
+    with pytest.raises(ValueError, match="missing observations 'sales'"):
+        MMM(_multi_target_recipe()).build_model(train)
+
+
+def test_forecast_leaves_fit_untouched(multi_target):
+    mmm, train, future = multi_target
+    fitted_model = mmm.model
+    train_before = train.copy(deep=True)
+    posterior_before = mmm.idata["posterior"].to_dataset().copy(deep=True)
+
+    _forecast_mean(mmm, future.isel(channel=slice(None, None, -1)))
+
+    assert mmm.model is fitted_model
+    xr.testing.assert_identical(train, train_before)
+    xr.testing.assert_identical(mmm.idata["posterior"].to_dataset(), posterior_before)
+
+
+DRIVER = np.array([0.5, 1.0, 1.5, 2.0, 2.5])
+REVENUE = np.array([4.1, 6.0, 7.9, 10.2, 12.1])
+ORDERS = np.array([2, 3, 3, 5, 6])
+LIFT = np.array([3.6, 4.2, 3.9])
+
+
+def _shared_slope_training():
+    return xr.Dataset(
+        {
+            "driver": ("date", DRIVER),
+            "revenue_obs": ("date", REVENUE),
+            "orders_obs": ("date", ORDERS),
+            "lift": ("study", LIFT),
+        },
+        coords={
+            "date": pd.date_range("2025-03-01", periods=len(DRIVER), freq="D"),
+            "study": ["geo_a", "geo_b", "geo_c"],
+        },
+    )
+
+
+@pytest.fixture(scope="module")
+def shared_slope():
+    slope = Parameter("slope", Prior("Normal", mu=4, sigma=1))
+    revenue = Equation(
+        name="revenue",
+        observed="revenue_obs",
+        mu=Transform(
+            slope * Data("driver"),
+            lambda value: pmd.Deterministic("revenue_mean", 2.0 + value),
+        ),
+        likelihood=Prior("Normal", sigma=0.1),
+    )
+    orders = Equation(
+        name="orders",
+        observed="orders_obs",
+        mu=Transform(
+            slope * Data("driver"),
+            lambda value: pmd.Deterministic(
+                "order_rate", pmd.math.exp(0.3 + 0.2 * value)
+            ),
+        ),
+        likelihood=Prior("Poisson"),
+    )
+    calibration = Equation(
+        name="calibration",
+        observed="lift",
+        mu=slope,
+        likelihood=Prior("Normal", sigma=0.2),
+    )
+    mmm = MMM(revenue, orders, calibration)
+    mmm.fit(_shared_slope_training(), **SAMPLE_KWARGS)
+    return mmm
+
+
+def _shared_slope_logp(slope):
+    rate = np.exp(0.3 + 0.2 * slope * DRIVER)
+    return (
+        norm.logpdf(slope, loc=4, scale=1)
+        + norm.logpdf(REVENUE, loc=2.0 + slope * DRIVER, scale=0.1).sum()
+        + (ORDERS * np.log(rate) - rate - gammaln(ORDERS + 1)).sum()
+        + norm.logpdf(LIFT, loc=slope, scale=0.2).sum()
+    )
+
+
+@pytest.mark.parametrize("slope", [3.3, 4.0, 4.8])
+def test_shared_parameter_joins_three_likelihood_families(shared_slope, slope):
+    model = shared_slope.model
+
+    assert [rv.name for rv in model.free_RVs] == ["slope"]
+    assert len(model.observed_RVs) == 3
+    np.testing.assert_allclose(
+        model.compile_logp()({"slope": slope}), _shared_slope_logp(slope), atol=1e-8
+    )
+
+
+def test_shared_parameter_prediction_uses_posterior_draws(shared_slope):
+    driver = np.array([3.0, 3.5, 4.0])
+    future = xr.Dataset(
+        {"driver": ("date", driver)},
+        coords={"date": pd.date_range("2025-03-06", periods=3, freq="D")},
+    )
+    slope = shared_slope.idata["posterior"]["slope"].transpose("chain", "draw").values
+
+    prediction = shared_slope.sample_posterior_predictive(
+        future,
+        var_names=["revenue_mean", "order_rate", "orders", "calibration"],
+        **PREDICT_KWARGS,
+    )
+
+    expected_mean = 2.0 + slope[:, :, None] * driver
+    np.testing.assert_allclose(
+        prediction["revenue_mean"].transpose("chain", "draw", "date").values,
+        expected_mean,
+        atol=1e-10,
+    )
+    np.testing.assert_allclose(
+        prediction["order_rate"].transpose("chain", "draw", "date").values,
+        np.exp(0.3 + 0.2 * slope[:, :, None] * driver),
+        atol=1e-10,
+    )
+    orders = prediction["orders"].values
+    assert np.issubdtype(orders.dtype, np.integer)
+    assert (orders >= 0).all()
+    assert prediction["calibration"].dims == ("chain", "draw", "study")
+    assert list(prediction["study"].values) == ["geo_a", "geo_b", "geo_c"]
+
+
+TV = np.array([1.0, 0.5, 2.0, 1.5, 0.0, 1.0, 2.5, 0.5])
+
+
+def _conditioning_training():
+    rng = np.random.default_rng(5)
+    search = 2.0 * TV + rng.normal(scale=0.1, size=TV.size)
+    return xr.Dataset(
+        {
+            "tv": ("date", TV),
+            "search": ("date", search),
+            "sales": ("date", 1.5 * search + rng.normal(scale=0.2, size=TV.size)),
+        },
+        coords={"date": pd.date_range("2025-06-01", periods=TV.size, freq="D")},
+    )
+
+
+@pytest.fixture(scope="module")
+def conditioning():
+    search = Equation(
+        observed="search",
+        mu=2 * Data("tv"),
+        likelihood=Prior("Normal", sigma=0.1),
+    )
+    sales = Equation(
+        observed="sales",
+        mu=Parameter("beta", Prior("Normal")) * search,
+        likelihood=Prior("Normal", sigma=Prior("HalfNormal")),
+    )
+    mmm = MMM(search, sales)
+    mmm.fit(_conditioning_training(), **SAMPLE_KWARGS)
+    future = xr.Dataset(
+        {
+            "tv": ("date", np.array([1.0, 2.0, 3.0])),
+            "search": ("date", np.array([2.2, 3.9, 6.1])),
+        },
+        coords={"date": pd.date_range("2025-06-09", periods=3, freq="D")},
+    )
+    return mmm, future
+
+
+def test_condition_on_holds_supplied_observations_fixed(conditioning):
+    mmm, future = conditioning
+
+    conditioned = mmm.sample_posterior_predictive(
+        future, condition_on=["search"], **PREDICT_KWARGS
     )
     generated = mmm.sample_posterior_predictive(
-        future, condition_on=(), random_seed=34, progressbar=False
+        future, condition_on=(), **PREDICT_KWARGS
     )
-    expected_demand = xr.DataArray(
-        [4.0, 6.0], dims="date", coords={"date": future.date}
+
+    held = conditioned["search"].transpose("chain", "draw", "date").values
+    np.testing.assert_array_equal(
+        held, np.broadcast_to(future["search"].values, held.shape)
     )
-    np.testing.assert_allclose(
-        generated["demand_process"],
-        expected_demand.broadcast_like(generated["demand_process"]),
-        atol=0.01,
-    )
-    np.testing.assert_allclose(
-        generated["purchase_process"], 3 * generated["demand_process"], atol=0.1
-    )
-    # Conditioning discards the lag mechanism: no TV input or contiguous dates required.
-    supplied = pd.DataFrame(
-        {"date": pd.date_range("2027-01-01", periods=2), "search": [40.0, 50.0]}
-    )
-    conditioned = mmm.sample_posterior_predictive(
-        supplied, condition_on=["search"], random_seed=35, progressbar=False
-    )
-    expected_fixed = xr.DataArray(
-        [40.0, 50.0], dims="date", coords={"date": supplied.date}
-    )
-    xr.testing.assert_allclose(
-        conditioned["demand_process"],
-        expected_fixed.broadcast_like(conditioned["demand_process"]),
-    )
-    np.testing.assert_allclose(
-        conditioned["purchase_process"], 3 * conditioned["demand_process"], atol=0.3
-    )
-    xr.testing.assert_identical(idata["observed_data"].to_dataset(), observations)
-    with pytest.raises(ValueError):
-        mmm.sample_posterior_predictive(future, progressbar=False)
-    # In-place prior edits cannot quietly reinterpret the fitted posterior.
-    mmm.y.likelihood.parameters["sigma"] = 2.0
-    with pytest.raises(RuntimeError, match="specification changed"):
-        mmm.sample_posterior_predictive(future, condition_on=(), progressbar=False)
+    assert (generated["search"].std(dim="draw") > 0).all()
 
 
-def test_refit_uses_current_data_and_failed_refit_invalidates():
-    data = pd.DataFrame(
-        {"date": pd.date_range("2026-01-01", periods=8), "count": np.full(8, 2.0)}
-    )
-    mmm = MMM()
-    mmm.y = Equation(
-        name="count_process",
-        observed="count",
-        mu=Parameter("level", Prior("Normal", sigma=10)),
-        likelihood=Prior("Normal", sigma=0.02),
-    )
-    first = mmm.fit(data, **SAMPLE_KWARGS)["posterior"].dataset["level"].mean().item()
-    second = (
-        mmm.fit(data.assign(count=7.0), **SAMPLE_KWARGS)["posterior"]
-        .dataset["level"]
-        .mean()
-        .item()
-    )
-    assert second > first + 4.0
-    with pytest.raises((KeyError, ValueError)):
-        mmm.fit(data.drop(columns="count"), **SAMPLE_KWARGS)
-    with pytest.raises(RuntimeError, match="fit"):
-        mmm.sample_posterior_predictive(data, progressbar=False)
+@pytest.mark.parametrize(
+    ("condition_on", "error"),
+    [
+        pytest.param("search", TypeError, id="bare-string"),
+        pytest.param(["clicks"], ValueError, id="unknown-name"),
+    ],
+)
+def test_condition_on_rejects_invalid_selectors(conditioning, condition_on, error):
+    mmm, future = conditioning
+    with pytest.raises(error):
+        mmm.sample_posterior_predictive(
+            future, condition_on=condition_on, **PREDICT_KWARGS
+        )
 
 
-def test_conflicting_observation_bindings_are_not_silently_overwritten():
-    data = pd.DataFrame(
-        {
-            "date": pd.date_range("2026-01-01", periods=3),
-            "a": [1.0] * 3,
-            "b": [2.0] * 3,
-            "y": [3.0] * 3,
-        }
-    )
-    mmm = MMM(channel_columns=["a", "b"])
-    equation = Equation(mu=0, likelihood=Prior("Normal", sigma=1))
-    mmm.media["a"].equation = equation
-    mmm.media["b"].equation = equation
-    with pytest.raises(ValueError, match="different observation"):
-        mmm.build_model(data)
+def test_mmm_rejects_invalid_equation_sets():
+    with pytest.raises(TypeError):
+        MMM()
+    with pytest.raises(ValueError, match="name its observations"):
+        MMM(Equation(name="latent", mu=Parameter("a", Prior("Normal"))))
+    with pytest.raises(ValueError, match="distinct"):
+        MMM(
+            Equation(observed="y", mu=Parameter("a", Prior("Normal"))),
+            Equation(observed="y", mu=Parameter("b", Prior("Normal"))),
+        )
 
 
-def test_no_history_prediction_returns_original_units_and_rejects_changed_scales():
-    train = pd.DataFrame(
-        {"date": pd.date_range("2026-01-01", periods=8), "y": np.full(8, 2.0)}
+def _scalar_training():
+    return xr.Dataset(
+        {"y": ("date", np.array([1.0, 1.4, 0.8, 1.1]))},
+        coords={"date": pd.date_range("2025-01-01", periods=4, freq="D")},
     )
+
+
+def test_equation_name_defaults_to_observed_variable():
+    model = MMM(
+        Equation(observed="y", mu=Parameter("level", Prior("Normal")))
+    ).build_model(_scalar_training())
+
+    assert [rv.name for rv in model.observed_RVs] == ["y"]
+
+
+def test_specification_change_after_fit_blocks_prediction():
+    likelihood = Prior("Normal", sigma=1)
     mmm = MMM(
-        scaling={"target": FixedScaling(value=10.0, dims=())},
-        model_config={"likelihood": Prior("Normal", sigma=0.001)},
+        Equation(
+            observed="y", mu=Parameter("level", Prior("Normal")), likelihood=likelihood
+        )
     )
-    idata = mmm.fit(train, **SAMPLE_KWARGS)
-    predicted = mmm.sample_posterior_predictive(random_seed=19, progressbar=False)
-    expected = (10 * idata["posterior"].dataset["intercept"]).broadcast_like(
-        predicted.y
-    )
-    xr.testing.assert_allclose(predicted.y, expected, atol=0.05)
-    mmm.scalers["target_scale"] = 2 * mmm.scalers["target_scale"]
-    with pytest.raises(RuntimeError):
-        mmm.sample_posterior_predictive(progressbar=False)
-
-
-def test_feature_labels_preserve_posterior_coefficient_meaning():
-    features = np.tile(np.eye(2), (4, 1))
-    train = xr.Dataset(
-        {
-            "controls": (("date", "feature"), features),
-            "orders": ("date", features @ np.array([2.0, -1.0])),
-        },
-        coords={"date": pd.date_range("2026-01-01", periods=8), "feature": ["a", "b"]},
-    )
-    mmm = MMM()
-    mmm.y = Equation(
-        name="purchases",
-        observed="orders",
-        mu=Dot(var_name="controls", prior=Prior("Normal", dims="feature")),
-        likelihood=Prior("Normal", sigma=0.001),
-    )
-    idata = mmm.fit(train, **SAMPLE_KWARGS)
-    future = xr.Dataset(
-        {"controls": (("date", "feature"), [[3.0, 1.0], [2.0, 5.0]])},
-        coords={"date": pd.date_range("2026-01-09", periods=2), "feature": ["a", "b"]},
-    )
-    predicted = mmm.sample_posterior_predictive(
-        future, random_seed=38, progressbar=False
-    )
-    reordered = mmm.sample_posterior_predictive(
-        future.sel(feature=["b", "a"]), random_seed=38, progressbar=False
-    )
-    xr.testing.assert_equal(predicted, reordered)
-    expected = xr.dot(
-        future.controls, idata["posterior"].dataset["controls_beta"], dim="feature"
-    ).transpose(*predicted.purchases.dims)
-    xr.testing.assert_allclose(predicted.purchases, expected, atol=0.01)
-
-
-@pytest.mark.parametrize("reverse", [False, True])
-def test_media_forecast_uses_training_scales_and_measured_history(reverse):
-    def reference(values):
-        if reverse:
-            values = 0.8 * np.tanh(0.6 * values / 2)
-        carried = values + 0.5 * np.r_[0, values[:-1]]
-        return carried if reverse else 0.8 * np.tanh(0.6 * carried / 2)
-
-    spend = np.arange(1, 9, dtype=float)
-    train = pd.DataFrame(
-        {
-            "date": pd.date_range("2026-01-01", periods=8),
-            "tv": spend,
-            "sales": 10 * (0.3 + reference(spend / spend.max())),
-        }
-    )
-    transforms = (
-        GeometricAdstock(l_max=2, normalize=False, priors={"alpha": 0.5}),
-        LogisticSaturation(priors={"lam": 0.6, "beta": 0.8}),
-    )
-    mmm = MMM(
-        target_column="sales",
-        channel_columns=["tv"],
-        media_transform=transforms[::-1] if reverse else transforms,
-        scaling={"target": FixedScaling(value=10.0, dims=())},
-        model_config={"likelihood": Prior("Normal", sigma=0.0001)},
-    )
-    idata = mmm.fit(train, **SAMPLE_KWARGS)
-    future = pd.DataFrame(
-        {"date": pd.date_range("2026-01-09", periods=2), "tv": [16.0, 18.0]}
-    )
-    predicted = mmm.sample_posterior_predictive(
-        future, random_seed=40, progressbar=False
-    )
-    contribution = xr.DataArray(
-        reference(np.r_[spend[-1], future.tv] / spend.max())[1:],
-        dims="date",
-        coords={"date": future.date},
-    )
-    expected = 10 * (idata["posterior"].dataset["intercept"] + contribution)
-    xr.testing.assert_allclose(predicted.sales, expected, atol=0.01)
-
-
-def test_generated_intermediate_retains_inferred_training_dimensions():
-    drivers = np.arange(12, dtype=float).reshape(6, 2)
-    train = xr.Dataset(
-        {
-            "drivers": (("date", "feature"), drivers),
-            "controls": (("date", "feature"), drivers + 0.1),
-            "orders": ("date", (drivers + 0.1).sum(axis=-1)),
-        },
-        coords={"date": pd.date_range("2026-01-01", periods=6), "feature": ["a", "b"]},
-    )
-    controls = Equation(
-        name="control_process",
-        observed="controls",
-        mu=Data("drivers"),
-        likelihood=Prior("Normal", sigma=0.001),
-    )
-    mmm = MMM()
-    mmm.y = Equation(
-        name="purchases",
-        observed="orders",
-        mu=Transform(controls, func=lambda value: value.sum("feature"))
-        + Parameter("level", Prior("Normal", sigma=0.001)),
-        likelihood=Prior("Normal", sigma=0.001),
-    )
+    train = _scalar_training()
     mmm.fit(train, **SAMPLE_KWARGS)
-    future = xr.Dataset(
-        {"drivers": (("date", "feature"), [[20.0, 30.0], [40.0, 50.0]])},
-        coords={"date": pd.date_range("2026-01-07", periods=2), "feature": ["a", "b"]},
-    )
-    predicted = mmm.sample_posterior_predictive(
-        future, condition_on=(), random_seed=18, progressbar=False
-    )
-    xr.testing.assert_allclose(
-        predicted.control_process,
-        future.drivers.broadcast_like(predicted.control_process),
-        atol=0.01,
-    )
-    xr.testing.assert_allclose(
-        predicted.purchases, predicted.control_process.sum("feature"), atol=0.01
-    )
+
+    likelihood.parameters["sigma"] = 3
+
+    with pytest.raises(RuntimeError, match="specification changed"):
+        mmm.sample_posterior_predictive(train, **PREDICT_KWARGS)
 
 
-def test_prediction_keeps_fitted_coordinates_not_present_in_future_inputs():
-    train = xr.Dataset(
-        {"orders": ("date", np.full(8, 3.0))},
-        coords={"date": pd.date_range("2026-01-01", periods=8), "feature": ["a", "b"]},
-    )
-    mmm = MMM()
-    mmm.y = Equation(
-        name="purchases",
-        observed="orders",
-        mu=Transform(
-            Parameter("levels", Prior("Normal", dims="feature")),
-            func=lambda value: value.sum("feature"),
-        ),
-        likelihood=Prior("Normal", sigma=0.001),
-    )
-    idata = mmm.fit(train, **SAMPLE_KWARGS)
-    future = pd.DataFrame({"date": pd.date_range("2026-01-09", periods=2)})
-    predicted = mmm.sample_posterior_predictive(
-        future, var_names=["purchases", "levels"], random_seed=21, progressbar=False
-    )
-    xr.testing.assert_equal(predicted.levels, idata["posterior"].dataset["levels"])
-    expected = predicted.levels.sum("feature").broadcast_like(predicted.purchases)
-    xr.testing.assert_allclose(predicted.purchases, expected, atol=0.01)
+def test_failed_rebuild_clears_previous_fit():
+    mmm = MMM(Equation(observed="y", mu=Parameter("level", Prior("Normal"))))
+    train = _scalar_training()
+    mmm.fit(train, **SAMPLE_KWARGS)
 
+    with pytest.raises(ValueError, match="missing observations 'y'"):
+        mmm.build_model(train.rename(y="z"))
 
-def test_date_parameters_are_reused_in_sample_but_require_a_forecast_mechanism():
-    train = pd.DataFrame(
-        {
-            "date": pd.date_range("2026-01-01", periods=6),
-            "orders": np.arange(1, 7, dtype=float),
-        }
-    )
-    mmm = MMM()
-    mmm.y = Equation(
-        name="purchases",
-        observed="orders",
-        mu=Parameter("daily_level", Prior("Normal", sigma=10, dims="date")),
-        likelihood=Prior("Normal", sigma=0.001),
-    )
-    idata = mmm.fit(train, **SAMPLE_KWARGS)
-    predicted = mmm.sample_posterior_predictive(random_seed=59, progressbar=False)
-    xr.testing.assert_allclose(
-        predicted.purchases, idata["posterior"].dataset["daily_level"], atol=0.01
-    )
-    subset = train.iloc[[1, 4]][["date"]]
-    selected = mmm.sample_posterior_predictive(
-        subset, random_seed=60, progressbar=False
-    )
-    xr.testing.assert_allclose(
-        selected.purchases,
-        idata["posterior"].dataset["daily_level"].sel(date=subset.date.to_numpy()),
-        atol=0.01,
-    )
-    future = pd.DataFrame({"date": pd.date_range("2026-01-07", periods=2)})
-    with pytest.raises(ValueError):
-        mmm.sample_posterior_predictive(future, progressbar=False)
+    assert mmm.model is None
+    assert mmm.idata is None
+    with pytest.raises(RuntimeError, match="fit before"):
+        mmm.sample_posterior_predictive(train, **PREDICT_KWARGS)
