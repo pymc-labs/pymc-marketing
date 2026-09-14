@@ -263,8 +263,47 @@ __all__ = [
 ]
 
 
+def _addends(value: Any) -> list[Any]:
+    """Return the addends of ``value``, flattening a ``Sum``."""
+    return list(value.terms) if isinstance(value, Sum) else [value]
+
+
+class TermOps:
+    """Arithmetic operators shared by terms, sums and products."""
+
+    def __add__(self, other: Any) -> Sum:
+        """Compose additively with another term."""
+        return Sum(_addends(self) + _addends(other))
+
+    def __radd__(self, other: Any) -> Sum | TermOps:
+        """Compose additively from the left; ``0 + term`` returns the term."""
+        if isinstance(other, int) and other == 0:
+            return self
+        return Sum(_addends(other) + _addends(self))
+
+    def __sub__(self, other: Any) -> Sum:
+        """Compose additively with the negation of another term."""
+        return Sum([*_addends(self), -other])
+
+    def __rsub__(self, other: Any) -> Sum:
+        """Compose additively from the left with the negation of this term."""
+        return Sum([*_addends(other), -self])
+
+    def __mul__(self, other: Any) -> Product:
+        """Compose multiplicatively with another term."""
+        return Product(self, other)
+
+    def __rmul__(self, other: Any) -> Product:
+        """Compose multiplicatively from the left."""
+        return Product(other, self)
+
+    def __neg__(self) -> Product:
+        """Return the negation of this term."""
+        return Product(-1, self)
+
+
 @dataclass
-class ModelTerm:
+class ModelTerm(TermOps):
     """Base class for composable model terms.
 
     Subclass ``ModelTerm`` to define reusable PyMC subgraph recipes.
@@ -321,39 +360,9 @@ class ModelTerm:
             The PyMC model to update.
         """
 
-    def __add__(self, other: Any) -> Sum:
-        """Compose additively with another term."""
-        return Sum([self, other])
-
-    def __radd__(self, other: Any) -> Sum | ModelTerm:
-        """Compose additively from the left; ``0 + term`` returns the term."""
-        if isinstance(other, int) and other == 0:
-            return self
-        return Sum([other, self])
-
-    def __mul__(self, other: Any) -> Product:
-        """Compose multiplicatively with another term."""
-        return Product(self, other)
-
-    def __rmul__(self, other: Any) -> Product:
-        """Compose multiplicatively from the left."""
-        return Product(other, self)
-
-    def __sub__(self, other: Any) -> Sum:
-        """Compose additively with the negation of another term."""
-        return Sum([self, -other])
-
-    def __rsub__(self, other: Any) -> Sum:
-        """Compose additively from the left with the negation of this term."""
-        return Sum([other, -self])
-
-    def __neg__(self) -> Product:
-        """Return the negation of this term."""
-        return Product(-1, self)
-
 
 @dataclass
-class Sum:
+class Sum(TermOps):
     """Container for additive composition via ``+``.
 
     Created when terms are composed with the ``+`` operator.
@@ -365,26 +374,6 @@ class Sum:
     """
 
     terms: list[Any]
-
-    def __add__(self, other: Any) -> Sum:
-        """Compose additively with another term or sum."""
-        if isinstance(other, Sum):
-            return Sum(self.terms + other.terms)
-        return Sum([*self.terms, other])
-
-    def __radd__(self, other: Any) -> Sum:
-        """Compose additively from the left; ``0 + sum`` returns the sum."""
-        if isinstance(other, int) and other == 0:
-            return self
-        return Sum([other, *self.terms])
-
-    def __mul__(self, other: Any) -> Product:
-        """Compose multiplicatively with another term."""
-        return Product(self, other)
-
-    def __rmul__(self, other: Any) -> Product:
-        """Compose multiplicatively from the left."""
-        return Product(other, self)
 
     def get_coords(self, ds: xr.Dataset) -> dict[str, Any]:
         """Collect coordinates from all terms."""
@@ -408,7 +397,7 @@ class Sum:
 
 
 @dataclass
-class Product:
+class Product(TermOps):
     """Container for multiplicative composition via ``*``.
 
     Created when terms are composed with the ``*`` operator.
@@ -430,26 +419,6 @@ class Product:
             **get_coords(self.left, ds),
             **get_coords(self.right, ds),
         }
-
-    def __add__(self, other: Any) -> Sum:
-        """Compose additively with another term, product or sum."""
-        if isinstance(other, Sum):
-            return Sum([self, *other.terms])
-        return Sum([self, other])
-
-    def __radd__(self, other: Any) -> Sum | Product:
-        """Compose additively from the left; ``0 + product`` returns the product."""
-        if isinstance(other, int) and other == 0:
-            return self
-        return Sum([other, self])
-
-    def __mul__(self, other: Any) -> Product:
-        """Compose multiplicatively with another term."""
-        return Product(self, other)
-
-    def __rmul__(self, other: Any) -> Product:
-        """Compose multiplicatively from the left."""
-        return Product(other, self)
 
     def register_data(self, ds: xr.Dataset) -> None:
         """Register shared data for both operands."""
