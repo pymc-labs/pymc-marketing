@@ -215,6 +215,9 @@ class MMMCVPlotSuite:
             Figure size in inches; takes precedence over ``figure_kwargs["figsize"]``.
         figure_kwargs : dict or None
             Extra kwargs for the figure constructor; merged with defaults.
+            Defaults to ``layout="constrained"`` so the variable labels do not
+            overlap the channel labels; pass ``{"layout": "none"}`` to place the
+            axes by hand.
         backend : str or None
             PlotCollection backend.
         return_as_pc : bool
@@ -256,7 +259,7 @@ class MMMCVPlotSuite:
 
         fig_kw: dict[str, Any] = {
             "width_ratios": [1, 2],
-            "layout": "none",
+            "layout": "constrained",
             **(figure_kwargs or {}),
         }
         if figsize is not None:

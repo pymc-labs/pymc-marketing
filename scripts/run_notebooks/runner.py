@@ -84,6 +84,7 @@ DOC_SOURCE = Path("docs/source")
 NOTEBOOKS_PATH = DOC_SOURCE / "notebooks"
 _NOTEBOOKS: list[Path] = list(NOTEBOOKS_PATH.glob("*/*.ipynb"))
 _NOTEBOOKS.append(DOC_SOURCE / "guide" / "benefits" / "model_deployment.ipynb")
+_NOTEBOOKS.append(DOC_SOURCE / "guide" / "mmm" / "mmm_learning_path.ipynb")
 
 # Notebooks to exclude from testing (relative to repo root)
 BLACKLIST: set[str] = {
@@ -267,9 +268,9 @@ if __name__ == "__main__":
     notebooks_to_run = filter_blacklist(notebooks_to_run)
 
     if args.exclude_dirs:
-        exclude_set = set(args.exclude_dirs)
+        excluded_paths = {NOTEBOOKS_PATH / directory for directory in args.exclude_dirs}
         notebooks_to_run = [
-            nb for nb in notebooks_to_run if nb.parent.name not in exclude_set
+            nb for nb in notebooks_to_run if nb.parent not in excluded_paths
         ]
 
     notebooks_to_run = sorted(notebooks_to_run)

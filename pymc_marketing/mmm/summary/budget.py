@@ -150,7 +150,7 @@ class BudgetSummaryFactory:
         Parameters
         ----------
         samples : xr.Dataset
-            Output of ``allocate_budget_to_maximize_response(...)`` or equivalent.
+            Output of ``sample_response_distribution(...)`` or equivalent.
             Must contain ``channel_contribution_original_scale`` with ``channel``,
             ``date``, and ``sample`` or ``(chain, draw)`` dimensions.
         hdi_probs : sequence of float, default (0.94,)
