@@ -480,14 +480,16 @@ def test_product_radd_int():
 def test_product_radd_zero():
     p = Product(Intercept(name="a"), 2.0)
     result = 0 + p
-    assert result == p
+    assert result is p
 
 
 def test_product_add_product():
     result = -Intercept(name="a") + 3 * Parameter(name="b", prior=Prior("Normal"))
     assert isinstance(result, Sum)
-    assert len(result.terms) == 2
-    assert all(isinstance(term, Product) for term in result.terms)
+    assert result.terms == [
+        Product(-1, Intercept(name="a")),
+        Product(3, Parameter(name="b", prior=Prior("Normal"))),
+    ]
 
 
 def test_build_param_product_add_product():
