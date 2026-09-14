@@ -287,7 +287,11 @@ def create_log_callback(
     stats : list of str, optional
         List of sample statistics to log from the Draw
     parameters : list of str, optional
-        List of parameters to log from the Draw
+        Names of variables to log from the draw PyMC has just recorded. A
+        model-level name such as ``sigma`` is logged on its constrained scale,
+        a value variable name such as ``sigma_log__`` on the sampler's
+        unconstrained scale. Deterministics can be logged too. Each value must
+        be a scalar, since ``mlflow.log_metric`` only accepts scalars.
     exclude_tuning : bool, optional
         Whether to exclude tuning steps from logging. Defaults to True.
     take_every : int, optional
