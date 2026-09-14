@@ -1099,6 +1099,24 @@ def test_logging_callback_falls_back_to_draw_point(mocker) -> None:
     )
 
 
+def test_logging_callback_stats_only_does_not_read_trace(mocker) -> None:
+    log_metric = mocker.patch.object(pmm_mlflow.mlflow, "log_metric")
+    callback = create_log_callback(stats=["energy"], take_every=1)
+    trace = mocker.MagicMock()
+    draw = SimpleNamespace(
+        chain=0,
+        draw_idx=2,
+        tuning=False,
+        stats=[{"energy": 1.5}],
+        point={"mu": 0.0},
+    )
+
+    callback(trace, draw)
+
+    log_metric.assert_called_once_with(key="chain_0/energy", value=1.5, step=2)
+    trace.point.assert_not_called()
+
+
 def test_logging_callback_unknown_parameter_raises() -> None:
     callback = create_log_callback(parameters=["nope"], take_every=1)
     draw = SimpleNamespace(
