@@ -549,7 +549,7 @@ def merge_inference_data(
 
     .. code-block:: python
 
-        from pymc_marketing.pytensor_utils import SharedPosterior, merge_models
+        from pymc_marketing.pytensor_utils import merge_models
         from pymc_marketing.mmm.budget_optimizer import (
             merge_inference_data,
             BudgetOptimizer,
@@ -2135,7 +2135,10 @@ class BudgetOptimizer(BaseModel):
         ----------
         idata : xr.DataTree, xr.Dataset or arviz.InferenceData
             Inference data with a ``posterior`` group, or the posterior
-            dataset itself.
+            dataset itself.  It replaces ``self.idata`` wholesale: a bare
+            dataset becomes a tree holding only a ``posterior`` group, so
+            any other group of the previous ``idata`` (``constant_data``,
+            ``observed_data``, ...) is dropped from the optimizer.
 
         Raises
         ------
@@ -2145,7 +2148,9 @@ class BudgetOptimizer(BaseModel):
             If a variable's non-sample dimensions, lengths or coordinate
             labels differ from the construction posterior, or if the mask
             derived from the new posterior differs from the one in use.
-            Nothing is changed in that case.
+            Nothing is changed in that case, including on the first call:
+            a recompile that fails leaves the constant-folded graphs, the
+            previous ``idata`` and the previous constraints in place.
 
         Examples
         --------
@@ -2159,9 +2164,6 @@ class BudgetOptimizer(BaseModel):
 
             optimizer.set_posterior(another_idata)  # no recompile
         """
-        # Local import to avoid circular import at module load time
-        from pymc_marketing.pytensor_utils import SharedPosterior
-
         if isinstance(idata, xr.Dataset):
             idata = DataTree.from_dict({"/posterior": idata})
         idata = _to_datatree(idata)
@@ -2170,34 +2172,65 @@ class BudgetOptimizer(BaseModel):
         # it cannot follow the posterior; it can only be checked against it.
         current_mask = cast(DataArray, self.budgets_to_optimize)
         if self._mask_auto_detected:
-            new_mask = align_to_model_coords(
-                self._auto_detect_mask(idata),
-                self._budget_coords,
-                label="budgets_to_optimize",
-            )
-            if not np.array_equal(new_mask.values, current_mask.values):
-                raise ValueError(
-                    "The new posterior implies a different auto-detected "
-                    "budgets_to_optimize mask than the one this optimizer was "
-                    f"built with ({current_mask.values.tolist()} -> "
-                    f"{new_mask.values.tolist()}). The mask fixes the decision "
-                    "vector the graphs were compiled for, so build a new optimizer "
-                    "or pass budgets_to_optimize explicitly."
+            implied_mask = self._posterior_channel_mask(idata)
+            # A posterior without channel_contribution (thinned to the free RVs
+            # the graphs read) implies nothing about the mask, so there is
+            # nothing to compare; the all-ones fallback is a construction
+            # default, not a claim about this posterior.
+            if implied_mask is not None:
+                new_mask = (
+                    align_to_model_coords(
+                        implied_mask, self._budget_coords, label="budgets_to_optimize"
+                    )
+                    .transpose(*self._budget_dims)
+                    .astype(bool)
                 )
+                if not np.array_equal(new_mask.values, current_mask.values):
+                    raise ValueError(
+                        "The new posterior implies a different auto-detected "
+                        "budgets_to_optimize mask than the one this optimizer was "
+                        f"built with ({current_mask.values.tolist()} -> "
+                        f"{new_mask.values.tolist()}). The mask fixes the decision "
+                        "vector the graphs were compiled for, so build a new optimizer "
+                        "or pass budgets_to_optimize explicitly."
+                    )
         else:
             self._validate_mask_against_posterior(current_mask, idata)
 
-        if self._shared_posterior is None:
-            # First rebind: bind the new draws through shared variables and
-            # compile once against them. Later calls are set_value only.
-            self._shared_posterior = SharedPosterior()
+        if self._shared_posterior is not None:
+            self._shared_posterior.set_posterior(_extract_dataset(idata, "posterior"))
             self.idata = idata
-            self._compile_objective_and_grad()
-            self.set_constraints(constraints=list(self._constraints.values()))
             return
 
-        self._shared_posterior.set_posterior(_extract_dataset(idata, "posterior"))
+        # First rebind: bind the new draws through shared variables and compile
+        # once against them; later calls are set_value only.  The compile reads
+        # ``self.idata`` and ``self._shared_posterior`` (custom constraints call
+        # ``extract_response_distribution`` on this optimizer), so the new state
+        # has to be visible while compiling.  Anything that raises in between
+        # rolls every piece back, so a failed first call leaves the
+        # constant-folded graphs in place and the next call retries this path
+        # rather than rebinding variables the compiled objective never reads.
+        previous = (
+            self._shared_posterior,
+            self.idata,
+            self._objective_and_grad,
+            self._constraints,
+            self._compiled_constraints,
+        )
+        self._shared_posterior = SharedPosterior()
         self.idata = idata
+        try:
+            self._compile_objective_and_grad()
+            self.set_constraints(constraints=list(self._constraints.values()))
+        except BaseException:
+            (
+                self._shared_posterior,
+                self.idata,
+                self._objective_and_grad,
+                self._constraints,
+                self._compiled_constraints,
+            ) = previous
+            raise
 
     def _compile_objective_and_grad(self):
         """Compile the objective function and its gradient, both referencing `self._budgets_flat`."""

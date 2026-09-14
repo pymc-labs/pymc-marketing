@@ -255,6 +255,34 @@ def _posterior_sample_major(idata: xr.DataTree | xr.Dataset) -> xr.Dataset:
     return extracted.transpose("sample", ...)  # type: ignore
 
 
+def _array_equal(a: np.ndarray, b: np.ndarray) -> bool:
+    """``np.array_equal`` that treats NaN as equal to itself for float arrays."""
+    equal_nan = np.issubdtype(a.dtype, np.inexact) and np.issubdtype(
+        b.dtype, np.inexact
+    )
+    return bool(np.array_equal(a, b, equal_nan=equal_nan))
+
+
+def _describe_label_mismatch(
+    new_labels: np.ndarray, bound_labels: np.ndarray, limit: int = 5
+) -> str:
+    """Summarise how two coordinate label sets differ without printing both in full."""
+    new_set, bound_set = set(new_labels.tolist()), set(bound_labels.tolist())
+    only_new = sorted(new_set - bound_set, key=str)
+    only_bound = sorted(bound_set - new_set, key=str)
+
+    def describe(labels: list, what: str) -> str:
+        if not labels:
+            return f"{len(labels)} {what}"
+        shown = ", ".join(repr(label) for label in labels[:limit])
+        return f"{len(labels)} {what} ({shown}{', ...' if len(labels) > limit else ''})"
+
+    return (
+        f"{len(new_set)} labels given, {len(bound_set)} bound; "
+        f"{describe(only_new, 'not bound')}, {describe(only_bound, 'missing')}."
+    )
+
+
 class SharedPosterior:
     """Posterior draws held in PyTensor shared variables.
 
@@ -276,9 +304,12 @@ class SharedPosterior:
 
     Between rebinds the number of draws may change; every other dimension
     must keep its name and length.  Coordinates on those dimensions are
-    matched by label when the new posterior carries them (a reordered
-    ``channel`` axis is realigned), and positionally when it does not.  A
-    rebind is atomic: every variable is validated before any is written.
+    matched by label when the variable was created with labels (a reordered
+    ``channel`` axis is realigned), and positionally when it was created
+    without.  A posterior that carries labels where the bound variable has
+    none, or vice versa, is refused: there is no way to tell whether the
+    positions agree.  A rebind is atomic: every variable is validated and
+    laid out before any is written.
 
     Examples
     --------
@@ -322,8 +353,10 @@ class SharedPosterior:
         """Return ``posterior_da`` laid out like the bound variable ``name``.
 
         Validates the dimension names, realigns labelled coordinates to the
-        order the variable was created with, and checks every non-sample
-        length.  Raises ``ValueError`` on any mismatch; writes nothing.
+        order the variable was created with, checks every non-sample length
+        and casts to the variable's dtype.  Raises ``ValueError`` on any
+        mismatch; writes nothing.  The returned array is a fresh allocation
+        the shared variable can own outright.
         """
         dims = self._dims[name]
         if set(posterior_da.dims) != set(dims):
@@ -331,18 +364,34 @@ class SharedPosterior:
                 f"Posterior variable {name!r} has dims {tuple(posterior_da.dims)}, "
                 f"expected {dims}."
             )
-        for dim, labels in self._coords[name].items():
-            if dim not in posterior_da.coords:
+        for dim in dims[1:]:
+            bound_labels = self._coords[name].get(dim)
+            if (bound_labels is None) != (dim not in posterior_da.coords):
+                raise ValueError(
+                    f"Posterior variable {name!r} "
+                    + (
+                        f"has no {dim} coordinates, but was bound with them"
+                        if bound_labels is not None
+                        else f"has {dim} coordinates, but was bound without them"
+                    )
+                    + ". Label both sides or neither; positions cannot be "
+                    "checked against labels."
+                )
+            if bound_labels is None:
                 continue
             new_labels = np.asarray(posterior_da.coords[dim].values)
-            if set(new_labels.tolist()) != set(labels.tolist()):
+            if set(new_labels.tolist()) != set(bound_labels.tolist()):
                 raise ValueError(
-                    f"Posterior variable {name!r} has {dim} coordinates "
-                    f"{new_labels.tolist()}, expected {labels.tolist()}."
+                    f"Posterior variable {name!r} has different {dim} coordinates: "
+                    + _describe_label_mismatch(new_labels, bound_labels)
                 )
-            posterior_da = posterior_da.sel({dim: labels})
-        values = posterior_da.transpose(*dims).values
-        bound_shape = self._variables[name].get_value(borrow=True).shape[1:]
+            posterior_da = posterior_da.sel({dim: bound_labels})
+        var = self._variables[name]
+        # astype always allocates, so the shared variable owns the array and
+        # borrow=True cannot alias the caller's data.  Casting here keeps the
+        # write phase of set_posterior infallible.
+        values = posterior_da.transpose(*dims).values.astype(var.type.dtype)
+        bound_shape = var.get_value(borrow=True).shape[1:]
         if values.shape[1:] != bound_shape:
             raise ValueError(
                 f"Posterior variable {name!r} has shape {values.shape[1:]} over "
@@ -375,7 +424,7 @@ class SharedPosterior:
                     f"but this graph wants {dtype}."
                 )
             values = self._aligned_values(name, posterior_da)
-            if not np.array_equal(values, var.get_value(borrow=True)):
+            if not _array_equal(values, var.get_value(borrow=True)):
                 raise ValueError(
                     f"This SharedPosterior already binds {name!r} to different draws. "
                     "Extract every graph from the same posterior, then call "
@@ -407,17 +456,16 @@ class SharedPosterior:
             raise KeyError(
                 f"Posterior is missing variables bound by this SharedPosterior: {missing}"
             )
-        # Validate everything first so a failure leaves the binding untouched
-        # rather than half-swapped between two posteriors.
+        # Validate, align and cast everything first so a failure leaves the
+        # binding untouched rather than half-swapped between two posteriors.
+        # Every fallible step lives in _aligned_values; the write loop only
+        # hands over arrays that already have the right dtype and shape.
         prepared = {
             name: self._aligned_values(name, posterior[name])
             for name in self._variables
         }
         for name, values in prepared.items():
-            var = self._variables[name]
-            # astype always allocates, so the shared variable owns the array
-            # and borrow=True cannot alias the caller's data.
-            var.set_value(values.astype(var.type.dtype), borrow=True)
+            self._variables[name].set_value(values, borrow=True)
 
 
 @overload

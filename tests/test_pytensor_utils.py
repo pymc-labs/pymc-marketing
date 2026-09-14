@@ -824,7 +824,14 @@ def test_shared_posterior_rebinds_every_graph_at_once():
 
 
 def test_shared_posterior_rebind_is_atomic():
-    """A posterior that fails on one variable leaves every variable untouched."""
+    """A posterior that fails on one variable leaves every variable untouched.
+
+    The corrupt variable is the *second* one bound, so an implementation that
+    validates and writes in a single loop would have already swapped the first
+    one when it raises.  Two failure modes are covered: a layout mismatch,
+    caught before any cast, and a value that passes the layout checks but
+    cannot be cast to the variable's dtype.
+    """
     model = _two_channel_model()
     shared_posterior = SharedPosterior()
     graph = extract_response_distribution(
@@ -834,17 +841,34 @@ def test_shared_posterior_rebind_is_atomic():
         shared_posterior=shared_posterior,
     )
     fn = function([], graph)
+    first, second = list(shared_posterior.variables)
+    bound = {
+        name: shared_posterior.variables[name].get_value().copy()
+        for name in (first, second)
+    }
 
-    # beta is valid and comes first; gamma carries an extra dim and is not.
-    bad = _two_channel_posterior([5.0, 5.0], [9.0, 9.0]).assign(
-        gamma=lambda ds: ds["gamma"].expand_dims(extra=[0])
+    def assert_untouched():
+        for name, values in bound.items():
+            np.testing.assert_array_equal(
+                shared_posterior.variables[name].get_value(), values
+            )
+        np.testing.assert_allclose(fn(), [[2.0, 2.0]])
+
+    # Layout failure on the second variable.
+    wrong_dims = _two_channel_posterior([9.0, 9.0], [9.0, 9.0]).assign(
+        {second: lambda ds: ds[second].expand_dims(extra=[0])}
     )
-    with pytest.raises(ValueError, match=r"'gamma' has dims"):
-        shared_posterior.set_posterior(bad)
-    np.testing.assert_allclose(
-        shared_posterior.variables["beta"].get_value(), [[1.0, 1.0]]
-    )
-    np.testing.assert_allclose(fn(), [[2.0, 2.0]])
+    with pytest.raises(ValueError, match=rf"'{second}' has dims"):
+        shared_posterior.set_posterior(wrong_dims)
+    assert_untouched()
+
+    # Cast failure on the second variable: right dims and shape, wrong values.
+    uncastable = _two_channel_posterior([9.0, 9.0], [9.0, 9.0])
+    uncastable[second] = uncastable[second].astype(object)
+    uncastable[second][0, 0, 0] = "x"
+    with pytest.raises(ValueError, match="could not convert"):
+        shared_posterior.set_posterior(uncastable)
+    assert_untouched()
 
 
 def test_shared_posterior_aligns_coordinates_on_rebind():
@@ -865,8 +889,99 @@ def test_shared_posterior_aligns_coordinates_on_rebind():
     np.testing.assert_allclose(fn(), [[10.0, 20.0]])
 
     relabelled = _two_channel_posterior([1.0, 2.0], [10.0, 10.0], channel=("a", "c"))
-    with pytest.raises(ValueError, match=r"channel coordinates"):
+    with pytest.raises(ValueError, match=r"channel coordinates") as info:
         shared_posterior.set_posterior(relabelled)
+    # The message summarises the difference rather than dumping both axes.
+    message = str(info.value)
+    assert "1 not bound ('c')" in message and "1 missing ('b')" in message
+
+
+def test_shared_posterior_coordinate_mismatch_message_stays_short():
+    """A long labelled axis is reported by counts and a few examples, not in full."""
+    dates = pd.date_range("2020-02-02", periods=208, freq="W").to_pydatetime()
+    with pm.Model(coords={"date": list(dates)}) as model:
+        latent = pmd.Normal("latent", dims="date")
+        pmd.Deterministic("out", latent.sum())
+    posterior = xr.Dataset(
+        {"latent": (("chain", "draw", "date"), np.ones((1, 1, dates.size)))},
+        coords={"date": list(dates)},
+    )
+    shared_posterior = SharedPosterior()
+    extract_response_distribution(
+        model, posterior, "out", shared_posterior=shared_posterior
+    )
+
+    shifted = posterior.assign_coords(date=list(dates + pd.Timedelta(weeks=1)))
+    with pytest.raises(ValueError, match=r"208 labels given, 208 bound") as info:
+        shared_posterior.set_posterior(shifted)
+    assert len(str(info.value)) < 300
+
+
+def test_shared_posterior_refuses_labelled_against_unlabelled_dims():
+    """Labels on one side and none on the other cannot be checked, so it raises."""
+    model = _two_channel_model()
+
+    def unlabelled(beta, gamma):
+        return _two_channel_posterior(beta, gamma).drop_vars("channel")
+
+    # Bound with labels, rebound without.
+    with_labels = SharedPosterior()
+    fn = function(
+        [],
+        extract_response_distribution(
+            model,
+            _two_channel_posterior([1.0, 2.0], [2.0, 2.0]),
+            "resp",
+            shared_posterior=with_labels,
+        ),
+    )
+    with pytest.raises(
+        ValueError, match=r"has no channel coordinates, but was bound with"
+    ):
+        with_labels.set_posterior(unlabelled([2.0, 1.0], [2.0, 2.0]))
+    np.testing.assert_allclose(fn(), [[2.0, 4.0]])
+
+    # Bound without labels, rebound with.
+    without_labels = SharedPosterior()
+    fn = function(
+        [],
+        extract_response_distribution(
+            model,
+            unlabelled([1.0, 2.0], [2.0, 2.0]),
+            "resp",
+            shared_posterior=without_labels,
+        ),
+    )
+    with pytest.raises(
+        ValueError, match=r"has channel coordinates, but was bound without"
+    ):
+        without_labels.set_posterior(
+            _two_channel_posterior([2.0, 1.0], [2.0, 2.0], channel=("b", "a"))
+        )
+    np.testing.assert_allclose(fn(), [[2.0, 4.0]])
+    # Unlabelled on both sides is positional, as documented.
+    without_labels.set_posterior(unlabelled([2.0, 1.0], [2.0, 2.0]))
+    np.testing.assert_allclose(fn(), [[4.0, 2.0]])
+
+
+def test_shared_posterior_reuse_tolerates_nan_draws():
+    """A NaN in the bound draws must not make an identical posterior look different."""
+    model = _two_channel_model()
+    posterior = _two_channel_posterior([1.0, np.nan], [2.0, 2.0])
+    shared_posterior = SharedPosterior()
+    extract_response_distribution(
+        model, posterior, "resp", shared_posterior=shared_posterior
+    )
+    # The documented reuse path: a second graph extracted from the same draws.
+    extract_response_distribution(
+        model, posterior, "beta", shared_posterior=shared_posterior
+    )
+
+    different = _two_channel_posterior([1.0, np.nan], [3.0, 2.0])
+    with pytest.raises(ValueError, match=r"already binds 'gamma' to different draws"):
+        extract_response_distribution(
+            model, different, "resp", shared_posterior=shared_posterior
+        )
 
 
 def test_shared_posterior_set_posterior_validates_input():
@@ -897,7 +1012,9 @@ def test_shared_posterior_rejects_changed_non_sample_lengths():
         pmd.Deterministic("doubled", 2.0 * beta)
     with model:
         prior = pm.sample_prior_predictive(draws=3, random_seed=5)
-    posterior = prior["/prior"].to_dataset()
+    # Bound without channel labels so the length check, not the label check,
+    # is what refuses the resized axis below.
+    posterior = prior["/prior"].to_dataset().drop_vars("channel")
 
     shared_posterior = SharedPosterior()
     extract_response_distribution(
