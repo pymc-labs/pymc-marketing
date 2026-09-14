@@ -224,6 +224,11 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :img-top: ../gallery/images/mmm_evaluation.png
 :link: ../notebooks/mmm/mmm_evaluation.html
 :::
+
+:::{grid-item-card} Prior Sensitivity in the MMM Workflow
+:img-top: ../gallery/images/mmm_prior_sensitivity_psense.png
+:link: ../notebooks/mmm/mmm_prior_sensitivity.html
+:::
 ::::
 
 ### Causal Inference
