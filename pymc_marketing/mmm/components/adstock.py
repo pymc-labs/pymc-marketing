@@ -70,7 +70,6 @@ from pymc_marketing.mmm.components.base import (
     ParameterPriorException,
     SupportedPrior,
     Transformation,
-    _deserialize_value,
 )
 from pymc_marketing.mmm.transformers import (
     ConvMode,
@@ -139,19 +138,6 @@ class AdstockTransformation(Transformation):
         data["mode"] = self.mode.name
 
         return data
-
-    @classmethod
-    def from_dict(cls, data: dict) -> AdstockTransformation:
-        """Reconstruct an adstock transformation from a dict."""
-        data = data.copy()
-        data.pop("__type__", None)
-
-        if "priors" in data:
-            data["priors"] = {
-                k: _deserialize_value(v) for k, v in data["priors"].items()
-            }
-
-        return cls(**data)
 
     def sample_curve(
         self,

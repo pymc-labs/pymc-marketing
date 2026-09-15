@@ -506,6 +506,18 @@ def test_serialization(new_transformation_class) -> None:
     }
 
 
+def test_from_dict(new_transformation_class) -> None:
+    """Any Transformation subclass gets ``from_dict`` from the base class."""
+    instance = new_transformation_class(
+        priors={"a": Prior("HalfNormal", sigma=2), "b": [1, 2, 3]}
+    )
+
+    restored = new_transformation_class.from_dict(instance.to_dict())
+
+    assert type(restored) is new_transformation_class
+    assert restored == instance
+
+
 def test_transform_sample_curve_with_variable_factory():
     class Example(VariableFactory):
         dims = ("dim_a",)

@@ -104,7 +104,6 @@ from pytensor.xtensor import math as ptxm
 
 from pymc_marketing.mmm.components.base import (
     Transformation,
-    _deserialize_value,
 )
 from pymc_marketing.mmm.transformers import (
     hill_function,
@@ -179,19 +178,6 @@ class SaturationTransformation(Transformation):
     :class:`LogSaturation`, whose coefficients only carry their intended
     interpretation (an elasticity) when the input is not rescaled.
     """
-
-    @classmethod
-    def from_dict(cls, data: dict) -> SaturationTransformation:
-        """Reconstruct a saturation transformation from a dict."""
-        data = data.copy()
-        data.pop("__type__", None)
-
-        if "priors" in data:
-            data["priors"] = {
-                k: _deserialize_value(v) for k, v in data["priors"].items()
-            }
-
-        return cls(**data)
 
     @validate_call
     def sample_curve(

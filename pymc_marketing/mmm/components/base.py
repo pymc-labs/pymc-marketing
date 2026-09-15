@@ -24,7 +24,7 @@ import warnings
 from collections.abc import Iterable, Sequence
 from copy import deepcopy
 from inspect import signature
-from typing import Any
+from typing import Any, Self
 
 import numpy as np
 import numpy.typing as npt
@@ -182,6 +182,19 @@ class Transformation:
                 for key, value in self.function_priors.items()
             },
         }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> Self:
+        """Reconstruct a transformation from a dict."""
+        data = data.copy()
+        data.pop("__type__", None)
+
+        if "priors" in data:
+            data["priors"] = {
+                k: _deserialize_value(v) for k, v in data["priors"].items()
+            }
+
+        return cls(**data)
 
     def __eq__(self, other: Any) -> bool:
         """Check if two transformations are equal."""
