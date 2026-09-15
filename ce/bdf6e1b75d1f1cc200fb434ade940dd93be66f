@@ -1,0 +1,19 @@
+docs/source/_templates/autosummary/class.rst
+  s_f310e038e2a4d7::t_49305d10df8e81 55-56
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "cebdf6e1b75d1f1cc200fb434ade940dd93be66f",
+  "prompts": {},
+  "sessions": {
+    "s_f310e038e2a4d7": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "78b19d60-026b-44ed-b3bd-1330ee24b966",
+        "model": "claude-opus-5"
+      },
+      "human_author": "root <root@e2b.local>"
+    }
+  }
+}
