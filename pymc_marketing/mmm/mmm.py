@@ -638,6 +638,10 @@ class MMM(RegressionModelBuilder):
         self._cost_per_unit_input = cost_per_unit
         self._plot_suite: Literal["legacy", "new"] = "legacy"
         self._plot_suite_warned: bool = False
+        # True only while the built model's observed target is the ones
+        # placeholder that `sample_prior_predictive` substitutes for a missing
+        # `y` under a LogNormalPrior likelihood; see `fit`.
+        self._target_is_placeholder: bool = False
 
         super().__init__(model_config=model_config, sampler_config=sampler_config)
 
@@ -2182,6 +2186,17 @@ class MMM(RegressionModelBuilder):
         xr.DataTree
             Inference data of the fitted model.
         """
+        if hasattr(self, "model") and self._target_is_placeholder:
+            warnings.warn(
+                "The model was built by `sample_prior_predictive` with a "
+                "placeholder target of ones because no `y` was given, and "
+                "`fit` reuses an existing model without refreshing its observed "
+                "target (see issue #2956). The posterior will be fit to the "
+                "placeholder, not to `y`. Build the model with the real target "
+                "first, or fit a fresh instance.",
+                UserWarning,
+                stacklevel=2,
+            )
         idata = super().fit(
             X,
             y,
@@ -2270,6 +2285,7 @@ class MMM(RegressionModelBuilder):
             X=X,
             y=y,
         )
+        self._target_is_placeholder = False
 
         likelihood = self.model_config["likelihood"]
         if "_target" in self.xarray_dataset.data_vars:
@@ -2958,20 +2974,26 @@ class MMM(RegressionModelBuilder):
         response-scale mean under the prior. See
         :meth:`_warn_on_zero_lognormal_draws`.
 
-        When ``y`` is omitted and ``X`` is an :class:`xarray.Dataset` that
-        embeds a ``target`` / ``_target`` variable, the model is built from
-        that Dataset before delegating, because ``to_mmm_dataset`` reads the
-        embedded target itself and rejects a separate ``y``, which the base
-        class's zeros default would otherwise supply. With a LogNormalPrior
-        likelihood and no target anywhere, a strictly positive placeholder
-        target of ones is used instead of the base class's zeros default,
-        which the likelihood's ``validate_observed`` would reject before any
-        draws are produced. That path emits a ``UserWarning``: the model it
-        builds is reused by a later :meth:`fit` on the same instance, which
-        then trains on the placeholder rather than the real target (see
-        issue #2956).
+        When ``y`` is omitted and ``X`` already carries the target, as an
+        :class:`xarray.Dataset` embedding a ``target`` / ``_target`` variable
+        or a :class:`pandas.DataFrame` with the model's ``target_column``,
+        the model is built from ``X`` alone before delegating:
+        ``to_mmm_dataset`` reads the embedded target only when no separate
+        ``y`` is given, and the base class's zeros default would otherwise
+        supply one. With a LogNormalPrior likelihood and no target anywhere,
+        a strictly positive placeholder target of ones is used instead of
+        the base class's zeros default, which the likelihood's
+        ``validate_observed`` would reject before any draws are produced.
+        That path emits a ``UserWarning`` and marks the instance, so that a
+        later :meth:`fit` on it, which reuses the built model and would
+        train on the placeholder rather than the real target, warns again
+        (see issue #2956).
         """
-        if y is None and isinstance(X, xr.Dataset) and _dataset_has_target(X):
+        placeholder_target = False
+        if y is None and (
+            (isinstance(X, xr.Dataset) and _dataset_has_target(X))
+            or (isinstance(X, pd.DataFrame) and self.target_column in X.columns)
+        ):
             if not hasattr(self, "model"):
                 self.build_model(X)
         elif (
@@ -2992,6 +3014,7 @@ class MMM(RegressionModelBuilder):
                 )
             else:
                 y = np.ones(len(X))
+            placeholder_target = True
             warnings.warn(
                 "No target was provided, so the model is being built with a "
                 "placeholder target of ones to satisfy the LogNormalPrior "
@@ -3010,6 +3033,10 @@ class MMM(RegressionModelBuilder):
             combined=combined,
             **kwargs,
         )
+        if placeholder_target:
+            # Set after delegating: build_model, which runs inside the base
+            # call, resets the flag.
+            self._target_is_placeholder = True
         self._warn_on_zero_lognormal_draws(
             prior_predictive_samples, group_label="prior-predictive"
         )

@@ -6847,3 +6847,75 @@ def test_sample_prior_predictive_dataset_embedded_target_normal_likelihood(
     assert mmm.output_var in result
     assert result[mmm.output_var].sizes["sample"] == 50
     np.testing.assert_array_equal(mmm.xarray_dataset["_target"].values, y.values)
+
+
+def test_sample_prior_predictive_lognormal_likelihood_dataframe_embedded_target(
+    lognormal_likelihood_mmm, lognormal_likelihood_data
+):
+    # Regression: a DataFrame carrying `target_column` with y=None hit the
+    # placeholder branch, and the ones y then made `to_mmm_dataset` ignore
+    # the column, silently dropping the real target.
+    X, y = lognormal_likelihood_data
+    X = X.assign(y=y.values)
+    mmm = lognormal_likelihood_mmm
+
+    with warnings.catch_warnings(record=True) as records:
+        warnings.simplefilter("always")
+        result = mmm.sample_prior_predictive(X, samples=50, random_seed=42)
+
+    assert not any("placeholder" in str(r.message) for r in records)
+    assert result[mmm.output_var].sizes["sample"] == 50
+    np.testing.assert_array_equal(mmm.xarray_dataset["_target"].values, y.values)
+
+
+def test_sample_prior_predictive_dataframe_embedded_target_normal_likelihood(
+    lognormal_likelihood_data,
+):
+    # DataFrame twin of the Dataset case: the base class's zeros y would
+    # otherwise take precedence over `target_column`.
+    X, y = lognormal_likelihood_data
+    X = X.assign(y=y.values)
+    mmm = MMM(
+        date_column="date",
+        channel_columns=["channel_1", "channel_2"],
+        target_column="y",
+        adstock=GeometricAdstock(l_max=4),
+        saturation=LogisticSaturation(),
+    )
+
+    result = mmm.sample_prior_predictive(X, samples=50, random_seed=42)
+
+    assert result[mmm.output_var].sizes["sample"] == 50
+    np.testing.assert_array_equal(mmm.xarray_dataset["_target"].values, y.values)
+
+
+def test_fit_after_placeholder_prior_predictive_warns(
+    lognormal_likelihood_mmm, lognormal_likelihood_data, mock_pymc_sample
+):
+    # `fit` reuses the model that `sample_prior_predictive` built on the ones
+    # placeholder (#2956), so the posterior is fit to ones; warn where that
+    # wrong answer appears, not only where the placeholder was substituted.
+    X, y = lognormal_likelihood_data
+    mmm = lognormal_likelihood_mmm
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        mmm.sample_prior_predictive(X, samples=10, random_seed=42)
+
+    with pytest.warns(UserWarning, match="fit to the placeholder"):
+        mmm.fit(X, y, chains=1, draws=10, tune=10, random_seed=42)
+
+
+def test_fit_after_prior_predictive_with_target_does_not_warn(
+    lognormal_likelihood_mmm, lognormal_likelihood_data, mock_pymc_sample
+):
+    X, y = lognormal_likelihood_data
+    mmm = lognormal_likelihood_mmm
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        mmm.sample_prior_predictive(X, y, samples=10, random_seed=42)
+
+    with warnings.catch_warnings(record=True) as records:
+        warnings.simplefilter("always")
+        mmm.fit(X, y, chains=1, draws=10, tune=10, random_seed=42)
+
+    assert not any("placeholder" in str(r.message) for r in records)
