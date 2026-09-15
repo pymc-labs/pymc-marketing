@@ -338,6 +338,31 @@ def test_log_model_graph_no_graphviz(
     assert artifacts == []
 
 
+def test_log_model_graph_no_leftover_when_dot_executable_missing(
+    model_with_likelihood, monkeypatch, tmp_path
+) -> None:
+    """Regression test for #2968.
+
+    ``graphviz.Digraph.render()`` writes the DOT source to disk *before*
+    invoking the ``dot`` executable, so a missing ``dot`` used to leave that
+    source file behind in the working directory. Rather than mocking
+    ``render()`` itself (which would skip the real write and pass either
+    way), hide any real ``dot`` from PATH so graphviz takes its actual,
+    unmocked failure path.
+    """
+    monkeypatch.setenv("PATH", str(tmp_path / "empty-path"))
+    (tmp_path / "empty-path").mkdir()
+    monkeypatch.chdir(tmp_path)
+
+    with mlflow.start_run():
+        log_model_graph(model_with_likelihood, "model_graph")
+
+    leftover_paths = [p for p in tmp_path.glob("model_graph*") if p.is_file()]
+    assert leftover_paths == [], (
+        f"log_model_graph left a file behind in the working directory: {leftover_paths}"
+    )
+
+
 def metric_checks(metrics, nuts_sampler) -> None:
     assert metrics["total_divergences"] >= 0.0
     if nuts_sampler not in ["numpyro", "nutpie", "blackjax"]:

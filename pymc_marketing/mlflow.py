@@ -525,14 +525,16 @@ def log_metadata(model: Model, idata: xr.DataTree) -> None:
 def log_model_graph(model: Model, path: str | Path) -> None:
     """Log the model graph PDF as artifact on MLflow.
 
-    Automatically removes the file after logging.
+    Renders into a temporary directory so nothing is left behind in the
+    working directory, including the DOT source itself if rendering fails
+    (e.g. the graphviz executables aren't installed).
 
     Parameters
     ----------
     model : Model
         The PyMC model object.
     path : str | Path
-        The path to save the model graph
+        The file name to save the model graph as.
 
     """
     try:
@@ -550,15 +552,14 @@ def log_model_graph(model: Model, path: str | Path) -> None:
         logger.info(msg)
         return None
 
-    try:
-        saved_path = graph.render(path)
-    except Exception as e:
-        msg = f"Unable to render the model graph. {e}"
-        logger.info(msg)
-        return None
-    else:
-        _log_and_remove_artifact(saved_path)
-        os.remove(path)
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        try:
+            saved_path = graph.render(Path(tmp_dir) / Path(path).name)
+        except Exception as e:
+            msg = f"Unable to render the model graph. {e}"
+            logger.info(msg)
+        else:
+            _log_and_remove_artifact(saved_path)
 
 
 def _get_random_variable_name(rv) -> str:
