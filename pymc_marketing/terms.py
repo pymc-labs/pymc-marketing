@@ -269,7 +269,15 @@ def _addends(value: Any) -> list[Any]:
 
 
 class TermOps:
-    """Arithmetic operators shared by terms, sums and products."""
+    """Arithmetic operators shared by terms, sums and products.
+
+    ``+`` and ``-`` produce a flat :class:`Sum` (except ``0 + term``, which
+    returns the term): a ``Sum`` operand of ``+``, or the left operand of
+    ``-``, contributes its own terms rather than nesting. The right operand of ``-`` is negated as a whole, so a ``Sum``
+    there enters as one ``Product``. ``*`` and unary ``-`` produce a
+    :class:`Product`. Defining the operators once here keeps ``ModelTerm``,
+    ``Sum`` and ``Product`` from drifting apart.
+    """
 
     def __add__(self, other: Any) -> Sum:
         """Compose additively with another term."""
