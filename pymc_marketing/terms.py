@@ -268,7 +268,7 @@ def _addends(value: Any) -> list[Any]:
     return list(value.terms) if isinstance(value, Sum) else [value]
 
 
-class TermOps:
+class _TermOps:
     """Arithmetic operators shared by terms, sums and products.
 
     ``+`` and ``-`` produce a flat :class:`Sum` (except ``0 + term``, which
@@ -283,7 +283,7 @@ class TermOps:
         """Compose additively with another term."""
         return Sum(_addends(self) + _addends(other))
 
-    def __radd__(self, other: Any) -> Sum | TermOps:
+    def __radd__(self, other: Any) -> Sum | _TermOps:
         """Compose additively from the left; ``0 + term`` returns the term."""
         if isinstance(other, int) and other == 0:
             return self
@@ -311,7 +311,7 @@ class TermOps:
 
 
 @dataclass
-class ModelTerm(TermOps):
+class ModelTerm(_TermOps):
     """Base class for composable model terms.
 
     Subclass ``ModelTerm`` to define reusable PyMC subgraph recipes.
@@ -370,7 +370,7 @@ class ModelTerm(TermOps):
 
 
 @dataclass
-class Sum(TermOps):
+class Sum(_TermOps):
     """Container for additive composition via ``+``.
 
     Created when terms are composed with the ``+`` operator.
@@ -405,7 +405,7 @@ class Sum(TermOps):
 
 
 @dataclass
-class Product(TermOps):
+class Product(_TermOps):
     """Container for multiplicative composition via ``*``.
 
     Created when terms are composed with the ``*`` operator.
