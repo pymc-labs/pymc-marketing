@@ -1811,8 +1811,8 @@ def test_set_posterior_accepts_a_posterior_without_channel_contribution(
     """A posterior thinned to the free RVs the graphs read is accepted.
 
     Without ``channel_contribution`` the new posterior implies nothing about
-    the auto-detected mask, so there is nothing to compare; the all-ones
-    fallback is a construction default, not a claim about this posterior.
+    the auto-detected mask, so there is nothing to compare, and the
+    posterior-derived mask in use is kept.
     """
     posterior = dummy_idata["posterior"].to_dataset()
     narrow = posterior.assign(
@@ -1888,3 +1888,102 @@ def test_set_posterior_auto_mask_check_follows_the_model_dim_order():
     changed["channel_contribution"].loc[dict(country="x", channel="a")] = 0.0
     with pytest.raises(ValueError, match="different auto-detected budgets_to_optimize"):
         optimizer.set_posterior(xr.DataTree.from_dict({"posterior": changed}))
+
+
+def test_set_posterior_fallback_mask_is_not_compared(mmm_wrapper, dummy_idata):
+    """A mask that fell back to every cell at construction is not a claim.
+
+    When the construction posterior had no ``channel_contribution``, the mask
+    is the all-ones fallback.  A later posterior that does carry the variable
+    must not be refused for implying a narrower mask: the fallback was never
+    derived from any posterior, so there is nothing to compare it with.
+    """
+    posterior = dummy_idata["posterior"].to_dataset()
+    without = posterior.drop_vars("channel_contribution")
+    narrower = posterior.assign(
+        channel_contribution=posterior["channel_contribution"]
+        * xr.DataArray(
+            [1.0, 0.0], dims="channel", coords={"channel": posterior["channel"]}
+        )
+    )
+    optimizer = BudgetOptimizer(
+        model=CustomModelWrapper(
+            base_model=mmm_wrapper.base_model,
+            idata=xr.DataTree.from_dict({"/posterior": without}),
+            channels=mmm_wrapper.channel_columns,
+        ),
+        num_periods=30,
+        response_variable="total_media_contribution_original_scale",
+    )
+    assert optimizer._mask_auto_detected and optimizer._mask_from_fallback
+    assert optimizer.budgets_to_optimize.values.tolist() == [True, True]
+
+    optimizer.set_posterior(xr.DataTree.from_dict({"/posterior": narrower}))
+    assert optimizer.budgets_to_optimize.values.tolist() == [True, True]  # pinned
+
+
+def test_set_posterior_first_call_is_validated_like_later_calls(
+    mmm_wrapper, dummy_idata
+):
+    """The first call goes through the same alignment and checks as every later one.
+
+    The compile runs on the construction posterior and the new draws arrive
+    through the validated rebind path, so a reordered ``channel`` axis is
+    realigned on the first call too, and a resized axis is refused with a
+    full rollback instead of being bound and failing later inside pytensor.
+    """
+    total_budget = 60.0
+    posterior = dummy_idata["posterior"].to_dataset()
+    ordered = _scaled(posterior, [3.0, 0.5])
+    reordered = xr.DataTree.from_dict(
+        {"/posterior": ordered["posterior"].to_dataset().isel(channel=[1, 0])}
+    )
+    assert reordered["posterior"]["channel"].values.tolist() == [
+        "channel_2",
+        "channel_1",
+    ]
+
+    def optimizer(**kwargs):
+        return BudgetOptimizer(
+            model=mmm_wrapper,
+            num_periods=30,
+            response_variable="total_media_contribution_original_scale",
+            **kwargs,
+        )
+
+    reference, _ = optimizer().allocate_budget(total_budget=total_budget)
+
+    first = optimizer()
+    first.set_posterior(ordered)
+    expected, expected_res = first.allocate_budget(total_budget=total_budget)
+    assert not np.allclose(expected.values, reference.values)
+
+    on_first_call = optimizer()
+    on_first_call.set_posterior(reordered)
+    got, got_res = on_first_call.allocate_budget(total_budget=total_budget)
+    np.testing.assert_allclose(got.values, expected.values, rtol=1e-6)
+    assert got_res.fun == pytest.approx(expected_res.fun, rel=1e-6)
+
+    on_second_call = optimizer()
+    on_second_call.set_posterior(ordered)
+    on_second_call.set_posterior(reordered)
+    got, got_res = on_second_call.allocate_budget(total_budget=total_budget)
+    np.testing.assert_allclose(got.values, expected.values, rtol=1e-6)
+    assert got_res.fun == pytest.approx(expected_res.fun, rel=1e-6)
+
+    # A user-supplied mask bypasses the mask gate, so this is the shape check
+    # in SharedPosterior doing the refusing -- and the rollback holding.
+    mask = xr.DataArray(
+        [True, True], dims="channel", coords={"channel": posterior["channel"]}
+    )
+    with_mask = optimizer(budgets_to_optimize=mask)
+    construction_idata = with_mask.idata
+    constant_objective = with_mask._objective_and_grad
+    one_channel = xr.DataTree.from_dict({"/posterior": posterior.isel(channel=[0])})
+    with pytest.raises(ValueError, match=r"channel coordinates"):
+        with_mask.set_posterior(one_channel)
+    assert with_mask._shared_posterior is None
+    assert with_mask.idata is construction_idata
+    assert with_mask._objective_and_grad is constant_objective
+    after, _ = with_mask.allocate_budget(total_budget=total_budget)
+    np.testing.assert_allclose(after.values, reference.values)

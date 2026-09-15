@@ -1480,6 +1480,7 @@ class BudgetOptimizer(BaseModel):
     _pymc_model: Model = PrivateAttr()
     _shared_posterior: SharedPosterior | None = PrivateAttr(default=None)
     _mask_auto_detected: bool = PrivateAttr(default=False)
+    _mask_from_fallback: bool = PrivateAttr(default=False)
     _variables: OptimizationVariables = PrivateAttr()
     _objective_and_grad: Callable = PrivateAttr()
     _constraints: dict = PrivateAttr()
@@ -1626,6 +1627,7 @@ class BudgetOptimizer(BaseModel):
         #    as MMM.budget_optimizer deliberately do not narrow the mask themselves.
         if self.budgets_to_optimize is None:
             self._mask_auto_detected = True
+            self._mask_from_fallback = self._posterior_channel_mask(self.idata) is None
             self.budgets_to_optimize = self._auto_detect_mask(self.idata)
         else:
             self._validate_mask_against_posterior(self.budgets_to_optimize, self.idata)
@@ -2123,9 +2125,11 @@ class BudgetOptimizer(BaseModel):
         same non-sample dimensions.  Coordinates are matched by label when
         present, so a reordered ``channel`` axis is realigned.  The number of
         draws may differ.  The budget mask is kept: when it was auto-detected
-        from the construction posterior and the new posterior would imply a
-        different one, the call raises rather than solve a different decision
-        problem on the old decision vector.
+        from the construction posterior's ``channel_contribution`` and the new
+        posterior carries one implying a different mask, the call raises
+        rather than solve a different decision problem on the old decision
+        vector.  A mask that fell back to every cell at construction, or a new
+        posterior without ``channel_contribution``, is not compared.
 
         The rebind is local to this optimizer.  A model the optimizer was
         built from keeps its own ``idata``; post-processing done there still
@@ -2172,11 +2176,17 @@ class BudgetOptimizer(BaseModel):
         # it cannot follow the posterior; it can only be checked against it.
         current_mask = cast(DataArray, self.budgets_to_optimize)
         if self._mask_auto_detected:
-            implied_mask = self._posterior_channel_mask(idata)
-            # A posterior without channel_contribution (thinned to the free RVs
-            # the graphs read) implies nothing about the mask, so there is
-            # nothing to compare; the all-ones fallback is a construction
-            # default, not a claim about this posterior.
+            # The comparison only makes sense between two posterior-derived
+            # masks.  A mask that came from the all-ones fallback at
+            # construction was never a claim about any posterior, and a new
+            # posterior without channel_contribution (thinned to the free RVs
+            # the graphs read) implies nothing; in both cases there is nothing
+            # to compare and the mask in use is simply kept.
+            implied_mask = (
+                None
+                if self._mask_from_fallback
+                else self._posterior_channel_mask(idata)
+            )
             if implied_mask is not None:
                 new_mask = (
                     align_to_model_coords(
@@ -2202,13 +2212,14 @@ class BudgetOptimizer(BaseModel):
             self.idata = idata
             return
 
-        # First rebind: bind the new draws through shared variables and compile
-        # once against them; later calls are set_value only.  The compile reads
-        # ``self.idata`` and ``self._shared_posterior`` (custom constraints call
-        # ``extract_response_distribution`` on this optimizer), so the new state
-        # has to be visible while compiling.  Anything that raises in between
-        # rolls every piece back, so a failed first call leaves the
-        # constant-folded graphs in place and the next call retries this path
+        # First rebind: bind the draws through shared variables and compile once
+        # against them; later calls are set_value only.  The compile runs on the
+        # posterior the optimizer was built with, and the new draws then arrive
+        # through the same validated rebind path as every later call -- so a
+        # reordered axis is realigned and a resized one refused here exactly as
+        # it would be on the second call.  Anything that raises rolls every
+        # piece back, so a failed first call leaves the constant-folded graphs
+        # and the previous idata in place, and the next call retries this path
         # rather than rebinding variables the compiled objective never reads.
         previous = (
             self._shared_posterior,
@@ -2218,10 +2229,11 @@ class BudgetOptimizer(BaseModel):
             self._compiled_constraints,
         )
         self._shared_posterior = SharedPosterior()
-        self.idata = idata
         try:
             self._compile_objective_and_grad()
             self.set_constraints(constraints=list(self._constraints.values()))
+            self._shared_posterior.set_posterior(_extract_dataset(idata, "posterior"))
+            self.idata = idata
         except BaseException:
             (
                 self._shared_posterior,

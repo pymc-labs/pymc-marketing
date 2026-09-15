@@ -267,7 +267,9 @@ def _describe_label_mismatch(
     new_labels: np.ndarray, bound_labels: np.ndarray, limit: int = 5
 ) -> str:
     """Summarise how two coordinate label sets differ without printing both in full."""
-    new_set, bound_set = set(new_labels.tolist()), set(bound_labels.tolist())
+    # pd.Index normalises datetime units, so [us] and [ns] labels compare equal
+    # and render as timestamps rather than raw integers.
+    new_set, bound_set = set(pd.Index(new_labels)), set(pd.Index(bound_labels))
     only_new = sorted(new_set - bound_set, key=str)
     only_bound = sorted(bound_set - new_set, key=str)
 
@@ -380,7 +382,9 @@ class SharedPosterior:
             if bound_labels is None:
                 continue
             new_labels = np.asarray(posterior_da.coords[dim].values)
-            if set(new_labels.tolist()) != set(bound_labels.tolist()):
+            # Compared through pd.Index: a datetime axis changes unit ([us] to
+            # [ns]) across a netCDF round trip while every label stays the same.
+            if set(pd.Index(new_labels)) != set(pd.Index(bound_labels)):
                 raise ValueError(
                     f"Posterior variable {name!r} has different {dim} coordinates: "
                     + _describe_label_mismatch(new_labels, bound_labels)

@@ -911,10 +911,49 @@ def test_shared_posterior_coordinate_mismatch_message_stays_short():
         model, posterior, "out", shared_posterior=shared_posterior
     )
 
-    shifted = posterior.assign_coords(date=list(dates + pd.Timedelta(weeks=1)))
+    # A day's shift makes every label differ, which is the worst case: the
+    # message has to truncate both sides rather than list 208 labels each.
+    shifted = posterior.assign_coords(date=list(dates + pd.Timedelta(days=1)))
     with pytest.raises(ValueError, match=r"208 labels given, 208 bound") as info:
         shared_posterior.set_posterior(shifted)
-    assert len(str(info.value)) < 300
+    assert "..." in str(info.value)
+    assert len(str(info.value)) < 600
+
+
+def test_shared_posterior_accepts_datetime_labels_across_units():
+    """A datetime axis compares by value, not by storage unit.
+
+    A netCDF round trip (``ModelBuilder.save`` then ``load``) turns a
+    ``datetime64[us]`` coordinate into ``datetime64[ns]``; the labels are the
+    same, so the reloaded posterior must rebind.
+    """
+    dates = pd.date_range("2020-01-05", periods=3, freq="W")
+    with pm.Model(coords={"date": dates}) as model:
+        latent = pmd.Normal("latent", dims="date")
+        pmd.Deterministic("out", 2.0 * latent)
+    values = np.arange(3.0)[None, None]
+    as_us = xr.Dataset(
+        {"latent": (("chain", "draw", "date"), values)},
+        coords={"date": dates.values.astype("datetime64[us]")},
+    )
+    as_ns = as_us.assign_coords(date=dates.values.astype("datetime64[ns]"))
+    assert as_us["date"].dtype != as_ns["date"].dtype
+
+    shared_posterior = SharedPosterior()
+    fn = function(
+        [],
+        extract_response_distribution(
+            model, as_us, "out", shared_posterior=shared_posterior
+        ),
+    )
+    shared_posterior.set_posterior(as_ns.assign(latent=as_ns["latent"] + 1.0))
+    np.testing.assert_allclose(fn(), [[2.0, 4.0, 6.0]])
+
+    # The mismatch message renders timestamps on both sides, not integers.
+    off = as_ns.assign_coords(date=as_ns["date"].values + np.timedelta64(1, "D"))
+    with pytest.raises(ValueError, match=r"2020-01-06") as info:
+        shared_posterior.set_posterior(off)
+    assert "2020-01-05" in str(info.value)
 
 
 def test_shared_posterior_refuses_labelled_against_unlabelled_dims():
