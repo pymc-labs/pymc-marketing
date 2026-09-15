@@ -13,12 +13,18 @@
 #   limitations under the License.
 """Plotting functions for the CLV module."""
 
+import warnings
 from collections.abc import Sequence
 
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import pymc as pm
+from arviz_stats.ecdf_utils import (
+    compute_ecdf,
+    get_pointwise_confidence_band,
+    simulate_confidence_bands,
+)
 from matplotlib.lines import Line2D
 
 from pymc_marketing.clv import BetaGeoModel, ParetoNBDModel
@@ -31,6 +37,19 @@ __all__ = [
     "plot_frequency_recency_matrix",
     "plot_probability_alive_matrix",
 ]
+
+# Predictive samples per observation below which the ECDF confidence band is too narrow, because
+# the reference CDF is estimated rather than known. Simulated coverage of a nominal 95% band, on
+# negative-binomial counts with n = 2357: 0.28-0.41 at a ratio of 1, 0.83 at 10, 0.89 at 20, and
+# indistinguishable from nominal (0.90-0.96, within Monte Carlo error at these replicate counts)
+# from 50 upwards.
+_MIN_PPC_RATIO = 20
+
+# Predictive draws per customer used to estimate the ECDF reference CDF on a point-estimate fit,
+# whose posterior holds a single draw. Bounded rather than taken from `samples`, because the cost is
+# linear in the draws while the coverage above saturates well before this: at 20k customers a ratio
+# of 1000 costs 646 MB and 171 s, against 38 MB and 9 s at 50, for no measurable gain.
+_REFERENCE_DRAWS = 100
 
 
 def plot_customer_exposure(
@@ -472,9 +491,10 @@ def plot_expected_purchases_ppc(
     max_purchases: int = 10,
     samples: int = 1000,
     random_seed: int = 45,
-    ax: plt.Axes | None = None,
+    ax: plt.Axes | Sequence[plt.Axes] | None = None,
+    plot_type: str = "hist",
     **kwargs,
-) -> plt.Axes:
+) -> plt.Axes | tuple[plt.Axes, plt.Axes]:
     """Plot a prior or posterior predictive check for the customer purchase frequency distribution.
 
     ``ParetoNBDModel``, ``BetaGeoBetaBinomModel``, ``BetaGeoModel`` and ``ModifiedBetaGeoModel`` are supported.
@@ -489,22 +509,57 @@ def plot_expected_purchases_ppc(
     ppc : string, optional
         Type of predictive check to perform. Options are 'prior' or 'posterior'; defaults to 'posterior'.
     max_purchases : int, optional
-        Cutoff for bars of purchase counts to plot. Default is 10.
+        Cutoff for bars of purchase counts to plot. Only used when ``plot_type`` is 'hist'. Default is 10.
     samples : int, optional
         Number of samples to draw for prior predictive checks. This is not used for posterior predictive checks.
     random_seed : int, optional
         Random seed to fix sampling results
-    ax : matplotlib.Axes, optional
-        A matplotlib Axes instance. Creates new axes instance by default.
+    ax : matplotlib.Axes or sequence of matplotlib.Axes, optional
+        A matplotlib Axes instance, or a pair of Axes when ``plot_type`` is 'ecdf'. Creates new axes
+        instance(s) by default.
+    plot_type : string, optional
+        Type of plot to produce. Options are 'hist' for a bar chart of estimated vs observed purchase
+        counts, or 'ecdf' for an ECDF plot with a 95% simultaneous confidence band and a companion
+        difference plot.
+        Defaults to 'hist'.
     **kwargs
-        Additional arguments to pass into the pandas.DataFrame.plot command.
+        Additional arguments to pass into the pandas.DataFrame.plot command when ``plot_type`` is
+        'hist'. When ``plot_type`` is 'ecdf', ``num_trials`` and ``confidence_level`` can be passed
+        to control the confidence band.
 
     Returns
     -------
-    axes : matplotlib.AxesSubplot
+    axes : matplotlib.AxesSubplot, or tuple of two matplotlib.AxesSubplot when ``plot_type`` is 'ecdf'
+
+    Notes
+    -----
+    The confidence band of the 'ecdf' plot assumes a continuous reference CDF, which does not hold
+    for integer purchase counts, so its coverage is only approximately the nominal level. It also
+    assumes that CDF is known rather than estimated, so it warns when the predictive samples behind
+    it are too few relative to the number of customers.
     """
-    if ax is None:
+    if plot_type not in ("hist", "ecdf"):
+        raise ValueError("Specify 'hist' or 'ecdf' for 'plot_type' parameter.")
+
+    if plot_type == "ecdf":
+        if ax is not None and not (
+            np.shape(ax) == (2,) and all(isinstance(panel, plt.Axes) for panel in ax)
+        ):
+            raise ValueError(
+                "Specify a sequence of two matplotlib Axes for 'ax' when 'plot_type' is 'ecdf'."
+            )
+        if max_purchases != 10:
+            warnings.warn(
+                "'max_purchases' is ignored when 'plot_type' is 'ecdf'.",
+                UserWarning,
+                stacklevel=2,
+            )
+    elif ax is None:
         ax = plt.subplot(111)
+    elif not isinstance(ax, plt.Axes):
+        raise ValueError(
+            "Specify a single matplotlib Axes for 'ax' when 'plot_type' is 'hist'."
+        )
 
     match ppc:
         # TODO: Revisit prior logic after adding PPC support for CLVModels in ModelBuilder
@@ -523,18 +578,32 @@ def plot_expected_purchases_ppc(
                 obs_var="frequency"
             )
             title = "Prior Predictive Check for Customer Frequency"
+            title_prefix = "Prior Predictive"
         case "posterior":
             obs_freq = model.idata.observed_data["recency_frequency"].sel(
                 obs_var="frequency"
             )
-            # Keep samples at 1 here because (chain * draw * customer) samples are already being drawn
+            # n_samples only takes effect for a point-estimate fit, where the posterior holds a
+            # single draw; a sampled posterior already provides (chain * draw * customer) samples.
+            # Only the ECDF band needs a precise reference CDF, so only it pays for the extra draws.
             ppc_freq = model.distribution_new_customer_recency_frequency(
                 random_seed=random_seed,
-                n_samples=1,
+                n_samples=_REFERENCE_DRAWS if plot_type == "ecdf" else 1,
             ).sel(obs_var="frequency")
             title = "Posterior Predictive Check for Customer Frequency"
+            title_prefix = "Posterior Predictive"
         case _:
             raise NameError("Specify 'prior' or 'posterior' for 'ppc' parameter.")
+
+    if plot_type == "ecdf":
+        return _plot_expected_purchases_ecdf(
+            observed=obs_freq.values.ravel(),
+            ppc=ppc_freq.values.ravel(),
+            title_prefix=title_prefix,
+            random_seed=random_seed,
+            ax=ax,
+            **kwargs,
+        )
 
     # convert estimated and observed xarrays into dataframes for plotting
     estimated = ppc_freq.to_dataframe().value_counts(normalize=True).sort_index()
@@ -556,6 +625,86 @@ def plot_expected_purchases_ppc(
         **kwargs,
     )
     return ax
+
+
+def _plot_expected_purchases_ecdf(
+    observed: np.ndarray,
+    ppc: np.ndarray,
+    title_prefix: str,
+    random_seed: int,
+    ax: plt.Axes | Sequence[plt.Axes] | None = None,
+    num_trials: int = 500,
+    confidence_level: float = 0.95,
+) -> tuple[plt.Axes, plt.Axes]:
+    """Plot an ECDF plot and companion difference plot against a simultaneous confidence band.
+
+    The band of Sailynoja et al. (2021) assumes a continuous reference CDF, which does not hold for
+    integer purchase counts, so its coverage is only approximately the nominal level.
+
+    It also assumes the reference CDF is known rather than estimated. ``ppc`` therefore has to hold
+    many more samples than ``observed``; otherwise both curves carry sampling error of the same
+    order and the band comes out too narrow, failing models that fit perfectly well. Warns rather
+    than raising when it does not, since the plot is still readable and a short fit is a legitimate
+    thing to want to look at.
+    """
+    if observed.min() == observed.max():
+        raise ValueError(
+            "An ECDF plot requires more than one distinct observed purchase count."
+        )
+
+    if len(ppc) < _MIN_PPC_RATIO * len(observed):
+        warnings.warn(
+            "The confidence band treats the predictive CDF as known, which needs at least "
+            f"{_MIN_PPC_RATIO} predictive samples per observation; got "
+            f"{len(ppc) / len(observed):.3g}. The band is too narrow, so a well-fitting model can "
+            "fall outside it. Increase 'samples' for a prior check, or fit the model with more "
+            "draws for a posterior check.",
+            UserWarning,
+            stacklevel=3,
+        )
+
+    if ax is None:
+        _, (ax_ecdf, ax_diff) = plt.subplots(2, 1, layout="constrained")
+    else:
+        ax_ecdf, ax_diff = ax
+
+    rng = np.random.default_rng(random_seed)
+    # purchase counts are integers, so evaluate on the attainable counts
+    x = np.arange(observed.min(), observed.max() + 1)
+    # reference cdf estimated from the (prior or posterior) predictive samples
+    z = compute_ecdf(ppc, x)
+    n = len(observed)
+    # simulation-based simultaneous confidence band of Sailynoja et al. (2021)
+    gamma = simulate_confidence_bands(
+        n_draws=n,
+        n_chains=1,
+        eval_points=z,
+        prob=confidence_level,
+        n_simulations=num_trials,
+        rng=rng,
+    )
+    lower, upper = get_pointwise_confidence_band(gamma, n, z)
+
+    band_label = f"{confidence_level * 100:.4g}% simultaneous band"
+    observed_ecdf = compute_ecdf(observed, x)
+
+    ax_ecdf.step(x, observed_ecdf, where="post", label="Observed")
+    ax_ecdf.fill_between(x, lower, upper, step="post", alpha=0.2, label=band_label)
+    ax_ecdf.set_title(f"{title_prefix} ECDF Plot")
+    ax_ecdf.set_xlabel("Purchases per Customer")
+    ax_ecdf.set_ylabel("Proportion of Customers")
+    ax_ecdf.legend()
+
+    ax_diff.step(x, observed_ecdf - z, where="post", label="Observed")
+    ax_diff.fill_between(
+        x, lower - z, upper - z, step="post", alpha=0.2, label=band_label
+    )
+    ax_diff.set_title(f"{title_prefix} Difference Plot")
+    ax_diff.set_xlabel("Purchases per Customer")
+    ax_diff.set_ylabel("Deviation from Expected Proportion")
+    ax_diff.legend()
+
+    return ax_ecdf, ax_diff
 
 
 def _force_aspect(ax: plt.Axes, aspect=1):

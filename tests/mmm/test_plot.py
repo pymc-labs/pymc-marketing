@@ -22,6 +22,7 @@ import pytest
 import xarray as xr
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
+from matplotlib.layout_engine import ConstrainedLayoutEngine
 
 from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation
 
@@ -30,7 +31,7 @@ with warnings.catch_warnings():
     from pymc_marketing.mmm.mmm import MMM
 
 from pymc_marketing.data.idata.mmm_wrapper import MMMIDataWrapper
-from pymc_marketing.mmm.plot import MMMPlotSuite
+from pymc_marketing.mmm.plot import MMMPlotSuite, _tight_layout
 
 
 @pytest.fixture
@@ -5425,3 +5426,88 @@ class TestSensitivityAnalysisCostPerUnit:
             "x-axis ranges should differ when apply_cost_per_unit changes "
             f"(cpu={xlim_cpu}, no_cpu={xlim_no})"
         )
+
+
+class TestAmbientLayoutEngine:
+    """The plot methods must not replace a layout engine set by the caller."""
+
+    def test_helper_lays_out_when_no_engine(self):
+        with plt.rc_context({"figure.constrained_layout.use": False}):
+            fig, _ax = plt.subplots()
+            left_before = fig.axes[0].get_position().x0
+            _tight_layout(fig)
+            assert fig.axes[0].get_position().x0 != pytest.approx(left_before)
+        plt.close(fig)
+
+    def test_helper_leaves_an_existing_engine_alone(self):
+        with plt.rc_context({"figure.constrained_layout.use": True}):
+            fig, _ax = plt.subplots()
+            with warnings.catch_warnings():
+                warnings.filterwarnings(
+                    "error", message="The figure layout has changed"
+                )
+                _tight_layout(fig)
+        assert isinstance(fig.get_layout_engine(), ConstrainedLayoutEngine)
+        plt.close(fig)
+
+    def test_helper_forwards_kwargs(self):
+        with plt.rc_context({"figure.constrained_layout.use": False}):
+            fig, _ax = plt.subplots()
+            _tight_layout(fig, rect=[0, 0.5, 1, 1])
+            assert fig.axes[0].get_position().y0 >= 0.5
+        plt.close(fig)
+
+    def test_budget_allocation_keeps_engine(self, mock_suite_with_constant_data):
+        samples = mock_suite_with_constant_data.idata.posterior.to_dataset().copy()
+        samples["allocation"] = (
+            samples["channel_contribution"].dims,
+            np.abs(samples["channel_contribution"].values),
+        )
+        with plt.rc_context({"figure.constrained_layout.use": True}):
+            with warnings.catch_warnings():
+                warnings.filterwarnings(
+                    "error", message="The figure layout has changed"
+                )
+                fig, _ax = mock_suite_with_constant_data.budget_allocation(
+                    samples=samples
+                )
+        assert isinstance(fig.get_layout_engine(), ConstrainedLayoutEngine)
+        plt.close(fig)
+
+    def test_sensitivity_analysis_keeps_engine(
+        self, mock_suite_with_sensitivity_and_channels
+    ):
+        suite = mock_suite_with_sensitivity_and_channels
+        with plt.rc_context({"figure.constrained_layout.use": True}):
+            with warnings.catch_warnings():
+                warnings.filterwarnings(
+                    "error", message="The figure layout has changed"
+                )
+                fig, _ax = suite.sensitivity_analysis(hue_dim="channel")
+        assert isinstance(fig.get_layout_engine(), ConstrainedLayoutEngine)
+        plt.close(fig)
+
+    def test_cv_predictions_keeps_engine(self):
+        suite = MMMPlotSuite(idata=None)
+        results = _build_cv_results_for_cv_predictions()
+        with plt.rc_context({"figure.constrained_layout.use": True}):
+            with warnings.catch_warnings():
+                warnings.filterwarnings(
+                    "error", message="The figure layout has changed"
+                )
+                fig, _axes = suite.cv_predictions(results, dims=None)
+        assert isinstance(fig.get_layout_engine(), ConstrainedLayoutEngine)
+        plt.close(fig)
+
+    def test_cv_predictions_still_reserves_room_for_the_legend(self):
+        """The rect kwarg must survive the move from plt to the helper."""
+        suite = MMMPlotSuite(idata=None)
+        results = _build_cv_results_for_cv_predictions()
+        with plt.rc_context({"figure.constrained_layout.use": False}):
+            fig, _axes = suite.cv_predictions(results, dims=None)
+        fig.canvas.draw()
+        renderer = fig.canvas.get_renderer()
+        legend_top = fig.legends[0].get_window_extent(renderer).y1
+        axes_bottom = min(ax.get_window_extent(renderer).y0 for ax in fig.axes)
+        assert axes_bottom > legend_top
+        plt.close(fig)

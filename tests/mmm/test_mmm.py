@@ -33,6 +33,7 @@ from pymc_marketing.data.idata.mmm_wrapper import MMMIDataWrapper
 from pymc_marketing.hsgp_kwargs import HSGPKwargs
 from pymc_marketing.mmm import (
     CovFunc,
+    DelayedAdstock,
     GeometricAdstock,
     LogisticSaturation,
     SoftPlusHSGP,
@@ -240,6 +241,69 @@ class TestGeometricAdstockHalfLife:
         mmm.fit(df.drop(columns=[target_column]), df[target_column])
 
         file = str(tmp_path / "halflife.nc")
+        mmm.save(file)
+        loaded = MMM.load(file)
+
+        assert loaded.adstock.parametrization == "halflife"
+        assert loaded.adstock == mmm.adstock
+        assert "adstock_halflife" in loaded.model.named_vars
+
+
+class TestDelayedAdstockHalfLife:
+    """The half-life parametrisation propagates through the MMM.
+
+    ``theta`` is shared by both parametrisations, so it must reach the model
+    either way.
+    """
+
+    def _mmm(self, target_column, **kwargs):
+        return MMM(
+            date_column="date",
+            channel_columns=["C1", "C2"],
+            dims=("country",),
+            target_column=target_column,
+            adstock=DelayedAdstock(l_max=2, parametrization="halflife"),
+            saturation=LogisticSaturation(),
+            **kwargs,
+        )
+
+    def test_builds_halflife_variable(self, df, target_column) -> None:
+        mmm = self._mmm(target_column)
+
+        assert "adstock_halflife" in mmm.model_config
+        assert "adstock_theta" in mmm.model_config
+        assert "adstock_alpha" not in mmm.model_config
+
+        mmm.build_model(df.drop(columns=[target_column]), df[target_column])
+
+        assert "adstock_halflife" in mmm.model.named_vars
+        assert "adstock_theta" in mmm.model.named_vars
+        assert "adstock_alpha" not in mmm.model.named_vars
+        assert mmm.model.named_vars_to_dims["adstock_halflife"] == (
+            "country",
+            "channel",
+        )
+
+    def test_model_config_overrides_halflife(self, target_column) -> None:
+        prior = Prior("LogNormal", mu=1, sigma=0.3, dims=("country", "channel"))
+        mmm = self._mmm(target_column, model_config={"adstock_halflife": prior})
+
+        assert mmm.adstock.function_priors["halflife"] == prior
+
+    def test_alpha_in_model_config_warns(self, target_column) -> None:
+        with pytest.warns(UserWarning, match="adstock_alpha"):
+            self._mmm(
+                target_column,
+                model_config={"adstock_alpha": Prior("Beta", alpha=1, beta=3)},
+            )
+
+    def test_save_load_roundtrip(
+        self, df, target_column, tmp_path, mock_pymc_sample
+    ) -> None:
+        mmm = self._mmm(target_column)
+        mmm.fit(df.drop(columns=[target_column]), df[target_column])
+
+        file = str(tmp_path / "delayed_halflife.nc")
         mmm.save(file)
         loaded = MMM.load(file)
 
@@ -947,7 +1011,10 @@ class _CustomEffectWithSuppData(MuEffect):
         pass
 
     def create_effect(self, mmm):
-        return as_xtensor(pt.zeros(1), dims=["date"])
+        # Full date length, not `pt.zeros(1)`: a contribution carrying the
+        # `date` dim has to match the model's date coord. A length-1 stand-in
+        # only survived while nothing forced `mu` to be evaluated.
+        return as_xtensor(pt.zeros(len(mmm.model.coords["date"])), dims=["date"])
 
     def set_data(self, mmm, model, X):
         pass
@@ -1523,6 +1590,48 @@ def test_sample_posterior_predictive_same_data(single_dim_data, mock_pymc_sample
         "When passing identical data for posterior predictive, "
         "'channel_contribution' should match exactly (or within floating tolerance) "
         "the values in the 'posterior' group."
+    )
+
+
+@pytest.mark.parametrize("clone_model", [True, False])
+def test_sample_posterior_predictive_clone_model(
+    single_dim_data, mock_pymc_sample, clone_model
+):
+    """
+    Test that sampling from the posterior predictive works with both clone_model
+    values when no deterministics are frozen, and that clone_model=False sets the
+    new data on the original model in place.
+    """
+    X, y = single_dim_data
+    X_train = X.iloc[:-5]
+    X_new = X.iloc[-5:]
+    y_train = y.iloc[:-5]
+
+    mmm = MMM(
+        date_column="date",
+        target_column="target",
+        channel_columns=["channel_1", "channel_2", "channel_3"],
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+    )
+
+    mmm.build_model(X_train, y_train)
+    mmm.fit(X_train, y_train, draws=200, tune=100, chains=1, random_seed=42)
+
+    # The clone_model=False branch is only reachable without frozen deterministics.
+    assert mmm.frozen_deterministics == []
+
+    out_of_sample_idata = mmm.sample_posterior_predictive(
+        X_new, extend_idata=False, clone_model=clone_model, random_seed=42
+    )
+
+    assert out_of_sample_idata.coords["date"].values.shape == X_new.date.values.shape
+
+    # clone_model=True samples on a copy and leaves the original model untouched,
+    # while clone_model=False sets the new data on the original model.
+    expected_dates = X_train.date if clone_model else X_new.date
+    np.testing.assert_array_equal(
+        np.asarray(mmm.model.coords["date"]), expected_dates.to_numpy()
     )
 
 
@@ -6635,18 +6744,18 @@ def test_sample_prior_predictive_lognormal_likelihood_without_target(
 ):
     # Regression: the base class defaults a missing y to zeros, which
     # validate_observed rejects, breaking the standard pre-fit
-    # prior-predictive call for this likelihood.
+    # prior-predictive call for this likelihood. The ones placeholder that
+    # replaces them must be announced, since a later fit on the same
+    # instance would reuse the built model and train on it (#2956).
     X, _ = lognormal_likelihood_data
     mmm = lognormal_likelihood_mmm
 
-    with warnings.catch_warnings(record=True):
-        # The default zero-mean intercept prior legitimately triggers the
-        # zero-draw warning; this test only guards against the ValueError.
-        warnings.simplefilter("always")
+    with pytest.warns(UserWarning, match="placeholder target of ones"):
         result = mmm.sample_prior_predictive(X, samples=50, random_seed=42)
 
     assert mmm.output_var in result
     assert result[mmm.output_var].sizes["sample"] == 50
+    np.testing.assert_array_equal(mmm.xarray_dataset["_target"].values, 1.0)
 
 
 def test_sample_prior_predictive_lognormal_likelihood_healthy_no_warning(
@@ -6677,10 +6786,7 @@ def test_sample_prior_predictive_lognormal_likelihood_dataset_without_target(
     assert "_target" not in dataset.data_vars
     mmm = lognormal_likelihood_mmm
 
-    with warnings.catch_warnings(record=True):
-        # The default zero-mean intercept prior legitimately triggers the
-        # zero-draw warning; this test only guards against shape errors.
-        warnings.simplefilter("always")
+    with pytest.warns(UserWarning, match="placeholder target of ones"):
         result = mmm.sample_prior_predictive(dataset, samples=50, random_seed=42)
 
     assert mmm.output_var in result
@@ -6694,7 +6800,8 @@ def test_sample_prior_predictive_lognormal_likelihood_dataset_embedded_target(
     lognormal_likelihood_mmm, lognormal_likelihood_data
 ):
     # Regression: a Dataset X that already embeds the target had it silently
-    # overwritten by the ones placeholder.
+    # overwritten by the ones placeholder; the placeholder warning must not
+    # fire either, since a real target is present.
     from pymc_marketing.mmm.data_conversion import to_mmm_dataset
 
     X, y = lognormal_likelihood_data
@@ -6704,9 +6811,11 @@ def test_sample_prior_predictive_lognormal_likelihood_dataset_embedded_target(
     assert "_target" in dataset.data_vars
     mmm = lognormal_likelihood_mmm
 
-    with warnings.catch_warnings(record=True):
+    with warnings.catch_warnings(record=True) as records:
         warnings.simplefilter("always")
         result = mmm.sample_prior_predictive(dataset, samples=50, random_seed=42)
+
+    assert not any("placeholder" in str(r.message) for r in records)
 
     assert mmm.output_var in result
     assert result[mmm.output_var].sizes["sample"] == 50
@@ -6716,9 +6825,9 @@ def test_sample_prior_predictive_lognormal_likelihood_dataset_embedded_target(
 def test_sample_prior_predictive_dataset_embedded_target_normal_likelihood(
     lognormal_likelihood_data,
 ):
-    # The embedded-target passthrough applies to every likelihood: without it
-    # the base class replaces the target with zeros, which either conflicts in
-    # shape or silently zeroes the target scale.
+    # The embedded-target handling applies to every likelihood: without it
+    # the base class supplies a zeros y alongside the Dataset's own target,
+    # which `to_mmm_dataset` rejects as "not both".
     from pymc_marketing.mmm.data_conversion import to_mmm_dataset
 
     X, y = lognormal_likelihood_data

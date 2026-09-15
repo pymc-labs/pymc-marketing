@@ -153,6 +153,14 @@ class MMMYamlConfig(BaseModel):
     model: BuildSpec = Field(..., description="MMM class and constructor arguments.")
     data: DataConfig | None = Field(None, description="Data file paths.")
     effects: list[BuildSpec] | None = Field(None, description="Additive effects.")
+    extra_vars: list[str] | None = Field(
+        None,
+        description=(
+            "Columns that must reach the model as data variables rather than "
+            "channels or controls. When set, a DataFrame input is converted to "
+            "an xarray.Dataset before build_model."
+        ),
+    )
     original_scale_vars: list[str] | None = Field(
         None, description="Original-scale variables."
     )

@@ -225,7 +225,9 @@ class TestParetoNBDModel:
     )
     def test_model_convergence(self, method, rtol):
         model = ParetoNBDModel()
-        model.fit(data=self.data, method=method, progressbar=False)
+        # Seeded: the s/beta pair sits on a weakly identified posterior ridge,
+        # so an unseeded gradient-free chain (demz) drifts past rtol on some runs.
+        model.fit(data=self.data, method=method, progressbar=False, random_seed=42)
 
         fit = model.idata.posterior
         np.testing.assert_allclose(

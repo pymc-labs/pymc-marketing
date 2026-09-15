@@ -54,7 +54,14 @@ def build_default_sum_constraint(key: str = "default") -> Constraint:
     def _constraint_fun(
         budgets_sym: XTensorVariable, total_budget_sym: XTensorVariable, optimizer
     ) -> XTensorVariable:
-        return budgets_sym.sum() - total_budget_sym
+        # Total every variable that spends from the pot, not the media tensor
+        # alone, so a second monetary variable shares the budget rather than
+        # being optimized for free.
+        contributions = optimizer.optimization_variables.budget_contributions()
+        total = contributions[0].sum()
+        for contribution in contributions[1:]:
+            total = total + contribution.sum()
+        return total - total_budget_sym
 
     return Constraint(
         key=key,
@@ -109,6 +116,7 @@ def compile_constraints_for_scipy(constraints: list[Constraint] | dict, optimize
 
         compiled_constraints.append(
             {
+                "key": constraint.key,
                 "type": constraint.constraint_type,
                 "fun": compiled_fun,
                 "jac": compiled_jac,

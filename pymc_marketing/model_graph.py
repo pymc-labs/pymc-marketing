@@ -16,7 +16,6 @@
 import pymc as pm
 import pymc.dims as pmd
 from pymc.model.fgraph import (
-    extract_dims,
     fgraph_from_model,
     model_free_rv,
     model_from_fgraph,
@@ -128,7 +127,7 @@ def deterministics_to_flat(model: pm.Model, names: list[str]) -> pm.Model:
 
     for variable in model_variables:
         model_var = memo[variable]
-        dims = extract_dims(model_var)
+        dims = model_var.owner.op.dims
         underlying_var = model_var.owner.inputs[0]
         underlying_shape = get_symbolic_rv_shape(underlying_var)
         if isinstance(underlying_var, XTensorVariable):
@@ -145,6 +144,7 @@ def deterministics_to_flat(model: pm.Model, names: list[str]) -> pm.Model:
             new_rv,
             new_rv.type(name=model_var.name),
             None,
+            model_var.name,
             *dims,
         )
 
