@@ -1,0 +1,21 @@
+docs/source/conf.py
+  s_63b494e47a0c0c::t_d13b6a966008b2 110-112,288
+docs/source/robots.txt
+  s_63b494e47a0c0c::t_f2d1c512dcbe2d 44-46,51-54
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "aaef1ce9ab3df1f7050294a92d85a0dfd6e16886",
+  "prompts": {},
+  "sessions": {
+    "s_63b494e47a0c0c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "077b3b51-9315-4676-8183-6cfb1bee9c40",
+        "model": "claude-opus-5"
+      },
+      "human_author": "root <root@e2b.local>"
+    }
+  }
+}
