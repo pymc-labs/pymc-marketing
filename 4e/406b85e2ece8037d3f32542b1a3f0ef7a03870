@@ -1,0 +1,34 @@
+pymc_marketing/mmm/plotting/cv.py
+  s_9f8ad58e452bdf::t_24492531d55e75 415,424-429,437
+  s_9f8ad58e452bdf::t_c3cfef41c293f2 45-68
+  s_9f8ad58e452bdf::t_defe7f9a011cd9 312,320-326,343-347
+tests/mmm/plotting/test_cv.py
+  s_9f8ad58e452bdf::t_559f3717a83228 542-589
+  s_503ae712c92915::t_079deea68acea6 590-607
+docs/source/notebooks/mmm/mmm_case_study2.ipynb
+  s_9f8ad58e452bdf::t_70ec38fe83e629 56,1948,5316-5317,5345,5367,5370,5372,5380,5386,5394-5395
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "4e406b85e2ece8037d3f32542b1a3f0ef7a03870",
+  "prompts": {},
+  "sessions": {
+    "s_503ae712c92915": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8db1f06e-a257-4499-a4e3-4bd6d9e0f402",
+        "model": "claude-opus-5"
+      },
+      "human_author": "root <root@e2b.local>"
+    },
+    "s_9f8ad58e452bdf": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "037bfa93-9c04-4f9f-93e8-9c3a5c7cfd75",
+        "model": "claude-opus-5"
+      },
+      "human_author": "root <root@e2b.local>"
+    }
+  }
+}
