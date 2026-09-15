@@ -1480,7 +1480,6 @@ class BudgetOptimizer(BaseModel):
     _pymc_model: Model = PrivateAttr()
     _shared_posterior: SharedPosterior | None = PrivateAttr(default=None)
     _mask_auto_detected: bool = PrivateAttr(default=False)
-    _mask_from_fallback: bool = PrivateAttr(default=False)
     _variables: OptimizationVariables = PrivateAttr()
     _objective_and_grad: Callable = PrivateAttr()
     _constraints: dict = PrivateAttr()
@@ -1627,7 +1626,6 @@ class BudgetOptimizer(BaseModel):
         #    as MMM.budget_optimizer deliberately do not narrow the mask themselves.
         if self.budgets_to_optimize is None:
             self._mask_auto_detected = True
-            self._mask_from_fallback = self._posterior_channel_mask(self.idata) is None
             self.budgets_to_optimize = self._auto_detect_mask(self.idata)
         else:
             self._validate_mask_against_posterior(self.budgets_to_optimize, self.idata)
@@ -2122,14 +2120,14 @@ class BudgetOptimizer(BaseModel):
         never call this keep the constant-folded graphs they have today.
 
         The new posterior must hold every variable the graphs read, with the
-        same non-sample dimensions.  Coordinates are matched by label when
-        present, so a reordered ``channel`` axis is realigned.  The number of
-        draws may differ.  The budget mask is kept: when it was auto-detected
-        from the construction posterior's ``channel_contribution`` and the new
-        posterior carries one implying a different mask, the call raises
-        rather than solve a different decision problem on the old decision
-        vector.  A mask that fell back to every cell at construction, or a new
-        posterior without ``channel_contribution``, is not compared.
+        same non-sample dimensions and the same set of labels on each; labels
+        are compared by value, so a reordered ``channel`` axis is realigned.
+        The number of draws may differ.  The budget mask is fixed at
+        construction: it defines the decision vector the graphs were compiled
+        for, so a posterior that would have auto-detected a different mask is
+        solved on the existing one.  Build a new optimizer to change the mask.
+        A user-supplied mask is validated against the new posterior the way
+        construction validates it.
 
         The rebind is local to this optimizer.  A model the optimizer was
         built from keeps its own ``idata``; post-processing done there still
@@ -2150,9 +2148,10 @@ class BudgetOptimizer(BaseModel):
             If the posterior lacks a variable the graphs read.
         ValueError
             If a variable's non-sample dimensions, lengths or coordinate
-            labels differ from the construction posterior, or if the mask
-            derived from the new posterior differs from the one in use.
-            Nothing is changed in that case, including on the first call:
+            labels differ from the construction posterior, or if a
+            user-supplied mask optimizes a cell the new posterior has no
+            information about.  Nothing is changed in that case, including
+            on the first call:
             a recompile that fails leaves the constant-folded graphs, the
             previous ``idata`` and the previous constraints in place.
 
@@ -2172,40 +2171,15 @@ class BudgetOptimizer(BaseModel):
             idata = DataTree.from_dict({"/posterior": idata})
         idata = _to_datatree(idata)
 
-        # The mask fixes the decision vector the graphs were compiled for, so
-        # it cannot follow the posterior; it can only be checked against it.
-        current_mask = cast(DataArray, self.budgets_to_optimize)
-        if self._mask_auto_detected:
-            # The comparison only makes sense between two posterior-derived
-            # masks.  A mask that came from the all-ones fallback at
-            # construction was never a claim about any posterior, and a new
-            # posterior without channel_contribution (thinned to the free RVs
-            # the graphs read) implies nothing; in both cases there is nothing
-            # to compare and the mask in use is simply kept.
-            implied_mask = (
-                None
-                if self._mask_from_fallback
-                else self._posterior_channel_mask(idata)
+        # The mask is fixed at construction: it defines the decision vector the
+        # graphs were compiled for, so a rebind never re-derives it.  A
+        # user-supplied mask is still checked against the new posterior the way
+        # construction checks it, so it cannot optimize a cell the new draws
+        # carry no information about.
+        if not self._mask_auto_detected:
+            self._validate_mask_against_posterior(
+                cast(DataArray, self.budgets_to_optimize), idata
             )
-            if implied_mask is not None:
-                new_mask = (
-                    align_to_model_coords(
-                        implied_mask, self._budget_coords, label="budgets_to_optimize"
-                    )
-                    .transpose(*self._budget_dims)
-                    .astype(bool)
-                )
-                if not np.array_equal(new_mask.values, current_mask.values):
-                    raise ValueError(
-                        "The new posterior implies a different auto-detected "
-                        "budgets_to_optimize mask than the one this optimizer was "
-                        f"built with ({current_mask.values.tolist()} -> "
-                        f"{new_mask.values.tolist()}). The mask fixes the decision "
-                        "vector the graphs were compiled for, so build a new optimizer "
-                        "or pass budgets_to_optimize explicitly."
-                    )
-        else:
-            self._validate_mask_against_posterior(current_mask, idata)
 
         if self._shared_posterior is not None:
             self._shared_posterior.set_posterior(_extract_dataset(idata, "posterior"))

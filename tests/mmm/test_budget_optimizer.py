@@ -1715,10 +1715,14 @@ def test_set_posterior_accepts_bare_posterior_dataset(mmm_wrapper, dummy_idata):
     assert optimizer.idata["posterior"].sizes["draw"] == 1
 
 
-def test_set_posterior_refuses_a_posterior_that_changes_the_auto_mask(
-    mmm_wrapper, dummy_idata
-):
-    """An auto-detected mask fixes the decision vector; a posterior implying another is refused."""
+def test_set_posterior_keeps_the_auto_detected_mask(mmm_wrapper, dummy_idata):
+    """The mask is fixed at construction; a posterior implying another is solved on it.
+
+    The mask defines the decision vector the graphs were compiled for, so a
+    rebind never re-derives it.  Changing the mask means building a new
+    optimizer, which is what a caller who wants the other decision problem
+    does anyway.
+    """
     posterior = dummy_idata["posterior"].to_dataset()
 
     def with_contributions(per_channel):
@@ -1729,24 +1733,29 @@ def test_set_posterior_refuses_a_posterior_that_changes_the_auto_mask(
             {"/posterior": posterior.assign(channel_contribution=contribution)}
         )
 
-    optimizer = BudgetOptimizer(
-        model=CustomModelWrapper(
-            base_model=mmm_wrapper.base_model,
-            idata=with_contributions([1.0, 0.0]),
-            channels=mmm_wrapper.channel_columns,
-        ),
-        num_periods=30,
-        response_variable="total_media_contribution_original_scale",
-    )
+    def optimizer_on(idata):
+        return BudgetOptimizer(
+            model=CustomModelWrapper(
+                base_model=mmm_wrapper.base_model,
+                idata=idata,
+                channels=mmm_wrapper.channel_columns,
+            ),
+            num_periods=30,
+            response_variable="total_media_contribution_original_scale",
+        )
+
+    optimizer = optimizer_on(with_contributions([1.0, 0.0]))
     assert optimizer.budgets_to_optimize.values.tolist() == [True, False]
 
-    with pytest.raises(
-        ValueError, match=r"different auto-detected budgets_to_optimize"
-    ):
-        optimizer.set_posterior(with_contributions([0.0, 1.0]))
-    assert optimizer._shared_posterior is None  # nothing changed
+    swapped = with_contributions([0.0, 1.0])
+    optimizer.set_posterior(swapped)
+    assert optimizer.idata is swapped
+    assert optimizer.budgets_to_optimize.values.tolist() == [True, False]  # pinned
+    allocation, _ = optimizer.allocate_budget(total_budget=60.0)
+    assert allocation.values.tolist() == [60.0, 0.0]  # the old decision vector
 
-    optimizer.set_posterior(with_contributions([1.0, 0.0]))  # same mask: fine
+    # A fresh optimizer on the same posterior picks the other cell.
+    assert optimizer_on(swapped).budgets_to_optimize.values.tolist() == [False, True]
 
 
 def test_set_posterior_requires_every_bound_variable(mmm_wrapper, dummy_idata):
@@ -1839,64 +1848,12 @@ def test_set_posterior_accepts_a_posterior_without_channel_contribution(
     assert optimizer.budgets_to_optimize.values.tolist() == [True, False]  # kept
 
 
-def test_set_posterior_auto_mask_check_follows_the_model_dim_order():
-    """The re-derived mask is laid out like the one in use before they are compared.
-
-    ``channel_contribution`` may declare the budget dims in a different order
-    than the channel data; the construction mask is transposed to the model's
-    order, so the rebind check has to be too, or an identical posterior looks
-    like a different mask.
-    """
-    n_dates, countries, channels = 6, ["x", "y", "z"], ["a", "b"]
-    coords = {"date": range(n_dates), "country": countries, "channel": channels}
-    with pm.Model(coords=coords) as model:
-        channel_data = pmd.Data(
-            "channel_data",
-            np.ones((n_dates, len(countries), len(channels))),
-            dims=("date", "country", "channel"),
-        )
-        beta = pmd.Normal("beta", 1.0, 0.1, dims=("country", "channel"))
-        contribution = channel_data * beta
-        pmd.Deterministic(
-            "channel_contribution",
-            contribution.transpose("date", "channel", "country"),
-            dims=("date", "channel", "country"),
-        )
-        pmd.Deterministic(
-            "total_media_contribution_original_scale", contribution.sum(), dims=()
-        )
-    prior = pm.sample_prior_predictive(draws=4, model=model, random_seed=1)
-    posterior = prior.prior
-    # One uninformed cell, so the mask is neither all-ones nor square.
-    posterior["channel_contribution"].loc[dict(country="z", channel="b")] = 0.0
-    idata = xr.DataTree.from_dict({"posterior": posterior})
-
-    optimizer = BudgetOptimizer(
-        model=model, idata=idata, num_periods=4, adstock_periods=2
-    )
-    assert optimizer.budgets_to_optimize.dims == ("country", "channel")
-    assert optimizer.budgets_to_optimize.values.tolist() == [
-        [True, True],
-        [True, True],
-        [True, False],
-    ]
-
-    optimizer.set_posterior(idata)  # identical posterior: same mask
-    assert optimizer.idata is idata
-
-    changed = posterior.copy(deep=True)
-    changed["channel_contribution"].loc[dict(country="x", channel="a")] = 0.0
-    with pytest.raises(ValueError, match="different auto-detected budgets_to_optimize"):
-        optimizer.set_posterior(xr.DataTree.from_dict({"posterior": changed}))
-
-
 def test_set_posterior_fallback_mask_is_not_compared(mmm_wrapper, dummy_idata):
-    """A mask that fell back to every cell at construction is not a claim.
+    """A mask that fell back to every cell at construction stays every cell.
 
     When the construction posterior had no ``channel_contribution``, the mask
     is the all-ones fallback.  A later posterior that does carry the variable
-    must not be refused for implying a narrower mask: the fallback was never
-    derived from any posterior, so there is nothing to compare it with.
+    is solved on that mask like any other rebind.
     """
     posterior = dummy_idata["posterior"].to_dataset()
     without = posterior.drop_vars("channel_contribution")
@@ -1915,7 +1872,7 @@ def test_set_posterior_fallback_mask_is_not_compared(mmm_wrapper, dummy_idata):
         num_periods=30,
         response_variable="total_media_contribution_original_scale",
     )
-    assert optimizer._mask_auto_detected and optimizer._mask_from_fallback
+    assert optimizer._mask_auto_detected
     assert optimizer.budgets_to_optimize.values.tolist() == [True, True]
 
     optimizer.set_posterior(xr.DataTree.from_dict({"/posterior": narrower}))
@@ -1980,7 +1937,7 @@ def test_set_posterior_first_call_is_validated_like_later_calls(
     construction_idata = with_mask.idata
     constant_objective = with_mask._objective_and_grad
     one_channel = xr.DataTree.from_dict({"/posterior": posterior.isel(channel=[0])})
-    with pytest.raises(ValueError, match=r"channel coordinates"):
+    with pytest.raises(ValueError, match=r"channel labels"):
         with_mask.set_posterior(one_channel)
     assert with_mask._shared_posterior is None
     assert with_mask.idata is construction_idata

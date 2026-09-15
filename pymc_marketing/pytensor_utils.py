@@ -263,28 +263,6 @@ def _array_equal(a: np.ndarray, b: np.ndarray) -> bool:
     return bool(np.array_equal(a, b, equal_nan=equal_nan))
 
 
-def _describe_label_mismatch(
-    new_labels: np.ndarray, bound_labels: np.ndarray, limit: int = 5
-) -> str:
-    """Summarise how two coordinate label sets differ without printing both in full."""
-    # pd.Index normalises datetime units, so [us] and [ns] labels compare equal
-    # and render as timestamps rather than raw integers.
-    new_set, bound_set = set(pd.Index(new_labels)), set(pd.Index(bound_labels))
-    only_new = sorted(new_set - bound_set, key=str)
-    only_bound = sorted(bound_set - new_set, key=str)
-
-    def describe(labels: list, what: str) -> str:
-        if not labels:
-            return f"{len(labels)} {what}"
-        shown = ", ".join(repr(label) for label in labels[:limit])
-        return f"{len(labels)} {what} ({shown}{', ...' if len(labels) > limit else ''})"
-
-    return (
-        f"{len(new_set)} labels given, {len(bound_set)} bound; "
-        f"{describe(only_new, 'not bound')}, {describe(only_bound, 'missing')}."
-    )
-
-
 class SharedPosterior:
     """Posterior draws held in PyTensor shared variables.
 
@@ -304,14 +282,13 @@ class SharedPosterior:
     the instance already holds; handing it a different posterior raises,
     since the graph would otherwise silently read the bound draws.
 
-    Between rebinds the number of draws may change; every other dimension
-    must keep its name and length.  Coordinates on those dimensions are
-    matched by label when the variable was created with labels (a reordered
-    ``channel`` axis is realigned), and positionally when it was created
-    without.  A posterior that carries labels where the bound variable has
-    none, or vice versa, is refused: there is no way to tell whether the
-    positions agree.  A rebind is atomic: every variable is validated and
-    laid out before any is written.
+    The contract for a rebind: every bound variable is present with the
+    dtype it was bound with; every non-sample dimension keeps its name and
+    its set of labels, compared by value (so a reordered ``channel`` axis is
+    realigned, and a datetime axis may change storage unit); a dimension
+    bound without labels must arrive without labels; the number of draws is
+    free.  Anything else is refused, and a rebind is atomic: every variable
+    is validated and laid out before any is written.
 
     Examples
     --------
@@ -331,7 +308,7 @@ class SharedPosterior:
     def __init__(self) -> None:
         self._variables: dict[str, SharedVariable] = {}
         self._dims: dict[str, tuple[str, ...]] = {}
-        self._coords: dict[str, dict[str, np.ndarray]] = {}
+        self._coords: dict[str, dict[str, pd.Index]] = {}
 
     def __repr__(self) -> str:
         """Show each bound variable with its current ``(sample, ...)`` shape."""
@@ -352,13 +329,12 @@ class SharedPosterior:
         return dict(self._dims)
 
     def _aligned_values(self, name: str, posterior_da: xr.DataArray) -> np.ndarray:
-        """Return ``posterior_da`` laid out like the bound variable ``name``.
+        """Return ``posterior_da`` laid out and typed like the bound variable ``name``.
 
-        Validates the dimension names, realigns labelled coordinates to the
-        order the variable was created with, checks every non-sample length
-        and casts to the variable's dtype.  Raises ``ValueError`` on any
-        mismatch; writes nothing.  The returned array is a fresh allocation
-        the shared variable can own outright.
+        Raises ``ValueError`` on any mismatch with the contract in the class
+        docstring; writes nothing.  The returned array is a fresh allocation
+        the shared variable can own outright, which keeps the write phase of
+        :meth:`set_posterior` infallible.
         """
         dims = self._dims[name]
         if set(posterior_da.dims) != set(dims):
@@ -367,33 +343,30 @@ class SharedPosterior:
                 f"expected {dims}."
             )
         for dim in dims[1:]:
-            bound_labels = self._coords[name].get(dim)
-            if (bound_labels is None) != (dim not in posterior_da.coords):
+            bound = self._coords[name].get(dim)
+            given = posterior_da.indexes.get(dim)
+            if (bound is None) != (given is None):
                 raise ValueError(
-                    f"Posterior variable {name!r} "
-                    + (
-                        f"has no {dim} coordinates, but was bound with them"
-                        if bound_labels is not None
-                        else f"has {dim} coordinates, but was bound without them"
-                    )
-                    + ". Label both sides or neither; positions cannot be "
-                    "checked against labels."
+                    f"Posterior variable {name!r}: dimension {dim!r} is labelled on "
+                    "one side only. Label both sides or neither; positions cannot "
+                    "be checked against labels."
                 )
-            if bound_labels is None:
+            if bound is None or given is None:
                 continue
-            new_labels = np.asarray(posterior_da.coords[dim].values)
-            # Compared through pd.Index: a datetime axis changes unit ([us] to
-            # [ns]) across a netCDF round trip while every label stays the same.
-            if set(pd.Index(new_labels)) != set(pd.Index(bound_labels)):
+            # pd.Index compares datetimes by value across storage units, and
+            # sorting makes the check order-free; duplicates change the length
+            # and fail it.
+            if not bound.sort_values().equals(given.sort_values()):
+                extra, missing = given.difference(bound), bound.difference(given)
                 raise ValueError(
-                    f"Posterior variable {name!r} has different {dim} coordinates: "
-                    + _describe_label_mismatch(new_labels, bound_labels)
+                    f"Posterior variable {name!r} has different {dim} labels: "
+                    f"{len(extra)} not bound, {len(missing)} missing "
+                    f"(e.g. {list(extra[:3])} / {list(missing[:3])})."
                 )
-            posterior_da = posterior_da.sel({dim: bound_labels})
+            posterior_da = posterior_da.sel({dim: bound})
         var = self._variables[name]
         # astype always allocates, so the shared variable owns the array and
-        # borrow=True cannot alias the caller's data.  Casting here keeps the
-        # write phase of set_posterior infallible.
+        # borrow=True cannot alias the caller's data.
         values = posterior_da.transpose(*dims).values.astype(var.type.dtype)
         bound_shape = var.get_value(borrow=True).shape[1:]
         if values.shape[1:] != bound_shape:
@@ -416,9 +389,9 @@ class SharedPosterior:
             self._variables[name] = shared(posterior_da.values.astype(dtype), name=name)
             self._dims[name] = dims
             self._coords[name] = {
-                dim: np.asarray(posterior_da.coords[dim].values)
+                dim: posterior_da.indexes[dim]
                 for dim in dims[1:]
-                if dim in posterior_da.coords
+                if dim in posterior_da.indexes
             }
         else:
             var = self._variables[name]

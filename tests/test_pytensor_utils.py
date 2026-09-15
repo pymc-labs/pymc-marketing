@@ -889,11 +889,10 @@ def test_shared_posterior_aligns_coordinates_on_rebind():
     np.testing.assert_allclose(fn(), [[10.0, 20.0]])
 
     relabelled = _two_channel_posterior([1.0, 2.0], [10.0, 10.0], channel=("a", "c"))
-    with pytest.raises(ValueError, match=r"channel coordinates") as info:
+    with pytest.raises(ValueError, match=r"channel labels") as info:
         shared_posterior.set_posterior(relabelled)
     # The message summarises the difference rather than dumping both axes.
-    message = str(info.value)
-    assert "1 not bound ('c')" in message and "1 missing ('b')" in message
+    assert "1 not bound, 1 missing" in str(info.value)
 
 
 def test_shared_posterior_coordinate_mismatch_message_stays_short():
@@ -914,10 +913,9 @@ def test_shared_posterior_coordinate_mismatch_message_stays_short():
     # A day's shift makes every label differ, which is the worst case: the
     # message has to truncate both sides rather than list 208 labels each.
     shifted = posterior.assign_coords(date=list(dates + pd.Timedelta(days=1)))
-    with pytest.raises(ValueError, match=r"208 labels given, 208 bound") as info:
+    with pytest.raises(ValueError, match=r"208 not bound, 208 missing") as info:
         shared_posterior.set_posterior(shifted)
-    assert "..." in str(info.value)
-    assert len(str(info.value)) < 600
+    assert len(str(info.value)) < 400
 
 
 def test_shared_posterior_accepts_datetime_labels_across_units():
@@ -974,9 +972,7 @@ def test_shared_posterior_refuses_labelled_against_unlabelled_dims():
             shared_posterior=with_labels,
         ),
     )
-    with pytest.raises(
-        ValueError, match=r"has no channel coordinates, but was bound with"
-    ):
+    with pytest.raises(ValueError, match=r"'channel' is labelled on one side only"):
         with_labels.set_posterior(unlabelled([2.0, 1.0], [2.0, 2.0]))
     np.testing.assert_allclose(fn(), [[2.0, 4.0]])
 
@@ -991,9 +987,7 @@ def test_shared_posterior_refuses_labelled_against_unlabelled_dims():
             shared_posterior=without_labels,
         ),
     )
-    with pytest.raises(
-        ValueError, match=r"has channel coordinates, but was bound without"
-    ):
+    with pytest.raises(ValueError, match=r"'channel' is labelled on one side only"):
         without_labels.set_posterior(
             _two_channel_posterior([2.0, 1.0], [2.0, 2.0], channel=("b", "a"))
         )
