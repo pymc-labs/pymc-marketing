@@ -114,7 +114,7 @@ from pymc_extras.deserialize import deserialize
 from pymc_extras.prior import Prior
 from pytensor.xtensor.type import XTensorVariable, as_xtensor
 
-from pymc_marketing.mmm.components.base import Transformation
+from pymc_marketing.mmm.components.base import Transformation, _deserialize_value
 from pymc_marketing.mmm.dims import XTensorLike
 from pymc_marketing.mmm.utils import density
 from pymc_marketing.serialization import serialization
@@ -133,9 +133,9 @@ class Basis(Transformation):
         data.pop("lookup_name", None)
 
         if "priors" in data:
-            from pymc_extras.deserialize import deserialize
-
-            data["priors"] = {k: deserialize(v) for k, v in data["priors"].items()}
+            data["priors"] = {
+                k: _deserialize_value(v) for k, v in data["priors"].items()
+            }
 
         return cls(**data)
 
