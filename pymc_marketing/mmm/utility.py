@@ -62,6 +62,17 @@ def _check_samples_dimensionality(samples: XTensorVariable) -> XTensorVariable:
         )
 
 
+def _check_samples_dimensionality_2d(samples: XTensorVariable) -> XTensorVariable:
+    """Check if samples is a 2D tensor variable."""
+    ndim = samples.type.ndim
+    if ndim == 2:
+        return samples
+    else:
+        raise ValueError(
+            f"Function expected samples to be a 2D tensor variable. Got {ndim} dimensions."
+        )
+
+
 def _compute_quantile(x: XTensorVariable, q: float) -> XTensorVariable:
     """
     Compute the quantile of a PyTensor tensor variable.
@@ -593,7 +604,7 @@ def diversification_ratio(
     """
     samples = as_xtensor(samples)
     budgets = as_xtensor(budgets)
-    samples = _check_samples_dimensionality(samples)
+    samples = _check_samples_dimensionality_2d(samples)
     weights = budgets / budgets.sum()
     individual_volatilities = samples.std(dim="sample", ddof=1)
 
@@ -602,7 +613,8 @@ def diversification_ratio(
 
     # w'Σw
     portfolio_var = ptx.dot(
-        weights.rename({asset_dim: f"{asset_dim}'"}, ptx.dot(cov_matrix, weights)),
+        weights.rename({asset_dim: f"{asset_dim}'"}),
+        ptx.dot(cov_matrix, weights),
     )
     portfolio_volatility = ptx.math.sqrt(portfolio_var)
     weighted_avg_volatility = (weights * individual_volatilities).sum()

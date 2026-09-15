@@ -25,6 +25,7 @@ from pymc_marketing.mmm.utility import (
     adjusted_value_at_risk_score,
     average_response,
     conditional_value_at_risk,
+    diversification_ratio,
     mean_tightness_score,
     portfolio_entropy,
     raroc,
@@ -487,3 +488,46 @@ def test_adjusted_value_at_risk_score_invalid_risk_aversion(risk_aversion, test_
         adjusted_value_at_risk_score(
             confidence_level=0.95, risk_aversion=risk_aversion
         )(samples, budgets).eval()
+
+
+@pytest.mark.parametrize(
+    "n_samples, n_assets",
+    [
+        (500, 3),
+        (50, 1),
+        (25, 5),
+    ],
+)
+def test_diversification_ratio_matches_numpy_reference(n_samples, n_assets):
+    returns = rng.normal(size=(n_samples, n_assets))
+    budgets_np = rng.uniform(low=100, high=1000, size=n_assets)
+
+    samples = as_xtensor(returns, dims=("sample", "channel"))
+    budgets = as_xtensor(budgets_np, dims=("channel",))
+
+    result = diversification_ratio(samples, budgets).values.eval()
+
+    weights = budgets_np / budgets_np.sum()
+    individual_volatilities = returns.std(axis=0, ddof=1)
+    cov_matrix = np.cov(returns, rowvar=False, ddof=1).reshape(n_assets, n_assets)
+    portfolio_volatility = np.sqrt(weights @ cov_matrix @ weights)
+    weighted_avg_volatility = (weights * individual_volatilities).sum()
+    expected = weighted_avg_volatility / portfolio_volatility
+
+    np.testing.assert_allclose(
+        result,
+        expected,
+        rtol=1e-5,
+        atol=1e-8,
+        err_msg="Diversification ratio mismatch against numpy reference",
+    )
+
+
+def test_diversification_ratio_rejects_1d_samples():
+    samples = as_xtensor(rng.normal(size=50), dims=("sample",))
+    budgets = as_xtensor(np.array([100.0]), dims=("channel",))
+
+    with pytest.raises(
+        ValueError, match=r"Function expected samples to be a 2D tensor variable\."
+    ):
+        diversification_ratio(samples, budgets)
