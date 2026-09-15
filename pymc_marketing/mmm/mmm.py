@@ -2055,6 +2055,40 @@ class MMM(RegressionModelBuilder):
                 "Model was not built. Build the model first using MMM.build_model()"
             )
 
+    def scaled_channel(self, channel: str) -> XTensorVariable:
+        """Return scaled spend for a single channel by name.
+
+        Indexes ``channel_data_scaled`` by the model's ``channel`` coordinate,
+        which is the axis of the tensor.  For DataFrame input that matches
+        ``channel_columns``; for ``xr.Dataset`` input it follows the dataset
+        coordinate, which may be ordered differently.
+
+        Parameters
+        ----------
+        channel : str
+            Channel name present on the model's ``channel`` coordinate.
+
+        Returns
+        -------
+        XTensorVariable
+            Scaled channel spend with the ``channel`` dimension dropped.
+
+        Raises
+        ------
+        ValueError
+            If the model has not been built or *channel* is not in the
+            model's ``channel`` coordinate.
+        """
+        self._validate_model_was_built()
+        channels = list(self.model_coords["channel"])
+        try:
+            channel_idx = channels.index(channel)
+        except ValueError as err:
+            raise ValueError(
+                f"Channel {channel!r} not in model channel coords {channels!r}."
+            ) from err
+        return self.channel_data_scaled.isel(channel=channel_idx)
+
     def _validate_contribution_variable(self, var: str) -> None:
         """Validate that the variable ends with "_contribution" and is in the model."""
         if not (var.endswith("_contribution") or var == self.output_var):
