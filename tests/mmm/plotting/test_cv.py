@@ -587,3 +587,21 @@ class TestCRPS:
         assert len(axes) == 2, "Expected one panel per geo"
         for ax in axes:
             assert len(ax.lines) == 2
+
+    def test_fold_ticks_skip_backends_without_tick_api(self):
+        """A non-matplotlib plot object is left alone instead of raising."""
+        from types import SimpleNamespace
+
+        from pymc_marketing.mmm.plotting.cv import _label_fold_ticks
+
+        class TicklessPanel:
+            """Stand-in for a backend panel with no matplotlib tick API."""
+
+        panel = TicklessPanel()
+        pc = SimpleNamespace(
+            viz={"plot": SimpleNamespace(values=np.array([panel], dtype=object))}
+        )
+
+        _label_fold_ticks(pc, ["Fold 0", "Fold 1"])
+
+        assert not hasattr(panel, "set_xticks")
