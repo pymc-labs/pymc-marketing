@@ -193,7 +193,7 @@ import os
 import tempfile
 import traceback
 import warnings
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from functools import wraps
 from pathlib import Path
 from typing import Any, Literal
@@ -255,42 +255,21 @@ def _take_every(n: int):
     return decorator
 
 
-# Known PyMC transform suffixes used in ``draw.point`` keys. Extend this
-# tuple to support more transformations. Two caveats before adding entries:
-#
-# 1. Scalar-only. ``mlflow.log_metric`` accepts a scalar value, so only
-#    transforms that produce scalar value vars are safe to list here.
-#    Scalar-friendly: ``_logodds__`` (Beta, Uniform on (0, 1)),
-#    ``_interval__`` (bounded), ``_log_exp_m1__``, ``_circular__``.
-#    Vector-valued (``_ordered__``, ``_simplex__``, ``_sumto1__``,
-#    ``_zerosum__``, ``_cholesky-cov-packed__``) need per-component
-#    logging before they can be added; do not include them as-is.
-#
-# 2. Built-in transforms only. PyMC lets users subclass ``Transform`` and
-#    pick any ``name``, which produces a value var named
-#    ``f"{var}_{transform.name}__"``. Custom names are unknown here, so
-#    users of custom transforms must still pass the explicit transformed
-#    name. The exact-match branch in ``_resolve_parameter`` preserves
-#    that escape hatch.
-_TRANSFORM_SUFFIXES: tuple[str, ...] = ("_log__",)
+def _recorded_point(trace, draw) -> Mapping[str, Any]:
+    """Return the values PyMC recorded for ``draw``.
 
+    PyMC records each draw in ``trace`` before calling the callback, and the
+    default ``NDArray`` trace stores the free variables on their constrained
+    scale (``sigma``), next to the sampler's value variables (``sigma_log__``)
+    and the deterministics. ``draw.point`` holds only the value variables.
 
-def _resolve_parameter(name: str, point: dict) -> str:
-    """Map a model-level variable name to its key in ``draw.point``.
-
-    Returns ``name`` if it is already a key in ``point``. Otherwise tries
-    ``name + suffix`` for each suffix in ``_TRANSFORM_SUFFIXES`` and returns
-    the first match. Raises ``KeyError`` if no candidate is found.
+    Traces that do not expose recorded draws, such as ``ZarrChain``, raise
+    ``NotImplementedError``; those fall back to ``draw.point``.
     """
-    if name in point:
-        return name
-    for suffix in _TRANSFORM_SUFFIXES:
-        candidate = f"{name}{suffix}"
-        if candidate in point:
-            return candidate
-    raise KeyError(
-        f"Parameter {name!r} not found in draw.point. Available keys: {sorted(point)}."
-    )
+    try:
+        return trace.point(len(trace) - 1)
+    except NotImplementedError:
+        return draw.point
 
 
 def create_log_callback(
@@ -308,7 +287,11 @@ def create_log_callback(
     stats : list of str, optional
         List of sample statistics to log from the Draw
     parameters : list of str, optional
-        List of parameters to log from the Draw
+        Names of variables to log from the draw PyMC has just recorded. A
+        model-level name such as ``sigma`` is logged on its constrained scale,
+        a value variable name such as ``sigma_log__`` on the sampler's
+        unconstrained scale. Deterministics can be logged too. Each value must
+        be a scalar, since ``mlflow.log_metric`` only accepts scalars.
     exclude_tuning : bool, optional
         Whether to exclude tuning steps from logging. Defaults to True.
     take_every : int, optional
@@ -351,9 +334,9 @@ def create_log_callback(
             idata = pm.sample(model=model, callback=callback)
 
     Log the parameters `mu` and `sigma` every 100th draw. PyMC samples
-    `sigma` on the unconstrained scale as `sigma_log__`; the callback
-    resolves the transformed name automatically, so passing the
-    model-level name is enough:
+    `sigma` on the unconstrained scale as `sigma_log__`; the callback logs
+    `sigma` itself, read from the draw PyMC just recorded. Pass
+    `sigma_log__` to log the unconstrained value instead:
 
     .. code-block:: python
 
@@ -375,9 +358,7 @@ def create_log_callback(
     if not stats and not parameters:
         raise ValueError("At least one of `stats` or `parameters` must be provided.")
 
-    resolved: dict[str, str] = {}
-
-    def callback(_, draw):
+    def callback(trace, draw):
         prefix = f"chain_{draw.chain}"
         for stat in stats or []:
             mlflow.log_metric(
@@ -386,17 +367,23 @@ def create_log_callback(
                 step=draw.draw_idx,
             )
 
-        if not resolved and parameters:
-            resolved.update({p: _resolve_parameter(p, draw.point) for p in parameters})
+        if not parameters:
+            return
 
-        for parameter in parameters or []:
+        point = _recorded_point(trace, draw)
+        for parameter in parameters:
+            if parameter not in point:
+                raise KeyError(
+                    f"Parameter {parameter!r} not found in the recorded draw. "
+                    f"Available keys: {sorted(point)}."
+                )
             # `mlflow.log_metric` is scalar-only. Vector-valued parameters
             # (Dirichlet, Ordered, ZeroSumNormal, ...) raise `MlflowException`
             # here. Expanding them into per-component metrics is left to a
-            # follow-up PR; see the comment on `_TRANSFORM_SUFFIXES`.
+            # follow-up PR.
             mlflow.log_metric(
                 key=f"{prefix}/{parameter}",
-                value=draw.point[resolved[parameter]],
+                value=point[parameter],
                 step=draw.draw_idx,
             )
 
