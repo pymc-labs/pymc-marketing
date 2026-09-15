@@ -310,8 +310,13 @@ class BetaGeoBetaBinom(Discrete):
         # Broadcast all the parameters so they are sequences.
         # Potentially inefficient, but otherwise ugly logic needed to unpack arguments in the scan function,
         # since sequences always precede non-sequences.
-        t_x, alpha, beta, gamma, delta, T = pt.broadcast_arrays(
-            t_x, alpha, beta, gamma, delta, T
+        # `x` must be broadcast too: it comes from `value`, whose length may
+        # differ from the parameter batch. If it keeps a shorter length (e.g. a
+        # single customer against a batch of parameter draws), `scan` truncates
+        # to the shortest sequence and the logp silently computes over a
+        # prefix of the data (see #2919).
+        t_x, x, alpha, beta, gamma, delta, T = pt.broadcast_arrays(
+            t_x, x, alpha, beta, gamma, delta, T
         )
 
         def logp_customer_died(t_x_i, x_i, alpha_i, beta_i, gamma_i, delta_i, T_i):
