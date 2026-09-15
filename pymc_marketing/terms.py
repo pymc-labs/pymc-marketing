@@ -40,12 +40,15 @@ with the built-ins via ``+`` / ``*`` / ``-`` --- no framework changes
 required.
 
 Lifecycle (per term)
-^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^
 - ``get_coords(ds)`` -- return coordinates from data variables (outside model)
 - ``add_coords(ds)`` -- add model-only coordinates, if not in dataset (inside model context)
 - ``register_data(ds)`` -- register ``pmd.Data`` shared variables (inside model)
 - ``create_variable()`` -- build a dimensional tensor **inside** a ``pm.Model`` context
 - ``set_data(ds, model)`` -- update shared variables for prediction
+- ``sample_vars`` (property) -- names of unobserved variables that must be
+  re-sampled rather than frozen from the trace when predictive data change
+  (e.g. the BART ensemble of ``pymc_marketing.bart``). Defaults to ``[]``.
 
 ``register_data`` calls ``add_coords`` before ``register_data`` on each
 ``ModelTerm``, so dynamic coordinates are handled automatically.
@@ -242,9 +245,18 @@ from typing import Any, cast
 import pymc as pm
 import pymc.dims as pmd
 import pytensor.tensor as pt
+import pytensor.xtensor as ptx
 import xarray as xr
-from pymc_extras.prior import Prior, VariableFactory
+from pymc_extras.prior import (
+    CUSTOM_TRANSFORMS,
+    Prior,
+    UnknownTransformError,
+    VariableFactory,
+    _get_transform,
+)
 from pytensor.xtensor.type import as_xtensor
+
+from pymc_marketing.serialization import SerializationError, serialization
 
 __all__ = [
     "Dot",
@@ -261,6 +273,86 @@ __all__ = [
     "register_data",
     "set_data",
 ]
+
+
+def _func_name(func: Callable) -> str:
+    """Resolve a transform function to its serializable name."""
+    for name, registered in CUSTOM_TRANSFORMS.items():
+        if registered is func:
+            return name
+    for module in (ptx.math, ptx.linalg, ptx):
+        for attr in dir(module):
+            if getattr(module, attr, None) is func:
+                return attr
+    raise SerializationError(
+        f"Function {func!r} is not serializable. Use a "
+        "pytensor.xtensor.math function, or register it with "
+        "pymc_extras.prior.register_tensor_transform."
+    )
+
+
+def _resolve_func(name: str) -> Callable:
+    """Resolve a serialized transform function name to a live callable."""
+    try:
+        func = _get_transform(name, xdist=True)
+    except UnknownTransformError as err:
+        raise SerializationError(
+            f"Unknown serialized function {name!r}. Use a "
+            "pytensor.xtensor.math function, or register it with "
+            "pymc_extras.prior.register_tensor_transform."
+        ) from err
+    if name not in CUSTOM_TRANSFORMS and (name.startswith("_") or not callable(func)):
+        raise SerializationError(
+            f"Serialized function name {name!r} must resolve to a "
+            f"callable pytensor function, got {func!r}."
+        )
+    return func
+
+
+def _serialize_child(value: Any) -> Any:
+    """Serialize a child of a composed term to a JSON-safe value.
+
+    Numeric literals become ``{"__literal__": value}`` wrappers; registered
+    terms serialize through the type registry; ``VariableFactory`` and
+    ``xr.DataArray`` children serialize via their own ``to_dict``.
+    """
+    if isinstance(value, (bool, int, float)):
+        return {"__literal__": value}
+    try:
+        return serialization.serialize(value)
+    except (KeyError, TypeError):
+        pass
+    if isinstance(value, (VariableFactory, xr.DataArray)):
+        return value.to_dict()
+    raise SerializationError(
+        f"Cannot serialize term child of type {type(value).__name__}. "
+        "Register it with @serialization.register and implement "
+        "to_dict/from_dict, or use a supported child type "
+        "(VariableFactory, xr.DataArray, numeric literal)."
+    )
+
+
+def _deserialize_child(value: Any) -> Any:
+    """Deserialize a serialized term child back to a live object."""
+    from pymc_extras.deserialize import (
+        DeserializableError,
+    )
+    from pymc_extras.deserialize import (
+        deserialize as pymc_extras_deserialize,
+    )
+
+    if isinstance(value, dict):
+        if "__literal__" in value:
+            return value["__literal__"]
+        if value.get("__deferred__") or "__type__" in value:
+            return serialization.deserialize(value)
+        try:
+            return pymc_extras_deserialize(value)
+        except DeserializableError as err:
+            raise SerializationError(
+                f"Cannot deserialize term child: {value}."
+            ) from err
+    return value
 
 
 @dataclass
@@ -321,6 +413,19 @@ class ModelTerm:
             The PyMC model to update.
         """
 
+    @property
+    def sample_vars(self) -> list[str]:
+        """Names of unobserved variables re-sampled in predictive mode.
+
+        Members of the sixth lifecycle step. When the registered data are
+        swapped for out-of-sample prediction, variables listed here are
+        re-sampled rather than frozen from the trace, so the term's
+        out-of-sample contribution stays conditioned on the new data. The
+        default of ``[]`` (nothing re-sampled) is correct for terms that
+        depend only on free parameters.
+        """
+        return []
+
     def __add__(self, other: Any) -> Sum:
         """Compose additively with another term."""
         return Sum([self, other])
@@ -352,6 +457,7 @@ class ModelTerm:
         return Product(-1, self)
 
 
+@serialization.register
 @dataclass
 class Sum:
     """Container for additive composition via ``+``.
@@ -386,6 +492,15 @@ class Sum:
         """Compose multiplicatively from the left."""
         return Product(other, self)
 
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize the summed terms."""
+        return {"terms": [_serialize_child(term) for term in self.terms]}
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> Sum:
+        """Reconstruct a sum from its serialized terms."""
+        return cls(terms=[_deserialize_child(term) for term in data["terms"]])
+
     def get_coords(self, ds: xr.Dataset) -> dict[str, Any]:
         """Collect coordinates from all terms."""
         coords: dict[str, Any] = {}
@@ -407,6 +522,7 @@ class Sum:
             set_data(term, ds=ds, model=model)
 
 
+@serialization.register
 @dataclass
 class Product:
     """Container for multiplicative composition via ``*``.
@@ -439,6 +555,21 @@ class Product:
         """Compose multiplicatively from the left."""
         return Product(other, self)
 
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize both operands."""
+        return {
+            "left": _serialize_child(self.left),
+            "right": _serialize_child(self.right),
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> Product:
+        """Reconstruct a product from its serialized operands."""
+        return cls(
+            left=_deserialize_child(data["left"]),
+            right=_deserialize_child(data["right"]),
+        )
+
     def register_data(self, ds: xr.Dataset) -> None:
         """Register shared data for both operands."""
         register_data(self, ds=ds)
@@ -449,6 +580,7 @@ class Product:
         set_data(self.right, ds=ds, model=model)
 
 
+@serialization.register
 @dataclass
 class Parameter(ModelTerm):
     """Named free parameter (scalar or dimensional via ``prior.dims``).
@@ -513,7 +645,20 @@ class Parameter(ModelTerm):
         """Build a free parameter variable."""
         return self.prior.create_variable(self.name, xdist=True)
 
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize the parameter name and prior."""
+        return {"name": self.name, "prior": _serialize_child(self.prior)}
 
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> Parameter:
+        """Reconstruct a parameter from its serialized configuration."""
+        return cls(
+            name=data["name"],
+            prior=_deserialize_child(data["prior"]),
+        )
+
+
+@serialization.register
 @dataclass
 class Intercept(Parameter):
     """GLM-style intercept term; same as :class:`Parameter` with a default name.
@@ -534,6 +679,7 @@ class Intercept(Parameter):
     prior: VariableFactory = field(default_factory=lambda: Prior("Normal"))
 
 
+@serialization.register
 @dataclass(kw_only=True)
 class Dot(ModelTerm):
     """Linear predictor term: ``data @ beta``.
@@ -615,7 +761,25 @@ class Dot(ModelTerm):
         beta = self.prior.create_variable(self.name, xdist=True)
         return data @ beta
 
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize the data variable name, prior, and coefficient name."""
+        return {
+            "var_name": self.var_name,
+            "prior": _serialize_child(self.prior),
+            "name": self.name,
+        }
 
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> Dot:
+        """Reconstruct a dot product from its serialized configuration."""
+        return cls(
+            var_name=data["var_name"],
+            prior=_deserialize_child(data["prior"]),
+            name=data["name"],
+        )
+
+
+@serialization.register
 @dataclass
 class Transform(ModelTerm):
     """Apply a pytensor function to a term's output.
@@ -673,6 +837,21 @@ class Transform(ModelTerm):
     def set_data(self, ds: xr.Dataset, model: pm.Model | None = None) -> None:
         """Update shared data for the inner expression."""
         set_data(self.inner, ds=ds, model=model)
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize the inner expression and the transform function name."""
+        return {
+            "inner": _serialize_child(self.inner),
+            "func": _func_name(self.func),
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> Transform:
+        """Reconstruct a transform from its serialized configuration."""
+        return cls(
+            inner=_deserialize_child(data["inner"]),
+            func=_resolve_func(data["func"]),
+        )
 
 
 def get_coords(param: Any, ds: xr.Dataset) -> dict[str, Any]:
@@ -799,8 +978,10 @@ def collect_terms(params: list[Any]) -> list[ModelTerm]:
     """
     result: list[ModelTerm] = []
     for p in params:
-        if isinstance(p, ModelTerm):
+        if isinstance(p, ModelTerm) and not isinstance(p, Transform):
             result.append(p)
+        elif isinstance(p, Transform):
+            result.extend(collect_terms([p.inner]))
         elif isinstance(p, Sum):
             result.extend(collect_terms(p.terms))
         elif isinstance(p, Product):

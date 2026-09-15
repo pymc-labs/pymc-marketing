@@ -37,6 +37,6 @@ Fit on a corpus of past RCTs, then predict incrementality for new campaigns:
     predictions = model.predict(X_new)
 """
 
-from pymc_marketing.pie.model import PIEModel
+from pymc_marketing.pie.model import PIEModel, make_split_rules
 
-__all__ = ["PIEModel"]
+__all__ = ["PIEModel", "make_split_rules"]

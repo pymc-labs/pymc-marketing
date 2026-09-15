@@ -651,3 +651,49 @@ def test_parameter_create_variable():
         with pm.Model(coords={"product": ["p1", "p2", "p3"]}):
             v = p.create_variable()
             assert v is not None
+
+
+def test_serialization_parameter_and_dot_roundtrip():
+    """Parameter, Intercept, and Dot serialize through the registry."""
+    from pymc_extras.prior import Prior
+
+    from pymc_marketing.serialization import serialization
+
+    dot = Dot(var_name="x", name="coef", prior=Prior("Normal", dims="feature"))
+    for term in (
+        Parameter(name="alpha_scale", prior=Prior("HalfNormal", sigma=2.0)),
+        Intercept(name="nu"),
+        dot,
+    ):
+        rebuilt = serialization.deserialize(serialization.serialize(term))
+        assert type(rebuilt) is type(term)
+    assert rebuilt.to_dict() == serialization.serialize(dot)
+
+
+def test_serialization_sum_product_transform_roundtrip():
+    import pytensor.xtensor as ptx
+    from pymc_extras.prior import Prior
+
+    from pymc_marketing.serialization import serialization
+
+    sum_expr = Intercept(name="a") + Dot(
+        var_name="x", prior=Prior("Normal", dims="feature")
+    )
+    product = Product(-1, Parameter("scale", prior=Prior("HalfNormal")))
+    transform = Transform(
+        Parameter("sigma", prior=Prior("HalfNormal")), func=ptx.math.exp
+    )
+    for term in (sum_expr, product, transform):
+        rebuilt = serialization.deserialize(serialization.serialize(term))
+        assert type(rebuilt) is type(term)
+
+
+def test_serialization_unregistered_func_raises():
+    from pymc_marketing.serialization import SerializationError, serialization
+
+    transform = Transform(
+        Parameter("sigma", prior=Prior("HalfNormal")),
+        func=lambda x: ptx.math.exp(x),
+    )
+    with pytest.raises(SerializationError, match="not serializable"):
+        serialization.serialize(transform)

@@ -7,6 +7,7 @@
   :recursive:
   :toctree: generated/
 
+  bart
   bass
   causal_utils
   clv

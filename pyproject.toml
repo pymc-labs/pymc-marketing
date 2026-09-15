@@ -54,7 +54,7 @@ dependencies = [
 
 [project.optional-dependencies]
 dag = ["dowhy", "networkx", "osqp<1.0.0,>=0.6.2", "pygraphviz"]
-pie = ["pymc-bart>=0.12.0"]
+pie = ["pymc-bart>=0.12.0,<0.13"]
 docs = [
     "blackjax<1.6",
     "fastprogress",
