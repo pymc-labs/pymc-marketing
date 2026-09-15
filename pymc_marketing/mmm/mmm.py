@@ -1820,7 +1820,8 @@ class MMM(RegressionModelBuilder):
             dates = pd.DatetimeIndex(self.xarray_dataset.coords["date"].values)
             self._time_index = xr.DataArray(np.arange(len(dates)), dims=("date",))
             time_step = dates[1] - dates[0]
-            if time_step.days < 1 or time_step != pd.Timedelta(days=time_step.days):
+            one_day = pd.Timedelta(days=1)
+            if time_step < one_day or time_step % one_day:
                 raise ValueError(
                     "Time-varying effects need dates spaced a whole number of days "
                     f"apart, but the first two dates are {time_step} apart. "
