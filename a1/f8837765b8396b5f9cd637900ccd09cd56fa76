@@ -1,0 +1,19 @@
+tests/mmm/plotting/test_cv.py
+  s_503ae712c92915::t_079deea68acea6 590-607
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "a1f8837765b8396b5f9cd637900ccd09cd56fa76",
+  "prompts": {},
+  "sessions": {
+    "s_503ae712c92915": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8db1f06e-a257-4499-a4e3-4bd6d9e0f402",
+        "model": "claude-opus-5"
+      },
+      "human_author": "root <root@e2b.local>"
+    }
+  }
+}
