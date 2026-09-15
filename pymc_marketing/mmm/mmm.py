@@ -2274,10 +2274,9 @@ class MMM(RegressionModelBuilder):
         likelihood = self.model_config["likelihood"]
         if "_target" in self.xarray_dataset.data_vars:
             self._link_spec.validate_target(self.xarray_dataset["_target"].values)
-            # Likelihood-specific support checks (e.g. LogNormalPrior requires a
-            # strictly positive target). Link-level validate_target cannot know
-            # the likelihood, so this is a separate, duck-typed hook.
-            if hasattr(likelihood, "validate_observed"):
+            # LogNormalPrior observes the raw target on the strictly positive
+            # support, which the link-level validate_target cannot know about.
+            if isinstance(likelihood, LogNormalPrior):
                 likelihood.validate_observed(self.xarray_dataset["_target"].values)
         LinkSpec.validate_likelihood_compatibility(self.link, likelihood)
 
@@ -2940,15 +2939,15 @@ class MMM(RegressionModelBuilder):
             **kwargs,
         )
 
-    def sample_prior_predictive(
+    def sample_prior_predictive(  # type: ignore[override]
         self,
-        X,
-        y=None,
+        X: pd.DataFrame | xr.Dataset | xr.DataArray,
+        y: pd.Series | pd.DataFrame | xr.DataArray | np.ndarray | None = None,
         samples: int | None = None,
         extend_idata: bool = True,
         combined: bool = True,
         **kwargs,
-    ):
+    ) -> xr.Dataset:
         """Sample from the model's prior predictive distribution.
 
         Delegates to

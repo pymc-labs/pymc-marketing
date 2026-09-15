@@ -1015,14 +1015,17 @@ def test_lognormal_prior_create_likelihood_matches_conversion():
     np.testing.assert_allclose(model.compile_logp()({}), reference.compile_logp()({}))
 
 
-def test_lognormal_prior_create_likelihood_negative_mu():
-    model, _ = _likelihood_model()
+@pytest.mark.parametrize("beta", [-2.0, 0.0, -1e-300], ids=["neg", "zero", "tiny"])
+def test_lognormal_prior_create_likelihood_negative_mu(beta):
+    model, _ = _likelihood_model(mu_offset=0.0)
     bad_point = model.initial_point()
-    bad_point["beta"] = np.array(-2.0)
+    bad_point["beta"] = np.array(beta)
 
-    # pymc-compiled functions rewrite the check to -inf. The rejection is
-    # safe but not clean: dlogp is NaN there, which NUTS treats as a
-    # divergence.
+    # pymc-compiled functions rewrite the check to -inf. The conversion is
+    # evaluated on a positive stand-in where mu <= 0, so the logp is -inf
+    # rather than NaN even where (std / mu) ** 2 would overflow. The
+    # rejection is safe but not clean: the -inf log-mean still leaves the
+    # gradient non-finite, which NUTS treats as a divergence.
     assert np.isneginf(model.point_logps(point=bad_point)["y"])
     with pytest.raises(SamplingError, match="Initial evaluation"):
         model.check_start_vals([bad_point])

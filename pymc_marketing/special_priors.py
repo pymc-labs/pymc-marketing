@@ -98,11 +98,11 @@ class MeanAlreadyExistsError(MuAlreadyExistsError):
     """
 
     def __init__(self, distribution) -> None:
-        self.distribution = distribution
+        super().__init__(distribution)
         self.message = (
             f"The mean parameter (or its alias mu) is already defined in {distribution}"
         )
-        Exception.__init__(self, self.message)
+        self.args = (self.message,)
 
 
 class SpecialPrior(ABC):
@@ -346,8 +346,13 @@ class LogNormalPrior(SpecialPrior):
     This guard protects only log-probability evaluation: forward sampling is
     rewritten so that a non-positive ``mu`` produces draws of exactly
     ``exp(-inf) = 0``, with no error (see
-    :meth:`create_likelihood_variable`); the MMM warns when posterior
-    predictive draws show this signature.
+    :meth:`create_likelihood_variable`); the MMM warns when prior or
+    posterior predictive draws show this signature. The MMM's default
+    identity-link intercept prior is centered at zero, so roughly a third of
+    prior-predictive draws hit this path out of the box; pair this likelihood
+    with a positive intercept prior (for example
+    ``Prior("HalfNormal", sigma=2)`` or a ``Normal`` centered well above
+    zero) so the prior puts ``mu`` on the positive side.
 
     This parameterization also changes the noise model. Holding ``std``
     constant across dates makes ``sigma_log`` shrink as ``mu`` grows, so the
@@ -487,10 +492,12 @@ class LogNormalPrior(SpecialPrior):
         non-positive ``mu`` yields ``-inf`` log-probability (surfacing as a
         generic ``SamplingError`` when the starting point is invalid), and a
         direct evaluation of the model logp raises a ``ParameterValueError``
-        naming this requirement. The gradient at such a point is NaN, because
-        the untaken branch of the guard still propagates ``log(mu)``; NUTS
-        treats this as a divergence, so it is safe but not a clean rejection
-        with a finite gradient. Forward sampling is not protected at all:
+        naming this requirement. The conversion is evaluated on a positive
+        stand-in wherever ``mu <= 0``, so the logp is ``-inf`` rather than
+        NaN even where ``(std / mu) ** 2`` would overflow; the ``-inf``
+        log-mean still leaves the gradient there non-finite, which NUTS
+        treats as a divergence, so the rejection is safe but not clean.
+        Forward sampling is not protected at all:
         pymc rewrites the guard in every compiled function, so a
         forward-sampling graph turns a non-positive ``mu`` into a ``-inf``
         log-mean and the draw becomes exactly ``exp(-inf) = 0``, with no
@@ -549,10 +556,19 @@ class LogNormalPrior(SpecialPrior):
         mean = parameters["mean"]
         std = parameters["std"]
 
-        var_ratio = pmd.math.log1p((std / mean) ** 2)
-        # Exact for mean > 0 and NaN for mean <= 0; never folds to |mean| like
-        # the squared form log(mean**2 / sqrt(mean**2 + std**2)) would.
-        mu_log = pmd.math.log(mean) - 0.5 * var_ratio
+        # Evaluate the conversion on a positive stand-in wherever mean <= 0 so
+        # the untaken branch stays finite and the guard on `mean > 0` below is
+        # the single source of -inf; otherwise `log(mean)` there is NaN and
+        # (std / mean) ** 2 can overflow, turning the logp itself into NaN.
+        # Exact for mean > 0; never folds to |mean| like the squared form
+        # log(mean**2 / sqrt(mean**2 + std**2)) would.
+        mean_safe = pmd.math.switch(mean > 0, mean, 1.0)
+        log_mean = pmd.math.log(mean_safe)
+        # log1p((std / mean) ** 2) written as softplus(2 * (log std - log mean)),
+        # which stays finite where the ratio itself overflows (|mean| below
+        # ~1e-154 with std ~ 1 would give inf, and a NaN logp).
+        var_ratio = pmd.math.softplus(2.0 * (pmd.math.log(std) - log_mean))
+        mu_log = log_mean - 0.5 * var_ratio
         sigma_log = pmd.math.sqrt(var_ratio)
 
         # check_parameters/CheckParameterValue is tensor-only, so unwrap the

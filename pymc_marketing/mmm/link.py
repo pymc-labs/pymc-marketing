@@ -41,6 +41,11 @@ class LinkFunction(StrEnum):
     LOG = "log"
 
 
+#: ``pymc_marketing.special_priors`` classes admitted as identity-link
+#: likelihoods.  They are matched by class name, not by a distribution name
+#: accepted by ``Prior(...)``, and are passed directly as the likelihood.
+SPECIAL_PRIOR_LIKELIHOODS = frozenset({"LogNormalPrior"})
+
 #: Likelihoods whose ``mu`` parameter is on the scale of the response, so the
 #: additive decomposition under the identity link is in the units of the target.
 #: This is about units only.  ``mu`` still need not equal ``E[y]``: under
@@ -56,18 +61,21 @@ class LinkFunction(StrEnum):
 #: than letting it through to an ``-inf`` logp, but that check says nothing
 #: about whether ``mu`` is on the response scale, which is what this set is
 #: for.
-#: Entries are ``pymc`` distribution names; ``"LogNormalPrior"`` is a class
-#: name because ``SpecialPrior`` objects have no ``distribution`` attribute.
-RESPONSE_SCALE_LIKELIHOODS = frozenset(
-    {
-        "Normal",
-        "StudentT",
-        "TruncatedNormal",
-        "Gamma",
-        "Laplace",
-        "InverseGamma",
-        "LogNormalPrior",
-    }
+#: Entries are ``pymc`` distribution names plus ``SPECIAL_PRIOR_LIKELIHOODS``,
+#: which are class names because ``SpecialPrior`` objects have no
+#: ``distribution`` attribute.
+RESPONSE_SCALE_LIKELIHOODS = (
+    frozenset(
+        {
+            "Normal",
+            "StudentT",
+            "TruncatedNormal",
+            "Gamma",
+            "Laplace",
+            "InverseGamma",
+        }
+    )
+    | SPECIAL_PRIOR_LIKELIHOODS
 )
 
 #: Likelihoods whose ``mu`` parameter is on some other scale, mapped to the name
@@ -82,15 +90,17 @@ LINK_LIKELIHOODS = {LinkFunction.LOG: frozenset({"LogNormal"})}
 def _response_scale_likelihoods_display() -> str:
     """Render ``RESPONSE_SCALE_LIKELIHOODS`` for user-facing messages.
 
-    ``LogNormalPrior`` is a ``pymc_marketing.special_priors`` class admitted
-    by its class name, not a distribution accepted by ``Prior(...)``, so it
-    is listed separately to stop readers from trying
+    ``SPECIAL_PRIOR_LIKELIHOODS`` are listed separately from the ``Prior``
+    distribution names to stop readers from trying
     ``Prior("LogNormalPrior", ...)``.
     """
-    names = sorted(RESPONSE_SCALE_LIKELIHOODS - {"LogNormalPrior"})
+    names = sorted(RESPONSE_SCALE_LIKELIHOODS - SPECIAL_PRIOR_LIKELIHOODS)
+    special = ", ".join(
+        f"pymc_marketing.special_priors.{name}"
+        for name in sorted(SPECIAL_PRIOR_LIKELIHOODS)
+    )
     return (
-        f"{names} (Prior distribution names) or a "
-        "pymc_marketing.special_priors.LogNormalPrior instance passed "
+        f"{names} (Prior distribution names) or a {special} instance passed "
         "directly as the likelihood"
     )
 
