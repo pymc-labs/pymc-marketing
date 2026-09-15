@@ -42,6 +42,30 @@ from pymc_marketing.mmm.summary.cv import (
 )
 
 
+def _label_fold_ticks(pc: PlotCollection, cv_labels: list[Any]) -> None:
+    """Tick the fold axis at integer positions and label it with the fold names.
+
+    The CRPS x coordinate is a positional index over folds, so without this the
+    axis reads as float-formatted positions (``0.0``, ``0.5``, ...) and the fold
+    labels the plot already has in hand are lost. Backends whose plot objects do
+    not expose matplotlib's tick API are left untouched.
+
+    Parameters
+    ----------
+    pc : PlotCollection
+        Plot collection whose panels were drawn against ``np.arange(n_folds)``.
+    cv_labels : list
+        Fold labels, in plotting order.
+    """
+    positions = np.arange(len(cv_labels))
+    texts = [str(label) for label in cv_labels]
+    for ax in np.ravel(pc.viz["plot"].values):
+        if not hasattr(ax, "set_xticks"):
+            continue
+        ax.set_xticks(positions)
+        ax.set_xticklabels(texts)
+
+
 class MMMCVPlotSuite:
     """PlotCollection-native plots for TimeSliceCrossValidator results.
 
@@ -285,6 +309,7 @@ class MMMCVPlotSuite:
         backend: str | None = None,
         return_as_pc: bool = False,
         line_kwargs: dict[str, Any] | None = None,
+        combine_splits: bool = False,
         **pc_kwargs,
     ) -> tuple[Figure, NDArray[Axes]] | PlotCollection:
         """Line chart of mean CRPS per fold for train and test splits.
@@ -292,7 +317,13 @@ class MMMCVPlotSuite:
         Renders an n×2 grid: left column = train CRPS, right column = test CRPS,
         one row per Cartesian combination of extra dimensions in
         ``y_original_scale`` (e.g. one row per geo). When no extra dimensions
-        are present the result is a 1×2 grid.
+        are present the result is a 1×2 grid. With ``combine_splits=True`` the
+        two splits share a single panel (and therefore a single y-scale), which
+        is what makes train and test directly comparable by eye.
+
+        The x axis is the fold, a discrete coordinate: ticks are placed at
+        integer positions and labelled with the fold labels carried by
+        ``cv_data``, and the points are drawn with markers.
 
         Parameters
         ----------
@@ -309,7 +340,11 @@ class MMMCVPlotSuite:
         return_as_pc : bool
             Return the raw ``PlotCollection`` instead of ``(Figure, NDArray[Axes])``.
         line_kwargs : dict or None
-            Extra kwargs forwarded to ``azp.visuals.line_xy``.
+            Extra kwargs forwarded to ``azp.visuals.line_xy``. Defaults to
+            ``{"marker": "o"}``; pass ``{"marker": None}`` for a bare line.
+        combine_splits : bool
+            Draw train and test in one panel per row instead of one panel per
+            split, so both series share a y-scale.
         **pc_kwargs
             Forwarded to ``PlotCollection.grid()``.
 
@@ -377,7 +412,7 @@ class MMMCVPlotSuite:
         pc = PlotCollection.grid(
             crps_ds,
             rows=[*extra_dims],
-            cols=["split"],
+            cols=[] if combine_splits else ["split"],
             aes={"color": ["split"]},
             backend=backend,
             **pc_kwargs,
@@ -386,7 +421,12 @@ class MMMCVPlotSuite:
         cv_x = xr.DataArray(
             np.arange(len(cv_labels)), dims=["cv"], coords={"cv": cv_labels}
         )
-        pc.map(azp.visuals.line_xy, x=cv_x, y=crps_ds["crps"], **(line_kwargs or {}))
+        pc.map(
+            azp.visuals.line_xy,
+            x=cv_x,
+            y=crps_ds["crps"],
+            **{"marker": "o", **(line_kwargs or {})},
+        )
         pc.add_legend("split")
         pc.map(
             azp.visuals.labelled_title,
@@ -394,5 +434,6 @@ class MMMCVPlotSuite:
             labeller=mix_labellers((NoVarLabeller, DimCoordLabeller))(),
             ignore_aes={"color"},
         )
+        _label_fold_ticks(pc, cv_labels)
 
         return _extract_matplotlib_result(pc, return_as_pc)
