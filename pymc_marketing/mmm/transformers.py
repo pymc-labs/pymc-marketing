@@ -401,6 +401,16 @@ def delayed_adstock(
     """
     kernel_dim = f"{dim}_kernel"
     alpha = _check_alpha(as_xtensor(alpha))
+    # `alpha=0` with a non-integer `theta` makes every weight in `w` below
+    # exactly 0 (no lag exponent lands on exactly 0), so `w.sum() == 0` and
+    # normalizing divides 0/0 into NaN. Values that merely underflow to 0
+    # hit the same issue. Floor alpha at the smallest positive value for its
+    # dtype so the weights stay finite without changing the result for any
+    # alpha that wasn't already 0 (or flushed to 0 by underflow).
+    # `x.dtype` (not `pytensor.config.floatX`) is the anchor here, matching
+    # `lags` below: this floor must match the graph's own dtype or it
+    # silently upcasts (and breaks, under the numba backend) a float32 graph.
+    alpha = ptx.math.maximum(alpha, np.finfo(x.dtype).tiny)
     theta = as_xtensor(theta)
     lags = as_xtensor(pt.arange(l_max, dtype=x.dtype), dims=(kernel_dim,))
     w = ptx.math.power(

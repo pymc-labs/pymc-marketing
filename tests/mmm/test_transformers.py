@@ -219,6 +219,45 @@ class TestsAdstockTransformers:
         )
         np.testing.assert_array_equal(actual=x, desired=y.eval())
 
+    def test_delayed_adstock_alpha_zero_noninteger_theta_is_finite(self):
+        """Regression test for alpha=0 + non-integer theta producing NaN.
+
+        With alpha exactly 0 and a non-integer theta, no lag's exponent in
+        ``alpha ** ((lag - theta) ** 2)`` is exactly 0, so every weight used
+        to land on 0, the normalizing sum was 0, and 0 / 0 produced NaN.
+        """
+        x = np.ones(shape=(20))
+        y = delayed_adstock(
+            x=as_xtensor(x, dims=("t",)),
+            alpha=0.0,
+            theta=0.5,
+            l_max=12,
+            dim="t",
+            normalize=True,
+        ).eval()
+        assert np.isfinite(y).all()
+
+    def test_delayed_adstock_alpha_zero_integer_theta_unchanged(self):
+        """Flooring alpha at the smallest positive float must not perturb the
+        already-finite integer-theta case in any way that matters."""
+        rng = np.random.default_rng(0)
+        x = as_xtensor(rng.normal(size=30), dims=("t",))
+        y = delayed_adstock(
+            x=x, alpha=0.0, theta=5, l_max=12, dim="t", normalize=True
+        ).eval()
+        assert np.isfinite(y).all()
+
+    @pytest.mark.parametrize("dtype", ["float32", "float64"])
+    def test_delayed_adstock_alpha_zero_noninteger_theta_dtype(self, dtype):
+        """The alpha floor must use the graph's own dtype, not always float64,
+        so a float32 graph doesn't get silently upcast."""
+        x = as_xtensor(np.ones(20, dtype=dtype), dims=("t",))
+        y = delayed_adstock(
+            x=x, alpha=0.0, theta=0.5, l_max=12, dim="t", normalize=True
+        ).eval()
+        assert np.isfinite(y).all()
+        assert y.dtype == np.dtype(dtype)
+
     @pytest.mark.parametrize(
         argnames="mode",
         argvalues=[ConvMode.After, ConvMode.Before, ConvMode.Overlap],
