@@ -15,6 +15,7 @@ import json
 import logging
 from collections import namedtuple
 
+import graphviz
 import mlflow
 import mlflow.artifacts
 import numpy as np
@@ -336,6 +337,38 @@ def test_log_model_graph_no_graphviz(
     artifacts = get_run_data(run_id)[-1]
 
     assert artifacts == []
+
+
+def test_log_model_graph_render_failure_writes_no_file(
+    caplog,
+    mocker,
+    monkeypatch,
+    model_with_likelihood,
+    tmp_path,
+) -> None:
+    """A failed render must not leave the DOT source in the working directory.
+
+    `graph.render` saves the source before it invokes `dot`, so without the
+    graphviz binary the source file used to survive the exception.
+    """
+    monkeypatch.chdir(tmp_path)
+    error = graphviz.ExecutableNotFound(["dot"])
+    mocker.patch("graphviz.backend.rendering.render", side_effect=error)
+
+    with mlflow.start_run() as run:
+        with caplog.at_level(logging.INFO, logger="pymc_marketing.mlflow"):
+            log_model_graph(model_with_likelihood, "model_graph")
+
+    assert not list(tmp_path.glob("model_graph*"))
+
+    messages = [
+        record.message
+        for record in caplog.records
+        if record.name == "pymc_marketing.mlflow"
+    ]
+    assert messages == [f"Unable to render the model graph. {error}"]
+
+    assert get_run_data(run.info.run_id)[-1] == []
 
 
 def metric_checks(metrics, nuts_sampler) -> None:
