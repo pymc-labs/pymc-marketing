@@ -453,6 +453,95 @@ def test_product_rmul():
     assert isinstance(result, Product)
 
 
+def test_product_add():
+    p = Product(Intercept(name="a"), 2.0)
+    result = p + Intercept(name="b")
+    assert isinstance(result, Sum)
+    assert result.terms[0] == p
+    assert result.terms[1] == Intercept(name="b")
+
+
+def test_product_add_sum_flattens():
+    p = Product(Intercept(name="a"), 2.0)
+    result = p + Sum([Intercept(name="b"), Intercept(name="c")])
+    assert isinstance(result, Sum)
+    assert len(result.terms) == 3
+    assert result.terms[0] == p
+
+
+def test_product_radd_int():
+    p = Product(Intercept(name="a"), 2.0)
+    result = 3 + p
+    assert isinstance(result, Sum)
+    assert result.terms[0] == 3
+    assert result.terms[1] == p
+
+
+def test_product_radd_zero():
+    p = Product(Intercept(name="a"), 2.0)
+    result = 0 + p
+    assert result is p
+
+
+def test_product_add_product():
+    result = -Intercept(name="a") + 3 * Parameter(name="b", prior=Prior("Normal"))
+    assert isinstance(result, Sum)
+    assert result.terms == [
+        Product(-1, Intercept(name="a")),
+        Product(3, Parameter(name="b", prior=Prior("Normal"))),
+    ]
+
+
+def test_build_param_product_add_product():
+    """``-term + scalar * term`` builds inside a model."""
+    terms = -Intercept(name="a") + 3 * Parameter(name="b", prior=Prior("Normal"))
+    with pm.Model():
+        result = build_param(terms)
+        assert isinstance(result, PTVariable)
+
+
+def test_product_neg():
+    p = Product(Intercept(name="a"), 2.0)
+    assert -p == Product(-1, p)
+
+
+def test_sum_neg():
+    s = Sum([Intercept(name="a"), Intercept(name="b")])
+    assert -s == Product(-1, s)
+
+
+@pytest.mark.parametrize(
+    "left, right",
+    [
+        (Intercept(name="a"), Product(Intercept(name="b"), 2.0)),
+        (Intercept(name="a"), Sum([Intercept(name="b"), Intercept(name="c")])),
+        (Product(Intercept(name="a"), 2.0), Product(Intercept(name="b"), 3.0)),
+        (Product(Intercept(name="a"), 2.0), Sum([Intercept(name="b")])),
+        (3, Product(Intercept(name="b"), 2.0)),
+        (3, Sum([Intercept(name="b")])),
+    ],
+)
+def test_sub_negates_right(left, right):
+    result = left - right
+    assert result == Sum([left, Product(-1, right)])
+
+
+def test_sum_sub_flattens():
+    s = Sum([Intercept(name="a"), Intercept(name="b")])
+    result = s - Intercept(name="c")
+    assert result.terms == [
+        Intercept(name="a"),
+        Intercept(name="b"),
+        Product(-1, Intercept(name="c")),
+    ]
+
+
+def test_modelterm_add_sum_flattens():
+    s = Sum([Intercept(name="b"), Intercept(name="c")])
+    result = Intercept(name="a") + s
+    assert result.terms == [Intercept(name="a"), *s.terms]
+
+
 def test_sum_rmul():
     s = Sum([Intercept(name="a")])
     result = 3 * s
