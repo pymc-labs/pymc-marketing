@@ -895,6 +895,74 @@ def test_shared_posterior_aligns_coordinates_on_rebind():
     assert "1 not bound, 1 missing" in str(info.value)
 
 
+def test_shared_posterior_realigns_permuted_multi_dim_variables():
+    """A variable over two non-sample dims rebinds from a permuted, reordered layout.
+
+    The posterior may store ``beta`` as ``(channel, country)`` with the
+    countries in another order while it was bound as ``(country, channel)``;
+    the values have to land in the bound layout.
+    """
+    countries, channels = ["x", "y", "z"], ["a", "b"]
+    with pm.Model(coords={"country": countries, "channel": channels}) as model:
+        beta = pmd.Normal("beta", dims=("country", "channel"))
+        pmd.Deterministic("doubled", 2.0 * beta)
+
+    values = np.arange(6.0).reshape(3, 2)  # country x channel
+    bound = xr.Dataset(
+        {"beta": (("chain", "draw", "country", "channel"), values[None, None])},
+        coords={"country": countries, "channel": channels},
+    )
+    shared_posterior = SharedPosterior()
+    fn = function(
+        [],
+        extract_response_distribution(
+            model, bound, "doubled", shared_posterior=shared_posterior
+        ),
+    )
+    np.testing.assert_allclose(fn(), 2.0 * values[None])
+
+    # Same draws, dims swapped and countries reversed.
+    permuted = xr.Dataset(
+        {
+            "beta": (
+                ("chain", "draw", "channel", "country"),
+                (10.0 + values).T[:, ::-1][None, None],
+            )
+        },
+        coords={"country": countries[::-1], "channel": channels},
+    )
+    shared_posterior.set_posterior(permuted)
+    np.testing.assert_allclose(fn(), 2.0 * (10.0 + values)[None])
+
+
+def test_shared_posterior_mixed_type_labels_raise_value_error():
+    """Labels that cannot be sorted still get the documented ValueError."""
+    with pm.Model(coords={"k": ["a", 1]}) as model:
+        beta = pmd.Normal("beta", dims="k")
+        pmd.Deterministic("doubled", 2.0 * beta)
+    posterior = xr.Dataset(
+        {"beta": (("chain", "draw", "k"), np.ones((1, 1, 2)))}, coords={"k": ["a", 1]}
+    )
+    shared_posterior = SharedPosterior()
+    fn = function(
+        [],
+        extract_response_distribution(
+            model, posterior, "doubled", shared_posterior=shared_posterior
+        ),
+    )
+    # Same labels, other order: accepted.
+    shared_posterior.set_posterior(
+        xr.Dataset(
+            {"beta": (("chain", "draw", "k"), np.array([[[3.0, 5.0]]]))},
+            coords={"k": [1, "a"]},
+        )
+    )
+    np.testing.assert_allclose(fn(), [[10.0, 6.0]])
+    # A different label: ValueError, not TypeError from sorting.
+    with pytest.raises(ValueError, match=r"different k labels"):
+        shared_posterior.set_posterior(posterior.assign_coords(k=["a", 2]))
+
+
 def test_shared_posterior_coordinate_mismatch_message_stays_short():
     """A long labelled axis is reported by counts and a few examples, not in full."""
     dates = pd.date_range("2020-02-02", periods=208, freq="W").to_pydatetime()

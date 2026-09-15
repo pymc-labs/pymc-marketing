@@ -353,10 +353,11 @@ class SharedPosterior:
                 )
             if bound is None or given is None:
                 continue
-            # pd.Index compares datetimes by value across storage units, and
-            # sorting makes the check order-free; duplicates change the length
-            # and fail it.
-            if not bound.sort_values().equals(given.sort_values()):
+            # pd.Index compares datetimes by value across storage units.  The
+            # length check catches duplicates, the set check is order-free and
+            # does not need the labels to be sortable (a mixed-type object axis
+            # would raise TypeError from sort_values).
+            if len(bound) != len(given) or not bound.difference(given).empty:
                 extra, missing = given.difference(bound), bound.difference(given)
                 raise ValueError(
                     f"Posterior variable {name!r} has different {dim} labels: "
