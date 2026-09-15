@@ -784,7 +784,4 @@ def _deserialize_value(value: Any) -> Any:
     if isinstance(value, dict):
         return deserialize(value)
 
-    if isinstance(value, list):
-        return np.asarray(value)
-
     return value
