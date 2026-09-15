@@ -963,6 +963,40 @@ def test_shared_posterior_mixed_type_labels_raise_value_error():
         shared_posterior.set_posterior(posterior.assign_coords(k=["a", 2]))
 
 
+def test_shared_posterior_refuses_duplicated_labels_at_bind_time():
+    """A duplicated label cannot be realigned by ``sel`` later, so it is refused up front.
+
+    Without this a bound ``["a", "a"]`` axis would accept a rebind from
+    ``["a", "b"]`` (same length, no missing label) and silently select the
+    ``a`` column twice.
+    """
+    with pm.Model(coords={"k": ["a", "a"]}) as model:
+        beta = pmd.Normal("beta", dims="k")
+        pmd.Deterministic("doubled", 2.0 * beta)
+    duplicated = xr.Dataset(
+        {"beta": (("chain", "draw", "k"), np.ones((1, 1, 2)))}, coords={"k": ["a", "a"]}
+    )
+    with pytest.raises(ValueError, match=r"duplicated k labels: \['a'\]"):
+        extract_response_distribution(
+            model, duplicated, "doubled", shared_posterior=SharedPosterior()
+        )
+
+    # The constant path is unaffected: it never realigns by label.
+    np.testing.assert_allclose(
+        function([], extract_response_distribution(model, duplicated, "doubled"))(),
+        [[2.0, 2.0]],
+    )
+
+    # And a duplicate on the rebind side is caught by the set check.
+    unique = duplicated.assign_coords(k=["a", "b"])
+    shared_posterior = SharedPosterior()
+    extract_response_distribution(
+        model, unique, "doubled", shared_posterior=shared_posterior
+    )
+    with pytest.raises(ValueError, match=r"different k labels"):
+        shared_posterior.set_posterior(duplicated)
+
+
 def test_shared_posterior_coordinate_mismatch_message_stays_short():
     """A long labelled axis is reported by counts and a few examples, not in full."""
     dates = pd.date_range("2020-02-02", periods=208, freq="W").to_pydatetime()

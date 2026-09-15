@@ -354,9 +354,10 @@ class SharedPosterior:
             if bound is None or given is None:
                 continue
             # pd.Index compares datetimes by value across storage units.  The
-            # length check catches duplicates, the set check is order-free and
-            # does not need the labels to be sortable (a mixed-type object axis
-            # would raise TypeError from sort_values).
+            # bound index is unique (checked at bind time), so equal lengths
+            # plus an empty difference means the same set of labels, with any
+            # duplicate on the given side surfacing as a missing label.  No
+            # sorting, so a mixed-type object axis is fine.
             if len(bound) != len(given) or not bound.difference(given).empty:
                 extra, missing = given.difference(bound), bound.difference(given)
                 raise ValueError(
@@ -389,11 +390,20 @@ class SharedPosterior:
             dims = tuple(str(dim) for dim in posterior_da.dims)
             self._variables[name] = shared(posterior_da.values.astype(dtype), name=name)
             self._dims[name] = dims
-            self._coords[name] = {
+            coords = {
                 dim: posterior_da.indexes[dim]
                 for dim in dims[1:]
                 if dim in posterior_da.indexes
             }
+            # Labels are a set: a duplicated label could not be realigned by
+            # ``sel`` later, which would silently pick one column twice.
+            for dim, index in coords.items():
+                if not index.is_unique:
+                    raise ValueError(
+                        f"Posterior variable {name!r} has duplicated {dim} labels: "
+                        f"{index[index.duplicated()].unique().tolist()}."
+                    )
+            self._coords[name] = coords
         else:
             var = self._variables[name]
             if np.dtype(dtype) != np.dtype(var.type.dtype):
