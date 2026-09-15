@@ -6739,6 +6739,33 @@ def test_sample_prior_predictive_lognormal_likelihood_warns_on_zero_draws(
     assert any("prior-predictive" in str(r.message) for r in records)
 
 
+def test_sample_prior_predictive_lognormal_likelihood_warns_on_nan_draws(
+    lognormal_likelihood_data,
+):
+    X, y = lognormal_likelihood_data
+    # A std prior entirely below zero makes the log-scale sigma NaN for every
+    # draw, so y is NaN rather than zero; that must be reported too.
+    mmm = MMM(
+        date_column="date",
+        channel_columns=["channel_1", "channel_2"],
+        target_column="y",
+        adstock=GeometricAdstock(l_max=4),
+        saturation=LogisticSaturation(),
+        model_config={
+            "likelihood": LogNormalPrior(
+                std=Prior("Normal", mu=-5.0, sigma=0.1), dims=("date",)
+            ),
+            "intercept": Prior("Normal", mu=10.0, sigma=0.1),
+        },
+    )
+
+    with pytest.warns(UserWarning, match="non-finite") as records:
+        result = mmm.sample_prior_predictive(X, y, samples=50, random_seed=42)
+
+    assert np.isnan(result[mmm.output_var].values).all()
+    assert any("non-positive 'std'" in str(r.message) for r in records)
+
+
 def test_sample_prior_predictive_lognormal_likelihood_without_target(
     lognormal_likelihood_mmm, lognormal_likelihood_data
 ):
