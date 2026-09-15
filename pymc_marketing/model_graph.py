@@ -94,6 +94,11 @@ def deterministics_to_flat(model: pm.Model, names: list[str]) -> pm.Model:
         model_var = memo[variable]
         dims = model_var.owner.op.dims
         underlying_var = model_var.owner.inputs[0]
+        # `resolve_shapes` rather than `get_symbolic_rv_shapes([underlying_var])`:
+        # `XTensorVariable.shape` is a tuple of scalar dim lengths, not a shape
+        # vector, so the upstream RV wrapper does not fit the `pymc.dims` branch.
+        # Resolving expresses the shape via the op's inputs, so the Flat does not
+        # keep the replaced computation alive through its shape graph.
         underlying_shape = resolve_shapes(underlying_var.shape)
         if isinstance(underlying_var, XTensorVariable):
             new_rv = pmd.Flat.dist(
