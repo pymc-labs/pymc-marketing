@@ -63,7 +63,6 @@ from typing import TYPE_CHECKING, Any, Literal
 import numpy as np
 import xarray as xr
 from pydantic import Field, validate_call
-from pymc_extras.deserialize import deserialize
 from pymc_extras.prior import Prior
 from pytensor.xtensor import as_xtensor
 
@@ -71,6 +70,7 @@ from pymc_marketing.mmm.components.base import (
     ParameterPriorException,
     SupportedPrior,
     Transformation,
+    _deserialize_value,
 )
 from pymc_marketing.mmm.transformers import (
     ConvMode,
@@ -147,7 +147,9 @@ class AdstockTransformation(Transformation):
         data.pop("__type__", None)
 
         if "priors" in data:
-            data["priors"] = {k: deserialize(v) for k, v in data["priors"].items()}
+            data["priors"] = {
+                k: _deserialize_value(v) for k, v in data["priors"].items()
+            }
 
         return cls(**data)
 

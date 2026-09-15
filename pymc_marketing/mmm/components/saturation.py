@@ -98,13 +98,13 @@ from typing import Any
 import numpy as np
 import xarray as xr
 from pydantic import Field, InstanceOf, validate_call
-from pymc_extras.deserialize import deserialize
 from pymc_extras.prior import Prior
 from pytensor.xtensor import as_xtensor
 from pytensor.xtensor import math as ptxm
 
 from pymc_marketing.mmm.components.base import (
     Transformation,
+    _deserialize_value,
 )
 from pymc_marketing.mmm.transformers import (
     hill_function,
@@ -187,7 +187,9 @@ class SaturationTransformation(Transformation):
         data.pop("__type__", None)
 
         if "priors" in data:
-            data["priors"] = {k: deserialize(v) for k, v in data["priors"].items()}
+            data["priors"] = {
+                k: _deserialize_value(v) for k, v in data["priors"].items()
+            }
 
         return cls(**data)
 

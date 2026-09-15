@@ -35,6 +35,7 @@ from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 from pydantic import InstanceOf
 from pymc.distributions.shape_utils import Dims
+from pymc_extras.deserialize import deserialize
 from pymc_extras.prior import Prior, VariableFactory
 from pytensor.graph.basic import Variable
 from pytensor.xtensor import as_xtensor
@@ -773,5 +774,17 @@ def _serialize_value(value: Any) -> Any:
 
     if isinstance(value, np.ndarray):
         return value.tolist()
+
+    return value
+
+
+def _deserialize_value(value: Any) -> Any:
+    # Inverse of ``_serialize_value``: only dicts describe a distribution,
+    # anything else is a constant parameter (#1613).
+    if isinstance(value, dict):
+        return deserialize(value)
+
+    if isinstance(value, list):
+        return np.asarray(value)
 
     return value

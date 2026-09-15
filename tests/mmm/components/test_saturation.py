@@ -291,6 +291,33 @@ class TestSaturationRoundtrips:
             assert restored.function_priors[prior_name] == prior
         assert restored == original
 
+    @pytest.mark.parametrize("lam", [2.0, [2.0, 3.0]], ids=["float", "list"])
+    def test_roundtrip_constant_prior(self, lam) -> None:
+        """A constant parameter survives serialization next to a Prior (#1613)."""
+        original = LogisticSaturation(
+            priors={"lam": lam, "beta": Prior("HalfNormal", sigma=1)}
+        )
+        data = serialization.serialize(original)
+        restored = serialization.deserialize(data)
+
+        assert restored == original
+        assert restored.function_priors["beta"] == Prior("HalfNormal", sigma=1)
+        np.testing.assert_allclose(restored.function_priors["lam"], lam)
+
+    def test_from_dict_constant_prior(self) -> None:
+        """A config can fix one parameter to a constant (#1613)."""
+        saturation = LogisticSaturation.from_dict(
+            {
+                "priors": {
+                    "lam": 2.0,
+                    "beta": {"distribution": "HalfNormal", "sigma": 1},
+                }
+            }
+        )
+
+        assert saturation.function_priors["lam"] == 2.0
+        assert saturation.function_priors["beta"] == Prior("HalfNormal", sigma=1)
+
 
 @pytest.mark.parametrize(
     "type_key",
