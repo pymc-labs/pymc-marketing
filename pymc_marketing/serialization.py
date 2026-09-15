@@ -26,7 +26,7 @@ from __future__ import annotations
 
 import importlib
 import inspect
-from dataclasses import dataclass
+from dataclasses import dataclass, fields, is_dataclass, replace
 from typing import Any, Protocol, Self, runtime_checkable
 
 from pydantic import BaseModel, Field
@@ -192,6 +192,11 @@ class TypeRegistry:
                 actual_cls.to_dict = _wrapped_to_dict  # type: ignore[attr-defined]
 
         return actual_cls
+
+    def is_registered(self, obj: Any) -> bool:
+        """Check whether an object's type is registered in the registry."""
+        type_key = f"{obj.__class__.__module__}.{obj.__class__.__qualname__}"
+        return type_key in self._registry
 
     def serialize(self, obj: Serializable) -> dict[str, Any]:
         """Serialize an object to a JSON-safe dict with ``__type__`` key."""
@@ -387,6 +392,19 @@ def _merge_shared_decompositions(config: dict[str, Any]) -> dict[str, Any]:
             return obj
         if isinstance(obj, R2D2Sigma):
             obj.decomposition = walk(obj.decomposition)
+            return obj
+        if is_dataclass(obj) and not isinstance(obj, type):
+            # Term compositions (Sum, Product, Parameter, Dot, Transform)
+            # carry R2D2Split priors in their fields; descend so shared
+            # decompositions merge instead of duplicating per field.
+            walked = {
+                dc_field.name: walk(getattr(obj, dc_field.name))
+                for dc_field in fields(obj)
+            }
+            if obj.__dataclass_params__.frozen:  # type: ignore[attr-defined]
+                return replace(obj, **walked)
+            for key, value in walked.items():
+                setattr(obj, key, value)
             return obj
         if isinstance(obj, dict):
             return {k: walk(v) for k, v in obj.items()}
