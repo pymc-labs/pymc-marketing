@@ -1044,6 +1044,44 @@ def test_lognormal_prior_create_likelihood_forward_draws_zero_for_negative_mu():
     assert np.all(draws == 0)
 
 
+def test_lognormal_prior_create_likelihood_negative_std():
+    # softplus(2 * (log std - log mu)) needs std > 0, where the former
+    # log1p((std / mu) ** 2) silently folded the sign, so std is guarded too.
+    coords = {"date": np.arange(3)}
+    observed = as_xtensor(np.array([1.0, 2.0, 1.5]), dims=("date",))
+    likelihood = LogNormalPrior(std=Prior("Normal", mu=0, sigma=1), dims=("date",))
+    with pm.Model(coords=coords) as model:
+        likelihood.create_likelihood_variable(
+            "y",
+            mu=as_xtensor(np.full(3, 2.0), dims=("date",)),
+            observed=observed,
+            xdist=True,
+        )
+    bad_point = {"y_std": np.array(-0.5)}
+
+    assert np.isneginf(model.point_logps(point=bad_point)["y"])
+    with pytest.raises(ParameterValueError, match="std > 0"):
+        model.logp().eval(bad_point)
+
+
+def test_lognormal_prior_create_likelihood_mean_and_std_match_mu():
+    """E[y] = mu and sd(y) = std, the claim the parameterization exists for."""
+    m, s = 2.0, 0.3
+    coords = {"date": np.arange(1)}
+    likelihood = LogNormalPrior(std=s, dims=("date",))
+    with pm.Model(coords=coords) as model:
+        likelihood.create_likelihood_variable(
+            "y",
+            mu=as_xtensor(np.array([m]), dims=("date",)),
+            observed=as_xtensor(np.array([1.0]), dims=("date",)),
+            xdist=True,
+        )
+    draws = pm.draw(model["y"], draws=20_000, random_seed=42)
+
+    np.testing.assert_allclose(draws.mean(), m, rtol=0.02)
+    np.testing.assert_allclose(draws.std(), s, rtol=0.05)
+
+
 def test_lognormal_prior_create_likelihood_mean_already_set_raises():
     prior = LogNormalPrior(mean=1.0, std=1.0)
     # The subclass keeps ``except MuAlreadyExistsError`` working while naming

@@ -487,17 +487,22 @@ class LogNormalPrior(SpecialPrior):
         role of ``mean`` and the pair is converted to the log-scale
         parameters of the observed ``LogNormal``, so that ``E[y] = mu``.
 
-        The conversion is only valid for ``mu > 0``, and the positivity guard
-        protects only log-probability evaluation. During sampling a
-        non-positive ``mu`` yields ``-inf`` log-probability (surfacing as a
-        generic ``SamplingError`` when the starting point is invalid), and a
-        direct evaluation of the model logp raises a ``ParameterValueError``
-        naming this requirement. The conversion is evaluated on a positive
-        stand-in wherever ``mu <= 0``, so the logp is ``-inf`` rather than
-        NaN even where ``(std / mu) ** 2`` would overflow; the ``-inf``
-        log-mean still leaves the gradient there non-finite, which NUTS
-        treats as a divergence, so the rejection is safe but not clean.
-        Forward sampling is not protected at all:
+        The conversion is only valid for ``mu > 0`` and ``std > 0``, and the
+        positivity guard protects only log-probability evaluation. During
+        sampling a non-positive ``mu`` or ``std`` yields ``-inf``
+        log-probability (surfacing as a generic ``SamplingError`` when the
+        starting point is invalid), and a direct evaluation of the model
+        logp raises a ``ParameterValueError`` naming this requirement. The
+        conversion is evaluated on a positive stand-in wherever ``mu <= 0``,
+        so the logp is ``-inf`` rather than NaN even where
+        ``(std / mu) ** 2`` would overflow; the ``-inf`` log-mean still
+        leaves the gradient there non-finite, which NUTS treats as a
+        divergence, so the rejection is safe but not clean. The guard is a
+        ``pymc.check_parameters`` check and exists only under the default
+        ``pm.Model(check_bounds=True)``; with ``check_bounds=False`` a
+        non-positive ``mu`` is evaluated as if ``mu = 1`` and produces a
+        finite, wrong logp, so do not disable bound checks with this
+        likelihood. Forward sampling is not protected at all:
         pymc rewrites the guard in every compiled function, so a
         forward-sampling graph turns a non-positive ``mu`` into a ``-inf``
         log-mean and the draw becomes exactly ``exp(-inf) = 0``, with no
@@ -557,8 +562,9 @@ class LogNormalPrior(SpecialPrior):
         std = parameters["std"]
 
         # Evaluate the conversion on a positive stand-in wherever mean <= 0 so
-        # the untaken branch stays finite and the guard on `mean > 0` below is
-        # the single source of -inf; otherwise `log(mean)` there is NaN and
+        # the untaken branch stays finite and the guard below is the single
+        # source of -inf (under check_bounds=True; without it the stand-in
+        # yields a finite, wrong logp); otherwise `log(mean)` there is NaN and
         # (std / mean) ** 2 can overflow, turning the logp itself into NaN.
         # Exact for mean > 0; never folds to |mean| like the squared form
         # log(mean**2 / sqrt(mean**2 + std**2)) would.
@@ -575,10 +581,10 @@ class LogNormalPrior(SpecialPrior):
         # xtensor expressions and re-wrap the checked result.
         mu_log_tensor = check_parameters(
             as_tensor(mu_log, allow_xtensor_conversion=True),
-            as_tensor(mean > 0, allow_xtensor_conversion=True),
-            msg="LogNormalPrior likelihood requires mu > 0. The response-scale "
-            "mean of a LogNormal must be positive; the model produced a "
-            "non-positive mu.",
+            as_tensor((mean > 0) & (std > 0), allow_xtensor_conversion=True),
+            msg="LogNormalPrior likelihood requires mu > 0 and std > 0. The "
+            "response-scale mean and standard deviation of a LogNormal must "
+            "be positive; the model produced a non-positive value.",
             can_be_replaced_by_ninf=True,
         )
         mu_log = as_xtensor(mu_log_tensor, dims=mu_log.type.dims)
