@@ -1,0 +1,40 @@
+docs/source/_templates/autosummary/class.rst
+  s_f310e038e2a4d7::t_49305d10df8e81 55-56
+  s_2ad13c43d52729::t_28f9c645b059c2 59
+docs/source/conf.py
+  s_63b494e47a0c0c::t_d13b6a966008b2 110-112,288
+docs/source/robots.txt
+  s_63b494e47a0c0c::t_f2d1c512dcbe2d 44-46,51-54
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "3a862049a9d14983ddab0c63be926bafd325272e",
+  "prompts": {},
+  "sessions": {
+    "s_2ad13c43d52729": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "483cec2b-bd0e-46dc-bdb7-687740d945cd",
+        "model": "claude-opus-5"
+      },
+      "human_author": "root <root@e2b.local>"
+    },
+    "s_63b494e47a0c0c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "077b3b51-9315-4676-8183-6cfb1bee9c40",
+        "model": "claude-opus-5"
+      },
+      "human_author": "root <root@e2b.local>"
+    },
+    "s_f310e038e2a4d7": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "78b19d60-026b-44ed-b3bd-1330ee24b966",
+        "model": "claude-opus-5"
+      },
+      "human_author": "root <root@e2b.local>"
+    }
+  }
+}
