@@ -3433,7 +3433,7 @@ class MMM(RegressionModelBuilder):
     def add_lift_test_measurements(
         self: Self,
         df_lift_test: pd.DataFrame,
-        dist: type[pmd.DimDistribution] = pmd.Gamma,
+        dist: Callable[..., Any] = pmd.Gamma,
         name: str = "lift_measurements",
     ) -> Self:
         """Add lift tests to the model.
@@ -3464,7 +3464,7 @@ class MMM(RegressionModelBuilder):
                 * `delta_x`: change in x axis value of the lift test.
                 * `delta_y`: change in y axis value of the lift test.
                 * `sigma`: standard deviation of the lift test.
-        dist : pymc.dims.DimDistribution, optional
+        dist : callable, optional
             The distribution to use for the likelihood, by default pymc.dims.Gamma
         name : str, optional
             The name of the likelihood of the lift test contribution(s),
