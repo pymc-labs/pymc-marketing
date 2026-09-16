@@ -29,6 +29,9 @@ import pymc as pm
 import pytensor
 import pytensor.tensor as pt
 import pytensor.xtensor as ptx
+from numpy.typing import (
+    ArrayLike,  # noqa: F401  # resolves pt.TensorLike's ForwardRef('ArrayLike') for sphinx_autodoc_typehints (#1197)
+)
 from pymc.dims.distributions.core import VectorDimDistribution
 from pymc.dims.distributions.transforms import DimTransform
 from pymc.distributions.dist_math import check_parameters
