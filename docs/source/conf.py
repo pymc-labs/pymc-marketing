@@ -107,8 +107,9 @@ locale_dirs = ["../../locales"]
 
 # -- Extension configuration ------------------------------------------------
 
-# exclude method pages from toctree to make pages lighter and build faster
-remove_from_toctrees = ["**/classmethods/*"]
+# exclude method and attribute pages from toctree to make pages lighter and
+# build faster
+remove_from_toctrees = ["**/classmethods/*", "**/classattributes/*"]
 
 # matplotlib plot directive configuration
 # plot_pre_code runs before every .. plot:: block; replaces the default
@@ -284,6 +285,7 @@ sitemap_excludes = [
     "genindex.html",
     "py-modindex.html",
     "api/generated/classmethods/*",
+    "api/generated/classattributes/*",
 ]
 
 

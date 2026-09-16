@@ -52,9 +52,11 @@
    .. rubric:: Attributes
 
    .. autosummary::
+      :toctree: classattributes
+
    {% for item in attributes %}
    {%- if item not in excluded_members %}
-      ~{{ name }}.{{ item }}
+      {{ objname }}.{{ item }}
    {%- endif %}
    {%- endfor %}
    {% endif %}
