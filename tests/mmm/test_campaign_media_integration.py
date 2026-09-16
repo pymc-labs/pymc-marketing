@@ -249,6 +249,35 @@ class TestGeoDims:
         assert geo_mmm.model["campaign_media_channel_scale"].get_value().shape == (1,)
 
 
+def test_set_data_without_campaign_data_zeroes_spend(built_mmm, campaign_mmm_data):
+    # the DataFrame prediction route cannot carry campaign_data; the effect
+    # must not reuse the training spend nor fail on a different window length
+    effect = built_mmm.mu_effects[0]
+    X_new = campaign_mmm_data["X"].isel(date=slice(0, 5)).drop_vars("campaign_data")
+    ds = built_mmm._posterior_predictive_data_transformation(X=X_new)
+    model = built_mmm._set_xarray_data(dataset_xarray=ds, model=built_mmm.model.copy())
+    with pytest.warns(UserWarning, match="campaign_data"):
+        effect.set_data(built_mmm, model, ds)
+    value = model["campaign_data"].get_value()
+    assert value.shape == (5, len(CAMPAIGNS))
+    np.testing.assert_array_equal(value, 0.0)
+    # the training model is untouched
+    assert built_mmm.model["campaign_data"].get_value().shape == (24, len(CAMPAIGNS))
+
+
+def test_set_data_with_campaign_data_updates_spend(built_mmm, campaign_mmm_data):
+    effect = built_mmm.mu_effects[0]
+    X_new = campaign_mmm_data["X"].isel(date=slice(0, 5))
+    ds = built_mmm._posterior_predictive_data_transformation(X=X_new)
+    model = built_mmm._set_xarray_data(dataset_xarray=ds, model=built_mmm.model.copy())
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        effect.set_data(built_mmm, model, ds)
+    np.testing.assert_array_equal(
+        model["campaign_data"].get_value(), X_new["campaign_data"].values
+    )
+
+
 def test_lift_test_on_real_mmm(campaign_mmm_data):
     mmm = _make_mmm()
     effect = mmm.mu_effects[0]
