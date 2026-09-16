@@ -20,11 +20,15 @@ build:
       - pip install --upgrade pip setuptools wheel
       - python scripts/generate_gallery.py
     build:
-      # Same command RTD runs by default plus -j auto. RTD has no option for
-      # a parallel Sphinx build, and the serial build has exceeded the RTD
-      # time limit since the API stub pages of #3024 doubled its duration.
+      # RTD's default command plus an explicit job count. The RTD builder
+      # exposes 2 CPUs (-j auto resolves to 2; measured from the chunk counts
+      # of build 34587451) and Sphinx writes with N-1 workers, so -j 2 leaves
+      # the write phase (~85% of the build) on a single worker. -j 3 puts both
+      # CPUs on it. $READTHEDOCS_LANGUAGE keeps the pymc-marketing-es project
+      # building in Spanish; a literal language code would silently make it
+      # an English mirror.
       html:
-        - python -m sphinx -T -W --keep-going -j auto -b html -d _build/doctrees -D language=en docs/source $READTHEDOCS_OUTPUT/html
+        - python -m sphinx -T -W --keep-going -j 3 -b html -d _build/doctrees -D language=$READTHEDOCS_LANGUAGE docs/source $READTHEDOCS_OUTPUT/html
 
 python:
   install:
