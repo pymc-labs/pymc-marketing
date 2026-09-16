@@ -19,6 +19,7 @@ import numpy as np
 import pandas as pd
 import pymc as pm
 import pymc.dims as pmd
+import pytensor.xtensor as ptx
 import pytest
 import xarray as xr
 
@@ -29,6 +30,7 @@ from pymc_marketing.mmm.counterfactual import (
     PeriodWindow,
 )
 from pymc_marketing.mmm.spend_reach import linear_predictor
+from pymc_marketing.mmm.transformers import ConvMode, batched_convolution
 
 
 def build_aux_dims_model(aux_dims, n_dates, n_country):
@@ -481,6 +483,50 @@ class TestPeriodEdgeCases:
         np.testing.assert_array_equal(window.eval_dates, self.dates[4:7])
         spend = scenarios.spend[scenarios.rows[(0, None)]]
         np.testing.assert_array_equal(spend[:, 0], [1.0, 1.0, 0.0, 1.0, 1.0])
+
+    @pytest.mark.parametrize(
+        ("mode", "full_axis", "expected_eval_dates"),
+        [
+            (ConvMode.After, False, slice(5, 10)),
+            (ConvMode.After, True, slice(5, None)),
+            (ConvMode.Before, False, slice(1, 6)),
+            (ConvMode.Before, True, slice(None, 6)),
+            (ConvMode.Overlap, False, slice(4, 8)),
+            (ConvMode.Overlap, True, slice(None)),
+        ],
+    )
+    def test_carryover_follows_the_convolution_mode(
+        self, mode, full_axis, expected_eval_dates
+    ):
+        """A period's evaluation mask contains the full adstock kernel mass."""
+        dates = pd.date_range("2023-01-02", freq="W-MON", periods=11)
+        freq_offset = pd.tseries.frequencies.to_offset("W-MON")
+        l_max = 4
+        period_date = dates[5]
+        windows = EvaluationWindows.build(
+            periods=[(period_date, period_date)],
+            dates=dates,
+            l_max=l_max,
+            freq_offset=freq_offset,
+            full_axis=full_axis,
+            mode=mode,
+        )
+        (window,) = windows.windows
+
+        np.testing.assert_array_equal(window.eval_dates, dates[expected_eval_dates])
+
+        spend = np.zeros(len(dates), dtype="float64")
+        spend[5] = 1.0
+        weights = np.array([0.4, 0.3, 0.2, 0.1])
+        contribution = batched_convolution(
+            ptx.as_xtensor(spend, dims=("date",)),
+            ptx.as_xtensor(weights, dims=("lag",)),
+            dim="date",
+            kernel_dim="lag",
+            mode=mode,
+        ).eval()
+
+        assert contribution[window.in_eval].sum() == pytest.approx(weights.sum())
 
     def test_carryover_is_dropped_from_the_mask_but_not_from_the_window(self):
         """``include_carryover=False`` narrows the mask and leaves the window.

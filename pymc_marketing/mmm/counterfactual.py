@@ -76,6 +76,7 @@ from pytensor.graph.basic import Variable
 from pytensor.graph.traversal import ancestors
 from pytensor.xtensor.vectorization import vectorize_graph
 
+from pymc_marketing.mmm.transformers import ConvMode
 from pymc_marketing.pytensor_utils import extract_response_distribution
 
 __all__ = [
@@ -242,9 +243,10 @@ class PeriodWindow:
         end: pd.Timestamp,
         dates: pd.DatetimeIndex,
         in_window: np.ndarray,
+        eval_start: pd.Timestamp | None = None,
         eval_end: pd.Timestamp,
     ) -> PeriodWindow:
-        """Derive both date ranges from the window mask and the carry-out end.
+        """Derive both date ranges from the window mask and evaluation bounds.
 
         Parameters
         ----------
@@ -254,11 +256,10 @@ class PeriodWindow:
             The full fitted date axis.
         in_window : np.ndarray
             Boolean mask over *dates* selecting the window.
+        eval_start : pd.Timestamp, optional
+            First date to sum. Defaults to the period's own *start*.
         eval_end : pd.Timestamp
-            Last date to sum: *end* itself when carryover is excluded, and
-            otherwise as far as the carry-out reaches, which is *end* plus the
-            window's ``l_max`` for a bounded reach and the last fitted date for a
-            reach the axis could not bound.
+            Last date to sum.
 
         Returns
         -------
@@ -266,7 +267,9 @@ class PeriodWindow:
             The window, with its evaluation subset intersected against it so the
             two cannot disagree.
         """
-        in_eval = in_window & (dates >= start) & (dates <= eval_end)
+        if eval_start is None:
+            eval_start = start
+        in_eval = in_window & (dates >= eval_start) & (dates <= eval_end)
         return cls(
             start=start,
             end=end,
@@ -334,16 +337,10 @@ class EvaluationWindows:
     inject synthetic history -- inert for spend, but not for an effect whose
     contribution at zero spend is its own intercept.
 
-    The dates that are *summed* run from the period's own start to its carry-out
-    end, and the estimand that fixes is a forward-looking one: a period's
-    increment is what moving its spend does to that period and to the dates after
-    it.  Under full-axis evaluation, selected for a node whose value depends on
-    the whole series, the perturbation also moves dates *before* the period, and
-    those moves are deliberately left out of the sum.  Summing them would make
-    the periods overlap in a quantity every caller reads as a decomposition, and
-    it is not what "this period's increment" is taken to mean.  A date-reducing
-    node is therefore evaluated on the whole series, as its value requires, and
-    still attributed forwards.
+    The dates that are *summed* follow the adstock's convolution mode.  Trailing
+    decay is attributed from the period forward, leading effects from the period
+    backward, and overlap effects to both sides.  This keeps the period's
+    increment aligned with every date its spend can affect.
 
     Parameters
     ----------
@@ -371,6 +368,7 @@ class EvaluationWindows:
         freq_offset: BaseOffset,
         full_axis: bool = False,
         include_carryover: bool = True,
+        mode: ConvMode = ConvMode.After,
     ) -> EvaluationWindows:
         """Work out the window of each period, and which of its dates are summed.
 
@@ -386,10 +384,9 @@ class EvaluationWindows:
         freq_offset : pd.DateOffset
             Calendar-aware frequency offset.
         include_carryover : bool, default=True
-            Whether the *evaluation* range reaches past the period to pick up its
-            carry-out.  Independent of the window, which always does: the two
-            lengths do different jobs and collapsing them would change the
-            numbers inside the period too.
+            Whether the *evaluation* range reaches outside the period to pick up
+            the adstock effect. Independent of the window, which always carries
+            surrounding context.
         full_axis : bool, default=False
             Evaluate every period on the complete fitted date axis, for an
             effect whose value depends on the whole series.  Expressed as a
@@ -397,6 +394,8 @@ class EvaluationWindows:
             scenario building, input cutting and period aggregation stay
             identical: each period still perturbs only its own dates and still
             sums its increment over its own evaluation mask.
+        mode : ConvMode, default=ConvMode.After
+            Direction in which the adstock kernel places a period's effect.
 
         Returns
         -------
@@ -407,31 +406,39 @@ class EvaluationWindows:
         for start, end in periods:
             if full_axis:
                 in_window = np.ones(len(dates), dtype=bool)
-                # Full-axis mode is selected precisely when no number could be
-                # put on some node's reach: the probe saw it still moving the
-                # last fitted date, or moving dates before the perturbed one.
-                # Stopping the sum at end + l_max would then cut a tail that was
-                # measured *not* to have ended, which is the silent under-count
-                # the measurement exists to prevent.  Summing to the axis end
-                # instead costs nothing in correctness: for a date the
-                # perturbation does not reach, the counterfactual and the
-                # baseline are the same computation on the same inputs, so the
-                # extra summands are exactly zero.
-                eval_end = dates[-1]
             else:
-                # Reach back l_max for carry-in context and forward l_max so
-                # carryover is captured; the eval mask decides what is summed.
+                # Carry enough context on both sides for every convolution mode;
+                # the mode-aware evaluation mask decides what is summed.
                 in_window = (dates >= start - l_max * freq_offset) & (
                     dates <= end + l_max * freq_offset
                 )
+
+            if not include_carryover:
+                eval_start, eval_end = start, end
+            elif full_axis:
+                eval_start = start if mode == ConvMode.After else dates[0]
+                eval_end = end if mode == ConvMode.Before else dates[-1]
+            elif mode == ConvMode.After:
+                eval_start = start
                 eval_end = end + l_max * freq_offset
+            elif mode == ConvMode.Before:
+                eval_start = start - l_max * freq_offset
+                eval_end = end
+            elif mode == ConvMode.Overlap:
+                eval_start = start - ((l_max - 1) // 2) * freq_offset
+                eval_end = end + (l_max // 2) * freq_offset
+            else:  # pragma: no cover
+                raise ValueError(
+                    f"Wrong Mode: {mode}, expected one of {', '.join(ConvMode)}"
+                )
             windows.append(
                 PeriodWindow.build(
                     start=start,
                     end=end,
                     dates=dates,
                     in_window=in_window,
-                    eval_end=eval_end if include_carryover else end,
+                    eval_start=eval_start,
+                    eval_end=eval_end,
                 )
             )
 

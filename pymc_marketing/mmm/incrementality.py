@@ -1132,6 +1132,7 @@ class Incrementality:
             freq_offset=freq_offset,
             full_axis=reach.requires_full_axis,
             include_carryover=include_carryover,
+            mode=self.model.adstock.mode,
         )
 
         # Two ways a per-channel column can stop being channel m's unilateral
