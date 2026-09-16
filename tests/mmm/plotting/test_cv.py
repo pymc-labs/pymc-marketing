@@ -539,3 +539,69 @@ class TestCRPS:
             assert np.any(np.isfinite(y_vals)), (
                 "CRPS panel contains only NaN — CRPS computation failed"
             )
+
+    def test_fold_axis_is_discrete_and_labelled(self, cv_plot, cv_results_idata):
+        """The x axis names the folds instead of showing positional floats."""
+        from pymc_marketing.mmm.plotting.cv import _extract_cv_labels
+
+        cv_labels = _extract_cv_labels(cv_results_idata)
+        _fig, axes = cv_plot.crps()
+        for ax in axes:
+            np.testing.assert_array_equal(ax.get_xticks(), np.arange(len(cv_labels)))
+            assert [t.get_text() for t in ax.get_xticklabels()] == [
+                str(label) for label in cv_labels
+            ]
+
+    def test_fold_axis_labelled_for_geo(self, cv_results_idata_geo):
+        from pymc_marketing.mmm.plotting.cv import MMMCVPlotSuite, _extract_cv_labels
+
+        suite = MMMCVPlotSuite(cv_results_idata_geo)
+        cv_labels = _extract_cv_labels(cv_results_idata_geo)
+        _fig, axes = suite.crps()
+        for ax in axes:
+            assert [t.get_text() for t in ax.get_xticklabels()] == [
+                str(label) for label in cv_labels
+            ]
+
+    def test_markers_drawn_by_default(self, cv_plot):
+        _fig, axes = cv_plot.crps()
+        assert all(ax.lines[0].get_marker() == "o" for ax in axes)
+
+    def test_marker_can_be_overridden(self, cv_plot):
+        _fig, axes = cv_plot.crps(line_kwargs={"marker": "s"})
+        assert all(ax.lines[0].get_marker() == "s" for ax in axes)
+
+    def test_combine_splits_single_panel(self, cv_plot):
+        """combine_splits puts train and test in one panel, so they share a y-scale."""
+        _fig, axes = cv_plot.crps(combine_splits=True)
+        assert len(axes) == 1
+        ax = axes[0]
+        assert len(ax.lines) == 2
+        assert len({line.get_color() for line in ax.lines}) == 2
+
+    def test_combine_splits_one_panel_per_geo(self, cv_results_idata_geo):
+        from pymc_marketing.mmm.plotting.cv import MMMCVPlotSuite
+
+        suite = MMMCVPlotSuite(cv_results_idata_geo)
+        _fig, axes = suite.crps(combine_splits=True)
+        assert len(axes) == 2, "Expected one panel per geo"
+        for ax in axes:
+            assert len(ax.lines) == 2
+
+    def test_fold_ticks_skip_backends_without_tick_api(self):
+        """A non-matplotlib plot object is left alone instead of raising."""
+        from types import SimpleNamespace
+
+        from pymc_marketing.mmm.plotting.cv import _label_fold_ticks
+
+        class TicklessPanel:
+            """Stand-in for a backend panel with no matplotlib tick API."""
+
+        panel = TicklessPanel()
+        pc = SimpleNamespace(
+            viz={"plot": SimpleNamespace(values=np.array([panel], dtype=object))}
+        )
+
+        _label_fold_ticks(pc, ["Fold 0", "Fold 1"])
+
+        assert not hasattr(panel, "set_xticks")
