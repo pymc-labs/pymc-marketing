@@ -21,7 +21,12 @@
      model_computed_fields are pydantic internals; since the Attributes
      block registers a stub page per attribute (#3024) they added 136
      pages to the build for nothing. model_config stays: it is a real,
-     documented attribute of every ModelBuilder subclass. #}
+     documented attribute of every ModelBuilder subclass.
+
+   The list is matched by name against the Methods and Attributes of every
+   documented class, not only the base classes that motivated each entry: a
+   future public member with one of these names is dropped from the docs with
+   no warning. #}
 {% set excluded_members = [
     "maketrans", "translate", "format", "format_map",
     "encode", "decode", "removeprefix", "removesuffix",

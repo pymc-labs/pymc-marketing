@@ -2,8 +2,8 @@
 #
 # History: #1210 tracked a backlog of ~900 warnings; the cleanup landed in
 # this PR. Going forward, any new warning is a regression and blocks the
-# merge. The same gate is enforced on RTD via sphinx.fail_on_warning: true
-# in .readthedocs.yaml.
+# merge. The same gate is enforced on RTD by the -W in the html command
+# overridden in .readthedocs.yml.
 
 name: Docs
 
