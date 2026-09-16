@@ -27,6 +27,10 @@ from pymc_marketing.mmm.budget_optimizer import (
     merge_inference_data,
     merge_models_and_idata,
 )
+from pymc_marketing.mmm.campaign_media import (
+    NestedCampaignMedia,
+    lognormal_relative_lift,
+)
 from pymc_marketing.mmm.components.adstock import (
     AdstockTransformation,
     BinomialAdstock,
@@ -48,6 +52,10 @@ from pymc_marketing.mmm.components.saturation import (
     SaturationTransformation,
     TanhSaturation,
     TanhSaturationBaselined,
+)
+from pymc_marketing.mmm.distributions import (
+    DimWeightedZeroSumNormal,
+    WeightedZeroSumNormal,
 )
 from pymc_marketing.mmm.fourier import MonthlyFourier, WeeklyFourier, YearlyFourier
 from pymc_marketing.mmm.hsgp import (
@@ -111,6 +119,7 @@ __all__ = [
     "DataDerivedScaling",
     "DataVarMuEffect",
     "DelayedAdstock",
+    "DimWeightedZeroSumNormal",
     "FancyLinearRegression",
     "FixedScaling",
     "GeometricAdstock",
@@ -131,6 +140,7 @@ __all__ = [
     "MediaTransformation",
     "MichaelisMentenSaturation",
     "MonthlyFourier",
+    "NestedCampaignMedia",
     "NoAdstock",
     "NoSaturation",
     "OptimizationVariable",
@@ -152,12 +162,14 @@ __all__ = [
     "WeeklyFourier",
     "WeibullCDFAdstock",
     "WeibullPDFAdstock",
+    "WeightedZeroSumNormal",
     "YearlyFourier",
     "approx_hsgp_hyperparams",
     "create_complexity_penalizing_prior",
     "create_constrained_inverse_gamma_prior",
     "create_eta_prior",
     "create_m_and_L_recommendations",
+    "lognormal_relative_lift",
     "merge_inference_data",
     "merge_models_and_idata",
     "preprocessing",

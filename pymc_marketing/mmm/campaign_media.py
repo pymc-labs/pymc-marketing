@@ -49,7 +49,9 @@ Design notes
   channel.
 - ``incrementality_spec`` stays ``None``: ``channel_data`` is never an
   ancestor of this effect's contribution.  Point the budget optimizer at the
-  effect via ``BudgetOptimizer(spend_vars=["campaign_data"])``.
+  effect via ``BudgetOptimizer(spend_vars=["campaign_data"],
+  response_variable="total_response_original_scale")``; the default response
+  variable does not depend on ``campaign_data`` and raises at construction.
 - Adstock is not yet applied (identification of the campaign split rests on
   saturation, not carryover); pre-transform the data if carryover is needed.
 """
@@ -60,6 +62,7 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
+import pymc as pm
 import pymc.dims as pmd
 import xarray as xr
 from pydantic import Field, InstanceOf
@@ -70,6 +73,7 @@ from pymc_marketing.mmm.components.saturation import (
     MichaelisMentenSaturation,
     SaturationTransformation,
 )
+from pymc_marketing.mmm.distributions import DimWeightedZeroSumNormal
 from pymc_marketing.mmm.lift_test import add_saturation_observations
 from pymc_marketing.serialization import serialization
 
@@ -89,23 +93,49 @@ _AMPLITUDE_PARAM: dict[str, str] = {
 }
 
 
-def _weighted_zero_sum_basis(weights: np.ndarray) -> np.ndarray:
-    """Orthonormal basis (k, k-1) of the hyperplane ``sum(weights * x) = 0``.
+def lognormal_relative_lift(
+    name: str,
+    mu: XTensorVariable,
+    sigma: XTensorVariable,
+    observed: XTensorVariable,
+) -> XTensorVariable:
+    """LogNormal lift likelihood with the noise as relative error on the measurement.
 
-    Restriction of the Householder reflection sending ``u = w/|w|`` to
-    ``-e_k``; the ``v = u + e_k`` sign choice keeps the denominator
-    ``1 + u_k >= 1`` for non-negative weights.
+    The location is the log of the model's estimated lift ``mu``. The
+    log-space scale is derived from the measurement's coefficient of
+    variation ``sigma / observed``, a fixed number, so an estimated lift
+    that collapses towards zero is penalised quadratically in log space. A
+    LogNormal or Gamma moment-matched to ``mu`` and ``sigma`` instead lets
+    the spread grow as ``mu`` shrinks and barely penalises that collapse,
+    which gives the posterior a degenerate mode.
+
+    The likelihood is median-matched: its median is ``mu`` and its mean is
+    ``mu * exp(sigma_log**2 / 2)``, a ``+0.5%`` bias at a 10% coefficient of
+    variation. Rows must satisfy the lift-table contract checked by the hook.
     """
-    w = np.asarray(weights, dtype=float)
-    k = w.shape[0]
-    if k < 2:
-        return np.zeros((k, 0))
-    u = w / np.linalg.norm(w)
-    z0 = np.concatenate([np.eye(k - 1), np.zeros((1, k - 1))], axis=0)
-    v = u.copy()
-    v[-1] += 1.0
-    coef = (v @ z0) / (1.0 + u[-1])
-    return z0 - v[:, None] * coef[None, :]
+    sigma_log = pmd.math.sqrt(pmd.math.log1p((sigma / observed) ** 2))
+    return pmd.LogNormal(name, mu=pmd.math.log(mu), sigma=sigma_log, observed=observed)
+
+
+def _check_lift_rows(df_lift_test: pd.DataFrame) -> None:
+    """Enforce the lift-table contract: finite values, ``sigma > 0``, nonzero deltas.
+
+    Rows outside this contract cannot be scored by a lift likelihood and
+    would only surface as a ``-inf`` model logp at ``sample()`` time with
+    nothing pointing at the offending row.
+    """
+    cols = ["x", "delta_x", "delta_y", "sigma"]
+    values = df_lift_test[cols].to_numpy(dtype=float)
+    bad = ~np.isfinite(values).all(axis=1)
+    bad |= values[:, cols.index("sigma")] <= 0
+    bad |= values[:, cols.index("delta_x")] == 0
+    bad |= values[:, cols.index("delta_y")] == 0
+    if bad.any():
+        raise ValueError(
+            "df_lift_test rows must have finite x, delta_x, delta_y and sigma, "
+            "with sigma > 0 and nonzero delta_x and delta_y; offending rows: "
+            f"{df_lift_test.index[bad].tolist()}"
+        )
 
 
 class NestedCampaignMedia(DataVarMuEffect):
@@ -135,7 +165,13 @@ class NestedCampaignMedia(DataVarMuEffect):
     tau_beta_sigma, tau_lam_sigma : float
         Scales of the HalfNormal priors on the pooling strength of the
         campaign-level amplitude and x-scale multipliers.  Smaller means
-        stronger pooling.
+        stronger pooling.  Under the spend-share-weighted zero sum the
+        prior sd of a campaign's log-multiplier is ``tau * sqrt(1 - u_c**2)``
+        with ``u = share / |share|``, so it is not uniform across campaigns:
+        the dominant campaign of a channel is pinned close to the channel
+        mean (for a 90/5/3/2 split about 12x tighter than its siblings).
+        This protects the channel total; ``tau_beta_sigma`` is therefore not
+        "the campaign multiplier scale" for every campaign.
     rho : float
         Exponent tying each campaign's curve to its size (``cap_c``, the
         campaign's max channel-scaled spend).  At ``rho=1`` the campaign
@@ -188,7 +224,9 @@ class NestedCampaignMedia(DataVarMuEffect):
 
     def create_data(self, mmm: Model) -> None:
         """Register campaign spend plus static index/scale data variables."""
-        da = mmm.xarray_dataset[self.data_vars[0]]
+        # The numpy reductions below are positional and assume the campaign
+        # dim is last; the model graph itself is dim-name based
+        da = mmm.xarray_dataset[self.data_vars[0]].transpose(..., self.campaign_dim)
         campaigns = [str(c) for c in da.coords[self.campaign_dim].values]
 
         missing = set(campaigns) - set(self.campaign_to_channel)
@@ -260,28 +298,30 @@ class NestedCampaignMedia(DataVarMuEffect):
 
         if self.zero_sum_multipliers:
             total = da.values.reshape(-1, da.shape[-1]).sum(axis=0)
-            blocks = []
-            for g in range(len(channels)):
+            for g, channel in enumerate(channels):
                 idx = np.flatnonzero(parent_idx == g)
                 w = total[idx]
-                live = np.flatnonzero(w > 0)
-                # dead campaigns keep zero basis rows: their multiplier is
-                # pinned at 1 instead of adding an unidentified free direction
-                blocks.append((idx[live], _weighted_zero_sum_basis(w[live])))
-            n_free = sum(b.shape[1] for _, b in blocks)
-            free_dim = f"{self.prefix}_free"
-            if n_free > 0:
-                basis = np.zeros((len(campaigns), n_free))
-                pos = 0
-                for idx, b in blocks:
-                    basis[idx, pos : pos + b.shape[1]] = b
-                    pos += b.shape[1]
-                if free_dim not in model.coords:
-                    model.add_coord(free_dim, np.arange(n_free))
+                # dead campaigns are left out of the constraint: their
+                # multiplier is pinned at 1 instead of adding an unidentified
+                # free direction. A channel needs two live campaigns to have
+                # any free direction at all.
+                live = idx[w > 0]
+                if len(live) < 2:
+                    continue
+                sub_dim = self._channel_campaign_dim(channel)
+                if sub_dim not in model.coords:
+                    model.add_coord(sub_dim, [campaigns[i] for i in live])
                 pmd.Data(
-                    f"{self.prefix}_mult_basis",
-                    basis,
-                    dims=(self.campaign_dim, free_dim),
+                    f"{self.prefix}_spend_share_{channel}",
+                    total[live] / total[live].sum(),
+                    dims=(sub_dim,),
+                )
+                scatter = np.zeros((len(live), len(campaigns)), dtype=da.dtype)
+                scatter[np.arange(len(live)), live] = 1.0
+                pmd.Data(
+                    f"{self.prefix}_scatter_{channel}",
+                    scatter,
+                    dims=(sub_dim, self.campaign_dim),
                 )
 
         if self.covariate_var is not None:
@@ -297,7 +337,10 @@ class NestedCampaignMedia(DataVarMuEffect):
             # term reallocates efficiency between a channel's campaigns but
             # cannot move the channel total
             total_spend = da.values.reshape(-1, da.shape[-1]).sum(axis=0)
-            share = total_spend / (total_spend @ onehot)[parent_idx]
+            channel_spend = (total_spend @ onehot)[parent_idx]
+            # an all-zero channel has no share to centre by; its campaigns get
+            # the raw covariate and the channel mean stays finite
+            share = total_spend / np.where(channel_spend > 0, channel_spend, 1.0)
             weighted_mean = (share[:, None] * cov).T @ onehot  # (n_cov, n_channel)
             cov_centred = cov - weighted_mean.T[parent_idx]
             if self.covariate_dim not in model.coords:
@@ -312,6 +355,70 @@ class NestedCampaignMedia(DataVarMuEffect):
                 cov_centred,
                 dims=(self.campaign_dim, self.covariate_dim),
             )
+
+    def _channel_campaign_dim(self, channel: str) -> str:
+        """Coordinate name of the live campaigns of ``channel``."""
+        return f"{self.prefix}_{channel}_campaign"
+
+    def _zero_sum_multiplier(
+        self, model: pm.Model, name: str, channels: list[str]
+    ) -> XTensorVariable:
+        """Standardised log-multiplier with a spend-share-weighted zero sum per channel.
+
+        One :class:`~pymc_marketing.mmm.distributions.DimWeightedZeroSumNormal`
+        per channel, over that channel's live campaigns, scattered back to the
+        campaign dimension. Campaigns outside every block (dead campaigns and
+        single-campaign channels) get zero, i.e. multiplier one.
+        """
+        p = self.prefix
+        if not channels:
+            zeros = pmd.zeros_like(model[f"{p}_campaign_cap"])
+            return pmd.Deterministic(f"{p}_{name}", zeros)
+        parts = []
+        for channel in channels:
+            sub_dim = self._channel_campaign_dim(channel)
+            z = DimWeightedZeroSumNormal(
+                f"{p}_{name}_{channel}",
+                weights=model[f"{p}_spend_share_{channel}"],
+                core_dims=sub_dim,
+            )
+            parts.append((z * model[f"{p}_scatter_{channel}"]).sum(dim=sub_dim))
+        total = parts[0]
+        for part in parts[1:]:
+            total = total + part
+        return pmd.Deterministic(f"{p}_{name}", total)
+
+    def set_data(self, mmm: Model, model: pm.Model, X: xr.Dataset) -> None:
+        """Update ``campaign_data`` for a new prediction window.
+
+        A wide DataFrame cannot carry the ``(date, campaign)`` spend, so the
+        default MMM prediction route hands this effect a dataset without it.
+        Silently reusing the training spend would be wrong, and a window of a
+        different length would fail deep inside PyTensor. Instead the spend is
+        set to zero over the new dates, with a warning: the campaigns then
+        contribute nothing. To predict with campaign spend, pass an
+        ``xr.Dataset`` ``X`` that carries the variable, as the budget
+        optimizer's own dataset does.
+        """
+        var_name = self.data_vars[0]
+        if var_name in X.data_vars:
+            super().set_data(mmm, model, X)
+            return
+        current = model[var_name].get_value()
+        dims = model.named_vars_to_dims[var_name]
+        new_shape = tuple(
+            X.sizes["date"] if dim == "date" else size
+            for dim, size in zip(dims, current.shape, strict=True)
+        )
+        warnings.warn(
+            f"{var_name!r} is not in the prediction data (a DataFrame cannot carry "
+            "it), so campaign spend is set to zero over the new dates and the "
+            "campaigns contribute nothing. Pass an xr.Dataset X with "
+            f"{var_name!r} to predict with campaign spend.",
+            UserWarning,
+            stacklevel=2,
+        )
+        pm.set_data({var_name: np.zeros(new_shape, dtype=current.dtype)}, model=model)
 
     def create_effect(self, mmm: Model) -> XTensorVariable:
         """Build the nested campaign media contribution."""
@@ -332,14 +439,18 @@ class NestedCampaignMedia(DataVarMuEffect):
 
         tau_beta = pmd.HalfNormal(f"{p}_tau_beta", sigma=self.tau_beta_sigma)
         tau_lam = pmd.HalfNormal(f"{p}_tau_lam", sigma=self.tau_lam_sigma)
-        basis_name = f"{p}_mult_basis"
-        if self.zero_sum_multipliers and basis_name in model.named_vars:
-            basis = model[basis_name]
-            free_dim = f"{p}_free"
-            z_beta_free = pmd.Normal(f"{p}_z_beta", 0.0, 1.0, dims=(free_dim,))
-            z_lam_free = pmd.Normal(f"{p}_z_lam", 0.0, 1.0, dims=(free_dim,))
-            z_beta = (basis * z_beta_free).sum(dim=free_dim)
-            z_lam = (basis * z_lam_free).sum(dim=free_dim)
+        zero_sum_channels = [
+            channel
+            for channel in model.coords[channel_coord_name]
+            if f"{p}_spend_share_{channel}" in model.named_vars
+        ]
+        if self.zero_sum_multipliers:
+            # Branch on the flag alone: with no channel holding two live
+            # campaigns there are no free directions and every multiplier is
+            # pinned at 1, rather than silently falling back to free
+            # per-campaign multipliers.
+            z_beta = self._zero_sum_multiplier(model, "z_beta", zero_sum_channels)
+            z_lam = self._zero_sum_multiplier(model, "z_lam", zero_sum_channels)
         else:
             z_beta = pmd.Normal(f"{p}_z_beta", 0.0, 1.0, dims=(self.campaign_dim,))
             z_lam = pmd.Normal(f"{p}_z_lam", 0.0, 1.0, dims=(self.campaign_dim,))
@@ -403,7 +514,7 @@ class NestedCampaignMedia(DataVarMuEffect):
         self,
         df_lift_test: pd.DataFrame,
         mmm: Model,
-        dist: type[pmd.DimDistribution] = pmd.Gamma,
+        dist: Callable[..., XTensorVariable] = lognormal_relative_lift,
         name: str | None = None,
         target_transform: Callable[[np.ndarray], np.ndarray] | None = None,
     ) -> "NestedCampaignMedia":
@@ -424,8 +535,14 @@ class NestedCampaignMedia(DataVarMuEffect):
             scale. ``delta_y`` and ``sigma`` are in target units.
         mmm : Model
             The MMM the effect was built into. The model must be built.
-        dist : pymc.dims.DimDistribution class, optional
-            Likelihood for the lift measurements, by default ``pmd.Gamma``.
+        dist : callable, optional
+            Likelihood for the lift measurements, called with ``name``,
+            ``mu`` (the estimated lift), ``sigma`` and ``observed``. By
+            default :func:`lognormal_relative_lift`, a positive likelihood
+            with the noise as relative error on the measurement. A
+            ``pmd.Gamma`` or a moment-matched LogNormal is not recommended:
+            they barely penalise an estimated lift near zero, which gives
+            the posterior a degenerate mode with a collapsed half-saturation.
         name : str, optional
             Name of the likelihood, defaults to
             ``f"{prefix}_lift_measurements"``.
@@ -453,6 +570,7 @@ class NestedCampaignMedia(DataVarMuEffect):
         unknown = set(df_lift_test[self.campaign_dim].astype(str)) - set(campaigns)
         if unknown:
             raise ValueError(f"Unknown campaigns in df_lift_test: {sorted(unknown)}")
+        _check_lift_rows(df_lift_test)
 
         scale = np.asarray(model[f"{p}_channel_scale"].get_value())
         parent = np.asarray(model[f"{p}_parent_idx"].get_value()).astype(int)
