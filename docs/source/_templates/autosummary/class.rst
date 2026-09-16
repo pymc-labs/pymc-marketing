@@ -5,8 +5,9 @@
 
    - str.* methods (maketrans / translate / format / format_map etc.) leak
      in via StrEnum subclasses (ConvMode, WeibullType, CovFunc,
-     PeriodicCovFunc); autodoc cannot format their overloaded C-level
-     signatures.
+     PeriodicCovFunc, LinkFunction); autodoc cannot format their overloaded
+     C-level signatures. Python 3.14 adds count / endswith / find / index /
+     rfind / rindex / startswith to that set.
    - rv_op on PyMC Distribution subclasses is a classmethod descriptor;
      autodoc raises 'list assignment index out of range' on its signature
      and 'failed to import object' on its attribute reference.
@@ -24,6 +25,7 @@
 {% set excluded_members = [
     "maketrans", "translate", "format", "format_map",
     "encode", "decode", "removeprefix", "removesuffix",
+    "count", "endswith", "find", "index", "rfind", "rindex", "startswith",
     "rv_op",
     "model_construct", "model_copy", "model_dump", "model_dump_json",
     "model_validate", "model_validate_json", "model_validate_strings",
