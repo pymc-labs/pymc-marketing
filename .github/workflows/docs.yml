@@ -59,9 +59,10 @@ jobs:
       - name: Build HTML
         # -W: turn warnings into errors. --keep-going: collect every warning
         # before failing, so the job summary shows the full list (not just
-        # the first).
+        # the first). -j auto: read and write in parallel; the API stub pages
+        # (#3024) made the serial build take over 30 minutes.
         run: |
-          uv run sphinx-build docs/source docs/build -b html -W --keep-going \
+          uv run sphinx-build docs/source docs/build -b html -W --keep-going -j auto \
             2> docs_warnings.log
       - name: Report warning count
         if: always()

@@ -15,7 +15,12 @@
      have malformed RST (Definition list / Block quote without trailing
      blank line) which inflates our docs warnings ~16x via inheritance.
    - mlflow.pyfunc.model.PythonModel.* methods leak in via PyFuncModel
-     wrappers in mlflow.py; same problem as pydantic. #}
+     wrappers in mlflow.py; same problem as pydantic.
+   - pydantic.BaseModel.model_fields / model_fields_set / model_extra /
+     model_computed_fields are pydantic internals; since the Attributes
+     block registers a stub page per attribute (#3024) they added 136
+     pages to the build for nothing. model_config stays: it is a real,
+     documented attribute of every ModelBuilder subclass. #}
 {% set excluded_members = [
     "maketrans", "translate", "format", "format_map",
     "encode", "decode", "removeprefix", "removesuffix",
@@ -23,6 +28,7 @@
     "model_construct", "model_copy", "model_dump", "model_dump_json",
     "model_validate", "model_validate_json", "model_validate_strings",
     "model_json_schema", "model_post_init", "model_rebuild",
+    "model_fields", "model_fields_set", "model_extra", "model_computed_fields",
     "predict_stream", "load_context",
 ] %}
 {{ name | escape | underline}}

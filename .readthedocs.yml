@@ -5,7 +5,9 @@ version: 2
 sphinx:
   configuration: docs/source/conf.py
   # Mirror the GH Actions `Docs` workflow gate: fail the RTD build on any
-  # sphinx/myst/numpydoc warning. History: #1210.
+  # sphinx/myst/numpydoc warning. History: #1210. With the html step
+  # overridden below this key no longer drives the build; the -W flag in
+  # that command is the gate.
   fail_on_warning: true
 
 build:
@@ -17,6 +19,12 @@ build:
       # Install core dependencies first
       - pip install --upgrade pip setuptools wheel
       - python scripts/generate_gallery.py
+    build:
+      # Same command RTD runs by default plus -j auto. RTD has no option for
+      # a parallel Sphinx build, and the serial build has exceeded the RTD
+      # time limit since the API stub pages of #3024 doubled its duration.
+      html:
+        - python -m sphinx -T -W --keep-going -j auto -b html -d _build/doctrees -D language=en docs/source $READTHEDOCS_OUTPUT/html
 
 python:
   install:
