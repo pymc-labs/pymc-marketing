@@ -276,6 +276,16 @@ class WeightedZeroSumNormal(Distribution):
         cls, *args, support_shape: int | None = None, dims: Dims | None = None, **kwargs
     ):
         """Create the named variable; ``dims`` or ``observed`` fix the constrained length."""
+        for key in ("transform", "default_transform"):
+            transform = kwargs.get(key)
+            if (
+                isinstance(transform, WeightedZeroSumTransform)
+                and transform.weights is not None
+            ):
+                raise ValueError(
+                    "WeightedZeroSumNormal supplies its own weights to its transform; "
+                    "pass WeightedZeroSumTransform() without weights"
+                )
         if dims is not None or kwargs.get("observed") is not None:
             support_shape = get_support_shape_1d(
                 support_shape=support_shape,
@@ -455,6 +465,24 @@ class DimWeightedZeroSumNormal(VectorDimDistribution):
         if core_dims is not None:
             if isinstance(core_dims, str):
                 core_dims = (core_dims,)
+            supplied = (
+                default_transform
+                if default_transform is not UNSET
+                else kwargs.get("transform")
+            )
+            if (
+                isinstance(supplied, DimWeightedZeroSumTransform)
+                and "weights" in kwargs
+            ):
+                own = _constant_weights(kwargs["weights"], supplied.dim).data
+                theirs = supplied.weights.data
+                if supplied.dim != core_dims[-1] or not np.allclose(
+                    own / np.linalg.norm(own), theirs / np.linalg.norm(theirs)
+                ):
+                    raise ValueError(
+                        "the transform's dim and weights must match the distribution's; "
+                        "leave default_transform unset to have them derived"
+                    )
             if observed is None and default_transform is UNSET:
                 default_transform = DimWeightedZeroSumTransform(
                     core_dims[-1], kwargs["weights"]

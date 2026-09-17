@@ -502,6 +502,40 @@ def test_transform_explicit_weights_win_on_other_rvs():
     assert abs(value @ sigma) > 1e-3
 
 
+def test_distribution_rejects_transform_with_its_own_weights():
+    w = np.array([0.7, 0.2, 0.1])
+    with Model():
+        with pytest.raises(ValueError, match="without weights"):
+            WeightedZeroSumNormal(
+                "x", weights=w, transform=WeightedZeroSumTransform(w[::-1])
+            )
+        with pytest.raises(ValueError, match="without weights"):
+            WeightedZeroSumNormal(
+                "y", weights=w, default_transform=WeightedZeroSumTransform(w)
+            )
+        WeightedZeroSumNormal(
+            "z", weights=w, default_transform=WeightedZeroSumTransform()
+        )
+
+
+def test_dim_distribution_rejects_mismatched_transform():
+    w = np.array([0.7, 0.2, 0.1])
+    with Model(coords={"b": range(3)}):
+        with pytest.raises(ValueError, match="must match"):
+            DimWeightedZeroSumNormal(
+                "x",
+                weights=w,
+                core_dims="b",
+                default_transform=DimWeightedZeroSumTransform("b", w[::-1]),
+            )
+        DimWeightedZeroSumNormal(
+            "y",
+            weights=w,
+            core_dims="b",
+            default_transform=DimWeightedZeroSumTransform("b", w),
+        )
+
+
 TRANSFORM_WEIGHTS = [
     np.array([0.70, 0.20, 0.08, 0.02]),
     np.array([0.90, 0.05, 0.03, 0.02]),
