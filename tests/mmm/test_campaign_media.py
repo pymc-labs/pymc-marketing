@@ -158,7 +158,7 @@ def test_zero_sum_multipliers_opt_out():
         effect.create_data(mmm)
         effect.create_effect(mmm)
     assert "campaign_media_z_beta_tv" not in mmm.model.named_vars
-    assert "campaign_media_live_to_campaign" not in mmm.model.named_vars
+    assert "campaign_media_live_index" not in mmm.model.named_vars
     assert mmm.model["campaign_media_z_beta"].type.dims == ("campaign",)
 
 
@@ -201,7 +201,7 @@ def test_campaign_dim_need_not_be_last():
                 "channel_scale",
                 "campaign_cap",
                 "spend_share",
-                "live_to_campaign",
+                "live_index",
             ]
         }
 
