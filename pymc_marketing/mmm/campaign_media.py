@@ -435,18 +435,17 @@ class NestedCampaignMedia(DataVarMuEffect):
                 f"{p}_{name}", pmd.zeros_like(model[f"{p}_campaign_cap"])
             )
         campaigns = [str(c) for c in model.coords[self.campaign_dim]]
-        share = model[f"{p}_spend_share"]
+        # spend shares are training constants, which is what the dims
+        # distribution takes; the Data variable keeps them in the trace
+        share = model[f"{p}_spend_share"].get_value()
         parts = []
         for channel in model.coords[f"{p}_{self.channel_dim}"]:
             sub_dim = self._channel_campaign_dim(channel)
             if sub_dim not in model.coords:
                 continue
             idx = [campaigns.index(str(c)) for c in model.coords[sub_dim]]
-            weights = share.isel({self.campaign_dim: idx}).rename(
-                {self.campaign_dim: sub_dim}
-            )
             z = DimWeightedZeroSumNormal(
-                f"{p}_{name}_{channel}", weights=weights, core_dims=sub_dim
+                f"{p}_{name}_{channel}", weights=share[idx], core_dims=sub_dim
             )
             parts.append(z.rename({sub_dim: live_dim}))
         z_live = ptx.concat(parts, dim=live_dim)

@@ -443,66 +443,42 @@ def test_dim_weighted_zerosumnormal_batch_sigma():
     )
 
 
-def test_dim_weighted_zerosumnormal_symbolic_weights():
-    # weights passed as model data stay symbolic in both the RV and the
-    # default transform, so set_data keeps the constraint in sync
-    w = WEIGHTS
+def test_dim_weighted_zerosumnormal_requires_constant_weights():
+    # like pymc's dims IntervalTransform, the dims flavour keeps its weights
+    # as constants; symbolic weights are the tensor API's job
     coords = {"b": range(4)}
-    with Model(coords=coords) as model:
-        weights = pmd.Data("w", w, dims=("b",))
-        x = DimWeightedZeroSumNormal("x", weights=weights, core_dims=("b",))
-
-    assert model.initial_point()["x_weighted_zerosum__"].shape == (3,)
-    draws = draw(model["x"], draws=100, random_seed=1)
-    assert np.abs(draws @ (w / np.linalg.norm(w))).max() < 1e-9
-
-    rng = np.random.default_rng(6)
-    z = rng.normal(size=3)
-    logp_fn = model.compile_logp()
-    logp_before = logp_fn({"x_weighted_zerosum__": z})
-
-    new_w = np.array([1.0, 1.0, 1.0, 5.0])
-    with model:
-        pm.set_data({"w": new_w})
-    x_val = model.rvs_to_transforms[x].backward(
-        as_xtensor(z, dims=("b",)), *x.owner.inputs
-    )
-    np.testing.assert_allclose(
-        x_val.eval() @ (new_w / np.linalg.norm(new_w)), 0.0, atol=1e-12
-    )
-    # the density on the hyperplane does not depend on the weights, only the mapping does
-    np.testing.assert_allclose(logp_fn({"x_weighted_zerosum__": z}), logp_before)
-    with Model(coords=coords) as ref_model:
-        WeightedZeroSumNormal("x", weights=new_w, dims="b")
-    np.testing.assert_allclose(
-        logp_fn({"x_weighted_zerosum__": z}),
-        ref_model.compile_logp()({"x_weighted_zerosum__": z}),
-    )
+    with Model(coords=coords):
+        data_weights = pmd.Data("w", WEIGHTS, dims="b")
+        with pytest.raises(NotImplementedError, match="constant weights"):
+            DimWeightedZeroSumNormal("x", weights=data_weights, core_dims="b")
+        rv_weights = pmd.Dirichlet(
+            "d", a=as_xtensor(np.ones(4), dims=("b",)), core_dims="b"
+        )
+        with pytest.raises(NotImplementedError, match="constant weights"):
+            DimWeightedZeroSumNormal("y", weights=rv_weights, core_dims="b")
+    with pytest.raises(NotImplementedError, match="constant weights"):
+        DimWeightedZeroSumTransform("b", pt.vector("w", shape=(4,)))
 
 
-def test_dim_weighted_zerosumnormal_rv_weights():
-    coords = {"b": range(4)}
-    with Model(coords=coords) as model:
-        w = pmd.Dirichlet("w", a=as_xtensor(np.ones(4), dims=("b",)), core_dims="b")
-        x = DimWeightedZeroSumNormal("x", weights=w, core_dims="b")
-
-    w_val = np.array([0.4, 0.3, 0.2, 0.1])
-    z = np.array([0.5, -0.3, 0.2])
-    x_val = model.rvs_to_transforms[x].backward(
-        as_xtensor(z, dims=("b",)), *x.owner.inputs
-    )
-    np.testing.assert_allclose(
-        x_val.eval({w: w_val}) @ (w_val / np.linalg.norm(w_val)), 0.0, atol=1e-12
-    )
+def test_dim_weighted_zerosumnormal_constant_tensor_weights():
+    # constants of either API are accepted
+    with Model(coords={"b": range(4)}) as model:
+        x = DimWeightedZeroSumNormal("x", weights=pt.as_tensor(WEIGHTS), core_dims="b")
+        y = DimWeightedZeroSumNormal(
+            "y", weights=as_xtensor(WEIGHTS, dims=("b",)), core_dims="b"
+        )
     assert np.isfinite(model.compile_logp()(model.initial_point()))
+    for var in (x, y):
+        draws = draw(var, draws=50, random_seed=1)
+        np.testing.assert_allclose(
+            draws @ (WEIGHTS / np.linalg.norm(WEIGHTS)), 0.0, atol=1e-12
+        )
 
 
 @pytest.mark.parametrize("model_fn", ["clone_model", "freeze_dims_and_data"])
 def test_dim_weighted_zerosumnormal_model_transforms(model_fn):
     with Model(coords={"b": range(4)}) as model:
-        DimWeightedZeroSumNormal(
-            "x", weights=pmd.Data("w", WEIGHTS, dims="b"), core_dims="b"
-        )
+        DimWeightedZeroSumNormal("x", weights=WEIGHTS, core_dims="b")
 
     new_model = (
         clone_model(model) if model_fn == "clone_model" else freeze_dims_and_data(model)
@@ -511,12 +487,6 @@ def test_dim_weighted_zerosumnormal_model_transforms(model_fn):
     np.testing.assert_allclose(
         new_model.compile_logp()(point), model.compile_logp()(point)
     )
-
-
-def test_dim_weighted_zerosumnormal_tensor_weights():
-    with Model(coords={"b": range(4)}) as model:
-        DimWeightedZeroSumNormal("x", weights=pt.as_tensor(WEIGHTS), core_dims="b")
-    assert np.isfinite(model.compile_logp()(model.initial_point()))
 
 
 def test_dim_weighted_zerosumnormal_errors():
@@ -543,12 +513,10 @@ def test_dim_weighted_zerosumnormal_errors():
             dim_lengths={},
         )
     # Model dim lengths are shared variables, so a mismatch is caught at runtime
-    for symbolic in (False, True):
-        with Model(coords={"b": range(5)}) as model:
-            weights = pmd.Data("w", w, dims="b") if symbolic else w
-            DimWeightedZeroSumNormal("x", weights=weights, core_dims="b")
-        with pytest.raises(AssertionError, match="length of weights does not match"):
-            model.initial_point()
+    with Model(coords={"b": range(5)}) as model:
+        DimWeightedZeroSumNormal("x", weights=w, core_dims="b")
+    with pytest.raises(AssertionError, match="length of weights does not match"):
+        model.initial_point()
 
 
 TRANSFORM_WEIGHTS = [
@@ -610,7 +578,10 @@ def test_dim_weighted_zerosum_invalid_weights():
         DimWeightedZeroSumTransform(dim="a", weights=np.ones((2, 2)))
 
 
-def test_dim_weighted_zerosum_needs_weights():
-    z = as_xtensor(np.zeros(3), dims=("a",))
-    with pytest.raises(ValueError, match="needs weights"):
-        DimWeightedZeroSumTransform(dim="a").backward(z)
+def test_dim_weighted_zerosum_transform_ignores_rv_inputs():
+    # the dims transform's map is fixed at construction: RV inputs are ignored
+    transform = DimWeightedZeroSumTransform("a", np.array([0.5, 0.3, 0.2]))
+    z = as_xtensor(np.array([0.1, -0.2]), dims=("a",))
+    np.testing.assert_allclose(
+        transform.backward(z, "ignored").eval(), transform.backward(z).eval()
+    )
