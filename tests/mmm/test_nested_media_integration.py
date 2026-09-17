@@ -243,7 +243,11 @@ class TestGeoDims:
             prior["nested_media_effect_contribution"],
             rtol=1e-10,
         )
-        # channel scale is computed over dates AND geos: one scale per channel
+        # the MMM's default channel scaling reduces over its model dims, so
+        # the effect's channel scale is one number per channel, like the MMM's
+        assert geo_mmm.model.named_vars_to_dims["nested_media_channel_scale"] == (
+            "nested_media_channel",
+        )
         assert geo_mmm.model["nested_media_channel_scale"].get_value().shape == (1,)
 
 
@@ -276,6 +280,43 @@ def _geo_dataset(rng):
     return X, y
 
 
+def test_lift_test_with_per_geo_channel_scale_builds():
+    # unpatched: the cap and channel scale carry the geo dim, and the lift
+    # observation graph must index them by the row's geo
+    from pymc_marketing.mmm import DataDerivedScaling, Scaling
+
+    X, y = _geo_dataset(np.random.default_rng(seed))
+    effect = NestedMediaEffect(child_to_parent=MAPPING)
+    mmm = MMM(
+        channel_columns=["search"],
+        date_column="date",
+        target_column="y",
+        dims=("geo",),
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+        scaling=Scaling(
+            target=DataDerivedScaling(dims=(), method="max"),
+            channel=DataDerivedScaling(dims=(), method="max"),
+        ),
+    ).add_mu_effect(effect)
+    mmm.build_model(X=X, y=y)
+    df_lift = pd.DataFrame(
+        {
+            "campaign": ["social_c", "social_a"],
+            "geo": ["south", "north"],
+            "x": [0.1, 0.2],
+            "delta_x": [0.1, 0.1],
+            "delta_y": [0.05, 0.08],
+            "sigma": [0.02, 0.03],
+        }
+    )
+    effect.add_lift_test_measurements(df_lift, mmm)
+    assert "nested_media_lift_measurements" in mmm.model.named_vars
+    assert np.isfinite(mmm.model.compile_logp()(mmm.model.initial_point()))
+    with pytest.raises(KeyError, match="geo"):
+        effect.add_lift_test_measurements(df_lift.drop(columns="geo"), mmm)
+
+
 @pytest.mark.parametrize("reduce_dims", [(), ("geo",)])
 def test_lift_test_scaling_with_model_dims(monkeypatch, reduce_dims):
     # the lift table is scaled by the campaign's channel scale (x, delta_x)
@@ -295,7 +336,7 @@ def test_lift_test_scaling_with_model_dims(monkeypatch, reduce_dims):
         saturation=LogisticSaturation(),
         scaling=Scaling(
             target=DataDerivedScaling(dims=reduce_dims, method="max"),
-            channel=DataDerivedScaling(dims=(), method="max"),
+            channel=DataDerivedScaling(dims=reduce_dims, method="max"),
         ),
     ).add_mu_effect(NestedMediaEffect(child_to_parent=MAPPING))
     mmm.build_model(X=X, y=y)
@@ -322,7 +363,28 @@ def test_lift_test_scaling_with_model_dims(monkeypatch, reduce_dims):
     mmm.mu_effects[0].add_lift_test_measurements(df_lift, mmm)
     scaled = captured["df"]
 
-    channel_scale = float(mmm.model["nested_media_channel_scale"].get_value()[0])
+    # the effect's channel scale follows the MMM's channel scaling: per geo
+    # with dims=(), one number per channel with dims=("geo",)
+    scale_dims = mmm.model.named_vars_to_dims["nested_media_channel_scale"]
+    assert scale_dims == (
+        ("geo", "nested_media_channel") if per_geo else ("nested_media_channel",)
+    )
+    scale_da = xr.DataArray(
+        mmm.model["nested_media_channel_scale"].get_value(),
+        dims=scale_dims,
+        coords={d: list(mmm.model.coords[d]) for d in scale_dims},
+    )
+    if per_geo:
+        channel_scale = np.array(
+            [
+                float(scale_da.sel(geo=g, nested_media_channel="social"))
+                for g in df_lift["geo"]
+            ]
+        )
+    else:
+        channel_scale = np.full(
+            len(df_lift), float(scale_da.sel(nested_media_channel="social"))
+        )
     if per_geo:
         row_target = np.array([float(target_scale.sel(geo=g)) for g in df_lift["geo"]])
     else:

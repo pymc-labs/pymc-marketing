@@ -29,8 +29,12 @@ Design notes
   ``("date", *mmm.dims, child_dim)``) and is meant to *replace* the
   built-in channel media term for the channels it covers.  Channel-level
   contributions are recovered as ``f"{prefix}_{parent_dim}_contribution"``.
-- Campaign spend is scaled by the *channel* total (max over dates), not per
-  campaign, so priors mean the same thing for every campaign in a channel.
+- Campaign spend is scaled by the *channel* total, not per campaign, so
+  priors mean the same thing for every campaign in a channel. The scale
+  follows the MMM's ``scaling.channel`` (method and reduced dims, with
+  ``"channel"`` read as the parent dimension), so it is per model dim
+  whenever the MMM's own channel scale is; saturations that require
+  unscaled input get scale 1, as in the MMM.
 - Any :class:`~pymc_marketing.mmm.components.saturation.SaturationTransformation`
   can be used (Michaelis-Menten by default). Its priors live at *channel*
   level and are gathered to campaigns through the parent index; its own
@@ -72,7 +76,7 @@ import pymc as pm
 import pymc.dims as pmd
 import pytensor.xtensor as ptx
 import xarray as xr
-from pydantic import Field, InstanceOf
+from pydantic import Field, InstanceOf, PrivateAttr
 from pytensor.xtensor.type import XTensorVariable
 
 from pymc_marketing.mmm.additive_effect import DataVarMuEffect, Model
@@ -82,6 +86,7 @@ from pymc_marketing.mmm.components.saturation import (
 )
 from pymc_marketing.mmm.distributions import DimWeightedZeroSumNormal
 from pymc_marketing.mmm.lift_test import add_saturation_observations
+from pymc_marketing.mmm.scaling import DataDerivedScaling, FixedScaling, VariableScaling
 from pymc_marketing.serialization import serialization
 
 # Which function parameter plays the amplitude role, per saturation class.
@@ -147,23 +152,50 @@ def _check_lift_rows(df_lift_test: pd.DataFrame) -> None:
 
 
 def _channel_scales(
-    spend: xr.DataArray, channel_of: xr.DataArray, child_dim: str
+    spend: xr.DataArray,
+    channel_of: xr.DataArray,
+    child_dim: str,
+    scaling: VariableScaling | None = None,
+    unscaled: bool = False,
 ) -> tuple[xr.DataArray, xr.DataArray]:
-    """Channel scale and campaign cap from the spend array.
+    """Channel scale and campaign cap, following the MMM's channel scaling.
 
     ``channel_of`` labels each campaign with its channel and is named after
-    the channel coordinate. The scale of a channel is the max over dates (and
-    any extra model dims) of its summed campaign spend; the cap of a campaign
-    is the max of its spend on that scaled axis. Channels with no spend get
-    scale 1 so nothing divides by zero.
+    the channel coordinate. ``scaling`` is the MMM's ``scaling.channel``: its
+    method (``max`` or ``mean`` of the data, or a fixed scalar) is applied to
+    each channel's summed campaign spend over ``date`` and its ``dims``, where
+    ``"channel"`` means the effect's parent dimension. Dims it does not reduce
+    stay on the scale, as on the MMM's own channel scale. ``None`` is the MMM
+    default, the max over dates. ``unscaled`` forces scale 1, which is what
+    the MMM does for saturations that require unscaled input. The cap of a
+    campaign is the max of its spend on the scaled axis over the same dims.
+    Channels with no spend get scale 1 so nothing divides by zero.
     """
-    reduce_dims = [d for d in spend.dims if d != child_dim]
     parent_dim = str(channel_of.name)
     channel_total = spend.groupby(channel_of).sum(child_dim)
-    scale = channel_total.max(reduce_dims)
+    if scaling is None:
+        scaling = DataDerivedScaling(method="max", dims=())
+    requested = [parent_dim if d == "channel" else d for d in scaling.dims]
+    reduce_dims = ["date", *[d for d in requested if d in channel_total.dims]]
+    reference = channel_total.max(reduce_dims)
+    if unscaled:
+        scale = xr.ones_like(reference)
+    elif isinstance(scaling, FixedScaling):
+        if isinstance(scaling.value, dict | xr.DataArray):
+            raise ValueError(
+                "FixedScaling for a nested media effect must be a single number: "
+                "per-channel values are keyed by the MMM's channels, not by "
+                "the effect's parents"
+            )
+        scale = xr.full_like(reference, scaling.value, dtype=float)
+    else:
+        scale = getattr(channel_total, scaling.method)(dim=reduce_dims)
+    if parent_dim not in scale.dims:  # reduced across parents: one common scale
+        scale = scale.expand_dims({parent_dim: channel_total[parent_dim].values})
     scale = scale.where(scale > 0, 1.0)
     scale_of_campaign = scale.sel({parent_dim: channel_of}).drop_vars(parent_dim)
-    cap = (spend / scale_of_campaign).max(reduce_dims)
+    # the cap is per campaign: reduce over the same dims except the parent
+    cap = (spend / scale_of_campaign).max([d for d in reduce_dims if d != parent_dim])
     return scale, cap
 
 
@@ -293,6 +325,14 @@ class NestedMediaEffect(DataVarMuEffect):
     gamma_sigma: float = Field(0.5, gt=0)
 
     model_config = {"arbitrary_types_allowed": True}
+    _saturation: SaturationTransformation | None = PrivateAttr(default=None)
+
+    @property
+    def _built(self) -> SaturationTransformation:
+        """The build-time copy of ``saturation`` with this effect's prefix and dims."""
+        if self._saturation is None:
+            raise RuntimeError("Build the model before using the effect's saturation.")
+        return self._saturation
 
     def create_data(self, mmm: Model) -> None:
         """Register campaign spend plus the static index, scale and share data."""
@@ -314,13 +354,30 @@ class NestedMediaEffect(DataVarMuEffect):
         # channel-level saturation priors, gathered to campaigns at build time
         if channel_coord not in model.coords:
             model.add_coord(channel_coord, channels)
-        self.saturation = self.saturation.with_default_prior_dims((channel_coord,))
-        self.saturation.prefix = f"{p}_saturation"
+        # a build-time copy: the user's object keeps its prefix and prior dims
+        self._saturation = self.saturation.with_default_prior_dims((channel_coord,))
+        self._saturation.prefix = f"{p}_saturation"
         super().create_data(mmm)
 
-        scale, cap = _channel_scales(spend, channel_of, self.child_dim)
+        scaling = getattr(getattr(mmm, "scaling", None), "channel", None)
+        unscaled = bool(getattr(self.saturation, "requires_unscaled_input", False))
+        if unscaled and getattr(mmm, "_channel_scaling_explicit", False):
+            warnings.warn(
+                f"Saturation {type(self.saturation).__name__} requires unscaled "
+                "inputs, so the channel scaling you configured is ignored for "
+                f"the {p} effect and its channel scale is set to 1.",
+                UserWarning,
+                stacklevel=2,
+            )
+        scale, cap = _channel_scales(
+            spend, channel_of, self.child_dim, scaling, unscaled=unscaled
+        )
         scale = scale.sel({channel_coord: channels})
-        dead = [c for c, k in zip(campaigns, cap.values, strict=True) if not k > 0]
+        extra_dims = [d for d in scale.dims if d != channel_coord]
+        scale = scale.transpose(*extra_dims, channel_coord)
+        cap = cap.transpose(*extra_dims, self.child_dim)
+        cap_any = cap.max(extra_dims) if extra_dims else cap
+        dead = [c for c, k in zip(campaigns, cap_any.values, strict=True) if not k > 0]
         if dead:
             warnings.warn(
                 f"Campaigns {dead} have no spend in the data. Their spend "
@@ -340,8 +397,8 @@ class NestedMediaEffect(DataVarMuEffect):
             (parent_idx[:, None] == np.arange(len(channels))[None, :]).astype(float),
             dims=(self.child_dim, channel_coord),
         )
-        pmd.Data(f"{p}_{self.parent_dim}_scale", scale.values, dims=(channel_coord,))
-        pmd.Data(f"{p}_{self.child_dim}_cap", cap.values, dims=(self.child_dim,))
+        pmd.Data(f"{p}_{self.parent_dim}_scale", scale.values, dims=tuple(scale.dims))
+        pmd.Data(f"{p}_{self.child_dim}_cap", cap.values, dims=tuple(cap.dims))
         pmd.Data(f"{p}_spend_share", share.values, dims=(self.child_dim,))
 
         if self.zero_sum_multipliers:
@@ -551,31 +608,31 @@ class NestedMediaEffect(DataVarMuEffect):
         # channel-level saturation parameters, gathered to campaigns
         shape_params = {
             name: gather(var)
-            for name, var in self.saturation._create_distributions().items()
+            for name, var in self._built._create_distributions().items()
         }
 
         # the campaign curve is the channel curve scaled by campaign size on
         # both axes: split-invariant for any saturation shape
         size = cap**self.rho
         x_rel = x_scaled / (size * lam_multiplier)
-        curve = self.saturation.function(x_rel, dim="date", **shape_params)
+        curve = self._built.function(x_rel, dim="date", **shape_params)
         campaign_contribution = pmd.Deterministic(
             f"{p}_{self.child_dim}_contribution", size * beta_multiplier * curve
         )
 
-        amplitude = _AMPLITUDE_PARAM.get(type(self.saturation).__name__)
+        amplitude = _AMPLITUDE_PARAM.get(type(self._built).__name__)
         if amplitude is not None:
             pmd.Deterministic(
                 f"{p}_beta_{self.child_dim}",
-                gather(model[self.saturation.variable_mapping[amplitude]])
+                gather(model[self._built.variable_mapping[amplitude]])
                 * size
                 * beta_multiplier,
             )
-        if isinstance(self.saturation, MichaelisMentenSaturation):
+        if isinstance(self._built, MichaelisMentenSaturation):
             # half-saturation point of campaign c on the scaled-spend axis
             pmd.Deterministic(
                 f"{p}_lam_{self.child_dim}",
-                gather(model[self.saturation.variable_mapping["lam"]])
+                gather(model[self._built.variable_mapping["lam"]])
                 * size
                 * lam_multiplier,
             )
@@ -653,13 +710,30 @@ class NestedMediaEffect(DataVarMuEffect):
 
         rows = df_lift_test.reset_index(drop=True)
         row_channel = rows[self.child_dim].astype(str).map(self.child_to_parent)
+        scale_name = f"{p}_{self.parent_dim}_scale"
+        scale_dims = tuple(model.named_vars_to_dims[scale_name])
         channel_scale = xr.DataArray(
-            model[f"{p}_{self.parent_dim}_scale"].get_value(),
-            dims=channel_coord_name,
-            coords={channel_coord_name: list(model.coords[channel_coord_name])},
+            model[scale_name].get_value(),
+            dims=scale_dims,
+            coords={d: list(model.coords[d]) for d in scale_dims},
         )
+        # the scale carries the parent and any model dim the MMM's channel
+        # scaling did not reduce; the lift table must provide those as columns
+        missing_dims = set(scale_dims) - {channel_coord_name} - set(rows.columns)
+        if missing_dims:
+            raise KeyError(
+                f"df_lift_test is missing the model dim columns "
+                f"{sorted(missing_dims)} needed to scale x/delta_x"
+            )
         row_scale = channel_scale.sel(
-            {channel_coord_name: xr.DataArray(row_channel.to_numpy(), dims="row")}
+            {
+                channel_coord_name: xr.DataArray(row_channel.to_numpy(), dims="row"),
+                **{
+                    d: xr.DataArray(rows[d].to_numpy(), dims="row")
+                    for d in scale_dims
+                    if d != channel_coord_name
+                },
+            }
         ).to_numpy()
 
         if target_transform is None:
@@ -707,7 +781,7 @@ class NestedMediaEffect(DataVarMuEffect):
         )
 
         rho = self.rho
-        saturation_function = self.saturation.function
+        saturation_function = self._built.function
 
         def campaign_curve(x, cap, beta_mult, lam_mult, **shape_params):
             size = cap**rho
@@ -721,7 +795,7 @@ class NestedMediaEffect(DataVarMuEffect):
             "cap": f"{p}_{self.child_dim}_cap",
             "beta_mult": f"{p}_beta_multiplier",
             "lam_mult": f"{p}_lam_multiplier",
-            **self.saturation.variable_mapping,
+            **self._built.variable_mapping,
         }
 
         add_saturation_observations(
