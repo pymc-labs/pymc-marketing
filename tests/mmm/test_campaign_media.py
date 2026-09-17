@@ -321,6 +321,34 @@ def test_covariate_prior_predictive():
     assert "campaign_media_campaign_contribution" in idata.prior
 
 
+def test_covariate_prior_mean_is_the_trust_dial():
+    # at the initial point (gamma = gamma_mu, z = 0) the amplitude multiplier is
+    # exp(gamma_mu * centred covariate): a coefficient of 1 follows the covariate
+    # one for one, 0 ignores it
+    mmm = _make_mock_mmm_with_covariates()
+    for gamma_mu in (0.0, 1.0):
+        effect = NestedCampaignMedia(
+            campaign_to_channel=MAPPING,
+            covariate_var="covariates",
+            gamma_mu=gamma_mu,
+            gamma_sigma=0.1,
+        )
+        with mmm.model:
+            effect.create_data(mmm)
+            effect.create_effect(mmm)
+        model = mmm.model
+        point = model.initial_point()
+        (mult_graph,) = model.replace_rvs_by_values(
+            [model["campaign_media_beta_multiplier"]]
+        )
+        mult = model.compile_fn(
+            mult_graph, inputs=model.value_vars, on_unused_input="ignore"
+        )(point)
+        cov = model["campaign_media_covariates"].values.eval()
+        np.testing.assert_allclose(mult, np.exp(gamma_mu * cov.sum(axis=1)), rtol=1e-6)
+        mmm = _make_mock_mmm_with_covariates()
+
+
 def test_covariate_bad_dims_raises():
     mmm = _make_mock_mmm_with_covariates()
     mmm.xarray_dataset["bad_cov"] = xr.DataArray(
@@ -340,6 +368,7 @@ def test_covariate_serialization_roundtrip():
     effect = NestedCampaignMedia(
         campaign_to_channel=MAPPING,
         covariate_var="covariates",
+        gamma_mu=1.0,
         gamma_sigma=0.25,
     )
     data = effect.to_dict()
