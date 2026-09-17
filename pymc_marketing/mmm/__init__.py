@@ -26,10 +26,6 @@ from pymc_marketing.mmm.budget_optimizer import (
     merge_inference_data,
     merge_models_and_idata,
 )
-from pymc_marketing.mmm.campaign_media import (
-    NestedCampaignMedia,
-    lognormal_relative_lift,
-)
 from pymc_marketing.mmm.components.adstock import (
     AdstockTransformation,
     BinomialAdstock,
@@ -80,6 +76,10 @@ from pymc_marketing.mmm.media_transformation import (
 from pymc_marketing.mmm.mmm import (
     MMM,
     BudgetOptimizerWrapper,
+)
+from pymc_marketing.mmm.nested_media import (
+    NestedMediaEffect,
+    lognormal_relative_lift,
 )
 from pymc_marketing.mmm.optimization_variables import (
     OptimizationVariable,
@@ -138,7 +138,7 @@ __all__ = [
     "MediaTransformation",
     "MichaelisMentenSaturation",
     "MonthlyFourier",
-    "NestedCampaignMedia",
+    "NestedMediaEffect",
     "NoAdstock",
     "NoSaturation",
     "OptimizationVariable",
