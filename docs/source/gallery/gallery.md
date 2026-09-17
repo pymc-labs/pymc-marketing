@@ -220,6 +220,11 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :link: ../notebooks/mmm/mmm_time_slice_cross_validation.html
 :::
 
+:::{grid-item-card} Fast MMM Model Comparison with PSIS LFO-CV
+:img-top: ../gallery/images/mmm_lfo_cv_model_comparison.png
+:link: ../notebooks/mmm/mmm_lfo_cv_model_comparison.html
+:::
+
 :::{grid-item-card} Metrics and Model Evaluation
 :img-top: ../gallery/images/mmm_evaluation.png
 :link: ../notebooks/mmm/mmm_evaluation.html
