@@ -249,6 +249,101 @@ class TestGeoDims:
         assert geo_mmm.model["campaign_media_channel_scale"].get_value().shape == (1,)
 
 
+def _geo_dataset(rng):
+    n_dates, geos = 16, ["north", "south"]
+    dates = pd.date_range("2025-01-06", freq="W-MON", periods=n_dates)
+    media = np.abs(rng.normal(1.0, 0.3, size=(n_dates, 2, 1))) + 0.2
+    camp = np.array([0.7, 0.2, 0.1])[None, None, :] * rng.lognormal(
+        0, 0.6, size=(n_dates, 2, 3)
+    )
+    target = np.abs(
+        1.0
+        + 0.4 * media[..., 0]
+        + 0.5 * camp.sum(-1)
+        + rng.normal(0, 0.1, size=(n_dates, 2))
+    )
+    X = xr.Dataset(
+        {
+            "media": xr.DataArray(media, dims=("date", "geo", "channel")),
+            "campaign_data": xr.DataArray(camp, dims=("date", "geo", "campaign")),
+        },
+        coords={
+            "date": dates,
+            "geo": geos,
+            "channel": ["search"],
+            "campaign": CAMPAIGNS,
+        },
+    )
+    y = xr.DataArray(target, dims=("date", "geo"), coords={"date": dates, "geo": geos})
+    return X, y
+
+
+@pytest.mark.parametrize("reduce_dims", [(), ("geo",)])
+def test_lift_test_scaling_with_model_dims(monkeypatch, reduce_dims):
+    # the lift table is scaled by the campaign's channel scale (x, delta_x)
+    # and by the fitted target scaler (delta_y, sigma), selecting on exactly
+    # the dims the scaler carries. `DataDerivedScaling.dims` are the dims
+    # reduced over: () keeps a per-geo scaler, ("geo",) gives a global one.
+    import pymc_marketing.mmm.campaign_media as campaign_media
+    from pymc_marketing.mmm import DataDerivedScaling, Scaling
+
+    X, y = _geo_dataset(np.random.default_rng(seed))
+    mmm = MMM(
+        channel_columns=["search"],
+        date_column="date",
+        target_column="y",
+        dims=("geo",),
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+        scaling=Scaling(
+            target=DataDerivedScaling(dims=reduce_dims, method="max"),
+            channel=DataDerivedScaling(dims=(), method="max"),
+        ),
+    ).add_mu_effect(NestedCampaignMedia(campaign_to_channel=MAPPING))
+    mmm.build_model(X=X, y=y)
+    target_scale = xr.DataArray(mmm.scalers._target)
+    per_geo = "geo" in target_scale.dims
+    assert per_geo == (reduce_dims == ())
+
+    captured = {}
+    monkeypatch.setattr(
+        campaign_media,
+        "add_saturation_observations",
+        lambda df, **kw: captured.update(df=df),
+    )
+    df_lift = pd.DataFrame(
+        {
+            "campaign": ["social_c", "social_a"],
+            "geo": ["south", "north"],
+            "x": [0.1, 0.2],
+            "delta_x": [0.1, 0.1],
+            "delta_y": [0.05, 0.08],
+            "sigma": [0.02, 0.03],
+        }
+    )
+    mmm.mu_effects[0].add_lift_test_measurements(df_lift, mmm)
+    scaled = captured["df"]
+
+    channel_scale = float(mmm.model["campaign_media_channel_scale"].get_value()[0])
+    if per_geo:
+        row_target = np.array([float(target_scale.sel(geo=g)) for g in df_lift["geo"]])
+    else:
+        row_target = np.full(len(df_lift), float(target_scale))
+    np.testing.assert_allclose(scaled["x"], df_lift["x"] / channel_scale)
+    np.testing.assert_allclose(scaled["delta_x"], df_lift["delta_x"] / channel_scale)
+    np.testing.assert_allclose(scaled["delta_y"], df_lift["delta_y"] / row_target)
+    np.testing.assert_allclose(scaled["sigma"], df_lift["sigma"] / row_target)
+    assert list(scaled["campaign_media_channel"]) == ["social", "social"]
+
+    # a per-geo scaler needs the geo column; a global one does not
+    no_geo = df_lift.drop(columns="geo")
+    if per_geo:
+        with pytest.raises(KeyError, match="geo"):
+            mmm.mu_effects[0].add_lift_test_measurements(no_geo, mmm)
+    else:
+        mmm.mu_effects[0].add_lift_test_measurements(no_geo, mmm)
+
+
 def test_set_data_without_campaign_data_zeroes_spend(built_mmm, campaign_mmm_data):
     # the DataFrame prediction route cannot carry campaign_data; the effect
     # must not reuse the training spend nor fail on a different window length
