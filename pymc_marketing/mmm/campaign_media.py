@@ -64,6 +64,7 @@ import numpy as np
 import pandas as pd
 import pymc as pm
 import pymc.dims as pmd
+import pytensor.xtensor as ptx
 import xarray as xr
 from pydantic import Field, InstanceOf
 from pytensor.xtensor.type import XTensorVariable
@@ -124,18 +125,66 @@ def _check_lift_rows(df_lift_test: pd.DataFrame) -> None:
     would only surface as a ``-inf`` model logp at ``sample()`` time with
     nothing pointing at the offending row.
     """
-    cols = ["x", "delta_x", "delta_y", "sigma"]
-    values = df_lift_test[cols].to_numpy(dtype=float)
-    bad = ~np.isfinite(values).all(axis=1)
-    bad |= values[:, cols.index("sigma")] <= 0
-    bad |= values[:, cols.index("delta_x")] == 0
-    bad |= values[:, cols.index("delta_y")] == 0
+    cols = df_lift_test[["x", "delta_x", "delta_y", "sigma"]]
+    bad = (
+        ~np.isfinite(cols).all(axis=1)
+        | (cols["sigma"] <= 0)
+        | (cols["delta_x"] == 0)
+        | (cols["delta_y"] == 0)
+    )
     if bad.any():
         raise ValueError(
             "df_lift_test rows must have finite x, delta_x, delta_y and sigma, "
             "with sigma > 0 and nonzero delta_x and delta_y; offending rows: "
             f"{df_lift_test.index[bad].tolist()}"
         )
+
+
+def _channel_scales(
+    spend: xr.DataArray, channel_of: xr.DataArray, campaign_dim: str
+) -> tuple[xr.DataArray, xr.DataArray]:
+    """Channel scale and campaign cap from the spend array.
+
+    ``channel_of`` labels each campaign with its channel and is named after
+    the channel coordinate. The scale of a channel is the max over dates (and
+    any extra model dims) of its summed campaign spend; the cap of a campaign
+    is the max of its spend on that scaled axis. Channels with no spend get
+    scale 1 so nothing divides by zero.
+    """
+    reduce_dims = [d for d in spend.dims if d != campaign_dim]
+    channel_dim = str(channel_of.name)
+    channel_total = spend.groupby(channel_of).sum(campaign_dim)
+    scale = channel_total.max(reduce_dims)
+    scale = scale.where(scale > 0, 1.0)
+    scale_of_campaign = scale.sel({channel_dim: channel_of}).drop_vars(channel_dim)
+    cap = (spend / scale_of_campaign).max(reduce_dims)
+    return scale, cap
+
+
+def _spend_shares(
+    total_spend: xr.DataArray, channel_of: xr.DataArray, campaign_dim: str
+) -> xr.DataArray:
+    """Each campaign's share of its channel's total spend; zero when the channel has none."""
+    channel_dim = str(channel_of.name)
+    channel_total = total_spend.groupby(channel_of).sum(campaign_dim)
+    channel_total = channel_total.where(channel_total > 0, 1.0)
+    return total_spend / channel_total.sel({channel_dim: channel_of}).drop_vars(
+        channel_dim
+    )
+
+
+def _centred_covariates(
+    cov: xr.DataArray, share: xr.DataArray, channel_of: xr.DataArray, campaign_dim: str
+) -> xr.DataArray:
+    """Centre campaign covariates on their channel's spend-share-weighted mean.
+
+    The covariate term then reallocates efficiency between a channel's
+    campaigns but cannot move the channel total. Campaigns of a channel with
+    no spend have share zero and keep the raw covariate.
+    """
+    channel_dim = str(channel_of.name)
+    channel_mean = (share * cov).groupby(channel_of).sum(campaign_dim)
+    return cov - channel_mean.sel({channel_dim: channel_of}).drop_vars(channel_dim)
 
 
 class NestedCampaignMedia(DataVarMuEffect):
@@ -223,59 +272,32 @@ class NestedCampaignMedia(DataVarMuEffect):
     model_config = {"arbitrary_types_allowed": True}
 
     def create_data(self, mmm: Model) -> None:
-        """Register campaign spend plus static index/scale data variables."""
-        # The numpy reductions below are positional and assume the campaign
-        # dim is last; the model graph itself is dim-name based
-        da = mmm.xarray_dataset[self.data_vars[0]].transpose(..., self.campaign_dim)
-        campaigns = [str(c) for c in da.coords[self.campaign_dim].values]
-
-        missing = set(campaigns) - set(self.campaign_to_channel)
-        extra = set(self.campaign_to_channel) - set(campaigns)
-        if missing or extra:
-            raise ValueError(
-                "campaign_to_channel must cover exactly the campaigns in "
-                f"{self.data_vars[0]!r}; missing={sorted(missing)}, "
-                f"extra={sorted(extra)}"
-            )
-
-        channels = list(dict.fromkeys(self.campaign_to_channel[c] for c in campaigns))
+        """Register campaign spend plus the static index, scale and share data."""
         model = mmm.model
+        p = self.prefix
+        channel_coord = f"{p}_{self.channel_dim}"
 
-        overlap = set(channels) & set(map(str, model.coords.get(self.channel_dim, ())))
-        if overlap:
-            warnings.warn(
-                f"Channels {sorted(overlap)} are both decomposed into campaigns by "
-                f"this effect and present in the model's {self.channel_dim!r} "
-                "coordinate. The effect REPLACES the channel-level media term; "
-                "keeping the channel in channel_columns double-counts its spend. "
-                "Exclude decomposed channels from channel_columns.",
-                UserWarning,
-                stacklevel=2,
-            )
-
-        channel_coord_name = f"{self.prefix}_{self.channel_dim}"
-        if channel_coord_name not in model.coords:
-            model.add_coord(channel_coord_name, channels)
-        parent_idx = np.array(
-            [channels.index(self.campaign_to_channel[c]) for c in campaigns]
+        spend = mmm.xarray_dataset[self.data_vars[0]]
+        campaigns = [str(c) for c in spend[self.campaign_dim].values]
+        channels = self._validate_mapping(campaigns, model)
+        channel_of = xr.DataArray(
+            [self.campaign_to_channel[c] for c in campaigns],
+            dims=self.campaign_dim,
+            coords={self.campaign_dim: campaigns},
+            name=channel_coord,
         )
+        parent_idx = np.array([channels.index(ch) for ch in channel_of.values])
 
-        # channel-level saturation priors, gathered to campaigns later
-        self.saturation = self.saturation.with_default_prior_dims((channel_coord_name,))
-        self.saturation.prefix = f"{self.prefix}_saturation"
-
+        # channel-level saturation priors, gathered to campaigns at build time
+        if channel_coord not in model.coords:
+            model.add_coord(channel_coord, channels)
+        self.saturation = self.saturation.with_default_prior_dims((channel_coord,))
+        self.saturation.prefix = f"{p}_saturation"
         super().create_data(mmm)
 
-        # channel scale: max over everything but channel of the channel total
-        onehot = (parent_idx[:, None] == np.arange(len(channels))[None, :]).astype(
-            da.dtype
-        )
-        channel_total = (da.values @ onehot).max(axis=tuple(range(da.ndim - 1)))
-        scale = np.where(channel_total > 0, channel_total, 1.0)
-
-        # campaign size on the scaled axis, for the size tie
-        cap = (da.values / scale[parent_idx]).max(axis=tuple(range(da.ndim - 1)))
-        dead = [c for c, k in zip(campaigns, cap, strict=True) if not k > 0]
+        scale, cap = _channel_scales(spend, channel_of, self.campaign_dim)
+        scale = scale.sel({channel_coord: channels})
+        dead = [c for c, k in zip(campaigns, cap.values, strict=True) if not k > 0]
         if dead:
             warnings.warn(
                 f"Campaigns {dead} have no spend in the data. Their spend "
@@ -285,108 +307,151 @@ class NestedCampaignMedia(DataVarMuEffect):
                 UserWarning,
                 stacklevel=2,
             )
-        cap = np.where(cap > 0, cap, 1.0)
+        cap = cap.where(cap > 0, 1.0)
+        total_spend = spend.sum([d for d in spend.dims if d != self.campaign_dim])
+        share = _spend_shares(total_spend, channel_of, self.campaign_dim)
 
-        pmd.Data(f"{self.prefix}_parent_idx", parent_idx, dims=(self.campaign_dim,))
+        pmd.Data(f"{p}_parent_idx", parent_idx, dims=(self.campaign_dim,))
         pmd.Data(
-            f"{self.prefix}_parent_onehot",
-            onehot,
-            dims=(self.campaign_dim, channel_coord_name),
+            f"{p}_parent_onehot",
+            (parent_idx[:, None] == np.arange(len(channels))[None, :]).astype(float),
+            dims=(self.campaign_dim, channel_coord),
         )
-        pmd.Data(f"{self.prefix}_channel_scale", scale, dims=(channel_coord_name,))
-        pmd.Data(f"{self.prefix}_campaign_cap", cap, dims=(self.campaign_dim,))
+        pmd.Data(f"{p}_channel_scale", scale.values, dims=(channel_coord,))
+        pmd.Data(f"{p}_campaign_cap", cap.values, dims=(self.campaign_dim,))
+        pmd.Data(f"{p}_spend_share", share.values, dims=(self.campaign_dim,))
 
         if self.zero_sum_multipliers:
-            total = da.values.reshape(-1, da.shape[-1]).sum(axis=0)
-            for g, channel in enumerate(channels):
-                idx = np.flatnonzero(parent_idx == g)
-                w = total[idx]
-                # dead campaigns are left out of the constraint: their
-                # multiplier is pinned at 1 instead of adding an unidentified
-                # free direction. A channel needs two live campaigns to have
-                # any free direction at all.
-                live = idx[w > 0]
-                if len(live) < 2:
-                    continue
-                sub_dim = self._channel_campaign_dim(channel)
-                if sub_dim not in model.coords:
-                    model.add_coord(sub_dim, [campaigns[i] for i in live])
-                pmd.Data(
-                    f"{self.prefix}_spend_share_{channel}",
-                    total[live] / total[live].sum(),
-                    dims=(sub_dim,),
-                )
-                scatter = np.zeros((len(live), len(campaigns)), dtype=da.dtype)
-                scatter[np.arange(len(live)), live] = 1.0
-                pmd.Data(
-                    f"{self.prefix}_scatter_{channel}",
-                    scatter,
-                    dims=(sub_dim, self.campaign_dim),
-                )
+            self._register_zero_sum_blocks(model, campaigns, channel_of, share)
 
         if self.covariate_var is not None:
-            cov_da = mmm.xarray_dataset[self.covariate_var]
-            if set(cov_da.dims) != {self.campaign_dim, self.covariate_dim}:
+            cov = mmm.xarray_dataset[self.covariate_var]
+            if set(cov.dims) != {self.campaign_dim, self.covariate_dim}:
                 raise ValueError(
                     f"{self.covariate_var!r} must have dims exactly "
-                    f"({self.campaign_dim!r}, {self.covariate_dim!r}); "
-                    f"got {cov_da.dims}"
+                    f"({self.campaign_dim!r}, {self.covariate_dim!r}); got {cov.dims}"
                 )
-            cov = cov_da.transpose(self.campaign_dim, self.covariate_dim).values
-            # spend-share-weighted centring within each channel: the covariate
-            # term reallocates efficiency between a channel's campaigns but
-            # cannot move the channel total
-            total_spend = da.values.reshape(-1, da.shape[-1]).sum(axis=0)
-            channel_spend = (total_spend @ onehot)[parent_idx]
-            # an all-zero channel has no share to centre by; its campaigns get
-            # the raw covariate and the channel mean stays finite
-            share = total_spend / np.where(channel_spend > 0, channel_spend, 1.0)
-            weighted_mean = (share[:, None] * cov).T @ onehot  # (n_cov, n_channel)
-            cov_centred = cov - weighted_mean.T[parent_idx]
+            cov = cov.transpose(self.campaign_dim, self.covariate_dim)
+            centred = _centred_covariates(cov, share, channel_of, self.campaign_dim)
             if self.covariate_dim not in model.coords:
                 model.add_coord(
                     self.covariate_dim,
-                    [str(c) for c in cov_da.coords[self.covariate_dim].values]
-                    if self.covariate_dim in cov_da.coords
-                    else np.arange(cov.shape[1]),
+                    [str(c) for c in cov[self.covariate_dim].values]
+                    if self.covariate_dim in cov.coords
+                    else np.arange(cov.sizes[self.covariate_dim]),
                 )
             pmd.Data(
-                f"{self.prefix}_covariates",
-                cov_centred,
+                f"{p}_covariates",
+                centred.transpose(self.campaign_dim, self.covariate_dim).values,
                 dims=(self.campaign_dim, self.covariate_dim),
             )
+
+    def _validate_mapping(self, campaigns: list[str], model: pm.Model) -> list[str]:
+        """Check the campaign-to-channel map and return the channels in first-seen order."""
+        missing = set(campaigns) - set(self.campaign_to_channel)
+        extra = set(self.campaign_to_channel) - set(campaigns)
+        if missing or extra:
+            raise ValueError(
+                "campaign_to_channel must cover exactly the campaigns in "
+                f"{self.data_vars[0]!r}; missing={sorted(missing)}, extra={sorted(extra)}"
+            )
+        channels = list(dict.fromkeys(self.campaign_to_channel[c] for c in campaigns))
+        overlap = set(channels) & set(map(str, model.coords.get(self.channel_dim, ())))
+        if overlap:
+            warnings.warn(
+                f"Channels {sorted(overlap)} are both decomposed into campaigns by "
+                f"this effect and present in the model's {self.channel_dim!r} "
+                "coordinate. The effect REPLACES the channel-level media term; "
+                "keeping the channel in channel_columns double-counts its spend. "
+                "Exclude decomposed channels from channel_columns.",
+                UserWarning,
+                stacklevel=3,
+            )
+        return channels
 
     def _channel_campaign_dim(self, channel: str) -> str:
         """Coordinate name of the live campaigns of ``channel``."""
         return f"{self.prefix}_{channel}_campaign"
 
-    def _zero_sum_multiplier(
-        self, model: pm.Model, name: str, channels: list[str]
-    ) -> XTensorVariable:
+    def _register_zero_sum_blocks(
+        self,
+        model: pm.Model,
+        campaigns: list[str],
+        channel_of: xr.DataArray,
+        share: xr.DataArray,
+    ) -> None:
+        """Register one coordinate per constrained block and the scatter back to campaigns.
+
+        A block is a channel's live campaigns (positive spend). Dead campaigns
+        stay out so their multiplier is pinned at 1 instead of adding an
+        unidentified free direction, and a channel needs two live campaigns
+        to have any free direction at all. The blocks concatenate along one
+        live-campaign coordinate, which the scatter matrix maps back to the
+        campaign dimension.
+        """
+        live = share.values > 0
+        live_names: list[str] = []
+        for channel in dict.fromkeys(channel_of.values):
+            names = [
+                c
+                for c, ch, is_live in zip(
+                    campaigns, channel_of.values, live, strict=True
+                )
+                if ch == channel and is_live
+            ]
+            if len(names) < 2:
+                continue
+            sub_dim = self._channel_campaign_dim(channel)
+            if sub_dim not in model.coords:
+                model.add_coord(sub_dim, names)
+            live_names.extend(names)
+        if not live_names:
+            return
+        live_dim = f"{self.prefix}_live_campaign"
+        if live_dim not in model.coords:
+            model.add_coord(live_dim, live_names)
+        scatter = (
+            np.array(live_names)[:, None] == np.array(campaigns)[None, :]
+        ).astype(float)
+        pmd.Data(
+            f"{self.prefix}_live_to_campaign",
+            scatter,
+            dims=(live_dim, self.campaign_dim),
+        )
+
+    def _zero_sum_multiplier(self, model: pm.Model, name: str) -> XTensorVariable:
         """Standardised log-multiplier with a spend-share-weighted zero sum per channel.
 
         One :class:`~pymc_marketing.mmm.distributions.DimWeightedZeroSumNormal`
-        per channel, over that channel's live campaigns, scattered back to the
-        campaign dimension. Campaigns outside every block (dead campaigns and
-        single-campaign channels) get zero, i.e. multiplier one.
+        per channel block, weighted by the block's spend shares, concatenated
+        along the live-campaign coordinate and scattered back to the campaign
+        dimension. Campaigns outside every block get zero, i.e. multiplier one;
+        with no block at all every multiplier is pinned at one.
         """
         p = self.prefix
-        if not channels:
-            zeros = pmd.zeros_like(model[f"{p}_campaign_cap"])
-            return pmd.Deterministic(f"{p}_{name}", zeros)
-        parts = []
-        for channel in channels:
-            sub_dim = self._channel_campaign_dim(channel)
-            z = DimWeightedZeroSumNormal(
-                f"{p}_{name}_{channel}",
-                weights=model[f"{p}_spend_share_{channel}"],
-                core_dims=sub_dim,
+        live_dim = f"{p}_live_campaign"
+        if live_dim not in model.coords:
+            return pmd.Deterministic(
+                f"{p}_{name}", pmd.zeros_like(model[f"{p}_campaign_cap"])
             )
-            parts.append((z * model[f"{p}_scatter_{channel}"]).sum(dim=sub_dim))
-        total = parts[0]
-        for part in parts[1:]:
-            total = total + part
-        return pmd.Deterministic(f"{p}_{name}", total)
+        campaigns = [str(c) for c in model.coords[self.campaign_dim]]
+        share = model[f"{p}_spend_share"]
+        parts = []
+        for channel in model.coords[f"{p}_{self.channel_dim}"]:
+            sub_dim = self._channel_campaign_dim(channel)
+            if sub_dim not in model.coords:
+                continue
+            idx = [campaigns.index(str(c)) for c in model.coords[sub_dim]]
+            weights = share.isel({self.campaign_dim: idx}).rename(
+                {self.campaign_dim: sub_dim}
+            )
+            z = DimWeightedZeroSumNormal(
+                f"{p}_{name}_{channel}", weights=weights, core_dims=sub_dim
+            )
+            parts.append(z.rename({sub_dim: live_dim}))
+        z_live = ptx.concat(parts, dim=live_dim)
+        scattered = (z_live * model[f"{p}_live_to_campaign"]).sum(live_dim)
+        return pmd.Deterministic(f"{p}_{name}", scattered)
 
     def set_data(self, mmm: Model, model: pm.Model, X: xr.Dataset) -> None:
         """Update ``campaign_data`` for a new prediction window.
@@ -439,18 +504,9 @@ class NestedCampaignMedia(DataVarMuEffect):
 
         tau_beta = pmd.HalfNormal(f"{p}_tau_beta", sigma=self.tau_beta_sigma)
         tau_lam = pmd.HalfNormal(f"{p}_tau_lam", sigma=self.tau_lam_sigma)
-        zero_sum_channels = [
-            channel
-            for channel in model.coords[channel_coord_name]
-            if f"{p}_spend_share_{channel}" in model.named_vars
-        ]
         if self.zero_sum_multipliers:
-            # Branch on the flag alone: with no channel holding two live
-            # campaigns there are no free directions and every multiplier is
-            # pinned at 1, rather than silently falling back to free
-            # per-campaign multipliers.
-            z_beta = self._zero_sum_multiplier(model, "z_beta", zero_sum_channels)
-            z_lam = self._zero_sum_multiplier(model, "z_lam", zero_sum_channels)
+            z_beta = self._zero_sum_multiplier(model, "z_beta")
+            z_lam = self._zero_sum_multiplier(model, "z_lam")
         else:
             z_beta = pmd.Normal(f"{p}_z_beta", 0.0, 1.0, dims=(self.campaign_dim,))
             z_lam = pmd.Normal(f"{p}_z_lam", 0.0, 1.0, dims=(self.campaign_dim,))
