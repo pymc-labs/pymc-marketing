@@ -405,7 +405,7 @@ def test_channel_scale_follows_mmm_scaling():
     )
     scale_fixed, _ = scale_with(FixedScaling(dims=(), value=1000.0))
     np.testing.assert_allclose(scale_fixed, [1000.0, 1000.0])
-    with pytest.raises(ValueError, match="scalar"):
+    with pytest.raises(ValueError, match="single number"):
         scale_with(FixedScaling(dims=(), value={"tv": 1.0, "search": 2.0}))
 
 
