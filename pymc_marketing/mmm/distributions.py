@@ -13,12 +13,15 @@
 #   limitations under the License.
 """Probability distributions for marketing mix models.
 
-:class:`WeightedZeroSumNormal` is a normal distribution whose last axis is
-constrained to a weighted zero sum, ``sum(weights * x) = 0``. It generalises
-:class:`pymc.ZeroSumNormal` to unequal weights, such as spend shares, and is
-provided for the tensor API (:class:`WeightedZeroSumNormal`) and the
-:mod:`pymc.dims` API (:class:`DimWeightedZeroSumNormal`), following the same
-split pymc uses for its own distributions.
+:class:`WeightedZeroSumNormal` is :class:`pymc.ZeroSumNormal` in reflected
+coordinates. A weighted zero-sum hyperplane ``sum(weights * x) = 0`` is the
+plain zero-sum hyperplane reflected by the Householder map that sends the
+unit weight vector onto the ones direction, so the distribution draws from
+``ZeroSumNormal`` and reflects, and its transform composes that reflection
+with pymc's ``ZeroSumTransform``. It is provided for the tensor API
+(:class:`WeightedZeroSumNormal`) and the :mod:`pymc.dims` API
+(:class:`DimWeightedZeroSumNormal`), following the same split pymc uses for
+its own distributions.
 
 The distribution is incubating here before a proposed move to pymc-extras or
 pymc; its import path may change.
@@ -27,37 +30,32 @@ pymc; its import path may change.
 from collections.abc import Sequence
 
 import numpy as np
-import pymc as pm
 import pytensor
 import pytensor.tensor as pt
-import pytensor.xtensor as ptx
 from numpy.typing import (
     ArrayLike,  # noqa: F401  # resolves pt.TensorLike's ForwardRef('ArrayLike') for sphinx_autodoc_typehints (#1197)
 )
 from pymc.dims.distributions.core import VectorDimDistribution
 from pymc.dims.distributions.transforms import DimTransform
+from pymc.dims.distributions.transforms import ZeroSumTransform as DimZeroSumTransform
 from pymc.distributions.dist_math import check_parameters
-from pymc.distributions.distribution import (
-    Distribution,
-    SymbolicRandomVariable,
-    _support_point,
-)
+from pymc.distributions.distribution import Distribution
+from pymc.distributions.multivariate import ZeroSumNormal, ZeroSumNormalRV
 from pymc.distributions.shape_utils import (
     Dims,
     get_support_shape_1d,
-    rv_size_is_none,
     to_tuple,
 )
-from pymc.distributions.transforms import _default_transform
+from pymc.distributions.transforms import ZeroSumTransform, _default_transform
 from pymc.exceptions import NotConstantValueError
 from pymc.logprob.abstract import _logprob
-from pymc.logprob.transforms import Transform
-from pymc.pytensorf import constant_fold, normalize_rng_param
+from pymc.logprob.basic import logp
+from pymc.logprob.transforms import ChainedTransform, Transform
+from pymc.pytensorf import constant_fold
 from pymc.util import UNSET
 from pytensor.graph.basic import Constant, Variable
 from pytensor.raise_op import Assert
 from pytensor.tensor import TensorConstant, TensorLike, TensorVariable
-from pytensor.tensor.random.utils import normalize_size_param
 from pytensor.xtensor import as_xtensor
 from pytensor.xtensor import random as pxr
 from pytensor.xtensor.type import XTensorConstant, XTensorVariable
@@ -70,15 +68,24 @@ __all__ = [
 ]
 
 
-def _unit_direction(weights: TensorLike) -> TensorVariable:
-    """``u = weights / |weights|`` along the last axis.
+def _reflect(value: TensorLike, weights: TensorLike) -> TensorVariable:
+    """Householder reflection swapping the weighted and the plain zero-sum planes.
 
-    Shared by the random graph, the logp and the transforms so that all of
-    them agree on ``u`` to machine precision: the logp checks that values lie
-    on the constraint hyperplane up to a tight relative tolerance.
+    With ``u = weights / |weights|`` and ``v = u + 1/sqrt(n)`` the map
+    ``x - 2 v (v . x) / (v . v)`` sends ``u`` to ``-1/sqrt(n)``, so it carries
+    the plane ``u . x = 0`` onto the plane ``sum(x) = 0`` and back: it is its
+    own inverse and an isometry. For strictly positive weights ``|v|^2 >= 2``,
+    so the map is never degenerate; with equal weights it is the identity on
+    the plane.
     """
+    value = pt.as_tensor(value)
     weights = pt.as_tensor(weights)
-    return weights / pt.sqrt(pt.sum(weights**2, axis=-1, keepdims=True))
+    u = weights / pt.sqrt(pt.sum(weights**2, axis=-1, keepdims=True))
+    v = u + 1 / pt.sqrt(pt.cast(weights.shape[-1], weights.dtype))
+    proj = pt.sum(value * v, axis=-1, keepdims=True) / pt.sum(
+        v * v, axis=-1, keepdims=True
+    )
+    return value - 2 * v * proj
 
 
 def _validate_weights(weights: TensorLike) -> TensorVariable:
@@ -119,13 +126,46 @@ def _check_length(weights: TensorVariable, expected: TensorLike) -> TensorVariab
 # ---------------------------------------------------------------------------
 
 
-class WeightedZeroSumTransform(Transform):
+class _Reflect(Transform):
+    """The reflection of :func:`_reflect` as a transform: self-inverse, zero Jacobian."""
+
+    name = "reflect"
+    ndim_supp = 1
+
+    def __init__(self, weights: TensorVariable | None) -> None:
+        self.weights = weights
+
+    def _weights(self, rv_inputs: Sequence[Variable]) -> Variable:
+        if rv_inputs:
+            # WeightedZeroSumNormalRV inputs are (rng, size, sigma, weights)
+            return rv_inputs[-1]
+        if self.weights is not None:
+            return self.weights
+        raise ValueError(
+            "WeightedZeroSumTransform needs weights: pass them at construction "
+            "or use it as the default transform of WeightedZeroSumNormal"
+        )
+
+    def forward(self, value: TensorVariable, *rv_inputs: Variable) -> TensorVariable:
+        return _reflect(value, self._weights(rv_inputs))
+
+    def backward(self, value: TensorVariable, *rv_inputs: Variable) -> TensorVariable:
+        return _reflect(value, self._weights(rv_inputs))
+
+    def log_jac_det(
+        self, value: TensorVariable, *rv_inputs: Variable
+    ) -> TensorVariable:
+        return pt.zeros(value.shape[:-1], dtype=value.dtype)
+
+
+class WeightedZeroSumTransform(ChainedTransform):
     """Map the hyperplane ``sum(weights * value) = 0`` to ``n - 1`` free coordinates.
 
-    The map is the restriction of the Householder reflection sending
-    ``u = weights / |weights|`` to ``-e_n``. It is an isometry, so the log
-    Jacobian determinant is zero, and with equal weights it coincides with
-    :class:`pymc.distributions.transforms.ZeroSumTransform` on one axis.
+    Reflects the weighted zero-sum plane onto the plain one and then applies
+    :class:`pymc.distributions.transforms.ZeroSumTransform`. Both steps are
+    isometries, so the log Jacobian determinant is zero; with equal weights
+    the reflection is the identity on the plane and the transform *is*
+    ``ZeroSumTransform``.
 
     As the default transform of :class:`WeightedZeroSumNormal` it reads the
     weights from the random variable's inputs, so they may be data or another
@@ -139,76 +179,48 @@ class WeightedZeroSumTransform(Transform):
     """
 
     name = "weighted_zerosum"
-    ndim_supp = 1
 
     def __init__(self, weights: TensorLike | None = None) -> None:
         self.weights = None if weights is None else _validate_weights(weights)
-
-    def _direction(self, rv_inputs: Sequence[Variable]) -> TensorVariable:
-        if rv_inputs:
-            # WeightedZeroSumNormalRV inputs are (rng, size, sigma, weights)
-            return _unit_direction(rv_inputs[-1])
-        if self.weights is not None:
-            return _unit_direction(self.weights)
-        raise ValueError(
-            "WeightedZeroSumTransform needs weights: pass them at construction "
-            "or use it as the default transform of WeightedZeroSumNormal"
-        )
-
-    def forward(self, value: TensorVariable, *rv_inputs: Variable) -> TensorVariable:
-        """Map a value on the constraint hyperplane to unconstrained coordinates."""
-        u = self._direction(rv_inputs)
-        # explicit length-1 axes keep this broadcastable when the value's
-        # static shape is unknown (symbolic weights)
-        coef = pt.expand_dims(value[..., -1], -1) / (1 + pt.expand_dims(u[..., -1], -1))
-        return value[..., :-1] - coef * u[..., :-1]
-
-    def backward(self, value: TensorVariable, *rv_inputs: Variable) -> TensorVariable:
-        """Map unconstrained coordinates onto the constraint hyperplane."""
-        u = self._direction(rv_inputs)
-        u_head, u_last = u[..., :-1], pt.expand_dims(u[..., -1], -1)
-        proj = pt.sum(value * u_head, axis=-1, keepdims=True)
-        return pt.concatenate([value - proj / (1 + u_last) * u_head, -proj], axis=-1)
+        super().__init__([_Reflect(self.weights), ZeroSumTransform(zerosum_axes=(-1,))])
 
     def log_jac_det(
         self, value: TensorVariable, *rv_inputs: Variable
     ) -> TensorVariable:
-        """Zero: the map is an isometry."""
+        """Zero: both steps are isometries."""
         return pt.zeros(value.shape[:-1], dtype=value.dtype)
 
 
-class WeightedZeroSumNormalRV(SymbolicRandomVariable):
-    """WeightedZeroSumNormal random variable."""
+class WeightedZeroSumNormalRV(ZeroSumNormalRV):
+    """WeightedZeroSumNormal random variable: a reflected ZeroSumNormal draw."""
 
     name = "WeightedZeroSumNormal"
-    extended_signature = "[rng],[size],(),(n)->[rng],(n)"
     _print_name = ("WeightedZeroSumNormal", "\\operatorname{WeightedZeroSumNormal}")
 
     @classmethod
     def rv_op(cls, sigma, weights, *, size=None, rng=None):
-        """Draw an isotropic normal and project it onto the constraint hyperplane."""
+        """Draw a ZeroSumNormal on the plain plane and reflect it onto the weighted one."""
         sigma = pt.as_tensor(sigma)
         weights = pt.as_tensor(weights)
-        rng = normalize_rng_param(rng)
-        size = normalize_size_param(size)
-        if rv_size_is_none(size):
-            size = sigma.shape  # sigma carries the batch shape
-
-        shape = (*tuple(size), weights.shape[-1])
-        next_rng, normal = pm.Normal.dist(
-            sigma=pt.shape_padright(sigma), shape=shape, rng=rng, return_next_rng=True
+        zerosum = ZeroSumNormalRV.rv_op(
+            sigma=pt.shape_padright(sigma),
+            support_shape=weights.shape[-1:],
+            size=size,
+            rng=rng,
         )
-        u = _unit_direction(weights)
-        draw = normal - pt.sum(normal * u, axis=-1, keepdims=True) * u
-        return cls(inputs=[rng, size, sigma, weights], outputs=[next_rng, draw])(
-            rng, size, sigma, weights
-        )
+        next_rng = zerosum.owner.outputs[0]
+        rng, size = zerosum.owner.inputs[:2]
+        return cls(
+            inputs=[rng, size, sigma, weights],
+            outputs=[next_rng, _reflect(zerosum, weights)],
+            extended_signature="[rng],[size],(),(n)->[rng],(n)",
+        )(rng, size, sigma, weights)
 
 
 class WeightedZeroSumNormal(Distribution):
     r"""Normal distribution whose last axis satisfies ``sum(weights * x) = 0``.
 
-    Generalises :class:`pymc.ZeroSumNormal` to unequal weights. Writing
+    :class:`pymc.ZeroSumNormal` in reflected coordinates. Writing
     :math:`u = w / \|w\|`,
 
     .. math::
@@ -216,10 +228,11 @@ class WeightedZeroSumNormal(Distribution):
         \text{WZSN}(\sigma, w) = N\Big(0, \sigma^2 (I_n - u u^T)\Big),
 
     the orthogonal projection of an isotropic normal onto the constraint
-    hyperplane. The distribution is isotropic within the hyperplane and its
-    density depends on the weights only through the constraint. It is not the
-    same as subtracting the weighted mean, an oblique projection with a
-    different, non-isotropic covariance. The marginal variances are
+    hyperplane, which is what a ``ZeroSumNormal`` is for ``u = 1/\sqrt{n}``.
+    The distribution is isotropic within the hyperplane and its density
+    depends on the weights only through the constraint. It is not the same as
+    subtracting the weighted mean, an oblique projection with a different,
+    non-isotropic covariance. The marginal variances are
     :math:`\sigma^2 (1 - u_i^2)`: the component with the dominant weight has
     the smallest variance (with ``weights = [0.9, 0.05, 0.03, 0.02]`` the first
     component has variance :math:`\approx 0.004\,\sigma^2`).
@@ -291,9 +304,7 @@ class WeightedZeroSumNormal(Distribution):
         return super().dist([pt.as_tensor(sigma), weights], **kwargs)
 
 
-@_support_point.register(WeightedZeroSumNormalRV)
-def _support_point_(op, rv, *rv_inputs):
-    return pt.zeros_like(rv)
+# The support point (zeros) is inherited from ZeroSumNormalRV's registration.
 
 
 @_default_transform.register(WeightedZeroSumNormalRV)
@@ -303,27 +314,15 @@ def _default_transform_(op, rv):
 
 @_logprob.register(WeightedZeroSumNormalRV)
 def _logp(op, values, rng, size, sigma, weights, **kwargs):
+    """ZeroSumNormal's density, evaluated in the reflected coordinates."""
     (value,) = values
-    n = value.shape[-1].astype("floatX")
-    sigma = pt.shape_padright(sigma)  # batch-only: align against the batch axes
-
-    # the constraint check is relative to the value's scale, so it holds for
-    # large sigma and in float32
-    rtol = 1e-9 if value.dtype == "float64" else 1e-6
-    tol = rtol * (1 + pt.sqrt(pt.sum(value**2, axis=-1)))
-    on_hyperplane = pt.abs(pt.sum(value * _unit_direction(weights), axis=-1)) <= tol
-
-    logp = pt.sum(
-        -0.5 * pt.pow(value / sigma, 2)
-        - (pt.log(pt.sqrt(2.0 * np.pi)) + pt.log(sigma)) * (n - 1) / n,
-        axis=-1,
+    zerosum = ZeroSumNormal.dist(
+        sigma=pt.shape_padright(sigma),
+        n_zerosum_axes=1,
+        support_shape=(value.shape[-1],),
     )
     return check_parameters(
-        logp,
-        pt.all(on_hyperplane),
-        pt.all(weights > 0),
-        pt.all(sigma > 0),
-        msg="sum(weights * value, axis=-1) = 0, weights > 0, sigma > 0",
+        logp(zerosum, _reflect(value, weights)), pt.all(weights > 0), msg="weights > 0"
     )
 
 
@@ -365,8 +364,10 @@ def _constant_weights(
 class DimWeightedZeroSumTransform(DimTransform):
     """Map the hyperplane ``(weights * value).sum(dim) = 0`` to ``n - 1`` free coordinates.
 
-    The same Householder map as :class:`WeightedZeroSumTransform`, applied
-    along ``dim``. The weights are constants fixed at construction, as for
+    The dims counterpart of :class:`WeightedZeroSumTransform`: reflect the
+    weighted plane onto the plain one along ``dim``, then apply pymc's dims
+    :class:`~pymc.dims.distributions.transforms.ZeroSumTransform`. The weights
+    are constants fixed at construction, as for
     :class:`pymc.dims.distributions.transforms.IntervalTransform`.
 
     Parameters
@@ -382,25 +383,27 @@ class DimWeightedZeroSumTransform(DimTransform):
     def __init__(self, dim: str, weights: TensorLike | XTensorVariable) -> None:
         self.dim = dim
         self.weights = _constant_weights(weights, dim)
-        u = as_xtensor(_unit_direction(self.weights.values), dims=(dim,))
-        self.u_head = u.isel({dim: slice(None, -1)})
-        self.u_last = u.isel({dim: -1})
+        w = self.weights.data
+        self.v = as_xtensor(w / np.linalg.norm(w) + 1 / np.sqrt(len(w)), dims=(dim,))
+        self.zerosum = DimZeroSumTransform(dims=(dim,))
+
+    def _reflect(self, value: XTensorVariable) -> XTensorVariable:
+        return value - 2 * self.v * (value * self.v).sum(self.dim) / (
+            self.v * self.v
+        ).sum(self.dim)
 
     def forward(self, value: XTensorVariable, *rv_inputs: Variable) -> XTensorVariable:
         """Map a value on the constraint hyperplane to unconstrained coordinates."""
-        coef = value.isel({self.dim: -1}) / (1 + self.u_last)
-        return value.isel({self.dim: slice(None, -1)}) - coef * self.u_head
+        return self.zerosum.forward(self._reflect(value))
 
     def backward(self, value: XTensorVariable, *rv_inputs: Variable) -> XTensorVariable:
         """Map unconstrained coordinates onto the constraint hyperplane."""
-        proj = (value * self.u_head).sum(self.dim)
-        head = value - proj / (1 + self.u_last) * self.u_head
-        return ptx.concat([head, -proj], dim=self.dim)
+        return self._reflect(self.zerosum.backward(value))
 
     def log_jac_det(
         self, value: XTensorVariable, *rv_inputs: Variable
     ) -> XTensorVariable:
-        """Zero: the map is an isometry."""
+        """Zero: both steps are isometries."""
         return as_xtensor(0.0).broadcast_like(value, exclude=(self.dim,))
 
 

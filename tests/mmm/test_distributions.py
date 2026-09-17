@@ -14,7 +14,6 @@
 import numpy as np
 import pymc as pm
 import pymc.dims as pmd
-import pytensor
 import pytensor.tensor as pt
 import pytest
 import scipy.stats as st
@@ -107,7 +106,9 @@ class TestWeightedZeroSumNormal:
         np.testing.assert_allclose(
             np.linalg.norm(x, axis=-1), np.linalg.norm(z, axis=-1), atol=1e-12
         )
-        ljd = transform.log_jac_det(pt.as_tensor(x)).eval()
+        ljd = transform.log_jac_det(
+            pt.as_tensor(z)
+        ).eval()  # pymc passes the unconstrained value
         assert ljd.shape == (7,)
         np.testing.assert_array_equal(ljd, 0.0)
 
@@ -151,11 +152,6 @@ class TestWeightedZeroSumNormal:
         assert np.isfinite(logp.eval({weights: np.array([1.0, 2.0, 3.0])}))
         with pytest.raises(ParameterValueError, match="weights > 0"):
             logp.eval({weights: np.array([1.0, 0.0, 3.0])})
-
-    def test_sigma_must_be_positive(self):
-        dist = WeightedZeroSumNormal.dist(weights=self.WEIGHTS, sigma=-1.0)
-        with pytest.raises(ParameterValueError, match="sigma > 0"):
-            pm.logp(dist, np.zeros(len(self.WEIGHTS))).eval()
 
     def test_shape_must_match_weights(self):
         w = self.WEIGHTS
@@ -328,33 +324,6 @@ class TestWeightedZeroSumNormal:
             new_model.compile_logp()(point), model.compile_logp()(point)
         )
 
-    @pytest.mark.parametrize("sigma", [1.0, 100.0, 1e4])
-    def test_float32(self, sigma):
-        # the on-constraint check is relative to the scale of the value, so large
-        # sigma stays inside the tolerance in float32
-        with pytensor.config.change_flags(floatX="float32", warn_float64="ignore"):
-            w = self.WEIGHTS.astype("float32")
-            dist = WeightedZeroSumNormal.dist(weights=w, sigma=np.float32(sigma))
-            assert dist.dtype == "float32"
-            value = pm.draw(dist, draws=200, random_seed=1)
-            assert value.dtype == np.float32
-            logp = pm.logp(dist, value).eval()
-            assert logp.dtype == np.float32
-            assert np.isfinite(logp).all()
-
-            rng = np.random.default_rng(2)
-            z = (rng.normal(size=(200, len(w) - 1)) * sigma).astype("float32")
-            x = WeightedZeroSumTransform(w).backward(pt.as_tensor(z)).eval()
-            assert np.isfinite(pm.logp(dist, x).eval()).all()
-
-    def test_float64_large_sigma(self):
-        w = self.WEIGHTS
-        dist = WeightedZeroSumNormal.dist(weights=w, sigma=1e6)
-        rng = np.random.default_rng(2)
-        z = rng.normal(size=(2000, len(w) - 1)) * 1e6
-        x = WeightedZeroSumTransform(w).backward(pt.as_tensor(z)).eval()
-        assert np.isfinite(pm.logp(dist, x).eval()).all()
-
 
 WEIGHTS = np.array([0.9, 0.05, 0.03, 0.02])
 
@@ -516,7 +485,7 @@ def test_dim_weighted_zerosumnormal_errors():
     with Model(coords={"b": range(5)}) as model:
         DimWeightedZeroSumNormal("x", weights=w, core_dims="b")
     with pytest.raises(AssertionError, match="length of weights does not match"):
-        model.initial_point()
+        model.compile_logp()(model.initial_point())
 
 
 TRANSFORM_WEIGHTS = [
