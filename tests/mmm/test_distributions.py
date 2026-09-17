@@ -488,6 +488,20 @@ def test_dim_weighted_zerosumnormal_errors():
         model.compile_logp()(model.initial_point())
 
 
+def test_transform_explicit_weights_win_on_other_rvs():
+    # pymc passes the RV's own inputs to the transform; on a Normal the last
+    # input is sigma, not a weight vector, so explicit weights must take
+    # precedence
+    w = np.array([0.7, 0.2, 0.1])
+    sigma = np.array([1.0, 2.0, 3.0])
+    with Model() as model:
+        x = pm.Normal("x", 0.0, sigma, transform=WeightedZeroSumTransform(w))
+    z = np.array([0.3, -0.5])
+    value = model.rvs_to_transforms[x].backward(pt.as_tensor(z), *x.owner.inputs).eval()
+    np.testing.assert_allclose(value @ w, 0.0, atol=1e-12)
+    assert abs(value @ sigma) > 1e-3
+
+
 TRANSFORM_WEIGHTS = [
     np.array([0.70, 0.20, 0.08, 0.02]),
     np.array([0.90, 0.05, 0.03, 0.02]),
