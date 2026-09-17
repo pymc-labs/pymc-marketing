@@ -136,11 +136,12 @@ class _Reflect(Transform):
         self.weights = weights
 
     def _weights(self, rv_inputs: Sequence[Variable]) -> Variable:
+        # explicit weights win: on any other RV, rv_inputs[-1] is not a weight
+        if self.weights is not None:
+            return self.weights
         if rv_inputs:
             # WeightedZeroSumNormalRV inputs are (rng, size, sigma, weights)
             return rv_inputs[-1]
-        if self.weights is not None:
-            return self.weights
         raise ValueError(
             "WeightedZeroSumTransform needs weights: pass them at construction "
             "or use it as the default transform of WeightedZeroSumNormal"

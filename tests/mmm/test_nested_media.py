@@ -341,6 +341,37 @@ def test_covariate_prior_mean_is_the_trust_dial():
         mmm = _make_mock_mmm_with_covariates()
 
 
+def test_zero_spend_campaign_stays_pinned_with_covariates():
+    # a dead campaign keeps share 0, so its covariate row must be zero and its
+    # multiplier one, whatever the platform export says about it
+    mmm = _make_mock_mmm_with_covariates()
+    mmm.xarray_dataset["campaign_data"].loc[{"campaign": "tv_promo"}] = 0.0
+    effect = NestedMediaEffect(
+        child_to_parent=MAPPING, covariate_var="covariates", gamma_mu=1.0
+    )
+    with mmm.model:
+        effect.create_data(mmm)
+        effect.create_effect(mmm)
+    model = mmm.model
+    cov = model["nested_media_covariates"].values.eval()
+    dead = CAMPAIGNS.index("tv_promo")
+    np.testing.assert_array_equal(cov[dead], 0.0)
+    (mult_graph,) = model.replace_rvs_by_values([model["nested_media_beta_multiplier"]])
+    mult = model.compile_fn(
+        mult_graph, inputs=model.value_vars, on_unused_input="ignore"
+    )(model.initial_point())
+    assert mult[dead] == pytest.approx(1.0)
+
+
+def test_field_bounds():
+    with pytest.raises(ValueError):
+        NestedMediaEffect(child_to_parent=MAPPING, tau_beta_sigma=-1.0)
+    with pytest.raises(ValueError):
+        NestedMediaEffect(child_to_parent=MAPPING, gamma_sigma=0.0)
+    with pytest.raises(ValueError):
+        NestedMediaEffect(child_to_parent=MAPPING, rho=-0.1)
+
+
 def test_covariate_bad_dims_raises():
     mmm = _make_mock_mmm_with_covariates()
     mmm.xarray_dataset["bad_cov"] = xr.DataArray(
