@@ -628,61 +628,58 @@ class NestedCampaignMedia(DataVarMuEffect):
             raise ValueError(f"Unknown campaigns in df_lift_test: {sorted(unknown)}")
         _check_lift_rows(df_lift_test)
 
-        scale = np.asarray(model[f"{p}_channel_scale"].get_value())
-        parent = np.asarray(model[f"{p}_parent_idx"].get_value()).astype(int)
-        scale_map = dict(zip(campaigns, scale[parent], strict=True))
-        row_scale = (
-            df_lift_test[self.campaign_dim].astype(str).map(scale_map).to_numpy()
+        rows = df_lift_test.reset_index(drop=True)
+        row_channel = rows[self.campaign_dim].astype(str).map(self.campaign_to_channel)
+        channel_scale = xr.DataArray(
+            model[f"{p}_channel_scale"].get_value(),
+            dims=channel_coord_name,
+            coords={channel_coord_name: list(model.coords[channel_coord_name])},
         )
+        row_scale = channel_scale.sel(
+            {channel_coord_name: xr.DataArray(row_channel.to_numpy(), dims="row")}
+        ).to_numpy()
 
         if target_transform is None:
-            scalers = getattr(mmm, "scalers", None)
-            if scalers is not None and hasattr(scalers, "_target"):
-                target_scale = scalers._target
-                dims = tuple(getattr(mmm, "dims", ()) or ())
-                if dims:
-                    missing_dims = set(dims) - set(df_lift_test.columns)
-                    if missing_dims:
-                        raise KeyError(
-                            f"df_lift_test is missing the model dim columns "
-                            f"{sorted(missing_dims)} needed to scale delta_y/sigma"
-                        )
-                    row_target_scale = (
-                        target_scale.sel(
-                            {
-                                d: xr.DataArray(
-                                    df_lift_test[d].to_numpy(), dims="__row__"
-                                )
-                                for d in dims
-                            }
-                        )
-                        .to_numpy()
-                        .reshape(-1, 1)
-                    )
-                else:
-                    row_target_scale = float(target_scale)
-
-                def target_transform(values: np.ndarray) -> np.ndarray:
-                    return values / row_target_scale
+            # Scale delta_y and sigma into the model's target units. The
+            # fitted target scaler is a scalar, or an array over some of the
+            # model dims: select on exactly the dims it carries, which the
+            # lift table must then provide as columns.
+            target_scale = getattr(getattr(mmm, "scalers", None), "_target", None)
+            if target_scale is None:
+                row_target_scale = np.ones(len(rows))
             else:
+                target_scale = xr.DataArray(target_scale)
+                missing_dims = set(target_scale.dims) - set(rows.columns)
+                if missing_dims:
+                    raise KeyError(
+                        f"df_lift_test is missing the model dim columns "
+                        f"{sorted(missing_dims)} needed to scale delta_y/sigma"
+                    )
+                row_target_scale = np.broadcast_to(
+                    target_scale.sel(
+                        {
+                            d: xr.DataArray(rows[d].to_numpy(), dims="row")
+                            for d in target_scale.dims
+                        }
+                    ).to_numpy(),
+                    (len(rows),),
+                )
 
-                def target_transform(values: np.ndarray) -> np.ndarray:
-                    return values
+            def target_transform(values: np.ndarray) -> np.ndarray:
+                return values / row_target_scale[:, None]
 
         def scale_target(col: pd.Series) -> np.ndarray:
-            return target_transform(col.to_numpy().reshape(-1, 1)).flatten()
+            return target_transform(col.to_numpy()[:, None])[:, 0]
 
-        df_scaled = df_lift_test.assign(
+        df_scaled = rows.assign(
             **{
-                "x": df_lift_test["x"] / row_scale,
-                "delta_x": df_lift_test["delta_x"] / row_scale,
-                "delta_y": scale_target(df_lift_test["delta_y"]),
-                "sigma": scale_target(df_lift_test["sigma"]),
+                "x": rows["x"] / row_scale,
+                "delta_x": rows["delta_x"] / row_scale,
+                "delta_y": scale_target(rows["delta_y"]),
+                "sigma": scale_target(rows["sigma"]),
                 # the saturation's channel-level params are indexed by the
                 # effect's channel coordinate
-                channel_coord_name: df_lift_test[self.campaign_dim]
-                .astype(str)
-                .map(self.campaign_to_channel),
+                channel_coord_name: row_channel,
             }
         )
 
