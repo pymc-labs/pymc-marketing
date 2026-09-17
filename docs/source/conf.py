@@ -17,7 +17,9 @@ import pymc_marketing  # isort:skip
 project = "PyMC-Marketing"
 author = "PyMC Labs"
 copyright = f"2022-%Y, {author}"
-html_title = "PyMC-Marketing — Open Source Bayesian MMM & CLV Library for Python"
+# Keep the <title> suffix short: Google truncates titles around 60 characters,
+# so a long suffix pushes each page's own keywords out of the visible snippet.
+html_title = "PyMC-Marketing"
 
 # The master toctree document.
 master_doc = "index"
@@ -105,8 +107,9 @@ locale_dirs = ["../../locales"]
 
 # -- Extension configuration ------------------------------------------------
 
-# exclude method pages from toctree to make pages lighter and build faster
-remove_from_toctrees = ["**/classmethods/*"]
+# exclude method and attribute pages from toctree to make pages lighter and
+# build faster
+remove_from_toctrees = ["**/classmethods/*", "**/classattributes/*"]
 
 # matplotlib plot directive configuration
 # plot_pre_code runs before every .. plot:: block; replaces the default
@@ -164,6 +167,7 @@ numpydoc_xref_ignore = {
 # fmt: on
 numpydoc_xref_aliases = {
     "TensorVariable": ":class:`~pytensor.tensor.TensorVariable`",
+    "XTensorVariable": ":class:`~pytensor.xtensor.type.XTensorVariable`",
     "RandomVariable": ":class:`~pytensor.tensor.random.RandomVariable`",
     "ndarray": ":class:`~numpy.ndarray`",
     "DataTree": ":class:`~xarray.DataTree`",
@@ -188,8 +192,38 @@ intersphinx_mapping = {
     "xarray": ("https://docs.xarray.dev/en/stable/", None),
 }
 
+# Prefer cross-reference roles over hard-coded URLs when pointing at an API of
+# any project listed above, e.g. {func}`pymc.sample` instead of a literal link
+# to the pymc docs. Renamed or moved objects then surface as a warning, which
+# the docs build turns into an error (-W), instead of silently rotting into a
+# 404 on the published site.
+
+# `sphinx-build docs/source docs/build -b linkcheck` catches the hard-coded
+# links that remain. Anchors are not checked: many targets render them client
+# side, which produces false positives.
+linkcheck_anchors = False
+linkcheck_timeout = 30
+linkcheck_retries = 2
+linkcheck_ignore = [
+    # Rate-limits or blocks CI traffic.
+    r"https://(www\.)?linkedin\.com/.*",
+    r"https://(twitter|x)\.com/.*",
+    r"https://calendly\.com/.*",
+    r"https://discord\.(gg|com)/.*",
+]
+
 
 # linkcode extension (links of [source] pointing to github)
+# Resolved once: linkcode_resolve runs for every documented object (thousands
+# per build) and the commit does not change during a build.
+_GIT_COMMIT = subprocess.run(
+    ["git", "rev-parse", "HEAD"],  # noqa: S607
+    capture_output=True,
+    text=True,
+    check=True,
+).stdout.strip()
+
+
 def linkcode_resolve(domain, info):
     """Given sphinx contextual objects when building the docs, generate links to source on GH."""
 
@@ -228,12 +262,7 @@ def linkcode_resolve(domain, info):
                 # Some objects do not have a __module__ attribute (?)
                 filename = fallback_source()
 
-    tag = subprocess.Popen(
-        ["git", "rev-parse", "HEAD"],  # noqa: S607
-        stdout=subprocess.PIPE,
-        universal_newlines=True,
-    ).communicate()[0][:-1]
-    return f"https://github.com/pymc-labs/pymc-marketing/blob/{tag}/{filename}"
+    return f"https://github.com/pymc-labs/pymc-marketing/blob/{_GIT_COMMIT}/{filename}"
 
 
 # -- HTML specific extensions -------------------------------------
@@ -245,12 +274,24 @@ notfound_urls_prefix = "/en/latest/"
 ogp_site_url = "https://www.pymc-marketing.io/en/stable/"
 ogp_canonical_url = "https://www.pymc-marketing.io/en/stable/"
 ogp_image = "https://www.pymc-marketing.io/en/stable/_images/marketing-logo-light.jpg"
-ogp_enable_meta_description = False
+# Auto-generate <meta name="description"> from the first paragraph of each
+# page. Pages that declare their own description (e.g. index.md) are skipped.
+ogp_enable_meta_description = True
 
 
 # sitemap extension configuration
 site_url = "https://www.pymc-marketing.io/"
 sitemap_url_scheme = f"{{lang}}{rtd_version}/{{link}}"
+# Keep thin auto-generated pages out of the sitemap so crawl budget goes to
+# real content. The classmethods stubs alone are ~80% of all pages and sit in
+# Search Console as "Crawled - currently not indexed".
+sitemap_excludes = [
+    "search.html",
+    "genindex.html",
+    "py-modindex.html",
+    "api/generated/classmethods/*",
+    "api/generated/classattributes/*",
+]
 
 
 # -- Options for HTML output ----------------------------------------------
@@ -258,7 +299,7 @@ sitemap_url_scheme = f"{{lang}}{rtd_version}/{{link}}"
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
 html_theme = "labs_sphinx_theme"
-html_extra_path = ["robots.txt"]
+html_extra_path = ["robots.txt", "llms.txt"]
 html_copy_source = (
     False  # don't include rst source files as _sources/...txt in the build
 )
@@ -281,7 +322,10 @@ html_context = {
     "github_version": "main",
     "doc_path": "docs/source/",
     "default_mode": "light",
-    "baseurl": "https://www.pymc-marketing.io/",
+    # No trailing slash: the theme's layout.html builds the canonical URL as
+    # "{baseurl}/{language}/stable/{pagename}.html". A trailing slash here
+    # produced broken canonicals ("https://www.pymc-marketing.io//en/...").
+    "baseurl": "https://www.pymc-marketing.io",
     "rtd_version": rtd_version,
     "translations": ["en", "es"],
 }
@@ -290,7 +334,10 @@ html_context = {
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
 html_static_path = ["_static/"]
-html_css_files = ["custom.css"]
+html_css_files = ["custom.css", "fold-code-cells.css"]
+# Folds notebook code cells by default so example pages lead with narrative
+# and outputs instead of walls of code (#2926).
+html_js_files = ["fold-code-cells.js"]
 
 # -- Options for LaTeX output ---------------------------------------------
 

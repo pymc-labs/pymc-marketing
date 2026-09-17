@@ -78,6 +78,8 @@ sections:
             notebook: mmm/mmm_roas
           - title: Calibrating an MMM with ROAS Estimates
             notebook: mmm/mmm_roas_calibration
+          - title: How Much Would One Lift Test Reduce ROAS Uncertainty?
+            notebook: mmm/mmm_roas_experimentation
       - title: Time-Varying Parameters
         cards:
           - title: MMM with time-varying media baseline
@@ -90,6 +92,9 @@ sections:
             notebook: mmm/mmm_time_slice_cross_validation
           - title: Metrics and Model Evaluation
             notebook: mmm/mmm_evaluation
+          - title: Prior Sensitivity in the MMM Workflow
+            notebook: mmm/mmm_prior_sensitivity
+            thumb: mmm_prior_sensitivity_psense.png
       - title: Causal Inference
         cards:
           - title: Causal Identification
@@ -116,6 +121,8 @@ sections:
         cards:
           - title: MMM End-to-End Case Study
             notebook: mmm/mmm_case_study
+          - title: "MMM Case Study II: Funnel-Aware Modeling, ROAS Calibration, and Budget Planning"
+            notebook: mmm/mmm_case_study2
           - title: Integrating Foundational Time Series Models with PyMC-Marketing MMM
             notebook: mmm/mmm_chronos
   - title: Customer Lifetime Value (CLV) Models
