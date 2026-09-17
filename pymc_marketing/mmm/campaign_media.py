@@ -393,8 +393,8 @@ class NestedCampaignMedia(DataVarMuEffect):
         stay out so their multiplier is pinned at 1 instead of adding an
         unidentified free direction, and a channel needs two live campaigns
         to have any free direction at all. The blocks concatenate along one
-        live-campaign coordinate, which the scatter matrix maps back to the
-        campaign dimension.
+        live-campaign coordinate; an index per campaign gathers them back to
+        the campaign dimension, with dead campaigns pointing at a zero slot.
         """
         live = share.values > 0
         live_names: list[str] = []
@@ -417,21 +417,18 @@ class NestedCampaignMedia(DataVarMuEffect):
         live_dim = f"{self.prefix}_live_campaign"
         if live_dim not in model.coords:
             model.add_coord(live_dim, live_names)
-        scatter = (
-            np.array(live_names)[:, None] == np.array(campaigns)[None, :]
-        ).astype(float)
-        pmd.Data(
-            f"{self.prefix}_live_to_campaign",
-            scatter,
-            dims=(live_dim, self.campaign_dim),
-        )
+        # position of each campaign in the live vector; the slot after the
+        # last live campaign holds a zero for campaigns outside every block
+        position = {c: i for i, c in enumerate(live_names)}
+        live_index = np.array([position.get(c, len(live_names)) for c in campaigns])
+        pmd.Data(f"{self.prefix}_live_index", live_index, dims=(self.campaign_dim,))
 
     def _zero_sum_multiplier(self, model: pm.Model, name: str) -> XTensorVariable:
         """Standardised log-multiplier with a spend-share-weighted zero sum per channel.
 
         One :class:`~pymc_marketing.mmm.distributions.DimWeightedZeroSumNormal`
         per channel block, weighted by the block's spend shares, concatenated
-        along the live-campaign coordinate and scattered back to the campaign
+        along the live-campaign coordinate and gathered back to the campaign
         dimension. Campaigns outside every block get zero, i.e. multiplier one;
         with no block at all every multiplier is pinned at one.
         """
@@ -455,9 +452,10 @@ class NestedCampaignMedia(DataVarMuEffect):
                 f"{p}_{name}_{channel}", weights=share[idx], core_dims=sub_dim
             )
             parts.append(z.rename({sub_dim: live_dim}))
-        z_live = ptx.concat(parts, dim=live_dim)
-        scattered = (z_live * model[f"{p}_live_to_campaign"]).sum(live_dim)
-        return pmd.Deterministic(f"{p}_{name}", scattered)
+        zero_slot = pmd.zeros_like(parts[0].isel({live_dim: slice(0, 1)}))
+        z_live = ptx.concat([*parts, zero_slot], dim=live_dim)
+        gathered = z_live.isel({live_dim: model[f"{p}_live_index"]})
+        return pmd.Deterministic(f"{p}_{name}", gathered)
 
     def set_data(self, mmm: Model, model: pm.Model, X: xr.Dataset) -> None:
         """Update ``campaign_data`` for a new prediction window.
