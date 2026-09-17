@@ -241,16 +241,22 @@ class NestedCampaignMedia(DataVarMuEffect):
     covariate_var : str, optional
         Name of a variable in ``mmm.xarray_dataset`` with dims
         ``(campaign_dim, covariate_dim)`` holding per-campaign covariates
-        (e.g. log impressions, log clicks, CTR).  They enter the campaign
-        amplitude multiplier and are spend-share-weighted-centred *within
-        each channel* at build time, so they reallocate efficiency between
-        a channel's campaigns without moving the channel-level total.
-        Standardize covariates beforehand so ``gamma_sigma`` means the same
-        thing for each of them.
+        (e.g. log clicks per unit spend, log impressions, CTR).  They enter
+        the campaign amplitude multiplier and are spend-share-weighted-centred
+        *within each channel* at build time, so they reallocate efficiency
+        between a channel's campaigns without moving the channel-level total.
+        A covariate is a hypothesis about efficiency, not evidence of it: its
+        coefficient is learned only where the spend mix varies, and where it
+        does not the coefficient stays at its prior, so the prior is where
+        you state how far to trust the platform signal.  On a log scale
+        (``log(clicks / spend)``) a coefficient of 1 reads "sales efficiency
+        follows click efficiency one for one" and 0 "ignore it".
     covariate_dim : str
         Name of the covariate dimension.  Default ``"covariate"``.
-    gamma_sigma : float
-        Scale of the Normal prior on the covariate coefficients.
+    gamma_mu, gamma_sigma : float
+        Mean and scale of the Normal prior on the covariate coefficients.
+        The default ``gamma_mu=0`` states no direction; a positive mean with
+        a small scale states trust in the covariate.
     """
 
     campaign_to_channel: dict[str, str]
@@ -267,6 +273,7 @@ class NestedCampaignMedia(DataVarMuEffect):
     zero_sum_multipliers: bool = True
     covariate_var: str | None = None
     covariate_dim: str = "covariate"
+    gamma_mu: float = 0.0
     gamma_sigma: float = 0.5
 
     model_config = {"arbitrary_types_allowed": True}
@@ -514,7 +521,10 @@ class NestedCampaignMedia(DataVarMuEffect):
         if self.covariate_var is not None:
             cov = model[f"{p}_covariates"]
             gamma = pmd.Normal(
-                f"{p}_gamma", 0.0, self.gamma_sigma, dims=(self.covariate_dim,)
+                f"{p}_gamma",
+                self.gamma_mu,
+                self.gamma_sigma,
+                dims=(self.covariate_dim,),
             )
             log_mult = log_mult + (cov * gamma).sum(dim=self.covariate_dim)
         beta_multiplier = pmd.Deterministic(
