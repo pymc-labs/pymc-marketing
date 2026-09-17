@@ -107,6 +107,7 @@ class TestDateIndexedInputs:
                     end=actual_dates[-1],
                     dates=self.dates,
                     in_window=in_window,
+                    eval_start=actual_dates[0],
                     eval_end=actual_dates[-1],
                 )
             )

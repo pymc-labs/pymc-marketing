@@ -667,9 +667,9 @@ class Incrementality:
         include_carryover : bool, default=True
             Include adstock carryover effects.  When True, prepends ``l_max``
             observations before the period to capture historical effects
-            carrying into the evaluation period, and extends the evaluation
-            window by ``l_max`` periods to capture trailing adstock effects
-            from spend during the period.
+            carrying into the evaluation period. The dates summed outside the
+            period follow ``adstock.mode``: after the period for ``After``,
+            before it for ``Before``, and on both sides for ``Overlap``.
         num_samples : int or None, optional
             Number of posterior samples to use. If None, all samples are used.
             If less than total available (chain × draw), a random subset is

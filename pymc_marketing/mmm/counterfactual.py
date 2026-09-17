@@ -243,7 +243,7 @@ class PeriodWindow:
         end: pd.Timestamp,
         dates: pd.DatetimeIndex,
         in_window: np.ndarray,
-        eval_start: pd.Timestamp | None = None,
+        eval_start: pd.Timestamp,
         eval_end: pd.Timestamp,
     ) -> PeriodWindow:
         """Derive both date ranges from the window mask and evaluation bounds.
@@ -256,8 +256,8 @@ class PeriodWindow:
             The full fitted date axis.
         in_window : np.ndarray
             Boolean mask over *dates* selecting the window.
-        eval_start : pd.Timestamp, optional
-            First date to sum. Defaults to the period's own *start*.
+        eval_start : pd.Timestamp
+            First date to sum.
         eval_end : pd.Timestamp
             Last date to sum.
 
@@ -267,8 +267,6 @@ class PeriodWindow:
             The window, with its evaluation subset intersected against it so the
             two cannot disagree.
         """
-        if eval_start is None:
-            eval_start = start
         in_eval = in_window & (dates >= eval_start) & (dates <= eval_end)
         return cls(
             start=start,
@@ -339,8 +337,12 @@ class EvaluationWindows:
 
     The dates that are *summed* follow the adstock's convolution mode.  Trailing
     decay is attributed from the period forward, leading effects from the period
-    backward, and overlap effects to both sides.  This keeps the period's
-    increment aligned with every date its spend can affect.
+    backward, and overlap effects to both sides.  Under full-axis evaluation,
+    ``After`` deliberately still excludes moves before the period: those can be
+    caused by a date-reducing node rather than adstock kernel mass, and including
+    them would make periods overlap in a quantity callers read as a decomposition.
+    For ``Before`` and ``Overlap``, however, dates before the period contain real
+    leading kernel mass and are included in the sum.
 
     Parameters
     ----------
@@ -406,6 +408,13 @@ class EvaluationWindows:
         for start, end in periods:
             if full_axis:
                 in_window = np.ones(len(dates), dtype=bool)
+                # Full-axis mode is selected when the probe cannot bound some
+                # node's reach. Summing to the applicable axis boundary costs
+                # nothing in correctness: outside the perturbation's reach the
+                # baseline and counterfactual are the same computation on the
+                # same inputs, so the extra summands are exactly zero. ``After``
+                # retains forward-only attribution; non-``After`` modes include
+                # the leading side because it contains adstock kernel mass.
             else:
                 # Carry enough context on both sides for every convolution mode;
                 # the mode-aware evaluation mask decides what is summed.
@@ -422,6 +431,10 @@ class EvaluationWindows:
                 eval_start = start
                 eval_end = end + l_max * freq_offset
             elif mode == ConvMode.Before:
+                # SpendProbe currently sends any graph that moves before its
+                # probe date through full-axis evaluation, so this bounded path
+                # defines the correct contract but is not yet used by the public
+                # incrementality API. A future reach refinement can enable it.
                 eval_start = start - l_max * freq_offset
                 eval_end = end
             elif mode == ConvMode.Overlap:
