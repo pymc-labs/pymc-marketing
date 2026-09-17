@@ -372,6 +372,66 @@ def test_field_bounds():
         NestedMediaEffect(child_to_parent=MAPPING, rho=-0.1)
 
 
+def test_channel_scale_follows_mmm_scaling():
+    from pymc_marketing.mmm.scaling import DataDerivedScaling, FixedScaling, Scaling
+
+    def scale_with(channel_scaling):
+        mmm = _make_mock_mmm()
+        mmm.scaling = Scaling(
+            target=DataDerivedScaling(method="max", dims=()), channel=channel_scaling
+        )
+        effect = NestedMediaEffect(child_to_parent=MAPPING)
+        with mmm.model:
+            effect.create_data(mmm)
+        return mmm.model["nested_media_channel_scale"].get_value(), mmm
+
+    spend = _make_mock_mmm().xarray_dataset["campaign_data"]
+    totals = {
+        ch: spend.sel(campaign=[c for c in CAMPAIGNS if MAPPING[c] == ch]).sum(
+            "campaign"
+        )
+        for ch in ["tv", "search"]
+    }
+    scale_max, _ = scale_with(DataDerivedScaling(method="max", dims=()))
+    np.testing.assert_allclose(scale_max, [totals["tv"].max(), totals["search"].max()])
+    scale_mean, _ = scale_with(DataDerivedScaling(method="mean", dims=()))
+    np.testing.assert_allclose(
+        scale_mean, [totals["tv"].mean(), totals["search"].mean()]
+    )
+    # reducing over "channel" means over the effect's parents: one common scale
+    scale_common, _ = scale_with(DataDerivedScaling(method="max", dims=("channel",)))
+    np.testing.assert_allclose(
+        scale_common, [max(t.max() for t in totals.values())] * 2
+    )
+    scale_fixed, _ = scale_with(FixedScaling(dims=(), value=1000.0))
+    np.testing.assert_allclose(scale_fixed, [1000.0, 1000.0])
+    with pytest.raises(ValueError, match="scalar"):
+        scale_with(FixedScaling(dims=(), value={"tv": 1.0, "search": 2.0}))
+
+
+def test_unscaled_saturation_forces_scale_one():
+    from pymc_marketing.mmm import LogSaturation
+
+    mmm = _make_mock_mmm()
+    effect = NestedMediaEffect(child_to_parent=MAPPING, saturation=LogSaturation())
+    with mmm.model:
+        effect.create_data(mmm)
+    np.testing.assert_array_equal(
+        mmm.model["nested_media_channel_scale"].get_value(), 1.0
+    )
+
+
+def test_build_does_not_mutate_saturation():
+    mmm = _make_mock_mmm()
+    effect = NestedMediaEffect(child_to_parent=MAPPING)
+    before = effect.saturation.to_dict()
+    with mmm.model:
+        effect.create_data(mmm)
+        effect.create_effect(mmm)
+    assert effect.saturation.to_dict() == before
+    assert effect._built.prefix == "nested_media_saturation"
+
+
 def test_covariate_bad_dims_raises():
     mmm = _make_mock_mmm_with_covariates()
     mmm.xarray_dataset["bad_cov"] = xr.DataArray(
@@ -629,7 +689,7 @@ def test_library_saturation_shapes():
             idata = pm.sample_prior_predictive(draws=5, random_seed=3)
         assert "nested_media_campaign_contribution" in idata.prior
         # channel-level saturation params exist with the effect's channel dim
-        for var_name in effect.saturation.variable_mapping.values():
+        for var_name in effect._built.variable_mapping.values():
             assert mmm.model[var_name].type.dims == ("nested_media_channel",)
 
 
