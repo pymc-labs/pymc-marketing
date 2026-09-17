@@ -11,7 +11,7 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
-"""NestedCampaignMedia wired into the real MMM class (not the mock protocol).
+"""NestedMediaEffect wired into the real MMM class (not the mock protocol).
 
 The extra ``campaign`` dimension only exists when ``X`` is passed as an
 ``xr.Dataset``; the DataFrame API keeps channel/control columns only. The
@@ -28,7 +28,7 @@ import pytest
 import xarray as xr
 
 from pymc_marketing.mmm import MMM, GeometricAdstock, LogisticSaturation
-from pymc_marketing.mmm.campaign_media import NestedCampaignMedia
+from pymc_marketing.mmm.nested_media import NestedMediaEffect
 
 seed = 20260825
 CAMPAIGNS = ["social_a", "social_b", "social_c"]
@@ -67,9 +67,7 @@ def _make_mmm(effect=None):
         saturation=LogisticSaturation(),
     )
     return mmm.add_mu_effect(
-        effect
-        if effect is not None
-        else NestedCampaignMedia(campaign_to_channel=MAPPING)
+        effect if effect is not None else NestedMediaEffect(child_to_parent=MAPPING)
     )
 
 
@@ -84,15 +82,15 @@ def test_build_registers_effect_variables(built_mmm):
     named = built_mmm.model.named_vars
     for name in [
         "campaign_data",
-        "campaign_media_parent_idx",
-        "campaign_media_channel_scale",
-        "campaign_media_campaign_contribution",
-        "campaign_media_channel_contribution",
-        "campaign_media_effect_contribution",
+        "nested_media_parent_idx",
+        "nested_media_channel_scale",
+        "nested_media_campaign_contribution",
+        "nested_media_channel_contribution",
+        "nested_media_effect_contribution",
     ]:
         assert name in named
     assert list(built_mmm.model.coords["campaign"]) == CAMPAIGNS
-    assert list(built_mmm.model.coords["campaign_media_channel"]) == ["social"]
+    assert list(built_mmm.model.coords["nested_media_channel"]) == ["social"]
     # the decomposed channel is not a model channel
     assert list(built_mmm.model.coords["channel"]) == ["search"]
 
@@ -102,11 +100,11 @@ def test_prior_predictive_and_rollup(built_mmm):
         idata = pm.sample_prior_predictive(draws=20, random_seed=seed)
     prior = idata.prior
     np.testing.assert_allclose(
-        prior["campaign_media_campaign_contribution"].sum("campaign"),
-        prior["campaign_media_effect_contribution"],
+        prior["nested_media_campaign_contribution"].sum("campaign"),
+        prior["nested_media_effect_contribution"],
         rtol=1e-10,
     )
-    assert prior["campaign_media_effect_contribution"].dims == (
+    assert prior["nested_media_effect_contribution"].dims == (
         "chain",
         "draw",
         "date",
@@ -127,17 +125,17 @@ def test_counterfactual_contributions_include_effect(campaign_mmm_data):
     mmm.set_idata_attrs(idata=idata)
 
     contributions = mmm.compute_counterfactual_contributions_dataset()
-    assert "campaign_media_effect" in contributions.data_vars
+    assert "nested_media_effect" in contributions.data_vars
     assert "campaign" not in contributions.dims
 
 
 def test_idata_attrs_roundtrip_effect(campaign_mmm_data):
     from pymc_marketing.serialization import serialization
 
-    effect = NestedCampaignMedia(campaign_to_channel=MAPPING, rho=0.5)
+    effect = NestedMediaEffect(child_to_parent=MAPPING, rho=0.5)
     payload = serialization.serialize(effect)
     restored = serialization.deserialize(payload)
-    assert type(restored) is NestedCampaignMedia
+    assert type(restored) is NestedMediaEffect
     assert restored == effect
 
 
@@ -145,7 +143,7 @@ def test_double_count_warning(campaign_mmm_data):
     """Mapping campaigns onto a channel still in channel_columns must warn."""
     X = campaign_mmm_data["X"]
     mmm = _make_mmm(
-        NestedCampaignMedia(campaign_to_channel=dict.fromkeys(CAMPAIGNS, "search"))
+        NestedMediaEffect(child_to_parent=dict.fromkeys(CAMPAIGNS, "search"))
     )
     with pytest.warns(UserWarning, match="double-counts"):
         mmm.build_model(X=X, y=campaign_mmm_data["y"])
@@ -172,12 +170,12 @@ def test_save_load_roundtrip(campaign_mmm_data, tmp_path):
     mmm.idata = idata
     mmm.set_idata_attrs(idata=idata)
 
-    fname = tmp_path / "campaign_media_model.nc"
+    fname = tmp_path / "nested_media_model.nc"
     mmm.save(str(fname))
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         loaded = MMM.load(str(fname))
-    assert isinstance(loaded.mu_effects[0], NestedCampaignMedia)
+    assert isinstance(loaded.mu_effects[0], NestedMediaEffect)
 
 
 class TestGeoDims:
@@ -220,18 +218,18 @@ class TestGeoDims:
             dims=("geo",),
             adstock=GeometricAdstock(l_max=2),
             saturation=LogisticSaturation(),
-        ).add_mu_effect(NestedCampaignMedia(campaign_to_channel=MAPPING))
+        ).add_mu_effect(NestedMediaEffect(child_to_parent=MAPPING))
         mmm.build_model(X=X, y=y)
         return mmm
 
     def test_contribution_dims(self, geo_mmm):
         named = geo_mmm.model.named_vars
-        assert set(named["campaign_media_campaign_contribution"].type.dims) == {
+        assert set(named["nested_media_campaign_contribution"].type.dims) == {
             "date",
             "geo",
             "campaign",
         }
-        assert set(named["campaign_media_effect_contribution"].type.dims) == {
+        assert set(named["nested_media_effect_contribution"].type.dims) == {
             "date",
             "geo",
         }
@@ -241,12 +239,12 @@ class TestGeoDims:
             idata = pm.sample_prior_predictive(draws=10, random_seed=seed)
         prior = idata.prior
         np.testing.assert_allclose(
-            prior["campaign_media_campaign_contribution"].sum("campaign"),
-            prior["campaign_media_effect_contribution"],
+            prior["nested_media_campaign_contribution"].sum("campaign"),
+            prior["nested_media_effect_contribution"],
             rtol=1e-10,
         )
         # channel scale is computed over dates AND geos: one scale per channel
-        assert geo_mmm.model["campaign_media_channel_scale"].get_value().shape == (1,)
+        assert geo_mmm.model["nested_media_channel_scale"].get_value().shape == (1,)
 
 
 def _geo_dataset(rng):
@@ -284,7 +282,7 @@ def test_lift_test_scaling_with_model_dims(monkeypatch, reduce_dims):
     # and by the fitted target scaler (delta_y, sigma), selecting on exactly
     # the dims the scaler carries. `DataDerivedScaling.dims` are the dims
     # reduced over: () keeps a per-geo scaler, ("geo",) gives a global one.
-    import pymc_marketing.mmm.campaign_media as campaign_media
+    import pymc_marketing.mmm.nested_media as nested_media
     from pymc_marketing.mmm import DataDerivedScaling, Scaling
 
     X, y = _geo_dataset(np.random.default_rng(seed))
@@ -299,7 +297,7 @@ def test_lift_test_scaling_with_model_dims(monkeypatch, reduce_dims):
             target=DataDerivedScaling(dims=reduce_dims, method="max"),
             channel=DataDerivedScaling(dims=(), method="max"),
         ),
-    ).add_mu_effect(NestedCampaignMedia(campaign_to_channel=MAPPING))
+    ).add_mu_effect(NestedMediaEffect(child_to_parent=MAPPING))
     mmm.build_model(X=X, y=y)
     target_scale = xr.DataArray(mmm.scalers._target)
     per_geo = "geo" in target_scale.dims
@@ -307,7 +305,7 @@ def test_lift_test_scaling_with_model_dims(monkeypatch, reduce_dims):
 
     captured = {}
     monkeypatch.setattr(
-        campaign_media,
+        nested_media,
         "add_saturation_observations",
         lambda df, **kw: captured.update(df=df),
     )
@@ -324,7 +322,7 @@ def test_lift_test_scaling_with_model_dims(monkeypatch, reduce_dims):
     mmm.mu_effects[0].add_lift_test_measurements(df_lift, mmm)
     scaled = captured["df"]
 
-    channel_scale = float(mmm.model["campaign_media_channel_scale"].get_value()[0])
+    channel_scale = float(mmm.model["nested_media_channel_scale"].get_value()[0])
     if per_geo:
         row_target = np.array([float(target_scale.sel(geo=g)) for g in df_lift["geo"]])
     else:
@@ -333,7 +331,7 @@ def test_lift_test_scaling_with_model_dims(monkeypatch, reduce_dims):
     np.testing.assert_allclose(scaled["delta_x"], df_lift["delta_x"] / channel_scale)
     np.testing.assert_allclose(scaled["delta_y"], df_lift["delta_y"] / row_target)
     np.testing.assert_allclose(scaled["sigma"], df_lift["sigma"] / row_target)
-    assert list(scaled["campaign_media_channel"]) == ["social", "social"]
+    assert list(scaled["nested_media_channel"]) == ["social", "social"]
 
     # a per-geo scaler needs the geo column; a global one does not
     no_geo = df_lift.drop(columns="geo")
@@ -387,5 +385,5 @@ def test_lift_test_on_real_mmm(campaign_mmm_data):
         }
     )
     effect.add_lift_test_measurements(df_lift, mmm)
-    assert "campaign_media_lift_measurements" in mmm.model.named_vars
+    assert "nested_media_lift_measurements" in mmm.model.named_vars
     assert np.isfinite(mmm.model.compile_logp()(mmm.model.initial_point()))

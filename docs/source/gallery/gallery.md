@@ -271,7 +271,7 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :link: ../notebooks/mmm/mmm_funnel_from_yml.html
 :::
 
-:::{grid-item-card} Campaign-Granularity MMM with `NestedCampaignMedia`
+:::{grid-item-card} Campaign-Granularity MMM with `NestedMediaEffect`
 :img-top: ../gallery/images/mmm_campaign_media.png
 :link: ../notebooks/mmm/mmm_campaign_media.html
 :::
