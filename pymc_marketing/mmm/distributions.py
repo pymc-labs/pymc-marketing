@@ -278,14 +278,31 @@ class WeightedZeroSumNormal(Distribution):
         """Create the named variable; ``dims`` or ``observed`` fix the constrained length."""
         for key in ("transform", "default_transform"):
             transform = kwargs.get(key)
-            if (
+            if not (
                 isinstance(transform, WeightedZeroSumTransform)
                 and transform.weights is not None
             ):
-                raise ValueError(
-                    "WeightedZeroSumNormal supplies its own weights to its transform; "
-                    "pass WeightedZeroSumTransform() without weights"
+                continue
+            # a transform with its own weights is fine only if they are the
+            # distribution's; anything that cannot be checked is refused
+            message = (
+                "the transform's weights must match the distribution's constant "
+                "weights; pass WeightedZeroSumTransform() without weights to have "
+                "them derived"
+            )
+            own = kwargs.get("weights")
+            if own is None:
+                raise ValueError(message)
+            try:
+                theirs, ours = constant_fold(
+                    [transform.weights, _validate_weights(own)]
                 )
+            except NotConstantValueError as err:
+                raise ValueError(message) from err
+            if not np.allclose(
+                theirs / np.linalg.norm(theirs), ours / np.linalg.norm(ours)
+            ):
+                raise ValueError(message)
         if dims is not None or kwargs.get("observed") is not None:
             support_shape = get_support_shape_1d(
                 support_shape=support_shape,

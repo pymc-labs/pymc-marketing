@@ -502,17 +502,22 @@ def test_transform_explicit_weights_win_on_other_rvs():
     assert abs(value @ sigma) > 1e-3
 
 
-def test_distribution_rejects_transform_with_its_own_weights():
+def test_distribution_checks_transform_weights_against_its_own():
+    # matching constant weights are accepted (as in the dims API); a mismatch,
+    # or weights that cannot be checked at construction, are refused
     w = np.array([0.7, 0.2, 0.1])
     with Model():
-        with pytest.raises(ValueError, match="without weights"):
+        with pytest.raises(ValueError, match="must match"):
             WeightedZeroSumNormal(
                 "x", weights=w, transform=WeightedZeroSumTransform(w[::-1])
             )
-        with pytest.raises(ValueError, match="without weights"):
+        with pytest.raises(ValueError, match="must match"):
             WeightedZeroSumNormal(
-                "y", weights=w, default_transform=WeightedZeroSumTransform(w)
+                "s", weights=pm.Data("w_data", w), transform=WeightedZeroSumTransform(w)
             )
+        WeightedZeroSumNormal(
+            "y", weights=w, default_transform=WeightedZeroSumTransform(2 * w)
+        )
         WeightedZeroSumNormal(
             "z", weights=w, default_transform=WeightedZeroSumTransform()
         )
