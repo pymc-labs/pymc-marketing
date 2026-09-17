@@ -42,8 +42,10 @@ Design notes
 
   where ``cap_c`` is the campaign's max channel-scaled spend and ``S`` the
   shared channel curve.  This degree-1 homogeneity makes the parameterisation
-  *split-invariant* (splitting a campaign into parts with the same total
-  spend leaves the channel contribution unchanged) and makes marginal
+  *split-invariant* (splitting a campaign into parts with proportional
+  spend, the same shares every date, leaves the channel contribution
+  unchanged; ``cap`` is a max over dates, so a flighting split is not
+  invariant) and makes marginal
   returns equal across campaigns at proportional spend — for any saturation
   shape.  Deviations from that neutral point must be earned from data
   (flighting contrasts, covariates, lift tests), not from the
@@ -183,12 +185,14 @@ def _centred_covariates(
     """Centre campaign covariates on their channel's spend-share-weighted mean.
 
     The covariate term then reallocates efficiency between a channel's
-    campaigns but cannot move the channel total. Campaigns of a channel with
-    no spend have share zero and keep the raw covariate.
+    campaigns but cannot move the channel total. Campaigns with no spend get
+    a zero row: their multiplier stays pinned at one whatever the platform
+    says about them.
     """
     parent_dim = str(channel_of.name)
     channel_mean = (share * cov).groupby(channel_of).sum(child_dim)
-    return cov - channel_mean.sel({parent_dim: channel_of}).drop_vars(parent_dim)
+    centred = cov - channel_mean.sel({parent_dim: channel_of}).drop_vars(parent_dim)
+    return centred.where(share > 0, 0.0)
 
 
 class NestedMediaEffect(DataVarMuEffect):
@@ -279,14 +283,14 @@ class NestedMediaEffect(DataVarMuEffect):
     prefix: str = "nested_media"
     child_dim: str = "campaign"
     parent_dim: str = "channel"
-    tau_beta_sigma: float = 0.5
-    tau_lam_sigma: float = 0.5
-    rho: float = 1.0
+    tau_beta_sigma: float = Field(0.5, gt=0)
+    tau_lam_sigma: float = Field(0.5, gt=0)
+    rho: float = Field(1.0, ge=0)
     zero_sum_multipliers: bool = True
     covariate_var: str | None = None
     covariate_dim: str = "covariate"
     gamma_mu: float = 0.0
-    gamma_sigma: float = 0.5
+    gamma_sigma: float = Field(0.5, gt=0)
 
     model_config = {"arbitrary_types_allowed": True}
 
