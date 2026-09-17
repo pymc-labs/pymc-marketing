@@ -17,7 +17,7 @@ import pymc as pm
 import pytest
 import xarray as xr
 
-from pymc_marketing.mmm.campaign_media import NestedCampaignMedia
+from pymc_marketing.mmm.nested_media import NestedMediaEffect
 from pymc_marketing.serialization import serialization
 
 CAMPAIGNS = ["tv_brand", "tv_promo", "search_gen", "search_brand", "search_promo"]
@@ -44,7 +44,7 @@ def _make_mock_mmm(seed=42, n_dates=30):
 
 def _build(effect=None):
     mmm = _make_mock_mmm()
-    effect = effect or NestedCampaignMedia(campaign_to_channel=MAPPING)
+    effect = effect or NestedMediaEffect(child_to_parent=MAPPING)
     with mmm.model:
         effect.create_data(mmm)
         effect.create_effect(mmm)
@@ -53,18 +53,18 @@ def _build(effect=None):
 
 def test_create_data_registers_variables():
     mmm = _make_mock_mmm()
-    effect = NestedCampaignMedia(campaign_to_channel=MAPPING)
+    effect = NestedMediaEffect(child_to_parent=MAPPING)
     with mmm.model:
         effect.create_data(mmm)
     for name in [
         "campaign_data",
-        "campaign_media_parent_idx",
-        "campaign_media_parent_onehot",
-        "campaign_media_channel_scale",
-        "campaign_media_campaign_cap",
+        "nested_media_parent_idx",
+        "nested_media_parent_onehot",
+        "nested_media_channel_scale",
+        "nested_media_campaign_cap",
     ]:
         assert name in mmm.model.named_vars
-    assert list(mmm.model.coords["campaign_media_channel"]) == ["tv", "search"]
+    assert list(mmm.model.coords["nested_media_channel"]) == ["tv", "search"]
 
 
 def test_mapping_mismatch_raises():
@@ -72,7 +72,7 @@ def test_mapping_mismatch_raises():
     bad = {**MAPPING}
     bad.pop("tv_promo")
     bad["nonexistent"] = "tv"
-    effect = NestedCampaignMedia(campaign_to_channel=bad)
+    effect = NestedMediaEffect(child_to_parent=bad)
     with mmm.model, pytest.raises(ValueError, match="must cover exactly"):
         effect.create_data(mmm)
 
@@ -80,21 +80,21 @@ def test_mapping_mismatch_raises():
 def test_create_effect_contributions():
     mmm, effect = _build()
     named = mmm.model.named_vars
-    assert "campaign_media_campaign_contribution" in named
-    assert "campaign_media_channel_contribution" in named
-    assert "campaign_media_effect_contribution" in named
-    assert effect.contribution_var_name == "campaign_media_effect_contribution"
+    assert "nested_media_campaign_contribution" in named
+    assert "nested_media_channel_contribution" in named
+    assert "nested_media_effect_contribution" in named
+    assert effect.contribution_var_name == "nested_media_effect_contribution"
 
-    total = named["campaign_media_effect_contribution"]
+    total = named["nested_media_effect_contribution"]
     assert set(total.type.dims) == {"date"}
-    per_campaign = named["campaign_media_campaign_contribution"]
+    per_campaign = named["nested_media_campaign_contribution"]
     assert set(per_campaign.type.dims) == {"date", "campaign"}
-    per_channel = named["campaign_media_channel_contribution"]
-    assert set(per_channel.type.dims) == {"date", "campaign_media_channel"}
+    per_channel = named["nested_media_channel_contribution"]
+    assert set(per_channel.type.dims) == {"date", "nested_media_channel"}
 
 
 def test_incrementality_spec_is_none():
-    effect = NestedCampaignMedia(campaign_to_channel=MAPPING)
+    effect = NestedMediaEffect(child_to_parent=MAPPING)
     assert effect.incrementality_spec() is None
 
 
@@ -103,17 +103,17 @@ def test_prior_predictive_and_channel_rollup():
     with mmm.model:
         idata = pm.sample_prior_predictive(draws=13, random_seed=1)
     prior = idata.prior
-    contrib = prior["campaign_media_campaign_contribution"]
+    contrib = prior["nested_media_campaign_contribution"]
     assert (contrib >= 0).all()
     # channel roll-up sums to the total contribution
     np.testing.assert_allclose(
-        prior["campaign_media_channel_contribution"].sum("campaign_media_channel"),
-        prior["campaign_media_effect_contribution"],
+        prior["nested_media_channel_contribution"].sum("nested_media_channel"),
+        prior["nested_media_effect_contribution"],
         rtol=1e-10,
     )
     np.testing.assert_allclose(
         contrib.sum("campaign"),
-        prior["campaign_media_effect_contribution"],
+        prior["nested_media_effect_contribution"],
         rtol=1e-10,
     )
 
@@ -125,8 +125,8 @@ def test_saturation_bounded_by_beta():
     with mmm.model:
         idata = pm.sample_prior_predictive(draws=13, random_seed=2)
     prior = idata.prior
-    contrib_max = prior["campaign_media_campaign_contribution"].max("date")
-    beta_c = prior["campaign_media_beta_campaign"]
+    contrib_max = prior["nested_media_campaign_contribution"].max("date")
+    beta_c = prior["nested_media_beta_campaign"]
     assert ((contrib_max <= beta_c + 1e-12).all()).item()
 
 
@@ -139,7 +139,7 @@ def test_multipliers_weighted_zero_sum_within_channel():
     prior = idata.prior
     spend = mmm.xarray_dataset["campaign_data"].values
     total = spend.sum(axis=0)
-    for name in ["campaign_media_beta_multiplier", "campaign_media_lam_multiplier"]:
+    for name in ["nested_media_beta_multiplier", "nested_media_lam_multiplier"]:
         log_mult = np.log(prior[name].values)  # (chain, draw, campaign)
         for channel in ["tv", "search"]:
             idx = [i for i, c in enumerate(CAMPAIGNS) if MAPPING[c] == channel]
@@ -151,15 +151,13 @@ def test_multipliers_weighted_zero_sum_within_channel():
 
 def test_zero_sum_multipliers_opt_out():
     mmm = _make_mock_mmm()
-    effect = NestedCampaignMedia(
-        campaign_to_channel=MAPPING, zero_sum_multipliers=False
-    )
+    effect = NestedMediaEffect(child_to_parent=MAPPING, zero_sum_multipliers=False)
     with mmm.model:
         effect.create_data(mmm)
         effect.create_effect(mmm)
-    assert "campaign_media_z_beta_tv" not in mmm.model.named_vars
-    assert "campaign_media_live_index" not in mmm.model.named_vars
-    assert mmm.model["campaign_media_z_beta"].type.dims == ("campaign",)
+    assert "nested_media_z_beta_tv" not in mmm.model.named_vars
+    assert "nested_media_live_index" not in mmm.model.named_vars
+    assert mmm.model["nested_media_z_beta"].type.dims == ("campaign",)
 
 
 def test_all_single_campaign_channels_stay_constrained():
@@ -176,13 +174,13 @@ def test_all_single_campaign_channels_stay_constrained():
     )
     model = pm.Model(coords={"date": dates, "campaign": campaigns})
     mmm = type("MockMMM", (), {"dims": (), "model": model, "xarray_dataset": ds})()
-    effect = NestedCampaignMedia(campaign_to_channel=mapping)
+    effect = NestedMediaEffect(child_to_parent=mapping)
     with model:
         effect.create_data(mmm)
         effect.create_effect(mmm)
         idata = pm.sample_prior_predictive(draws=7, random_seed=5)
     assert not any("z_beta" in rv.name or "z_lam" in rv.name for rv in model.free_RVs)
-    for name in ["campaign_media_beta_multiplier", "campaign_media_lam_multiplier"]:
+    for name in ["nested_media_beta_multiplier", "nested_media_lam_multiplier"]:
         np.testing.assert_allclose(idata.prior[name].values, 1.0, atol=1e-12)
 
 
@@ -192,11 +190,11 @@ def test_campaign_dim_need_not_be_last():
     def constants(ds):
         model = pm.Model(coords={"date": ds.coords["date"], "campaign": CAMPAIGNS})
         mmm = type("MockMMM", (), {"dims": (), "model": model, "xarray_dataset": ds})()
-        effect = NestedCampaignMedia(campaign_to_channel=MAPPING)
+        effect = NestedMediaEffect(child_to_parent=MAPPING)
         with model:
             effect.create_data(mmm)
         return {
-            name: model[f"campaign_media_{name}"].get_value()
+            name: model[f"nested_media_{name}"].get_value()
             for name in [
                 "channel_scale",
                 "campaign_cap",
@@ -225,34 +223,34 @@ def test_single_campaign_channel_fully_pooled():
     )
     model = pm.Model(coords={"date": dates, "campaign": campaigns})
     mmm = type("MockMMM", (), {"dims": (), "model": model, "xarray_dataset": ds})()
-    effect = NestedCampaignMedia(campaign_to_channel=mapping)
+    effect = NestedMediaEffect(child_to_parent=mapping)
     with model:
         effect.create_data(mmm)
         effect.create_effect(mmm)
         idata = pm.sample_prior_predictive(draws=7, random_seed=5)
-    mult = idata.prior["campaign_media_beta_multiplier"].sel(campaign="solo_camp")
+    mult = idata.prior["nested_media_beta_multiplier"].sel(campaign="solo_camp")
     np.testing.assert_allclose(mult.values, 1.0, atol=1e-12)
     # only the two-campaign channel gets a constrained variable
-    assert "campaign_media_z_beta_tv" not in model.named_vars
-    assert model["campaign_media_z_beta_search"].type.dims == (
-        "campaign_media_search_campaign",
+    assert "nested_media_z_beta_tv" not in model.named_vars
+    assert model["nested_media_z_beta_search"].type.dims == (
+        "nested_media_search_campaign",
     )
-    assert list(model.coords["campaign_media_search_campaign"]) == [
+    assert list(model.coords["nested_media_search_campaign"]) == [
         "search_a",
         "search_b",
     ]
 
 
 def test_serialization_roundtrip():
-    effect = NestedCampaignMedia(
-        campaign_to_channel=MAPPING, prefix="cm", rho=0.7, tau_beta_sigma=0.3
+    effect = NestedMediaEffect(
+        child_to_parent=MAPPING, prefix="cm", rho=0.7, tau_beta_sigma=0.3
     )
     data = effect.to_dict()
     data["__type__"] = (
-        f"{NestedCampaignMedia.__module__}.{NestedCampaignMedia.__qualname__}"
+        f"{NestedMediaEffect.__module__}.{NestedMediaEffect.__qualname__}"
     )
     restored = serialization.deserialize(data)
-    assert type(restored) is NestedCampaignMedia
+    assert type(restored) is NestedMediaEffect
     assert restored == effect
 
 
@@ -270,16 +268,14 @@ def _make_mock_mmm_with_covariates(seed=7, n_dates=30):
 
 def test_covariates_registered_and_channel_centred():
     mmm = _make_mock_mmm_with_covariates()
-    effect = NestedCampaignMedia(
-        campaign_to_channel=MAPPING, covariate_var="covariates"
-    )
+    effect = NestedMediaEffect(child_to_parent=MAPPING, covariate_var="covariates")
     with mmm.model:
         effect.create_data(mmm)
         effect.create_effect(mmm)
-    assert "campaign_media_covariates" in mmm.model.named_vars
-    assert "campaign_media_gamma" in mmm.model.named_vars
+    assert "nested_media_covariates" in mmm.model.named_vars
+    assert "nested_media_gamma" in mmm.model.named_vars
 
-    cov_centred = mmm.model["campaign_media_covariates"].values.eval()
+    cov_centred = mmm.model["nested_media_covariates"].values.eval()
     spend = mmm.xarray_dataset["campaign_data"].values
     total = spend.sum(axis=0)
     for channel in ["tv", "search"]:
@@ -295,13 +291,11 @@ def test_covariates_finite_with_all_zero_channel():
     spend = mmm.xarray_dataset["campaign_data"]
     search = [c for c in CAMPAIGNS if MAPPING[c] == "search"]
     spend.loc[{"campaign": search}] = 0.0
-    effect = NestedCampaignMedia(
-        campaign_to_channel=MAPPING, covariate_var="covariates"
-    )
+    effect = NestedMediaEffect(child_to_parent=MAPPING, covariate_var="covariates")
     with mmm.model, pytest.warns(UserWarning, match="no spend"):
         effect.create_data(mmm)
         effect.create_effect(mmm)
-    cov_centred = mmm.model["campaign_media_covariates"].values.eval()
+    cov_centred = mmm.model["nested_media_covariates"].values.eval()
     assert np.isfinite(cov_centred).all()
     total = spend.values.sum(axis=0)
     tv = [i for i, c in enumerate(CAMPAIGNS) if MAPPING[c] == "tv"]
@@ -311,14 +305,12 @@ def test_covariates_finite_with_all_zero_channel():
 
 def test_covariate_prior_predictive():
     mmm = _make_mock_mmm_with_covariates()
-    effect = NestedCampaignMedia(
-        campaign_to_channel=MAPPING, covariate_var="covariates"
-    )
+    effect = NestedMediaEffect(child_to_parent=MAPPING, covariate_var="covariates")
     with mmm.model:
         effect.create_data(mmm)
         effect.create_effect(mmm)
         idata = pm.sample_prior_predictive(draws=9, random_seed=3)
-    assert "campaign_media_campaign_contribution" in idata.prior
+    assert "nested_media_campaign_contribution" in idata.prior
 
 
 def test_covariate_prior_mean_is_the_trust_dial():
@@ -327,8 +319,8 @@ def test_covariate_prior_mean_is_the_trust_dial():
     # one for one, 0 ignores it
     mmm = _make_mock_mmm_with_covariates()
     for gamma_mu in (0.0, 1.0):
-        effect = NestedCampaignMedia(
-            campaign_to_channel=MAPPING,
+        effect = NestedMediaEffect(
+            child_to_parent=MAPPING,
             covariate_var="covariates",
             gamma_mu=gamma_mu,
             gamma_sigma=0.1,
@@ -339,12 +331,12 @@ def test_covariate_prior_mean_is_the_trust_dial():
         model = mmm.model
         point = model.initial_point()
         (mult_graph,) = model.replace_rvs_by_values(
-            [model["campaign_media_beta_multiplier"]]
+            [model["nested_media_beta_multiplier"]]
         )
         mult = model.compile_fn(
             mult_graph, inputs=model.value_vars, on_unused_input="ignore"
         )(point)
-        cov = model["campaign_media_covariates"].values.eval()
+        cov = model["nested_media_covariates"].values.eval()
         np.testing.assert_allclose(mult, np.exp(gamma_mu * cov.sum(axis=1)), rtol=1e-6)
         mmm = _make_mock_mmm_with_covariates()
 
@@ -359,21 +351,21 @@ def test_covariate_bad_dims_raises():
             "campaign": CAMPAIGNS,
         },
     )
-    effect = NestedCampaignMedia(campaign_to_channel=MAPPING, covariate_var="bad_cov")
+    effect = NestedMediaEffect(child_to_parent=MAPPING, covariate_var="bad_cov")
     with mmm.model, pytest.raises(ValueError, match="dims exactly"):
         effect.create_data(mmm)
 
 
 def test_covariate_serialization_roundtrip():
-    effect = NestedCampaignMedia(
-        campaign_to_channel=MAPPING,
+    effect = NestedMediaEffect(
+        child_to_parent=MAPPING,
         covariate_var="covariates",
         gamma_mu=1.0,
         gamma_sigma=0.25,
     )
     data = effect.to_dict()
     data["__type__"] = (
-        f"{NestedCampaignMedia.__module__}.{NestedCampaignMedia.__qualname__}"
+        f"{NestedMediaEffect.__module__}.{NestedMediaEffect.__qualname__}"
     )
     restored = serialization.deserialize(data)
     assert restored == effect
@@ -391,14 +383,14 @@ def test_lift_test_measurements():
         }
     )
     effect.add_lift_test_measurements(df_lift, mmm)
-    assert "campaign_media_lift_measurements" in mmm.model.named_vars
+    assert "nested_media_lift_measurements" in mmm.model.named_vars
     logp = mmm.model.compile_logp()(mmm.model.initial_point())
     assert np.isfinite(logp)
 
 
 def test_lift_test_requires_built_model():
     mmm = _make_mock_mmm()
-    effect = NestedCampaignMedia(campaign_to_channel=MAPPING)
+    effect = NestedMediaEffect(child_to_parent=MAPPING)
     df_lift = pd.DataFrame(
         {
             "campaign": ["tv_promo"],
@@ -517,7 +509,7 @@ def test_lift_test_calibrates_response_at_operating_point():
 
 
 def _channel_contribution_at_initial_point(campaigns, mapping, spend, saturation=None):
-    from pymc_marketing.mmm.campaign_media import NestedCampaignMedia as _Effect
+    from pymc_marketing.mmm.nested_media import NestedMediaEffect as _Effect
 
     dates = pd.date_range("2025-01-01", periods=spend.shape[0], freq="W-MON")
     ds = xr.Dataset(
@@ -527,15 +519,13 @@ def _channel_contribution_at_initial_point(campaigns, mapping, spend, saturation
     model = pm.Model(coords={"date": dates, "campaign": campaigns})
     mmm = type("MockMMM", (), {"dims": (), "model": model, "xarray_dataset": ds})()
     kwargs = {} if saturation is None else {"saturation": saturation}
-    effect = _Effect(campaign_to_channel=mapping, **kwargs)
+    effect = _Effect(child_to_parent=mapping, **kwargs)
     with model:
         effect.create_data(mmm)
         effect.create_effect(mmm)
     import pytensor
 
-    (graph,) = model.replace_rvs_by_values(
-        [model["campaign_media_channel_contribution"]]
-    )
+    (graph,) = model.replace_rvs_by_values([model["nested_media_channel_contribution"]])
     fn = pytensor.function(model.value_vars, graph, on_unused_input="ignore")
     ip = model.initial_point()
     return fn(*(ip[v.name] for v in model.value_vars))
@@ -583,16 +573,16 @@ def test_zero_spend_campaign_pinned():
     )
     model = pm.Model(coords={"date": dates, "campaign": campaigns})
     mmm = type("MockMMM", (), {"dims": (), "model": model, "xarray_dataset": ds})()
-    effect = NestedCampaignMedia(campaign_to_channel=mapping)
+    effect = NestedMediaEffect(child_to_parent=mapping)
     with model, pytest.warns(UserWarning, match="no spend"):
         effect.create_data(mmm)
         effect.create_effect(mmm)
         idata = pm.sample_prior_predictive(draws=7, random_seed=2)
     # only the two live campaigns enter the channel's constraint
-    assert "dead" not in model.coords["campaign_media_ch_campaign"]
-    assert len(model.coords["campaign_media_ch_campaign"]) == 2
+    assert "dead" not in model.coords["nested_media_ch_campaign"]
+    assert len(model.coords["nested_media_ch_campaign"]) == 2
     # the dead campaign's multiplier is pinned to the pooled value
-    mult = idata.prior["campaign_media_beta_multiplier"].sel(campaign="dead")
+    mult = idata.prior["nested_media_beta_multiplier"].sel(campaign="dead")
     np.testing.assert_allclose(mult.values, 1.0, atol=1e-12)
 
 
@@ -601,15 +591,15 @@ def test_library_saturation_shapes():
 
     for saturation in [LogisticSaturation(), HillSaturationSigmoid()]:
         mmm = _make_mock_mmm()
-        effect = NestedCampaignMedia(campaign_to_channel=MAPPING, saturation=saturation)
+        effect = NestedMediaEffect(child_to_parent=MAPPING, saturation=saturation)
         with mmm.model:
             effect.create_data(mmm)
             effect.create_effect(mmm)
             idata = pm.sample_prior_predictive(draws=5, random_seed=3)
-        assert "campaign_media_campaign_contribution" in idata.prior
+        assert "nested_media_campaign_contribution" in idata.prior
         # channel-level saturation params exist with the effect's channel dim
         for var_name in effect.saturation.variable_mapping.values():
-            assert mmm.model[var_name].type.dims == ("campaign_media_channel",)
+            assert mmm.model[var_name].type.dims == ("nested_media_channel",)
 
 
 def test_deserialize_without_prior_import():
@@ -621,12 +611,12 @@ def test_deserialize_without_prior_import():
     code = (
         "import pymc_marketing.mmm\n"
         "from pymc_marketing.serialization import serialization\n"
-        "data = {'__type__': 'pymc_marketing.mmm.campaign_media.NestedCampaignMedia',"
-        " 'campaign_to_channel': {'a': 'ch'}}\n"
+        "data = {'__type__': 'pymc_marketing.mmm.nested_media.NestedMediaEffect',"
+        " 'child_to_parent': {'a': 'ch'}}\n"
         "eff = serialization.deserialize(data)\n"
         "print(type(eff).__name__)\n"
     )
     out = subprocess.run(  # noqa: S603
         [sys.executable, "-c", code], capture_output=True, text=True, check=True
     )
-    assert out.stdout.strip() == "NestedCampaignMedia"
+    assert out.stdout.strip() == "NestedMediaEffect"
