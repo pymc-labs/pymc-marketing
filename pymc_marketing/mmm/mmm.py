@@ -218,7 +218,7 @@ from pymc_marketing.mmm.causal import CausalGraphModel
 from pymc_marketing.mmm.components.adstock import AdstockTransformation
 from pymc_marketing.mmm.components.saturation import SaturationTransformation
 from pymc_marketing.mmm.constraints import Constraint
-from pymc_marketing.mmm.data_conversion import to_mmm_dataset
+from pymc_marketing.mmm.data_conversion import _dataset_has_target, to_mmm_dataset
 from pymc_marketing.mmm.decomposition import (
     identity_counterfactual_component,
     log_counterfactual_remove_component,
@@ -256,6 +256,7 @@ from pymc_marketing.model_builder import RegressionModelBuilder, SamplingMethod
 from pymc_marketing.model_config import parse_model_config
 from pymc_marketing.model_graph import deterministics_to_flat
 from pymc_marketing.serialization import DeserializationContext, serialization
+from pymc_marketing.special_priors import LogNormalPrior
 from pymc_marketing.version import __version__
 
 if TYPE_CHECKING:
@@ -637,6 +638,10 @@ class MMM(RegressionModelBuilder):
         self._cost_per_unit_input = cost_per_unit
         self._plot_suite: Literal["legacy", "new"] = "legacy"
         self._plot_suite_warned: bool = False
+        # True only while the built model's observed target is the ones
+        # placeholder that `sample_prior_predictive` substitutes for a missing
+        # `y` under a LogNormalPrior likelihood; see `fit`.
+        self._target_is_placeholder: bool = False
 
         super().__init__(model_config=model_config, sampler_config=sampler_config)
 
@@ -2181,6 +2186,17 @@ class MMM(RegressionModelBuilder):
         xr.DataTree
             Inference data of the fitted model.
         """
+        if hasattr(self, "model") and self._target_is_placeholder:
+            warnings.warn(
+                "The model was built by `sample_prior_predictive` with a "
+                "placeholder target of ones because no `y` was given, and "
+                "`fit` reuses an existing model without refreshing its observed "
+                "target (see issue #2956). The posterior will be fit to the "
+                "placeholder, not to `y`. Build the model with the real target "
+                "first, or fit a fresh instance.",
+                UserWarning,
+                stacklevel=2,
+            )
         idata = super().fit(
             X,
             y,
@@ -2269,12 +2285,16 @@ class MMM(RegressionModelBuilder):
             X=X,
             y=y,
         )
+        self._target_is_placeholder = False
 
+        likelihood = self.model_config["likelihood"]
         if "_target" in self.xarray_dataset.data_vars:
             self._link_spec.validate_target(self.xarray_dataset["_target"].values)
-        LinkSpec.validate_likelihood_compatibility(
-            self.link, self.model_config["likelihood"]
-        )
+            # LogNormalPrior observes the raw target on the strictly positive
+            # support, which the link-level validate_target cannot know about.
+            if isinstance(likelihood, LogNormalPrior):
+                likelihood.validate_observed(self.xarray_dataset["_target"].values)
+        LinkSpec.validate_likelihood_compatibility(self.link, likelihood)
 
         if self.link == LinkFunction.LOG and self.mu_effects:
             warnings.warn(
@@ -2935,6 +2955,93 @@ class MMM(RegressionModelBuilder):
             **kwargs,
         )
 
+    def sample_prior_predictive(  # type: ignore[override]
+        self,
+        X: pd.DataFrame | xr.Dataset | xr.DataArray,
+        y: pd.Series | pd.DataFrame | xr.DataArray | np.ndarray | None = None,
+        samples: int | None = None,
+        extend_idata: bool = True,
+        combined: bool = True,
+        **kwargs,
+    ) -> xr.Dataset:
+        """Sample from the model's prior predictive distribution.
+
+        Delegates to
+        :meth:`RegressionModelBuilder.sample_prior_predictive` and
+        additionally warns when a
+        :class:`~pymc_marketing.special_priors.LogNormalPrior` likelihood
+        produces exactly-zero or non-finite draws, the symptoms of a
+        non-positive response-scale mean or ``std`` under the prior. See
+        :meth:`_warn_on_degenerate_lognormal_draws`.
+
+        When ``y`` is omitted and ``X`` already carries the target, as an
+        :class:`xarray.Dataset` embedding a ``target`` / ``_target`` variable
+        or a :class:`pandas.DataFrame` with the model's ``target_column``,
+        the model is built from ``X`` alone before delegating:
+        ``to_mmm_dataset`` reads the embedded target only when no separate
+        ``y`` is given, and the base class's zeros default would otherwise
+        supply one. With a LogNormalPrior likelihood and no target anywhere,
+        a strictly positive placeholder target of ones is used instead of
+        the base class's zeros default, which the likelihood's
+        ``validate_observed`` would reject before any draws are produced.
+        That path emits a ``UserWarning`` and marks the instance, so that a
+        later :meth:`fit` on it, which reuses the built model and would
+        train on the placeholder rather than the real target, warns again
+        (see issue #2956).
+        """
+        placeholder_target = False
+        if y is None and (
+            (isinstance(X, xr.Dataset) and _dataset_has_target(X))
+            or (isinstance(X, pd.DataFrame) and self.target_column in X.columns)
+        ):
+            if not hasattr(self, "model"):
+                self.build_model(X)
+        elif (
+            y is None
+            and not hasattr(self, "model")
+            and isinstance(self.model_config["likelihood"], LogNormalPrior)
+        ):
+            # The base class only builds when no model exists, so the
+            # placeholder is needed only then. Observed values enter prior
+            # sampling only through the max-abs target scale, so ones
+            # (scale = 1) is an inert placeholder.
+            if isinstance(X, xr.Dataset | xr.DataArray):
+                target_dims = ("date", *self.dims)
+                y = xr.DataArray(
+                    np.ones([X.sizes[d] for d in target_dims]),
+                    dims=target_dims,
+                    coords={d: X.coords[d] for d in target_dims},
+                )
+            else:
+                y = np.ones(len(X))
+            placeholder_target = True
+            warnings.warn(
+                "No target was provided, so the model is being built with a "
+                "placeholder target of ones to satisfy the LogNormalPrior "
+                "likelihood. A later `fit` on this instance reuses the built "
+                "model and would train on that placeholder instead of the real "
+                "target (see issue #2956). Pass `y` to `sample_prior_predictive`, "
+                "or create a fresh model before fitting.",
+                UserWarning,
+                stacklevel=2,
+            )
+        prior_predictive_samples = super().sample_prior_predictive(
+            X,
+            y=y,
+            samples=samples,
+            extend_idata=extend_idata,
+            combined=combined,
+            **kwargs,
+        )
+        if placeholder_target:
+            # Set after delegating: build_model, which runs inside the base
+            # call, resets the flag.
+            self._target_is_placeholder = True
+        self._warn_on_degenerate_lognormal_draws(
+            prior_predictive_samples, group_label="prior-predictive"
+        )
+        return prior_predictive_samples
+
     def sample_posterior_predictive(
         self,
         X: pd.DataFrame | xr.Dataset | None = None,  # type: ignore
@@ -3015,7 +3122,66 @@ class MMM(RegressionModelBuilder):
                 date=slice(self.adstock.l_max, None)
             )
 
+        self._warn_on_degenerate_lognormal_draws(
+            posterior_predictive_samples, group_label="posterior-predictive"
+        )
+
         return posterior_predictive_samples
+
+    def _warn_on_degenerate_lognormal_draws(
+        self, predictive_samples: xr.Dataset, group_label: str
+    ) -> None:
+        """Warn when LogNormalPrior forward draws are exactly zero or non-finite.
+
+        The ``mu > 0`` and ``std > 0`` check in the LogNormalPrior likelihood
+        only protects log-probability evaluation. In compiled forward-sampling
+        graphs pymc rewrites the check to a ``-inf`` log-mean, so a
+        non-positive response-scale mean (for example a negative intercept,
+        a prior that puts mass below zero, or counterfactual ``X`` that
+        pushes the linear predictor below zero) silently yields
+        ``exp(-inf) = 0`` draws, and a non-positive ``std`` draw makes the
+        log-scale sigma NaN so the draw is NaN. A genuine LogNormal draw is
+        finite and never exactly zero except through float underflow of an
+        extremely negative log-scale draw, so either signature almost always
+        indicates this failure mode. Called from both
+        :meth:`sample_posterior_predictive` and :meth:`sample_prior_predictive`
+        (``stacklevel=3`` assumes exactly that one intermediate frame).
+
+        Parameters
+        ----------
+        predictive_samples : xr.Dataset
+            Extracted forward draws containing ``self.output_var``.
+        group_label : str
+            Label naming the sampling path in the warning message, e.g.
+            ``"posterior-predictive"`` or ``"prior-predictive"``.
+        """
+        if not isinstance(self.model_config["likelihood"], LogNormalPrior):
+            return
+        if self.output_var not in predictive_samples:
+            return
+        y_draws = predictive_samples[self.output_var].values
+        n_zero = int(np.count_nonzero(y_draws == 0))
+        n_nonfinite = int(np.count_nonzero(~np.isfinite(y_draws)))
+        if not (n_zero or n_nonfinite):
+            return
+        warnings.warn(
+            f"{n_zero} of {y_draws.size} {group_label} draws "
+            f"({n_zero / y_draws.size:.1%}) of '{self.output_var}' are exactly "
+            f"zero and {n_nonfinite} ({n_nonfinite / y_draws.size:.1%}) are "
+            "non-finite. With a LogNormalPrior likelihood, exact zeros almost "
+            "always mean the model produced a non-positive response-scale mean "
+            "'mu' for those draws, and non-finite draws mean it produced a "
+            "non-positive 'std': forward sampling rewrites the mu > 0 and "
+            "std > 0 check to a -inf log-mean instead of raising an error, so "
+            "the draw becomes exp(-inf) = 0, or NaN when the log-scale sigma "
+            "is itself NaN. (Rarely, a finite but extremely negative log-scale "
+            "draw can also underflow to exactly zero.) Check for a negative "
+            "intercept, a 'std' prior with mass below zero, or input data that "
+            "pushes the linear predictor below zero before using these "
+            "predictions.",
+            UserWarning,
+            stacklevel=3,
+        )
 
     @validate_call(config=ConfigDict(arbitrary_types_allowed=True))
     def sample_saturation_curve(
