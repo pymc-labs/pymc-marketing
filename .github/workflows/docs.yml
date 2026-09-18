@@ -2,8 +2,8 @@
 #
 # History: #1210 tracked a backlog of ~900 warnings; the cleanup landed in
 # this PR. Going forward, any new warning is a regression and blocks the
-# merge. The same gate is enforced on RTD via sphinx.fail_on_warning: true
-# in .readthedocs.yaml.
+# merge. The same gate is enforced on RTD by the -W in the html command
+# overridden in .readthedocs.yml.
 
 name: Docs
 
@@ -59,9 +59,10 @@ jobs:
       - name: Build HTML
         # -W: turn warnings into errors. --keep-going: collect every warning
         # before failing, so the job summary shows the full list (not just
-        # the first).
+        # the first). -j auto: read and write in parallel; the API stub pages
+        # (#3024) made the serial build take over 30 minutes.
         run: |
-          uv run sphinx-build docs/source docs/build -b html -W --keep-going \
+          uv run sphinx-build docs/source docs/build -b html -W --keep-going -j auto \
             2> docs_warnings.log
       - name: Report warning count
         if: always()

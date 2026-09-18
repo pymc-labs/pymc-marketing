@@ -224,6 +224,11 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :img-top: ../gallery/images/mmm_evaluation.png
 :link: ../notebooks/mmm/mmm_evaluation.html
 :::
+
+:::{grid-item-card} Prior Sensitivity in the MMM Workflow
+:img-top: ../gallery/images/mmm_prior_sensitivity_psense.png
+:link: ../notebooks/mmm/mmm_prior_sensitivity.html
+:::
 ::::
 
 ### Causal Inference
@@ -285,6 +290,11 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :::{grid-item-card} MMM End-to-End Case Study
 :img-top: ../gallery/images/mmm_case_study.png
 :link: ../notebooks/mmm/mmm_case_study.html
+:::
+
+:::{grid-item-card} MMM Case Study II: Funnel-Aware Modeling, ROAS Calibration, and Budget Planning
+:img-top: ../gallery/images/mmm_case_study2.png
+:link: ../notebooks/mmm/mmm_case_study2.html
 :::
 
 :::{grid-item-card} Integrating Foundational Time Series Models with PyMC-Marketing MMM

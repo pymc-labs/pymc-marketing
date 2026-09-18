@@ -14,6 +14,7 @@
 import json
 import logging
 from collections import namedtuple
+from types import SimpleNamespace
 
 import graphviz
 import mlflow
@@ -25,6 +26,7 @@ import pymc.dims as pmd
 import pytest
 import xarray as xr
 from mlflow.client import MlflowClient
+from pymc.backends.base import IBaseTrace
 from pymc.exceptions import SamplingError
 from pymc_extras.prior import Prior
 
@@ -32,7 +34,6 @@ import pymc_marketing.mlflow as pmm_mlflow
 from pymc_marketing.bass import BassModel
 from pymc_marketing.clv import BetaGeoModel
 from pymc_marketing.mlflow import (
-    _resolve_parameter,
     autolog,
     create_log_callback,
     log_error,
@@ -1030,43 +1031,137 @@ def test_logging_callback(model_with_likelihood) -> None:
             assert len(history) == 10
 
 
-def test_logging_callback_resolves_log_transform(model_with_likelihood) -> None:
-    # `sigma` is a HalfNormal so it is sampled as `sigma_log__`. The user
-    # passes the model-level name and the callback resolves it.
-    mlflow.set_experiment("pymc-marketing-test-suite-log-transform-resolve")
-
-    callback = create_log_callback(
-        parameters=["mu", "sigma"],
-        take_every=10,
+def _metric_history(run_id: str, key: str) -> tuple[np.ndarray, np.ndarray]:
+    history = sorted(
+        MlflowClient().get_metric_history(run_id, key), key=lambda m: m.step
     )
+    return np.array([m.step for m in history]), np.array([m.value for m in history])
+
+
+def test_logging_callback_logs_constrained_values(model_with_likelihood) -> None:
+    # `sigma` is a HalfNormal, so it is sampled as `sigma_log__`. The metric
+    # named `sigma` must hold sigma itself, not its log.
+    mlflow.set_experiment("pymc-marketing-test-suite-log-constrained-values")
+
+    tune = 100
+    callback = create_log_callback(parameters=["mu", "sigma"], take_every=10)
     with mlflow.start_run() as run:
-        pm.sample(
+        idata = pm.sample(
             model=model_with_likelihood,
             draws=100,
-            tune=1,
+            tune=tune,
             chains=1,
             callback=callback,
         )
 
-    client = MlflowClient()
-    for value in ["mu", "sigma"]:
-        history = client.get_metric_history(run.info.run_id, f"chain_0/{value}")
-        assert len(history) == 10
+    for name in ["mu", "sigma"]:
+        steps, values = _metric_history(run.info.run_id, f"chain_0/{name}")
+        assert len(values) == 10
+        assert np.unique(values).size > 1
+        expected = idata.posterior[name].sel(chain=0).values[steps - tune]
+        np.testing.assert_allclose(values, expected)
 
 
-def test_resolve_parameter_exact_match_wins() -> None:
-    point = {"sigma": 1.0, "sigma_log__": 0.0}
-    assert _resolve_parameter("sigma", point) == "sigma"
+def test_logging_callback_logs_other_transforms_and_deterministics() -> None:
+    mlflow.set_experiment("pymc-marketing-test-suite-log-other-transforms")
+
+    with pm.Model() as model:
+        p = pm.Beta("p", alpha=2, beta=2)  # sampled as `p_logodds__`
+        b = pm.Uniform("b", lower=-3, upper=7)  # sampled as `b_interval__`
+        pm.Deterministic("scaled_p", 10 * p)
+        pm.Normal("obs", mu=b * p, sigma=1, observed=rng.normal(size=10))
+
+    tune = 100
+    parameters = ["p", "b", "scaled_p"]
+    callback = create_log_callback(parameters=parameters, take_every=10)
+    with mlflow.start_run() as run:
+        idata = pm.sample(model=model, draws=50, tune=tune, chains=1, callback=callback)
+
+    for name in parameters:
+        steps, values = _metric_history(run.info.run_id, f"chain_0/{name}")
+        assert len(values) == 5
+        assert np.unique(values).size > 1
+        expected = idata.posterior[name].sel(chain=0).values[steps - tune]
+        np.testing.assert_allclose(values, expected)
 
 
-def test_resolve_parameter_falls_back_to_log_suffix() -> None:
-    point = {"mu": 0.0, "sigma_log__": 0.1}
-    assert _resolve_parameter("sigma", point) == "sigma_log__"
+def test_logging_callback_explicit_transformed_name(model_with_likelihood) -> None:
+    # Passing the sampler's value var name logs the unconstrained value.
+    mlflow.set_experiment("pymc-marketing-test-suite-log-transformed-name")
+
+    tune = 100
+    callback = create_log_callback(parameters=["sigma_log__"], take_every=10)
+    with mlflow.start_run() as run:
+        idata = pm.sample(
+            model=model_with_likelihood,
+            draws=100,
+            tune=tune,
+            chains=1,
+            callback=callback,
+        )
+
+    steps, values = _metric_history(run.info.run_id, "chain_0/sigma_log__")
+    assert len(values) == 10
+    assert np.unique(values).size > 1
+    expected = np.log(idata.posterior["sigma"].sel(chain=0).values[steps - tune])
+    np.testing.assert_allclose(values, expected)
 
 
-def test_resolve_parameter_unknown_raises() -> None:
-    with pytest.raises(KeyError, match=r"not found in draw\.point"):
-        _resolve_parameter("nope", {"mu": 0.0, "sigma_log__": 0.1})
+class _TraceWithoutRecordedDraws(IBaseTrace):
+    """Like ``ZarrChain``, keeps the unimplemented ``__len__`` and ``point``."""
+
+
+def test_logging_callback_falls_back_to_draw_point(mocker) -> None:
+    log_metric = mocker.patch.object(pmm_mlflow.mlflow, "log_metric")
+    callback = create_log_callback(parameters=["mu", "sigma_log__"], take_every=1)
+    draw = SimpleNamespace(
+        chain=0,
+        draw_idx=3,
+        tuning=False,
+        stats=[{}],
+        point={"mu": 0.5, "sigma_log__": -1.0},
+    )
+
+    callback(_TraceWithoutRecordedDraws(), draw)
+
+    log_metric.assert_has_calls(
+        [
+            mocker.call(key="chain_0/mu", value=0.5, step=3),
+            mocker.call(key="chain_0/sigma_log__", value=-1.0, step=3),
+        ]
+    )
+
+
+def test_logging_callback_stats_only_does_not_read_trace(mocker) -> None:
+    log_metric = mocker.patch.object(pmm_mlflow.mlflow, "log_metric")
+    callback = create_log_callback(stats=["energy"], take_every=1)
+    trace = mocker.MagicMock()
+    draw = SimpleNamespace(
+        chain=0,
+        draw_idx=2,
+        tuning=False,
+        stats=[{"energy": 1.5}],
+        point={"mu": 0.0},
+    )
+
+    callback(trace, draw)
+
+    log_metric.assert_called_once_with(key="chain_0/energy", value=1.5, step=2)
+    trace.point.assert_not_called()
+
+
+def test_logging_callback_unknown_parameter_raises() -> None:
+    callback = create_log_callback(parameters=["nope"], take_every=1)
+    draw = SimpleNamespace(
+        chain=0,
+        draw_idx=0,
+        tuning=False,
+        stats=[{}],
+        point={"mu": 0.0, "sigma_log__": 0.0},
+    )
+
+    with pytest.raises(KeyError, match=r"'nope' not found in the recorded draw"):
+        callback(_TraceWithoutRecordedDraws(), draw)
 
 
 def test_log_error() -> None:

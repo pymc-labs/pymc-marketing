@@ -2396,3 +2396,39 @@ class TestMonetarySpendVariables:
         assert "'l'" not in str(info.value), (
             "a bare string was iterated character by character"
         )
+
+
+def test_mmm_budget_optimizer_set_posterior_is_local_to_the_optimizer(
+    dummy_df, fitted_mmm
+):
+    """``mmm.budget_optimizer(...)`` rebinds like any optimizer; the MMM keeps its idata."""
+    _df_kwargs, X_dummy, _y_dummy = dummy_df
+    optimizer = fitted_mmm.budget_optimizer(
+        start_date=X_dummy["date_week"].max() + pd.Timedelta(weeks=1),
+        end_date=X_dummy["date_week"].max() + pd.Timedelta(weeks=10),
+    )
+    baseline, _ = optimizer.allocate_budget(total_budget=4.0)
+
+    posterior = fitted_mmm.idata["posterior"].to_dataset()
+    tilt = xr.DataArray(
+        [3.0, 0.2], dims="channel", coords={"channel": posterior["channel"]}
+    )
+    updated = xr.DataTree.from_dict(
+        {
+            "/posterior": posterior.assign(
+                saturation_beta=posterior["saturation_beta"] * tilt
+            )
+        }
+    )
+    mmm_idata_before = fitted_mmm.idata
+
+    optimizer.set_posterior(updated)
+    rebound, result = optimizer.allocate_budget(total_budget=4.0)
+
+    assert result.success
+    assert not np.allclose(rebound.values, baseline.values)
+    assert fitted_mmm.idata is mmm_idata_before
+    xr.testing.assert_identical(
+        fitted_mmm.idata["posterior"].to_dataset()["saturation_beta"],
+        posterior["saturation_beta"],
+    )
