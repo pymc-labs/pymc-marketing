@@ -233,7 +233,12 @@ from pymc_marketing.mmm.lift_test import (
     add_lift_measurements_to_likelihood_from_saturation,
     scale_lift_measurements,
 )
-from pymc_marketing.mmm.link import LinkFunction, LinkSpec, get_link_spec
+from pymc_marketing.mmm.link import (
+    BASELINE_PART,
+    LinkFunction,
+    LinkSpec,
+    get_link_spec,
+)
 from pymc_marketing.mmm.plot import MMMPlotSuite
 from pymc_marketing.mmm.plotting import MMMPlotSuiteFacade
 from pymc_marketing.mmm.plotting.budget import BudgetPlots
@@ -1389,8 +1394,9 @@ class MMM(RegressionModelBuilder):
         Parameters
         ----------
         central_tendency : {"median", "mean"}, default "median"
-            Response summary the counterfactual is expressed on.  For the
-            identity link the two are identical (Normal mean == median).
+            Response summary the counterfactual is expressed on.  Under the
+            identity link the two coincide for most likelihoods, but not for
+            ``TruncatedNormal``, where clipping shifts the mean off ``mu``.
             For the log link, ``"median"`` uses :math:`\exp(\mu)` and
             ``"mean"`` applies the :math:`\exp(\sigma^2 / 2)` correction.
 
@@ -1497,13 +1503,17 @@ class MMM(RegressionModelBuilder):
                     stacklevel=2,
                 )
 
-        parts["intercept"] = counterfactual_fn(posterior["intercept_contribution"])
+        parts[BASELINE_PART] = counterfactual_fn(posterior["intercept_contribution"])
 
         dataset = xr.Dataset(parts)
 
         if central_tendency == "mean":
-            dataset = dataset * self._link_spec.mean_correction(
-                posterior, self.output_var
+            dataset = self._link_spec.to_mean_scale(
+                dataset,
+                posterior,
+                self.model_config["likelihood"],
+                target_scale,
+                self.output_var,
             )
 
         return dataset
