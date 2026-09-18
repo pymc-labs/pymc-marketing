@@ -53,7 +53,17 @@ Design notes
   inherits its parent's intensity (a max would belong to whichever part
   holds the peak).  No single size per campaign is invariant under every
   split, since ``S`` is nonlinear; a part that owns only the peaks still
-  moves the total.  The same homogeneity makes marginal
+  moves the total.  ``cap_c`` is scale-free: it is the same under any
+  channel scaling, and a value above one means the campaign is more intense,
+  on the dates it runs, than its channel's average active week.  A campaign
+  at its typical spend evaluates the channel curve where the channel's
+  average week sits on the scaled axis, as the MMM's own channel term does:
+  under ``max`` scaling that is the channel's mean-to-peak ratio, well below
+  one on a peaky channel, so campaign-level saturation barely engages over
+  the observed range; under ``mean`` scaling (``mmm.scaling.channel``) it is
+  one, where the saturation prior is informative.  Limiting extrapolation
+  beyond observed spend is the job of the optimizer's budget bounds.  The
+  same homogeneity makes marginal
   returns equal across campaigns at proportional spend — for any saturation
   shape.  Deviations from that neutral point must be earned from data
   (flighting contrasts, covariates, lift tests), not from the
@@ -416,11 +426,6 @@ class NestedMediaEffect(DataVarMuEffect):
         )
         pmd.Data(f"{p}_{self.parent_dim}_scale", scale.values, dims=tuple(scale.dims))
         pmd.Data(f"{p}_{self.child_dim}_cap", cap.values, dims=tuple(cap.dims))
-        pmd.Data(
-            f"{p}_{self.child_dim}_live",
-            (cap.values > 0).astype(float),
-            dims=tuple(cap.dims),
-        )
         pmd.Data(f"{p}_spend_share", share.values, dims=(self.child_dim,))
 
         if self.zero_sum_multipliers:
@@ -595,7 +600,7 @@ class NestedMediaEffect(DataVarMuEffect):
         onehot = model[f"{p}_parent_onehot"]
         scale = model[f"{p}_{self.parent_dim}_scale"]
         cap = model[f"{p}_{self.child_dim}_cap"]
-        live = model[f"{p}_{self.child_dim}_live"]
+        live = (cap > 0).astype(cap.type.dtype)  # derived, so it cannot desync
 
         def gather(var):
             return var[{channel_coord_name: parent_idx}]
@@ -810,7 +815,8 @@ class NestedMediaEffect(DataVarMuEffect):
         rho = self.rho
         saturation_function = self._built.function
 
-        def campaign_curve(x, cap, live, beta_mult, lam_mult, **shape_params):
+        def campaign_curve(x, cap, beta_mult, lam_mult, **shape_params):
+            live = (cap > 0).astype(cap.type.dtype)
             size = (cap + (1 - live)) ** rho
             return (
                 live
@@ -821,7 +827,6 @@ class NestedMediaEffect(DataVarMuEffect):
 
         variable_mapping = {
             "cap": f"{p}_{self.child_dim}_cap",
-            "live": f"{p}_{self.child_dim}_live",
             "beta_mult": f"{p}_beta_multiplier",
             "lam_mult": f"{p}_lam_multiplier",
             **self._built.variable_mapping,

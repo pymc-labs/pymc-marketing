@@ -690,9 +690,12 @@ def test_single_campaign_channel_has_cap_one():
     assert cap[0] == pytest.approx(1.0)
 
 
-def test_zero_spend_campaign_cannot_be_funded():
+@pytest.mark.parametrize("rho", [1.0, 0.5])
+def test_zero_spend_campaign_cannot_be_funded(rho):
     # cap 0: the dead campaign contributes nothing even when given spend, so a
-    # forecast or the budget optimizer cannot route money to it
+    # forecast or the budget optimizer cannot route money to it. The live mask
+    # is derived from the cap in the graph; a fractional rho is where a wrong
+    # size for the dead campaign would show as a non-finite contribution
     campaigns = ["live_a", "live_b", "dead"]
     rng = np.random.default_rng(9)
     spend = np.column_stack(
@@ -705,7 +708,7 @@ def test_zero_spend_campaign_cannot_be_funded():
     )
     model = pm.Model(coords={"date": dates, "campaign": campaigns})
     mmm = type("MockMMM", (), {"dims": (), "model": model, "xarray_dataset": ds})()
-    effect = NestedMediaEffect(child_to_parent=dict.fromkeys(campaigns, "ch"))
+    effect = NestedMediaEffect(child_to_parent=dict.fromkeys(campaigns, "ch"), rho=rho)
     with model, pytest.warns(UserWarning, match="cap 0"):
         effect.create_data(mmm)
         effect.create_effect(mmm)
