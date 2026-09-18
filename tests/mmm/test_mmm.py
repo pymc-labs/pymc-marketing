@@ -6685,7 +6685,9 @@ def test_sample_posterior_predictive_lognormal_likelihood_warns_on_zero_draws(
 
     # Force a non-positive response-scale mean out of sample. The logp guard
     # cannot fire on the forward path, so draws collapse to exp(-inf) = 0.
-    mmm.idata.posterior["intercept_contribution"].values[...] = -10.0
+    # mu is a registered Deterministic, so the forward pass reads it from the
+    # posterior and an edited intercept would not reach the likelihood.
+    mmm.idata.posterior["mu"].values[...] = -10.0
 
     with pytest.warns(UserWarning, match="exactly zero"):
         mmm.sample_posterior_predictive(X, extend_idata=False, random_seed=42)
@@ -6698,8 +6700,9 @@ def test_sample_posterior_predictive_lognormal_likelihood_healthy_no_warning(
     mmm = lognormal_likelihood_mmm
     mmm.fit(X, y, chains=1, draws=10, tune=10, random_seed=42)
 
-    # Guarantee a positive mu regardless of what the mocked sampler drew.
-    mmm.idata.posterior["intercept_contribution"].values[...] = 10.0
+    # Guarantee a positive mu regardless of what the mocked sampler drew. Set
+    # the stored mu itself, which is what the forward pass reads.
+    mmm.idata.posterior["mu"].values[...] = 10.0
 
     with warnings.catch_warnings(record=True) as records:
         warnings.simplefilter("always")
