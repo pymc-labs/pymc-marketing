@@ -913,6 +913,33 @@ class TestCentralTendency:
             mmm.compute_counterfactual_contributions_dataset(central_tendency="mean")
 
 
+class TestMuNameCollision:
+    """Registering mu turns a name clash into a build-time error."""
+
+    def test_effect_registering_mu_collides_under_identity(self):
+        # Before mu was registered under the identity link this built, because
+        # the branch only set mu_var.name. Now PyMC rejects the duplicate.
+        class MuNamingEffect(MuEffect):
+            def create_data(self, mmm) -> None:
+                pass
+
+            def create_effect(self, mmm):
+                return pmd.Deterministic(
+                    "mu", pmd.Normal("collider", dims=("date",)) * 0.0
+                )
+
+            def set_data(self, mmm, model, X) -> None:
+                pass
+
+        mmm = _make_mmm(link="identity", dims=None)
+        mmm.mu_effects.append(MuNamingEffect())
+        X, y = _make_positive_panel(countries=("A",))
+        X = X.drop(columns=["country"])
+
+        with pytest.raises(ValueError, match="Variable name mu already exists"):
+            mmm.build_model(X, y)
+
+
 class TestMuEffectsDecomposition:
     """mu_effects must appear in the counterfactual decomposition."""
 

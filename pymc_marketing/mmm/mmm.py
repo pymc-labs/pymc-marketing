@@ -2492,7 +2492,16 @@ class MMM(RegressionModelBuilder):
             if self.link == LinkFunction.LOG:
                 mu_var = pmd.Deterministic("mu", mu_var.transpose("date", ...))
             else:
-                mu_var.name = "mu"
+                # Registered rather than merely named, because the identity-link
+                # mean correction is pointwise in mu and reconstructing it by
+                # summing the contribution Deterministics is not safe:
+                # MuEffect.create_effect is only required to return its term,
+                # not to register one.
+                #
+                # Not transposed, unlike the log branch, which would change the
+                # dims order the likelihood sees, so "date" stays wherever the
+                # linear predictor already put it rather than moving to front.
+                mu_var = pmd.Deterministic("mu", mu_var)
 
             self._link_spec.create_media_contribution_deterministic(
                 mu_var=mu_var,
