@@ -729,6 +729,34 @@ def test_zero_spend_campaign_cannot_be_funded(rho):
     assert np.all(np.take(contribution, [0, 1], axis=axis) > 0)
 
 
+def test_float_dust_spend_counts_as_no_spend():
+    # a residue like 1e-12 where a zero was meant must not make a campaign
+    # live: its cap would underflow and the contribution turn NaN
+    campaigns = ["a", "b", "dust"]
+    rng = np.random.default_rng(1)
+    spend = np.column_stack(
+        [rng.gamma(2.0, 1.0, 52) * 1e5, rng.gamma(2.0, 1.0, 52) * 1e5, np.zeros(52)]
+    )
+    spend[7, 2] = 1e-12
+    dates = pd.date_range("2025-01-06", periods=52, freq="W-MON")
+    ds = xr.Dataset(
+        {"campaign_data": (("date", "campaign"), spend)},
+        coords={"date": dates, "campaign": campaigns},
+    )
+    model = pm.Model(coords={"date": dates, "campaign": campaigns})
+    mmm = type("MockMMM", (), {"dims": (), "model": model, "xarray_dataset": ds})()
+    effect = NestedMediaEffect(child_to_parent=dict.fromkeys(campaigns, "ch"))
+    with model, pytest.warns(UserWarning, match=r"\['dust'\] have no spend"):
+        effect.create_data(mmm)
+        effect.create_effect(mmm)
+    assert model["nested_media_campaign_cap"].get_value()[2] == 0.0
+    (graph,) = model.replace_rvs_by_values([model["nested_media_effect_contribution"]])
+    total = model.compile_fn(graph, inputs=model.value_vars, on_unused_input="ignore")(
+        model.initial_point()
+    )
+    assert np.all(np.isfinite(total))
+
+
 def test_zero_spend_campaign_pinned():
     campaigns = ["live_a", "live_b", "dead"]
     mapping = dict.fromkeys(campaigns, "ch")
