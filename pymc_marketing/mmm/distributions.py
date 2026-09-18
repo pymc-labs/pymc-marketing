@@ -299,7 +299,7 @@ class WeightedZeroSumNormal(Distribution):
                 )
             except NotConstantValueError as err:
                 raise ValueError(message) from err
-            if not np.allclose(
+            if theirs.shape != ours.shape or not np.allclose(
                 theirs / np.linalg.norm(theirs), ours / np.linalg.norm(ours)
             ):
                 raise ValueError(message)
@@ -493,8 +493,12 @@ class DimWeightedZeroSumNormal(VectorDimDistribution):
             ):
                 own = _constant_weights(kwargs["weights"], supplied.dim).data
                 theirs = supplied.weights.data
-                if supplied.dim != core_dims[-1] or not np.allclose(
-                    own / np.linalg.norm(own), theirs / np.linalg.norm(theirs)
+                if (
+                    supplied.dim != core_dims[-1]
+                    or own.shape != theirs.shape
+                    or not np.allclose(
+                        own / np.linalg.norm(own), theirs / np.linalg.norm(theirs)
+                    )
                 ):
                     raise ValueError(
                         "the transform's dim and weights must match the distribution's; "
