@@ -176,4 +176,6 @@ For more information on these tools, visit:
 
 ## How to get started?
 
+If you are new to MMMs, start with the {ref}`guided learning path <mmm_learning_path>`. It orders the example notebooks into stages and tells you what to read and what to run.
+
 To see how all these different components come together, you can review the {ref}`MMM Example notebook <mmm_example>` and [MMM Explainer App](https://pymc-marketing-app.streamlit.app/).

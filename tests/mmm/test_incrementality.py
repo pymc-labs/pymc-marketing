@@ -49,7 +49,11 @@ from pymc_marketing.mmm.spend_reach import (
     TemporalReach,
     resolve_channel_dependent_effects,
 )
-from pymc_marketing.mmm.transformers import geometric_adstock, logistic_saturation
+from pymc_marketing.mmm.transformers import (
+    ConvMode,
+    geometric_adstock,
+    logistic_saturation,
+)
 from pymc_marketing.model_graph import deterministics_to_flat
 from tests.mmm.test_spend_reach import (
     effective_l_max,
@@ -100,6 +104,8 @@ def compute_ground_truth_incremental_by_period(
     frequency="all_time",
     counterfactual_spend_factor=0.0,
     include_carryover=True,
+    start_date=None,
+    end_date=None,
 ):
     """Compute ground truth incremental contribution per period using the oracle.
 
@@ -124,6 +130,8 @@ def compute_ground_truth_incremental_by_period(
     include_carryover : bool
         Whether to include adstock carryover effects (both carry-in and
         carry-out).
+    start_date, end_date : str or pd.Timestamp, optional
+        Bounds of the periods to evaluate. Defaults to the fitted date range.
 
     Returns
     -------
@@ -150,9 +158,9 @@ def compute_ground_truth_incremental_by_period(
         )
 
     incr = mmm.incrementality
-    periods = incr._create_period_groups(dates[0], dates[-1], frequency)
-    l_max = mmm.adstock.l_max
-    inferred_freq = pd.infer_freq(dates)
+    start_date = dates[0] if start_date is None else pd.Timestamp(start_date)
+    end_date = dates[-1] if end_date is None else pd.Timestamp(end_date)
+    periods = incr._create_period_groups(start_date, end_date, frequency)
 
     # Evaluate baseline once (reused for all periods), always in original scale
     baseline_contrib = evaluate_channel_contribution(
@@ -176,8 +184,11 @@ def compute_ground_truth_incremental_by_period(
 
         # Determine evaluation window for summing
         if include_carryover:
-            carryout_end = t1 + l_max * pd.tseries.frequencies.to_offset(inferred_freq)
-            eval_mask = (dates >= t0) & (dates <= carryout_end)
+            # Sum the full fitted axis so this independent oracle does not
+            # encode assumptions about which side of the period the configured
+            # convolution mode places its kernel mass on. Unaffected dates add
+            # exact zeros to the baseline/counterfactual difference.
+            eval_mask = np.ones(len(dates), dtype=bool)
         else:
             eval_mask = (dates >= t0) & (dates <= t1)
 
@@ -538,6 +549,29 @@ def incrementality_lite():
     return incr, 4
 
 
+@pytest.fixture(params=[ConvMode.Before, ConvMode.Overlap], ids=str)
+def non_after_fitted_mmm(request, simple_mmm_data):
+    """Create a fitted MMM whose adstock has leading kernel mass."""
+    from tests.mmm.conftest import mock_fit
+
+    channel_columns = ["channel_1", "channel_2", "channel_3"]
+    mmm = MMM(
+        channel_columns=channel_columns,
+        date_column="date",
+        target_column="target",
+        control_columns=None,
+        adstock=GeometricAdstock(l_max=4, mode=request.param),
+        saturation=LogisticSaturation(),
+    )
+    mock_fit(
+        mmm,
+        simple_mmm_data["X"],
+        simple_mmm_data["y"],
+        random_seed=42,
+    )
+    return mmm
+
+
 class TestIncrementality:
     """Tests for compute_incremental_contribution and supporting methods."""
 
@@ -597,6 +631,27 @@ class TestIncrementality:
         # parametrisation the worst relative error is 2.2e-11, so the tolerance
         # keeps three orders of margin rather than the seven 1e-4 allowed.
         xr.testing.assert_allclose(result, gt, rtol=1e-8)
+
+    def test_non_after_convolution_matches_full_axis_oracle(self, non_after_fitted_mmm):
+        """The public API retains all leading kernel mass for one-date periods."""
+        mmm = non_after_fitted_mmm
+        dates = pd.to_datetime(mmm.idata.fit_data.date.values)
+        period_date = dates[len(dates) // 2]
+
+        expected = compute_ground_truth_incremental_by_period(
+            mmm,
+            frequency="original",
+            start_date=period_date,
+            end_date=period_date,
+        )
+        actual = mmm.incrementality.compute_incremental_contribution(
+            frequency="original",
+            start_date=period_date,
+            end_date=period_date,
+        )
+
+        assert not np.isnan(expected).any()
+        xr.testing.assert_allclose(actual, expected, rtol=1e-8)
 
     def test_negative_counterfactual_factor_raises_error(self, incrementality_lite):
         """Test that negative counterfactual factor raises ValueError."""
