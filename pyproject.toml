@@ -41,7 +41,7 @@ dependencies = [
     "patsy",
     "preliz>=0.20.0,<1.0",
     "pydantic>=2.1.0",
-    "pymc-extras>=0.14.0,<0.15.0",
+    "pymc-extras>=0.14.0",
     "pymc>=6.2.0,<6.4.0",
     "pyprojroot",
     "pyyaml",
