@@ -165,6 +165,12 @@ def _check_lift_rows(df_lift_test: pd.DataFrame) -> None:
         )
 
 
+# Scaled spend at or below this counts as zero when sizing campaigns. It is
+# relative to the channel scale, so it is float dust (a residue of a
+# subtraction or an allocation), far below any real spend.
+_SPEND_DUST = 1e-12
+
+
 def _channel_scales(
     spend: xr.DataArray,
     channel_of: xr.DataArray,
@@ -217,8 +223,10 @@ def _channel_scales(
     own_dims = [d for d in reduce_dims if d != parent_dim]
     scaled = spend / scale_of_campaign
     scaled_total = channel_total / scale
-    intensity = scaled.where(scaled > 0).mean(own_dims)
-    channel_intensity = scaled_total.where(scaled_total > 0).mean(own_dims)
+    # spend below float dust relative to the channel scale is no spend: a
+    # residue where a zero was meant must not make a campaign "live"
+    intensity = scaled.where(scaled > _SPEND_DUST).mean(own_dims)
+    channel_intensity = scaled_total.where(scaled_total > _SPEND_DUST).mean(own_dims)
     cap = intensity / channel_intensity.sel({parent_dim: channel_of}).drop_vars(
         parent_dim
     )
