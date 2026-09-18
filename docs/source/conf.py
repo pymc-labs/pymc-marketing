@@ -214,6 +214,16 @@ linkcheck_ignore = [
 
 
 # linkcode extension (links of [source] pointing to github)
+# Resolved once: linkcode_resolve runs for every documented object (thousands
+# per build) and the commit does not change during a build.
+_GIT_COMMIT = subprocess.run(
+    ["git", "rev-parse", "HEAD"],  # noqa: S607
+    capture_output=True,
+    text=True,
+    check=True,
+).stdout.strip()
+
+
 def linkcode_resolve(domain, info):
     """Given sphinx contextual objects when building the docs, generate links to source on GH."""
 
@@ -252,12 +262,7 @@ def linkcode_resolve(domain, info):
                 # Some objects do not have a __module__ attribute (?)
                 filename = fallback_source()
 
-    tag = subprocess.Popen(
-        ["git", "rev-parse", "HEAD"],  # noqa: S607
-        stdout=subprocess.PIPE,
-        universal_newlines=True,
-    ).communicate()[0][:-1]
-    return f"https://github.com/pymc-labs/pymc-marketing/blob/{tag}/{filename}"
+    return f"https://github.com/pymc-labs/pymc-marketing/blob/{_GIT_COMMIT}/{filename}"
 
 
 # -- HTML specific extensions -------------------------------------
