@@ -650,6 +650,82 @@ def test_split_invariance(saturation_cls):
     np.testing.assert_allclose(split, whole, rtol=1e-10)
 
 
+@pytest.mark.parametrize("saturation_cls", [None, "logistic"])
+def test_flighting_split_is_nearly_invariant(saturation_cls):
+    # a part that runs on alternate dates inherits its parent's intensity, so
+    # the channel contribution barely moves; with a max-based size the part
+    # that misses the peak shrinks and the total moves by several percent
+    from pymc_marketing.mmm import LogisticSaturation
+
+    saturation = None if saturation_cls is None else LogisticSaturation()
+    rng = np.random.default_rng(3)
+    spend_a = rng.gamma(2.0, 1.0, 60)
+    spend_b = rng.gamma(2.0, 1.0, 60)
+    odd = np.arange(60) % 2 == 1
+
+    whole = _channel_contribution_at_initial_point(
+        ["a", "b"],
+        {"a": "ch", "b": "ch"},
+        np.column_stack([spend_a, spend_b]),
+        saturation,
+    )
+    split = _channel_contribution_at_initial_point(
+        ["a1", "a2", "b"],
+        {"a1": "ch", "a2": "ch", "b": "ch"},
+        np.column_stack(
+            [np.where(odd, spend_a, 0), np.where(~odd, spend_a, 0), spend_b]
+        ),
+        saturation,
+    )
+    np.testing.assert_allclose(split.sum(), whole.sum(), rtol=5e-3)
+
+
+def test_single_campaign_channel_has_cap_one():
+    mmm = _make_mock_mmm()
+    mapping = {c: ("solo" if c == CAMPAIGNS[0] else "rest") for c in CAMPAIGNS}
+    effect = NestedMediaEffect(child_to_parent=mapping)
+    with mmm.model:
+        effect.create_data(mmm)
+    cap = mmm.model["nested_media_campaign_cap"].get_value()
+    assert cap[0] == pytest.approx(1.0)
+
+
+def test_zero_spend_campaign_cannot_be_funded():
+    # cap 0: the dead campaign contributes nothing even when given spend, so a
+    # forecast or the budget optimizer cannot route money to it
+    campaigns = ["live_a", "live_b", "dead"]
+    rng = np.random.default_rng(9)
+    spend = np.column_stack(
+        [rng.gamma(2.0, 1.0, 25), rng.gamma(2.0, 1.0, 25), np.zeros(25)]
+    )
+    dates = pd.date_range("2025-01-01", periods=25, freq="W-MON")
+    ds = xr.Dataset(
+        {"campaign_data": (("date", "campaign"), spend)},
+        coords={"date": dates, "campaign": campaigns},
+    )
+    model = pm.Model(coords={"date": dates, "campaign": campaigns})
+    mmm = type("MockMMM", (), {"dims": (), "model": model, "xarray_dataset": ds})()
+    effect = NestedMediaEffect(child_to_parent=dict.fromkeys(campaigns, "ch"))
+    with model, pytest.warns(UserWarning, match="cap 0"):
+        effect.create_data(mmm)
+        effect.create_effect(mmm)
+    assert model["nested_media_campaign_cap"].get_value()[2] == 0.0
+    with model:
+        pm.set_data({"campaign_data": np.full_like(spend, 3.0)})
+    (graph,) = model.replace_rvs_by_values(
+        [model["nested_media_campaign_contribution"]]
+    )
+    contribution = model.compile_fn(
+        graph, inputs=model.value_vars, on_unused_input="ignore"
+    )(model.initial_point())
+    axis = model.named_vars_to_dims["nested_media_campaign_contribution"].index(
+        "campaign"
+    )
+    assert np.all(np.isfinite(contribution))
+    np.testing.assert_array_equal(np.take(contribution, 2, axis=axis), 0.0)
+    assert np.all(np.take(contribution, [0, 1], axis=axis) > 0)
+
+
 def test_zero_spend_campaign_pinned():
     campaigns = ["live_a", "live_b", "dead"]
     mapping = dict.fromkeys(campaigns, "ch")
