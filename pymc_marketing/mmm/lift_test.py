@@ -20,7 +20,7 @@ Use any of these methods directly while working with the `MMM` class.
 
 import warnings
 from collections.abc import Callable, Sequence
-from typing import Concatenate, ParamSpec
+from typing import Any, Concatenate, ParamSpec
 
 import numpy as np
 import pandas as pd
@@ -221,7 +221,7 @@ def add_saturation_observations(
     variable_mapping: VariableMapping,
     saturation_function: SaturationFunc,
     model: pm.Model | None = None,
-    dist: type[pmd.DimDistribution] = pmd.Gamma,
+    dist: Callable[..., Any] = pmd.Gamma,
     name: str = "lift_measurements",
     get_indices: Callable[[pd.DataFrame, pm.Model], Indices] = exact_row_indices,
 ) -> None:
@@ -648,7 +648,7 @@ def add_lift_measurements_to_likelihood_from_saturation(
     saturation: SaturationTransformation,
     time_varying_var_name: str | None = None,
     model: pm.Model | None = None,
-    dist: type[pmd.DimDistribution] = pmd.Gamma,
+    dist: Callable[..., Any] = pmd.Gamma,
     name: str = "lift_measurements",
     get_indices: Callable[[pd.DataFrame, pm.Model], Indices] = exact_row_indices,
 ) -> None:
