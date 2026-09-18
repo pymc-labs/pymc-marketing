@@ -71,11 +71,8 @@ from pymc_marketing.model_config import parse_model_config
 
 try:
     import pymc_bart as pmb
-    from pymc_bart.split_rules import ContinuousSplitRule, OneHotSplitRule
 except ImportError:  # pragma: no cover
     pmb = None  # type: ignore[assignment]
-    ContinuousSplitRule = None  # type: ignore[assignment,misc]
-    OneHotSplitRule = None  # type: ignore[assignment,misc]
 
 
 def _is_categorical(series: pd.Series) -> bool:
@@ -124,9 +121,8 @@ class PIEModel(RegressionModelBuilder):
 
         - ``"bart"``: dict with ``m`` (int), ``alpha`` (float), ``beta``
           (float), and optional ``response`` — ``"constant"`` (default,
-          piecewise-constant leaves), ``"linear"``, or ``"mix"`` (the latter
-          two fit linear models in the leaves, which can help on smooth
-          response surfaces).
+          piecewise-constant leaves) or ``"linear"`` (linear models in the
+          leaves, which can help on smooth response surfaces).
         - ``"sigma"``: :class:`pymc_extras.prior.Prior` for the noise std.
         - ``"categorical_split"``: ``"onehot"`` (default) or ``"continuous"``.
           Controls how label-encoded categorical columns are split by BART
@@ -183,7 +179,7 @@ class PIEModel(RegressionModelBuilder):
 
     Categorical columns (``object`` or ``category`` dtype) are label-encoded
     in ``build_model``. With ``categorical_split="onehot"`` (default), BART
-    uses :class:`pymc_bart.split_rules.OneHotSplitRule` for those columns so
+    uses the ``"OneHotSplit"`` rule for those columns so
     that splits are "level X vs not-X" rather than "encoded value < c" — this
     avoids imposing the encoder's alphabetical ordering on unordered
     categories. Set ``categorical_split="continuous"`` to fall back to
@@ -334,10 +330,10 @@ class PIEModel(RegressionModelBuilder):
                 "must restate every required key (m, alpha, beta)."
             )
         response = cfg["bart"].get("response", "constant")
-        if response not in ("constant", "linear", "mix"):
+        if response not in ("constant", "linear"):
             raise ValueError(
-                "model_config['bart']['response'] must be 'constant', 'linear', "
-                f"or 'mix', got {response!r}."
+                "model_config['bart']['response'] must be 'constant' or 'linear', "
+                f"got {response!r}."
             )
         categorical_split = cfg.get("categorical_split", "onehot")
         if categorical_split not in ("onehot", "continuous"):
@@ -347,11 +343,11 @@ class PIEModel(RegressionModelBuilder):
             )
         if categorical_split == "onehot":
             split_rules = [
-                OneHotSplitRule() if col in self._encoders else ContinuousSplitRule()
+                "OneHotSplit" if col in self._encoders else "ContinuousSplit"
                 for col in self._feature_columns
             ]
         else:
-            split_rules = [ContinuousSplitRule() for _ in self._feature_columns]
+            split_rules = ["ContinuousSplit"] * len(self._feature_columns)
 
         coords: dict[str, list] = {
             "obs": X.index.tolist(),
