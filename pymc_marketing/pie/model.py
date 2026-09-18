@@ -121,8 +121,9 @@ class PIEModel(RegressionModelBuilder):
 
         - ``"bart"``: dict with ``m`` (int), ``alpha`` (float), ``beta``
           (float), and optional ``response`` — ``"constant"`` (default,
-          piecewise-constant leaves) or ``"linear"`` (linear models in the
-          leaves, which can help on smooth response surfaces).
+          piecewise-constant leaves), ``"linear"``, or ``"mix"`` (the latter
+          two fit linear models in the leaves, which can help on smooth
+          response surfaces; both are experimental upstream).
         - ``"sigma"``: :class:`pymc_extras.prior.Prior` for the noise std.
         - ``"categorical_split"``: ``"onehot"`` (default) or ``"continuous"``.
           Controls how label-encoded categorical columns are split by BART
@@ -179,8 +180,9 @@ class PIEModel(RegressionModelBuilder):
 
     Categorical columns (``object`` or ``category`` dtype) are label-encoded
     in ``build_model``. With ``categorical_split="onehot"`` (default), BART
-    uses the ``"OneHotSplit"`` rule for those columns so
-    that splits are "level X vs not-X" rather than "encoded value < c" — this
+    passes the ``"OneHotSplit"`` split rule (see the ``split_rules`` argument
+    of :class:`pymc_bart.BART`) for those columns so that splits are
+    "level X vs not-X" rather than "encoded value < c" — this
     avoids imposing the encoder's alphabetical ordering on unordered
     categories. Set ``categorical_split="continuous"`` to fall back to
     ordered splits.
@@ -330,10 +332,10 @@ class PIEModel(RegressionModelBuilder):
                 "must restate every required key (m, alpha, beta)."
             )
         response = cfg["bart"].get("response", "constant")
-        if response not in ("constant", "linear"):
+        if response not in ("constant", "linear", "mix"):
             raise ValueError(
-                "model_config['bart']['response'] must be 'constant' or 'linear', "
-                f"got {response!r}."
+                "model_config['bart']['response'] must be 'constant', 'linear', "
+                f"or 'mix', got {response!r}."
             )
         categorical_split = cfg.get("categorical_split", "onehot")
         if categorical_split not in ("onehot", "continuous"):
