@@ -24,7 +24,7 @@ import warnings
 from collections.abc import Iterable, Sequence
 from copy import deepcopy
 from inspect import signature
-from typing import Any
+from typing import Any, Self
 
 import numpy as np
 import numpy.typing as npt
@@ -35,6 +35,7 @@ from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 from pydantic import InstanceOf
 from pymc.distributions.shape_utils import Dims
+from pymc_extras.deserialize import deserialize
 from pymc_extras.prior import Prior, VariableFactory
 from pytensor.graph.basic import Variable
 from pytensor.xtensor import as_xtensor
@@ -181,6 +182,19 @@ class Transformation:
                 for key, value in self.function_priors.items()
             },
         }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> Self:
+        """Reconstruct a transformation from a dict."""
+        data = data.copy()
+        data.pop("__type__", None)
+
+        if "priors" in data:
+            data["priors"] = {
+                k: _deserialize_value(v) for k, v in data["priors"].items()
+            }
+
+        return cls(**data)
 
     def __eq__(self, other: Any) -> bool:
         """Check if two transformations are equal."""
@@ -800,5 +814,14 @@ def _serialize_value(value: Any) -> Any:
 
     if isinstance(value, np.ndarray):
         return value.tolist()
+
+    return value
+
+
+def _deserialize_value(value: Any) -> Any:
+    # Inverse of ``_serialize_value``: only dicts describe a distribution,
+    # anything else is a constant parameter (#1613).
+    if isinstance(value, dict):
+        return deserialize(value)
 
     return value
