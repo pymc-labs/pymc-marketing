@@ -129,15 +129,8 @@ class Basis(Transformation):
     def from_dict(cls, data: dict) -> "Basis":
         """Reconstruct a basis from a dict."""
         data = data.copy()
-        data.pop("__type__", None)
         data.pop("lookup_name", None)
-
-        if "priors" in data:
-            from pymc_extras.deserialize import deserialize
-
-            data["priors"] = {k: deserialize(v) for k, v in data["priors"].items()}
-
-        return cls(**data)
+        return super().from_dict(data)
 
     @validate_call
     def sample_curve(
