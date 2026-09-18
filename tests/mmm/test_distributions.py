@@ -511,6 +511,12 @@ def test_distribution_checks_transform_weights_against_its_own():
             WeightedZeroSumNormal(
                 "x", weights=w, transform=WeightedZeroSumTransform(w[::-1])
             )
+        with pytest.raises(
+            ValueError, match="must match"
+        ):  # not a numpy broadcast error
+            WeightedZeroSumNormal(
+                "l", weights=w, transform=WeightedZeroSumTransform(w[:2])
+            )
         with pytest.raises(ValueError, match="must match"):
             WeightedZeroSumNormal(
                 "s", weights=pm.Data("w_data", w), transform=WeightedZeroSumTransform(w)
@@ -532,6 +538,15 @@ def test_dim_distribution_rejects_mismatched_transform():
                 weights=w,
                 core_dims="b",
                 default_transform=DimWeightedZeroSumTransform("b", w[::-1]),
+            )
+        with pytest.raises(
+            ValueError, match="must match"
+        ):  # not a numpy broadcast error
+            DimWeightedZeroSumNormal(
+                "l",
+                weights=w,
+                core_dims="b",
+                default_transform=DimWeightedZeroSumTransform("b", w[:2]),
             )
         DimWeightedZeroSumNormal(
             "y",
