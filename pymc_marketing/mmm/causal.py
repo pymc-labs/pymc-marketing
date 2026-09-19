@@ -1369,7 +1369,7 @@ class CausalGraphModel:
     def _backdoor_parts(
         self, restricted: set[str] | None = None
     ) -> tuple[nx.DiGraph, set[str], set[str], set[str]]:
-        """Return the backdoor graph and its admissible adjustment candidates."""
+        """Return the proper backdoor graph and admissible adjustment candidates."""
         original_graph = nx.DiGraph(self.causal_model._graph._graph)
 
         treatments = set(self.treatment)
@@ -1381,15 +1381,33 @@ class CausalGraphModel:
                 f"{sorted(original_graph)}. Treatment and outcome must both be in the graph."
             )
 
-        descendants = set().union(
-            *(nx.descendants(original_graph, treatment) for treatment in treatments)
-        )
+        proper_causal_path_nodes: set[str] = set()
+        proper_causal_edges: set[tuple[str, str]] = set()
+        for treatment in treatments:
+            treatment_graph = original_graph.copy()
+            treatment_graph.remove_nodes_from(treatments - {treatment})
+            causal_path_nodes = nx.descendants(
+                treatment_graph, treatment
+            ) & nx.ancestors(treatment_graph, self.outcome)
+            causal_path_nodes.add(self.outcome)
+            causal_path_nodes &= nx.descendants(treatment_graph, treatment)
+            if self.outcome in causal_path_nodes:
+                causal_path_nodes.add(treatment)
+            proper_causal_path_nodes |= causal_path_nodes
+            proper_causal_edges.update(
+                (treatment, child)
+                for child in original_graph.successors(treatment)
+                if child in causal_path_nodes
+            )
+
+        forbidden = set(proper_causal_path_nodes)
+        for node in proper_causal_path_nodes:
+            forbidden.update(nx.descendants(original_graph, node))
 
         backdoor_graph = original_graph.copy()
-        for treatment in treatments:
-            backdoor_graph.remove_edges_from(list(backdoor_graph.out_edges(treatment)))
+        backdoor_graph.remove_edges_from(proper_causal_edges)
 
-        candidates = set(backdoor_graph) - treatments - outcome - descendants
+        candidates = set(backdoor_graph) - treatments - outcome - forbidden
         if restricted is not None:
             candidates &= restricted
 
@@ -1402,8 +1420,9 @@ class CausalGraphModel:
     ) -> list[str]:
         """Compute one minimal admissible adjustment set across all treatments.
 
-        The set d-separates the treatments from the outcome after removing every
-        outgoing treatment edge. Treatment descendants are not admissible candidates.
+        The set d-separates the treatments from the outcome in the proper backdoor
+        graph. Descendants of nodes on proper causal paths are not admissible
+        candidates.
         Multiple minimal adjustment sets may exist; this method returns one whose
         ordering is deterministic, but the selected alternative is not guaranteed.
 

@@ -752,6 +752,11 @@ def test_get_unique_adjustment_nodes(dag, treatment, outcome, expected_adjustmen
     assert set(adjustment_set) == set(expected_adjustment_set), (
         f"Expected {expected_adjustment_set}, but got {adjustment_set}"
     )
+    assert causal_model.causal_model._graph.check_valid_backdoor_set(
+        nodes1=causal_model.treatment,
+        nodes2=[causal_model.outcome],
+        nodes3=adjustment_set,
+    )["is_dseparated"]
 
 
 @pytest.mark.parametrize(
@@ -857,6 +862,59 @@ def test_get_unique_adjustment_nodes_restricted_and_preferred():
     ) == ["S"]
     with pytest.raises(NoAdjustmentSetError):
         causal_model.get_unique_adjustment_nodes(restricted={"W"})
+
+
+def test_multi_treatment_uses_proper_backdoor_graph_with_dowhy_oracle():
+    causal_model = CausalGraphModel.build_graphical_model(
+        graph="""
+        digraph {
+            A -> B;
+            A -> U2;
+            B -> Y;
+            M -> N;
+            M -> Y;
+            N -> B;
+            U2 -> N;
+            U2 -> U1;
+        }
+        """,
+        treatment=["A", "B"],
+        outcome="Y",
+    )
+
+    adjustment_set = causal_model.get_unique_adjustment_nodes()
+
+    assert adjustment_set == ["N", "U2"]
+    assert causal_model.causal_model._graph.check_valid_backdoor_set(
+        nodes1=causal_model.treatment,
+        nodes2=[causal_model.outcome],
+        nodes3=adjustment_set,
+    )["is_dseparated"]
+
+
+def test_multi_treatment_forbids_descendants_of_causal_treatment():
+    causal_model = CausalGraphModel.build_graphical_model(
+        graph="""
+        digraph {
+            A -> M;
+            A -> U1;
+            A -> Y;
+            M -> B;
+            M -> N;
+            N -> B;
+            U2 -> N;
+            U2 -> Y;
+        }
+        """,
+        treatment=["A", "B"],
+        outcome="Y",
+    )
+
+    _, _, _, candidates = causal_model._backdoor_parts()
+
+    assert candidates == {"U2"}
+    with pytest.raises(NoAdjustmentSetError):
+        causal_model.get_unique_adjustment_nodes(restricted={"M", "N"})
 
 
 def test_get_indispensable_adjustment_nodes_with_alternative_sets():
