@@ -41,8 +41,8 @@ dependencies = [
     "patsy",
     "preliz>=0.20.0,<1.0",
     "pydantic>=2.1.0",
-    "pymc-extras>=0.14.0,<0.15.0",
-    "pymc>=6.2.0,<6.3.0",
+    "pymc-extras>=0.15.0,<0.16.0",
+    "pymc>=6.3.1,<6.4.0",
     "pyprojroot",
     "pyyaml",
     "scikit-learn>=1.1.1",
@@ -54,7 +54,7 @@ dependencies = [
 
 [project.optional-dependencies]
 dag = ["dowhy", "networkx>=3.3", "osqp<1.0.0,>=0.6.2", "pygraphviz"]
-pie = ["pymc-bart>=0.12.0"]
+pie = ["pymc-bart>=0.13.0"]
 docs = [
     "blackjax<1.6",
     "fastprogress",
@@ -112,7 +112,7 @@ test = [
     "pygraphviz",
     "preliz>=0.20.0",
     "plotly>=6.3.0",
-    "pymc-bart>=0.12.0",
+    "pymc-bart>=0.13.0",
     "watermark",
     "ipywidgets>=8.1.8",
 ]
