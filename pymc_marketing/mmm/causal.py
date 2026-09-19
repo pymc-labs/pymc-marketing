@@ -67,6 +67,26 @@ class TestResult(TypedDict):
 EMPTY_CONDITION_SET: frozenset[str] = frozenset()
 
 
+class NoAdjustmentSetError(ValueError):
+    """No valid backdoor adjustment set exists among the candidate variables."""
+
+
+class UnidentifiedCausalEffectWarning(UserWarning):
+    """The available model variables do not identify the causal effect.
+
+    Raised as a warning rather than an error so that graphs which honestly record
+    unobserved confounders remain usable. Strict pipelines can promote it:
+
+    .. code-block:: python
+
+        import warnings
+
+        from pymc_marketing.mmm.causal import UnidentifiedCausalEffectWarning
+
+        warnings.filterwarnings("error", category=UnidentifiedCausalEffectWarning)
+    """
+
+
 class BuildModelFromDAG:
     """Build a PyMC probabilistic model directly from a Causal DAG and a tabular dataset.
 
@@ -1297,6 +1317,11 @@ class CausalGraphModel:
         self.causal_model = causal_model
         self.treatment = treatment
         self.outcome = outcome
+        self.adjustment_set: list[str] | None = None
+        self.minimal_adjustment_set: list[str] | None = None
+        self.indispensable_adjustment_nodes: list[str] | None = None
+        self.best_effort_adjustment_nodes: list[str] | None = None
+        self.is_backdoor_identified: bool | None = None
 
     @classmethod
     def build_graphical_model(
@@ -1341,55 +1366,270 @@ class CausalGraphModel:
             nodes1=self.treatment, nodes2=[self.outcome]
         )
 
-    def get_unique_adjustment_nodes(self) -> list[str]:
-        """Compute the minimal adjustment set required for backdoor adjustment across all treatments.
+    def _backdoor_parts(
+        self, restricted: set[str] | None = None
+    ) -> tuple[nx.DiGraph, set[str], set[str], set[str]]:
+        """Return the backdoor graph and its admissible adjustment candidates."""
+        original_graph = nx.DiGraph(self.causal_model._graph._graph)
+
+        treatments = set(self.treatment)
+        outcome = {self.outcome}
+        missing = (treatments | outcome) - set(original_graph)
+        if missing:
+            raise ValueError(
+                f"Nodes {sorted(missing)} are not in the causal graph, whose nodes are "
+                f"{sorted(original_graph)}. Treatment and outcome must both be in the graph."
+            )
+
+        descendants = set().union(
+            *(nx.descendants(original_graph, treatment) for treatment in treatments)
+        )
+
+        backdoor_graph = original_graph.copy()
+        for treatment in treatments:
+            backdoor_graph.remove_edges_from(list(backdoor_graph.out_edges(treatment)))
+
+        candidates = set(backdoor_graph) - treatments - outcome - descendants
+        if restricted is not None:
+            candidates &= restricted
+
+        return backdoor_graph, treatments, outcome, candidates
+
+    def get_unique_adjustment_nodes(
+        self,
+        restricted: set[str] | None = None,
+        preferred: set[str] | None = None,
+    ) -> list[str]:
+        """Compute one minimal admissible adjustment set across all treatments.
+
+        The set d-separates the treatments from the outcome after removing every
+        outgoing treatment edge. Treatment descendants are not admissible candidates.
+        Multiple minimal adjustment sets may exist; this method returns one whose
+        ordering is deterministic, but the selected alternative is not guaranteed.
+
+        Parameters
+        ----------
+        restricted : set[str], optional
+            Restrict adjustment candidates to these variables, such as those the
+            model represents. Names that are not admissible candidates are ignored.
+        preferred : set[str], optional
+            Variables to include when a valid adjustment set containing them exists.
+            If no such set exists, search again without the preference.
 
         Returns
         -------
         list[str]
-            A list of unique adjustment variables needed to block all backdoor paths.
+            A sorted minimal adjustment set that blocks all backdoor paths.
+
+        Raises
+        ------
+        ValueError
+            If a treatment or the outcome is absent from the graph.
+        NoAdjustmentSetError
+            If no valid adjustment set exists among the candidate variables.
         """
-        paths = self.get_backdoor_paths()
-        # Flatten paths and exclude treatments and outcome from adjustment set
-        adjustment_nodes = set(
-            node
-            for path in paths
-            for node in path
-            if node not in self.treatment and node != self.outcome
+        backdoor_graph, treatments, outcome, candidates = self._backdoor_parts(
+            restricted
         )
-        return list(adjustment_nodes)
+
+        adjustment_set = None
+        included = (preferred or set()) & candidates
+        if included:
+            adjustment_set = nx.find_minimal_d_separator(
+                backdoor_graph,
+                treatments,
+                outcome,
+                included=included,
+                restricted=candidates,
+            )
+        if adjustment_set is None:
+            adjustment_set = nx.find_minimal_d_separator(
+                backdoor_graph,
+                treatments,
+                outcome,
+                restricted=candidates,
+            )
+        if adjustment_set is None:
+            raise NoAdjustmentSetError(
+                f"No admissible adjustment set exists among {sorted(candidates)}. "
+                f"The effect of {sorted(treatments)} on {self.outcome} is not "
+                "identifiable by backdoor adjustment on these variables."
+            )
+        return sorted(adjustment_set)
+
+    def get_indispensable_adjustment_nodes(
+        self, restricted: set[str] | None = None
+    ) -> list[str]:
+        """Return variables that appear in every valid adjustment set.
+
+        A variable is individually indispensable when removing it from the candidate
+        pool leaves no valid adjustment set. An empty result does not mean adjustment
+        is unnecessary: it can mean that alternative adjustment sets exist.
+
+        Parameters
+        ----------
+        restricted : set[str], optional
+            Restrict adjustment candidates to these variables.
+
+        Returns
+        -------
+        list[str]
+            Sorted individually indispensable adjustment variables.
+
+        Raises
+        ------
+        ValueError
+            If a treatment or the outcome is absent from the graph.
+        NoAdjustmentSetError
+            If no valid adjustment set exists among the candidate variables.
+        """
+        backdoor_graph, treatments, outcome, candidates = self._backdoor_parts(
+            restricted
+        )
+        if (
+            nx.find_minimal_d_separator(
+                backdoor_graph, treatments, outcome, restricted=candidates
+            )
+            is None
+        ):
+            raise NoAdjustmentSetError(
+                f"No admissible adjustment set exists among {sorted(candidates)}."
+            )
+
+        return sorted(
+            node
+            for node in candidates
+            if nx.find_minimal_d_separator(
+                backdoor_graph,
+                treatments,
+                outcome,
+                restricted=candidates - {node},
+            )
+            is None
+        )
+
+    def is_valid_adjustment_set(self, nodes: set[str] | list[str]) -> bool:
+        """Return whether nodes form an admissible backdoor adjustment set.
+
+        Parameters
+        ----------
+        nodes : set[str] or list[str]
+            Variables to validate as a backdoor adjustment set.
+
+        Returns
+        -------
+        bool
+            Whether the variables are admissible and block every backdoor path.
+
+        Raises
+        ------
+        ValueError
+            If a treatment or the outcome is absent from the graph.
+        """
+        backdoor_graph, treatments, outcome, candidates = self._backdoor_parts()
+        nodes = set(nodes)
+        if nodes & (treatments | outcome) or nodes - candidates:
+            return False
+        return nx.is_d_separator(backdoor_graph, treatments, outcome, nodes)
 
     def compute_adjustment_sets(
         self,
         channel_columns: list[str] | tuple[str],
         control_columns: list[str] | None = None,
+        model_features: set[str] | None = None,
     ) -> list[str] | None:
-        """Compute minimal adjustment sets and handle warnings."""
+        """Compute graph-level and model-available adjustment sets.
+
+        Parameters
+        ----------
+        channel_columns : list[str] or tuple[str]
+            Channel columns represented by the model.
+        control_columns : list[str], optional
+            Control columns represented by the model. ``None`` is preserved.
+        model_features : set[str], optional
+            Represented variables that are not data columns, such as yearly
+            seasonality.
+
+        Returns
+        -------
+        list[str] or None
+            Control columns needed by the selected adjustment set. When the effect
+            is unidentified, the supplied controls are returned unchanged.
+        """
         channel_columns = list(channel_columns)
-        if control_columns is None:
-            return control_columns
+        controls = list(control_columns) if control_columns is not None else []
+        model_features = set(model_features or ())
+        available = set(controls) | set(channel_columns) | model_features
+        _, _, _, candidates = self._backdoor_parts()
 
-        self.adjustment_set = self.get_unique_adjustment_nodes()
-
-        common_controls = set(control_columns).intersection(self.adjustment_set)
-        unique_controls = set(control_columns) - set(self.adjustment_set)
-
-        if unique_controls:
+        try:
+            self.adjustment_set = self.get_unique_adjustment_nodes()
+        except NoAdjustmentSetError:
+            self.adjustment_set = None
+            self.minimal_adjustment_set = None
+            self.indispensable_adjustment_nodes = None
+            self.best_effort_adjustment_nodes = None
+            self.is_backdoor_identified = False
             warnings.warn(
-                f"Columns {unique_controls} are not in the adjustment set. Controls are being modified.",
+                "The effect is not identifiable by backdoor adjustment, even when "
+                "using every admissible graph variable. Supplied controls are being "
+                "kept unchanged but are not validated as an adjustment set; treatment "
+                "effect estimates may be biased.",
+                UnidentifiedCausalEffectWarning,
+                stacklevel=2,
+            )
+            return None if control_columns is None else list(control_columns)
+
+        self.indispensable_adjustment_nodes = self.get_indispensable_adjustment_nodes()
+
+        try:
+            self.minimal_adjustment_set = self.get_unique_adjustment_nodes(
+                restricted=available,
+                preferred=model_features,
+            )
+        except NoAdjustmentSetError:
+            self.minimal_adjustment_set = None
+
+        selected_adjustment_set = self.minimal_adjustment_set
+        self.is_backdoor_identified = selected_adjustment_set is not None
+        if selected_adjustment_set is None:
+            self.best_effort_adjustment_nodes = sorted(
+                set(self.adjustment_set) & available
+            )
+            unavailable = sorted(candidates - available)
+            missing_indispensable = sorted(
+                set(self.indispensable_adjustment_nodes) - available
+            )
+            message = (
+                "The effect is not identifiable by backdoor adjustment on the "
+                "variables the model represents. Eligible graph variables not "
+                f"represented by the model: {unavailable}."
+            )
+            if missing_indispensable:
+                message += (
+                    f" Indispensable variables unavailable: {missing_indispensable}."
+                )
+            message += (
+                " Supplied controls are being kept unchanged but are not validated "
+                "as an adjustment set; treatment effect estimates may be biased."
+            )
+            warnings.warn(
+                message,
+                UnidentifiedCausalEffectWarning,
+                stacklevel=2,
+            )
+            return None if control_columns is None else list(control_columns)
+
+        self.best_effort_adjustment_nodes = None
+        unused_controls = set(controls) - set(selected_adjustment_set)
+        if unused_controls:
+            warnings.warn(
+                f"Columns {unused_controls} are not in the adjustment set. Controls are being modified.",
                 stacklevel=2,
             )
 
-        control_columns = list(common_controls - set(channel_columns))
-
-        self.minimal_adjustment_set = control_columns + list(channel_columns)
-
-        for column in self.adjustment_set:
-            if column not in control_columns and column not in channel_columns:
-                warnings.warn(
-                    f"""Column {column} in adjustment set not found in data.
-                    Not controlling for this may induce bias in treatment effect estimates.""",
-                    stacklevel=2,
-                )
-
-        return control_columns
+        if control_columns is None:
+            return None
+        return sorted(
+            set(selected_adjustment_set) - set(channel_columns) - model_features
+        )

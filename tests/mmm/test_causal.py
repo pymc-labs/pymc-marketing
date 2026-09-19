@@ -26,6 +26,8 @@ from pymc_marketing.mmm.causal import (
     TBFPC,
     BuildModelFromDAG,
     CausalGraphModel,
+    NoAdjustmentSetError,
+    UnidentifiedCausalEffectWarning,
 )
 
 # Suppress specific dowhy warnings globally
@@ -674,12 +676,72 @@ def test_default_model_config_slope_dims_excludes_date_multi_dim(causal_df):
             "Y",
             ["Z"],  # Z is needed for both treatments
         ),
+        (
+            """
+            digraph {
+                A -> X;
+                A -> Y;
+                X -> Y;
+                X -> D;
+                D -> Y;
+            }
+            """,
+            ["X"],
+            "Y",
+            ["A"],
+        ),
+        (
+            """
+            digraph {
+                X -> Y;
+                U -> X;
+                U -> C;
+                V -> C;
+                V -> Y;
+            }
+            """,
+            ["X"],
+            "Y",
+            [],
+        ),
+        (
+            """
+            digraph {
+                X -> Y;
+                X -> C;
+                Y -> C;
+            }
+            """,
+            ["X"],
+            "Y",
+            [],
+        ),
+        (
+            """
+            digraph {
+                Z -> X1;
+                Z -> X2;
+                Z -> Y;
+                X1 -> Y;
+                X2 -> Y;
+                X1 -> M;
+                M -> Y;
+            }
+            """,
+            ["X1", "X2"],
+            "Y",
+            ["Z"],
+        ),
     ],
     ids=[
         "simple_backdoor_path",
         "multiple_confounders",
         "no_confounders",
         "multiple_treatments",
+        "excludes_treatment_descendant",
+        "collider_on_backdoor_path",
+        "collider_is_descendant",
+        "multiple_treatments_with_mediator",
     ],
 )
 def test_get_unique_adjustment_nodes(dag, treatment, outcome, expected_adjustment_set):
@@ -721,7 +783,7 @@ def test_get_unique_adjustment_nodes(dag, treatment, outcome, expected_adjustmen
             "Y",
             ["W"],  # Irrelevant control
             ["X"],
-            [],  # W is removed
+            ["W"],  # Unidentified models preserve supplied controls
         ),
         (
             """
@@ -772,6 +834,297 @@ def test_compute_adjustment_sets(
     assert adjusted_controls == expected_controls, (
         f"Expected {expected_controls}, but got {adjusted_controls}"
     )
+
+
+def test_get_unique_adjustment_nodes_restricted_and_preferred():
+    causal_model = CausalGraphModel.build_graphical_model(
+        graph="""
+        digraph {
+            A -> X;
+            A -> S;
+            S -> Y;
+            W -> X;
+            X -> Y;
+        }
+        """,
+        treatment=["X"],
+        outcome="Y",
+    )
+
+    assert causal_model.get_unique_adjustment_nodes(restricted={"A", "W"}) == ["A"]
+    assert causal_model.get_unique_adjustment_nodes(
+        restricted={"A", "S", "NOPE"}, preferred={"S"}
+    ) == ["S"]
+    with pytest.raises(NoAdjustmentSetError):
+        causal_model.get_unique_adjustment_nodes(restricted={"W"})
+
+
+def test_get_indispensable_adjustment_nodes_with_alternative_sets():
+    causal_model = CausalGraphModel.build_graphical_model(
+        graph="""
+        digraph {
+            A -> X;
+            A -> S;
+            S -> Y;
+            X -> Y;
+        }
+        """,
+        treatment=["X"],
+        outcome="Y",
+    )
+
+    assert causal_model.get_indispensable_adjustment_nodes() == []
+    assert causal_model.is_valid_adjustment_set(["A"])
+    assert causal_model.is_valid_adjustment_set(["S"])
+
+
+def test_get_indispensable_adjustment_nodes_with_two_confounders():
+    causal_model = CausalGraphModel.build_graphical_model(
+        graph="""
+        digraph {
+            Z1 -> X;
+            Z1 -> Y;
+            Z2 -> X;
+            Z2 -> Y;
+            X -> Y;
+        }
+        """,
+        treatment=["X"],
+        outcome="Y",
+    )
+
+    assert causal_model.get_indispensable_adjustment_nodes() == ["Z1", "Z2"]
+
+
+def test_is_valid_adjustment_set_rejects_descendant_and_collider():
+    descendant_model = CausalGraphModel.build_graphical_model(
+        graph="""
+        digraph {
+            A -> X;
+            A -> Y;
+            X -> Y;
+            X -> D;
+            D -> Y;
+        }
+        """,
+        treatment=["X"],
+        outcome="Y",
+    )
+    collider_model = CausalGraphModel.build_graphical_model(
+        graph="""
+        digraph {
+            X -> Y;
+            U -> X;
+            U -> C;
+            V -> C;
+            V -> Y;
+        }
+        """,
+        treatment=["X"],
+        outcome="Y",
+    )
+
+    assert not descendant_model.is_valid_adjustment_set(["D"])
+    assert not collider_model.is_valid_adjustment_set(["C"])
+
+
+def test_missing_outcome_raises_configuration_error():
+    causal_model = CausalGraphModel.build_graphical_model(
+        graph="digraph { X -> Y; }",
+        treatment=["X"],
+        outcome="Nope",
+    )
+
+    with pytest.raises(ValueError, match="Nope"):
+        causal_model.get_unique_adjustment_nodes()
+
+
+def test_get_backdoor_paths_remains_available():
+    causal_model = CausalGraphModel.build_graphical_model(
+        graph="digraph { Z -> X; Z -> Y; X -> Y; }",
+        treatment=["X"],
+        outcome="Y",
+    )
+
+    assert causal_model.get_backdoor_paths() == [["X", "Z", "Y"]]
+
+
+def test_identification_status_is_none_before_computation():
+    causal_model = CausalGraphModel.build_graphical_model(
+        graph="digraph { X -> Y; }",
+        treatment=["X"],
+        outcome="Y",
+    )
+
+    assert causal_model.is_backdoor_identified is None
+
+
+def test_channel_can_be_an_adjustment_variable():
+    causal_model = CausalGraphModel.build_graphical_model(
+        graph="""
+        digraph {
+            X2 -> X1;
+            X2 -> Y;
+            X1 -> Y;
+        }
+        """,
+        treatment=["X1"],
+        outcome="Y",
+    )
+
+    adjusted_controls = causal_model.compute_adjustment_sets(
+        channel_columns=["X1", "X2"], control_columns=[]
+    )
+
+    assert adjusted_controls == []
+    assert causal_model.adjustment_set == ["X2"]
+    assert causal_model.minimal_adjustment_set == ["X2"]
+    assert causal_model.is_backdoor_identified
+
+
+def test_unidentified_model_preserves_controls_without_validating_them():
+    causal_model = CausalGraphModel.build_graphical_model(
+        graph="""
+        digraph {
+            U -> X;
+            U -> Y;
+            Z -> X;
+            Z -> Y;
+            A -> X;
+            A -> C;
+            B -> C;
+            B -> Y;
+            X -> Y;
+        }
+        """,
+        treatment=["X"],
+        outcome="Y",
+    )
+    controls = ["C", "Z"]
+
+    with pytest.warns(UnidentifiedCausalEffectWarning):
+        adjusted_controls = causal_model.compute_adjustment_sets(
+            channel_columns=["X"], control_columns=controls
+        )
+
+    assert adjusted_controls == controls
+    assert adjusted_controls is not controls
+    assert causal_model.adjustment_set == ["U", "Z"]
+    assert causal_model.minimal_adjustment_set is None
+    assert causal_model.best_effort_adjustment_nodes == ["Z"]
+    assert "C" not in causal_model.best_effort_adjustment_nodes
+    assert not causal_model.is_backdoor_identified
+    assert not causal_model.is_valid_adjustment_set(adjusted_controls)
+
+
+def test_unidentified_model_without_controls_preserves_none():
+    causal_model = CausalGraphModel.build_graphical_model(
+        graph="""
+        digraph {
+            Z -> X;
+            Z -> Y;
+            X -> Y;
+        }
+        """,
+        treatment=["X"],
+        outcome="Y",
+    )
+
+    with pytest.warns(UnidentifiedCausalEffectWarning):
+        adjusted_controls = causal_model.compute_adjustment_sets(
+            channel_columns=["X"], control_columns=None
+        )
+
+    assert adjusted_controls is None
+    assert causal_model.adjustment_set == ["Z"]
+    assert causal_model.minimal_adjustment_set is None
+    assert causal_model.indispensable_adjustment_nodes == ["Z"]
+    assert not causal_model.is_backdoor_identified
+
+
+def test_structurally_impossible_adjustment_warns_and_preserves_controls():
+    causal_model = CausalGraphModel.build_graphical_model(
+        graph="digraph { Y -> X; }",
+        treatment=["X"],
+        outcome="Y",
+    )
+    controls = ["existing_control"]
+
+    with pytest.warns(UnidentifiedCausalEffectWarning):
+        adjusted_controls = causal_model.compute_adjustment_sets(
+            channel_columns=["X"], control_columns=controls
+        )
+
+    assert adjusted_controls == controls
+    assert adjusted_controls is not controls
+    assert causal_model.adjustment_set is None
+    assert causal_model.minimal_adjustment_set is None
+    assert causal_model.indispensable_adjustment_nodes is None
+    assert causal_model.best_effort_adjustment_nodes is None
+    assert not causal_model.is_backdoor_identified
+
+
+def test_no_adjustment_set_error_is_a_value_error():
+    causal_model = CausalGraphModel.build_graphical_model(
+        graph="digraph { Y -> X; }",
+        treatment=["X"],
+        outcome="Y",
+    )
+
+    with pytest.raises(ValueError) as error:
+        causal_model.get_unique_adjustment_nodes()
+
+    assert isinstance(error.value, NoAdjustmentSetError)
+
+
+def test_unidentified_warning_can_be_promoted_to_error():
+    causal_model = CausalGraphModel.build_graphical_model(
+        graph="""
+        digraph {
+            Z -> X;
+            Z -> Y;
+            X -> Y;
+        }
+        """,
+        treatment=["X"],
+        outcome="Y",
+    )
+
+    with warnings.catch_warnings():
+        warnings.filterwarnings("error", category=UnidentifiedCausalEffectWarning)
+        with pytest.raises(UnidentifiedCausalEffectWarning):
+            causal_model.compute_adjustment_sets(
+                channel_columns=["X"], control_columns=[]
+            )
+
+
+def test_identified_control_warning_uses_plain_user_warning():
+    causal_model = CausalGraphModel.build_graphical_model(
+        graph="""
+        digraph {
+            Z -> X;
+            Z -> Y;
+            W -> X;
+            X -> Y;
+        }
+        """,
+        treatment=["X"],
+        outcome="Y",
+    )
+
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        causal_model.compute_adjustment_sets(
+            channel_columns=["X"], control_columns=["Z", "W"]
+        )
+
+    control_warnings = [
+        warning
+        for warning in caught
+        if "Controls are being modified" in str(warning.message)
+    ]
+    assert len(control_warnings) == 1
+    assert control_warnings[0].category is UserWarning
 
 
 @pytest.fixture(scope="module")
