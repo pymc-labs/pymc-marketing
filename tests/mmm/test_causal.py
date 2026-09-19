@@ -1077,6 +1077,17 @@ def test_no_adjustment_set_error_is_a_value_error():
     assert isinstance(error.value, NoAdjustmentSetError)
 
 
+def test_indispensable_nodes_raise_when_no_adjustment_set_exists():
+    causal_model = CausalGraphModel.build_graphical_model(
+        graph="digraph { Y -> X; }",
+        treatment=["X"],
+        outcome="Y",
+    )
+
+    with pytest.raises(NoAdjustmentSetError, match="No admissible adjustment set"):
+        causal_model.get_indispensable_adjustment_nodes()
+
+
 def test_unidentified_warning_can_be_promoted_to_error():
     causal_model = CausalGraphModel.build_graphical_model(
         graph="""

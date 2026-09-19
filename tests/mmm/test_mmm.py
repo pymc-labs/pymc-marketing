@@ -5207,6 +5207,26 @@ def test_multidimensional_mmm_adjustment_set_updates_control_columns():
     assert mmm.control_columns == ["control_1"]
 
 
+def test_mmm_removes_yearly_seasonality_when_identified_and_unneeded():
+    with pytest.warns(UserWarning, match="Yearly seasonality excluded"):
+        mmm = MMM(
+            date_column="date",
+            target_column="target",
+            channel_columns=["channel_1"],
+            yearly_seasonality=2,
+            adstock=GeometricAdstock(l_max=2),
+            saturation=LogisticSaturation(),
+            dag="digraph { channel_1 -> target; }",
+            treatment_nodes=["channel_1"],
+            outcome_node="target",
+        )
+
+    assert mmm.causal_graphical_model.is_backdoor_identified is True
+    assert mmm.causal_graphical_model.minimal_adjustment_set == []
+    assert mmm.yearly_seasonality is None
+    assert not hasattr(mmm, "yearly_fourier")
+
+
 def test_mmm_retains_yearly_seasonality_when_backdoor_unidentified():
     dag = """
     digraph {
