@@ -221,11 +221,12 @@ Notes
 """
 
 import warnings
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import (
     Any,
     ClassVar,
+    Literal,
     NotRequired,
     Protocol,
     TypedDict,
@@ -288,6 +289,13 @@ class ConstraintIterationInfo(TypedDict):
     type: str
     value: float | np.ndarray
     jac: np.ndarray | None
+
+
+class ConstraintResidual(TypedDict):
+    """One constraint's value at a plan, with the sense it must satisfy."""
+
+    type: Literal["eq", "ineq"]
+    value: float | np.ndarray
 
 
 class OptimizationIterationInfo(TypedDict):
@@ -406,6 +414,100 @@ class BudgetOptimizationResult:
         """Yield ``(budgets, scipy_result)`` for two-element unpacking."""
         yield self.budgets
         yield self.scipy_result
+
+
+@dataclass
+class PlanEvaluation:
+    """The compiled objective and its gradient at one labelled plan.
+
+    Returned by :meth:`BudgetOptimizer.evaluate_plan`. Both sign conventions are
+    offered because both are wanted and confusing them is silent: the optimizer
+    *minimises* ``objective = -utility``, so ``objective`` is what compares with
+    ``scipy_result.fun``, while ``utility`` is what compares with a response.
+
+    Attributes
+    ----------
+    objective : float
+        The objective at the plan, on the minimiser's scale (the negated
+        utility). Equal to ``result.scipy_result.fun`` when the plan is the
+        solution of that run.
+    objective_gradient : dict[str, xarray.DataArray]
+        Derivative of ``objective`` with respect to every decision cell, keyed
+        by decision-variable name and labelled with that variable's own dims
+        and coords -- the same layout
+        :meth:`~pymc_marketing.mmm.optimization_variables.OptimizationVariables.unpack`
+        produces. Cells outside the optimization mask are reported as ``0.0``
+        because they are not decision variables, not because the response is
+        insensitive to them; ``optimizer.budgets_to_optimize`` says which is
+        which.
+    constraint_residuals : dict[str, ConstraintResidual] or None
+        Value of every registered constraint at the plan, keyed by
+        :class:`~pymc_marketing.mmm.constraints.Constraint` key, when
+        :meth:`BudgetOptimizer.evaluate_plan` was called with a
+        ``total_budget``; ``None`` otherwise. See :meth:`feasible`.
+
+    Notes
+    -----
+    Gradient units follow the decision variable: for media this is response per
+    unit of *per-period* spend sustained over the whole window, including the
+    carry-over tail. Divide by the number of periods for a per-dollar figure. A
+    lever's entry is in that lever's own units.
+    """
+
+    objective: float
+    objective_gradient: dict[str, DataArray]
+    constraint_residuals: dict[str, ConstraintResidual] | None = None
+
+    @property
+    def utility(self) -> float:
+        """The utility at the plan: ``-objective``, the quantity being maximised."""
+        return -self.objective
+
+    @property
+    def utility_gradient(self) -> dict[str, DataArray]:
+        """Derivative of the utility per decision cell: ``-objective_gradient``.
+
+        This is the marginal return of the plan, so a positive entry means
+        spending more in that cell increases the utility.
+        """
+        return {name: -gradient for name, gradient in self.objective_gradient.items()}
+
+    def feasible(self, atol: float = 1e-8) -> bool:
+        """Whether every registered constraint holds at the plan.
+
+        Equalities must be within ``atol`` of zero, inequalities at or above
+        ``-atol``, which is SciPy's own convention for ``eq``/``ineq``.
+
+        Parameters
+        ----------
+        atol : float
+            Absolute tolerance on each constraint's residual.
+
+        Returns
+        -------
+        bool
+            True when every constraint is satisfied within ``atol``.
+
+        Raises
+        ------
+        ValueError
+            If the evaluation carries no residuals, i.e.
+            :meth:`BudgetOptimizer.evaluate_plan` was called without
+            ``total_budget``. Feasibility is undefined without the budget the
+            constraints are measured against.
+        """
+        if self.constraint_residuals is None:
+            raise ValueError(
+                "No constraint residuals on this evaluation: call "
+                "evaluate_plan(plan, total_budget=...) to measure the "
+                "constraints against a budget."
+            )
+        return all(
+            bool(np.all(np.abs(residual["value"]) <= atol))
+            if residual["type"] == "eq"
+            else bool(np.all(np.asarray(residual["value"]) >= -atol))
+            for residual in self.constraint_residuals.values()
+        )
 
 
 def optimizer_xarray_builder(value, **kwargs):
@@ -1484,6 +1586,9 @@ class BudgetOptimizer(BaseModel):
     _objective_and_grad: Callable = PrivateAttr()
     _constraints: dict = PrivateAttr()
     _compiled_constraints: list[dict] = PrivateAttr()
+    _response_functions: dict[str, tuple[Callable, tuple[str, ...]]] = PrivateAttr(
+        default_factory=dict
+    )
 
     @model_validator(mode="before")
     @classmethod
@@ -1809,6 +1914,151 @@ class BudgetOptimizer(BaseModel):
         """
         return self._variables
 
+    def _pack_decision_vector(
+        self, values: np.ndarray | DataArray | Mapping[str, DataArray]
+    ) -> np.ndarray:
+        """Flat decision vector from labelled values, in the compiled input's dtype.
+
+        One owner for the three things that have to happen before anything is
+        handed to a compiled function: pack labelled values into flat order,
+        cast to the input's dtype, and filter through the input's type, which
+        is what turns a wrong shape into a ``TypeError`` naming it.
+        """
+        if isinstance(values, DataArray | Mapping):
+            values = self._variables.pack(values)
+        values = np.asarray(values).astype(self._budgets_flat.type.dtype)
+        return self._budgets_flat.type.filter(values)
+
+    def evaluate_plan(
+        self,
+        plan: DataArray | Mapping[str, DataArray],
+        *,
+        total_budget: float | None = None,
+    ) -> PlanEvaluation:
+        """Evaluate the compiled objective and its gradient at a labelled plan.
+
+        The same compiled function the solver is handed, evaluated at a plan the
+        caller names rather than at one the solver found. Use it to score an
+        externally proposed plan, to compare two objectives at the same point,
+        or to decompose a gradient.
+
+        Parameters
+        ----------
+        plan : xarray.DataArray or Mapping[str, xarray.DataArray]
+            The plan, labelled. A mapping from decision-variable name to values
+            (media budgets under ``channel_data_var``, one entry per declared
+            ``spend_vars`` and ``optimizable_vars``); an ``xarray.Dataset`` keyed
+            the same way works too, and a bare ``DataArray`` is accepted when the
+            decision vector has a single variable. Values are aligned to the
+            model's coordinates by
+            :meth:`~pymc_marketing.mmm.optimization_variables.OptimizationVariables.pack`,
+            so the order of coordinates does not matter and a missing one is an
+            error.
+        total_budget : float, optional
+            Measure the registered constraints at this budget and report their
+            residuals in :attr:`PlanEvaluation.constraint_residuals`. The
+            optimizer's shared total budget is set for the measurement and
+            restored afterwards, so this method changes no state. Without it,
+            ``constraint_residuals`` is ``None``: the shared total is ``0.0``
+            until the first solve, and a residual measured against whatever it
+            happens to hold would be wrong in a way the caller cannot see.
+
+        Returns
+        -------
+        PlanEvaluation
+            The objective (minimiser's sign) and its labelled gradient, plus
+            ``utility``/``utility_gradient`` views with the opposite sign, and
+            the constraint residuals when ``total_budget`` is given.
+
+        Raises
+        ------
+        TypeError
+            If ``plan`` is not labelled.
+        ValueError
+            If ``plan`` omits a decision variable, omits an optimized cell, or
+            carries coordinates the model does not have.
+
+        Notes
+        -----
+        Constraints are evaluated only when ``total_budget`` is given, and
+        **bounds are never checked**: the box is an argument of
+        :meth:`allocate_budget` rather than state of the optimizer. A higher
+        utility here therefore does not mean a better plan unless the plan is
+        feasible.
+
+        A raw ``numpy`` array is refused deliberately. The compiled objective
+        runs with ``trust_input=True`` and does not check its input's length: a
+        vector shorter than the decision space broadcasts and returns the value
+        of a *different* plan, silently. Labels make that unrepresentable.
+
+        Examples
+        --------
+        Score a plan and read its marginal returns:
+
+        .. code-block:: python
+
+            plan = {"channel_data": historical_weekly_spend}
+            evaluation = optimizer.evaluate_plan(plan)
+            print(evaluation.utility)
+            marginal = evaluation.utility_gradient["channel_data"]
+
+        Decompose two objectives at the same plan -- the funnel-aware objective
+        minus the direct-only one is the marginal mediated response:
+
+        .. code-block:: python
+
+            total = funnel_optimizer.evaluate_plan(plan).utility_gradient
+            direct = direct_optimizer.evaluate_plan(plan).utility_gradient
+            mediated_marginal = total["channel_data"] - direct["channel_data"]
+
+        Check an externally proposed plan before ranking it:
+
+        .. code-block:: python
+
+            evaluation = optimizer.evaluate_plan(plan, total_budget=100_000)
+            assert evaluation.feasible()
+        """
+        if not isinstance(plan, DataArray | Mapping):
+            names = sorted(variable.name for variable in self._variables.variables)
+            raise TypeError(
+                "evaluate_plan takes a labelled plan: a DataArray, or a mapping "
+                f"from decision-variable name to DataArray (expected keys {names}). "
+                "A raw array is refused because the compiled objective does not "
+                "check its length: a short vector broadcasts into a silently "
+                "different plan."
+            )
+
+        x = self._pack_decision_vector(plan)
+        objective, gradient = self._objective_and_grad(x)
+
+        residuals: dict[str, ConstraintResidual] | None = None
+        if total_budget is not None:
+            # Measuring a constraint means writing the shared total the
+            # constraint graphs close over. Put it back: `allocate_budget` sets
+            # it for itself, but anything else reading a compiled constraint
+            # after this call would otherwise see a budget it never asked for.
+            previous_total = self._total_budget.get_value()
+            self._total_budget.set_value(np.asarray(total_budget, dtype="float64"))
+            try:
+                residuals = {
+                    constraint["key"]: ConstraintResidual(
+                        type=constraint["type"],
+                        value=float(value)
+                        if np.ndim(value) == 0
+                        else np.asarray(value),
+                    )
+                    for constraint in self._compiled_constraints
+                    if (value := constraint["fun"](x)) is not None
+                }
+            finally:
+                self._total_budget.set_value(previous_total)
+
+        return PlanEvaluation(
+            objective=float(objective),
+            objective_gradient=self._variables.unpack(np.asarray(gradient)),
+            constraint_residuals=residuals,
+        )
+
     def set_constraints(self, constraints: Sequence[Constraint]) -> None:
         """Set constraints for the optimizer.
 
@@ -2109,6 +2359,70 @@ class BudgetOptimizer(BaseModel):
             shared_posterior=self._shared_posterior,
         )
 
+    def evaluate_response_distribution(
+        self,
+        plan: DataArray | Mapping[str, DataArray],
+        response_variable: str | None = None,
+    ) -> DataArray:
+        """Posterior distribution of a response variable at a labelled plan.
+
+        Where :meth:`evaluate_plan` reduces the response to the single number
+        the solver optimises, this returns the whole posterior of the response
+        under the plan, which is what a comparison of two plans needs: the
+        difference of two of these is a posterior distribution of the gain, not
+        a point estimate.
+
+        Parameters
+        ----------
+        plan : xarray.DataArray or Mapping[str, xarray.DataArray]
+            The plan, labelled, exactly as in :meth:`evaluate_plan`.
+        response_variable : str, optional
+            Which model variable to evaluate. Defaults to this optimizer's
+            ``response_variable``.
+
+        Returns
+        -------
+        xarray.DataArray
+            The response at the plan, over the graph's own dims -- ``("sample",)``
+            for the scalar-per-draw totals such as
+            ``"total_response_original_scale"``, with the posterior's chain and
+            draw stacked into that one dimension.
+
+        Notes
+        -----
+        The compiled function is cached per response variable and dropped by
+        :meth:`set_posterior`, so scoring many plans against the same posterior
+        compiles once and no cached function outlives its draws.
+
+        This evaluates the model's deterministic response under the plan. It is
+        not :meth:`~pymc_marketing.mmm.mmm.MMM.sample_response_distribution`,
+        which draws fresh predictive noise on top.
+
+        ``az.hdi`` expects ``chain``/``draw``, so summarising this needs the
+        dimension named: ``az.hdi(response, dim=["sample"])``.
+
+        Examples
+        --------
+        .. code-block:: python
+
+            gain = optimizer.evaluate_response_distribution(
+                new_plan
+            ) - optimizer.evaluate_response_distribution(current_plan)
+            print(float((gain > 0).mean()))
+        """
+        name = response_variable or self.response_variable
+        if name not in self._response_functions:
+            graph = self.extract_response_distribution(name)
+            self._response_functions[name] = (
+                function(
+                    [self._budgets_flat], graph.values, **self.compile_kwargs or {}
+                ),
+                tuple(graph.type.dims),
+            )
+        compiled, dims = self._response_functions[name]
+        values = compiled(self._pack_decision_vector(plan))
+        return DataArray(np.asarray(values), dims=dims)
+
     def set_posterior(self, idata: Any) -> None:
         """Point the compiled objective and constraints at a new posterior.
 
@@ -2195,14 +2509,21 @@ class BudgetOptimizer(BaseModel):
         # piece back, so a failed first call leaves the constant-folded graphs
         # and the previous idata in place, and the next call retries this path
         # rather than rebinding variables the compiled objective never reads.
+        # The response cache holds functions compiled against the pre-rebind
+        # graph, whose draws are constants. They go with the recompile, and
+        # come back with a rollback. Later calls take the fast path above,
+        # where the cached functions read the same shared variables the
+        # objective does and so follow the new draws on their own.
         previous = (
             self._shared_posterior,
             self.idata,
             self._objective_and_grad,
             self._constraints,
             self._compiled_constraints,
+            self._response_functions,
         )
         self._shared_posterior = SharedPosterior()
+        self._response_functions = {}
         try:
             self._compile_objective_and_grad()
             self.set_constraints(constraints=list(self._constraints.values()))
@@ -2215,6 +2536,7 @@ class BudgetOptimizer(BaseModel):
                 self._objective_and_grad,
                 self._constraints,
                 self._compiled_constraints,
+                self._response_functions,
             ) = previous
             raise
 
@@ -2379,16 +2701,12 @@ class BudgetOptimizer(BaseModel):
         bounds = self._variables.bounds(total_budget, overrides=bounds_overrides)
 
         # 3. Construct the initial guess (x0) if not provided; labelled values
-        # are packed into flat order by the optimization variables.
+        # are packed into flat order by the optimization variables, cast and
+        # filtered through the compiled input's type, which raises a TypeError
+        # naming the shape when x0 does not fit.
         if x0 is None:
             x0 = self._variables.x0(total_budget)
-        elif isinstance(x0, DataArray | dict):
-            x0 = self._variables.pack(x0)
-        x0 = np.asarray(x0).astype(self._budgets_flat.type.dtype)
-
-        # filter x0 based on shape/type of self._budgets_flat
-        # will raise a TypeError if x0 does not have acceptable shape and/or type
-        x0 = self._budgets_flat.type.filter(x0)
+        x0 = self._pack_decision_vector(x0)
 
         # 5. Set up callback tracking if requested
         callback_info: list[OptimizationIterationInfo] = []

@@ -23,6 +23,7 @@ from pymc_marketing.mmm.additive_effect import (
 from pymc_marketing.mmm.budget_optimizer import (
     BudgetOptimizationResult,
     BudgetOptimizer,
+    PlanEvaluation,
     merge_inference_data,
     merge_models_and_idata,
 )
@@ -134,6 +135,7 @@ __all__ = [
     "OptimizationVariable",
     "OptimizationVariables",
     "PeriodicCovFunc",
+    "PlanEvaluation",
     "RootSaturation",
     "SaturationTransformation",
     "Scaling",
