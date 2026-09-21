@@ -14,6 +14,7 @@
 """Utilities for the CLV module."""
 
 import warnings
+from collections.abc import Sequence
 from datetime import date, datetime
 
 import numpy as np
@@ -46,16 +47,77 @@ def _normalize_time_unit(time_unit: str) -> str:
     return _PERIOD_ALIASES.get(time_unit, time_unit)
 
 
-def to_xarray(customer_id, *arrays, dim: str = "customer_id"):
-    """Convert vector arrays to xarray with a common dim (default "customer_id")."""
+def _resolve_dims(ndim: int, dims: tuple[str, ...]) -> tuple[str, ...]:
+    """Return the dim names labelling an array of ``ndim`` dimensions."""
+    if ndim == 1:
+        return dims[:1]
+    if ndim == len(dims):
+        return dims
+    raise ValueError(
+        f"Cannot label an array of {ndim} dimensions with {dims}. Pass 'extra_dims' "
+        "naming the trailing axes of multidimensional arrays."
+    )
+
+
+def to_xarray(
+    customer_id,
+    *arrays,
+    dim: str = "customer_id",
+    extra_dims: Sequence[str] | None = None,
+):
+    """Convert arrays to xarray objects sharing a common dim (default "customer_id").
+
+    The leading axis of every array is labelled ``dim`` and takes ``customer_id`` as
+    its coordinate. Arrays with more than one axis are supported, but the names of
+    their trailing axes must be supplied through ``extra_dims``. Auto-generated names
+    are deliberately not provided: they would make the unrelated trailing axes of two
+    arrays returned by the same call align with each other.
+
+    Parameters
+    ----------
+    customer_id : array-like
+        Coordinate values for ``dim``. Must match the length of the leading axis of
+        every array.
+    *arrays : array-like
+        Arrays to convert. Each must be one-dimensional or have
+        ``1 + len(extra_dims)`` dimensions.
+    dim : str, default "customer_id"
+        Name of the leading dimension.
+    extra_dims : sequence of str, optional
+        Names of the trailing dimensions. Required as soon as an array is
+        multidimensional.
+
+    Returns
+    -------
+    xarray.DataArray or tuple of xarray.DataArray
+        One ``DataArray`` per entry in ``arrays``, or a bare ``DataArray`` when a
+        single array is passed.
+
+    Raises
+    ------
+    ValueError
+        If ``extra_dims`` repeats a name or clashes with ``dim``, or if an array is
+        neither one-dimensional nor of dimension ``1 + len(extra_dims)``.
+
+    Examples
+    --------
+    .. code-block:: python
+
+        frequency, recency = to_xarray(
+            data["customer_id"], data["frequency"], data["recency"]
+        )
+        spend = to_xarray(data["customer_id"], channel_matrix, extra_dims=("channel",))
+
+    """
+    dims: tuple[str, ...] = (dim, *(extra_dims or ()))
+    if len(set(dims)) != len(dims):
+        raise ValueError(f"Dimension names must be unique, got {dims}.")
+
     coords = {dim: np.asarray(customer_id)}
 
     res = tuple(
         xarray.DataArray(
-            data=array,
-            coords=coords,
-            dims=(dim,)
-            + tuple(f"dim_{i}" for i in range(1, np.asarray(array).ndim)),
+            data=array, coords=coords, dims=_resolve_dims(np.ndim(array), dims)
         )
         for array in arrays
     )

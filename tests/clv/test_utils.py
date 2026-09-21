@@ -57,17 +57,64 @@ def test_to_xarray():
     assert new_y.dims == ("test_dim",)
     np.testing.assert_array_equal(new_y.coords["test_dim"], customer_id)
 
-    # Test multidimensional input
+    # Multidimensional input: trailing axes must be named by the caller
     matrix = np.arange(20).reshape(10, 2)
 
-    new_matrix = to_xarray(customer_id, matrix)
+    new_matrix = to_xarray(customer_id, matrix, extra_dims=("channel",))
 
     assert isinstance(new_matrix, xarray.DataArray)
-    assert new_matrix.dims == ("customer_id", "dim_1")
-    np.testing.assert_array_equal(
-        new_matrix.coords["customer_id"], customer_id
-    )
+    assert new_matrix.dims == ("customer_id", "channel")
+    np.testing.assert_array_equal(new_matrix.coords["customer_id"], customer_id)
     np.testing.assert_array_equal(new_matrix.values, matrix)
+
+
+def test_to_xarray_mixes_1d_and_multidim_arrays():
+    customer_id = np.arange(10) + 100
+    frequency = np.arange(10)
+    matrix = np.arange(20).reshape(10, 2)
+
+    new_frequency, new_matrix = to_xarray(
+        customer_id, frequency, matrix, extra_dims=("channel",)
+    )
+
+    assert new_frequency.dims == ("customer_id",)
+    assert new_matrix.dims == ("customer_id", "channel")
+    np.testing.assert_array_equal(new_matrix.values, matrix)
+
+
+def test_to_xarray_preserves_axis_order():
+    customer_id = np.arange(4)
+    cube = np.arange(24).reshape(4, 2, 3)
+
+    new_cube = to_xarray(customer_id, cube, extra_dims=("channel", "lag"))
+
+    assert new_cube.dims == ("customer_id", "channel", "lag")
+    assert new_cube.sizes == {"customer_id": 4, "channel": 2, "lag": 3}
+    np.testing.assert_array_equal(new_cube.values, cube)
+
+
+def test_to_xarray_distinct_trailing_dims_broadcast():
+    """Unrelated trailing axes must broadcast instead of silently aligning."""
+    customer_id = np.arange(4)
+
+    channels = to_xarray(customer_id, np.ones((4, 2)), extra_dims=("channel",))
+    lags = to_xarray(customer_id, np.ones((4, 3)), extra_dims=("lag",))
+
+    assert (channels * lags).sizes == {"customer_id": 4, "channel": 2, "lag": 3}
+
+
+@pytest.mark.parametrize(
+    "array, extra_dims, match",
+    [
+        (np.ones((10, 2)), None, "Cannot label an array of 2 dimensions"),
+        (np.ones((10, 2, 3)), ("channel",), "Cannot label an array of 3 dimensions"),
+        (np.ones(10), ("customer_id",), "must be unique"),
+    ],
+    ids=["missing_extra_dims", "too_few_extra_dims", "duplicate_dim_name"],
+)
+def test_to_xarray_invalid_dims_raise(array, extra_dims, match):
+    with pytest.raises(ValueError, match=match):
+        to_xarray(np.arange(10), array, extra_dims=extra_dims)
 
 
 @pytest.fixture(scope="module")
