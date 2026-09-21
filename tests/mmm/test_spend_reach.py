@@ -858,7 +858,7 @@ class TestSpendProbe:
         assert node is not None
         assert node.name == LINEAR_PREDICTOR
 
-    def test_a_second_node_named_mu_is_refused_rather_than_guessed(
+    def test_a_second_node_named_mu_is_shadowed_by_the_registered_one(
         self, simple_fitted_mmm, shadow_named_node
     ):
         """A second node named ``mu`` is no longer consulted.
@@ -874,6 +874,26 @@ class TestSpendProbe:
         node = linear_predictor(simple_fitted_mmm)
 
         assert node is simple_fitted_mmm.model[LINEAR_PREDICTOR]
+
+    def test_an_unregistered_ambiguous_predictor_is_still_refused(
+        self, simple_fitted_mmm, shadow_named_node
+    ):
+        """The graph search kept for legacy models keeps its ambiguity guard.
+
+        A model fitted before ``mu`` was registered under the identity link has
+        no ``named_vars`` entry to settle the name, so ``linear_predictor``
+        falls back to scanning the graph.  Dropping the entry reproduces that
+        model.  With a shadow in place the name no longer picks out one node,
+        and guessing is worse than stopping.
+        """
+        model = simple_fitted_mmm.model
+        registered = model.named_vars.pop(LINEAR_PREDICTOR)
+        shadow_named_node(simple_fitted_mmm, LINEAR_PREDICTOR)
+        try:
+            with pytest.raises(ValueError, match="distinct nodes named 'mu'"):
+                linear_predictor(simple_fitted_mmm)
+        finally:
+            model.named_vars[LINEAR_PREDICTOR] = registered
 
     def test_declared_carryover_survives_an_unprobeable_axis(self):
         """With nothing to probe, a declaration is all there is to go on.

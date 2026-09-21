@@ -525,12 +525,24 @@ class Incrementality:
             },
         )
 
-    def _mean_correction(
+    def _mean_scale_factor(
         self,
         posterior: xr.Dataset,
         central_tendency: CentralTendency,
     ) -> xr.DataArray:
         """Per-draw factor rescaling a median-scale prediction to the mean scale.
+
+        An incrementality reducer folds this into a scale, so only a
+        *multiplicative* correction can be used here.  Under the identity link
+        with a ``TruncatedNormal`` likelihood the correction is an offset that
+        is nonlinear in ``mu``, so it does not cancel in a difference of two
+        predictions and cannot be expressed as a factor:
+        :meth:`~pymc_marketing.mmm.link.LinkSpec.mean_scale_factor` raises
+        there.  That is why
+        :meth:`~pymc_marketing.mmm.mmm.MMM.compute_counterfactual_contributions_dataset`
+        can return mean-scale numbers for a model on which
+        ``central_tendency="mean"`` fails here: it applies the offset to a
+        level, while this applies a factor to a difference.
 
         Parameters
         ----------
@@ -545,6 +557,12 @@ class Incrementality:
             Scalar ``1.0`` when no correction applies, otherwise a factor over
             ``sample`` and any dimensions the likelihood scale carries -- for a
             panel model the correction differs per custom-dim cell.
+
+        Raises
+        ------
+        ValueError
+            If ``E[y]`` is undefined for the likelihood, or if its correction
+            is an offset rather than a factor.
         """
         if central_tendency == "median":
             return xr.DataArray(1.0)
@@ -616,7 +634,7 @@ class Incrementality:
             non-additive link returns numbers that are not incremental
             response.
         """
-        correction = self._mean_correction(posterior, central_tendency)
+        correction = self._mean_scale_factor(posterior, central_tendency)
 
         if self.model.link == LinkFunction.IDENTITY:
             return IdentityLinkReducer(
@@ -705,8 +723,13 @@ class Incrementality:
             response-scale prediction :math:`\exp(\mu)\,s` is the *median* of
             the ``LogNormal`` likelihood, and ``"mean"`` rescales it by
             :math:`\exp(\sigma^2 / 2)` to give an increment on the
-            conditional-mean scale.  Ignored under ``link="identity"``, where
-            the Normal mean and median coincide.
+            conditional-mean scale.  Under ``link="identity"`` it is a no-op
+            for the likelihoods whose mean is ``mu``, but it *raises* for
+            ``TruncatedNormal``: the truncation correction is an offset that
+            is nonlinear in ``mu``, so it neither cancels in the difference
+            nor folds into the reducer's scale.  Use ``"median"`` there, or
+            :meth:`~pymc_marketing.mmm.mmm.MMM.compute_counterfactual_contributions_dataset`,
+            which corrects a level rather than a difference.
 
         Returns
         -------

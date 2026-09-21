@@ -25,6 +25,7 @@ import numbers
 import warnings
 from abc import ABC, abstractmethod
 from enum import StrEnum
+from typing import Any
 
 import numpy as np
 import pymc.dims as pmd
@@ -170,6 +171,45 @@ def _distribution_name(likelihood: Prior) -> str:
     while dist is not None and not isinstance(dist, str):
         dist = getattr(dist, "distribution", None)
     return dist if dist is not None else type(likelihood).__name__
+
+
+def _label_bound(
+    value: Any,
+    likelihood: Prior,
+    bound: str,
+) -> Any:
+    """Attach dimension names to a non-scalar truncation bound.
+
+    A bound handed to ``Prior`` as a bare array carries no dimension names, so
+    arithmetic against ``posterior["mu"]`` would fall back to positional numpy
+    broadcasting.  That is wrong here: the identity link registers ``mu``
+    without transposing it, so its dimension order is whatever the linear
+    predictor happened to produce.  A per-``country`` bound on a panel model
+    then either raises an opaque shape error or, worse, lines up against
+    ``date`` and silently corrects the wrong cells.
+
+    PyMC broadcasts a parameter array against the prior's ``dims`` by
+    right-alignment, so the trailing ``dims`` are the bound's own.  Labelling
+    it with them reproduces what the likelihood itself did and lets xarray
+    align by name.
+
+    Scalars are returned untouched: they broadcast unambiguously and stay
+    plain floats, which keeps the ``erfcx`` branches out of xarray.
+    """
+    if np.ndim(value) == 0:
+        return value
+
+    array = np.asarray(value)
+    dims = likelihood.dims
+    dims = (dims,) if isinstance(dims, str) else tuple(dims or ())
+    if array.ndim > len(dims):
+        raise ValueError(
+            f"The truncation correction cannot place the {array.ndim}-dimensional "
+            f"'{bound}' bound: the likelihood declares dims {dims}, which is too "
+            f"few to name its axes. Declare the likelihood's dims, pass a scalar "
+            f"bound, or use central_tendency='median'."
+        )
+    return xr.DataArray(array, dims=dims[len(dims) - array.ndim :])
 
 
 def _positive(likelihood: Prior, observed: np.ndarray):
@@ -941,9 +981,12 @@ class IdentityLinkSpec(LinkSpec):
     ) -> xr.DataArray:
         """Refuse: the identity-link correction needs the likelihood.
 
-        .. deprecated:: 1.2.0
-            Use :meth:`to_mean_scale`, or :meth:`mean_scale_factor` where a
-            factor is what the caller needs.
+        .. versionremoved:: 1.2.0
+            This override never returns a value.  It is a removal rather than
+            a deprecation on purpose: the only thing it could return is ``1``,
+            which is wrong for ``TruncatedNormal``, so there is no behaviour
+            left to warn about and keep.  Use :meth:`to_mean_scale`, or
+            :meth:`mean_scale_factor` where a factor is what the caller needs.
 
         The base implementation returns ``1``, which was the legacy behaviour
         and is wrong for ``TruncatedNormal``.  Rather than keep returning a
@@ -964,7 +1007,7 @@ class IdentityLinkSpec(LinkSpec):
             Always.
         """
         raise ValueError(
-            "IdentityLinkSpec.mean_correction is deprecated and no longer "
+            "IdentityLinkSpec.mean_correction is removed and no longer "
             "returns a value: under link='identity' the right correction "
             "depends on the likelihood, which this signature cannot see, and "
             "returning 1 is wrong for TruncatedNormal. Use to_mean_scale to "
@@ -996,9 +1039,9 @@ class IdentityLinkSpec(LinkSpec):
             raise ValueError(
                 "Mean-scale contributions under link='identity' with a "
                 "TruncatedNormal likelihood need 'mu' in the posterior, which "
-                "was not found. Models fitted before 'mu' was registered on "
-                "this branch have to be refitted, or use "
-                "central_tendency='median'."
+                "was not found. Models fitted before 1.2.0, where 'mu' was "
+                "first registered under the identity link, have to be "
+                "refitted; otherwise use central_tendency='median'."
             )
 
         parameters = likelihood.parameters
@@ -1025,7 +1068,7 @@ class IdentityLinkSpec(LinkSpec):
                     f"The truncation correction needs a fixed '{bound}' bound, "
                     f"but it was given a prior. Use central_tendency='median'."
                 )
-            bounds[bound] = value
+            bounds[bound] = _label_bound(value, likelihood, bound)
 
         mu = posterior["mu"]
         alpha = (bounds["lower"] - mu) / sigma
@@ -1037,26 +1080,35 @@ class IdentityLinkSpec(LinkSpec):
         # the one-sided cases exact and is a ufunc, so it stays vectorised.
         # scipy.stats.truncnorm is exact too but roughly 2000x slower, which
         # matters on a full posterior.
-        # np.all, because a bound may be an array: a partly infinite one is not
-        # one-sided everywhere, so it falls through to the two-sided branch,
-        # which handles infinite entries correctly (only more slowly).
+        # np.all, because a bound may be an array (labelled by _label_bound): a
+        # partly infinite one is not one-sided everywhere, so it falls through
+        # to the two-sided branch, which handles infinite entries correctly
+        # (only more slowly).
         root_two = np.sqrt(2.0)
         if np.all(np.isposinf(bounds["upper"])):
-            return sigma * np.sqrt(2 / np.pi) / erfcx(alpha / root_two)
-        if np.all(np.isneginf(bounds["lower"])):
-            return -sigma * np.sqrt(2 / np.pi) / erfcx(-beta / root_two)
+            offset = sigma * np.sqrt(2 / np.pi) / erfcx(alpha / root_two)
+        elif np.all(np.isneginf(bounds["lower"])):
+            offset = -sigma * np.sqrt(2 / np.pi) / erfcx(-beta / root_two)
+        else:
+            # Two-sided truncation. The direct form returns inf or nan once
+            # both bounds sit on the same side of mu, since numerator and
+            # denominator both underflow. scipy handles the whole range; it is
+            # far slower, but a two-sided likelihood is uncommon and
+            # correctness comes first.
+            offset = xr.apply_ufunc(
+                lambda a, b, m, s: truncnorm.mean(a, b, loc=m, scale=s) - m,
+                alpha,
+                beta,
+                mu,
+                sigma,
+            )
 
-        # Two-sided truncation. The direct form returns inf or nan once both
-        # bounds sit on the same side of mu, since numerator and denominator
-        # both underflow. scipy handles the whole range; it is far slower, but
-        # a two-sided likelihood is uncommon and correctness comes first.
-        return xr.apply_ufunc(
-            lambda a, b, m, s: truncnorm.mean(a, b, loc=m, scale=s) - m,
-            alpha,
-            beta,
-            mu,
-            sigma,
-        )
+        # A labelled bound or scale can lead the broadcast and leave the result
+        # transposed. Correct either way, since the caller adds it to the
+        # baseline term by name, but a returned array whose axis order depends
+        # on which parameters happened to be vectors is a trap for anyone
+        # reading .values.
+        return offset.transpose(*mu.dims, ...)
 
 
 class LogLinkSpec(LinkSpec):
@@ -1158,10 +1210,14 @@ class LogLinkSpec(LinkSpec):
         """Multiply by the LogNormal mean/median ratio.
 
         The log-link model is multiplicative in the components, so the
-        proportional form is the right one here and *likelihood* is not
-        consulted: :meth:`validate_likelihood_compatibility` already pins the
-        log link to ``LogNormal``.
+        proportional form is the right one here, and the base
+        :meth:`_validate_mean_defined` is a no-op because
+        :meth:`validate_likelihood_compatibility` already pins the log link to
+        ``LogNormal``.  It is still called, so that both entry points reject
+        the same likelihoods on every link rather than only on the one that
+        currently overrides the check.
         """
+        self._validate_mean_defined(posterior, likelihood, output_var)
         return dataset * self._mean_ratio(posterior, output_var)
 
     def _mean_ratio(

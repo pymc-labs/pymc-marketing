@@ -946,8 +946,23 @@ class TestTruncatedNormalMeanCorrection:
         mmm.fit(X, y, random_seed=42)
         return mmm
 
-    def test_mu_is_registered_under_identity(self, mmm):
-        assert "mu" in mmm.idata.posterior
+    def test_a_posterior_without_mu_is_refused_through_the_public_api(self, mmm):
+        """A model fitted before ``mu`` was registered cannot be corrected.
+
+        The offset is pointwise in ``mu``, so a posterior that predates its
+        registration has nothing to evaluate it at.  Deleting ``mu`` reproduces
+        such a posterior.  The error has to name the way out rather than let a
+        ``KeyError`` escape from three frames down.
+        """
+        saved = mmm.idata.posterior["mu"]
+        del mmm.idata.posterior["mu"]
+        try:
+            with pytest.raises(ValueError, match="need 'mu' in the posterior"):
+                mmm.compute_counterfactual_contributions_dataset(
+                    central_tendency="mean"
+                )
+        finally:
+            mmm.idata.posterior["mu"] = saved
 
     def test_mu_keeps_the_predictor_dim_order_under_identity(self, mmm):
         """ "date" stays last: the identity branch does not transpose.
@@ -1105,15 +1120,7 @@ class TestTruncatedNormalMeanCorrection:
         np.testing.assert_allclose(offset.values[0], expected)
         assert np.all(np.isfinite(offset.values))
 
-    @pytest.mark.parametrize(
-        "inner",
-        [
-            Prior("TruncatedNormal", lower=0, sigma=1),
-            Prior("Normal", sigma=1),
-            Prior("StudentT", nu=3, sigma=1),
-        ],
-    )
-    def test_censored_wrapper_raises_rather_than_using_the_wrong_mean(self, inner):
+    def test_censored_wrapper_raises_rather_than_using_the_wrong_mean(self):
         # Censoring piles mass at the bounds, so E[y] != mu even for the
         # response-scale names the wrapper resolves to.
         posterior = xr.Dataset(
@@ -1125,20 +1132,23 @@ class TestTruncatedNormalMeanCorrection:
         dataset = xr.Dataset({"intercept": posterior["mu"]})
         with pytest.raises(ValueError, match="wrapped likelihood"):
             IdentityLinkSpec().to_mean_scale(
-                dataset, posterior, Censored(inner, lower=0), xr.DataArray(1.0)
+                dataset,
+                posterior,
+                Censored(Prior("TruncatedNormal", lower=0, sigma=1), lower=0),
+                xr.DataArray(1.0),
             )
 
-    def test_scaled_wrapper_is_named_once_in_the_rejection(self):
-        """Scaled resolves to its own class name, so do not print it twice.
+    def test_scaled_wrapper_is_refused_and_named(self):
+        """A Scaled likelihood moves the mean off ``mu`` like any other wrapper.
 
-        Censored resolves to the name it holds, which reads well. Scaled does
-        not, and naming both gave "Scaled holding 'Scaled'".
+        Scaled resolves to its own class name rather than the one it holds, so
+        the message names it once; the contract under test is the refusal.
         """
         posterior = xr.Dataset({"mu": xr.DataArray([[1.0]], dims=("chain", "date"))})
         dataset = xr.Dataset({"intercept": posterior["mu"]})
         likelihood = Scaled(Prior("TruncatedNormal", lower=0, sigma=1), factor=2)
 
-        with pytest.raises(ValueError, match=r"\(Scaled\)\. The wrapper"):
+        with pytest.raises(ValueError, match="wrapped likelihood \\(Scaled\\)"):
             IdentityLinkSpec().to_mean_scale(
                 dataset, posterior, likelihood, xr.DataArray(1.0)
             )
@@ -1166,6 +1176,30 @@ class TestTruncatedNormalMeanCorrection:
         ]
         np.testing.assert_allclose(offset.values[0], expected)
 
+    def test_two_sided_matches_the_direct_phi_over_Phi_form(self):
+        # An oracle that is not the scipy call the implementation makes: at
+        # moderate arguments the textbook ratio is well conditioned, so it
+        # pins the value, not just the plumbing.
+        mus = np.array([-1.0, 0.5, 4.0])
+        sigmas = np.array([1.0, 2.0, 1.5])
+        posterior = xr.Dataset(
+            {
+                "mu": xr.DataArray(mus[None, :], dims=("chain", "date")),
+                "y_sigma": xr.DataArray(sigmas[None, :], dims=("chain", "date")),
+            }
+        )
+        likelihood = Prior("TruncatedNormal", lower=0, upper=5, sigma=1)
+        offset = IdentityLinkSpec()._truncation_offset(posterior, likelihood, "y")
+
+        alpha = (0.0 - mus) / sigmas
+        beta = (5.0 - mus) / sigmas
+        expected = (
+            sigmas
+            * (stats.norm.pdf(alpha) - stats.norm.pdf(beta))
+            / (stats.norm.cdf(beta) - stats.norm.cdf(alpha))
+        )
+        np.testing.assert_allclose(offset.values[0], expected)
+
     @pytest.mark.parametrize(
         ("lower", "upper"),
         [
@@ -1184,7 +1218,9 @@ class TestTruncatedNormalMeanCorrection:
                 "y_sigma": xr.DataArray([[1.0, 1.0]], dims=("chain", "date")),
             }
         )
-        likelihood = Prior("TruncatedNormal", lower=lower, upper=upper, sigma=1)
+        likelihood = Prior(
+            "TruncatedNormal", lower=lower, upper=upper, sigma=1, dims="date"
+        )
         offset = IdentityLinkSpec()._truncation_offset(posterior, likelihood, "y")
 
         lows = np.broadcast_to(lower, (2,))
@@ -1194,6 +1230,53 @@ class TestTruncatedNormalMeanCorrection:
             for lo, hi, m in zip(lows, highs, (0.5, 2.0), strict=True)
         ]
         np.testing.assert_allclose(offset.values[0], expected)
+
+    def test_an_array_bound_follows_its_dim_not_the_position_of_mu(self):
+        # The identity link registers mu without transposing, so its dim order
+        # is whatever the linear predictor produced. A per-country bound has to
+        # land on country even when country is not the trailing axis of mu;
+        # positional numpy broadcasting either raised here or, for a bound
+        # whose length happened to match the last axis, corrected the wrong
+        # cells in silence.
+        mu = xr.DataArray(
+            [[[[0.0, 1.0, 2.0], [0.0, 1.0, 2.0]]]],
+            dims=("chain", "draw", "country", "date"),
+            coords={"country": ["a", "b"], "date": [0, 1, 2]},
+        )
+        posterior = xr.Dataset({"mu": mu, "y_sigma": xr.DataArray(1.0)})
+        # Country "a" is truncated at 0, country "b" is effectively unbounded.
+        likelihood = Prior(
+            "TruncatedNormal",
+            lower=np.array([0.0, -50.0]),
+            sigma=1,
+            dims=("date", "country"),
+        )
+
+        offset = IdentityLinkSpec()._truncation_offset(posterior, likelihood, "y")
+
+        assert set(offset.dims) == {"chain", "draw", "country", "date"}
+        expected_a = [
+            stats.truncnorm.mean(0.0 - m, np.inf, loc=m, scale=1.0) - m
+            for m in (0.0, 1.0, 2.0)
+        ]
+        np.testing.assert_allclose(offset.sel(country="a").values.ravel(), expected_a)
+        # 50 sigma away from the bound: no shift at all.
+        np.testing.assert_allclose(
+            offset.sel(country="b").values.ravel(), [0.0, 0.0, 0.0], atol=1e-12
+        )
+
+    def test_an_unnameable_array_bound_is_refused(self):
+        # Without dims there is no way to know which axis the bound indexes,
+        # and guessing is how the silent misalignment above happened.
+        posterior = xr.Dataset(
+            {
+                "mu": xr.DataArray([[0.5, 2.0]], dims=("chain", "date")),
+                "y_sigma": xr.DataArray([[1.0, 1.0]], dims=("chain", "date")),
+            }
+        )
+        likelihood = Prior("TruncatedNormal", lower=np.array([0.0, 0.0]), sigma=1)
+        with pytest.raises(ValueError, match="too few to name its axes"):
+            IdentityLinkSpec()._truncation_offset(posterior, likelihood, "y")
 
 
 class TestMeanScaleFactor:
@@ -1226,18 +1309,13 @@ class TestMeanScaleFactor:
     # to_mean_scale does. Returning 1.0 for any of these is the bug this
     # branch fixes, moved to the other caller.
 
-    @pytest.mark.parametrize(
-        "inner",
-        [
-            Prior("Normal", sigma=1),
-            Prior("TruncatedNormal", lower=0, sigma=1),
-            Prior("StudentT", nu=3, sigma=1),
-        ],
-    )
-    def test_censored_wrapper_refuses(self, inner):
+    def test_censored_wrapper_refuses(self):
+        # The value here is the second entry point, not the inner prior: the
+        # wrapper is rejected before the distribution it holds is consulted.
         with pytest.raises(ValueError, match="wrapped likelihood"):
             IdentityLinkSpec().mean_scale_factor(
-                self._posterior(), Censored(inner, lower=0)
+                self._posterior(),
+                Censored(Prior("TruncatedNormal", lower=0, sigma=1), lower=0),
             )
 
     def test_studentt_at_or_below_one_refuses(self):
@@ -1321,10 +1399,15 @@ class TestIdentityMeanScaleDispatch:
         ],
     )
     def test_response_scale_likelihoods_are_a_noop(self, likelihood):
+        # simplefilter("error"), because the unknown-likelihood branch also
+        # returns the dataset unchanged: without it a name silently dropping
+        # out of RESPONSE_SCALE_LIKELIHOODS would still pass here.
         dataset = self._dataset()
-        out = IdentityLinkSpec().to_mean_scale(
-            dataset, self._posterior(), likelihood, xr.DataArray(2.0)
-        )
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            out = IdentityLinkSpec().to_mean_scale(
+                dataset, self._posterior(), likelihood, xr.DataArray(2.0)
+            )
         xr.testing.assert_identical(out, dataset)
 
     def test_studentt_above_one_is_a_noop(self):

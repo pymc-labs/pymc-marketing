@@ -1743,6 +1743,41 @@ class TestLinkDispatch:
 
         xr.testing.assert_allclose(median, mean)
 
+    def test_truncated_normal_refuses_mean_central_tendency(
+        self, truncated_normal_fitted_mmm
+    ):
+        """An offset correction cannot be folded into the reducer's scale.
+
+        Truncation shifts ``E[y]`` off ``mu`` by an amount that is nonlinear in
+        ``mu``, so it neither cancels in the difference of two predictions nor
+        survives as a factor.  Returning ``1.0``, which is what happened before
+        the correction was likelihood-aware, is the bug this refuses to
+        reproduce.  The median needs no correction, so it still works, and the
+        message has to point at the entry point that *can* apply the offset.
+        """
+        incr = truncated_normal_fitted_mmm.incrementality
+
+        median = incr.compute_incremental_contribution(frequency="all_time")
+        assert np.isfinite(median.values).all()
+
+        with pytest.raises(ValueError, match="is an offset, not a factor"):
+            incr.compute_incremental_contribution(
+                frequency="all_time", central_tendency="mean"
+            )
+
+        # The other entry point corrects a level, so it does apply the offset.
+        corrected = (
+            truncated_normal_fitted_mmm.compute_counterfactual_contributions_dataset(
+                central_tendency="mean"
+            )
+        )
+        uncorrected = (
+            truncated_normal_fitted_mmm.compute_counterfactual_contributions_dataset(
+                central_tendency="median"
+            )
+        )
+        assert not corrected["intercept"].equals(uncorrected["intercept"])
+
     def test_missing_baseline_response_raises(self, log_link_fitted_mmm):
         """A posterior stripped of the response-scale prediction fails clearly."""
         incr = log_link_fitted_mmm.incrementality
@@ -1985,7 +2020,7 @@ class TestMediatedMuEffects:
         with pytest.raises(NotImplementedError, match="Some path from spend"):
             incr.compute_incremental_contribution(frequency="all_time")
 
-    def test_an_ambiguous_predictor_name_stops_the_increment(
+    def test_a_second_node_named_mu_leaves_the_increment_unchanged(
         self, funnel_identity_fitted_mmm, shadow_named_node
     ):
         """A second node named ``mu`` no longer creates an ambiguity.
@@ -1994,13 +2029,17 @@ class TestMediatedMuEffects:
         meant scanning the graph, where a shadow node made the name useless and
         the computation had to stop.  It is now registered as a Deterministic
         under both links, so it resolves through ``named_vars``, where PyMC
-        enforces a unique name, and the shadow is simply not consulted.
+        enforces a unique name, and the shadow is simply not consulted.  The
+        increment therefore has to come back *identical*, not merely non-None:
+        a shadow that shifted the numbers would mean the wrong node was found.
         """
-        shadow_named_node(funnel_identity_fitted_mmm, LINEAR_PREDICTOR)
         incr = funnel_identity_fitted_mmm.incrementality
+        unshadowed = incr.compute_incremental_contribution(frequency="all_time")
 
-        result = incr.compute_incremental_contribution(frequency="all_time")
-        assert result is not None
+        shadow_named_node(funnel_identity_fitted_mmm, LINEAR_PREDICTOR)
+        shadowed = incr.compute_incremental_contribution(frequency="all_time")
+
+        xr.testing.assert_identical(shadowed, unshadowed)
 
     def test_a_frozen_predictor_says_the_check_was_skipped(
         self, funnel_log_link_fitted_mmm, monkeypatch
