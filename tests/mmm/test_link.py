@@ -1265,6 +1265,42 @@ class TestTruncatedNormalMeanCorrection:
             offset.sel(country="b").values.ravel(), [0.0, 0.0, 0.0], atol=1e-12
         )
 
+    def test_a_fixed_array_sigma_follows_its_dim_too(self):
+        # A fixed non-scalar sigma never reaches the posterior, so it is read
+        # straight off the prior and needs the same labelling as the bounds:
+        # per-country scales against an untransposed mu were a shape error at
+        # best and a silent misalignment at worst.
+        mu = xr.DataArray(
+            [[[[0.0, 1.0, 2.0], [0.0, 1.0, 2.0]]]],
+            dims=("chain", "draw", "country", "date"),
+            coords={"country": ["a", "b"], "date": [0, 1, 2]},
+        )
+        posterior = xr.Dataset({"mu": mu})
+        sigmas = np.array([1.0, 4.0])
+        likelihood = Prior(
+            "TruncatedNormal", lower=0, sigma=sigmas, dims=("date", "country")
+        )
+
+        offset = IdentityLinkSpec()._truncation_offset(posterior, likelihood, "y")
+
+        assert set(offset.dims) == {"chain", "draw", "country", "date"}
+        for country, sigma in zip(("a", "b"), sigmas, strict=True):
+            expected = [
+                stats.truncnorm.mean((0.0 - m) / sigma, np.inf, loc=m, scale=sigma) - m
+                for m in (0.0, 1.0, 2.0)
+            ]
+            np.testing.assert_allclose(
+                offset.sel(country=country).values.ravel(), expected
+            )
+
+    def test_an_unnameable_fixed_array_sigma_is_refused(self):
+        posterior = xr.Dataset(
+            {"mu": xr.DataArray([[0.5, 2.0]], dims=("chain", "date"))}
+        )
+        likelihood = Prior("TruncatedNormal", lower=0, sigma=np.array([1.0, 2.0]))
+        with pytest.raises(ValueError, match="too few to name its axes"):
+            IdentityLinkSpec()._truncation_offset(posterior, likelihood, "y")
+
     def test_an_unnameable_array_bound_is_refused(self):
         # Without dims there is no way to know which axis the bound indexes,
         # and guessing is how the silent misalignment above happened.
@@ -1277,6 +1313,47 @@ class TestTruncatedNormalMeanCorrection:
         likelihood = Prior("TruncatedNormal", lower=np.array([0.0, 0.0]), sigma=1)
         with pytest.raises(ValueError, match="too few to name its axes"):
             IdentityLinkSpec()._truncation_offset(posterior, likelihood, "y")
+
+
+class TestRegisteredMuAndPosteriorPredictive:
+    """``mu`` in the posterior must not freeze out-of-sample predictions."""
+
+    @pytest.fixture(scope="class")
+    def fitted(self, mock_pymc_sample):
+        mmm = _make_mmm(link="identity", dims=None)
+        X, y = _make_panel_with_target(np.linspace(50.0, 300.0, 10))
+        mmm.fit(X, y, random_seed=42)
+        return mmm, X
+
+    def test_new_spend_still_moves_the_predictive_draws(self, fitted):
+        """Registering ``mu`` must not turn prediction into a trace lookup.
+
+        ``mu`` is now a Deterministic, so it is in the posterior and
+        ``sample_posterior_predictive`` reads it from the trace wherever it is
+        not volatile.  Correctness out of sample rests entirely on PyMC marking
+        it volatile once the channel data changes, which is load-bearing enough
+        to pin: a counterfactual ``X`` of the *same* length is the case where a
+        shape change cannot do the job for us.
+        """
+        mmm, X = fitted
+        assert "mu" in mmm.idata.posterior
+
+        X_zero = X.copy()
+        X_zero[["C1", "C2"]] = 0.0
+
+        baseline = mmm.sample_posterior_predictive(
+            X, extend_idata=False, random_seed=0, progressbar=False
+        )["y"]
+        counterfactual = mmm.sample_posterior_predictive(
+            X_zero, extend_idata=False, random_seed=0, progressbar=False
+        )["y"]
+
+        assert baseline.shape == counterfactual.shape
+        # Media drives the fitted response, so removing all of it has to move
+        # the draws. Equality would mean the stale in-sample mu was reused.
+        assert float(baseline.mean()) != pytest.approx(
+            float(counterfactual.mean()), rel=1e-6
+        )
 
 
 class TestMeanScaleFactor:
@@ -1333,7 +1410,23 @@ class TestMeanScaleFactor:
 
     def test_sampled_nu_message_counts_the_offending_draws(self):
         posterior = xr.Dataset(
-            {"y_nu": xr.DataArray([[0.4, 0.9, 6.0]], dims=("chain", "date"))}
+            {"y_nu": xr.DataArray([[0.4, 0.9, 6.0]], dims=("chain", "draw"))}
+        )
+        with pytest.raises(ValueError, match="2 of 3 draws are at or below 1"):
+            IdentityLinkSpec().mean_scale_factor(
+                posterior, Prior("StudentT", nu=Prior("Gamma", mu=2, sigma=1), sigma=1)
+            )
+
+    def test_a_hierarchical_nu_is_counted_in_draws_not_in_cells(self):
+        # nu per country: 6 cells, but only 2 of the 3 draws are unusable. The
+        # raw cell count would report "3 of 6" and overstate the damage.
+        posterior = xr.Dataset(
+            {
+                "y_nu": xr.DataArray(
+                    [[[0.4, 5.0], [0.9, 0.8], [6.0, 7.0]]],
+                    dims=("chain", "draw", "country"),
+                )
+            }
         )
         with pytest.raises(ValueError, match="2 of 3 draws are at or below 1"):
             IdentityLinkSpec().mean_scale_factor(

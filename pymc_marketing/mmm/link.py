@@ -30,7 +30,7 @@ from typing import Any
 import numpy as np
 import pymc.dims as pmd
 import xarray as xr
-from pymc_extras.prior import Prior
+from pymc_extras.prior import Censored, Prior, Scaled
 from pytensor.xtensor import math as ptxm
 from pytensor.xtensor.type import XTensorVariable
 from scipy.special import erfcx
@@ -99,6 +99,12 @@ ADDITIVE_CORRECTION_LIKELIHOODS = frozenset({"TruncatedNormal"})
 #: added here rather than spread across the component contributions.
 BASELINE_PART = "intercept"
 
+#: Prior wrappers that hold another distribution and move its mean off ``mu``,
+#: so no identity-link mean correction is defined for them.  Matched by type
+#: rather than by the absence of a ``parameters`` attribute, so that a wrapper
+#: gaining one does not turn a hard error into wrong mean-scale numbers.
+WRAPPER_LIKELIHOODS: tuple[type, ...] = (Censored, Scaled)
+
 
 def _check_studentt_mean_exists(
     posterior: xr.Dataset,
@@ -113,6 +119,11 @@ def _check_studentt_mean_exists(
     contributions has a hole in it and cannot be summarised.  The message
     reports how many draws are affected, since one stray draw and a posterior
     concentrated below 1 need different fixes.
+
+    A hierarchical ``nu`` carries dimensions beyond ``(chain, draw)``, so the
+    count reduces over those first: a draw is unusable as soon as any one of
+    its cells is at or below 1, and reporting the raw number of cells would
+    overstate how much of the posterior is affected.
     """
     nu = likelihood.parameters.get("nu")
     if nu is None:
@@ -126,8 +137,13 @@ def _check_studentt_mean_exists(
             return
         nu_values = posterior[nu_name]
         smallest = float(nu_values.min())
-        offending = int((nu_values <= 1).sum())
-        share = f" {offending} of {nu_values.size} draws are at or below 1, and the"
+        below = nu_values <= 1
+        sample_dims = [dim for dim in ("chain", "draw") if dim in below.dims]
+        extra_dims = [dim for dim in below.dims if dim not in sample_dims]
+        if sample_dims and extra_dims:
+            below = below.any(extra_dims)
+        unit = "draws" if sample_dims else "posterior values"
+        share = f" {int(below.sum())} of {below.size} {unit} are at or below 1, and the"
     else:
         smallest = float(np.min(nu))
         share = " The"
@@ -173,25 +189,26 @@ def _distribution_name(likelihood: Prior) -> str:
     return dist if dist is not None else type(likelihood).__name__
 
 
-def _label_bound(
+def _label_parameter(
     value: Any,
     likelihood: Prior,
-    bound: str,
+    parameter: str,
 ) -> Any:
-    """Attach dimension names to a non-scalar truncation bound.
+    """Attach dimension names to a non-scalar fixed likelihood parameter.
 
-    A bound handed to ``Prior`` as a bare array carries no dimension names, so
-    arithmetic against ``posterior["mu"]`` would fall back to positional numpy
-    broadcasting.  That is wrong here: the identity link registers ``mu``
-    without transposing it, so its dimension order is whatever the linear
-    predictor happened to produce.  A per-``country`` bound on a panel model
-    then either raises an opaque shape error or, worse, lines up against
-    ``date`` and silently corrects the wrong cells.
+    A truncation bound or a fixed scale handed to ``Prior`` as a bare array
+    carries no dimension names, so arithmetic against ``posterior["mu"]``
+    would fall back to positional numpy broadcasting.  That is wrong here: the
+    identity link registers ``mu`` without transposing it, so its dimension
+    order is whatever the linear predictor happened to produce.  A
+    per-``country`` value on a panel model then either raises an opaque shape
+    error or, worse, lines up against ``date`` and silently corrects the wrong
+    cells.
 
     PyMC broadcasts a parameter array against the prior's ``dims`` by
-    right-alignment, so the trailing ``dims`` are the bound's own.  Labelling
-    it with them reproduces what the likelihood itself did and lets xarray
-    align by name.
+    right-alignment, so the trailing ``dims`` are the parameter's own.
+    Labelling it with them reproduces what the likelihood itself did and lets
+    xarray align by name.
 
     Scalars are returned untouched: they broadcast unambiguously and stay
     plain floats, which keeps the ``erfcx`` branches out of xarray.
@@ -205,9 +222,9 @@ def _label_bound(
     if array.ndim > len(dims):
         raise ValueError(
             f"The truncation correction cannot place the {array.ndim}-dimensional "
-            f"'{bound}' bound: the likelihood declares dims {dims}, which is too "
+            f"'{parameter}': the likelihood declares dims {dims}, which is too "
             f"few to name its axes. Declare the likelihood's dims, pass a scalar "
-            f"bound, or use central_tendency='median'."
+            f"'{parameter}', or use central_tendency='median'."
         )
     return xr.DataArray(array, dims=dims[len(dims) - array.ndim :])
 
@@ -925,11 +942,18 @@ class IdentityLinkSpec(LinkSpec):
         # Wrappers such as Censored and Scaled resolve to the name of the
         # distribution they hold, but move its mean, so E[y] != mu even for the
         # response-scale names. Reject them before dispatching, rather than
-        # silently returning median-scale numbers labelled as means. They are
-        # told apart by holding no parameters of their own. This is narrower
-        # than the check in validate_likelihood_support on purpose: a
-        # SpecialPrior such as LogNormalPrior has parameters and passes.
-        if getattr(likelihood, "parameters", None) is None:
+        # silently returning median-scale numbers labelled as means.
+        #
+        # Named types first, so that the day pymc-extras gives a wrapper its
+        # own 'parameters' the hard error stays a hard error instead of turning
+        # into wrong numbers. The duck-typed arm stays as the catch-all for a
+        # wrapper this module has not been told about. It is narrower than the
+        # check in validate_likelihood_support on purpose: a SpecialPrior such
+        # as LogNormalPrior has parameters and passes.
+        if (
+            isinstance(likelihood, WRAPPER_LIKELIHOODS)
+            or getattr(likelihood, "parameters", None) is None
+        ):
             wrapper = type(likelihood).__name__
             # Censored resolves to the name it holds, Scaled to its own, so
             # naming both would read as "Scaled holding 'Scaled'".
@@ -1047,11 +1071,13 @@ class IdentityLinkSpec(LinkSpec):
         parameters = likelihood.parameters
 
         # A fixed sigma never reaches the posterior, but it is usable directly.
+        # Labelled like the bounds: a fixed per-cell scale is just as prone to
+        # aligning against the wrong axis of an untransposed mu.
         sigma_name = f"{output_var}_sigma"
         if sigma_name in posterior:
             sigma = posterior[sigma_name]
         elif "sigma" in parameters and not isinstance(parameters["sigma"], Prior):
-            sigma = parameters["sigma"]
+            sigma = _label_parameter(parameters["sigma"], likelihood, "sigma")
         else:
             raise ValueError(
                 f"The truncation correction needs the likelihood scale, which "
@@ -1068,7 +1094,7 @@ class IdentityLinkSpec(LinkSpec):
                     f"The truncation correction needs a fixed '{bound}' bound, "
                     f"but it was given a prior. Use central_tendency='median'."
                 )
-            bounds[bound] = _label_bound(value, likelihood, bound)
+            bounds[bound] = _label_parameter(value, likelihood, bound)
 
         mu = posterior["mu"]
         alpha = (bounds["lower"] - mu) / sigma
@@ -1080,8 +1106,8 @@ class IdentityLinkSpec(LinkSpec):
         # the one-sided cases exact and is a ufunc, so it stays vectorised.
         # scipy.stats.truncnorm is exact too but roughly 2000x slower, which
         # matters on a full posterior.
-        # np.all, because a bound may be an array (labelled by _label_bound): a
-        # partly infinite one is not one-sided everywhere, so it falls through
+        # np.all, because a bound may be an array (labelled by _label_parameter):
+        # a partly infinite one is not one-sided everywhere, so it falls through
         # to the two-sided branch, which handles infinite entries correctly
         # (only more slowly).
         root_two = np.sqrt(2.0)
