@@ -2431,7 +2431,11 @@ class BudgetOptimizer(BaseModel):
 
         A response variable the plan cannot reach -- an intercept, a control
         contribution -- is still evaluated: the decision vector is simply an
-        unused input, and the plan-independent posterior comes back.
+        unused input, and the plan-independent posterior comes back. Because
+        that is indistinguishable from a media quantity wired up wrongly (an
+        effect reading its own copy of the spend rather than the model's
+        channel data, which is the classic funnel mistake), it warns once per
+        variable rather than answering silently.
 
         This evaluates the model's deterministic response under the plan. It is
         not :meth:`~pymc_marketing.mmm.mmm.MMM.sample_response_distribution`,
@@ -2454,14 +2458,24 @@ class BudgetOptimizer(BaseModel):
         name = response_variable or self.response_variable
         if name not in self._response_functions:
             graph = self.extract_response_distribution(name)
+            if self._budgets_flat not in set(ancestors([graph.values])):
+                warnings.warn(
+                    f"response_variable={name!r} does not depend on the decision "
+                    "vector, so it takes the same value under every plan. That is "
+                    "expected of a baseline or a control contribution. For a "
+                    "media-driven quantity it usually means the effect reads its "
+                    "own copy of the spend instead of the model's channel data, "
+                    "which makes it invisible to the optimizer.",
+                    UserWarning,
+                    stacklevel=2,
+                )
             self._response_functions[name] = (
                 function(
                     [self._budgets_flat],
                     graph.values,
-                    # A response that does not depend on the budgets -- an
-                    # intercept, a control contribution -- leaves the decision
-                    # vector unused, which is a legitimate question to ask and
-                    # not a reason to refuse to compile.
+                    # An unreachable response is answered rather than refused:
+                    # the decision vector is simply an unused input. The warning
+                    # above is what keeps that from being silent.
                     on_unused_input="ignore",
                     **self.compile_kwargs or {},
                 ),

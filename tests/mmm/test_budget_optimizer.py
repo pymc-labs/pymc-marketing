@@ -13,6 +13,7 @@
 #   limitations under the License.
 import ast
 import inspect
+import warnings
 from unittest.mock import patch
 
 import numpy as np
@@ -1080,12 +1081,17 @@ class TestEvaluateResponseDistribution:
         assert float(one_channel.sel(channel="channel_2").sum()) == 0.0
         assert float(one_channel.sel(channel="channel_1").sum()) > 0.0
 
-    def test_a_response_the_plan_cannot_reach_still_evaluates(self, mmm_wrapper):
-        """A quantity that does not depend on the budgets is a legitimate question.
+    def test_a_response_the_plan_cannot_reach_warns_but_still_evaluates(
+        self, mmm_wrapper
+    ):
+        """A plan-independent quantity is answered, and the caller is told once.
 
         The decision vector is an unused input of that graph, and compiling
         with PyTensor's default `on_unused_input` would refuse it outright
-        rather than return the plan-independent value.
+        rather than return the plan-independent value. Answering it silently
+        is the other failure: a media quantity wired to its own copy of the
+        spend looks exactly like this, and comparing two plans would report no
+        difference with nothing to explain why.
         """
         optimizer = BudgetOptimizer(
             model=mmm_wrapper,
@@ -1093,11 +1099,24 @@ class TestEvaluateResponseDistribution:
             response_variable="total_media_contribution_original_scale",
         )
 
-        response = optimizer.evaluate_response_distribution(
-            self._plan(), "target_scale"
-        )
+        with pytest.warns(UserWarning, match="does not depend on the decision"):
+            response = optimizer.evaluate_response_distribution(
+                self._plan(), "target_scale"
+            )
 
         assert np.isfinite(response.to_numpy()).all()
+
+    def test_a_reachable_response_does_not_warn(self, mmm_wrapper):
+        """The warning has to stay quiet on the path everyone takes."""
+        optimizer = BudgetOptimizer(
+            model=mmm_wrapper,
+            num_periods=30,
+            response_variable="total_media_contribution_original_scale",
+        )
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            optimizer.evaluate_response_distribution(self._plan())
 
 
 def test_budget_optimizer_mu_effects_deprecated(mmm_wrapper):
