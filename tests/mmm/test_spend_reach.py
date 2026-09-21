@@ -845,36 +845,55 @@ class TestSpendProbe:
     def test_the_predictor_is_recoverable_under_an_identity_link(
         self, simple_fitted_mmm
     ):
-        """An identity-link MMM only *names* its linear predictor.
+        """An identity-link MMM registers its linear predictor.
 
-        ``mmm.py`` wraps it in a ``Deterministic`` under a log link and assigns
-        ``.name`` under an identity one, so it cannot be looked up in
-        ``named_vars`` and has to be recovered from the observed variable's
-        ancestors instead.
+        ``mmm.py`` wraps it in a ``Deterministic`` under both links, so it is
+        in ``named_vars`` and the lookup settles it without a graph search.
+        The search remains for models fitted before that was true.
         """
-        assert LINEAR_PREDICTOR not in simple_fitted_mmm.model.named_vars
+        assert LINEAR_PREDICTOR in simple_fitted_mmm.model.named_vars
 
         node = linear_predictor(simple_fitted_mmm)
 
         assert node is not None
         assert node.name == LINEAR_PREDICTOR
 
-    def test_a_second_node_named_mu_is_refused_rather_than_guessed(
+    def test_a_second_node_named_mu_is_shadowed_by_the_registered_one(
         self, simple_fitted_mmm, shadow_named_node
     ):
-        """Two nodes named ``mu`` make the recovery a coin toss, so it refuses.
+        """A second node named ``mu`` is no longer consulted.
 
-        Recovering the predictor by name is only sound while the name picks out
-        one node.  A custom effect whose intermediate happens to be named ``mu``
-        breaks that, and graph traversal is unordered, so the completeness check
-        would bind to whichever of the two turned up first: a spurious refusal
-        on a correct model, or a vacuous pass on a broken one.  Neither is worth
-        having over an error that names the fix.
+        Recovering the predictor by name was only sound while the name picked
+        out one node, and a custom effect whose intermediate happened to be
+        named ``mu`` broke that.  Registering ``mu`` moves the resolution into
+        ``named_vars``, where PyMC enforces a unique name, so the shadow is
+        never reached and the model's own node wins.
         """
         shadow_named_node(simple_fitted_mmm, LINEAR_PREDICTOR)
 
-        with pytest.raises(ValueError, match="nodes named 'mu'"):
-            linear_predictor(simple_fitted_mmm)
+        node = linear_predictor(simple_fitted_mmm)
+
+        assert node is simple_fitted_mmm.model[LINEAR_PREDICTOR]
+
+    def test_an_unregistered_ambiguous_predictor_is_still_refused(
+        self, simple_fitted_mmm, shadow_named_node
+    ):
+        """The graph search kept for legacy models keeps its ambiguity guard.
+
+        A model fitted before ``mu`` was registered under the identity link has
+        no ``named_vars`` entry to settle the name, so ``linear_predictor``
+        falls back to scanning the graph.  Dropping the entry reproduces that
+        model.  With a shadow in place the name no longer picks out one node,
+        and guessing is worse than stopping.
+        """
+        model = simple_fitted_mmm.model
+        registered = model.named_vars.pop(LINEAR_PREDICTOR)
+        shadow_named_node(simple_fitted_mmm, LINEAR_PREDICTOR)
+        try:
+            with pytest.raises(ValueError, match="distinct nodes named 'mu'"):
+                linear_predictor(simple_fitted_mmm)
+        finally:
+            model.named_vars[LINEAR_PREDICTOR] = registered
 
     def test_declared_carryover_survives_an_unprobeable_axis(self):
         """With nothing to probe, a declaration is all there is to go on.
