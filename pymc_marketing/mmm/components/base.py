@@ -24,7 +24,7 @@ import warnings
 from collections.abc import Iterable, Sequence
 from copy import deepcopy
 from inspect import signature
-from typing import Any
+from typing import Any, Self
 
 import numpy as np
 import numpy.typing as npt
@@ -35,6 +35,7 @@ from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 from pydantic import InstanceOf
 from pymc.distributions.shape_utils import Dims
+from pymc_extras.deserialize import deserialize
 from pymc_extras.prior import Prior, VariableFactory
 from pytensor.graph.basic import Variable
 from pytensor.xtensor import as_xtensor
@@ -182,6 +183,19 @@ class Transformation:
             },
         }
 
+    @classmethod
+    def from_dict(cls, data: dict) -> Self:
+        """Reconstruct a transformation from a dict."""
+        data = data.copy()
+        data.pop("__type__", None)
+
+        if "priors" in data:
+            data["priors"] = {
+                k: _deserialize_value(v) for k, v in data["priors"].items()
+            }
+
+        return cls(**data)
+
     def __eq__(self, other: Any) -> bool:
         """Check if two transformations are equal."""
         if not isinstance(other, self.__class__):
@@ -202,7 +216,34 @@ class Transformation:
     @function_priors.setter  # type: ignore
     def function_priors(self, priors: dict[str, Any | Prior] | None) -> None:
         priors = parse_model_config(priors or {})
+        self._check_prior_names(priors)
         self._function_priors = {**deepcopy(self.default_priors), **priors}
+
+    def _check_prior_names(self, priors: dict[str, Any]) -> None:
+        """Reject priors for parameters that the function doesn't take.
+
+        Without this, an unused prior is merged into ``function_priors``, ignored
+        when the model is built, and serialised by ``to_dict``, so a misspelled
+        parameter name silently leaves the default prior in place.
+        """
+        if not (unknown := priors.keys() - self.default_priors.keys()):
+            return
+
+        msg = (
+            f"Priors for {sorted(unknown)} are not parameters of"
+            f" {type(self).__name__}. Parameters are {sorted(self.default_priors)}."
+        )
+
+        # Model variable names like "saturation_lam" are a common mix-up.
+        if suggestions := {
+            name: parameter
+            for name in sorted(unknown)
+            for parameter in self.default_priors
+            if name.endswith(f"_{parameter}")
+        }:
+            msg = f"{msg} Use the parameter name, not the variable name: {suggestions}."
+
+        raise ValueError(msg)
 
     def update_priors(self, priors: dict[str, Prior]) -> None:
         """Update the priors for a function after initialization.
@@ -685,6 +726,84 @@ class Transformation:
         kwargs = self._create_distributions(idx=idx)
         return self.function(x, dim=core_dim, **kwargs)
 
+    def __call__(
+        self,
+        x: XTensorLike,
+        *,
+        core_dim: str | None = None,
+    ) -> XTensorVariable:
+        """Apply the transformation, reusing variables from an active model context.
+
+        If called inside a ``pm.Model`` context that already contains this
+        transformation's variables (e.g. after :meth:`apply` has been called
+        during ``build_model``), the existing ``XTensorVariable``s are reused
+        rather than creating new ones.  Otherwise falls back to
+        :meth:`apply` behaviour (creates new distributions).
+
+        Parameters
+        ----------
+        x : XTensorLike
+            The data to transform.
+        core_dim : str, optional
+            The dimension along which to apply the transformation.
+
+        Returns
+        -------
+        XTensorVariable
+            The transformed data.
+
+        Examples
+        --------
+        Evaluate the saturation curve at a grid of points inside the fitted
+        model so that posterior uncertainty is propagated automatically:
+
+        .. code-block:: python
+
+            import numpy as np
+            import pytensor.xtensor as ptx
+
+            x_vals = np.linspace(0, 1, 200)
+            x_curve = ptx.as_xtensor(x_vals, dims=("saturation_x",))
+
+            with mmm.model:
+                mmm.model.add_coord("saturation_x", x_vals)
+                curve = mmm.saturation(x_curve, core_dim="saturation_x")
+                pmd.Deterministic("saturation_curve_contribution", curve)
+
+        To also obtain the curve in original (unscaled) target units, pass the
+        deterministic name to :meth:`~pymc_marketing.mmm.MMM.add_original_scale_contribution_variable`:
+
+        .. code-block:: python
+
+            import numpy as np
+            import pytensor.xtensor as ptx
+
+            x_vals = np.linspace(0, 1, 200)
+            x_curve = ptx.as_xtensor(x_vals, dims=("saturation_x",))
+
+            with mmm.model:
+                mmm.model.add_coord("saturation_x", x_vals)
+                curve = mmm.saturation(x_curve, core_dim="saturation_x")
+                pmd.Deterministic("saturation_curve_contribution", curve)
+
+            mmm.add_original_scale_contribution_variable(
+                ["saturation_curve_contribution"]
+            )
+            # → adds "saturation_curve_contribution_original_scale" to the model
+
+        """
+        model = pm.Model.get_context(error_if_none=False)
+        if model is not None and all(
+            v in model.named_vars for v in self.variable_mapping.values()
+        ):
+            kwargs = {
+                param: model.named_vars[var]
+                for param, var in self.variable_mapping.items()
+            }
+        else:
+            kwargs = self._create_distributions()
+        return self.function(x, dim=core_dim, **kwargs)
+
 
 def _serialize_value(value: Any) -> Any:
     if hasattr(value, "to_dict"):
@@ -695,5 +814,14 @@ def _serialize_value(value: Any) -> Any:
 
     if isinstance(value, np.ndarray):
         return value.tolist()
+
+    return value
+
+
+def _deserialize_value(value: Any) -> Any:
+    # Inverse of ``_serialize_value``: only dicts describe a distribution,
+    # anything else is a constant parameter (#1613).
+    if isinstance(value, dict):
+        return deserialize(value)
 
     return value

@@ -215,6 +215,27 @@ class TestAdstockRoundtrips:
             assert restored.function_priors[prior_name] == prior
         assert restored == original
 
+    @pytest.mark.parametrize(
+        "alpha, coords",
+        [(0.5, {}), ([0.5, 0.3], {"channel": ["A", "B"]})],
+        ids=["float", "list"],
+    )
+    def test_roundtrip_constant_prior(self, alpha, coords) -> None:
+        """A constant parameter survives serialization (#1613)."""
+        original = GeometricAdstock(l_max=4, priors={"alpha": alpha})
+        data = serialization.serialize(original)
+        restored = serialization.deserialize(data)
+
+        assert restored == original
+        prior = restored.sample_prior(coords=coords)
+        np.testing.assert_allclose(prior["adstock_alpha"].values[0, 0], alpha)
+
+    def test_from_dict_constant_prior(self) -> None:
+        """A config can fix one parameter to a constant (#1613)."""
+        adstock = GeometricAdstock.from_dict({"l_max": 4, "priors": {"alpha": 0.5}})
+
+        assert adstock.function_priors["alpha"] == 0.5
+
 
 class TestGeometricAdstockHalfLife:
     """The half-life parametrisation replaces alpha with a prior on the half-life."""

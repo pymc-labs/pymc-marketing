@@ -21,6 +21,7 @@ contribution graph construction).
 
 from __future__ import annotations
 
+import numbers
 import warnings
 from abc import ABC, abstractmethod
 from enum import StrEnum
@@ -40,6 +41,11 @@ class LinkFunction(StrEnum):
     LOG = "log"
 
 
+#: ``pymc_marketing.special_priors`` classes admitted as identity-link
+#: likelihoods.  They are matched by class name, not by a distribution name
+#: accepted by ``Prior(...)``, and are passed directly as the likelihood.
+SPECIAL_PRIOR_LIKELIHOODS = frozenset({"LogNormalPrior"})
+
 #: Likelihoods whose ``mu`` parameter is on the scale of the response, so the
 #: additive decomposition under the identity link is in the units of the target.
 #: This is about units only.  ``mu`` still need not equal ``E[y]``: under
@@ -50,17 +56,26 @@ class LinkFunction(StrEnum):
 #: likelihood is observed on the target divided by ``target_scale``, which is
 #: not integer-valued, so they cannot be used under this model at all.
 #: ``Beta`` needs the target inside ``(0, 1)``, which the scaling does not
-#: guarantee, and nothing checks the target against the likelihood support yet.
-#: See issue #2835.
-RESPONSE_SCALE_LIKELIHOODS = frozenset(
-    {
-        "Normal",
-        "StudentT",
-        "TruncatedNormal",
-        "Gamma",
-        "Laplace",
-        "InverseGamma",
-    }
+#: guarantee.  :meth:`LinkSpec.validate_likelihood_support` now rejects a
+#: target outside any of those supports at build time (issue #2835) rather
+#: than letting it through to an ``-inf`` logp, but that check says nothing
+#: about whether ``mu`` is on the response scale, which is what this set is
+#: for.
+#: Entries are ``pymc`` distribution names plus ``SPECIAL_PRIOR_LIKELIHOODS``,
+#: which are class names because ``SpecialPrior`` objects have no
+#: ``distribution`` attribute.
+RESPONSE_SCALE_LIKELIHOODS = (
+    frozenset(
+        {
+            "Normal",
+            "StudentT",
+            "TruncatedNormal",
+            "Gamma",
+            "Laplace",
+            "InverseGamma",
+        }
+    )
+    | SPECIAL_PRIOR_LIKELIHOODS
 )
 
 #: Likelihoods whose ``mu`` parameter is on some other scale, mapped to the name
@@ -70,6 +85,24 @@ NON_RESPONSE_SCALE_LIKELIHOODS = {"LogNormal": "log"}
 #: Likelihoods allowed for the non-identity links, which each need one specific
 #: distributional form for their counterfactual decomposition to be correct.
 LINK_LIKELIHOODS = {LinkFunction.LOG: frozenset({"LogNormal"})}
+
+
+def _response_scale_likelihoods_display() -> str:
+    """Render ``RESPONSE_SCALE_LIKELIHOODS`` for user-facing messages.
+
+    ``SPECIAL_PRIOR_LIKELIHOODS`` are listed separately from the ``Prior``
+    distribution names to stop readers from trying
+    ``Prior("LogNormalPrior", ...)``.
+    """
+    names = sorted(RESPONSE_SCALE_LIKELIHOODS - SPECIAL_PRIOR_LIKELIHOODS)
+    special = ", ".join(
+        f"pymc_marketing.special_priors.{name}"
+        for name in sorted(SPECIAL_PRIOR_LIKELIHOODS)
+    )
+    return (
+        f"{names} (Prior distribution names) or a {special} instance passed "
+        "directly as the likelihood"
+    )
 
 
 def _distribution_name(likelihood: Prior) -> str:
@@ -85,6 +118,103 @@ def _distribution_name(likelihood: Prior) -> str:
     while dist is not None and not isinstance(dist, str):
         dist = getattr(dist, "distribution", None)
     return dist if dist is not None else type(likelihood).__name__
+
+
+def _positive(likelihood: Prior, observed: np.ndarray):
+    return ~(observed > 0), "strictly positive"
+
+
+def _unit_interval(likelihood: Prior, observed: np.ndarray):
+    return ~((observed > 0) & (observed < 1)), "strictly inside (0, 1)"
+
+
+def _non_negative_integer(likelihood: Prior, observed: np.ndarray):
+    return ~((observed >= 0) & (observed == np.floor(observed))), (
+        "a non-negative integer"
+    )
+
+
+def _within_truncation(likelihood: Prior, observed: np.ndarray):
+    """Check *observed* against whichever of ``lower``/``upper`` is a number.
+
+    A bound given as a ``Prior`` or an array is left alone: the support then
+    varies per draw or per element, so there is no single interval to report.
+    """
+    parameters = getattr(likelihood, "parameters", {})
+    bounds = {
+        name: parameters[name]
+        for name in ("lower", "upper")
+        if isinstance(parameters.get(name), numbers.Real)
+        and not isinstance(parameters.get(name), bool)
+    }
+    if not bounds:
+        return None
+
+    mask = ~np.isfinite(observed)
+    if "lower" in bounds:
+        mask |= observed < bounds["lower"]
+    if "upper" in bounds:
+        mask |= observed > bounds["upper"]
+
+    described = " and ".join(f"{name} {value}" for name, value in bounds.items())
+    return mask, f"within its truncation ({described})"
+
+
+def _attribute_violation(offending: np.ndarray, target_scale) -> str:
+    """Describe the likely cause of *offending*, the violating observed values.
+
+    An exact ``0.0`` is ambiguous.  ``build_model`` rewrites a NaN or infinite
+    ratio to ``0.0``, so it can be the clamp's output, but a target that
+    genuinely contains zeros produces the same value under a healthy scale,
+    and that is by far the more common case.  The two are only
+    distinguishable with the scale in hand: the clamp fires for a finite
+    target exactly when the scale has a zero entry.  Without it, name both
+    rather than assert one.
+    """
+    if not np.all(offending == 0.0):
+        return " Fix the target, or choose a likelihood whose support covers it."
+
+    zeros = (
+        " Every violating value is exactly 0.0."
+        " That is either a zero in the target itself, which this likelihood"
+        " cannot observe, or the value build_model writes when"
+        " 'target / target_scale' is NaN or infinite."
+    )
+
+    if target_scale is None:
+        return (
+            zeros + " Check the target for zeros and 'target_scale' for a zero entry."
+        )
+
+    if np.any(np.asarray(target_scale, dtype=float) == 0.0):
+        return (
+            zeros + " 'target_scale' has a zero entry, which a target slice"
+            " whose maximum is zero produces, so the scale is the cause"
+            " rather than the target's own values."
+        )
+
+    return (
+        zeros + " 'target_scale' has no zero entry, so these are zeros in the"
+        " target rather than a scaling artefact. Remove or impute them, or"
+        " choose a likelihood whose support includes zero."
+    )
+
+
+#: Support checks by distribution name.  Each returns the mask of violating
+#: values and a description of what was required, or ``None`` when the
+#: distribution carries no checkable bound.  Distributions absent from this
+#: mapping are not checked: ``Normal``, ``StudentT`` and ``Laplace`` are
+#: unbounded, and anything unrecognised already draws a warning from
+#: :meth:`LinkSpec.validate_likelihood_compatibility`.
+_SUPPORT_CHECKS = {
+    "LogNormal": _positive,
+    "Gamma": _positive,
+    "InverseGamma": _positive,
+    "Beta": _unit_interval,
+    "Poisson": _non_negative_integer,
+    "NegativeBinomial": _non_negative_integer,
+    "TruncatedNormal": _within_truncation,
+}
 
 
 class LinkSpec(ABC):
@@ -307,7 +437,7 @@ class LinkSpec(ABC):
                     "'target_scale'. Use link='log' with LogNormal (it needs a "
                     "strictly positive target), or keep link='identity' with a "
                     "likelihood whose 'mu' is the response scale: "
-                    f"{sorted(RESPONSE_SCALE_LIKELIHOODS)}. "
+                    f"{_response_scale_likelihoods_display()}. "
                     "To repair an already saved model without refitting:\n"
                     "    kwargs = MMM.idata_to_init_kwargs(idata)\n"
                     "    kwargs['link'] = 'log'  # or edit "
@@ -322,7 +452,7 @@ class LinkSpec(ABC):
                     "'mu' is on the scale of the target. Check that it is "
                     "before reading '*_original_scale' variables. Known "
                     "response-scale likelihoods: "
-                    f"{sorted(RESPONSE_SCALE_LIKELIHOODS)}.",
+                    f"{_response_scale_likelihoods_display()}.",
                     UserWarning,
                     stacklevel=2,
                 )
@@ -336,6 +466,92 @@ class LinkSpec(ABC):
                 f"Using an incompatible likelihood will produce incorrect "
                 f"decomposition and optimisation results."
             )
+
+    @staticmethod
+    def validate_likelihood_support(
+        likelihood: Prior, observed, target_scale=None
+    ) -> None:
+        """Raise if *observed* falls outside the support of *likelihood*.
+
+        *observed* is the value the likelihood is given, which is the target
+        divided by ``target_scale`` rather than the target itself.  The two
+        differ in sign whenever the scale is negative, which
+        ``DataDerivedScaling`` allows because it reduces with ``max``/``mean``
+        rather than their absolute values, so this check cannot be run against
+        the raw target.  ``build_model`` clamps a NaN or infinite ratio to
+        ``0.0``, which is finite but outside every positive-only support, and
+        this check reports that too.
+
+        Without it a target outside the support builds without complaint and
+        fails later as an ``-inf`` logp with nothing naming the cause.
+
+        Unrecognised distributions are not checked and do not warn:
+        :meth:`validate_likelihood_compatibility` already warns for those, and
+        a second warning on the same line would say nothing new.
+
+        Parameters
+        ----------
+        likelihood : Prior
+            The likelihood distribution prior.
+        observed : np.ndarray or XTensorVariable
+            The values handed to the likelihood.  A symbolic variable is
+            evaluated only once a distribution with a checkable support has
+            been found, so the default ``Normal`` costs no compile.
+        target_scale : array-like, optional
+            The scale the target was divided by.  Used only to attribute a
+            violation made of exact zeros: those are the clamp's output when
+            the scale has a zero entry, and ordinary target values when it
+            does not.  Omit it and the error names both possibilities rather
+            than picking one.
+
+        Raises
+        ------
+        ValueError
+            If any observed value lies outside the support.
+        """
+        if not isinstance(getattr(likelihood, "distribution", None), str):
+            # Anything whose own ``distribution`` is not a name is either a
+            # wrapper such as ``Censored`` or a ``SpecialPrior`` subclass.
+            # ``_distribution_name`` reports the inner name for those, but the
+            # inner support is not theirs: censoring at zero is precisely what
+            # makes a zero observation valid under ``LogNormal``, so applying
+            # it would reject the data the wrapper exists for.  The special
+            # priors validate their own observations instead.
+            return
+
+        dist_name = _distribution_name(likelihood)
+        check = _SUPPORT_CHECKS.get(dist_name)
+        if check is None:
+            return
+
+        if hasattr(observed, "eval"):
+            try:
+                observed = observed.eval()
+            except Exception:
+                # A check that can break model construction for a graph it did
+                # not anticipate is worse than no check.
+                return
+
+        values = np.asarray(observed, dtype=float)
+        violation = check(likelihood, values)
+        if violation is None:
+            return
+
+        mask, requirement = violation
+        count = int(np.count_nonzero(mask))
+        if not count:
+            return
+
+        message = (
+            f"Likelihood '{dist_name}' requires the observed target to be "
+            f"{requirement}, but {count} of {mask.size} values are not. "
+            "The likelihood observes the target divided by 'target_scale', "
+            "not the raw target, so a value that looks valid in the original "
+            "units can still fall outside the support. Without this check the "
+            "model would build and then sample an '-inf' logp."
+        )
+
+        raise ValueError(message + _attribute_violation(values[mask], target_scale))
 
 
 class IdentityLinkSpec(LinkSpec):
@@ -422,7 +638,17 @@ class LogLinkSpec(LinkSpec):
         return Prior("Normal", mu=0, sigma=5, dims=dims)
 
     def validate_target(self, y: np.ndarray) -> None:
-        """Raise ``ValueError`` if *y* contains non-positive values."""
+        """Raise ``ValueError`` if *y* contains non-positive values.
+
+        This is a link-level rule about the target, not the ``LogNormal``
+        support check.  The two are easy to confuse because the log link
+        always uses ``LogNormal``, but they test different arrays: this one
+        runs on the raw target before scaling, while
+        :meth:`LinkSpec.validate_likelihood_support` runs on
+        ``target / target_scale``, which is what the likelihood observes.  A
+        target that is entirely negative fails here and passes there, because
+        a negative ``target_scale`` makes the ratio positive.
+        """
         if np.any(y <= 0):
             raise ValueError(
                 "All target values must be strictly positive when using "

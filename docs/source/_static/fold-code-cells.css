@@ -1,0 +1,69 @@
+/* Styling for the folded notebook code cells added by fold-code-cells.js
+   (#2926). Uses pydata-sphinx-theme CSS variables so it follows the
+   light/dark theme. */
+
+details.code-fold {
+  margin-bottom: 1rem;
+}
+
+details.code-fold > summary.code-fold__summary {
+  display: inline-block;
+  cursor: pointer;
+  list-style: none;
+  padding: 0.15rem 0.75rem;
+  font-size: 0.8rem;
+  font-family: var(--pst-font-family-base);
+  color: var(--pst-color-text-muted);
+  background-color: var(--pst-color-surface);
+  border: 1px solid var(--pst-color-border);
+  border-radius: 0.75rem;
+  user-select: none;
+}
+
+details.code-fold > summary.code-fold__summary::-webkit-details-marker {
+  display: none;
+}
+
+details.code-fold > summary.code-fold__summary::before {
+  content: "\25B8"; /* small right-pointing triangle */
+  display: inline-block;
+  margin-right: 0.4rem;
+  transition: transform 0.15s ease;
+}
+
+details.code-fold[open] > summary.code-fold__summary::before {
+  transform: rotate(90deg);
+}
+
+details.code-fold > summary.code-fold__summary:hover {
+  color: var(--pst-color-primary);
+  border-color: var(--pst-color-primary);
+}
+
+details.code-fold[open] > summary.code-fold__summary {
+  margin-bottom: 0.35rem;
+}
+
+/* The wrapped cell_input keeps its own bottom margin; drop the doubled-up
+   spacing inside the details element. */
+details.code-fold > div.cell_input {
+  margin-bottom: 0;
+}
+
+button.code-fold__toggle-all {
+  display: block;
+  margin: 0 0 1rem auto;
+  padding: 0.25rem 0.9rem;
+  font-size: 0.8rem;
+  font-family: var(--pst-font-family-base);
+  color: var(--pst-color-text-muted);
+  background-color: var(--pst-color-surface);
+  border: 1px solid var(--pst-color-border);
+  border-radius: 0.75rem;
+  cursor: pointer;
+}
+
+button.code-fold__toggle-all:hover {
+  color: var(--pst-color-primary);
+  border-color: var(--pst-color-primary);
+}

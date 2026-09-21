@@ -58,6 +58,81 @@ def test_to_xarray():
     np.testing.assert_array_equal(new_y.coords["test_dim"], customer_id)
 
 
+def test_to_xarray_names_trailing_axes():
+    customer_id = np.arange(10) + 100
+    matrix = np.arange(20).reshape(10, 2)
+
+    new_matrix = to_xarray(customer_id, matrix, extra_dims=("channel",))
+
+    assert isinstance(new_matrix, xarray.DataArray)
+    assert new_matrix.dims == ("customer_id", "channel")
+    np.testing.assert_array_equal(new_matrix.coords["customer_id"], customer_id)
+    np.testing.assert_array_equal(new_matrix.values, matrix)
+
+
+def test_to_xarray_mixes_1d_and_multidim_arrays():
+    customer_id = np.arange(10) + 100
+    frequency = np.arange(10)
+    matrix = np.arange(20).reshape(10, 2)
+
+    new_frequency, new_matrix = to_xarray(
+        customer_id, frequency, matrix, extra_dims=("channel",)
+    )
+
+    assert new_frequency.dims == ("customer_id",)
+    assert new_matrix.dims == ("customer_id", "channel")
+    np.testing.assert_array_equal(new_matrix.values, matrix)
+
+
+def test_to_xarray_preserves_axis_order():
+    customer_id = np.arange(4)
+    cube = np.arange(24).reshape(4, 2, 3)
+
+    new_cube = to_xarray(customer_id, cube, extra_dims=("channel", "lag"))
+
+    assert new_cube.dims == ("customer_id", "channel", "lag")
+    assert new_cube.sizes == {"customer_id": 4, "channel": 2, "lag": 3}
+    np.testing.assert_array_equal(new_cube.values, cube)
+
+
+def test_to_xarray_distinct_trailing_dims_broadcast():
+    """Unrelated trailing axes must broadcast instead of silently aligning."""
+    customer_id = np.arange(4)
+
+    channels = to_xarray(customer_id, np.ones((4, 2)), extra_dims=("channel",))
+    lags = to_xarray(customer_id, np.ones((4, 3)), extra_dims=("lag",))
+
+    assert (channels * lags).sizes == {"customer_id": 4, "channel": 2, "lag": 3}
+
+
+@pytest.mark.parametrize(
+    "array, extra_dims, match",
+    [
+        (np.ones((10, 2)), None, "Pass 'extra_dims' naming its trailing axes"),
+        (np.ones((10, 2, 3)), ("channel",), "must have either 1 or 2 dimensions"),
+        (np.ones((10, 2)), ("channel", "lag"), "must have either 1 or 3 dimensions"),
+        (np.float64(1.0), None, "Cannot convert a 0-dimensional array"),
+        (np.ones(10), ("customer_id",), "must be unique"),
+    ],
+    ids=[
+        "missing_extra_dims",
+        "too_few_extra_dims",
+        "intermediate_rank",
+        "zero_dimensional",
+        "duplicate_dim_name",
+    ],
+)
+def test_to_xarray_invalid_dims_raise(array, extra_dims, match):
+    with pytest.raises(ValueError, match=match):
+        to_xarray(np.arange(10), array, extra_dims=extra_dims)
+
+
+def test_to_xarray_rejects_string_extra_dims():
+    """A bare string must not be split into one dim name per character."""
+    with pytest.raises(TypeError, match=r"not a string"):
+        to_xarray(np.arange(4), np.ones((4, 2, 3)), extra_dims="ab")
+
+
 @pytest.fixture(scope="module")
 def fitted_gg(test_summary_data) -> GammaGammaModel:
     rng = np.random.default_rng(40)
@@ -139,6 +214,7 @@ class TestCustomerLifetimeValue:
             ("W", 365.25 / 7),
             ("D", 365.25),
             ("H", 365.25 * 24),
+            ("h", 365.25 * 24),
         ],
     )
     def test_time_unit_scaling(self, time_unit, expected_periods):
@@ -230,6 +306,18 @@ class TestCustomerLifetimeValue:
             data=t,
         )
         np.testing.assert_equal(ggf_clv.values, utils_clv.values)
+
+    def test_expected_customer_lifetime_value_does_not_mutate_data(
+        self, test_summary_data, fitted_gg, fitted_bg
+    ):
+        data = test_summary_data.head().drop(columns="future_spend")
+        data_before = data.copy()
+
+        fitted_gg.expected_customer_lifetime_value(
+            transaction_model=fitted_bg, data=data
+        )
+
+        pd.testing.assert_frame_equal(data, data_before)
 
     @pytest.mark.parametrize("gg_map", (True, False))
     @pytest.mark.parametrize("transaction_model_map", (True, False))
@@ -987,6 +1075,175 @@ def test_expected_cumulative_transactions_dedups_inside_a_time_period(
         fitted_bg, cdnow_trans, "date", "id", 10, time_unit="D"
     )
     assert (by_week["actual"] >= by_day["actual"]).all()
+
+
+def test_expected_cumulative_transactions_monthly_time_unit(fitted_bg, cdnow_trans):
+    """Monthly ``time_unit`` builds the date range with the pandas 3 month-end offset alias."""
+    t = 3
+    df_cum = _expected_cumulative_transactions(
+        fitted_bg,
+        cdnow_trans,
+        customer_id_col="id",
+        datetime_col="date",
+        t=t,
+        datetime_format="%Y%m%d",
+        time_unit="M",
+        set_index_date=True,
+    )
+
+    assert list(df_cum.columns) == ["actual", "predicted"]
+    assert len(df_cum) == t
+    assert isinstance(df_cum.index, pd.PeriodIndex)
+    assert df_cum.index.freqstr == "M"
+    assert (df_cum["actual"].diff().dropna() >= 0).all()
+
+
+@pytest.fixture
+def hourly_transactions() -> pd.DataFrame:
+    """Four customers with repeat purchases spread over three days at hour resolution."""
+    return pd.DataFrame(
+        {
+            "id": [1, 1, 1, 2, 2, 3, 3, 3, 3, 4, 4],
+            "date": [
+                "2024-01-01 00:10",
+                "2024-01-01 03:30",
+                "2024-01-02 05:00",
+                "2024-01-01 01:00",
+                "2024-01-01 22:00",
+                "2024-01-01 06:00",
+                "2024-01-01 06:20",
+                "2024-01-02 12:00",
+                "2024-01-03 08:00",
+                "2024-01-01 09:00",
+                "2024-01-02 09:30",
+            ],
+            "monetary_value": [
+                10.0,
+                12.0,
+                8.0,
+                5.0,
+                7.0,
+                20.0,
+                1.0,
+                3.0,
+                4.0,
+                9.0,
+                11.0,
+            ],
+        }
+    )
+
+
+@pytest.mark.parametrize("time_unit", ["H", "h"])
+def test_expected_cumulative_transactions_hourly_time_unit(
+    fitted_bg, hourly_transactions, time_unit
+):
+    """Hourly ``time_unit`` works with the ``H`` and ``h`` spellings on every pandas."""
+    t = 48
+    df_cum = _expected_cumulative_transactions(
+        fitted_bg,
+        hourly_transactions,
+        customer_id_col="id",
+        datetime_col="date",
+        t=t,
+        time_unit=time_unit,
+        set_index_date=True,
+    )
+
+    assert len(df_cum) == t
+    assert isinstance(df_cum.index, pd.PeriodIndex)
+    assert df_cum.index.freqstr == "h"
+    # Repeat transactions within the first 48 hours after the first purchase.
+    assert df_cum["actual"].iloc[-1] == 5
+    assert (df_cum["actual"].diff().dropna() >= 0).all()
+    assert (df_cum["predicted"].diff().dropna() >= 0).all()
+    assert df_cum["predicted"].iloc[-1] > df_cum["predicted"].iloc[0]
+
+
+@pytest.mark.parametrize("time_unit", ["H", "h"])
+def test_rfm_summary_hourly_time_unit(hourly_transactions, time_unit):
+    """``rfm_summary`` measures recency and T in hours for the ``H`` and ``h`` spellings."""
+    summary = rfm_summary(
+        hourly_transactions,
+        customer_id_col="id",
+        datetime_col="date",
+        monetary_value_col="monetary_value",
+        time_unit=time_unit,
+    ).set_index("customer_id")
+
+    assert list(summary.index) == [1, 2, 3, 4]
+    # Customer 3 buys twice inside the same hour, which counts as one period.
+    assert summary["frequency"].tolist() == [2, 1, 2, 1]
+    # Customer 1: first purchase in hour 00:00 of day 1, last in hour 05:00 of day 2.
+    assert summary.loc[1, "recency"] == pytest.approx(29.0)
+    # Observation period ends at the last transaction hour (day 3, 08:00).
+    assert summary.loc[1, "T"] == pytest.approx(56.0)
+    assert np.isfinite(summary[["recency", "T", "monetary_value"]]).all().all()
+
+
+@pytest.fixture
+def sparse_monthly_transactions() -> pd.DataFrame:
+    """Three customers whose purchases span five calendar months."""
+    return pd.DataFrame(
+        {
+            "id": [1, 1, 2, 2, 3],
+            "date": [
+                "2024-01-05",
+                "2024-03-10",
+                "2024-01-20",
+                "2024-05-02",
+                "2024-02-11",
+            ],
+        }
+    )
+
+
+@pytest.mark.parametrize(
+    "time_unit, expected_recency, expected_T",
+    [
+        ("D", [65, 103, 0], [118, 103, 81]),
+        ("W", [9, 15, 0], [17, 15, 12]),
+        ("M", [2, 4, 0], [4, 4, 3]),
+        ("H", [1560, 2472, 0], [2832, 2472, 1944]),
+    ],
+)
+def test_rfm_summary_time_unit(
+    sparse_monthly_transactions, time_unit, expected_recency, expected_T
+):
+    """Recency and T are counted in calendar periods for every documented ``time_unit``.
+
+    Regression test: ``time_unit="M"`` used to raise because numpy has no
+    unambiguous month duration.
+    """
+    summary = rfm_summary(
+        sparse_monthly_transactions,
+        customer_id_col="id",
+        datetime_col="date",
+        time_unit=time_unit,
+    )
+
+    assert summary["customer_id"].tolist() == [1, 2, 3]
+    assert summary["frequency"].tolist() == [1, 1, 0]
+    np.testing.assert_allclose(summary["recency"], expected_recency)
+    np.testing.assert_allclose(summary["T"], expected_T)
+
+
+def test_rfm_train_test_split_monthly_time_unit(sparse_monthly_transactions):
+    """``rfm_train_test_split`` accepts ``time_unit="M"`` and counts the test window in months."""
+    actual = rfm_train_test_split(
+        sparse_monthly_transactions,
+        customer_id_col="id",
+        datetime_col="date",
+        train_period_end="2024-03-31",
+        test_period_end="2024-05-31",
+        time_unit="M",
+    ).set_index("customer_id")
+
+    assert actual["test_T"].tolist() == [2.0, 2.0, 2.0]
+    assert actual.loc[2, "test_frequency"] == 1
+    assert actual.loc[1, "test_frequency"] == 0
+    assert actual.loc[1, "recency"] == 2.0
+    assert actual.loc[1, "T"] == 2.0
 
 
 def test_expected_cumulative_incremental_transactions_equals_r_btyd_walkthrough(
