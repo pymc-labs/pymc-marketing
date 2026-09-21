@@ -301,6 +301,12 @@ class ConstraintResidual(TypedDict):
     every ``type[...]`` annotation in the package emits -- by fuzzy-matching
     any object whose name ends in ``.type``. Two candidates turn that into a
     build-breaking ambiguity warning.
+
+    This name avoids the collision; it does not fix its cause. Those
+    annotations still resolve to :class:`ConstraintIterationInfo`'s ``type``
+    field instead of the builtin, and the next attribute named ``type``
+    anywhere in the package breaks the docs build the same way. Tracked
+    separately.
     """
 
     constraint_type: Literal["eq", "ineq"]
@@ -2474,10 +2480,13 @@ class BudgetOptimizer(BaseModel):
                     [self._budgets_flat],
                     graph.values,
                     # An unreachable response is answered rather than refused:
-                    # the decision vector is simply an unused input. The warning
-                    # above is what keeps that from being silent.
-                    on_unused_input="ignore",
-                    **self.compile_kwargs or {},
+                    # the decision vector is simply an unused input, and the
+                    # warning above is what keeps that from being silent. It is
+                    # a default rather than a fixed argument: `compile_kwargs`
+                    # is documented as forwarded to `function()`, so a caller
+                    # who sets `on_unused_input` has to win, not collide with a
+                    # `TypeError` about duplicate keyword arguments.
+                    **{"on_unused_input": "ignore", **(self.compile_kwargs or {})},
                 ),
                 tuple(graph.type.dims),
             )
@@ -2491,10 +2500,16 @@ class BudgetOptimizer(BaseModel):
         """Model coordinates for the dims that have them, at the right length.
 
         The compiled response comes back as a bare array, so the labels have to
-        be put back on. Only dims the model actually coordinates are labelled,
-        and only when the length agrees: ``sample`` has no coordinate, and a
-        date axis whose window differs from the model's would otherwise attach
-        labels that are quietly wrong.
+        be put back on. They come from the *optimization* model this optimizer
+        holds, not from the training data, and that is what makes them right:
+        ``_validate_date_length`` pins its date axis at
+        ``carry_in_periods + num_periods + adstock_periods``, which is exactly
+        the response's own date axis.
+
+        Only dims the model actually coordinates are labelled, and only when
+        the length agrees. ``sample`` has no coordinate; a dimension declared
+        by length alone has ``coords[dim] is None``, which is the case the
+        guard is really catching.
         """
         model_coords = self._pymc_model.coords
         return {

@@ -24,6 +24,7 @@ import pytensor
 import pytest
 import xarray as xr
 from pydantic import ValidationError
+from pytensor.compile import UnusedInputError
 from pytensor.graph.traversal import ancestors
 from scipy.optimize import OptimizeResult
 from xarray import DataArray
@@ -1117,6 +1118,34 @@ class TestEvaluateResponseDistribution:
         with warnings.catch_warnings():
             warnings.simplefilter("error")
             optimizer.evaluate_response_distribution(self._plan())
+
+    def test_compile_kwargs_can_override_the_unused_input_default(self, mmm_wrapper):
+        """`on_unused_input` is a default here, not a fixed argument.
+
+        `compile_kwargs` is documented as forwarded to PyTensor's `function()`.
+        Passing the same key used to collide -- `TypeError: got multiple values
+        for keyword argument` -- which reads as a bug in unrelated code rather
+        than as the setting taking effect.
+        """
+        optimizer = BudgetOptimizer(
+            model=mmm_wrapper,
+            num_periods=30,
+            response_variable="total_media_contribution_original_scale",
+            compile_kwargs={"on_unused_input": "raise"},
+        )
+
+        # The caller asked for strictness, so the plan-independent variable is
+        # refused -- by PyTensor, on the caller's terms.
+        with (
+            pytest.warns(UserWarning, match="does not depend on the decision"),
+            pytest.raises(UnusedInputError),
+        ):
+            optimizer.evaluate_response_distribution(self._plan(), "target_scale")
+
+        # ... and the reachable path is unaffected by the override.
+        assert np.isfinite(
+            optimizer.evaluate_response_distribution(self._plan()).to_numpy()
+        ).all()
 
 
 def test_budget_optimizer_mu_effects_deprecated(mmm_wrapper):
