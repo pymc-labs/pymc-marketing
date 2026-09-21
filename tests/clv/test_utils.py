@@ -57,7 +57,9 @@ def test_to_xarray():
     assert new_y.dims == ("test_dim",)
     np.testing.assert_array_equal(new_y.coords["test_dim"], customer_id)
 
-    # Multidimensional input: trailing axes must be named by the caller
+
+def test_to_xarray_names_trailing_axes():
+    customer_id = np.arange(10) + 100
     matrix = np.arange(20).reshape(10, 2)
 
     new_matrix = to_xarray(customer_id, matrix, extra_dims=("channel",))
@@ -106,15 +108,29 @@ def test_to_xarray_distinct_trailing_dims_broadcast():
 @pytest.mark.parametrize(
     "array, extra_dims, match",
     [
-        (np.ones((10, 2)), None, "Cannot label an array of 2 dimensions"),
-        (np.ones((10, 2, 3)), ("channel",), "Cannot label an array of 3 dimensions"),
+        (np.ones((10, 2)), None, "Pass 'extra_dims' naming its trailing axes"),
+        (np.ones((10, 2, 3)), ("channel",), "must have either 1 or 2 dimensions"),
+        (np.ones((10, 2)), ("channel", "lag"), "must have either 1 or 3 dimensions"),
+        (np.float64(1.0), None, "Cannot convert a 0-dimensional array"),
         (np.ones(10), ("customer_id",), "must be unique"),
     ],
-    ids=["missing_extra_dims", "too_few_extra_dims", "duplicate_dim_name"],
+    ids=[
+        "missing_extra_dims",
+        "too_few_extra_dims",
+        "intermediate_rank",
+        "zero_dimensional",
+        "duplicate_dim_name",
+    ],
 )
 def test_to_xarray_invalid_dims_raise(array, extra_dims, match):
     with pytest.raises(ValueError, match=match):
         to_xarray(np.arange(10), array, extra_dims=extra_dims)
+
+
+def test_to_xarray_rejects_string_extra_dims():
+    """A bare string must not be split into one dim name per character."""
+    with pytest.raises(TypeError, match=r"not a string"):
+        to_xarray(np.arange(4), np.ones((4, 2, 3)), extra_dims="ab")
 
 
 @pytest.fixture(scope="module")

@@ -53,9 +53,20 @@ def _resolve_dims(ndim: int, dims: tuple[str, ...]) -> tuple[str, ...]:
         return dims[:1]
     if ndim == len(dims):
         return dims
+    if ndim == 0:
+        raise ValueError(
+            f"Cannot convert a 0-dimensional array: every array needs a leading "
+            f"{dims[0]!r} axis."
+        )
+    if len(dims) == 1:
+        raise ValueError(
+            f"Cannot label an array of {ndim} dimensions with {dims}. Pass "
+            "'extra_dims' naming its trailing axes."
+        )
     raise ValueError(
-        f"Cannot label an array of {ndim} dimensions with {dims}. Pass 'extra_dims' "
-        "naming the trailing axes of multidimensional arrays."
+        f"Cannot label an array of {ndim} dimensions with {dims}: every array must "
+        f"have either 1 or {len(dims)} dimensions. Arrays whose trailing axes differ "
+        "need one call each, so that every axis is named unambiguously."
     )
 
 
@@ -73,6 +84,11 @@ def to_xarray(
     are deliberately not provided: they would make the unrelated trailing axes of two
     arrays returned by the same call align with each other.
 
+    For the same reason every array must be one-dimensional or carry the full set of
+    trailing axes; a rank in between is rejected rather than guessed at, since
+    ``extra_dims`` would not say which of its names the missing axis dropped. Arrays
+    with different trailing axes need one call each.
+
     Parameters
     ----------
     customer_id : array-like
@@ -84,8 +100,9 @@ def to_xarray(
     dim : str, default "customer_id"
         Name of the leading dimension.
     extra_dims : sequence of str, optional
-        Names of the trailing dimensions. Required as soon as an array is
-        multidimensional.
+        Names of the trailing dimensions, e.g. ``("channel",)``. Required as soon as
+        an array is multidimensional. A bare string is rejected: it would be read as
+        one name per character.
 
     Returns
     -------
@@ -95,6 +112,8 @@ def to_xarray(
 
     Raises
     ------
+    TypeError
+        If ``extra_dims`` is a string rather than a sequence of names.
     ValueError
         If ``extra_dims`` repeats a name or clashes with ``dim``, or if an array is
         neither one-dimensional nor of dimension ``1 + len(extra_dims)``.
@@ -108,7 +127,22 @@ def to_xarray(
         )
         spend = to_xarray(data["customer_id"], channel_matrix, extra_dims=("channel",))
 
+    Trailing dimensions are named but not populated; attach their labels with
+    ``assign_coords``:
+
+    .. code-block:: python
+
+        spend = to_xarray(
+            data["customer_id"], channel_df, extra_dims=("channel",)
+        ).assign_coords(channel=channel_df.columns)
+
     """
+    if isinstance(extra_dims, str):
+        raise TypeError(
+            "extra_dims must be a sequence of dimension names, not a string; pass "
+            f"extra_dims=({extra_dims!r},) to name a single trailing axis."
+        )
+
     dims: tuple[str, ...] = (dim, *(extra_dims or ()))
     if len(set(dims)) != len(dims):
         raise ValueError(f"Dimension names must be unique, got {dims}.")
