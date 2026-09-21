@@ -903,7 +903,7 @@ class TestEvaluatePlan:
             plan, total_budget=100.0
         ).constraint_residuals
 
-        assert residuals["default"]["type"] == "eq"
+        assert residuals["default"]["constraint_type"] == "eq"
         np.testing.assert_allclose(residuals["default"]["value"], 0.0, atol=1e-9)
 
     def test_measuring_constraints_leaves_the_shared_total_budget_alone(
@@ -954,6 +954,27 @@ class TestEvaluatePlan:
 
         with pytest.raises(ValueError, match="total_budget"):
             optimizer.evaluate_plan(self._plan(30.0, 70.0)).feasible()
+
+    def test_the_shared_budget_is_restored_when_a_constraint_raises(self, mmm_wrapper):
+        """The restore is a `finally`, so a failed measurement must not leak either.
+
+        The happy path is covered above; this is the path the `finally` exists
+        for. A constraint that raises would otherwise leave the optimizer
+        holding a budget nobody asked for, and the next `feasible()` or
+        `callback=True` run would measure against it.
+        """
+        optimizer = self._optimizer(mmm_wrapper)
+        optimizer.allocate_budget(total_budget=100)
+
+        def explode(_x):
+            raise RuntimeError("constraint blew up")
+
+        optimizer._compiled_constraints[0]["fun"] = explode
+
+        with pytest.raises(RuntimeError, match="constraint blew up"):
+            optimizer.evaluate_plan(self._plan(10.0, 10.0), total_budget=20.0)
+
+        assert float(optimizer._total_budget.get_value()) == 100.0
 
 
 class TestEvaluateResponseDistribution:
@@ -1010,6 +1031,73 @@ class TestEvaluateResponseDistribution:
 
         after = optimizer.evaluate_response_distribution(plan)
         assert not np.allclose(after.to_numpy(), before.to_numpy())
+
+    def test_a_raw_array_is_refused_here_too(self, mmm_wrapper):
+        """The two sibling methods agree on their own contract.
+
+        A correctly sized array packs without complaint, so the only thing
+        standing between a caller and another plan's posterior -- built in
+        coordinate order rather than flat order -- is this guard.
+        """
+        optimizer = BudgetOptimizer(
+            model=mmm_wrapper,
+            num_periods=30,
+            response_variable="total_media_contribution_original_scale",
+        )
+
+        with pytest.raises(TypeError, match="labelled plan"):
+            optimizer.evaluate_response_distribution(np.array([30.0, 70.0]))
+
+    def test_a_non_default_variable_comes_back_labelled(self, mmm_wrapper):
+        """A per-channel response is labelled with the model's own coords.
+
+        The compiled function returns a bare array, so without the coords a
+        caller selecting `channel="channel_2"` would be reading position 1 and
+        hoping.
+        """
+        optimizer = BudgetOptimizer(
+            model=mmm_wrapper,
+            num_periods=30,
+            response_variable="total_media_contribution_original_scale",
+        )
+
+        response = optimizer.evaluate_response_distribution(
+            self._plan(), "channel_contribution"
+        )
+
+        assert set(response.dims) == {"sample", "date", "channel"}
+        assert list(response.coords["channel"].values) == ["channel_1", "channel_2"]
+        # Spending only on channel_1 leaves channel_2's contribution at zero,
+        # which is what makes the labels worth checking.
+        one_channel = optimizer.evaluate_response_distribution(
+            xr.DataArray(
+                [100.0, 0.0],
+                dims=["channel"],
+                coords={"channel": ["channel_1", "channel_2"]},
+            ),
+            "channel_contribution",
+        )
+        assert float(one_channel.sel(channel="channel_2").sum()) == 0.0
+        assert float(one_channel.sel(channel="channel_1").sum()) > 0.0
+
+    def test_a_response_the_plan_cannot_reach_still_evaluates(self, mmm_wrapper):
+        """A quantity that does not depend on the budgets is a legitimate question.
+
+        The decision vector is an unused input of that graph, and compiling
+        with PyTensor's default `on_unused_input` would refuse it outright
+        rather than return the plan-independent value.
+        """
+        optimizer = BudgetOptimizer(
+            model=mmm_wrapper,
+            num_periods=30,
+            response_variable="total_media_contribution_original_scale",
+        )
+
+        response = optimizer.evaluate_response_distribution(
+            self._plan(), "target_scale"
+        )
+
+        assert np.isfinite(response.to_numpy()).all()
 
 
 def test_budget_optimizer_mu_effects_deprecated(mmm_wrapper):

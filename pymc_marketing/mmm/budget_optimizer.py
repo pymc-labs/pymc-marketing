@@ -292,9 +292,18 @@ class ConstraintIterationInfo(TypedDict):
 
 
 class ConstraintResidual(TypedDict):
-    """One constraint's value at a plan, with the sense it must satisfy."""
+    """One constraint's value at a plan, with the sense it must satisfy.
 
-    type: Literal["eq", "ineq"]
+    ``constraint_type`` rather than ``type``, matching
+    :class:`~pymc_marketing.mmm.constraints.Constraint`'s own field name. The
+    shorter name would add a second ``<class>.type`` target to this module,
+    and the Python domain resolves a bare ``type`` cross-reference -- which
+    every ``type[...]`` annotation in the package emits -- by fuzzy-matching
+    any object whose name ends in ``.type``. Two candidates turn that into a
+    build-breaking ambiguity warning.
+    """
+
+    constraint_type: Literal["eq", "ineq"]
     value: float | np.ndarray
 
 
@@ -503,8 +512,8 @@ class PlanEvaluation:
                 "constraints against a budget."
             )
         return all(
-            bool(np.all(np.abs(residual["value"]) <= atol))
-            if residual["type"] == "eq"
+            bool(np.all(np.abs(np.asarray(residual["value"])) <= atol))
+            if residual["constraint_type"] == "eq"
             else bool(np.all(np.asarray(residual["value"]) >= -atol))
             for residual in self.constraint_residuals.values()
         )
@@ -1929,6 +1938,28 @@ class BudgetOptimizer(BaseModel):
         values = np.asarray(values).astype(self._budgets_flat.type.dtype)
         return self._budgets_flat.type.filter(values)
 
+    def _require_labelled_plan(self, plan: Any, method: str) -> None:
+        """Refuse an unlabelled plan, naming the keys the caller should have used.
+
+        A flat vector is not wrong because it might be the wrong length --
+        ``_pack_decision_vector`` filters it through the input's type, which
+        rejects that with a ``TypeError``. It is wrong because it is ambiguous
+        in *order*: it encodes the decision vector's layout positionally, so
+        which segment belongs to which variable, and which cells of the mask
+        are included, are conventions the caller has to reproduce silently.
+        ``allocate_budget`` still accepts one for backwards compatibility, but
+        nothing new should.
+        """
+        if not isinstance(plan, DataArray | Mapping):
+            names = sorted(variable.name for variable in self._variables.variables)
+            raise TypeError(
+                f"{method} takes a labelled plan: a DataArray, or a mapping from "
+                f"decision-variable name to DataArray (expected keys {names}). A "
+                "raw array is refused because it carries the decision vector's "
+                "layout positionally: its order, and which masked cells it "
+                "includes, cannot be checked."
+            )
+
     def evaluate_plan(
         self,
         plan: DataArray | Mapping[str, DataArray],
@@ -1986,10 +2017,14 @@ class BudgetOptimizer(BaseModel):
         utility here therefore does not mean a better plan unless the plan is
         feasible.
 
-        A raw ``numpy`` array is refused deliberately. The compiled objective
-        runs with ``trust_input=True`` and does not check its input's length: a
-        vector shorter than the decision space broadcasts and returns the value
-        of a *different* plan, silently. Labels make that unrepresentable.
+        A raw ``numpy`` array is refused deliberately. Not because of its
+        length -- packing filters the vector through the compiled input's
+        type, which rejects a wrong length with a ``TypeError`` -- but because
+        of its *order*: a flat vector carries the decision vector's layout
+        positionally, so which segment belongs to which variable, and which
+        cells of the optimization mask it includes, are conventions nothing
+        can check. Labels carry that information, which is also what makes the
+        gradient decomposable across two optimizers.
 
         Examples
         --------
@@ -2018,15 +2053,7 @@ class BudgetOptimizer(BaseModel):
             evaluation = optimizer.evaluate_plan(plan, total_budget=100_000)
             assert evaluation.feasible()
         """
-        if not isinstance(plan, DataArray | Mapping):
-            names = sorted(variable.name for variable in self._variables.variables)
-            raise TypeError(
-                "evaluate_plan takes a labelled plan: a DataArray, or a mapping "
-                f"from decision-variable name to DataArray (expected keys {names}). "
-                "A raw array is refused because the compiled objective does not "
-                "check its length: a short vector broadcasts into a silently "
-                "different plan."
-            )
+        self._require_labelled_plan(plan, "evaluate_plan")
 
         x = self._pack_decision_vector(plan)
         objective, gradient = self._objective_and_grad(x)
@@ -2040,16 +2067,15 @@ class BudgetOptimizer(BaseModel):
             previous_total = self._total_budget.get_value()
             self._total_budget.set_value(np.asarray(total_budget, dtype="float64"))
             try:
-                residuals = {
-                    constraint["key"]: ConstraintResidual(
-                        type=constraint["type"],
+                residuals = {}
+                for constraint in self._compiled_constraints:
+                    value = constraint["fun"](x)
+                    residuals[constraint["key"]] = ConstraintResidual(
+                        constraint_type=constraint["type"],
                         value=float(value)
                         if np.ndim(value) == 0
                         else np.asarray(value),
                     )
-                    for constraint in self._compiled_constraints
-                    if (value := constraint["fun"](x)) is not None
-                }
             finally:
                 self._total_budget.set_value(previous_total)
 
@@ -2386,13 +2412,26 @@ class BudgetOptimizer(BaseModel):
             The response at the plan, over the graph's own dims -- ``("sample",)``
             for the scalar-per-draw totals such as
             ``"total_response_original_scale"``, with the posterior's chain and
-            draw stacked into that one dimension.
+            draw stacked into that one dimension. Dims the model has
+            coordinates for (``channel``, a geo dim, the date axis of the
+            optimization window) come back labelled with them.
+
+        Raises
+        ------
+        TypeError
+            If ``plan`` is not labelled.
 
         Notes
         -----
         The compiled function is cached per response variable and dropped by
         :meth:`set_posterior`, so scoring many plans against the same posterior
-        compiles once and no cached function outlives its draws.
+        compiles once and no cached function outlives its draws. The cache key
+        is the variable name alone, which is enough because ``compile_kwargs``
+        is fixed when the optimizer is constructed.
+
+        A response variable the plan cannot reach -- an intercept, a control
+        contribution -- is still evaluated: the decision vector is simply an
+        unused input, and the plan-independent posterior comes back.
 
         This evaluates the model's deterministic response under the plan. It is
         not :meth:`~pymc_marketing.mmm.mmm.MMM.sample_response_distribution`,
@@ -2410,18 +2449,45 @@ class BudgetOptimizer(BaseModel):
             ) - optimizer.evaluate_response_distribution(current_plan)
             print(float((gain > 0).mean()))
         """
+        self._require_labelled_plan(plan, "evaluate_response_distribution")
+
         name = response_variable or self.response_variable
         if name not in self._response_functions:
             graph = self.extract_response_distribution(name)
             self._response_functions[name] = (
                 function(
-                    [self._budgets_flat], graph.values, **self.compile_kwargs or {}
+                    [self._budgets_flat],
+                    graph.values,
+                    # A response that does not depend on the budgets -- an
+                    # intercept, a control contribution -- leaves the decision
+                    # vector unused, which is a legitimate question to ask and
+                    # not a reason to refuse to compile.
+                    on_unused_input="ignore",
+                    **self.compile_kwargs or {},
                 ),
                 tuple(graph.type.dims),
             )
         compiled, dims = self._response_functions[name]
-        values = compiled(self._pack_decision_vector(plan))
-        return DataArray(np.asarray(values), dims=dims)
+        values = np.asarray(compiled(self._pack_decision_vector(plan)))
+        return DataArray(values, dims=dims, coords=self._known_coords(dims, values))
+
+    def _known_coords(
+        self, dims: tuple[str, ...], values: np.ndarray
+    ) -> dict[str, list]:
+        """Model coordinates for the dims that have them, at the right length.
+
+        The compiled response comes back as a bare array, so the labels have to
+        be put back on. Only dims the model actually coordinates are labelled,
+        and only when the length agrees: ``sample`` has no coordinate, and a
+        date axis whose window differs from the model's would otherwise attach
+        labels that are quietly wrong.
+        """
+        model_coords = self._pymc_model.coords
+        return {
+            dim: list(model_coords[dim])
+            for dim, length in zip(dims, values.shape, strict=True)
+            if model_coords.get(dim) is not None and len(model_coords[dim]) == length
+        }
 
     def set_posterior(self, idata: Any) -> None:
         """Point the compiled objective and constraints at a new posterior.
