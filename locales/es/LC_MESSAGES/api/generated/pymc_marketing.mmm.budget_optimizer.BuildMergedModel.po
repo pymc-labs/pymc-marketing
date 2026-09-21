@@ -35,12 +35,12 @@ msgstr ""
 #: pymc_marketing.mmm.budget_optimizer.BuildMergedModel:4
 msgid ""
 "This wrapper combines several optimizer-compatible MMM wrappers by: - "
-"Merging their posterior `InferenceData` with per-model prefixes - Optionally"
+"Merging their posterior `DataTree` with per-model prefixes - Optionally"
 " thinning posterior draws via ``use_every_n_draw`` - Exposing a persistent "
 "merged PyMC ``Model`` for optimization through"
 msgstr ""
 "Este envoltorio combina varios envoltorios MMM compatibles con optimizadores"
-" al: - Fusionar sus `InferenceData` posteriores con prefijos por modelo - "
+" al: - Fusionar sus `DataTree` posteriores con prefijos por modelo - "
 "Opcionalmente reducir las muestras posteriores a través de "
 "``use_every_n_draw`` - Exponer un ``Model`` de PyMC fusionado y persistente "
 "para optimización a través de"
@@ -212,13 +212,13 @@ msgstr ""
 
 #: 80c82cfdf6fa46aca2499cc6d4c006cd of
 #: pymc_marketing.mmm.budget_optimizer.BuildMergedModel:44
-msgid "**idata** : :obj:`arviz.InferenceData`"
-msgstr "**idata** : :obj:`arviz.InferenceData`"
+msgid "**idata** : :obj:`arviz.DataTree`"
+msgstr "**idata** : :obj:`arviz.DataTree`"
 
 #: 5774ba310bc64e47ba415aaa9acaeca6 of
 #: pymc_marketing.mmm.budget_optimizer.BuildMergedModel:43
-msgid "arviz.InferenceData"
-msgstr "arviz.InferenceData"
+msgid "arviz.DataTree"
+msgstr "arviz.DataTree"
 
 #: 6af784b0d3a543bb8134d2725fcb4f14 of
 #: pymc_marketing.mmm.budget_optimizer.BuildMergedModel:45

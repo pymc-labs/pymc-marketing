@@ -155,7 +155,6 @@ class BetaGeoBetaBinomModel(CLVModel):
         super().__init__(
             model_config=model_config,
             sampler_config=sampler_config,
-            non_distributions=None,
         )
 
     @property
@@ -168,9 +167,9 @@ class BetaGeoBetaBinomModel(CLVModel):
             "kappa_dropout": Prior("Pareto", alpha=1, m=1),
         }
 
-    # TODO: This placeholder will be superceded by https://github.com/pymc-labs/pymc-marketing/pull/2305
     def _validate_data(self, data: pd.DataFrame) -> None:
         """Validate BG/BB-specific data requirements."""
+        super()._validate_data(data)
         self._validate_cols(
             data,
             required_cols=[

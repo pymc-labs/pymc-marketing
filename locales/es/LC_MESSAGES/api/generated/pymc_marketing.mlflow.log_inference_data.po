@@ -27,8 +27,8 @@ msgstr "log\\_inference\\_data"
 
 #: eaecb1c107eb44fc851f365666f8d51d of
 #: pymc_marketing.mlflow.log_inference_data:2
-msgid "Log the InferenceData to MLflow."
-msgstr "Registre el InferenceData en MLflow."
+msgid "Log the DataTree to MLflow."
+msgstr "Registre el DataTree en MLflow."
 
 #: f9065f8cfd394134a20bd20c3e84ba0b of
 #: pymc_marketing.mlflow.log_inference_data
@@ -37,18 +37,18 @@ msgstr "Parámetros"
 
 #: b140a9d1425741c7a7e652c4a2369418 of
 #: pymc_marketing.mlflow.log_inference_data:7
-msgid "**idata** : :obj:`az.InferenceData`"
-msgstr "**idata** : :obj:`az.InferenceData`"
+msgid "**idata** : :obj:`az.DataTree`"
+msgstr "**idata** : :obj:`az.DataTree`"
 
 #: 719ac8cd8b8d42d0be87d8e69369f31b of
 #: pymc_marketing.mlflow.log_inference_data:6
-msgid "az.InferenceData"
-msgstr "az.InferenceData"
+msgid "az.DataTree"
+msgstr "az.DataTree"
 
 #: 86a1a548e129402dbebb1e9d79bad45e of
 #: pymc_marketing.mlflow.log_inference_data:8
-msgid "The InferenceData object returned by the sampling method."
-msgstr "El objeto InferenceData devuelto por el método de muestreo."
+msgid "The DataTree object returned by the sampling method."
+msgstr "El objeto DataTree devuelto por el método de muestreo."
 
 #: eb9bb6484d7642f18f656d951d176e6d of
 #: pymc_marketing.mlflow.log_inference_data:10
@@ -62,5 +62,5 @@ msgstr "python:str | Ruta"
 
 #: 552970cddf0348e1b0e26f91e8e35505 of
 #: pymc_marketing.mlflow.log_inference_data:11
-msgid "The path to save the InferenceData object as a netCDF file."
-msgstr "La ruta para guardar el objeto InferenceData como un archivo netCDF."
+msgid "The path to save the DataTree object as a netCDF file."
+msgstr "La ruta para guardar el objeto DataTree como un archivo netCDF."

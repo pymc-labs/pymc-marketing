@@ -46,6 +46,14 @@ class TestFromXarray:
         assert "product" in result.coords
         assert list(result.coords["product"].values) == ["A", "B"]
 
+    def test_transposed_without_T_coord(self):
+        # (product, T) with no T coord: T must lead and the auto coord must be
+        # sized from the T dim (5), not from whichever dim comes first (2).
+        ds = xr.Dataset({"observed": (("product", "T"), np.ones((2, 5)))})
+        result = to_bass_dataset(ds)
+        assert result["observed"].dims == ("T", "product")
+        assert list(result.coords["T"].values) == [0, 1, 2, 3, 4]
+
 
 class TestFromDataFrame:
     def test_with_observed_column(self):

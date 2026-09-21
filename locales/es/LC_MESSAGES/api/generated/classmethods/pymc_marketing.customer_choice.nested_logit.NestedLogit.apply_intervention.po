@@ -116,8 +116,8 @@ msgstr "Devoluciones"
 
 #: 953b756dcf7c4298acd3517948cdc450 of
 #: pymc_marketing.customer_choice.nested_logit.NestedLogit.apply_intervention:27
-msgid ":obj:`az.InferenceData`"
-msgstr ":obj:`az.InferenceData`"
+msgid ":obj:`az.DataTree`"
+msgstr ":obj:`az.DataTree`"
 
 #: 7126b37093ab4b44aad1536e3f7154a8 of
 #: pymc_marketing.customer_choice.nested_logit.NestedLogit.apply_intervention:28

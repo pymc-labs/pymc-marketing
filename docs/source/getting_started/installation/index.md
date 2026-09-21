@@ -2,12 +2,21 @@
 
 ## Installing PyMC-Marketing
 
-PyMC-Marketing requires **Python 3.10 or greater**.
+PyMC-Marketing requires **Python 3.12 or greater**.
+
+PyMC-Marketing is built on top of **PyMC >= 6.0** and **ArviZ >= 1.2**.
 
 Install the `pymc-marketing` package with pip:
 
 ```bash
 pip install pymc-marketing
+```
+
+Some features are available as optional extras:
+
+```bash
+pip install pymc-marketing[dag]  # causal identification tooling
+pip install pymc-marketing[pie]  # Predicted Incrementality by Experimentation (PIE), requires pymc-bart
 ```
 
 You can also install the development version of PyMC-Marketing with:

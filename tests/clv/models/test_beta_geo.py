@@ -156,42 +156,62 @@ class TestBetaGeoModel:
                 "r_log__": (),
             }
 
-    def test_missing_cols(self):
-        data_invalid = self.data.drop(columns="customer_id")
+    @pytest.mark.parametrize(
+        "missing_column",
+        ["customer_id", "frequency", "recency", "T"],
+    )
+    def test_missing_cols(self, missing_column):
+        data_invalid = self.data.drop(columns=missing_column)
 
         with pytest.raises(
             ValueError,
-            match=r"The following required columns are missing from the input data: \['customer_id'\]",
+            match=rf"The following required columns are missing from the input data: \['{missing_column}'\]",
         ):
             model = BetaGeoModel()
             model.build_model(data=data_invalid)
 
-        data_invalid = self.data.drop(columns="frequency")
-
-        with pytest.raises(
-            ValueError,
-            match=r"The following required columns are missing from the input data: \['frequency'\]",
-        ):
+    @pytest.mark.parametrize(
+        "data, match",
+        [
+            (
+                {"customer_id": [1], "frequency": [-1], "recency": [1], "T": [2]},
+                "Column frequency has negative values",
+            ),
+            (
+                {"customer_id": [1], "frequency": [1.5], "recency": [1], "T": [2]},
+                "frequency column must contain only integer values",
+            ),
+            (
+                {"customer_id": [1], "frequency": [1], "recency": [-1], "T": [2]},
+                "Column recency has negative values",
+            ),
+            (
+                {"customer_id": [1], "frequency": [1], "recency": [1], "T": [-1]},
+                "Column T has negative values",
+            ),
+            (
+                {"customer_id": [1], "frequency": [0], "recency": [1], "T": [2]},
+                "recency cannot be greater than 0 if frequency is 0",
+            ),
+            (
+                {"customer_id": [1], "frequency": [1], "recency": [3], "T": [2]},
+                "recency cannot be greater than T",
+            ),
+        ],
+    )
+    def test_invalid_rfm_values(self, data, match):
+        with pytest.raises(ValueError, match=match):
             model = BetaGeoModel()
-            model.build_model(data=data_invalid)
+            model.build_model(data=pd.DataFrame(data))
 
-        data_invalid = self.data.drop(columns="recency")
+    def test_zero_T_warns(self):
+        data = pd.DataFrame(
+            {"customer_id": [1], "frequency": [0], "recency": [0], "T": [0]}
+        )
 
-        with pytest.raises(
-            ValueError,
-            match=r"The following required columns are missing from the input data: \['recency'\]",
-        ):
+        with pytest.warns(UserWarning, match="T=0 is uninformative for model fitting"):
             model = BetaGeoModel()
-            model.build_model(data=data_invalid)
-
-        data_invalid = self.data.drop(columns="T")
-
-        with pytest.raises(
-            ValueError,
-            match=r"The following required columns are missing from the input data: \['T'\]",
-        ):
-            model = BetaGeoModel()
-            model.build_model(data=data_invalid)
+            model.build_model(data=data)
 
     def test_customer_id_duplicate(self):
         data = pd.DataFrame(

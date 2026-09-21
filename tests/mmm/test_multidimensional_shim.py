@@ -34,10 +34,11 @@ def test_multidimensional_shim_reexports_match_mmm_module():
     with pytest.warns(FutureWarning):
         shim = _fresh_import_shim()
     from pymc_marketing.mmm import mmm as mmm_module
+    from pymc_marketing.model_builder import create_sample_kwargs
 
     assert shim.MMM is mmm_module.MMM
     assert shim.BudgetOptimizerWrapper is mmm_module.BudgetOptimizerWrapper
     assert (
         shim.MultiDimensionalBudgetOptimizerWrapper is mmm_module.BudgetOptimizerWrapper
     )
-    assert shim.create_sample_kwargs is mmm_module.create_sample_kwargs
+    assert shim.create_sample_kwargs is create_sample_kwargs

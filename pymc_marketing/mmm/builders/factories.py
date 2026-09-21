@@ -17,13 +17,18 @@ from __future__ import annotations
 
 import importlib
 import warnings
-from collections.abc import Mapping, MutableMapping, Sequence
+from collections.abc import Iterator, Mapping, MutableMapping, Sequence
+from contextlib import contextmanager
 from typing import Any
 
-from pymc_extras.deserialize import deserialize
+from pymc_extras.deserialize import DeserializableError, deserialize
 
-# In order to register custom deserializers
-import pymc_marketing.prior  # noqa: F401
+from pymc_marketing.model_config import ModelConfigError
+
+# Importing ``special_priors`` registers the deserializer for the flat YAML
+# ``{"distribution": ...}`` prior format, which pymc-extras' built-in
+# deserializer does not handle.
+import pymc_marketing.special_priors  # noqa: F401  # isort: skip
 
 # Optional short-name registry -------------------------------------------------
 REGISTRY: dict[str, Any] = {
@@ -63,6 +68,27 @@ def locate(qualname: str) -> Any:
     return getattr(module_obj, obj_name)
 
 
+@contextmanager
+def naming(key: str) -> Iterator[None]:
+    """Name *key* on any deserialization failure raised inside the block.
+
+    YAML is the entry point most likely to be hand-edited, and a bare
+    ``DeserializableError`` only dumps the offending sub-dict, which is hard to
+    trace back to a config entry. ``ModelConfigError`` used to name every bad
+    key before dict-format priors were removed; this preserves that.
+
+    ``DeserializableError`` reports "use register_deserialization to add a
+    mapping", which is the wrong advice when a deserializer did match and
+    failed for some other reason. In that case ``__cause__`` holds the actual
+    reason (e.g. ``PyMC doesn't have a distribution of name 'Nrmal'``), so
+    surface that instead.
+    """
+    try:
+        yield
+    except DeserializableError as err:
+        raise ModelConfigError(f"Parameter {key}: {err.__cause__ or err}") from err
+
+
 def build(spec: Mapping[str, Any]) -> Any:
     """
     Instantiate the object described by *spec*.
@@ -95,7 +121,7 @@ def build(spec: Mapping[str, Any]) -> Any:
     raw_args: Sequence[Any] = raw_kwargs.pop("args", spec.get("args", ()))
 
     # Handle specific kwargs that should be processed differently
-    special_processing_keys = ["priors", "prior"]
+    special_processing_keys = ["priors", "prior", "model_config"]
 
     # Convert list dimensions to tuples for model or effect classes
     if "dims" in raw_kwargs and isinstance(raw_kwargs["dims"], list):
@@ -116,21 +142,39 @@ def build(spec: Mapping[str, Any]) -> Any:
                             if "class" in prior_value:
                                 priors_dict[prior_key] = build(prior_value)
                             else:
-                                priors_dict[prior_key] = deserialize(prior_value)
+                                with naming(prior_key):
+                                    priors_dict[prior_key] = deserialize(prior_value)
                         else:
                             priors_dict[prior_key] = prior_value
                     kwargs[k] = priors_dict
                 elif k == "prior" and "distribution" in v:
-                    kwargs[k] = deserialize(v)
+                    with naming(k):
+                        kwargs[k] = deserialize(v)
+                elif k == "model_config":
+                    # Each entry may be a prior spec ({"distribution": ...}),
+                    # an HSGP/other config dict, or a plain value. ``resolve``
+                    # deserializes prior specs and leaves everything else as-is,
+                    # since ``parse_model_config`` no longer converts dicts.
+                    model_config = {}
+                    for mk, mv in v.items():
+                        with naming(mk):
+                            model_config[mk] = resolve(mv)
+                    kwargs[k] = model_config
                 else:
-                    kwargs[k] = resolve(v)
+                    with naming(k):
+                        kwargs[k] = resolve(v)
             else:
-                kwargs[k] = resolve(v)
+                with naming(k):
+                    kwargs[k] = resolve(v)
         else:
             # --- recurse into nested objects for other items -----------------------------------------
-            kwargs[k] = resolve(v)
+            with naming(k):
+                kwargs[k] = resolve(v)
 
-    args = [resolve(v) for v in raw_args]
+    args = []
+    for i, v in enumerate(raw_args):
+        with naming(f"args[{i}]"):
+            args.append(resolve(v))
 
     return cls(*args, **kwargs)
 
@@ -144,7 +188,15 @@ def resolve(value):
     if isinstance(value, Mapping):
         if "class" in value:
             return build(value)
-        if "distribution" in value or "special_prior" in value:
+        # "dist" is the pymc-extras serialization key; "distribution" is the
+        # flat YAML form handled by ``special_priors.deserialize_alternative_prior``.
+        # Require a string value so non-prior mappings that merely contain such
+        # a key are not misrouted to the prior deserializer.
+        if (
+            isinstance(value.get("distribution"), str)
+            or isinstance(value.get("dist"), str)
+            or "special_prior" in value
+        ):
             return deserialize(value)
 
     if (

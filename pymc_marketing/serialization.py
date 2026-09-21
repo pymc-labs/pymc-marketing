@@ -133,7 +133,6 @@ class TypeRegistry:
 
         # With explicit type_key + custom deserializer:
         serialization.register("mod.MyClass", MyClass, deserializer=my_deser_fn)
-
     """
 
     def __init__(self) -> None:
@@ -202,6 +201,7 @@ class TypeRegistry:
                 f"Type {type_key!r} is not registered in the TypeRegistry. "
                 f"Use @serialization.register to register it."
             )
+
         entry = self._registry[type_key]
         if entry.serializer is not None:
             return entry.serializer(obj)
@@ -214,10 +214,9 @@ class TypeRegistry:
     ) -> Any:
         """Deserialize a dict back to an object.
 
-        Three-tier dispatch:
+        Two-tier dispatch:
         1. If ``__deferred__`` is True, return an unresolved ``DeferredFactory``.
-        2. If a custom deserializer was registered, call it with ``(data, context)``.
-        3. Otherwise, look up the class by ``__type__`` and call ``cls.from_dict(data)``.
+        2. Otherwise, look up the class by ``__type__`` and call ``cls.from_dict(data)``.
         """
         if not isinstance(data, dict):
             raise SerializationError(
@@ -249,6 +248,157 @@ class TypeRegistry:
             return entry.deserializer(data, context)
 
         return entry.cls.from_dict(data)  # type: ignore[attr-defined]
+
+    def serialize_model_config(self, config: dict[str, Any]) -> dict[str, Any]:
+        """Serialize a model_config dict to JSON-safe values.
+
+        Parameters
+        ----------
+        config : dict
+            Raw model configuration dictionary with live objects
+            (Priors, R2D2 splits, numpy arrays, etc.).
+
+        Returns
+        -------
+        dict
+            JSON-safe dict suitable for ``json.dumps``.
+        """
+        return {k: self._serialize_config_value(v) for k, v in config.items()}
+
+    def _serialize_config_value(self, value: Any) -> Any:
+        """Serialize a single config value."""
+        import numpy as np
+
+        if isinstance(value, np.ndarray):
+            return value.tolist()
+        if isinstance(value, (np.integer,)):
+            return int(value)
+        if isinstance(value, (np.floating,)):
+            return float(value)
+        if isinstance(value, (int, float, str, bool, type(None))):
+            return value
+        if isinstance(value, (list, tuple)):
+            return [self._serialize_config_value(v) for v in value]
+        if isinstance(value, dict):
+            return {k: self._serialize_config_value(v) for k, v in value.items()}
+
+        from pymc_extras.prior import Prior
+
+        if isinstance(value, Prior):
+            result: dict[str, Any] = {
+                "dist": value.distribution,
+                "kwargs": {
+                    k: self._serialize_config_value(v)
+                    for k, v in value.parameters.items()
+                },
+            }
+            if value.dims is not None:
+                result["dims"] = value.dims
+            if not value.centered:
+                result["centered"] = False
+            return result
+
+        type_key = f"{value.__class__.__module__}.{value.__class__.__qualname__}"
+        if type_key in self._registry:
+            return self.serialize(value)
+
+        if hasattr(value, "to_dict"):
+            base = value.to_dict()
+            if isinstance(base, dict):
+                return {k: self._serialize_config_value(v) for k, v in base.items()}
+            return base
+
+        return value
+
+    def deserialize_model_config(self, data: dict[str, Any]) -> dict[str, Any]:
+        """Deserialize a model_config dict back to live objects.
+
+        Parameters
+        ----------
+        data : dict
+            JSON-parsed model configuration dict, as produced by
+            :meth:`serialize_model_config`.
+
+        Returns
+        -------
+        dict
+            Dict with live objects (Priors, R2D2 splits, etc.).
+        """
+        config = {k: self._deserialize_config_value(v) for k, v in data.items()}
+        return _merge_shared_decompositions(config)
+
+    def _deserialize_config_value(self, value: Any) -> Any:
+        """Deserialize a single config value."""
+        import numpy as np
+
+        if isinstance(value, dict):
+            if "__type__" in value:
+                return self.deserialize(value)
+
+            if isinstance(value.get("dist"), str):
+                prior = self._deserialize_prior_spec(value)
+                if prior is not None:
+                    return prior
+
+            return {k: self._deserialize_config_value(v) for k, v in value.items()}
+
+        if isinstance(value, list):
+            result = [self._deserialize_config_value(v) for v in value]
+            if result and all(isinstance(v, (int, float)) for v in result):
+                return np.array(result)
+            return result
+
+        return value
+
+    def _deserialize_prior_spec(self, data: dict[str, Any]) -> Any | None:
+        """Deserialize a Prior spec dict."""
+        from pymc_extras.deserialize import DeserializableError, deserialize
+
+        try:
+            return deserialize(data)
+        except DeserializableError as err:
+            if err.__cause__ is not None:
+                raise
+            return None
+
+
+def _merge_shared_decompositions(config: dict[str, Any]) -> dict[str, Any]:
+    """Merge identical R2D2 instances after deserialization.
+
+    When model_config contains both R2D2Split and R2D2Sigma entries,
+    each deserializes its own copy of the decomposition. This walks
+    the config tree and merges identical decompositions so that all
+    splits and sigmas share the same decomposition object.
+    """
+    import json
+
+    from pymc_marketing.r2d2 import R2D2, R2D2Sigma, R2D2Split
+
+    decomps: dict[str, R2D2] = {}
+
+    def walk(obj: Any) -> Any:
+        if isinstance(obj, R2D2):
+            key = json.dumps(serialization.serialize(obj), sort_keys=True)
+            if key not in decomps:
+                decomps[key] = obj
+            return decomps[key]
+        if isinstance(obj, R2D2Split):
+            obj.decomposition = walk(obj.decomposition)
+            return obj
+        if isinstance(obj, R2D2Sigma):
+            obj.decomposition = walk(obj.decomposition)
+            return obj
+        if isinstance(obj, dict):
+            return {k: walk(v) for k, v in obj.items()}
+        if isinstance(obj, list):
+            return [walk(v) for v in obj]
+        if hasattr(obj, "parameters"):
+            for k, v in obj.parameters.items():
+                obj.parameters[k] = walk(v)
+            return obj
+        return obj
+
+    return walk(config)
 
 
 serialization = TypeRegistry()

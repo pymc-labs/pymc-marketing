@@ -184,7 +184,7 @@ import json
 import warnings
 from collections.abc import Callable, Sequence
 from copy import deepcopy
-from typing import Annotated, Any, Literal, Self, cast
+from typing import TYPE_CHECKING, Annotated, Any, Literal, NamedTuple, Self, cast
 
 import arviz as az
 import numpy as np
@@ -197,9 +197,9 @@ from pydantic import ConfigDict, Field, InstanceOf, StrictBool, validate_call
 from pymc.model.transform.optimization import freeze_dims_and_data
 from pymc.util import RandomState
 from pymc_extras.prior import Prior
+from pytensor.graph.traversal import ancestors
 from pytensor.xtensor import as_xtensor
 from pytensor.xtensor.type import XTensorVariable
-from scipy.optimize import OptimizeResult
 
 from pymc_marketing.data.idata.mmm_wrapper import MMMIDataWrapper
 from pymc_marketing.data.idata.utils import subsample_draws
@@ -210,12 +210,15 @@ from pymc_marketing.mmm.additive_effect import (
     MuEffect,
     safe_to_datetime,
 )
-from pymc_marketing.mmm.budget_optimizer import OptimizerCompatibleModelWrapper
+from pymc_marketing.mmm.budget_optimizer import (
+    DEFAULT_RESPONSE_VARIABLE,
+    OptimizerCompatibleModelWrapper,
+)
 from pymc_marketing.mmm.causal import CausalGraphModel
 from pymc_marketing.mmm.components.adstock import AdstockTransformation
 from pymc_marketing.mmm.components.saturation import SaturationTransformation
 from pymc_marketing.mmm.constraints import Constraint
-from pymc_marketing.mmm.data_conversion import to_mmm_dataset
+from pymc_marketing.mmm.data_conversion import _dataset_has_target, to_mmm_dataset
 from pymc_marketing.mmm.decomposition import (
     identity_counterfactual_component,
     log_counterfactual_remove_component,
@@ -249,11 +252,18 @@ from pymc_marketing.mmm.utils import (
     add_noise_to_channel_allocation,
     create_zero_dataset,
 )
-from pymc_marketing.model_builder import RegressionModelBuilder
+from pymc_marketing.model_builder import RegressionModelBuilder, SamplingMethod
 from pymc_marketing.model_config import parse_model_config
 from pymc_marketing.model_graph import deterministics_to_flat
 from pymc_marketing.serialization import DeserializationContext, serialization
+from pymc_marketing.special_priors import LogNormalPrior
 from pymc_marketing.version import __version__
+
+if TYPE_CHECKING:
+    from pymc_marketing.mmm.budget_optimizer import (
+        BudgetOptimizationResult,
+        BudgetOptimizer,
+    )
 
 
 def _deserialize_cost_per_unit(json_str: str) -> pd.DataFrame:
@@ -269,6 +279,22 @@ def _deserialize_cost_per_unit(json_str: str) -> pd.DataFrame:
         if hasattr(dt_accessor, "tz") and dt_accessor.tz is not None:
             df["date"] = dt_accessor.tz_localize(None)
     return df
+
+
+class _WindowLayout(NamedTuple):
+    """The three blocks an optimization model's date axis divides into.
+
+    Only ``decisions`` is optimized.  ``carry_in`` holds spend already made
+    before the window, so the adstock does not start cold, and ``carry_over``
+    the zero-spend periods that catch the tail the decisions produce after the
+    window closes.  The three must together cover the axis exactly; that is the
+    invariant :class:`~pymc_marketing.mmm.budget_optimizer.BudgetOptimizer`
+    re-checks for callers who set the three numbers by hand.
+    """
+
+    carry_in: int
+    decisions: int
+    carry_over: int
 
 
 class MMM(RegressionModelBuilder):
@@ -612,6 +638,10 @@ class MMM(RegressionModelBuilder):
         self._cost_per_unit_input = cost_per_unit
         self._plot_suite: Literal["legacy", "new"] = "legacy"
         self._plot_suite_warned: bool = False
+        # True only while the built model's observed target is the ones
+        # placeholder that `sample_prior_predictive` substitutes for a missing
+        # `y` under a LogNormalPrior likelihood; see `fit`.
+        self._target_is_placeholder: bool = False
 
         super().__init__(model_config=model_config, sampler_config=sampler_config)
 
@@ -1017,9 +1047,16 @@ class MMM(RegressionModelBuilder):
 
         return serializable_config
 
+    @classmethod
+    def _model_config_formatting(cls, model_config: dict) -> dict:
+        return serialization.deserialize_model_config(model_config)
+
     def create_idata_attrs(self) -> dict[str, str]:
         """Return the idata attributes for the model."""
         attrs = super().create_idata_attrs()
+        attrs["model_config"] = json.dumps(
+            serialization.serialize_model_config(self.model_config)
+        )
         attrs["__serialization_version__"] = "1"
         attrs["dims"] = json.dumps(self.dims)
         attrs["date_column"] = self.date_column
@@ -1095,7 +1132,7 @@ class MMM(RegressionModelBuilder):
 
     @classmethod
     def load_from_idata(cls, idata: xr.DataTree, check: bool = True) -> MMM:
-        """Load from InferenceData, auto-migrating old formats."""
+        """Load from DataTree, auto-migrating old formats."""
         from pymc_marketing.serialization_migration import (
             CURRENT_VERSION,
             migrate_idata,
@@ -1223,10 +1260,16 @@ class MMM(RegressionModelBuilder):
             fig = mmm.plot_interactive.adstock_curves()
             fig.show()
 
+            # Waterfall and channel share (from summary data)
+            fig = mmm.plot_interactive.waterfall()
+            fig = mmm.plot_interactive.channel_share()
+            fig.show()
+
         See Also
         --------
         MMMPlotSuite : Static matplotlib plotting functionality
         MMMPlotlyFactory : Interactive plotting class documentation
+        MMM.summary : Tabular export for custom frontends
         """
         try:
             from pymc_marketing.mmm.plot_interactive import MMMPlotlyFactory
@@ -1243,7 +1286,7 @@ class MMM(RegressionModelBuilder):
 
     @property
     def data(self) -> Any:  # type: ignore[no-any-return]
-        """Get data wrapper for InferenceData access and manipulation.
+        """Get data wrapper for DataTree access and manipulation.
 
         Returns a fresh wrapper on each access. The wrapper is lightweight
         and wraps the current state of self.idata.
@@ -1570,7 +1613,7 @@ class MMM(RegressionModelBuilder):
         """Access summary DataFrame generation functionality.
 
         Returns a factory for creating summary DataFrames from the model's
-        InferenceData with configurable defaults for HDI levels and output format.
+        DataTree with configurable defaults for HDI levels and output format.
 
         Returns a fresh factory on each access. The factory includes both
         data and model, enabling all summary methods including transformation curves.
@@ -1612,10 +1655,29 @@ class MMM(RegressionModelBuilder):
             # Get change over time
             df = mmm.summary.change_over_time()
 
+            # Frontend-ready export (library-agnostic JSON)
+            records = mmm.summary.contributions().to_dict(orient="records")
+
+            # Decomposition and diagnostics summaries
+            df = mmm.summary.waterfall()
+            df = mmm.summary.channel_share_hdi()
+            df = mmm.summary.prior_predictive()
+            df = mmm.summary.residuals_over_time()
+            df = mmm.summary.residuals_distribution()
+            df = mmm.summary.prior_vs_posterior()
+            df = mmm.summary.saturation_scatterplot()
+            df = mmm.summary.sensitivity_analysis()
+
+            # JSON-safe export (ISO dates, native Python types)
+            from pymc_marketing.mmm.summary import dataframe_to_json_records
+
+            records = dataframe_to_json_records(mmm.summary.contributions())
+
         See Also
         --------
         MMMSummaryFactory : Factory class documentation
         pymc_marketing.mmm.summary : Module with all factory functions
+        dataframe_to_json_records : JSON-serializable record export helper
         """
         from pymc_marketing.mmm.summary import MMMSummaryFactory
 
@@ -2088,8 +2150,11 @@ class MMM(RegressionModelBuilder):
         self,
         X: pd.DataFrame | xr.Dataset | xr.DataArray,
         y: pd.Series | pd.DataFrame | xr.DataArray | np.ndarray | None = None,
+        *,
+        method: SamplingMethod = "mcmc",
         progressbar: bool | None = None,
         random_seed: RandomState | None = None,
+        sample_kwargs: dict[str, Any] | None = None,
         **kwargs: Any,
     ) -> xr.DataTree:
         """Fit the model and inject cost_per_unit metadata if provided.
@@ -2103,10 +2168,16 @@ class MMM(RegressionModelBuilder):
             Training input samples.
         y : pd.Series or xr.DataArray or np.ndarray or None
             Target values.
+        method : str
+            Method used to fit the model. One of ``"mcmc"``, ``"map"``, ``"demz"``,
+            ``"advi"`` or ``"fullrank_advi"``.
         progressbar : bool, optional
             Whether to show the progress bar.
         random_seed : RandomState, optional
             Random seed for reproducibility.
+        sample_kwargs : dict, optional
+            Only used by the variational methods; forwarded to ``Approximation.sample``
+            (e.g. ``{"draws": 1_000}``).
         **kwargs : Any
             Additional keyword arguments passed to the sampler.
 
@@ -2115,8 +2186,25 @@ class MMM(RegressionModelBuilder):
         xr.DataTree
             Inference data of the fitted model.
         """
+        if hasattr(self, "model") and self._target_is_placeholder:
+            warnings.warn(
+                "The model was built by `sample_prior_predictive` with a "
+                "placeholder target of ones because no `y` was given, and "
+                "`fit` reuses an existing model without refreshing its observed "
+                "target (see issue #2956). The posterior will be fit to the "
+                "placeholder, not to `y`. Build the model with the real target "
+                "first, or fit a fresh instance.",
+                UserWarning,
+                stacklevel=2,
+            )
         idata = super().fit(
-            X, y, progressbar=progressbar, random_seed=random_seed, **kwargs
+            X,
+            y,
+            method=method,
+            progressbar=progressbar,
+            random_seed=random_seed,
+            sample_kwargs=sample_kwargs,
+            **kwargs,
         )
         if self._cost_per_unit_input is not None:
             self.set_cost_per_unit(self._cost_per_unit_input)
@@ -2197,12 +2285,16 @@ class MMM(RegressionModelBuilder):
             X=X,
             y=y,
         )
+        self._target_is_placeholder = False
 
+        likelihood = self.model_config["likelihood"]
         if "_target" in self.xarray_dataset.data_vars:
             self._link_spec.validate_target(self.xarray_dataset["_target"].values)
-        LinkSpec.validate_likelihood_compatibility(
-            self.link, self.model_config["likelihood"]
-        )
+            # LogNormalPrior observes the raw target on the strictly positive
+            # support, which the link-level validate_target cannot know about.
+            if isinstance(likelihood, LogNormalPrior):
+                likelihood.validate_observed(self.xarray_dataset["_target"].values)
+        LinkSpec.validate_likelihood_compatibility(self.link, likelihood)
 
         if self.link == LinkFunction.LOG and self.mu_effects:
             warnings.warn(
@@ -2217,9 +2309,12 @@ class MMM(RegressionModelBuilder):
         # Compute and save scales
         self._compute_scales()
 
-        with pm.Model(
-            coords=self.model_coords,
-        ) as self.model:
+        with pm.Model(coords=self.model_coords) as self.model:
+            if self.yearly_seasonality:
+                self.model.add_coord(
+                    self.yearly_fourier.prefix, self.yearly_fourier.nodes
+                )
+
             _channel_scale = pmd.Data("channel_scale", self.scalers._channel)
             _target_scale = pmd.Data("target_scale", self.scalers._target)
 
@@ -2256,6 +2351,26 @@ class MMM(RegressionModelBuilder):
             target_data_scaled.name = "target_scaled"
             ## TODO: Find a better way to save it or access it in the pytensor graph.
             self.target_data_scaled = target_data_scaled
+
+            # The likelihood observes this, not `_target`, so the support check
+            # has to run here rather than next to `validate_target` above: the
+            # scale can be negative and the switch above rewrites NaN/inf to
+            # zero, so the raw target's values are not the ones being fitted.
+            # `validate_likelihood_support` evaluates the variable only if the
+            # likelihood has a support to check, so the default `Normal` pays
+            # nothing.
+            #
+            # An all-zero target is the placeholder that `fit` and
+            # `sample_prior_predictive` substitute when no `y` is given
+            # (`model_builder.py:1546`, `:1772`). It has no support to respect,
+            # and failing it would break building a model in order to look at
+            # its prior, so skip the check rather than reject the placeholder.
+            if np.any(self.xarray_dataset["_target"].values != 0):
+                LinkSpec.validate_likelihood_support(
+                    self.model_config["likelihood"],
+                    target_data_scaled,
+                    target_scale=self.scalers["_target"].values,
+                )
 
             for mu_effect in self.mu_effects:
                 mu_effect.create_data(self)
@@ -2385,6 +2500,18 @@ class MMM(RegressionModelBuilder):
                 target_scale=_target_scale,
                 output_var=self.output_var,
             )
+
+            # `total_media_contribution_original_scale` is built from the
+            # `channel_contribution` tensor alone, so any response routed
+            # through a mu effect -- a funnel mediator, a promotional lever --
+            # is invisible to it, and a budget optimized against it undervalues
+            # whatever drives that effect. Registered only when the model has
+            # effects, so plain media models keep their posterior unchanged.
+            if self.mu_effects:
+                self._link_spec.create_total_response_deterministic(
+                    mu_var=mu_var,
+                    target_scale=_target_scale,
+                )
 
             self.model_config["likelihood"].create_likelihood_variable(
                 name=self.output_var,
@@ -2534,6 +2661,387 @@ class MMM(RegressionModelBuilder):
 
         return model
 
+    def effective_carryover_lags(self) -> int:
+        """Periods over which a change in spend can still move the response.
+
+        The model's own ``adstock.l_max`` bounds the direct path, but an effect
+        that chains a further adstock behind it -- a funnel mediator, say --
+        keeps moving for longer, and declares how much longer through
+        ``incrementality_spec().additional_carryover_lags``. That declaration
+        already sizes the incrementality module's evaluation windows; sizing the
+        optimization window from ``l_max`` alone truncates the same tail, so the
+        objective undercounts the carry-over every plan produces.
+
+        Declarations only, never a probe: this runs at model-build time, where
+        measuring reach is neither available nor affordable. An effect that
+        declares nothing contributes nothing, which reproduces the previous
+        behaviour rather than guessing on its behalf.
+
+        An effect that returns ``None`` to opt out is skipped. Anything an
+        effect's ``incrementality_spec`` raises propagates: it means the effect
+        cannot answer a question about itself, and sizing the window from a
+        swallowed error would truncate the tail exactly as before, with nothing
+        to show why.
+
+        Returns
+        -------
+        int
+            ``adstock.l_max`` plus the widest additional carryover declared by
+            any registered effect.
+        """
+        declared = 0
+        for effect in self.mu_effects:
+            spec = effect.incrementality_spec()
+            if spec is None:
+                # Opted out. Skip this effect only: another effect's declaration
+                # must still widen the window.
+                continue
+            lags = spec.additional_carryover_lags
+            if lags:
+                declared = max(declared, int(lags))
+        return int(getattr(self.adstock, "l_max", 0)) + declared
+
+    def _window_layout(
+        self,
+        pymc_model: pm.Model,
+        start_date: str | pd.Timestamp,
+        date_dim: str = "date",
+    ) -> _WindowLayout:
+        """Split an optimization model's date axis into its three blocks.
+
+        Only the date axis is read off *pymc_model*; the carry-over comes from
+        this MMM's own adstock and effects. The two therefore have to describe
+        the same window -- pass the model
+        :meth:`create_optimization_model` returned for *start_date*, not one
+        built from different parameters, or the three blocks will not add up to
+        the axis and ``BudgetOptimizer`` will refuse them.
+
+        Derived in one place so the three numbers cannot drift apart: the
+        leading dates are whatever
+        :func:`~pymc_marketing.mmm.utils.create_zero_dataset` was able to
+        prepend -- it clips against the training index, so asking is the only
+        way to know -- and the trailing block is
+        :meth:`effective_carryover_lags`, leaving the decisions in between.
+
+        Parameters
+        ----------
+        pymc_model : pymc.Model
+            A model built by :meth:`create_optimization_model`.
+        start_date : str or pd.Timestamp
+            First date of the decision window, as passed to that method.
+        date_dim : str, default "date"
+            Name of the model's date dimension.
+
+        Returns
+        -------
+        _WindowLayout
+            Carry-in, decision and carry-over period counts.
+
+        Raises
+        ------
+        ValueError
+            If the model has no *date_dim* coordinate, or the window leaves no
+            room for a decision once both flanking blocks are taken out.
+        """
+        if date_dim not in pymc_model.coords:
+            raise ValueError(
+                f"The optimization model has no {date_dim!r} coordinate, so "
+                "num_periods cannot be inferred. Pass date_dim= naming the model's "
+                "date dimension, or build the BudgetOptimizer directly with an "
+                "explicit num_periods."
+            )
+        model_dates = pd.DatetimeIndex(list(pymc_model.coords[date_dim]))
+        # Leading dates hold spend that already happened, so they are neither
+        # decisions nor carry-over. Counting them as either would spread the
+        # budget over history.
+        carry_in = int((model_dates < pd.Timestamp(start_date)).sum())
+        carry_over = self.effective_carryover_lags()
+        decisions = len(model_dates) - carry_in - carry_over
+        if decisions <= 0:
+            raise ValueError(
+                f"The optimization window covers {len(model_dates) - carry_in} "
+                f"periods, which does not exceed the carry-over of {carry_over} "
+                "periods. Widen the window between start_date and end_date."
+            )
+        return _WindowLayout(
+            carry_in=carry_in, decisions=decisions, carry_over=carry_over
+        )
+
+    def create_optimization_model(
+        self,
+        start_date: str | pd.Timestamp,
+        end_date: str | pd.Timestamp,
+    ) -> pm.Model:
+        """Return a PyMC model configured for the given optimization window.
+
+        Builds a zero-spend dataset over ``[start_date, end_date]`` (at the
+        model's own date frequency) and transforms it using the same
+        preprocessing pipeline as :meth:`sample_posterior_predictive`.  The
+        resulting model has ``channel_data`` set to zeros of the correct shape
+        and can be passed directly to :class:`~pymc_marketing.mmm.budget_optimizer.BudgetOptimizer`.
+
+        Parameters
+        ----------
+        start_date : str or pd.Timestamp
+            First date of the optimization window (inclusive).
+        end_date : str or pd.Timestamp
+            Last date of the optimization window (inclusive).
+
+        Returns
+        -------
+        pymc.Model
+            A cloned PyMC model ready for budget optimization.
+        """
+        carryover_lags = self.effective_carryover_lags()
+        zero_data = create_zero_dataset(
+            model=self,
+            start_date=start_date,
+            end_date=end_date,
+            include_carryover=True,
+            preserve_observed=True,
+            carry_in_periods=carryover_lags,
+            carryover_periods=carryover_lags,
+        )
+
+        dataset_xarray = self._posterior_predictive_data_transformation(
+            X=zero_data,
+            include_last_observations=False,
+        )
+
+        pymc_model = self._set_xarray_data(
+            dataset_xarray=dataset_xarray,
+            model=self.model.copy(),
+        )
+
+        for mu_effect in self.mu_effects:
+            mu_effect.set_data(self, pymc_model, dataset_xarray)
+
+        return pymc_model
+
+    def _effects_carry_media_response(self) -> bool:
+        """Report whether a mu effect routes media response around the default.
+
+        Non-emptiness of ``mu_effects`` is the wrong predicate: an events,
+        trend, Fourier or control effect is not downstream of the channel data,
+        so ``total_media_contribution_original_scale`` is exactly right for
+        those models and warning about them would be false. What matters is
+        graph reachability -- whether an effect's contribution has the channel
+        data among its ancestors, as a funnel mediator does.
+
+        An effect that does not name its contribution cannot be checked, and is
+        treated as though it might carry response: a spurious warning is
+        recoverable, a silently undercounted objective is not.
+        """
+        if not self.mu_effects or self.model is None:
+            return False
+        if "channel_data" not in self.model.named_vars:
+            return False
+        media = self.model["channel_data"]
+        for effect in self.mu_effects:
+            try:
+                name = effect.contribution_var_name
+            except NotImplementedError:
+                return True
+            if name not in self.model.named_vars:
+                return True
+            if media in set(ancestors([self.model[name]])):
+                return True
+        return False
+
+    def _resolve_response_variable(self, response_variable: str | None) -> str:
+        """Resolve the objective, warning when the default cannot see the effects.
+
+        The default is built from the channel contribution alone, so a model
+        whose response partly travels through a ``MuEffect`` optimizes against a
+        quantity that misses it -- silently, and in a direction nothing reports.
+        Only warns when the caller expressed no preference: an explicit
+        ``response_variable`` is a deliberate choice and is returned untouched,
+        which is the path both entry points take when a caller names one --
+        :meth:`budget_optimizer` and
+        :meth:`BudgetOptimizerWrapper.optimize_budget`.
+        """
+        if response_variable is not None:
+            return response_variable
+        if self._effects_carry_media_response():
+            warnings.warn(
+                "This model routes part of the media response through a "
+                f"mu_effect, which {DEFAULT_RESPONSE_VARIABLE!r}, the default "
+                "objective, is not built from. Optimizing against it "
+                "undercounts that path, so budgets driving it are undervalued. "
+                "Pass response_variable='total_response_original_scale' to "
+                "score against the full response, or pass the default "
+                "explicitly to silence this warning.",
+                UserWarning,
+                stacklevel=3,
+            )
+        return DEFAULT_RESPONSE_VARIABLE
+
+    def budget_optimizer(
+        self,
+        start_date: str | pd.Timestamp,
+        end_date: str | pd.Timestamp,
+        *,
+        budgets_to_optimize: xr.DataArray | None = None,
+        cost_per_unit: pd.DataFrame | xr.DataArray | None = None,
+        compile_kwargs: dict | None = None,
+        **kwargs: Any,
+    ) -> BudgetOptimizer:
+        """Create a :class:`~pymc_marketing.mmm.budget_optimizer.BudgetOptimizer` for a future window.
+
+        This is the recommended entry point for budget optimization with the
+        multidimensional MMM.  It handles building the optimization model,
+        computing ``num_periods`` and pulling ``adstock_periods`` from the fitted
+        adstock.  When ``budgets_to_optimize`` is not supplied,
+        :class:`~pymc_marketing.mmm.budget_optimizer.BudgetOptimizer` auto-detects
+        the optimizable cells from the posterior.
+
+        Parameters
+        ----------
+        start_date : str or pd.Timestamp
+            First date of the optimization window (inclusive).
+        end_date : str or pd.Timestamp
+            Last date of the optimization window (inclusive).
+        budgets_to_optimize : xr.DataArray or None, optional
+            Boolean mask defining which budget cells to optimize.  Passed straight
+            through to :class:`~pymc_marketing.mmm.budget_optimizer.BudgetOptimizer`;
+            when ``None`` the optimizer optimizes every cell with a non-zero mean
+            ``channel_contribution`` in the posterior.
+        cost_per_unit : pd.DataFrame or xr.DataArray or None, optional
+            Cost-per-unit conversion factors for non-monetary channels.
+        compile_kwargs : dict or None, optional
+            Extra keyword arguments for PyTensor's ``function()``.
+        **kwargs
+            Additional arguments forwarded to
+            :class:`~pymc_marketing.mmm.budget_optimizer.BudgetOptimizer`.
+
+        Returns
+        -------
+        BudgetOptimizer
+            A configured optimizer ready for :meth:`BudgetOptimizer.allocate_budget`.
+        """
+        from pymc_marketing.mmm.budget_optimizer import BudgetOptimizer
+
+        pymc_model = self.create_optimization_model(start_date, end_date)
+
+        # Honour a caller-supplied date_dim rather than assuming "date": this is
+        # the method that feeds BudgetOptimizer's configurable date_dim field.
+        date_dim = kwargs.get("date_dim", "date")
+        layout = self._window_layout(pymc_model, start_date, date_dim=date_dim)
+
+        # budgets_to_optimize is intentionally passed through untouched. When it is
+        # None, BudgetOptimizer auto-detects the optimizable cells from the posterior;
+        # duplicating that rule here would only re-derive the same mask and then send
+        # it back through the optimizer's validation branch.
+        # `.get`, not `not in`: an explicit `response_variable=None` has to
+        # resolve the same way an omitted one does, rather than reaching
+        # BudgetOptimizer as None and failing type validation. Resolving here
+        # rather than in BudgetOptimizer because only this layer knows the
+        # model has effects.
+        kwargs["response_variable"] = self._resolve_response_variable(
+            kwargs.get("response_variable")
+        )
+
+        return BudgetOptimizer(
+            model=pymc_model,
+            idata=self.idata,
+            num_periods=layout.decisions,
+            adstock_periods=layout.carry_over,
+            carry_in_periods=layout.carry_in,
+            channel_scales=getattr(self, "_channel_scales", 1.0),
+            budgets_to_optimize=budgets_to_optimize,
+            cost_per_unit=cost_per_unit,
+            compile_kwargs=compile_kwargs,
+            frozen_deterministics=self.frozen_deterministics,
+            **kwargs,
+        )
+
+    def sample_prior_predictive(  # type: ignore[override]
+        self,
+        X: pd.DataFrame | xr.Dataset | xr.DataArray,
+        y: pd.Series | pd.DataFrame | xr.DataArray | np.ndarray | None = None,
+        samples: int | None = None,
+        extend_idata: bool = True,
+        combined: bool = True,
+        **kwargs,
+    ) -> xr.Dataset:
+        """Sample from the model's prior predictive distribution.
+
+        Delegates to
+        :meth:`RegressionModelBuilder.sample_prior_predictive` and
+        additionally warns when a
+        :class:`~pymc_marketing.special_priors.LogNormalPrior` likelihood
+        produces exactly-zero or non-finite draws, the symptoms of a
+        non-positive response-scale mean or ``std`` under the prior. See
+        :meth:`_warn_on_degenerate_lognormal_draws`.
+
+        When ``y`` is omitted and ``X`` already carries the target, as an
+        :class:`xarray.Dataset` embedding a ``target`` / ``_target`` variable
+        or a :class:`pandas.DataFrame` with the model's ``target_column``,
+        the model is built from ``X`` alone before delegating:
+        ``to_mmm_dataset`` reads the embedded target only when no separate
+        ``y`` is given, and the base class's zeros default would otherwise
+        supply one. With a LogNormalPrior likelihood and no target anywhere,
+        a strictly positive placeholder target of ones is used instead of
+        the base class's zeros default, which the likelihood's
+        ``validate_observed`` would reject before any draws are produced.
+        That path emits a ``UserWarning`` and marks the instance, so that a
+        later :meth:`fit` on it, which reuses the built model and would
+        train on the placeholder rather than the real target, warns again
+        (see issue #2956).
+        """
+        placeholder_target = False
+        if y is None and (
+            (isinstance(X, xr.Dataset) and _dataset_has_target(X))
+            or (isinstance(X, pd.DataFrame) and self.target_column in X.columns)
+        ):
+            if not hasattr(self, "model"):
+                self.build_model(X)
+        elif (
+            y is None
+            and not hasattr(self, "model")
+            and isinstance(self.model_config["likelihood"], LogNormalPrior)
+        ):
+            # The base class only builds when no model exists, so the
+            # placeholder is needed only then. Observed values enter prior
+            # sampling only through the max-abs target scale, so ones
+            # (scale = 1) is an inert placeholder.
+            if isinstance(X, xr.Dataset | xr.DataArray):
+                target_dims = ("date", *self.dims)
+                y = xr.DataArray(
+                    np.ones([X.sizes[d] for d in target_dims]),
+                    dims=target_dims,
+                    coords={d: X.coords[d] for d in target_dims},
+                )
+            else:
+                y = np.ones(len(X))
+            placeholder_target = True
+            warnings.warn(
+                "No target was provided, so the model is being built with a "
+                "placeholder target of ones to satisfy the LogNormalPrior "
+                "likelihood. A later `fit` on this instance reuses the built "
+                "model and would train on that placeholder instead of the real "
+                "target (see issue #2956). Pass `y` to `sample_prior_predictive`, "
+                "or create a fresh model before fitting.",
+                UserWarning,
+                stacklevel=2,
+            )
+        prior_predictive_samples = super().sample_prior_predictive(
+            X,
+            y=y,
+            samples=samples,
+            extend_idata=extend_idata,
+            combined=combined,
+            **kwargs,
+        )
+        if placeholder_target:
+            # Set after delegating: build_model, which runs inside the base
+            # call, resets the flag.
+            self._target_is_placeholder = True
+        self._warn_on_degenerate_lognormal_draws(
+            prior_predictive_samples, group_label="prior-predictive"
+        )
+        return prior_predictive_samples
+
     def sample_posterior_predictive(
         self,
         X: pd.DataFrame | xr.Dataset | None = None,  # type: ignore
@@ -2578,6 +3086,8 @@ class MMM(RegressionModelBuilder):
             model = deterministics_to_flat(self.model, names=names)
         elif clone_model:
             model = self.model.copy()
+        else:
+            model = self.model
         model = self._set_xarray_data(
             dataset_xarray=dataset_xarray,
             model=model,
@@ -2612,7 +3122,66 @@ class MMM(RegressionModelBuilder):
                 date=slice(self.adstock.l_max, None)
             )
 
+        self._warn_on_degenerate_lognormal_draws(
+            posterior_predictive_samples, group_label="posterior-predictive"
+        )
+
         return posterior_predictive_samples
+
+    def _warn_on_degenerate_lognormal_draws(
+        self, predictive_samples: xr.Dataset, group_label: str
+    ) -> None:
+        """Warn when LogNormalPrior forward draws are exactly zero or non-finite.
+
+        The ``mu > 0`` and ``std > 0`` check in the LogNormalPrior likelihood
+        only protects log-probability evaluation. In compiled forward-sampling
+        graphs pymc rewrites the check to a ``-inf`` log-mean, so a
+        non-positive response-scale mean (for example a negative intercept,
+        a prior that puts mass below zero, or counterfactual ``X`` that
+        pushes the linear predictor below zero) silently yields
+        ``exp(-inf) = 0`` draws, and a non-positive ``std`` draw makes the
+        log-scale sigma NaN so the draw is NaN. A genuine LogNormal draw is
+        finite and never exactly zero except through float underflow of an
+        extremely negative log-scale draw, so either signature almost always
+        indicates this failure mode. Called from both
+        :meth:`sample_posterior_predictive` and :meth:`sample_prior_predictive`
+        (``stacklevel=3`` assumes exactly that one intermediate frame).
+
+        Parameters
+        ----------
+        predictive_samples : xr.Dataset
+            Extracted forward draws containing ``self.output_var``.
+        group_label : str
+            Label naming the sampling path in the warning message, e.g.
+            ``"posterior-predictive"`` or ``"prior-predictive"``.
+        """
+        if not isinstance(self.model_config["likelihood"], LogNormalPrior):
+            return
+        if self.output_var not in predictive_samples:
+            return
+        y_draws = predictive_samples[self.output_var].values
+        n_zero = int(np.count_nonzero(y_draws == 0))
+        n_nonfinite = int(np.count_nonzero(~np.isfinite(y_draws)))
+        if not (n_zero or n_nonfinite):
+            return
+        warnings.warn(
+            f"{n_zero} of {y_draws.size} {group_label} draws "
+            f"({n_zero / y_draws.size:.1%}) of '{self.output_var}' are exactly "
+            f"zero and {n_nonfinite} ({n_nonfinite / y_draws.size:.1%}) are "
+            "non-finite. With a LogNormalPrior likelihood, exact zeros almost "
+            "always mean the model produced a non-positive response-scale mean "
+            "'mu' for those draws, and non-finite draws mean it produced a "
+            "non-positive 'std': forward sampling rewrites the mu > 0 and "
+            "std > 0 check to a -inf log-mean instead of raising an error, so "
+            "the draw becomes exp(-inf) = 0, or NaN when the log-scale sigma "
+            "is itself NaN. (Rarely, a finite but extremely negative log-scale "
+            "draw can also underflow to exactly zero.) Check for a negative "
+            "intercept, a 'std' prior with mass below zero, or input data that "
+            "pushes the linear predictor below zero before using these "
+            "predictions.",
+            UserWarning,
+            stacklevel=3,
+        )
 
     @validate_call(config=ConfigDict(arbitrary_types_allowed=True))
     def sample_saturation_curve(
@@ -2629,7 +3198,7 @@ class MMM(RegressionModelBuilder):
             True, description="Whether to return curve in original scale."
         ),
         idata: InstanceOf[xr.DataTree] | None = Field(
-            None, description="Optional InferenceData to sample from."
+            None, description="Optional DataTree to sample from."
         ),
     ) -> xr.DataArray:
         """Sample saturation curves from posterior parameters.
@@ -2667,7 +3236,7 @@ class MMM(RegressionModelBuilder):
             as used internally by the model. Note that x-axis values always remain
             in scaled space consistent with the max_value parameter.
         idata : xr.DataTree or None, optional
-            Optional InferenceData to sample from. If None (default), uses
+            Optional DataTree to sample from. If None (default), uses
             self.idata. This allows sampling curves from different posterior
             distributions, such as from a different model or a subset of samples.
 
@@ -2718,7 +3287,7 @@ class MMM(RegressionModelBuilder):
         ...     max_value=max_scaled, num_points=200, num_samples=1000, random_state=42
         ... )
 
-        Sample curves from a different InferenceData:
+        Sample curves from a different DataTree:
 
         >>> external_idata = az.from_netcdf("other_model.nc")
         >>> curves = mmm.sample_saturation_curve(idata=external_idata)
@@ -2786,7 +3355,7 @@ class MMM(RegressionModelBuilder):
         ),
         random_state: RandomState | None = None,
         idata: InstanceOf[xr.DataTree] | None = Field(
-            None, description="Optional InferenceData to sample from."
+            None, description="Optional DataTree to sample from."
         ),
     ) -> xr.DataArray:
         """Sample adstock curves from posterior parameters.
@@ -2813,7 +3382,7 @@ class MMM(RegressionModelBuilder):
             Only used when num_samples is not None and less than total available
             samples.
         idata : xr.DataTree or None, optional
-            Optional InferenceData to sample from. If None (default), uses
+            Optional DataTree to sample from. If None (default), uses
             self.idata. This allows sampling curves from different posterior
             distributions, such as from a different model or a subset of samples.
 
@@ -2856,7 +3425,7 @@ class MMM(RegressionModelBuilder):
         ...     amount=100.0, num_samples=1000, random_state=42
         ... )
 
-        Sample curves from a different InferenceData:
+        Sample curves from a different DataTree:
 
         >>> external_idata = az.from_netcdf("other_model.nc")
         >>> curves = mmm.sample_adstock_curve(idata=external_idata)
@@ -3202,14 +3771,26 @@ class MMM(RegressionModelBuilder):
         data: pd.DataFrame,
         calibration_data: pd.DataFrame,
         name_prefix: str = "cpt_calibration",
+        *,
+        target_column: str = "cost_per_target",
+        target_per_cost: bool = False,
     ) -> Self:
-        """Calibrate cost-per-target using an observed Normal likelihood.
+        """Calibrate cost-per-target (or ROAS) using an observed Normal likelihood.
 
-        This computes cost-per-target as
+        By default this computes cost-per-target as
         ``mean(spend) / mean(contribution)`` over the date dimension and adds
         an observed ``Normal`` likelihood for each calibration row:
 
         ``Normal(mu=cpt_mean, sigma=sigma, observed=target)``
+
+        Set ``target_per_cost=True`` to flip the ratio to
+        ``mean(contribution) / mean(spend)``, which is ROAS when the target is
+        revenue (or conversions per dollar when the target is conversions).
+
+        The numerator and denominator are meaned separately because the ratio of
+        means is the definition of the aggregate cost-per-target (or ROAS) over
+        the period; averaging per-date ratios would estimate a different
+        quantity.
 
         Parameters
         ----------
@@ -3221,14 +3802,20 @@ class MMM(RegressionModelBuilder):
             DataFrame with rows specifying calibration targets. Must include:
 
             - ``channel``: channel name in ``self.channel_columns``
-            - ``cost_per_target``: desired CPT value
+            - the column named by the ``target_column`` argument (default
+              ``"cost_per_target"``): the CPT (or ROAS) value to calibrate to
             - ``sigma``: accepted deviation; larger => weaker penalty
 
             and one column per dimension in ``self.dims``.
-        cpt_variable_name : str
-            Name for the cost-per-target Deterministic in the model.
         name_prefix : str
             Prefix to use for generated potential names.
+        target_column : str
+            Column in ``calibration_data`` holding the calibration values.
+            Defaults to ``"cost_per_target"``.
+        target_per_cost : bool
+            If ``False`` (default), calibrate ``mean(spend) / mean(contribution)``
+            (cost-per-target). If ``True``, calibrate
+            ``mean(contribution) / mean(spend)`` (target-per-cost, e.g. ROAS).
 
         Examples
         --------
@@ -3255,6 +3842,27 @@ class MMM(RegressionModelBuilder):
                 calibration_data=calibration_df,
                 name_prefix="cpt_calibration",
             )
+
+        Calibrate ROAS instead, using experiment-derived estimates:
+
+        .. code-block:: python
+
+            roas_df = pd.DataFrame(
+                {
+                    "channel": ["C1", "C2"],
+                    "geo": ["US", "US"],
+                    "roas": [3.5, 2.0],
+                    "sigma": [0.3, 0.2],
+                }
+            )
+
+            mmm.add_cost_per_target_calibration(
+                data=spend_df,
+                calibration_data=roas_df,
+                name_prefix="roas_calibration",
+                target_column="roas",
+                target_per_cost=True,
+            )
         """
         if not hasattr(self, "model"):
             raise RuntimeError("Model must be built before adding calibration.")
@@ -3272,6 +3880,8 @@ class MMM(RegressionModelBuilder):
         # Validate required columns in calibration_data
         if "channel" not in calibration_data.columns:
             raise KeyError("'channel' column missing in calibration_data")
+        if target_column not in calibration_data.columns:
+            raise KeyError(f"{target_column!r} column missing in calibration_data")
         for dim in self.dims:
             if dim not in calibration_data.columns:
                 raise KeyError(
@@ -3316,7 +3926,9 @@ class MMM(RegressionModelBuilder):
             model=self.model,
             cost_value=as_xtensor(spend_xarray),
             target_value=self.model["channel_contribution_original_scale"],
+            target_column=target_column,
             name_prefix=name_prefix,
+            target_per_cost=target_per_cost,
         )
 
         return self
@@ -3450,7 +4062,7 @@ class MMM(RegressionModelBuilder):
         return ds
 
     def build_from_idata(self, idata: xr.DataTree) -> None:
-        """Rebuild the model from an ``InferenceData`` object.
+        """Rebuild the model from a ``DataTree`` object.
 
         Uses the stored fit dataset in ``idata`` to reconstruct the model graph by
         calling :meth:`build_model`. This is commonly used as part of a ``load``
@@ -3560,11 +4172,11 @@ class MMM(RegressionModelBuilder):
             )
 
         if not hasattr(self.idata, "constant_data"):
-            raise ValueError("InferenceData missing constant_data group")
+            raise ValueError("DataTree missing constant_data group")
 
         if "channel_data" not in self.idata.constant_data:
             raise ValueError(
-                "InferenceData constant_data is missing 'channel_data'. "
+                "DataTree constant_data is missing 'channel_data'. "
                 "Cannot compute channel_spend without channel_data."
             )
 
@@ -3577,49 +4189,6 @@ class MMM(RegressionModelBuilder):
         )
 
 
-def create_sample_kwargs(
-    sampler_config: dict[str, Any] | None,
-    progressbar: bool | None,
-    random_seed: RandomState | None,
-    **kwargs,
-) -> dict[str, Any]:
-    """Create the dictionary of keyword arguments for `pm.sample`.
-
-    Parameters
-    ----------
-    sampler_config : dict | None
-        The configuration dictionary for the sampler. If None, defaults to an empty dict.
-    progressbar : bool, optional
-        Whether to show the progress bar during sampling. Defaults to True.
-    random_seed : RandomState, optional
-        The random seed for the sampler.
-    **kwargs : Any
-        Additional keyword arguments to pass to the sampler.
-
-    Returns
-    -------
-    dict
-        The dictionary of keyword arguments for `pm.sample`.
-    """
-    # Ensure sampler_config is a dictionary
-    sampler_config = sampler_config.copy() if sampler_config is not None else {}
-
-    # Handle progress bar configuration
-    sampler_config["progressbar"] = (
-        progressbar
-        if progressbar is not None
-        else sampler_config.get("progressbar", True)
-    )
-
-    # Add random seed if provided
-    if random_seed is not None:
-        sampler_config["random_seed"] = random_seed
-
-    # Update with additional keyword arguments
-    sampler_config.update(kwargs)
-    return sampler_config
-
-
 class BudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
     """Wrapper for the BudgetOptimizer to handle multi-dimensional model."""
 
@@ -3630,6 +4199,12 @@ class BudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
         end_date: str,
         compile_kwargs: dict | None = None,
     ):
+        warnings.warn(
+            "BudgetOptimizerWrapper is deprecated. "
+            "Use mmm.budget_optimizer(start_date, end_date, ...) instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         self.model_class = model
         self.start_date = start_date
         self.end_date = end_date
@@ -3652,6 +4227,38 @@ class BudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
             return BudgetPlots()
         return self.model_class.plot
 
+    @property
+    def summary(self) -> Any:
+        """Access budget summary DataFrame generation functionality.
+
+        Stateless namespace mirroring :attr:`plot` but returning tabular
+        summaries with HDI statistics for frontend export.
+
+        Returns
+        -------
+        BudgetSummaryFactory
+            Factory with ``allocation_roas`` and ``contribution_over_time``.
+
+        Examples
+        --------
+        .. code-block:: python
+
+            samples = optimizer.allocate_budget(...)
+            df = optimizer.summary.allocation_roas(samples=samples)
+            records = df.to_dict(orient="records")
+
+        See Also
+        --------
+        BudgetPlots.summary : Same factory via ``optimizer.plot.summary``
+        """
+        from pymc_marketing.mmm.summary import BudgetSummaryFactory
+
+        if self.model_class.plot_suite == "new":
+            return BudgetSummaryFactory
+        raise AttributeError(
+            "Budget summary export requires plot_suite='new' on the wrapped MMM."
+        )
+
     def __getattr__(self, name):
         """Delegate attribute access to the wrapped MMM model."""
         try:
@@ -3667,25 +4274,45 @@ class BudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
                     f"'{type(self).__name__}' object and its wrapped 'MMM' object have no attribute '{name}'"
                 ) from e
 
-    def _set_predictors_for_optimization(self, num_periods: int) -> pm.Model:
-        """Return the respective PyMC model with any predictors set for optimization."""
-        # Use the model's method for transformation
-        dataset_xarray = self._posterior_predictive_data_transformation(
+    def optimization_model(self, num_periods: int) -> pm.Model:
+        """Return a PyMC model configured for ``num_periods`` optimisation steps.
+
+        Uses the wrapper's pre-built zero data (which includes carryover
+        periods) to produce a model consistent with the old
+        ``_set_predictors_for_optimization`` path.
+
+        Parameters
+        ----------
+        num_periods : int
+            Number of optimisation periods (accepted for backward compatibility,
+            not used directly).
+
+        Returns
+        -------
+        pymc.Model
+            A cloned PyMC model ready for budget optimization.
+        """
+        dataset_xarray = self.model_class._posterior_predictive_data_transformation(
             X=self.zero_data,
             include_last_observations=False,
         )
-
-        # Use the model's method to set data
-        pymc_model = self._set_xarray_data(
+        pymc_model = self.model_class._set_xarray_data(
             dataset_xarray=dataset_xarray,
-            model=self.model.copy(),
+            model=self.model_class.model.copy(),
         )
-
-        # Use the model's mu_effects and set data using the model instance
-        for mu_effect in self.mu_effects:
-            mu_effect.set_data(self, pymc_model, dataset_xarray)
-
+        for mu_effect in self.model_class.mu_effects:
+            mu_effect.set_data(self.model_class, pymc_model, dataset_xarray)
         return pymc_model
+
+    def _set_predictors_for_optimization(self, num_periods: int) -> pm.Model:
+        """Return the respective PyMC model (deprecated). Use :meth:`optimization_model` instead."""
+        warnings.warn(
+            "_set_predictors_for_optimization is deprecated. "
+            "Use optimization_model() instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.optimization_model(num_periods)
 
     def _parse_cost_per_unit_for_optimizer(
         self,
@@ -3731,7 +4358,7 @@ class BudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
         self,
         budget: float | int,
         budget_bounds: xr.DataArray | None = None,
-        response_variable: str = "total_media_contribution_original_scale",
+        response_variable: str | None = None,
         utility_function: UtilityFunctionType = average_response,
         constraints: Sequence[Constraint] = (),
         budgets_to_optimize: xr.DataArray | None = None,
@@ -3739,10 +4366,7 @@ class BudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
         cost_per_unit: pd.DataFrame | xr.DataArray | None = None,
         callback: bool = False,
         **allocate_budget_kwargs,
-    ) -> (
-        tuple[xr.DataArray, OptimizeResult]
-        | tuple[xr.DataArray, OptimizeResult, list[dict[str, Any]]]
-    ):
+    ) -> BudgetOptimizationResult:
         """Optimize the budget allocation for the model.
 
         Parameters
@@ -3751,8 +4375,13 @@ class BudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
             Total budget to allocate.
         budget_bounds : xr.DataArray | None
             Budget bounds per channel.
-        response_variable : str
-            Response variable to optimize.
+        response_variable : str, optional
+            Response variable to optimize. Defaults to
+            ``"total_media_contribution_original_scale"``, which is built from
+            the channel contribution alone. Pass
+            ``"total_response_original_scale"`` for a model with ``mu_effects``,
+            whose contributions the default cannot see; leaving this unset on
+            such a model warns.
         utility_function : UtilityFunctionType
             Utility function to maximize.
         constraints : Sequence[Constraint], optional
@@ -3791,15 +4420,17 @@ class BudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
 
             **This is independent of the historical cost_per_unit.**
         callback : bool
-            Whether to return callback information tracking optimization progress.
+            Whether to track optimization progress; when True the returned
+            result's ``callback_info`` attribute holds per-iteration information.
         **allocate_budget_kwargs
             Additional arguments for :meth:`~pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.allocate_budget`.
 
         Returns
         -------
-        tuple
-            Optimal budgets and optimization result. If callback=True, also returns
-            a list of dictionaries with optimization information at each iteration.
+        BudgetOptimizationResult
+            Result object with ``budgets``, ``scipy_result``, ``optimized_vars``
+            and ``callback_info`` attributes. Iterating it yields
+            ``(budgets, scipy_result)``, so two-element unpacking keeps working.
         """
         from pymc_marketing.mmm.budget_optimizer import BudgetOptimizer
 
@@ -3828,7 +4459,9 @@ class BudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
         allocator = BudgetOptimizer(
             num_periods=self.num_periods,
             utility_function=utility_function,
-            response_variable=response_variable,
+            response_variable=self.model_class._resolve_response_variable(
+                response_variable
+            ),
             constraints=constraints,
             budgets_to_optimize=budgets_to_optimize,
             budget_distribution_over_period=budget_distribution_over_period,

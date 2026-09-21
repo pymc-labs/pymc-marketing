@@ -27,15 +27,15 @@ msgstr "create_idata_accessor"
 
 #: 7fdcda23437440418d233e822f377010 of
 #: pymc_marketing.model_builder.create_idata_accessor:2
-msgid "Create a property accessor for an InferenceData object."
-msgstr "Cree un accesor de propiedad para un objeto InferenceData."
+msgid "Create a property accessor for a DataTree object."
+msgstr "Cree un accesor de propiedad para un objeto DataTree."
 
 #: c5535e65b6a74129a4384b8083d4f489 of
 #: pymc_marketing.model_builder.create_idata_accessor:4
 msgid ""
-"Underlying object must have an InferenceData object attribute named 'idata'."
+"Underlying object must have a DataTree object attribute named 'idata'."
 msgstr ""
-"El objeto subyacente debe tener un atributo de objeto InferenceData llamado "
+"El objeto subyacente debe tener un atributo de objeto DataTree llamado "
 "'idata'."
 
 #: a762e6b3305647dc8e958f34c3389902 of
@@ -56,8 +56,8 @@ msgstr "python:str"
 
 #: 977d840621f34ed2885f9ee59416e263 of
 #: pymc_marketing.model_builder.create_idata_accessor:9
-msgid "The value to access in the InferenceData object."
-msgstr "El valor a acceder en el objeto InferenceData."
+msgid "The value to access in the DataTree object."
+msgstr "El valor a acceder en el objeto DataTree."
 
 #: 0810218ab40f4485ba6709f2a10aa06c of
 #: pymc_marketing.model_builder.create_idata_accessor:11
@@ -67,11 +67,11 @@ msgstr "**mensaje** : :class:`python:str`"
 #: c5e3a5b1b457422e92ce53a401d862ee of
 #: pymc_marketing.model_builder.create_idata_accessor:12
 msgid ""
-"The error message to raise if the value is not found in the InferenceData "
+"The error message to raise if the value is not found in the DataTree "
 "object."
 msgstr ""
 "El mensaje de error que se debe generar si el valor no se encuentra en el "
-"objeto InferenceData."
+"objeto DataTree."
 
 #: a9abf4f8c16d4d5d815e132b6f4304dc of
 #: pymc_marketing.model_builder.create_idata_accessor
@@ -85,5 +85,5 @@ msgstr ":obj:`propiedad`"
 
 #: c17159840d5042ac87e2e330381aa5ad of
 #: pymc_marketing.model_builder.create_idata_accessor:19
-msgid "The property accessor for the InferenceData object."
-msgstr "El accesor de propiedad para el objeto InferenceData."
+msgid "The property accessor for the DataTree object."
+msgstr "El accesor de propiedad para el objeto DataTree."

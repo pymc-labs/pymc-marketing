@@ -413,7 +413,7 @@ class TestBudgetOptimizerCostPerUnitValidation:
             dims=("date", "channel"),
             coords={"date": range(3), "channel": ["TV", "Radio"]},
         )
-        with pytest.raises(ValueError, match="date dimension must have length"):
+        with pytest.raises(ValueError, match="dimension must have length"):
             BudgetOptimizer._validate_and_process_cost_per_unit(
                 cost_per_unit=cpu,
                 num_periods=5,

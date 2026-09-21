@@ -154,9 +154,9 @@ msgstr ""
 
 #: ../source/api/generated/pymc_marketing.customer_choice.mv_its.MVITS.rst:51:<autosummary>:1
 #: 9ca5fbb9142b4677ad3e59c880d9b623
-msgid "Fit a model using Variational Inference and return InferenceData."
+msgid "Fit a model using Variational Inference and return DataTree."
 msgstr ""
-"Ajuste un modelo utilizando Inferencia Variacional y devuelva InferenceData."
+"Ajuste un modelo utilizando Inferencia Variacional y devuelva DataTree."
 
 #: ../source/api/generated/pymc_marketing.customer_choice.mv_its.MVITS.rst:51:<autosummary>:1
 #: 1120b599ffb04ee4bfbb7cb7900b0ec1
@@ -172,9 +172,9 @@ msgstr ""
 #: ../source/api/generated/pymc_marketing.customer_choice.mv_its.MVITS.rst:51:<autosummary>:1
 #: b365d6358d6d41e88848ac19a5ff990d
 msgid ""
-"Convert the attributes of the InferenceData object to the __init__ kwargs."
+"Convert the attributes of the DataTree object to the __init__ kwargs."
 msgstr ""
-"Convierte los atributos del objeto InferenceData a los kwargs de __init__."
+"Convierte los atributos del objeto DataTree a los kwargs de __init__."
 
 #: ../source/api/generated/pymc_marketing.customer_choice.mv_its.MVITS.rst:51:<autosummary>:1
 #: 9240799a35d5415196e9f15ad6c7fdbf
@@ -189,8 +189,8 @@ msgstr ""
 
 #: ../source/api/generated/pymc_marketing.customer_choice.mv_its.MVITS.rst:51:<autosummary>:1
 #: afd9d2fbda7a4caea9c782e88f80f121
-msgid "Build model from the InferenceData object."
-msgstr "Construir el modelo a partir del objeto InferenceData."
+msgid "Build model from the DataTree object."
+msgstr "Construir el modelo a partir del objeto DataTree."
 
 #: ../source/api/generated/pymc_marketing.customer_choice.mv_its.MVITS.rst:51:<autosummary>:1
 #: 9b422d2422ed4251b6ecdb64f3b8f911
@@ -274,8 +274,8 @@ msgstr ""
 
 #: ../source/api/generated/pymc_marketing.customer_choice.mv_its.MVITS.rst:51:<autosummary>:1
 #: 3024029d046542a0be3d1053f66dadcc
-msgid "Create the attributes for the InferenceData object."
-msgstr "Cree los atributos para el objeto InferenceData."
+msgid "Create the attributes for the DataTree object."
+msgstr "Cree los atributos para el objeto DataTree."
 
 #: ../source/api/generated/pymc_marketing.customer_choice.mv_its.MVITS.rst:51:<autosummary>:1
 #: aae4f93f08034feca8e455b3d2c7ce61
@@ -320,10 +320,10 @@ msgstr ""
 #: fb34679819674b11a8aff8f3196386af
 msgid ""
 "Create  the model configuration and sampler configuration from the "
-"InferenceData to keyword arguments."
+"DataTree to keyword arguments."
 msgstr ""
 "Cree la configuración del modelo y la configuración del muestreador a partir"
-" de InferenceData a argumentos de palabras clave."
+" de DataTree a argumentos de palabras clave."
 
 #: ../source/api/generated/pymc_marketing.customer_choice.mv_its.MVITS.rst:51:<autosummary>:1
 #: ec0a0d19c14f4b93b69884a3851b635f
@@ -368,9 +368,9 @@ msgstr ""
 
 #: ../source/api/generated/pymc_marketing.customer_choice.mv_its.MVITS.rst:51:<autosummary>:1
 #: de599e836a834ef28edfedee50931497
-msgid "Create a ModelBuilder instance from an InferenceData object."
+msgid "Create a ModelBuilder instance from a DataTree object."
 msgstr ""
-"Cree una instancia de ModelBuilder a partir de un objeto InferenceData."
+"Cree una instancia de ModelBuilder a partir de un objeto DataTree."
 
 #: ../source/api/generated/pymc_marketing.customer_choice.mv_its.MVITS.rst:51:<autosummary>:1
 #: 2395aea54b6c47b5826de3e4047c1362
@@ -604,8 +604,8 @@ msgstr ""
 
 #: ../source/api/generated/pymc_marketing.customer_choice.mv_its.MVITS.rst:51:<autosummary>:1
 #: 28dda4b747164443b5c6c6abda5ea0c7
-msgid "Set attributes on an InferenceData object."
-msgstr "Establecer atributos en un objeto InferenceData."
+msgid "Set attributes on a DataTree object."
+msgstr "Establecer atributos en un objeto DataTree."
 
 #: ../source/api/generated/pymc_marketing.customer_choice.mv_its.MVITS.rst:51:<autosummary>:1
 #: bb80790ed0414bdb94fcb8b653e435a5

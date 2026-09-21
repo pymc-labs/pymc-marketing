@@ -20,7 +20,9 @@ The recommended interface is :class:`BassModel` – a
 access to the PyMC model object.
 
 The standalone functions :func:`F`, :func:`f`, and :func:`create_bass_model`
-are still exposed for direct use.
+are still exposed for direct use. :func:`F` and :func:`f` take xtensor
+inputs or scalars; wrap arrays with :func:`pymc.dims.as_xtensor` to call
+them outside a model.
 
 Adapted from Wiki: https://en.wikipedia.org/wiki/Bass_diffusion_model
 
@@ -134,6 +136,8 @@ Create a basic Bass model for multiple products:
 
 """
 
+from contextlib import contextmanager
+from inspect import signature
 from typing import Any, TypedDict, cast
 
 import arviz as az
@@ -142,6 +146,7 @@ import numpy as np
 import numpy.typing as npt
 import pandas as pd
 import pymc as pm
+import pymc.dims as pmd
 import pytensor.tensor as pt
 import xarray as xr
 from matplotlib.axes import Axes
@@ -150,19 +155,55 @@ from numpy.typing import (
 )
 from pymc.model import Model
 from pymc.util import RandomState
-from pymc_extras.prior import Censored, Prior, VariableFactory, create_dim_handler
+from pymc_extras.prior import (
+    Censored,
+    MuAlreadyExistsError,
+    Prior,
+    UnsupportedDistributionError,
+    VariableFactory,
+)
+from pytensor.xtensor.type import XTensorVariable
 
 from pymc_marketing.bass import plotting
 from pymc_marketing.bass.data import to_bass_dataset
-from pymc_marketing.model_builder import ModelBuilder, create_sample_kwargs
+from pymc_marketing.model_builder import ModelBuilder, SamplingMethod
+from pymc_marketing.model_config import parse_model_config
 from pymc_marketing.version import __version__
+
+#: What :func:`F` and :func:`f` accept for ``t``: a labelled xtensor, or any
+#: of these left 0-d. ``_SCALAR_LIKE`` below is the runtime half of this, kept
+#: beside it so the two cannot drift apart again.
+type TimeLike = (
+    float | np.number | npt.NDArray | xr.DataArray | XTensorVariable | pt.TensorVariable
+)
+
+# `isinstance` cannot take `TimeLike` itself, since `npt.NDArray` is a generic.
+# `int` is spelled out because `isinstance(1, float)` is False.
+_SCALAR_LIKE = (int, float, np.number, np.ndarray, xr.DataArray, pt.TensorVariable)
+
+
+def _check_time(t: object) -> None:
+    """Reject a ``t`` that ``pymc.dims`` cannot label on its own.
+
+    A 0-d number, array or tensor carries no axes, so it converts cleanly. An
+    array or a dim-less vector does not, and the conversion error it raises
+    does not say what to do about it.
+    """
+    if isinstance(t, XTensorVariable):
+        return
+    if isinstance(t, _SCALAR_LIKE) and np.ndim(t) == 0:
+        return
+    raise TypeError(
+        f"`t` must be an XTensorVariable or a scalar, got {type(t).__name__}. "
+        "Wrap arrays with `pymc.dims.as_xtensor(t, dims=('T',))`."
+    )
 
 
 def F(
-    p: float | pt.TensorVariable,
-    q: float | pt.TensorVariable,
-    t: float | pt.TensorVariable,
-) -> pt.TensorVariable:
+    p: float | XTensorVariable,
+    q: float | XTensorVariable,
+    t: TimeLike,
+) -> XTensorVariable:
     r"""Installed base fraction (cumulative adoption proportion).
 
     This function calculates the cumulative proportion of adopters at time t,
@@ -170,16 +211,17 @@ def F(
 
     Parameters
     ----------
-    p : float or TensorVariable
+    p : float or XTensorVariable
         Coefficient of innovation (external influence)
-    q : float or TensorVariable
+    q : float or XTensorVariable
         Coefficient of imitation (internal influence)
-    t : array-like or TensorVariable
-        Time points
+    t : XTensorVariable or scalar
+        Time points. An array carries no axis labels, so wrap it with
+        :func:`pymc.dims.as_xtensor` first.
 
     Returns
     -------
-    TensorVariable
+    XTensorVariable
         The cumulative proportion of adopters at each time point
 
     Notes
@@ -192,14 +234,15 @@ def F(
 
     When :math:`t=0`, :math:`F(t)=0`, and as :math:`t` approaches infinity, :math:`F(t)` approaches 1.
     """
-    return (1 - pt.exp(-(p + q) * t)) / (1 + (q / p) * pt.exp(-(p + q) * t))
+    _check_time(t)
+    return (1 - pmd.math.exp(-(p + q) * t)) / (1 + (q / p) * pmd.math.exp(-(p + q) * t))
 
 
 def f(
-    p: float | pt.TensorVariable,
-    q: float | pt.TensorVariable,
-    t: float | pt.TensorVariable,
-) -> pt.TensorVariable:
+    p: float | XTensorVariable,
+    q: float | XTensorVariable,
+    t: TimeLike,
+) -> XTensorVariable:
     r"""Installed base fraction rate of change (adoption rate).
 
     This function calculates the rate of new adoptions at time t as a
@@ -208,16 +251,17 @@ def f(
 
     Parameters
     ----------
-    p : float or TensorVariable
+    p : float or XTensorVariable
         Coefficient of innovation (external influence)
-    q : float or TensorVariable
+    q : float or XTensorVariable
         Coefficient of imitation (internal influence)
-    t : array-like or TensorVariable
-        Time points
+    t : XTensorVariable or scalar
+        Time points. An array carries no axis labels, so wrap it with
+        :func:`pymc.dims.as_xtensor` first.
 
     Returns
     -------
-    TensorVariable
+    XTensorVariable
         The adoption rate at each time point as a fraction of potential market
 
     Notes
@@ -236,9 +280,108 @@ def f(
 
     The peak adoption rate occurs at time :math:`t^* = \frac{\ln(q/p)}{p+q}`
     """
-    return (p * pt.square(p + q) * pt.exp(t * (p + q))) / pt.square(
-        p * pt.exp(t * (p + q)) + q
+    _check_time(t)
+    exp_t = pmd.math.exp(t * (p + q))
+    return (p * (p + q) ** 2 * exp_t) / (p * exp_t + q) ** 2
+
+
+def _create_likelihood_variable(
+    prior: Prior | Censored,
+    name: str,
+    mu: XTensorVariable,
+    observed: XTensorVariable | None,
+) -> XTensorVariable:
+    """Create the outcome variable, observed or not.
+
+    ``create_likelihood_variable`` is for the observed case only: a
+    likelihood needs data, so pymc_extras refuses ``observed=None`` there
+    (pymc-devs/pymc-extras#731). Prior predictive still needs the outcome
+    node, so build it with ``create_variable`` and ``mu`` attached, keeping
+    the same guards the pymc_extras method applies.
+
+    Both guards are repeated rather than left to ``Prior``. A distribution
+    with no ``mu`` is caught by ``Prior._checks`` anyway, but as a plain
+    ``ValueError``, so raising here is what keeps the error type equal to
+    the observed path. A ``mu`` the caller set has no such backstop: the
+    twin below would replace it without a word.
+    """
+    if observed is not None:
+        return prior.create_likelihood_variable(
+            name, mu=mu, observed=observed, xdist=True
+        )
+
+    # Censored keeps its parameters on the wrapped distribution.
+    inner = prior.distribution if isinstance(prior, Censored) else prior
+    if "mu" not in signature(inner.pymc_distribution.dist).parameters:
+        raise UnsupportedDistributionError(
+            f"Likelihood distribution {inner.distribution!r} is not supported."
+        )
+    if "mu" in inner.parameters:
+        raise MuAlreadyExistsError(inner)
+
+    # TODO(pymc-devs/pymc-extras#731): drop this branch once observed=None is
+    # supported upstream. Build a twin rather than mutate the caller's prior,
+    # and pass the caller's own parameter tensors through, since `deepcopy`
+    # would hand the model clones of them.
+    unobserved = Prior(
+        inner.distribution,
+        dims=inner.dims,
+        centered=inner.centered,
+        transform=inner.transform,
+        core_dims=inner.core_dims,
+        **{**inner.parameters, "mu": mu},
     )
+    outcome: Prior | Censored = (
+        Censored(unobserved, lower=prior.lower, upper=prior.upper)
+        if isinstance(prior, Censored)
+        else unobserved
+    )
+    return outcome.create_variable(name, xdist=True)
+
+
+@contextmanager
+def _borrow_dims(prior: Prior | Censored, dims: tuple[str, ...]):
+    """Lend ``dims`` to ``prior`` for the block, leaving it as it was found.
+
+    Setting ``dims`` outright would leave the caller's prior carrying this
+    model's dims, so a config reused for a second model fails on dims that
+    model does not have. A copy is not used instead: ``Prior.__deepcopy__``
+    also copies ``parameters``, which would hand the model clones of any
+    tensor the caller passed in. ``Censored.dims`` forwards to the wrapped
+    distribution, so both types are covered.
+    """
+    original = prior.dims
+    prior.dims = dims
+    try:
+        yield prior
+    finally:
+        prior.dims = original
+
+
+def _observed_dims(
+    observed: pt.TensorLike | xr.DataArray,
+    model: Model,
+    combined_dims: tuple[str, ...],
+) -> tuple[str, ...]:
+    """Axis labels for ``observed``: its own, else the model's, else positional.
+
+    An ``xr.DataArray`` carries its labels; a registered ``pm.Data`` has them
+    on the model. Anything else is labelled positionally in ``combined_dims``
+    order.
+    """
+    own = getattr(observed, "dims", None)
+    if own:
+        return tuple(own)
+
+    # Name equality is not identity: a variable that never reached the model
+    # can share a name with one that did, and would borrow its dims.
+    name = getattr(observed, "name", None)
+    if name is not None and model.named_vars.get(name) is observed:
+        registered = model.named_vars_to_dims.get(name)
+        if registered and all(dim is not None for dim in registered):
+            return tuple(registered)
+
+    return combined_dims
 
 
 class BassPriors(TypedDict):
@@ -252,7 +395,7 @@ class BassPriors(TypedDict):
 
 def create_bass_model(
     t: pt.TensorLike,
-    observed: pt.TensorLike | None,
+    observed: pt.TensorLike | xr.DataArray | None,
     priors: BassPriors,
     coords: dict[str, Any],
     model: Model | None = None,
@@ -278,9 +421,16 @@ def create_bass_model(
     ----------
     t : pt.TensorLike
         Time points for which the adoption is modeled.
-    observed : pt.TensorLike | None
+    observed : pt.TensorLike or xr.DataArray or None
         Observed adoption data at each time point. If None, only
-        prior predictive sampling is possible.
+        prior predictive sampling is possible. Axis labels are read from
+        the data itself (an ``xr.DataArray``) or from the model (a
+        ``pm.Data`` registered with dims); anything else, such as a plain
+        array or a ``pm.Data`` without dims, is labelled positionally in
+        ``(T, ...)`` order with the extra dims following their first
+        appearance across the ``likelihood``, ``p``, ``q`` and ``m``
+        priors, in that order. An array laid out the way the ``likelihood``
+        prior declares it is therefore read the way it is laid out.
     priors : BassPriors
         Dictionary containing priors for:
         - 'm': Market potential prior
@@ -318,48 +468,51 @@ def create_bass_model(
     """
     model = model or pm.Model(coords=coords)
     with model:
-        parameter_dims = (
-            set(priors["p"].dims or ())
-            .union(priors["q"].dims or ())
-            .union(priors["m"].dims or ())
+        # Declaration order, not set order: `combined_dims` labels the axes of
+        # `observed` positionally, so an order that varies between processes
+        # would silently mislabel the data. The likelihood comes first because
+        # it is the variable `observed` has to line up with, so an unlabelled
+        # array laid out the way the likelihood declares it is read that way.
+        declared_dims = (
+            *(priors["likelihood"].dims or ()),
+            *(priors["p"].dims or ()),
+            *(priors["q"].dims or ()),
+            *(priors["m"].dims or ()),
         )
-        likelihood_dims = set(getattr(priors["likelihood"], "dims", ()) or ())
-
         combined_dims = (
             "T",
-            *tuple(parameter_dims.union(likelihood_dims).difference(["T"])),
-        )
-        dim_handler = create_dim_handler(combined_dims)
-
-        m = dim_handler(priors["m"].create_variable("m"), priors["m"].dims)
-        p = dim_handler(priors["p"].create_variable("p"), priors["p"].dims)
-        q = dim_handler(priors["q"].create_variable("q"), priors["q"].dims)
-
-        time = dim_handler(t, "T")
-
-        adopters = pm.Deterministic("adopters", m * f(p, q, time), dims=combined_dims)
-
-        pm.Deterministic(
-            "innovators",
-            m * p * (1 - F(p, q, time)),
-            dims=combined_dims,
-        )
-        pm.Deterministic(
-            "imitators",
-            m * q * F(p, q, time) * (1 - F(p, q, time)),
-            dims=combined_dims,
+            *(dim for dim in dict.fromkeys(declared_dims) if dim != "T"),
         )
 
-        peak = (pt.log(q) - pt.log(p)) / (p + q)
-        peak_dims = tuple(parameter_dims) if parameter_dims else None
-        pm.Deterministic("peak", peak, dims=peak_dims)
+        time = pmd.as_xtensor(t, dims=("T",))
+        m = priors["m"].create_variable("m", xdist=True)
+        p = priors["p"].create_variable("p", xdist=True)
+        q = priors["q"].create_variable("q", xdist=True)
 
-        priors["likelihood"].dims = combined_dims
-        priors["likelihood"].create_likelihood_variable(  # type: ignore
-            "y",
-            mu=adopters,
-            observed=observed,
+        def deterministic(name: str, value: XTensorVariable) -> XTensorVariable:
+            """Store ``value`` with the dims it has, in ``combined_dims`` order."""
+            order = tuple(dim for dim in combined_dims if dim in value.dims)
+            return pmd.Deterministic(name, value, dims=order)
+
+        adopters = deterministic("adopters", m * f(p, q, time))
+        deterministic("innovators", m * p * (1 - F(p, q, time)))
+        deterministic("imitators", m * q * F(p, q, time) * (1 - F(p, q, time)))
+        deterministic("peak", (pmd.math.log(q) - pmd.math.log(p)) / (p + q))
+
+        observed_xt = (
+            None
+            if observed is None
+            else pmd.as_xtensor(
+                observed, dims=_observed_dims(observed, model, combined_dims)
+            )
         )
+        with _borrow_dims(priors["likelihood"], combined_dims) as likelihood:
+            _create_likelihood_variable(
+                likelihood,
+                "y",
+                mu=adopters,
+                observed=observed_xt,
+            )
 
     return model
 
@@ -490,11 +643,37 @@ class BassModel(ModelBuilder):
     _model_type = "BassModel"
     version = __version__
 
+    def __init__(
+        self,
+        model_config: dict | None = None,
+        sampler_config: dict | None = None,
+    ):
+        super().__init__(model_config=model_config, sampler_config=sampler_config)
+        # Restore Prior objects from the dicts produced by the JSON
+        # round-trip in save/load
+        self.model_config = parse_model_config(self.model_config)
+        self.data: xr.Dataset | None = None
+
     @property
     def default_model_config(self) -> dict:
-        """Default model configuration with weakly informative priors."""
+        """Default model configuration with weakly informative priors.
+
+        ``m`` is the market potential, a headcount, so its prior is restricted to
+        positive values. A prior straddling zero puts the Poisson mean at zero at
+        ``model.initial_point()``, making the likelihood ``-inf`` there; ``fit(
+        method="map")`` then fails outright, while ``"mcmc"`` only survives it
+        because ``jitter+adapt_diag`` moves off the starting point.
+
+        The default ``m`` prior here is a placeholder: because ``m`` is a headcount
+        whose scale is entirely dataset-dependent, :meth:`build_model` builds the graph
+        with ``HalfNormal(sigma=2 * observed.sum())`` instead whenever the user has not
+        overridden it. The rescale is applied per build and does not modify
+        ``model_config``, so every fit is scaled to the data it is looking at. Pass an
+        ``m`` prior that differs from the default in ``model_config`` to opt out; a
+        prior identical to the default is indistinguishable from not passing one.
+        """
         return {
-            "m": Prior("Normal", mu=0, sigma=10),
+            "m": Prior("HalfNormal", sigma=10),
             "p": Prior("Beta", alpha=1.5, beta=20),
             "q": Prior("Beta", alpha=2, beta=5),
             "likelihood": Prior("Poisson"),
@@ -541,8 +720,13 @@ class BassModel(ModelBuilder):
         if "observed" in ds:
             set_data["y_obs"] = ds["observed"].values
         elif "y_obs" in self.model:
-            dtype = self.model["y_obs"].get_value().dtype
-            set_data["y_obs"] = np.zeros(len(new_t), dtype=dtype)
+            old_value = self.model["y_obs"].get_value()
+            dims = self.model.named_vars_to_dims["y_obs"]
+            new_shape = tuple(
+                len(new_t) if d == "T" else size
+                for d, size in zip(dims, old_value.shape, strict=True)
+            )
+            set_data["y_obs"] = np.zeros(new_shape, dtype=old_value.dtype)
         with self.model:
             pm.set_data(set_data, coords={"T": new_t})
 
@@ -647,6 +831,23 @@ class BassModel(ModelBuilder):
         t = ds.coords["T"].values
         observed = ds.get("observed")
 
+        # `m` is the market potential -- the total number of eventual adopters -- so a
+        # fixed-scale default prior is wrong for almost every dataset. When the user has
+        # not overridden the default `m` prior, rescale it to the data: the observed
+        # cumulative adoptions are a lower bound on `m`, so twice that keeps the prior
+        # weakly informative at the right order of magnitude.
+        #
+        # The resolved prior is local to this build and is deliberately *not* written
+        # back into `self.model_config`: doing so would make the check below read a
+        # value it had itself produced, so a second `fit` on a different dataset would
+        # keep the first dataset's scale. Leaving the config untouched also keeps `id`
+        # identical either side of a save/load round trip, since `build_model` recomputes
+        # the same sigma from `fit_data`.
+        priors = dict(self.model_config)
+        if observed is not None and priors["m"] == self.default_model_config["m"]:
+            total_adopters = max(float(observed.sum()), 1.0)
+            priors["m"] = Prior("HalfNormal", sigma=2 * total_adopters)
+
         coords = {name: ds.coords[name].values for name in ds.coords}
 
         self.model = pm.Model(coords=coords)
@@ -661,30 +862,55 @@ class BassModel(ModelBuilder):
             create_bass_model(
                 t=t_data,
                 observed=y_obs,
-                priors=cast(BassPriors, self.model_config),
+                priors=cast(BassPriors, priors),
                 coords=coords,
                 model=self.model,
             )
 
+    def _prepare_fit(
+        self,
+        data: xr.Dataset | pd.DataFrame | pd.Series | np.ndarray | None = None,
+    ) -> None:
+        """Normalize the input data and rebuild the model against it.
+
+        The Bass model bakes the time grid into the graph, so the model is rebuilt on
+        every fit rather than reused.
+        """
+        self.data = to_bass_dataset(data) if data is not None else self.data
+        if self.data is None:
+            raise ValueError("Data must be provided to fit the Bass model.")
+        self.build_model(self.data)
+
     def fit(  # type: ignore[override]
         self,
-        data: xr.Dataset | pd.DataFrame | pd.Series | np.ndarray,
+        data: xr.Dataset | pd.DataFrame | pd.Series | np.ndarray | None = None,
+        *,
+        method: SamplingMethod = "mcmc",
         progressbar: bool | None = None,
         random_seed: RandomState | None = None,
+        sample_kwargs: dict[str, Any] | None = None,
         **kwargs: Any,
     ) -> xr.DataTree:
-        """Fit the Bass diffusion model via MCMC.
+        """Fit the Bass diffusion model.
+
+        Thin wrapper around :meth:`ModelFitter.fit`; see there for the full parameter
+        reference.
 
         Parameters
         ----------
         data : xr.Dataset, pd.DataFrame, pd.Series, np.ndarray
             Adoption counts over time. See :func:`to_bass_dataset` for formats.
+        method : str
+            Method used to fit the model. One of ``"mcmc"``, ``"map"``, ``"demz"``,
+            ``"advi"`` or ``"fullrank_advi"``.
         progressbar : bool, optional
             Whether to show the progress bar. Defaults to ``True``.
         random_seed : optional
             Random seed for reproducibility.
+        sample_kwargs : dict, optional
+            Only used by the variational methods; forwarded to ``Approximation.sample``.
         **kwargs
-            Additional arguments forwarded to :func:`pymc.sample`.
+            Additional arguments forwarded to the underlying PyMC routine.
 
         Returns
         -------
@@ -716,38 +942,14 @@ class BassModel(ModelBuilder):
 
             pp = model.sample_posterior_predictive(X=new_data)
         """
-        ds = to_bass_dataset(data)
-        self.build_model(ds)
-
-        sampler_kwargs = create_sample_kwargs(
-            self.sampler_config, progressbar, random_seed, **kwargs
+        return super().fit(
+            data=data,
+            method=method,
+            progressbar=progressbar,
+            random_seed=random_seed,
+            sample_kwargs=sample_kwargs,
+            **kwargs,
         )
-        var_names = [v.name for v in self.model.free_RVs]
-
-        with self.model:
-            idata = pm.sample(var_names=var_names, **sampler_kwargs)
-            # Assign to the DataTree node, not the ``posterior`` property.
-            # Under arviz>=1.2 InferenceData subclasses xarray.DataTree, so
-            # ``idata.posterior = ...`` sets a shadowing instance attribute and
-            # leaves the actual group unchanged, dropping the deterministics.
-            idata["posterior"] = pm.compute_deterministics(
-                idata.posterior, merge_dataset=True
-            )
-
-        if self.idata is not None:
-            self.idata = self.idata.copy()
-            self.idata.update(idata)
-        else:
-            self.idata = idata
-
-        self.idata["posterior"].attrs["pymc_marketing_version"] = __version__
-
-        if "fit_data" in self.idata:
-            del self.idata["fit_data"]
-
-        self.idata["fit_data"] = xr.DataTree(ds)
-        self.set_idata_attrs(self.idata)
-        return self.idata
 
     def plot_adoption_curve(
         self, **kwargs: Any

@@ -20,7 +20,7 @@ from pymc_extras.prior import Prior
 
 from pymc_marketing.clv.models.basic import CLVModel
 from pymc_marketing.model_builder import DifferentModelError
-from tests.clv.conftest import mock_fit_MAP, mock_sample, set_model_fit
+from tests.clv.conftest import mock_fit_map, mock_sample, set_model_fit
 
 
 class CLVModelTest(CLVModel):
@@ -38,7 +38,6 @@ class CLVModelTest(CLVModel):
         super().__init__(
             model_config=model_config,
             sampler_config=sampler_config,
-            non_distributions=[],
         )
         self.data = data
 
@@ -84,7 +83,6 @@ class CLVModelForLoadTest(CLVModelTest):
             self,
             model_config=model_config,
             sampler_config=sampler_config,
-            non_distributions=[],
         )
         if data is not None:
             self.data = data
@@ -131,7 +129,7 @@ class TestCLVModel:
     def test_fit_map(self, mocker):
         model = CLVModelTest()
 
-        mocker.patch("pymc_marketing.clv.models.basic.CLVModel._fit_MAP", mock_fit_MAP)
+        mocker.patch("pymc_marketing.clv.models.basic.CLVModel._fit_map", mock_fit_map)
         idata = model.fit(
             data=model.data,
             method="map",
@@ -174,7 +172,7 @@ class TestCLVModel:
             data=model.data,
             method="advi",
             tune=5,
-            chains=2,
+            chains=1,
             draws=10,
         )
         assert isinstance(idata, xr.DataTree)
@@ -236,6 +234,12 @@ class TestCLVModel:
                 data=model.data,
                 method="wrong_method",
             )
+
+    def test_fit_without_data_raises(self):
+        model = CLVModelForLoadTest()
+
+        with pytest.raises(ValueError, match="data is required to build the model"):
+            model.fit()
 
     def test_load(self, mocker, tmp_path):
         model = CLVModelTest()
@@ -325,17 +329,6 @@ class TestCLVModel:
         assert len(thin_model.posterior["x"].draw) == 50
         assert thin_model.data is not model.data
         assert np.all(thin_model.data == model.data)
-
-    def test_model_config_warns(self) -> None:
-        model_config = {
-            "x": {"dist": "StudentT", "kwargs": {"mu": 0, "sigma": 5, "nu": 15}},
-        }
-        with pytest.warns(DeprecationWarning, match=r"x is automatically"):
-            model = CLVModelTest(model_config=model_config)
-
-        assert model.model_config == {
-            "x": Prior("StudentT", mu=0, sigma=5, nu=15),
-        }
 
     def test_validate_cols_reports_all_missing_columns(self):
         """Test _validate_cols raises a single ValueError listing all missing columns."""

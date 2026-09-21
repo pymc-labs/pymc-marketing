@@ -58,8 +58,8 @@ msgstr "python:str, opcional"
 
 #: a3e6a511bf584ca9a84fea1d3fb1ecd3 of
 #: pymc_marketing.mmm.plot.MMMPlotSuite.saturation_curves_scatter:10
-msgid "Name of the channel contribution variable in the InferenceData."
-msgstr "Nombre de la variable de contribución del canal en el InferenceData."
+msgid "Name of the channel contribution variable in the DataTree."
+msgstr "Nombre de la variable de contribución del canal en el DataTree."
 
 #: 77c6fafb40804c26860c5a51809a8142 of
 #: pymc_marketing.mmm.plot.MMMPlotSuite.saturation_curves_scatter:12

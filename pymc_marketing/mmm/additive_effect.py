@@ -208,15 +208,23 @@ coefficients.
 """
 
 from abc import ABC, abstractmethod
-from typing import Annotated, Any, Protocol
+from typing import Annotated, Any, Literal, Protocol
 
+import numpy as np
 import numpy.typing as npt
 import pandas as pd
 import pymc as pm
 import pymc.dims as pmd
 import pytensor.xtensor as ptx
 import xarray as xr
-from pydantic import Field, InstanceOf
+from pydantic import (
+    BaseModel,
+    BeforeValidator,
+    ConfigDict,
+    Field,
+    InstanceOf,
+    StrictInt,
+)
 from pymc_extras.prior import Prior, VariableFactory
 from pytensor.xtensor.type import XTensorVariable
 
@@ -339,6 +347,90 @@ class Model(Protocol):
         """
 
 
+def _accept_numpy_integer(value: Any) -> Any:
+    """Let a NumPy integer stand in for a Python one.
+
+    ``StrictInt`` is here to refuse ``True`` and ``2.0``, both of which would
+    otherwise size an evaluation window without anyone noticing.  It also
+    refuses ``np.int64``, which is not the same kind of mistake: it is what a
+    caller gets from the shape or ``l_max`` of anything array-backed.
+    """
+    return int(value) if isinstance(value, np.integer) else value
+
+
+CarryoverLags = Annotated[
+    StrictInt, BeforeValidator(_accept_numpy_integer), Field(ge=0)
+]
+"""A non-negative window length, tolerant of NumPy integers but not of ``bool``."""
+
+
+class IncrementalitySpec(BaseModel):
+    r"""Declaration that an effect may take part in incrementality analysis.
+
+    Returned by :meth:`MuEffect.incrementality_spec`.  Only effects whose
+    contribution depends on ``channel_data`` need one: a spend counterfactual
+    cannot reach any other effect, so those are part of the baseline and are
+    left alone.
+
+    Nothing has to be filled in.  An empty ``IncrementalitySpec()`` opts the
+    effect in and lets
+    :class:`~pymc_marketing.mmm.incrementality.Incrementality` work the rest out
+    from the graph: the date-indexed ``pm.Data`` the effect reads is discovered
+    by traversal, and how far in time the effect carries a change in spend is
+    *measured* by perturbing one date and watching where the contribution moves.
+    The fields below override that measurement when a caller would rather state
+    the answer than have it derived.
+
+    Parameters
+    ----------
+    additional_carryover_lags : int, optional
+        Number of periods *beyond* the model's own ``adstock.l_max`` over which
+        a change in spend at time *t* can still move this effect's contribution.
+        For an effect that chains a second adstock behind the model's -- as a
+        funnel mediator does, with ``upper_transform`` feeding
+        ``demand_transform`` -- it is the ``l_max`` of that second adstock.
+        Left at ``None`` it is measured.  A declared value is allowed to be
+        *larger* than the measured reach (a wider window only costs compute) but
+        a smaller one is rejected, since it would silently truncate the mediated
+        tail and understate the increment.
+    evaluation_mode : {"auto", "window", "full"}, default="auto"
+        How much of the date axis the effect needs to see to be evaluated
+        correctly.  ``"window"`` is the cheap case: the effect propagates spend
+        forward over a bounded number of periods, so a counterfactual can be
+        evaluated on a window around each period.  ``"full"`` is required by an
+        effect that reads the whole series at once -- anything with a reduction
+        over ``date``, such as a normalisation by ``x.mean("date")`` -- because
+        such an effect takes a different value on a truncated axis.  ``"auto"``
+        measures which of the two applies.
+
+    Examples
+    --------
+    Opt in and let everything be measured:
+
+    .. code-block:: python
+
+        class FunnelEffect(DataVarMuEffect):
+            def incrementality_spec(self) -> IncrementalitySpec:
+                return IncrementalitySpec()
+
+    Declare the carryover instead, for a funnel whose mediator applies a second
+    adstock of ``l_max=8``:
+
+    .. code-block:: python
+
+        class FunnelEffect(DataVarMuEffect):
+            def incrementality_spec(self) -> IncrementalitySpec:
+                return IncrementalitySpec(
+                    additional_carryover_lags=self.demand_transform.adstock.l_max
+                )
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid", validate_assignment=True)
+
+    additional_carryover_lags: CarryoverLags | None = None
+    evaluation_mode: Literal["auto", "window", "full"] = "auto"
+
+
 class MuEffect(SerializableBaseModel, ABC):
     """Abstract base class for arbitrary additive mu effects.
 
@@ -381,6 +473,37 @@ class MuEffect(SerializableBaseModel, ABC):
                 f"{type(self).__name__} must define 'contribution_var_name'."
             )
         return f"{prefix}_effect_contribution"
+
+    def incrementality_spec(self) -> IncrementalitySpec | None:
+        """Opt this effect in to spend-counterfactual incrementality analysis.
+
+        :class:`~pymc_marketing.mmm.incrementality.Incrementality` perturbs
+        ``channel_data`` and reads the resulting change in the linear predictor.
+        An effect that depends on ``channel_data`` -- a funnel mediator, say --
+        carries part of that change, and is only included in the increment if it
+        returns a spec here.
+
+        The default returns ``None``, which is correct for every effect whose
+        contribution does not depend on ``channel_data``: such an effect belongs
+        to the baseline, is unaffected by the counterfactual, and is skipped
+        without ever consulting this method.  An effect that *does* depend on
+        ``channel_data`` and returns ``None`` raises ``NotImplementedError``
+        rather than being silently dropped from the increment.
+
+        Opting in costs one line -- ``return IncrementalitySpec()`` -- because
+        the spec's fields are overrides for quantities that are otherwise
+        measured from the graph.
+
+        Returns
+        -------
+        IncrementalitySpec or None
+            ``None`` to opt out.
+
+        See Also
+        --------
+        IncrementalitySpec : What has to be declared, and why.
+        """
+        return None
 
     def idata_groups(self) -> dict[str, xr.Dataset]:
         """Return supplementary data groups to store in DataTree.
@@ -1115,8 +1238,7 @@ def _deserialize_event_additive_effect(
         df_events = ds.to_dataframe().reset_index()
     except (KeyError, AttributeError) as e:
         raise SerializationError(
-            f"Cannot read supplementary data group '{group_name}' from "
-            f"InferenceData: {e}"
+            f"Cannot read supplementary data group '{group_name}' from DataTree: {e}"
         ) from e
 
     effect_data = data["effect"]

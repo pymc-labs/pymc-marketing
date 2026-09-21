@@ -72,8 +72,8 @@ msgstr ""
 
 #: ../source/api/generated/pymc_marketing.model_builder.ModelIO.rst:30:<autosummary>:1
 #: dd6fe8f9b04d4a2bb54ca0573bcf64c1
-msgid "Build the model from the InferenceData object."
-msgstr "Construya el modelo a partir del objeto InferenceData."
+msgid "Build the model from the DataTree object."
+msgstr "Construya el modelo a partir del objeto DataTree."
 
 #: ../source/api/generated/pymc_marketing.model_builder.ModelIO.rst:30:<autosummary>:1
 #: 4db1180b8d9c4315b2399934a9b3b106
@@ -102,10 +102,10 @@ msgstr ""
 #: 41a45188b9904045bd85007219371544
 msgid ""
 "Create  the model configuration and sampler configuration from the "
-"InferenceData to keyword arguments."
+"DataTree to keyword arguments."
 msgstr ""
 "Cree la configuración del modelo y la configuración del muestreador a partir"
-" de InferenceData a argumentos de palabra clave."
+" de DataTree a argumentos de palabra clave."
 
 #: ../source/api/generated/pymc_marketing.model_builder.ModelIO.rst:30:<autosummary>:1
 #: 89a06ce0d2ad401fbee3ee8182b8a91d
@@ -134,9 +134,9 @@ msgstr ""
 
 #: ../source/api/generated/pymc_marketing.model_builder.ModelIO.rst:30:<autosummary>:1
 #: f0427a7ac6e14971a739dc2dd67459ac
-msgid "Create a ModelBuilder instance from an InferenceData object."
+msgid "Create a ModelBuilder instance from a DataTree object."
 msgstr ""
-"Cree una instancia de ModelBuilder a partir de un objeto InferenceData."
+"Cree una instancia de ModelBuilder a partir de un objeto DataTree."
 
 #: ../source/api/generated/pymc_marketing.model_builder.ModelIO.rst:30:<autosummary>:1
 #: 7e4f368320b1489d8aae9ed85e811353
@@ -163,8 +163,8 @@ msgstr ""
 
 #: ../source/api/generated/pymc_marketing.model_builder.ModelIO.rst:30:<autosummary>:1
 #: dd44b6bda9874490a0c2c427dde3ebe7
-msgid "Set attributes on an InferenceData object."
-msgstr "Establecer atributos en un objeto InferenceData."
+msgid "Set attributes on a DataTree object."
+msgstr "Establecer atributos en un objeto DataTree."
 
 #: ../source/api/generated/pymc_marketing.model_builder.ModelIO.rst:32
 #: dcec8b895fc74d79bcf0703bd960ac0b

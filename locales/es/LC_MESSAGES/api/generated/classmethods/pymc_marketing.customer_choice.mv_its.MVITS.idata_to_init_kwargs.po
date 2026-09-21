@@ -29,10 +29,10 @@ msgstr "MVITS.idata\\_to\\_init\\_kwargs"
 #: pymc_marketing.model_builder.ModelIO.idata_to_init_kwargs:2
 msgid ""
 "Create  the model configuration and sampler configuration from the "
-"InferenceData to keyword arguments."
+"DataTree to keyword arguments."
 msgstr ""
 "Cree la configuración del modelo y la configuración del muestreador a partir"
-" de InferenceData para argumentos de palabra clave."
+" de DataTree para argumentos de palabra clave."
 
 #: e4a59c0e8eb24e8cabbf3b106881dd1c of
 #: pymc_marketing.model_builder.ModelIO.idata_to_init_kwargs:4

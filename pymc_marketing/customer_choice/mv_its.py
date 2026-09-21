@@ -93,12 +93,12 @@ class MVITS(RegressionModelBuilder):
             )
 
     def create_idata_attrs(self) -> dict[str, str]:
-        """Create the attributes for the InferenceData object.
+        """Create the attributes for the DataTree object.
 
         Returns
         -------
         dict[str, str]
-            The attributes for the InferenceData object.
+            The attributes for the DataTree object.
 
         """
         attrs = super().create_idata_attrs()
@@ -109,12 +109,12 @@ class MVITS(RegressionModelBuilder):
 
     @classmethod
     def attrs_to_init_kwargs(cls, attrs) -> dict[str, Any]:
-        """Convert the attributes of the InferenceData object to the __init__ kwargs.
+        """Convert the attributes of the DataTree object to the __init__ kwargs.
 
         Parameters
         ----------
         attrs : dict
-            The attributes of the InferenceData object.
+            The attributes of the DataTree object.
 
         Returns
         -------
@@ -123,7 +123,9 @@ class MVITS(RegressionModelBuilder):
 
         """
         return {
-            "model_config": json.loads(attrs["model_config"]),
+            "model_config": cls._model_config_formatting(
+                json.loads(attrs["model_config"])
+            ),
             "sampler_config": json.loads(attrs["sampler_config"]),
             "existing_sales": json.loads(attrs["existing_sales"]),
             "saturated_market": json.loads(attrs["saturated_market"]),
@@ -346,7 +348,7 @@ class MVITS(RegressionModelBuilder):
     ) -> None:
         """Calculate the counterfactual scenario of never releasing the new product.
 
-        Extends the InferenceData object
+        Extends the DataTree object
 
         Parameters
         ----------

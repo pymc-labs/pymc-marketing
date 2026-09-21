@@ -66,6 +66,5 @@ When it comes to Bayesian Media Mix Modeling the two most used options are PyMC-
 
 - Maximum flexibility for complex, unique business requirements is necessary
 - You need advanced statistical modeling capabilities (e.g., Gaussian Processes)
-- Production ready setup and integration into broader data science workflows is important (MLflow)
 - You prefer independence from major ad publishers and networks
 - Professional independent consulting support is desirable info@pymc-labs.com

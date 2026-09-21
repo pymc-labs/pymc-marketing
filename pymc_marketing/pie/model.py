@@ -67,14 +67,12 @@ from pymc_extras.prior import Prior
 from sklearn.preprocessing import LabelEncoder
 
 from pymc_marketing.model_builder import RegressionModelBuilder
+from pymc_marketing.model_config import parse_model_config
 
 try:
     import pymc_bart as pmb
-    from pymc_bart.split_rules import ContinuousSplitRule, OneHotSplitRule
 except ImportError:  # pragma: no cover
     pmb = None  # type: ignore[assignment]
-    ContinuousSplitRule = None  # type: ignore[assignment,misc]
-    OneHotSplitRule = None  # type: ignore[assignment,misc]
 
 
 def _is_categorical(series: pd.Series) -> bool:
@@ -125,7 +123,7 @@ class PIEModel(RegressionModelBuilder):
           (float), and optional ``response`` — ``"constant"`` (default,
           piecewise-constant leaves), ``"linear"``, or ``"mix"`` (the latter
           two fit linear models in the leaves, which can help on smooth
-          response surfaces).
+          response surfaces; both are experimental upstream).
         - ``"sigma"``: :class:`pymc_extras.prior.Prior` for the noise std.
         - ``"categorical_split"``: ``"onehot"`` (default) or ``"continuous"``.
           Controls how label-encoded categorical columns are split by BART
@@ -182,8 +180,9 @@ class PIEModel(RegressionModelBuilder):
 
     Categorical columns (``object`` or ``category`` dtype) are label-encoded
     in ``build_model``. With ``categorical_split="onehot"`` (default), BART
-    uses :class:`pymc_bart.split_rules.OneHotSplitRule` for those columns so
-    that splits are "level X vs not-X" rather than "encoded value < c" — this
+    passes the ``"OneHotSplit"`` split rule (see the ``split_rules`` argument
+    of :class:`pymc_bart.BART`) for those columns so that splits are
+    "level X vs not-X" rather than "encoded value < c" — this
     avoids imposing the encoder's alphabetical ordering on unordered
     categories. Set ``categorical_split="continuous"`` to fall back to
     ordered splits.
@@ -220,6 +219,12 @@ class PIEModel(RegressionModelBuilder):
         sampler_config: dict | None = Field(None),
     ) -> None:
         super().__init__(model_config=model_config, sampler_config=sampler_config)
+
+        # Parse after merging with defaults, matching CLVModel. This is what
+        # rejects legacy dict-format priors with a migration hint; without it
+        # they fail much later with an opaque AttributeError.
+        self.model_config = parse_model_config(self.model_config)
+
         self.pre_determined_features = list(pre_determined_features)
         self.post_determined_features = list(post_determined_features)
         self.target_column = target_column
@@ -340,11 +345,11 @@ class PIEModel(RegressionModelBuilder):
             )
         if categorical_split == "onehot":
             split_rules = [
-                OneHotSplitRule() if col in self._encoders else ContinuousSplitRule()
+                "OneHotSplit" if col in self._encoders else "ContinuousSplit"
                 for col in self._feature_columns
             ]
         else:
-            split_rules = [ContinuousSplitRule() for _ in self._feature_columns]
+            split_rules = ["ContinuousSplit"] * len(self._feature_columns)
 
         coords: dict[str, list] = {
             "obs": X.index.tolist(),

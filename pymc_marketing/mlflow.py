@@ -18,7 +18,7 @@ which is then extended to PyMC-Marketing models.
 
 Autologging is supported for PyMC models and PyMC-Marketing models. This including
 logging of sampler diagnostics, model information, data used in the model, and
-InferenceData objects.
+DataTree objects.
 
 The autologging can be enabled by calling the `autolog` function. The following functions
 are patched:
@@ -27,7 +27,7 @@ are patched:
 
     - :func:`log_versions`: Log the versions of PyMC-Marketing, PyMC, and ArviZ to MLflow.
     - :func:`log_model_derived_info`: Log types of parameters, coords, model graph, etc.
-    - :func:`log_sample_diagnostics`: Log information derived from the InferenceData object.
+    - :func:`log_sample_diagnostics`: Log information derived from the DataTree object.
     - :func:`log_arviz_summary`: Log table of summary statistics about estimated parameters
     - :func:`log_metadata`: Log the metadata of the data used in the model.
     - :func:`log_error`: Log the traceback and exception if an error occurs during sampling.
@@ -193,7 +193,7 @@ import os
 import tempfile
 import traceback
 import warnings
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from functools import wraps
 from pathlib import Path
 from typing import Any, Literal
@@ -202,6 +202,7 @@ import arviz as az
 import numpy.typing as npt
 import pandas as pd
 import pymc as pm
+import pytensor.scalar as ps
 import xarray as xr
 from pymc.model.core import Model
 from pytensor.tensor import TensorVariable
@@ -254,42 +255,21 @@ def _take_every(n: int):
     return decorator
 
 
-# Known PyMC transform suffixes used in ``draw.point`` keys. Extend this
-# tuple to support more transformations. Two caveats before adding entries:
-#
-# 1. Scalar-only. ``mlflow.log_metric`` accepts a scalar value, so only
-#    transforms that produce scalar value vars are safe to list here.
-#    Scalar-friendly: ``_logodds__`` (Beta, Uniform on (0, 1)),
-#    ``_interval__`` (bounded), ``_log_exp_m1__``, ``_circular__``.
-#    Vector-valued (``_ordered__``, ``_simplex__``, ``_sumto1__``,
-#    ``_zerosum__``, ``_cholesky-cov-packed__``) need per-component
-#    logging before they can be added; do not include them as-is.
-#
-# 2. Built-in transforms only. PyMC lets users subclass ``Transform`` and
-#    pick any ``name``, which produces a value var named
-#    ``f"{var}_{transform.name}__"``. Custom names are unknown here, so
-#    users of custom transforms must still pass the explicit transformed
-#    name. The exact-match branch in ``_resolve_parameter`` preserves
-#    that escape hatch.
-_TRANSFORM_SUFFIXES: tuple[str, ...] = ("_log__",)
+def _recorded_point(trace, draw) -> Mapping[str, Any]:
+    """Return the values PyMC recorded for ``draw``.
 
+    PyMC records each draw in ``trace`` before calling the callback, and the
+    default ``NDArray`` trace stores the free variables on their constrained
+    scale (``sigma``), next to the sampler's value variables (``sigma_log__``)
+    and the deterministics. ``draw.point`` holds only the value variables.
 
-def _resolve_parameter(name: str, point: dict) -> str:
-    """Map a model-level variable name to its key in ``draw.point``.
-
-    Returns ``name`` if it is already a key in ``point``. Otherwise tries
-    ``name + suffix`` for each suffix in ``_TRANSFORM_SUFFIXES`` and returns
-    the first match. Raises ``KeyError`` if no candidate is found.
+    Traces that do not expose recorded draws, such as ``ZarrChain``, raise
+    ``NotImplementedError``; those fall back to ``draw.point``.
     """
-    if name in point:
-        return name
-    for suffix in _TRANSFORM_SUFFIXES:
-        candidate = f"{name}{suffix}"
-        if candidate in point:
-            return candidate
-    raise KeyError(
-        f"Parameter {name!r} not found in draw.point. Available keys: {sorted(point)}."
-    )
+    try:
+        return trace.point(len(trace) - 1)
+    except NotImplementedError:
+        return draw.point
 
 
 def create_log_callback(
@@ -307,7 +287,11 @@ def create_log_callback(
     stats : list of str, optional
         List of sample statistics to log from the Draw
     parameters : list of str, optional
-        List of parameters to log from the Draw
+        Names of variables to log from the draw PyMC has just recorded. A
+        model-level name such as ``sigma`` is logged on its constrained scale,
+        a value variable name such as ``sigma_log__`` on the sampler's
+        unconstrained scale. Deterministics can be logged too. Each value must
+        be a scalar, since ``mlflow.log_metric`` only accepts scalars.
     exclude_tuning : bool, optional
         Whether to exclude tuning steps from logging. Defaults to True.
     take_every : int, optional
@@ -350,9 +334,9 @@ def create_log_callback(
             idata = pm.sample(model=model, callback=callback)
 
     Log the parameters `mu` and `sigma` every 100th draw. PyMC samples
-    `sigma` on the unconstrained scale as `sigma_log__`; the callback
-    resolves the transformed name automatically, so passing the
-    model-level name is enough:
+    `sigma` on the unconstrained scale as `sigma_log__`; the callback logs
+    `sigma` itself, read from the draw PyMC just recorded. Pass
+    `sigma_log__` to log the unconstrained value instead:
 
     .. code-block:: python
 
@@ -374,9 +358,7 @@ def create_log_callback(
     if not stats and not parameters:
         raise ValueError("At least one of `stats` or `parameters` must be provided.")
 
-    resolved: dict[str, str] = {}
-
-    def callback(_, draw):
+    def callback(trace, draw):
         prefix = f"chain_{draw.chain}"
         for stat in stats or []:
             mlflow.log_metric(
@@ -385,17 +367,23 @@ def create_log_callback(
                 step=draw.draw_idx,
             )
 
-        if not resolved and parameters:
-            resolved.update({p: _resolve_parameter(p, draw.point) for p in parameters})
+        if not parameters:
+            return
 
-        for parameter in parameters or []:
+        point = _recorded_point(trace, draw)
+        for parameter in parameters:
+            if parameter not in point:
+                raise KeyError(
+                    f"Parameter {parameter!r} not found in the recorded draw. "
+                    f"Available keys: {sorted(point)}."
+                )
             # `mlflow.log_metric` is scalar-only. Vector-valued parameters
             # (Dirichlet, Ordered, ZeroSumNormal, ...) raise `MlflowException`
             # here. Expanding them into per-component metrics is left to a
-            # follow-up PR; see the comment on `_TRANSFORM_SUFFIXES`.
+            # follow-up PR.
             mlflow.log_metric(
                 key=f"{prefix}/{parameter}",
-                value=draw.point[resolved[parameter]],
+                value=point[parameter],
                 step=draw.draw_idx,
             )
 
@@ -561,8 +549,19 @@ def log_model_graph(model: Model, path: str | Path) -> None:
 
 
 def _get_random_variable_name(rv) -> str:
-    # Taken from new version of pymc/model_graph.py
-    symbol = rv.owner.op.__class__.__name__
+    op = rv.owner.op
+
+    # `pymc.dims` builds a censored variable as `clip(rv, lower, upper)` rather
+    # than as the `CensoredRV` `pm.Censored` gives, so the op carries no name to
+    # report. This function only ever sees observed variables, where a clipped
+    # RV is a censored likelihood.
+    if getattr(op, "scalar_op", None) is ps.clip:
+        return "Censored"
+
+    # A `pymc.dims` variable wraps the real RV in a generic `XRV`, which would
+    # otherwise be reported as "X". The distribution is on the wrapped op.
+    op = getattr(op, "core_op", op)
+    symbol = op.__class__.__name__
 
     if symbol.endswith("RV"):
         symbol = symbol[:-2]
@@ -853,7 +852,7 @@ class MMMWrapper(mlflow.pyfunc.PythonModel):
 
         Returns
         -------
-        ndarray or InferenceData
+        ndarray or DataTree
             The predictions or samples generated by the model.
 
         Raises
@@ -938,7 +937,7 @@ def log_mmm(
     Notes
     -----
     This function logs the model as a native MLflow model, this is different to the full model object,
-    which includes the InferenceData. Doing this allows for the model to be stored in the MLFlow registry,
+    which includes the DataTree. Doing this allows for the model to be stored in the MLFlow registry,
     helping with model versioning and deployment.
 
     Examples
@@ -1033,20 +1032,20 @@ def load_mmm(
     """
     Load a PyMC-Marketing MMM model from MLflow.
 
-    Can either load the full model including the InferenceData, or just the lighter PyFuncModel version.
+    Can either load the full model including the DataTree, or just the lighter PyFuncModel version.
 
     Parameters
     ----------
     run_id : str
         The MLflow run ID from which to load the model.
     full_model : bool, default=True
-        If True, load the full MMM model including the InferenceData.
+        If True, load the full MMM model including the DataTree.
     keep_idata : bool, default=False
-        If True, keep the downloaded InferenceData saved locally.
+        If True, keep the downloaded DataTree saved locally.
     artifact_path : str, default="model"
         The artifact path within the run where the model is stored.
     dst_path : str | None, default=None
-        The local destination path where the InferenceData will be downloaded.
+        The local destination path where the DataTree will be downloaded.
         If None, defaults to "idata_{run_id}" to avoid conflicts when loading multiple models.
 
     Returns
@@ -1192,7 +1191,7 @@ def autolog(
     """Autologging support for PyMC models and PyMC-Marketing models.
 
     Includes logging of sampler diagnostics, model information, data used in the
-    model, and InferenceData objects upon sampling the models.
+    model, and DataTree objects upon sampling the models.
 
     For more information about MLflow, see
     https://mlflow.org/docs/latest/python_api/mlflow.html
@@ -1434,7 +1433,7 @@ def autolog(
 
     def patch_clv_fit(fit):
         @wraps(fit)
-        def new_fit(self, data, method: str = "mcmc", **kwargs):
+        def new_fit(self, data=None, method: str = "mcmc", **kwargs):
             mlflow.log_param("model_type", self._model_type)
             mlflow.log_param(
                 "fit_method",

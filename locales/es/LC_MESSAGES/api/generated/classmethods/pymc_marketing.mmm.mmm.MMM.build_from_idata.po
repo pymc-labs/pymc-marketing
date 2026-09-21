@@ -27,8 +27,8 @@ msgstr "MMM.construir\\_desde\\_idata"
 
 #: d1dd2dfa432a45519d6b7e97279ef137 of
 #: pymc_marketing.mmm.mmm.MMM.build_from_idata:2
-msgid "Rebuild the model from an ``InferenceData`` object."
-msgstr "Reconstruya el modelo a partir de un objeto ``InferenceData``."
+msgid "Rebuild the model from an ``DataTree`` object."
+msgstr "Reconstruya el modelo a partir de un objeto ``DataTree``."
 
 #: fafa981b23b94451823f4588d713a9aa of
 #: pymc_marketing.mmm.mmm.MMM.build_from_idata:4
@@ -49,13 +49,13 @@ msgstr "Parámetros"
 
 #: 1ba919808ea8468a9b8f0950f246dc66 of
 #: pymc_marketing.mmm.mmm.MMM.build_from_idata:10
-msgid "**idata** : :obj:`az.InferenceData`"
-msgstr "**idata** : :obj:`az.InferenceData`"
+msgid "**idata** : :obj:`az.DataTree`"
+msgstr "**idata** : :obj:`az.DataTree`"
 
 #: ebe9cfa123684014b250a2a8d417db2d of
 #: pymc_marketing.mmm.mmm.MMM.build_from_idata:9
-msgid "az.InferenceData"
-msgstr "az.InferenceData"
+msgid "az.DataTree"
+msgstr "az.DataTree"
 
 #: 507a787b8f694e059f80241dc8df7c52 of
 #: pymc_marketing.mmm.mmm.MMM.build_from_idata:11

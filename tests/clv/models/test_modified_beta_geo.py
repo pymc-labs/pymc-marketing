@@ -170,6 +170,24 @@ class TestModifiedBetaGeoModel:
             model = ModifiedBetaGeoModel()
             model.build_model(data=data_invalid)
 
+    @pytest.mark.parametrize(
+        "data, match",
+        [
+            (
+                {"customer_id": [1], "frequency": [-1], "recency": [1], "T": [2]},
+                "Column frequency has negative values",
+            ),
+            (
+                {"customer_id": [1], "frequency": [1], "recency": [3], "T": [2]},
+                "recency cannot be greater than T",
+            ),
+        ],
+    )
+    def test_invalid_rfm_values(self, data, match):
+        with pytest.raises(ValueError, match=match):
+            model = ModifiedBetaGeoModel()
+            model.build_model(data=pd.DataFrame(data))
+
     def test_customer_id_duplicate(self):
         with pytest.raises(
             ValueError, match=r"Column customer_id has duplicate entries"

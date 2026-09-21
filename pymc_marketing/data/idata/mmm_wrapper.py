@@ -361,7 +361,7 @@ class MMMIDataWrapper:
         Returns
         -------
         xr.DataArray or None
-            Cost per unit values with dims ("date", *custom_dims, "channel").
+            Cost per unit values with dims ``("date", *custom_dims, "channel")``.
             Returns None if cost_per_unit has not been set.
         """
         if not (

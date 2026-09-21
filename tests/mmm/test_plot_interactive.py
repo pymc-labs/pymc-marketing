@@ -177,6 +177,73 @@ def _create_saturation_df(
     return pd.DataFrame(rows)
 
 
+class TestWaterfallAndChannelShare:
+    """Smoke tests for waterfall and channel_share Plotly methods."""
+
+    def test_waterfall_smoke(self):
+        """Test waterfall returns a Plotly figure from summary data."""
+        df = pd.DataFrame(
+            {
+                "component": ["TV", "Radio"],
+                "mean": [100.0, 200.0],
+                "median": [100.0, 200.0],
+                "abs_error_94_lower": [90.0, 190.0],
+                "abs_error_94_upper": [110.0, 210.0],
+            }
+        )
+        mock_summary = _create_simple_mock_summary(df=df, method_name="waterfall")
+        factory = MMMPlotlyFactory(summary=mock_summary)
+
+        fig = factory.waterfall()
+
+        assert isinstance(fig, go.Figure)
+        assert len(fig.data) > 0
+
+    def test_channel_share_smoke(self):
+        """Test channel_share returns a Plotly figure from summary data."""
+        df = pd.DataFrame(
+            {
+                "channel": ["TV", "Radio"],
+                "mean": [0.4, 0.6],
+                "median": [0.4, 0.6],
+                "abs_error_94_lower": [0.35, 0.55],
+                "abs_error_94_upper": [0.45, 0.65],
+            }
+        )
+        mock_summary = _create_simple_mock_summary(
+            df=df, method_name="channel_share_hdi"
+        )
+        factory = MMMPlotlyFactory(summary=mock_summary)
+
+        fig = factory.channel_share()
+
+        assert isinstance(fig, go.Figure)
+        assert len(fig.data) > 0
+
+    def test_channel_share_uses_channel_axis(self):
+        """Test channel_share passes channel names on the x-axis."""
+        channels = ["TV", "Radio", "Social"]
+        df = pd.DataFrame(
+            {
+                "channel": channels,
+                "mean": [0.3, 0.3, 0.4],
+                "median": [0.3, 0.3, 0.4],
+                "abs_error_94_lower": [0.2, 0.2, 0.3],
+                "abs_error_94_upper": [0.4, 0.4, 0.5],
+            }
+        )
+        mock_summary = _create_simple_mock_summary(
+            df=df, method_name="channel_share_hdi"
+        )
+        factory = MMMPlotlyFactory(summary=mock_summary)
+
+        fig = factory.channel_share()
+
+        bar_traces = [t for t in fig.data if t.type == "bar"]
+        assert bar_traces, "Expected at least one bar trace"
+        assert list(bar_traces[0].x) == channels
+
+
 class TestRoasAndContributions:
     """Parametrized tests for roas() and contributions() methods.
 

@@ -27,8 +27,8 @@ msgstr "RegressionModelBuilder.build\\_from\\_idata"
 
 #: 267ef0b49b78486f9487d4041e1c7fe2 of
 #: pymc_marketing.model_builder.RegressionModelBuilder.build_from_idata:2
-msgid "Build model from the InferenceData object."
-msgstr "Construir el modelo a partir del objeto InferenceData."
+msgid "Build model from the DataTree object."
+msgstr "Construir el modelo a partir del objeto DataTree."
 
 #: 058e0bd69db942d2a59efc935a886272 of
 #: pymc_marketing.model_builder.RegressionModelBuilder.build_from_idata:4
@@ -55,15 +55,15 @@ msgstr "Parámetros"
 
 #: 6bd83976a887471f9fcdd68f6b928ca3 of
 #: pymc_marketing.model_builder.RegressionModelBuilder.build_from_idata:11
-msgid "**idata** : :obj:`az.InferenceData`"
-msgstr "**idata** : :obj:`az.InferenceData`"
+msgid "**idata** : :obj:`az.DataTree`"
+msgstr "**idata** : :obj:`az.DataTree`"
 
 #: 483cdcdaf34643d4a2dd60ed365a359e of
 #: pymc_marketing.model_builder.RegressionModelBuilder.build_from_idata:10
-msgid "az.InferenceData"
-msgstr "az.InferenceData"
+msgid "az.DataTree"
+msgstr "az.DataTree"
 
 #: d8a6e725eafb471e9cc528a5bfba635a of
 #: pymc_marketing.model_builder.RegressionModelBuilder.build_from_idata:12
-msgid "The InferenceData object to build the model from."
-msgstr "El objeto InferenceData para construir el modelo a partir de."
+msgid "The DataTree object to build the model from."
+msgstr "El objeto DataTree para construir el modelo a partir de."

@@ -148,6 +148,51 @@ def test_linear_trend_apply_dims(priors, dims, expected_dims) -> None:
     assert trend.dims == expected_dims
 
 
+@pytest.mark.parametrize(
+    "include_intercept, expected_keys",
+    [(True, {"prefix_delta", "prefix_k"}), (False, {"prefix_delta"})],
+    ids=["with_intercept", "without_intercept"],
+)
+def test_apply_with_prefix(include_intercept, expected_keys) -> None:
+    trend = LinearTrend(include_intercept=include_intercept, prefix="prefix")
+
+    n_obs = 100
+    x = DataArray(np.linspace(0, 1, n_obs), dims=("date",))
+    with pm.Model() as model:
+        mu = trend.apply(x)
+
+    assert mu.type.shape == (n_obs,)
+    assert set(model.named_vars.keys()) == expected_keys
+    assert "prefix_changepoint" in model.coords
+    assert "changepoint" not in model.coords
+
+
+def test_two_prefixed_trends_in_same_model_do_not_collide() -> None:
+    national = LinearTrend(prefix="national")
+    regional = LinearTrend(prefix="regional", dims=("geo",))
+
+    n_obs = 100
+    x = DataArray(np.linspace(0, 1, n_obs), dims=("date",))
+    coords = {"geo": ["A", "B"]}
+    with pm.Model(coords=coords) as model:
+        national.apply(x)
+        regional.apply(x)
+
+    assert {"national_delta", "regional_delta"} <= set(model.named_vars.keys())
+    assert {"national_changepoint", "regional_changepoint"} <= set(model.coords)
+
+
+def test_prefix_sample_prior_and_curve_roundtrip() -> None:
+    trend = LinearTrend(prefix="prefix")
+
+    prior = trend.sample_prior()
+    assert "prefix_delta" in prior
+    assert "prefix_changepoint" in prior.coords
+
+    curve = trend.sample_curve(prior)
+    assert curve.notnull().all()
+
+
 class TestLinearTrendRoundtrips:
     def test_to_dict_includes_type_key(self):
         lt = LinearTrend(n_changepoints=5)

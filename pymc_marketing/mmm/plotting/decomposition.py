@@ -34,6 +34,7 @@ from pymc_marketing.mmm.plotting._helpers import (
     _process_plot_params,
     _select_dims,
 )
+from pymc_marketing.mmm.summary.helpers import compute_channel_shares
 
 
 class DecompositionPlots:
@@ -48,7 +49,7 @@ class DecompositionPlots:
     Parameters
     ----------
     data : MMMIDataWrapper
-        Validated wrapper around the fitted model's InferenceData.
+        Validated wrapper around the fitted model's DataTree.
     """
 
     def __init__(self, data: MMMIDataWrapper) -> None:
@@ -164,13 +165,16 @@ class DecompositionPlots:
         Returns
         -------
         tuple[Figure, NDArray[Axes]] or PlotCollection
+
+        See Also
+        --------
+        MMMSummaryFactory.contributions : Tabular export for custom frontends
         """
         data = (
             MMMIDataWrapper(idata, schema=self._data.schema)
             if idata is not None
             else self._data
         )
-
         pc_kwargs = _process_plot_params(
             figsize=figsize,
             backend=backend,
@@ -301,6 +305,10 @@ class DecompositionPlots:
         Returns
         -------
         tuple[Figure, NDArray[Axes]]
+
+        See Also
+        --------
+        MMMSummaryFactory.waterfall : Tabular export for custom frontends
         """
         data = (
             MMMIDataWrapper(idata, schema=self._data.schema)
@@ -391,7 +399,10 @@ class DecompositionPlots:
 
             self._plot_waterfall_panel(ax, panel_entries, safe_bar_kwargs)
 
-        fig.tight_layout()
+        # Only lay out the figure when the caller's style has not installed a
+        # layout engine; tight_layout() would replace it and warn.
+        if fig.get_layout_engine() is None:
+            fig.tight_layout()
         return fig, np.atleast_1d(np.array(axes_flat))
 
     def channel_share_hdi(
@@ -429,13 +440,16 @@ class DecompositionPlots:
         Returns
         -------
         tuple[Figure, NDArray[Axes]] or PlotCollection
+
+        See Also
+        --------
+        MMMSummaryFactory.channel_share_hdi : Tabular export for custom frontends
         """
         data = (
             MMMIDataWrapper(idata, schema=self._data.schema)
             if idata is not None
             else self._data
         )
-
         pc_kwargs = _process_plot_params(
             figsize=figsize,
             backend=backend,
@@ -443,18 +457,10 @@ class DecompositionPlots:
             **pc_kwargs,
         )
 
-        # (chain, draw, date, channel[, extra_dims])
-        channel_contributions = data.get_channel_contributions(original_scale=True)
-        channel_contributions = _select_dims(channel_contributions, dims)
-
-        # Sum over date → (chain, draw, channel[, extra_dims])
-        summed = channel_contributions.sum(dim="date")
-
-        # Compute share per channel
-        total = summed.sum(dim="channel")
-        shares = summed / total
-        shares.name = "channel_share"
-
+        channel_contributions = _select_dims(
+            data.get_channel_contributions(original_scale=True), dims
+        )
+        shares = compute_channel_shares(channel_contributions)
         share_ds = shares.to_dataset(name="channel_share")
 
         pc = azp.plot_forest(

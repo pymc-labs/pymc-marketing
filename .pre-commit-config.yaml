@@ -12,17 +12,15 @@ repos:
           - --exclude=scripts/
           - --start-year=2022
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.15.20
+    rev: v0.16.7
     hooks:
       - id: ruff-check
         types_or: [python, pyi, jupyter]
         args: ["--fix", "--output-format=full"]
-        exclude: ^docs/source/notebooks/clv/dev/
       - id: ruff-format
         types_or: [python, pyi, jupyter]
-        exclude: ^docs/source/notebooks/clv/dev/
   - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v2.1.0
+    rev: v2.3.1
     hooks:
       - id: mypy
         args: [--ignore-missing-imports]
@@ -45,14 +43,16 @@ repos:
     hooks:
       - id: validate-api-docs
         name: Validate API Documentation Completeness
-        entry: python3 scripts/validate_api_docs.py
-        language: system
+        entry: python scripts/validate_api_docs.py
+        language: python
+        language_version: python3.12
         pass_filenames: false
         files: ^(docs/source/api/index\.md|pymc_marketing/.*\.py)$
       - id: validate-watermark
         name: Validate notebooks have watermark in last cell
-        entry: python3 scripts/validate_notebook_watermark.py
-        language: system
+        entry: python scripts/validate_notebook_watermark.py
+        language: python
+        language_version: python3.12
         files: \.ipynb$
         exclude: ^docs/source/notebooks/.*/dev/
       - id: validate-notebooks

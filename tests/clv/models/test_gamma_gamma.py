@@ -23,7 +23,7 @@ from pymc_marketing.clv.models.gamma_gamma import (
     GammaGammaModel,
     GammaGammaModelIndividual,
 )
-from tests.clv.conftest import mock_fit_MAP, set_model_fit
+from tests.clv.conftest import mock_fit_map, set_model_fit
 
 
 class BaseTestGammaGammaModel:
@@ -79,32 +79,45 @@ class BaseTestGammaGammaModel:
 
 
 class TestGammaGammaModel(BaseTestGammaGammaModel):
-    def test_missing_columns(self):
-        data_invalid = self.data.drop(columns="customer_id")
+    @pytest.mark.parametrize(
+        "missing_column",
+        ["customer_id", "frequency", "monetary_value"],
+    )
+    def test_missing_columns(self, missing_column):
+        data_invalid = self.data.drop(columns=missing_column)
+
         with pytest.raises(
             ValueError,
-            match=r"The following required columns are missing from the input data: \['customer_id'\]",
+            match=rf"The following required columns are missing from the input data: \['{missing_column}'\]",
         ):
             model = GammaGammaModel()
             model.build_model(data=data_invalid)
 
-        data_invalid = self.data.drop(columns="frequency")
-
-        with pytest.raises(
-            ValueError,
-            match=r"The following required columns are missing from the input data: \['frequency'\]",
-        ):
+    @pytest.mark.parametrize(
+        "data, match",
+        [
+            (
+                {"customer_id": [1], "frequency": [-1], "monetary_value": [10.0]},
+                "Column frequency has negative values",
+            ),
+            (
+                {"customer_id": [1], "frequency": [1.5], "monetary_value": [10.0]},
+                "frequency column must contain only integer values",
+            ),
+            (
+                {"customer_id": [1], "frequency": [1], "monetary_value": [0.0]},
+                "Column monetary_value contains zeroes or negative values",
+            ),
+            (
+                {"customer_id": [1], "frequency": [1], "monetary_value": [-10.0]},
+                "Column monetary_value contains zeroes or negative values",
+            ),
+        ],
+    )
+    def test_invalid_values(self, data, match):
+        with pytest.raises(ValueError, match=match):
             model = GammaGammaModel()
-            model.build_model(data=data_invalid)
-
-        data_invalid = self.data.drop(columns="monetary_value")
-
-        with pytest.raises(
-            ValueError,
-            match=r"The following required columns are missing from the input data: \['monetary_value'\]",
-        ):
-            model = GammaGammaModel()
-            model.build_model(data=data_invalid)
+            model.build_model(data=pd.DataFrame(data))
 
     @pytest.mark.parametrize(
         "config",
@@ -157,11 +170,24 @@ class TestGammaGammaModel(BaseTestGammaGammaModel):
         model = GammaGammaModel(model_config=model_config)
         model.fit(data=self.data, chains=2, progressbar=False, random_seed=rng)
         fit = model.idata.posterior
+
+        # The aggregated likelihood (Eq 1a) pins down q and the population mean
+        # spend p * v / (q - 1), but only weakly constrains p and v separately:
+        # the posterior runs along a p-v ridge, and under the default HalfFlat
+        # priors it is not identified at all. So assert point recovery on the
+        # identified quantities, and interval coverage on p and v.
+        np.testing.assert_allclose(fit["q"].mean(), self.q_true, rtol=0.15)
         np.testing.assert_allclose(
-            [fit["p"].mean(), fit["q"].mean(), fit["v"].mean()],
-            [self.p_true, self.q_true, self.v_true],
-            rtol=0.3,
+            (fit["p"] * fit["v"] / (fit["q"] - 1)).mean(),
+            self.p_true * self.v_true / (self.q_true - 1),
+            rtol=0.1,
         )
+        for name, true_value in (("p", self.p_true), ("v", self.v_true)):
+            low, high = np.percentile(fit[name].values, [3, 97])
+            assert low <= true_value <= high, (
+                f"94% credible interval for {name} "
+                f"[{low:.3f}, {high:.3f}] excludes {true_value}"
+            )
 
     @pytest.mark.parametrize("distribution", (True, False))
     def test_spend(self, distribution):
@@ -290,6 +316,10 @@ class TestGammaGammaModel(BaseTestGammaGammaModel):
             "\nlikelihood~Potential(f(q,p,v))"
         )
 
+    # mock_fit_MAP samples the prior predictive of the Potential-based likelihood
+    @pytest.mark.filterwarnings(
+        "ignore:The effect of Potentials on other parameters is ignored"
+    )
     def test_save_load(self, mocker, tmp_path):
         model = GammaGammaModel()
         save_path = tmp_path / "test_model"
@@ -297,7 +327,7 @@ class TestGammaGammaModel(BaseTestGammaGammaModel):
             param: Prior("HalfNormal") for param in model.model_config
         }
 
-        mocker.patch("pymc_marketing.clv.models.basic.CLVModel._fit_MAP", mock_fit_MAP)
+        mocker.patch("pymc_marketing.clv.models.basic.CLVModel._fit_map", mock_fit_map)
         model.fit(data=self.data, method="map", maxeval=1)
         model.save(save_path)
         # Testing the valid case.
@@ -314,21 +344,32 @@ class TestGammaGammaModel(BaseTestGammaGammaModel):
 
 
 class TestGammaGammaModelIndividual(BaseTestGammaGammaModel):
-    def test_missing_columns(self):
-        # Create a version of the data that's missing the 'customer_id' column
-        data_invalid = self.individual_data.drop(columns="customer_id")
+    @pytest.mark.parametrize(
+        "missing_column",
+        ["customer_id", "individual_transaction_value"],
+    )
+    def test_missing_columns(self, missing_column):
+        data_invalid = self.individual_data.drop(columns=missing_column)
+
         with pytest.raises(
             ValueError,
-            match=r"The following required columns are missing from the input data: \['customer_id'\]",
+            match=rf"The following required columns are missing from the input data: \['{missing_column}'\]",
         ):
             model = GammaGammaModelIndividual()
             model.build_model(data=data_invalid)
 
-        data_invalid = self.individual_data.drop(columns="individual_transaction_value")
+    @pytest.mark.parametrize("individual_transaction_value", [0.0, -10.0])
+    def test_invalid_values(self, individual_transaction_value):
+        data_invalid = pd.DataFrame(
+            {
+                "customer_id": [1],
+                "individual_transaction_value": [individual_transaction_value],
+            }
+        )
 
         with pytest.raises(
             ValueError,
-            match=r"The following required columns are missing from the input data: \['individual_transaction_value'\]",
+            match="Column individual_transaction_value contains zeroes or negative values",
         ):
             model = GammaGammaModelIndividual()
             model.build_model(data=data_invalid)
@@ -453,7 +494,7 @@ class TestGammaGammaModelIndividual(BaseTestGammaGammaModel):
         model.model_config = {
             param: Prior("HalfNormal") for param in model.model_config
         }
-        mocker.patch("pymc_marketing.clv.models.basic.CLVModel._fit_MAP", mock_fit_MAP)
+        mocker.patch("pymc_marketing.clv.models.basic.CLVModel._fit_map", mock_fit_map)
         model.fit(data=self.individual_data, method="map", maxeval=1)
         model.save(save_path)
         # Testing the valid case.

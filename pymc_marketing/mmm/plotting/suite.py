@@ -32,7 +32,7 @@ class MMMPlotSuiteFacade:
     Parameters
     ----------
     data : MMMIDataWrapper
-        Validated wrapper around the fitted model's InferenceData.
+        Validated wrapper around the fitted model's DataTree.
 
     Attributes
     ----------

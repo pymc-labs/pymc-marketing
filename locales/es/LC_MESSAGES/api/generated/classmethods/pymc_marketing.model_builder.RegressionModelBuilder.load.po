@@ -42,26 +42,26 @@ msgstr "Este método de clase tiene algunos pasos:"
 
 #: 5a4fd6def50143ed983cfef67543263c of
 #: pymc_marketing.model_builder.ModelIO.load:8
-msgid "Load the InferenceData from the file."
-msgstr "Cargue el InferenceData desde el archivo."
+msgid "Load the DataTree from the file."
+msgstr "Cargue el DataTree desde el archivo."
 
 #: e506974fc5ca46f3931cbd78e579b10d of
 #: pymc_marketing.model_builder.ModelIO.load:9
-msgid "Construct a new instance of the model using the InferenceData attrs"
+msgid "Construct a new instance of the model using the DataTree attrs"
 msgstr ""
 "Construya una nueva instancia del modelo utilizando los atributos de "
-"InferenceData."
+"DataTree."
 
 #: f76313e829b847d2b613d577ad8a7909 of
 #: pymc_marketing.model_builder.ModelIO.load:10
-msgid "Build the model from the InferenceData"
-msgstr "Construya el modelo a partir de los InferenceData."
+msgid "Build the model from the DataTree"
+msgstr "Construya el modelo a partir de los DataTree."
 
 #: 1130ef07a1bc451b8f48e43272e7abdf of
 #: pymc_marketing.model_builder.ModelIO.load:11
-msgid "Check if the model id matches the id in the InferenceData loaded."
+msgid "Check if the model id matches the id in the DataTree loaded."
 msgstr ""
-"Verifique si el id del modelo coincide con el id en los InferenceData "
+"Verifique si el id del modelo coincide con el id en los DataTree "
 "cargados."
 
 #: 11304181bb654c3d813d59b616fd75fd of
@@ -98,11 +98,11 @@ msgstr "bool, opcional"
 #: 4a175ad32a8f4888905294bb1c6992f8 of
 #: pymc_marketing.model_builder.ModelIO.load:19
 msgid ""
-"Whether to check if the model id matches the id in the InferenceData loaded."
+"Whether to check if the model id matches the id in the DataTree loaded."
 " Defaults to True."
 msgstr ""
 "Si se debe verificar si el id del modelo coincide con el id en los "
-"InferenceData cargados. Por defecto es True."
+"DataTree cargados. Por defecto es True."
 
 #: 834a1ef41fa7412691dad73229f966ef of
 #: pymc_marketing.model_builder.ModelIO.load

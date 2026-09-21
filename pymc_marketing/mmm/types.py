@@ -83,7 +83,7 @@ class MMMBuilder(Protocol):
 
         - ``fit(X, y, progressbar=True)``: Fit the model to data.
         - ``sample_posterior_predictive(X, ...)``: Generate predictions.
-        - ``idata``: ArviZ InferenceData attribute containing posterior samples.
+        - ``idata``: ArviZ DataTree attribute containing posterior samples.
         - ``sampler_config``: Optional attribute for sampler configuration.
         """
         ...

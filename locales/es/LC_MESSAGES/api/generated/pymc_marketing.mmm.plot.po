@@ -47,11 +47,11 @@ msgstr "Requisitos"
 
 #: c8350df10fea4e81932b10849206653f of pymc_marketing.mmm.plot:49
 msgid ""
-"posterior_predictive plots: an `az.InferenceData` with a "
+"posterior_predictive plots: an `az.DataTree` with a "
 "`posterior_predictive` group containing the variable(s) you want to plot "
 "with a `date` coordinate."
 msgstr ""
-"gráficas predictivas posteriores: un `az.InferenceData` con un grupo "
+"gráficas predictivas posteriores: un `az.DataTree` con un grupo "
 "`posterior_predictive` que contiene la(s) variable(s) que desea graficar con"
 " una coordenada `date`."
 
@@ -101,11 +101,11 @@ msgstr ""
 
 #: 80de829591aa4bbbb3f52f72aaf0a1ba of pymc_marketing.mmm.plot:155
 msgid ""
-"Any PyMC model can use `MMMPlotSuite` directly if its `InferenceData` "
+"Any PyMC model can use `MMMPlotSuite` directly if its `DataTree` "
 "contains the needed groups/variables described above."
 msgstr ""
 "Cualquier modelo de PyMC puede utilizar `MMMPlotSuite` directamente si su "
-"`InferenceData` contiene los grupos/variables necesarios descritos "
+"`DataTree` contiene los grupos/variables necesarios descritos "
 "anteriormente."
 
 #: ../source/api/generated/pymc_marketing.mmm.plot.rst:17

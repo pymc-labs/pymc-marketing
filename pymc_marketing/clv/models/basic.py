@@ -15,20 +15,20 @@
 
 import warnings
 from collections.abc import Sequence
-from typing import Literal, cast
+from typing import Any
 
 import arviz as az
+import numpy as np
 import pandas as pd
-import pymc as pm
 import xarray as xr
 from pydantic import ConfigDict, InstanceOf, validate_call
-from pymc.backends import NDArray
-from pymc.backends.base import MultiTrace
-from pymc.model.core import Model
-from pymc.variational.callbacks import CheckParametersConvergence
 
 from pymc_marketing.model_builder import DifferentModelError, ModelBuilder
-from pymc_marketing.model_config import ModelConfig, parse_model_config
+from pymc_marketing.model_config import (
+    ModelConfig,
+    _reject_removed_parameters,
+    parse_model_config,
+)
 
 
 class CLVModel(ModelBuilder):
@@ -42,17 +42,18 @@ class CLVModel(ModelBuilder):
         *,
         model_config: InstanceOf[ModelConfig] | None = None,
         sampler_config: dict | None = None,
-        non_distributions: list[str] | None = None,
+        **kwargs: Any,
     ):
+        # ``non_distributions`` used to be accepted here; ``**kwargs`` keeps it
+        # failing with a migration hint rather than a bare TypeError.
+        _reject_removed_parameters(**kwargs)
+
         model_config = model_config or {}
 
         super().__init__(model_config, sampler_config)
 
         # Parse model config after merging with defaults
-        self.model_config = parse_model_config(
-            self.model_config,
-            non_distributions=non_distributions,
-        )
+        self.model_config = parse_model_config(self.model_config)
 
     @staticmethod
     def _validate_cols(
@@ -78,6 +79,42 @@ class CLVModel(ModelBuilder):
                 if data[col].nunique() != 1:
                     raise ValueError(f"Column {col} has non-homogeneous entries")
 
+    def _validate_frequency(self, data: pd.DataFrame) -> None:
+        """Validate frequency column values shared across BTYD and Gamma-Gamma models."""
+        if (data["frequency"] < 0).any():
+            raise ValueError("Column frequency has negative values")
+
+        if not (np.mod(data["frequency"], 1) == 0).all():
+            raise ValueError("frequency column must contain only integer values")
+
+    def _validate_rfm_data(self, data: pd.DataFrame) -> None:
+        """Validate frequency, recency, and T columns shared by BTYD transaction models."""
+        self._validate_cols(data, required_cols=["frequency", "recency", "T"])
+        self._validate_frequency(data)
+
+        if (data["recency"] < 0).any():
+            raise ValueError("Column recency has negative values")
+        if (data["T"] < 0).any():
+            raise ValueError("Column T has negative values")
+
+        if ((data["frequency"] == 0) & (data["recency"] > 0)).any():
+            raise ValueError("recency cannot be greater than 0 if frequency is 0")
+
+        if (data["recency"] > data["T"]).any():
+            raise ValueError("recency cannot be greater than T")
+
+        if (data["T"] == 0).any():
+            warnings.warn(
+                "T=0 is uninformative for model fitting. This occurs when a customer "
+                "makes a purchase in the final observed time period.",
+                UserWarning,
+                stacklevel=2,
+            )
+
+    def _validate_data(self, data: pd.DataFrame) -> None:
+        """Validate model input data. Child classes should override and call super()."""
+        self._validate_rfm_data(data)
+
     def __repr__(self) -> str:
         """Representation of the model."""
         if not hasattr(self, "model"):
@@ -85,167 +122,28 @@ class CLVModel(ModelBuilder):
         else:
             return f"{self._model_type}\n{self.model.str_repr()}"
 
-    def _add_fit_data_group(self, data: pd.DataFrame) -> None:
-        assert self.idata is not None  # noqa: S101
-        self.idata["/fit_data"] = data.to_xarray()
+    def _prepare_fit(self, data: pd.DataFrame | None = None) -> None:
+        """Build the model on first fit, and reject a second fit on different data.
 
-    def fit(  # type: ignore
-        self,
-        data: pd.DataFrame,
-        method: str = "mcmc",
-        **kwargs,
-    ) -> xr.DataTree:
-        """Infer model posterior.
-
-        Parameters
-        ----------
-        data : pd.DataFrame
-            Input data for model fitting.
-        method: str
-            Method used to fit the model. Options are:
-            - "mcmc": Samples from the posterior via `pymc.sample` (default)
-            - "map": Finds maximum a posteriori via `pymc.find_MAP`
-            - "demz": Samples from the posterior via `pymc.sample` using DEMetropolisZ
-            - "advi": Samples from the posterior via `pymc.fit(method="advi")` and `pymc.sample`
-            - "fullrank_advi": Samples from the posterior via `pymc.fit(method="fullrank_advi")` and `pymc.sample`
-        kwargs:
-            Other keyword arguments passed to the underlying PyMC routines
-
+        CLV models bake the training data into the model graph, so refitting a built
+        model with new data would silently sample the wrong likelihood.
         """
-        # Check if model was already built, and if fit data matches build data
         if not hasattr(self, "model"):
-            self.build_model(data)  # type: ignore
-        else:
-            if not self.data.equals(data):  # type: ignore
+            if data is None and getattr(self, "data", None) is None:
                 raise ValueError(
-                    "The model was built with different data. "
-                    "Create a new model instance to fit new data."
+                    "data is required to build the model. Pass it to `fit(data)` "
+                    "or call `build_model(data)` first."
                 )
-
-        approx = None
-        match method:
-            case "mcmc":
-                idata = self._fit_mcmc(**kwargs)
-            case "map":
-                idata = self._fit_MAP(**kwargs)
-            case "demz":
-                idata = self._fit_DEMZ(**kwargs)
-            case "advi":
-                approx, idata = self._fit_approx(method="advi", **kwargs)
-            case "fullrank_advi":
-                approx, idata = self._fit_approx(method="fullrank_advi", **kwargs)
-            case _:
-                raise ValueError(
-                    f"Fit method options are ['mcmc', 'map', 'demz', 'advi', 'fullrank_advi'], got: {method}"
-                )
-
-        self.idata = idata
-        if approx:
-            self.approx = approx
-        self.set_idata_attrs(self.idata)
-        if self.data is not None:  # type: ignore
-            self._add_fit_data_group(self.data)  # type: ignore
-
-        return self.idata
-
-    def _fit_mcmc(self, **kwargs) -> xr.DataTree:
-        """Fit a model with NUTS."""
-        sampler_config = {}
-        if self.sampler_config is not None:
-            sampler_config = self.sampler_config.copy()
-        sampler_config.update(**kwargs)
-        return pm.sample(**sampler_config, model=self.model)
-
-    def _fit_MAP(self, **kwargs) -> xr.DataTree:
-        """Find model maximum a posteriori using scipy optimizer."""
-        model = self.model
-        map_res = pm.find_MAP(model=model, **kwargs)
-        # Filter non-value variables
-        value_vars_names = set(v.name for v in cast(Model, model).value_vars)
-        map_res = {k: v for k, v in map_res.items() if k in value_vars_names}
-        # Convert map result to InferenceData
-        map_strace = NDArray(model=model)
-        map_strace.setup(draws=1, chain=0)
-        try:
-            map_strace.record(map_res, in_warmup=False)
-        except TypeError:
-            map_strace.record(map_res)
-        map_strace.close()
-        trace = MultiTrace([map_strace])
-        return pm.to_inference_data(trace, model=model)
-
-    def _fit_DEMZ(self, **kwargs) -> xr.DataTree:
-        """Fit a model with DEMetropolisZ gradient-free sampler."""
-        sampler_config = {}
-        if self.sampler_config is not None:
-            sampler_config = self.sampler_config.copy()
-        sampler_config.update(**kwargs)
-        with self.model:
-            return pm.sample(step=pm.DEMetropolisZ(), **sampler_config)
-
-    def _fit_approx(
-        self, method: Literal["advi", "fullrank_advi"] = "advi", **kwargs
-    ) -> xr.DataTree:
-        """Fit a model with ADVI."""
-        sampler_config = {}
-        if self.sampler_config is not None:
-            sampler_config = self.sampler_config.copy()
-
-        sampler_config = {**sampler_config, **kwargs}
-        if sampler_config.get("method") is not None:
+            self.build_model(data)  # type: ignore[call-arg]
+        elif data is not None and not self.data.equals(data):  # type: ignore[attr-defined]
             raise ValueError(
-                "The 'method' parameter is set in sampler_config. Cannot be called with 'advi'."
-            )
-
-        if sampler_config.get("chains", 1) > 1:
-            warnings.warn(
-                "The 'chains' parameter must be 1 with 'advi'. Sampling only 1 chain despite the provided parameter.",
-                UserWarning,
-                stacklevel=2,
-            )
-
-        with self.model:
-            approx = pm.fit(
-                method=method,
-                callbacks=[CheckParametersConvergence(diff="absolute")],
-                **{
-                    k: v
-                    for k, v in sampler_config.items()
-                    if k
-                    in [
-                        "n",
-                        "random_seed",
-                        "inf_kwargs",
-                        "start",
-                        "start_sigma",
-                        "score",
-                        "callbacks",
-                        "progressbar",
-                        "progressbar_theme",
-                        "obj_n_mc",
-                        "tf_n_mc",
-                        "obj_optimizer",
-                        "test_optimizer",
-                        "more_obj_params",
-                        "more_tf_params",
-                        "more_updates",
-                        "total_grad_norm_constraint",
-                        "fn_kwargs",
-                        "more_replacements",
-                    ]
-                },
-            )
-            return approx, approx.sample(
-                **{
-                    k: v
-                    for k, v in sampler_config.items()
-                    if k in ["draws", "random_seed", "return_inferencedata"]
-                }
+                "The model was built with different data. "
+                "Create a new model instance to fit new data."
             )
 
     @classmethod
     def build_from_idata(cls, idata: xr.DataTree) -> None:
-        """Build the model from the InferenceData object."""
+        """Build the model from the DataTree object."""
         kwargs = cls.idata_to_init_kwargs(idata)
         model = cls(**kwargs)
 
@@ -255,7 +153,7 @@ class CLVModel(ModelBuilder):
         model.build_model(model.data)  # type: ignore
         if model.id != idata.attrs["id"]:
             msg = (
-                "The model id in the InferenceData does not match the model id. "
+                "The model id in the DataTree does not match the model id. "
                 "There was no error loading the inference data, but the model may "
                 "be different. "
                 "Investigate if the model structure or configuration has changed."

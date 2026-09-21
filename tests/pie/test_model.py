@@ -113,7 +113,9 @@ def test_synthetic_corpus_schema():
     assert len(df) == 50
 
     for col in ("objective", "vertical", "audience_type"):
-        assert df[col].dtype == object, f"{col} should be object dtype"
+        assert not pd.api.types.is_numeric_dtype(df[col]), (
+            f"{col} should be a string column"
+        )
 
     assert (df["budget"] >= 1_000).all() and (df["budget"] <= 100_000).all()
     assert (df["exposure_rate"] >= 0.1).all() and (df["exposure_rate"] <= 0.9).all()
@@ -314,14 +316,15 @@ def test_partial_bart_override_raises(small_corpus):
         model.build_model(X, y)
 
 
-def test_bart_response_override(small_corpus):
-    """A 'linear' BART response builds; an invalid response raises ValueError."""
+@pytest.mark.parametrize("response", ["constant", "linear", "mix"])
+def test_bart_response_override(small_corpus, response):
+    """Every supported BART response builds; an invalid one raises ValueError."""
     X, y = small_corpus
     model = PIEModel(
         pre_determined_features=PRE,
         post_determined_features=POST,
         model_config={
-            "bart": {"m": 10, "alpha": 0.95, "beta": 2.0, "response": "linear"},
+            "bart": {"m": 10, "alpha": 0.95, "beta": 2.0, "response": response},
             "sigma": Prior("HalfNormal", sigma=1.0),
         },
     )
@@ -599,3 +602,33 @@ def test_fit_recovers_known_effects():
     assert 0.05 < mean_abs_pred < 10.0, (
         f"Predictions off the expected scale: mean|pred|={mean_abs_pred:.4f}"
     )
+
+
+@pytest.mark.parametrize("legacy_key", ["dist", "distribution"])
+def test_pie_model_rejects_legacy_dict_prior(legacy_key) -> None:
+    """A legacy dict-format prior gets the migration hint at construction.
+
+    `PIEModel.__init__` passes `model_config` straight to `super().__init__`,
+    which never calls `parse_model_config`. Without an explicit call the dict
+    survives init and fails much later with an opaque error.
+    """
+    from pymc_marketing.model_config import ModelConfigError
+
+    with pytest.raises(ModelConfigError, match=r"use pymc_extras\.prior\.Prior"):
+        PIEModel(
+            pre_determined_features=PRE,
+            post_determined_features=POST,
+            model_config={"sigma": {legacy_key: "HalfNormal", "kwargs": {"sigma": 1}}},
+        )
+
+
+def test_pie_model_default_config_parses() -> None:
+    """The defaults survive `parse_model_config` untouched."""
+    model = PIEModel(
+        pre_determined_features=PRE,
+        post_determined_features=POST,
+    )
+
+    assert isinstance(model.model_config["sigma"], Prior)
+    assert model.model_config["bart"]["m"] == 200
+    assert model.model_config["categorical_split"] == "onehot"

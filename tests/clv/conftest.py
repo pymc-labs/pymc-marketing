@@ -69,7 +69,7 @@ def set_model_fit(model: CLVModel, fit: xr.DataTree | Dataset):
         warnings.filterwarnings(
             "ignore",
             category=UserWarning,
-            message="The group fit_data is not defined in the InferenceData scheme",
+            message="The group fit_data is not defined in the DataTree scheme",
         )
         model.idata["/fit_data"] = model.data.to_xarray()
     model.set_idata_attrs(fit)
@@ -78,8 +78,9 @@ def set_model_fit(model: CLVModel, fit: xr.DataTree | Dataset):
 def set_idata(model):
     """Part of basic fit method for CLVModel."""
     model.set_idata_attrs(model.idata)
-    if model.data is not None:
-        model._add_fit_data_group(model.data)
+    fit_data = model.create_fit_data_group()
+    if fit_data is not None:
+        model.idata["/fit_data"] = fit_data
 
 
 def create_mock_fit(params: dict[str, float]):
@@ -105,10 +106,12 @@ def create_mock_fit(params: dict[str, float]):
     return mock_fit
 
 
-def mock_fit_MAP(self, *args, **kwargs):
-    draws = 1
-    chains = 1
-    idata = mock_sample(*args, **kwargs, chains=chains, draws=draws, model=self.model)
+def mock_fit_map(self, fit_kwargs=None, map_kwargs=None):
+    """Stand in for `ModelFitter._fit_map`, which takes its kwargs as dicts."""
+    merged = {**(fit_kwargs or {}), **(map_kwargs or {})}
+    # `draws`/`chains` are fixed below; anything else is harmless to `mock_sample`.
+    passthrough = {k: v for k, v in merged.items() if k not in ("draws", "chains")}
+    idata = mock_sample(**passthrough, chains=1, draws=1, model=self.model)
 
     return idata.sel(chain=[0], draw=[0])
 
@@ -193,6 +196,30 @@ def fitted_pnbd(test_summary_data) -> ParetoNBDModel:
     set_model_fit(pnbd_model, fake_fit)
 
     return pnbd_model
+
+
+@pytest.fixture(scope="module")
+def map_fitted_bg(test_summary_data) -> BetaGeoModel:
+    """A model whose idata has the single (chain, draw) shape of a `fit(method="map")` fit."""
+    rng = np.random.default_rng(13)
+
+    model_config = {
+        # Narrow Gaussian centered at MLE params from lifetimes BetaGeoFitter
+        "a": Prior("DiracDelta", c=1.85034151),
+        "alpha": Prior("DiracDelta", c=1.86428187),
+        "b": Prior("DiracDelta", c=3.18105431),
+        "r": Prior("DiracDelta", c=0.16385072),
+    }
+    model = BetaGeoModel(
+        model_config=model_config,
+    )
+    model.build_model(data=test_summary_data)
+    fake_fit = pm.sample_prior_predictive(draws=1, model=model.model, random_seed=rng)
+    # posterior group required to pass L80 assert check
+    fake_fit["/posterior"] = fake_fit["/prior"].to_dataset()
+    set_model_fit(model, fake_fit)
+
+    return model
 
 
 @pytest.fixture(params=["bg_model", "mbg_model", "pnbd_model"])

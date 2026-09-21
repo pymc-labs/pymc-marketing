@@ -12,14 +12,8 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 
-import warnings
-
 import numpy as np
 import pytest
-from pymc_extras.deserialize import (
-    DESERIALIZERS,
-    register_deserialization,
-)
 from pymc_extras.prior import Prior
 
 from pymc_marketing.hsgp_kwargs import HSGPKwargs
@@ -29,122 +23,45 @@ from pymc_marketing.model_config import ModelConfigError, parse_model_config
 @pytest.fixture
 def model_config():
     return {
-        # Non-nested distribution
-        "beta": {
-            "dist": "Normal",
-            "kwargs": {
-                "mu": 0.0,
-                "sigma": 1.0,
-            },
-        },
-        # Nested distribution
-        "alpha": {
-            "dist": "Normal",
-            "kwargs": {
-                "mu": {
-                    "dist": "Normal",
-                    "kwargs": {
-                        "mu": 0.0,
-                        "sigma": 1.0,
-                    },
-                },
-                "sigma": {
-                    "dist": "HalfNormal",
-                    "kwargs": {
-                        "sigma": 1.0,
-                    },
-                },
-            },
-            "dims": "channel",
-        },
-        # 2D nested distribution
-        "gamma": {
-            "dist": "Normal",
-            "kwargs": {
-                "mu": {
-                    "dist": "Normal",
-                    "kwargs": {
-                        "mu": 0.0,
-                        "sigma": 1.0,
-                    },
-                    "dims": "channel",
-                },
-                "sigma": {
-                    "dist": "HalfNormal",
-                    "kwargs": {
-                        "sigma": 1.0,
-                    },
-                    "dims": "geo",
-                },
-            },
-            "dims": ("channel", "geo"),
-        },
-        # 2D explicit kwargs
-        "delta": {
-            "dist": "Normal",
-            "kwargs": {
-                "mu": np.array([1.0]),
-                "sigma": np.array([1.0, 2.0, 3.0])[:, None],
-            },
-            "dims": ("channel", "control"),
-        },
-        # Hierarchical centered distribution
-        "hierarchical_centered": {
-            "dist": "Normal",
-            "kwargs": {
-                "mu": {
-                    "dist": "Normal",
-                    "kwargs": {
-                        "mu": 0.0,
-                        "sigma": 1.0,
-                    },
-                    "dims": "channel",
-                },
-                "sigma": {
-                    "dist": "HalfNormal",
-                    "kwargs": {
-                        "sigma": 1.0,
-                    },
-                    "dims": "geo",
-                },
-            },
-            "dims": ("channel", "geo"),
-            "centered": True,
-        },
-        # Hierarchical non-centered distribution
-        "hierarchical_non_centered": {
-            "dist": "Normal",
-            "kwargs": {
-                "mu": {"dist": "HalfNormal", "kwargs": {"sigma": 2}},
-                "sigma": {"dist": "HalfNormal", "kwargs": {"sigma": 1}},
-            },
-            "dims": "channel",
-            "centered": False,
-        },
-        # 2D Hierarchical non-centered distribution
-        "hierarchical_non_centered_2d": {
-            "dist": "Normal",
-            "kwargs": {
-                "mu": {
-                    "dist": "Normal",
-                    "kwargs": {
-                        "mu": 0.0,
-                        "sigma": 1.0,
-                    },
-                    "dims": "channel",
-                },
-                "sigma": {
-                    "dist": "HalfNormal",
-                    "kwargs": {
-                        "sigma": 1.0,
-                    },
-                    "dims": "geo",
-                },
-            },
-            "dims": ("channel", "geo"),
-            "centered": False,
-        },
-        # TVP Intercept
+        "beta": Prior("Normal", mu=0.0, sigma=1.0),
+        "alpha": Prior(
+            "Normal",
+            mu=Prior("Normal", mu=0.0, sigma=1.0),
+            sigma=Prior("HalfNormal", sigma=1.0),
+            dims="channel",
+        ),
+        "gamma": Prior(
+            "Normal",
+            mu=Prior("Normal", mu=0.0, sigma=1.0, dims="channel"),
+            sigma=Prior("HalfNormal", sigma=1.0, dims="geo"),
+            dims=("channel", "geo"),
+        ),
+        "delta": Prior(
+            "Normal",
+            mu=np.array([1.0]),
+            sigma=np.array([1.0, 2.0, 3.0])[:, None],
+            dims=("channel", "control"),
+        ),
+        "hierarchical_centered": Prior(
+            "Normal",
+            mu=Prior("Normal", mu=0.0, sigma=1.0, dims="channel"),
+            sigma=Prior("HalfNormal", sigma=1.0, dims="geo"),
+            dims=("channel", "geo"),
+        ),
+        "hierarchical_non_centered": Prior(
+            "Normal",
+            mu=Prior("HalfNormal", sigma=2),
+            sigma=Prior("HalfNormal", sigma=1),
+            dims="channel",
+            centered=False,
+        ),
+        "hierarchical_non_centered_2d": Prior(
+            "Normal",
+            mu=Prior("Normal", mu=0.0, sigma=1.0, dims="channel"),
+            sigma=Prior("HalfNormal", sigma=1.0, dims="geo"),
+            dims=("channel", "geo"),
+            centered=False,
+        ),
         "intercept_tvp_config": {
             "m": 200,
             "L": 119.17,
@@ -153,12 +70,6 @@ def model_config():
             "ls_sigma": 10.0,
             "cov_func": None,
         },
-        # Incorrect config
-        "error": {
-            "dist": "Normal",
-            "kwargs": {"mu": "wrong"},
-        },
-        # Non distribution
         "non_distribution": {
             "key": "This is not a distribution",
         },
@@ -167,19 +78,14 @@ def model_config():
 
 def test_parse_model_config(model_config) -> None:
     ignore_keys = ["delta"]
-    non_distributions = ["non_distribution", "error"]
     to_parse = {
         name: value for name, value in model_config.items() if name not in ignore_keys
     }
-    # Ignore deprecation warnings
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore")
 
-        result = parse_model_config(
-            to_parse,
-            hsgp_kwargs_fields=["intercept_tvp_config"],
-            non_distributions=non_distributions,
-        )
+    result = parse_model_config(
+        to_parse,
+        hsgp_kwargs_fields=["intercept_tvp_config"],
+    )
 
     assert result == {
         "beta": Prior("Normal", mu=0.0, sigma=1.0),
@@ -223,111 +129,89 @@ def test_parse_model_config(model_config) -> None:
             ls_sigma=10.0,
             cov_func=None,
         ),
-        "error": {
-            "dist": "Normal",
-            "kwargs": {"mu": "wrong"},
-        },
         "non_distribution": {
             "key": "This is not a distribution",
         },
     }
 
 
-def test_parse_model_config_warns() -> None:
-    model_config = {
-        "alpha": {
-            "dist": "Normal",
-            "kwargs": {"mu": 0, "sigma": 1},
-        },
-    }
-
-    with pytest.warns(DeprecationWarning, match=r"alpha is automatically"):
-        result = parse_model_config(model_config)
-
-    assert result == {
-        "alpha": Prior("Normal", mu=0, sigma=1),
-    }
-
-
-def test_parse_model_config_catches_errors() -> None:
-    model_config = {
-        "alpha": "Normal",
-        "beta": {"dist": "Beta", "kwargs": {"lam": 1}},
-        "lam": {"dist": "IncorrectDistribution"},
-        "gamma": Prior("Normal"),
-    }
-
-    # "alpha": "Normal" is now skipped (string, not a dict), so only 2 errors occur
-    msg = "2 errors"
-    with pytest.raises(ModelConfigError, match=msg):
-        parse_model_config(model_config)
-
-
-class AribraryPriorClass:
-    def __init__(self, msg: str, value: int):
-        self.msg = msg
-        self.value = value
-        self.dims = ()
-
-    def create_variable(self, name: str):
-        return 1
-
-    def __eq__(self, other):
-        return self.msg == other.msg and self.value == other.value
-
-
-@pytest.fixture
-def register_arbitrary_prior_class():
-    register_deserialization(
-        is_type=lambda data: data.keys() == {"msg", "value"},
-        deserialize=lambda data: AribraryPriorClass(
-            msg=data["msg"], value=data["value"]
-        ),
-    )
-
-    yield
-
-    DESERIALIZERS.pop()
-
-
-def test_parse_model_config_custom_class(register_arbitrary_prior_class) -> None:
-    model_config = {
-        "alpha": {"msg": "Hello", "value": 42},
-    }
-
-    with pytest.warns(DeprecationWarning, match=r"alpha is automatically"):
-        result = parse_model_config(model_config)
-
-    assert result == {
-        "alpha": AribraryPriorClass(msg="Hello", value=42),
-    }
-
-
-def test_parse_model_config_with_list_in_non_distributions() -> None:
-    """Test that lists in non_distributions are not deserialized."""
+def test_parse_model_config_passes_lists_through() -> None:
+    """Test that list values pass through unchanged."""
     model_config = {
         "dropout_covariate_cols": ["channel", "tier"],
         "alpha": Prior("Normal", mu=0, sigma=1),
     }
 
-    # Should not raise ModelConfigError
-    result = parse_model_config(
-        model_config, non_distributions=["dropout_covariate_cols"]
-    )
+    result = parse_model_config(model_config)
 
     assert result["dropout_covariate_cols"] == ["channel", "tier"]
     assert result["alpha"] == Prior("Normal", mu=0, sigma=1)
 
 
-def test_parse_model_config_with_list_not_in_non_distributions() -> None:
-    """Test that lists not in non_distributions are still skipped (defensive check)."""
+@pytest.mark.parametrize("legacy_key", ["dist", "distribution"])
+def test_parse_model_config_rejects_legacy_prior_spec(legacy_key) -> None:
+    """Legacy dict-format prior specs raise a clear migration error."""
     model_config = {
-        "some_list": ["item1", "item2"],
-        "alpha": Prior("Normal", mu=0, sigma=1),
+        "alpha": {legacy_key: "Normal", "kwargs": {"mu": 0, "sigma": 1}},
     }
 
-    # Should not raise ModelConfigError - lists should be skipped even if not in non_distributions
+    with pytest.raises(ModelConfigError, match=r"use pymc_extras\.prior\.Prior"):
+        parse_model_config(model_config)
+
+
+@pytest.mark.parametrize("legacy_key", ["dist", "distribution"])
+def test_parse_model_config_ignores_non_string_legacy_key(legacy_key) -> None:
+    """A non-prior mapping is not flagged just for carrying a `dist` key.
+
+    The legacy check keys on a *string* distribution name, matching the sibling
+    checks in `ModelIO._model_config_formatting` and `mmm.builders.factories`.
+    """
+    model_config = {
+        "settings": {legacy_key: {"nested": "mapping"}, "other": 1},
+    }
+
     result = parse_model_config(model_config)
 
-    assert result["some_list"] == ["item1", "item2"]
-    assert result["alpha"] == Prior("Normal", mu=0, sigma=1)
+    assert result["settings"] == {legacy_key: {"nested": "mapping"}, "other": 1}
+
+
+def test_parse_model_config_rejects_non_distributions() -> None:
+    """The removed `non_distributions` parameter gets a migration hint.
+
+    Without the `**kwargs` guard this is a bare
+    `TypeError: unexpected keyword argument`, which gives no indication that
+    the parameter was removed rather than misspelled.
+    """
+    with pytest.raises(ModelConfigError, match=r"removed in v1\.0\.0"):
+        parse_model_config({}, non_distributions=["alpha"])
+
+
+def test_parse_model_config_rejects_unknown_kwarg() -> None:
+    """An unrelated stray keyword still raises `TypeError`."""
+    with pytest.raises(TypeError, match="Unexpected keyword arguments"):
+        parse_model_config({}, bogus=1)
+
+
+def test_clv_model_base_rejects_non_distributions() -> None:
+    """`CLVModel.__init__` accepted `non_distributions` before v1.0.0.
+
+    Scope note: this covers direct `CLVModel` construction and third-party
+    subclasses that forward `**kwargs`. The shipped subclasses
+    (`BetaGeoModel`, `ParetoNBDModel`, ...) never exposed `non_distributions`
+    in their own signatures -- they passed a hardcoded list to `super()` --
+    so there is no user-facing surface to guard there.
+    """
+    from pymc_marketing.clv.models.basic import CLVModel
+
+    class ConcreteCLVModel(CLVModel):
+        _model_type = "ConcreteCLVModel"
+
+        @property
+        def default_model_config(self):
+            return {"alpha": Prior("Normal", mu=0, sigma=1)}
+
+        def build_model(self) -> None:  # type: ignore[override]
+            raise NotImplementedError
+
+    with pytest.raises(ModelConfigError, match=r"removed in v1\.0\.0"):
+        ConcreteCLVModel(non_distributions=["alpha"])

@@ -29,6 +29,22 @@ __all__ = [
     "to_xarray",
 ]
 
+# Average length of a calendar month: 365.25 / 12, where 365.25 accounts for
+# leap years. Using a flat 30 here understates a year by 5.25 days and inflates
+# CLV estimates for the "D", "W" and "h" time units.
+_DAYS_PER_MONTH = 30.4375
+
+# pandas 3 removed the "H" period alias ("h" replaces it) and numpy never
+# accepted "H" as a datetime unit. Normalise once at the public entry points.
+_PERIOD_ALIASES = {"H": "h"}
+# "M" stays the monthly period alias but pandas 3 needs "ME" for offsets.
+_OFFSET_ALIASES = {"M": "ME"}
+
+
+def _normalize_time_unit(time_unit: str) -> str:
+    """Return the pandas period alias for a public ``time_unit`` value."""
+    return _PERIOD_ALIASES.get(time_unit, time_unit)
+
 
 def to_xarray(customer_id, *arrays, dim: str = "customer_id"):
     """Convert vector arrays to xarray with a common dim (default "customer_id")."""
@@ -59,7 +75,10 @@ def customer_lifetime_value(
 
     Compute the average lifetime value for a group of one or more customers
     and apply a discount rate for net present value estimations.
-    Note `future_t` is measured in months regardless of `time_unit` specified.
+
+    Note: ``future_t`` is always in months regardless of the ``time_unit``
+    used for the transaction model. The value is converted internally to
+    the given ``time_unit`` for computing expected purchases per period.
 
     Adapted from the legacy ``lifetimes`` library:
     https://github.com/CamDavidsonPilon/lifetimes/blob/41e394923ad72b17b5da93e88cfabab43f51abe2/lifetimes/utils.py#L449
@@ -67,7 +86,8 @@ def customer_lifetime_value(
     Parameters
     ----------
     transaction_model : ~CLVModel
-        Predictive model for future transactions. `BetaGeoModel` and `ParetoNBDModel` are currently supported.
+        Predictive model for future transactions. `BetaGeoModel`,
+        `ModifiedBetaGeoModel`, and `ParetoNBDModel` are currently supported.
     data : ~pandas.DataFrame
         DataFrame containing the following columns:
 
@@ -77,7 +97,8 @@ def customer_lifetime_value(
         * `T`: Time between the first purchase and the end of the observation period
         * `future_spend`: Predicted monetary values for each customer
     future_t : int, optional
-        The lifetime expected for the user in months. Default: 12
+        The number of months to project lifetime value for. This is always
+        specified in months, independent of ``time_unit``. Default: 12
     discount_rate : float, optional
         The monthly adjusted discount rate. Default: 0.00
     time_unit : string, optional
@@ -92,6 +113,7 @@ def customer_lifetime_value(
         DataArray containing estimated customer lifetime values
 
     """
+    time_unit = _normalize_time_unit(time_unit)
     if "future_spend" not in data.columns:
         raise ValueError("Required column future_spend missing")
 
@@ -125,7 +147,12 @@ def customer_lifetime_value(
     else:
         steps = np.arange(1, future_t + 1)
 
-    factor = {"W": 4.345, "M": 1.0, "D": 30, "H": 30 * 24}[time_unit]
+    factor = {
+        "W": _DAYS_PER_MONTH / 7,
+        "M": 1.0,
+        "D": _DAYS_PER_MONTH,
+        "h": _DAYS_PER_MONTH * 24,
+    }[time_unit]
 
     monetary_value = to_xarray(data["customer_id"], data["future_spend"])
 
@@ -198,13 +225,14 @@ def _find_first_transactions(
         Events after this date are truncated. If not given, defaults to the max 'datetime_col'.
     time_unit : string, optional
         Time granularity for study.
-        Default : 'D' for days. Possible values listed here:
-        https://numpy.org/devdocs/reference/arrays.datetime.html#datetime-units
+        Default: 'D' for days. Other options are 'W' (weekly), 'M' (monthly)
+        and 'H' (hourly).
     sort_transactions : bool, optional
         Default: True
         If raw data is already sorted in chronological order, set to `False` to improve computational efficiency.
 
     """
+    time_unit = _normalize_time_unit(time_unit)
     select_columns = [customer_id_col, datetime_col]
 
     if monetary_value_col:
@@ -253,7 +281,7 @@ def _find_first_transactions(
 
     # create a new column for flagging first transactions
     period_transactions = period_transactions.copy()
-    period_transactions.loc[:, "first"] = False
+    period_transactions["first"] = False
     # find all first transactions and store as an index
     first_transactions = (
         period_transactions.groupby(customer_id_col, sort=True, as_index=False)
@@ -316,8 +344,8 @@ def rfm_summary(
         A string that represents the timestamp format. Useful if Pandas doesn't recognize the provided format.
     time_unit : string, optional
         Time granularity for study.
-        Default: 'D' for days. Possible values listed here:
-        https://numpy.org/devdocs/reference/arrays.datetime.html#datetime-units
+        Default: 'D' for days. Other options are 'W' (weekly), 'M' (monthly)
+        and 'H' (hourly).
     time_scaler : int, optional
         Default: 1. Scales *recency* & *T* to a different time granularity.
         This is useful for datasets spanning many years, and running predictions in different time scales.
@@ -341,6 +369,7 @@ def rfm_summary(
         and *monetary_value* if specified
 
     """
+    time_unit = _normalize_time_unit(time_unit)
     if observation_period_end is None:
         observation_period_end_ts = (
             pandas.to_datetime(transactions[datetime_col], format=datetime_format)
@@ -381,17 +410,16 @@ def rfm_summary(
     # subtract 1 from count, as we ignore the first order.
     customers["frequency"] = customers["count"] - 1
 
-    customers["recency"] = (
-        (pandas.to_datetime(customers["max"]) - pandas.to_datetime(customers["min"]))
-        / np.timedelta64(1, time_unit)  # type: ignore[call-overload]
-        / time_scaler
-    )
+    # Count recency and T in calendar periods, like the frequency column does.
+    # Every timestamp here is already aligned to a period start, so this equals
+    # the timedelta division for "D", "W" and "h" and also works for "M", which
+    # has no fixed numpy duration.
+    first_period = customers["min"].dt.to_period(time_unit).array.asi8
+    last_period = customers["max"].dt.to_period(time_unit).array.asi8
+    end_period = observation_period_end_ts.to_period(time_unit).ordinal
 
-    customers["T"] = (
-        (observation_period_end_ts - customers["min"])
-        / np.timedelta64(1, time_unit)  # type: ignore[call-overload]
-        / time_scaler
-    )
+    customers["recency"] = (last_period - first_period) / time_scaler
+    customers["T"] = (end_period - first_period) / time_scaler
 
     summary_columns = ["frequency", "recency", "T"]
 
@@ -472,8 +500,8 @@ def rfm_train_test_split(
         Events after this date are truncated. If not given, defaults to the max of *datetime_col*.
     time_unit : string, optional
         Time granularity for study.
-        Default: 'D' for days. Possible values listed here:
-        https://numpy.org/devdocs/reference/arrays.datetime.html#datetime-units
+        Default: 'D' for days. Other options are 'W' (weekly), 'M' (monthly)
+        and 'H' (hourly).
     time_scaler : int, optional
         Default: 1. Scales *recency* & *T* to a different time granularity.
         This is useful for datasets spanning many years, and running predictions in different time scales.
@@ -497,6 +525,7 @@ def rfm_train_test_split(
         and *monetary_value* if specified
 
     """
+    time_unit = _normalize_time_unit(time_unit)
     transaction_cols = [customer_id_col, datetime_col]
     if monetary_value_col:
         transaction_cols.append(monetary_value_col)
@@ -655,8 +684,8 @@ def rfm_segments(
         A string that represents the timestamp format. Useful if Pandas doesn't recognize the provided format.
     time_unit : string, optional
         Time granularity for study.
-        Default: 'D' for days. Possible values listed here:
-        https://numpy.org/devdocs/reference/arrays.datetime.html#datetime-units
+        Default: 'D' for days. Other options are 'W' (weekly), 'M' (monthly)
+        and 'H' (hourly).
     time_scaler : int, optional
         Default: 1. Scales *recency* & *T* to a different time granularity.
         This is useful for datasets spanning many years, and running predictions in different time scales.
@@ -670,6 +699,7 @@ def rfm_segments(
         Dataframe containing summarized RFM data, RFM scores, and segment assignments
 
     """
+    time_unit = _normalize_time_unit(time_unit)
     rfm_data = rfm_summary(
         transactions,
         customer_id_col=customer_id_col,
@@ -842,8 +872,8 @@ def _expected_cumulative_transactions(
         A string that represents the timestamp format. Useful if Pandas doesn't recognize the provided format.
     time_unit : string, optional
         Time granularity for study.
-        Default: 'D' for days. Possible values listed here:
-        https://numpy.org/devdocs/reference/arrays.datetime.html#datetime-units
+        Default: 'D' for days. Other options are 'W' (weekly), 'M' (monthly)
+        and 'H' (hourly).
     time_scaler : int, optional
         Default: 1. Scales *recency* & *T* to a different time granularity.
         This is useful for datasets spanning many years, and running predictions in different time scales.
@@ -864,6 +894,7 @@ def _expected_cumulative_transactions(
     A Note on Implementing the Pareto/NBD Model in MATLAB.
     http://brucehardie.com/notes/008/
     """
+    time_unit = _normalize_time_unit(time_unit)
     start_date = pandas.to_datetime(
         transactions[datetime_col], format=datetime_format
     ).min()
@@ -887,7 +918,9 @@ def _expected_cumulative_transactions(
     repeated_transactions = repeated_and_first_transactions[~first_trans_mask]
     first_transactions = repeated_and_first_transactions[first_trans_mask]
 
-    date_range = pandas.date_range(start_date, periods=t + 1, freq=time_unit)
+    date_range = pandas.date_range(
+        start_date, periods=t + 1, freq=_OFFSET_ALIASES.get(time_unit, time_unit)
+    )
     date_periods = date_range.to_period(time_unit)
 
     pred_cum_transactions = np.array([])

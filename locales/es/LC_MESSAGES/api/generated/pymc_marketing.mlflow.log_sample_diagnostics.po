@@ -87,18 +87,18 @@ msgstr "Parámetros"
 
 #: 17c9fbaa47954510a83680958a90e06f of
 #: pymc_marketing.mlflow.log_sample_diagnostics:18
-msgid "**idata** : :obj:`az.InferenceData`"
-msgstr "**idata** : :obj:`az.InferenceData`"
+msgid "**idata** : :obj:`az.DataTree`"
+msgstr "**idata** : :obj:`az.DataTree`"
 
 #: 2c12528dcf784c8e90c20390b3a190fa of
 #: pymc_marketing.mlflow.log_sample_diagnostics:17
-msgid "az.InferenceData"
-msgstr "az.InferenceData"
+msgid "az.DataTree"
+msgstr "az.DataTree"
 
 #: 66e328a4a5454b1d842917459455dc97 of
 #: pymc_marketing.mlflow.log_sample_diagnostics:19
-msgid "The InferenceData object returned by the sampling method."
-msgstr "El objeto InferenceData devuelto por el método de muestreo."
+msgid "The DataTree object returned by the sampling method."
+msgstr "El objeto DataTree devuelto por el método de muestreo."
 
 #: 54bb8b28ed454d01a81cc64fba48f14e of
 #: pymc_marketing.mlflow.log_sample_diagnostics:21

@@ -227,8 +227,8 @@ msgstr ""
 
 #: ../source/api/generated/pymc_marketing.clv.models.gamma_gamma.GammaGammaModel.rst:41:<autosummary>:1
 #: 986f64bd89f347c1a52397c0c48b1e4d
-msgid "Build the model from the InferenceData object."
-msgstr "Construya el modelo a partir del objeto InferenceData."
+msgid "Build the model from the DataTree object."
+msgstr "Construya el modelo a partir del objeto DataTree."
 
 #: ../source/api/generated/pymc_marketing.clv.models.gamma_gamma.GammaGammaModel.rst:41:<autosummary>:1
 #: e6d89510b96b4ef180486e6d5fbe0365
@@ -407,9 +407,9 @@ msgstr ""
 
 #: ../source/api/generated/pymc_marketing.clv.models.gamma_gamma.GammaGammaModel.rst:41:<autosummary>:1
 #: 31ee0dbd79144080b79840d08de5812f
-msgid "Create the initialization kwargs from an InferenceData object."
+msgid "Create the initialization kwargs from a DataTree object."
 msgstr ""
-"Cree los kwargs de inicialización a partir de un objeto InferenceData."
+"Cree los kwargs de inicialización a partir de un objeto DataTree."
 
 #: ../source/api/generated/pymc_marketing.clv.models.gamma_gamma.GammaGammaModel.rst:41:<autosummary>:1
 #: fc3403017db34230af8f48f9b24189af
@@ -440,9 +440,9 @@ msgstr ""
 
 #: ../source/api/generated/pymc_marketing.clv.models.gamma_gamma.GammaGammaModel.rst:41:<autosummary>:1
 #: af9110ab4d3344edad55a4187beafaa9
-msgid "Create a ModelBuilder instance from an InferenceData object."
+msgid "Create a ModelBuilder instance from a DataTree object."
 msgstr ""
-"Cree una instancia de ModelBuilder a partir de un objeto InferenceData."
+"Cree una instancia de ModelBuilder a partir de un objeto DataTree."
 
 #: ../source/api/generated/pymc_marketing.clv.models.gamma_gamma.GammaGammaModel.rst:41:<autosummary>:1
 #: e922673dbcf84569a70a01f9ea0e7910
@@ -473,8 +473,8 @@ msgstr ""
 
 #: ../source/api/generated/pymc_marketing.clv.models.gamma_gamma.GammaGammaModel.rst:41:<autosummary>:1
 #: 4f080ea74522436fadecd43a6d29bfd2
-msgid "Set attributes on an InferenceData object."
-msgstr "Establecer atributos en un objeto InferenceData."
+msgid "Set attributes on a DataTree object."
+msgstr "Establecer atributos en un objeto DataTree."
 
 #: ../source/api/generated/pymc_marketing.clv.models.gamma_gamma.GammaGammaModel.rst:41:<autosummary>:1
 #: 20937dd8324f40f492ba0618ebfce799

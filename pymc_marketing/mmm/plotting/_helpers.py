@@ -27,157 +27,24 @@ from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 from numpy.typing import NDArray
 
+from pymc_marketing.mmm.xarray_utils import (
+    _apply_aggregation,
+    _dims_to_sel_kwargs,
+    _ensure_chain_draw_dims,
+    _select_dims,
+    _validate_dims,
+)
 
-def _dims_to_sel_kwargs(
-    dims: dict[str, Any] | None,
-) -> dict[str, Any]:
-    """Convert scalar dim values to single-element lists for ``.sel()``.
-
-    When filtering xarray data with ``.sel()``, scalar values drop the
-    dimension.  Wrapping scalars in a list preserves the dimension as
-    size-1 so ``PlotCollection`` can still facet on it.
-
-    Parameters
-    ----------
-    dims : dict or None
-        Mapping of dimension name → value(s).
-
-    Returns
-    -------
-    dict
-        Same mapping with scalar values wrapped in single-element lists.
-    """
-    if not dims:
-        return {}
-    return {
-        k: v if isinstance(v, (list, tuple, np.ndarray)) else [v]
-        for k, v in dims.items()
-    }
-
-
-def _select_dims[XarrayT: (xr.Dataset, xr.DataArray)](
-    data: XarrayT,
-    dims: dict[str, Any] | None,
-    allow_missing: bool = False,
-) -> XarrayT:
-    """Validate dimension filters and apply ``.sel()`` in one step.
-
-    Parameters
-    ----------
-    data : xr.Dataset or xr.DataArray
-        The xarray object to filter.
-    dims : dict or None
-        Dimension name → value(s).  ``None`` or empty is a no-op.
-    allow_missing : bool, default False
-        If True, silently ignore dimension keys in *dims* that are not
-        present in *data*.  If False (default), raise ValueError for
-        unknown dimensions.
-
-    Returns
-    -------
-    xr.Dataset or xr.DataArray
-        Filtered object (same type as *data*).  Dimensions are preserved
-        as size-1 (scalars are wrapped in lists) so downstream faceting
-        still works.
-
-    Raises
-    ------
-    ValueError
-        If a key in *dims* is not a dimension of *data* (when
-        ``allow_missing=False``), or a value is not present in the
-        corresponding coordinate.
-    """
-    if not dims:
-        return data
-
-    if allow_missing:
-        filtered_dims = {k: v for k, v in dims.items() if k in data.dims}
-        if not filtered_dims:
-            return data
-    else:
-        filtered_dims = dims
-
-    _validate_dims(data, filtered_dims)
-    sel_kwargs = _dims_to_sel_kwargs(filtered_dims)
-    return data.sel(**sel_kwargs)
-
-
-def _validate_dims(
-    dataset: xr.Dataset | xr.DataArray,
-    dims: dict[str, Any] | None,
-) -> None:
-    """Validate that ``dims`` keys and values exist in ``dataset`` coordinates.
-
-    Parameters
-    ----------
-    dataset : xr.Dataset or xr.DataArray
-        The xarray object whose coordinates are checked.
-    dims : dict or None
-        Mapping of dimension name → value(s) to validate.
-        Values may be scalars, lists, tuples, or numpy arrays.
-
-    Raises
-    ------
-    ValueError
-        If a dimension name is not in ``dataset.dims`` or a value
-        is not present in the corresponding coordinate.
-    """
-    if not dims:
-        return
-
-    all_dims = list(dataset.dims)
-    for key, val in dims.items():
-        if key not in all_dims:
-            raise ValueError(
-                f"Dimension '{key}' not found in dataset dimensions. "
-                f"Available: {all_dims}"
-            )
-        valid_values = dataset.coords[key].values
-        values = val if isinstance(val, (list, tuple, np.ndarray)) else [val]
-        for v in values:
-            if v not in valid_values:
-                raise ValueError(
-                    f"Value '{v}' not found in dimension '{key}'. "
-                    f"Available: {list(valid_values)}"
-                )
-
-
-def _ensure_chain_draw_dims(curves: xr.DataArray) -> xr.DataArray:
-    """Ensure curves have ``(chain, draw)`` dimensions for ArviZ compatibility.
-
-    Curves from ``mmm.sample_saturation_curve()`` have a flat ``sample``
-    dimension, while ``mmm.saturation.sample_curve(params)`` returns
-    ``(chain, draw)``.  Downstream code (HDI, mean, stacking) requires
-    ``(chain, draw)`` — this function bridges the gap.
-
-    Handles three input formats:
-
-    * ``(chain, draw, ...)`` — returned as-is (copy).
-    * ``sample`` as a MultiIndex over ``(chain, draw)`` — unstacked.
-    * ``sample`` as a plain integer index — expanded to
-      ``chain=0, draw=0..N-1``.
-    """
-    if "chain" in curves.dims and "draw" in curves.dims:
-        return curves.copy()
-
-    if "sample" not in curves.dims:
-        raise ValueError(
-            "Curves must have either ('chain', 'draw') or 'sample' dimensions. "
-            f"Got: {list(curves.dims)}"
-        )
-
-    # MultiIndex sample (chain/draw are non-dim coords) — just unstack
-    if "chain" in curves.coords and "draw" in curves.coords:
-        return curves.unstack("sample")
-
-    # Plain integer sample — promote to single-chain (chain=0)
-    n_samples = curves.sizes["sample"]
-    return (
-        curves.assign_coords(chain=("sample", np.zeros(n_samples, dtype=int)))
-        .assign_coords(draw=("sample", np.arange(n_samples)))
-        .set_index(sample=["chain", "draw"])
-        .unstack("sample")
-    )
+__all__ = [
+    "_apply_aggregation",
+    "_dims_to_sel_kwargs",
+    "_ensure_chain_draw_dims",
+    "_extract_matplotlib_result",
+    "_plot_timeseries_channel",
+    "_process_plot_params",
+    "_select_dims",
+    "_validate_dims",
+]
 
 
 def _process_plot_params(
@@ -226,51 +93,6 @@ def _process_plot_params(
         pc_kwargs["figure_kwargs"] = fig_kwargs
 
     return pc_kwargs
-
-
-def _apply_aggregation(
-    da: xr.DataArray,
-    aggregation: dict[str, str | list[str]] | None,
-) -> xr.DataArray:
-    """Apply a single aggregation operation to *da*.
-
-    Parameters
-    ----------
-    da : xr.DataArray
-        Data to aggregate.
-    aggregation : dict or None
-        A mapping with exactly one entry: ``{op: dim_spec}`` where *op*
-        is ``"sum"`` or ``"mean"`` and *dim_spec* is a dimension name or
-        list of dimension names.  ``None`` or an empty dict is a no-op.
-
-    Returns
-    -------
-    xr.DataArray
-        Aggregated data, or *da* unchanged when *aggregation* is falsy.
-
-    Raises
-    ------
-    ValueError
-        If *aggregation* contains more than one entry or an unsupported
-        operation.
-    """
-    if not aggregation:
-        return da
-
-    if len(aggregation) > 1:
-        raise ValueError(
-            f"Only a single aggregation operation is supported, "
-            f"got {len(aggregation)}: {list(aggregation)}."
-        )
-
-    op, dim_spec = next(iter(aggregation.items()))
-    dims_list = [dim_spec] if isinstance(dim_spec, str) else list(dim_spec)
-
-    if op == "sum":
-        return da.sum(dim=dims_list)
-    if op == "mean":
-        return da.mean(dim=dims_list)
-    raise ValueError(f"Unknown aggregation operation '{op}'. Supported: 'sum', 'mean'.")
 
 
 def _extract_matplotlib_result(

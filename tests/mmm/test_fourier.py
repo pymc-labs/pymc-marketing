@@ -617,6 +617,24 @@ def test_fourier_arbitrary_prior(seasonality) -> None:
         "weekly",
     ],
 )
+def test_fourier_arbitrary_prior_sample_prior(seasonality) -> None:
+    prior = ArbitraryCode(dims=("fourier",))
+    fourier = seasonality(n_order=4, prior=prior)
+
+    prior_samples = fourier.sample_prior(samples=10)
+
+    assert prior_samples[fourier.variable_name].shape == (1, 10, 2 * 4)
+
+
+@pytest.mark.parametrize(
+    argnames="seasonality",
+    argvalues=[YearlyFourier, MonthlyFourier, WeeklyFourier],
+    ids=[
+        "yearly",
+        "monthly",
+        "weekly",
+    ],
+)
 def test_fourier_dims_modified(seasonality) -> None:
     prior = ArbitraryCode(dims=())
     YearlyFourier(n_order=4, prior=prior)
@@ -742,3 +760,90 @@ class TestFourierRoundtrips:
 )
 def test_fourier_type_registered(type_key):
     assert type_key in type_registry._registry, f"{type_key} not registered"
+
+
+def _make_component_data(
+    *, n_draws: int = 10, has_hierarchy: bool = False, seed: int = 42
+) -> tuple[YearlyFourier, xr.Dataset, xr.DataArray]:
+    """Create a YearlyFourier with prior and component data for plot tests."""
+    rng = np.random.default_rng(seed)
+    prior = Prior("Normal", dims=("fourier",))
+    yearly = YearlyFourier(n_order=2, prior=prior)
+
+    coords: dict = {}
+    if has_hierarchy:
+        prior = Prior("Normal", dims=("fourier", "hierarchy"))
+        yearly = YearlyFourier(n_order=2, prior=prior)
+        coords["hierarchy"] = ["A", "B"]
+
+    prior_samples = yearly.sample_prior(samples=n_draws, coords=coords, random_seed=rng)
+    components = yearly.sample_curve(prior_samples, sum=False)
+    return yearly, prior_samples, components
+
+
+@pytest.fixture
+def auto_close_figures():
+    """Fixture that closes all matplotlib figures after each test."""
+    yield
+    plt.close("all")
+
+
+class TestPlotDecomposition:
+    def test_invalid_curve_missing_prefix(self, auto_close_figures) -> None:
+        yearly = YearlyFourier(n_order=2)
+        mock = xr.DataArray(np.ones((10,)), dims=["day"], coords={"day": np.arange(10)})
+        with pytest.raises(ValueError, match="must have a 'fourier' dimension"):
+            yearly.plot_decomposition(mock)
+
+    def test_legend(self, auto_close_figures) -> None:
+        yearly, _, components = _make_component_data()
+        _, axes = yearly.plot_decomposition(components)
+
+        leg = axes[0].get_legend()
+        assert leg is not None
+        labels = [t.get_text() for t in leg.texts]
+        assert labels == ["sin_1", "sin_2", "cos_1", "cos_2"]
+
+    def test_no_legend(self, auto_close_figures) -> None:
+        yearly, _, components = _make_component_data()
+        _, axes = yearly.plot_decomposition(components, legend=False)
+
+        leg = axes[0].get_legend()
+        assert leg is None
+
+    def test_figure_and_axes_types(self, auto_close_figures) -> None:
+        yearly, _, components = _make_component_data()
+        fig, axes = yearly.plot_decomposition(components)
+
+        assert isinstance(fig, plt.Figure)
+        assert axes.size >= 1
+
+    def test_hierarchy_faceting(self, auto_close_figures) -> None:
+        yearly, _, components = _make_component_data(has_hierarchy=True)
+
+        _, axes = yearly.plot_decomposition(components)
+
+        assert axes.size == 2, "Should create 2 subplots for hierarchy A, B"
+        for ax in axes.flat:
+            leg = ax.get_legend()
+            assert leg is not None
+            labels = [t.get_text() for t in leg.texts]
+            assert labels == ["sin_1", "sin_2", "cos_1", "cos_2"]
+
+    def test_same_axes(self, auto_close_figures) -> None:
+        yearly, _, components = _make_component_data(has_hierarchy=True)
+
+        _, axes = yearly.plot_decomposition(components, same_axes=True)
+
+        assert axes.size == 1
+
+    def test_custom_colors(self, auto_close_figures) -> None:
+        yearly, _, components = _make_component_data()
+        colors = ["red", "green", "blue", "yellow"]
+
+        _, axes = yearly.plot_decomposition(components, colors=colors)
+
+        leg = axes[0].get_legend()
+        assert leg is not None
+        labels = [t.get_text() for t in leg.texts]
+        assert labels == ["sin_1", "sin_2", "cos_1", "cos_2"]

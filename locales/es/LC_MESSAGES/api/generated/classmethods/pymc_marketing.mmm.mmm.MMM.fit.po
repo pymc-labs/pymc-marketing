@@ -153,13 +153,13 @@ msgstr "Devoluciones"
 
 #: b577b38774964ea6b3ee6de49c3d5072 of
 #: pymc_marketing.model_builder.RegressionModelBuilder.fit:27
-msgid "**self** : :obj:`az.InferenceData`"
-msgstr "**self** : :obj:`az.InferenceData`"
+msgid "**self** : :obj:`az.DataTree`"
+msgstr "**self** : :obj:`az.DataTree`"
 
 #: 1670ed655eec423bbaf83bd9ee3d38c8 of
 #: pymc_marketing.model_builder.RegressionModelBuilder.fit:26
-msgid "az.InferenceData"
-msgstr "az.InferenceData"
+msgid "az.DataTree"
+msgstr "az.DataTree"
 
 #: 0c03148b65ea4cc5b09d9d18d64e4e27 of
 #: pymc_marketing.model_builder.RegressionModelBuilder.fit:28

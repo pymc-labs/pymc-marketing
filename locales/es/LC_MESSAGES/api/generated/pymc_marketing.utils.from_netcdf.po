@@ -53,8 +53,8 @@ msgid "Returns"
 msgstr "Devoluciones"
 
 #: aeff53f451864cb0b41617e4530c37c6 of pymc_marketing.utils.from_netcdf:14
-msgid ":obj:`az.InferenceData`"
-msgstr ":obj:`az.InferenceData`"
+msgid ":obj:`az.DataTree`"
+msgstr ":obj:`az.DataTree`"
 
 #: 4ad95e1e08804f268a3d037c182de68b of pymc_marketing.utils.from_netcdf:15
 msgid "The inference data."

@@ -47,7 +47,7 @@ def stable_softmax(
     Subtracts the per-slice max before exponentiating to bound the exponent
     away from overflow. If ``name`` is given, the result is wrapped in a
     ``pm.Deterministic`` with the supplied ``dims`` (so it appears in the
-    InferenceData posterior group).
+    DataTree posterior group).
     """
     centered = logits - pt.max(logits, axis=axis, keepdims=True)
     probs = pm.math.softmax(centered, axis=axis)
