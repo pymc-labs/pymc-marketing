@@ -58,6 +58,81 @@ def test_to_xarray():
     np.testing.assert_array_equal(new_y.coords["test_dim"], customer_id)
 
 
+def test_to_xarray_names_trailing_axes():
+    customer_id = np.arange(10) + 100
+    matrix = np.arange(20).reshape(10, 2)
+
+    new_matrix = to_xarray(customer_id, matrix, extra_dims=("channel",))
+
+    assert isinstance(new_matrix, xarray.DataArray)
+    assert new_matrix.dims == ("customer_id", "channel")
+    np.testing.assert_array_equal(new_matrix.coords["customer_id"], customer_id)
+    np.testing.assert_array_equal(new_matrix.values, matrix)
+
+
+def test_to_xarray_mixes_1d_and_multidim_arrays():
+    customer_id = np.arange(10) + 100
+    frequency = np.arange(10)
+    matrix = np.arange(20).reshape(10, 2)
+
+    new_frequency, new_matrix = to_xarray(
+        customer_id, frequency, matrix, extra_dims=("channel",)
+    )
+
+    assert new_frequency.dims == ("customer_id",)
+    assert new_matrix.dims == ("customer_id", "channel")
+    np.testing.assert_array_equal(new_matrix.values, matrix)
+
+
+def test_to_xarray_preserves_axis_order():
+    customer_id = np.arange(4)
+    cube = np.arange(24).reshape(4, 2, 3)
+
+    new_cube = to_xarray(customer_id, cube, extra_dims=("channel", "lag"))
+
+    assert new_cube.dims == ("customer_id", "channel", "lag")
+    assert new_cube.sizes == {"customer_id": 4, "channel": 2, "lag": 3}
+    np.testing.assert_array_equal(new_cube.values, cube)
+
+
+def test_to_xarray_distinct_trailing_dims_broadcast():
+    """Unrelated trailing axes must broadcast instead of silently aligning."""
+    customer_id = np.arange(4)
+
+    channels = to_xarray(customer_id, np.ones((4, 2)), extra_dims=("channel",))
+    lags = to_xarray(customer_id, np.ones((4, 3)), extra_dims=("lag",))
+
+    assert (channels * lags).sizes == {"customer_id": 4, "channel": 2, "lag": 3}
+
+
+@pytest.mark.parametrize(
+    "array, extra_dims, match",
+    [
+        (np.ones((10, 2)), None, "Pass 'extra_dims' naming its trailing axes"),
+        (np.ones((10, 2, 3)), ("channel",), "must have either 1 or 2 dimensions"),
+        (np.ones((10, 2)), ("channel", "lag"), "must have either 1 or 3 dimensions"),
+        (np.float64(1.0), None, "Cannot convert a 0-dimensional array"),
+        (np.ones(10), ("customer_id",), "must be unique"),
+    ],
+    ids=[
+        "missing_extra_dims",
+        "too_few_extra_dims",
+        "intermediate_rank",
+        "zero_dimensional",
+        "duplicate_dim_name",
+    ],
+)
+def test_to_xarray_invalid_dims_raise(array, extra_dims, match):
+    with pytest.raises(ValueError, match=match):
+        to_xarray(np.arange(10), array, extra_dims=extra_dims)
+
+
+def test_to_xarray_rejects_string_extra_dims():
+    """A bare string must not be split into one dim name per character."""
+    with pytest.raises(TypeError, match=r"not a string"):
+        to_xarray(np.arange(4), np.ones((4, 2, 3)), extra_dims="ab")
+
+
 @pytest.fixture(scope="module")
 def fitted_gg(test_summary_data) -> GammaGammaModel:
     rng = np.random.default_rng(40)
