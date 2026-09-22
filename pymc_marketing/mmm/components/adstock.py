@@ -63,7 +63,6 @@ from typing import TYPE_CHECKING, Any, Literal
 import numpy as np
 import xarray as xr
 from pydantic import Field, validate_call
-from pymc_extras.deserialize import deserialize
 from pymc_extras.prior import Prior
 from pytensor.xtensor import as_xtensor
 
@@ -139,17 +138,6 @@ class AdstockTransformation(Transformation):
         data["mode"] = self.mode.name
 
         return data
-
-    @classmethod
-    def from_dict(cls, data: dict) -> AdstockTransformation:
-        """Reconstruct an adstock transformation from a dict."""
-        data = data.copy()
-        data.pop("__type__", None)
-
-        if "priors" in data:
-            data["priors"] = {k: deserialize(v) for k, v in data["priors"].items()}
-
-        return cls(**data)
 
     def sample_curve(
         self,

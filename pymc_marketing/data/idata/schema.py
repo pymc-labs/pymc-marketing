@@ -338,11 +338,21 @@ class MMMIdataSchema(BaseModel):
                 description="Channel contributions (scaled)",
                 required=True,
             ),
+            # Registered under both links since the identity-link mean
+            # correction needs it pointwise. The log link transposes to
+            # date-first; the identity link keeps whatever order the linear
+            # predictor produced, so on a panel model 'mu' can arrive as
+            # (chain, draw, country, date). Only the dim *set* is contractual,
+            # which is what validate_variable compares. Still optional,
+            # because idata saved before identity registered it has no 'mu'.
             "mu": VariableSchema(
                 name="mu",
                 dims=("chain", "draw", "date", *custom_dims),
                 dtype="float64",
-                description="Total predicted mean (scaled)",
+                description=(
+                    "Total predicted mean (scaled). Dim order is "
+                    "link-dependent; only the set of dims is guaranteed."
+                ),
                 required=False,
             ),
         }
