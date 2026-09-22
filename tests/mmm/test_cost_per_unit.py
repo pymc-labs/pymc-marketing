@@ -1215,6 +1215,12 @@ class TestPriceResponseAllocation:
         assert np.all(identity.implied_price.where(spent).fillna(1.0) == 1.0)
         assert np.all(identity.implied_marginal_price.where(spent).fillna(1.0) == 1.0)
 
+        # Identical in every observable way, attrs included: the price is constant, so
+        # the budgets are money in exactly the sense a no-response run's are, and the
+        # stamp that warns the deprecated sampler off them must not be there.
+        assert "price_response" not in identity.budgets.attrs
+        xr.testing.assert_identical(identity.budgets, baseline.budgets)
+
     def test_reported_prices_satisfy_the_money_identity(self, simple_fitted_mmm):
         """Labels, the exact money identity on spent cells, the marginal/average ratio on
         the power branch, and the base price applying at the reference."""

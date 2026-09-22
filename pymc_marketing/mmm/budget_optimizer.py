@@ -1656,6 +1656,7 @@ class BudgetOptimizer(BaseModel):
     _budget_distribution_over_period_tensor: XTensorVariable | None = PrivateAttr()
     _cost_per_unit_tensor: XTensorVariable | None = PrivateAttr()
     _media_variable: MediaVariable = PrivateAttr()
+    _media_price_declaration: Any = PrivateAttr(default=None)
     _pymc_model: Model = PrivateAttr()
     _shared_posterior: SharedPosterior | None = PrivateAttr(default=None)
     _mask_auto_detected: bool = PrivateAttr(default=False)
@@ -1883,6 +1884,7 @@ class BudgetOptimizer(BaseModel):
             compile_kwargs=self.compile_kwargs,
         )
         self._media_variable = media_variable
+        self._media_price_declaration = media_response
         # Additional monetary variables are media-path variables over a
         # different node: same money, same window, so their spend joins the
         # budget-sum constraint through budget_contribution without
@@ -3216,13 +3218,18 @@ class BudgetOptimizer(BaseModel):
                 result.x[self._variables.slices[self.channel_data_var]],
                 date_coords=self._decision_date_coords(),
             )
-            if report:
+            resolved = self._media_variable.price_response
+            if resolved is not None and not resolved.is_identity:
                 # A marker for consumers that feed an allocation to the model as
                 # channel units (sample_response_distribution): these budgets are
                 # money whose unit price varied with spend, and the delivery they
-                # bought is in the report, not in the budgets.
+                # bought is in the report, not in the budgets. Not stamped for an
+                # identity response: the price is constant there, so the budgets
+                # are money in exactly the sense a no-response run's are, and the
+                # run stays observably identical to one. The declaration's class
+                # name, not the resolved one, because that is what the user wrote.
                 optimal_budgets.attrs["price_response"] = type(
-                    self._media_variable.price_response
+                    self._media_price_declaration
                 ).__name__
             return BudgetOptimizationResult(
                 budgets=optimal_budgets,

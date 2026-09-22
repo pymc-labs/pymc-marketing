@@ -1779,13 +1779,27 @@ def test_wrapper_optimize_budget_forwards_price_response(dummy_df, fitted_mmm):
         budget=10.0, price_response=PowerPriceResponse(elasticity=0.0)
     )
     assert result.implied_price is not None
+    # The identity reports, but the price is constant: nothing to warn the
+    # deprecated sampler about, so no stamp.
+    assert "price_response" not in result.budgets.attrs
 
-    # The budgets are stamped, and the deprecated sampler -- which feeds an
-    # allocation to the model as channel units -- warns when it sees the stamp,
-    # naming the array it should have been given instead.
-    assert "price_response" in result.budgets.attrs
+    # A real curve is money whose unit price varied with spend. The stamp names the
+    # class the user wrote, and the sampler -- which feeds an allocation to the model
+    # as channel units -- warns, naming the array it should have been given instead.
+    reference = xr.DataArray(
+        np.full((2, 2), 5.0),
+        dims=("geo", "channel"),
+        coords={"geo": ["A", "B"], "channel": ["channel_1", "channel_2"]},
+    )
+    priced = wrapper.optimize_budget(
+        budget=10.0,
+        price_response=PowerPriceResponse(
+            elasticity=0.3, reference_spend=reference, assume_delivery_units=True
+        ),
+    )
+    assert priced.budgets.attrs["price_response"] == "PowerPriceResponse"
     with pytest.warns(UserWarning, match="implied_delivery"):
-        wrapper.sample_response_distribution(result.budgets)
+        wrapper.sample_response_distribution(priced.budgets)
 
 
 class _MediatedEffect(MuEffect):

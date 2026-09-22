@@ -646,7 +646,7 @@ class MediaVariable(OptimizationVariable):
         x : np.ndarray
             This variable's slice of the flat decision vector, in money.
         date_coords : Sequence or None
-            Labels for the date dim; positional ``0..num_periods-1`` when omitted.
+            Labels for the date dim; the dim carries no coordinates when omitted.
 
         Returns
         -------
