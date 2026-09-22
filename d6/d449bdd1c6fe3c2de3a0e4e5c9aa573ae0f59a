@@ -1,0 +1,29 @@
+tests/pie/test_model.py
+  s_f46d8a2115c799::t_78edeb80bbdf6d 319-321,327
+pymc_marketing/pie/model.py
+  s_f46d8a2115c799::t_9bbc3ba2165ec6 335,337-338
+  s_f46d8a2115c799::t_f9312b16348423 183-185
+  s_f46d8a2115c799::t_16845611f80fd8 124-126
+docs/source/notebooks/pie/pie_example.ipynb
+  s_f46d8a2115c799::t_6f08cfc99e8eab 1540
+pyproject.toml
+  s_f46d8a2115c799::t_3eda24de4bb355 44
+uv.lock
+  s_f46d8a2115c799::t_c1976eebc6a307 4162
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "d6d449bdd1c6fe3c2de3a0e4e5c9aa573ae0f59a",
+  "prompts": {},
+  "sessions": {
+    "s_f46d8a2115c799": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "036d5385-50fe-457d-bce7-313d3fd1b8f3",
+        "model": "claude-opus-5"
+      },
+      "human_author": "daimon <daimon@pymc-labs.com>"
+    }
+  }
+}
