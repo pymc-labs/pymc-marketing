@@ -31,6 +31,8 @@ sections:
             notebook: mmm/plot_interactive
           - title: "Cost-per-Unit: Model What Drives Revenue, Report What You Spend"
             notebook: mmm/mmm_cost_per_unit
+          - title: "Why and how to account for media inflation in your media mix model (MMM)"
+            notebook: mmm/mmm_media_inflation
           - title: Parameter Recovery
             notebook: mmm/mmm_data_generator
           - title: MMM API Migration Guide
@@ -92,6 +94,9 @@ sections:
             notebook: mmm/mmm_time_slice_cross_validation
           - title: Metrics and Model Evaluation
             notebook: mmm/mmm_evaluation
+          - title: Prior Sensitivity in the MMM Workflow
+            notebook: mmm/mmm_prior_sensitivity
+            thumb: mmm_prior_sensitivity_psense.png
       - title: Causal Inference
         cards:
           - title: Causal Identification
@@ -116,6 +121,8 @@ sections:
         cards:
           - title: MMM End-to-End Case Study
             notebook: mmm/mmm_case_study
+          - title: "MMM Case Study II: Funnel-Aware Modeling, ROAS Calibration, and Budget Planning"
+            notebook: mmm/mmm_case_study2
           - title: Integrating Foundational Time Series Models with PyMC-Marketing MMM
             notebook: mmm/mmm_chronos
   - title: Customer Lifetime Value (CLV) Models
