@@ -1124,3 +1124,113 @@ class TestPriceResponseGate:
                     reference_spend_tolerance=2.0,
                 ),
             )
+
+
+class TestPriceResponseAllocation:
+    TOTAL = 300.0
+    PRICES = {"channel_1": 2.0, "channel_2": 3.0, "channel_3": 1.5}
+
+    def test_zero_elasticity_reproduces_the_constant_price_allocation(
+        self, simple_fitted_mmm
+    ):
+        """The regression guard: elasticity = 0 must not move the solver, and it must
+        still report prices (== p0 == 1 here) so a baseline can be tabled beside a sweep."""
+        baseline = _optimizer(simple_fitted_mmm).allocate_budget(
+            total_budget=self.TOTAL
+        )
+        identity = _optimizer(
+            simple_fitted_mmm, price_response=PowerPriceResponse(elasticity=0.0)
+        ).allocate_budget(total_budget=self.TOTAL)
+        xr.testing.assert_allclose(identity.budgets, baseline.budgets)
+        np.testing.assert_allclose(
+            identity.scipy_result.fun, baseline.scipy_result.fun, rtol=1e-8
+        )
+
+        assert baseline.implied_delivery is None and baseline.implied_price is None
+        assert baseline.implied_marginal_price is None
+        spent = identity.budgets > 0
+        assert np.all(identity.implied_price.where(spent).fillna(1.0) == 1.0)
+        assert np.all(identity.implied_marginal_price.where(spent).fillna(1.0) == 1.0)
+
+    def test_reported_prices_satisfy_the_money_identity(self, simple_fitted_mmm):
+        """Labels, the exact money identity on spent cells, the marginal/average ratio on
+        the power branch, and the base price applying at the reference."""
+        mmm = simple_fitted_mmm
+        mmm.set_cost_per_unit(_full_table(mmm, self.PRICES))
+        window_cpu = _window_cpu(mmm, self.PRICES)
+        gamma = {"channel_1": 0.3, "channel_2": 0.0, "channel_3": 0.5}
+        optimizer = _optimizer(
+            mmm,
+            cost_per_unit=window_cpu,
+            price_response=PowerPriceResponse(elasticity=gamma),
+        )
+        result = optimizer.allocate_budget(total_budget=self.TOTAL)
+        assert result.scipy_result.success, result.scipy_result.message
+
+        for field in (
+            result.implied_delivery,
+            result.implied_price,
+            result.implied_marginal_price,
+        ):
+            assert field.dims == ("date", "channel") and field.shape == (
+                WINDOW_WEEKS,
+                3,
+            )
+            assert pd.DatetimeIndex(field["date"].values).equals(
+                pd.DatetimeIndex(window_cpu["date"].values)
+            )
+
+        money = xr.where(
+            np.isnan(result.implied_price),
+            0.0,
+            result.implied_delivery * result.implied_price,
+        )
+        xr.testing.assert_allclose(
+            money.sum("date"), result.budgets * optimizer.num_periods
+        )
+
+        gamma_da = xr.DataArray(
+            [gamma[ch] for ch in CHANNELS_3],
+            dims=("channel",),
+            coords={"channel": CHANNELS_3},
+        )
+        spent = result.budgets > 0
+        floor = optimizer.optimization_variables.variables[0].price_response.s_floor
+        floor_da = xr.DataArray(
+            floor, dims=("channel",), coords={"channel": CHANNELS_3}
+        )
+        on_power_branch = spent & (result.budgets > floor_da)
+        ratio = (result.implied_marginal_price / result.implied_price).mean("date")
+        xr.testing.assert_allclose(
+            ratio.where(on_power_branch, drop=True),
+            (1 / (1 - gamma_da)).where(on_power_branch, drop=True),
+        )
+
+        # The base price applies at the reference: above it a unit costs more than
+        # p0, below it less. At this fixture's history (~1950 money per period) and
+        # TOTAL = 300 every cell sits below, so the below-reference direction is the
+        # one actually exercised; the above-reference branch is kept for other totals.
+        reference = _on_air_reference(mmm).sel(channel=CHANNELS_3)
+        p0 = window_cpu.isel(date=0, drop=True)
+        mean_price = result.implied_price.mean("date")
+        below = spent & (result.budgets < reference) & (gamma_da > 0)
+        above = spent & (result.budgets > reference) & (gamma_da > 0)
+        assert bool(below.any()), (
+            "fixture drifted: expected a priced cell below its reference"
+        )
+        assert bool((mean_price < p0).where(below, drop=True).all())
+        if bool(above.any()):
+            assert bool((mean_price > p0).where(above, drop=True).all())
+
+    def test_result_is_directly_instantiable_without_the_new_fields(self):
+        from scipy.optimize import OptimizeResult
+
+        from pymc_marketing.mmm import BudgetOptimizationResult
+
+        result = BudgetOptimizationResult(
+            budgets=xr.DataArray([1.0, 2.0], dims=("channel",)),
+            scipy_result=OptimizeResult(success=True),
+        )
+        assert result.implied_delivery is None
+        assert result.implied_price is None
+        assert result.implied_marginal_price is None

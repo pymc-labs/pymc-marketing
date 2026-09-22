@@ -1765,6 +1765,21 @@ def test_budget_optimizer_new_api(dummy_df, fitted_mmm):
     assert result.success
 
 
+def test_wrapper_optimize_budget_forwards_price_response(dummy_df, fitted_mmm):
+    """The issue's suggested API is wrapper.optimize_budget(..., price_response=...)."""
+    _df_kwargs, X_dummy, _y_dummy = dummy_df
+    with pytest.warns(DeprecationWarning):
+        wrapper = BudgetOptimizerWrapper(
+            model=fitted_mmm,
+            start_date=X_dummy["date_week"].max() + pd.Timedelta(weeks=1),
+            end_date=X_dummy["date_week"].max() + pd.Timedelta(weeks=4),
+        )
+    result = wrapper.optimize_budget(
+        budget=10.0, price_response=PowerPriceResponse(elasticity=0.0)
+    )
+    assert result.implied_price is not None
+
+
 class _MediatedEffect(MuEffect):
     """Extra response reaching the target through a mediator, favouring one channel.
 
@@ -2493,8 +2508,8 @@ class TestMonetarySpendVariables:
         result = optimizer.allocate_budget(total_budget=self.TOTAL)
         assert result.scipy_result.success, result.scipy_result.message
         assert np.isfinite(result.spend_var_allocations["lf_budget"]).all()
-        # Media had no response, so the media report is absent.  # Task 5 uncomments:
-        # assert result.implied_price is None
+        # Media had no response, so the media report is absent.
+        assert result.implied_price is None
 
 
 def test_mmm_budget_optimizer_set_posterior_is_local_to_the_optimizer(

@@ -269,6 +269,7 @@ if TYPE_CHECKING:
         BudgetOptimizationResult,
         BudgetOptimizer,
     )
+    from pymc_marketing.mmm.price_response import PriceResponse
 
 
 def _deserialize_cost_per_unit(json_str: str) -> pd.DataFrame:
@@ -4422,6 +4423,7 @@ class BudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
         budgets_to_optimize: xr.DataArray | None = None,
         budget_distribution_over_period: xr.DataArray | None = None,
         cost_per_unit: pd.DataFrame | xr.DataArray | None = None,
+        price_response: PriceResponse | dict[str, PriceResponse] | None = None,
         callback: bool = False,
         **allocate_budget_kwargs,
     ) -> BudgetOptimizationResult:
@@ -4477,6 +4479,10 @@ class BudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
             the model's native units).
 
             **This is independent of the historical cost_per_unit.**
+        price_response : PriceResponse or dict[str, PriceResponse] or None, optional
+            Spend-dependent price of a delivered unit; see
+            :class:`~pymc_marketing.mmm.price_response.PowerPriceResponse`. Forwarded to
+            :class:`~pymc_marketing.mmm.budget_optimizer.BudgetOptimizer`.
         callback : bool
             Whether to track optimization progress; when True the returned
             result's ``callback_info`` attribute holds per-iteration information.
@@ -4524,6 +4530,7 @@ class BudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
             budgets_to_optimize=budgets_to_optimize,
             budget_distribution_over_period=budget_distribution_over_period,
             cost_per_unit=cost_per_unit_da,
+            price_response=price_response,
             model=self,
             compile_kwargs=self.compile_kwargs,
         )

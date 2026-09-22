@@ -360,6 +360,22 @@ class BudgetOptimizationResult:
         when ``allocate_budget(callback=True)``; ``None`` otherwise. See
         :attr:`constraint_history` for the same constraint diagnostics keyed
         by constraint.
+    implied_delivery : xarray.DataArray or None
+        Units the allocation buys per period and cell, over ``(date_dim, *budget_dims)``,
+        when a ``price_response`` was passed (identity included); ``None`` otherwise. In
+        the model's channel units, which is what ``sample_response_distribution`` wants
+        as channel data. ``0.0`` at zero spend.
+    implied_price : xarray.DataArray or None
+        Average money paid per delivered unit, per period and cell. ``nan`` wherever
+        per-period money is exactly zero (masked cells, decisions that landed on zero),
+        because no price was paid there. On the spent cells
+        ``(implied_delivery * implied_price).sum(date_dim) == budgets * num_periods``,
+        so the window-average price is ``budgets * num_periods / implied_delivery.sum(date_dim)``.
+    implied_marginal_price : xarray.DataArray or None
+        Money the *next* delivered unit would cost, per period and cell; ``nan`` where
+        ``implied_price`` is. Above the floor it is ``implied_price / (1 - elasticity)``,
+        so their ratio is the whole content of a spend-dependent price: at elasticity
+        0.25 the increment costs 33% more than the average unit.
     """
 
     budgets: DataArray
@@ -367,6 +383,9 @@ class BudgetOptimizationResult:
     optimized_vars: dict[str, DataArray] = field(default_factory=dict)
     spend_var_names: list[str] = field(default_factory=list)
     callback_info: list[OptimizationIterationInfo] | None = None
+    implied_delivery: DataArray | None = None
+    implied_price: DataArray | None = None
+    implied_marginal_price: DataArray | None = None
 
     @property
     def spend_var_allocations(self) -> dict[str, DataArray]:
@@ -2219,6 +2238,19 @@ class BudgetOptimizer(BaseModel):
                 "information."
             )
 
+    def _decision_date_coords(self) -> list:
+        """Labels of the decision block of the model's date axis, or positions for a length-only dim.
+
+        ``_validate_date_length`` has already checked that carry-in, decisions and
+        carry-over add up to the axis, so the slice is safe.
+        """
+        dates = self.model.coords.get(self.date_dim)
+        if dates is None:
+            return list(range(self.num_periods))
+        return list(dates)[
+            self.carry_in_periods : self.carry_in_periods + self.num_periods
+        ]
+
     def _validate_date_length(self) -> None:
         """Check that the three date blocks add up to the model's date axis.
 
@@ -2923,8 +2955,10 @@ class BudgetOptimizer(BaseModel):
             channels, monetary units), ``scipy_result`` (the raw scipy
             optimization result), ``optimized_vars`` (empty for now), and
             ``callback_info`` (per-iteration diagnostics when ``callback=True``, else
-            ``None``). Iterating the result yields ``(budgets, scipy_result)``,
-            so ``optimal, res = optimizer.allocate_budget(...)`` keeps working.
+            ``None``) and, when a ``price_response`` was passed, ``implied_delivery``,
+            ``implied_price`` and ``implied_marginal_price``. Iterating the result yields
+            ``(budgets, scipy_result)``, so ``optimal, res = optimizer.allocate_budget(...)``
+            keeps working.
 
         Raises
         ------
@@ -2940,6 +2974,13 @@ class BudgetOptimizer(BaseModel):
           ``budget_in_original_units[t] = budget_in_dollars[t] / cost_per_unit[t]``
         - Each time period uses its own cost_per_unit value (no averaging).
         - Output optimal_budgets are in monetary units for user convenience.
+
+        **Spend-dependent prices**:
+
+        - With ``price_response`` set, ``budget_in_original_units[t] = to_delivery(budget_in_dollars[t])``
+          on unscaled money with ``cost_per_unit[t]`` as the base price, then ``/ channel_scales``.
+        - ``total_budget`` and ``budgets`` are per-period money; so is
+          ``PowerPriceResponse.reference_spend``.
         """
         # set total budget
         self._total_budget.set_value(np.asarray(total_budget, dtype="float64"))
@@ -3074,12 +3115,17 @@ class BudgetOptimizer(BaseModel):
             optimal_budgets = unpacked.pop(self.channel_data_var)
             optimal_budgets.attrs["pymc_marketing_version"] = __version__
 
+            report = self._media_variable.delivery_report(
+                result.x[self._variables.slices[self.channel_data_var]],
+                date_coords=self._decision_date_coords(),
+            )
             return BudgetOptimizationResult(
                 budgets=optimal_budgets,
                 scipy_result=result,
                 optimized_vars=unpacked,
                 spend_var_names=list(self.spend_vars),
                 callback_info=callback_info if callback else None,
+                **report,
             )
 
         else:
