@@ -3622,7 +3622,7 @@ class MMM(RegressionModelBuilder):
     def add_lift_test_measurements(
         self: Self,
         df_lift_test: pd.DataFrame,
-        dist: Callable[..., Any] = pmd.Gamma,
+        dist: type[pmd.DimDistribution] = pmd.Gamma,
         name: str = "lift_measurements",
     ) -> Self:
         """Add lift tests to the model.

@@ -79,7 +79,7 @@ from pymc_marketing.mmm.mmm import (
 )
 from pymc_marketing.mmm.nested_media import (
     NestedMediaEffect,
-    lognormal_relative_lift,
+    RelativeLogNormal,
 )
 from pymc_marketing.mmm.optimization_variables import (
     OptimizationVariable,
@@ -144,6 +144,7 @@ __all__ = [
     "OptimizationVariable",
     "OptimizationVariables",
     "PeriodicCovFunc",
+    "RelativeLogNormal",
     "RootSaturation",
     "SaturationTransformation",
     "Scaling",
@@ -164,7 +165,6 @@ __all__ = [
     "create_constrained_inverse_gamma_prior",
     "create_eta_prior",
     "create_m_and_L_recommendations",
-    "lognormal_relative_lift",
     "merge_inference_data",
     "merge_models_and_idata",
     "preprocessing",
