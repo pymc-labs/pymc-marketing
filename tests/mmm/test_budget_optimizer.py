@@ -906,6 +906,47 @@ class TestEvaluatePlan:
         with pytest.raises(ValueError, match="coordinates the model does not have"):
             optimizer.evaluate_response_distribution(plan)
 
+    def test_a_plan_without_coordinate_labels_is_refused(self, mmm_wrapper):
+        """Dims alone are not labels, and the difference is silent.
+
+        `reindex` has nothing to align an unlabelled dim by, so it stamps the
+        model's coordinates onto the values in the order they arrive. The same
+        two numbers written channel-first and channel-last would then score as
+        two different plans, through an API whose whole premise is that plans
+        are labelled.
+        """
+        optimizer = self._optimizer(mmm_wrapper)
+        coordless = xr.DataArray([30.0, 70.0], dims=["channel"])
+
+        with pytest.raises(ValueError, match="carry no coordinates"):
+            optimizer.evaluate_plan(coordless)
+
+        with pytest.raises(ValueError, match="carry no coordinates"):
+            optimizer.evaluate_response_distribution(coordless)
+
+        # Named entries say which one is at fault, since a mapping may carry
+        # several and only one of them be unlabelled.
+        with pytest.raises(ValueError, match="'channel_data'"):
+            optimizer.evaluate_plan({"channel_data": coordless})
+
+    def test_a_positional_warm_start_still_works(self, mmm_wrapper):
+        """The check belongs to the public plan API, not to packing.
+
+        `allocate_budget` has always taken a positional `x0`, and a warm start
+        is not a plan being scored: nothing is reported about it, so there is
+        no wrong answer to hand back. Pinned so the tightening above cannot
+        creep down into `MediaVariable.pack`.
+        """
+        optimizer = self._optimizer(mmm_wrapper)
+
+        result = optimizer.allocate_budget(
+            total_budget=100,
+            budget_bounds={channel: (0, 100) for channel in self.CHANNELS},
+            x0=xr.DataArray([30.0, 70.0], dims=["channel"]),
+        )
+
+        assert result.scipy_result.success
+
     def test_a_plan_missing_an_optimized_cell_is_refused(self, mmm_wrapper):
         """A plan that does not price every optimized cell is an error, not a guess."""
         optimizer = self._optimizer(mmm_wrapper)

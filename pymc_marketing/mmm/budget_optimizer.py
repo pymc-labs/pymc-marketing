@@ -1945,16 +1945,34 @@ class BudgetOptimizer(BaseModel):
         return self._budgets_flat.type.filter(values)
 
     def _require_labelled_plan(self, plan: Any, method: str) -> None:
-        """Refuse an unlabelled plan, naming the keys the caller should have used.
+        """Refuse a plan whose values are positional rather than labelled.
 
-        A flat vector is not wrong because it might be the wrong length --
+        Two ways to be positional, and both are silent.
+
+        A raw array is not wrong because it might be the wrong length --
         ``_pack_decision_vector`` filters it through the input's type, which
         rejects that with a ``TypeError``. It is wrong because it is ambiguous
         in *order*: it encodes the decision vector's layout positionally, so
         which segment belongs to which variable, and which cells of the mask
         are included, are conventions the caller has to reproduce silently.
-        ``allocate_budget`` still accepts one for backwards compatibility, but
-        nothing new should.
+
+        A ``DataArray`` whose dims carry no coordinates is the same problem one
+        level down. ``pack`` reindexes onto the model's coordinates, and
+        ``reindex`` has nothing to align an unlabelled dim by, so it stamps the
+        model's labels onto the values in the order they arrive: the same plan
+        written channel-first and channel-last scores as two different plans.
+        Measured, on a model ordered ``[tv, digital]``:
+        ``pack(DataArray([70, 30], dims=["channel"]))`` is ``[70, 30]``, while
+        the labelled ``[70, 30]`` over ``[digital, tv]`` is realigned to
+        ``[30, 70]``.
+
+        Both checks live here rather than in
+        :meth:`~pymc_marketing.mmm.optimization_variables.MediaVariable.pack`
+        deliberately, so ``allocate_budget(x0=...)`` keeps taking a positional
+        warm start, which is what it has always done.
+
+        A 0-d entry -- a spend variable decided over date alone -- has no dims
+        and so is unaffected.
         """
         if not isinstance(plan, DataArray | Mapping):
             names = sorted(variable.name for variable in self._variables.variables)
@@ -1965,6 +1983,20 @@ class BudgetOptimizer(BaseModel):
                 "layout positionally: its order, and which masked cells it "
                 "includes, cannot be checked."
             )
+
+        entries = plan.items() if isinstance(plan, Mapping) else [(None, plan)]
+        for name, values in entries:
+            if not isinstance(values, DataArray):
+                continue
+            unlabelled = [dim for dim in values.dims if dim not in values.coords]
+            if unlabelled:
+                where = f" for {name!r}" if name is not None else ""
+                raise ValueError(
+                    f"{method} got a plan{where} whose dims {unlabelled} carry no "
+                    "coordinates. Alignment would fall back to position, so the "
+                    "same values in a different order would score as a different "
+                    "plan. Give those dims the model's coordinate labels."
+                )
 
     def evaluate_plan(
         self,
@@ -2010,9 +2042,10 @@ class BudgetOptimizer(BaseModel):
         Raises
         ------
         TypeError
-            If ``plan`` is not labelled.
+            If ``plan`` is not labelled at all.
         ValueError
-            If ``plan`` omits a decision variable, omits an optimized cell, or
+            If a supplied ``DataArray`` has a dim carrying no coordinates, or
+            if ``plan`` omits a decision variable, omits an optimized cell, or
             carries coordinates the model does not have.
 
         Notes
@@ -2425,7 +2458,11 @@ class BudgetOptimizer(BaseModel):
         Raises
         ------
         TypeError
-            If ``plan`` is not labelled.
+            If ``plan`` is not labelled at all.
+        ValueError
+            If a supplied ``DataArray`` has a dim carrying no coordinates, or
+            if ``plan`` omits a decision variable, omits an optimized cell, or
+            carries coordinates the model does not have.
 
         Notes
         -----
