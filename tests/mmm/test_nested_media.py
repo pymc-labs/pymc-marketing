@@ -515,7 +515,6 @@ def test_lift_test_unknown_campaign_raises():
     [
         ("sigma", 0.0),
         ("delta_x", 0.0),
-        ("delta_y", 0.0),
         ("x", np.nan),
         ("sigma", np.nan),
     ],
@@ -534,6 +533,23 @@ def test_lift_test_rejects_rows_outside_contract(column, value):
     row[column] = [value]
     with pytest.raises(ValueError, match="offending rows: \\[0\\]"):
         effect.add_lift_test_measurements(pd.DataFrame(row), mmm)
+
+
+def test_lift_test_accepts_null_result():
+    # a measured lift of zero is a legitimate experiment outcome; the Normal
+    # default scores it, so the hook must not reject it
+    mmm, effect = _build()
+    df_lift = pd.DataFrame(
+        {
+            "campaign": ["tv_promo"],
+            "x": [1.0],
+            "delta_x": [2.0],
+            "delta_y": [0.0],
+            "sigma": [0.02],
+        }
+    )
+    effect.add_lift_test_measurements(df_lift, mmm)
+    assert np.isfinite(mmm.model.compile_logp()(mmm.model.initial_point()))
 
 
 def _estimated_lift(model, effect, ds, campaign, channel, x, delta_x):
