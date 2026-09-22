@@ -1390,7 +1390,18 @@ class BudgetOptimizer(BaseModel):
         Cost-per-unit conversion factors for translating monetary budgets into
         the model's native units. Must have dims ``("date", *budget_dims)``
         where ``"date"`` has length ``num_periods``. If ``None``, budgets are
-        assumed to already be in the model's native units.
+        assumed to already be in the model's native units. With
+        ``price_response`` set this is the *base* price, applying at
+        ``reference_spend``; the effective price then varies with the money
+        spent.
+    price_response : PriceResponse or dict[str, PriceResponse], optional
+        Spend-dependent price of a delivered unit, applied inside the graph to
+        unscaled per-period money before ``channel_scales``. See
+        :class:`~pymc_marketing.mmm.price_response.PowerPriceResponse` for the
+        precondition (the model must be fitted on delivery units), the
+        fitted-artifact gate and its opt-out, and the three reporting fields it
+        adds to the result. A dict keyed by decision-variable name is required
+        when ``spend_vars`` are declared.
     compile_kwargs : dict, optional
         Extra keyword arguments forwarded to PyTensor's ``function()`` during
         compilation. Useful for setting ``mode``.
@@ -1560,7 +1571,9 @@ class BudgetOptimizer(BaseModel):
             "monetary units (dollars) to original units (impressions, clicks). "
             "Must have dims (date, *budget_dims) where date has length "
             "num_periods. If None, budgets are assumed to already be in "
-            "the model's native units (no conversion applied)."
+            "the model's native units (no conversion applied). With "
+            "price_response set this is the base price, applying at "
+            "reference_spend; the effective price then varies with the money spent."
         ),
     )
 

@@ -2971,7 +2971,9 @@ class MMM(RegressionModelBuilder):
             Extra keyword arguments for PyTensor's ``function()``.
         **kwargs
             Additional arguments forwarded to
-            :class:`~pymc_marketing.mmm.budget_optimizer.BudgetOptimizer`.
+            :class:`~pymc_marketing.mmm.budget_optimizer.BudgetOptimizer`, for
+            example ``price_response`` (see
+            :class:`~pymc_marketing.mmm.price_response.PowerPriceResponse`).
 
         Returns
         -------
@@ -4223,6 +4225,14 @@ class MMM(RegressionModelBuilder):
             If model has not been fitted yet (no idata available).
         ValueError
             If date/dim values don't match the fitted data.
+
+        Notes
+        -----
+        Setting a channel's historical price is also what lets the budget
+        optimizer apply a spend-dependent
+        :class:`~pymc_marketing.mmm.price_response.PowerPriceResponse` to it,
+        since it records that the channel's data is in delivery units; channels
+        absent from the table stay refused.
         """
         if not hasattr(self, "idata") or self.idata is None:
             raise RuntimeError(
