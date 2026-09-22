@@ -553,7 +553,8 @@ class DataVarMuEffect(MuEffect, ABC):
         """Register each data variable as ``pm.Data``.
 
         Reuses an existing data node when the name, dims, and shape match the
-        dataset column.  Raises if the name is taken by a different variable.
+        dataset column. Raises if the name is reserved by MMM or taken by a
+        different variable.
 
         Parameters
         ----------
@@ -565,15 +566,20 @@ class DataVarMuEffect(MuEffect, ABC):
             da = mmm.xarray_dataset[var_name]
             existing = model.named_vars.get(var_name)
             if existing is None:
-                pmd.Data(var_name, da.values, dims=da.dims)
+                pmd.Data(var_name, da.values, dims=da.dims, model=model)
                 continue
+            if var_name in getattr(mmm, "_library_data_names", frozenset()):
+                raise ValueError(
+                    f"Cannot register dataset column {var_name!r} as pm.Data: "
+                    "that name is registered by MMM itself; rename the dataset column."
+                )
             if existing not in model.data_vars:
                 raise ValueError(
                     f"Cannot register dataset column {var_name!r} as pm.Data: "
                     "a non-data variable with that name already exists in the model."
                 )
             existing_dims = tuple(model.named_vars_to_dims.get(var_name, ()))
-            existing_shape = tuple(existing.get_value().shape)
+            existing_shape = tuple(existing.get_value(borrow=True).shape)
             if existing_dims != tuple(da.dims) or existing_shape != tuple(da.shape):
                 raise ValueError(
                     f"Cannot reuse pm.Data {var_name!r}: existing dims/shape "

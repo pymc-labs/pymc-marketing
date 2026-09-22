@@ -559,8 +559,8 @@ class TestMultidimMMMEdgeCases:
         assert shared in mmm.model.data_vars
         assert [v for v in mmm.model.data_vars if v.name == "shared_aux"] == [shared]
 
-    def test_mu_effect_column_named_like_channel_data_raises(self, simple_mmm_data):
-        """A dataset column colliding with an existing pm.Data of different shape errors."""
+    def test_mu_effect_column_named_like_mmm_data_raises(self, simple_mmm_data):
+        """An effect cannot reuse a data node registered by MMM itself."""
         X_df = simple_mmm_data["X"]
         y = simple_mmm_data["y"]
         dates = pd.DatetimeIndex(X_df["date"])
@@ -590,7 +590,41 @@ class TestMultidimMMMEdgeCases:
             saturation=LogisticSaturation(),
         ).add_mu_effect(CollidingEffect())
 
-        with pytest.raises(ValueError, match=r"Cannot reuse pm\.Data"):
+        with pytest.raises(ValueError, match="registered by MMM itself"):
+            mmm.build_model(X, y)
+
+    def test_mu_effect_column_named_like_target_data_raises(self, simple_mmm_data):
+        """An effect cannot silently reuse MMM's scaled target data node."""
+        X_df = simple_mmm_data["X"]
+        y = simple_mmm_data["y"]
+        dates = pd.DatetimeIndex(X_df["date"])
+        channels = ["channel_1", "channel_2", "channel_3"]
+        X = xr.Dataset(
+            {
+                "media": (["date", "channel"], X_df[channels].values),
+                "target_data": (["date"], np.linspace(0.1, 1.0, len(dates))),
+            },
+            coords={"date": dates, "channel": channels},
+        )
+
+        class CollidingEffect(DataVarMuEffect):
+            data_vars: list[str] = ["target_data"]
+            prefix: str = "collide"
+
+            def create_effect(self, mmm):  # type: ignore
+                return pm.Deterministic(
+                    f"{self.prefix}_contrib", mmm.model["target_data"]
+                )
+
+        mmm = MMM(
+            date_column="date",
+            channel_columns=channels,
+            target_column="target",
+            adstock=GeometricAdstock(l_max=4),
+            saturation=LogisticSaturation(),
+        ).add_mu_effect(CollidingEffect())
+
+        with pytest.raises(ValueError, match="registered by MMM itself"):
             mmm.build_model(X, y)
 
     def test_heterogeneous_zero_slice_channel_scaled_tensor_is_finite(self):

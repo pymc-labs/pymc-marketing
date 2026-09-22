@@ -692,6 +692,7 @@ class TestDataVarMuEffect:
                 return pt.as_tensor(0.0)
 
         with mmm.model:
+            pmd.Data("other_data", np.ones(len(dates)), dims="date")
             pm.Normal("shared", 0, 1)
             with pytest.raises(ValueError, match="non-data variable"):
                 Effect().create_data(mmm)

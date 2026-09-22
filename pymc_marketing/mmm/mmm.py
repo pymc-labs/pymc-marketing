@@ -2416,6 +2416,11 @@ class MMM(RegressionModelBuilder):
                     target_scale=self.scalers["_target"].values,
                 )
 
+            # DataVarMuEffect inputs may be shared by several effects, but must
+            # never reuse data nodes that MMM registered for its own internals.
+            # Snapshot before the effect loop so names registered by an earlier
+            # effect remain eligible for sharing with a later one.
+            self._library_data_names = frozenset(self.model.named_vars)
             for mu_effect in self.mu_effects:
                 mu_effect.create_data(self)
 
