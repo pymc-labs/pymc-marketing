@@ -363,7 +363,9 @@ class BudgetOptimizationResult:
     implied_delivery : xarray.DataArray or None
         Units the allocation buys per period and cell, over ``(date_dim, *budget_dims)``,
         when a ``price_response`` was passed (identity included); ``None`` otherwise. In
-        the model's channel units, per period. To score the plan's posterior response
+        the delivery units the money buys, per period, before ``channel_scales`` -- the
+        model node receives ``implied_delivery / channel_scales``, which coincides for an
+        ``MMM`` (its scales are 1). To score the plan's posterior response
         use :meth:`BudgetOptimizer.evaluate_response_distribution`, which runs the same
         graph the solver used, price map included. The deprecated
         ``sample_response_distribution`` takes a date-less allocation and broadcasts it
@@ -2451,6 +2453,20 @@ class BudgetOptimizer(BaseModel):
                     f"spend_vars {list(self.spend_vars)}. A response on a name that is not optimized "
                     "has no effect, so it is more likely a typo than an intention."
                 )
+            # The bare-object refusal above promises that the dict form names
+            # every monetary variable, so that a spend variable left at a
+            # constant price while media is on a curve (or the reverse) is
+            # explicit. Omitting a key would reproduce that hazard silently,
+            # so every variable in the pot must appear once any of them does;
+            # an identity response is how "constant" is said.
+            missing = sorted(allowed - set(self.price_response))
+            if missing:
+                raise ValueError(
+                    f"price_response names {sorted(self.price_response)} but leaves {missing} "
+                    "unpriced. Every monetary variable must appear once any does, so that one "
+                    "priced on a curve next to one at a constant price is explicit; say constant "
+                    "with PowerPriceResponse(elasticity=0.0)."
+                )
             responses = dict(self.price_response)
 
         resolved: dict[str, tuple[PriceResponse, DataArray | None]] = {}
@@ -2466,6 +2482,7 @@ class BudgetOptimizer(BaseModel):
                     coords=self._budget_coords,
                     mask=self.budgets_to_optimize,  # type: ignore[arg-type]
                     date_dim=self.date_dim,
+                    label=f"{name}: price_response",
                 )
             else:
                 identity = response.is_identity
@@ -2483,26 +2500,27 @@ class BudgetOptimizer(BaseModel):
                 resolved[name] = (response, None)
         return resolved
 
-    def _unpriced_optimized_channels(self) -> list[str] | None:
-        """Optimized channels the fitted model's historical cost_per_unit table does not price.
+    def _priced_channels(self) -> set[str] | None:
+        """Channels the fitted model's historical cost_per_unit table prices, or ``None`` without a table.
 
-        ``None`` when the question cannot be answered: no table on ``idata.attrs``
-        (``MMM`` writes JSON ``null`` for an unpriced model), or no ``"channel"``
-        budget dim to attribute cells to. The table's columns are the priced
-        channels; ``constant_data["channel_spend"]`` is not, because
-        ``_parse_cost_per_unit_df`` fills absent channels with 1.0 and so writes
-        spend for every channel.
+        The table's columns are the priced channels; ``constant_data["channel_spend"]``
+        is not, because ``_parse_cost_per_unit_df`` fills absent channels with 1.0 and
+        so writes spend for every channel. ``MMM`` writes JSON ``null`` for an unpriced
+        model, which reads as no table.
         """
         # The table is stored by MMM as pandas' ``orient="split"`` JSON, whose
         # top-level ``columns`` key is all that is needed here. ``mmm.py``'s
         # ``_deserialize_cost_per_unit`` parses the whole frame (and normalises
-        # dates) but lives in a module that imports this one, so it is not
-        # reusable from here without moving it.
+        # dates) but lives in a module that imports this one -- and that this
+        # module is tested never to import -- so it is not reusable from here.
         raw = self.idata.attrs.get("cost_per_unit")
         table = json.loads(raw) if isinstance(raw, str) else None
-        if not table or "channel" not in self._budget_dims:
+        if not table:
             return None
-        priced = set(table["columns"]) - {"date"} - set(self._budget_dims)
+        return set(table["columns"]) - {"date"} - set(self._budget_dims)
+
+    def _unpriced_optimized_channels(self, priced: set[str]) -> list[str]:
+        """Optimized channels absent from the table, read off the resolved mask's ``channel`` dim."""
         # Resolved and aligned in model_post_init step 4, before this is called.
         mask: DataArray = self.budgets_to_optimize  # type: ignore[assignment]
         others = [dim for dim in mask.dims if dim != "channel"]
@@ -2525,13 +2543,24 @@ class BudgetOptimizer(BaseModel):
         ``cost_per_unit`` table, per channel. The ``cost_per_unit`` passed to this
         optimizer is documented as independent of it and proves nothing.
         """
-        unpriced = self._unpriced_optimized_channels()
-        if unpriced is None or unpriced:
+        # Three distinct facts, each with its own wording: no table at all; a
+        # table whose columns cannot be matched to this optimization's cells
+        # because they have no "channel" dim; a table that leaves some optimized
+        # channels unpriced. Collapsing them tells a user to set a table they
+        # already have.
+        priced = self._priced_channels()
+        if priced is None:
+            who = "every optimized channel (no historical cost_per_unit table on the fitted model)"
+        elif "channel" not in self._budget_dims:
             who = (
-                f"channels {unpriced}"
-                if unpriced
-                else "every optimized channel (no historical cost_per_unit table on the fitted model)"
+                "every optimized channel (the fitted model prices channels, but this "
+                f"optimization's budget dims are {list(self._budget_dims)}, with no 'channel' "
+                "dim to match the table's columns against)"
             )
+        else:
+            unpriced = self._unpriced_optimized_channels(priced)
+            who = f"channels {unpriced}" if unpriced else ""
+        if who:
             if not response.assume_delivery_units:
                 raise ValueError(
                     f"price_response: {who} were fitted on nominal spend as far as the fitted model can "

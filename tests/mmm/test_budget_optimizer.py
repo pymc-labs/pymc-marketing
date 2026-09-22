@@ -1988,6 +1988,45 @@ class TestDateAxisMustMatchTheBlocks:
             BudgetOptimizer(model=model, idata=idata, num_periods=5, adstock_periods=2)
 
 
+def test_price_gate_names_a_missing_channel_dim_rather_than_a_missing_table():
+    """A model whose media dim is not called ``channel`` cannot be matched against the
+    fitted cost_per_unit table's columns. That is a different fact from "no table", and
+    the refusal has to say which one it is, or the user goes and sets a table they
+    already have. Not reachable through MMM (its channel data always carries a
+    ``channel`` dim); reachable through any custom model with the attr set."""
+    from pymc_marketing.mmm import PowerPriceResponse
+
+    n_dates, media = 6, ["a", "b"]
+    with pm.Model(coords={"media": media}) as model:
+        model.add_coord("date", length=n_dates)
+        channel_data = pmd.Data(
+            "channel_data", np.ones((n_dates, 2)), dims=("date", "media")
+        )
+        beta = pmd.Normal("beta", 1.0, 0.1, dims="media")
+        pmd.Deterministic(
+            "total_media_contribution_original_scale",
+            (channel_data * beta).sum(),
+            dims=(),
+        )
+    prior = pm.sample_prior_predictive(draws=4, model=model, random_seed=1)
+    idata = xr.DataTree.from_dict({"posterior": prior.prior})
+    table = pd.DataFrame(
+        {"date": pd.date_range("2025-01-05", periods=3, freq="7D"), "a": 2.0, "b": 3.0}
+    )
+    idata.attrs["cost_per_unit"] = table.to_json(orient="split", date_format="iso")
+
+    with pytest.raises(ValueError, match=r"no 'channel' dim") as info:
+        BudgetOptimizer(
+            model=model,
+            idata=idata,
+            num_periods=4,
+            adstock_periods=2,
+            price_response=PowerPriceResponse(elasticity=0.3),
+        )
+    assert "no historical cost_per_unit table" not in str(info.value)
+    assert "['media']" in str(info.value)
+
+
 def test_budget_optimizer_has_no_marketing_imports():
     """The optimizer stays a graph-level tool: levers are wired by name only."""
     banned = ("pymc_marketing.mmm.additive_effect", "pymc_marketing.mmm.mmm")

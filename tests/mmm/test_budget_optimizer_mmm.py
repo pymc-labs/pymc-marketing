@@ -2486,30 +2486,55 @@ class TestMonetarySpendVariables:
                 price_response={"nope": PowerPriceResponse(elasticity=0.2)},
             )
 
+    def test_a_dict_must_name_every_monetary_variable(self, funnel_identity_fitted_mmm):
+        """The bare-object refusal promises that the dict form names every variable,
+        including the ones staying at a constant price. Omitting one reproduces the
+        hazard by omission: media at a constant, the spend variable on a curve, both in
+        one pot. An explicit identity response is how "constant" is said."""
+        curve = PowerPriceResponse(elasticity=0.2, reference_spend=xr.DataArray(1.0))
+        with pytest.raises(ValueError, match=r"leaves \['channel_data'\] unpriced"):
+            self._optimizer(
+                funnel_identity_fitted_mmm,
+                spend_vars=["lf_budget"],
+                price_response={"lf_budget": curve},
+            )
+        with pytest.raises(ValueError, match=r"leaves \['lf_budget'\] unpriced"):
+            self._optimizer(
+                funnel_identity_fitted_mmm,
+                spend_vars=["lf_budget"],
+                price_response={"channel_data": PowerPriceResponse(elasticity=0.0)},
+            )
+
     def test_a_spend_variable_price_response_needs_a_reference_and_then_solves(
         self, funnel_identity_fitted_mmm
     ):
         """There is no fitted artifact to derive a spend variable's reference from."""
+        constant_media = PowerPriceResponse(elasticity=0.0)
         with pytest.raises(ValueError, match=r"lf_budget.*reference_spend is required"):
             self._optimizer(
                 funnel_identity_fitted_mmm,
                 spend_vars=["lf_budget"],
-                price_response={"lf_budget": PowerPriceResponse(elasticity=0.2)},
+                price_response={
+                    "channel_data": constant_media,
+                    "lf_budget": PowerPriceResponse(elasticity=0.2),
+                },
             )
         optimizer = self._optimizer(
             funnel_identity_fitted_mmm,
             spend_vars=["lf_budget"],
             price_response={
+                "channel_data": constant_media,
                 "lf_budget": PowerPriceResponse(
                     elasticity=0.2, reference_spend=xr.DataArray(1.0)
-                )
+                ),
             },
         )
         result = optimizer.allocate_budget(total_budget=self.TOTAL)
         assert result.scipy_result.success, result.scipy_result.message
         assert np.isfinite(result.spend_var_allocations["lf_budget"]).all()
-        # Media had no response, so the media report is absent.
-        assert result.implied_price is None
+        # Media carries the identity response, so its report is present and flat at p0 = 1.
+        spent = result.budgets > 0
+        assert np.all(result.implied_price.where(spent).fillna(1.0) == 1.0)
 
 
 def test_mmm_budget_optimizer_set_posterior_is_local_to_the_optimizer(

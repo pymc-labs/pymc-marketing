@@ -395,6 +395,7 @@ class MediaVariable(OptimizationVariable):
                 date_dim=self.date_dim,
                 derived_reference=price_reference,
                 label=f"{name}: price_response",
+                num_periods=num_periods,
             )
         )
         self.compile_kwargs = compile_kwargs
@@ -644,7 +645,9 @@ class MediaVariable(OptimizationVariable):
         dict[str, DataArray]
             Empty when the variable has no price response. Otherwise three
             arrays over ``(date_dim, *dims)``: ``implied_delivery`` in the
-            model's channel units (``0.0`` at zero money), ``implied_price``
+            delivery units the money buys, before ``channel_scales`` -- the
+            model node receives ``implied_delivery / channel_scales`` --
+            (``0.0`` at zero money), ``implied_price``
             and ``implied_marginal_price`` in money per unit, ``nan`` wherever
             per-period money is exactly ``0`` -- masked cells and any decision
             that landed on zero -- because their price would otherwise be read

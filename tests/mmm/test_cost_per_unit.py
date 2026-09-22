@@ -1139,8 +1139,10 @@ class TestPriceResponseGate:
             )
 
     def test_reference_spend_at_window_granularity_is_refused(self, simple_fitted_mmm):
-        """A 52-week-window total is 52x the per-period rate; the default 10x guard sees
-        that. A 4x mis-scale needs a tighter tolerance, and the docstring says so."""
+        """A 52-week-window total is 52x the per-period rate; the generic 10x guard sees
+        that. A 4-week-window total is only 4x, under the default tolerance, but the
+        optimizer knows num_periods and names that hypothesis directly; an explicit
+        tolerance asserts the scale is intended and skips it."""
         mmm = simple_fitted_mmm
         mmm.set_cost_per_unit(_full_table(mmm, dict.fromkeys(CHANNELS_3, 2.0)))
         fitted = _on_air_reference(mmm)
@@ -1151,10 +1153,19 @@ class TestPriceResponseGate:
                     elasticity=0.3, reference_spend=fitted * 52
                 ),
             )
+        with pytest.raises(ValueError, match=r"num_periods \(4\).*window total"):
+            _optimizer(
+                mmm,
+                price_response=PowerPriceResponse(
+                    elasticity=0.3, reference_spend=fitted * WINDOW_WEEKS
+                ),
+            )
         _optimizer(
             mmm,
             price_response=PowerPriceResponse(
-                elasticity=0.3, reference_spend=fitted * 4
+                elasticity=0.3,
+                reference_spend=fitted * WINDOW_WEEKS,
+                reference_spend_tolerance=10.0,
             ),
         )
         with pytest.raises(ValueError, match="4x apart"):

@@ -1020,3 +1020,17 @@ def test_delivery_report_compiles_with_the_optimizer_compile_kwargs():
     assert (
         type(default._delivery_report_fn.maker.mode.linker).__name__ != "PerformLinker"
     )
+
+
+def test_the_node_receives_implied_delivery_over_channel_scales():
+    """implied_delivery is what the money buys, before channel_scales; the model node
+    receives it divided by the scales. Reported pre-scale on purpose: it is the number
+    a planner reads (impressions, not scaled impressions) and the money identity
+    u(s) * p(s) = s depends on it -- but the docstring has to say which one it is."""
+    scales = np.array([1.0, 10.0, 1000.0])
+    variable = _priced_variable(elasticity=0.3, scales=scales)
+    x = np.array([50.0, 120.0, 300.0])
+    node_input = _decision_block(variable, x)
+    delivery = variable.delivery_report(x)["implied_delivery"].values
+    np.testing.assert_allclose(delivery / scales, node_input, rtol=1e-12)
+    assert not np.allclose(delivery[:, 1:], node_input[:, 1:])

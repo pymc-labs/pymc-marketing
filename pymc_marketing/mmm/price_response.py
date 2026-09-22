@@ -301,6 +301,7 @@ class PriceResponse(BaseModel, ABC):
         coords: Mapping[str, list],
         mask: DataArray,
         date_dim: str,
+        label: str = "price_response",
     ) -> bool:
         """Report whether the map is the identity on every *optimized* cell of a layout.
 
@@ -308,7 +309,7 @@ class PriceResponse(BaseModel, ABC):
         cells resolves to the identity even though :attr:`is_identity` is False. The optimizer asks this
         before running its fitted-artifact gate, so a no-op response is not refused over channels it never
         touches. The default answers from the declaration alone; families whose elasticity varies by cell
-        override it.
+        override it. ``label`` prefixes any error raised while reading the declaration.
         """
         return self.is_identity
 
@@ -322,6 +323,7 @@ class PriceResponse(BaseModel, ABC):
         date_dim: str,
         derived_reference: DataArray | None,
         label: str,
+        num_periods: int | None = None,
     ) -> ResolvedPriceResponse:
         """Bind the declaration to one variable's cell layout.
 
@@ -338,6 +340,9 @@ class PriceResponse(BaseModel, ABC):
             none (a spend variable, an opted-out model). In the units of ``result.budgets``.
         label : str
             Prefix for error messages, naming the variable.
+        num_periods : int or None
+            Length of the optimization window, when known. Lets a family test the specific hypothesis that a
+            supplied reference is a window total rather than a per-period rate.
         """
 
 
@@ -378,8 +383,11 @@ class PowerPriceResponse(PriceResponse):
         Largest factor by which a supplied ``reference_spend`` may differ from the derived default on any
         optimized cell before it is rejected. Default ``10``. The guard exists because a reference summed over the
         window instead of per period is off by ``num_periods`` and shifts every price by
-        ``num_periods ** elasticity`` with nothing in the output saying so; it cannot see a mis-scale smaller than
-        the tolerance.
+        ``num_periods ** elasticity`` with nothing in the output saying so. A typical window of 4 to 13 periods
+        sits under the default, so that hypothesis is also tested by name: when the supplied value is within 5%
+        of ``num_periods`` times the derived one on every optimized cell, it is refused as a window total.
+        Setting ``reference_spend_tolerance`` explicitly (to any value) asserts that the scale is intended and
+        skips that check; the generic factor check then applies alone.
     assume_delivery_units : bool
         See :class:`PriceResponse`. Declared there, with ``reference_spend``, because the optimizer reads both
         off any response before knowing its concrete type.
@@ -425,8 +433,9 @@ class PowerPriceResponse(PriceResponse):
     high-elasticity channels, which is the biddable-next-to-reserved case this feature exists for. Each reprice
     pass also needs a fresh optimizer, since ``cost_per_unit`` is fixed at construction.
 
-    **Reading the result.** ``result.implied_delivery`` is the delivery per period, in the model's channel
-    units. To score the plan's posterior response use
+    **Reading the result.** ``result.implied_delivery`` is the delivery per period, in the units the money buys
+    -- before ``channel_scales``; the model node receives ``implied_delivery / channel_scales``, which coincides
+    for an ``MMM`` (scales are 1). To score the plan's posterior response use
     :meth:`~pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.evaluate_response_distribution`, which runs
     the same graph the solver used, price map included. The deprecated
     :meth:`~pymc_marketing.mmm.mmm.BudgetOptimizerWrapper.sample_response_distribution` takes a date-less
@@ -500,6 +509,7 @@ class PowerPriceResponse(PriceResponse):
         coords: Mapping[str, list],
         mask: DataArray,
         date_dim: str,
+        label: str = "price_response",
     ) -> bool:
         """Report whether every *optimized* cell has zero elasticity; see :meth:`PriceResponse.is_identity_on`."""
         if self.is_identity:
@@ -511,7 +521,7 @@ class PowerPriceResponse(PriceResponse):
             coords={d: list(coords[d]) for d in dims},
         )
         on = np.asarray(mask.transpose(*dims).values, dtype=bool)
-        gamma = self._resolve_elasticity(template, date_dim, "price_response")
+        gamma = self._resolve_elasticity(template, date_dim, label)
         return bool(np.all(gamma[on] == 0.0))
 
     def resolve(
@@ -523,6 +533,7 @@ class PowerPriceResponse(PriceResponse):
         date_dim: str,
         derived_reference: DataArray | None,
         label: str,
+        num_periods: int | None = None,
     ) -> ResolvedPowerPriceResponse:
         """Bind to one variable's layout; see :meth:`PriceResponse.resolve`."""
         dims = tuple(dims)
@@ -543,7 +554,7 @@ class PowerPriceResponse(PriceResponse):
             reference = np.ones(template.shape)
         elif self.reference_spend is not None:
             reference = self._resolve_supplied_reference(
-                template, on, derived_reference, date_dim, label
+                template, on, derived_reference, date_dim, label, num_periods
             )
         elif derived_reference is not None:
             reference = self._check_reference(
@@ -633,6 +644,7 @@ class PowerPriceResponse(PriceResponse):
         derived_reference: DataArray | None,
         date_dim: str,
         label: str,
+        num_periods: int | None = None,
     ) -> np.ndarray:
         dims = template.dims
         ref = self.reference_spend
@@ -675,6 +687,27 @@ class PowerPriceResponse(PriceResponse):
                     UserWarning,
                     stacklevel=3,
                 )
+            # The mistake this guard exists for is a window total handed over
+            # as a per-period rate: off by exactly num_periods, on every cell,
+            # and under the generic tolerance for any window shorter than it.
+            # Tested by name when the window is known and the user has not
+            # asserted the scale by setting the tolerance themselves.
+            if (
+                num_periods is not None
+                and num_periods > 1
+                and "reference_spend_tolerance" not in self.model_fields_set
+                and comparable.any()
+            ):
+                scale = supplied[comparable] / expected[comparable]
+                if np.all(np.abs(scale / num_periods - 1.0) < 0.05):
+                    raise ValueError(
+                        f"{label}: reference_spend is num_periods ({num_periods}) times the fitted "
+                        "per-period spend on every optimized cell, to within 5%: it looks like a window "
+                        "total. reference_spend is per-period money, the units of result.budgets and "
+                        f"total_budget -- divide by {num_periods}. If a {num_periods}-fold scale-up on "
+                        "every channel is really intended, set reference_spend_tolerance explicitly to "
+                        "assert it."
+                    )
             ratio = np.where(
                 comparable, np.maximum(supplied / expected, expected / supplied), 0.0
             )
