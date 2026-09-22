@@ -18,7 +18,7 @@ from __future__ import annotations
 import itertools as it
 import re
 import warnings
-from collections.abc import Sequence
+from collections.abc import Collection, Sequence
 from typing import Annotated, Literal, NotRequired, TypedDict
 
 try:
@@ -74,7 +74,7 @@ class NoAdjustmentSetError(ValueError):
 class UnidentifiedCausalEffectWarning(UserWarning):
     """The available model variables do not identify the causal effect.
 
-    Raised as a warning rather than an error so that graphs which honestly record
+    Issued as a warning rather than an error so that graphs which honestly record
     unobserved confounders remain usable. Strict pipelines can promote it:
 
     .. code-block:: python
@@ -1301,10 +1301,30 @@ class CausalGraphModel:
     ----------
     causal_model : CausalModel
         An instance of dowhy's CausalModel, representing the causal graph and its relationships.
-    treatment : list[str]
-        A list of treatment variable names.
+    treatment : str or list[str]
+        One treatment variable name or a collection of treatment variable names.
     outcome : str
         The outcome variable name.
+
+    Attributes
+    ----------
+    adjustment_set : list[str] or None
+        One minimal adjustment set using every admissible graph variable. ``None``
+        means no graph-level backdoor adjustment set exists.
+    minimal_adjustment_set : list[str] or None
+        One minimal adjustment set restricted to variables represented by the
+        model. ``None`` means the represented variables do not identify the effect;
+        an empty list is a valid adjustment set requiring no adjustment variables.
+    indispensable_adjustment_nodes : list[str] or None
+        Variables present in every valid graph-level adjustment set. An empty list
+        can also mean that alternative adjustment sets exist.
+    best_effort_adjustment_nodes : list[str] or None
+        Available members of the selected graph-level adjustment set when the model
+        is unidentified. This diagnostic is one deterministic best effort, not a
+        valid adjustment set or the union of all possible alternatives.
+    is_backdoor_identified : bool or None
+        Whether represented model variables identify the effect by backdoor
+        adjustment. ``None`` before :meth:`compute_adjustment_sets` is called.
 
     References
     ----------
@@ -1312,10 +1332,13 @@ class CausalGraphModel:
     """
 
     def __init__(
-        self, causal_model: CausalModel, treatment: list[str] | tuple[str], outcome: str
+        self,
+        causal_model: CausalModel,
+        treatment: str | list[str] | tuple[str],
+        outcome: str,
     ) -> None:
         self.causal_model = causal_model
-        self.treatment = treatment
+        self.treatment = [treatment] if isinstance(treatment, str) else list(treatment)
         self.outcome = outcome
         self.adjustment_set: list[str] | None = None
         self.minimal_adjustment_set: list[str] | None = None
@@ -1325,7 +1348,7 @@ class CausalGraphModel:
 
     @classmethod
     def build_graphical_model(
-        cls, graph: str, treatment: list[str] | tuple[str], outcome: str
+        cls, graph: str, treatment: str | list[str] | tuple[str], outcome: str
     ) -> CausalGraphModel:
         """Create a CausalGraphModel from a string representation of a graph.
 
@@ -1333,8 +1356,8 @@ class CausalGraphModel:
         ----------
         graph : str
             A string representation of the graph (e.g., String in DOT format).
-        treatment : list[str]
-            A list of treatment variable names.
+        treatment : str or list[str]
+            One treatment variable name or a collection of treatment variable names.
         outcome : str
             The outcome variable name.
 
@@ -1367,7 +1390,7 @@ class CausalGraphModel:
         )
 
     def _backdoor_parts(
-        self, restricted: set[str] | None = None
+        self, restricted: Collection[str] | None = None
     ) -> tuple[nx.DiGraph, set[str], set[str], set[str]]:
         """Return the proper backdoor graph and admissible adjustment candidates."""
         original_graph = nx.DiGraph(self.causal_model._graph._graph)
@@ -1409,14 +1432,14 @@ class CausalGraphModel:
 
         candidates = set(backdoor_graph) - treatments - outcome - forbidden
         if restricted is not None:
-            candidates &= restricted
+            candidates &= set(restricted)
 
         return backdoor_graph, treatments, outcome, candidates
 
     def get_unique_adjustment_nodes(
         self,
-        restricted: set[str] | None = None,
-        preferred: set[str] | None = None,
+        restricted: Collection[str] | None = None,
+        preferred: Collection[str] | None = None,
     ) -> list[str]:
         """Compute one minimal admissible adjustment set across all treatments.
 
@@ -1428,10 +1451,10 @@ class CausalGraphModel:
 
         Parameters
         ----------
-        restricted : set[str], optional
+        restricted : collection of str, optional
             Restrict adjustment candidates to these variables, such as those the
             model represents. Names that are not admissible candidates are ignored.
-        preferred : set[str], optional
+        preferred : collection of str, optional
             Variables to include when a valid adjustment set containing them exists.
             If no such set exists, search again without the preference.
 
@@ -1452,7 +1475,7 @@ class CausalGraphModel:
         )
 
         adjustment_set = None
-        included = (preferred or set()) & candidates
+        included = set(preferred or ()) & candidates
         if included:
             adjustment_set = nx.find_minimal_d_separator(
                 backdoor_graph,
@@ -1477,7 +1500,7 @@ class CausalGraphModel:
         return sorted(adjustment_set)
 
     def get_indispensable_adjustment_nodes(
-        self, restricted: set[str] | None = None
+        self, restricted: Collection[str] | None = None
     ) -> list[str]:
         """Return variables that appear in every valid adjustment set.
 
@@ -1487,7 +1510,7 @@ class CausalGraphModel:
 
         Parameters
         ----------
-        restricted : set[str], optional
+        restricted : collection of str, optional
             Restrict adjustment candidates to these variables.
 
         Returns
@@ -1574,12 +1597,30 @@ class CausalGraphModel:
         list[str] or None
             Control columns needed by the selected adjustment set. When the effect
             is unidentified, the supplied controls are returned unchanged.
+
+        Warns
+        -----
+        UnidentifiedCausalEffectWarning
+            If no graph-level adjustment set exists or the represented model
+            variables do not contain a valid adjustment set.
+        UserWarning
+            If a supplied control cannot be retained without invalidating the
+            selected adjustment set.
+
+        Notes
+        -----
+        This method updates :attr:`adjustment_set`,
+        :attr:`minimal_adjustment_set`,
+        :attr:`indispensable_adjustment_nodes`,
+        :attr:`best_effort_adjustment_nodes`, and
+        :attr:`is_backdoor_identified`. Computation also runs when
+        ``control_columns`` is ``None``; the return value remains ``None``.
         """
         channel_columns = list(channel_columns)
         controls = list(control_columns) if control_columns is not None else []
         model_features = set(model_features or ())
         available = set(controls) | set(channel_columns) | model_features
-        _, _, _, candidates = self._backdoor_parts()
+        backdoor_graph, treatments, outcome, candidates = self._backdoor_parts()
 
         try:
             self.adjustment_set = self.get_unique_adjustment_nodes()
@@ -1604,7 +1645,6 @@ class CausalGraphModel:
         try:
             self.minimal_adjustment_set = self.get_unique_adjustment_nodes(
                 restricted=available,
-                preferred=model_features,
             )
         except NoAdjustmentSetError:
             self.minimal_adjustment_set = None
@@ -1615,14 +1655,15 @@ class CausalGraphModel:
             self.best_effort_adjustment_nodes = sorted(
                 set(self.adjustment_set) & available
             )
-            unavailable = sorted(candidates - available)
+            unavailable = sorted(set(self.adjustment_set) - available)
             missing_indispensable = sorted(
                 set(self.indispensable_adjustment_nodes) - available
             )
             message = (
                 "The effect is not identifiable by backdoor adjustment on the "
-                "variables the model represents. Eligible graph variables not "
-                f"represented by the model: {unavailable}."
+                "variables the model represents. One example minimal adjustment "
+                f"set uses unavailable variables: {unavailable}. Other minimal "
+                "adjustment sets may use different unavailable variables."
             )
             if missing_indispensable:
                 message += (
@@ -1640,7 +1681,15 @@ class CausalGraphModel:
             return None if control_columns is None else list(control_columns)
 
         self.best_effort_adjustment_nodes = None
-        unused_controls = set(controls) - set(selected_adjustment_set)
+        retained_adjustment_set = set(selected_adjustment_set)
+        for control in controls:
+            proposed = retained_adjustment_set | {control}
+            if proposed <= candidates and nx.is_d_separator(
+                backdoor_graph, treatments, outcome, proposed
+            ):
+                retained_adjustment_set = proposed
+
+        unused_controls = set(controls) - retained_adjustment_set
         if unused_controls:
             warnings.warn(
                 f"Columns {unused_controls} are not in the adjustment set. Controls are being modified.",
@@ -1649,6 +1698,4 @@ class CausalGraphModel:
 
         if control_columns is None:
             return None
-        return sorted(
-            set(selected_adjustment_set) - set(channel_columns) - model_features
-        )
+        return sorted(retained_adjustment_set - set(channel_columns) - model_features)

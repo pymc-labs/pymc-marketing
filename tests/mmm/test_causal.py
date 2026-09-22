@@ -817,7 +817,7 @@ def test_get_unique_adjustment_nodes(dag, treatment, outcome, expected_adjustmen
             "Y",
             ["Z", "W", "V"],  # Mixed controls
             ["X"],
-            ["Z"],  # Only Z remains, as W and V are irrelevant for adjustment
+            ["W", "Z"],  # Safe represented controls are preserved; absent V is removed
         ),
     ],
     ids=[
@@ -862,6 +862,36 @@ def test_get_unique_adjustment_nodes_restricted_and_preferred():
     ) == ["S"]
     with pytest.raises(NoAdjustmentSetError):
         causal_model.get_unique_adjustment_nodes(restricted={"W"})
+
+
+def test_adjustment_node_filters_accept_lists():
+    causal_model = CausalGraphModel.build_graphical_model(
+        graph="digraph { A -> X; A -> Y; X -> Y; }",
+        treatment="X",
+        outcome="Y",
+    )
+
+    assert causal_model.treatment == ["X"]
+    assert causal_model.get_unique_adjustment_nodes(
+        restricted=["A"], preferred=["A"]
+    ) == ["A"]
+
+
+def test_minimal_set_stays_minimal_while_safe_user_controls_are_retained():
+    causal_model = CausalGraphModel.build_graphical_model(
+        graph="digraph { A -> X; A -> S; S -> Y; X -> Y; }",
+        treatment=["X"],
+        outcome="Y",
+    )
+
+    controls = causal_model.compute_adjustment_sets(
+        channel_columns=["X"], control_columns=["A", "S"]
+    )
+
+    assert causal_model.minimal_adjustment_set is not None
+    assert len(causal_model.minimal_adjustment_set) == 1
+    assert causal_model.is_valid_adjustment_set(causal_model.minimal_adjustment_set)
+    assert controls == ["A", "S"]
 
 
 def test_multi_treatment_uses_proper_backdoor_graph_with_dowhy_oracle():
@@ -1100,6 +1130,53 @@ def test_unidentified_model_without_controls_preserves_none():
     assert not causal_model.is_backdoor_identified
 
 
+def test_unidentified_warning_omits_irrelevant_outcome_parent():
+    causal_model = CausalGraphModel.build_graphical_model(
+        graph="""
+        digraph {
+            holiday -> X;
+            holiday -> Y;
+            market_growth -> Y;
+            X -> Y;
+        }
+        """,
+        treatment=["X"],
+        outcome="Y",
+    )
+
+    with pytest.warns(UnidentifiedCausalEffectWarning) as warning:
+        causal_model.compute_adjustment_sets(channel_columns=["X"], control_columns=[])
+
+    message = str(warning[0].message)
+    assert "holiday" in message
+    assert "market_growth" not in message
+
+
+def test_unidentified_warning_labels_selected_separator_as_non_exhaustive():
+    causal_model = CausalGraphModel.build_graphical_model(
+        graph="""
+        digraph {
+            V0 -> V3;
+            V0 -> V4;
+            V1 -> V2;
+            V1 -> V3;
+            V2 -> V4;
+            V3 -> V4;
+        }
+        """,
+        treatment=["V2"],
+        outcome="V4",
+    )
+
+    with pytest.warns(UnidentifiedCausalEffectWarning) as warning:
+        causal_model.compute_adjustment_sets(channel_columns=["V2"], control_columns=[])
+
+    message = str(warning[0].message)
+    assert "One example minimal adjustment set" in message
+    assert "Other minimal adjustment sets may use different" in message
+    assert causal_model.adjustment_set in (["V1"], ["V0", "V3"])
+
+
 def test_structurally_impossible_adjustment_warns_and_preserves_controls():
     causal_model = CausalGraphModel.build_graphical_model(
         graph="digraph { Y -> X; }",
@@ -1173,7 +1250,6 @@ def test_identified_control_warning_uses_plain_user_warning():
         digraph {
             Z -> X;
             Z -> Y;
-            W -> X;
             X -> Y;
         }
         """,
@@ -1184,7 +1260,7 @@ def test_identified_control_warning_uses_plain_user_warning():
     with warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter("always")
         causal_model.compute_adjustment_sets(
-            channel_columns=["X"], control_columns=["Z", "W"]
+            channel_columns=["X"], control_columns=["Z", "NOT_IN_DAG"]
         )
 
     control_warnings = [

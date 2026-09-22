@@ -628,9 +628,10 @@ class MMM(RegressionModelBuilder):
             if (
                 self.yearly_seasonality is not None
                 and self.causal_graphical_model.is_backdoor_identified
-                and self.causal_graphical_model.minimal_adjustment_set is not None
-                and "yearly_seasonality"
-                not in self.causal_graphical_model.minimal_adjustment_set
+                and not self.causal_graphical_model.is_valid_adjustment_set(
+                    set(self.causal_graphical_model.minimal_adjustment_set or ())
+                    | {"yearly_seasonality"}
+                )
             ):
                 warnings.warn(
                     "Yearly seasonality excluded as it's not required for adjustment.",

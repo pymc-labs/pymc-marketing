@@ -5227,6 +5227,33 @@ def test_mmm_removes_yearly_seasonality_when_identified_and_unneeded():
     assert not hasattr(mmm, "yearly_fourier")
 
 
+def test_mmm_retains_admissible_yearly_seasonality_without_inflating_minimal_set():
+    mmm = MMM(
+        date_column="date",
+        target_column="target",
+        channel_columns=["channel_1"],
+        control_columns=["holiday"],
+        yearly_seasonality=2,
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+        dag="""
+        digraph {
+            yearly_seasonality -> target;
+            holiday -> channel_1;
+            holiday -> target;
+            channel_1 -> target;
+        }
+        """,
+        treatment_nodes=["channel_1"],
+        outcome_node="target",
+    )
+
+    assert mmm.causal_graphical_model.minimal_adjustment_set == ["holiday"]
+    assert mmm.control_columns == ["holiday"]
+    assert mmm.yearly_seasonality == 2
+    assert hasattr(mmm, "yearly_fourier")
+
+
 def test_mmm_retains_yearly_seasonality_when_backdoor_unidentified():
     dag = """
     digraph {
