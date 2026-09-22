@@ -385,9 +385,10 @@ class PowerPriceResponse(PriceResponse):
         window instead of per period is off by ``num_periods`` and shifts every price by
         ``num_periods ** elasticity`` with nothing in the output saying so. A typical window of 4 to 13 periods
         sits under the default, so that hypothesis is also tested by name: when the supplied value is within 5%
-        of ``num_periods`` times the derived one on every optimized cell, it is refused as a window total.
-        Setting ``reference_spend_tolerance`` explicitly (to any value) asserts that the scale is intended and
-        skips that check; the generic factor check then applies alone.
+        of ``num_periods`` times the derived one on every optimized cell, a warning names it as a likely window
+        total. A warning rather than a refusal, because it is a heuristic: a genuine ``num_periods``-fold plan
+        is not blocked, and the generic factor check still refuses the unit error on any window longer than the
+        tolerance.
     assume_delivery_units : bool
         See :class:`PriceResponse`. Declared there, with ``reference_spend``, because the optimizer reads both
         off any response before knowing its concrete type.
@@ -690,23 +691,19 @@ class PowerPriceResponse(PriceResponse):
             # The mistake this guard exists for is a window total handed over
             # as a per-period rate: off by exactly num_periods, on every cell,
             # and under the generic tolerance for any window shorter than it.
-            # Tested by name when the window is known and the user has not
-            # asserted the scale by setting the tolerance themselves.
-            if (
-                num_periods is not None
-                and num_periods > 1
-                and "reference_spend_tolerance" not in self.model_fields_set
-                and comparable.any()
-            ):
+            # Named when the window is known. A warning, not a refusal: the
+            # match is a heuristic, and a genuine num_periods-fold plan on every
+            # channel is possible if unlikely.
+            if num_periods is not None and num_periods > 1 and comparable.any():
                 scale = supplied[comparable] / expected[comparable]
                 if np.all(np.abs(scale / num_periods - 1.0) < 0.05):
-                    raise ValueError(
+                    warnings.warn(
                         f"{label}: reference_spend is num_periods ({num_periods}) times the fitted "
                         "per-period spend on every optimized cell, to within 5%: it looks like a window "
                         "total. reference_spend is per-period money, the units of result.budgets and "
-                        f"total_budget -- divide by {num_periods}. If a {num_periods}-fold scale-up on "
-                        "every channel is really intended, set reference_spend_tolerance explicitly to "
-                        "assert it."
+                        f"total_budget -- if so, divide by {num_periods}.",
+                        UserWarning,
+                        stacklevel=3,
                     )
             ratio = np.where(
                 comparable, np.maximum(supplied / expected, expected / supplied), 0.0

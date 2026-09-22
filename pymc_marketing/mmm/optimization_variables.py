@@ -326,6 +326,14 @@ class MediaVariable(OptimizationVariable):
         objective with, so the report does not land on a different backend.
     flat_dim : str
         Name of the flat dimension of the decision vector.
+
+    Attributes
+    ----------
+    price_response : ResolvedPriceResponse or None
+        The ``price_response`` *parameter* is the declaration; this attribute is
+        that declaration bound to this variable's dims, coords and mask (its
+        :meth:`~pymc_marketing.mmm.price_response.PriceResponse.resolve` result),
+        which is what :meth:`to_model` and :meth:`delivery_report` read.
     """
 
     def __init__(
@@ -576,9 +584,9 @@ class MediaVariable(OptimizationVariable):
         )
 
         if self.price_response is None or self.price_response.is_identity:
-            # Untouched: without a spend-dependent price the graph is the one
-            # this variable built before price responses existed, operation for
-            # operation. Scaling is elementwise per channel and spreading per
+            # The constant-price graph, unchanged: the identity short-circuit is
+            # what keeps a gamma = 0 baseline bitwise equal to a run without a
+            # response. Scaling is elementwise per channel and spreading per
             # period, so the two commute and both spreading paths are scaled by
             # construction. cost_per_unit is applied after time distribution so
             # each period uses its own rate.
@@ -649,8 +657,9 @@ class MediaVariable(OptimizationVariable):
             model node receives ``implied_delivery / channel_scales`` --
             (``0.0`` at zero money), ``implied_price``
             and ``implied_marginal_price`` in money per unit, ``nan`` wherever
-            per-period money is exactly ``0`` -- masked cells and any decision
-            that landed on zero -- because their price would otherwise be read
+            per-period money is zero -- masked cells and any decision that
+            landed on (or within ``1e-12`` of the reference spend of) zero --
+            because their price would otherwise be read
             off a reference they never spent against. Where money is spent,
             ``(implied_delivery * implied_price).sum(date_dim)`` equals
             ``budgets * num_periods`` to floating point (``u(s) * p(s) = s``
@@ -668,7 +677,11 @@ class MediaVariable(OptimizationVariable):
         money, delivery, price, marginal = (
             np.asarray(v) for v in self._delivery_report_fn(x)
         )
-        zero = money == 0.0
+        # SLSQP leaves a cell it drove to the bound at 1e-16 as often as at
+        # exactly 0; both bought nothing, so the mask follows the intent rather
+        # than the bit pattern. Relative to the reference so the threshold has
+        # the units of money.
+        zero = money <= 1e-12 * self.price_response.reference_spend
         price = np.where(zero, np.nan, price)
         marginal = np.where(zero, np.nan, marginal)
         dims = (self.date_dim, *self.dims)

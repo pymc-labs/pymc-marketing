@@ -2261,15 +2261,17 @@ class BudgetOptimizer(BaseModel):
                 "information."
             )
 
-    def _decision_date_coords(self) -> list:
-        """Labels of the decision block of the model's date axis, or positions for a length-only dim.
+    def _decision_date_coords(self) -> list | None:
+        """Labels of the decision block of the model's date axis; ``None`` for a length-only dim.
 
         ``_validate_date_length`` has already checked that carry-in, decisions and
-        carry-over add up to the axis, so the slice is safe.
+        carry-over add up to the axis, so the slice is safe. ``None`` rather than
+        positions so the report carries no date labels the rest of the result
+        does not have.
         """
         dates = self.model.coords.get(self.date_dim)
         if dates is None:
-            return list(range(self.num_periods))
+            return None
         return list(dates)[
             self.carry_in_periods : self.carry_in_periods + self.num_periods
         ]
@@ -2514,10 +2516,21 @@ class BudgetOptimizer(BaseModel):
         # dates) but lives in a module that imports this one -- and that this
         # module is tested never to import -- so it is not reusable from here.
         raw = self.idata.attrs.get("cost_per_unit")
-        table = json.loads(raw) if isinstance(raw, str) else None
-        if not table:
+        try:
+            table = json.loads(raw) if isinstance(raw, str) else None
+            columns = set(table["columns"]) if table else None
+        except (ValueError, KeyError, TypeError):
+            # Garbage in the attr is "no usable table", not a JSONDecodeError
+            # out of the middle of the gate.
+            columns = None
+        if columns is None:
             return None
-        return set(table["columns"]) - {"date"} - set(self._budget_dims)
+        # The frame is wide: one column per custom dim (``geo``, ``country``,
+        # ...) plus one per channel, and ``_parse_cost_per_unit_df`` reads any
+        # column named like a custom dim as that dim. Only those are removed;
+        # ``channel`` itself is the axis the columns are labels of, so a channel
+        # literally named "channel" stays priced.
+        return columns - {"date"} - (set(self._budget_dims) - {"channel"})
 
     def _unpriced_optimized_channels(self, priced: set[str]) -> list[str]:
         """Optimized channels absent from the table, read off the resolved mask's ``channel`` dim."""
@@ -2550,7 +2563,7 @@ class BudgetOptimizer(BaseModel):
         # already have.
         priced = self._priced_channels()
         if priced is None:
-            who = "every optimized channel (no historical cost_per_unit table on the fitted model)"
+            who = "every optimized channel (no usable historical cost_per_unit table on the fitted model)"
         elif "channel" not in self._budget_dims:
             who = (
                 "every optimized channel (the fitted model prices channels, but this "
@@ -3203,6 +3216,14 @@ class BudgetOptimizer(BaseModel):
                 result.x[self._variables.slices[self.channel_data_var]],
                 date_coords=self._decision_date_coords(),
             )
+            if report:
+                # A marker for consumers that feed an allocation to the model as
+                # channel units (sample_response_distribution): these budgets are
+                # money whose unit price varied with spend, and the delivery they
+                # bought is in the report, not in the budgets.
+                optimal_budgets.attrs["price_response"] = type(
+                    self._media_variable.price_response
+                ).__name__
             return BudgetOptimizationResult(
                 budgets=optimal_budgets,
                 scipy_result=result,

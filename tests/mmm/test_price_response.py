@@ -365,31 +365,31 @@ class TestPowerPriceResponseValidation:
         """The mistake the tolerance guard exists for is a window total mistaken for a
         per-period rate, off by exactly num_periods -- and a typical window of 4 to 13
         periods sits under the 10x default. Given num_periods, the hypothesis is tested
-        by name on every optimized cell, independently of the tolerance. Setting
-        reference_spend_tolerance explicitly asserts the scale is intended and skips it."""
+        by name on every optimized cell, independently of the tolerance. It is a
+        heuristic (5%, every cell), so it warns rather than refuses: a genuine
+        num_periods-fold plan is not blocked, and the generic factor check still refuses
+        the real unit error on any window longer than the tolerance."""
         fitted = derived([100.0, 200.0, 50.0])
-        with pytest.raises(ValueError, match=r"num_periods \(4\).*window total"):
+        with pytest.warns(UserWarning, match=r"num_periods \(4\).*window total"):
             PowerPriceResponse(elasticity=0.2, reference_spend=fitted * 4).resolve(
                 **layout(), derived_reference=fitted, num_periods=4
             )
         # Within a few percent still reads as the same mistake.
-        with pytest.raises(ValueError, match="window total"):
+        with pytest.warns(UserWarning, match="window total"):
             PowerPriceResponse(elasticity=0.2, reference_spend=fitted * 4.1).resolve(
                 **layout(), derived_reference=fitted, num_periods=4
             )
-        # Not on every cell: not that mistake, and 4x is inside the generic tolerance.
-        mixed = derived([400.0, 200.0, 200.0])
-        PowerPriceResponse(elasticity=0.2, reference_spend=mixed).resolve(
-            **layout(), derived_reference=fitted, num_periods=4
-        )
-        # An explicit tolerance is the assertion that the scale is meant.
-        PowerPriceResponse(
-            elasticity=0.2, reference_spend=fitted * 4, reference_spend_tolerance=10.0
-        ).resolve(**layout(), derived_reference=fitted, num_periods=4)
-        # Without num_periods there is no hypothesis to test.
-        PowerPriceResponse(elasticity=0.2, reference_spend=fitted * 4).resolve(
-            **layout(), derived_reference=fitted
-        )
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            # Not on every cell: not that mistake, and 4x is inside the generic tolerance.
+            mixed = derived([400.0, 200.0, 200.0])
+            PowerPriceResponse(elasticity=0.2, reference_spend=mixed).resolve(
+                **layout(), derived_reference=fitted, num_periods=4
+            )
+            # Without num_periods there is no hypothesis to test.
+            PowerPriceResponse(elasticity=0.2, reference_spend=fitted * 4).resolve(
+                **layout(), derived_reference=fitted
+            )
 
     def test_supplied_reference_far_from_the_derived_one_is_rejected_naming_both(self):
         """A reference summed over a 52-week window is off by 52x and would shift every

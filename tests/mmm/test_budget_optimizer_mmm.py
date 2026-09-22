@@ -1768,6 +1768,7 @@ def test_budget_optimizer_new_api(dummy_df, fitted_mmm):
 def test_wrapper_optimize_budget_forwards_price_response(dummy_df, fitted_mmm):
     """The issue's suggested API is wrapper.optimize_budget(..., price_response=...)."""
     _df_kwargs, X_dummy, _y_dummy = dummy_df
+    fitted_mmm.add_original_scale_contribution_variable(["channel_contribution"])
     with pytest.warns(DeprecationWarning):
         wrapper = BudgetOptimizerWrapper(
             model=fitted_mmm,
@@ -1778,6 +1779,13 @@ def test_wrapper_optimize_budget_forwards_price_response(dummy_df, fitted_mmm):
         budget=10.0, price_response=PowerPriceResponse(elasticity=0.0)
     )
     assert result.implied_price is not None
+
+    # The budgets are stamped, and the deprecated sampler -- which feeds an
+    # allocation to the model as channel units -- warns when it sees the stamp,
+    # naming the array it should have been given instead.
+    assert "price_response" in result.budgets.attrs
+    with pytest.warns(UserWarning, match="implied_delivery"):
+        wrapper.sample_response_distribution(result.budgets)
 
 
 class _MediatedEffect(MuEffect):

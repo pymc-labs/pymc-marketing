@@ -1139,10 +1139,10 @@ class TestPriceResponseGate:
             )
 
     def test_reference_spend_at_window_granularity_is_refused(self, simple_fitted_mmm):
-        """A 52-week-window total is 52x the per-period rate; the generic 10x guard sees
-        that. A 4-week-window total is only 4x, under the default tolerance, but the
-        optimizer knows num_periods and names that hypothesis directly; an explicit
-        tolerance asserts the scale is intended and skips it."""
+        """A 52-week-window total is 52x the per-period rate; the generic 10x guard refuses
+        it. A 4-week-window total is only 4x, under the default tolerance, but the
+        optimizer knows num_periods and names that hypothesis as a warning -- a heuristic,
+        so it does not block a genuine num_periods-fold plan."""
         mmm = simple_fitted_mmm
         mmm.set_cost_per_unit(_full_table(mmm, dict.fromkeys(CHANNELS_3, 2.0)))
         fitted = _on_air_reference(mmm)
@@ -1153,21 +1153,16 @@ class TestPriceResponseGate:
                     elasticity=0.3, reference_spend=fitted * 52
                 ),
             )
-        with pytest.raises(ValueError, match=r"num_periods \(4\).*window total"):
-            _optimizer(
-                mmm,
+        start, end = _window(mmm)
+        with pytest.warns(UserWarning, match=r"num_periods \(4\).*window total"):
+            mmm.budget_optimizer(
+                start,
+                end,
+                cost_per_unit=_window_cpu(mmm, dict.fromkeys(CHANNELS_3, 2.0)),
                 price_response=PowerPriceResponse(
                     elasticity=0.3, reference_spend=fitted * WINDOW_WEEKS
                 ),
             )
-        _optimizer(
-            mmm,
-            price_response=PowerPriceResponse(
-                elasticity=0.3,
-                reference_spend=fitted * WINDOW_WEEKS,
-                reference_spend_tolerance=10.0,
-            ),
-        )
         with pytest.raises(ValueError, match="4x apart"):
             _optimizer(
                 mmm,
@@ -1177,6 +1172,21 @@ class TestPriceResponseGate:
                     reference_spend_tolerance=2.0,
                 ),
             )
+
+    def test_a_malformed_table_attr_is_read_as_no_table(self, simple_fitted_mmm):
+        """Garbage in idata.attrs['cost_per_unit'] must not escape the gate as a bare
+        JSONDecodeError; it reads as no usable table and gets the curated refusal."""
+        mmm = simple_fitted_mmm
+        mmm.idata.attrs["cost_per_unit"] = "not json at all"
+        with pytest.raises(
+            ValueError, match="no usable historical cost_per_unit table"
+        ):
+            _optimizer(mmm, price_response=PowerPriceResponse(elasticity=0.3))
+        mmm.idata.attrs["cost_per_unit"] = '{"not": "a split frame"}'
+        with pytest.raises(
+            ValueError, match="no usable historical cost_per_unit table"
+        ):
+            _optimizer(mmm, price_response=PowerPriceResponse(elasticity=0.3))
 
 
 class TestPriceResponseAllocation:
@@ -1247,7 +1257,9 @@ class TestPriceResponseAllocation:
             dims=("channel",),
             coords={"channel": CHANNELS_3},
         )
-        spent = result.budgets > 0
+        # "Spent" as the report says it: a cell SLSQP left at 1e-16 bought nothing and
+        # carries a nan price, whatever `budgets > 0` says about the bit pattern.
+        spent = result.implied_price.notnull().any("date")
         floor = optimizer.optimization_variables.variables[0].price_response.s_floor
         floor_da = xr.DataArray(
             floor, dims=("channel",), coords={"channel": CHANNELS_3}
@@ -1316,6 +1328,52 @@ class TestPriceResponseAllocation:
         xr.testing.assert_allclose(
             per_period, result.implied_delivery.isel(date=0, drop=True)
         )
+
+    def test_non_uniform_distribution_end_to_end(self, simple_fitted_mmm):
+        """Through allocate_budget, not only at the MediaVariable level: the money
+        identity holds with a non-uniform spread including a period whose factor is
+        exactly 0 (which reports a nan price), a gamma = 0 channel reports a flat p0, and
+        a priced channel's price follows its per-period money -- so implied_delivery
+        already carries the spread, which is why sample_response_distribution must not
+        be handed the distribution a second time."""
+        mmm = simple_fitted_mmm
+        mmm.set_cost_per_unit(_full_table(mmm, self.PRICES))
+        window_cpu = _window_cpu(mmm, self.PRICES)
+        # channel_1: front-loaded; channel_2: uniform (and gamma = 0); channel_3: two dark periods.
+        factors = np.array(
+            [[0.4, 0.25, 0.7], [0.3, 0.25, 0.3], [0.2, 0.25, 0.0], [0.1, 0.25, 0.0]]
+        )
+        distribution = xr.DataArray(
+            factors, dims=("date", "channel"), coords=window_cpu.coords
+        )
+        gamma = {"channel_1": 0.3, "channel_2": 0.0, "channel_3": 0.5}
+        optimizer = _optimizer(
+            mmm,
+            cost_per_unit=window_cpu,
+            budget_distribution_over_period=distribution,
+            price_response=PowerPriceResponse(elasticity=gamma),
+        )
+        result = optimizer.allocate_budget(total_budget=600.0)
+        assert result.scipy_result.success, result.scipy_result.message
+        assert bool((result.budgets > 0).all())
+
+        price = result.implied_price
+        money = xr.where(np.isnan(price), 0.0, result.implied_delivery * price)
+        xr.testing.assert_allclose(
+            money.sum("date"), result.budgets * optimizer.num_periods
+        )
+
+        dark = price.sel(channel="channel_3").isel(date=[2, 3])
+        assert bool(np.isnan(dark).all())
+        assert bool(
+            (
+                result.implied_delivery.sel(channel="channel_3").isel(date=[2, 3]) == 0
+            ).all()
+        )
+        flat = price.sel(channel="channel_2")
+        np.testing.assert_allclose(flat.values, self.PRICES["channel_2"])
+        front_loaded = price.sel(channel="channel_1").values
+        assert np.all(np.diff(front_loaded) < 0), front_loaded
 
 
 def _spread(values: np.ndarray) -> float:

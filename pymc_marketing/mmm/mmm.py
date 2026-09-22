@@ -4646,6 +4646,17 @@ class BudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
         xr.Dataset
             The posterior predictive samples based on the synthetic dataset.
         """
+        if "price_response" in getattr(allocation_strategy, "attrs", {}):
+            warnings.warn(
+                "allocation_strategy was optimized under a spend-dependent price "
+                f"({allocation_strategy.attrs['price_response']}): it is money, and this "
+                "method feeds it to the model as channel units. Pass "
+                "result.implied_delivery.mean('date') instead (exact under a uniform "
+                "budget_distribution_over_period), or score the plan with "
+                "BudgetOptimizer.evaluate_response_distribution, which runs the price map.",
+                UserWarning,
+                stacklevel=2,
+            )
         data = create_zero_dataset(
             model=self,
             start_date=self.start_date,
