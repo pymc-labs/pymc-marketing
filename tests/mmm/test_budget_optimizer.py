@@ -894,6 +894,12 @@ class TestEvaluatePlan:
             coords={"channel": [*self.CHANNELS, "legacy_print"]},
         )
 
+        # The dangerous one: the retained cells sum to exactly the budget, so
+        # a plan that actually spends 1099 would have been reported feasible
+        # at 100 once the extra channel was dropped.
+        with pytest.raises(ValueError, match="coordinates the model does not have"):
+            optimizer.evaluate_plan(plan, total_budget=100.0)
+
         with pytest.raises(ValueError, match="coordinates the model does not have"):
             optimizer.evaluate_plan(plan)
 
