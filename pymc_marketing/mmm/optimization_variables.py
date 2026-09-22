@@ -320,6 +320,10 @@ class MediaVariable(OptimizationVariable):
         Per-period money per cell the optimizer derived from the fitted model,
         the default ``reference_spend``. ``None`` when the response supplies
         its own or there is nothing to derive from.
+    compile_kwargs : dict or None
+        Keyword arguments for ``pytensor.function`` when compiling
+        :meth:`delivery_report`, the same ones the optimizer compiles its
+        objective with, so the report does not land on a different backend.
     flat_dim : str
         Name of the flat dimension of the decision vector.
     """
@@ -339,6 +343,7 @@ class MediaVariable(OptimizationVariable):
         carry_in_values: np.ndarray | None = None,
         price_response: PriceResponse | None = None,
         price_reference: DataArray | None = None,
+        compile_kwargs: dict | None = None,
         flat_dim: str = FLAT_DIM,
     ) -> None:
         if np.dtype(dtype).kind != "f":
@@ -392,6 +397,7 @@ class MediaVariable(OptimizationVariable):
                 label=f"{name}: price_response",
             )
         )
+        self.compile_kwargs = compile_kwargs
         self._delivery_report_fn: Callable[..., list[np.ndarray]] | None = None
 
     @property
@@ -644,7 +650,8 @@ class MediaVariable(OptimizationVariable):
             that landed on zero -- because their price would otherwise be read
             off a reference they never spent against. Where money is spent,
             ``(implied_delivery * implied_price).sum(date_dim)`` equals
-            ``budgets * num_periods`` exactly.
+            ``budgets * num_periods`` to floating point (``u(s) * p(s) = s``
+            algebraically).
         """
         if self.price_response is None:
             return {}
@@ -686,7 +693,9 @@ class MediaVariable(OptimizationVariable):
             self.price_response.implied_marginal_price(money, base_price=p0),
         ]
         return function(
-            [z], [out.transpose(self.date_dim, *self.dims) for out in outputs]
+            [z],
+            [out.transpose(self.date_dim, *self.dims) for out in outputs],
+            **(self.compile_kwargs or {}),
         )
 
     def unpack(self, x: np.ndarray) -> DataArray:

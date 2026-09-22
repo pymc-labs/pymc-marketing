@@ -1076,6 +1076,47 @@ class TestPriceResponseGate:
     def test_identity_response_skips_the_gate(self, simple_fitted_mmm):
         _optimizer(simple_fitted_mmm, price_response=PowerPriceResponse(elasticity=0.0))
 
+    def test_a_response_that_only_prices_masked_channels_is_the_identity(
+        self, simple_fitted_mmm
+    ):
+        """resolve() zeroes elasticity outside the mask, so the gate must judge the
+        response after masking too. Otherwise a no-op response on an unpriced model is
+        refused with a message about channels it never touches."""
+        mask = xr.DataArray(
+            [True, True, False], dims=("channel",), coords={"channel": CHANNELS_3}
+        )
+        optimizer = _optimizer(
+            simple_fitted_mmm,
+            budgets_to_optimize=mask,
+            price_response=PowerPriceResponse(elasticity={"channel_3": 0.4}),
+        )
+        assert optimizer.optimization_variables.variables[0].price_response.is_identity
+
+    def test_priced_table_with_unusable_channel_spend_names_the_real_problem(
+        self, simple_fitted_mmm
+    ):
+        """The table prices every optimized channel but constant_data has no usable
+        channel_spend: the fit is in delivery units, only the reference cannot be
+        derived. Saying "no historical cost_per_unit table" would send the user to set
+        the table they already set. An explicit reference_spend is enough here; no
+        assume_delivery_units, because the artifact does vouch for the units."""
+        mmm = simple_fitted_mmm
+        mmm.set_cost_per_unit(_full_table(mmm, dict.fromkeys(CHANNELS_3, 2.0)))
+        del mmm.idata.constant_data["channel_spend"]
+        with pytest.raises(ValueError, match="channel_spend") as info:
+            _optimizer(mmm, price_response=PowerPriceResponse(elasticity=0.3))
+        assert "no historical cost_per_unit table" not in str(info.value)
+        assert "fitted on nominal spend" not in str(info.value)
+        reference = xr.DataArray(
+            [100.0, 100.0, 100.0], dims=("channel",), coords={"channel": CHANNELS_3}
+        )
+        _optimizer(
+            mmm,
+            price_response=PowerPriceResponse(
+                elasticity=0.3, reference_spend=reference
+            ),
+        )
+
     def test_priced_model_without_a_window_price_warns(self, simple_fitted_mmm):
         """The gate has just established that channel data is in delivery units. With no
         window cost_per_unit the base price is 1 and money reaches the model as units; the
@@ -1235,6 +1276,35 @@ class TestPriceResponseAllocation:
         assert result.implied_delivery is None
         assert result.implied_price is None
         assert result.implied_marginal_price is None
+
+    def test_response_distribution_sees_the_price_map(self, simple_fitted_mmm):
+        """The non-deprecated way to score a plan's posterior response is
+        evaluate_response_distribution, which runs the same graph the solver used, price
+        map included. implied_delivery is per period; the deprecated
+        sample_response_distribution takes a date-less allocation, so it needs the
+        per-period mean and is exact only under a uniform spread."""
+        mmm = simple_fitted_mmm
+        mmm.set_cost_per_unit(_full_table(mmm, self.PRICES))
+        window_cpu = _window_cpu(mmm, self.PRICES)
+        constant = _optimizer(mmm, cost_per_unit=window_cpu)
+        aware = _optimizer(
+            mmm,
+            cost_per_unit=window_cpu,
+            price_response=PowerPriceResponse(elasticity={"channel_2": 0.4}),
+        )
+        result = aware.allocate_budget(total_budget=600.0)
+
+        response_constant = constant.evaluate_response_distribution(result.budgets)
+        response_aware = aware.evaluate_response_distribution(result.budgets)
+        assert response_constant.dims == response_aware.dims
+        assert not np.allclose(response_constant.values, response_aware.values)
+
+        per_period = result.implied_delivery.mean("date")
+        assert "date" not in per_period.dims
+        # Uniform spread: every period bought the same units, so the mean is each period.
+        xr.testing.assert_allclose(
+            per_period, result.implied_delivery.isel(date=0, drop=True)
+        )
 
 
 def _spread(values: np.ndarray) -> float:

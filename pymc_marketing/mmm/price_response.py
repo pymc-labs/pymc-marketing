@@ -294,6 +294,24 @@ class PriceResponse(BaseModel, ABC):
     def is_identity(self) -> bool:
         """True when the map is exactly ``spend / base_price`` on every cell."""
 
+    def is_identity_on(
+        self,
+        *,
+        dims: tuple[str, ...],
+        coords: Mapping[str, list],
+        mask: DataArray,
+        date_dim: str,
+    ) -> bool:
+        """Report whether the map is the identity on every *optimized* cell of a layout.
+
+        :meth:`resolve` ignores the declaration outside the mask, so a response that names only masked-out
+        cells resolves to the identity even though :attr:`is_identity` is False. The optimizer asks this
+        before running its fitted-artifact gate, so a no-op response is not refused over channels it never
+        touches. The default answers from the declaration alone; families whose elasticity varies by cell
+        override it.
+        """
+        return self.is_identity
+
     @abstractmethod
     def resolve(
         self,
@@ -407,9 +425,15 @@ class PowerPriceResponse(PriceResponse):
     high-elasticity channels, which is the biddable-next-to-reserved case this feature exists for. Each reprice
     pass also needs a fresh optimizer, since ``cost_per_unit`` is fixed at construction.
 
-    **Reading the result.** ``result.implied_delivery`` is the delivery in the model's channel units, which is
-    what :meth:`~pymc_marketing.mmm.mmm.BudgetOptimizerWrapper.sample_response_distribution` wants as channel
-    data. ``result.implied_marginal_price / result.implied_price == 1 / (1 - elasticity)`` above the floor, so at
+    **Reading the result.** ``result.implied_delivery`` is the delivery per period, in the model's channel
+    units. To score the plan's posterior response use
+    :meth:`~pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.evaluate_response_distribution`, which runs
+    the same graph the solver used, price map included. The deprecated
+    :meth:`~pymc_marketing.mmm.mmm.BudgetOptimizerWrapper.sample_response_distribution` takes a date-less
+    allocation and broadcasts it over the window, so it needs ``implied_delivery.mean(date_dim)`` and is
+    exact only under a uniform ``budget_distribution_over_period``; with a non-uniform one the per-period
+    spread is already inside ``implied_delivery`` and must not be applied a second time.
+    ``result.implied_marginal_price / result.implied_price == 1 / (1 - elasticity)`` above the floor, so at
     ``elasticity=0.25`` the next unit costs 33% more than the average one.
 
     Examples
@@ -469,6 +493,27 @@ class PowerPriceResponse(PriceResponse):
         """True when every elasticity is exactly zero."""
         return bool(np.all(self._known_elasticities() == 0.0))
 
+    def is_identity_on(
+        self,
+        *,
+        dims: tuple[str, ...],
+        coords: Mapping[str, list],
+        mask: DataArray,
+        date_dim: str,
+    ) -> bool:
+        """Report whether every *optimized* cell has zero elasticity; see :meth:`PriceResponse.is_identity_on`."""
+        if self.is_identity:
+            return True
+        dims = tuple(dims)
+        template = DataArray(
+            np.zeros(tuple(len(coords[d]) for d in dims)),
+            dims=dims,
+            coords={d: list(coords[d]) for d in dims},
+        )
+        on = np.asarray(mask.transpose(*dims).values, dtype=bool)
+        gamma = self._resolve_elasticity(template, date_dim, "price_response")
+        return bool(np.all(gamma[on] == 0.0))
+
     def resolve(
         self,
         *,
@@ -492,8 +537,9 @@ class PowerPriceResponse(PriceResponse):
         # a decision set whose every cell is at gamma = 0 stays the identity.
         gamma = np.where(on, self._resolve_elasticity(template, date_dim, label), 0.0)
 
-        if self.is_identity:
-            # Never read: at gamma = 0 the floor is 0 and (s / s_ref) ** 0 is 1.
+        if not np.any(gamma):
+            # The identity on every optimized cell. The reference is never
+            # read: at gamma = 0 the floor is 0 and (s / s_ref) ** 0 is 1.
             reference = np.ones(template.shape)
         elif self.reference_spend is not None:
             reference = self._resolve_supplied_reference(

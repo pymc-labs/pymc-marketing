@@ -20,6 +20,7 @@ import pytensor.xtensor as ptx
 import pytest
 import xarray as xr
 from pytensor import function
+from pytensor.compile.mode import Mode
 from pytensor.xtensor import as_xtensor
 
 from pymc_marketing.mmm import PowerPriceResponse
@@ -847,7 +848,13 @@ CONCENTRATED = np.array(
 
 
 def _priced_variable(
-    *, elasticity, scales=1.0, distribution=None, cost_per_unit=None, mask_values=None
+    *,
+    elasticity,
+    scales=1.0,
+    distribution=None,
+    cost_per_unit=None,
+    mask_values=None,
+    compile_kwargs=None,
 ):
     mask = xr.DataArray(
         np.ones(3, dtype=bool)
@@ -881,6 +888,7 @@ def _priced_variable(
             else as_xtensor(cost_per_unit, dims=("date", "channel"))
         ),
         price_response=response,
+        compile_kwargs=compile_kwargs,
     )
 
 
@@ -994,3 +1002,21 @@ def test_delivery_report_is_labelled_and_nan_where_no_money_is_spent():
 def test_delivery_report_is_empty_without_a_price_response():
     rng = np.random.default_rng(32)
     assert make_media_variable(rng).delivery_report(np.ones(3)) == {}
+
+
+def test_delivery_report_compiles_with_the_optimizer_compile_kwargs():
+    """Everything else in the optimizer compiles through compile_kwargs; the report must
+    not silently land on the default backend when the user asked for another."""
+    variable = _priced_variable(
+        elasticity=0.3, compile_kwargs={"mode": Mode(linker="py")}
+    )
+    variable.delivery_report(np.array([50.0, 60.0, 70.0]))
+    assert (
+        type(variable._delivery_report_fn.maker.mode.linker).__name__ == "PerformLinker"
+    )
+
+    default = _priced_variable(elasticity=0.3)
+    default.delivery_report(np.array([50.0, 60.0, 70.0]))
+    assert (
+        type(default._delivery_report_fn.maker.mode.linker).__name__ != "PerformLinker"
+    )
