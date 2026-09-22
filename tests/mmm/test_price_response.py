@@ -19,11 +19,15 @@ import numpy as np
 import pytensor.tensor as pt
 import pytensor.xtensor as ptx
 import pytest
+import xarray as xr
 from pytensor import function
 from pytensor.graph import rewrite_graph
 from pytensor.xtensor import as_xtensor
 
-from pymc_marketing.mmm.price_response import ResolvedPowerPriceResponse
+from pymc_marketing.mmm.price_response import (
+    PowerPriceResponse,
+    ResolvedPowerPriceResponse,
+)
 
 # The optimizer lowers before differentiating (budget_optimizer.py:2687-2690);
 # xtensor ops have no L_op, so every gradient here goes the same way.
@@ -211,3 +215,226 @@ class TestResolvedPowerPriceResponse:
                 dims=DIMS,
                 label="t",
             )
+
+
+def layout(dims=("channel",), coords=None, mask_values=None):
+    """What a MediaVariable hands to resolve(): its dims, coords and mask."""
+    coords = coords or {"channel": ["tv", "radio", "digital"]}
+    shape = tuple(len(coords[d]) for d in dims)
+    values = (
+        np.ones(shape, dtype=bool)
+        if mask_values is None
+        else np.asarray(mask_values, dtype=bool)
+    )
+    mask = xr.DataArray(values, dims=dims, coords=coords)
+    return dict(
+        dims=dims,
+        coords=coords,
+        mask=mask,
+        date_dim="date",
+        label="channel_data: price_response",
+    )
+
+
+def derived(values, coords=None):
+    coords = coords or {"channel": ["tv", "radio", "digital"]}
+    return xr.DataArray(
+        np.asarray(values, dtype=float), dims=tuple(coords), coords=coords
+    )
+
+
+class TestPowerPriceResponseValidation:
+    @pytest.mark.parametrize("elasticity", [1.0, 1.5, -0.1])
+    def test_elasticity_domain_is_half_open(self, elasticity):
+        """At gamma = 1 delivery is constant in spend; above it the map decreases and the
+        optimizer drives the channel to its lower bound."""
+        with pytest.raises(ValueError, match="0 <= elasticity < 1"):
+            PowerPriceResponse(elasticity=elasticity)
+        with pytest.raises(ValueError, match="0 <= elasticity < 1"):
+            PowerPriceResponse(elasticity={"tv": elasticity})
+
+    def test_max_slope_ratio_must_exceed_the_endpoint_overshoot(self):
+        """(1 + g) / (1 - g) is 3 at g = 0.5; at or below it the floor lands above the reference."""
+        with pytest.raises(ValueError, match="max_slope_ratio must exceed 3"):
+            PowerPriceResponse(elasticity=0.5, max_slope_ratio=3.0)
+        PowerPriceResponse(elasticity=0.5, max_slope_ratio=3.01)
+
+    @pytest.mark.parametrize(
+        "elasticity, expected",
+        [
+            (0.0, True),
+            ({}, True),
+            ({"tv": 0.0}, True),
+            ({"tv": 0.1}, False),
+            (
+                xr.DataArray(
+                    [0.0, 0.0], dims=("channel",), coords={"channel": ["tv", "radio"]}
+                ),
+                True,
+            ),
+            (0.2, False),
+        ],
+    )
+    def test_is_identity_only_when_every_elasticity_is_zero(self, elasticity, expected):
+        assert PowerPriceResponse(elasticity=elasticity).is_identity is expected
+
+    def test_scalar_elasticity_broadcasts_to_every_cell(self):
+        resolved = PowerPriceResponse(
+            elasticity=0.2, reference_spend=derived([1, 2, 3])
+        ).resolve(**layout(), derived_reference=None)
+        np.testing.assert_array_equal(resolved.gamma, [0.2, 0.2, 0.2])
+        np.testing.assert_array_equal(resolved.reference_spend, [1.0, 2.0, 3.0])
+
+    def test_mapping_keys_must_be_labels_of_exactly_one_dim(self):
+        coords = {"geo": ["US", "UK"], "channel": ["tv", "radio"]}
+        two_d = layout(dims=("geo", "channel"), coords=coords)
+        reference = derived(np.full((2, 2), 50.0), coords=coords)
+
+        resolved = PowerPriceResponse(
+            elasticity={"tv": 0.3}, reference_spend=reference
+        ).resolve(**two_d, derived_reference=None)
+        np.testing.assert_array_equal(resolved.gamma, [[0.3, 0.0], [0.3, 0.0]])
+
+        with pytest.raises(ValueError, match="none matches"):
+            PowerPriceResponse(
+                elasticity={"nowhere": 0.3}, reference_spend=reference
+            ).resolve(**two_d, derived_reference=None)
+        with pytest.raises(ValueError, match="none matches"):
+            PowerPriceResponse(
+                elasticity={"tv": 0.3, "US": 0.1}, reference_spend=reference
+            ).resolve(**two_d, derived_reference=None)
+        # A label that exists in two dims is genuinely ambiguous.
+        clashing = {"geo": ["US", "tv"], "channel": ["tv", "radio"]}
+        with pytest.raises(ValueError, match=r"they match \['geo', 'channel'\]"):
+            PowerPriceResponse(
+                elasticity={"tv": 0.3},
+                reference_spend=derived(np.full((2, 2), 50.0), coords=clashing),
+            ).resolve(
+                **layout(dims=("geo", "channel"), coords=clashing),
+                derived_reference=None,
+            )
+
+    def test_dataarray_elasticity_with_a_date_dim_is_rejected(self):
+        e = xr.DataArray(
+            np.zeros((2, 3)),
+            dims=("date", "channel"),
+            coords={"date": [0, 1], "channel": ["tv", "radio", "digital"]},
+        )
+        with pytest.raises(ValueError, match="seasonal price"):
+            PowerPriceResponse(
+                elasticity=e, reference_spend=derived([1, 1, 1])
+            ).resolve(**layout(), derived_reference=None)
+
+    def test_dataarray_elasticity_with_an_unknown_label_is_rejected(self):
+        e = xr.DataArray(
+            [0.1, 0.2], dims=("channel",), coords={"channel": ["tv", "print"]}
+        )
+        with pytest.raises(ValueError, match="coordinates the model does not have"):
+            PowerPriceResponse(
+                elasticity=e, reference_spend=derived([1, 1, 1])
+            ).resolve(**layout(), derived_reference=None)
+
+    def test_supplied_reference_must_carry_exactly_the_budget_dims(self):
+        with_date = xr.DataArray(
+            np.ones((2, 3)),
+            dims=("date", "channel"),
+            coords={"date": [0, 1], "channel": ["tv", "radio", "digital"]},
+        )
+        with pytest.raises(ValueError, match="per-period money per cell"):
+            PowerPriceResponse(elasticity=0.2, reference_spend=with_date).resolve(
+                **layout(), derived_reference=None
+            )
+
+    def test_supplied_reference_far_from_the_derived_one_is_rejected_naming_both(self):
+        """A reference summed over a 52-week window is off by 52x and would shift every
+        price by 52 ** gamma with nothing in the output saying so."""
+        fitted = derived([100.0, 100.0, 100.0])
+        with pytest.raises(
+            ValueError, match=r"5200.*\b100\b.*52x apart.*per-period money"
+        ):
+            PowerPriceResponse(elasticity=0.2, reference_spend=fitted * 52).resolve(
+                **layout(), derived_reference=fitted
+            )
+        # 4x is inside the default 10x tolerance and outside a 2x one.
+        PowerPriceResponse(elasticity=0.2, reference_spend=fitted * 4).resolve(
+            **layout(), derived_reference=fitted
+        )
+        with pytest.raises(ValueError, match="4x apart"):
+            PowerPriceResponse(
+                elasticity=0.2,
+                reference_spend=fitted * 4,
+                reference_spend_tolerance=2.0,
+            ).resolve(**layout(), derived_reference=fitted)
+
+    def test_derived_reference_missing_on_an_optimized_cell_is_rejected(self):
+        """A cell with no on-air history has no price level to anchor to; outside the
+        mask it does not matter and is filled with a finite sentinel."""
+        with pytest.raises(ValueError, match=r"no on-air period.*\('radio',\)"):
+            PowerPriceResponse(elasticity=0.2).resolve(
+                **layout(), derived_reference=derived([100.0, np.nan, 100.0])
+            )
+        resolved = PowerPriceResponse(elasticity=0.2).resolve(
+            **layout(mask_values=[True, False, True]),
+            derived_reference=derived([100.0, np.nan, 100.0]),
+        )
+        np.testing.assert_array_equal(resolved.reference_spend, [100.0, 1.0, 100.0])
+
+    def test_identity_needs_no_reference_of_any_kind(self):
+        resolved = PowerPriceResponse(elasticity=0.0).resolve(
+            **layout(), derived_reference=None
+        )
+        assert resolved.is_identity
+        np.testing.assert_array_equal(resolved.reference_spend, [1.0, 1.0, 1.0])
+
+    def test_non_identity_without_any_reference_is_rejected(self):
+        with pytest.raises(ValueError, match="reference_spend is required"):
+            PowerPriceResponse(elasticity=0.2).resolve(
+                **layout(), derived_reference=None
+            )
+
+    def test_coordinate_less_dims_are_refused_not_consumed_positionally(self):
+        """`reindex` has nothing to align an unlabelled dim by and stamps the model's labels on
+        in arrival order -- the #3038 hazard, one level down. Both inputs are checked."""
+        with pytest.raises(ValueError, match="carry no coordinates"):
+            PowerPriceResponse(
+                elasticity=xr.DataArray([0.1, 0.2, 0.3], dims=("channel",)),
+                reference_spend=derived([1, 1, 1]),
+            ).resolve(**layout(), derived_reference=None)
+        with pytest.raises(ValueError, match="carry no coordinates"):
+            PowerPriceResponse(
+                elasticity=0.2,
+                reference_spend=xr.DataArray([1.0, 1.0, 1.0], dims=("channel",)),
+            ).resolve(**layout(), derived_reference=None)
+
+    def test_elasticity_outside_the_mask_is_ignored(self):
+        """A masked cell spends nothing, so its elasticity must neither warn (the wide-floor
+        check would fire on the sentinel reference) nor stop the resolved map being the identity."""
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            resolved = PowerPriceResponse(elasticity={"radio": 0.9}).resolve(
+                **layout(mask_values=[True, False, True]),
+                derived_reference=derived([100.0, 100.0, 100.0]),
+            )
+        assert resolved.is_identity
+        np.testing.assert_array_equal(resolved.gamma, [0.0, 0.0, 0.0])
+
+    def test_tolerance_guard_skips_cells_with_no_derived_value_and_says_so(self):
+        """np.argmax lands on a NaN and `nan > tol` is False, so an unguarded comparison would
+        pass silently. The guard compares where the fitted spend exists and reports the rest."""
+        fitted = derived([100.0, np.nan, 100.0])
+        with pytest.warns(UserWarning, match=r"could not be checked.*\('radio',\)"):
+            PowerPriceResponse(
+                elasticity=0.2, reference_spend=derived([100.0, 5.0, 100.0])
+            ).resolve(**layout(), derived_reference=fitted)
+        # The guard still fires on the comparable cells; the uncheckable one is reported, not hidden.
+        with pytest.warns(UserWarning, match="could not be checked"):
+            with pytest.raises(ValueError, match="52x apart"):
+                PowerPriceResponse(
+                    elasticity=0.2, reference_spend=derived([5200.0, 5.0, 100.0])
+                ).resolve(**layout(), derived_reference=fitted)
+
+    def test_public_import(self):
+        from pymc_marketing.mmm import PowerPriceResponse as exported
+        from pymc_marketing.mmm import PriceResponse
+
+        assert exported is PowerPriceResponse and issubclass(exported, PriceResponse)
