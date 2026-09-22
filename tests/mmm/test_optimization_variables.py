@@ -132,18 +132,68 @@ def test_pack_missing_dim_raises():
         opt_vars.pack(da)
 
 
-def test_pack_missing_coords_raises():
+def test_pack_rejects_unknown_coords():
+    """An extra channel is refused, not quietly dropped.
+
+    `reindex` drops a label the model does not have and leaves no NaN behind,
+    so the missing-value check below it cannot see the difference. The plan
+    would be scored, gradient and all, as though that spend were not in it.
+    """
     rng = np.random.default_rng(4)
-    variable = make_media_variable(rng)
+    variable = make_media_variable(rng, sizes=(2,))
     opt_vars = OptimizationVariables([variable])
 
     da = xr.DataArray(
-        np.ones(2),
+        [30.0, 70.0, 999.0],
         dims=("channel",),
-        coords={"channel": ["channel_0", "not_a_channel"]},
+        coords={"channel": [*variable.coords["channel"], "not_a_channel"]},
+    )
+    with pytest.raises(ValueError, match="coordinates the model does not have"):
+        opt_vars.pack(da)
+
+
+def test_pack_missing_coords_raises():
+    """A channel the model expects, left out of the plan, is still an error."""
+    rng = np.random.default_rng(4)
+    variable = make_media_variable(rng, sizes=(2,))
+    opt_vars = OptimizationVariables([variable])
+
+    da = xr.DataArray(
+        [30.0],
+        dims=("channel",),
+        coords={"channel": [variable.coords["channel"][0]]},
     )
     with pytest.raises(ValueError, match="values missing"):
         opt_vars.pack(da)
+
+
+def test_pack_allows_omitting_a_cell_outside_the_mask():
+    """Rejecting unknown labels must not start demanding full coverage.
+
+    A cell masked out of the optimization is not a decision, so a plan may
+    leave it out entirely. `align_to_model_coords` would refuse this -- its
+    missing-value check spans the whole array -- which is why `pack` keeps its
+    own check scoped to the mask.
+    """
+    rng = np.random.default_rng(4)
+    variable = make_media_variable(rng, sizes=(4,), partial_mask=True)
+    optimized = [
+        channel
+        for channel, on in zip(
+            variable.coords["channel"], variable.mask.values, strict=True
+        )
+        if on
+    ]
+    assert len(optimized) < len(variable.coords["channel"])
+
+    plan = xr.DataArray(
+        np.arange(1.0, len(optimized) + 1.0),
+        dims=("channel",),
+        coords={"channel": optimized},
+    )
+    np.testing.assert_array_equal(
+        variable.pack(plan), np.arange(1.0, len(optimized) + 1.0)
+    )
 
 
 def test_unpack_wrong_size_raises():

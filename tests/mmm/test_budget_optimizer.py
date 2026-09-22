@@ -878,6 +878,28 @@ class TestEvaluatePlan:
         with pytest.raises(TypeError, match="labelled plan"):
             optimizer.evaluate_plan(np.array([30.0, 70.0]))
 
+    def test_a_plan_naming_an_unknown_channel_is_refused(self, mmm_wrapper):
+        """An extra channel must not be dropped on the way in.
+
+        `reindex` removes a label the model does not have and leaves no NaN
+        behind, so the plan would be scored -- objective, gradient and, if the
+        budget happened to match the retained channels, feasibility -- as
+        though that spend were not in it. The caller would get a plausible
+        answer to a question they did not ask.
+        """
+        optimizer = self._optimizer(mmm_wrapper)
+        plan = xr.DataArray(
+            [30.0, 70.0, 999.0],
+            dims=["channel"],
+            coords={"channel": [*self.CHANNELS, "legacy_print"]},
+        )
+
+        with pytest.raises(ValueError, match="coordinates the model does not have"):
+            optimizer.evaluate_plan(plan)
+
+        with pytest.raises(ValueError, match="coordinates the model does not have"):
+            optimizer.evaluate_response_distribution(plan)
+
     def test_a_plan_missing_an_optimized_cell_is_refused(self, mmm_wrapper):
         """A plan that does not price every optimized cell is an error, not a guess."""
         optimizer = self._optimizer(mmm_wrapper)
