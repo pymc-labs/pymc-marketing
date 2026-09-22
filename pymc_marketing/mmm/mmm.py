@@ -1829,7 +1829,18 @@ class MMM(RegressionModelBuilder):
         if bool(self.time_varying_intercept) or bool(self.time_varying_media):
             dates = pd.DatetimeIndex(self.xarray_dataset.coords["date"].values)
             self._time_index = xr.DataArray(np.arange(len(dates)), dims=("date",))
-            self._time_resolution = (dates[1] - dates[0]).days
+            time_steps = dates[1:] - dates[:-1]
+            one_day = pd.Timedelta(days=1)
+            bad = (time_steps < one_day) | (time_steps % one_day != pd.Timedelta(0))
+            if bad.any():
+                i = int(np.argmax(bad))
+                raise ValueError(
+                    "Time-varying effects need dates spaced a whole number of days "
+                    f"apart, but {dates[i]} and {dates[i + 1]} are "
+                    f"{time_steps[i]} apart. Resample the data to a daily or "
+                    "coarser frequency, and use tz-naive dates."
+                )
+            self._time_resolution = time_steps[0].days
 
     @property
     def y(self) -> npt.NDArray[np.floating]:

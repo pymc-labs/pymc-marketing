@@ -1959,6 +1959,56 @@ def test_time_varying_intercept_with_custom_hsgp_single_dim(single_dim_data, hsg
     assert latent_dims == hsgp_dims
 
 
+@pytest.mark.parametrize("tvp", ["time_varying_intercept", "time_varying_media"])
+@pytest.mark.parametrize(
+    "make_dates",
+    [
+        lambda n: pd.date_range("2023-01-01", periods=n, freq="h"),
+        lambda n: pd.date_range("2023-01-01", periods=n, freq="36h"),
+        lambda n: (
+            pd.date_range("2023-01-01", periods=n, freq="D")
+            + pd.to_timedelta([0] * (n - 1) + [1], unit="h")
+        ),
+        lambda n: pd.date_range("2023-03-20", periods=n, freq="D", tz="Europe/Madrid"),
+    ],
+    ids=["hourly", "36h", "last_gap_25h", "dst_change"],
+)
+def test_time_varying_rejects_non_whole_day_spacing(single_dim_data, make_dates, tvp):
+    """Date spacing that is not a whole number of days breaks the time index."""
+    X, y = single_dim_data
+    X = X.assign(date=make_dates(X.shape[0]))
+
+    mmm = MMM(
+        date_column="date",
+        target_column="target",
+        channel_columns=["channel_1", "channel_2", "channel_3"],
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+        **{tvp: True},
+    )
+
+    with pytest.raises(ValueError, match="whole number of days"):
+        mmm.build_model(X, y)
+
+
+@pytest.mark.parametrize("freq, resolution", [("D", 1), ("7D", 7)])
+def test_time_varying_accepts_whole_day_spacing(single_dim_data, freq, resolution):
+    X, y = single_dim_data
+    X = X.assign(date=pd.date_range("2023-01-01", periods=X.shape[0], freq=freq))
+
+    mmm = MMM(
+        date_column="date",
+        target_column="target",
+        channel_columns=["channel_1", "channel_2", "channel_3"],
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+        time_varying_intercept=True,
+    )
+    mmm.build_model(X, y)
+
+    assert mmm._time_resolution == resolution
+
+
 @pytest.mark.parametrize(
     "cov_func",
     ["expquad", "matern32", "matern52"],
