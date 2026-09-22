@@ -21,6 +21,7 @@ import numpy as np
 import pandas as pd
 import pytest
 import xarray as xr
+from scipy.optimize import approx_fprime
 
 from pymc_marketing.data.idata.mmm_wrapper import MMMIDataWrapper
 from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation, PowerPriceResponse
@@ -1234,3 +1235,217 @@ class TestPriceResponseAllocation:
         assert result.implied_delivery is None
         assert result.implied_price is None
         assert result.implied_marginal_price is None
+
+
+def _spread(values: np.ndarray) -> float:
+    return float((values.max() - values.min()) / abs(values.mean()))
+
+
+def _fixed_point_allocation(mmm, base, reference, gamma, total, *, passes=8, tol=1e-6):
+    """Solve at an assumed price, reprice from the realized spend, re-solve.
+
+    One fresh optimizer and one full compile per pass: cost_per_unit is a
+    construction-time field with no setter, which is also why the issue body's
+    claim that set_constraints makes the repeats cheap is wrong.
+    """
+    price, previous, budgets = base, None, None
+    for _ in range(passes):
+        budgets = (
+            _optimizer(mmm, cost_per_unit=price)
+            .allocate_budget(total_budget=total)
+            .budgets
+        )
+        if previous is not None and float(abs(budgets - previous).max()) < tol:
+            break
+        previous = budgets
+        price = base * (budgets / reference) ** gamma
+    return budgets
+
+
+class TestPriceResponseOptimality:
+    TOTAL = 600.0
+    PRICES = {"channel_1": 2.0, "channel_2": 3.0, "channel_3": 1.5}
+    TIGHT = {"options": {"ftol": 1e-12, "maxiter": 2000}}
+
+    def test_objective_gradient_matches_finite_differences(self, simple_fitted_mmm):
+        """Flat on purpose: `approx_fprime` differentiates the vector function, so this
+        goes through the compiled callable rather than the labelled `evaluate_plan`
+        wrapper around it (as tests/mmm/test_budget_optimizer_mmm.py does)."""
+        mmm = simple_fitted_mmm
+        mmm.set_cost_per_unit(_full_table(mmm, self.PRICES))
+        optimizer = _optimizer(
+            mmm,
+            cost_per_unit=_window_cpu(mmm, self.PRICES),
+            price_response=PowerPriceResponse(
+                elasticity={"channel_1": 0.4, "channel_3": 0.2}
+            ),
+        )
+        x = optimizer.optimization_variables.x0(self.TOTAL)
+        _, gradient = optimizer._objective_and_grad(x)
+        finite_differences = approx_fprime(
+            x, lambda z: optimizer._objective_and_grad(z)[0], 1e-6
+        )
+        np.testing.assert_allclose(gradient, finite_differences, rtol=1e-4)
+
+    @pytest.mark.parametrize(
+        "elasticity, fixed_point_is_optimal",
+        [({"channel_1": 0.4}, False), (0.3, True)],
+        ids=["heterogeneous", "homogeneous"],
+    )
+    def test_first_order_condition_separates_the_optimum_from_the_fixed_point(
+        self, simple_fitted_mmm, elasticity, fixed_point_is_optimal
+    ):
+        """At an interior optimum under the sum constraint the utility gradient is equal
+        across cells. Fixed-point iteration holds the price constant inside each solve
+        and converges to R'(u)/p = const, missing the (1 - gamma) factor: with one common
+        gamma the factor is absorbed and the fixed point is the optimum; with
+        heterogeneous gamma it is not, by a gradient spread of about gamma on the
+        priced cell (0.6 vs 1 at gamma = 0.4)."""
+        mmm = simple_fitted_mmm
+        mmm.set_cost_per_unit(_full_table(mmm, self.PRICES))
+        base = _window_cpu(mmm, self.PRICES)
+        reference = _on_air_reference(mmm).sel(channel=CHANNELS_3)
+        resolved = PowerPriceResponse(elasticity=elasticity).resolve(
+            dims=("channel",),
+            coords={"channel": CHANNELS_3},
+            mask=xr.DataArray(
+                [True] * 3, dims=("channel",), coords={"channel": CHANNELS_3}
+            ),
+            date_dim="date",
+            derived_reference=reference,
+            label="t",
+        )
+        gamma_da = xr.DataArray(
+            resolved.gamma, dims=("channel",), coords={"channel": CHANNELS_3}
+        )
+
+        aware = _optimizer(
+            mmm,
+            cost_per_unit=base,
+            price_response=PowerPriceResponse(elasticity=elasticity),
+        )
+        result = aware.allocate_budget(
+            total_budget=self.TOTAL, minimize_kwargs=self.TIGHT
+        )
+        assert result.scipy_result.success, result.scipy_result.message
+        x = result.budgets
+        interior = (x > 1e-3) & (x < self.TOTAL - 1e-3)
+        assert bool(interior.all()), (
+            f"FOC equality needs an interior optimum, got {x.values}"
+        )
+        at_optimum = aware.evaluate_plan(x).utility_gradient["channel_data"].values
+        assert _spread(at_optimum) < 1e-2, at_optimum
+
+        fixed = _fixed_point_allocation(mmm, base, reference, gamma_da, self.TOTAL)
+        at_fixed_point = (
+            aware.evaluate_plan(fixed).utility_gradient["channel_data"].values
+        )
+        if fixed_point_is_optimal:
+            assert _spread(at_fixed_point) < 2e-2, at_fixed_point
+            xr.testing.assert_allclose(fixed, x, rtol=2e-2)
+        else:
+            assert _spread(at_fixed_point) > 0.1, at_fixed_point
+            # The fixed point over-allocates to the elastic channel.
+            assert float(fixed.sel(channel="channel_1")) > float(
+                x.sel(channel="channel_1")
+            )
+
+    def test_solve_started_with_a_channel_at_exactly_zero_is_finite(
+        self, simple_fitted_mmm
+    ):
+        """default_bounds make zero reachable; the floor must give a finite gradient there."""
+        mmm = simple_fitted_mmm
+        mmm.set_cost_per_unit(_full_table(mmm, self.PRICES))
+        optimizer = _optimizer(
+            mmm,
+            cost_per_unit=_window_cpu(mmm, self.PRICES),
+            price_response=PowerPriceResponse(
+                elasticity={"channel_1": 0.5, "channel_2": 0.25}
+            ),
+        )
+        x0 = xr.DataArray(
+            [0.0, 150.0, 150.0], dims=("channel",), coords={"channel": CHANNELS_3}
+        )
+        assert np.all(
+            np.isfinite(
+                optimizer.evaluate_plan(x0).utility_gradient["channel_data"].values
+            )
+        )
+        result = optimizer.allocate_budget(total_budget=self.TOTAL, x0=x0)
+        assert np.all(np.isfinite(result.scipy_result.x))
+        assert result.scipy_result.success, result.scipy_result.message
+
+    def test_the_more_elastic_channel_receives_less(self, simple_fitted_mmm):
+        """End to end: anchored at the constant-price optimum, elasticity moves budget away.
+
+        Anchoring matters. Below the reference the power law says units are *cheaper* than
+        p0, and at this fixture's TOTAL the constant-price optimum sits ~5x below the
+        historical on-air reference, where the marginal-return factor
+        (1 - gamma) (s / s_ref) ** -gamma is 1.3-1.4 -- more return, not less. With
+        reference_spend set to the baseline allocation, p(b) == p0 there and only the
+        (1 - gamma) factor remains, so the elastic channel must receive less.
+        """
+        mmm = simple_fitted_mmm
+        mmm.set_cost_per_unit(_full_table(mmm, self.PRICES))
+        base = _window_cpu(mmm, self.PRICES)
+        baseline = (
+            _optimizer(mmm, cost_per_unit=base)
+            .allocate_budget(total_budget=self.TOTAL)
+            .budgets
+        )
+        # The derived on-air reference is ~5-9x the baseline allocation; the guard's
+        # default 10x would pass by luck, so say what is being done instead.
+        anchored = PowerPriceResponse(
+            elasticity={"channel_2": 0.4},
+            reference_spend=baseline,
+            reference_spend_tolerance=20.0,
+        )
+        elastic = (
+            _optimizer(mmm, cost_per_unit=base, price_response=anchored)
+            .allocate_budget(total_budget=self.TOTAL)
+            .budgets
+        )
+        assert float(elastic.sel(channel="channel_2")) < float(
+            baseline.sel(channel="channel_2")
+        )
+
+    def test_below_the_reference_even_the_marginal_unit_is_cheaper_than_p0(
+        self, simple_fitted_mmm
+    ):
+        """The other side of the anchoring statement, so nobody 'fixes' the docs into a
+        one-directional claim. With the historical reference and a budget far below it,
+        the map says small buys are cheap: at the constant-price optimum the elastic
+        channel's average price is p0 (s / s_ref) ** gamma < p0, and its marginal price
+        p0 (s / s_ref) ** gamma / (1 - gamma) is below p0 too whenever
+        (s / s_ref) ** gamma < 1 - gamma. Exact statements about the map, read off the
+        report at that plan -- not about the utility gradient, whose ratio to the
+        constant-price one also carries R'(u) at two different deliveries."""
+        mmm = simple_fitted_mmm
+        mmm.set_cost_per_unit(_full_table(mmm, self.PRICES))
+        base = _window_cpu(mmm, self.PRICES)
+        baseline = (
+            _optimizer(mmm, cost_per_unit=base)
+            .allocate_budget(total_budget=self.TOTAL)
+            .budgets
+        )
+        aware = _optimizer(
+            mmm,
+            cost_per_unit=base,
+            price_response=PowerPriceResponse(elasticity={"channel_2": 0.4}),
+        )
+        s = float(baseline.sel(channel="channel_2"))
+        reference = float(_on_air_reference(mmm).sel(channel="channel_2"))
+        assert (s / reference) ** 0.4 < 0.6, (
+            "fixture drifted: the test needs s / s_ref below 0.6 ** 2.5"
+        )
+
+        media = aware.optimization_variables.variables[0]
+        report = media.delivery_report(aware.optimization_variables.pack(baseline))
+        price = float(report["implied_price"].sel(channel="channel_2").mean("date"))
+        marginal = float(
+            report["implied_marginal_price"].sel(channel="channel_2").mean("date")
+        )
+        p0 = self.PRICES["channel_2"]
+        np.testing.assert_allclose(price, p0 * (s / reference) ** 0.4, rtol=1e-9)
+        np.testing.assert_allclose(marginal, price / 0.6, rtol=1e-9)
+        assert marginal < p0
