@@ -233,7 +233,12 @@ from pymc_marketing.mmm.lift_test import (
     add_lift_measurements_to_likelihood_from_saturation,
     scale_lift_measurements,
 )
-from pymc_marketing.mmm.link import LinkFunction, LinkSpec, get_link_spec
+from pymc_marketing.mmm.link import (
+    BASELINE_PART,
+    LinkFunction,
+    LinkSpec,
+    get_link_spec,
+)
 from pymc_marketing.mmm.plot import MMMPlotSuite
 from pymc_marketing.mmm.plotting import MMMPlotSuiteFacade
 from pymc_marketing.mmm.plotting.budget import BudgetPlots
@@ -1393,8 +1398,9 @@ class MMM(RegressionModelBuilder):
         Parameters
         ----------
         central_tendency : {"median", "mean"}, default "median"
-            Response summary the counterfactual is expressed on.  For the
-            identity link the two are identical (Normal mean == median).
+            Response summary the counterfactual is expressed on.  Under the
+            identity link the two coincide for most likelihoods, but not for
+            ``TruncatedNormal``, where clipping shifts the mean off ``mu``.
             For the log link, ``"median"`` uses :math:`\exp(\mu)` and
             ``"mean"`` applies the :math:`\exp(\sigma^2 / 2)` correction.
 
@@ -1501,13 +1507,17 @@ class MMM(RegressionModelBuilder):
                     stacklevel=2,
                 )
 
-        parts["intercept"] = counterfactual_fn(posterior["intercept_contribution"])
+        parts[BASELINE_PART] = counterfactual_fn(posterior["intercept_contribution"])
 
         dataset = xr.Dataset(parts)
 
         if central_tendency == "mean":
-            dataset = dataset * self._link_spec.mean_correction(
-                posterior, self.output_var
+            dataset = self._link_spec.to_mean_scale(
+                dataset,
+                posterior,
+                self.model_config["likelihood"],
+                target_scale,
+                self.output_var,
             )
 
         return dataset
@@ -2064,6 +2074,40 @@ class MMM(RegressionModelBuilder):
                 "Model was not built. Build the model first using MMM.build_model()"
             )
 
+    def scaled_channel(self, channel: str) -> XTensorVariable:
+        """Return scaled spend for a single channel by name.
+
+        Indexes ``channel_data_scaled`` by the model's ``channel`` coordinate,
+        which is the axis of the tensor.  For DataFrame input that matches
+        ``channel_columns``; for ``xr.Dataset`` input it follows the dataset
+        coordinate, which may be ordered differently.
+
+        Parameters
+        ----------
+        channel : str
+            Channel name present on the model's ``channel`` coordinate.
+
+        Returns
+        -------
+        XTensorVariable
+            Scaled channel spend with the ``channel`` dimension dropped.
+
+        Raises
+        ------
+        ValueError
+            If the model has not been built or *channel* is not in the
+            model's ``channel`` coordinate.
+        """
+        self._validate_model_was_built()
+        channels = list(self.model_coords["channel"])
+        try:
+            channel_idx = channels.index(channel)
+        except ValueError as err:
+            raise ValueError(
+                f"Channel {channel!r} not in model channel coords {channels!r}."
+            ) from err
+        return self.channel_data_scaled.isel(channel=channel_idx)
+
     def _validate_contribution_variable(self, var: str) -> None:
         """Validate that the variable ends with "_contribution" and is in the model."""
         if not (var.endswith("_contribution") or var == self.output_var):
@@ -2376,6 +2420,11 @@ class MMM(RegressionModelBuilder):
                     target_scale=self.scalers["_target"].values,
                 )
 
+            # DataVarMuEffect inputs may be shared by several effects, but must
+            # never reuse data nodes that MMM registered for its own internals.
+            # Snapshot before the effect loop so names registered by an earlier
+            # effect remain eligible for sharing with a later one.
+            self._library_data_names = frozenset(self.model.named_vars)
             for mu_effect in self.mu_effects:
                 mu_effect.create_data(self)
 
@@ -2496,7 +2545,16 @@ class MMM(RegressionModelBuilder):
             if self.link == LinkFunction.LOG:
                 mu_var = pmd.Deterministic("mu", mu_var.transpose("date", ...))
             else:
-                mu_var.name = "mu"
+                # Registered rather than merely named, because the identity-link
+                # mean correction is pointwise in mu and reconstructing it by
+                # summing the contribution Deterministics is not safe:
+                # MuEffect.create_effect is only required to return its term,
+                # not to register one.
+                #
+                # Not transposed, unlike the log branch, which would change the
+                # dims order the likelihood sees, so "date" stays wherever the
+                # linear predictor already put it rather than moving to front.
+                mu_var = pmd.Deterministic("mu", mu_var)
 
             self._link_spec.create_media_contribution_deterministic(
                 mu_var=mu_var,

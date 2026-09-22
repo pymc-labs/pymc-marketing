@@ -84,6 +84,29 @@ def test_apply(model, adstock: AdstockTransformation, x, dims) -> None:
     "adstock",
     adstocks(),
 )
+def test_adstock_logp_is_differentiable(adstock: AdstockTransformation) -> None:
+    """Every adstock parameter must admit a gradient of the model logp.
+
+    ``pm.sample`` silently demotes a variable to Metropolis when ``grad`` raises,
+    so a non-differentiable Op inside an adstock graph surfaces much later as an
+    unrelated sampler error rather than as a transformation failure.
+    """
+    data = as_xtensor(np.broadcast_to(x, (3, 20)).T.copy(), dims=("time", "channel"))
+
+    with pm.Model(coords={"channel": ["a", "b", "c"], "time": range(20)}) as model:
+        y = adstock.apply(data, core_dim="time")
+        mu = y.transpose("time", "channel").values
+        pm.Normal("obs", mu=mu, sigma=1, observed=np.zeros((20, 3)))
+
+    logp = model.logp()
+    for value_var in model.continuous_value_vars:
+        pt.grad(logp, value_var)
+
+
+@pytest.mark.parametrize(
+    "adstock",
+    adstocks(),
+)
 def test_default_prefix(adstock: AdstockTransformation) -> None:
     assert adstock.prefix == "adstock"
     for value in adstock.variable_mapping.values():
