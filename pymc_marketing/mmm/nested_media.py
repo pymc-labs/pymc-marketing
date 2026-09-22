@@ -119,19 +119,15 @@ _AMPLITUDE_PARAM: dict[str, str] = {
 }
 
 
-def lognormal_relative_lift(
-    name: str,
-    mu: XTensorVariable,
-    sigma: XTensorVariable,
-    observed: XTensorVariable,
-) -> XTensorVariable:
+class RelativeLogNormal(pmd.LogNormal):
     """LogNormal lift likelihood with the noise as relative error on the measurement.
 
-    The location is the log of the model's estimated lift ``mu``. The
-    log-space scale is derived from the measurement's coefficient of
-    variation ``sigma / observed``, a fixed number, so an estimated lift
-    that collapses towards zero is penalised quadratically in log space. A
-    LogNormal or Gamma moment-matched to ``mu`` and ``sigma`` instead lets
+    ``RelativeLogNormal(name, mu=estimate, sigma=sd, observed=measurement)``
+    places the log-space location at ``log(mu)``, the model's estimated lift,
+    and derives the log-space scale from the measurement's coefficient of
+    variation ``sigma / observed``, a fixed number. An estimated lift that
+    collapses towards zero is therefore penalised quadratically in log space.
+    A LogNormal or Gamma moment-matched to ``mu`` and ``sigma`` instead lets
     the spread grow as ``mu`` shrinks and barely penalises that collapse,
     which gives the posterior a degenerate mode.
 
@@ -139,8 +135,13 @@ def lognormal_relative_lift(
     ``mu * exp(sigma_log**2 / 2)``, a ``+0.5%`` bias at a 10% coefficient of
     variation. Rows must satisfy the lift-table contract checked by the hook.
     """
-    sigma_log = pmd.math.sqrt(pmd.math.log1p((sigma / observed) ** 2))
-    return pmd.LogNormal(name, mu=pmd.math.log(mu), sigma=sigma_log, observed=observed)
+
+    def __new__(cls, name: str, mu, sigma, observed, **kwargs):
+        """Create the LogNormal with location ``log(mu)`` and the relative-error scale."""
+        sigma_log = pmd.math.sqrt(pmd.math.log1p((sigma / observed) ** 2))
+        return super().__new__(
+            cls, name, mu=pmd.math.log(mu), sigma=sigma_log, observed=observed, **kwargs
+        )
 
 
 def _check_lift_rows(df_lift_test: pd.DataFrame) -> None:
@@ -690,7 +691,7 @@ class NestedMediaEffect(DataVarMuEffect):
         self,
         df_lift_test: pd.DataFrame,
         mmm: Model,
-        dist: Callable[..., XTensorVariable] = lognormal_relative_lift,
+        dist: type[pmd.DimDistribution] = RelativeLogNormal,
         name: str | None = None,
         target_transform: Callable[[np.ndarray], np.ndarray] | None = None,
     ) -> "NestedMediaEffect":
@@ -714,7 +715,7 @@ class NestedMediaEffect(DataVarMuEffect):
         dist : callable, optional
             Likelihood for the lift measurements, called with ``name``,
             ``mu`` (the estimated lift), ``sigma`` and ``observed``. By
-            default :func:`lognormal_relative_lift`, a positive likelihood
+            default :class:`RelativeLogNormal`, a positive likelihood
             with the noise as relative error on the measurement. A
             ``pmd.Gamma`` or a moment-matched LogNormal is not recommended:
             they barely penalise an estimated lift near zero, which gives
