@@ -119,49 +119,19 @@ _AMPLITUDE_PARAM: dict[str, str] = {
 }
 
 
-class RelativeLogNormal(pmd.LogNormal):
-    """LogNormal lift likelihood with the noise as relative error on the measurement.
-
-    ``RelativeLogNormal(name, mu=estimate, sigma=sd, observed=measurement)``
-    places the log-space location at ``log(mu)``, the model's estimated lift,
-    and derives the log-space scale from the measurement's coefficient of
-    variation ``sigma / observed``, a fixed number. An estimated lift that
-    collapses towards zero is therefore penalised quadratically in log space.
-    A LogNormal or Gamma moment-matched to ``mu`` and ``sigma`` instead lets
-    the spread grow as ``mu`` shrinks and barely penalises that collapse,
-    which gives the posterior a degenerate mode.
-
-    The likelihood is median-matched: its median is ``mu`` and its mean is
-    ``mu * exp(sigma_log**2 / 2)``, a ``+0.5%`` bias at a 10% coefficient of
-    variation. Rows must satisfy the lift-table contract checked by the hook.
-    """
-
-    def __new__(cls, name: str, mu, sigma, observed, **kwargs):
-        """Create the LogNormal with location ``log(mu)`` and the relative-error scale."""
-        sigma_log = pmd.math.sqrt(pmd.math.log1p((sigma / observed) ** 2))
-        return super().__new__(
-            cls, name, mu=pmd.math.log(mu), sigma=sigma_log, observed=observed, **kwargs
-        )
-
-
 def _check_lift_rows(df_lift_test: pd.DataFrame) -> None:
-    """Enforce the lift-table contract: finite values, ``sigma > 0``, nonzero deltas.
+    """Enforce the lift-table contract: finite values, ``sigma > 0``, nonzero ``delta_x``.
 
     Rows outside this contract cannot be scored by a lift likelihood and
     would only surface as a ``-inf`` model logp at ``sample()`` time with
     nothing pointing at the offending row.
     """
     cols = df_lift_test[["x", "delta_x", "delta_y", "sigma"]]
-    bad = (
-        ~np.isfinite(cols).all(axis=1)
-        | (cols["sigma"] <= 0)
-        | (cols["delta_x"] == 0)
-        | (cols["delta_y"] == 0)
-    )
+    bad = ~np.isfinite(cols).all(axis=1) | (cols["sigma"] <= 0) | (cols["delta_x"] == 0)
     if bad.any():
         raise ValueError(
             "df_lift_test rows must have finite x, delta_x, delta_y and sigma, "
-            "with sigma > 0 and nonzero delta_x and delta_y; offending rows: "
+            "with sigma > 0 and nonzero delta_x; offending rows: "
             f"{df_lift_test.index[bad].tolist()}"
         )
 
@@ -691,7 +661,7 @@ class NestedMediaEffect(DataVarMuEffect):
         self,
         df_lift_test: pd.DataFrame,
         mmm: Model,
-        dist: type[pmd.DimDistribution] = RelativeLogNormal,
+        dist: type[pmd.DimDistribution] = pmd.Normal,
         name: str | None = None,
         target_transform: Callable[[np.ndarray], np.ndarray] | None = None,
     ) -> "NestedMediaEffect":
@@ -712,14 +682,15 @@ class NestedMediaEffect(DataVarMuEffect):
             scale. ``delta_y`` and ``sigma`` are in target units.
         mmm : Model
             The MMM the effect was built into. The model must be built.
-        dist : callable, optional
+        dist : type[pmd.DimDistribution], optional
             Likelihood for the lift measurements, called with ``name``,
             ``mu`` (the estimated lift), ``sigma`` and ``observed``. By
-            default :class:`RelativeLogNormal`, a positive likelihood
-            with the noise as relative error on the measurement. A
-            ``pmd.Gamma`` or a moment-matched LogNormal is not recommended:
-            they barely penalise an estimated lift near zero, which gives
-            the posterior a degenerate mode with a collapsed half-saturation.
+            default ``pmd.Normal``: its spread is the table's ``sigma``, so a
+            null or negative measured lift is scored and an estimated lift
+            near zero is penalised. A moment-matched ``pmd.Gamma`` (the
+            default of the channel-level helpers) is not recommended here:
+            its spread shrinks with the estimate, which barely penalises a
+            collapsed lift and gives the posterior a degenerate mode.
         name : str, optional
             Name of the likelihood, defaults to
             ``f"{prefix}_lift_measurements"``.

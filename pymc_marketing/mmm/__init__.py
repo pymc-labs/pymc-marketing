@@ -80,7 +80,6 @@ from pymc_marketing.mmm.mmm import (
 )
 from pymc_marketing.mmm.nested_media import (
     NestedMediaEffect,
-    RelativeLogNormal,
 )
 from pymc_marketing.mmm.optimization_variables import (
     OptimizationVariable,
@@ -149,7 +148,6 @@ __all__ = [
     "PlanEvaluation",
     "PowerPriceResponse",
     "PriceResponse",
-    "RelativeLogNormal",
     "RootSaturation",
     "SaturationTransformation",
     "Scaling",
