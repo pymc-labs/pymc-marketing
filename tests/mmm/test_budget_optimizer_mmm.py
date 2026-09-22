@@ -27,7 +27,7 @@ from pytensor.graph.traversal import ancestors
 from pytensor.xtensor import as_xtensor
 from scipy.optimize import approx_fprime
 
-from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation
+from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation, PowerPriceResponse
 from pymc_marketing.mmm.additive_effect import LinearTrendEffect, MuEffect
 from pymc_marketing.mmm.budget_optimizer import BudgetOptimizer, BuildMergedModel
 from pymc_marketing.mmm.linear_trend import LinearTrend
@@ -2446,6 +2446,55 @@ class TestMonetarySpendVariables:
         assert "'l'" not in str(info.value), (
             "a bare string was iterated character by character"
         )
+
+    def test_a_bare_price_response_with_spend_vars_is_refused(
+        self, funnel_identity_fitted_mmm
+    ):
+        """Media and a spend variable draw from one pot through one constraint; pricing
+        one on a curve and the other at a constant, silently, is the failure mode."""
+        with pytest.raises(ValueError, match="name every variable"):
+            self._optimizer(
+                funnel_identity_fitted_mmm,
+                spend_vars=["lf_budget"],
+                price_response=PowerPriceResponse(
+                    elasticity=0.2, assume_delivery_units=True
+                ),
+            )
+
+    def test_a_price_response_for_an_unknown_variable_is_refused(
+        self, funnel_identity_fitted_mmm
+    ):
+        with pytest.raises(ValueError, match=r"price_response names \['nope'\]"):
+            self._optimizer(
+                funnel_identity_fitted_mmm,
+                spend_vars=["lf_budget"],
+                price_response={"nope": PowerPriceResponse(elasticity=0.2)},
+            )
+
+    def test_a_spend_variable_price_response_needs_a_reference_and_then_solves(
+        self, funnel_identity_fitted_mmm
+    ):
+        """There is no fitted artifact to derive a spend variable's reference from."""
+        with pytest.raises(ValueError, match=r"lf_budget.*reference_spend is required"):
+            self._optimizer(
+                funnel_identity_fitted_mmm,
+                spend_vars=["lf_budget"],
+                price_response={"lf_budget": PowerPriceResponse(elasticity=0.2)},
+            )
+        optimizer = self._optimizer(
+            funnel_identity_fitted_mmm,
+            spend_vars=["lf_budget"],
+            price_response={
+                "lf_budget": PowerPriceResponse(
+                    elasticity=0.2, reference_spend=xr.DataArray(1.0)
+                )
+            },
+        )
+        result = optimizer.allocate_budget(total_budget=self.TOTAL)
+        assert result.scipy_result.success, result.scipy_result.message
+        assert np.isfinite(result.spend_var_allocations["lf_budget"]).all()
+        # Media had no response, so the media report is absent.  # Task 5 uncomments:
+        # assert result.implied_price is None
 
 
 def test_mmm_budget_optimizer_set_posterior_is_local_to_the_optimizer(

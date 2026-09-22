@@ -15,13 +15,15 @@
 
 from __future__ import annotations
 
+import warnings
+
 import numpy as np
 import pandas as pd
 import pytest
 import xarray as xr
 
 from pymc_marketing.data.idata.mmm_wrapper import MMMIDataWrapper
-from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation
+from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation, PowerPriceResponse
 from pymc_marketing.mmm.budget_optimizer import BudgetOptimizer
 from pymc_marketing.mmm.mmm import (
     MMM,
@@ -947,3 +949,178 @@ class TestSummaryColumnName:
         factory = MMMSummaryFactory(wrapper)
         df = factory.channel_spend()
         assert "channel_data" in df.columns
+
+
+# ---------------------------------------------------------------------------
+# Spend-dependent price response through the optimizer (#3036)
+# ---------------------------------------------------------------------------
+
+WINDOW_WEEKS = 4
+CHANNELS_3 = ["channel_1", "channel_2", "channel_3"]
+
+
+def _window(mmm):
+    last = pd.Timestamp(mmm.idata.constant_data.coords["date"].values.max())
+    return last + pd.Timedelta(weeks=1), last + pd.Timedelta(weeks=WINDOW_WEEKS)
+
+
+def _optimizer(mmm, **kwargs):
+    start, end = _window(mmm)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", UserWarning)
+        return mmm.budget_optimizer(start, end, **kwargs)
+
+
+def _full_table(mmm, prices: dict[str, float]) -> pd.DataFrame:
+    dates = pd.to_datetime(mmm.idata.constant_data.coords["date"].values)
+    return pd.DataFrame({"date": dates, **{ch: float(p) for ch, p in prices.items()}})
+
+
+def _on_air_reference(mmm) -> xr.DataArray:
+    spend = mmm.idata.constant_data["channel_spend"]
+    return spend.where(spend > 0).mean("date")
+
+
+def _flight(mmm, channel: str, on_every: int) -> None:
+    """Zero a channel's fitted data except every ``on_every``-th period (0 = always off)."""
+    data = mmm.idata.constant_data["channel_data"]
+    keep = np.zeros(data.sizes["date"], dtype=bool)
+    if on_every:
+        keep[::on_every] = True
+    data.loc[{"channel": channel}] = data.sel(channel=channel).where(
+        xr.DataArray(keep, dims=("date",)), 0.0
+    )
+
+
+def _window_cpu(mmm, prices: dict[str, float]) -> xr.DataArray:
+    start, _ = _window(mmm)
+    dates = pd.date_range(start, periods=WINDOW_WEEKS, freq="7D")
+    return xr.DataArray(
+        np.tile([prices[ch] for ch in CHANNELS_3], (WINDOW_WEEKS, 1)),
+        dims=("date", "channel"),
+        coords={"date": dates, "channel": CHANNELS_3},
+    )
+
+
+class TestPriceResponseGate:
+    """A non-identity price response is refused unless the fit is provably in delivery units."""
+
+    def test_unpriced_model_is_refused_naming_both_remedies(self, simple_fitted_mmm):
+        with pytest.raises(ValueError, match="fitted on nominal spend") as info:
+            _optimizer(
+                simple_fitted_mmm, price_response=PowerPriceResponse(elasticity=0.3)
+            )
+        message = str(info.value)
+        assert "set_cost_per_unit" in message and "assume_delivery_units" in message
+
+    def test_partial_table_refuses_only_the_unpriced_channels(self, simple_fitted_mmm):
+        """_parse_cost_per_unit_df fills absent channels with 1.0, so channel_spend exists
+        for every channel; the gate must read the table's columns, not that array."""
+        mmm = simple_fitted_mmm
+        mmm.set_cost_per_unit(_full_table(mmm, {"channel_1": 2.0}))
+        assert "channel_spend" in mmm.idata.constant_data
+        with pytest.raises(ValueError, match="fitted on nominal spend") as info:
+            _optimizer(mmm, price_response=PowerPriceResponse(elasticity=0.3))
+        assert "channel_2" in str(info.value) and "channel_3" in str(info.value)
+        assert "'channel_1'" not in str(info.value)
+        mask = xr.DataArray(
+            [True, False, False], dims=("channel",), coords={"channel": CHANNELS_3}
+        )
+        _optimizer(
+            mmm,
+            budgets_to_optimize=mask,
+            price_response=PowerPriceResponse(elasticity=0.3),
+        )
+
+    def test_fully_priced_model_derives_the_on_air_reference(self, simple_fitted_mmm):
+        mmm = simple_fitted_mmm
+        _flight(mmm, "channel_3", on_every=4)
+        mmm.set_cost_per_unit(_full_table(mmm, dict.fromkeys(CHANNELS_3, 2.0)))
+        optimizer = _optimizer(mmm, price_response=PowerPriceResponse(elasticity=0.3))
+        resolved = optimizer.optimization_variables.variables[0].price_response
+        expected = _on_air_reference(mmm).sel(channel=CHANNELS_3).values
+        np.testing.assert_allclose(resolved.reference_spend, expected)
+        all_weeks = float(
+            mmm.idata.constant_data["channel_spend"]
+            .mean("date")
+            .sel(channel="channel_3")
+        )
+        assert resolved.reference_spend[2] > 2.5 * all_weeks
+
+    def test_optimized_cell_with_no_on_air_history_is_refused(self, simple_fitted_mmm):
+        mmm = simple_fitted_mmm
+        _flight(mmm, "channel_3", on_every=0)
+        mmm.set_cost_per_unit(_full_table(mmm, dict.fromkeys(CHANNELS_3, 2.0)))
+        with pytest.raises(ValueError, match=r"no on-air period.*channel_3"):
+            _optimizer(mmm, price_response=PowerPriceResponse(elasticity=0.3))
+
+    def test_opt_out_requires_an_explicit_reference(self, simple_fitted_mmm):
+        with pytest.raises(ValueError, match="reference_spend"):
+            _optimizer(
+                simple_fitted_mmm,
+                price_response=PowerPriceResponse(
+                    elasticity=0.3, assume_delivery_units=True
+                ),
+            )
+        reference = xr.DataArray(
+            [100.0, 100.0, 100.0], dims=("channel",), coords={"channel": CHANNELS_3}
+        )
+        _optimizer(
+            simple_fitted_mmm,
+            price_response=PowerPriceResponse(
+                elasticity=0.3, assume_delivery_units=True, reference_spend=reference
+            ),
+        )
+
+    def test_identity_response_skips_the_gate(self, simple_fitted_mmm):
+        _optimizer(simple_fitted_mmm, price_response=PowerPriceResponse(elasticity=0.0))
+
+    def test_priced_model_without_a_window_price_warns(self, simple_fitted_mmm):
+        """The gate has just established that channel data is in delivery units. With no
+        window cost_per_unit the base price is 1 and money reaches the model as units; the
+        deprecated wrapper already warns about this for the constant-price path, the
+        optimizer did not."""
+        mmm = simple_fitted_mmm
+        mmm.set_cost_per_unit(_full_table(mmm, dict.fromkeys(CHANNELS_3, 2.0)))
+        start, end = _window(mmm)
+        with pytest.warns(UserWarning, match="no cost_per_unit for the window"):
+            mmm.budget_optimizer(
+                start, end, price_response=PowerPriceResponse(elasticity=0.3)
+            )
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", UserWarning)
+            mmm.budget_optimizer(
+                start,
+                end,
+                cost_per_unit=_window_cpu(mmm, dict.fromkeys(CHANNELS_3, 2.0)),
+                price_response=PowerPriceResponse(elasticity=0.3),
+            )
+
+    def test_reference_spend_at_window_granularity_is_refused(self, simple_fitted_mmm):
+        """A 52-week-window total is 52x the per-period rate; the default 10x guard sees
+        that. A 4x mis-scale needs a tighter tolerance, and the docstring says so."""
+        mmm = simple_fitted_mmm
+        mmm.set_cost_per_unit(_full_table(mmm, dict.fromkeys(CHANNELS_3, 2.0)))
+        fitted = _on_air_reference(mmm)
+        with pytest.raises(ValueError, match=r"52x apart.*per-period money"):
+            _optimizer(
+                mmm,
+                price_response=PowerPriceResponse(
+                    elasticity=0.3, reference_spend=fitted * 52
+                ),
+            )
+        _optimizer(
+            mmm,
+            price_response=PowerPriceResponse(
+                elasticity=0.3, reference_spend=fitted * 4
+            ),
+        )
+        with pytest.raises(ValueError, match="4x apart"):
+            _optimizer(
+                mmm,
+                price_response=PowerPriceResponse(
+                    elasticity=0.3,
+                    reference_spend=fitted * 4,
+                    reference_spend_tolerance=2.0,
+                ),
+            )
