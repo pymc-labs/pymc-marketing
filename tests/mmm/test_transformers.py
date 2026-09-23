@@ -36,6 +36,7 @@ from pymc_marketing.mmm.transformers import (
     inverse_scaled_logistic_saturation,
     logistic_saturation,
     michaelis_menten,
+    root_saturation,
     tanh_saturation,
     tanh_saturation_baselined,
     weibull_adstock,
@@ -761,6 +762,28 @@ class TestSaturationTransformers:
             expected,
             decimal=5,
             err_msg="The function does not approach sigma as x approaches infinity.",
+        )
+
+    @pytest.mark.parametrize(
+        "x_dims",
+        [("date", "channel"), ("channel", "date")],
+        ids=["date-first", "channel-first"],
+    )
+    def test_root_saturation_broadcasts_alpha_by_dim_name(self, x_dims):
+        # After adstock the input is ("channel", "date"); a per-channel alpha
+        # must still pair with the channel axis, not the last one (#3046).
+        x_date_channel = np.array([[0.0, 1.0], [4.0, 0.0], [9.0, 16.0]])
+        alpha = np.array([0.5, 0.25])
+        expected = np.where(x_date_channel > 0, x_date_channel**alpha, 0.0)
+        x = x_date_channel if x_dims[0] == "date" else x_date_channel.T
+
+        y = root_saturation(
+            as_xtensor(x, dims=x_dims), as_xtensor(alpha, dims=("channel",))
+        )
+
+        assert y.dims == x_dims
+        np.testing.assert_allclose(
+            y.transpose("date", "channel").eval(), expected, rtol=1e-12
         )
 
 

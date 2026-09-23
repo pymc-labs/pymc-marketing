@@ -1265,9 +1265,10 @@ def root_saturation(
     """
     x = as_xtensor(x)
     alpha = as_xtensor(alpha)
-    x_tensor = x.values
-    alpha_tensor = alpha.values
-    x_safe = pt.where(x_tensor > 0, x_tensor, 1.0)
-    result = pt.where(x_tensor > 0, x_safe**alpha_tensor, 0.0)
-    result_dims = x.dims + tuple(d for d in alpha.dims if d not in x.dims)
-    return as_xtensor(result, dims=result_dims)
+    # Stay in xtensor so ``x`` and ``alpha`` broadcast by dimension name. On raw
+    # tensors a ``(channel,)`` alpha lines up with the last axis of ``x``, which
+    # after adstock is ``date`` (#3046). ``x_safe`` keeps the gradient finite at
+    # zero input: ``d/dx x**alpha`` is infinite there for ``alpha < 1``.
+    positive = x > 0
+    x_safe = ptx.where(positive, x, 1.0)
+    return ptx.where(positive, x_safe**alpha, 0.0)
