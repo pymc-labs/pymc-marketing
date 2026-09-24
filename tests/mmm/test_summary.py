@@ -124,6 +124,46 @@ def mock_mmm_idata_wrapper(simple_dates, simple_channels):
 
 
 @pytest.fixture
+def mock_mmm_idata_wrapper_with_intercept(simple_dates, simple_channels):
+    """Mock MMMIDataWrapper with a time-invariant intercept.
+
+    ``intercept_contribution`` has no ``date`` dim, as in a model without a
+    time-varying intercept, while ``channel_contribution`` is per date.
+    """
+    local_rng = np.random.default_rng(seed=45)
+
+    idata = xr.DataTree.from_dict(
+        {
+            "/posterior": xr.Dataset(
+                {
+                    "channel_contribution": xr.DataArray(
+                        local_rng.normal(loc=1.0, scale=0.1, size=(2, 10, 52, 3)),
+                        dims=("chain", "draw", "date", "channel"),
+                        coords={"date": simple_dates, "channel": simple_channels},
+                    ),
+                    "intercept_contribution": xr.DataArray(
+                        local_rng.normal(loc=3.0, scale=0.2, size=(2, 10)),
+                        dims=("chain", "draw"),
+                    ),
+                }
+            ),
+            "/constant_data": xr.Dataset(
+                {
+                    "channel_data": xr.DataArray(
+                        local_rng.uniform(0, 100, size=(52, 3)),
+                        dims=("date", "channel"),
+                        coords={"date": simple_dates, "channel": simple_channels},
+                    ),
+                    "target_scale": xr.DataArray(500.0),
+                }
+            ),
+        }
+    )
+
+    return MMMIDataWrapper(idata, schema=None, validate_on_init=False)
+
+
+@pytest.fixture
 def mock_mmm_idata_wrapper_with_zero_spend(simple_dates):
     """Mock MMMIDataWrapper with zero spend channel for ROAS testing."""
     local_rng = np.random.default_rng(seed=43)
@@ -1263,6 +1303,26 @@ class TestNonChannelComponents:
         assert isinstance(df, pd.DataFrame)
         assert "control" in df.columns
         assert len(df["control"].unique()) == 2  # price and promo
+
+    def test_contribution_summary_time_invariant_baseline_is_one_row(
+        self, mock_mmm_idata_wrapper_with_intercept
+    ):
+        """A time-invariant intercept has no dims besides chain/draw."""
+        df = MMMSummaryFactory(mock_mmm_idata_wrapper_with_intercept).contributions(
+            component="baseline", hdi_probs=[0.94]
+        )
+
+        intercept = (
+            mock_mmm_idata_wrapper_with_intercept.idata.posterior[
+                "intercept_contribution"
+            ]
+            * 500.0
+        )
+        assert len(df) == 1
+        np.testing.assert_allclose(df["mean"].item(), float(intercept.mean()))
+        np.testing.assert_allclose(df["median"].item(), float(intercept.median()))
+        assert df["abs_error_94_lower"].item() < df["mean"].item()
+        assert df["abs_error_94_upper"].item() > df["mean"].item()
 
     def test_contribution_summary_missing_component_raises(
         self, mock_mmm_idata_wrapper

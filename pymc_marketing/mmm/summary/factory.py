@@ -314,8 +314,15 @@ class MMMSummaryFactory:
         result_dict = {"mean": mean_, "median": median_, **hdi_results}
         result_ds = xr.Dataset(result_dict)
 
-        # Convert to DataFrame - this preserves coordinate values
-        df = result_ds.to_dataframe().reset_index()
+        if index_cols:
+            # Convert to DataFrame - this preserves coordinate values
+            df = result_ds.to_dataframe().reset_index()
+        else:
+            # A quantity with no dims besides the sample dims (e.g. a
+            # time-invariant intercept) reduces to scalars: one row.
+            df = pd.DataFrame(
+                {name: [value.item()] for name, value in result_ds.data_vars.items()}
+            )
 
         # Ensure coordinate columns have correct order
         other_cols = [c for c in df.columns if c not in index_cols]
