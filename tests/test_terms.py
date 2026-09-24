@@ -1026,6 +1026,15 @@ def test_resolve_func_allows_registered_underscore_name(monkeypatch):
     assert restored.func is _secret
 
 
+def test_resolve_func_rejects_registered_non_callable(monkeypatch):
+    """A registered name resolving to a non-function fails with guidance."""
+    object_ = object()
+    monkeypatch.setitem(CUSTOM_TRANSFORMS, "not_a_func", object_)
+    term = Transform(Parameter("x"), func=object_)
+    with pytest.raises(SerializationError, match="not callable"):
+        serialization.deserialize(serialization.serialize(term))
+
+
 def test_deserialize_custom_factory_error_names_register_deserialization():
     """A VariableFactory pymc-extras cannot read back fails with guidance."""
 
