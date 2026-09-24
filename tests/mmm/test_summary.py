@@ -1359,6 +1359,29 @@ class TestTimeInvariantBaselineAggregation:
                 rtol=1e-10,
             )
 
+    def test_all_time_baseline_with_length_one_target_scale(
+        self, mock_mmm_idata_wrapper_with_intercept, simple_dates
+    ):
+        """Some samplers store ``target_scale`` with a length-1 dim, not 0-d."""
+        idata = mock_mmm_idata_wrapper_with_intercept.idata.copy()
+        idata["constant_data"] = xr.DataTree(
+            idata["constant_data"]
+            .to_dataset()
+            .assign(target_scale=xr.DataArray([500.0], dims=("target_scale_dim_0",)))
+        )
+        factory = MMMSummaryFactory(
+            MMMIDataWrapper(idata, schema=None, validate_on_init=False)
+        )
+
+        per_period = factory.contributions(component="baseline")
+        all_time = factory.contributions(component="baseline", frequency="all_time")
+
+        np.testing.assert_allclose(
+            all_time["mean"].to_numpy(),
+            len(simple_dates) * per_period["mean"].to_numpy(),
+            rtol=1e-10,
+        )
+
     def test_all_time_components_add_up_to_the_window_total(
         self, mock_mmm_idata_wrapper_with_intercept
     ):
