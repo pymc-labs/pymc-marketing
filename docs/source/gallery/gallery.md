@@ -342,6 +342,11 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :img-top: ../gallery/images/sbg.png
 :link: ../notebooks/clv/sbg.html
 :::
+
+:::{grid-item-card} BG/BB Model
+:img-top: ../gallery/images/bg_bb.png
+:link: ../notebooks/clv/bg_bb.html
+:::
 ::::
 
 ## Customer Choice Models
