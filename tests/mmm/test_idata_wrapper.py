@@ -1057,6 +1057,110 @@ def test_aggregate_time_delegates_to_utility(multidim_idata):
     assert monthly_wrapper.idata.posterior.sizes["date"] <= 12
 
 
+def _idata_with_time_invariant_intercept(time_varying: bool = False) -> xr.DataTree:
+    dates = pd.date_range("2024-01-01", periods=8, freq="W-MON")
+    local_rng = np.random.default_rng(7)
+    intercept_dims = ("chain", "draw", "date") if time_varying else ("chain", "draw")
+    intercept_shape = (2, 3, 8) if time_varying else (2, 3)
+    intercept_coords = {"date": dates} if time_varying else {}
+    posterior = xr.Dataset(
+        {
+            "channel_contribution": xr.DataArray(
+                local_rng.normal(size=(2, 3, 8, 2)),
+                dims=("chain", "draw", "date", "channel"),
+                coords={"date": dates, "channel": ["TV", "Radio"]},
+            ),
+            "intercept_contribution": xr.DataArray(
+                local_rng.normal(3.0, 0.1, size=intercept_shape),
+                dims=intercept_dims,
+                coords=intercept_coords,
+            ),
+            "intercept_contribution_original_scale": xr.DataArray(
+                local_rng.normal(1500.0, 50.0, size=intercept_shape),
+                dims=intercept_dims,
+                coords=intercept_coords,
+            ),
+            # A parameter and an already-summed total: neither is per period.
+            "saturation_beta": xr.DataArray(
+                local_rng.normal(size=(2, 3, 2)),
+                dims=("chain", "draw", "channel"),
+                coords={"channel": ["TV", "Radio"]},
+            ),
+            "total_media_contribution_original_scale": xr.DataArray(
+                local_rng.normal(size=(2, 3)), dims=("chain", "draw")
+            ),
+        }
+    )
+    return xr.DataTree.from_dict({"/posterior": posterior})
+
+
+@pytest.mark.parametrize("period", ["all_time", "monthly"])
+def test_aggregate_time_counts_time_invariant_intercept_every_period(period):
+    idata = _idata_with_time_invariant_intercept()
+    posterior = idata.posterior
+    n_dates = posterior.sizes["date"]
+
+    aggregated = MMMIDataWrapper(idata, validate_on_init=False).aggregate_time(
+        period=period, method="sum"
+    )
+    result = aggregated.idata.posterior
+
+    for name in [
+        "intercept_contribution",
+        "intercept_contribution_original_scale",
+    ]:
+        total = (
+            result[name].sum("date") if "date" in result[name].dims else result[name]
+        )
+        xr.testing.assert_allclose(total, posterior[name] * n_dates)
+
+
+def test_aggregate_time_leaves_parameters_and_totals_untouched():
+    idata = _idata_with_time_invariant_intercept()
+    result = (
+        MMMIDataWrapper(idata, validate_on_init=False)
+        .aggregate_time(period="all_time", method="sum")
+        .idata.posterior
+    )
+
+    for name in ["saturation_beta", "total_media_contribution_original_scale"]:
+        xr.testing.assert_identical(result[name], idata.posterior[name])
+
+
+def test_aggregate_time_mean_keeps_time_invariant_intercept_value():
+    idata = _idata_with_time_invariant_intercept()
+    result = (
+        MMMIDataWrapper(idata, validate_on_init=False)
+        .aggregate_time(period="all_time", method="mean")
+        .idata.posterior
+    )
+
+    xr.testing.assert_allclose(
+        result["intercept_contribution"], idata.posterior["intercept_contribution"]
+    )
+
+
+def test_aggregate_time_time_varying_intercept_matches_utility():
+    idata = _idata_with_time_invariant_intercept(time_varying=True)
+    result = (
+        MMMIDataWrapper(idata, validate_on_init=False)
+        .aggregate_time(period="all_time", method="sum")
+        .idata.posterior
+    )
+    expected = aggregate_idata_time(idata, "all_time", "sum").posterior
+
+    xr.testing.assert_identical(result.dataset, expected.dataset)
+
+
+def test_aggregate_time_original_returns_idata_unchanged():
+    idata = _idata_with_time_invariant_intercept()
+    result = MMMIDataWrapper(idata, validate_on_init=False).aggregate_time(
+        period="original"
+    )
+
+    assert result.idata is idata
+
+
 def test_aggregate_time_all_time_sets_schema_none(multidim_idata):
     """Test that all_time aggregation sets schema=None."""
     schema = MMMIdataSchema.from_model_config(

@@ -1332,6 +1332,72 @@ class TestNonChannelComponents:
             MMMSummaryFactory(mock_mmm_idata_wrapper).contributions(component="control")
 
 
+class TestTimeInvariantBaselineAggregation:
+    """A time-invariant intercept is added to ``mu`` in every period.
+
+    Aggregating over time must therefore count it once per period, like every
+    per-date contribution, so that the aggregated components still add up to
+    the aggregated prediction.
+    """
+
+    def test_all_time_baseline_counts_every_period(
+        self, mock_mmm_idata_wrapper_with_intercept, simple_dates
+    ):
+        factory = MMMSummaryFactory(mock_mmm_idata_wrapper_with_intercept)
+
+        per_period = factory.contributions(component="baseline", hdi_probs=[0.94])
+        all_time = factory.contributions(
+            component="baseline", frequency="all_time", hdi_probs=[0.94]
+        )
+
+        assert len(all_time) == 1
+        n_periods = len(simple_dates)
+        for column in ["mean", "median", "abs_error_94_lower", "abs_error_94_upper"]:
+            np.testing.assert_allclose(
+                all_time[column].to_numpy(),
+                n_periods * per_period[column].to_numpy(),
+                rtol=1e-10,
+            )
+
+    def test_all_time_components_add_up_to_the_window_total(
+        self, mock_mmm_idata_wrapper_with_intercept
+    ):
+        factory = MMMSummaryFactory(mock_mmm_idata_wrapper_with_intercept)
+        channels = factory.contributions(component="channel", frequency="all_time")
+        baseline = factory.contributions(component="baseline", frequency="all_time")
+
+        posterior = mock_mmm_idata_wrapper_with_intercept.idata.posterior
+        target_scale = 500.0
+        window_total = (
+            (
+                posterior["channel_contribution"].sum("channel")
+                + posterior["intercept_contribution"]
+            ).sum("date")
+            * target_scale
+        ).mean()
+
+        np.testing.assert_allclose(
+            channels["mean"].sum() + baseline["mean"].sum(),
+            float(window_total),
+            rtol=1e-10,
+        )
+
+    def test_monthly_baseline_counts_the_periods_in_each_month(
+        self, mock_mmm_idata_wrapper_with_intercept, simple_dates
+    ):
+        factory = MMMSummaryFactory(mock_mmm_idata_wrapper_with_intercept)
+
+        per_period = factory.contributions(component="baseline")["mean"].item()
+        monthly = factory.contributions(component="baseline", frequency="monthly")
+
+        periods_per_month = (
+            pd.Series(1, index=simple_dates).resample("ME").sum().to_numpy()
+        )
+        np.testing.assert_allclose(
+            monthly["mean"].to_numpy(), periods_per_month * per_period, rtol=1e-10
+        )
+
+
 # =============================================================================
 # Edge Cases Tests
 # =============================================================================
