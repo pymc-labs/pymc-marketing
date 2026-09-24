@@ -334,14 +334,14 @@ def _resolve_func(name: str) -> Callable:
             "pytensor.xtensor.math function, or register it with "
             "pymc_extras.prior.register_tensor_transform."
         ) from err
-    if name not in CUSTOM_TRANSFORMS:
+    if name.startswith("_") and name not in CUSTOM_TRANSFORMS:
         # The underscore rule only guards module-scan noise (dunder and
         # non-function attributes); explicitly registered names opt out.
-        if name.startswith("_") or not callable(func):
-            raise SerializationError(
-                f"Serialized function name {name!r} must resolve to a "
-                f"callable pytensor function, got {func!r}."
-            )
+        raise SerializationError(
+            f"Serialized function name {name!r} is private or a dunder "
+            "attribute, not a serializable transform. Register it with "
+            "pymc_extras.prior.register_tensor_transform to use it by name."
+        )
     if not callable(func):
         raise SerializationError(
             f"Serialized transform {name!r} resolved to {func!r}, which is "

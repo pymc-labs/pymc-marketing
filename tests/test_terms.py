@@ -1014,6 +1014,31 @@ def test_frozen_term_dataclass_walk_shares_decomposition():
     assert loaded["a"].prior.decomposition is loaded["b"].prior.decomposition
 
 
+def test_frozen_term_dataclass_walk_with_init_false_field():
+    """A frozen dataclass with an init=False field loads without crashing."""
+    from dataclasses import dataclass, field
+
+    @serialization.register
+    @dataclass(frozen=True)
+    class CachedHolder:
+        prior: object
+        _cache: dict = field(default_factory=dict, init=False)
+
+        def to_dict(self):
+            return {"prior": _serialize_child(self.prior)}
+
+        @classmethod
+        def from_dict(cls, data):
+            return cls(prior=_deserialize_child(data["prior"]))
+
+    term = CachedHolder(prior=Prior("Normal", mu=0, sigma=1))
+    loaded = serialization.deserialize_model_config(
+        json.loads(json.dumps(serialization.serialize_model_config({"mu": term})))
+    )
+
+    assert loaded["mu"] == term
+
+
 def test_resolve_func_allows_registered_underscore_name(monkeypatch):
     """Explicitly registered underscore names are loadable (not module noise)."""
 
@@ -1055,6 +1080,4 @@ def test_deserialize_custom_factory_error_names_register_deserialization():
 
 def test_deserialize_child_passthrough_non_dict():
     """Non-dict children pass through (defensive; _serialize_child emits dicts)."""
-    from pymc_marketing.terms import _deserialize_child
-
     assert _deserialize_child(52) == 52
