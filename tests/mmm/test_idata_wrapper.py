@@ -1152,6 +1152,41 @@ def test_aggregate_time_time_varying_intercept_matches_utility():
     xr.testing.assert_identical(result.dataset, expected.dataset)
 
 
+def test_aggregate_time_without_posterior_matches_utility():
+    dates = pd.date_range("2024-01-01", periods=8, freq="W-MON")
+    idata = xr.DataTree.from_dict(
+        {
+            "/constant_data": xr.Dataset(
+                {
+                    "target_data": xr.DataArray(
+                        np.arange(8.0), dims=("date",), coords={"date": dates}
+                    )
+                }
+            )
+        }
+    )
+    result = MMMIDataWrapper(idata, validate_on_init=False).aggregate_time(
+        period="all_time", method="sum"
+    )
+    expected = aggregate_idata_time(idata, "all_time", "sum")
+
+    xr.testing.assert_identical(
+        result.idata.constant_data.dataset, expected.constant_data.dataset
+    )
+
+
+def test_aggregate_time_twice_does_not_rescale_intercept():
+    idata = _idata_with_time_invariant_intercept()
+    once = MMMIDataWrapper(idata, validate_on_init=False).aggregate_time(
+        period="all_time", method="sum"
+    )
+    twice = once.aggregate_time(period="all_time", method="sum")
+
+    xr.testing.assert_identical(
+        twice.idata.posterior.dataset, once.idata.posterior.dataset
+    )
+
+
 def test_aggregate_time_original_returns_idata_unchanged():
     idata = _idata_with_time_invariant_intercept()
     result = MMMIDataWrapper(idata, validate_on_init=False).aggregate_time(
