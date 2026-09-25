@@ -24,22 +24,30 @@ variable each segment substitutes, how a segment maps to model-space tensors
   (``unpack``) and its exact inverse (``pack``), plus defaults for the initial
   guess and bounds.
 - :class:`MediaVariable` implements the media-budget path: mask scatter,
-  channel scaling, temporal distribution, cost-per-unit conversion, and
-  adstock carry-over padding.
+  temporal distribution, money-to-units conversion (a constant
+  ``cost_per_unit`` or a spend-dependent ``price_response`` applied before
+  ``channel_scales``), and adstock carry-over padding.
 - :class:`OptimizationVariables` owns the flat symbolic input and the variable layout,
   and produces the single substitution dict for ``pymc.do``.
 """
 
+from __future__ import annotations
+
 from abc import ABC, abstractmethod
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
+from typing import TYPE_CHECKING
 
 import numpy as np
 import pytensor.tensor as pt
 import pytensor.xtensor as ptx
 from pymc import Model
+from pytensor import function
 from pytensor.xtensor import as_xtensor
 from pytensor.xtensor.type import XTensorVariable
 from xarray import DataArray
+
+if TYPE_CHECKING:
+    from pymc_marketing.mmm.price_response import PriceResponse, ResolvedPriceResponse
 
 __all__ = [
     "FLAT_DIM",
@@ -266,8 +274,10 @@ class MediaVariable(OptimizationVariable):
 
     Owns the forward map from flat monetary budgets to the model's channel
     data tensor: scatter through the optimization mask, spread over
-    ``num_periods`` (uniformly or via a fixed temporal distribution), divide by
-    ``channel_scales``, convert monetary units via ``cost_per_unit``, and
+    ``num_periods`` (uniformly or via a fixed temporal distribution), convert
+    money to units -- ``/ channel_scales / cost_per_unit`` at a constant price,
+    or a spend-dependent ``price_response`` applied to the unscaled money with
+    ``cost_per_unit`` as base price and then ``/ channel_scales`` -- and
     zero-pad ``adstock_periods`` for carry-over, and the inverse map from a
     flat solution back to a labelled monetary ``DataArray``.
 
@@ -300,8 +310,30 @@ class MediaVariable(OptimizationVariable):
     cost_per_unit_tensor : XTensorVariable or None
         Pre-processed cost-per-unit tensor with dims
         ``(date_dim, *mask.dims)``, or None for no conversion.
+    price_response : PriceResponse or None
+        Spend-dependent price of a delivered unit, resolved here against this
+        variable's dims, coords and mask. ``None`` or an identity response
+        leaves the constant-price graph untouched; an identity response is
+        still held so :meth:`delivery_report` can report ``implied_price == p0``
+        for a baseline run.
+    price_reference : DataArray or None
+        Per-period money per cell the optimizer derived from the fitted model,
+        the default ``reference_spend``. ``None`` when the response supplies
+        its own or there is nothing to derive from.
+    compile_kwargs : dict or None
+        Keyword arguments for ``pytensor.function`` when compiling
+        :meth:`delivery_report`, the same ones the optimizer compiles its
+        objective with, so the report does not land on a different backend.
     flat_dim : str
         Name of the flat dimension of the decision vector.
+
+    Attributes
+    ----------
+    price_response : ResolvedPriceResponse or None
+        The ``price_response`` *parameter* is the declaration; this attribute is
+        that declaration bound to this variable's dims, coords and mask (its
+        :meth:`~pymc_marketing.mmm.price_response.PriceResponse.resolve` result),
+        which is what :meth:`to_model` and :meth:`delivery_report` read.
     """
 
     def __init__(
@@ -317,6 +349,9 @@ class MediaVariable(OptimizationVariable):
         budget_distribution_over_period_tensor: XTensorVariable | None = None,
         cost_per_unit_tensor: XTensorVariable | None = None,
         carry_in_values: np.ndarray | None = None,
+        price_response: PriceResponse | None = None,
+        price_reference: DataArray | None = None,
+        compile_kwargs: dict | None = None,
         flat_dim: str = FLAT_DIM,
     ) -> None:
         if np.dtype(dtype).kind != "f":
@@ -358,6 +393,21 @@ class MediaVariable(OptimizationVariable):
                 "nothing to optimize. Check budgets_to_optimize, or the "
                 "posterior contributions it is auto-detected from."
             )
+        self.price_response: ResolvedPriceResponse | None = (
+            None
+            if price_response is None
+            else price_response.resolve(
+                dims=self.dims,
+                coords=self.coords,
+                mask=self.mask,
+                date_dim=self.date_dim,
+                derived_reference=price_reference,
+                label=f"{name}: price_response",
+                num_periods=num_periods,
+            )
+        )
+        self.compile_kwargs = compile_kwargs
+        self._delivery_report_fn: Callable[..., list[np.ndarray]] | None = None
 
     @property
     def size(self) -> int:
@@ -383,7 +433,7 @@ class MediaVariable(OptimizationVariable):
         scales: float | np.ndarray = 1.0,
         date_dim: str = "date",
         **kwargs,
-    ) -> "MediaVariable":
+    ) -> MediaVariable:
         """Build a monetary variable by reading a named node's dims off a model.
 
         The media budgets are one instance of a monetary decision; a
@@ -514,30 +564,44 @@ class MediaVariable(OptimizationVariable):
 
         return repeated_budgets
 
+    def _per_period_money(self, z: XTensorVariable) -> XTensorVariable:
+        """Per-period money over ``(date_dim, *dims)``, before any unit conversion.
+
+        Shared by :meth:`to_model` and :meth:`delivery_report`, so the report is
+        evaluated on the same spend the graph saw.
+        """
+        if self.budget_distribution_over_period_tensor is not None:
+            return self._apply_budget_distribution_over_period(z)
+        return self.scattered(z).expand_dims(**{self.date_dim: self.num_periods})
+
     def to_model(self, z: XTensorVariable) -> XTensorVariable:
         """Build the channel-data substitution tensor from the flat slice."""
-        # Spread the monetary budgets over the periods, then scale. Scaling is
-        # elementwise per channel and spreading is elementwise per period, so
-        # the two commute; doing it after the branch means both the uniform and
-        # the temporal path are scaled by construction, rather than only the
-        # one that remembers to.
-        if self.budget_distribution_over_period_tensor is not None:
-            repeated_budgets = self._apply_budget_distribution_over_period(z)
-        else:
-            repeated_budgets = self.scattered(z).expand_dims(
-                **{self.date_dim: self.num_periods}
-            )
+        repeated_budgets = self._per_period_money(z)
 
-        repeated_budgets = repeated_budgets / as_xtensor(
+        scales = as_xtensor(
             self.channel_scales,
             dims=() if np.ndim(self.channel_scales) == 0 else self.scales_dims,
         )
 
-        # Convert from monetary units to original units using date-specific
-        # rates. Applied AFTER time distribution so each period uses its own
-        # cost rate.
-        if self.cost_per_unit_tensor is not None:
-            repeated_budgets = repeated_budgets / self.cost_per_unit_tensor
+        if self.price_response is None or self.price_response.is_identity:
+            # The constant-price graph, unchanged: the identity short-circuit is
+            # what keeps a gamma = 0 baseline bitwise equal to a run without a
+            # response. Scaling is elementwise per channel and spreading per
+            # period, so the two commute and both spreading paths are scaled by
+            # construction. cost_per_unit is applied after time distribution so
+            # each period uses its own rate.
+            repeated_budgets = repeated_budgets / scales
+            if self.cost_per_unit_tensor is not None:
+                repeated_budgets = repeated_budgets / self.cost_per_unit_tensor
+        else:
+            # The price depends on the money actually spent in the period, so
+            # the map has to see unscaled money: (s / c) ** (1 - gamma) is not
+            # s ** (1 - gamma) / c. cost_per_unit enters as the base price
+            # rather than as a second division.
+            repeated_budgets = self.price_response.to_delivery(
+                repeated_budgets, base_price=self.cost_per_unit_tensor
+            )
+            repeated_budgets = repeated_budgets / scales
 
         repeated_budgets.name = "repeated_budgets"
 
@@ -567,6 +631,88 @@ class MediaVariable(OptimizationVariable):
     def budget_contribution(self, z: XTensorVariable) -> XTensorVariable:
         """Media spends its whole slice, already in monetary units."""
         return self.scattered(z)
+
+    def delivery_report(
+        self, x: np.ndarray, date_coords: Sequence | None = None
+    ) -> dict[str, DataArray]:
+        """Implied delivery and clearing prices at a flat solution slice.
+
+        Evaluated from the same symbolic maps :meth:`to_model` used, on the same
+        per-period money, so the report cannot drift from the graph the solver
+        saw. Compiled once per variable, lazily.
+
+        Parameters
+        ----------
+        x : np.ndarray
+            This variable's slice of the flat decision vector, in money.
+        date_coords : Sequence or None
+            Labels for the date dim; the dim carries no coordinates when omitted.
+
+        Returns
+        -------
+        dict[str, DataArray]
+            Empty when the variable has no price response. Otherwise three
+            arrays over ``(date_dim, *dims)``: ``implied_delivery`` in the
+            delivery units the money buys, before ``channel_scales`` -- the
+            model node receives ``implied_delivery / channel_scales`` --
+            (``0.0`` at zero money), ``implied_price``
+            and ``implied_marginal_price`` in money per unit, ``nan`` wherever
+            per-period money is zero -- masked cells and any decision that
+            landed on (or within ``1e-12`` of the reference spend of) zero --
+            because their price would otherwise be read
+            off a reference they never spent against. Where money is spent,
+            ``(implied_delivery * implied_price).sum(date_dim)`` equals
+            ``budgets * num_periods`` to floating point (``u(s) * p(s) = s``
+            algebraically).
+        """
+        if self.price_response is None:
+            return {}
+        x = np.asarray(x, dtype="float64")
+        if x.shape != (self.size,):
+            raise ValueError(
+                f"{self.name}: expected a slice of shape ({self.size},), got {x.shape}"
+            )
+        if self._delivery_report_fn is None:
+            self._delivery_report_fn = self._compile_delivery_report()
+        money, delivery, price, marginal = (
+            np.asarray(v) for v in self._delivery_report_fn(x)
+        )
+        # SLSQP leaves a cell it drove to the bound at 1e-16 as often as at
+        # exactly 0; both bought nothing, so the mask follows the intent rather
+        # than the bit pattern. Relative to the reference so the threshold has
+        # the units of money.
+        zero = money <= 1e-12 * self.price_response.reference_spend
+        price = np.where(zero, np.nan, price)
+        marginal = np.where(zero, np.nan, marginal)
+        dims = (self.date_dim, *self.dims)
+        coords: dict = dict(self.coords)
+        if date_coords is not None:
+            coords[self.date_dim] = list(date_coords)
+        return {
+            "implied_delivery": DataArray(delivery, dims=dims, coords=coords),
+            "implied_price": DataArray(price, dims=dims, coords=coords),
+            "implied_marginal_price": DataArray(marginal, dims=dims, coords=coords),
+        }
+
+    def _compile_delivery_report(self):
+        if self.price_response is None:  # pragma: no cover - guarded by delivery_report
+            raise RuntimeError(f"{self.name}: no price response to report on")
+        z = ptx.xtensor(
+            f"{self.name}_report_x", shape=(self.size,), dims=(self.flat_dim,)
+        )
+        money = self._per_period_money(z)
+        p0 = self.cost_per_unit_tensor
+        outputs = [
+            money,
+            self.price_response.to_delivery(money, base_price=p0),
+            self.price_response.implied_price(money, base_price=p0),
+            self.price_response.implied_marginal_price(money, base_price=p0),
+        ]
+        return function(
+            [z],
+            [out.transpose(self.date_dim, *self.dims) for out in outputs],
+            **(self.compile_kwargs or {}),
+        )
 
     def unpack(self, x: np.ndarray) -> DataArray:
         """Scatter a flat solution back into a labelled monetary ``DataArray``."""
@@ -718,7 +864,7 @@ class LeverVariable(OptimizationVariable):
         *,
         date_dim: str = "date",
         flat_dim: str = FLAT_DIM,
-    ) -> "LeverVariable":
+    ) -> LeverVariable:
         """Build a lever by reading a named node's dim, coords and value off a model.
 
         Everything a lever needs besides its bounds already lives in the model,

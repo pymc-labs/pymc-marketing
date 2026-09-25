@@ -27,7 +27,7 @@ from pytensor.graph.traversal import ancestors
 from pytensor.xtensor import as_xtensor
 from scipy.optimize import approx_fprime
 
-from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation
+from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation, PowerPriceResponse
 from pymc_marketing.mmm.additive_effect import LinearTrendEffect, MuEffect
 from pymc_marketing.mmm.budget_optimizer import BudgetOptimizer, BuildMergedModel
 from pymc_marketing.mmm.linear_trend import LinearTrend
@@ -1765,6 +1765,43 @@ def test_budget_optimizer_new_api(dummy_df, fitted_mmm):
     assert result.success
 
 
+def test_wrapper_optimize_budget_forwards_price_response(dummy_df, fitted_mmm):
+    """The issue's suggested API is wrapper.optimize_budget(..., price_response=...)."""
+    _df_kwargs, X_dummy, _y_dummy = dummy_df
+    fitted_mmm.add_original_scale_contribution_variable(["channel_contribution"])
+    with pytest.warns(DeprecationWarning):
+        wrapper = BudgetOptimizerWrapper(
+            model=fitted_mmm,
+            start_date=X_dummy["date_week"].max() + pd.Timedelta(weeks=1),
+            end_date=X_dummy["date_week"].max() + pd.Timedelta(weeks=4),
+        )
+    result = wrapper.optimize_budget(
+        budget=10.0, price_response=PowerPriceResponse(elasticity=0.0)
+    )
+    assert result.implied_price is not None
+    # The identity reports, but the price is constant: nothing to warn the
+    # deprecated sampler about, so no stamp.
+    assert "price_response" not in result.budgets.attrs
+
+    # A real curve is money whose unit price varied with spend. The stamp names the
+    # class the user wrote, and the sampler -- which feeds an allocation to the model
+    # as channel units -- warns, naming the array it should have been given instead.
+    reference = xr.DataArray(
+        np.full((2, 2), 5.0),
+        dims=("geo", "channel"),
+        coords={"geo": ["A", "B"], "channel": ["channel_1", "channel_2"]},
+    )
+    priced = wrapper.optimize_budget(
+        budget=10.0,
+        price_response=PowerPriceResponse(
+            elasticity=0.3, reference_spend=reference, assume_delivery_units=True
+        ),
+    )
+    assert priced.budgets.attrs["price_response"] == "PowerPriceResponse"
+    with pytest.warns(UserWarning, match="implied_delivery"):
+        wrapper.sample_response_distribution(priced.budgets)
+
+
 class _MediatedEffect(MuEffect):
     """Extra response reaching the target through a mediator, favouring one channel.
 
@@ -2446,6 +2483,80 @@ class TestMonetarySpendVariables:
         assert "'l'" not in str(info.value), (
             "a bare string was iterated character by character"
         )
+
+    def test_a_bare_price_response_with_spend_vars_is_refused(
+        self, funnel_identity_fitted_mmm
+    ):
+        """Media and a spend variable draw from one pot through one constraint; pricing
+        one on a curve and the other at a constant, silently, is the failure mode."""
+        with pytest.raises(ValueError, match="name every variable"):
+            self._optimizer(
+                funnel_identity_fitted_mmm,
+                spend_vars=["lf_budget"],
+                price_response=PowerPriceResponse(
+                    elasticity=0.2, assume_delivery_units=True
+                ),
+            )
+
+    def test_a_price_response_for_an_unknown_variable_is_refused(
+        self, funnel_identity_fitted_mmm
+    ):
+        with pytest.raises(ValueError, match=r"price_response names \['nope'\]"):
+            self._optimizer(
+                funnel_identity_fitted_mmm,
+                spend_vars=["lf_budget"],
+                price_response={"nope": PowerPriceResponse(elasticity=0.2)},
+            )
+
+    def test_a_dict_must_name_every_monetary_variable(self, funnel_identity_fitted_mmm):
+        """The bare-object refusal promises that the dict form names every variable,
+        including the ones staying at a constant price. Omitting one reproduces the
+        hazard by omission: media at a constant, the spend variable on a curve, both in
+        one pot. An explicit identity response is how "constant" is said."""
+        curve = PowerPriceResponse(elasticity=0.2, reference_spend=xr.DataArray(1.0))
+        with pytest.raises(ValueError, match=r"leaves \['channel_data'\] unpriced"):
+            self._optimizer(
+                funnel_identity_fitted_mmm,
+                spend_vars=["lf_budget"],
+                price_response={"lf_budget": curve},
+            )
+        with pytest.raises(ValueError, match=r"leaves \['lf_budget'\] unpriced"):
+            self._optimizer(
+                funnel_identity_fitted_mmm,
+                spend_vars=["lf_budget"],
+                price_response={"channel_data": PowerPriceResponse(elasticity=0.0)},
+            )
+
+    def test_a_spend_variable_price_response_needs_a_reference_and_then_solves(
+        self, funnel_identity_fitted_mmm
+    ):
+        """There is no fitted artifact to derive a spend variable's reference from."""
+        constant_media = PowerPriceResponse(elasticity=0.0)
+        with pytest.raises(ValueError, match=r"lf_budget.*reference_spend is required"):
+            self._optimizer(
+                funnel_identity_fitted_mmm,
+                spend_vars=["lf_budget"],
+                price_response={
+                    "channel_data": constant_media,
+                    "lf_budget": PowerPriceResponse(elasticity=0.2),
+                },
+            )
+        optimizer = self._optimizer(
+            funnel_identity_fitted_mmm,
+            spend_vars=["lf_budget"],
+            price_response={
+                "channel_data": constant_media,
+                "lf_budget": PowerPriceResponse(
+                    elasticity=0.2, reference_spend=xr.DataArray(1.0)
+                ),
+            },
+        )
+        result = optimizer.allocate_budget(total_budget=self.TOTAL)
+        assert result.scipy_result.success, result.scipy_result.message
+        assert np.isfinite(result.spend_var_allocations["lf_budget"]).all()
+        # Media carries the identity response, so its report is present and flat at p0 = 1.
+        spent = result.budgets > 0
+        assert np.all(result.implied_price.where(spent).fillna(1.0) == 1.0)
 
 
 def test_mmm_budget_optimizer_set_posterior_is_local_to_the_optimizer(

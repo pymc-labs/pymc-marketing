@@ -269,6 +269,7 @@ if TYPE_CHECKING:
         BudgetOptimizationResult,
         BudgetOptimizer,
     )
+    from pymc_marketing.mmm.price_response import PriceResponse
 
 
 def _deserialize_cost_per_unit(json_str: str) -> pd.DataFrame:
@@ -2970,7 +2971,9 @@ class MMM(RegressionModelBuilder):
             Extra keyword arguments for PyTensor's ``function()``.
         **kwargs
             Additional arguments forwarded to
-            :class:`~pymc_marketing.mmm.budget_optimizer.BudgetOptimizer`.
+            :class:`~pymc_marketing.mmm.budget_optimizer.BudgetOptimizer`, for
+            example ``price_response`` (see
+            :class:`~pymc_marketing.mmm.price_response.PowerPriceResponse`).
 
         Returns
         -------
@@ -4222,6 +4225,14 @@ class MMM(RegressionModelBuilder):
             If model has not been fitted yet (no idata available).
         ValueError
             If date/dim values don't match the fitted data.
+
+        Notes
+        -----
+        Setting a channel's historical price is also what lets the budget
+        optimizer apply a spend-dependent
+        :class:`~pymc_marketing.mmm.price_response.PowerPriceResponse` to it,
+        since it records that the channel's data is in delivery units; channels
+        absent from the table stay refused.
         """
         if not hasattr(self, "idata") or self.idata is None:
             raise RuntimeError(
@@ -4422,6 +4433,7 @@ class BudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
         budgets_to_optimize: xr.DataArray | None = None,
         budget_distribution_over_period: xr.DataArray | None = None,
         cost_per_unit: pd.DataFrame | xr.DataArray | None = None,
+        price_response: PriceResponse | dict[str, PriceResponse] | None = None,
         callback: bool = False,
         **allocate_budget_kwargs,
     ) -> BudgetOptimizationResult:
@@ -4477,6 +4489,10 @@ class BudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
             the model's native units).
 
             **This is independent of the historical cost_per_unit.**
+        price_response : PriceResponse or dict[str, PriceResponse] or None, optional
+            Spend-dependent price of a delivered unit; see
+            :class:`~pymc_marketing.mmm.price_response.PowerPriceResponse`. Forwarded to
+            :class:`~pymc_marketing.mmm.budget_optimizer.BudgetOptimizer`.
         callback : bool
             Whether to track optimization progress; when True the returned
             result's ``callback_info`` attribute holds per-iteration information.
@@ -4524,6 +4540,7 @@ class BudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
             budgets_to_optimize=budgets_to_optimize,
             budget_distribution_over_period=budget_distribution_over_period,
             cost_per_unit=cost_per_unit_da,
+            price_response=price_response,
             model=self,
             compile_kwargs=self.compile_kwargs,
         )
@@ -4629,6 +4646,17 @@ class BudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
         xr.Dataset
             The posterior predictive samples based on the synthetic dataset.
         """
+        if "price_response" in getattr(allocation_strategy, "attrs", {}):
+            warnings.warn(
+                "allocation_strategy was optimized under a spend-dependent price "
+                f"({allocation_strategy.attrs['price_response']}): it is money, and this "
+                "method feeds it to the model as channel units. Pass "
+                "result.implied_delivery.mean('date') instead (exact under a uniform "
+                "budget_distribution_over_period), or score the plan with "
+                "BudgetOptimizer.evaluate_response_distribution, which runs the price map.",
+                UserWarning,
+                stacklevel=2,
+            )
         data = create_zero_dataset(
             model=self,
             start_date=self.start_date,
