@@ -1151,9 +1151,10 @@ def test_aggregate_time_counts_time_invariant_intercept_in_prior_group():
         )
 
 
+@pytest.mark.parametrize("geos", [None, ["A", "B"]], ids=["no_extra_dims", "geo"])
 @pytest.mark.parametrize("period", ["all_time", "monthly"])
-def test_aggregate_time_counts_time_invariant_intercept_every_period(period):
-    idata = _idata_with_time_invariant_intercept()
+def test_aggregate_time_counts_time_invariant_intercept_every_period(period, geos):
+    idata = _idata_with_time_invariant_intercept(geos=geos)
     posterior = idata.posterior
     n_dates = posterior.sizes["date"]
 
@@ -1170,6 +1171,23 @@ def test_aggregate_time_counts_time_invariant_intercept_every_period(period):
             result[name].sum("date") if "date" in result[name].dims else result[name]
         )
         xr.testing.assert_allclose(total, posterior[name] * n_dates)
+
+
+def test_aggregate_time_counts_the_intercept_over_the_filtered_window():
+    idata = _idata_with_time_invariant_intercept()
+    dates = idata.posterior.indexes["date"]
+
+    result = (
+        MMMIDataWrapper(idata, validate_on_init=False)
+        .filter_dates(dates[2], dates[5])
+        .aggregate_time(period="all_time", method="sum")
+        .idata.posterior
+    )
+
+    xr.testing.assert_allclose(
+        result["intercept_contribution"],
+        idata.posterior["intercept_contribution"] * 4,
+    )
 
 
 def test_aggregate_time_leaves_parameters_and_totals_untouched():
@@ -1244,13 +1262,13 @@ def test_aggregate_time_twice_does_not_rescale_intercept():
     )
 
 
-def test_aggregate_time_original_returns_idata_unchanged():
+def test_aggregate_time_original_leaves_the_data_as_is():
     idata = _idata_with_time_invariant_intercept()
     result = MMMIDataWrapper(idata, validate_on_init=False).aggregate_time(
         period="original"
     )
 
-    assert result.idata is idata
+    xr.testing.assert_identical(result.idata.posterior.dataset, idata.posterior.dataset)
 
 
 def test_aggregate_time_all_time_sets_schema_none(multidim_idata):
