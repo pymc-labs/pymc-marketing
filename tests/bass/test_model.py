@@ -1530,6 +1530,25 @@ class TestBassModelTerms:
 
         assert self._graph_m_sigma(model) == pytest.approx(10.0)
 
+    def test_term_name_mismatch_raises(self) -> None:
+        """A recipe name that differs from its config key fails loudly.
+
+        Otherwise the graph builds with the term's own name and the
+        posterior is silently labelled ``foo`` where ``m`` was promised.
+        """
+        with pytest.raises(ValueError, match=r"'m'.*'foo'"):
+            create_bass_model(
+                t=np.arange(10),
+                observed=None,
+                priors={
+                    "m": Parameter("foo", prior=Prior("HalfNormal", sigma=500)),
+                    "p": Prior("Beta", alpha=1.5, beta=20),
+                    "q": Prior("Beta", alpha=2, beta=5),
+                    "likelihood": Prior("NegativeBinomial", n=1.5),
+                },
+                coords={"T": np.arange(10)},
+            )
+
     def test_recipe_config_survives_save_load(self, mock_pymc_sample, tmp_path) -> None:
         """Recipes serialize through the model attrs and survive save/load."""
         y = np.random.default_rng(42).poisson(lam=100, size=20)

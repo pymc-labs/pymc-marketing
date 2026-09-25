@@ -474,6 +474,18 @@ def create_bass_model(
     """
     model = model or pm.Model(coords=coords)
     with model:
+        # Term recipes name their own free variables, so a name that differs
+        # from the config key would build a graph with no `m`/`p`/`q` in the
+        # posterior at all - fail before anything is created.
+        for key in ("m", "p", "q"):
+            entry = priors[key]
+            if isinstance(entry, ModelTerm) and entry.name != key:
+                raise ValueError(
+                    f"Config key {key!r} must match the term name "
+                    f"{entry.name!r}; rename the term or the key so the "
+                    f"posterior keeps a variable named {key!r}."
+                )
+
         time = pmd.as_xtensor(t, dims=("T",))
         m = cast("pmd.XTensorVariable", build_param(priors["m"], "m"))
         p = cast("pmd.XTensorVariable", build_param(priors["p"], "p"))

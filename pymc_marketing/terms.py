@@ -1024,6 +1024,10 @@ class Ref(ModelTerm):
     requires the referenced term to be built earlier in traversal order -
     build once with ``Named``, reference afterwards with ``Ref``.
 
+    ``Ref`` contributes no coordinates of its own: coordinates must come
+    from the other leaves in the composition or be supplied by the
+    enclosing model.
+
     Parameters
     ----------
     name : str
