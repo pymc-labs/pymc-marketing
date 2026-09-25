@@ -479,11 +479,12 @@ def create_bass_model(
         # posterior at all - fail before anything is created.
         for key in ("m", "p", "q"):
             entry = priors[key]
-            if isinstance(entry, ModelTerm) and entry.name != key:
+            if isinstance(entry, ModelTerm) and getattr(entry, "name", None) != key:
                 raise ValueError(
                     f"Config key {key!r} must match the term name "
-                    f"{entry.name!r}; rename the term or the key so the "
-                    f"posterior keeps a variable named {key!r}."
+                    f"{getattr(entry, 'name', None)!r}; rename the term or "
+                    f"the key so the posterior keeps a variable named "
+                    f"{key!r}."
                 )
 
         time = pmd.as_xtensor(t, dims=("T",))
