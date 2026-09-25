@@ -1381,6 +1381,45 @@ class TestPriceResponseAllocation:
         front_loaded = price.sel(channel="channel_1").values
         assert np.all(np.diff(front_loaded) < 0), front_loaded
 
+    def test_a_channel_bounded_to_zero_reports_no_price_at_all(self, simple_fitted_mmm):
+        """A channel held at zero bought nothing, so its whole price row is nan and the
+        obvious summary of it (mean, hdi, plot) is nan too. Contract, not an accident:
+        the same happens to any cell the solver drives to a lower bound of 0, and to
+        every period a budget_distribution_over_period zeroes out."""
+        mmm = simple_fitted_mmm
+        mmm.set_cost_per_unit(_full_table(mmm, self.PRICES))
+        optimizer = _optimizer(
+            mmm,
+            cost_per_unit=_window_cpu(mmm, self.PRICES),
+            price_response=PowerPriceResponse(elasticity=0.3),
+        )
+        bounds = xr.DataArray(
+            [[0.0, 0.0], [0.0, self.TOTAL], [0.0, self.TOTAL]],
+            dims=("channel", "bound"),
+            coords={"channel": CHANNELS_3, "bound": ["lower", "upper"]},
+        )
+        # The default x0 is uniform, which is outside the zero bound; start feasible.
+        x0 = xr.DataArray(
+            [0.0, self.TOTAL / 2, self.TOTAL / 2],
+            dims=("channel",),
+            coords={"channel": CHANNELS_3},
+        )
+        result = optimizer.allocate_budget(
+            total_budget=self.TOTAL, budget_bounds=bounds, x0=x0
+        )
+        assert result.scipy_result.success, result.scipy_result.message
+
+        off = result.implied_price.sel(channel="channel_1")
+        assert bool(np.isnan(off).all())
+        assert bool(
+            np.isnan(result.implied_marginal_price.sel(channel="channel_1")).all()
+        )
+        assert bool((result.implied_delivery.sel(channel="channel_1") == 0.0).all())
+        assert np.isnan(float(off.mean()))
+        assert bool(
+            result.implied_price.sel(channel=["channel_2", "channel_3"]).notnull().all()
+        )
+
 
 def _spread(values: np.ndarray) -> float:
     return float((values.max() - values.min()) / abs(values.mean()))

@@ -372,9 +372,12 @@ class BudgetOptimizationResult:
         over the window, so it needs ``implied_delivery.mean(date_dim)`` and is exact
         only under a uniform ``budget_distribution_over_period``. ``0.0`` at zero spend.
     implied_price : xarray.DataArray or None
-        Average money paid per delivered unit, per period and cell. ``nan`` wherever
-        per-period money is exactly zero (masked cells, decisions that landed on zero),
-        because no price was paid there. Masking those cells,
+        Average money paid per delivered unit, per period and cell. ``nan`` wherever no
+        money was spent -- a masked-out cell, a channel the bounds hold at zero, a cell
+        the solver drives to zero, and every period a ``budget_distribution_over_period``
+        zeroes out -- because no price was paid there. So a plain ``.mean()`` over a
+        channel with any dark period is ``nan``; use ``.mean(skipna=True)``, or the
+        delivery-weighted window average below. Masking those cells,
         ``(implied_delivery * implied_price).sum(date_dim)`` equals ``budgets * num_periods``
         to floating point (the map satisfies ``u(s) * p(s) = s`` algebraically),
         so the window-average price is ``budgets * num_periods / implied_delivery.sum(date_dim)``.
@@ -2783,7 +2786,7 @@ class BudgetOptimizer(BaseModel):
         variable rather than answering silently.
 
         This evaluates the model's deterministic response under the plan. It is
-        not :meth:`~pymc_marketing.mmm.mmm.MMM.sample_response_distribution`,
+        not :meth:`~pymc_marketing.mmm.mmm.BudgetOptimizerWrapper.sample_response_distribution`,
         which draws fresh predictive noise on top.
 
         ``az.hdi`` expects ``chain``/``draw``, so summarising this needs the

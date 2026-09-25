@@ -446,6 +446,15 @@ class PowerPriceResponse(PriceResponse):
     ``result.implied_marginal_price / result.implied_price == 1 / (1 - elasticity)`` above the floor, so at
     ``elasticity=0.25`` the next unit costs 33% more than the average one.
 
+    **The price report is sparse.** Both price arrays are ``nan`` wherever no money was spent -- a cell outside
+    the optimization mask, a channel the bounds hold at zero, a cell the solver drives to zero, and every period
+    a ``budget_distribution_over_period`` zeroes out, which is the flight-planning case that parameter exists
+    for. Nothing was bought there, so nothing was paid per unit; ``implied_delivery`` is ``0.0``, which is a
+    true statement, and the money identity is claimed on the spent cells only. A plain
+    ``result.implied_price.mean()`` over a channel with any dark period is therefore ``nan``: reduce with
+    ``.mean(skipna=True)``, or weight by delivery for the window-average price a buyer wants,
+    ``budgets * num_periods / implied_delivery.sum(date_dim)``.
+
     Examples
     --------
     .. code-block:: python
