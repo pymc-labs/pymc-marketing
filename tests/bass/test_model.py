@@ -37,6 +37,7 @@ from pytensor.graph import rewrite_graph
 
 from pymc_marketing.bass import BassModel
 from pymc_marketing.bass.model import F, create_bass_model, f
+from pymc_marketing.terms import Named, Parameter
 
 
 class BassModelComponents(BaseModel):
@@ -1476,3 +1477,92 @@ class TestBassModelClass:
         )
         assert isinstance(pp, xr.DataArray)
         assert "posterior_predictive" not in fitted_model.idata
+
+
+class TestBassModelTerms:
+    """Parameter recipes through BassPriors / model_config."""
+
+    @staticmethod
+    def _graph_m_sigma(model: BassModel) -> float:
+        """Read the `m` prior scale out of the built graph."""
+        return float(model.model["m"].owner.inputs[-1].eval())
+
+    def test_recipe_priors_build(self) -> None:
+        """m/p/q as term recipes compose through create_bass_model."""
+        priors = {
+            "m": Parameter("m", prior=Prior("HalfNormal", sigma=500)),
+            "p": Parameter(
+                "p", prior=Prior("Beta", alpha=1.5, beta=20, dims="product")
+            ),
+            "q": Named(
+                "q",
+                Parameter(
+                    "q_scale", prior=Prior("Beta", alpha=2, beta=5, dims="product")
+                )
+                * 2,
+                dims="product",
+            ),
+            "likelihood": Prior("NegativeBinomial", n=1.5, dims="product"),
+        }
+        model = create_bass_model(
+            t=np.arange(40),
+            observed=None,
+            priors=priors,
+            coords={"T": np.arange(40), "product": ["A", "B"]},
+        )
+
+        for var in ("m", "p", "q", "adopters", "innovators", "imitators", "peak"):
+            assert var in model.named_vars
+        assert model.named_vars_to_dims["adopters"] == ("T", "product")
+
+    def test_m_recipe_opts_out_of_rescale(self) -> None:
+        """The only configuration where the rescale could bite.
+
+        Wrapping the *identical* default prior in a ``Parameter`` looks like a
+        no-op refactor but changes the fitted ``m`` scale from
+        ``2 * observed.sum()`` to the prior's own sigma.
+        """
+        y = np.random.default_rng(42).poisson(lam=100, size=20)
+        model = BassModel(
+            model_config={"m": Parameter("m", prior=Prior("HalfNormal", sigma=10))}
+        )
+        model.build_model(data=y)
+
+        assert self._graph_m_sigma(model) == pytest.approx(10.0)
+
+    def test_term_name_mismatch_raises(self) -> None:
+        """A recipe name that differs from its config key fails loudly.
+
+        Otherwise the graph builds with the term's own name and the
+        posterior is silently labelled ``foo`` where ``m`` was promised.
+        """
+        with pytest.raises(ValueError, match=r"'m'.*'foo'"):
+            create_bass_model(
+                t=np.arange(10),
+                observed=None,
+                priors={
+                    "m": Parameter("foo", prior=Prior("HalfNormal", sigma=500)),
+                    "p": Prior("Beta", alpha=1.5, beta=20),
+                    "q": Prior("Beta", alpha=2, beta=5),
+                    "likelihood": Prior("NegativeBinomial", n=1.5),
+                },
+                coords={"T": np.arange(10)},
+            )
+
+    def test_recipe_config_survives_save_load(self, mock_pymc_sample, tmp_path) -> None:
+        """Recipes serialize through the model attrs and survive save/load."""
+        y = np.random.default_rng(42).poisson(lam=100, size=20)
+        config = {
+            "m": Parameter("m", prior=Prior("HalfNormal", sigma=500)),
+            "p": Parameter("p", prior=Prior("Beta", alpha=1.5, beta=20)),
+            "q": Parameter("q", prior=Prior("Beta", alpha=2, beta=5)),
+        }
+        model = BassModel(model_config=dict(config))
+        model.fit(data=y, draws=5, tune=5, chains=1, random_seed=42)
+        path = tmp_path / "bass_terms.nc"
+        model.save(path)
+
+        loaded = BassModel.load(path)
+        assert isinstance(loaded.model_config["m"], Parameter)
+        assert loaded.model_config["m"] == config["m"]
+        assert loaded.id == model.id

@@ -168,6 +168,7 @@ from pymc_marketing.bass import plotting
 from pymc_marketing.bass.data import to_bass_dataset
 from pymc_marketing.model_builder import ModelBuilder, SamplingMethod
 from pymc_marketing.model_config import parse_model_config
+from pymc_marketing.terms import ModelTerm, Product, Sum, build_param
 from pymc_marketing.version import __version__
 
 #: What :func:`F` and :func:`f` accept for ``t``: a labelled xtensor, or any
@@ -387,9 +388,9 @@ def _observed_dims(
 class BassPriors(TypedDict):
     """Priors for the Bass diffusion model."""
 
-    m: Prior | Censored | VariableFactory
-    p: Prior | Censored | VariableFactory
-    q: Prior | Censored | VariableFactory
+    m: Prior | Censored | VariableFactory | ModelTerm | Sum | Product
+    p: Prior | Censored | VariableFactory | ModelTerm | Sum | Product
+    q: Prior | Censored | VariableFactory | ModelTerm | Sum | Product
     likelihood: Prior | Censored
 
 
@@ -432,11 +433,16 @@ def create_bass_model(
         priors, in that order. An array laid out the way the ``likelihood``
         prior declares it is therefore read the way it is laid out.
     priors : BassPriors
-        Dictionary containing priors for:
-        - 'm': Market potential prior
-        - 'p': Innovation coefficient prior
-        - 'q': Imitation coefficient prior
+        Dictionary containing priors or term recipes for:
+        - 'm': Market potential prior or term
+        - 'p': Innovation coefficient prior or term
+        - 'q': Imitation coefficient prior or term
         - 'likelihood': Observation likelihood model
+
+        Terms must build free random variables (``Parameter`` /
+        ``Named``) - data-carrying terms (``Dot``) need
+        ``register_data``/``set_data`` wiring this model does not
+        perform yet.
     coords : dict[str, Any]
         Coordinate values for dimensions in the model, including
         'date' for the time dimension and any other dimensions
@@ -468,26 +474,40 @@ def create_bass_model(
     """
     model = model or pm.Model(coords=coords)
     with model:
+        # Term recipes name their own free variables, so a name that differs
+        # from the config key would build a graph with no `m`/`p`/`q` in the
+        # posterior at all - fail before anything is created.
+        for key in ("m", "p", "q"):
+            entry = priors[key]
+            if isinstance(entry, ModelTerm) and getattr(entry, "name", None) != key:
+                raise ValueError(
+                    f"Config key {key!r} must match the term name "
+                    f"{getattr(entry, 'name', None)!r}; rename the term or "
+                    f"the key so the posterior keeps a variable named "
+                    f"{key!r}."
+                )
+
+        time = pmd.as_xtensor(t, dims=("T",))
+        m = cast("pmd.XTensorVariable", build_param(priors["m"], "m"))
+        p = cast("pmd.XTensorVariable", build_param(priors["p"], "p"))
+        q = cast("pmd.XTensorVariable", build_param(priors["q"], "q"))
+
         # Declaration order, not set order: `combined_dims` labels the axes of
         # `observed` positionally, so an order that varies between processes
         # would silently mislabel the data. The likelihood comes first because
-        # it is the variable `observed` has to line up with, so an unlabelled
-        # array laid out the way the likelihood declares it is read that way.
+        # it is the variable `observed` has to line up with. `p`, `q` and `m`
+        # report the dims they actually built with, so a term recipe does not
+        # have to re-declare them.
         declared_dims = (
             *(priors["likelihood"].dims or ()),
-            *(priors["p"].dims or ()),
-            *(priors["q"].dims or ()),
-            *(priors["m"].dims or ()),
+            *getattr(p, "dims", ()),
+            *getattr(q, "dims", ()),
+            *getattr(m, "dims", ()),
         )
         combined_dims = (
             "T",
             *(dim for dim in dict.fromkeys(declared_dims) if dim != "T"),
         )
-
-        time = pmd.as_xtensor(t, dims=("T",))
-        m = priors["m"].create_variable("m", xdist=True)
-        p = priors["p"].create_variable("p", xdist=True)
-        q = priors["q"].create_variable("q", xdist=True)
 
         def deterministic(name: str, value: XTensorVariable) -> XTensorVariable:
             """Store ``value`` with the dims it has, in ``combined_dims`` order."""
@@ -530,7 +550,9 @@ class BassModel(ModelBuilder):
     ----------
     model_config : dict, optional
         Dictionary with keys ``"m"``, ``"p"``, ``"q"``, ``"likelihood"``
-        mapping to :class:`~pymc_extras.prior.Prior` (or equivalent dict).
+        mapping to :class:`~pymc_extras.prior.Prior` or a punch-in term
+        recipe (``Parameter`` / ``Named`` composition). The names must
+        match the config keys to keep ``m``/``p``/``q`` in the model.
         See :meth:`default_model_config` for defaults.
     sampler_config : dict, optional
         Dictionary of sampler settings (draws, tune, chains, …).
@@ -671,6 +693,9 @@ class BassModel(ModelBuilder):
         ``model_config``, so every fit is scaled to the data it is looking at. Pass an
         ``m`` prior that differs from the default in ``model_config`` to opt out; a
         prior identical to the default is indistinguishable from not passing one.
+        Wrapping the default prior in a ``Parameter`` term counts as passing one,
+        so the rescale does not apply - the fitted ``m`` scale is the prior's own
+        sigma, not ``2 * observed.sum()``.
         """
         return {
             "m": Prior("HalfNormal", sigma=10),
@@ -844,6 +869,8 @@ class BassModel(ModelBuilder):
         # identical either side of a save/load round trip, since `build_model` recomputes
         # the same sigma from `fit_data`.
         priors = dict(self.model_config)
+        # `Prior.__eq__` is already `False` for any term, so the comparison
+        # below opts term recipes out of the rescale on its own.
         if observed is not None and priors["m"] == self.default_model_config["m"]:
             total_adopters = max(float(observed.sum()), 1.0)
             priors["m"] = Prior("HalfNormal", sigma=2 * total_adopters)
