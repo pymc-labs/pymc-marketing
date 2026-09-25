@@ -1385,13 +1385,26 @@ class TestPriceResponseAllocation:
         """A channel held at zero bought nothing, so its whole price row is nan and the
         obvious summary of it (mean, hdi, plot) is nan too. Contract, not an accident:
         the same happens to any cell the solver drives to a lower bound of 0, and to
-        every period a budget_distribution_over_period zeroes out."""
+        every period a budget_distribution_over_period zeroes out.
+
+        The pinned channel deliberately carries no elasticity. The map is steepest at
+        zero -- by construction, bounded at max_slope_ratio * (1 + gamma) / (1 - gamma)
+        -- so pricing a channel that is held there hands SLSQP its largest gradient on a
+        variable that cannot move: measured on this fixture, 833 against ~10 for the
+        funded channels, a 90x spread. Whether SLSQP accepts that is platform-dependent:
+        the priced-pinned variant solves on macOS/arm64 and fails on the Linux CI runners
+        with "Positive directional derivative for linesearch", on every backend and
+        Python version. Both reach the same optimum, so the conditioning is the whole
+        difference, and pricing a channel one is not buying is meaningless anyway. See
+        the max_slope_ratio docs."""
         mmm = simple_fitted_mmm
         mmm.set_cost_per_unit(_full_table(mmm, self.PRICES))
         optimizer = _optimizer(
             mmm,
             cost_per_unit=_window_cpu(mmm, self.PRICES),
-            price_response=PowerPriceResponse(elasticity=0.3),
+            price_response=PowerPriceResponse(
+                elasticity={"channel_2": 0.3, "channel_3": 0.3}
+            ),
         )
         bounds = xr.DataArray(
             [[0.0, 0.0], [0.0, self.TOTAL], [0.0, self.TOTAL]],
@@ -1404,6 +1417,14 @@ class TestPriceResponseAllocation:
             dims=("channel",),
             coords={"channel": CHANNELS_3},
         )
+        # Pin the reason this test does not depend on the SciPy version: with the
+        # pinned channel unpriced, no cell hands the solver an outsized gradient at the
+        # start point. At elasticity 0.3 on channel_1 this ratio is ~90 and SLSQP's
+        # acceptance of it is version-dependent; here it is single digits.
+        start_gradient = optimizer.evaluate_plan(x0).utility_gradient["channel_data"]
+        spread = float(start_gradient.max() / start_gradient.min())
+        assert spread < 5.0, f"ill-conditioned start, gradient spread {spread:.1f}"
+
         result = optimizer.allocate_budget(
             total_budget=self.TOTAL, budget_bounds=bounds, x0=x0
         )

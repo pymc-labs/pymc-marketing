@@ -378,7 +378,15 @@ class PowerPriceResponse(PriceResponse):
         Cap on :math:`u'(0) / u'(s^{\text{ref}})`, the spread of marginal returns the solver can meet on one
         cell. Sets the floor :math:`s_f / s^{\text{ref}} = (M (1-\gamma)/(1+\gamma))^{-1/\gamma}`; must exceed
         :math:`(1+\gamma)/(1-\gamma)`. Default ``100``. Warns when the resulting floor exceeds 1% of the
-        reference, which happens at high elasticity (15.8% at :math:`\gamma = 0.9`).
+        reference, which happens at high elasticity (15.8% at :math:`\gamma = 0.9`). The cap is also the reason
+        not to price a channel that is held at zero: the map is steepest there, so a channel with a non-zero
+        elasticity whose ``budget_bounds`` pin it to ``0`` hands the solver its largest gradient on a variable
+        that cannot move (measured: 833 against ~10 for the funded channels on a three-channel fixture at
+        ``max_slope_ratio=100``, :math:`\gamma = 0.3`). Whether SLSQP accepts that is platform-dependent:
+        the same solve succeeds on macOS/arm64 and fails on Linux CI runners with "Positive directional
+        derivative for linesearch", reaching the same optimum where it succeeds. Leave such a channel at
+        ``elasticity=0``, or drop it from ``budgets_to_optimize``: the price of a channel one is not buying
+        is not a decision input.
     reference_spend_tolerance : float
         Largest factor by which a supplied ``reference_spend`` may differ from the derived default on any
         optimized cell before it is rejected. Default ``10``. The guard exists because a reference summed over the
