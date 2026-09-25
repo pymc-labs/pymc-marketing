@@ -1128,6 +1128,8 @@ def test_merge_walk_preserves_unchanged_list_identity():
 def test_deserialize_child_passthrough_non_dict():
     """Non-dict children pass through (defensive; _serialize_child emits dicts)."""
     assert _deserialize_child(52) == 52
+
+
 def test_named_builds_pmd_deterministic():
     coords = {"product": ["p1", "p2"]}
     with pm.Model(coords=coords) as model:
