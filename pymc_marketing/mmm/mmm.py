@@ -3711,7 +3711,7 @@ class MMM(RegressionModelBuilder):
                 * `delta_x`: change in x axis value of the lift test.
                 * `delta_y`: change in y axis value of the lift test.
                 * `sigma`: standard deviation of the lift test.
-        dist : pymc.dims.DimDistribution, optional
+        dist : callable, optional
             The distribution to use for the likelihood, by default pymc.dims.Gamma
         name : str, optional
             The name of the likelihood of the lift test contribution(s),
