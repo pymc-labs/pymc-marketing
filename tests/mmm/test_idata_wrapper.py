@@ -1120,6 +1120,37 @@ def test_broadcast_per_period_contributions_repeats_intercept_on_every_date(geos
             )
 
 
+def test_broadcast_per_period_contributions_keeps_the_root_node():
+    posterior = _idata_with_time_invariant_intercept().posterior.to_dataset()
+    # ``link`` on the root node selects the log-link decomposition.
+    idata = xr.DataTree.from_dict(
+        {
+            "/": xr.Dataset({"meta": 1.0}, attrs={"link": "log"}),
+            "/posterior": posterior,
+        }
+    )
+
+    result = MMMIDataWrapper(
+        idata, validate_on_init=False
+    ).broadcast_per_period_contributions()
+
+    assert result.idata.attrs == {"link": "log"}
+    xr.testing.assert_identical(result.idata["meta"], idata["meta"])
+
+
+def test_aggregate_time_counts_time_invariant_intercept_in_prior_group():
+    posterior = _idata_with_time_invariant_intercept().posterior.to_dataset()
+    idata = xr.DataTree.from_dict({"/posterior": posterior, "/prior": posterior})
+
+    result = MMMIDataWrapper(idata, validate_on_init=False).aggregate_time("all_time")
+
+    for group in ["posterior", "prior"]:
+        xr.testing.assert_allclose(
+            result.idata[group]["intercept_contribution"],
+            posterior["intercept_contribution"] * posterior.sizes["date"],
+        )
+
+
 @pytest.mark.parametrize("period", ["all_time", "monthly"])
 def test_aggregate_time_counts_time_invariant_intercept_every_period(period):
     idata = _idata_with_time_invariant_intercept()

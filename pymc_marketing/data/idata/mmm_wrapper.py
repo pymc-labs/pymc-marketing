@@ -29,7 +29,9 @@ if TYPE_CHECKING:
     from pymc_marketing.mmm.mmm import MMM
 
 # Contribution variables that the model adds to ``mu`` in every period but that
-# carry no ``date`` dim when they are time-invariant. Parameters such as
+# carry no ``date`` dim when they are time-invariant. Add any new date-less
+# additive contribution here, otherwise time aggregation counts it once for the
+# whole window instead of once per period. Parameters such as
 # ``intercept_baseline`` and totals such as
 # ``total_media_contribution_original_scale`` are deliberately not listed:
 # neither is a per-period contribution.
@@ -47,50 +49,48 @@ def _broadcast_per_period_contributions(idata: xr.DataTree) -> xr.DataTree:
     per-date contributions it is added to. Summing a variable without a
     ``date`` dim over ``date`` would instead leave a single period's value.
 
+    Every group with a ``date`` dim is handled, so ``prior`` and
+    ``posterior`` stay consistent.
+
     Parameters
     ----------
     idata : xr.DataTree
-        DataTree whose ``posterior`` group may hold time-invariant
-        contribution variables.
+        DataTree whose groups may hold time-invariant contribution variables.
 
     Returns
     -------
     xr.DataTree
-        ``idata`` unchanged if there is nothing to broadcast, otherwise a new
-        DataTree whose listed contribution variables have a ``date`` dim.
+        ``idata`` itself if there is nothing to broadcast, otherwise a shallow
+        copy, with the root node and every other variable kept, whose listed
+        contribution variables have the ``date`` dim of their group.
     """
-    if "posterior" not in idata.children:
-        return idata
-    posterior = idata["posterior"].dataset
-    if "date" not in posterior.dims:
-        return idata
-
-    to_broadcast = [
-        name
-        for name in _PER_PERIOD_CONTRIBUTIONS
-        if name in posterior.data_vars and "date" not in posterior[name].dims
-    ]
-    if not to_broadcast:
-        return idata
-
-    updated = posterior.assign(
-        {
-            name: posterior[name]
-            .expand_dims(date=posterior["date"])
-            .transpose(
-                *[d for d in ("chain", "draw") if d in posterior[name].dims],
-                "date",
-                ...,
-            )
-            for name in to_broadcast
-        }
-    )
-    groups = {
-        path.lstrip("/"): idata[path].dataset for path in idata.groups if path != "/"
-    }
-    groups["posterior"] = updated
-    result = xr.DataTree.from_dict({f"/{k}": v for k, v in groups.items()})
-    result.attrs = idata.attrs.copy()
+    result = idata
+    for path in idata.groups:
+        node = idata[path]
+        dataset = node.dataset
+        if "date" not in dataset.dims:
+            continue
+        to_broadcast = [
+            name
+            for name in _PER_PERIOD_CONTRIBUTIONS
+            if name in node.data_vars and "date" not in dataset[name].dims
+        ]
+        if not to_broadcast:
+            continue
+        if result is idata:
+            result = idata.copy()
+        result[path].dataset = node.to_dataset(inherit=False).assign(
+            {
+                name: dataset[name]
+                .expand_dims(date=dataset["date"])
+                .transpose(
+                    *[d for d in ("chain", "draw") if d in dataset[name].dims],
+                    "date",
+                    ...,
+                )
+                for name in to_broadcast
+            }
+        )
     return result
 
 
