@@ -65,14 +65,22 @@ Serialization
 Built-in terms serialize through :mod:`pymc_marketing.serialization`
 (``to_dict`` / ``from_dict`` are registered), so recipes stored in
 ``model_config`` survive ``fit()`` (attrs are JSON-serialized at sampling
-time) and ``save()`` / ``load()``. Custom terms are part of the same
-contract: decorate them with ``@serialization.register`` and implement
-``to_dict`` / ``from_dict`` --- serializing a composition that contains an
-unregistered term raises
-:class:`~pymc_marketing.serialization.SerializationError`.
+time) and ``save()`` / ``load()``.
 
-Children of composed terms (``Sum``, ``Product``, ``Transform``) must be
-registered terms, ``VariableFactory`` (``Prior``, ...), ``xr.DataArray``,
+Custom terms do not need subclassing to participate (the protocol stays
+open); serialization has two routes:
+
+- **Dataclass terms** are the low-ceremony route: because all term
+  containers are dataclasses, this is the recommended form for custom
+  terms (see :mod:`pymc_marketing.serialization`).
+- **Non-dataclass terms** implement ``to_dict`` / ``from_dict`` and
+  register with ``@serialization.register`` (pydantic classes can inherit
+  ``SerializableBaseModel`` to get both automatically). Serializing a
+  composition that contains an unknown term raises
+  :class:`~pymc_marketing.serialization.SerializationError`.
+
+Children of composed terms (``Sum``, ``Product``, ``Transform``) may be
+terms, ``VariableFactory`` (``Prior``, ...), ``xr.DataArray``,
 ``DeferredFactory``, or numeric literals. ``Transform`` functions serialize
 by name and are resolved with ``pymc_extras.prior._get_transform``:
 ``pytensor.xtensor.math`` / ``pytensor.xtensor.linalg`` functions, or
@@ -249,13 +257,7 @@ Gotchas
           model = pm.modelcontext(None)
           unique = list(dict.fromkeys(ds[self.data_source].values))
           model.add_coords({self.data_source: unique})
-- The built-in terms serialize via ``pymc_marketing.serialization``
-  (``to_dict`` / ``from_dict`` are registered), so recipes stored in
-  ``model_config`` survive ``fit()`` (attrs are JSON-serialized at
-  sampling time) and ``save()`` / ``load()``. ``Transform`` functions are
-  serialized by name, resolved against ``pytensor.xtensor.math`` /
-  ``pytensor.xtensor.linalg`` and transforms registered with
-  ``pymc_extras.prior.register_tensor_transform``.
+- Serialization contract: see the "Serialization" section above.
 """
 
 from __future__ import annotations
@@ -310,18 +312,30 @@ def _func_name(func: Callable) -> str:
     Scans the same modules, in the same order, as
     ``pymc_extras.prior._get_transform`` so serialized names round-trip.
     """
-    for name, registered in CUSTOM_TRANSFORMS.items():
-        if registered is func:
-            return name
-    for module in (ptx.math, ptx.linalg, ptx):
-        for attr in dir(module):
-            if getattr(module, attr, None) is func:
-                return attr
-    raise SerializationError(
-        f"Function {func!r} is not serializable. Use a "
-        "pytensor.xtensor.math function, or register it with "
-        "pymc_extras.prior.register_tensor_transform."
+    name = next(
+        (key for key, registered in CUSTOM_TRANSFORMS.items() if registered is func),
+        None,
     )
+    if name is None:
+        for module in (ptx.math, ptx.linalg, ptx):
+            name = next(
+                (attr for attr in dir(module) if getattr(module, attr, None) is func),
+                None,
+            )
+            if name is not None:
+                break
+    if name is None:
+        raise SerializationError(
+            f"Function {func!r} is not serializable. Use a "
+            "pytensor.xtensor.math function, or register it with "
+            "pymc_extras.prior.register_tensor_transform."
+        )
+    if _resolve_func(name) is not func:
+        raise SerializationError(
+            f"{func!r} would serialize as {name!r}, which resolves to "
+            f"{_resolve_func(name)!r} (shadowed by a registered transform)."
+        )
+    return name
 
 
 def _resolve_func(name: str) -> Callable:

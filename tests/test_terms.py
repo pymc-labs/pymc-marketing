@@ -32,6 +32,7 @@ from pymc_marketing.r2d2 import R2D2
 from pymc_marketing.serialization import (
     DeferredFactory,
     SerializationError,
+    _merge_shared_decompositions,
     serialization,
 )
 from pymc_marketing.terms import (
@@ -808,6 +809,18 @@ def test_serialize_registered_custom_transform_roundtrip(monkeypatch):
     assert restored.func is square
 
 
+def test_serialize_builtin_name_shadowed_by_custom_transform(monkeypatch):
+    """A registered transform named like a builtin does not silently win on load."""
+
+    def exp(x):
+        return x + 1
+
+    monkeypatch.setitem(CUSTOM_TRANSFORMS, "exp", exp)
+    term = Transform(Parameter("x"), func=ptx.math.exp)
+    with pytest.raises(SerializationError, match="shadowed by a registered transform"):
+        serialization.serialize(term)
+
+
 def test_restored_term_builds(simple_ds):
     dot = Dot(var_name="x", prior=Prior("Normal", dims="feature"))
     restored = serialization.deserialize(serialization.serialize(dot))
@@ -1060,6 +1073,14 @@ def test_resolve_func_rejects_registered_non_callable(monkeypatch):
         serialization.deserialize(serialization.serialize(term))
 
 
+def test_resolve_func_rejects_dunder_name_from_disk():
+    """Underscore/dunder names coming from an artifact fail with guidance."""
+    data = serialization.serialize(Transform(Parameter("x"), func=ptx.math.exp))
+    data["func"] = "__loader__"
+    with pytest.raises(SerializationError, match="private or a dunder"):
+        serialization.deserialize(data)
+
+
 def test_deserialize_custom_factory_error_names_register_deserialization():
     """A VariableFactory pymc-extras cannot read back fails with guidance."""
 
@@ -1076,6 +1097,30 @@ def test_deserialize_custom_factory_error_names_register_deserialization():
     serialized = serialization.serialize(term)
     with pytest.raises(SerializationError, match="register_deserialization"):
         serialization.deserialize(serialized)
+
+
+def test_merge_walk_preserves_unchanged_list_identity():
+    """Lists field-walked without any change keep their object identity."""
+
+    @serialization.register
+    @dataclass
+    class ListHolder:
+        columns: list
+
+        def to_dict(self):
+            return {"columns": list(self.columns)}
+
+        @classmethod
+        def from_dict(cls, data):
+            return cls(columns=list(data["columns"]))
+
+    holder = ListHolder(columns=list("abc"))
+    cols = holder.columns
+
+    out = _merge_shared_decompositions({"m": holder})
+
+    assert out["m"] is holder
+    assert out["m"].columns is cols
 
 
 def test_deserialize_child_passthrough_non_dict():

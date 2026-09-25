@@ -409,7 +409,13 @@ def _merge_shared_decompositions(config: dict[str, Any]) -> dict[str, Any]:
         if isinstance(obj, dict):
             return {k: walk(v) for k, v in obj.items()}
         if isinstance(obj, list):
-            return [walk(v) for v in obj]
+            walked_items = [walk(v) for v in obj]
+            if all(
+                item is walked_item
+                for item, walked_item in zip(obj, walked_items, strict=True)
+            ):
+                return obj
+            return walked_items
         if hasattr(obj, "parameters"):
             for k, v in obj.parameters.items():
                 obj.parameters[k] = walk(v)
