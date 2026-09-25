@@ -998,6 +998,35 @@ class MMMIDataWrapper:
 
     # ==================== Aggregation Operations ====================
 
+    def broadcast_per_period_contributions(self) -> MMMIDataWrapper:
+        """Repeat time-invariant per-period contributions on every date.
+
+        The model adds a time-invariant intercept to ``mu`` in every period
+        but stores it without a ``date`` dim. In the returned wrapper,
+        ``intercept_contribution`` and ``intercept_contribution_original_scale``
+        carry the ``date`` dim of their group, so they line up with the
+        per-date contributions and add up with them date by date.
+        Contributions that already have a ``date`` dim, parameters such as
+        ``intercept_baseline``, and window totals are left as they are.
+
+        Returns
+        -------
+        MMMIDataWrapper
+            New wrapper over the broadcast data.
+
+        Examples
+        --------
+        .. code-block:: python
+
+            per_date = mmm.data.broadcast_per_period_contributions()
+            per_date.get_contributions()["baseline"]  # has a "date" dim
+        """
+        return MMMIDataWrapper(
+            _broadcast_per_period_contributions(self.idata),
+            schema=self.schema,
+            validate_on_init=False,
+        )
+
     def aggregate_time(
         self,
         period: Frequency,
@@ -1011,7 +1040,9 @@ class MMMIDataWrapper:
         ``date`` dim) is added to ``mu`` in every period, so it is broadcast
         over ``date`` before aggregating. With ``method="sum"`` it is then
         counted once per period, and the aggregated components still add up
-        to the aggregated prediction.
+        to the aggregated prediction. ``period="original"`` returns the data
+        unchanged; use :meth:`broadcast_per_period_contributions` to get the
+        intercept on every original date.
 
         Parameters
         ----------

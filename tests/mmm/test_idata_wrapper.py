@@ -1057,18 +1057,24 @@ def test_aggregate_time_delegates_to_utility(multidim_idata):
     assert monthly_wrapper.idata.posterior.sizes["date"] <= 12
 
 
-def _idata_with_time_invariant_intercept(time_varying: bool = False) -> xr.DataTree:
+def _idata_with_time_invariant_intercept(
+    time_varying: bool = False, geos: list[str] | None = None
+) -> xr.DataTree:
     dates = pd.date_range("2024-01-01", periods=8, freq="W-MON")
     local_rng = np.random.default_rng(7)
+    extra_coords = {"geo": geos} if geos else {}
+    extra_dims = tuple(extra_coords)
+    extra_shape = tuple(len(values) for values in extra_coords.values())
     intercept_dims = ("chain", "draw", "date") if time_varying else ("chain", "draw")
-    intercept_shape = (2, 3, 8) if time_varying else (2, 3)
-    intercept_coords = {"date": dates} if time_varying else {}
+    intercept_dims += extra_dims
+    intercept_shape = ((2, 3, 8) if time_varying else (2, 3)) + extra_shape
+    intercept_coords = ({"date": dates} if time_varying else {}) | extra_coords
     posterior = xr.Dataset(
         {
             "channel_contribution": xr.DataArray(
-                local_rng.normal(size=(2, 3, 8, 2)),
-                dims=("chain", "draw", "date", "channel"),
-                coords={"date": dates, "channel": ["TV", "Radio"]},
+                local_rng.normal(size=(2, 3, 8, *extra_shape, 2)),
+                dims=("chain", "draw", "date", *extra_dims, "channel"),
+                coords={"date": dates, "channel": ["TV", "Radio"]} | extra_coords,
             ),
             "intercept_contribution": xr.DataArray(
                 local_rng.normal(3.0, 0.1, size=intercept_shape),
@@ -1092,6 +1098,26 @@ def _idata_with_time_invariant_intercept(time_varying: bool = False) -> xr.DataT
         }
     )
     return xr.DataTree.from_dict({"/posterior": posterior})
+
+
+@pytest.mark.parametrize("geos", [None, ["A", "B"]], ids=["no_extra_dims", "geo"])
+def test_broadcast_per_period_contributions_repeats_intercept_on_every_date(geos):
+    idata = _idata_with_time_invariant_intercept(geos=geos)
+    posterior = idata.posterior
+    extra_dims = ("geo",) if geos else ()
+
+    result = (
+        MMMIDataWrapper(idata, validate_on_init=False)
+        .broadcast_per_period_contributions()
+        .idata.posterior
+    )
+
+    for name in ["intercept_contribution", "intercept_contribution_original_scale"]:
+        assert result[name].dims == ("chain", "draw", "date", *extra_dims)
+        for date in posterior["date"].values:
+            xr.testing.assert_identical(
+                result[name].sel(date=date, drop=True), posterior[name]
+            )
 
 
 @pytest.mark.parametrize("period", ["all_time", "monthly"])
