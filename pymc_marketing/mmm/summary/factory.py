@@ -343,7 +343,10 @@ class MMMSummaryFactory:
         1. Resolves hdi_probs default from self.hdi_probs
         2. Resolves output_format default from self.output_format
         3. Validates hdi_probs
-        4. Aggregates data by frequency if specified
+        4. Repeats a time-invariant intercept on every date, since the model
+           adds it to ``mu`` in every period
+           (:meth:`MMMIDataWrapper.broadcast_per_period_contributions`)
+        5. Aggregates data by frequency if specified
 
         Parameters
         ----------
@@ -366,7 +369,7 @@ class MMMSummaryFactory:
 
         self._validate_hdi_probs(effective_hdi_probs)
 
-        data = self.data
+        data = self.data.broadcast_per_period_contributions()
         if frequency is not None and frequency != "original":
             data = data.aggregate_time(frequency)
 
@@ -490,6 +493,11 @@ class MMMSummaryFactory:
         -----
         Expects validated data. Call `data.validate_or_raise()` if you've
         modified the underlying idata before calling this method.
+
+        A time-invariant intercept is reported on every date, since the model
+        adds it to ``mu`` in every period. With a ``frequency`` it is summed
+        over the dates in each period like every other component, so the
+        components add up to the prediction at any frequency.
         """
         # Resolve all defaults in one call
         data, hdi_probs, output_format = self._prepare_data_and_hdi(
