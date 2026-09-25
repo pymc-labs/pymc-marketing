@@ -79,7 +79,7 @@ def drop_scalar_coords(curve: xr.DataArray) -> xr.DataArray:
     """
     scalar_coords_to_drop = []
     for coord, values in curve.coords.items():
-        if values.size == 1 and coord not in curve.indexes:
+        if values.size == 1 and coord not in curve.xindexes:
             scalar_coords_to_drop.append(coord)
 
     return curve.reset_coords(scalar_coords_to_drop, drop=True)
