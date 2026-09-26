@@ -113,7 +113,9 @@ def test_synthetic_corpus_schema():
     assert len(df) == 50
 
     for col in ("objective", "vertical", "audience_type"):
-        assert df[col].dtype == object, f"{col} should be object dtype"
+        assert not pd.api.types.is_numeric_dtype(df[col]), (
+            f"{col} should be a string column"
+        )
 
     assert (df["budget"] >= 1_000).all() and (df["budget"] <= 100_000).all()
     assert (df["exposure_rate"] >= 0.1).all() and (df["exposure_rate"] <= 0.9).all()
@@ -314,14 +316,15 @@ def test_partial_bart_override_raises(small_corpus):
         model.build_model(X, y)
 
 
-def test_bart_response_override(small_corpus):
-    """A 'linear' BART response builds; an invalid response raises ValueError."""
+@pytest.mark.parametrize("response", ["constant", "linear", "mix"])
+def test_bart_response_override(small_corpus, response):
+    """Every supported BART response builds; an invalid one raises ValueError."""
     X, y = small_corpus
     model = PIEModel(
         pre_determined_features=PRE,
         post_determined_features=POST,
         model_config={
-            "bart": {"m": 10, "alpha": 0.95, "beta": 2.0, "response": "linear"},
+            "bart": {"m": 10, "alpha": 0.95, "beta": 2.0, "response": response},
             "sigma": Prior("HalfNormal", sigma=1.0),
         },
     )

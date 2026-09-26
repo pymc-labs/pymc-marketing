@@ -221,11 +221,12 @@ Notes
 """
 
 import warnings
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import (
     Any,
     ClassVar,
+    Literal,
     NotRequired,
     Protocol,
     TypedDict,
@@ -270,7 +271,7 @@ from pymc_marketing.mmm.optimization_variables import (
     align_to_model_coords,
 )
 from pymc_marketing.mmm.utility import UtilityFunctionType, average_response
-from pymc_marketing.pytensor_utils import merge_models
+from pymc_marketing.pytensor_utils import SharedPosterior, merge_models
 from pymc_marketing.version import __version__
 
 DEFAULT_RESPONSE_VARIABLE = "total_media_contribution_original_scale"
@@ -284,9 +285,32 @@ alone. A model whose response also travels through a ``MuEffect`` wants
 class ConstraintIterationInfo(TypedDict):
     """Constraint state at one solver iteration."""
 
+    key: str
     type: str
     value: float | np.ndarray
     jac: np.ndarray | None
+
+
+class ConstraintResidual(TypedDict):
+    """One constraint's value at a plan, with the sense it must satisfy.
+
+    ``constraint_type`` rather than ``type``, matching
+    :class:`~pymc_marketing.mmm.constraints.Constraint`'s own field name. The
+    shorter name would add a second ``<class>.type`` target to this module,
+    and the Python domain resolves a bare ``type`` cross-reference -- which
+    every ``type[...]`` annotation in the package emits -- by fuzzy-matching
+    any object whose name ends in ``.type``. Two candidates turn that into a
+    build-breaking ambiguity warning.
+
+    This name avoids the collision; it does not fix its cause. Those
+    annotations still resolve to :class:`ConstraintIterationInfo`'s ``type``
+    field instead of the builtin, and the next attribute named ``type``
+    anywhere in the package breaks the docs build the same way. Tracked
+    separately.
+    """
+
+    constraint_type: Literal["eq", "ineq"]
+    value: float | np.ndarray
 
 
 class OptimizationIterationInfo(TypedDict):
@@ -331,7 +355,9 @@ class BudgetOptimizationResult:
         allocations draw from the budget; see :attr:`spend_var_allocations`.
     callback_info : list[OptimizationIterationInfo] or None
         Per-iteration diagnostics (``x``, ``fun``, ``jac``, constraint values)
-        when ``allocate_budget(callback=True)``; ``None`` otherwise.
+        when ``allocate_budget(callback=True)``; ``None`` otherwise. See
+        :attr:`constraint_history` for the same constraint diagnostics keyed
+        by constraint.
     """
 
     budgets: DataArray
@@ -367,10 +393,136 @@ class BudgetOptimizationResult:
         """
         return {name: self.optimized_vars[name] for name in self.spend_var_names}
 
+    @property
+    def constraint_history(self) -> dict[str, list[ConstraintIterationInfo]]:
+        """Per-constraint diagnostics across iterations, keyed by constraint key.
+
+        ``callback_info`` lists constraints positionally at every iteration,
+        which only works if the caller remembers the order the optimizer
+        compiled them in. This view regroups the same entries by the
+        ``Constraint.key`` they were declared with, so a caller can ask for
+        one constraint by name. The auto-added sum constraint is under
+        ``"default"``.
+
+        Returns
+        -------
+        dict[str, list[ConstraintIterationInfo]]
+            One list per constraint, in iteration order. Empty when the run
+            was not made with ``callback=True``.
+
+        Examples
+        --------
+        Check that a custom inequality constraint holds at the last iteration:
+
+        .. code-block:: python
+
+            last = result.constraint_history["min_response_constraint"][-1]
+            assert last["value"] >= -1e-6
+        """
+        history: dict[str, list[ConstraintIterationInfo]] = {}
+        for iteration in self.callback_info or []:
+            for info in iteration.get("constraint_info", []):
+                history.setdefault(info["key"], []).append(info)
+        return history
+
     def __iter__(self):
         """Yield ``(budgets, scipy_result)`` for two-element unpacking."""
         yield self.budgets
         yield self.scipy_result
+
+
+@dataclass
+class PlanEvaluation:
+    """The compiled objective and its gradient at one labelled plan.
+
+    Returned by :meth:`BudgetOptimizer.evaluate_plan`. Both sign conventions are
+    offered because both are wanted and confusing them is silent: the optimizer
+    *minimises* ``objective = -utility``, so ``objective`` is what compares with
+    ``scipy_result.fun``, while ``utility`` is what compares with a response.
+
+    Attributes
+    ----------
+    objective : float
+        The objective at the plan, on the minimiser's scale (the negated
+        utility). Equal to ``result.scipy_result.fun`` when the plan is the
+        solution of that run.
+    objective_gradient : dict[str, xarray.DataArray]
+        Derivative of ``objective`` with respect to every decision cell, keyed
+        by decision-variable name and labelled with that variable's own dims
+        and coords -- the same layout
+        :meth:`~pymc_marketing.mmm.optimization_variables.OptimizationVariables.unpack`
+        produces. Cells outside the optimization mask are reported as ``0.0``
+        because they are not decision variables, not because the response is
+        insensitive to them; ``optimizer.budgets_to_optimize`` says which is
+        which.
+    constraint_residuals : dict[str, ConstraintResidual] or None
+        Value of every registered constraint at the plan, keyed by
+        :class:`~pymc_marketing.mmm.constraints.Constraint` key, when
+        :meth:`BudgetOptimizer.evaluate_plan` was called with a
+        ``total_budget``; ``None`` otherwise. See :meth:`feasible`.
+
+    Notes
+    -----
+    Gradient units follow the decision variable: for media this is response per
+    unit of *per-period* spend sustained over the whole window, including the
+    carry-over tail. Divide by the number of periods for a per-dollar figure. A
+    lever's entry is in that lever's own units.
+    """
+
+    objective: float
+    objective_gradient: dict[str, DataArray]
+    constraint_residuals: dict[str, ConstraintResidual] | None = None
+
+    @property
+    def utility(self) -> float:
+        """The utility at the plan: ``-objective``, the quantity being maximised."""
+        return -self.objective
+
+    @property
+    def utility_gradient(self) -> dict[str, DataArray]:
+        """Derivative of the utility per decision cell: ``-objective_gradient``.
+
+        This is the marginal return of the plan, so a positive entry means
+        spending more in that cell increases the utility.
+        """
+        return {name: -gradient for name, gradient in self.objective_gradient.items()}
+
+    def feasible(self, atol: float = 1e-8) -> bool:
+        """Whether every registered constraint holds at the plan.
+
+        Equalities must be within ``atol`` of zero, inequalities at or above
+        ``-atol``, which is SciPy's own convention for ``eq``/``ineq``.
+
+        Parameters
+        ----------
+        atol : float
+            Absolute tolerance on each constraint's residual.
+
+        Returns
+        -------
+        bool
+            True when every constraint is satisfied within ``atol``.
+
+        Raises
+        ------
+        ValueError
+            If the evaluation carries no residuals, i.e.
+            :meth:`BudgetOptimizer.evaluate_plan` was called without
+            ``total_budget``. Feasibility is undefined without the budget the
+            constraints are measured against.
+        """
+        if self.constraint_residuals is None:
+            raise ValueError(
+                "No constraint residuals on this evaluation: call "
+                "evaluate_plan(plan, total_budget=...) to measure the "
+                "constraints against a budget."
+            )
+        return all(
+            bool(np.all(np.abs(np.asarray(residual["value"])) <= atol))
+            if residual["constraint_type"] == "eq"
+            else bool(np.all(np.asarray(residual["value"]) >= -atol))
+            for residual in self.constraint_residuals.values()
+        )
 
 
 def optimizer_xarray_builder(value, **kwargs):
@@ -1161,10 +1313,13 @@ class BudgetOptimizer(BaseModel):
     channel_scales : float or array-like, optional
         Per-channel scale factors used to convert monetary budgets into the
         model's native units. A scalar ``1.0`` means no scaling. Defaults to 1.0.
-    mu_effects : Sequence, optional
-        Additional ``mu`` effects carried over from the fitted model. Effects
-        exposing ``replace_for_optimization`` are not supported yet and raise
-        ``NotImplementedError``. Defaults to an empty list.
+    optimizable_vars : dict, optional
+        Additional one-dimensional, non-date ``pm.Data`` variables to co-optimize
+        alongside the media budgets, keyed by name, each mapped to its native
+        ``(low, high)`` bounds per entry (or ``None`` for unbounded). Levers are
+        optimized in their own units and stay out of the default budget-sum
+        constraint. Defaults to no levers. ``mu_effects`` are not a parameter:
+        effects are baked into the model graph at build time.
     frozen_deterministics : list of str, optional
         Names of ``Deterministic`` variables to freeze at their posterior values
         instead of recomputing them from the graph. Required for models with HSGP
@@ -1429,7 +1584,7 @@ class BudgetOptimizer(BaseModel):
         ),
     )
 
-    model_config = ConfigDict(arbitrary_types_allowed=True)
+    model_config = ConfigDict(arbitrary_types_allowed=True, extra="forbid")
 
     _total_budget: SharedVariable = PrivateAttr()
     _budget_dims: list[str] = PrivateAttr()
@@ -1440,10 +1595,15 @@ class BudgetOptimizer(BaseModel):
     _budget_distribution_over_period_tensor: XTensorVariable | None = PrivateAttr()
     _cost_per_unit_tensor: XTensorVariable | None = PrivateAttr()
     _pymc_model: Model = PrivateAttr()
+    _shared_posterior: SharedPosterior | None = PrivateAttr(default=None)
+    _mask_auto_detected: bool = PrivateAttr(default=False)
     _variables: OptimizationVariables = PrivateAttr()
     _objective_and_grad: Callable = PrivateAttr()
     _constraints: dict = PrivateAttr()
     _compiled_constraints: list[dict] = PrivateAttr()
+    _response_functions: dict[str, tuple[Callable, tuple[str, ...]]] = PrivateAttr(
+        default_factory=dict
+    )
 
     @model_validator(mode="before")
     @classmethod
@@ -1550,7 +1710,9 @@ class BudgetOptimizer(BaseModel):
         """Build optimization tensors and compile objective after Field validation."""
         # 1. The model is passed in already built (no optimization_model() call needed)
 
-        # 2. Shared variable for total_budget
+        # 2. Shared variable for total_budget. The posterior draws stay
+        #    constants until the first `set_posterior`, which is when they
+        #    become shared variables (see that method).
         self._total_budget = shared(np.array(0.0, dtype="float64"), name="total_budget")
 
         # 3. Identify budget dimensions and shapes
@@ -1583,47 +1745,10 @@ class BudgetOptimizer(BaseModel):
         #    fall back to all cells when that variable is absent. Adaptor layers such
         #    as MMM.budget_optimizer deliberately do not narrow the mask themselves.
         if self.budgets_to_optimize is None:
-            try:
-                posterior_ds = _extract_dataset(self.idata, "posterior")
-            except (KeyError, TypeError):
-                posterior_ds = None
-
-            if (
-                posterior_ds is not None
-                and self.channel_contribution_var in posterior_ds.data_vars
-            ):
-                # Auto-detect non-zero channels from posterior
-                self.budgets_to_optimize = (
-                    posterior_ds[self.channel_contribution_var]
-                    .mean(("chain", "draw", self.date_dim))
-                    .astype(bool)
-                )
-            else:
-                ones = np.ones(self._budget_shape, dtype=bool)
-                self.budgets_to_optimize = xr.DataArray(
-                    ones, coords=self._budget_coords, dims=self._budget_dims
-                )
+            self._mask_auto_detected = True
+            self.budgets_to_optimize = self._auto_detect_mask(self.idata)
         else:
-            # Validate user-supplied mask against posterior channel contributions
-            try:
-                posterior_ds = _extract_dataset(self.idata, "posterior")
-            except (KeyError, TypeError):
-                posterior_ds = None
-
-            if (
-                posterior_ds is not None
-                and self.channel_contribution_var in posterior_ds.data_vars
-            ):
-                expected_mask = (
-                    posterior_ds[self.channel_contribution_var]
-                    .mean(("chain", "draw", self.date_dim))
-                    .astype(bool)
-                )
-                if np.any((self.budgets_to_optimize > expected_mask).values):
-                    raise ValueError(
-                        "budgets_to_optimize mask contains True values at coordinates where the model has no "
-                        "information."
-                    )
+            self._validate_mask_against_posterior(self.budgets_to_optimize, self.idata)
 
         # Align the mask with the model's coordinate order, not just its dim
         # order: every coordinate-bearing input is consumed positionally
@@ -1804,6 +1929,201 @@ class BudgetOptimizer(BaseModel):
         """
         return self._variables
 
+    def _pack_decision_vector(
+        self, values: np.ndarray | DataArray | Mapping[str, DataArray]
+    ) -> np.ndarray:
+        """Flat decision vector from labelled values, in the compiled input's dtype.
+
+        One owner for the three things that have to happen before anything is
+        handed to a compiled function: pack labelled values into flat order,
+        cast to the input's dtype, and filter through the input's type, which
+        is what turns a wrong shape into a ``TypeError`` naming it.
+        """
+        if isinstance(values, DataArray | Mapping):
+            values = self._variables.pack(values)
+        values = np.asarray(values).astype(self._budgets_flat.type.dtype)
+        return self._budgets_flat.type.filter(values)
+
+    def _require_labelled_plan(self, plan: Any, method: str) -> None:
+        """Refuse a plan whose values are positional rather than labelled.
+
+        Two ways to be positional, and both are silent.
+
+        A raw array is not wrong because it might be the wrong length --
+        ``_pack_decision_vector`` filters it through the input's type, which
+        rejects that with a ``TypeError``. It is wrong because it is ambiguous
+        in *order*: it encodes the decision vector's layout positionally, so
+        which segment belongs to which variable, and which cells of the mask
+        are included, are conventions the caller has to reproduce silently.
+
+        A ``DataArray`` whose dims carry no coordinates is the same problem one
+        level down. ``pack`` reindexes onto the model's coordinates, and
+        ``reindex`` has nothing to align an unlabelled dim by, so it stamps the
+        model's labels onto the values in the order they arrive: the same plan
+        written channel-first and channel-last scores as two different plans.
+        Measured, on a model ordered ``[tv, digital]``:
+        ``pack(DataArray([70, 30], dims=["channel"]))`` is ``[70, 30]``, while
+        the labelled ``[70, 30]`` over ``[digital, tv]`` is realigned to
+        ``[30, 70]``.
+
+        Both checks live here rather than in
+        :meth:`~pymc_marketing.mmm.optimization_variables.MediaVariable.pack`
+        deliberately, so ``allocate_budget(x0=...)`` keeps taking a positional
+        warm start, which is what it has always done.
+
+        A 0-d entry -- a spend variable decided over date alone -- has no dims
+        and so is unaffected.
+        """
+        if not isinstance(plan, DataArray | Mapping):
+            names = sorted(variable.name for variable in self._variables.variables)
+            raise TypeError(
+                f"{method} takes a labelled plan: a DataArray, or a mapping from "
+                f"decision-variable name to DataArray (expected keys {names}). A "
+                "raw array is refused because it carries the decision vector's "
+                "layout positionally: its order, and which masked cells it "
+                "includes, cannot be checked."
+            )
+
+        entries = plan.items() if isinstance(plan, Mapping) else [(None, plan)]
+        for name, values in entries:
+            if not isinstance(values, DataArray):
+                continue
+            unlabelled = [dim for dim in values.dims if dim not in values.coords]
+            if unlabelled:
+                where = f" for {name!r}" if name is not None else ""
+                raise ValueError(
+                    f"{method} got a plan{where} whose dims {unlabelled} carry no "
+                    "coordinates. Alignment would fall back to position, so the "
+                    "same values in a different order would score as a different "
+                    "plan. Give those dims the model's coordinate labels."
+                )
+
+    def evaluate_plan(
+        self,
+        plan: DataArray | Mapping[str, DataArray],
+        *,
+        total_budget: float | None = None,
+    ) -> PlanEvaluation:
+        """Evaluate the compiled objective and its gradient at a labelled plan.
+
+        The same compiled function the solver is handed, evaluated at a plan the
+        caller names rather than at one the solver found. Use it to score an
+        externally proposed plan, to compare two objectives at the same point,
+        or to decompose a gradient.
+
+        Parameters
+        ----------
+        plan : xarray.DataArray or Mapping[str, xarray.DataArray]
+            The plan, labelled. A mapping from decision-variable name to values
+            (media budgets under ``channel_data_var``, one entry per declared
+            ``spend_vars`` and ``optimizable_vars``); an ``xarray.Dataset`` keyed
+            the same way works too, and a bare ``DataArray`` is accepted when the
+            decision vector has a single variable. Values are aligned to the
+            model's coordinates by
+            :meth:`~pymc_marketing.mmm.optimization_variables.OptimizationVariables.pack`,
+            so the order of coordinates does not matter and a missing one is an
+            error.
+        total_budget : float, optional
+            Measure the registered constraints at this budget and report their
+            residuals in :attr:`PlanEvaluation.constraint_residuals`. The
+            optimizer's shared total budget is set for the measurement and
+            restored afterwards, so this method changes no state. Without it,
+            ``constraint_residuals`` is ``None``: the shared total is ``0.0``
+            until the first solve, and a residual measured against whatever it
+            happens to hold would be wrong in a way the caller cannot see.
+
+        Returns
+        -------
+        PlanEvaluation
+            The objective (minimiser's sign) and its labelled gradient, plus
+            ``utility``/``utility_gradient`` views with the opposite sign, and
+            the constraint residuals when ``total_budget`` is given.
+
+        Raises
+        ------
+        TypeError
+            If ``plan`` is not labelled at all.
+        ValueError
+            If a supplied ``DataArray`` has a dim carrying no coordinates, or
+            if ``plan`` omits a decision variable, omits an optimized cell, or
+            carries coordinates the model does not have.
+
+        Notes
+        -----
+        Constraints are evaluated only when ``total_budget`` is given, and
+        **bounds are never checked**: the box is an argument of
+        :meth:`allocate_budget` rather than state of the optimizer. A higher
+        utility here therefore does not mean a better plan unless the plan is
+        feasible.
+
+        A raw ``numpy`` array is refused deliberately. Not because of its
+        length -- packing filters the vector through the compiled input's
+        type, which rejects a wrong length with a ``TypeError`` -- but because
+        of its *order*: a flat vector carries the decision vector's layout
+        positionally, so which segment belongs to which variable, and which
+        cells of the optimization mask it includes, are conventions nothing
+        can check. Labels carry that information, which is also what makes the
+        gradient decomposable across two optimizers.
+
+        Examples
+        --------
+        Score a plan and read its marginal returns:
+
+        .. code-block:: python
+
+            plan = {"channel_data": historical_weekly_spend}
+            evaluation = optimizer.evaluate_plan(plan)
+            print(evaluation.utility)
+            marginal = evaluation.utility_gradient["channel_data"]
+
+        Decompose two objectives at the same plan -- the funnel-aware objective
+        minus the direct-only one is the marginal mediated response:
+
+        .. code-block:: python
+
+            total = funnel_optimizer.evaluate_plan(plan).utility_gradient
+            direct = direct_optimizer.evaluate_plan(plan).utility_gradient
+            mediated_marginal = total["channel_data"] - direct["channel_data"]
+
+        Check an externally proposed plan before ranking it:
+
+        .. code-block:: python
+
+            evaluation = optimizer.evaluate_plan(plan, total_budget=100_000)
+            assert evaluation.feasible()
+        """
+        self._require_labelled_plan(plan, "evaluate_plan")
+
+        x = self._pack_decision_vector(plan)
+        objective, gradient = self._objective_and_grad(x)
+
+        residuals: dict[str, ConstraintResidual] | None = None
+        if total_budget is not None:
+            # Measuring a constraint means writing the shared total the
+            # constraint graphs close over. Put it back: `allocate_budget` sets
+            # it for itself, but anything else reading a compiled constraint
+            # after this call would otherwise see a budget it never asked for.
+            previous_total = self._total_budget.get_value()
+            self._total_budget.set_value(np.asarray(total_budget, dtype="float64"))
+            try:
+                residuals = {}
+                for constraint in self._compiled_constraints:
+                    value = constraint["fun"](x)
+                    residuals[constraint["key"]] = ConstraintResidual(
+                        constraint_type=constraint["type"],
+                        value=float(value)
+                        if np.ndim(value) == 0
+                        else np.asarray(value),
+                    )
+            finally:
+                self._total_budget.set_value(previous_total)
+
+        return PlanEvaluation(
+            objective=float(objective),
+            objective_gradient=self._variables.unpack(np.asarray(gradient)),
+            constraint_residuals=residuals,
+        )
+
     def set_constraints(self, constraints: Sequence[Constraint]) -> None:
         """Set constraints for the optimizer.
 
@@ -1827,6 +2147,41 @@ class BudgetOptimizer(BaseModel):
         self._compiled_constraints = compile_constraints_for_scipy(
             constraints=self._constraints, optimizer=self
         )
+
+    def _posterior_channel_mask(self, idata: Any) -> DataArray | None:
+        """Cells the posterior has information about: non-zero mean channel contribution.
+
+        ``None`` when ``idata`` has no posterior or no channel-contribution
+        variable, in which case the mask cannot be derived from it.
+        """
+        try:
+            posterior_ds = _extract_dataset(idata, "posterior")
+        except (KeyError, TypeError):
+            return None
+        if self.channel_contribution_var not in posterior_ds.data_vars:
+            return None
+        return (
+            posterior_ds[self.channel_contribution_var]
+            .mean(("chain", "draw", self.date_dim))
+            .astype(bool)
+        )
+
+    def _auto_detect_mask(self, idata: Any) -> DataArray:
+        """Return the mask used when none is supplied: informed cells, or every cell."""
+        mask = self._posterior_channel_mask(idata)
+        if mask is not None:
+            return mask
+        ones = np.ones(self._budget_shape, dtype=bool)
+        return xr.DataArray(ones, coords=self._budget_coords, dims=self._budget_dims)
+
+    def _validate_mask_against_posterior(self, mask: DataArray, idata: Any) -> None:
+        """Reject a mask that optimizes a cell the posterior has no information about."""
+        expected_mask = self._posterior_channel_mask(idata)
+        if expected_mask is not None and np.any((mask > expected_mask).values):
+            raise ValueError(
+                "budgets_to_optimize mask contains True values at coordinates where the model has no "
+                "information."
+            )
 
     def _validate_date_length(self) -> None:
         """Check that the three date blocks add up to the model's date axis.
@@ -2046,6 +2401,12 @@ class BudgetOptimizer(BaseModel):
     def extract_response_distribution(self, response_variable: str) -> XTensorVariable:
         """Extract the response distribution graph, conditioned on posterior parameters.
 
+        Until the first :meth:`set_posterior` the draws enter the graph as
+        constants.  After it they enter through shared variables owned by
+        this optimizer, so every graph extracted here -- the objective,
+        custom constraints, anything a caller compiles from this method --
+        follows later rebinds.
+
         Examples
         --------
         ``BudgetOptimizer(...).extract_response_distribution("channel_contribution")``
@@ -2060,7 +2421,256 @@ class BudgetOptimizer(BaseModel):
             idata=_extract_dataset(self.idata, "posterior"),
             response_variable=response_variable,
             frozen_deterministics=self.frozen_deterministics,
+            shared_posterior=self._shared_posterior,
         )
+
+    def evaluate_response_distribution(
+        self,
+        plan: DataArray | Mapping[str, DataArray],
+        response_variable: str | None = None,
+    ) -> DataArray:
+        """Posterior distribution of a response variable at a labelled plan.
+
+        Where :meth:`evaluate_plan` reduces the response to the single number
+        the solver optimises, this returns the whole posterior of the response
+        under the plan, which is what a comparison of two plans needs: the
+        difference of two of these is a posterior distribution of the gain, not
+        a point estimate.
+
+        Parameters
+        ----------
+        plan : xarray.DataArray or Mapping[str, xarray.DataArray]
+            The plan, labelled, exactly as in :meth:`evaluate_plan`.
+        response_variable : str, optional
+            Which model variable to evaluate. Defaults to this optimizer's
+            ``response_variable``.
+
+        Returns
+        -------
+        xarray.DataArray
+            The response at the plan, over the graph's own dims -- ``("sample",)``
+            for the scalar-per-draw totals such as
+            ``"total_response_original_scale"``, with the posterior's chain and
+            draw stacked into that one dimension. Dims the model has
+            coordinates for (``channel``, a geo dim, the date axis of the
+            optimization window) come back labelled with them.
+
+        Raises
+        ------
+        TypeError
+            If ``plan`` is not labelled at all.
+        ValueError
+            If a supplied ``DataArray`` has a dim carrying no coordinates, or
+            if ``plan`` omits a decision variable, omits an optimized cell, or
+            carries coordinates the model does not have.
+
+        Notes
+        -----
+        The compiled function is cached per response variable and dropped by
+        :meth:`set_posterior`, so scoring many plans against the same posterior
+        compiles once and no cached function outlives its draws. The cache key
+        is the variable name alone, which is enough because ``compile_kwargs``
+        is fixed when the optimizer is constructed.
+
+        A response variable the plan cannot reach -- an intercept, a control
+        contribution -- is still evaluated: the decision vector is simply an
+        unused input, and the plan-independent posterior comes back. Because
+        that is indistinguishable from a media quantity wired up wrongly (an
+        effect reading its own copy of the spend rather than the model's
+        channel data, which is the classic funnel mistake), it warns once per
+        variable rather than answering silently.
+
+        This evaluates the model's deterministic response under the plan. It is
+        not :meth:`~pymc_marketing.mmm.mmm.MMM.sample_response_distribution`,
+        which draws fresh predictive noise on top.
+
+        ``az.hdi`` expects ``chain``/``draw``, so summarising this needs the
+        dimension named: ``az.hdi(response, dim=["sample"])``.
+
+        Examples
+        --------
+        .. code-block:: python
+
+            gain = optimizer.evaluate_response_distribution(
+                new_plan
+            ) - optimizer.evaluate_response_distribution(current_plan)
+            print(float((gain > 0).mean()))
+        """
+        self._require_labelled_plan(plan, "evaluate_response_distribution")
+
+        name = response_variable or self.response_variable
+        if name not in self._response_functions:
+            graph = self.extract_response_distribution(name)
+            if self._budgets_flat not in set(ancestors([graph.values])):
+                warnings.warn(
+                    f"response_variable={name!r} does not depend on the decision "
+                    "vector, so it takes the same value under every plan. That is "
+                    "expected of a baseline or a control contribution. For a "
+                    "media-driven quantity it usually means the effect reads its "
+                    "own copy of the spend instead of the model's channel data, "
+                    "which makes it invisible to the optimizer.",
+                    UserWarning,
+                    stacklevel=2,
+                )
+            self._response_functions[name] = (
+                function(
+                    [self._budgets_flat],
+                    graph.values,
+                    # An unreachable response is answered rather than refused:
+                    # the decision vector is simply an unused input, and the
+                    # warning above is what keeps that from being silent. It is
+                    # a default rather than a fixed argument: `compile_kwargs`
+                    # is documented as forwarded to `function()`, so a caller
+                    # who sets `on_unused_input` has to win, not collide with a
+                    # `TypeError` about duplicate keyword arguments.
+                    **{"on_unused_input": "ignore", **(self.compile_kwargs or {})},
+                ),
+                tuple(graph.type.dims),
+            )
+        compiled, dims = self._response_functions[name]
+        values = np.asarray(compiled(self._pack_decision_vector(plan)))
+        return DataArray(values, dims=dims, coords=self._known_coords(dims, values))
+
+    def _known_coords(
+        self, dims: tuple[str, ...], values: np.ndarray
+    ) -> dict[str, list]:
+        """Model coordinates for the dims that have them, at the right length.
+
+        The compiled response comes back as a bare array, so the labels have to
+        be put back on. They come from the *optimization* model this optimizer
+        holds, not from the training data, and that is what makes them right:
+        ``_validate_date_length`` pins its date axis at
+        ``carry_in_periods + num_periods + adstock_periods``, which is exactly
+        the response's own date axis.
+
+        Only dims the model actually coordinates are labelled, and only when
+        the length agrees. ``sample`` has no coordinate; a dimension declared
+        by length alone has ``coords[dim] is None``, which is the case the
+        guard is really catching.
+        """
+        model_coords = self._pymc_model.coords
+        return {
+            dim: list(model_coords[dim])
+            for dim, length in zip(dims, values.shape, strict=True)
+            if model_coords.get(dim) is not None and len(model_coords[dim]) == length
+        }
+
+    def set_posterior(self, idata: Any) -> None:
+        """Point the compiled objective and constraints at a new posterior.
+
+        The first call moves the posterior draws out of the compiled graphs
+        and into shared variables, which costs one recompile of the objective
+        and the constraints.  Every later call swaps the draws in place, so a
+        loop over many posteriors -- one per resampled or updated posterior --
+        costs one solve each rather than one compile each.  Optimizers that
+        never call this keep the constant-folded graphs they have today.
+
+        The new posterior must hold every variable the graphs read, with the
+        same non-sample dimensions and the same set of labels on each; labels
+        are compared by value, so a reordered ``channel`` axis is realigned.
+        The number of draws may differ.  The budget mask is fixed at
+        construction: it defines the decision vector the graphs were compiled
+        for, so a posterior that would have auto-detected a different mask is
+        solved on the existing one.  Build a new optimizer to change the mask.
+        A user-supplied mask is validated against the new posterior the way
+        construction validates it.
+
+        The rebind is local to this optimizer.  A model the optimizer was
+        built from keeps its own ``idata``; post-processing done there still
+        runs under the old draws.
+
+        Parameters
+        ----------
+        idata : xr.DataTree, xr.Dataset or arviz.InferenceData
+            Inference data with a ``posterior`` group, or the posterior
+            dataset itself.  It replaces ``self.idata`` wholesale: a bare
+            dataset becomes a tree holding only a ``posterior`` group, so
+            any other group of the previous ``idata`` (``constant_data``,
+            ``observed_data``, ...) is dropped from the optimizer.
+
+        Raises
+        ------
+        KeyError
+            If the posterior lacks a variable the graphs read.
+        ValueError
+            If a variable's non-sample dimensions, lengths or coordinate
+            labels differ from the construction posterior, or if a
+            user-supplied mask optimizes a cell the new posterior has no
+            information about.  Nothing is changed in that case, including
+            on the first call:
+            a recompile that fails leaves the constant-folded graphs, the
+            previous ``idata`` and the previous constraints in place.
+
+        Examples
+        --------
+        .. code-block:: python
+
+            optimizer = BudgetOptimizer(model=model, idata=idata, num_periods=8)
+            baseline = optimizer.allocate_budget(total_budget=100.0)
+
+            optimizer.set_posterior(updated_idata)  # recompiles once
+            updated = optimizer.allocate_budget(total_budget=100.0)
+
+            optimizer.set_posterior(another_idata)  # no recompile
+        """
+        if isinstance(idata, xr.Dataset):
+            idata = DataTree.from_dict({"/posterior": idata})
+        idata = _to_datatree(idata)
+
+        # The mask is fixed at construction: it defines the decision vector the
+        # graphs were compiled for, so a rebind never re-derives it.  A
+        # user-supplied mask is still checked against the new posterior the way
+        # construction checks it, so it cannot optimize a cell the new draws
+        # carry no information about.
+        if not self._mask_auto_detected:
+            self._validate_mask_against_posterior(
+                cast(DataArray, self.budgets_to_optimize), idata
+            )
+
+        if self._shared_posterior is not None:
+            self._shared_posterior.set_posterior(_extract_dataset(idata, "posterior"))
+            self.idata = idata
+            return
+
+        # First rebind: bind the draws through shared variables and compile once
+        # against them; later calls are set_value only.  The compile runs on the
+        # posterior the optimizer was built with, and the new draws then arrive
+        # through the same validated rebind path as every later call -- so a
+        # reordered axis is realigned and a resized one refused here exactly as
+        # it would be on the second call.  Anything that raises rolls every
+        # piece back, so a failed first call leaves the constant-folded graphs
+        # and the previous idata in place, and the next call retries this path
+        # rather than rebinding variables the compiled objective never reads.
+        # The response cache holds functions compiled against the pre-rebind
+        # graph, whose draws are constants. They go with the recompile, and
+        # come back with a rollback. Later calls take the fast path above,
+        # where the cached functions read the same shared variables the
+        # objective does and so follow the new draws on their own.
+        previous = (
+            self._shared_posterior,
+            self.idata,
+            self._objective_and_grad,
+            self._constraints,
+            self._compiled_constraints,
+            self._response_functions,
+        )
+        self._shared_posterior = SharedPosterior()
+        self._response_functions = {}
+        try:
+            self._compile_objective_and_grad()
+            self.set_constraints(constraints=list(self._constraints.values()))
+            self._shared_posterior.set_posterior(_extract_dataset(idata, "posterior"))
+            self.idata = idata
+        except BaseException:
+            (
+                self._shared_posterior,
+                self.idata,
+                self._objective_and_grad,
+                self._constraints,
+                self._compiled_constraints,
+                self._response_functions,
+            ) = previous
+            raise
 
     def _compile_objective_and_grad(self):
         """Compile the objective function and its gradient, both referencing `self._budgets_flat`."""
@@ -2130,7 +2740,10 @@ class BudgetOptimizer(BaseModel):
             Whether to track optimization progress. When True, ``result.callback_info`` is
             populated with a list of dictionaries with optimization information at
             each iteration including 'x' (parameter values), 'fun' (objective value),
-            'jac' (gradient), and constraint information. Default is False.
+            'jac' (gradient), and 'constraint_info', a list with one entry per
+            constraint holding its 'key', 'type', 'value', and 'jac'. Use
+            ``result.constraint_history`` to read those entries by constraint key.
+            Default is False.
 
         Returns
         -------
@@ -2220,16 +2833,12 @@ class BudgetOptimizer(BaseModel):
         bounds = self._variables.bounds(total_budget, overrides=bounds_overrides)
 
         # 3. Construct the initial guess (x0) if not provided; labelled values
-        # are packed into flat order by the optimization variables.
+        # are packed into flat order by the optimization variables, cast and
+        # filtered through the compiled input's type, which raises a TypeError
+        # naming the shape when x0 does not fit.
         if x0 is None:
             x0 = self._variables.x0(total_budget)
-        elif isinstance(x0, DataArray | dict):
-            x0 = self._variables.pack(x0)
-        x0 = np.asarray(x0).astype(self._budgets_flat.type.dtype)
-
-        # filter x0 based on shape/type of self._budgets_flat
-        # will raise a TypeError if x0 does not have acceptable shape and/or type
-        x0 = self._budgets_flat.type.filter(x0)
+        x0 = self._pack_decision_vector(x0)
 
         # 5. Set up callback tracking if requested
         callback_info: list[OptimizationIterationInfo] = []
@@ -2250,7 +2859,7 @@ class BudgetOptimizer(BaseModel):
             if self._compiled_constraints:
                 constraint_info: list[ConstraintIterationInfo] = []
 
-                for _, constraint in enumerate(self._compiled_constraints):
+                for constraint in self._compiled_constraints:
                     # Evaluate constraint function
                     c_val = constraint["fun"](xk)
                     # Evaluate constraint gradient
@@ -2258,6 +2867,7 @@ class BudgetOptimizer(BaseModel):
 
                     constraint_info.append(
                         {
+                            "key": constraint["key"],
                             "type": constraint["type"],
                             "value": float(c_val)
                             if np.ndim(c_val) == 0

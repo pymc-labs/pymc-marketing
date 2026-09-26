@@ -12,6 +12,7 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 import warnings
+from types import SimpleNamespace
 
 import arviz as az
 import numpy as np
@@ -22,7 +23,9 @@ import pytest
 import xarray as xr
 from pytensor import function
 from pytensor.compile.mode import Mode
+from pytensor.graph.traversal import ancestors
 from pytensor.xtensor import as_xtensor
+from scipy.optimize import approx_fprime
 
 from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation
 from pymc_marketing.mmm.additive_effect import LinearTrendEffect, MuEffect
@@ -1994,6 +1997,140 @@ class TestDefaultObjectiveWarning:
         )
 
 
+class TestFunnelEffectPropagation:
+    """The optimizer's intervention on ``channel_data`` reaches a funnel ``MuEffect``.
+
+    The conftest ``FunnelEffect`` reads ``mmm.channel_data_scaled``, chains a second
+    adstock/saturation behind the model's own and brings a date-indexed ``pm.Data``
+    (``lf_budget``). The optimizer is built on the in-sample window with each
+    channel's historical spend pattern as ``budget_distribution_over_period``, so
+    the historical plan is a point of the decision space at which every quantity
+    has a posterior counterpart, and ``total_response_original_scale`` (registered
+    because the model has mu effects) is the objective that counts the mediated
+    path. Both compile modes are exercised: the default one and the C/VM linker.
+
+    The tests go through the public ``evaluate_plan``: it wraps the exact
+    callable handed to SLSQP (objective and gradient from one compiled
+    function), so what is pinned here is still what the solver sees, on the
+    labels a caller works with. Only the finite-difference check below stays on
+    the private callable, because it differentiates the flat vector function.
+    """
+
+    @pytest.fixture(scope="class", params=["default", "cvm"])
+    @staticmethod
+    def setup(request, funnel_identity_fitted_mmm):
+        """Two optimizers on the training window: funnel-aware and direct-only."""
+        mmm = funnel_identity_fitted_mmm
+        dates = pd.DatetimeIndex(mmm.xarray_dataset.coords["date"].values)
+        lags = mmm.effective_carryover_lags()
+        # The window plus the effective carry-over (the model's own l_max plus
+        # the extra lags the effect declares) is exactly the training range, so
+        # the effect's own lf_budget lines up with channel_data.
+        opt_model = mmm.create_optimization_model(dates[0], dates[-(lags + 1)])
+        assert (pd.DatetimeIndex(opt_model.coords["date"]) == dates).all()
+
+        spend = mmm.xarray_dataset["_channel"]
+        pattern = spend / spend.sum("date")
+        mean_plan = spend.mean("date")
+        compile_kwargs = (
+            {"mode": Mode(linker="cvm")} if request.param == "cvm" else None
+        )
+
+        def build(response_variable):
+            return BudgetOptimizer(
+                model=opt_model,
+                idata=mmm.idata,
+                num_periods=len(dates),
+                adstock_periods=0,
+                response_variable=response_variable,
+                budget_distribution_over_period=pattern,
+                compile_kwargs=compile_kwargs,
+            )
+
+        total = build("total_response_original_scale")
+        direct = build("total_media_contribution_original_scale")
+        x0 = total.optimization_variables.pack(mean_plan)
+        np.testing.assert_array_equal(x0, direct.optimization_variables.pack(mean_plan))
+        return SimpleNamespace(
+            mmm=mmm,
+            total=total,
+            direct=direct,
+            x0=x0,
+            mean_plan=mean_plan,
+            compile_kwargs=compile_kwargs,
+        )
+
+    def test_mediated_contribution_depends_on_the_budgets(self, setup):
+        """The decision vector is an ancestor of the mediated contribution."""
+        mediated = setup.total.extract_response_distribution(
+            "funnel_effect_contribution"
+        )
+        assert setup.total.optimization_variables.flat in set(ancestors([mediated]))
+
+    def test_objective_at_the_historical_plan_is_the_in_sample_posterior_mean(
+        self, setup
+    ):
+        """The fixed pattern reproduces history and the effect's data are the training data.
+
+        Any other window, or an effect data variable left at the wrong length or
+        values, would break this equality.
+        """
+        utility = setup.total.evaluate_plan(setup.mean_plan).utility
+        posterior_mean = float(
+            setup.mmm.idata.posterior["total_response_original_scale"].mean()
+        )
+        np.testing.assert_allclose(utility, posterior_mean, rtol=1e-6)
+
+    @pytest.mark.parametrize("scale", [1.0, 1.25], ids=["historical", "perturbed"])
+    def test_gradient_matches_finite_differences(self, setup, scale):
+        """The compiled gradient through the chained adstock/saturation is right.
+
+        Flat on purpose: `approx_fprime` differentiates the vector function, so
+        this goes through the compiled callable rather than the labelled
+        `evaluate_plan` wrapper around it.
+        """
+        x = setup.x0 * np.linspace(scale, 2 - scale, setup.x0.size)
+        _, gradient = setup.total._objective_and_grad(x)
+        finite_differences = approx_fprime(
+            x, lambda z: setup.total._objective_and_grad(z)[0], 1e-6
+        )
+        np.testing.assert_allclose(gradient, finite_differences, rtol=1e-4)
+
+    def test_the_two_objectives_differ_by_the_mediated_gradient(self, setup):
+        """Direct-only and funnel-aware objectives differ exactly by the mediated term.
+
+        The mediated contribution rises with every channel's spend, so the
+        funnel-aware utility has the larger marginal in every cell, by exactly
+        the marginal mediated response.
+        """
+        total = setup.total.evaluate_plan(setup.mean_plan).utility_gradient
+        direct = setup.direct.evaluate_plan(setup.mean_plan).utility_gradient
+        mediated_marginal = total["channel_data"] - direct["channel_data"]
+
+        # The fixture registers no original-scale mediated variable, so scale
+        # the linear-predictor contribution by hand.
+        target_scale = float(setup.mmm.idata.constant_data["target_scale"])
+        mediated = setup.total.extract_response_distribution(
+            "funnel_effect_contribution"
+        )
+        mediated_mean = mediated.sum(dim=["date"]).mean(dim="sample") * target_scale
+        mediated_fn = function(
+            [setup.total.optimization_variables.flat],
+            mediated_mean,
+            **(setup.compile_kwargs or {}),
+        )
+        mediated_gradient = approx_fprime(
+            setup.x0, lambda z: float(mediated_fn(z)), 1e-6
+        )
+
+        assert (mediated_marginal > 0).all()
+        np.testing.assert_allclose(
+            setup.total.optimization_variables.pack(mediated_marginal),
+            mediated_gradient,
+            rtol=1e-4,
+        )
+
+
 class TestLegacyWrapperNumPeriods:
     """The deprecated wrapper's window, not the caller's ``num_periods``, sizes the model.
 
@@ -2099,6 +2236,43 @@ class TestMonetarySpendVariables:
         assert set(allocations) == {"lf_budget"}
         assert float(allocations["lf_budget"].sum()) > 0.0
         assert (result.budgets > 0).all()
+
+    def test_evaluate_plan_labels_every_decision_variable(
+        self, funnel_identity_fitted_mmm
+    ):
+        """A two-variable decision vector comes back keyed, not positional.
+
+        The single-variable case hides the point of returning a dict: here the
+        media gradient is over ``channel``, the spend variable's node has only
+        a date dim so its entry is 0-d, and the flat layout a caller used to
+        slice by hand is exactly what the keys replace.
+        """
+        optimizer = self._optimizer(
+            funnel_identity_fitted_mmm, spend_vars=["lf_budget"]
+        )
+        result = optimizer.allocate_budget(total_budget=self.TOTAL)
+        plan = {
+            "channel_data": result.budgets,
+            "lf_budget": result.spend_var_allocations["lf_budget"],
+        }
+
+        evaluation = optimizer.evaluate_plan(plan, total_budget=self.TOTAL)
+
+        gradient = evaluation.utility_gradient
+        assert set(gradient) == {"channel_data", "lf_budget"}
+        assert gradient["channel_data"].dims == ("channel",)
+        assert gradient["lf_budget"].shape == ()
+        # The optimum is feasible and scores exactly what the solver reported.
+        assert evaluation.feasible(atol=1e-6)
+        np.testing.assert_allclose(
+            evaluation.objective, result.scipy_result.fun, rtol=1e-9
+        )
+        np.testing.assert_allclose(
+            optimizer.optimization_variables.pack(gradient),
+            -optimizer._objective_and_grad(optimizer.optimization_variables.pack(plan))[
+                1
+            ],
+        )
 
     def test_declaring_no_spend_variables_reports_none(
         self, funnel_identity_fitted_mmm
@@ -2272,3 +2446,39 @@ class TestMonetarySpendVariables:
         assert "'l'" not in str(info.value), (
             "a bare string was iterated character by character"
         )
+
+
+def test_mmm_budget_optimizer_set_posterior_is_local_to_the_optimizer(
+    dummy_df, fitted_mmm
+):
+    """``mmm.budget_optimizer(...)`` rebinds like any optimizer; the MMM keeps its idata."""
+    _df_kwargs, X_dummy, _y_dummy = dummy_df
+    optimizer = fitted_mmm.budget_optimizer(
+        start_date=X_dummy["date_week"].max() + pd.Timedelta(weeks=1),
+        end_date=X_dummy["date_week"].max() + pd.Timedelta(weeks=10),
+    )
+    baseline, _ = optimizer.allocate_budget(total_budget=4.0)
+
+    posterior = fitted_mmm.idata["posterior"].to_dataset()
+    tilt = xr.DataArray(
+        [3.0, 0.2], dims="channel", coords={"channel": posterior["channel"]}
+    )
+    updated = xr.DataTree.from_dict(
+        {
+            "/posterior": posterior.assign(
+                saturation_beta=posterior["saturation_beta"] * tilt
+            )
+        }
+    )
+    mmm_idata_before = fitted_mmm.idata
+
+    optimizer.set_posterior(updated)
+    rebound, result = optimizer.allocate_budget(total_budget=4.0)
+
+    assert result.success
+    assert not np.allclose(rebound.values, baseline.values)
+    assert fitted_mmm.idata is mmm_idata_before
+    xr.testing.assert_identical(
+        fitted_mmm.idata["posterior"].to_dataset()["saturation_beta"],
+        posterior["saturation_beta"],
+    )

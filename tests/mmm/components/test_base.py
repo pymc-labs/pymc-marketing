@@ -178,6 +178,50 @@ def test_new_transformation_priors_at_init(new_transformation_class) -> None:
     }
 
 
+def test_new_transformation_unknown_prior_at_init(new_transformation_class) -> None:
+    with pytest.raises(
+        ValueError,
+        match=r"Priors for \['c'\] are not parameters of NewTransformation."
+        r" Parameters are \['a', 'b'\]\.$",
+    ):
+        new_transformation_class(priors={"a": Prior("HalfNormal"), "c": Prior("Beta")})
+
+
+def test_new_transformation_unknown_prior_after_init(new_transformation) -> None:
+    with pytest.raises(ValueError, match=r"Priors for \['c'\]"):
+        new_transformation.function_priors = {"c": Prior("Beta")}
+
+    assert set(new_transformation.function_priors) == {"a", "b"}
+
+
+@pytest.mark.parametrize(
+    "names, prefix, suggestions",
+    [
+        (["new_a"], None, r"{'new_a': 'a'}"),
+        # The variable name is suggested against, whatever the prefix.
+        (["new_a", "new_b"], "channel", r"{'new_a': 'a', 'new_b': 'b'}"),
+    ],
+)
+def test_new_transformation_variable_name_as_prior_name(
+    new_transformation_class, names, prefix, suggestions
+) -> None:
+    with pytest.raises(
+        ValueError,
+        match=rf"Use the parameter name, not the variable name: {suggestions}\.$",
+    ):
+        new_transformation_class(
+            priors={name: Prior("HalfNormal") for name in names}, prefix=prefix
+        )
+
+
+def test_from_dict_unknown_prior() -> None:
+    data = TanhSaturation().to_dict()
+    data["priors"]["lam"] = Prior("Beta").to_dict()
+
+    with pytest.raises(ValueError, match=r"Priors for \['lam'\]"):
+        TanhSaturation.from_dict(data)
+
+
 def test_new_transformation_variable_mapping(new_transformation) -> None:
     assert new_transformation.variable_mapping == {"a": "new_a", "b": "new_b"}
 
@@ -506,6 +550,18 @@ def test_serialization(new_transformation_class) -> None:
     }
 
 
+def test_from_dict(new_transformation_class) -> None:
+    """Any Transformation subclass gets ``from_dict`` from the base class."""
+    instance = new_transformation_class(
+        priors={"a": Prior("HalfNormal", sigma=2), "b": [1, 2, 3]}
+    )
+
+    restored = new_transformation_class.from_dict(instance.to_dict())
+
+    assert type(restored) is new_transformation_class
+    assert restored == instance
+
+
 def test_transform_sample_curve_with_variable_factory():
     class Example(VariableFactory):
         dims = ("dim_a",)
@@ -671,3 +727,26 @@ def test_exposed_priors_property() -> None:
     priors = {"x": dist}
     tfm = DummyTransformation(priors=priors)
     assert tfm.priors == {"x": dist}
+
+
+def test_call_reuses_existing_vars(new_transformation) -> None:
+    x = as_xtensor(np.array([1, 2, 3]), dims=("time",))
+    with pm.Model() as model:
+        new_transformation.apply(x)
+        n_vars_before = len(model.named_vars)
+        new_transformation(x)
+        assert len(model.named_vars) == n_vars_before
+
+
+def test_call_fallback_creates_distributions(new_transformation) -> None:
+    x = as_xtensor(np.array([1, 2, 3]), dims=("time",))
+    expected = np.array([6, 12, 18])
+    with pm.Model() as generative_model:
+        pm.Deterministic("y", new_transformation(x))
+    fixed = pm.do(generative_model, {"new_a": 2, "new_b": 3})
+    np.testing.assert_allclose(fixed["y"].eval(), expected)
+
+
+def test_call_outside_model_raises(new_transformation) -> None:
+    with pytest.raises(TypeError, match=r"on context stack"):
+        new_transformation(as_xtensor(np.array([1, 2, 3]), dims=("time",)))
