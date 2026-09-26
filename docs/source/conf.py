@@ -107,8 +107,9 @@ locale_dirs = ["../../locales"]
 
 # -- Extension configuration ------------------------------------------------
 
-# exclude method pages from toctree to make pages lighter and build faster
-remove_from_toctrees = ["**/classmethods/*"]
+# exclude method and attribute pages from toctree to make pages lighter and
+# build faster
+remove_from_toctrees = ["**/classmethods/*", "**/classattributes/*"]
 
 # matplotlib plot directive configuration
 # plot_pre_code runs before every .. plot:: block; replaces the default
@@ -166,6 +167,7 @@ numpydoc_xref_ignore = {
 # fmt: on
 numpydoc_xref_aliases = {
     "TensorVariable": ":class:`~pytensor.tensor.TensorVariable`",
+    "XTensorVariable": ":class:`~pytensor.xtensor.type.XTensorVariable`",
     "RandomVariable": ":class:`~pytensor.tensor.random.RandomVariable`",
     "ndarray": ":class:`~numpy.ndarray`",
     "DataTree": ":class:`~xarray.DataTree`",
@@ -177,6 +179,7 @@ numpydoc_xref_aliases = {
 typehints_document_rtype = False
 
 # intersphinx configuration to ease linking arviz docs
+_intersphinx_inv = Path(__file__).parent / "_inv"
 intersphinx_mapping = {
     "arviz": ("https://python.arviz.org/en/latest/", None),
     "examples": ("https://www.pymc.io/projects/examples/en/latest/", None),
@@ -186,7 +189,11 @@ intersphinx_mapping = {
     "pymc": ("https://www.pymc.io/projects/docs/en/stable/", None),
     "pytensor": ("https://pytensor.readthedocs.io/en/latest/", None),
     "python": ("https://docs.python.org/3/", None),
-    "scipy": ("https://docs.scipy.org/doc/scipy/", None),
+    # Vendored: docs.scipy.org/objects.inv intermittently times out on CI/RTD.
+    "scipy": (
+        "https://docs.scipy.org/doc/scipy/",
+        str(_intersphinx_inv / "scipy.objects.inv"),
+    ),
     "xarray": ("https://docs.xarray.dev/en/stable/", None),
 }
 
@@ -212,6 +219,16 @@ linkcheck_ignore = [
 
 
 # linkcode extension (links of [source] pointing to github)
+# Resolved once: linkcode_resolve runs for every documented object (thousands
+# per build) and the commit does not change during a build.
+_GIT_COMMIT = subprocess.run(
+    ["git", "rev-parse", "HEAD"],  # noqa: S607
+    capture_output=True,
+    text=True,
+    check=True,
+).stdout.strip()
+
+
 def linkcode_resolve(domain, info):
     """Given sphinx contextual objects when building the docs, generate links to source on GH."""
 
@@ -250,12 +267,7 @@ def linkcode_resolve(domain, info):
                 # Some objects do not have a __module__ attribute (?)
                 filename = fallback_source()
 
-    tag = subprocess.Popen(
-        ["git", "rev-parse", "HEAD"],  # noqa: S607
-        stdout=subprocess.PIPE,
-        universal_newlines=True,
-    ).communicate()[0][:-1]
-    return f"https://github.com/pymc-labs/pymc-marketing/blob/{tag}/{filename}"
+    return f"https://github.com/pymc-labs/pymc-marketing/blob/{_GIT_COMMIT}/{filename}"
 
 
 # -- HTML specific extensions -------------------------------------
@@ -283,6 +295,7 @@ sitemap_excludes = [
     "genindex.html",
     "py-modindex.html",
     "api/generated/classmethods/*",
+    "api/generated/classattributes/*",
 ]
 
 

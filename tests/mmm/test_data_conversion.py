@@ -332,6 +332,23 @@ class TestToMmmDatasetDateCoercion:
         ds = to_mmm_dataset(X, y, date_column="date", channel_columns=["channel_1"])
         assert np.issubdtype(ds.coords["date"].values.dtype, np.datetime64)
 
+    @pytest.mark.parametrize(
+        "dates",
+        [
+            pytest.param(["2023-01-01", "2023-01-08", "2023-01-15"], id="str"),
+            pytest.param([0, 1, 2], id="int64"),
+        ],
+    )
+    def test_input_dataframe_is_not_mutated(self, dates):
+        X = pd.DataFrame({"date": dates, "channel_1": [1.0, 2.0, 3.0]})
+        X_before = X.copy()
+        y = pd.Series([10, 20, 30])
+
+        ds = to_mmm_dataset(X, y, date_column="date", channel_columns=["channel_1"])
+
+        assert np.issubdtype(ds.coords["date"].values.dtype, np.datetime64)
+        pd.testing.assert_frame_equal(X, X_before)
+
 
 class TestToMmmDatasetMultiIndex:
     """to_mmm_dataset handles MultiIndex Series inputs for panel data."""

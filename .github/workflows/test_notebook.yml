@@ -10,8 +10,8 @@ on:
      - ".github/workflows/test_notebook.yml"
      - "scripts/run_notebooks/**.py"
      - "docs/source/notebooks/**.ipynb"
-     - "!docs/source/notebooks/mmm/**.ipynb"
      - "!docs/source/notebooks/*/dev/**.ipynb"
+     - "docs/source/guide/**.ipynb"
   push:
     branches: [main, v1.0.0]
     paths:
@@ -21,8 +21,8 @@ on:
      - ".github/workflows/test_notebook.yml"
      - "scripts/run_notebooks/**.py"
      - "docs/source/notebooks/**.ipynb"
-     - "!docs/source/notebooks/mmm/**.ipynb"
      - "!docs/source/notebooks/*/dev/**.ipynb"
+     - "docs/source/guide/**.ipynb"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}

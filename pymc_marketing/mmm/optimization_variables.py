@@ -55,6 +55,51 @@ __all__ = [
 FLAT_DIM = "budgets_flat"
 
 
+def _reject_unknown_coords(
+    da: DataArray,
+    coords: Mapping[str, list],
+    *,
+    label: str,
+) -> None:
+    """Refuse coordinate labels the model does not have.
+
+    Split out of :func:`align_to_model_coords` because the two halves of that
+    function are wanted separately: every consumer must reject unknown labels,
+    since ``reindex`` drops them silently and the input is then consumed
+    positionally against a tensor that never saw them, but only some consumers
+    can demand full coverage. :meth:`MediaVariable.pack` is the exception --
+    a plan may legitimately omit a cell that is masked out of the
+    optimization, so it scopes its own missing-value check to the mask.
+
+    Parameters
+    ----------
+    da : DataArray
+        User-supplied input carrying some or all of the budget dims.
+    coords : Mapping[str, list]
+        The model's coordinates for the budget dims.
+    label : str
+        Name of the input, used in the error message.
+
+    Raises
+    ------
+    ValueError
+        If the input carries coordinates the model does not have.
+    """
+    unknown = {
+        dim: sorted(
+            set(np.asarray(da.coords[dim].values).ravel().tolist()) - set(values)
+        )
+        for dim, values in coords.items()
+        if dim in da.coords
+    }
+    unknown = {dim: labels for dim, labels in unknown.items() if labels}
+    if unknown:
+        raise ValueError(
+            f"{label} has coordinates the model does not have: {unknown}. "
+            "They would be dropped silently, so the input is rejected instead."
+        )
+
+
 def align_to_model_coords(
     da: DataArray,
     coords: Mapping[str, list],
@@ -93,19 +138,7 @@ def align_to_model_coords(
         If the input carries coordinates the model does not have, or does not
         cover every coordinate the model does.
     """
-    unknown = {
-        dim: sorted(
-            set(np.asarray(da.coords[dim].values).ravel().tolist()) - set(values)
-        )
-        for dim, values in coords.items()
-        if dim in da.coords
-    }
-    unknown = {dim: labels for dim, labels in unknown.items() if labels}
-    if unknown:
-        raise ValueError(
-            f"{label} has coordinates the model does not have: {unknown}. "
-            "They would be dropped silently, so the input is rejected instead."
-        )
+    _reject_unknown_coords(da, coords, label=label)
 
     aligned = da.reindex(coords)
     if bool(aligned.isnull().any()):
@@ -554,6 +587,13 @@ class MediaVariable(OptimizationVariable):
                 f"{self.name}: DataArray has unexpected dims {sorted(extra)}; "
                 f"expected exactly {list(self.dims)}"
             )
+        # Unknown labels first: `reindex` drops them silently, so an
+        # allocation naming a channel the model does not have would be scored
+        # as though that spend were not in the plan at all. The missing-value
+        # check below cannot catch it -- dropping a label leaves no NaN -- and
+        # stays scoped to the mask, because a cell outside the optimization
+        # may legitimately be omitted.
+        _reject_unknown_coords(da, self.coords, label=self.name)
         aligned = da.reindex(self.coords).transpose(*self.dims)
         values = aligned.values[self._bool_mask]
         if np.isnan(values).any():

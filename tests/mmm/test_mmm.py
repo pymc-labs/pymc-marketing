@@ -39,6 +39,7 @@ from pymc_marketing.mmm import (
     SoftPlusHSGP,
 )
 from pymc_marketing.mmm.additive_effect import (
+    DataVarMuEffect,
     EventAdditiveEffect,
     LinearTrendEffect,
     MuEffect,
@@ -58,6 +59,7 @@ from pymc_marketing.mmm.scaling import (
     Scaling,
 )
 from pymc_marketing.serialization import serialization
+from pymc_marketing.special_priors import LogNormalPrior
 
 
 @pytest.fixture
@@ -453,6 +455,177 @@ class TestMultidimMMMEdgeCases:
         for column in zero_columns:
             col_idx = mmm.channel_columns.index(column)
             np.testing.assert_array_equal(scaled[..., col_idx], 0.0)
+
+    def test_scaled_channel_selects_by_name(self, simple_mmm_data):
+        """scaled_channel returns the same slice as isel by channel_columns index."""
+        mmm = self._build_basic_mmm()
+        mmm.build_model(simple_mmm_data["X"], simple_mmm_data["y"])
+
+        by_name = fast_eval(mmm.scaled_channel("channel_2"))
+        by_index = fast_eval(mmm.channel_data_scaled.isel(channel=1))
+
+        np.testing.assert_allclose(by_name, by_index)
+
+        with pytest.raises(ValueError, match="not in model channel coords"):
+            mmm.scaled_channel("missing_channel")
+
+        unbuilt = self._build_basic_mmm()
+        with pytest.raises(ValueError, match="Model was not built"):
+            unbuilt.scaled_channel("channel_1")
+
+    def test_scaled_channel_follows_dataset_coord_order(self, simple_mmm_data):
+        """Dataset channel coord order, not channel_columns, indexes the tensor."""
+        X_df = simple_mmm_data["X"]
+        y = simple_mmm_data["y"]
+        dates = pd.DatetimeIndex(X_df["date"])
+        channel_columns = ["channel_1", "channel_2", "channel_3"]
+        dataset_order = ["channel_3", "channel_1", "channel_2"]
+        t = np.arange(len(dates), dtype=float)
+        media = np.column_stack(
+            [
+                t + 1.0,
+                t**2 + 1.0,
+                np.full(len(dates), 7.0),
+            ]
+        )
+        X = xr.Dataset(
+            {"media": (["date", "channel"], media)},
+            coords={"date": dates, "channel": dataset_order},
+        )
+
+        mmm = self._build_basic_mmm()
+        mmm.build_model(X, y)
+
+        assert list(mmm.model_coords["channel"]) == dataset_order
+        assert list(mmm.channel_columns) == channel_columns
+
+        got = fast_eval(mmm.scaled_channel("channel_1"))
+        coord_idx = list(mmm.model_coords["channel"]).index("channel_1")
+        expected = fast_eval(mmm.channel_data_scaled.isel(channel=coord_idx))
+        np.testing.assert_allclose(got, expected)
+
+        columns_idx = mmm.channel_columns.index("channel_1")
+        wrong = fast_eval(mmm.channel_data_scaled.isel(channel=columns_idx))
+        assert not np.allclose(got, wrong)
+
+    def test_mu_effects_share_one_pm_data_node(self, simple_mmm_data):
+        """MMM.build_model registers shared DataVarMuEffect inputs once."""
+        X_df = simple_mmm_data["X"]
+        y = simple_mmm_data["y"]
+        dates = pd.DatetimeIndex(X_df["date"])
+        channels = ["channel_1", "channel_2", "channel_3"]
+        shared_aux = np.linspace(0.1, 1.0, len(dates))
+
+        X = xr.Dataset(
+            {
+                "media": (["date", "channel"], X_df[channels].values),
+                "shared_aux": (["date"], shared_aux),
+            },
+            coords={"date": dates, "channel": channels},
+        )
+
+        class SharedEffectA(DataVarMuEffect):
+            data_vars: list[str] = ["shared_aux"]
+            prefix: str = "aux_a"
+
+            def create_effect(self, mmm):  # type: ignore
+                return pm.Deterministic(
+                    f"{self.prefix}_contrib", mmm.model["shared_aux"]
+                )
+
+        class SharedEffectB(DataVarMuEffect):
+            data_vars: list[str] = ["shared_aux"]
+            prefix: str = "aux_b"
+
+            def create_effect(self, mmm):  # type: ignore
+                return pm.Deterministic(
+                    f"{self.prefix}_contrib", 2.0 * mmm.model["shared_aux"]
+                )
+
+        mmm = (
+            MMM(
+                date_column="date",
+                channel_columns=channels,
+                target_column="target",
+                adstock=GeometricAdstock(l_max=4),
+                saturation=LogisticSaturation(),
+            )
+            .add_mu_effect(SharedEffectA())
+            .add_mu_effect(SharedEffectB())
+        )
+        mmm.build_model(X, y)
+
+        shared = mmm.model["shared_aux"]
+        assert shared in mmm.model.data_vars
+        assert [v for v in mmm.model.data_vars if v.name == "shared_aux"] == [shared]
+
+    def test_mu_effect_column_named_like_mmm_data_raises(self, simple_mmm_data):
+        """An effect cannot reuse a data node registered by MMM itself."""
+        X_df = simple_mmm_data["X"]
+        y = simple_mmm_data["y"]
+        dates = pd.DatetimeIndex(X_df["date"])
+        channels = ["channel_1", "channel_2", "channel_3"]
+        X = xr.Dataset(
+            {
+                "media": (["date", "channel"], X_df[channels].values),
+                "channel_data": (["date"], np.linspace(0.1, 1.0, len(dates))),
+            },
+            coords={"date": dates, "channel": channels},
+        )
+
+        class CollidingEffect(DataVarMuEffect):
+            data_vars: list[str] = ["channel_data"]
+            prefix: str = "collide"
+
+            def create_effect(self, mmm):  # type: ignore
+                return pm.Deterministic(
+                    f"{self.prefix}_contrib", mmm.model["channel_data"]
+                )
+
+        mmm = MMM(
+            date_column="date",
+            channel_columns=channels,
+            target_column="target",
+            adstock=GeometricAdstock(l_max=4),
+            saturation=LogisticSaturation(),
+        ).add_mu_effect(CollidingEffect())
+
+        with pytest.raises(ValueError, match="registered by MMM itself"):
+            mmm.build_model(X, y)
+
+    def test_mu_effect_column_named_like_target_data_raises(self, simple_mmm_data):
+        """An effect cannot silently reuse MMM's scaled target data node."""
+        X_df = simple_mmm_data["X"]
+        y = simple_mmm_data["y"]
+        dates = pd.DatetimeIndex(X_df["date"])
+        channels = ["channel_1", "channel_2", "channel_3"]
+        X = xr.Dataset(
+            {
+                "media": (["date", "channel"], X_df[channels].values),
+                "target_data": (["date"], np.linspace(0.1, 1.0, len(dates))),
+            },
+            coords={"date": dates, "channel": channels},
+        )
+
+        class CollidingEffect(DataVarMuEffect):
+            data_vars: list[str] = ["target_data"]
+            prefix: str = "collide"
+
+            def create_effect(self, mmm):  # type: ignore
+                return pm.Deterministic(
+                    f"{self.prefix}_contrib", mmm.model["target_data"]
+                )
+
+        mmm = MMM(
+            date_column="date",
+            channel_columns=channels,
+            target_column="target",
+            adstock=GeometricAdstock(l_max=4),
+            saturation=LogisticSaturation(),
+        ).add_mu_effect(CollidingEffect())
+
+        with pytest.raises(ValueError, match="registered by MMM itself"):
+            mmm.build_model(X, y)
 
     def test_heterogeneous_zero_slice_channel_scaled_tensor_is_finite(self):
         """Per-dim channel scaling with one zero slice must not produce Inf.
@@ -6631,3 +6804,320 @@ def test_mmm_plot_new_returns_facade(fit_mmm):
     assert isinstance(result, MMMPlotSuiteFacade)
     future_warnings = [x for x in w if issubclass(x.category, FutureWarning)]
     assert len(future_warnings) == 0
+
+
+@pytest.fixture
+def lognormal_likelihood_mmm() -> MMM:
+    return MMM(
+        date_column="date",
+        channel_columns=["channel_1", "channel_2"],
+        target_column="y",
+        adstock=GeometricAdstock(l_max=4),
+        saturation=LogisticSaturation(),
+        model_config={
+            "likelihood": LogNormalPrior(
+                std=Prior("HalfNormal", sigma=0.5), dims=("date",)
+            ),
+        },
+    )
+
+
+@pytest.fixture
+def lognormal_likelihood_data() -> tuple[pd.DataFrame, pd.Series]:
+    rng = np.random.default_rng(42)
+    n = 20
+    dates = pd.date_range("2024-01-01", periods=n, freq="W-MON")
+    X = pd.DataFrame(
+        {
+            "date": dates,
+            "channel_1": rng.integers(10, 100, n),
+            "channel_2": rng.integers(10, 100, n),
+        }
+    )
+    y = pd.Series(rng.uniform(50, 500, n), name="y")
+    return X, y
+
+
+@pytest.mark.parametrize("bad_value", [0.0, -1.0], ids=["zero", "negative"])
+def test_build_model_lognormal_likelihood_nonpositive_target_raises(
+    lognormal_likelihood_mmm, lognormal_likelihood_data, bad_value
+):
+    X, y = lognormal_likelihood_data
+    y.iloc[3] = bad_value
+    with pytest.raises(ValueError, match="strictly positive"):
+        lognormal_likelihood_mmm.build_model(X, y)
+
+
+def test_sample_posterior_predictive_lognormal_likelihood_warns_on_zero_draws(
+    lognormal_likelihood_mmm, lognormal_likelihood_data, mock_pymc_sample
+):
+    X, y = lognormal_likelihood_data
+    mmm = lognormal_likelihood_mmm
+    mmm.fit(X, y, chains=1, draws=10, tune=10, random_seed=42)
+
+    # Force a non-positive response-scale mean out of sample. The logp guard
+    # cannot fire on the forward path, so draws collapse to exp(-inf) = 0.
+    # mu is a registered Deterministic, so the forward pass reads it from the
+    # posterior and an edited intercept would not reach the likelihood.
+    mmm.idata.posterior["mu"].values[...] = -10.0
+
+    with pytest.warns(UserWarning, match="exactly zero"):
+        mmm.sample_posterior_predictive(X, extend_idata=False, random_seed=42)
+
+
+def test_sample_posterior_predictive_lognormal_likelihood_healthy_no_warning(
+    lognormal_likelihood_mmm, lognormal_likelihood_data, mock_pymc_sample
+):
+    X, y = lognormal_likelihood_data
+    mmm = lognormal_likelihood_mmm
+    mmm.fit(X, y, chains=1, draws=10, tune=10, random_seed=42)
+
+    # Guarantee a positive mu regardless of what the mocked sampler drew. Set
+    # the stored mu itself, which is what the forward pass reads.
+    mmm.idata.posterior["mu"].values[...] = 10.0
+
+    with warnings.catch_warnings(record=True) as records:
+        warnings.simplefilter("always")
+        result = mmm.sample_posterior_predictive(X, extend_idata=False, random_seed=42)
+
+    assert not any("exactly zero" in str(r.message) for r in records)
+    assert (result[mmm.output_var].values > 0).all()
+
+
+def _lognormal_likelihood_mmm_with_intercept(intercept_mu: float) -> MMM:
+    return MMM(
+        date_column="date",
+        channel_columns=["channel_1", "channel_2"],
+        target_column="y",
+        adstock=GeometricAdstock(l_max=4),
+        saturation=LogisticSaturation(),
+        model_config={
+            "likelihood": LogNormalPrior(
+                std=Prior("HalfNormal", sigma=0.5), dims=("date",)
+            ),
+            "intercept": Prior("Normal", mu=intercept_mu, sigma=0.1),
+        },
+    )
+
+
+def test_sample_prior_predictive_lognormal_likelihood_warns_on_zero_draws(
+    lognormal_likelihood_data,
+):
+    X, y = lognormal_likelihood_data
+    # A strongly negative intercept prior drives the response-scale mean below
+    # zero for essentially every prior draw, collapsing draws to exp(-inf) = 0.
+    mmm = _lognormal_likelihood_mmm_with_intercept(intercept_mu=-10.0)
+
+    with pytest.warns(UserWarning, match="exactly zero") as records:
+        mmm.sample_prior_predictive(X, y, samples=50, random_seed=42)
+
+    assert any("prior-predictive" in str(r.message) for r in records)
+
+
+def test_sample_prior_predictive_lognormal_likelihood_warns_on_nan_draws(
+    lognormal_likelihood_data,
+):
+    X, y = lognormal_likelihood_data
+    # A std prior entirely below zero makes the log-scale sigma NaN for every
+    # draw, so y is NaN rather than zero; that must be reported too.
+    mmm = MMM(
+        date_column="date",
+        channel_columns=["channel_1", "channel_2"],
+        target_column="y",
+        adstock=GeometricAdstock(l_max=4),
+        saturation=LogisticSaturation(),
+        model_config={
+            "likelihood": LogNormalPrior(
+                std=Prior("Normal", mu=-5.0, sigma=0.1), dims=("date",)
+            ),
+            "intercept": Prior("Normal", mu=10.0, sigma=0.1),
+        },
+    )
+
+    with pytest.warns(UserWarning, match="non-finite") as records:
+        result = mmm.sample_prior_predictive(X, y, samples=50, random_seed=42)
+
+    assert np.isnan(result[mmm.output_var].values).all()
+    assert any("non-positive 'std'" in str(r.message) for r in records)
+
+
+def test_sample_prior_predictive_lognormal_likelihood_without_target(
+    lognormal_likelihood_mmm, lognormal_likelihood_data
+):
+    # Regression: the base class defaults a missing y to zeros, which
+    # validate_observed rejects, breaking the standard pre-fit
+    # prior-predictive call for this likelihood. The ones placeholder that
+    # replaces them must be announced, since a later fit on the same
+    # instance would reuse the built model and train on it (#2956).
+    X, _ = lognormal_likelihood_data
+    mmm = lognormal_likelihood_mmm
+
+    with pytest.warns(UserWarning, match="placeholder target of ones"):
+        result = mmm.sample_prior_predictive(X, samples=50, random_seed=42)
+
+    assert mmm.output_var in result
+    assert result[mmm.output_var].sizes["sample"] == 50
+    np.testing.assert_array_equal(mmm.xarray_dataset["_target"].values, 1.0)
+
+
+def test_sample_prior_predictive_lognormal_likelihood_healthy_no_warning(
+    lognormal_likelihood_data,
+):
+    X, y = lognormal_likelihood_data
+    mmm = _lognormal_likelihood_mmm_with_intercept(intercept_mu=10.0)
+
+    with warnings.catch_warnings(record=True) as records:
+        warnings.simplefilter("always")
+        result = mmm.sample_prior_predictive(X, y, samples=50, random_seed=42)
+
+    assert not any("exactly zero" in str(r.message) for r in records)
+    assert (result[mmm.output_var].values > 0).all()
+
+
+def test_sample_prior_predictive_lognormal_likelihood_dataset_without_target(
+    lognormal_likelihood_mmm, lognormal_likelihood_data
+):
+    # Regression: the ones placeholder was built as np.ones(len(X)), but for
+    # an xr.Dataset len(X) counts data variables, not observations.
+    from pymc_marketing.mmm.data_conversion import to_mmm_dataset
+
+    X, _ = lognormal_likelihood_data
+    dataset = to_mmm_dataset(
+        X, None, date_column="date", channel_columns=["channel_1", "channel_2"]
+    )
+    assert "_target" not in dataset.data_vars
+    mmm = lognormal_likelihood_mmm
+
+    with pytest.warns(UserWarning, match="placeholder target of ones"):
+        result = mmm.sample_prior_predictive(dataset, samples=50, random_seed=42)
+
+    assert mmm.output_var in result
+    assert result[mmm.output_var].sizes["sample"] == 50
+    assert mmm.xarray_dataset["_target"].dims == ("date",)
+    assert mmm.xarray_dataset["_target"].shape == (len(X),)
+    np.testing.assert_array_equal(mmm.xarray_dataset["_target"].values, 1.0)
+
+
+def test_sample_prior_predictive_lognormal_likelihood_dataset_embedded_target(
+    lognormal_likelihood_mmm, lognormal_likelihood_data
+):
+    # Regression: a Dataset X that already embeds the target had it silently
+    # overwritten by the ones placeholder; the placeholder warning must not
+    # fire either, since a real target is present.
+    from pymc_marketing.mmm.data_conversion import to_mmm_dataset
+
+    X, y = lognormal_likelihood_data
+    dataset = to_mmm_dataset(
+        X, y, date_column="date", channel_columns=["channel_1", "channel_2"]
+    )
+    assert "_target" in dataset.data_vars
+    mmm = lognormal_likelihood_mmm
+
+    with warnings.catch_warnings(record=True) as records:
+        warnings.simplefilter("always")
+        result = mmm.sample_prior_predictive(dataset, samples=50, random_seed=42)
+
+    assert not any("placeholder" in str(r.message) for r in records)
+
+    assert mmm.output_var in result
+    assert result[mmm.output_var].sizes["sample"] == 50
+    np.testing.assert_array_equal(mmm.xarray_dataset["_target"].values, y.values)
+
+
+def test_sample_prior_predictive_dataset_embedded_target_normal_likelihood(
+    lognormal_likelihood_data,
+):
+    # The embedded-target handling applies to every likelihood: without it
+    # the base class supplies a zeros y alongside the Dataset's own target,
+    # which `to_mmm_dataset` rejects as "not both".
+    from pymc_marketing.mmm.data_conversion import to_mmm_dataset
+
+    X, y = lognormal_likelihood_data
+    dataset = to_mmm_dataset(
+        X, y, date_column="date", channel_columns=["channel_1", "channel_2"]
+    )
+    mmm = MMM(
+        date_column="date",
+        channel_columns=["channel_1", "channel_2"],
+        target_column="y",
+        adstock=GeometricAdstock(l_max=4),
+        saturation=LogisticSaturation(),
+    )
+
+    result = mmm.sample_prior_predictive(dataset, samples=50, random_seed=42)
+
+    assert mmm.output_var in result
+    assert result[mmm.output_var].sizes["sample"] == 50
+    np.testing.assert_array_equal(mmm.xarray_dataset["_target"].values, y.values)
+
+
+def test_sample_prior_predictive_lognormal_likelihood_dataframe_embedded_target(
+    lognormal_likelihood_mmm, lognormal_likelihood_data
+):
+    # Regression: a DataFrame carrying `target_column` with y=None hit the
+    # placeholder branch, and the ones y then made `to_mmm_dataset` ignore
+    # the column, silently dropping the real target.
+    X, y = lognormal_likelihood_data
+    X = X.assign(y=y.values)
+    mmm = lognormal_likelihood_mmm
+
+    with warnings.catch_warnings(record=True) as records:
+        warnings.simplefilter("always")
+        result = mmm.sample_prior_predictive(X, samples=50, random_seed=42)
+
+    assert not any("placeholder" in str(r.message) for r in records)
+    assert result[mmm.output_var].sizes["sample"] == 50
+    np.testing.assert_array_equal(mmm.xarray_dataset["_target"].values, y.values)
+
+
+def test_sample_prior_predictive_dataframe_embedded_target_normal_likelihood(
+    lognormal_likelihood_data,
+):
+    # DataFrame twin of the Dataset case: the base class's zeros y would
+    # otherwise take precedence over `target_column`.
+    X, y = lognormal_likelihood_data
+    X = X.assign(y=y.values)
+    mmm = MMM(
+        date_column="date",
+        channel_columns=["channel_1", "channel_2"],
+        target_column="y",
+        adstock=GeometricAdstock(l_max=4),
+        saturation=LogisticSaturation(),
+    )
+
+    result = mmm.sample_prior_predictive(X, samples=50, random_seed=42)
+
+    assert result[mmm.output_var].sizes["sample"] == 50
+    np.testing.assert_array_equal(mmm.xarray_dataset["_target"].values, y.values)
+
+
+def test_fit_after_placeholder_prior_predictive_warns(
+    lognormal_likelihood_mmm, lognormal_likelihood_data, mock_pymc_sample
+):
+    # `fit` reuses the model that `sample_prior_predictive` built on the ones
+    # placeholder (#2956), so the posterior is fit to ones; warn where that
+    # wrong answer appears, not only where the placeholder was substituted.
+    X, y = lognormal_likelihood_data
+    mmm = lognormal_likelihood_mmm
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        mmm.sample_prior_predictive(X, samples=10, random_seed=42)
+
+    with pytest.warns(UserWarning, match="fit to the placeholder"):
+        mmm.fit(X, y, chains=1, draws=10, tune=10, random_seed=42)
+
+
+def test_fit_after_prior_predictive_with_target_does_not_warn(
+    lognormal_likelihood_mmm, lognormal_likelihood_data, mock_pymc_sample
+):
+    X, y = lognormal_likelihood_data
+    mmm = lognormal_likelihood_mmm
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        mmm.sample_prior_predictive(X, y, samples=10, random_seed=42)
+
+    with warnings.catch_warnings(record=True) as records:
+        warnings.simplefilter("always")
+        mmm.fit(X, y, chains=1, draws=10, tune=10, random_seed=42)
+
+    assert not any("placeholder" in str(r.message) for r in records)

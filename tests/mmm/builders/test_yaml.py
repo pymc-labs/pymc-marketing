@@ -474,6 +474,23 @@ def test_build_mmm_loads_data_from_yaml_paths(
     assert hasattr(model, "model")
 
 
+def test_build_mmm_from_yaml_does_not_mutate_X(
+    tmp_path, _minimal_model_config, _sample_data
+):
+    """The date column is coerced on a copy; the caller's DataFrame is unchanged."""
+    X, y = _sample_data
+    X = X.assign(date=X["date"].dt.strftime("%Y-%m-%d"))
+    X_before = X.copy()
+
+    config_path = tmp_path / "config.yml"
+    config_path.write_text(yaml.dump(_minimal_model_config))
+
+    model = build_mmm_from_yaml(config_path, X=X, y=y)
+
+    assert model is not None
+    pd.testing.assert_frame_equal(X, X_before)
+
+
 def test_build_mmm_raises_when_X_missing_and_no_data_path(
     tmp_path, _minimal_model_config
 ):

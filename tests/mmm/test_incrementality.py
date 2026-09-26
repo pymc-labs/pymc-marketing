@@ -49,7 +49,11 @@ from pymc_marketing.mmm.spend_reach import (
     TemporalReach,
     resolve_channel_dependent_effects,
 )
-from pymc_marketing.mmm.transformers import geometric_adstock, logistic_saturation
+from pymc_marketing.mmm.transformers import (
+    ConvMode,
+    geometric_adstock,
+    logistic_saturation,
+)
 from pymc_marketing.model_graph import deterministics_to_flat
 from tests.mmm.test_spend_reach import (
     effective_l_max,
@@ -100,6 +104,8 @@ def compute_ground_truth_incremental_by_period(
     frequency="all_time",
     counterfactual_spend_factor=0.0,
     include_carryover=True,
+    start_date=None,
+    end_date=None,
 ):
     """Compute ground truth incremental contribution per period using the oracle.
 
@@ -124,6 +130,8 @@ def compute_ground_truth_incremental_by_period(
     include_carryover : bool
         Whether to include adstock carryover effects (both carry-in and
         carry-out).
+    start_date, end_date : str or pd.Timestamp, optional
+        Bounds of the periods to evaluate. Defaults to the fitted date range.
 
     Returns
     -------
@@ -150,9 +158,9 @@ def compute_ground_truth_incremental_by_period(
         )
 
     incr = mmm.incrementality
-    periods = incr._create_period_groups(dates[0], dates[-1], frequency)
-    l_max = mmm.adstock.l_max
-    inferred_freq = pd.infer_freq(dates)
+    start_date = dates[0] if start_date is None else pd.Timestamp(start_date)
+    end_date = dates[-1] if end_date is None else pd.Timestamp(end_date)
+    periods = incr._create_period_groups(start_date, end_date, frequency)
 
     # Evaluate baseline once (reused for all periods), always in original scale
     baseline_contrib = evaluate_channel_contribution(
@@ -176,8 +184,11 @@ def compute_ground_truth_incremental_by_period(
 
         # Determine evaluation window for summing
         if include_carryover:
-            carryout_end = t1 + l_max * pd.tseries.frequencies.to_offset(inferred_freq)
-            eval_mask = (dates >= t0) & (dates <= carryout_end)
+            # Sum the full fitted axis so this independent oracle does not
+            # encode assumptions about which side of the period the configured
+            # convolution mode places its kernel mass on. Unaffected dates add
+            # exact zeros to the baseline/counterfactual difference.
+            eval_mask = np.ones(len(dates), dtype=bool)
         else:
             eval_mask = (dates >= t0) & (dates <= t1)
 
@@ -538,6 +549,29 @@ def incrementality_lite():
     return incr, 4
 
 
+@pytest.fixture(params=[ConvMode.Before, ConvMode.Overlap], ids=str)
+def non_after_fitted_mmm(request, simple_mmm_data):
+    """Create a fitted MMM whose adstock has leading kernel mass."""
+    from tests.mmm.conftest import mock_fit
+
+    channel_columns = ["channel_1", "channel_2", "channel_3"]
+    mmm = MMM(
+        channel_columns=channel_columns,
+        date_column="date",
+        target_column="target",
+        control_columns=None,
+        adstock=GeometricAdstock(l_max=4, mode=request.param),
+        saturation=LogisticSaturation(),
+    )
+    mock_fit(
+        mmm,
+        simple_mmm_data["X"],
+        simple_mmm_data["y"],
+        random_seed=42,
+    )
+    return mmm
+
+
 class TestIncrementality:
     """Tests for compute_incremental_contribution and supporting methods."""
 
@@ -597,6 +631,27 @@ class TestIncrementality:
         # parametrisation the worst relative error is 2.2e-11, so the tolerance
         # keeps three orders of margin rather than the seven 1e-4 allowed.
         xr.testing.assert_allclose(result, gt, rtol=1e-8)
+
+    def test_non_after_convolution_matches_full_axis_oracle(self, non_after_fitted_mmm):
+        """The public API retains all leading kernel mass for one-date periods."""
+        mmm = non_after_fitted_mmm
+        dates = pd.to_datetime(mmm.idata.fit_data.date.values)
+        period_date = dates[len(dates) // 2]
+
+        expected = compute_ground_truth_incremental_by_period(
+            mmm,
+            frequency="original",
+            start_date=period_date,
+            end_date=period_date,
+        )
+        actual = mmm.incrementality.compute_incremental_contribution(
+            frequency="original",
+            start_date=period_date,
+            end_date=period_date,
+        )
+
+        assert not np.isnan(expected).any()
+        xr.testing.assert_allclose(actual, expected, rtol=1e-8)
 
     def test_negative_counterfactual_factor_raises_error(self, incrementality_lite):
         """Test that negative counterfactual factor raises ValueError."""
@@ -1688,6 +1743,41 @@ class TestLinkDispatch:
 
         xr.testing.assert_allclose(median, mean)
 
+    def test_truncated_normal_refuses_mean_central_tendency(
+        self, truncated_normal_fitted_mmm
+    ):
+        """An offset correction cannot be folded into the reducer's scale.
+
+        Truncation shifts ``E[y]`` off ``mu`` by an amount that is nonlinear in
+        ``mu``, so it neither cancels in the difference of two predictions nor
+        survives as a factor.  Returning ``1.0``, which is what happened before
+        the correction was likelihood-aware, is the bug this refuses to
+        reproduce.  The median needs no correction, so it still works, and the
+        message has to point at the entry point that *can* apply the offset.
+        """
+        incr = truncated_normal_fitted_mmm.incrementality
+
+        median = incr.compute_incremental_contribution(frequency="all_time")
+        assert np.isfinite(median.values).all()
+
+        with pytest.raises(ValueError, match="is an offset, not a factor"):
+            incr.compute_incremental_contribution(
+                frequency="all_time", central_tendency="mean"
+            )
+
+        # The other entry point corrects a level, so it does apply the offset.
+        corrected = (
+            truncated_normal_fitted_mmm.compute_counterfactual_contributions_dataset(
+                central_tendency="mean"
+            )
+        )
+        uncorrected = (
+            truncated_normal_fitted_mmm.compute_counterfactual_contributions_dataset(
+                central_tendency="median"
+            )
+        )
+        assert not corrected["intercept"].equals(uncorrected["intercept"])
+
     def test_missing_baseline_response_raises(self, log_link_fitted_mmm):
         """A posterior stripped of the response-scale prediction fails clearly."""
         incr = log_link_fitted_mmm.incrementality
@@ -1930,20 +2020,26 @@ class TestMediatedMuEffects:
         with pytest.raises(NotImplementedError, match="Some path from spend"):
             incr.compute_incremental_contribution(frequency="all_time")
 
-    def test_an_ambiguous_predictor_name_stops_the_increment(
+    def test_a_second_node_named_mu_leaves_the_increment_unchanged(
         self, funnel_identity_fitted_mmm, shadow_named_node
     ):
-        """A second node named ``mu`` is refused on the public path too.
+        """A second node named ``mu`` no longer creates an ambiguity.
 
-        The completeness check is the whole reason the predictor is recovered,
-        so a name that no longer identifies it has to stop the computation
-        rather than be resolved by whichever node the traversal reached first.
+        ``mu`` used to be anonymous under the identity link, so recovering it
+        meant scanning the graph, where a shadow node made the name useless and
+        the computation had to stop.  It is now registered as a Deterministic
+        under both links, so it resolves through ``named_vars``, where PyMC
+        enforces a unique name, and the shadow is simply not consulted.  The
+        increment therefore has to come back *identical*, not merely non-None:
+        a shadow that shifted the numbers would mean the wrong node was found.
         """
-        shadow_named_node(funnel_identity_fitted_mmm, LINEAR_PREDICTOR)
         incr = funnel_identity_fitted_mmm.incrementality
+        unshadowed = incr.compute_incremental_contribution(frequency="all_time")
 
-        with pytest.raises(ValueError, match="nodes named 'mu'"):
-            incr.compute_incremental_contribution(frequency="all_time")
+        shadow_named_node(funnel_identity_fitted_mmm, LINEAR_PREDICTOR)
+        shadowed = incr.compute_incremental_contribution(frequency="all_time")
+
+        xr.testing.assert_identical(shadowed, unshadowed)
 
     def test_a_frozen_predictor_says_the_check_was_skipped(
         self, funnel_log_link_fitted_mmm, monkeypatch
