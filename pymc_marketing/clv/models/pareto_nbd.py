@@ -16,6 +16,7 @@
 
 import warnings
 from collections.abc import Sequence
+from functools import cached_property
 from typing import Literal, cast
 
 import numpy as np
@@ -27,7 +28,7 @@ import xarray
 from numpy import exp, log
 from pymc.util import RandomState
 from pymc_extras.prior import Prior
-from pytensor.compile import Mode, get_default_mode
+from pytensor.compile import Function, Mode, get_default_mode
 from pytensor.graph import Constant, node_rewriter
 from pytensor.scalar import Grad2F1Loop
 from pytensor.tensor.elemwise import Elemwise
@@ -376,8 +377,49 @@ class ParetoNBDModel(CLVModel):
                 )
                 return super().fit(data=data, method=method, **kwargs)
 
-    @staticmethod
+    @cached_property
+    def _logp_fn(self) -> Function:
+        """Compile the Pareto/NBD log-likelihood function once, so it can be reused with new inputs.
+
+        Rebuilding and evaluating this pytensor graph on every predictive call is the
+        bottleneck for the predictive methods below, so it is compiled once per model
+        instance with mutable inputs and cached here. All inputs, including the integer
+        recency/frequency values, are cast to ``floatX``.
+        """
+        floatX = pytensor.config.floatX
+        r = pt.tensor("r", shape=(None, None), dtype=floatX)
+        s = pt.tensor("s", shape=(None, None), dtype=floatX)
+        T = pt.tensor("T", shape=(None,), dtype=floatX)
+        values = pt.tensor("values", shape=(None, 2), dtype=floatX)
+
+        has_purchase_covariates = bool(self.purchase_covariate_cols)
+        has_dropout_covariates = bool(self.dropout_covariate_cols)
+        alpha = pt.tensor(
+            "alpha",
+            shape=(None, None, None) if has_purchase_covariates else (None, None),
+            dtype=floatX,
+        )
+        beta = pt.tensor(
+            "beta",
+            shape=(None, None, None) if has_dropout_covariates else (None, None),
+            dtype=floatX,
+        )
+
+        # Add one dummy dimension to the right of the scalar parameters, so they broadcast with the `T` vector
+        pareto_dist = ParetoNBD.dist(
+            alpha=alpha if has_purchase_covariates else alpha[..., None],
+            r=r[..., None],
+            beta=beta if has_dropout_covariates else beta[..., None],
+            s=s[..., None],
+            T=T,
+        )
+        loglike = pm.logp(pareto_dist, values)
+        return pytensor.function(
+            [r, alpha, s, beta, T, values], loglike, allow_input_downcast=True
+        )
+
     def _logp(
+        self,
         r: xarray.DataArray,
         alpha: xarray.DataArray,
         s: xarray.DataArray,
@@ -390,22 +432,10 @@ class ParetoNBDModel(CLVModel):
 
         Utility function for using ParetoNBD log-likelihood in predictive methods.
         """
-        # Add one dummy dimension to the right of the scalar parameters, so they broadcast with the `T` vector
-        pareto_dist = ParetoNBD.dist(
-            alpha=alpha.values[..., None]
-            if "customer_id" not in alpha.dims
-            else alpha.values,
-            r=r.values[..., None],
-            beta=beta.values[..., None]
-            if "customer_id" not in beta.dims
-            else beta.values,
-            s=s.values[..., None],
-            T=T.values,
-        )
         values = np.vstack((t_x.values, x.values)).T
-        # TODO: Instead of compiling this function everytime this method is called
-        #  we could compile it once (with mutable inputs) and cache it for reuse with new inputs.
-        loglike = pm.logp(pareto_dist, values).eval()
+        loglike = self._logp_fn(
+            r.values, alpha.values, s.values, beta.values, T.values, values
+        )
         return xarray.DataArray(data=loglike, dims=("chain", "draw", "customer_id"))
 
     def _extract_predictive_variables(
