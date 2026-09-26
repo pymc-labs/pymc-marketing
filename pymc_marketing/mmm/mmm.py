@@ -621,24 +621,28 @@ class MMM(RegressionModelBuilder):
                 outcome=self.outcome_node,
             )
 
+            model_features = (
+                {"yearly_seasonality"} if self.yearly_seasonality is not None else set()
+            )
             self.control_columns = self.causal_graphical_model.compute_adjustment_sets(
                 control_columns=self.control_columns,
                 channel_columns=self.channel_columns,
+                model_features=model_features,
             )
 
-            # Only apply yearly seasonality adjustment if an adjustment set was computed
-            if hasattr(self.causal_graphical_model, "adjustment_set") and (
-                self.causal_graphical_model.adjustment_set is not None
+            if (
+                self.yearly_seasonality is not None
+                and self.causal_graphical_model.is_backdoor_identified
+                and not self.causal_graphical_model.is_valid_adjustment_set(
+                    set(self.causal_graphical_model.minimal_adjustment_set or ())
+                    | {"yearly_seasonality"}
+                )
             ):
-                if (
-                    "yearly_seasonality"
-                    not in self.causal_graphical_model.adjustment_set
-                ):
-                    warnings.warn(
-                        "Yearly seasonality excluded as it's not required for adjustment.",
-                        stacklevel=2,
-                    )
-                    self.yearly_seasonality = None
+                warnings.warn(
+                    "Yearly seasonality excluded as it's not required for adjustment.",
+                    stacklevel=2,
+                )
+                self.yearly_seasonality = None
 
         self._cost_per_unit_input = cost_per_unit
         self._plot_suite: Literal["legacy", "new"] = "legacy"

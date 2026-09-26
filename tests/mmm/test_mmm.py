@@ -44,6 +44,7 @@ from pymc_marketing.mmm.additive_effect import (
     LinearTrendEffect,
     MuEffect,
 )
+from pymc_marketing.mmm.causal import UnidentifiedCausalEffectWarning
 from pymc_marketing.mmm.events import EventEffect, GaussianBasis, HalfGaussianBasis
 from pymc_marketing.mmm.lift_test import _swap_columns_and_last_index_level
 from pymc_marketing.mmm.linear_trend import LinearTrend
@@ -5376,6 +5377,102 @@ def test_multidimensional_mmm_adjustment_set_updates_control_columns():
     )
 
     assert mmm.control_columns == ["control_1"]
+
+
+def test_mmm_removes_yearly_seasonality_when_identified_and_unneeded():
+    with pytest.warns(UserWarning, match="Yearly seasonality excluded"):
+        mmm = MMM(
+            date_column="date",
+            target_column="target",
+            channel_columns=["channel_1"],
+            yearly_seasonality=2,
+            adstock=GeometricAdstock(l_max=2),
+            saturation=LogisticSaturation(),
+            dag="digraph { channel_1 -> target; }",
+            treatment_nodes=["channel_1"],
+            outcome_node="target",
+        )
+
+    assert mmm.causal_graphical_model.is_backdoor_identified is True
+    assert mmm.causal_graphical_model.minimal_adjustment_set == []
+    assert mmm.yearly_seasonality is None
+    assert not hasattr(mmm, "yearly_fourier")
+
+
+def test_mmm_retains_admissible_yearly_seasonality_without_inflating_minimal_set():
+    mmm = MMM(
+        date_column="date",
+        target_column="target",
+        channel_columns=["channel_1"],
+        control_columns=["holiday"],
+        yearly_seasonality=2,
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+        dag="""
+        digraph {
+            yearly_seasonality -> target;
+            holiday -> channel_1;
+            holiday -> target;
+            channel_1 -> target;
+        }
+        """,
+        treatment_nodes=["channel_1"],
+        outcome_node="target",
+    )
+
+    assert mmm.causal_graphical_model.minimal_adjustment_set == ["holiday"]
+    assert mmm.control_columns == ["holiday"]
+    assert mmm.yearly_seasonality == 2
+    assert hasattr(mmm, "yearly_fourier")
+
+
+def test_mmm_retains_yearly_seasonality_when_backdoor_unidentified():
+    dag = """
+    digraph {
+        yearly_seasonality -> channel_1;
+        yearly_seasonality -> target;
+        unobserved_confounder -> channel_1;
+        unobserved_confounder -> target;
+        channel_1 -> target;
+    }
+    """
+
+    with pytest.warns(UnidentifiedCausalEffectWarning):
+        mmm = MMM(
+            date_column="date",
+            target_column="target",
+            channel_columns=["channel_1"],
+            yearly_seasonality=2,
+            adstock=GeometricAdstock(l_max=2),
+            saturation=LogisticSaturation(),
+            dag=dag,
+            treatment_nodes=["channel_1"],
+            outcome_node="target",
+        )
+
+    assert mmm.yearly_seasonality == 2
+    assert mmm.causal_graphical_model.minimal_adjustment_set is None
+    assert not mmm.causal_graphical_model.is_backdoor_identified
+
+
+def test_mmm_structurally_impossible_adjustment_warns_instead_of_raising():
+    with pytest.warns(UnidentifiedCausalEffectWarning):
+        mmm = MMM(
+            date_column="date",
+            target_column="target",
+            channel_columns=["channel_1"],
+            control_columns=["control_1"],
+            adstock=GeometricAdstock(l_max=2),
+            saturation=LogisticSaturation(),
+            dag="digraph { target -> channel_1; }",
+            treatment_nodes=["channel_1"],
+            outcome_node="target",
+        )
+
+    assert mmm.control_columns == ["control_1"]
+    assert mmm.causal_graphical_model.adjustment_set is None
+    assert mmm.causal_graphical_model.indispensable_adjustment_nodes is None
+    assert not mmm.causal_graphical_model.is_backdoor_identified
 
 
 def test_multidimensional_mmm_missing_dag_does_not_initialize_causal_graph():
