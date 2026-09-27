@@ -260,6 +260,11 @@ class TestBetaGeoBetaBinomModel:
 
         assert model.__repr__().replace(" ", "") == repr
 
+    @pytest.mark.skip(
+        reason="Skipped until the BG/BB logp bug is fixed and the tutorial notebook is published; "
+        "see https://github.com/pymc-labs/pymc-marketing/pull/2902 and "
+        "https://github.com/pymc-labs/pymc-marketing/issues/3058"
+    )
     @pytest.mark.slow
     @pytest.mark.parametrize(
         "method, rtol",
