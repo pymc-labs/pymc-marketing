@@ -690,13 +690,9 @@ class MMMSummaryFactory:
             )
         elif method == "elementwise":
             data = data.filter_dates(start_date=start_date, end_date=end_date)
-            # Sum the per-date decomposition and the spend over each period
-            period = frequency or "original"
-            contributions = _aggregate_over_time(
-                data.get_channel_contributions(original_scale=True), period
+            roas = data.get_elementwise_roas(
+                original_scale=True, period=frequency or "original"
             )
-            spend = _aggregate_over_time(data.get_channel_spend(), period)
-            roas = contributions / xr.where(spend == 0, np.nan, spend)
         else:
             raise ValueError(
                 f"method must be 'incremental' or 'elementwise', got {method!r}"
