@@ -163,6 +163,39 @@ def mock_mmm_idata_wrapper_with_intercept(simple_dates, simple_channels):
     return MMMIDataWrapper(idata, schema=None, validate_on_init=False)
 
 
+@pytest.fixture(params=[-1.0, 1.0], ids=["negative_mu", "positive_mu"])
+def log_link_mmm_idata_wrapper(request):
+    """Deterministic log-link posterior with varying draws and two channels."""
+    local_rng = np.random.default_rng(seed=3052)
+    dates = pd.date_range("2024-01-01", periods=400, freq="D")
+    channels = ["TV", "Radio"]
+
+    channel_contribution = xr.DataArray(
+        local_rng.uniform(0.05, 0.3, size=(2, 5, len(dates), len(channels))),
+        dims=("chain", "draw", "date", "channel"),
+        coords={"date": dates, "channel": channels},
+    )
+    mu = xr.DataArray(
+        request.param * local_rng.uniform(0.7, 1.5, size=(2, 5, len(dates))),
+        dims=("chain", "draw", "date"),
+        coords={"date": dates},
+    )
+    idata = xr.DataTree.from_dict(
+        {
+            "/posterior": xr.Dataset(
+                {
+                    "channel_contribution": channel_contribution,
+                    "mu": mu,
+                }
+            ),
+            "/constant_data": xr.Dataset({"target_scale": xr.DataArray(100.0)}),
+        }
+    )
+    idata.attrs = {"link": "log"}
+
+    return MMMIDataWrapper(idata, schema=None, validate_on_init=False)
+
+
 @pytest.fixture
 def mock_mmm_idata_wrapper_with_zero_spend(simple_dates):
     """Mock MMMIDataWrapper with zero spend channel for ROAS testing."""
@@ -1328,6 +1361,146 @@ class TestNonChannelComponents:
         """Test that requesting missing component raises ValueError."""
         with pytest.raises(ValueError, match=r"No controls contributions found"):
             MMMSummaryFactory(mock_mmm_idata_wrapper).contributions(component="control")
+
+
+class TestLogLinkContributionAggregation:
+    """Log-link decomposition happens before summing over time."""
+
+    @staticmethod
+    def _aggregate_samples(samples: xr.DataArray, frequency: str) -> xr.DataArray:
+        if frequency == "all_time":
+            return samples.sum("date")
+
+        rule = {
+            "weekly": "W",
+            "monthly": "ME",
+            "quarterly": "QE",
+            "yearly": "YE",
+        }[frequency]
+        return samples.resample(date=rule).sum("date")
+
+    @pytest.mark.parametrize(
+        "frequency",
+        ["weekly", "monthly", "quarterly", "yearly", "all_time"],
+    )
+    def test_channel_contributions_sum_original_scale_samples(
+        self, log_link_mmm_idata_wrapper, frequency
+    ):
+        data = log_link_mmm_idata_wrapper
+        factory = MMMSummaryFactory(data)
+
+        per_date = data.get_channel_contributions(original_scale=True)
+        expected_samples = self._aggregate_samples(per_date, frequency)
+        expected = factory._compute_summary_stats_with_hdi(
+            expected_samples,
+            [0.8],
+        )
+        actual = factory.contributions(frequency=frequency, hdi_probs=[0.8])
+
+        sort_columns = [
+            column for column in ["date", "channel"] if column in actual.columns
+        ]
+        expected = expected.sort_values(sort_columns).reset_index(drop=True)
+        actual = actual.sort_values(sort_columns).reset_index(drop=True)
+        pd.testing.assert_frame_equal(actual, expected, rtol=1e-12, atol=1e-12)
+
+        if frequency == "all_time":
+            assert "date" not in actual.columns
+
+    @pytest.mark.parametrize(
+        "frequency",
+        ["weekly", "monthly", "quarterly", "yearly", "all_time"],
+    )
+    def test_total_contribution_sums_original_scale_samples(
+        self, log_link_mmm_idata_wrapper, frequency
+    ):
+        data = log_link_mmm_idata_wrapper
+        factory = MMMSummaryFactory(data)
+        per_date = data.get_contributions(original_scale=True)
+
+        expected_frames = []
+        for component_name, component_data in per_date.data_vars.items():
+            sum_dims = [
+                dim
+                for dim in component_data.dims
+                if dim not in ["chain", "draw", "date"]
+            ]
+            if sum_dims:
+                component_data = component_data.sum(sum_dims)
+            expected_samples = self._aggregate_samples(component_data, frequency)
+            frame = factory._compute_summary_stats_with_hdi(
+                expected_samples,
+                [0.8],
+            )
+            frame["component"] = component_name
+            expected_frames.append(frame)
+
+        expected = pd.concat(expected_frames, ignore_index=True)
+        actual = factory.total_contribution(
+            frequency=frequency,
+            hdi_probs=[0.8],
+        )
+        sort_columns = [
+            column for column in ["date", "component"] if column in actual.columns
+        ]
+        expected = expected.sort_values(sort_columns).reset_index(drop=True)
+        actual = actual.sort_values(sort_columns).reset_index(drop=True)
+        pd.testing.assert_frame_equal(actual, expected, rtol=1e-12, atol=1e-12)
+
+        if frequency == "all_time":
+            assert "date" not in actual.columns
+
+    @pytest.mark.parametrize(
+        "frequency",
+        ["weekly", "monthly", "quarterly", "yearly"],
+    )
+    def test_change_over_time_uses_aggregated_original_scale_samples(
+        self, log_link_mmm_idata_wrapper, frequency
+    ):
+        data = log_link_mmm_idata_wrapper
+        factory = MMMSummaryFactory(data)
+        per_date = data.get_channel_contributions(original_scale=True)
+        aggregated = self._aggregate_samples(per_date, frequency)
+        shifted = aggregated.shift(date=1)
+        expected_samples = (aggregated.diff("date") / shifted.where(shifted != 0)) * 100
+        expected = factory._compute_summary_stats_with_hdi(expected_samples, [0.8])
+        expected = expected.rename(
+            columns={
+                "mean": "pct_change_mean",
+                "median": "pct_change_median",
+            }
+        )
+
+        actual = factory.change_over_time(frequency=frequency, hdi_probs=[0.8])
+
+        expected = expected.sort_values(["date", "channel"]).reset_index(drop=True)
+        actual = actual.sort_values(["date", "channel"]).reset_index(drop=True)
+        pd.testing.assert_frame_equal(actual, expected, rtol=1e-12, atol=1e-12)
+
+    def test_change_over_time_all_time_keeps_date_requirement(
+        self, log_link_mmm_idata_wrapper
+    ):
+        factory = MMMSummaryFactory(log_link_mmm_idata_wrapper)
+
+        with pytest.raises(
+            ValueError, match=r"change_over_time requires date dimension.*all_time"
+        ):
+            factory.change_over_time(frequency="all_time")
+
+    def test_identity_link_keeps_existing_aggregate_then_decompose_path(
+        self, mock_mmm_idata_wrapper
+    ):
+        factory = MMMSummaryFactory(mock_mmm_idata_wrapper)
+        aggregated = mock_mmm_idata_wrapper.broadcast_per_period_contributions()
+        aggregated = aggregated.aggregate_time("monthly")
+        expected_samples = aggregated.get_channel_contributions(original_scale=True)
+        expected = factory._compute_summary_stats_with_hdi(expected_samples, [0.8])
+
+        actual = factory.contributions(frequency="monthly", hdi_probs=[0.8])
+
+        expected = expected.sort_values(["date", "channel"]).reset_index(drop=True)
+        actual = actual.sort_values(["date", "channel"]).reset_index(drop=True)
+        pd.testing.assert_frame_equal(actual, expected, rtol=1e-12, atol=1e-12)
 
 
 class TestTimeInvariantBaselineAggregation:
