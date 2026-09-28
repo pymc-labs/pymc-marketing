@@ -1,0 +1,22 @@
+MARKETING ANALYTICS PROJECT BRIEF
+
+1. Business decision
+What decision should improve, who owns it, and how often is it made?
+
+2. Scope
+Markets, brands, channels, products and outcomes to cover.
+
+3. Data overview
+Time coverage, frequency, availability, known gaps and ownership. Do not include customer records in an initial enquiry.
+
+4. Validation
+Available experiments, holdouts, business checks and acceptance criteria.
+
+5. Deliverables and ownership
+Model, recommendations, reporting, documentation, training and maintenance.
+
+6. Timing and procurement
+Target decision date, stakeholders, selection process and indicative budget if agreed.
+
+7. Open questions
+What needs to be resolved before scope and pricing can be agreed?

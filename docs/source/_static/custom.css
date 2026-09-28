@@ -10,3 +10,441 @@ div.cell_output img {
 readthedocs-notification.toast:not(.show) {
   display: block !important;
 }
+
+/* Homepage presentation. Native MyST content and existing Labs theme remain authoritative. */
+:is(#pymc-marketing-open-source-bayesian-marketing-mix-modeling-clv-in-python, #work-with-pymc-labs) {
+  --pm-border: #dce5e9;
+  --pm-surface: #f4f7f8;
+  --pm-ink: #183c50;
+  --pm-muted: #526570;
+  font-size: 1rem;
+  line-height: 1.72;
+}
+
+html[data-theme="dark"] :is(#pymc-marketing-open-source-bayesian-marketing-mix-modeling-clv-in-python, #work-with-pymc-labs) {
+  --pm-border: #344750;
+  --pm-surface: #202e36;
+  --pm-ink: #d4eaf5;
+  --pm-muted: #b2c2ca;
+}
+
+:is(#pymc-marketing-open-source-bayesian-marketing-mix-modeling-clv-in-python, #work-with-pymc-labs) > h1 {
+  font-size: clamp(1.85rem, 3vw, 2.65rem);
+  line-height: 1.17;
+  letter-spacing: -.035em;
+  color: var(--pm-ink);
+  margin: .55rem 0 1.75rem;
+  max-width: 34ch;
+}
+
+:is(#pymc-marketing-open-source-bayesian-marketing-mix-modeling-clv-in-python, #work-with-pymc-labs) h2 {
+  font-size: clamp(1.55rem, 2.4vw, 2rem);
+  line-height: 1.25;
+  letter-spacing: -.025em;
+  color: var(--pm-ink);
+  margin: 0 0 1.25rem;
+}
+
+:is(#pymc-marketing-open-source-bayesian-marketing-mix-modeling-clv-in-python, #work-with-pymc-labs) h3 {
+  font-size: 1.2rem;
+  line-height: 1.4;
+  letter-spacing: -.012em;
+  color: var(--pm-ink);
+  margin: 1.5rem 0 .9rem;
+}
+
+:is(#pymc-marketing-open-source-bayesian-marketing-mix-modeling-clv-in-python, #work-with-pymc-labs) h4 {
+  font-size: 1rem;
+  color: var(--pm-ink);
+  margin-top: 1.5rem;
+}
+
+:is(#pymc-marketing-open-source-bayesian-marketing-mix-modeling-clv-in-python, #work-with-pymc-labs) > section {
+  margin-top: 3.5rem;
+  padding-top: 2.5rem;
+  border-top: 1px solid var(--pm-border);
+}
+
+:is(#pymc-marketing-open-source-bayesian-marketing-mix-modeling-clv-in-python, #work-with-pymc-labs) p {
+  margin-bottom: 1.2rem;
+}
+
+:is(#pymc-marketing-open-source-bayesian-marketing-mix-modeling-clv-in-python, #work-with-pymc-labs) a {
+  text-underline-offset: .18em;
+  text-decoration-thickness: 1px;
+}
+
+:is(#pymc-marketing-open-source-bayesian-marketing-mix-modeling-clv-in-python, #work-with-pymc-labs) a:focus-visible, :is(#pymc-marketing-open-source-bayesian-marketing-mix-modeling-clv-in-python, #work-with-pymc-labs) summary:focus-visible {
+  outline: 3px solid #81c240;
+  outline-offset: 4px;
+  border-radius: 3px;
+}
+
+:is(#pymc-marketing-open-source-bayesian-marketing-mix-modeling-clv-in-python, #work-with-pymc-labs) .pm-home-intro {
+  display: grid;
+  grid-template-columns: minmax(0,1fr) 150px;
+  gap: 2rem;
+  align-items: center;
+  margin-bottom: 1.75rem;
+}
+
+:is(#pymc-marketing-open-source-bayesian-marketing-mix-modeling-clv-in-python, #work-with-pymc-labs) .pm-home-intro > a {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+:is(#pymc-marketing-open-source-bayesian-marketing-mix-modeling-clv-in-python, #work-with-pymc-labs) .pm-home-intro > p {
+  grid-column: 1;
+  grid-row: 1;
+  margin: 0;
+  color: var(--pm-muted);
+}
+
+:is(#pymc-marketing-open-source-bayesian-marketing-mix-modeling-clv-in-python, #work-with-pymc-labs) .pm-home-intro img {
+  max-width: 100%;
+  height: auto;
+}
+
+:is(#pymc-marketing-open-source-bayesian-marketing-mix-modeling-clv-in-python, #work-with-pymc-labs) .pm-project {
+  border: 0;
+  border-radius: 12px;
+  background: #163e54 !important;
+  color: #fff;
+  box-shadow: none !important;
+}
+
+:is(#pymc-marketing-open-source-bayesian-marketing-mix-modeling-clv-in-python, #work-with-pymc-labs) .pm-project .sd-card-body {
+  padding: 1.6rem 1.8rem;
+  background: transparent !important;
+  border-radius: 12px;
+}
+
+:is(#pymc-marketing-open-source-bayesian-marketing-mix-modeling-clv-in-python, #work-with-pymc-labs) .pm-project .sd-card-title {
+  font-size: 1.28rem;
+  line-height: 1.35;
+  margin-bottom: .65rem;
+  color: #fff;
+}
+
+:is(#pymc-marketing-open-source-bayesian-marketing-mix-modeling-clv-in-python, #work-with-pymc-labs) .pm-project p {
+  color: #e1ebf0;
+  margin-bottom: .8rem;
+}
+
+:is(#pymc-marketing-open-source-bayesian-marketing-mix-modeling-clv-in-python, #work-with-pymc-labs) .pm-project p:last-child {
+  font-size: .85rem;
+  color: #c9dce6;
+  margin-bottom: 0;
+}
+
+:is(#pymc-marketing-open-source-bayesian-marketing-mix-modeling-clv-in-python, #work-with-pymc-labs) .pm-project a {
+  color: #fff;
+}
+
+:is(#pymc-marketing-open-source-bayesian-marketing-mix-modeling-clv-in-python, #work-with-pymc-labs) .pm-project .sd-btn-primary {
+  background: #a0d36b !important;
+  color: #173524 !important;
+  border-color: #a0d36b !important;
+  font-weight: 700;
+  padding: .65rem 1.15rem;
+  margin: .15rem 0 0 !important;
+}
+
+:is(#pymc-marketing-open-source-bayesian-marketing-mix-modeling-clv-in-python, #work-with-pymc-labs) .pm-project .sd-btn-primary:hover {
+  background: #b7e48d !important;
+  border-color: #b7e48d !important;
+  color: #102618 !important;
+}
+
+:is(#pymc-marketing-open-source-bayesian-marketing-mix-modeling-clv-in-python, #work-with-pymc-labs) .pm-proof {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .6rem 1rem;
+  flex-wrap: wrap;
+  margin: 1.4rem 0 2.5rem;
+}
+
+:is(#pymc-marketing-open-source-bayesian-marketing-mix-modeling-clv-in-python, #work-with-pymc-labs) .pm-proof p {
+  margin: 0;
+}
+
+:is(#pymc-marketing-open-source-bayesian-marketing-mix-modeling-clv-in-python, #work-with-pymc-labs) .pm-proof > .sd-text-center:first-child {
+  flex: 1 1 330px;
+  text-align: left !important;
+}
+
+:is(#pymc-marketing-open-source-bayesian-marketing-mix-modeling-clv-in-python, #work-with-pymc-labs) .pm-proof > .sd-text-muted {
+  font-size: .75rem;
+}
+
+:is(#pymc-marketing-open-source-bayesian-marketing-mix-modeling-clv-in-python, #work-with-pymc-labs) .pm-proof img[alt="PyMC Labs logo"] {
+  width: 90px !important;
+  height: auto !important;
+  margin: 0;
+}
+
+html[data-theme="light"] :is(#pymc-marketing-open-source-bayesian-marketing-mix-modeling-clv-in-python, #work-with-pymc-labs) .pm-proof a:has(img.only-dark), html[data-theme="dark"] :is(#pymc-marketing-open-source-bayesian-marketing-mix-modeling-clv-in-python, #work-with-pymc-labs) .pm-proof a:has(img.only-light) {
+  display: none;
+}
+
+:is(#pymc-marketing-open-source-bayesian-marketing-mix-modeling-clv-in-python, #work-with-pymc-labs) #trusted-in-production {
+  padding: 1.5rem 1.75rem;
+  background: var(--pm-surface);
+  border: 1px solid var(--pm-border);
+  border-radius: 12px;
+  margin-top: 1.8rem;
+}
+
+:is(#pymc-marketing-open-source-bayesian-marketing-mix-modeling-clv-in-python, #work-with-pymc-labs) #trusted-in-production h2 {
+  font-size: 1.25rem;
+}
+
+:is(#pymc-marketing-open-source-bayesian-marketing-mix-modeling-clv-in-python, #work-with-pymc-labs) #trusted-in-production .sd-text-center {
+  text-align: left !important;
+  font-size: .85rem;
+  color: var(--pm-muted);
+}
+
+:is(#pymc-marketing-open-source-bayesian-marketing-mix-modeling-clv-in-python, #work-with-pymc-labs) #trusted-in-production p:last-child {
+  margin-bottom: 0;
+}
+
+:is(#pymc-marketing-open-source-bayesian-marketing-mix-modeling-clv-in-python, #work-with-pymc-labs) .highlight {
+  border: 1px solid var(--pm-border);
+  border-radius: 10px;
+  background: var(--pm-surface);
+}
+
+:is(#pymc-marketing-open-source-bayesian-marketing-mix-modeling-clv-in-python, #work-with-pymc-labs) .highlight pre {
+  padding: 1.2rem 1.4rem;
+  font-size: .86rem;
+  line-height: 1.65;
+}
+
+:is(#pymc-marketing-open-source-bayesian-marketing-mix-modeling-clv-in-python, #work-with-pymc-labs) .sd-card:not(.pm-project) {
+  border: 1px solid var(--pm-border);
+  border-radius: 10px;
+  box-shadow: none !important;
+  background: var(--pst-color-background);
+}
+
+:is(#pymc-marketing-open-source-bayesian-marketing-mix-modeling-clv-in-python, #work-with-pymc-labs) .sd-card:not(.pm-project) .sd-card-body {
+  padding: 1.3rem;
+}
+
+:is(#pymc-marketing-open-source-bayesian-marketing-mix-modeling-clv-in-python, #work-with-pymc-labs) .sd-card:not(.pm-project) .sd-card-header {
+  padding: 1.2rem 1.3rem .2rem;
+  background: transparent;
+  color: var(--pst-color-primary);
+}
+
+:is(#pymc-marketing-open-source-bayesian-marketing-mix-modeling-clv-in-python, #work-with-pymc-labs) .sd-card:not(.pm-project) .sd-card-title {
+  color: var(--pm-ink);
+  font-size: 1.05rem;
+}
+
+:is(#pymc-marketing-open-source-bayesian-marketing-mix-modeling-clv-in-python, #work-with-pymc-labs) .sd-card:not(.pm-project) .sd-card-text {
+  font-size: .93rem;
+}
+
+:is(#pymc-marketing-open-source-bayesian-marketing-mix-modeling-clv-in-python, #work-with-pymc-labs) .sd-card-footer {
+  padding: .2rem 1.3rem 1.3rem;
+  background: transparent;
+}
+
+:is(#pymc-marketing-open-source-bayesian-marketing-mix-modeling-clv-in-python, #work-with-pymc-labs) .sd-btn {
+  border-radius: 6px;
+}
+
+:is(#pymc-marketing-open-source-bayesian-marketing-mix-modeling-clv-in-python, #work-with-pymc-labs) .sd-btn-secondary {
+  background: var(--pm-surface) !important;
+  border-color: var(--pm-border) !important;
+  color: var(--pm-ink) !important;
+  font-size: .85rem;
+  font-weight: 600;
+  padding: .65rem .6rem;
+}
+
+:is(#pymc-marketing-open-source-bayesian-marketing-mix-modeling-clv-in-python, #work-with-pymc-labs) .sd-btn-secondary:hover {
+  background: var(--pst-color-secondary-bg) !important;
+  border-color: var(--pst-color-secondary) !important;
+}
+
+:is(#pymc-marketing-open-source-bayesian-marketing-mix-modeling-clv-in-python, #work-with-pymc-labs) .sd-card-hover:hover {
+  border-color: var(--pst-color-primary);
+}
+
+:is(#pymc-marketing-open-source-bayesian-marketing-mix-modeling-clv-in-python, #work-with-pymc-labs) table {
+  width: 100%;
+  border: 1px solid var(--pm-border);
+  font-size: .92rem;
+  line-height: 1.6;
+  margin: 1.5rem 0;
+}
+
+:is(#pymc-marketing-open-source-bayesian-marketing-mix-modeling-clv-in-python, #work-with-pymc-labs) table thead {
+  background: var(--pm-surface);
+}
+
+:is(#pymc-marketing-open-source-bayesian-marketing-mix-modeling-clv-in-python, #work-with-pymc-labs) table th {
+  color: var(--pm-ink);
+  font-size: .82rem;
+  letter-spacing: .015em;
+}
+
+:is(#pymc-marketing-open-source-bayesian-marketing-mix-modeling-clv-in-python, #work-with-pymc-labs) table th, :is(#pymc-marketing-open-source-bayesian-marketing-mix-modeling-clv-in-python, #work-with-pymc-labs) table td {
+  padding: .95rem 1.1rem;
+  border-color: var(--pm-border);
+}
+
+:is(#pymc-marketing-open-source-bayesian-marketing-mix-modeling-clv-in-python, #work-with-pymc-labs) table td:first-child {
+  width: 28%;
+  min-width: 140px;
+  font-weight: 600;
+  color: var(--pm-ink);
+}
+
+:is(#pymc-marketing-open-source-bayesian-marketing-mix-modeling-clv-in-python, #work-with-pymc-labs) table tbody tr:nth-child(even) {
+  background: var(--pm-surface);
+}
+
+:is(#pymc-marketing-open-source-bayesian-marketing-mix-modeling-clv-in-python, #work-with-pymc-labs) table tbody tr:hover {
+  background: var(--pm-surface);
+}
+
+:is(#pymc-marketing-open-source-bayesian-marketing-mix-modeling-clv-in-python, #work-with-pymc-labs) table p {
+  margin: 0;
+}
+
+:is(#pymc-marketing-open-source-bayesian-marketing-mix-modeling-clv-in-python, #work-with-pymc-labs) .pst-scrollable-table-container {
+  border-radius: 10px;
+}
+
+:is(#pymc-marketing-open-source-bayesian-marketing-mix-modeling-clv-in-python, #work-with-pymc-labs) iframe {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 16 / 9;
+  border: 1px solid var(--pm-border);
+  border-radius: 10px;
+  margin: 1rem 0 1.5rem;
+}
+
+:is(#pymc-marketing-open-source-bayesian-marketing-mix-modeling-clv-in-python, #work-with-pymc-labs) .pm-videos {
+  margin-top: 1rem;
+}
+
+:is(#pymc-marketing-open-source-bayesian-marketing-mix-modeling-clv-in-python, #work-with-pymc-labs) .pm-videos h3 {
+  font-size: 1.05rem;
+  min-height: 2.8em;
+  margin-top: .5rem;
+}
+
+:is(#pymc-marketing-open-source-bayesian-marketing-mix-modeling-clv-in-python, #work-with-pymc-labs) #case-studies > ul, :is(#pymc-marketing-open-source-bayesian-marketing-mix-modeling-clv-in-python, #work-with-pymc-labs) #more-pymc-labs-blog-posts-and-resources ul {
+  padding: 0;
+  list-style: none;
+}
+
+:is(#pymc-marketing-open-source-bayesian-marketing-mix-modeling-clv-in-python, #work-with-pymc-labs) #case-studies > ul > li, :is(#pymc-marketing-open-source-bayesian-marketing-mix-modeling-clv-in-python, #work-with-pymc-labs) #more-pymc-labs-blog-posts-and-resources li {
+  padding: .8rem 0;
+  border-bottom: 1px solid var(--pm-border);
+}
+
+:is(#pymc-marketing-open-source-bayesian-marketing-mix-modeling-clv-in-python, #work-with-pymc-labs) #case-studies li p, :is(#pymc-marketing-open-source-bayesian-marketing-mix-modeling-clv-in-python, #work-with-pymc-labs) #more-pymc-labs-blog-posts-and-resources li p {
+  margin: 0;
+}
+
+:is(#pymc-marketing-open-source-bayesian-marketing-mix-modeling-clv-in-python, #work-with-pymc-labs) hr {
+  display: none;
+}
+
+:is(#pymc-marketing-open-source-bayesian-marketing-mix-modeling-clv-in-python, #work-with-pymc-labs) .pm-faq {
+  border: 1px solid var(--pm-border) !important;
+  border-radius: 8px;
+  box-shadow: none !important;
+  margin: .75rem 0;
+  overflow: hidden;
+}
+
+:is(#pymc-marketing-open-source-bayesian-marketing-mix-modeling-clv-in-python, #work-with-pymc-labs) .pm-faq summary {
+  padding: 1rem 1.2rem !important;
+  font-weight: 600;
+  background: var(--pm-surface) !important;
+  color: var(--pm-ink) !important;
+}
+
+:is(#pymc-marketing-open-source-bayesian-marketing-mix-modeling-clv-in-python, #work-with-pymc-labs) .pm-faq .sd-summary-content {
+  padding: 1rem 1.2rem;
+}
+
+:is(#pymc-marketing-open-source-bayesian-marketing-mix-modeling-clv-in-python, #work-with-pymc-labs) #need-help-with-pymc-marketing {
+  border: 1px solid var(--pm-border);
+  border-left: 4px solid #81c240;
+  border-radius: 10px;
+  padding: 1.5rem 1.75rem;
+  background: var(--pm-surface);
+  margin-bottom: 3rem;
+}
+
+:is(#pymc-marketing-open-source-bayesian-marketing-mix-modeling-clv-in-python, #work-with-pymc-labs) #need-help-with-pymc-marketing h2 {
+  font-size: 1.3rem;
+}
+
+:is(#pymc-marketing-open-source-bayesian-marketing-mix-modeling-clv-in-python, #work-with-pymc-labs) #need-help-with-pymc-marketing p {
+  margin: 0;
+}
+
+body:has(.pm-home-intro) footer.bd-footer {
+  position: static;
+}
+
+body:has(.pm-home-intro) .bd-sidebar-secondary {
+  font-size: .8rem;
+}
+
+@media (max-width: 767px) {
+  :is(#pymc-marketing-open-source-bayesian-marketing-mix-modeling-clv-in-python, #work-with-pymc-labs) > h1 {
+    font-size: 1.9rem;
+    max-width: none;
+  }
+  :is(#pymc-marketing-open-source-bayesian-marketing-mix-modeling-clv-in-python, #work-with-pymc-labs) .pm-home-intro {
+    grid-template-columns: minmax(0,1fr);
+    gap: .75rem;
+  }
+  :is(#pymc-marketing-open-source-bayesian-marketing-mix-modeling-clv-in-python, #work-with-pymc-labs) .pm-home-intro > a {
+    grid-column: 1;
+    grid-row: 1;
+    justify-self: start;
+  }
+  :is(#pymc-marketing-open-source-bayesian-marketing-mix-modeling-clv-in-python, #work-with-pymc-labs) .pm-home-intro img {
+    width: 110px !important;
+  }
+  :is(#pymc-marketing-open-source-bayesian-marketing-mix-modeling-clv-in-python, #work-with-pymc-labs) .pm-home-intro > p {
+    grid-column: 1;
+    grid-row: 2;
+  }
+  :is(#pymc-marketing-open-source-bayesian-marketing-mix-modeling-clv-in-python, #work-with-pymc-labs) .pm-project .sd-card-body {
+    padding: 1.3rem;
+  }
+  :is(#pymc-marketing-open-source-bayesian-marketing-mix-modeling-clv-in-python, #work-with-pymc-labs) .pm-proof {
+    justify-content: flex-start;
+  }
+  :is(#pymc-marketing-open-source-bayesian-marketing-mix-modeling-clv-in-python, #work-with-pymc-labs) > section {
+    margin-top: 2.5rem;
+    padding-top: 1.75rem;
+  }
+  :is(#pymc-marketing-open-source-bayesian-marketing-mix-modeling-clv-in-python, #work-with-pymc-labs) table th, :is(#pymc-marketing-open-source-bayesian-marketing-mix-modeling-clv-in-python, #work-with-pymc-labs) table td {
+    padding: .75rem;
+  }
+  :is(#pymc-marketing-open-source-bayesian-marketing-mix-modeling-clv-in-python, #work-with-pymc-labs) #trusted-in-production {
+    padding: 1.2rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :is(#pymc-marketing-open-source-bayesian-marketing-mix-modeling-clv-in-python, #work-with-pymc-labs) * {
+    scroll-behavior: auto !important;
+    transition: none !important;
+  }
+}
