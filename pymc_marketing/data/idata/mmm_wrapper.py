@@ -1044,6 +1044,13 @@ class MMMIDataWrapper:
         unchanged; use :meth:`broadcast_per_period_contributions` to get the
         intercept on every original date.
 
+        Under ``link="log"`` the result must not be decomposed:
+        :meth:`get_contributions` would exponentiate the summed ``mu``, and the
+        exponential of a sum is not the sum of the exponentials. Decompose on
+        the original dates and aggregate the contributions afterwards, as the
+        ``frequency`` argument of the
+        :class:`~pymc_marketing.mmm.summary.MMMSummaryFactory` summaries does.
+
         Parameters
         ----------
         period : {"original", "weekly", "monthly", "quarterly", "yearly", "all_time"}
