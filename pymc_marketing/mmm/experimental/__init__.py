@@ -22,8 +22,9 @@ is no model-wide dimension list, no privileged outcome, and no hidden scaling.
 
 ``Data("spend") >> adstock >> saturation`` applies configured transformations
 along ``date``; their priors without ``dims`` take the input's other dimensions.
-``expression.named(name)`` records a deterministic and ``expression.sum(dim)``
-reduces a dimension.
+Fourier seasonality components such as ``YearlyFourier`` enter an expression
+directly and are evaluated on the dataset dates. ``expression.named(name)`` records
+a deterministic and ``expression.sum(dim)`` reduces a dimension.
 
 This namespace does not change the stable MMM. Its interfaces are experimental.
 
@@ -69,6 +70,6 @@ Prediction is forward simulation with fitted parameters, not a causal-identifica
 
 from pymc_marketing.mmm.experimental._gam import GAM
 from pymc_marketing.mmm.experimental._graph import Data, Equation
-from pymc_marketing.mmm.experimental._terms import MediaTransform, Seasonality
+from pymc_marketing.mmm.experimental._terms import MediaTransform
 
-__all__ = ["GAM", "Data", "Equation", "MediaTransform", "Seasonality"]
+__all__ = ["GAM", "Data", "Equation", "MediaTransform"]

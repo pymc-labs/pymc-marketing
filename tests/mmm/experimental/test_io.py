@@ -23,7 +23,7 @@ import xarray as xr
 from pymc_extras.prior import Prior
 
 from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation, YearlyFourier
-from pymc_marketing.mmm.experimental import GAM, Data, Equation, Seasonality
+from pymc_marketing.mmm.experimental import GAM, Data, Equation
 from pymc_marketing.mmm.experimental._serialize import spec_from_dict, spec_to_dict
 from pymc_marketing.serialization import SerializationError, serialization
 from pymc_marketing.special_priors import LaplacePrior
@@ -82,10 +82,8 @@ def _recipe() -> tuple[Equation, ...]:
         >> GeometricAdstock(l_max=2)
         >> LogisticSaturation(priors={"beta": Prior("HalfNormal", sigma=sigma)})
     ).named("channel_contribution")
-    seasonality = Seasonality(
-        YearlyFourier(
-            n_order=1, prior=LaplacePrior(mu=0, b=Prior("HalfNormal"), dims="fourier")
-        )
+    seasonality = YearlyFourier(
+        n_order=1, prior=LaplacePrior(mu=0, b=Prior("HalfNormal"), dims="fourier")
     )
     sales = Equation(
         observed="sales",
@@ -95,9 +93,10 @@ def _recipe() -> tuple[Equation, ...]:
         + seasonality,
         likelihood=Prior("Normal", sigma=Prior("HalfNormal")),
     )
+    # Seasonality and media are shared with sales, so they must stay shared on load.
     orders = Equation(
         observed="orders",
-        mu=Transform(slope * contribution.sum("channel"), pmd.math.exp),
+        mu=Transform(slope * contribution.sum("channel") + seasonality, pmd.math.exp),
         likelihood=Prior("Poisson"),
     )
     lift = Equation(observed="lift", mu=slope, likelihood=Prior("Normal", sigma=0.2))

@@ -13,12 +13,12 @@
 #   limitations under the License.
 """Equations as a JSON table of nodes in which each shared term appears once.
 
-Every term (``ModelTerm``, ``Sum``, ``Product``, and graph terms) becomes one node
-``{"__type__": ..., "fields": ...}``; a field holding another term stores
-``{"$ref": node_id}``, so a term shared by several equations stays one object after
-loading. Configuration values are stored inline: ``Prior`` recipes keep the labels of
-their ``DataArray`` parameters, transformations and Fourier bases store their priors
-the same way, and other registered objects use their own ``to_dict``.
+Every term (``ModelTerm``, ``Sum``, ``Product``, graph terms, and Fourier seasonality
+components) becomes one node ``{"__type__": ..., "fields": ...}``; a field holding
+another term stores ``{"$ref": node_id}``, so a term shared by several equations
+stays one object after loading. Configuration values are stored inline: ``Prior``
+recipes keep the labels of their ``DataArray`` parameters, transformations store
+their priors the same way, and other registered objects use their own ``to_dict``.
 
 Node classes are resolved only through ``pymc_marketing.serialization``: a class must
 be registered to be saved or loaded. Dataclass terms are rebuilt from their init
@@ -38,7 +38,7 @@ from pymc_extras.prior import Prior, VariableFactory
 
 from pymc_marketing.mmm.components.base import Transformation
 from pymc_marketing.mmm.experimental._graph import Data, Equation, GraphTerm
-from pymc_marketing.mmm.experimental._terms import MediaTransform, Seasonality
+from pymc_marketing.mmm.experimental._terms import MediaTransform
 from pymc_marketing.mmm.fourier import FourierBase
 from pymc_marketing.serialization import (
     DeferredFactory,
@@ -64,7 +64,7 @@ def _standalone(*_: Any) -> Any:
     )
 
 
-for _graph_term in (Data, Equation, MediaTransform, Seasonality):
+for _graph_term in (Data, Equation, MediaTransform):
     serialization.register(
         _graph_term, serializer=_standalone, deserializer=_standalone
     )
@@ -75,6 +75,8 @@ def _type_key(value: Any) -> str:
 
 
 def _node_fields(term: Any) -> dict[str, Any]:
+    if isinstance(term, FourierBase):
+        return {**term.model_dump(mode="json"), "prior": term.prior}
     if is_dataclass(term) and not isinstance(term, GraphTerm):
         return {
             field.name: getattr(term, field.name)
@@ -148,7 +150,7 @@ class _Writer:
             return value
         if isinstance(value, np.generic):
             return value.item()
-        if isinstance(value, (ModelTerm, Sum, Product)):
+        if isinstance(value, (ModelTerm, Sum, Product, FourierBase)):
             return self.node(value)
         if type(value) is Prior:
             return {
@@ -178,10 +180,6 @@ class _Writer:
                 name: self.value(item) for name, item in value.function_priors.items()
             }
             return {"$transformation": data}
-        if isinstance(value, FourierBase):
-            data = {"__type__": _type_key(value), **value.model_dump(mode="json")}
-            data["prior"] = self.value(value.prior)
-            return {"$fourier": data}
         if isinstance(value, (VariableFactory, DeferredFactory)):
             return {"$value": _serialize_child(value)}
         if isinstance(value, tuple):
@@ -212,7 +210,7 @@ class _Reader:
             raise SerializationError(f"The saved model has no node {identifier!r}.")
         entry = self.nodes[identifier]
         cls = serialization.lookup(entry["__type__"])
-        if not issubclass(cls, (ModelTerm, Sum, Product)):
+        if not issubclass(cls, (ModelTerm, Sum, Product, FourierBase)):
             raise SerializationError(f"{entry['__type__']!r} is not a model term.")
         self.active.add(identifier)
         try:
@@ -256,10 +254,6 @@ class _Reader:
             }
             cls = serialization.lookup(payload["__type__"])
             return cls.from_dict({**payload, "priors": priors})  # type: ignore[attr-defined]
-        if tag == "$fourier":
-            data = {key: item for key, item in payload.items() if key != "__type__"}
-            data["prior"] = self.value(data["prior"])
-            return serialization.lookup(payload["__type__"])(**data)
         if tag == "$value":
             return _deserialize_child(payload)
         if tag == "$tuple":
