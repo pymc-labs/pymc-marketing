@@ -2329,6 +2329,21 @@ def test_custom_dims_returns_empty_when_no_constant_data():
     assert custom_dims == []
 
 
+def test_custom_dims_excludes_synthetic_target_scale_dimension():
+    """A storage-only target scale dimension is not a model dimension."""
+    idata = xr.DataTree.from_dict(
+        {
+            "/constant_data": xr.Dataset(
+                {"target_scale": xr.DataArray([500.0], dims=("target_scale_dim_0",))}
+            )
+        }
+    )
+
+    wrapper = MMMIDataWrapper(idata)
+
+    assert wrapper.custom_dims == []
+
+
 def test_filter_dates_wrapper_returns_self_when_none(multidim_idata):
     """Test filter_dates wrapper method returns self when both dates are None."""
     wrapper = MMMIDataWrapper(multidim_idata)
@@ -2404,6 +2419,34 @@ def test_get_target_scale_returns_scale_array(multidim_idata):
 
     assert isinstance(target_scale, xr.DataArray)
     xr.testing.assert_equal(target_scale, multidim_idata.constant_data.target_scale)
+
+
+def test_get_target_scale_drops_synthetic_singleton_dimension():
+    """A scalar stored as a length-one array is returned as a scalar."""
+    idata = xr.DataTree.from_dict(
+        {
+            "/constant_data": xr.Dataset(
+                {"target_scale": xr.DataArray([500.0], dims=("target_scale_dim_0",))}
+            )
+        }
+    )
+
+    target_scale = MMMIDataWrapper(idata).get_target_scale()
+
+    assert target_scale.dims == ()
+    assert target_scale.item() == 500.0
+
+
+def test_get_target_scale_preserves_singleton_custom_dimension():
+    """A real panel dimension is preserved even when it has one coordinate."""
+    expected = xr.DataArray([500.0], dims=("country",), coords={"country": ["US"]})
+    idata = xr.DataTree.from_dict(
+        {"/constant_data": xr.Dataset({"target_scale": expected})}
+    )
+    wrapper = MMMIDataWrapper(idata)
+
+    xr.testing.assert_equal(wrapper.get_target_scale(), expected)
+    assert wrapper.custom_dims == ["country"]
 
 
 def test_get_target_scale_raises_when_missing():

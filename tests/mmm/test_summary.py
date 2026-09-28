@@ -629,6 +629,29 @@ class TestDataFrameSchemas:
         date_country_counts = df.groupby(["date", "country"]).size()
         assert all(date_country_counts == 1)
 
+    def test_summaries_ignore_synthetic_target_scale_dimension(
+        self, mock_mmm_idata_wrapper
+    ):
+        """A length-one target scale dimension does not leak into summaries."""
+        idata = mock_mmm_idata_wrapper.idata.copy()
+        target_scale = float(mock_mmm_idata_wrapper.get_target_scale())
+        idata["constant_data"] = xr.DataTree(
+            idata["constant_data"]
+            .to_dataset()
+            .assign(
+                target_scale=xr.DataArray([target_scale], dims=("target_scale_dim_0",))
+            )
+        )
+        factory = MMMSummaryFactory(
+            MMMIDataWrapper(idata, schema=None, validate_on_init=False)
+        )
+
+        posterior_predictive = factory.posterior_predictive(hdi_probs=[0.94])
+        contributions = factory.contributions(hdi_probs=[0.94])
+
+        assert "target_scale_dim_0" not in posterior_predictive.columns
+        assert "target_scale_dim_0" not in contributions.columns
+
     def test_contribution_summary_schema(self, mock_mmm_idata_wrapper):
         """Test contribution summary returns DataFrame with correct schema."""
         df = MMMSummaryFactory(mock_mmm_idata_wrapper).contributions(
