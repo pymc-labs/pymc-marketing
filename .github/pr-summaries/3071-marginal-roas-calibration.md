@@ -8,21 +8,21 @@ The lift-test notebooks showed changes in saturation curves and parameters witho
 
 ## Root Cause
 
-Both notebooks focused their result narratives on full curve and parameter recovery, which can imply that calibration should recover every part of a response curve or improve uncertainty uniformly.
+Both notebooks focused their result narratives on full curve and parameter recovery, which can imply that calibration should recover every part of a response curve or improve uncertainty uniformly. The new mROAS cells also used an outdated ArviZ HDI keyword and had no saved figure outputs.
 
 ## Solution
 
-Add a short explanation of the link between finite lift contrasts, fitted response curves, and local mROAS. Lead the comparison sections with before-and-after posterior mROAS at matched baseline spend, show 94% HDIs and simulated values, and distinguish direct evidence in treated geos from hierarchical sharing in controls. Qualify claims about curve recovery, uncertainty, spend range, and carryover.
+Explain how finite lift contrasts inform local mROAS through the fitted response curve. Add before-and-after posterior comparisons at matched spend, show 94% HDIs and simulated values, distinguish direct evidence in treated geos from hierarchical sharing in controls, and qualify claims about uncertainty, curve recovery, and applicability. Save the executed plot outputs in both notebooks.
 
 ## Changes Made
 
-- `docs/source/notebooks/mmm/mmm_lift_test.ipynb`: Add mROAS comparisons for the uncalibrated model, calibrated model, and model with additional lift tests.
-- `docs/source/notebooks/mmm/mmm_geolift_calibration.ipynb`: Add treated-versus-control geo mROAS comparison and align result framing with direct and hierarchical evidence.
+- `docs/source/notebooks/mmm/mmm_lift_test.ipynb`: Add mROAS comparisons for the uncalibrated model, calibrated model, and model with additional lift tests. In this simulation, posterior means move toward the simulated values; more tests narrow the intervals at the selected spends.
+- `docs/source/notebooks/mmm/mmm_geolift_calibration.ipynb`: Add treated-versus-control geo mROAS comparison. In this simulation, many intervals narrow while posterior means remain below truth and often move farther away, illustrating that calibration does not guarantee better local mROAS accuracy.
 
 ## Testing
 
-- [ ] Notebook execution and sampling not run.
-- [x] Notebook JSON edits reviewed and `git diff --check` passed.
+- [x] Both notebooks executed successfully with Papermill and saved the new plot outputs.
+- [x] Commit hooks passed, including Ruff and notebook format validation.
 
 ## Notes
 
