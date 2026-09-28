@@ -204,6 +204,11 @@ def aggregation_mmm_idata_wrapper(request):
         dims=("date", "geo", "channel"),
         coords={"date": dates, "geo": geos, "channel": channels},
     )
+    # No TV spend in geo A for January and February 2024: whole weeks and months
+    # without spend, inside a quarter that still has some
+    channel_data.loc[
+        {"date": slice("2024-01-01", "2024-02-29"), "geo": "A", "channel": "TV"}
+    ] = 0.0
     target_scale = xr.DataArray([100.0, 250.0], dims="geo", coords={"geo": geos})
 
     idata = xr.DataTree.from_dict(
@@ -1538,11 +1543,19 @@ class TestDecomposedContributionAggregation:
             data.get_channel_contributions(original_scale=True), frequency
         )
         spend = self._aggregate_samples(data.get_channel_spend(), frequency)
-        expected = factory._compute_summary_stats_with_hdi(contributions / spend, [0.8])
+        expected = factory._compute_summary_stats_with_hdi(
+            contributions / spend.where(spend != 0), [0.8]
+        )
 
         actual = factory.roas(frequency=frequency, hdi_probs=[0.8])
 
         self._assert_frames_equal(actual, expected, ["date", "geo", "channel"])
+        # A period without spend has no ROAS, not an infinite one, while a
+        # period with some spend keeps a finite ROAS
+        keys = [c for c in ["date", "geo", "channel"] if c in actual.columns]
+        no_spend = (spend == 0).to_dataframe(name="no_spend").reset_index()
+        rows = actual.merge(no_spend, on=keys, validate="one_to_one")
+        np.testing.assert_array_equal(rows["mean"].isna(), rows["no_spend"])
 
 
 class TestTimeInvariantBaselineAggregation:
