@@ -952,10 +952,6 @@ class TestSummaryColumnName:
         assert "channel_data" in df.columns
 
 
-# ---------------------------------------------------------------------------
-# Spend-dependent price response through the optimizer (#3036)
-# ---------------------------------------------------------------------------
-
 WINDOW_WEEKS = 4
 CHANNELS_3 = ["channel_1", "channel_2", "channel_3"]
 
@@ -1215,9 +1211,6 @@ class TestPriceResponseAllocation:
         assert np.all(identity.implied_price.where(spent).fillna(1.0) == 1.0)
         assert np.all(identity.implied_marginal_price.where(spent).fillna(1.0) == 1.0)
 
-        # Identical in every observable way, attrs included: the price is constant, so
-        # the budgets are money in exactly the sense a no-response run's are, and the
-        # stamp that warns the deprecated sampler off them must not be there.
         assert "price_response" not in identity.budgets.attrs
         xr.testing.assert_identical(identity.budgets, baseline.budgets)
 
@@ -1263,8 +1256,6 @@ class TestPriceResponseAllocation:
             dims=("channel",),
             coords={"channel": CHANNELS_3},
         )
-        # "Spent" as the report says it: a cell SLSQP left at 1e-16 bought nothing and
-        # carries a nan price, whatever `budgets > 0` says about the bit pattern.
         spent = result.implied_price.notnull().any("date")
         floor = optimizer.optimization_variables.variables[0].price_response.s_floor
         floor_da = xr.DataArray(
@@ -1277,10 +1268,6 @@ class TestPriceResponseAllocation:
             (1 / (1 - gamma_da)).where(on_power_branch, drop=True),
         )
 
-        # The base price applies at the reference: above it a unit costs more than
-        # p0, below it less. At this fixture's history (~1950 money per period) and
-        # TOTAL = 300 every cell sits below, so the below-reference direction is the
-        # one actually exercised; the above-reference branch is kept for other totals.
         reference = _on_air_reference(mmm).sel(channel=CHANNELS_3)
         p0 = window_cpu.isel(date=0, drop=True)
         mean_price = result.implied_price.mean("date")
@@ -1330,7 +1317,6 @@ class TestPriceResponseAllocation:
 
         per_period = result.implied_delivery.mean("date")
         assert "date" not in per_period.dims
-        # Uniform spread: every period bought the same units, so the mean is each period.
         xr.testing.assert_allclose(
             per_period, result.implied_delivery.isel(date=0, drop=True)
         )
@@ -1345,7 +1331,6 @@ class TestPriceResponseAllocation:
         mmm = simple_fitted_mmm
         mmm.set_cost_per_unit(_full_table(mmm, self.PRICES))
         window_cpu = _window_cpu(mmm, self.PRICES)
-        # channel_1: front-loaded; channel_2: uniform (and gamma = 0); channel_3: two dark periods.
         factors = np.array(
             [[0.4, 0.25, 0.7], [0.3, 0.25, 0.3], [0.2, 0.25, 0.0], [0.1, 0.25, 0.0]]
         )
@@ -1411,16 +1396,11 @@ class TestPriceResponseAllocation:
             dims=("channel", "bound"),
             coords={"channel": CHANNELS_3, "bound": ["lower", "upper"]},
         )
-        # The default x0 is uniform, which is outside the zero bound; start feasible.
         x0 = xr.DataArray(
             [0.0, self.TOTAL / 2, self.TOTAL / 2],
             dims=("channel",),
             coords={"channel": CHANNELS_3},
         )
-        # Pin the reason this test does not depend on the SciPy version: with the
-        # pinned channel unpriced, no cell hands the solver an outsized gradient at the
-        # start point. At elasticity 0.3 on channel_1 this ratio is ~90 and SLSQP's
-        # acceptance of it is version-dependent; here it is single digits.
         start_gradient = optimizer.evaluate_plan(x0).utility_gradient["channel_data"]
         spread = float(start_gradient.max() / start_gradient.min())
         assert spread < 5.0, f"ill-conditioned start, gradient spread {spread:.1f}"
@@ -1550,7 +1530,6 @@ class TestPriceResponseOptimality:
             xr.testing.assert_allclose(fixed, x, rtol=2e-2)
         else:
             assert _spread(at_fixed_point) > 0.1, at_fixed_point
-            # The fixed point over-allocates to the elastic channel.
             assert float(fixed.sel(channel="channel_1")) > float(
                 x.sel(channel="channel_1")
             )
@@ -1598,8 +1577,6 @@ class TestPriceResponseOptimality:
             .allocate_budget(total_budget=self.TOTAL)
             .budgets
         )
-        # The derived on-air reference is ~5-9x the baseline allocation; the guard's
-        # default 10x would pass by luck, so say what is being done instead.
         anchored = PowerPriceResponse(
             elasticity={"channel_2": 0.4},
             reference_spend=baseline,

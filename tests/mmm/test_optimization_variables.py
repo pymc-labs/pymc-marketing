@@ -998,8 +998,6 @@ def test_delivery_report_is_labelled_and_nan_where_no_money_is_spent():
     money = xr.where(np.isnan(price), 0.0, delivery * price).sum("date")
     np.testing.assert_allclose(money.values, variable.unpack(x).values * 4, rtol=1e-12)
 
-    # A cell SLSQP left at 1e-16 rather than exactly 0 bought nothing either; the
-    # reported mask follows the intent, not the bit pattern.
     tiny = variable.delivery_report(np.array([90.0, 1e-15]))["implied_price"]
     assert np.all(np.isnan(tiny.sel(channel="channel_2")))
     assert np.all(np.isfinite(tiny.sel(channel="channel_0")))

@@ -29,8 +29,6 @@ from pymc_marketing.mmm.price_response import (
     ResolvedPowerPriceResponse,
 )
 
-# The optimizer lowers before differentiating (budget_optimizer.py:2687-2690);
-# xtensor ops have no L_op, so every gradient here goes the same way.
 LOWER = ("lower_xtensor", "canonicalize", "stabilize")
 DIMS = ("channel",)
 GAMMA = np.array([0.0, 0.25, 0.5])
@@ -303,7 +301,6 @@ class TestPowerPriceResponseValidation:
             PowerPriceResponse(
                 elasticity={"tv": 0.3, "US": 0.1}, reference_spend=reference
             ).resolve(**two_d, derived_reference=None)
-        # A label that exists in two dims is genuinely ambiguous.
         clashing = {"geo": ["US", "tv"], "channel": ["tv", "radio"]}
         with pytest.raises(ValueError, match=r"they match \['geo', 'channel'\]"):
             PowerPriceResponse(
@@ -324,10 +321,6 @@ class TestPowerPriceResponseValidation:
             PowerPriceResponse(
                 elasticity=e, reference_spend=derived([1, 1, 1])
             ).resolve(**layout(), derived_reference=None)
-        # The gate asks is_identity_on before resolve, so a malformed elasticity
-        # must report the variable-qualified label from there as well. (An
-        # all-zero declaration short-circuits as the identity before its dims
-        # are read; resolve still raises for it, with the same label.)
         with pytest.raises(
             ValueError, match="channel_data: price_response: elasticity varies"
         ):
@@ -374,19 +367,16 @@ class TestPowerPriceResponseValidation:
             PowerPriceResponse(elasticity=0.2, reference_spend=fitted * 4).resolve(
                 **layout(), derived_reference=fitted, num_periods=4
             )
-        # Within a few percent still reads as the same mistake.
         with pytest.warns(UserWarning, match="window total"):
             PowerPriceResponse(elasticity=0.2, reference_spend=fitted * 4.1).resolve(
                 **layout(), derived_reference=fitted, num_periods=4
             )
         with warnings.catch_warnings():
             warnings.simplefilter("error")
-            # Not on every cell: not that mistake, and 4x is inside the generic tolerance.
             mixed = derived([400.0, 200.0, 200.0])
             PowerPriceResponse(elasticity=0.2, reference_spend=mixed).resolve(
                 **layout(), derived_reference=fitted, num_periods=4
             )
-            # Without num_periods there is no hypothesis to test.
             PowerPriceResponse(elasticity=0.2, reference_spend=fitted * 4).resolve(
                 **layout(), derived_reference=fitted
             )
@@ -401,7 +391,6 @@ class TestPowerPriceResponseValidation:
             PowerPriceResponse(elasticity=0.2, reference_spend=fitted * 52).resolve(
                 **layout(), derived_reference=fitted
             )
-        # 4x is inside the default 10x tolerance and outside a 2x one.
         PowerPriceResponse(elasticity=0.2, reference_spend=fitted * 4).resolve(
             **layout(), derived_reference=fitted
         )
@@ -472,7 +461,6 @@ class TestPowerPriceResponseValidation:
             PowerPriceResponse(
                 elasticity=0.2, reference_spend=derived([100.0, 5.0, 100.0])
             ).resolve(**layout(), derived_reference=fitted)
-        # The guard still fires on the comparable cells; the uncheckable one is reported, not hidden.
         with pytest.warns(UserWarning, match="could not be checked"):
             with pytest.raises(ValueError, match="52x apart"):
                 PowerPriceResponse(

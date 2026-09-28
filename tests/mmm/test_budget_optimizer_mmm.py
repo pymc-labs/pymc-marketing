@@ -1779,13 +1779,8 @@ def test_wrapper_optimize_budget_forwards_price_response(dummy_df, fitted_mmm):
         budget=10.0, price_response=PowerPriceResponse(elasticity=0.0)
     )
     assert result.implied_price is not None
-    # The identity reports, but the price is constant: nothing to warn the
-    # deprecated sampler about, so no stamp.
     assert "price_response" not in result.budgets.attrs
 
-    # A real curve is money whose unit price varied with spend. The stamp names the
-    # class the user wrote, and the sampler -- which feeds an allocation to the model
-    # as channel units -- warns, naming the array it should have been given instead.
     reference = xr.DataArray(
         np.full((2, 2), 5.0),
         dims=("geo", "channel"),
@@ -2554,7 +2549,6 @@ class TestMonetarySpendVariables:
         result = optimizer.allocate_budget(total_budget=self.TOTAL)
         assert result.scipy_result.success, result.scipy_result.message
         assert np.isfinite(result.spend_var_allocations["lf_budget"]).all()
-        # Media carries the identity response, so its report is present and flat at p0 = 1.
         spent = result.budgets > 0
         assert np.all(result.implied_price.where(spent).fillna(1.0) == 1.0)
 
