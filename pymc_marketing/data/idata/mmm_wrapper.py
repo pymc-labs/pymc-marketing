@@ -571,10 +571,12 @@ class MMMIDataWrapper:
         period : {"original", "weekly", "monthly", "quarterly", "yearly", "all_time"}, default "original"
             Time period to sum the contributions over. The decomposition runs
             on the original dates and the result is summed afterwards, which
-            ``link="log"`` requires (see :meth:`aggregate_time`). A
-            time-invariant intercept is counted once per period, as in
-            :meth:`aggregate_time`. ``"original"`` keeps every date,
-            ``"all_time"`` removes the ``date`` dim.
+            ``link="log"`` requires (see :meth:`aggregate_time`).
+            ``"original"`` keeps every date, ``"all_time"`` removes the
+            ``date`` dim. A time-invariant intercept is counted once per
+            period, as in :meth:`aggregate_time`: with ``"original"`` its
+            ``baseline`` keeps no ``date`` dim, with any other period
+            ``baseline`` has the ``date`` dim of the periods.
 
         Returns
         -------
@@ -586,15 +588,25 @@ class MMMIDataWrapper:
         Raises
         ------
         ValueError
-            If original_scale=True and target_scale is not found in constant_data,
-            or if the data was aggregated by :meth:`aggregate_time` and the model
-            uses ``link="log"``.
+            If original_scale=True and target_scale is not found in constant_data;
+            if the data was aggregated by :meth:`aggregate_time` and ``period``
+            is not ``"original"``, since aggregating twice would sum period
+            means or misalign period boundaries; or if the data was aggregated
+            by :meth:`aggregate_time` and the model uses ``link="log"``.
 
         Examples
         --------
         >>> contributions = mmm.data.get_contributions()
         >>> monthly = mmm.data.get_contributions(period="monthly")
         """
+        if (aggregated := self._time_aggregation) is not None and period != "original":
+            raise ValueError(
+                "The data was already aggregated over time "
+                f"(aggregate_time(period={aggregated!r})), so it cannot be "
+                f"aggregated again with period={period!r}. Call "
+                f"get_contributions(period={period!r}) on the original dates "
+                "instead."
+            )
         # The model adds a time-invariant intercept in every period, so it is
         # repeated on every date before summing over the dates of each period.
         data = (

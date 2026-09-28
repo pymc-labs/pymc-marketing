@@ -2836,18 +2836,30 @@ class TestLogLinkTimeAggregatedDecomposition:
         with pytest.raises(ValueError, match=r"aggregated over time.*original dates"):
             decompose(aggregated)
 
-    def test_marker_survives_filtering_after_aggregation(
-        self, idata_log_link_with_all_contributions
+    @pytest.mark.parametrize(
+        "transform",
+        [
+            lambda data: data.filter_dates(start_date="2024-02-01"),
+            lambda data: data.filter_dims(country="US"),
+            lambda data: data.aggregate_dims("country", ["US", "UK"], "ALL"),
+            lambda data: data.broadcast_per_period_contributions(),
+        ],
+        ids=[
+            "filter_dates",
+            "filter_dims",
+            "aggregate_dims",
+            "broadcast_per_period_contributions",
+        ],
+    )
+    def test_marker_survives_transforms_after_aggregation(
+        self, idata_log_link_with_all_contributions, transform
     ):
-        data = (
-            MMMIDataWrapper(idata_log_link_with_all_contributions)
-            .aggregate_time("monthly")
-            .filter_dims(country="US")
-            .filter_dates(start_date="2024-02-01")
-        )
+        aggregated = MMMIDataWrapper(
+            idata_log_link_with_all_contributions
+        ).aggregate_time("monthly")
 
         with pytest.raises(ValueError, match="aggregated over time"):
-            data.get_channel_contributions()
+            transform(aggregated).get_channel_contributions()
 
     def test_period_original_leaves_decomposition_valid(
         self, idata_log_link_with_all_contributions
@@ -2937,3 +2949,26 @@ class TestContributionsPeriod:
         xr.testing.assert_allclose(
             result["channels"], posterior["channel_contribution"].sum("date")
         )
+
+    @pytest.mark.parametrize("method", ["sum", "mean"])
+    def test_period_on_time_aggregated_data_raises_for_any_link(self, method):
+        """Aggregating twice would sum period means or misalign period bounds."""
+        aggregated = MMMIDataWrapper(
+            _idata_with_time_invariant_intercept(), validate_on_init=False
+        ).aggregate_time("weekly", method=method)
+
+        with pytest.raises(ValueError, match=r"already aggregated over time"):
+            aggregated.get_contributions(original_scale=False, period="monthly")
+
+    def test_identity_link_time_aggregated_data_still_decomposes(self):
+        """Under the identity link the additive decomposition commutes with the sum."""
+        idata = _idata_with_time_invariant_intercept()
+        wrapper = MMMIDataWrapper(idata, validate_on_init=False)
+
+        after = wrapper.aggregate_time("all_time").get_contributions(
+            original_scale=False
+        )
+        before = wrapper.get_contributions(original_scale=False, period="all_time")
+
+        for component in ["channels", "baseline"]:
+            xr.testing.assert_allclose(after[component], before[component])
