@@ -29,7 +29,7 @@ from pymc_marketing.mmm import (
     WeeklyFourier,
     YearlyFourier,
 )
-from pymc_marketing.mmm.experimental import Data, MediaTransform, Seasonality
+from pymc_marketing.mmm.experimental import Data, MediaTransform
 from pymc_marketing.mmm.experimental._graph import BuildContext, total_lookback
 from pymc_marketing.mmm.transformers import ConvMode
 from pymc_marketing.terms import Parameter
@@ -281,9 +281,9 @@ def test_media_stages_require_a_transformation():
 def test_yearly_seasonality_matches_fourier_reference():
     dates = pd.date_range("2025-01-06", periods=6, freq="W-MON")
     ds = xr.Dataset(coords={"date": dates})
-    term = Seasonality(YearlyFourier(n_order=2, prior=Prior("Laplace", mu=0, b=1)))
+    fourier = YearlyFourier(n_order=2, prior=Prior("Laplace", mu=0, b=1))
     with pm.Model() as model:
-        value = BuildContext(ds).build(term)
+        value = BuildContext(ds).build(fourier)
         evaluate = pytensor.function([model["fourier_beta"]], value)
     assert model.named_vars_to_dims["fourier_beta"] == ("fourier",)
     assert value.dims == ("date",)
@@ -303,7 +303,7 @@ def test_seasonality_prior_dims_broadcast_over_geo():
         n_order=2, prior=Prior("Laplace", mu=0, b=1, dims=("geo", "fourier"))
     )
     with pm.Model() as model:
-        value = BuildContext(ds).build(Seasonality(fourier))
+        value = BuildContext(ds).build(fourier)
         evaluate = pytensor.function([model["fourier_beta"]], value)
     assert model.named_vars_to_dims["fourier_beta"] == ("geo", "fourier")
     assert model.coords["geo"] == ("east", "west")
@@ -320,12 +320,25 @@ def test_seasonality_prior_dims_broadcast_over_geo():
 def test_seasonality_requires_date_dimension():
     ds = xr.Dataset(coords={"channel": ["radio"]})
     with pm.Model(), pytest.raises(ValueError, match="date"):
-        BuildContext(ds).build(Seasonality(YearlyFourier(n_order=1)))
+        BuildContext(ds).build(YearlyFourier(n_order=1))
 
 
-def test_seasonality_requires_fourier_component():
-    with pytest.raises(TypeError):
-        Seasonality(object())
+def test_fourier_used_twice_in_an_expression_builds_once():
+    dates = pd.date_range("2025-01-06", periods=6, freq="W-MON")
+    ds = xr.Dataset(coords={"date": dates})
+    fourier = YearlyFourier(n_order=1, prior=Prior("Laplace", mu=0, b=1))
+    expression = Parameter("scale", Prior("Normal")) * fourier + fourier
+    with pm.Model() as model:
+        value = BuildContext(ds).build(expression)
+        evaluate = pytensor.function([model["scale"], model["fourier_beta"]], value)
+    assert [variable.name for variable in model.free_RVs] == ["scale", "fourier_beta"]
+    beta = np.array([0.5, -1.0])
+    assert_allclose(
+        evaluate(2.0, beta),
+        3.0 * _fourier_modes(dates, 1, 365.25) @ beta,
+        rtol=0,
+        atol=1e-10,
+    )
 
 
 def test_seasonality_prefixes_must_be_distinct_within_a_context():
@@ -333,12 +346,12 @@ def test_seasonality_prefixes_must_be_distinct_within_a_context():
     ds = xr.Dataset(coords={"date": dates})
     with pm.Model(), pytest.raises(ValueError, match="fourier_beta"):
         context = BuildContext(ds)
-        context.build(Seasonality(YearlyFourier(n_order=2)))
-        context.build(Seasonality(YearlyFourier(n_order=1)))
+        context.build(YearlyFourier(n_order=2))
+        context.build(YearlyFourier(n_order=1))
     with pm.Model() as model:
         context = BuildContext(ds)
-        yearly = context.build(Seasonality(YearlyFourier(n_order=2)))
-        weekly = context.build(Seasonality(WeeklyFourier(n_order=1, prefix="weekly")))
+        yearly = context.build(YearlyFourier(n_order=2))
+        weekly = context.build(WeeklyFourier(n_order=1, prefix="weekly"))
         evaluate = pytensor.function(
             [model["fourier_beta"], model["weekly_beta"]], yearly + weekly
         )

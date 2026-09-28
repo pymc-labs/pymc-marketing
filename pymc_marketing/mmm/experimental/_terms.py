@@ -156,33 +156,22 @@ class MediaTransform(GraphTerm):
         return clone._create_distributions()
 
 
-class Seasonality(GraphTerm):
-    """Evaluate a configured Fourier seasonality on the dataset ``date`` coordinate.
+class FourierTerm(GraphTerm):
+    """Evaluate a Fourier seasonality component on the dataset ``date`` coordinate.
+
+    Not constructed directly: a ``YearlyFourier``, ``MonthlyFourier``, or
+    ``WeeklyFourier`` used anywhere in an expression is built through one
+    ``FourierTerm`` per component object, so a component shared by several
+    equations is one set of parameters. Its prior keeps its declared dimensions,
+    which include ``fourier.prefix``.
 
     Parameters
     ----------
     fourier : FourierBase
-        Configured ``YearlyFourier``, ``MonthlyFourier``, or ``WeeklyFourier``.
-        Its prior keeps its declared dimensions, which include ``fourier.prefix``.
-
-    Examples
-    --------
-    .. code-block:: python
-
-        from pymc_extras.prior import Prior
-        from pymc_marketing.mmm import YearlyFourier
-        from pymc_marketing.mmm.experimental import Seasonality
-
-        seasonality = Seasonality(
-            YearlyFourier(
-                n_order=2, prior=Prior("Laplace", mu=0, b=1, dims=("geo", "fourier"))
-            )
-        )
+        Configured Fourier seasonality component.
     """
 
     def __init__(self, fourier: FourierBase) -> None:
-        if not isinstance(fourier, FourierBase):
-            raise TypeError("Seasonality requires a configured Fourier component.")
         self.fourier = fourier
 
     def _specification_state(self) -> Any:
@@ -190,7 +179,9 @@ class Seasonality(GraphTerm):
 
     def _build(self, context: BuildContext) -> XTensorVariable:
         if "date" not in context.ds.dims:
-            raise ValueError("Seasonality requires a date dimension in the dataset.")
+            raise ValueError(
+                "Fourier seasonality requires a date dimension in the dataset."
+            )
         context._ensure_dims(("date",))
         fourier = self.fourier.model_copy(
             update={"prior": context._recipe(self.fourier.prior)}

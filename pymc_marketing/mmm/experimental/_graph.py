@@ -34,6 +34,7 @@ from pytensor.graph.basic import Variable
 
 from pymc_marketing.mmm.components.base import Transformation
 from pymc_marketing.mmm.experimental._data import _align_labels
+from pymc_marketing.mmm.fourier import FourierBase
 from pymc_marketing.mmm.link import LinkFunction, get_link_spec
 from pymc_marketing.terms import (
     Dot,
@@ -565,6 +566,7 @@ class BuildContext:
         self._coordinate_cache: dict[int, dict[str, Any]] = {}
         self._names: dict[str, Any] = {}
         self._suggested_names: dict[int, str] = {}
+        self._fourier_terms: dict[int, tuple[FourierBase, Any]] = {}
 
     def binding(self, equation: Equation) -> Binding:
         """Return the effective metadata for an equation without building it."""
@@ -691,7 +693,18 @@ class BuildContext:
             return {key: self._aligned(item) for key, item in value.items()}
         return value
 
+    def _fourier_term(self, fourier: FourierBase) -> Any:
+        """Return the one graph node that evaluates ``fourier`` on the data dates."""
+        key = id(fourier)
+        if key not in self._fourier_terms:
+            from pymc_marketing.mmm.experimental import _terms
+
+            self._fourier_terms[key] = (fourier, _terms.FourierTerm(fourier))
+        return self._fourier_terms[key][1]
+
     def _bound_value(self, value: Any) -> Any:
+        if isinstance(value, FourierBase):
+            value = self._fourier_term(value)
         if isinstance(value, (ModelTerm, Sum, Product)):
             key = id(value)
             if key not in self._references:
@@ -794,6 +807,8 @@ class BuildContext:
             return expression
         if isinstance(expression, np.generic):
             expression = expression.item()
+        if isinstance(expression, FourierBase):
+            expression = self._fourier_term(expression)
         if not isinstance(expression, (ModelTerm, Sum, Product)):
             recipe = (
                 self._recipe(expression)
