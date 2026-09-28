@@ -2582,7 +2582,7 @@ class BudgetOptimizer(BaseModel):
             if not response.assume_delivery_units:
                 raise ValueError(
                     f"price_response: {who} were fitted on nominal spend as far as the fitted model can "
-                    "tell, so their saturation curve already absorbed the price curvature a "
+                    "tell, so their saturation curve already absorbed the price curvature a curved "
                     "spend-dependent price adds; applying it on top would bend the same curve twice. "
                     "Either price them on the fitted model with mmm.set_cost_per_unit(...), which is "
                     "also what records that their channel data is in delivery units, or -- if the "

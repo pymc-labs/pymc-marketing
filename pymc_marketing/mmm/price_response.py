@@ -259,14 +259,19 @@ class PriceResponse(BaseModel, ABC):
     reference_spend : xarray.DataArray or None
         Per-period money per cell at which the base price applies, over exactly the budget dims, in the units of
         ``result.budgets`` and ``total_budget``. ``None`` lets the optimizer derive it from the fitted model where
-        one exists. Every family needs one, and the optimizer reads it before knowing the concrete type, which is
-        why it is declared here; subclasses document the derivation and the guard on a supplied value.
+        one exists. A family that states price *relative* to a level needs one, and the optimizer reads it before
+        knowing the concrete type, which is why it is declared here; a family whose schedule is stated in absolute
+        money would not. Subclasses document the derivation and the guard on a supplied value.
     assume_delivery_units : bool
         Attest that the model's channel data is in delivery units (or in spend deflated to constant prices) even
         though no historical ``cost_per_unit`` table prices the channel. Required, together with an explicit
         ``reference_spend``, to apply a non-identity response to channels the fitted artifact cannot vouch for.
         Default ``False``: the optimizer then refuses, because a saturation curve fitted on nominal spend has
-        already absorbed part of the price curvature and a concave price map on top would bend it twice.
+        already absorbed part of the price curvature and a concave price map on top would bend it twice. The
+        subject of that refusal is curvature, not spend dependence as such: writing the composed second
+        derivative as :math:`f''(u) u'^2 + f'(u) u''`, it is the :math:`f'(u) u''` term that double-counts, so a
+        map that is piecewise linear in money rescales the axis without bending it and has no such objection.
+        Every family shipped today is curved, which is why the gate is currently keyed on the identity.
     """
 
     model_config = ConfigDict(arbitrary_types_allowed=True, extra="forbid")
