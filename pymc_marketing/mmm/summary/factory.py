@@ -48,7 +48,7 @@ from scipy.stats import gaussian_kde
 
 from pymc_marketing.data.idata.mmm_wrapper import MMMIDataWrapper
 from pymc_marketing.data.idata.schema import Frequency
-from pymc_marketing.data.idata.utils import aggregate_idata_time
+from pymc_marketing.data.idata.utils import _aggregate_over_time
 from pymc_marketing.mmm.incrementality import Incrementality
 from pymc_marketing.mmm.summary.helpers import (
     DataFrameType,
@@ -347,7 +347,11 @@ class MMMSummaryFactory:
         4. Repeats a time-invariant intercept on every date, since the model
            adds it to ``mu`` in every period
            (:meth:`MMMIDataWrapper.broadcast_per_period_contributions`)
-        5. Aggregates data by frequency if specified
+        5. Aggregates data by frequency if specified. Summaries that decompose
+           contributions pass ``frequency=None`` and sum the decomposed
+           samples over each period instead: under ``link="log"`` the
+           decomposition is nonlinear in ``mu``, so it has to run on the
+           original dates.
 
         Parameters
         ----------
@@ -375,26 +379,6 @@ class MMMSummaryFactory:
             data = data.aggregate_time(frequency)
 
         return data, effective_hdi_probs, effective_output_format
-
-    def _aggregate_original_scale_contributions(
-        self,
-        contributions: xr.Dataset,
-        frequency: Frequency | None,
-    ) -> xr.Dataset:
-        """Aggregate decomposed contribution samples over time.
-
-        Log-link contributions must be transformed to original scale before
-        time aggregation. This helper reuses the same period boundaries as
-        :meth:`MMMIDataWrapper.aggregate_time` while preserving posterior
-        sample dimensions for the later HDI computation.
-        """
-        if frequency is None or frequency == "original":
-            return contributions
-
-        tree = xr.DataTree.from_dict({"/posterior": contributions})
-        aggregated = aggregate_idata_time(tree, frequency).posterior.to_dataset()
-
-        return aggregated
 
     def _require_model(self, method_name: str) -> None:
         """Raise helpful error if model is required but not provided."""
@@ -520,16 +504,9 @@ class MMMSummaryFactory:
         over the dates in each period like every other component, so the
         components add up to the prediction at any frequency.
         """
-        aggregate_after_decomposition = (
-            self.data._link == "log"
-            and frequency is not None
-            and frequency != "original"
-        )
-        preparation_frequency = None if aggregate_after_decomposition else frequency
-
         # Resolve all defaults in one call
         data, hdi_probs, output_format = self._prepare_data_and_hdi(
-            hdi_probs, preparation_frequency, output_format
+            hdi_probs, frequency=None, output_format=output_format
         )
 
         if component == "control":
@@ -550,13 +527,8 @@ class MMMSummaryFactory:
                 raise ValueError(f"No {component} contributions found in model")
             component_data = contributions[component]
 
-        if aggregate_after_decomposition:
-            component_name = component_data.name or "_contribution"
-            aggregated = self._aggregate_original_scale_contributions(
-                component_data.to_dataset(name=component_name),
-                frequency,
-            )
-            component_data = aggregated[component_name]
+        # Sum the per-date decomposition over each period
+        component_data = _aggregate_over_time(component_data, frequency or "original")
 
         # Compute summary stats with HDI
         df = self._compute_summary_stats_with_hdi(component_data, hdi_probs)
@@ -597,7 +569,8 @@ class MMMSummaryFactory:
             - **elementwise**: Simple element-wise division of contributions
               by spend. Does NOT account for carryover effects. Useful for
               daily efficiency tracking but not true incrementality.
-              Works with data-only factory.
+              Works with data-only factory. With a ``frequency``, contributions
+              and spend are each summed over the period before dividing.
         include_carryover : bool, default True
             Include adstock carryover effects. Only used when
             ``method="incremental"``.
@@ -717,9 +690,13 @@ class MMMSummaryFactory:
             )
         elif method == "elementwise":
             data = data.filter_dates(start_date=start_date, end_date=end_date)
-            if frequency is not None and frequency != "original":
-                data = data.aggregate_time(frequency)
-            roas = data.get_elementwise_roas(original_scale=True)
+            # Sum the per-date decomposition and the spend over each period
+            period = frequency or "original"
+            contributions = _aggregate_over_time(
+                data.get_channel_contributions(original_scale=True), period
+            )
+            spend = _aggregate_over_time(data.get_channel_spend(), period)
+            roas = contributions / xr.where(spend == 0, np.nan, spend)
         else:
             raise ValueError(
                 f"method must be 'incremental' or 'elementwise', got {method!r}"
@@ -1030,25 +1007,15 @@ class MMMSummaryFactory:
         --------
         contributions : For per-channel/control contributions
         """
-        aggregate_after_decomposition = (
-            self.data._link == "log"
-            and frequency is not None
-            and frequency != "original"
-        )
-        preparation_frequency = None if aggregate_after_decomposition else frequency
-
         # Resolve all defaults in one call
         data, hdi_probs, output_format = self._prepare_data_and_hdi(
-            hdi_probs, preparation_frequency, output_format
+            hdi_probs, frequency=None, output_format=output_format
         )
 
-        # Get all contributions
-        contributions = data.get_contributions(original_scale=True)
-        if aggregate_after_decomposition:
-            contributions = self._aggregate_original_scale_contributions(
-                contributions,
-                frequency,
-            )
+        # Get all contributions, the per-date decomposition summed over each period
+        contributions = _aggregate_over_time(
+            data.get_contributions(original_scale=True), frequency or "original"
+        )
 
         all_dfs = []
 
@@ -1123,27 +1090,16 @@ class MMMSummaryFactory:
         >>> df = mmm.summary.change_over_time(frequency="monthly")
         >>> df = mmm.summary.change_over_time(hdi_probs=[0.80, 0.94])
         """
-        aggregate_after_decomposition = (
-            self.data._link == "log"
-            and frequency is not None
-            and frequency != "original"
-        )
-        preparation_frequency = None if aggregate_after_decomposition else frequency
-
         # Resolve all defaults in one call
         data, hdi_probs, output_format = self._prepare_data_and_hdi(
-            hdi_probs, preparation_frequency, output_format
+            hdi_probs, frequency=None, output_format=output_format
         )
 
-        # Get contributions (chain, draw, date, channel)
-        contributions = data.get_channel_contributions(original_scale=True)
-        if aggregate_after_decomposition:
-            contribution_name = contributions.name or "_contribution"
-            aggregated = self._aggregate_original_scale_contributions(
-                contributions.to_dataset(name=contribution_name),
-                frequency,
-            )
-            contributions = aggregated[contribution_name]
+        # Get contributions (chain, draw, date, channel), summed over each period
+        contributions = _aggregate_over_time(
+            data.get_channel_contributions(original_scale=True),
+            frequency or "original",
+        )
 
         # Check for date dimension
         if "date" not in contributions.dims:

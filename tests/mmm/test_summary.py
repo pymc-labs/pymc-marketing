@@ -163,35 +163,64 @@ def mock_mmm_idata_wrapper_with_intercept(simple_dates, simple_channels):
     return MMMIDataWrapper(idata, schema=None, validate_on_init=False)
 
 
-@pytest.fixture(params=[-1.0, 1.0], ids=["negative_mu", "positive_mu"])
-def log_link_mmm_idata_wrapper(request):
-    """Deterministic log-link posterior with varying draws and two channels."""
+@pytest.fixture(
+    params=[("log", -1.0), ("log", 1.0), ("identity", 1.0)],
+    ids=["log_negative_mu", "log_positive_mu", "identity"],
+)
+def aggregation_mmm_idata_wrapper(request):
+    """Posterior with a custom ``geo`` dim, a per-geo target scale and spend.
+
+    Under the log link the sign of ``mu`` decides whether exponentiating a sum
+    over dates shrinks or inflates the contributions.
+    """
+    link, mu_sign = request.param
     local_rng = np.random.default_rng(seed=3052)
     dates = pd.date_range("2024-01-01", periods=400, freq="D")
+    geos = ["A", "B"]
     channels = ["TV", "Radio"]
+    n_chain, n_draw = 2, 5
 
     channel_contribution = xr.DataArray(
-        local_rng.uniform(0.05, 0.3, size=(2, 5, len(dates), len(channels))),
-        dims=("chain", "draw", "date", "channel"),
-        coords={"date": dates, "channel": channels},
+        local_rng.uniform(
+            0.05, 0.3, size=(n_chain, n_draw, len(dates), len(geos), len(channels))
+        ),
+        dims=("chain", "draw", "date", "geo", "channel"),
+        coords={"date": dates, "geo": geos, "channel": channels},
     )
     mu = xr.DataArray(
-        request.param * local_rng.uniform(0.7, 1.5, size=(2, 5, len(dates))),
-        dims=("chain", "draw", "date"),
-        coords={"date": dates},
+        mu_sign
+        * local_rng.uniform(0.7, 1.5, size=(n_chain, n_draw, len(dates), len(geos))),
+        dims=("chain", "draw", "date", "geo"),
+        coords={"date": dates, "geo": geos},
     )
+    # Time-invariant: the identity-link baseline is counted once per date
+    intercept_contribution = xr.DataArray(
+        local_rng.uniform(0.5, 1.0, size=(n_chain, n_draw, len(geos))),
+        dims=("chain", "draw", "geo"),
+        coords={"geo": geos},
+    )
+    channel_data = xr.DataArray(
+        local_rng.uniform(10.0, 100.0, size=(len(dates), len(geos), len(channels))),
+        dims=("date", "geo", "channel"),
+        coords={"date": dates, "geo": geos, "channel": channels},
+    )
+    target_scale = xr.DataArray([100.0, 250.0], dims="geo", coords={"geo": geos})
+
     idata = xr.DataTree.from_dict(
         {
             "/posterior": xr.Dataset(
                 {
                     "channel_contribution": channel_contribution,
+                    "intercept_contribution": intercept_contribution,
                     "mu": mu,
                 }
             ),
-            "/constant_data": xr.Dataset({"target_scale": xr.DataArray(100.0)}),
+            "/constant_data": xr.Dataset(
+                {"channel_data": channel_data, "target_scale": target_scale}
+            ),
         }
     )
-    idata.attrs = {"link": "log"}
+    idata.attrs = {"link": link}
 
     return MMMIDataWrapper(idata, schema=None, validate_on_init=False)
 
@@ -1363,8 +1392,13 @@ class TestNonChannelComponents:
             MMMSummaryFactory(mock_mmm_idata_wrapper).contributions(component="control")
 
 
-class TestLogLinkContributionAggregation:
-    """Log-link decomposition happens before summing over time."""
+class TestDecomposedContributionAggregation:
+    """Summaries at a frequency sum the per-date decomposition over each period.
+
+    Under the log link the decomposition is nonlinear in ``mu``, so it has to
+    run on the original dates before aggregating (#3052). Under the identity
+    link both orders agree.
+    """
 
     @staticmethod
     def _aggregate_samples(samples: xr.DataArray, frequency: str) -> xr.DataArray:
@@ -1379,44 +1413,47 @@ class TestLogLinkContributionAggregation:
         }[frequency]
         return samples.resample(date=rule).sum("date")
 
-    @pytest.mark.parametrize(
-        "frequency",
-        ["weekly", "monthly", "quarterly", "yearly", "all_time"],
-    )
-    def test_channel_contributions_sum_original_scale_samples(
-        self, log_link_mmm_idata_wrapper, frequency
-    ):
-        data = log_link_mmm_idata_wrapper
-        factory = MMMSummaryFactory(data)
-
-        per_date = data.get_channel_contributions(original_scale=True)
-        expected_samples = self._aggregate_samples(per_date, frequency)
-        expected = factory._compute_summary_stats_with_hdi(
-            expected_samples,
-            [0.8],
+    @staticmethod
+    def _assert_frames_equal(
+        actual: pd.DataFrame, expected: pd.DataFrame, keys: list[str]
+    ) -> None:
+        sort_columns = [column for column in keys if column in actual.columns]
+        pd.testing.assert_frame_equal(
+            actual.sort_values(sort_columns).reset_index(drop=True),
+            expected.sort_values(sort_columns).reset_index(drop=True),
+            rtol=1e-12,
+            atol=1e-12,
         )
+
+    @pytest.mark.parametrize(
+        "frequency", ["weekly", "monthly", "quarterly", "yearly", "all_time"]
+    )
+    def test_channel_contributions_sum_per_date_samples(
+        self, aggregation_mmm_idata_wrapper, frequency
+    ):
+        data = aggregation_mmm_idata_wrapper
+        factory = MMMSummaryFactory(data)
+        per_date = data.get_channel_contributions(original_scale=True)
+        expected = factory._compute_summary_stats_with_hdi(
+            self._aggregate_samples(per_date, frequency), [0.8]
+        )
+
         actual = factory.contributions(frequency=frequency, hdi_probs=[0.8])
 
-        sort_columns = [
-            column for column in ["date", "channel"] if column in actual.columns
-        ]
-        expected = expected.sort_values(sort_columns).reset_index(drop=True)
-        actual = actual.sort_values(sort_columns).reset_index(drop=True)
-        pd.testing.assert_frame_equal(actual, expected, rtol=1e-12, atol=1e-12)
-
-        if frequency == "all_time":
-            assert "date" not in actual.columns
+        self._assert_frames_equal(actual, expected, ["date", "geo", "channel"])
 
     @pytest.mark.parametrize(
-        "frequency",
-        ["weekly", "monthly", "quarterly", "yearly", "all_time"],
+        "frequency", ["weekly", "monthly", "quarterly", "yearly", "all_time"]
     )
-    def test_total_contribution_sums_original_scale_samples(
-        self, log_link_mmm_idata_wrapper, frequency
+    def test_total_contribution_sums_per_date_samples(
+        self, aggregation_mmm_idata_wrapper, frequency
     ):
-        data = log_link_mmm_idata_wrapper
+        data = aggregation_mmm_idata_wrapper
         factory = MMMSummaryFactory(data)
-        per_date = data.get_contributions(original_scale=True)
+        # The model adds a time-invariant intercept on every date
+        per_date = data.broadcast_per_period_contributions().get_contributions(
+            original_scale=True
+        )
 
         expected_frames = []
         for component_name, component_data in per_date.data_vars.items():
@@ -1427,80 +1464,62 @@ class TestLogLinkContributionAggregation:
             ]
             if sum_dims:
                 component_data = component_data.sum(sum_dims)
-            expected_samples = self._aggregate_samples(component_data, frequency)
             frame = factory._compute_summary_stats_with_hdi(
-                expected_samples,
-                [0.8],
+                self._aggregate_samples(component_data, frequency), [0.8]
             )
             frame["component"] = component_name
             expected_frames.append(frame)
-
         expected = pd.concat(expected_frames, ignore_index=True)
-        actual = factory.total_contribution(
-            frequency=frequency,
-            hdi_probs=[0.8],
-        )
-        sort_columns = [
-            column for column in ["date", "component"] if column in actual.columns
-        ]
-        expected = expected.sort_values(sort_columns).reset_index(drop=True)
-        actual = actual.sort_values(sort_columns).reset_index(drop=True)
-        pd.testing.assert_frame_equal(actual, expected, rtol=1e-12, atol=1e-12)
 
-        if frequency == "all_time":
-            assert "date" not in actual.columns
+        actual = factory.total_contribution(frequency=frequency, hdi_probs=[0.8])
 
-    @pytest.mark.parametrize(
-        "frequency",
-        ["weekly", "monthly", "quarterly", "yearly"],
-    )
-    def test_change_over_time_uses_aggregated_original_scale_samples(
-        self, log_link_mmm_idata_wrapper, frequency
+        self._assert_frames_equal(actual, expected, ["date", "component"])
+
+    @pytest.mark.parametrize("frequency", ["weekly", "monthly", "quarterly", "yearly"])
+    def test_change_over_time_compares_period_sums(
+        self, aggregation_mmm_idata_wrapper, frequency
     ):
-        data = log_link_mmm_idata_wrapper
+        data = aggregation_mmm_idata_wrapper
         factory = MMMSummaryFactory(data)
-        per_date = data.get_channel_contributions(original_scale=True)
-        aggregated = self._aggregate_samples(per_date, frequency)
-        shifted = aggregated.shift(date=1)
-        expected_samples = (aggregated.diff("date") / shifted.where(shifted != 0)) * 100
-        expected = factory._compute_summary_stats_with_hdi(expected_samples, [0.8])
-        expected = expected.rename(
-            columns={
-                "mean": "pct_change_mean",
-                "median": "pct_change_median",
-            }
+        aggregated = self._aggregate_samples(
+            data.get_channel_contributions(original_scale=True), frequency
         )
+        shifted = aggregated.shift(date=1)
+        expected = factory._compute_summary_stats_with_hdi(
+            (aggregated.diff("date") / shifted.where(shifted != 0)) * 100, [0.8]
+        ).rename(columns={"mean": "pct_change_mean", "median": "pct_change_median"})
 
         actual = factory.change_over_time(frequency=frequency, hdi_probs=[0.8])
 
-        expected = expected.sort_values(["date", "channel"]).reset_index(drop=True)
-        actual = actual.sort_values(["date", "channel"]).reset_index(drop=True)
-        pd.testing.assert_frame_equal(actual, expected, rtol=1e-12, atol=1e-12)
+        self._assert_frames_equal(actual, expected, ["date", "geo", "channel"])
 
     def test_change_over_time_all_time_keeps_date_requirement(
-        self, log_link_mmm_idata_wrapper
+        self, aggregation_mmm_idata_wrapper
     ):
-        factory = MMMSummaryFactory(log_link_mmm_idata_wrapper)
+        factory = MMMSummaryFactory(aggregation_mmm_idata_wrapper)
 
         with pytest.raises(
             ValueError, match=r"change_over_time requires date dimension.*all_time"
         ):
             factory.change_over_time(frequency="all_time")
 
-    def test_identity_link_keeps_existing_aggregate_then_decompose_path(
-        self, mock_mmm_idata_wrapper
+    @pytest.mark.parametrize(
+        "frequency", ["weekly", "monthly", "quarterly", "yearly", "all_time"]
+    )
+    def test_elementwise_roas_divides_period_sums(
+        self, aggregation_mmm_idata_wrapper, frequency
     ):
-        factory = MMMSummaryFactory(mock_mmm_idata_wrapper)
-        aggregated = mock_mmm_idata_wrapper.broadcast_per_period_contributions()
-        aggregated = aggregated.aggregate_time("monthly")
-        expected_samples = aggregated.get_channel_contributions(original_scale=True)
-        expected = factory._compute_summary_stats_with_hdi(expected_samples, [0.8])
+        data = aggregation_mmm_idata_wrapper
+        factory = MMMSummaryFactory(data)
+        contributions = self._aggregate_samples(
+            data.get_channel_contributions(original_scale=True), frequency
+        )
+        spend = self._aggregate_samples(data.get_channel_spend(), frequency)
+        expected = factory._compute_summary_stats_with_hdi(contributions / spend, [0.8])
 
-        actual = factory.contributions(frequency="monthly", hdi_probs=[0.8])
+        actual = factory.roas(frequency=frequency, hdi_probs=[0.8])
 
-        expected = expected.sort_values(["date", "channel"]).reset_index(drop=True)
-        actual = actual.sort_values(["date", "channel"]).reset_index(drop=True)
-        pd.testing.assert_frame_equal(actual, expected, rtol=1e-12, atol=1e-12)
+        self._assert_frames_equal(actual, expected, ["date", "geo", "channel"])
 
 
 class TestTimeInvariantBaselineAggregation:
