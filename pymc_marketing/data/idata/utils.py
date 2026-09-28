@@ -231,6 +231,91 @@ def _aggregate_over_time[XarrayT: (xr.Dataset, xr.DataArray)](
     raise ValueError(f"Unknown aggregation method: {method}")
 
 
+def broadcast_over_date(variable: xr.DataArray, date: xr.DataArray) -> xr.DataArray:
+    """Repeat a time-invariant variable on every ``date``.
+
+    An MMM adds a time-invariant intercept to the linear predictor on every
+    date but stores it without a ``date`` dim. Repeating it on the dates of
+    the per-date variables lets it line up with them, so that summing over
+    ``date`` counts it once per date like every other component.
+
+    Parameters
+    ----------
+    variable : xr.DataArray
+        Variable without a ``date`` dim, e.g. with dims ``(chain, draw, ...)``.
+    date : xr.DataArray
+        The ``date`` coordinate to repeat ``variable`` on.
+
+    Returns
+    -------
+    xr.DataArray
+        ``variable`` with the ``date`` dim inserted after ``chain`` and
+        ``draw`` (those present), before any other dim, the order the per-date
+        variables of the same group use.
+
+    Examples
+    --------
+    .. code-block:: python
+
+        posterior = mmm.idata.posterior
+        intercept = broadcast_over_date(
+            posterior["intercept_contribution"], posterior["date"]
+        )
+        intercept.dims  # ("chain", "draw", "date", ...)
+    """
+    return variable.expand_dims(date=date).transpose(
+        *[d for d in ("chain", "draw") if d in variable.dims], "date", ...
+    )
+
+
+def sum_contributions_over_time(
+    contributions: xr.Dataset,
+    period: Frequency,
+) -> xr.Dataset:
+    """Sum per-date contributions over the dates of each period.
+
+    Every variable of ``contributions`` is a component the model adds to the
+    linear predictor on every date. A component without a ``date`` dim, such
+    as a time-invariant intercept, is repeated on every date of
+    ``contributions`` first (see :func:`broadcast_over_date`), so that it is
+    counted once per observed date within each period, exactly like the
+    per-date components. The aggregation runs per variable, so each keeps its
+    ``(chain, draw, date, ...)`` dim order.
+
+    Decompose first, then call this: under a nonlinear inverse link the
+    decomposition of the summed linear predictor is not the sum of the per-date
+    decompositions.
+
+    Parameters
+    ----------
+    contributions : xr.Dataset
+        One data variable per component, on the original dates.
+    period : {"original", "weekly", "monthly", "quarterly", "yearly", "all_time"}
+        Time period to sum over. ``"original"`` returns ``contributions``
+        unchanged, ``"all_time"`` removes the ``date`` dim; otherwise ``date``
+        holds the last calendar day of each period. A period shorter than the
+        spacing of the dates (e.g. ``"weekly"`` on monthly data) leaves empty
+        periods, which are ``NaN``.
+
+    Returns
+    -------
+    xr.Dataset
+        The contributions of each period.
+    """
+    if period == "original" or "date" not in contributions.dims:
+        return contributions
+
+    date = contributions["date"]
+    per_date = contributions.map(
+        lambda component: (
+            component
+            if "date" in component.dims
+            else broadcast_over_date(component, date)
+        )
+    )
+    return per_date.map(_aggregate_over_time, period=period)
+
+
 def aggregate_idata_time(
     idata: xr.DataTree,
     period: Frequency,
