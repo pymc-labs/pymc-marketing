@@ -62,88 +62,6 @@ __all__ = [
 ]
 
 
-def _cell_label(index: np.ndarray, template: DataArray) -> tuple:
-    """Coordinate labels of one cell from its positional index, for error messages."""
-    return tuple(
-        template.coords[dim].values.tolist()[int(i)]
-        for dim, i in zip(template.dims, index, strict=True)
-    )
-
-
-def _require_labelled(da: DataArray, label: str) -> None:
-    """Refuse a DataArray whose dims carry no coordinates.
-
-    ``reindex`` has nothing to align such a dim by and stamps the model's labels on in arrival order, so the
-    same values in a different order would resolve to a different map. Same hazard, and same rule, as
-    ``BudgetOptimizer._require_labelled_plan``.
-    """
-    unlabelled = [dim for dim in da.dims if dim not in da.coords]
-    if unlabelled:
-        raise ValueError(
-            f"{label}: dims {unlabelled} carry no coordinates. Alignment would fall back to position, so the "
-            "same values in a different order would mean a different thing. Give those dims the model's "
-            "coordinate labels."
-        )
-
-
-def _layout(
-    dims: tuple[str, ...], coords: Mapping[str, list], mask: DataArray
-) -> tuple[DataArray, np.ndarray]:
-    """Build a zero template over one variable's cell layout and its optimized-cell mask in model order."""
-    dims = tuple(dims)
-    template = DataArray(
-        np.zeros(tuple(len(coords[d]) for d in dims)),
-        dims=dims,
-        coords={d: list(coords[d]) for d in dims},
-    )
-    on = np.asarray(mask.transpose(*dims).values, dtype=bool)
-    return template, on
-
-
-def _power_floor_coefficients(
-    gamma: np.ndarray, reference_spend: np.ndarray, max_slope_ratio: float
-) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-    """Quadratic-floor location and coefficients ``(s_floor, scale, a, b)`` per cell.
-
-    Closed forms under a double ``where``: a bare ``np.where(active, f(gamma), 0.0)`` still evaluates ``f`` on
-    the ``gamma = 0`` cells, where ``-1 / gamma`` and ``s_f ** -1`` warn and produce ``inf``/``nan``. A ``nan``
-    constant in a dead branch is harmless on the C backend but poisons the gradient under JAX.
-    """
-    active = gamma > 0.0
-    safe_gamma = np.where(active, gamma, 1.0)
-    inner = max_slope_ratio * (1.0 - safe_gamma) / (1.0 + safe_gamma)
-    safe_inner = np.where(active, inner, 2.0)
-    s_floor = np.where(active, reference_spend * safe_inner ** (-1.0 / safe_gamma), 0.0)
-    safe_floor = np.where(active, s_floor, 1.0)
-    scale = reference_spend**gamma
-    a = np.where(active, (1.0 + gamma) * scale * safe_floor**-gamma, scale)
-    b = np.where(active, -gamma * scale * safe_floor ** (-gamma - 1.0), 0.0)
-    return s_floor, scale, a, b
-
-
-def _warn_wide_floor(
-    label: str,
-    gamma: np.ndarray,
-    s_floor: np.ndarray,
-    reference_spend: np.ndarray,
-    max_slope_ratio: float,
-) -> None:
-    """Warn when the quadratic floor reaches above 1% of the reference spend."""
-    wide = (gamma > 0.0) & (s_floor > 0.01 * reference_spend)
-    if not np.any(wide):
-        return
-    warnings.warn(
-        f"{label}: max_slope_ratio={max_slope_ratio:g} puts the quadratic floor above 1% of "
-        f"the reference spend on cells with elasticity {np.unique(gamma[wide]).tolist()} "
-        f"(floor / reference up to {float((s_floor / reference_spend)[wide].max()):.3g}). "
-        "At high elasticity a bounded slope spread and a narrow floor region are not both "
-        "available. Raise max_slope_ratio to narrow the floor, or accept that the map is "
-        "quadratic over that range.",
-        UserWarning,
-        stacklevel=3,
-    )
-
-
 class ResolvedPriceResponse(ABC):
     """A price response bound to one decision variable's cell layout.
 
@@ -226,10 +144,10 @@ class ResolvedPowerPriceResponse(ResolvedPriceResponse):
         self.reference_spend = reference_spend
         self.max_slope_ratio = float(max_slope_ratio)
         self.is_identity = bool(np.all(gamma == 0.0))
-        self.s_floor, self.scale, self.a, self.b = _power_floor_coefficients(
+        self.s_floor, self.scale, self.a, self.b = self._power_floor_coefficients(
             gamma, reference_spend, self.max_slope_ratio
         )
-        _warn_wide_floor(
+        self._warn_wide_floor(
             label, gamma, self.s_floor, reference_spend, self.max_slope_ratio
         )
         self._gamma = self._constant(gamma)
@@ -238,6 +156,52 @@ class ResolvedPowerPriceResponse(ResolvedPriceResponse):
         self._scale = self._constant(self.scale)
         self._a = self._constant(self.a)
         self._b = self._constant(self.b)
+
+    @staticmethod
+    def _power_floor_coefficients(
+        gamma: np.ndarray, reference_spend: np.ndarray, max_slope_ratio: float
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+        """Quadratic-floor location and coefficients ``(s_floor, scale, a, b)`` per cell.
+
+        Closed forms under a double ``where``: a bare ``np.where(active, f(gamma), 0.0)`` still evaluates ``f``
+        on the ``gamma = 0`` cells, where ``-1 / gamma`` and ``s_f ** -1`` warn and produce ``inf``/``nan``. A
+        ``nan`` constant in a dead branch is harmless on the C backend but poisons the gradient under JAX.
+        """
+        active = gamma > 0.0
+        safe_gamma = np.where(active, gamma, 1.0)
+        inner = max_slope_ratio * (1.0 - safe_gamma) / (1.0 + safe_gamma)
+        safe_inner = np.where(active, inner, 2.0)
+        s_floor = np.where(
+            active, reference_spend * safe_inner ** (-1.0 / safe_gamma), 0.0
+        )
+        safe_floor = np.where(active, s_floor, 1.0)
+        scale = reference_spend**gamma
+        a = np.where(active, (1.0 + gamma) * scale * safe_floor**-gamma, scale)
+        b = np.where(active, -gamma * scale * safe_floor ** (-gamma - 1.0), 0.0)
+        return s_floor, scale, a, b
+
+    @staticmethod
+    def _warn_wide_floor(
+        label: str,
+        gamma: np.ndarray,
+        s_floor: np.ndarray,
+        reference_spend: np.ndarray,
+        max_slope_ratio: float,
+    ) -> None:
+        """Warn when the quadratic floor reaches above 1% of the reference spend."""
+        wide = (gamma > 0.0) & (s_floor > 0.01 * reference_spend)
+        if not np.any(wide):
+            return
+        warnings.warn(
+            f"{label}: max_slope_ratio={max_slope_ratio:g} puts the quadratic floor above 1% of "
+            f"the reference spend on cells with elasticity {np.unique(gamma[wide]).tolist()} "
+            f"(floor / reference up to {float((s_floor / reference_spend)[wide].max()):.3g}). "
+            "At high elasticity a bounded slope spread and a narrow floor region are not both "
+            "available. Raise max_slope_ratio to narrow the floor, or accept that the map is "
+            "quadratic over that range.",
+            UserWarning,
+            stacklevel=3,
+        )
 
     def _constant(self, values: np.ndarray) -> XTensorVariable:
         return as_xtensor(pt.constant(values, dtype="float64"), dims=self.dims)
@@ -381,6 +345,44 @@ class PriceResponse(BaseModel, ABC):
             Length of the optimization window, when known. Lets a family test the specific hypothesis that a
             supplied reference is a window total rather than a per-period rate.
         """
+
+    @staticmethod
+    def _layout(
+        dims: tuple[str, ...], coords: Mapping[str, list], mask: DataArray
+    ) -> tuple[DataArray, np.ndarray]:
+        """Build a zero template over one variable's cell layout and its optimized-cell mask in model order."""
+        dims = tuple(dims)
+        template = DataArray(
+            np.zeros(tuple(len(coords[d]) for d in dims)),
+            dims=dims,
+            coords={d: list(coords[d]) for d in dims},
+        )
+        on = np.asarray(mask.transpose(*dims).values, dtype=bool)
+        return template, on
+
+    @staticmethod
+    def _require_labelled(da: DataArray, label: str) -> None:
+        """Refuse a DataArray whose dims carry no coordinates.
+
+        ``reindex`` has nothing to align such a dim by and stamps the model's labels on in arrival order, so
+        the same values in a different order would resolve to a different map. Same hazard, and same rule, as
+        ``BudgetOptimizer._require_labelled_plan``.
+        """
+        unlabelled = [dim for dim in da.dims if dim not in da.coords]
+        if unlabelled:
+            raise ValueError(
+                f"{label}: dims {unlabelled} carry no coordinates. Alignment would fall back to position, so "
+                "the same values in a different order would mean a different thing. Give those dims the "
+                "model's coordinate labels."
+            )
+
+    @staticmethod
+    def _cell_label(index: np.ndarray, template: DataArray) -> tuple:
+        """Coordinate labels of one cell from its positional index, for error messages."""
+        return tuple(
+            template.coords[dim].values.tolist()[int(i)]
+            for dim, i in zip(template.dims, index, strict=True)
+        )
 
 
 class PowerPriceResponse(PriceResponse):
@@ -551,7 +553,7 @@ class PowerPriceResponse(PriceResponse):
         """Report whether every *optimized* cell has zero elasticity; see :meth:`PriceResponse.is_identity_on`."""
         if self.is_identity:
             return True
-        template, on = _layout(dims, coords, mask)
+        template, on = self._layout(dims, coords, mask)
         gamma = self._resolve_elasticity(template, date_dim, label)
         return bool(np.all(gamma[on] == 0.0))
 
@@ -567,7 +569,7 @@ class PowerPriceResponse(PriceResponse):
         num_periods: int | None = None,
     ) -> ResolvedPowerPriceResponse:
         """Bind to one variable's layout; see :meth:`PriceResponse.resolve`."""
-        template, on = _layout(dims, coords, mask)
+        template, on = self._layout(dims, coords, mask)
         # A masked cell spends exactly nothing whatever its elasticity, so it gets gamma = 0.
         gamma = np.where(on, self._resolve_elasticity(template, date_dim, label), 0.0)
         reference = self._resolve_reference(
@@ -650,7 +652,7 @@ class PowerPriceResponse(PriceResponse):
             raise ValueError(
                 f"{label}: elasticity has dims {extra} that are not budget dims {list(dims)}."
             )
-        _require_labelled(e, f"{label}: elasticity")
+        PriceResponse._require_labelled(e, f"{label}: elasticity")
         aligned = align_to_model_coords(
             e,
             {d: template.coords[d].values.tolist() for d in e.dims},
@@ -718,7 +720,7 @@ class PowerPriceResponse(PriceResponse):
                 f"{label}: reference_spend must have exactly the budget dims {list(dims)} -- per-period "
                 f"money per cell, with no {date_dim!r} dim -- got {list(ref.dims)}."
             )
-        _require_labelled(ref, f"{label}: reference_spend")
+        self._require_labelled(ref, f"{label}: reference_spend")
         aligned = align_to_model_coords(
             ref,
             {d: template.coords[d].values.tolist() for d in dims},
@@ -746,7 +748,8 @@ class PowerPriceResponse(PriceResponse):
         comparable = np.isfinite(expected) & (expected > 0.0)
         if not comparable.all():
             cells = [
-                _cell_label(idx, template) for idx in np.argwhere(on)[~comparable][:5]
+                self._cell_label(idx, template)
+                for idx in np.argwhere(on)[~comparable][:5]
             ]
             warnings.warn(
                 f"{label}: reference_spend could not be checked against the fitted spend for cells "
@@ -772,7 +775,7 @@ class PowerPriceResponse(PriceResponse):
         )
         worst = int(np.argmax(ratio))
         if ratio[worst] > self.reference_spend_tolerance:
-            cell = _cell_label(np.argwhere(on)[worst], template)
+            cell = self._cell_label(np.argwhere(on)[worst], template)
             raise ValueError(
                 f"{label}: reference_spend at cell {cell} is {supplied[worst]:.4g}, but the fitted "
                 f"spend's on-air mean per period is {expected[worst]:.4g} ({ratio[worst]:.3g}x apart; "
@@ -794,7 +797,9 @@ class PowerPriceResponse(PriceResponse):
         """Refuse non-positive or non-finite values on optimized cells; neutralise the rest."""
         bad = on & ~(np.isfinite(values) & (values > 0.0))
         if bad.any():
-            cells = [_cell_label(idx, template) for idx in np.argwhere(bad)[:5]]
+            cells = [
+                PriceResponse._cell_label(idx, template) for idx in np.argwhere(bad)[:5]
+            ]
             more = ", ..." if int(bad.sum()) > 5 else ""
             raise ValueError(
                 f"{label}: {reason} for optimized cells {cells}{more}, so there is no spend level to anchor "
