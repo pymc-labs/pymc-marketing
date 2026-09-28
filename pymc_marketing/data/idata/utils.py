@@ -252,7 +252,10 @@ def aggregate_idata_time(
     Returns
     -------
     xr.DataTree
-        New DataTree with aggregated groups (or unchanged if period="original")
+        New DataTree with aggregated groups (or unchanged if period="original").
+        Its root ``attrs`` record the aggregation as ``time_aggregation=period``
+        so that consumers of per-date quantities can tell the data apart from
+        the original dates.
 
     Notes
     -----
@@ -279,7 +282,7 @@ def aggregate_idata_time(
             if path != "/"
         }
     )
-    result.attrs = idata.attrs.copy()
+    result.attrs = {**idata.attrs, "time_aggregation": period}
     return result
 
 
