@@ -26,9 +26,9 @@ import xarray as xr
 from pymc_marketing.data.idata.schema import Frequency
 from pymc_marketing.data.idata.utils import (
     _aggregate_over_time,
-    _broadcast_over_date,
     aggregate_idata_dims,
     aggregate_idata_time,
+    broadcast_over_date,
     filter_idata_by_dates,
     filter_idata_by_dims,
 )
@@ -102,7 +102,7 @@ def _broadcast_per_period_contributions(idata: xr.DataTree) -> xr.DataTree:
             result = idata.copy()
         result[path].dataset = node.to_dataset(inherit=False).assign(
             {
-                name: _broadcast_over_date(dataset[name], dataset["date"])
+                name: broadcast_over_date(dataset[name], dataset["date"])
                 for name in to_broadcast
             }
         )

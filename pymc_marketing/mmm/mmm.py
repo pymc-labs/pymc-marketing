@@ -1338,6 +1338,7 @@ class MMM(RegressionModelBuilder):
 
         return MMMIDataWrapper.from_mmm(self)
 
+    @validate_call
     def compute_counterfactual_contributions_dataset(
         self,
         central_tendency: Literal["median", "mean"] = "median",
@@ -1435,7 +1436,9 @@ class MMM(RegressionModelBuilder):
         period : {"original", "weekly", "monthly", "quarterly", "yearly", "all_time"}, default "original"
             Time period to sum the per-date contributions over, per draw.
             ``"original"`` keeps every date, ``"all_time"`` removes the
-            ``date`` dim.
+            ``date`` dim. A period shorter than the spacing of the dates
+            (e.g. ``"weekly"`` on monthly data) leaves empty periods, which
+            are ``NaN``.
 
         Returns
         -------
@@ -1453,7 +1456,9 @@ class MMM(RegressionModelBuilder):
         Raises
         ------
         ValueError
-            If the model has not been fitted (no ``idata``).
+            If ``central_tendency`` or ``period`` is not one of the listed
+            values (a :class:`pydantic.ValidationError`, raised before any
+            computation), or if the model has not been fitted (no ``idata``).
 
         Examples
         --------
@@ -1569,9 +1574,10 @@ class MMM(RegressionModelBuilder):
 
         # Decompose per date first, then sum over the dates of each period: under
         # the log link the inverse link is nonlinear in mu, so the other order is
-        # wrong. A time-invariant intercept is counted once per period.
+        # wrong. A time-invariant intercept is counted once per observed date.
         return sum_contributions_over_time(dataset, period)
 
+    @validate_call
     def compute_mean_contributions_over_time(
         self,
         central_tendency: Literal["median", "mean"] = "median",
@@ -1659,7 +1665,9 @@ class MMM(RegressionModelBuilder):
         Raises
         ------
         ValueError
-            If the model has not been fitted (no ``idata``).
+            If ``central_tendency`` or ``period`` is not one of the listed
+            values (a :class:`pydantic.ValidationError`, raised before any
+            computation), or if the model has not been fitted (no ``idata``).
 
         Examples
         --------

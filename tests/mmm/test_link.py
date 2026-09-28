@@ -831,6 +831,22 @@ class TestCounterfactualDecompositionPeriod:
                 rtol=1e-6,
             )
 
+    @pytest.mark.parametrize(
+        "method",
+        [
+            "compute_counterfactual_contributions_dataset",
+            "compute_mean_contributions_over_time",
+        ],
+    )
+    def test_invalid_period_is_rejected_before_any_work(self, method):
+        """A typo fails at the call, with the valid values, not deep in the sum."""
+        unfitted = _make_mmm(link="identity")
+
+        with pytest.raises(ValueError, match=r"(?s)period.*'monthly'") as excinfo:
+            getattr(unfitted, method)(period="Monthly")
+
+        assert "idata" not in str(excinfo.value)
+
 
 class TestEquality:
     """Test that link is included in equality comparison."""
