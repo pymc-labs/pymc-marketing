@@ -33,6 +33,7 @@ from pymc_extras.prior import Prior, VariableFactory
 from pytensor.graph.basic import Variable
 
 from pymc_marketing.mmm.components.base import Transformation
+from pymc_marketing.mmm.experimental._data import _align_labels
 from pymc_marketing.mmm.link import LinkFunction, get_link_spec
 from pymc_marketing.terms import (
     Dot,
@@ -50,7 +51,7 @@ if TYPE_CHECKING:
     from pymc_marketing.mmm.experimental._terms import MediaTransform
 
 _ACTIVE_CONTEXT: ContextVar[BuildContext | None] = ContextVar(
-    "experimental_mmm_build_context", default=None
+    "experimental_gam_build_context", default=None
 )
 
 
@@ -306,7 +307,7 @@ class Equation(GraphTerm):
             observed = context._observations(binding)
             return pmd.Deterministic(binding.name, observed, dims=binding.dims)
 
-        prior = copy_prior(self.likelihood)
+        prior = context._recipe(self.likelihood)
         if binding.observed is not None and (prior.transform or not prior.centered):
             raise ValueError(
                 "Observed equations do not support transformed or noncentered likelihood recipes."
@@ -666,6 +667,30 @@ class BuildContext:
         self._finite(self._observation_array(binding), observed)
         return self.data(observed)
 
+    def _recipe(self, value: Any) -> Any:
+        """Copy a recipe, matching labeled ``DataArray`` parameters of ``Prior`` to the data.
+
+        Parameters labeled along a dataset dimension are reordered to the dataset's
+        labels, so their meaning never depends on position. Unlabeled arrays and
+        other distribution factories keep their own conventions.
+        """
+        return self._aligned(_copy_recipe_value(value))
+
+    def _aligned(self, value: Any) -> Any:
+        if type(value) is Prior:
+            value.parameters.update(
+                {name: self._aligned(item) for name, item in value.parameters.items()}
+            )
+            return value
+        if isinstance(value, xr.DataArray):
+            dims = [
+                dim for dim in value.dims if dim in value.coords and dim in self.ds.dims
+            ]
+            return _align_labels(value, self.ds, dims=dims) if dims else value
+        if isinstance(value, dict):
+            return {key: self._aligned(item) for key, item in value.items()}
+        return value
+
     def _bound_value(self, value: Any) -> Any:
         if isinstance(value, (ModelTerm, Sum, Product)):
             key = id(value)
@@ -673,7 +698,7 @@ class BuildContext:
                 self._references[key] = _Reference(self, value)
             return self._references[key]
         if isinstance(value, VariableFactory):
-            return _copy_recipe_value(value)
+            return self._recipe(value)
         if isinstance(value, dict):
             return {key: self._bound_value(item) for key, item in value.items()}
         if isinstance(value, list):
@@ -771,7 +796,7 @@ class BuildContext:
             expression = expression.item()
         if not isinstance(expression, (ModelTerm, Sum, Product)):
             recipe = (
-                _copy_recipe_value(expression)
+                self._recipe(expression)
                 if isinstance(expression, VariableFactory)
                 else expression
             )

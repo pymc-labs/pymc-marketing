@@ -32,6 +32,7 @@ from pymc_marketing.mmm import (
 from pymc_marketing.mmm.experimental import Data, MediaTransform, Seasonality
 from pymc_marketing.mmm.experimental._graph import BuildContext, total_lookback
 from pymc_marketing.mmm.transformers import ConvMode
+from pymc_marketing.terms import Parameter
 
 DATES = pd.date_range("2025-01-06", periods=5, freq="W-MON")
 CHANNELS = ["radio", "tv"]
@@ -126,6 +127,32 @@ def test_channel_prior_is_applied_per_channel(ds):
         rtol=0,
         atol=1e-12,
     )
+
+
+@pytest.mark.parametrize(
+    "build",
+    [
+        lambda sigma: (
+            Data("spend")
+            >> LogisticSaturation(
+                priors={"lam": 1.0, "beta": Prior("HalfNormal", sigma=sigma)}
+            )
+        ),
+        lambda sigma: Parameter(
+            "saturation_beta", Prior("HalfNormal", sigma=sigma, dims="channel")
+        ),
+    ],
+    ids=["transformation", "parameter"],
+)
+def test_labeled_prior_parameters_follow_data_labels(ds, build):
+    ordered = xr.DataArray([1.0, 3.0], dims="channel", coords={"channel": CHANNELS})
+
+    def logp(sigma):
+        with pm.Model() as model:
+            BuildContext(ds).build(build(sigma))
+        return model.compile_logp()({"saturation_beta_log__": np.array([0.0, 1.0])})
+
+    assert logp(ordered.sel(channel=CHANNELS[::-1])) == pytest.approx(logp(ordered))
 
 
 def test_unspecified_prior_dims_follow_media_dims():

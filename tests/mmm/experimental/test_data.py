@@ -11,7 +11,7 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
-"""Labeled dataset validation contracts for the experimental MMM."""
+"""Labeled dataset validation contracts for the experimental GAM."""
 
 import numpy as np
 import pandas as pd

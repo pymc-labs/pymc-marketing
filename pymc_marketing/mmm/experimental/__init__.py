@@ -11,14 +11,14 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
-"""Experimental, graph-first media mix models.
+"""Experimental, graph-first generalized additive models.
 
 Compose the mean of each observed ``Equation`` from ``pymc_marketing.terms``
 building blocks, ``Data`` references, and the graph terms in this namespace, then
-hand the equations to ``MMM``. Data enter only through ``fit`` and
-``sample_posterior_predictive`` as an ``xarray.Dataset`` in which each variable
-keeps its own labeled dimensions. There is no model-wide dimension list, no
-privileged outcome, and no hidden scaling.
+hand the equations to ``GAM``. Data enter only through ``fit``,
+``sample_prior_predictive``, and ``sample_posterior_predictive`` as an
+``xarray.Dataset`` in which each variable keeps its own labeled dimensions. There
+is no model-wide dimension list, no privileged outcome, and no hidden scaling.
 
 ``Data("spend") >> adstock >> saturation`` applies configured transformations
 along ``date``; their priors without ``dims`` take the input's other dimensions.
@@ -35,7 +35,7 @@ families or observation layouts are separate equations sharing terms by identity
     import xarray as xr
     from pymc_extras.prior import Prior
     from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation
-    from pymc_marketing.mmm.experimental import MMM, Data, Equation
+    from pymc_marketing.mmm.experimental import GAM, Data, Equation
     from pymc_marketing.terms import Intercept, Parameter
 
     response = (
@@ -56,17 +56,19 @@ families or observation layouts are separate equations sharing terms by identity
         mu=mu,
         likelihood=Prior("Normal", sigma=Prior("HalfNormal", dims="target")),
     )
-    mmm = MMM(sales)
+    gam = GAM(sales)
     # train: xr.Dataset with spend(date, channel), price(date, product),
     # and sales(date, product, target); future omits sales.
-    # mmm.fit(train)
-    # mmm.sample_posterior_predictive(future)
+    # gam.sample_prior_predictive(train)
+    # gam.fit(train)
+    # gam.save("model.zarr"); gam = GAM.load("model.zarr")
+    # gam.sample_posterior_predictive(future)
 
 Prediction is forward simulation with fitted parameters, not a causal-identification procedure.
 """
 
+from pymc_marketing.mmm.experimental._gam import GAM
 from pymc_marketing.mmm.experimental._graph import Data, Equation
-from pymc_marketing.mmm.experimental._mmm import MMM
 from pymc_marketing.mmm.experimental._terms import MediaTransform, Seasonality
 
-__all__ = ["MMM", "Data", "Equation", "MediaTransform", "Seasonality"]
+__all__ = ["GAM", "Data", "Equation", "MediaTransform", "Seasonality"]

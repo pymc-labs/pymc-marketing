@@ -11,7 +11,7 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
-"""Behavioral contracts of the experimental graph-first MMM: fitting and forecasting."""
+"""Behavioral contracts of the experimental GAM: fitting, prior checks, and forecasting."""
 
 import numpy as np
 import pandas as pd
@@ -23,8 +23,8 @@ from scipy.special import gammaln
 from scipy.stats import norm
 
 from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation
-from pymc_marketing.mmm.experimental import MMM, Data, Equation
-from pymc_marketing.terms import Intercept, Parameter, Transform
+from pymc_marketing.mmm.experimental import GAM, Data, Equation
+from pymc_marketing.terms import Dot, Intercept, Parameter, Transform
 
 SAMPLE_KWARGS = {
     "draws": 30,
@@ -144,29 +144,29 @@ def multi_target():
         rng.gamma(2.0, 1.0, size=(len(FUTURE_DATES), len(CHANNELS))),
         rng.uniform(1.0, 3.0, size=(len(FUTURE_DATES), len(PRODUCTS))),
     )
-    mmm = MMM(_multi_target_recipe())
-    mmm.fit(train, **SAMPLE_KWARGS)
-    return mmm, train, future
+    gam = GAM(_multi_target_recipe())
+    gam.fit(train, **SAMPLE_KWARGS)
+    return gam, train, future
 
 
-def _forecast_mean(mmm, future, **kwargs):
-    return mmm.sample_posterior_predictive(
+def _forecast_mean(gam, future, **kwargs):
+    return gam.sample_posterior_predictive(
         future, var_names=["sales", "sales_mean"], **PREDICT_KWARGS, **kwargs
     )
 
 
-def _oracle_with_history(mmm, train, future):
+def _oracle_with_history(gam, train, future):
     spend = np.concatenate(
         [train["spend"].values[-(L_MAX - 1) :], future["spend"].values]
     )
     return _sales_mean_oracle(
-        mmm.idata["posterior"].to_dataset(), spend, future["price"].values, L_MAX - 1
+        gam.idata["posterior"].to_dataset(), spend, future["price"].values, L_MAX - 1
     )
 
 
 def test_multi_target_forecast_matches_numpy_oracle(multi_target):
-    mmm, train, future = multi_target
-    prediction = _forecast_mean(mmm, future)
+    gam, train, future = multi_target
+    prediction = _forecast_mean(gam, future)
 
     assert prediction["sales"].sizes == {
         "chain": 1,
@@ -181,13 +181,13 @@ def test_multi_target_forecast_matches_numpy_oracle(multi_target):
         prediction["sales_mean"]
         .transpose("chain", "draw", "date", "product", "target")
         .values,
-        _oracle_with_history(mmm, train, future),
+        _oracle_with_history(gam, train, future),
         atol=1e-10,
     )
 
 
 def test_forecast_is_invariant_to_label_order(multi_target):
-    mmm, _, future = multi_target
+    gam, _, future = multi_target
     reversed_labels = _multi_target_future(
         future["spend"].values[:, ::-1],
         future["price"].values,
@@ -195,33 +195,33 @@ def test_forecast_is_invariant_to_label_order(multi_target):
         coords={"target": TARGETS[::-1]},
     )
 
-    baseline = _forecast_mean(mmm, future)["sales_mean"]
-    reordered = _forecast_mean(mmm, reversed_labels)["sales_mean"]
+    baseline = _forecast_mean(gam, future)["sales_mean"]
+    reordered = _forecast_mean(gam, reversed_labels)["sales_mean"]
 
     assert list(reordered["target"].values) == TARGETS
     np.testing.assert_allclose(reordered.values, baseline.values, atol=1e-10)
 
 
 def test_forecast_responds_to_future_spend(multi_target):
-    mmm, train, future = multi_target
+    gam, train, future = multi_target
     scaled = future.assign(spend=future["spend"] * 1.7)
 
-    baseline = _forecast_mean(mmm, future)["sales_mean"]
-    prediction = _forecast_mean(mmm, scaled)["sales_mean"]
+    baseline = _forecast_mean(gam, future)["sales_mean"]
+    prediction = _forecast_mean(gam, scaled)["sales_mean"]
 
     assert not np.allclose(prediction.values, baseline.values)
     np.testing.assert_allclose(
         prediction.transpose("chain", "draw", "date", "product", "target").values,
-        _oracle_with_history(mmm, train, scaled),
+        _oracle_with_history(gam, train, scaled),
         atol=1e-10,
     )
 
 
 def test_forecast_without_history_pads_with_zeros(multi_target):
-    mmm, _, future = multi_target
+    gam, _, future = multi_target
 
-    with_history = _forecast_mean(mmm, future)["sales_mean"]
-    scenario = _forecast_mean(mmm, future, include_last_observations=False)[
+    with_history = _forecast_mean(gam, future)["sales_mean"]
+    scenario = _forecast_mean(gam, future, include_last_observations=False)[
         "sales_mean"
     ]
 
@@ -229,7 +229,7 @@ def test_forecast_without_history_pads_with_zeros(multi_target):
     np.testing.assert_allclose(
         scenario.transpose("chain", "draw", "date", "product", "target").values,
         _sales_mean_oracle(
-            mmm.idata["posterior"].to_dataset(),
+            gam.idata["posterior"].to_dataset(),
             future["spend"].values,
             future["price"].values,
             0,
@@ -261,28 +261,58 @@ def test_forecast_without_history_pads_with_zeros(multi_target):
     ],
 )
 def test_forecast_rejects_inconsistent_future_data(multi_target, alter, match):
-    mmm, _, future = multi_target
+    gam, _, future = multi_target
     with pytest.raises(ValueError, match=match):
-        _forecast_mean(mmm, alter(future))
+        _forecast_mean(gam, alter(future))
 
 
 def test_build_model_requires_every_observation_variable():
     train = _multi_target_training().drop_vars("sales")
     with pytest.raises(ValueError, match="missing observations 'sales'"):
-        MMM(_multi_target_recipe()).build_model(train)
+        GAM(_multi_target_recipe()).build_model(train)
 
 
 def test_forecast_leaves_fit_untouched(multi_target):
-    mmm, train, future = multi_target
-    fitted_model = mmm.model
+    gam, train, future = multi_target
+    fitted_model = gam.model
     train_before = train.copy(deep=True)
-    posterior_before = mmm.idata["posterior"].to_dataset().copy(deep=True)
+    posterior_before = gam.idata["posterior"].to_dataset().copy(deep=True)
 
-    _forecast_mean(mmm, future.isel(channel=slice(None, None, -1)))
+    _forecast_mean(gam, future.isel(channel=slice(None, None, -1)))
 
-    assert mmm.model is fitted_model
+    assert gam.model is fitted_model
     xr.testing.assert_identical(train, train_before)
-    xr.testing.assert_identical(mmm.idata["posterior"].to_dataset(), posterior_before)
+    xr.testing.assert_identical(gam.idata["posterior"].to_dataset(), posterior_before)
+
+
+def test_prior_predictive_samples_every_equation_without_touching_the_fit(
+    multi_target,
+):
+    gam, train, _ = multi_target
+    fitted_model = gam.model
+    posterior_before = gam.idata["posterior"].to_dataset().copy(deep=True)
+
+    prior = gam.sample_prior_predictive(train, draws=25, random_seed=3)
+
+    assert sorted(prior.children) == ["observed_data", "prior", "prior_predictive"]
+    assert prior["prior_predictive"]["sales"].sizes == {
+        "chain": 1,
+        "draw": 25,
+        "date": len(TRAIN_DATES),
+        "product": len(PRODUCTS),
+        "target": len(TARGETS),
+    }
+    assert (
+        prior["prior"]["sales_mean"].sizes == prior["prior_predictive"]["sales"].sizes
+    )
+    assert gam.model is fitted_model
+    xr.testing.assert_identical(gam.idata["posterior"].to_dataset(), posterior_before)
+
+
+def test_prior_predictive_requires_observations():
+    train = _multi_target_training().drop_vars("sales")
+    with pytest.raises(ValueError, match="missing observations 'sales'"):
+        GAM(_multi_target_recipe()).sample_prior_predictive(train, draws=5)
 
 
 DRIVER = np.array([0.5, 1.0, 1.5, 2.0, 2.5])
@@ -329,9 +359,9 @@ def shared_slope():
         mu=slope,
         likelihood=Prior("Normal", sigma=0.2),
     )
-    mmm = MMM(revenue, orders, calibration)
-    mmm.fit(_shared_slope_training(), **SAMPLE_KWARGS)
-    return mmm
+    gam = GAM(revenue, orders, calibration)
+    gam.fit(_shared_slope_training(), **SAMPLE_KWARGS)
+    return gam
 
 
 def _shared_slope_logp(slope):
@@ -415,8 +445,8 @@ def conditioning():
         mu=Parameter("beta", Prior("Normal")) * search,
         likelihood=Prior("Normal", sigma=Prior("HalfNormal")),
     )
-    mmm = MMM(search, sales)
-    mmm.fit(_conditioning_training(), **SAMPLE_KWARGS)
+    gam = GAM(search, sales)
+    gam.fit(_conditioning_training(), **SAMPLE_KWARGS)
     future = xr.Dataset(
         {
             "tv": ("date", np.array([1.0, 2.0, 3.0])),
@@ -424,16 +454,16 @@ def conditioning():
         },
         coords={"date": pd.date_range("2025-06-09", periods=3, freq="D")},
     )
-    return mmm, future
+    return gam, future
 
 
 def test_condition_on_holds_supplied_observations_fixed(conditioning):
-    mmm, future = conditioning
+    gam, future = conditioning
 
-    conditioned = mmm.sample_posterior_predictive(
+    conditioned = gam.sample_posterior_predictive(
         future, condition_on=["search"], **PREDICT_KWARGS
     )
-    generated = mmm.sample_posterior_predictive(
+    generated = gam.sample_posterior_predictive(
         future, condition_on=(), **PREDICT_KWARGS
     )
 
@@ -452,20 +482,20 @@ def test_condition_on_holds_supplied_observations_fixed(conditioning):
     ],
 )
 def test_condition_on_rejects_invalid_selectors(conditioning, condition_on, error):
-    mmm, future = conditioning
+    gam, future = conditioning
     with pytest.raises(error):
-        mmm.sample_posterior_predictive(
+        gam.sample_posterior_predictive(
             future, condition_on=condition_on, **PREDICT_KWARGS
         )
 
 
-def test_mmm_rejects_invalid_equation_sets():
+def test_gam_rejects_invalid_equation_sets():
     with pytest.raises(TypeError):
-        MMM()
+        GAM()
     with pytest.raises(ValueError, match="name its observations"):
-        MMM(Equation(name="latent", mu=Parameter("a", Prior("Normal"))))
+        GAM(Equation(name="latent", mu=Parameter("a", Prior("Normal"))))
     with pytest.raises(ValueError, match="distinct"):
-        MMM(
+        GAM(
             Equation(observed="y", mu=Parameter("a", Prior("Normal"))),
             Equation(observed="y", mu=Parameter("b", Prior("Normal"))),
         )
@@ -479,38 +509,53 @@ def _scalar_training():
 
 
 def test_equation_name_defaults_to_observed_variable():
-    model = MMM(
+    model = GAM(
         Equation(observed="y", mu=Parameter("level", Prior("Normal")))
     ).build_model(_scalar_training())
 
     assert [rv.name for rv in model.observed_RVs] == ["y"]
 
 
+def test_nanosecond_dates_build_with_dot_terms():
+    dates = pd.date_range("2025-01-01", periods=4, freq="D").as_unit("ns")
+    train = xr.Dataset(
+        {"x": (("date", "feature"), np.ones((4, 1))), "y": ("date", np.ones(4))},
+        coords={"date": dates, "feature": ["a"]},
+    )
+    model = GAM(
+        Equation(
+            observed="y", mu=Dot(var_name="x", prior=Prior("Normal", dims="feature"))
+        )
+    ).build_model(train)
+
+    assert model.named_vars_to_dims["x_beta"] == ("feature",)
+
+
 def test_specification_change_after_fit_blocks_prediction():
     likelihood = Prior("Normal", sigma=1)
-    mmm = MMM(
+    gam = GAM(
         Equation(
             observed="y", mu=Parameter("level", Prior("Normal")), likelihood=likelihood
         )
     )
     train = _scalar_training()
-    mmm.fit(train, **SAMPLE_KWARGS)
+    gam.fit(train, **SAMPLE_KWARGS)
 
     likelihood.parameters["sigma"] = 3
 
     with pytest.raises(RuntimeError, match="specification changed"):
-        mmm.sample_posterior_predictive(train, **PREDICT_KWARGS)
+        gam.sample_posterior_predictive(train, **PREDICT_KWARGS)
 
 
 def test_failed_rebuild_clears_previous_fit():
-    mmm = MMM(Equation(observed="y", mu=Parameter("level", Prior("Normal"))))
+    gam = GAM(Equation(observed="y", mu=Parameter("level", Prior("Normal"))))
     train = _scalar_training()
-    mmm.fit(train, **SAMPLE_KWARGS)
+    gam.fit(train, **SAMPLE_KWARGS)
 
     with pytest.raises(ValueError, match="missing observations 'y'"):
-        mmm.build_model(train.rename(y="z"))
+        gam.build_model(train.rename(y="z"))
 
-    assert mmm.model is None
-    assert mmm.idata is None
+    assert gam.model is None
+    assert gam.idata is None
     with pytest.raises(RuntimeError, match="fit before"):
-        mmm.sample_posterior_predictive(train, **PREDICT_KWARGS)
+        gam.sample_posterior_predictive(train, **PREDICT_KWARGS)

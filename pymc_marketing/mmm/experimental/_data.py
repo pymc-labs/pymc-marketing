@@ -11,8 +11,9 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
-"""Labeled dataset validation for the experimental MMM."""
+"""Labeled dataset validation for the experimental GAM."""
 
+from collections.abc import Sequence
 from typing import Any
 
 import numpy as np
@@ -34,11 +35,17 @@ def _dates(values: Any) -> pd.DatetimeIndex:
 
 
 def _align_labels(
-    array: xr.DataArray, reference: xr.Dataset | xr.DataArray
+    array: xr.DataArray,
+    reference: xr.Dataset | xr.DataArray,
+    dims: Sequence[str] | None = None,
 ) -> xr.DataArray:
-    """Require matching labeled dimensions, then restore reference order."""
+    """Require matching labeled dimensions, then restore reference order.
+
+    ``dims`` limits the check and reordering to those dimensions; by default every
+    dimension of ``array`` must be labeled and present in ``reference``.
+    """
     indexers = {}
-    for dim in array.dims:
+    for dim in array.dims if dims is None else dims:
         if dim not in reference.dims or dim not in array.coords:
             raise ValueError(f"Dimension {dim!r} must have matching named coordinates.")
         source = array.get_index(dim)
@@ -66,7 +73,9 @@ def validate_dataset(data: xr.Dataset) -> xr.Dataset:
     Returns
     -------
     xarray.Dataset
-        The same variables with ``date`` parsed to a ``DatetimeIndex``.
+        The same variables with ``date`` parsed to a microsecond-resolution
+        ``DatetimeIndex``, so dates compare equal however they were encoded, for
+        example after a Zarr round trip that decodes nanoseconds.
 
     Raises
     ------
@@ -89,7 +98,7 @@ def validate_dataset(data: xr.Dataset) -> xr.Dataset:
         if not index.is_unique or pd.isna(index).any():
             raise ValueError(f"Coordinate {dim!r} must have unique, nonmissing labels.")
     if "date" in data.dims:
-        dates = _dates(data.get_index("date"))
+        dates = _dates(data.get_index("date")).as_unit("us")
         if not dates.is_unique or not dates.is_monotonic_increasing:
             raise ValueError("Dates must be unique and in increasing order.")
         data = data.assign_coords(date=dates)

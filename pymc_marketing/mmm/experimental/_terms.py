@@ -11,7 +11,7 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
-"""Graph terms binding existing MMM components to the labeled dataset."""
+"""Graph terms binding media transformations and seasonality to the labeled dataset."""
 
 from __future__ import annotations
 
@@ -30,7 +30,6 @@ from pymc_marketing.mmm.experimental._data import _align_labels, _dates
 from pymc_marketing.mmm.experimental._graph import (
     BuildContext,
     GraphTerm,
-    _copy_recipe_value,
     _dimensions,
 )
 from pymc_marketing.mmm.fourier import FourierBase
@@ -129,7 +128,7 @@ class MediaTransform(GraphTerm):
     ) -> dict[str, Any]:
         clone = copy(self.transformation)
         clone.__dict__ = {
-            key: _copy_recipe_value(value)
+            key: context._recipe(value)
             for key, value in vars(self.transformation).items()
         }
         for parameter, prior in clone.function_priors.items():
@@ -194,7 +193,7 @@ class Seasonality(GraphTerm):
             raise ValueError("Seasonality requires a date dimension in the dataset.")
         context._ensure_dims(("date",))
         fourier = self.fourier.model_copy(
-            update={"prior": _copy_recipe_value(self.fourier.prior)}
+            update={"prior": context._recipe(self.fourier.prior)}
         )
         context._claim_name(fourier.variable_name, self)
         context._ensure_dims(
