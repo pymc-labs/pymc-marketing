@@ -214,6 +214,7 @@ from pymc_marketing.mmm.additive_effect import (
     MuEffect,
     safe_to_datetime,
 )
+from pymc_marketing.mmm.budget_model import BudgetModelEffect
 from pymc_marketing.mmm.budget_optimizer import (
     DEFAULT_RESPONSE_VARIABLE,
     OptimizerCompatibleModelWrapper,
@@ -3876,6 +3877,8 @@ class MMM(RegressionModelBuilder):
                     f"The {dim} column is required to map the lift measurements to the model."
                 )
 
+        self._warn_lift_test_double_counting(df_lift_test)
+
         # Function to scale "delta_y", and "sigma" to same scale as target in model.
         target_transform = self._make_target_transform(df_lift_test)
 
@@ -3905,6 +3908,30 @@ class MMM(RegressionModelBuilder):
         )
 
         return self
+
+    def _warn_lift_test_double_counting(self, df_lift_test: pd.DataFrame) -> None:
+        """Warn when a lift test may already enter the model through a budget design.
+
+        A :class:`~pymc_marketing.mmm.budget_model.BudgetModelEffect` design
+        puts the test periods into the sales likelihood as data. Adding the
+        lift summary of the same experiment counts it twice.
+        """
+        keys = ["channel", *self.dims]
+        tested = set(map(tuple, df_lift_test[keys].astype(str).to_numpy()))
+        for effect in self.mu_effects:
+            if not isinstance(effect, BudgetModelEffect) or effect.design is None:
+                continue
+            designed = set(map(tuple, effect.design[keys].astype(str).to_numpy()))
+            if overlap := sorted(tested & designed):
+                warnings.warn(
+                    f"Lift tests on {overlap} overlap the design of BudgetModelEffect "
+                    f"{effect.prefix!r}. If these are the same experiments, their periods "
+                    "already enter the sales likelihood as data and the lift likelihood "
+                    "counts them twice. Use add_lift_test_measurements only for "
+                    "experiments whose periods or units are not in the MMM data.",
+                    UserWarning,
+                    stacklevel=3,
+                )
 
     def add_cost_per_target_calibration(
         self: Self,

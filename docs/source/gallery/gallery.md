@@ -197,6 +197,11 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :img-top: ../gallery/images/mmm_roas_experimentation.png
 :link: ../notebooks/mmm/mmm_roas_experimentation.html
 :::
+
+:::{grid-item-card} Endogenous Budgets: Separating Designed from Chosen Spend
+:img-top: ../gallery/images/mmm_endogenous_budget.png
+:link: ../notebooks/mmm/mmm_endogenous_budget.html
+:::
 ::::
 
 ### Time-Varying Parameters
