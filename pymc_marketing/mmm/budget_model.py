@@ -37,7 +37,7 @@ Fourier basis. The sales mean then gains a control-function term
     \mu_t = \text{MMM}_t + \sum_c \gamma_c\, v_{c,t},
 
 which carries the demand information that rides along with a budget surprise,
-so the channel response no longer has to absorb it [1]_ [2]_ [3]_.
+so the channel response no longer has to absorb it [1]_ [2]_ [3]_ [4]_.
 
 The control function removes confounding but uses up variation: once
 :math:`v_{c,t}` enters the sales equation, what is left in spend to identify the
@@ -315,13 +315,21 @@ class BudgetModelEffect(MuEffect):
     design : pd.DataFrame, optional
         Lift-test designs, in the format of :func:`lift_test_design`. Without
         a design the effect is identified by functional form only.
-    spend_intercept_prior, spend_control_prior, spend_fourier_prior,
-    spend_driver_prior, spend_sigma_prior, gamma_prior : Prior, optional
-        Priors for the spend-equation intercept, control, Fourier and driver
-        coefficients, the spend-surprise scale, and the control-function
-        coefficient. Spend is divided by its per-channel maximum, and ``gamma``
-        is on the MMM's scaled-target per scaled-spend scale. Defaults are
-        weakly informative on those scales.
+    spend_intercept_prior : Prior, optional
+        Prior for the spend-equation intercept. Spend is divided by its
+        per-channel maximum, and the defaults are weakly informative on that
+        scale.
+    spend_control_prior : Prior, optional
+        Prior for the spend-equation coefficients on the standardised controls.
+    spend_fourier_prior : Prior, optional
+        Prior for the spend-equation Fourier coefficients.
+    spend_driver_prior : Prior, optional
+        Prior for the spend-equation coefficients on the standardised drivers.
+    spend_sigma_prior : Prior, optional
+        Prior for the scale of the budget surprise.
+    gamma_prior : Prior, optional
+        Prior for the control-function coefficient, on the MMM's scaled-target
+        per scaled-spend scale.
 
     Notes
     -----
