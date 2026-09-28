@@ -11,16 +11,22 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
-"""Joint inference and forward prediction for explicit observed equations."""
+"""Joint inference, prediction, and persistence for explicit observed equations."""
 
 from __future__ import annotations
 
+import tempfile
+import zipfile
 from collections.abc import Sequence
-from typing import Any
+from pathlib import Path
+from typing import Any, cast
 
+import numpy as np
 import pandas as pd
 import pymc as pm
+import pytensor
 import xarray as xr
+import zarr
 
 from pymc_marketing.mmm.experimental._data import validate_dataset
 from pymc_marketing.mmm.experimental._graph import (
@@ -31,10 +37,21 @@ from pymc_marketing.mmm.experimental._graph import (
     total_lookback,
     walk,
 )
+from pymc_marketing.mmm.experimental._serialize import spec_from_dict, spec_to_dict
+from pymc_marketing.version import __version__
+
+_LOGP_DRAWS = 3
+_LOGP_RTOL = 1e-6
 
 
-class MMM:
-    """Fit and forecast a graph of observed equations on one labeled dataset.
+class GAM:
+    """Fit, forecast, and save a Bayesian generalized additive model of observed equations.
+
+    Each equation's mean is a sum of terms: parameters, linear effects, media
+    response curves, seasonality, and any other ``ModelTerm``. Several equations
+    with different likelihoods can share parameters in one joint model, and any
+    distribution parameter, not only ``mu``, can be modeled. This makes the class a
+    multi-response, distributional GAM.
 
     Parameters
     ----------
@@ -45,11 +62,11 @@ class MMM:
 
     Notes
     -----
-    Data enter only through ``fit`` and ``sample_posterior_predictive`` as an
-    ``xarray.Dataset`` whose every dimension carries unique labels. ``Data(name)``
-    terms reference dataset variables; nothing is scaled, centered, or expanded.
-    Each parameter and input keeps its own dimensions, and equation outputs take
-    the dimensions of their observations.
+    Data enter only through ``fit``, ``sample_prior_predictive``, and
+    ``sample_posterior_predictive`` as an ``xarray.Dataset`` whose every dimension
+    carries unique labels. ``Data(name)`` terms reference dataset variables; nothing
+    is scaled, centered, or expanded. Each parameter and input keeps its own
+    dimensions, and equation outputs take the dimensions of their observations.
 
     Prediction may change the ``date`` axis. Every other fitted coordinate must keep
     exactly the same labels, in any order; coordinates used only by omitted outputs
@@ -69,7 +86,7 @@ class MMM:
 
         from pymc_extras.prior import Prior
         from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation
-        from pymc_marketing.mmm.experimental import MMM, Data, Equation
+        from pymc_marketing.mmm.experimental import GAM, Data, Equation
         from pymc_marketing.terms import Intercept
 
         response = (
@@ -82,10 +99,13 @@ class MMM:
             mu=Intercept(prior=Prior("Normal", sigma=2)) + response.sum("channel"),
             likelihood=Prior("Normal", sigma=Prior("HalfNormal", sigma=2)),
         )
-        mmm = MMM(sales)
+        gam = GAM(sales)
         # train: xr.Dataset with spend(date, channel) and sales(date)
-        # mmm.fit(train)
-        # mmm.sample_posterior_predictive(future)
+        # prior = gam.sample_prior_predictive(train)
+        # gam.fit(train)
+        # gam.save("model.zarr")
+        # gam = GAM.load("model.zarr")
+        # gam.sample_posterior_predictive(future)
     """
 
     def __init__(self, *equations: Equation) -> None:
@@ -107,9 +127,9 @@ class MMM:
         if not self._roots or any(
             not isinstance(root, Equation) for root in self._roots
         ):
-            raise TypeError("MMM requires one or more Equation instances.")
+            raise TypeError("GAM requires one or more Equation instances.")
         if any(root.observed is None for root in self._roots):
-            raise ValueError("Each equation given to MMM must name its observations.")
+            raise ValueError("Each equation given to GAM must name its observations.")
         names = [root.name or root.observed for root in self._roots]
         if len(set(names)) != len(names):
             raise ValueError("Equation names must be distinct.")
@@ -140,6 +160,23 @@ class MMM:
                 context.build(root)
         return model, context
 
+    def _training_model(
+        self, data: xr.Dataset
+    ) -> tuple[xr.Dataset, pm.Model, BuildContext]:
+        self._validate_roots()
+        data = validate_dataset(data).copy(deep=True)
+        for node in walk(self._roots):
+            if (
+                isinstance(node, Equation)
+                and node.observed is not None
+                and node.observed not in data
+            ):
+                raise ValueError(
+                    f"Training data are missing observations {node.observed!r}."
+                )
+        model, context = self._new_model(data)
+        return data, model, context
+
     def build_model(self, data: xr.Dataset) -> pm.Model:
         """Build a fresh joint model, invalidating any earlier fit even if building fails.
 
@@ -156,24 +193,54 @@ class MMM:
         self.model = self.idata = self._context = self._training_data = None
         self._bindings = {}
         self._fitted_key = None
-        self._validate_roots()
-        data = validate_dataset(data).copy(deep=True)
-        for node in walk(self._roots):
-            if (
-                isinstance(node, Equation)
-                and node.observed is not None
-                and node.observed not in data
-            ):
-                raise ValueError(
-                    f"Training data are missing observations {node.observed!r}."
-                )
-        model, context = self._new_model(data)
+        data, model, context = self._training_model(data)
         self.model, self._context, self._training_data = model, context, data
         self._bindings = {
             identity: context.binding(equation)
             for identity, equation in context.equations.items()
         }
         return model
+
+    def sample_prior_predictive(
+        self,
+        data: xr.Dataset,
+        *,
+        draws: int = 500,
+        var_names: Sequence[str] | None = None,
+        **kwargs: Any,
+    ) -> xr.DataTree:
+        """Sample parameters and equations from the prior on training-shaped data.
+
+        Parameters
+        ----------
+        data : xarray.Dataset
+            Inputs and observations for every equation, as for ``fit``. The
+            observations set each equation's dimensions and are returned for comparison.
+        draws : int, default 500
+            Number of prior draws.
+        var_names : sequence of str, optional
+            Variables to sample. Defaults to every parameter, named deterministic,
+            and equation.
+        **kwargs : Any
+            Arguments for ``pymc.sample_prior_predictive`` such as ``random_seed``.
+
+        Returns
+        -------
+        xarray.DataTree
+            ``prior``, ``prior_predictive``, and ``observed_data`` groups. Nothing is
+            stored on this object, and an existing fit is left untouched.
+        """
+        if conflicts := {"model", "return_inferencedata"} & kwargs.keys():
+            raise ValueError(
+                f"Prior predictive sampling manages these arguments: {sorted(conflicts)}."
+            )
+        _, model, _ = self._training_model(data)
+        result = pm.sample_prior_predictive(
+            draws=draws, model=model, var_names=var_names, **kwargs
+        )
+        if "constant_data" in result.children:
+            result = result.drop_nodes("constant_data")
+        return result
 
     def fit(self, data: xr.Dataset, **kwargs: Any) -> xr.DataTree:
         """Build from this call's data and sample the joint posterior.
@@ -200,6 +267,123 @@ class MMM:
         idata = pm.sample(model=model, **kwargs)
         self.idata, self._fitted_key = idata, key
         return idata
+
+    def save(self, path: str | Path) -> None:
+        """Save the fitted model as a Zarr store.
+
+        Parameters
+        ----------
+        path : str or Path
+            ``*.zarr`` for a directory store or ``*.zarr.zip`` for a single file.
+            An existing store at ``path`` is replaced.
+
+        Raises
+        ------
+        RuntimeError
+            If the model is not fitted or its specification changed since fitting.
+        ValueError
+            If ``path`` does not end in ``.zarr`` or ``.zarr.zip``.
+        SerializationError
+            If a term cannot be saved, such as a ``Transform`` of a lambda. Register
+            the function with ``pymc_extras.prior.register_tensor_transform`` instead.
+
+        Notes
+        -----
+        The root ``zarr.json`` stores the equations under ``spec`` as a JSON node
+        table in which shared terms appear once, the library ``versions``, and a
+        ``logp_check`` of the joint log-density at a few posterior draws. The
+        ``fit_data`` group holds the training dataset, followed by ``posterior``,
+        ``sample_stats``, and ``observed_data``. The PyMC model itself is not
+        stored: ``load`` rebuilds it from the equations and training data.
+        """
+        self._check_fitted()
+        path, zipped = _store_path(path)
+        idata = cast(xr.DataTree, self.idata)
+        tree = xr.DataTree.from_dict(
+            {
+                "/fit_data": cast(xr.Dataset, self._training_data),
+                **{
+                    f"/{name}": node.to_dataset()
+                    for name, node in idata.children.items()
+                    if name != "constant_data"
+                },
+            }
+        )
+        tree.attrs = {
+            "spec": spec_to_dict(self._roots),
+            "versions": _versions(),
+            "logp_check": _logp_check(
+                cast(pm.Model, self.model), idata["posterior"].to_dataset()
+            ),
+        }
+        if not zipped:
+            tree.to_zarr(path, mode="w")
+            return
+        with tempfile.TemporaryDirectory() as directory:
+            store = Path(directory) / "model.zarr"
+            tree.to_zarr(store)
+            with zipfile.ZipFile(path, "w", compression=zipfile.ZIP_STORED) as archive:
+                for file in sorted(store.rglob("*")):
+                    if file.is_file():
+                        archive.write(file, file.relative_to(store).as_posix())
+
+    @classmethod
+    def load(cls, path: str | Path, *, check: bool = True) -> GAM:
+        """Load a model written by ``save``, ready for prediction.
+
+        Parameters
+        ----------
+        path : str or Path
+            A ``*.zarr`` directory or ``*.zarr.zip`` file.
+        check : bool, default True
+            Recompute the joint log-density at the stored posterior draws and raise
+            if the rebuilt model differs from the saved one, for example after a
+            library upgrade changed a component.
+
+        Returns
+        -------
+        GAM
+            A fitted model. Posterior arrays load lazily when first used.
+
+        Raises
+        ------
+        SerializationError
+            If the file format is unknown or a saved term cannot be rebuilt.
+        ValueError
+            If ``check`` is true and the rebuilt model's log-density differs.
+        """
+        path, zipped = _store_path(path)
+        tree = xr.open_datatree(
+            zarr.storage.ZipStore(path, mode="r") if zipped else path, engine="zarr"
+        )
+        if "spec" not in tree.attrs or "fit_data" not in tree.children:
+            raise ValueError(f"{str(path)!r} is not a model saved by GAM.save.")
+        gam = cls(*spec_from_dict(tree.attrs["spec"]))
+        model = gam.build_model(tree["fit_data"].to_dataset())
+        gam.idata = xr.DataTree.from_dict(
+            {
+                f"/{name}": node.to_dataset()
+                for name, node in tree.children.items()
+                if name != "fit_data"
+            }
+        )
+        gam._fitted_key = gam._key()
+        if check:
+            saved = tree.attrs["logp_check"]
+            rebuilt = _joint_logp(
+                model,
+                gam.idata["posterior"].to_dataset(),
+                saved["chain"],
+                saved["draw"],
+            )
+            if not np.allclose(rebuilt, saved["logp"], rtol=_LOGP_RTOL, atol=0):
+                raise ValueError(
+                    "The rebuilt model does not reproduce the saved log-density "
+                    f"(saved {saved['logp']}, rebuilt {rebuilt.tolist()}). Saved with "
+                    f"{tree.attrs['versions']}, loading with {_versions()}. "
+                    "Pass check=False to load anyway."
+                )
+        return gam
 
     def _check_fitted(self) -> None:
         if self.idata is None or self._context is None or self._training_data is None:
@@ -432,3 +616,67 @@ class MMM:
         if history_length and "date" in result.dims:
             result = result.isel(date=slice(history_length, None))
         return result
+
+
+def _store_path(path: str | Path) -> tuple[Path, bool]:
+    path = Path(path)
+    if path.name.endswith(".zarr.zip"):
+        return path, True
+    if path.suffix == ".zarr":
+        return path, False
+    raise ValueError("Use a '.zarr' directory or a '.zarr.zip' file.")
+
+
+def _versions() -> dict[str, str]:
+    return {
+        "pymc_marketing": __version__,
+        "pymc": pm.__version__,
+        "pytensor": pytensor.__version__,
+    }
+
+
+def _joint_logp(
+    model: pm.Model,
+    posterior: xr.Dataset,
+    chain: Sequence[int],
+    draw: Sequence[int],
+) -> np.ndarray:
+    """Joint log-density, prior plus likelihood without Jacobians, at selected draws."""
+    subset = (
+        posterior.isel(
+            chain=xr.DataArray(list(chain), dims="sample"),
+            draw=xr.DataArray(list(draw), dims="sample"),
+        )
+        .drop_vars(["chain", "draw"], errors="ignore")
+        .rename(sample="draw")
+        .expand_dims(chain=[0])
+        .assign_coords(draw=np.arange(len(draw)))
+    )
+    tree = xr.DataTree.from_dict({"posterior": subset})
+    options: dict[str, Any] = {
+        "model": model,
+        "extend_inferencedata": False,
+        "progressbar": False,
+    }
+    total: Any = 0
+    for result in (
+        pm.stats.compute_log_prior(tree, **options),
+        pm.stats.compute_log_likelihood(tree, **options),
+    ):
+        for value in result.data_vars.values():
+            total = total + value.sum(
+                [dim for dim in value.dims if dim not in ("chain", "draw")]
+            )
+    return np.asarray(total.transpose("chain", "draw")).ravel()
+
+
+def _logp_check(model: pm.Model, posterior: xr.Dataset) -> dict[str, list[Any]]:
+    draws = posterior.sizes["draw"]
+    total = posterior.sizes["chain"] * draws
+    flat = np.unique(np.linspace(0, total - 1, num=_LOGP_DRAWS).round().astype(int))
+    chain, draw = np.divmod(flat, draws)
+    return {
+        "chain": chain.tolist(),
+        "draw": draw.tolist(),
+        "logp": _joint_logp(model, posterior, chain.tolist(), draw.tolist()).tolist(),
+    }
