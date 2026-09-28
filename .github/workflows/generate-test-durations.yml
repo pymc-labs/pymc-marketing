@@ -30,9 +30,25 @@ jobs:
           sudo apt-get install graphviz graphviz-dev
           uv pip install -e .[test]
       - name: Run all tests with duration tracking
+        # --run-slow: record real timings for slow-marked tests instead of
+        # their skip times (test_slow groups balance on this file)
+        # --clean-durations: replace the whole file each run instead of
+        # merging, so deleted tests cannot persist as phantom entries
         run: |
-          uv run pytest --store-durations --durations-path .test_durations -v
+          uv run pytest --store-durations --durations-path .test_durations --clean-durations --run-slow -v
         continue-on-error: true  # Generate durations even if some tests fail
+      - name: Guard against truncated durations file
+        # continue-on-error is intentional above, but a hard pytest crash
+        # (segfault/OOM) would skip sessionfinish and leave a partial file;
+        # refuse to open the PR if that happened
+        run: |
+          collected=$(uv run pytest --collect-only -q 2>/dev/null | grep -o "[0-9]* tests collected" | cut -d' ' -f1)
+          stored=$(python -c "import json; print(len(json.load(open('.test_durations'))))")
+          echo "collected=${collected} stored=${stored}"
+          if [ -z "${collected}" ] || [ "${stored}" -lt "${collected}" ]; then
+            echo "::error::Durations file is truncated (${stored} stored < ${collected} collected); not opening PR"
+            exit 1
+          fi
       - name: Ensure newline at end of durations file
         run: |
           # Add newline if missing (pre-commit requirement)
@@ -41,6 +57,11 @@ jobs:
         id: cpr
         uses: peter-evans/create-pull-request@v8
         with:
+          # PAT so that pushing the PR branch triggers CI workflows
+          # (GITHUB_TOKEN-created commits leave checks in `action_required`
+          # forever, so the PR can never merge). Fallback keeps the workflow
+          # functional until the secret is added.
+          token: ${{ secrets.TEST_DURATIONS_PAT || github.token }}
           commit-message: "chore: update test durations"
           branch: update-test-durations
           delete-branch: true
@@ -63,5 +84,5 @@ jobs:
       - name: Enable auto-merge
         if: steps.cpr.outputs.pull-request-number != ''
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.TEST_DURATIONS_PAT || github.token }}
         run: gh pr merge --auto --squash ${{ steps.cpr.outputs.pull-request-number }}
