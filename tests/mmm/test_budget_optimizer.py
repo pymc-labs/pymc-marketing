@@ -13,6 +13,7 @@
 #   limitations under the License.
 import ast
 import inspect
+import warnings
 from unittest.mock import patch
 
 import numpy as np
@@ -23,6 +24,7 @@ import pytensor
 import pytest
 import xarray as xr
 from pydantic import ValidationError
+from pytensor.compile import UnusedInputError
 from pytensor.graph.traversal import ancestors
 from scipy.optimize import OptimizeResult
 from xarray import DataArray
@@ -40,6 +42,7 @@ from pymc_marketing.mmm.budget_optimizer import (
 from pymc_marketing.mmm.components.adstock import GeometricAdstock
 from pymc_marketing.mmm.components.saturation import LogisticSaturation
 from pymc_marketing.mmm.constraints import Constraint, build_default_sum_constraint
+from pymc_marketing.mmm.optimization_variables import FLAT_DIM
 from pymc_marketing.mmm.utility import (
     _check_samples_dimensionality,
     diversification_ratio,
@@ -767,10 +770,9 @@ def test_diversification_ratio_through_optimizer(mmm_wrapper):
 
     # The solution is not the initial guess (the equal split), and the
     # utility there is genuinely higher than at the initial guess.
-    x0 = np.full(result.budgets.size, total_budget / result.budgets.size)
-    assert not np.allclose(result.budgets.values, x0)
-    objective_at_x0, _ = optimizer._objective_and_grad(x0)
-    assert result.scipy_result.fun < objective_at_x0
+    x0 = xr.full_like(result.budgets, total_budget / result.budgets.size)
+    assert not np.allclose(result.budgets.values, x0.values)
+    assert result.scipy_result.fun < optimizer.evaluate_plan(x0).objective
     # The objective is the negated utility, and DR is bounded below by 1.
     assert -result.scipy_result.fun >= 1.0 - 1e-6
 
@@ -796,6 +798,423 @@ def test_allocate_budget_result_object(mmm_wrapper):
     assert len(unpacked) == 2
     assert unpacked[0] is result.budgets
     assert unpacked[1] is result.scipy_result
+
+
+class TestEvaluatePlan:
+    """Scoring a labelled plan through the public API.
+
+    The compiled objective is the same callable SLSQP is handed; what this
+    class pins is the contract around it -- which sign each output carries,
+    what the gradient is labelled with, and which inputs are refused.
+    """
+
+    CHANNELS = ("channel_1", "channel_2")
+
+    def _optimizer(self, mmm_wrapper, **kwargs):
+        kwargs.setdefault(
+            "response_variable", "total_media_contribution_original_scale"
+        )
+        return BudgetOptimizer(model=mmm_wrapper, num_periods=30, **kwargs)
+
+    def _plan(self, *values):
+        return xr.DataArray(
+            list(values), dims=["channel"], coords={"channel": list(self.CHANNELS)}
+        )
+
+    def test_objective_is_the_value_the_solver_minimises(self, mmm_wrapper):
+        """`objective` is on the solver's scale, so the two are comparable.
+
+        Pinned against `scipy_result.fun` rather than against a recomputed
+        number: if the method ever returned the utility under this name, an
+        optimum would compare unequal to itself.
+        """
+        optimizer = self._optimizer(mmm_wrapper)
+        result = optimizer.allocate_budget(total_budget=100)
+
+        evaluation = optimizer.evaluate_plan(result.budgets)
+
+        np.testing.assert_allclose(
+            evaluation.objective, result.scipy_result.fun, rtol=1e-9
+        )
+        np.testing.assert_allclose(
+            evaluation.utility, -result.scipy_result.fun, rtol=1e-9
+        )
+
+    def test_gradient_is_labelled_and_packs_back(self, mmm_wrapper):
+        """The gradient comes back on the decision variables' own labels.
+
+        Repacking it reproduces the flat gradient the solver is handed, which
+        is what makes the labelled form usable for a decomposition: nothing was
+        reordered or dropped on the way out.
+        """
+        optimizer = self._optimizer(mmm_wrapper)
+        plan = self._plan(30.0, 70.0)
+
+        evaluation = optimizer.evaluate_plan(plan)
+
+        gradient = evaluation.objective_gradient
+        assert set(gradient) == {"channel_data"}
+        assert gradient["channel_data"].dims == ("channel",)
+        _, flat_gradient = optimizer._objective_and_grad(
+            optimizer.optimization_variables.pack(plan)
+        )
+        np.testing.assert_array_equal(
+            optimizer.optimization_variables.pack(gradient), flat_gradient
+        )
+        np.testing.assert_array_equal(
+            optimizer.optimization_variables.pack(evaluation.utility_gradient),
+            -flat_gradient,
+        )
+
+    def test_a_raw_array_is_refused(self, mmm_wrapper):
+        """A raw vector is refused because a short one would not be.
+
+        The compiled objective runs with `trust_input=True`: a length-1 vector
+        for a two-cell decision space broadcasts and returns the objective of a
+        different plan, with no error. Labels make that unrepresentable.
+        """
+        optimizer = self._optimizer(mmm_wrapper)
+
+        with pytest.raises(TypeError, match="labelled plan"):
+            optimizer.evaluate_plan(np.array([30.0, 70.0]))
+
+    def test_a_plan_naming_an_unknown_channel_is_refused(self, mmm_wrapper):
+        """An extra channel must not be dropped on the way in.
+
+        `reindex` removes a label the model does not have and leaves no NaN
+        behind, so the plan would be scored -- objective, gradient and, if the
+        budget happened to match the retained channels, feasibility -- as
+        though that spend were not in it. The caller would get a plausible
+        answer to a question they did not ask.
+        """
+        optimizer = self._optimizer(mmm_wrapper)
+        plan = xr.DataArray(
+            [30.0, 70.0, 999.0],
+            dims=["channel"],
+            coords={"channel": [*self.CHANNELS, "legacy_print"]},
+        )
+
+        # The dangerous one: the retained cells sum to exactly the budget, so
+        # a plan that actually spends 1099 would have been reported feasible
+        # at 100 once the extra channel was dropped.
+        with pytest.raises(ValueError, match="coordinates the model does not have"):
+            optimizer.evaluate_plan(plan, total_budget=100.0)
+
+        with pytest.raises(ValueError, match="coordinates the model does not have"):
+            optimizer.evaluate_plan(plan)
+
+        with pytest.raises(ValueError, match="coordinates the model does not have"):
+            optimizer.evaluate_response_distribution(plan)
+
+    def test_a_plan_without_coordinate_labels_is_refused(self, mmm_wrapper):
+        """Dims alone are not labels, and the difference is silent.
+
+        `reindex` has nothing to align an unlabelled dim by, so it stamps the
+        model's coordinates onto the values in the order they arrive. The same
+        two numbers written channel-first and channel-last would then score as
+        two different plans, through an API whose whole premise is that plans
+        are labelled.
+        """
+        optimizer = self._optimizer(mmm_wrapper)
+        coordless = xr.DataArray([30.0, 70.0], dims=["channel"])
+
+        with pytest.raises(ValueError, match="carry no coordinates"):
+            optimizer.evaluate_plan(coordless)
+
+        with pytest.raises(ValueError, match="carry no coordinates"):
+            optimizer.evaluate_response_distribution(coordless)
+
+        # Named entries say which one is at fault, since a mapping may carry
+        # several and only one of them be unlabelled.
+        with pytest.raises(ValueError, match="'channel_data'"):
+            optimizer.evaluate_plan({"channel_data": coordless})
+
+    def test_a_positional_warm_start_still_works(self, mmm_wrapper):
+        """The check belongs to the public plan API, not to packing.
+
+        `allocate_budget` has always taken a positional `x0`, and a warm start
+        is not a plan being scored: nothing is reported about it, so there is
+        no wrong answer to hand back. Pinned so the tightening above cannot
+        creep down into `MediaVariable.pack`.
+        """
+        optimizer = self._optimizer(mmm_wrapper)
+
+        result = optimizer.allocate_budget(
+            total_budget=100,
+            budget_bounds={channel: (0, 100) for channel in self.CHANNELS},
+            x0=xr.DataArray([30.0, 70.0], dims=["channel"]),
+        )
+
+        assert result.scipy_result.success
+
+    def test_a_plan_missing_an_optimized_cell_is_refused(self, mmm_wrapper):
+        """A plan that does not price every optimized cell is an error, not a guess."""
+        optimizer = self._optimizer(mmm_wrapper)
+        partial = xr.DataArray(
+            [30.0], dims=["channel"], coords={"channel": ["channel_1"]}
+        )
+
+        with pytest.raises(ValueError, match="values missing"):
+            optimizer.evaluate_plan(partial)
+
+    def test_constraint_residuals_require_a_total_budget(self, mmm_wrapper):
+        """Residuals are measured against the named budget, not ambient state.
+
+        `_total_budget` is a shared variable holding 0.0 until the first
+        `allocate_budget`, so a residual read off whatever it happens to hold
+        would call a feasible plan infeasible by the whole budget, depending on
+        call history the caller cannot see.
+        """
+        optimizer = self._optimizer(mmm_wrapper)
+        plan = self._plan(30.0, 70.0)
+
+        assert optimizer.evaluate_plan(plan).constraint_residuals is None
+
+        residuals = optimizer.evaluate_plan(
+            plan, total_budget=100.0
+        ).constraint_residuals
+
+        assert residuals["default"]["constraint_type"] == "eq"
+        np.testing.assert_allclose(residuals["default"]["value"], 0.0, atol=1e-9)
+
+    def test_measuring_constraints_leaves_the_shared_total_budget_alone(
+        self, mmm_wrapper
+    ):
+        """Scoring a plan must not redefine the budget for later readers."""
+        optimizer = self._optimizer(mmm_wrapper)
+        optimizer.allocate_budget(total_budget=100)
+
+        optimizer.evaluate_plan(self._plan(10.0, 10.0), total_budget=20.0)
+
+        assert float(optimizer._total_budget.get_value()) == 100.0
+
+    def test_feasible_reads_the_constraint_type(self, mmm_wrapper):
+        """An equality is feasible near zero; an inequality is feasible from zero up."""
+        optimizer = self._optimizer(mmm_wrapper)
+        optimizer.set_constraints(
+            [
+                build_default_sum_constraint("default"),
+                Constraint(
+                    key="channel_1_floor",
+                    constraint_type="ineq",
+                    constraint_fun=lambda budgets, total, opt: (
+                        opt.optimization_variables.variable_slice("channel_data").isel(
+                            {FLAT_DIM: 0}
+                        )
+                        - 40.0
+                    ),
+                ),
+            ]
+        )
+
+        on_budget_below_floor = self._plan(30.0, 70.0)
+        on_budget_above_floor = self._plan(60.0, 40.0)
+        over_budget = self._plan(60.0, 60.0)
+
+        assert not optimizer.evaluate_plan(
+            on_budget_below_floor, total_budget=100.0
+        ).feasible()
+        assert optimizer.evaluate_plan(
+            on_budget_above_floor, total_budget=100.0
+        ).feasible()
+        assert not optimizer.evaluate_plan(over_budget, total_budget=100.0).feasible()
+
+    def test_feasible_without_residuals_says_what_is_missing(self, mmm_wrapper):
+        """Feasibility is undefined without the budget the constraints use."""
+        optimizer = self._optimizer(mmm_wrapper)
+
+        with pytest.raises(ValueError, match="total_budget"):
+            optimizer.evaluate_plan(self._plan(30.0, 70.0)).feasible()
+
+    def test_the_shared_budget_is_restored_when_a_constraint_raises(self, mmm_wrapper):
+        """The restore is a `finally`, so a failed measurement must not leak either.
+
+        The happy path is covered above; this is the path the `finally` exists
+        for. A constraint that raises would otherwise leave the optimizer
+        holding a budget nobody asked for, and the next `feasible()` or
+        `callback=True` run would measure against it.
+        """
+        optimizer = self._optimizer(mmm_wrapper)
+        optimizer.allocate_budget(total_budget=100)
+
+        def explode(_x):
+            raise RuntimeError("constraint blew up")
+
+        optimizer._compiled_constraints[0]["fun"] = explode
+
+        with pytest.raises(RuntimeError, match="constraint blew up"):
+            optimizer.evaluate_plan(self._plan(10.0, 10.0), total_budget=20.0)
+
+        assert float(optimizer._total_budget.get_value()) == 100.0
+
+
+class TestEvaluateResponseDistribution:
+    """The posterior response under a plan, not its reduction to a utility."""
+
+    def _plan(self):
+        return xr.DataArray(
+            [30.0, 70.0],
+            dims=["channel"],
+            coords={"channel": ["channel_1", "channel_2"]},
+        )
+
+    def test_it_is_the_extracted_graph_evaluated_at_the_plan(self, mmm_wrapper):
+        """The public evaluation is the graph a caller would compile by hand."""
+        optimizer = BudgetOptimizer(
+            model=mmm_wrapper,
+            num_periods=30,
+            response_variable="total_media_contribution_original_scale",
+        )
+        plan = self._plan()
+
+        response = optimizer.evaluate_response_distribution(plan)
+
+        graph = optimizer.extract_response_distribution(
+            "total_media_contribution_original_scale"
+        )
+        expected = pytensor.function(
+            [optimizer.optimization_variables.flat], graph.values
+        )(optimizer.optimization_variables.pack(plan))
+        assert isinstance(response, xr.DataArray)
+        assert response.dims == ("sample",)
+        np.testing.assert_allclose(response.to_numpy(), expected)
+
+    def test_it_follows_set_posterior(self, mmm_wrapper, dummy_idata):
+        """A cached response function must not outlive the posterior it was compiled on.
+
+        The first `set_posterior` moves the draws from constants into shared
+        variables and recompiles; a function compiled before that still holds
+        the construction-time draws, and would keep reporting them silently.
+        """
+        optimizer = BudgetOptimizer(
+            model=mmm_wrapper,
+            num_periods=30,
+            response_variable="total_media_contribution_original_scale",
+        )
+        plan = self._plan()
+        before = optimizer.evaluate_response_distribution(plan)
+
+        doubled = dummy_idata.copy()
+        doubled["posterior"]["saturation_beta"] = (
+            doubled["posterior"]["saturation_beta"] * 2
+        )
+        optimizer.set_posterior(doubled)
+
+        after = optimizer.evaluate_response_distribution(plan)
+        assert not np.allclose(after.to_numpy(), before.to_numpy())
+
+    def test_a_raw_array_is_refused_here_too(self, mmm_wrapper):
+        """The two sibling methods agree on their own contract.
+
+        A correctly sized array packs without complaint, so the only thing
+        standing between a caller and another plan's posterior -- built in
+        coordinate order rather than flat order -- is this guard.
+        """
+        optimizer = BudgetOptimizer(
+            model=mmm_wrapper,
+            num_periods=30,
+            response_variable="total_media_contribution_original_scale",
+        )
+
+        with pytest.raises(TypeError, match="labelled plan"):
+            optimizer.evaluate_response_distribution(np.array([30.0, 70.0]))
+
+    def test_a_non_default_variable_comes_back_labelled(self, mmm_wrapper):
+        """A per-channel response is labelled with the model's own coords.
+
+        The compiled function returns a bare array, so without the coords a
+        caller selecting `channel="channel_2"` would be reading position 1 and
+        hoping.
+        """
+        optimizer = BudgetOptimizer(
+            model=mmm_wrapper,
+            num_periods=30,
+            response_variable="total_media_contribution_original_scale",
+        )
+
+        response = optimizer.evaluate_response_distribution(
+            self._plan(), "channel_contribution"
+        )
+
+        assert set(response.dims) == {"sample", "date", "channel"}
+        assert list(response.coords["channel"].values) == ["channel_1", "channel_2"]
+        # Spending only on channel_1 leaves channel_2's contribution at zero,
+        # which is what makes the labels worth checking.
+        one_channel = optimizer.evaluate_response_distribution(
+            xr.DataArray(
+                [100.0, 0.0],
+                dims=["channel"],
+                coords={"channel": ["channel_1", "channel_2"]},
+            ),
+            "channel_contribution",
+        )
+        assert float(one_channel.sel(channel="channel_2").sum()) == 0.0
+        assert float(one_channel.sel(channel="channel_1").sum()) > 0.0
+
+    def test_a_response_the_plan_cannot_reach_warns_but_still_evaluates(
+        self, mmm_wrapper
+    ):
+        """A plan-independent quantity is answered, and the caller is told once.
+
+        The decision vector is an unused input of that graph, and compiling
+        with PyTensor's default `on_unused_input` would refuse it outright
+        rather than return the plan-independent value. Answering it silently
+        is the other failure: a media quantity wired to its own copy of the
+        spend looks exactly like this, and comparing two plans would report no
+        difference with nothing to explain why.
+        """
+        optimizer = BudgetOptimizer(
+            model=mmm_wrapper,
+            num_periods=30,
+            response_variable="total_media_contribution_original_scale",
+        )
+
+        with pytest.warns(UserWarning, match="does not depend on the decision"):
+            response = optimizer.evaluate_response_distribution(
+                self._plan(), "target_scale"
+            )
+
+        assert np.isfinite(response.to_numpy()).all()
+
+    def test_a_reachable_response_does_not_warn(self, mmm_wrapper):
+        """The warning has to stay quiet on the path everyone takes."""
+        optimizer = BudgetOptimizer(
+            model=mmm_wrapper,
+            num_periods=30,
+            response_variable="total_media_contribution_original_scale",
+        )
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            optimizer.evaluate_response_distribution(self._plan())
+
+    def test_compile_kwargs_can_override_the_unused_input_default(self, mmm_wrapper):
+        """`on_unused_input` is a default here, not a fixed argument.
+
+        `compile_kwargs` is documented as forwarded to PyTensor's `function()`.
+        Passing the same key used to collide -- `TypeError: got multiple values
+        for keyword argument` -- which reads as a bug in unrelated code rather
+        than as the setting taking effect.
+        """
+        optimizer = BudgetOptimizer(
+            model=mmm_wrapper,
+            num_periods=30,
+            response_variable="total_media_contribution_original_scale",
+            compile_kwargs={"on_unused_input": "raise"},
+        )
+
+        # The caller asked for strictness, so the plan-independent variable is
+        # refused -- by PyTensor, on the caller's terms.
+        with (
+            pytest.warns(UserWarning, match="does not depend on the decision"),
+            pytest.raises(UnusedInputError),
+        ):
+            optimizer.evaluate_response_distribution(self._plan(), "target_scale")
+
+        # ... and the reachable path is unaffected by the override.
+        assert np.isfinite(
+            optimizer.evaluate_response_distribution(self._plan()).to_numpy()
+        ).all()
 
 
 def test_budget_optimizer_mu_effects_deprecated(mmm_wrapper):

@@ -226,6 +226,37 @@ def simple_fitted_mmm(simple_mmm_data):
 
 
 @pytest.fixture
+def truncated_normal_fitted_mmm(simple_mmm_data):
+    """Identity-link MMM whose likelihood is truncated at zero.
+
+    The mean correction for ``TruncatedNormal`` is an offset, not a factor, so
+    this is the model on which the two mean-scale entry points part company:
+    the counterfactual decomposition can apply the offset to a level, while an
+    incrementality reducer, which folds a factor into a scale, cannot.
+    """
+    mmm = MMM(
+        channel_columns=["channel_1", "channel_2", "channel_3"],
+        date_column="date",
+        target_column="target",
+        control_columns=None,
+        adstock=GeometricAdstock(l_max=10),
+        saturation=LogisticSaturation(),
+        model_config={
+            "likelihood": Prior(
+                "TruncatedNormal",
+                lower=0,
+                sigma=Prior("HalfNormal", sigma=0.5),
+                dims="date",
+            )
+        },
+    )
+
+    mock_fit(mmm, simple_mmm_data["X"], simple_mmm_data["y"], random_seed=seed)
+
+    return mmm
+
+
+@pytest.fixture
 def simple_fitted_mmm_int(simple_mmm_data):
     """Like simple_fitted_mmm but with float channel data (same values).
 

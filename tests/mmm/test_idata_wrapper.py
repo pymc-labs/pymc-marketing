@@ -1057,6 +1057,220 @@ def test_aggregate_time_delegates_to_utility(multidim_idata):
     assert monthly_wrapper.idata.posterior.sizes["date"] <= 12
 
 
+def _idata_with_time_invariant_intercept(
+    time_varying: bool = False, geos: list[str] | None = None
+) -> xr.DataTree:
+    dates = pd.date_range("2024-01-01", periods=8, freq="W-MON")
+    local_rng = np.random.default_rng(7)
+    extra_coords = {"geo": geos} if geos else {}
+    extra_dims = tuple(extra_coords)
+    extra_shape = tuple(len(values) for values in extra_coords.values())
+    intercept_dims = ("chain", "draw", "date") if time_varying else ("chain", "draw")
+    intercept_dims += extra_dims
+    intercept_shape = ((2, 3, 8) if time_varying else (2, 3)) + extra_shape
+    intercept_coords = ({"date": dates} if time_varying else {}) | extra_coords
+    posterior = xr.Dataset(
+        {
+            "channel_contribution": xr.DataArray(
+                local_rng.normal(size=(2, 3, 8, *extra_shape, 2)),
+                dims=("chain", "draw", "date", *extra_dims, "channel"),
+                coords={"date": dates, "channel": ["TV", "Radio"]} | extra_coords,
+            ),
+            "intercept_contribution": xr.DataArray(
+                local_rng.normal(3.0, 0.1, size=intercept_shape),
+                dims=intercept_dims,
+                coords=intercept_coords,
+            ),
+            "intercept_contribution_original_scale": xr.DataArray(
+                local_rng.normal(1500.0, 50.0, size=intercept_shape),
+                dims=intercept_dims,
+                coords=intercept_coords,
+            ),
+            # A parameter and an already-summed total: neither is per period.
+            "saturation_beta": xr.DataArray(
+                local_rng.normal(size=(2, 3, 2)),
+                dims=("chain", "draw", "channel"),
+                coords={"channel": ["TV", "Radio"]},
+            ),
+            "total_media_contribution_original_scale": xr.DataArray(
+                local_rng.normal(size=(2, 3)), dims=("chain", "draw")
+            ),
+        }
+    )
+    return xr.DataTree.from_dict({"/posterior": posterior})
+
+
+@pytest.mark.parametrize("geos", [None, ["A", "B"]], ids=["no_extra_dims", "geo"])
+def test_broadcast_per_period_contributions_repeats_intercept_on_every_date(geos):
+    idata = _idata_with_time_invariant_intercept(geos=geos)
+    posterior = idata.posterior
+    extra_dims = ("geo",) if geos else ()
+
+    result = (
+        MMMIDataWrapper(idata, validate_on_init=False)
+        .broadcast_per_period_contributions()
+        .idata.posterior
+    )
+
+    for name in ["intercept_contribution", "intercept_contribution_original_scale"]:
+        assert result[name].dims == ("chain", "draw", "date", *extra_dims)
+        for date in posterior["date"].values:
+            xr.testing.assert_identical(
+                result[name].sel(date=date, drop=True), posterior[name]
+            )
+
+
+def test_broadcast_per_period_contributions_keeps_the_root_node():
+    posterior = _idata_with_time_invariant_intercept().posterior.to_dataset()
+    # ``link`` on the root node selects the log-link decomposition.
+    idata = xr.DataTree.from_dict(
+        {
+            "/": xr.Dataset({"meta": 1.0}, attrs={"link": "log"}),
+            "/posterior": posterior,
+        }
+    )
+
+    result = MMMIDataWrapper(
+        idata, validate_on_init=False
+    ).broadcast_per_period_contributions()
+
+    assert result.idata.attrs == {"link": "log"}
+    xr.testing.assert_identical(result.idata["meta"], idata["meta"])
+
+
+def test_aggregate_time_counts_time_invariant_intercept_in_prior_group():
+    posterior = _idata_with_time_invariant_intercept().posterior.to_dataset()
+    idata = xr.DataTree.from_dict({"/posterior": posterior, "/prior": posterior})
+
+    result = MMMIDataWrapper(idata, validate_on_init=False).aggregate_time("all_time")
+
+    for group in ["posterior", "prior"]:
+        xr.testing.assert_allclose(
+            result.idata[group]["intercept_contribution"],
+            posterior["intercept_contribution"] * posterior.sizes["date"],
+        )
+
+
+@pytest.mark.parametrize("geos", [None, ["A", "B"]], ids=["no_extra_dims", "geo"])
+@pytest.mark.parametrize("period", ["all_time", "monthly"])
+def test_aggregate_time_counts_time_invariant_intercept_every_period(period, geos):
+    idata = _idata_with_time_invariant_intercept(geos=geos)
+    posterior = idata.posterior
+    n_dates = posterior.sizes["date"]
+
+    aggregated = MMMIDataWrapper(idata, validate_on_init=False).aggregate_time(
+        period=period, method="sum"
+    )
+    result = aggregated.idata.posterior
+
+    for name in [
+        "intercept_contribution",
+        "intercept_contribution_original_scale",
+    ]:
+        total = (
+            result[name].sum("date") if "date" in result[name].dims else result[name]
+        )
+        xr.testing.assert_allclose(total, posterior[name] * n_dates)
+
+
+def test_aggregate_time_counts_the_intercept_over_the_filtered_window():
+    idata = _idata_with_time_invariant_intercept()
+    dates = idata.posterior.indexes["date"]
+
+    result = (
+        MMMIDataWrapper(idata, validate_on_init=False)
+        .filter_dates(dates[2], dates[5])
+        .aggregate_time(period="all_time", method="sum")
+        .idata.posterior
+    )
+
+    xr.testing.assert_allclose(
+        result["intercept_contribution"],
+        idata.posterior["intercept_contribution"] * 4,
+    )
+
+
+def test_aggregate_time_leaves_parameters_and_totals_untouched():
+    idata = _idata_with_time_invariant_intercept()
+    result = (
+        MMMIDataWrapper(idata, validate_on_init=False)
+        .aggregate_time(period="all_time", method="sum")
+        .idata.posterior
+    )
+
+    for name in ["saturation_beta", "total_media_contribution_original_scale"]:
+        xr.testing.assert_identical(result[name], idata.posterior[name])
+
+
+def test_aggregate_time_mean_keeps_time_invariant_intercept_value():
+    idata = _idata_with_time_invariant_intercept()
+    result = (
+        MMMIDataWrapper(idata, validate_on_init=False)
+        .aggregate_time(period="all_time", method="mean")
+        .idata.posterior
+    )
+
+    xr.testing.assert_allclose(
+        result["intercept_contribution"], idata.posterior["intercept_contribution"]
+    )
+
+
+def test_aggregate_time_time_varying_intercept_matches_utility():
+    idata = _idata_with_time_invariant_intercept(time_varying=True)
+    result = (
+        MMMIDataWrapper(idata, validate_on_init=False)
+        .aggregate_time(period="all_time", method="sum")
+        .idata.posterior
+    )
+    expected = aggregate_idata_time(idata, "all_time", "sum").posterior
+
+    xr.testing.assert_identical(result.dataset, expected.dataset)
+
+
+def test_aggregate_time_without_posterior_matches_utility():
+    dates = pd.date_range("2024-01-01", periods=8, freq="W-MON")
+    idata = xr.DataTree.from_dict(
+        {
+            "/constant_data": xr.Dataset(
+                {
+                    "target_data": xr.DataArray(
+                        np.arange(8.0), dims=("date",), coords={"date": dates}
+                    )
+                }
+            )
+        }
+    )
+    result = MMMIDataWrapper(idata, validate_on_init=False).aggregate_time(
+        period="all_time", method="sum"
+    )
+    expected = aggregate_idata_time(idata, "all_time", "sum")
+
+    xr.testing.assert_identical(
+        result.idata.constant_data.dataset, expected.constant_data.dataset
+    )
+
+
+def test_aggregate_time_twice_does_not_rescale_intercept():
+    idata = _idata_with_time_invariant_intercept()
+    once = MMMIDataWrapper(idata, validate_on_init=False).aggregate_time(
+        period="all_time", method="sum"
+    )
+    twice = once.aggregate_time(period="all_time", method="sum")
+
+    xr.testing.assert_identical(
+        twice.idata.posterior.dataset, once.idata.posterior.dataset
+    )
+
+
+def test_aggregate_time_original_leaves_the_data_as_is():
+    idata = _idata_with_time_invariant_intercept()
+    result = MMMIDataWrapper(idata, validate_on_init=False).aggregate_time(
+        period="original"
+    )
+
+    xr.testing.assert_identical(result.idata.posterior.dataset, idata.posterior.dataset)
+
+
 def test_aggregate_time_all_time_sets_schema_none(multidim_idata):
     """Test that all_time aggregation sets schema=None."""
     schema = MMMIdataSchema.from_model_config(
@@ -2115,6 +2329,21 @@ def test_custom_dims_returns_empty_when_no_constant_data():
     assert custom_dims == []
 
 
+def test_custom_dims_excludes_synthetic_target_scale_dimension():
+    """A storage-only target scale dimension is not a model dimension."""
+    idata = xr.DataTree.from_dict(
+        {
+            "/constant_data": xr.Dataset(
+                {"target_scale": xr.DataArray([500.0], dims=("target_scale_dim_0",))}
+            )
+        }
+    )
+
+    wrapper = MMMIDataWrapper(idata)
+
+    assert wrapper.custom_dims == []
+
+
 def test_filter_dates_wrapper_returns_self_when_none(multidim_idata):
     """Test filter_dates wrapper method returns self when both dates are None."""
     wrapper = MMMIDataWrapper(multidim_idata)
@@ -2190,6 +2419,34 @@ def test_get_target_scale_returns_scale_array(multidim_idata):
 
     assert isinstance(target_scale, xr.DataArray)
     xr.testing.assert_equal(target_scale, multidim_idata.constant_data.target_scale)
+
+
+def test_get_target_scale_drops_synthetic_singleton_dimension():
+    """A scalar stored as a length-one array is returned as a scalar."""
+    idata = xr.DataTree.from_dict(
+        {
+            "/constant_data": xr.Dataset(
+                {"target_scale": xr.DataArray([500.0], dims=("target_scale_dim_0",))}
+            )
+        }
+    )
+
+    target_scale = MMMIDataWrapper(idata).get_target_scale()
+
+    assert target_scale.dims == ()
+    assert target_scale.item() == 500.0
+
+
+def test_get_target_scale_preserves_singleton_custom_dimension():
+    """A real panel dimension is preserved even when it has one coordinate."""
+    expected = xr.DataArray([500.0], dims=("country",), coords={"country": ["US"]})
+    idata = xr.DataTree.from_dict(
+        {"/constant_data": xr.Dataset({"target_scale": expected})}
+    )
+    wrapper = MMMIDataWrapper(idata)
+
+    xr.testing.assert_equal(wrapper.get_target_scale(), expected)
+    assert wrapper.custom_dims == ["country"]
 
 
 def test_get_target_scale_raises_when_missing():
@@ -2539,3 +2796,179 @@ def test_log_link_get_contributions_warns_when_controls_or_seasonality_flags_ign
             include_controls=False,
             include_seasonality=False,
         )
+
+
+def _sum_over_period(samples: xr.DataArray, period: str) -> xr.DataArray:
+    """Sum ``samples`` over ``date`` into ``period`` bins, independently of the utils."""
+    if period == "all_time":
+        return samples.sum("date")
+    rule = {"weekly": "W", "monthly": "ME", "quarterly": "QE", "yearly": "YE"}[period]
+    return samples.resample(date=rule).sum("date")
+
+
+class TestLogLinkTimeAggregatedDecomposition:
+    """The conserving log-link decomposition is nonlinear in ``mu`` (#3070).
+
+    ``aggregate_time`` sums the log-space ``mu`` over the dates of each period, so
+    decomposing its result would build the contributions from ``exp(sum(mu))``
+    instead of ``sum(exp(mu))``. The wrapper has to refuse and point to the order
+    that works: decompose on the original dates, then aggregate.
+    """
+
+    @pytest.mark.parametrize("period", ["weekly", "monthly", "all_time"])
+    @pytest.mark.parametrize("method", ["sum", "mean"])
+    @pytest.mark.parametrize(
+        "decompose",
+        [
+            lambda data: data.get_contributions(original_scale=True),
+            lambda data: data.get_channel_contributions(original_scale=True),
+            lambda data: data.get_elementwise_roas(original_scale=True),
+        ],
+        ids=["get_contributions", "get_channel_contributions", "get_elementwise_roas"],
+    )
+    def test_decomposing_time_aggregated_data_raises(
+        self, idata_log_link_with_all_contributions, period, method, decompose
+    ):
+        aggregated = MMMIDataWrapper(
+            idata_log_link_with_all_contributions
+        ).aggregate_time(period=period, method=method)
+
+        with pytest.raises(ValueError, match=r"aggregated over time.*original dates"):
+            decompose(aggregated)
+
+    @pytest.mark.parametrize(
+        "transform",
+        [
+            lambda data: data.filter_dates(start_date="2024-02-01"),
+            lambda data: data.filter_dims(country="US"),
+            lambda data: data.aggregate_dims("country", ["US", "UK"], "ALL"),
+            lambda data: data.broadcast_per_period_contributions(),
+        ],
+        ids=[
+            "filter_dates",
+            "filter_dims",
+            "aggregate_dims",
+            "broadcast_per_period_contributions",
+        ],
+    )
+    def test_marker_survives_transforms_after_aggregation(
+        self, idata_log_link_with_all_contributions, transform
+    ):
+        aggregated = MMMIDataWrapper(
+            idata_log_link_with_all_contributions
+        ).aggregate_time("monthly")
+
+        with pytest.raises(ValueError, match="aggregated over time"):
+            transform(aggregated).get_channel_contributions()
+
+    def test_period_original_leaves_decomposition_valid(
+        self, idata_log_link_with_all_contributions
+    ):
+        wrapper = MMMIDataWrapper(idata_log_link_with_all_contributions)
+
+        xr.testing.assert_identical(
+            wrapper.aggregate_time("original").get_channel_contributions(),
+            wrapper.get_channel_contributions(),
+        )
+
+    @pytest.mark.parametrize("period", ["monthly", "all_time"])
+    def test_aggregate_time_still_serves_spend_and_raw_variables(
+        self, idata_log_link_with_all_contributions, period
+    ):
+        """Aggregating spend, or the raw log-space variables, stays valid."""
+        wrapper = MMMIDataWrapper(idata_log_link_with_all_contributions)
+        aggregated = wrapper.aggregate_time(period)
+
+        expected_spend = _sum_over_period(wrapper.get_channel_spend(), period)
+        xr.testing.assert_allclose(
+            aggregated.get_channel_spend().transpose(*expected_spend.dims),
+            expected_spend,
+        )
+        expected_raw = _sum_over_period(
+            wrapper.get_contributions(original_scale=False)["channels"], period
+        )
+        xr.testing.assert_allclose(
+            aggregated.get_contributions(original_scale=False)["channels"].transpose(
+                *expected_raw.dims
+            ),
+            expected_raw,
+        )
+
+
+class TestContributionsPeriod:
+    """``get_contributions(period=...)`` decomposes per date, then sums per period."""
+
+    @pytest.mark.parametrize(
+        "period", ["weekly", "monthly", "quarterly", "yearly", "all_time"]
+    )
+    def test_log_link_sums_per_date_decomposition(
+        self, idata_log_link_with_all_contributions, period
+    ):
+        wrapper = MMMIDataWrapper(idata_log_link_with_all_contributions)
+        per_date = wrapper.get_contributions(original_scale=True)
+
+        result = wrapper.get_contributions(original_scale=True, period=period)
+
+        assert set(result.data_vars) == {"channels", "baseline"}
+        for component in ["channels", "baseline"]:
+            xr.testing.assert_allclose(
+                result[component], _sum_over_period(per_date[component], period)
+            )
+
+    def test_log_link_channel_contributions_and_roas_use_the_period(
+        self, idata_log_link_with_all_contributions
+    ):
+        wrapper = MMMIDataWrapper(idata_log_link_with_all_contributions)
+        channels = _sum_over_period(
+            wrapper.get_channel_contributions(original_scale=True), "monthly"
+        )
+        spend = _sum_over_period(wrapper.get_channel_spend(), "monthly")
+
+        xr.testing.assert_allclose(
+            wrapper.get_channel_contributions(original_scale=True, period="monthly"),
+            channels,
+        )
+        xr.testing.assert_allclose(
+            wrapper.get_elementwise_roas(original_scale=True, period="monthly"),
+            channels / spend,
+        )
+
+    def test_identity_link_counts_time_invariant_intercept_once_per_period(self):
+        """A time-invariant intercept is added in every period, like in ``aggregate_time``."""
+        idata = _idata_with_time_invariant_intercept()
+        posterior = idata.posterior
+        n_dates = posterior.sizes["date"]
+
+        result = MMMIDataWrapper(idata, validate_on_init=False).get_contributions(
+            original_scale=False, period="all_time"
+        )
+
+        xr.testing.assert_allclose(
+            result["baseline"], n_dates * posterior["intercept_contribution"]
+        )
+        xr.testing.assert_allclose(
+            result["channels"], posterior["channel_contribution"].sum("date")
+        )
+
+    @pytest.mark.parametrize("method", ["sum", "mean"])
+    def test_period_on_time_aggregated_data_raises_for_any_link(self, method):
+        """Aggregating twice would sum period means or misalign period bounds."""
+        aggregated = MMMIDataWrapper(
+            _idata_with_time_invariant_intercept(), validate_on_init=False
+        ).aggregate_time("weekly", method=method)
+
+        with pytest.raises(ValueError, match=r"already aggregated over time"):
+            aggregated.get_contributions(original_scale=False, period="monthly")
+
+    def test_identity_link_time_aggregated_data_still_decomposes(self):
+        """Under the identity link the additive decomposition commutes with the sum."""
+        idata = _idata_with_time_invariant_intercept()
+        wrapper = MMMIDataWrapper(idata, validate_on_init=False)
+
+        after = wrapper.aggregate_time("all_time").get_contributions(
+            original_scale=False
+        )
+        before = wrapper.get_contributions(original_scale=False, period="all_time")
+
+        for component in ["channels", "baseline"]:
+            xr.testing.assert_allclose(after[component], before[component])

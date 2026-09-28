@@ -98,7 +98,6 @@ from typing import Any
 import numpy as np
 import xarray as xr
 from pydantic import Field, InstanceOf, validate_call
-from pymc_extras.deserialize import deserialize
 from pymc_extras.prior import Prior
 from pytensor.xtensor import as_xtensor
 from pytensor.xtensor import math as ptxm
@@ -179,17 +178,6 @@ class SaturationTransformation(Transformation):
     :class:`LogSaturation`, whose coefficients only carry their intended
     interpretation (an elasticity) when the input is not rescaled.
     """
-
-    @classmethod
-    def from_dict(cls, data: dict) -> SaturationTransformation:
-        """Reconstruct a saturation transformation from a dict."""
-        data = data.copy()
-        data.pop("__type__", None)
-
-        if "priors" in data:
-            data["priors"] = {k: deserialize(v) for k, v in data["priors"].items()}
-
-        return cls(**data)
 
     @validate_call
     def sample_curve(

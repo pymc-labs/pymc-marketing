@@ -316,14 +316,15 @@ def test_partial_bart_override_raises(small_corpus):
         model.build_model(X, y)
 
 
-def test_bart_response_override(small_corpus):
-    """A 'linear' BART response builds; an invalid response raises ValueError."""
+@pytest.mark.parametrize("response", ["constant", "linear", "mix"])
+def test_bart_response_override(small_corpus, response):
+    """Every supported BART response builds; an invalid one raises ValueError."""
     X, y = small_corpus
     model = PIEModel(
         pre_determined_features=PRE,
         post_determined_features=POST,
         model_config={
-            "bart": {"m": 10, "alpha": 0.95, "beta": 2.0, "response": "linear"},
+            "bart": {"m": 10, "alpha": 0.95, "beta": 2.0, "response": response},
             "sigma": Prior("HalfNormal", sigma=1.0),
         },
     )

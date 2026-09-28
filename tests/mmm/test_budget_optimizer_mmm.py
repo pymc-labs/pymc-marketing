@@ -2009,11 +2009,11 @@ class TestFunnelEffectPropagation:
     because the model has mu effects) is the objective that counts the mediated
     path. Both compile modes are exercised: the default one and the C/VM linker.
 
-    The tests deliberately go through the private ``_objective_and_grad``: it is
-    the exact callable handed to SLSQP (objective and gradient in one compiled
-    function), so what is pinned here is what the solver sees. The advanced funnel
-    notebook proves the same facts through the public API
-    (``optimization_variables``, ``extract_response_distribution``).
+    The tests go through the public ``evaluate_plan``: it wraps the exact
+    callable handed to SLSQP (objective and gradient from one compiled
+    function), so what is pinned here is still what the solver sees, on the
+    labels a caller works with. Only the finite-difference check below stays on
+    the private callable, because it differentiates the flat vector function.
     """
 
     @pytest.fixture(scope="class", params=["default", "cvm"])
@@ -2052,7 +2052,12 @@ class TestFunnelEffectPropagation:
         x0 = total.optimization_variables.pack(mean_plan)
         np.testing.assert_array_equal(x0, direct.optimization_variables.pack(mean_plan))
         return SimpleNamespace(
-            mmm=mmm, total=total, direct=direct, x0=x0, compile_kwargs=compile_kwargs
+            mmm=mmm,
+            total=total,
+            direct=direct,
+            x0=x0,
+            mean_plan=mean_plan,
+            compile_kwargs=compile_kwargs,
         )
 
     def test_mediated_contribution_depends_on_the_budgets(self, setup):
@@ -2070,15 +2075,20 @@ class TestFunnelEffectPropagation:
         Any other window, or an effect data variable left at the wrong length or
         values, would break this equality.
         """
-        objective, _ = setup.total._objective_and_grad(setup.x0)
+        utility = setup.total.evaluate_plan(setup.mean_plan).utility
         posterior_mean = float(
             setup.mmm.idata.posterior["total_response_original_scale"].mean()
         )
-        np.testing.assert_allclose(-objective, posterior_mean, rtol=1e-6)
+        np.testing.assert_allclose(utility, posterior_mean, rtol=1e-6)
 
     @pytest.mark.parametrize("scale", [1.0, 1.25], ids=["historical", "perturbed"])
     def test_gradient_matches_finite_differences(self, setup, scale):
-        """The compiled gradient through the chained adstock/saturation is right."""
+        """The compiled gradient through the chained adstock/saturation is right.
+
+        Flat on purpose: `approx_fprime` differentiates the vector function, so
+        this goes through the compiled callable rather than the labelled
+        `evaluate_plan` wrapper around it.
+        """
         x = setup.x0 * np.linspace(scale, 2 - scale, setup.x0.size)
         _, gradient = setup.total._objective_and_grad(x)
         finite_differences = approx_fprime(
@@ -2090,11 +2100,12 @@ class TestFunnelEffectPropagation:
         """Direct-only and funnel-aware objectives differ exactly by the mediated term.
 
         The mediated contribution rises with every channel's spend, so the
-        funnel-aware objective (a negative response) has the more negative
-        gradient in every cell, by exactly the marginal mediated response.
+        funnel-aware utility has the larger marginal in every cell, by exactly
+        the marginal mediated response.
         """
-        _, grad_total = setup.total._objective_and_grad(setup.x0)
-        _, grad_direct = setup.direct._objective_and_grad(setup.x0)
+        total = setup.total.evaluate_plan(setup.mean_plan).utility_gradient
+        direct = setup.direct.evaluate_plan(setup.mean_plan).utility_gradient
+        mediated_marginal = total["channel_data"] - direct["channel_data"]
 
         # The fixture registers no original-scale mediated variable, so scale
         # the linear-predictor contribution by hand.
@@ -2112,9 +2123,11 @@ class TestFunnelEffectPropagation:
             setup.x0, lambda z: float(mediated_fn(z)), 1e-6
         )
 
-        assert (grad_total - grad_direct < 0).all()
+        assert (mediated_marginal > 0).all()
         np.testing.assert_allclose(
-            grad_total - grad_direct, -mediated_gradient, rtol=1e-4
+            setup.total.optimization_variables.pack(mediated_marginal),
+            mediated_gradient,
+            rtol=1e-4,
         )
 
 
@@ -2223,6 +2236,43 @@ class TestMonetarySpendVariables:
         assert set(allocations) == {"lf_budget"}
         assert float(allocations["lf_budget"].sum()) > 0.0
         assert (result.budgets > 0).all()
+
+    def test_evaluate_plan_labels_every_decision_variable(
+        self, funnel_identity_fitted_mmm
+    ):
+        """A two-variable decision vector comes back keyed, not positional.
+
+        The single-variable case hides the point of returning a dict: here the
+        media gradient is over ``channel``, the spend variable's node has only
+        a date dim so its entry is 0-d, and the flat layout a caller used to
+        slice by hand is exactly what the keys replace.
+        """
+        optimizer = self._optimizer(
+            funnel_identity_fitted_mmm, spend_vars=["lf_budget"]
+        )
+        result = optimizer.allocate_budget(total_budget=self.TOTAL)
+        plan = {
+            "channel_data": result.budgets,
+            "lf_budget": result.spend_var_allocations["lf_budget"],
+        }
+
+        evaluation = optimizer.evaluate_plan(plan, total_budget=self.TOTAL)
+
+        gradient = evaluation.utility_gradient
+        assert set(gradient) == {"channel_data", "lf_budget"}
+        assert gradient["channel_data"].dims == ("channel",)
+        assert gradient["lf_budget"].shape == ()
+        # The optimum is feasible and scores exactly what the solver reported.
+        assert evaluation.feasible(atol=1e-6)
+        np.testing.assert_allclose(
+            evaluation.objective, result.scipy_result.fun, rtol=1e-9
+        )
+        np.testing.assert_allclose(
+            optimizer.optimization_variables.pack(gradient),
+            -optimizer._objective_and_grad(optimizer.optimization_variables.pack(plan))[
+                1
+            ],
+        )
 
     def test_declaring_no_spend_variables_reports_none(
         self, funnel_identity_fitted_mmm

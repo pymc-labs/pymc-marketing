@@ -998,6 +998,14 @@ class TestBasisAndEventEffectRoundtrips:
 
         assert restored == original
 
+    def test_basis_roundtrip_constant_prior(self):
+        """A constant parameter survives serialization (#1613)."""
+        original = GaussianBasis(priors={"sigma": 7.0})
+        data = serialization.serialize(original)
+        restored = serialization.deserialize(data)
+
+        assert restored == original
+
     @pytest.mark.parametrize(
         "basis_cls_name",
         ["GaussianBasis", "HalfGaussianBasis", "AsymmetricGaussianBasis"],

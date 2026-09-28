@@ -265,10 +265,10 @@ def resolve_channel_dependent_effects(
 def linear_predictor(model: MMM) -> Variable | None:
     """Find the node the increment is assembled to reproduce.
 
-    Under a log link the MMM registers its linear predictor as the
-    ``Deterministic`` ``mu``.  Under an identity link the same quantity is an
-    anonymous intermediate that only carries the *name* ``mu``, so it has to be
-    recovered from the graph of the observed variable.
+    The MMM registers its linear predictor as the ``Deterministic`` ``mu``
+    under both links, so the ``named_vars`` lookup below finds it.  The graph
+    search is kept for models that do not register it, such as anything fitted
+    before ``mu`` was registered under the identity link.
 
     Parameters
     ----------
@@ -286,11 +286,10 @@ def linear_predictor(model: MMM) -> Variable | None:
     ------
     ValueError
         If the graph carries more than one node named ``mu``, which leaves the
-        predictor impossible to identify by name.  See
-        :func:`~pymc_marketing.mmm.counterfactual.find_named_node` for the one
-        collision that escapes the check: a user-registered ``Deterministic``
-        named ``mu`` is found by the ``named_vars`` lookup below before any
-        graph search happens.
+        predictor impossible to identify by name.  This only applies to models
+        that reach the graph search: where ``mu`` is registered, the
+        ``named_vars`` lookup below settles it first and PyMC has already
+        enforced that the name is unique.
     """
     pymc_model = model.model
     if LINEAR_PREDICTOR in pymc_model.named_vars:

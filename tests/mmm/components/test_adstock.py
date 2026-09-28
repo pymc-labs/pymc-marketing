@@ -84,6 +84,29 @@ def test_apply(model, adstock: AdstockTransformation, x, dims) -> None:
     "adstock",
     adstocks(),
 )
+def test_adstock_logp_is_differentiable(adstock: AdstockTransformation) -> None:
+    """Every adstock parameter must admit a gradient of the model logp.
+
+    ``pm.sample`` silently demotes a variable to Metropolis when ``grad`` raises,
+    so a non-differentiable Op inside an adstock graph surfaces much later as an
+    unrelated sampler error rather than as a transformation failure.
+    """
+    data = as_xtensor(np.broadcast_to(x, (3, 20)).T.copy(), dims=("time", "channel"))
+
+    with pm.Model(coords={"channel": ["a", "b", "c"], "time": range(20)}) as model:
+        y = adstock.apply(data, core_dim="time")
+        mu = y.transpose("time", "channel").values
+        pm.Normal("obs", mu=mu, sigma=1, observed=np.zeros((20, 3)))
+
+    logp = model.logp()
+    for value_var in model.continuous_value_vars:
+        pt.grad(logp, value_var)
+
+
+@pytest.mark.parametrize(
+    "adstock",
+    adstocks(),
+)
 def test_default_prefix(adstock: AdstockTransformation) -> None:
     assert adstock.prefix == "adstock"
     for value in adstock.variable_mapping.values():
@@ -191,6 +214,27 @@ class TestAdstockRoundtrips:
         for prior_name, prior in custom_priors.items():
             assert restored.function_priors[prior_name] == prior
         assert restored == original
+
+    @pytest.mark.parametrize(
+        "alpha, coords",
+        [(0.5, {}), ([0.5, 0.3], {"channel": ["A", "B"]})],
+        ids=["float", "list"],
+    )
+    def test_roundtrip_constant_prior(self, alpha, coords) -> None:
+        """A constant parameter survives serialization (#1613)."""
+        original = GeometricAdstock(l_max=4, priors={"alpha": alpha})
+        data = serialization.serialize(original)
+        restored = serialization.deserialize(data)
+
+        assert restored == original
+        prior = restored.sample_prior(coords=coords)
+        np.testing.assert_allclose(prior["adstock_alpha"].values[0, 0], alpha)
+
+    def test_from_dict_constant_prior(self) -> None:
+        """A config can fix one parameter to a constant (#1613)."""
+        adstock = GeometricAdstock.from_dict({"l_max": 4, "priors": {"alpha": 0.5}})
+
+        assert adstock.function_priors["alpha"] == 0.5
 
 
 class TestGeometricAdstockHalfLife:

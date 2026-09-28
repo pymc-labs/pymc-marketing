@@ -26,7 +26,7 @@ from __future__ import annotations
 
 import importlib
 import inspect
-from dataclasses import dataclass
+from dataclasses import dataclass, fields, is_dataclass
 from typing import Any, Protocol, Self, runtime_checkable
 
 from pydantic import BaseModel, Field
@@ -192,6 +192,11 @@ class TypeRegistry:
                 actual_cls.to_dict = _wrapped_to_dict  # type: ignore[attr-defined]
 
         return actual_cls
+
+    def is_registered(self, obj: Any) -> bool:
+        """Check whether an object's type is registered in the registry."""
+        type_key = f"{obj.__class__.__module__}.{obj.__class__.__qualname__}"
+        return type_key in self._registry
 
     def serialize(self, obj: Serializable) -> dict[str, Any]:
         """Serialize an object to a JSON-safe dict with ``__type__`` key."""
@@ -388,10 +393,29 @@ def _merge_shared_decompositions(config: dict[str, Any]) -> dict[str, Any]:
         if isinstance(obj, R2D2Sigma):
             obj.decomposition = walk(obj.decomposition)
             return obj
+        if is_dataclass(obj) and not isinstance(obj, type):
+            # Term compositions (Sum, Product, Parameter, Dot, Transform)
+            # carry R2D2Split priors in their fields; descend so shared
+            # decompositions merge instead of duplicating per field.
+            # Frozen dataclasses are updated in place via object.__setattr__
+            # so identity is preserved and `replace()`'s pitfalls
+            # (init=False fields, __post_init__ re-runs) are avoided.
+            for dc_field in fields(obj):
+                current = getattr(obj, dc_field.name)
+                new = walk(current)
+                if new is not current:
+                    object.__setattr__(obj, dc_field.name, new)
+            return obj
         if isinstance(obj, dict):
             return {k: walk(v) for k, v in obj.items()}
         if isinstance(obj, list):
-            return [walk(v) for v in obj]
+            walked_items = [walk(v) for v in obj]
+            if all(
+                item is walked_item
+                for item, walked_item in zip(obj, walked_items, strict=True)
+            ):
+                return obj
+            return walked_items
         if hasattr(obj, "parameters"):
             for k, v in obj.parameters.items():
                 obj.parameters[k] = walk(v)
