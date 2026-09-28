@@ -705,6 +705,133 @@ class TestDecomposition:
         assert set(ds.data_vars) == component_cols
 
 
+PERIODS = ["weekly", "monthly", "quarterly", "yearly", "all_time"]
+
+
+def _sum_per_period(
+    per_date: xr.DataArray, dates: xr.DataArray, period: str
+) -> xr.DataArray:
+    """Sum a per-date component over ``period`` bins, independently of the utils.
+
+    A component without a ``date`` dim is added in every period, so it is
+    repeated on every observed date first and counted once per date.
+    """
+    if "date" not in per_date.dims:
+        per_date = per_date.expand_dims(date=dates)
+    if period == "all_time":
+        return per_date.sum("date")
+    rule = {"weekly": "W", "monthly": "ME", "quarterly": "QE", "yearly": "YE"}[period]
+    return per_date.resample(date=rule).sum("date")
+
+
+@pytest.fixture(scope="module", params=["identity", "log"])
+def fitted(request, mock_pymc_sample) -> MMM:
+    """A fitted MMM with a time-invariant intercept and a ``country`` dim."""
+    mmm = _make_mmm(link=request.param)
+    X, y = _make_positive_panel()
+    mmm.fit(X, y, random_seed=42)
+    return mmm
+
+
+class TestCounterfactualDecompositionPeriod:
+    """``period=`` sums the per-date, per-draw counterfactual over each period (#3074).
+
+    Decompose first, aggregate afterwards: under ``link="log"`` the inverse
+    link is nonlinear in ``mu``, so decomposing the summed ``mu`` is wrong.
+    """
+
+    @pytest.mark.parametrize("period", PERIODS)
+    def test_period_sums_the_per_date_counterfactual_per_draw(self, fitted, period):
+        per_date = fitted.compute_counterfactual_contributions_dataset()
+
+        result = fitted.compute_counterfactual_contributions_dataset(period=period)
+
+        assert set(result.data_vars) == set(per_date.data_vars)
+        for component in per_date.data_vars:
+            expected = _sum_per_period(per_date[component], per_date["date"], period)
+            xr.testing.assert_allclose(
+                result[component], expected.transpose(*result[component].dims)
+            )
+
+    def test_time_invariant_intercept_is_counted_once_per_period(self, fitted):
+        per_date = fitted.compute_counterfactual_contributions_dataset()
+        n_dates = per_date.sizes["date"]
+
+        result = fitted.compute_counterfactual_contributions_dataset(period="all_time")
+
+        assert "date" not in result.dims
+        intercept = per_date["intercept"]
+        if "date" not in intercept.dims:  # identity link, time-invariant
+            expected = intercept * n_dates
+        else:  # log link, built from ``mu``
+            expected = intercept.sum("date")
+        xr.testing.assert_allclose(result["intercept"], expected)
+
+    def test_period_date_holds_the_period_end(self, fitted):
+        result = fitted.compute_counterfactual_contributions_dataset(period="monthly")
+
+        assert result["date"].dt.is_month_end.all()
+        assert result.sizes["date"] == 2  # January and February 2025
+
+    def test_mean_scale_is_applied_per_date_before_summing(self, mock_pymc_sample):
+        mmm = _make_mmm(link="log")
+        X, y = _make_positive_panel()
+        mmm.fit(X, y, random_seed=42)
+        per_date = mmm.compute_counterfactual_contributions_dataset(
+            central_tendency="mean"
+        )
+
+        result = mmm.compute_counterfactual_contributions_dataset(
+            central_tendency="mean", period="monthly"
+        )
+
+        for component in per_date.data_vars:
+            xr.testing.assert_allclose(
+                result[component],
+                _sum_per_period(per_date[component], per_date["date"], "monthly"),
+            )
+
+    @pytest.mark.parametrize("period", PERIODS)
+    def test_dataframe_has_one_row_per_period_and_extra_dim(self, fitted, period):
+        dataset = fitted.compute_counterfactual_contributions_dataset(period=period)
+
+        df = fitted.compute_mean_contributions_over_time(period=period)
+
+        n_periods = dataset.sizes.get("date", 1)
+        assert len(df) == n_periods * dataset.sizes["country"]
+        assert ("date" in df.columns) == (period != "all_time")
+        index_cols = [c for c in ("date", "country") if c in df.columns]
+        posterior_mean = dataset.mean(("chain", "draw"))
+        for component in dataset.data_vars:
+            expected = (
+                posterior_mean[component].to_dataframe(name="expected").reset_index()
+            )
+            merged = df.merge(expected, on=index_cols)
+            assert len(merged) == len(df)
+            np.testing.assert_allclose(
+                merged[component].values, merged["expected"].values, rtol=1e-6
+            )
+
+    def test_all_time_dataframe_without_extra_dims_has_a_single_row(
+        self, mock_pymc_sample
+    ):
+        mmm = _make_mmm(link="identity", dims=None)
+        X, y = _make_positive_panel(countries=("A",))
+        mmm.fit(X.drop(columns="country"), y, random_seed=42)
+        dataset = mmm.compute_counterfactual_contributions_dataset(period="all_time")
+
+        df = mmm.compute_mean_contributions_over_time(period="all_time")
+
+        assert len(df) == 1
+        assert set(df.columns) == set(dataset.data_vars)
+        for component in dataset.data_vars:
+            np.testing.assert_allclose(
+                df[component].iloc[0],
+                dataset[component].mean(("chain", "draw")).item(),
+                rtol=1e-6,
+            )
+
+
 class TestEquality:
     """Test that link is included in equality comparison."""
 

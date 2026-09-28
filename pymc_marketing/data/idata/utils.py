@@ -231,6 +231,62 @@ def _aggregate_over_time[XarrayT: (xr.Dataset, xr.DataArray)](
     raise ValueError(f"Unknown aggregation method: {method}")
 
 
+def _broadcast_over_date(variable: xr.DataArray, date: xr.DataArray) -> xr.DataArray:
+    """Repeat a time-invariant variable on every ``date``.
+
+    The result has dims ``(chain, draw, date, ...)``, in the order the per-date
+    variables of the same group use.
+    """
+    return variable.expand_dims(date=date).transpose(
+        *[d for d in ("chain", "draw") if d in variable.dims], "date", ...
+    )
+
+
+def sum_contributions_over_time(
+    contributions: xr.Dataset,
+    period: Frequency,
+) -> xr.Dataset:
+    """Sum per-date contributions over the dates of each period.
+
+    Every variable of ``contributions`` is a component the model adds to the
+    linear predictor in every period. A component without a ``date`` dim, such
+    as a time-invariant intercept, is repeated on every date of ``contributions``
+    before summing, so that it is counted once per period exactly like the
+    per-date components. The aggregation runs per variable, so each keeps its
+    ``(chain, draw, date, ...)`` dim order.
+
+    Decompose first, then call this: under a nonlinear inverse link the
+    decomposition of the summed linear predictor is not the sum of the per-date
+    decompositions.
+
+    Parameters
+    ----------
+    contributions : xr.Dataset
+        One data variable per component, on the original dates.
+    period : {"original", "weekly", "monthly", "quarterly", "yearly", "all_time"}
+        Time period to sum over. ``"original"`` returns ``contributions``
+        unchanged, ``"all_time"`` removes the ``date`` dim; otherwise ``date``
+        holds the last calendar day of each period.
+
+    Returns
+    -------
+    xr.Dataset
+        The contributions of each period.
+    """
+    if period == "original" or "date" not in contributions.dims:
+        return contributions
+
+    date = contributions["date"]
+    per_date = contributions.map(
+        lambda component: (
+            component
+            if "date" in component.dims
+            else _broadcast_over_date(component, date)
+        )
+    )
+    return per_date.map(_aggregate_over_time, period=period)
+
+
 def aggregate_idata_time(
     idata: xr.DataTree,
     period: Frequency,

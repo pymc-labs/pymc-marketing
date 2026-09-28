@@ -26,6 +26,7 @@ import xarray as xr
 from pymc_marketing.data.idata.schema import Frequency
 from pymc_marketing.data.idata.utils import (
     _aggregate_over_time,
+    _broadcast_over_date,
     aggregate_idata_dims,
     aggregate_idata_time,
     filter_idata_by_dates,
@@ -101,13 +102,7 @@ def _broadcast_per_period_contributions(idata: xr.DataTree) -> xr.DataTree:
             result = idata.copy()
         result[path].dataset = node.to_dataset(inherit=False).assign(
             {
-                name: dataset[name]
-                .expand_dims(date=dataset["date"])
-                .transpose(
-                    *[d for d in ("chain", "draw") if d in dataset[name].dims],
-                    "date",
-                    ...,
-                )
+                name: _broadcast_over_date(dataset[name], dataset["date"])
                 for name in to_broadcast
             }
         )
@@ -1160,8 +1155,10 @@ class MMMIDataWrapper:
         instead. Aggregating spend, the target or the raw posterior variables
         stays valid. To aggregate contributions, decompose on the original
         dates and sum afterwards with the ``period`` argument of
-        :meth:`get_contributions`, :meth:`get_channel_contributions` and
-        :meth:`get_elementwise_roas`, or the ``frequency`` argument of the
+        :meth:`get_contributions`, :meth:`get_channel_contributions`,
+        :meth:`get_elementwise_roas` and
+        :meth:`~pymc_marketing.mmm.mmm.MMM.compute_counterfactual_contributions_dataset`,
+        or the ``frequency`` argument of the
         :class:`~pymc_marketing.mmm.summary.MMMSummaryFactory` summaries.
 
         Parameters
