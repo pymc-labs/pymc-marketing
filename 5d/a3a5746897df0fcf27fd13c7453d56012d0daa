@@ -1,0 +1,23 @@
+.github/pr-summaries/3071-marginal-roas-calibration.md
+  s_25e52590181822::t_c266685bf9e903 11,15,19-20,24-25
+docs/source/notebooks/mmm/mmm_geolift_calibration.ipynb
+  s_25e52590181822::t_745c11b0fc0d01 2067,2069-2085,2114,2128-2130,2133-2148,2187,2190-2191,2194-2195,2229
+docs/source/notebooks/mmm/mmm_lift_test.ipynb
+  s_25e52590181822::t_26880065021394 74,3073,3076-3201,3217-3218,3222-3223,3232,3241,3243-3252,3266,3268,3270-3274,3277,3279-3287,3296
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "5da3a5746897df0fcf27fd13c7453d56012d0daa",
+  "prompts": {},
+  "sessions": {
+    "s_25e52590181822": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0e875-1480-7190-90df-53f6ab89bc2f",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "Benjamin T. Vincent <inferencelab@gmail.com>"
+    }
+  }
+}
