@@ -19,6 +19,7 @@ import numpy as np
 import pandas as pd
 import pymc as pm
 import pytest
+import xarray as xr
 from pymc_extras.prior import Prior
 
 from pymc_marketing.mmm import (
@@ -28,9 +29,11 @@ from pymc_marketing.mmm import (
     MichaelisMentenSaturation,
     lift_test_design,
 )
+from pymc_marketing.mmm.data_conversion import to_mmm_dataset
 from pymc_marketing.mmm.mmm import MMM
 from pymc_marketing.mmm.synthetic_data import simulate_endogenous_spend_market
 from pymc_marketing.serialization import serialization
+from pymc_marketing.special_priors import LogNormalPrior
 from tests.mmm.conftest import mock_fit
 
 N_WEEKS = 30
@@ -470,6 +473,112 @@ class TestExogeneitySummary:
 
 
 # ------------------------------------------------------ lift-test interaction
+def test_lift_test_design_edge_cases():
+    base = {"channel": "tv", "delta_x": 1.0}
+    missing_mode = pd.DataFrame(
+        [{**base, "start_date": DATES[2], "end_date": DATES[3], "mode": np.nan}]
+    )
+    shift, _ = lift_test_design(missing_mode, dates=DATES, channels=["tv"])
+    assert float(shift.sum()) == 2.0
+
+    with pytest.raises(ValueError, match="not in the model coords"):
+        lift_test_design(
+            pd.DataFrame(
+                [{**base, "geo": "Z", "start_date": DATES[2], "end_date": DATES[3]}]
+            ),
+            dates=DATES,
+            channels=["tv"],
+            dim_coords={"geo": ["A"]},
+        )
+
+    between_weeks = {
+        "start_date": DATES[2] + pd.Timedelta(days=1),
+        "end_date": DATES[2] + pd.Timedelta(days=3),
+    }
+    with pytest.raises(ValueError, match="contains no model dates"):
+        lift_test_design(
+            pd.DataFrame([{**base, **between_weeks}]), dates=DATES, channels=["tv"]
+        )
+
+
+def _dataset_with_drivers(X: pd.DataFrame) -> xr.Dataset:
+    ds = to_mmm_dataset(
+        X, date_column="date", channel_columns=["tv", "digital"], control_columns=["c1"]
+    )
+    rng = np.random.default_rng(3)
+    ds["forecast"] = xr.DataArray(
+        rng.normal(size=len(X)), dims="date", coords={"date": ds["date"]}
+    )
+    ds["forecast_by_source"] = xr.DataArray(
+        rng.normal(size=(len(X), 2)),
+        dims=("date", "source"),
+        coords={"date": ds["date"], "source": ["a", "b"]},
+    )
+    return ds
+
+
+def test_budget_drivers(data):
+    X, y = data
+    ds = _dataset_with_drivers(X)
+    y_da = xr.DataArray(y.to_numpy(), dims="date", coords={"date": ds["date"]})
+    effect = BudgetModelEffect(drivers=["forecast", "forecast_by_source"])
+    assert effect.data_vars == ["forecast", "forecast_by_source"]
+    mmm = _make_mmm().add_mu_effect(effect)
+    mmm.build_model(ds, y_da)
+    with mmm.model, warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        idata = pm.sample_prior_predictive(draws=20, random_seed=1)
+        idata["/posterior"] = idata["/prior"].to_dataset()
+    mmm.idata = idata
+    assert "budget_forecast_coef" in mmm.model.named_vars
+    assert mmm.model.named_vars_to_dims["budget_spend_mu"] == ("date", "budget_channel")
+
+    future = _dataset_with_drivers(
+        X.assign(date=X["date"] + pd.Timedelta(weeks=N_WEEKS))
+    )
+    pp = mmm.sample_posterior_predictive(
+        future,
+        extend_idata=False,
+        var_names=["budget_effect_contribution"],
+        random_seed=1,
+    )
+    assert float(abs(pp["budget_effect_contribution"]).max()) == 0.0
+
+
+@pytest.mark.parametrize(
+    "drivers, match",
+    [(["unknown"], "not in the training data"), (["static"], "must have a 'date' dim")],
+)
+def test_budget_driver_validation(data, drivers, match):
+    X, y = data
+    ds = _dataset_with_drivers(X)
+    ds["static"] = xr.DataArray(
+        [1.0, 2.0], dims="source", coords={"source": ["a", "b"]}
+    )
+    y_da = xr.DataArray(y.to_numpy(), dims="date", coords={"date": ds["date"]})
+    mmm = _make_mmm().add_mu_effect(BudgetModelEffect(drivers=drivers))
+    with pytest.raises(ValueError, match=match):
+        mmm.build_model(ds, y_da)
+
+
+def test_guards(fitted):
+    mmm, _ = fitted
+    assert BudgetModelEffect(design=None).design is None
+    unbuilt = BudgetModelEffect()
+    with pytest.raises(RuntimeError, match="must run before set_data"):
+        unbuilt.set_data(mmm, mmm.model, None)
+    with pytest.raises(RuntimeError, match="has not been built"):
+        unbuilt.exogeneity_summary(mmm)
+
+
+def test_from_dict_registered_prior():
+    effect = BudgetModelEffect(
+        spend_sigma_prior=LogNormalPrior(mean=0.2, std=0.1, dims="budget_channel")
+    )
+    restored = BudgetModelEffect.from_dict(effect.to_dict())
+    assert isinstance(restored.spend_sigma_prior, LogNormalPrior)
+
+
 def test_lift_likelihood_double_count_warning(data, design):
     X, y = data
     mmm = _make_mmm().add_mu_effect(BudgetModelEffect(design=design))
