@@ -24,6 +24,13 @@ import pandas as pd
 import xarray as xr
 
 from pymc_marketing.data.idata.schema import Frequency
+from pymc_marketing.data.idata.utils import (
+    _aggregate_over_time,
+    aggregate_idata_dims,
+    aggregate_idata_time,
+    filter_idata_by_dates,
+    filter_idata_by_dims,
+)
 
 if TYPE_CHECKING:
     from pymc_marketing.mmm.mmm import MMM
@@ -768,10 +775,18 @@ class MMMIDataWrapper:
 
         return xr.Dataset(contributions)
 
-    def get_elementwise_roas(self, original_scale: bool = True) -> xr.DataArray:
+    def get_elementwise_roas(
+        self,
+        original_scale: bool = True,
+        period: Frequency = "original",
+    ) -> xr.DataArray:
         """Compute element-wise ROAS (Return on Ad Spend) for each channel.
 
-        ROAS = contribution / spend for each channel at each time point.
+        ROAS = contribution / spend for each channel at each time point, or,
+        with a ``period``, the contributions summed over each period divided by
+        the spend summed over it. The contributions are decomposed on the
+        original dates before any summing, which ``link="log"`` requires (see
+        :meth:`aggregate_time`).
         Does NOT account for adstock carryover effects. For true incremental
         ROAS, use :meth:`pymc_marketing.mmm.incrementality.Incrementality.contribution_over_spend`
         or :meth:`pymc_marketing.mmm.summary.MMMSummaryFactory.roas` with
@@ -781,20 +796,30 @@ class MMMIDataWrapper:
         ----------
         original_scale : bool, default True
             Whether to return contributions in original scale.
+        period : {"original", "weekly", "monthly", "quarterly", "yearly", "all_time"}, default "original"
+            Time period to sum contributions and spend over before dividing.
+            ``"original"`` keeps every date, ``"all_time"`` removes the
+            ``date`` dim.
 
         Returns
         -------
         xr.DataArray
             ROAS values with dims (chain, draw, date, channel) plus any custom dims.
-            Zero spend values result in NaN to avoid division by zero.
+            With a ``period``, ``date`` holds the last calendar day of each period
+            (a Sunday for ``"weekly"``), which can fall after the last observed
+            date, and ``"all_time"`` has no ``date`` dim. Zero spend, on a date or
+            summed over a period, results in NaN to avoid division by zero.
 
         Examples
         --------
         >>> roas = mmm.data.get_elementwise_roas()
         >>> roas_mean = roas.mean(dim=["chain", "draw"])
+        >>> monthly_roas = mmm.data.get_elementwise_roas(period="monthly")
         """
-        contributions = self.get_channel_contributions(original_scale=original_scale)
-        spend = self.get_channel_spend()
+        contributions = _aggregate_over_time(
+            self.get_channel_contributions(original_scale=original_scale), period
+        )
+        spend = _aggregate_over_time(self.get_channel_spend(), period)
 
         # Handle zero spend - use xr.where to avoid division by zero
         spend_safe = xr.where(spend == 0, np.nan, spend)
@@ -964,8 +989,6 @@ class MMMIDataWrapper:
         if start_date is None and end_date is None:
             return self
 
-        from pymc_marketing.data.idata.utils import filter_idata_by_dates
-
         filtered_idata = filter_idata_by_dates(self.idata, start_date, end_date)
 
         return MMMIDataWrapper(
@@ -996,8 +1019,6 @@ class MMMIDataWrapper:
         """
         if not dim_filters:
             return self
-
-        from pymc_marketing.data.idata.utils import filter_idata_by_dims
 
         filtered_idata = filter_idata_by_dims(self.idata, **dim_filters)
 
@@ -1061,6 +1082,14 @@ class MMMIDataWrapper:
         unchanged; use :meth:`broadcast_per_period_contributions` to get the
         intercept on every original date.
 
+        Under ``link="log"`` the result must not be decomposed:
+        :meth:`get_contributions` would exponentiate the summed ``mu``, and the
+        exponential of a sum is not the sum of the exponentials. Decompose on
+        the original dates and aggregate the contributions afterwards, as
+        :meth:`get_elementwise_roas` with a ``period`` and the ``frequency``
+        argument of the :class:`~pymc_marketing.mmm.summary.MMMSummaryFactory`
+        summaries do.
+
         Parameters
         ----------
         period : {"original", "weekly", "monthly", "quarterly", "yearly", "all_time"}
@@ -1073,8 +1102,6 @@ class MMMIDataWrapper:
         MMMIDataWrapper
             New wrapper with aggregated idata
         """
-        from pymc_marketing.data.idata.utils import aggregate_idata_time
-
         idata = self.idata
         if period != "original":
             idata = _broadcast_per_period_contributions(idata)
@@ -1112,8 +1139,6 @@ class MMMIDataWrapper:
         MMMIDataWrapper
             New wrapper with aggregated idata
         """
-        from pymc_marketing.data.idata.utils import aggregate_idata_dims
-
         aggregated_idata = aggregate_idata_dims(
             self.idata, dim, values, new_label, method
         )
