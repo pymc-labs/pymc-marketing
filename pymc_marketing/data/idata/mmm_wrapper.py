@@ -28,6 +28,71 @@ from pymc_marketing.data.idata.schema import Frequency
 if TYPE_CHECKING:
     from pymc_marketing.mmm.mmm import MMM
 
+# Contribution variables that the model adds to ``mu`` in every period but that
+# carry no ``date`` dim when they are time-invariant. Add any new date-less
+# additive contribution here, otherwise time aggregation counts it once for the
+# whole window instead of once per period. Parameters such as
+# ``intercept_baseline`` and totals such as
+# ``total_media_contribution_original_scale`` are deliberately not listed:
+# neither is a per-period contribution.
+_PER_PERIOD_CONTRIBUTIONS = (
+    "intercept_contribution",
+    "intercept_contribution_original_scale",
+)
+
+
+def _broadcast_per_period_contributions(idata: xr.DataTree) -> xr.DataTree:
+    """Broadcast time-invariant per-period contributions over ``date``.
+
+    A time-invariant intercept contributes its value in every period, so
+    aggregating it over time must count it once per period, exactly like the
+    per-date contributions it is added to. Summing a variable without a
+    ``date`` dim over ``date`` would instead leave a single period's value.
+
+    Every group with a ``date`` dim is handled, so ``prior`` and
+    ``posterior`` stay consistent.
+
+    Parameters
+    ----------
+    idata : xr.DataTree
+        DataTree whose groups may hold time-invariant contribution variables.
+
+    Returns
+    -------
+    xr.DataTree
+        ``idata`` itself if there is nothing to broadcast, otherwise a shallow
+        copy, with the root node and every other variable kept, whose listed
+        contribution variables have the ``date`` dim of their group.
+    """
+    result = idata
+    for path in idata.groups:
+        node = idata[path]
+        dataset = node.dataset
+        if "date" not in dataset.dims:
+            continue
+        to_broadcast = [
+            name
+            for name in _PER_PERIOD_CONTRIBUTIONS
+            if name in node.data_vars and "date" not in dataset[name].dims
+        ]
+        if not to_broadcast:
+            continue
+        if result is idata:
+            result = idata.copy()
+        result[path].dataset = node.to_dataset(inherit=False).assign(
+            {
+                name: dataset[name]
+                .expand_dims(date=dataset["date"])
+                .transpose(
+                    *[d for d in ("chain", "draw") if d in dataset[name].dims],
+                    "date",
+                    ...,
+                )
+                for name in to_broadcast
+            }
+        )
+    return result
+
 
 class MMMIDataWrapper:
     """Codified wrapper around DataTree for MMM models.
@@ -933,6 +998,35 @@ class MMMIDataWrapper:
 
     # ==================== Aggregation Operations ====================
 
+    def broadcast_per_period_contributions(self) -> MMMIDataWrapper:
+        """Repeat time-invariant per-period contributions on every date.
+
+        The model adds a time-invariant intercept to ``mu`` in every period
+        but stores it without a ``date`` dim. In the returned wrapper,
+        ``intercept_contribution`` and ``intercept_contribution_original_scale``
+        carry the ``date`` dim of their group, so they line up with the
+        per-date contributions and add up with them date by date.
+        Contributions that already have a ``date`` dim, parameters such as
+        ``intercept_baseline``, and window totals are left as they are.
+
+        Returns
+        -------
+        MMMIDataWrapper
+            New wrapper over the broadcast data.
+
+        Examples
+        --------
+        .. code-block:: python
+
+            per_date = mmm.data.broadcast_per_period_contributions()
+            per_date.get_contributions()["baseline"]  # has a "date" dim
+        """
+        return MMMIDataWrapper(
+            _broadcast_per_period_contributions(self.idata),
+            schema=self.schema,
+            validate_on_init=False,
+        )
+
     def aggregate_time(
         self,
         period: Frequency,
@@ -941,6 +1035,14 @@ class MMMIDataWrapper:
         """Aggregate data over time periods.
 
         Delegates to standalone `aggregate_idata_time` utility function.
+
+        A time-invariant intercept (``intercept_contribution`` without a
+        ``date`` dim) is added to ``mu`` in every period, so it is broadcast
+        over ``date`` before aggregating. With ``method="sum"`` it is then
+        counted once per period, and the aggregated components still add up
+        to the aggregated prediction. ``period="original"`` returns the data
+        unchanged; use :meth:`broadcast_per_period_contributions` to get the
+        intercept on every original date.
 
         Parameters
         ----------
@@ -956,7 +1058,10 @@ class MMMIDataWrapper:
         """
         from pymc_marketing.data.idata.utils import aggregate_idata_time
 
-        aggregated_idata = aggregate_idata_time(self.idata, period, method)
+        idata = self.idata
+        if period != "original":
+            idata = _broadcast_per_period_contributions(idata)
+        aggregated_idata = aggregate_idata_time(idata, period, method)
 
         # For "all_time", schema no longer applies (date dimension removed)
         schema = None if period == "all_time" else self.schema

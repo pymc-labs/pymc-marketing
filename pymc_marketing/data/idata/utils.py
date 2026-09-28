@@ -207,6 +207,15 @@ def aggregate_idata_time(
     xr.DataTree
         New DataTree with aggregated groups (or unchanged if period="original")
 
+    Notes
+    -----
+    Each variable is reduced as it is, so a variable without a ``date`` dim
+    passes through unchanged. A time-invariant MMM intercept is such a
+    variable although the model adds it in every period: summing MMM
+    contributions with this function counts it once for the whole window.
+    Use :meth:`~pymc_marketing.data.idata.mmm_wrapper.MMMIDataWrapper.aggregate_time`,
+    which broadcasts it over ``date`` first.
+
     Examples
     --------
     >>> original = aggregate_idata_time(idata, "original")  # No aggregation

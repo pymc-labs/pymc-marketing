@@ -124,6 +124,46 @@ def mock_mmm_idata_wrapper(simple_dates, simple_channels):
 
 
 @pytest.fixture
+def mock_mmm_idata_wrapper_with_intercept(simple_dates, simple_channels):
+    """Mock MMMIDataWrapper with a time-invariant intercept.
+
+    ``intercept_contribution`` has no ``date`` dim, as in a model without a
+    time-varying intercept, while ``channel_contribution`` is per date.
+    """
+    local_rng = np.random.default_rng(seed=45)
+
+    idata = xr.DataTree.from_dict(
+        {
+            "/posterior": xr.Dataset(
+                {
+                    "channel_contribution": xr.DataArray(
+                        local_rng.normal(loc=1.0, scale=0.1, size=(2, 10, 52, 3)),
+                        dims=("chain", "draw", "date", "channel"),
+                        coords={"date": simple_dates, "channel": simple_channels},
+                    ),
+                    "intercept_contribution": xr.DataArray(
+                        local_rng.normal(loc=3.0, scale=0.2, size=(2, 10)),
+                        dims=("chain", "draw"),
+                    ),
+                }
+            ),
+            "/constant_data": xr.Dataset(
+                {
+                    "channel_data": xr.DataArray(
+                        local_rng.uniform(0, 100, size=(52, 3)),
+                        dims=("date", "channel"),
+                        coords={"date": simple_dates, "channel": simple_channels},
+                    ),
+                    "target_scale": xr.DataArray(500.0),
+                }
+            ),
+        }
+    )
+
+    return MMMIDataWrapper(idata, schema=None, validate_on_init=False)
+
+
+@pytest.fixture
 def mock_mmm_idata_wrapper_with_zero_spend(simple_dates):
     """Mock MMMIDataWrapper with zero spend channel for ROAS testing."""
     local_rng = np.random.default_rng(seed=43)
@@ -1264,12 +1304,167 @@ class TestNonChannelComponents:
         assert "control" in df.columns
         assert len(df["control"].unique()) == 2  # price and promo
 
+    def test_contribution_summary_time_invariant_baseline_has_a_row_per_date(
+        self, mock_mmm_idata_wrapper_with_intercept, simple_dates
+    ):
+        """A time-invariant intercept is reported on every date, like the channels."""
+        data = mock_mmm_idata_wrapper_with_intercept
+        df = MMMSummaryFactory(data).contributions(
+            component="baseline", hdi_probs=[0.94]
+        )
+
+        intercept = (
+            data.idata.posterior["intercept_contribution"] * data.get_target_scale()
+        )
+        np.testing.assert_array_equal(df["date"].to_numpy(), simple_dates.to_numpy())
+        np.testing.assert_allclose(df["mean"], float(intercept.mean()))
+        np.testing.assert_allclose(df["median"], float(intercept.median()))
+        assert (df["abs_error_94_lower"] < df["mean"]).all()
+        assert (df["abs_error_94_upper"] > df["mean"]).all()
+
     def test_contribution_summary_missing_component_raises(
         self, mock_mmm_idata_wrapper
     ):
         """Test that requesting missing component raises ValueError."""
         with pytest.raises(ValueError, match=r"No controls contributions found"):
             MMMSummaryFactory(mock_mmm_idata_wrapper).contributions(component="control")
+
+
+class TestTimeInvariantBaselineAggregation:
+    """A time-invariant intercept is added to ``mu`` in every period.
+
+    Aggregating over time must therefore count it once per period, like every
+    per-date contribution, so that the aggregated components still add up to
+    the aggregated prediction.
+    """
+
+    @staticmethod
+    def _mean_prediction(data: MMMIDataWrapper) -> xr.DataArray:
+        """Posterior-mean prediction per date: channels plus intercept."""
+        posterior = data.idata.posterior
+        return (
+            (
+                posterior["channel_contribution"].sum("channel")
+                + posterior["intercept_contribution"]
+            )
+            * data.get_target_scale()
+        ).mean(("chain", "draw"))
+
+    def test_all_time_baseline_counts_every_period(
+        self, mock_mmm_idata_wrapper_with_intercept, simple_dates
+    ):
+        factory = MMMSummaryFactory(mock_mmm_idata_wrapper_with_intercept)
+
+        per_date = factory.contributions(component="baseline", hdi_probs=[0.94])
+        all_time = factory.contributions(
+            component="baseline", frequency="all_time", hdi_probs=[0.94]
+        )
+
+        assert len(all_time) == 1
+        # Every date carries the same draws, so each statistic scales by N.
+        n_periods = len(simple_dates)
+        for column in ["mean", "median", "abs_error_94_lower", "abs_error_94_upper"]:
+            np.testing.assert_allclose(
+                all_time[column].item(),
+                n_periods * per_date[column].iloc[0],
+                rtol=1e-10,
+            )
+
+    def test_all_time_baseline_with_length_one_target_scale(
+        self, mock_mmm_idata_wrapper_with_intercept, simple_dates
+    ):
+        """Some samplers store ``target_scale`` with a length-1 dim, not 0-d."""
+        target_scale = float(mock_mmm_idata_wrapper_with_intercept.get_target_scale())
+        idata = mock_mmm_idata_wrapper_with_intercept.idata.copy()
+        idata["constant_data"] = xr.DataTree(
+            idata["constant_data"]
+            .to_dataset()
+            .assign(
+                target_scale=xr.DataArray([target_scale], dims=("target_scale_dim_0",))
+            )
+        )
+        factory = MMMSummaryFactory(
+            MMMIDataWrapper(idata, schema=None, validate_on_init=False)
+        )
+
+        per_date = factory.contributions(component="baseline", hdi_probs=[0.94])
+        all_time = factory.contributions(
+            component="baseline", frequency="all_time", hdi_probs=[0.94]
+        )
+
+        for column in ["mean", "median", "abs_error_94_lower", "abs_error_94_upper"]:
+            np.testing.assert_allclose(
+                all_time[column].item(),
+                len(simple_dates) * per_date[column].iloc[0],
+                rtol=1e-10,
+            )
+
+    def test_all_time_components_add_up_to_the_window_total(
+        self, mock_mmm_idata_wrapper_with_intercept
+    ):
+        data = mock_mmm_idata_wrapper_with_intercept
+        factory = MMMSummaryFactory(data)
+        channels = factory.contributions(component="channel", frequency="all_time")
+        baseline = factory.contributions(component="baseline", frequency="all_time")
+
+        np.testing.assert_allclose(
+            channels["mean"].sum() + baseline["mean"].sum(),
+            float(self._mean_prediction(data).sum("date")),
+            rtol=1e-10,
+        )
+
+    @pytest.mark.parametrize(
+        ("frequency", "rule"),
+        [("monthly", "ME"), ("quarterly", "QE"), ("yearly", "YE")],
+    )
+    def test_periodic_baseline_counts_the_periods_in_each_bucket(
+        self, mock_mmm_idata_wrapper_with_intercept, simple_dates, frequency, rule
+    ):
+        factory = MMMSummaryFactory(mock_mmm_idata_wrapper_with_intercept)
+
+        per_date = factory.contributions(component="baseline")["mean"].iloc[0]
+        periodic = factory.contributions(component="baseline", frequency=frequency)
+
+        periods_per_bucket = (
+            pd.Series(1, index=simple_dates).resample(rule).sum().to_numpy()
+        )
+        np.testing.assert_allclose(
+            periodic["mean"].to_numpy(), periods_per_bucket * per_date, rtol=1e-10
+        )
+
+    @pytest.mark.parametrize(
+        ("frequency", "aggregate"),
+        [
+            (None, lambda prediction: prediction),
+            ("monthly", lambda prediction: prediction.resample(date="ME").sum()),
+        ],
+        ids=["original", "monthly"],
+    )
+    def test_total_contribution_components_add_up_on_every_date(
+        self, mock_mmm_idata_wrapper_with_intercept, frequency, aggregate
+    ):
+        data = mock_mmm_idata_wrapper_with_intercept
+        df = MMMSummaryFactory(data).total_contribution(frequency=frequency)
+
+        per_date = df.groupby("date")["mean"].sum()
+
+        np.testing.assert_allclose(
+            per_date.to_numpy(),
+            aggregate(self._mean_prediction(data)).to_numpy(),
+            rtol=1e-10,
+        )
+
+    def test_total_contribution_all_time_adds_up_to_the_window_total(
+        self, mock_mmm_idata_wrapper_with_intercept
+    ):
+        data = mock_mmm_idata_wrapper_with_intercept
+        df = MMMSummaryFactory(data).total_contribution(frequency="all_time")
+
+        np.testing.assert_allclose(
+            df["mean"].sum(),
+            float(self._mean_prediction(data).sum("date")),
+            rtol=1e-10,
+        )
 
 
 # =============================================================================
