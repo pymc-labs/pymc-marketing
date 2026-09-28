@@ -651,19 +651,13 @@ class MediaVariable(OptimizationVariable):
         Returns
         -------
         dict[str, DataArray]
-            Empty when the variable has no price response. Otherwise three
-            arrays over ``(date_dim, *dims)``: ``implied_delivery`` in the
-            delivery units the money buys, before ``channel_scales`` -- the
-            model node receives ``implied_delivery / channel_scales`` --
-            (``0.0`` at zero money), ``implied_price``
-            and ``implied_marginal_price`` in money per unit, ``nan`` wherever
-            per-period money is zero -- masked cells and any decision that
-            landed on (or within ``1e-12`` of the reference spend of) zero --
-            because their price would otherwise be read
-            off a reference they never spent against. Where money is spent,
+            Empty when the variable has no price response. Otherwise three arrays
+            over ``(date_dim, *dims)``: ``implied_delivery``, the units bought
+            (before ``channel_scales``; ``0.0`` at zero money), and
+            ``implied_price`` / ``implied_marginal_price`` in money per unit,
+            ``nan`` wherever no money was spent. On spent cells
             ``(implied_delivery * implied_price).sum(date_dim)`` equals
-            ``budgets * num_periods`` to floating point (``u(s) * p(s) = s``
-            algebraically).
+            ``budgets * num_periods``.
         """
         if self.price_response is None:
             return {}
@@ -677,10 +671,8 @@ class MediaVariable(OptimizationVariable):
         money, delivery, price, marginal = (
             np.asarray(v) for v in self._delivery_report_fn(x)
         )
-        # SLSQP leaves a cell it drove to the bound at 1e-16 as often as at
-        # exactly 0; both bought nothing, so the mask follows the intent rather
-        # than the bit pattern. Relative to the reference so the threshold has
-        # the units of money.
+        # SLSQP leaves a bound-pinned cell at 1e-16 as often as at exactly 0; both
+        # bought nothing. Relative to the reference so the threshold is in money.
         zero = money <= 1e-12 * self.price_response.reference_spend
         price = np.where(zero, np.nan, price)
         marginal = np.where(zero, np.nan, marginal)
@@ -695,6 +687,7 @@ class MediaVariable(OptimizationVariable):
         }
 
     def _compile_delivery_report(self):
+        """Compile money, delivery and both prices from the flat slice, over ``(date_dim, *dims)``."""
         if self.price_response is None:  # pragma: no cover - guarded by delivery_report
             raise RuntimeError(f"{self.name}: no price response to report on")
         z = ptx.xtensor(

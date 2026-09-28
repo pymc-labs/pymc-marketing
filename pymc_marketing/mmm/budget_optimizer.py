@@ -2439,6 +2439,14 @@ class BudgetOptimizer(BaseModel):
         which owns the fitted-artifact gate; a spend variable has no artifact and
         must supply its own ``reference_spend``; an identity needs none.
         """
+        responses = self._price_responses_by_name()
+        return {
+            name: (response, self._settle_price_reference(name, response))
+            for name, response in responses.items()
+        }
+
+    def _price_responses_by_name(self) -> dict[str, PriceResponse]:
+        """Normalise the declaration to one response per monetary variable."""
         if self.price_response is None:
             return {}
         if isinstance(self.price_response, PriceResponse):
@@ -2450,62 +2458,58 @@ class BudgetOptimizer(BaseModel):
                     "Media and spend variables draw from the same pot through the same constraint, so "
                     "pricing one on a curve and leaving the other constant must be explicit."
                 )
-            responses = {self.channel_data_var: self.price_response}
-        else:
-            allowed = {self.channel_data_var, *self.spend_vars}
-            unknown = sorted(set(self.price_response) - allowed)
-            if unknown:
-                raise ValueError(
-                    f"price_response names {unknown}, which are not {self.channel_data_var!r} or in "
-                    f"spend_vars {list(self.spend_vars)}. A response on a name that is not optimized "
-                    "has no effect, so it is more likely a typo than an intention."
-                )
-            # The bare-object refusal above promises that the dict form names
-            # every monetary variable, so that a spend variable left at a
-            # constant price while media is on a curve (or the reverse) is
-            # explicit. Omitting a key would reproduce that hazard silently,
-            # so every variable in the pot must appear once any of them does;
-            # an identity response is how "constant" is said.
-            missing = sorted(allowed - set(self.price_response))
-            if missing:
-                raise ValueError(
-                    f"price_response names {sorted(self.price_response)} but leaves {missing} "
-                    "unpriced. Every monetary variable must appear once any does, so that one "
-                    "priced on a curve next to one at a constant price is explicit; say constant "
-                    "with PowerPriceResponse(elasticity=0.0)."
-                )
-            responses = dict(self.price_response)
+            return {self.channel_data_var: self.price_response}
+        allowed = {self.channel_data_var, *self.spend_vars}
+        unknown = sorted(set(self.price_response) - allowed)
+        if unknown:
+            raise ValueError(
+                f"price_response names {unknown}, which are not {self.channel_data_var!r} or in "
+                f"spend_vars {list(self.spend_vars)}. A response on a name that is not optimized "
+                "has no effect, so it is more likely a typo than an intention."
+            )
+        # A partial dict would reproduce the bare-object hazard silently, so every
+        # monetary variable must appear; an identity response is how "constant" is said.
+        missing = sorted(allowed - set(self.price_response))
+        if missing:
+            raise ValueError(
+                f"price_response names {sorted(self.price_response)} but leaves {missing} "
+                "unpriced. Every monetary variable must appear once any does, so that one "
+                "priced on a curve next to one at a constant price is explicit; say constant "
+                "with PowerPriceResponse(elasticity=0.0)."
+            )
+        return dict(self.price_response)
 
-        resolved: dict[str, tuple[PriceResponse, DataArray | None]] = {}
-        for name, response in responses.items():
-            # Judged after masking for the media variable: resolve() zeroes the
-            # elasticity outside the mask, so a response naming only masked-out
-            # channels is a no-op and must not be refused over channels it never
-            # touches. A spend variable's mask is every cell, so the declaration
-            # alone answers there.
-            if name == self.channel_data_var:
-                identity = response.is_identity_on(
-                    dims=tuple(self._budget_dims),
-                    coords=self._budget_coords,
-                    mask=self.budgets_to_optimize,  # type: ignore[arg-type]
-                    date_dim=self.date_dim,
-                    label=f"{name}: price_response",
-                )
-            else:
-                identity = response.is_identity
-            if identity:
-                resolved[name] = (response, None)
-            elif name == self.channel_data_var:
-                resolved[name] = (response, self._media_price_reference(response))
-            elif response.reference_spend is None:
-                raise ValueError(
-                    f"{name}: price_response: reference_spend is required for a spend variable -- "
-                    "there is no fitted cost_per_unit artifact to derive the level at which its base "
-                    "price applies. Pass reference_spend as per-period money over the variable's dims."
-                )
-            else:
-                resolved[name] = (response, None)
-        return resolved
+    def _is_identity_for(self, name: str, response: PriceResponse) -> bool:
+        """Judge the identity after masking for media, from the declaration for a spend variable.
+
+        ``resolve()`` zeroes the elasticity outside the mask, so a media response
+        naming only masked-out channels is a no-op and must not be gated.
+        """
+        if name != self.channel_data_var:
+            return response.is_identity
+        return response.is_identity_on(
+            dims=tuple(self._budget_dims),
+            coords=self._budget_coords,
+            mask=self.budgets_to_optimize,  # type: ignore[arg-type]
+            date_dim=self.date_dim,
+            label=f"{name}: price_response",
+        )
+
+    def _settle_price_reference(
+        self, name: str, response: PriceResponse
+    ) -> DataArray | None:
+        """Return the derived reference for media, ``None`` for an identity or a self-referenced spend variable."""
+        if self._is_identity_for(name, response):
+            return None
+        if name == self.channel_data_var:
+            return self._media_price_reference(response)
+        if response.reference_spend is None:
+            raise ValueError(
+                f"{name}: price_response: reference_spend is required for a spend variable -- "
+                "there is no fitted cost_per_unit artifact to derive the level at which its base "
+                "price applies. Pass reference_spend as per-period money over the variable's dims."
+            )
+        return None
 
     def _priced_channels(self) -> set[str] | None:
         """Channels the fitted model's historical cost_per_unit table prices, or ``None`` without a table.
@@ -2515,26 +2519,20 @@ class BudgetOptimizer(BaseModel):
         so writes spend for every channel. ``MMM`` writes JSON ``null`` for an unpriced
         model, which reads as no table.
         """
-        # The table is stored by MMM as pandas' ``orient="split"`` JSON, whose
-        # top-level ``columns`` key is all that is needed here. ``mmm.py``'s
-        # ``_deserialize_cost_per_unit`` parses the whole frame (and normalises
-        # dates) but lives in a module that imports this one -- and that this
-        # module is tested never to import -- so it is not reusable from here.
+        # The attr is pandas' orient="split" JSON; only its "columns" key is needed.
+        # mmm.py owns the full parser but imports this module, so it is not reusable here.
         raw = self.idata.attrs.get("cost_per_unit")
         try:
             table = json.loads(raw) if isinstance(raw, str) else None
             columns = set(table["columns"]) if table else None
         except (ValueError, KeyError, TypeError):
-            # Garbage in the attr is "no usable table", not a JSONDecodeError
-            # out of the middle of the gate.
+            # Garbage in the attr means no usable table, not an error.
             columns = None
         if columns is None:
             return None
-        # The frame is wide: one column per custom dim (``geo``, ``country``,
-        # ...) plus one per channel, and ``_parse_cost_per_unit_df`` reads any
-        # column named like a custom dim as that dim. Only those are removed;
-        # ``channel`` itself is the axis the columns are labels of, so a channel
-        # literally named "channel" stays priced.
+        # The wide frame carries one column per custom dim plus one per channel; drop
+        # the dim columns. "channel" is the axis itself, so a channel named "channel"
+        # stays priced.
         return columns - {"date"} - (set(self._budget_dims) - {"channel"})
 
     def _unpriced_optimized_channels(self, priced: set[str]) -> list[str]:
@@ -2553,56 +2551,66 @@ class BudgetOptimizer(BaseModel):
         return [channel for channel in optimized if channel not in priced]
 
     def _media_price_reference(self, response: PriceResponse) -> DataArray | None:
-        """Gate a non-identity media response on the fitted artifact and derive its reference spend.
+        """Gate a curved media response on the fitted artifact and derive its reference spend.
 
         A saturation curve fitted on nominal spend has already absorbed part of
         the price curvature, so a concave price map on top bends it twice. The
         proof that channel data is in delivery units is the historical
-        ``cost_per_unit`` table, per channel. The ``cost_per_unit`` passed to this
-        optimizer is documented as independent of it and proves nothing.
+        ``cost_per_unit`` table, per channel; the ``cost_per_unit`` passed to this
+        optimizer is independent of it and proves nothing.
         """
-        # Three distinct facts, each with its own wording: no table at all; a
-        # table whose columns cannot be matched to this optimization's cells
-        # because they have no "channel" dim; a table that leaves some optimized
-        # channels unpriced. Collapsing them tells a user to set a table they
-        # already have.
+        unvouched = self._unvouched_channels()
+        if unvouched:
+            self._require_units_attestation(response, unvouched)
+            return None
+        return self._reference_from_fitted_spend(response)
+
+    def _unvouched_channels(self) -> str:
+        """Describe the optimized channels the fitted artifact cannot vouch for; empty when priced.
+
+        Three distinct facts get three wordings, so a user is not told to set a
+        table they already have.
+        """
         priced = self._priced_channels()
         if priced is None:
-            who = "every optimized channel (no usable historical cost_per_unit table on the fitted model)"
-        elif "channel" not in self._budget_dims:
-            who = (
+            return "every optimized channel (no usable historical cost_per_unit table on the fitted model)"
+        if "channel" not in self._budget_dims:
+            return (
                 "every optimized channel (the fitted model prices channels, but this "
                 f"optimization's budget dims are {list(self._budget_dims)}, with no 'channel' "
                 "dim to match the table's columns against)"
             )
-        else:
-            unpriced = self._unpriced_optimized_channels(priced)
-            who = f"channels {unpriced}" if unpriced else ""
-        if who:
-            if not response.assume_delivery_units:
-                raise ValueError(
-                    f"price_response: {who} were fitted on nominal spend as far as the fitted model can "
-                    "tell, so their saturation curve already absorbed the price curvature a curved "
-                    "spend-dependent price adds; applying it on top would bend the same curve twice. "
-                    "Either price them on the fitted model with mmm.set_cost_per_unit(...), which is "
-                    "also what records that their channel data is in delivery units, or -- if the "
-                    "spend was deflated to constant prices outside the library -- pass "
-                    "assume_delivery_units=True together with an explicit reference_spend "
-                    "(per-period money per cell, the units of result.budgets)."
-                )
-            if response.reference_spend is None:
-                raise ValueError(
-                    "price_response: assume_delivery_units=True needs an explicit reference_spend "
-                    "(per-period money per cell, the units of result.budgets): with no historical "
-                    "cost_per_unit there is no fitted spend to derive the level at which the base "
-                    "price applies."
-                )
-            return None
+        unpriced = self._unpriced_optimized_channels(priced)
+        return f"channels {unpriced}" if unpriced else ""
 
-        # The table vouches for the units of every optimized channel. What is
-        # left is deriving the reference, which needs the spend the table
-        # produced; if that array is missing or malformed the fit is still
-        # sound, so only the reference is asked for -- not the opt-out.
+    @staticmethod
+    def _require_units_attestation(response: PriceResponse, who: str) -> None:
+        """Refuse a curved response on unvouched channels without the explicit opt-out."""
+        if not response.assume_delivery_units:
+            raise ValueError(
+                f"price_response: {who} were fitted on nominal spend as far as the fitted model can "
+                "tell, so their saturation curve already absorbed the price curvature a curved "
+                "spend-dependent price adds; applying it on top would bend the same curve twice. "
+                "Either price them on the fitted model with mmm.set_cost_per_unit(...), which is "
+                "also what records that their channel data is in delivery units, or -- if the "
+                "spend was deflated to constant prices outside the library -- pass "
+                "assume_delivery_units=True together with an explicit reference_spend "
+                "(per-period money per cell, the units of result.budgets)."
+            )
+        if response.reference_spend is None:
+            raise ValueError(
+                "price_response: assume_delivery_units=True needs an explicit reference_spend "
+                "(per-period money per cell, the units of result.budgets): with no historical "
+                "cost_per_unit there is no fitted spend to derive the level at which the base "
+                "price applies."
+            )
+
+    def _reference_from_fitted_spend(self, response: PriceResponse) -> DataArray | None:
+        """On-air mean of the fitted spend; ``None`` defers to the response's own reference.
+
+        A missing or malformed spend array leaves the fit vouched for, so the
+        error asks for a reference, not for the opt-out.
+        """
         try:
             spend = _extract_dataset(self.idata, "constant_data")["channel_spend"]
         except KeyError:
@@ -2623,7 +2631,6 @@ class BudgetOptimizer(BaseModel):
                     "result.budgets)."
                 )
             return None
-
         if self.cost_per_unit is None:
             warnings.warn(
                 "price_response: the fitted model prices its channels (channel data is in delivery "
@@ -3223,14 +3230,10 @@ class BudgetOptimizer(BaseModel):
             )
             resolved = self._media_variable.price_response
             if resolved is not None and not resolved.is_identity:
-                # A marker for consumers that feed an allocation to the model as
-                # channel units (sample_response_distribution): these budgets are
-                # money whose unit price varied with spend, and the delivery they
-                # bought is in the report, not in the budgets. Not stamped for an
-                # identity response: the price is constant there, so the budgets
-                # are money in exactly the sense a no-response run's are, and the
-                # run stays observably identical to one. The declaration's class
-                # name, not the resolved one, because that is what the user wrote.
+                # Stamp allocations whose unit price varied with spend, for consumers
+                # that feed budgets to the model as units (sample_response_distribution);
+                # an identity run stays observably identical to a no-response run, so no
+                # stamp. The declaration's class name is what the user wrote.
                 optimal_budgets.attrs["price_response"] = type(
                     self._media_price_declaration
                 ).__name__

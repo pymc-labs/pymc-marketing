@@ -62,6 +62,88 @@ __all__ = [
 ]
 
 
+def _cell_label(index: np.ndarray, template: DataArray) -> tuple:
+    """Coordinate labels of one cell from its positional index, for error messages."""
+    return tuple(
+        template.coords[dim].values.tolist()[int(i)]
+        for dim, i in zip(template.dims, index, strict=True)
+    )
+
+
+def _require_labelled(da: DataArray, label: str) -> None:
+    """Refuse a DataArray whose dims carry no coordinates.
+
+    ``reindex`` has nothing to align such a dim by and stamps the model's labels on in arrival order, so the
+    same values in a different order would resolve to a different map. Same hazard, and same rule, as
+    ``BudgetOptimizer._require_labelled_plan``.
+    """
+    unlabelled = [dim for dim in da.dims if dim not in da.coords]
+    if unlabelled:
+        raise ValueError(
+            f"{label}: dims {unlabelled} carry no coordinates. Alignment would fall back to position, so the "
+            "same values in a different order would mean a different thing. Give those dims the model's "
+            "coordinate labels."
+        )
+
+
+def _layout(
+    dims: tuple[str, ...], coords: Mapping[str, list], mask: DataArray
+) -> tuple[DataArray, np.ndarray]:
+    """Build a zero template over one variable's cell layout and its optimized-cell mask in model order."""
+    dims = tuple(dims)
+    template = DataArray(
+        np.zeros(tuple(len(coords[d]) for d in dims)),
+        dims=dims,
+        coords={d: list(coords[d]) for d in dims},
+    )
+    on = np.asarray(mask.transpose(*dims).values, dtype=bool)
+    return template, on
+
+
+def _power_floor_coefficients(
+    gamma: np.ndarray, reference_spend: np.ndarray, max_slope_ratio: float
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """Quadratic-floor location and coefficients ``(s_floor, scale, a, b)`` per cell.
+
+    Closed forms under a double ``where``: a bare ``np.where(active, f(gamma), 0.0)`` still evaluates ``f`` on
+    the ``gamma = 0`` cells, where ``-1 / gamma`` and ``s_f ** -1`` warn and produce ``inf``/``nan``. A ``nan``
+    constant in a dead branch is harmless on the C backend but poisons the gradient under JAX.
+    """
+    active = gamma > 0.0
+    safe_gamma = np.where(active, gamma, 1.0)
+    inner = max_slope_ratio * (1.0 - safe_gamma) / (1.0 + safe_gamma)
+    safe_inner = np.where(active, inner, 2.0)
+    s_floor = np.where(active, reference_spend * safe_inner ** (-1.0 / safe_gamma), 0.0)
+    safe_floor = np.where(active, s_floor, 1.0)
+    scale = reference_spend**gamma
+    a = np.where(active, (1.0 + gamma) * scale * safe_floor**-gamma, scale)
+    b = np.where(active, -gamma * scale * safe_floor ** (-gamma - 1.0), 0.0)
+    return s_floor, scale, a, b
+
+
+def _warn_wide_floor(
+    label: str,
+    gamma: np.ndarray,
+    s_floor: np.ndarray,
+    reference_spend: np.ndarray,
+    max_slope_ratio: float,
+) -> None:
+    """Warn when the quadratic floor reaches above 1% of the reference spend."""
+    wide = (gamma > 0.0) & (s_floor > 0.01 * reference_spend)
+    if not np.any(wide):
+        return
+    warnings.warn(
+        f"{label}: max_slope_ratio={max_slope_ratio:g} puts the quadratic floor above 1% of "
+        f"the reference spend on cells with elasticity {np.unique(gamma[wide]).tolist()} "
+        f"(floor / reference up to {float((s_floor / reference_spend)[wide].max()):.3g}). "
+        "At high elasticity a bounded slope spread and a narrow floor region are not both "
+        "available. Raise max_slope_ratio to narrow the floor, or accept that the map is "
+        "quadratic over that range.",
+        UserWarning,
+        stacklevel=3,
+    )
+
+
 class ResolvedPriceResponse(ABC):
     """A price response bound to one decision variable's cell layout.
 
@@ -144,42 +226,16 @@ class ResolvedPowerPriceResponse(ResolvedPriceResponse):
         self.reference_spend = reference_spend
         self.max_slope_ratio = float(max_slope_ratio)
         self.is_identity = bool(np.all(gamma == 0.0))
-
-        # Closed forms under a double where. A bare np.where(active, f(gamma), 0.0)
-        # still evaluates f on the gamma = 0 cells: -1 / gamma and s_f ** -1 warn
-        # and produce inf / nan there, and a nan constant in a dead branch is
-        # harmless on the C backend but poisons the gradient under JAX.
-        active = gamma > 0.0
-        safe_gamma = np.where(active, gamma, 1.0)
-        inner = self.max_slope_ratio * (1.0 - safe_gamma) / (1.0 + safe_gamma)
-        safe_inner = np.where(active, inner, 2.0)
-        s_floor = np.where(
-            active, reference_spend * safe_inner ** (-1.0 / safe_gamma), 0.0
+        self.s_floor, self.scale, self.a, self.b = _power_floor_coefficients(
+            gamma, reference_spend, self.max_slope_ratio
         )
-        safe_floor = np.where(active, s_floor, 1.0)
-        scale = reference_spend**gamma
-        self.s_floor = s_floor
-        self.scale = scale
-        self.a = np.where(active, (1.0 + gamma) * scale * safe_floor**-gamma, scale)
-        self.b = np.where(active, -gamma * scale * safe_floor ** (-gamma - 1.0), 0.0)
-
-        wide = active & (s_floor > 0.01 * reference_spend)
-        if np.any(wide):
-            warnings.warn(
-                f"{label}: max_slope_ratio={self.max_slope_ratio:g} puts the quadratic floor above 1% of "
-                f"the reference spend on cells with elasticity {np.unique(gamma[wide]).tolist()} "
-                f"(floor / reference up to {float((s_floor / reference_spend)[wide].max()):.3g}). "
-                "At high elasticity a bounded slope spread and a narrow floor region are not both "
-                "available. Raise max_slope_ratio to narrow the floor, or accept that the map is "
-                "quadratic over that range.",
-                UserWarning,
-                stacklevel=2,
-            )
-
+        _warn_wide_floor(
+            label, gamma, self.s_floor, reference_spend, self.max_slope_ratio
+        )
         self._gamma = self._constant(gamma)
         self._reference = self._constant(reference_spend)
-        self._s_floor = self._constant(s_floor)
-        self._scale = self._constant(scale)
+        self._s_floor = self._constant(self.s_floor)
+        self._scale = self._constant(self.scale)
         self._a = self._constant(self.a)
         self._b = self._constant(self.b)
 
@@ -221,30 +277,6 @@ class ResolvedPowerPriceResponse(ResolvedPriceResponse):
         quadratic = 1.0 / (self._a + 2.0 * self._b * s_quad)
         ratio = ptx.math.where(above, power, quadratic)
         return ratio if base_price is None else ratio * base_price
-
-
-def _cell_label(index: np.ndarray, template: DataArray) -> tuple:
-    """Coordinate labels of one cell from its positional index, for error messages."""
-    return tuple(
-        template.coords[dim].values.tolist()[int(i)]
-        for dim, i in zip(template.dims, index, strict=True)
-    )
-
-
-def _require_labelled(da: DataArray, label: str) -> None:
-    """Refuse a DataArray whose dims carry no coordinates.
-
-    ``reindex`` has nothing to align such a dim by and stamps the model's labels on in arrival order, so the same
-    values in a different order would resolve to a different map. Same hazard, and same rule, as
-    ``BudgetOptimizer._require_labelled_plan``.
-    """
-    unlabelled = [dim for dim in da.dims if dim not in da.coords]
-    if unlabelled:
-        raise ValueError(
-            f"{label}: dims {unlabelled} carry no coordinates. Alignment would fall back to position, so the "
-            "same values in a different order would mean a different thing. Give those dims the model's "
-            "coordinate labels."
-        )
 
 
 class PriceResponse(BaseModel, ABC):
@@ -369,39 +401,30 @@ class PowerPriceResponse(PriceResponse):
     elasticity : float, dict[str, float] or xarray.DataArray
         :math:`\gamma` per cell in ``[0, 1)``. A float applies everywhere. A dict maps coordinate labels of
         exactly one budget dim (usually channels) to values; labels not named default to ``0.0``. A ``DataArray``
-        over a subset of the budget dims is aligned to the model's coordinates; it may not carry the date dim,
-        because a date-varying ``cost_per_unit`` already covers seasonal price *level* while a date-varying
-        elasticity would model seasonal price *sensitivity*, which is not supported.
+        over a subset of the budget dims is aligned to the model's coordinates. It may not carry the date dim:
+        a date-varying ``cost_per_unit`` already covers seasonal price *level*, and seasonal price
+        *sensitivity* is not supported.
     reference_spend : xarray.DataArray or None
         Where :math:`p_0` applies: **per-period money per cell, in the units of** ``result.budgets`` **and**
         ``total_budget``, over exactly the budget dims. Default ``None`` derives it from the fitted model as the
         mean of ``constant_data["channel_spend"]`` over the periods each cell was on air (``spend > 0``), so a
-        flighted channel is anchored at the level it actually bought at. A supplied value is checked against that
-        derived default when one exists; see ``reference_spend_tolerance``. Required for ``spend_vars`` and for
-        opted-out models, which have nothing to derive from.
+        flighted channel is anchored at the level it actually bought at. A supplied value is checked against
+        that derived default when one exists; see ``reference_spend_tolerance``. Required for ``spend_vars``
+        and for opted-out models, which have nothing to derive from.
     max_slope_ratio : float
         Cap on :math:`u'(0) / u'(s^{\text{ref}})`, the spread of marginal returns the solver can meet on one
         cell. Sets the floor :math:`s_f / s^{\text{ref}} = (M (1-\gamma)/(1+\gamma))^{-1/\gamma}`; must exceed
-        :math:`(1+\gamma)/(1-\gamma)`. Default ``100``. Warns when the resulting floor exceeds 1% of the
-        reference, which happens at high elasticity (15.8% at :math:`\gamma = 0.9`). The cap is also the reason
-        not to price a channel that is held at zero: the map is steepest there, so a channel with a non-zero
-        elasticity whose ``budget_bounds`` pin it to ``0`` hands the solver its largest gradient on a variable
-        that cannot move (measured: 833 against ~10 for the funded channels on a three-channel fixture at
-        ``max_slope_ratio=100``, :math:`\gamma = 0.3`). Whether SLSQP accepts that is platform-dependent:
-        the same solve succeeds on macOS/arm64 and fails on Linux CI runners with "Positive directional
-        derivative for linesearch", reaching the same optimum where it succeeds. Leave such a channel at
-        ``elasticity=0``, or drop it from ``budgets_to_optimize``: the price of a channel one is not buying
-        is not a decision input.
+        :math:`(1+\gamma)/(1-\gamma)`. Default ``100``. Warns when the floor exceeds 1% of the reference,
+        which happens at high elasticity. Leave a channel whose bounds pin it to zero at ``elasticity=0`` or
+        drop it from ``budgets_to_optimize``: the map is steepest at zero, so pricing an immovable channel
+        hands the solver its largest gradient on a variable that cannot move, which SLSQP tolerates on some
+        platforms and not on others.
     reference_spend_tolerance : float
         Largest factor by which a supplied ``reference_spend`` may differ from the derived default on any
-        optimized cell before it is rejected. Default ``10``. The guard exists because a reference summed over the
-        window instead of per period is off by ``num_periods`` and shifts every price by
-        ``num_periods ** elasticity`` with nothing in the output saying so. A typical window of 4 to 13 periods
-        sits under the default, so that hypothesis is also tested by name: when the supplied value is within 5%
-        of ``num_periods`` times the derived one on every optimized cell, a warning names it as a likely window
-        total. A warning rather than a refusal, because it is a heuristic: a genuine ``num_periods``-fold plan
-        is not blocked, and the generic factor check still refuses the unit error on any window longer than the
-        tolerance.
+        optimized cell before it is rejected. Default ``10``. The unit error this catches is a window total
+        handed over as a per-period rate: off by ``num_periods``, shifting every price by
+        ``num_periods ** elasticity``. When the supplied value is ``num_periods`` times the derived one on
+        every optimized cell (within 5%), a warning names that hypothesis instead of refusing.
     assume_delivery_units : bool
         See :class:`PriceResponse`. Declared there, with ``reference_spend``, because the optimizer reads both
         off any response before knowing its concrete type.
@@ -410,73 +433,54 @@ class PowerPriceResponse(PriceResponse):
     -----
     **Precondition.** Only sound when the model was fitted on delivery units or constant-price spend. The
     optimizer checks each optimized channel against the historical ``cost_per_unit`` table on the fitted model
-    (``idata.attrs["cost_per_unit"]``, written by :meth:`~pymc_marketing.mmm.mmm.MMM.set_cost_per_unit` or by
-    ``MMM(cost_per_unit=...)``) and refuses unpriced channels unless ``assume_delivery_units=True`` and
-    ``reference_spend`` are both given. The ``cost_per_unit`` passed to the *optimizer* is independent of the
-    historical one and proves nothing about the fit. The table is a declaration the library takes at face value:
-    pricing every channel at 1.0 silences the check without making the fit sound. A merged model
-    (:func:`~pymc_marketing.mmm.budget_optimizer.merge_inference_data`) carries no root attrs and therefore always
-    needs the opt-out.
+    (written by :meth:`~pymc_marketing.mmm.mmm.MMM.set_cost_per_unit` or ``MMM(cost_per_unit=...)``) and
+    refuses unpriced channels unless ``assume_delivery_units=True`` and ``reference_spend`` are both given.
+    The ``cost_per_unit`` passed to the *optimizer* is independent of that table and proves nothing about the
+    fit. A merged model (:func:`~pymc_marketing.mmm.budget_optimizer.merge_inference_data`) carries no root
+    attrs and always needs the opt-out.
 
     **Extrapolation.** The power law is as confident below the reference as above it: at ``elasticity=0.4``,
-    spending 15% of the reference prices a unit at ``0.46 p_0``. Anchor ``reference_spend`` where the base price
-    was observed and plan near it; a budget far from history is a statement about the price curve as much as
-    about the response curve.
+    spending 15% of the reference prices a unit at ``0.46 p_0``. Anchor ``reference_spend`` where the base
+    price was observed and plan near it.
 
-    **What this family cannot say.** The price here is one smooth curve of the money spent in the period, so it
-    models a buy that clears worse the more of it you take. It cannot state a *schedule*: a committed tranche at
-    one contracted rate and money beyond it at another, which is how a planner holding an agreed baseline and
-    optimizing an increment on top of it describes the same channel. Calibrating this map to such a case, by
-    anchoring it at the committed level and choosing :math:`\gamma = 1 - p_0/p_1` so the marginal price there is
-    exactly the incremental rate, is exact only at the anchor: the marginal price then keeps climbing where the
-    truth is flat (measured 16% high at an increment of half the baseline, 30% at a full one), and the committed
-    tranche is silently repriced. Since allocation follows the marginal price, treat that as a bound on how far
-    the calibration can be pushed, not as a small correction.
+    **Not a rate schedule.** One smooth curve cannot state a committed tranche at a contracted rate with
+    incremental money at another rate. Calibrated to that case, the map is exact only at the anchor: the
+    marginal price keeps climbing where the truth is flat (measured 16% high at an increment of half the
+    baseline, 30% at a full one) and the committed tranche is repriced. Allocation follows the marginal price,
+    so treat those numbers as a bound on the calibration, not a small correction.
 
     **Units.** The map acts on per-period money at the model's date granularity, after
     ``budget_distribution_over_period`` has redistributed the total. ``total_budget``, ``result.budgets`` and
-    ``reference_spend`` are all per-period quantities; the window total is ``budgets * num_periods``. Pass the
-    window's ``cost_per_unit`` too: with the fit in delivery units and no window price, the base price is 1 and
-    money is fed to the model as units, which the optimizer warns about.
+    ``reference_spend`` are all per-period quantities; the window total is ``budgets * num_periods``. Without
+    a window ``cost_per_unit`` the base price is 1 and money reaches the model as units, which the optimizer
+    warns about.
 
-    **Behaviour change with** :math:`\gamma > 0`. The delivery map is strictly concave, so at equal total spend a
-    non-uniform ``budget_distribution_over_period`` buys less delivery than a uniform one: concentrated buying
-    clears higher. Economically right, and new for existing users of that argument the moment they set a
-    non-zero elasticity. A user who holds a *window* total fixed and shortens the window raises the per-period
-    rate and, with it, the price.
+    **Behaviour change with** :math:`\gamma > 0`. The delivery map is strictly concave, so at equal total
+    spend a non-uniform ``budget_distribution_over_period`` buys less delivery than a uniform one:
+    concentrated buying clears higher.
 
     **The elasticity is an input.** The model never observes price, so :math:`\gamma` comes from buying data
-    (realized cost against volume, per channel), whose regression has its own endogeneity. Treat it as a
-    sensitivity sweep, running ``elasticity=0.0`` (the constant-price baseline, whose result still reports
-    ``implied_price == p_0``) beside the values you believe, rather than a point value presented as known.
+    with its own endogeneity. Treat it as a sensitivity sweep, running ``elasticity=0.0`` beside the values
+    you believe.
 
-    **Why not fixed-point iteration.** Solving at an assumed price, repricing from the result and re-solving
-    converges to :math:`R'(u_i) / p_i(s_i) = \text{const}` across channels. The true first-order condition is
-    :math:`R'(u_i) (1 - \gamma_i) / p_i(s_i) = \text{const}`. With one common :math:`\gamma` the factor is
-    absorbed and the fixed point is the optimum; with heterogeneous :math:`\gamma` it over-allocates to the
-    high-elasticity channels, which is the biddable-next-to-reserved case this feature exists for. Each reprice
-    pass also needs a fresh optimizer, since ``cost_per_unit`` is fixed at construction.
+    **Why not fixed-point iteration.** Solving at an assumed price and repricing from the result converges to
+    :math:`R'(u_i) / p_i = \text{const}`; the true first-order condition is
+    :math:`R'(u_i)(1 - \gamma_i) / p_i = \text{const}`. One common :math:`\gamma` absorbs the factor;
+    heterogeneous :math:`\gamma` over-allocates to the high-elasticity channels, which is the case this
+    feature exists for.
 
-    **Reading the result.** ``result.implied_delivery`` is the delivery per period, in the units the money buys
-    -- before ``channel_scales``; the model node receives ``implied_delivery / channel_scales``, which coincides
-    for an ``MMM`` (scales are 1). To score the plan's posterior response use
+    **Reading the result.** ``result.implied_delivery`` is per-period delivery before ``channel_scales``.
+    Score a plan with
     :meth:`~pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.evaluate_response_distribution`, which runs
-    the same graph the solver used, price map included. The deprecated
-    :meth:`~pymc_marketing.mmm.mmm.BudgetOptimizerWrapper.sample_response_distribution` takes a date-less
-    allocation and broadcasts it over the window, so it needs ``implied_delivery.mean(date_dim)`` and is
-    exact only under a uniform ``budget_distribution_over_period``; with a non-uniform one the per-period
-    spread is already inside ``implied_delivery`` and must not be applied a second time.
-    ``result.implied_marginal_price / result.implied_price == 1 / (1 - elasticity)`` above the floor, so at
-    ``elasticity=0.25`` the next unit costs 33% more than the average one.
+    the same graph the solver used, price map included; the deprecated ``sample_response_distribution`` takes
+    a date-less allocation, so feed it ``implied_delivery.mean(date_dim)``, exact only under a uniform
+    ``budget_distribution_over_period``. Above the floor
+    ``implied_marginal_price / implied_price == 1 / (1 - elasticity)``.
 
-    **The price report is sparse.** Both price arrays are ``nan`` wherever no money was spent -- a cell outside
-    the optimization mask, a channel the bounds hold at zero, a cell the solver drives to zero, and every period
-    a ``budget_distribution_over_period`` zeroes out, which is the flight-planning case that parameter exists
-    for. Nothing was bought there, so nothing was paid per unit; ``implied_delivery`` is ``0.0``, which is a
-    true statement, and the money identity is claimed on the spent cells only. A plain
-    ``result.implied_price.mean()`` over a channel with any dark period is therefore ``nan``: reduce with
-    ``.mean(skipna=True)``, or weight by delivery for the window-average price a buyer wants,
-    ``budgets * num_periods / implied_delivery.sum(date_dim)``.
+    **The price report is sparse.** Both price arrays are ``nan`` wherever no money was spent, including
+    periods a ``budget_distribution_over_period`` zeroes out: nothing was bought, so nothing was paid per
+    unit. ``implied_delivery`` is ``0.0`` there, and the money identity holds on the spent cells. Reduce with
+    ``.mean(skipna=True)``, or weight by delivery: ``budgets * num_periods / implied_delivery.sum(date_dim)``.
 
     Examples
     --------
@@ -547,13 +551,7 @@ class PowerPriceResponse(PriceResponse):
         """Report whether every *optimized* cell has zero elasticity; see :meth:`PriceResponse.is_identity_on`."""
         if self.is_identity:
             return True
-        dims = tuple(dims)
-        template = DataArray(
-            np.zeros(tuple(len(coords[d]) for d in dims)),
-            dims=dims,
-            coords={d: list(coords[d]) for d in dims},
-        )
-        on = np.asarray(mask.transpose(*dims).values, dtype=bool)
+        template, on = _layout(dims, coords, mask)
         gamma = self._resolve_elasticity(template, date_dim, label)
         return bool(np.all(gamma[on] == 0.0))
 
@@ -569,71 +567,60 @@ class PowerPriceResponse(PriceResponse):
         num_periods: int | None = None,
     ) -> ResolvedPowerPriceResponse:
         """Bind to one variable's layout; see :meth:`PriceResponse.resolve`."""
-        dims = tuple(dims)
-        template = DataArray(
-            np.zeros(tuple(len(coords[d]) for d in dims)),
-            dims=dims,
-            coords={d: list(coords[d]) for d in dims},
-        )
-        on = np.asarray(mask.transpose(*dims).values, dtype=bool)
-        # A masked cell spends exactly nothing whatever its elasticity, so it
-        # gets gamma = 0: no wide-floor warning off the sentinel reference, and
-        # a decision set whose every cell is at gamma = 0 stays the identity.
+        template, on = _layout(dims, coords, mask)
+        # A masked cell spends exactly nothing whatever its elasticity, so it gets gamma = 0.
         gamma = np.where(on, self._resolve_elasticity(template, date_dim, label), 0.0)
+        reference = self._resolve_reference(
+            template, on, gamma, derived_reference, date_dim, label, num_periods
+        )
+        return ResolvedPowerPriceResponse(
+            gamma=gamma,
+            reference_spend=reference,
+            max_slope_ratio=self.max_slope_ratio,
+            dims=template.dims,
+            label=label,
+        )
 
+    def _resolve_reference(
+        self,
+        template: DataArray,
+        on: np.ndarray,
+        gamma: np.ndarray,
+        derived_reference: DataArray | None,
+        date_dim: str,
+        label: str,
+        num_periods: int | None,
+    ) -> np.ndarray:
+        """Choose the reference source: unread at ``gamma = 0``, else declared, else derived."""
         if not np.any(gamma):
-            # The identity on every optimized cell. The reference is never
-            # read: at gamma = 0 the floor is 0 and (s / s_ref) ** 0 is 1.
-            reference = np.ones(template.shape)
-        elif self.reference_spend is not None:
-            reference = self._resolve_supplied_reference(
+            # The identity: the floor is 0 and (s / s_ref) ** 0 is 1, so the reference is never read.
+            return np.ones(template.shape)
+        if self.reference_spend is not None:
+            return self._resolve_supplied_reference(
                 template, on, derived_reference, date_dim, label, num_periods
             )
-        elif derived_reference is not None:
-            reference = self._check_reference(
-                np.asarray(derived_reference.transpose(*dims).values, dtype="float64"),
+        if derived_reference is not None:
+            return self._check_reference(
+                np.asarray(
+                    derived_reference.transpose(*template.dims).values, dtype="float64"
+                ),
                 on,
                 template,
                 label,
                 reason="the fitted spend has no on-air period",
             )
-        else:
-            raise ValueError(
-                f"{label}: reference_spend is required -- there is no fitted spend to derive the level at "
-                "which the base price applies. Pass reference_spend as per-period money per cell."
-            )
-        return ResolvedPowerPriceResponse(
-            gamma=gamma,
-            reference_spend=reference,
-            max_slope_ratio=self.max_slope_ratio,
-            dims=dims,
-            label=label,
+        raise ValueError(
+            f"{label}: reference_spend is required -- there is no fitted spend to derive the level at "
+            "which the base price applies. Pass reference_spend as per-period money per cell."
         )
 
     def _resolve_elasticity(
         self, template: DataArray, date_dim: str, label: str
     ) -> np.ndarray:
-        dims = template.dims
+        """Elasticity per cell of ``template``, whatever form the declaration took."""
         e = self.elasticity
         if isinstance(e, DataArray):
-            if date_dim in e.dims:
-                raise ValueError(
-                    f"{label}: elasticity varies over {date_dim!r}. A date-varying cost_per_unit already "
-                    "carries the seasonal price level; a date-varying elasticity would model seasonal price "
-                    f"sensitivity, which is not supported. Drop the {date_dim!r} dim."
-                )
-            extra = sorted(set(e.dims) - set(dims))
-            if extra:
-                raise ValueError(
-                    f"{label}: elasticity has dims {extra} that are not budget dims {list(dims)}."
-                )
-            _require_labelled(e, f"{label}: elasticity")
-            aligned = align_to_model_coords(
-                e,
-                {d: template.coords[d].values.tolist() for d in e.dims},
-                label=f"{label}: elasticity",
-            )
-            full = aligned.broadcast_like(template).transpose(*dims)
+            full = self._elasticity_from_dataarray(e, template, date_dim, label)
         elif isinstance(e, Mapping):
             full = self._elasticity_from_mapping(e, template, label)
         else:
@@ -647,9 +634,35 @@ class PowerPriceResponse(PriceResponse):
         return gamma
 
     @staticmethod
+    def _elasticity_from_dataarray(
+        e: DataArray, template: DataArray, date_dim: str, label: str
+    ) -> DataArray:
+        """Align a declared array to the layout; refuse a date dim or a non-budget dim."""
+        dims = template.dims
+        if date_dim in e.dims:
+            raise ValueError(
+                f"{label}: elasticity varies over {date_dim!r}. A date-varying cost_per_unit already "
+                "carries the seasonal price level; a date-varying elasticity would model seasonal price "
+                f"sensitivity, which is not supported. Drop the {date_dim!r} dim."
+            )
+        extra = sorted(set(e.dims) - set(dims))
+        if extra:
+            raise ValueError(
+                f"{label}: elasticity has dims {extra} that are not budget dims {list(dims)}."
+            )
+        _require_labelled(e, f"{label}: elasticity")
+        aligned = align_to_model_coords(
+            e,
+            {d: template.coords[d].values.tolist() for d in e.dims},
+            label=f"{label}: elasticity",
+        )
+        return aligned.broadcast_like(template).transpose(*dims)
+
+    @staticmethod
     def _elasticity_from_mapping(
         e: Mapping, template: DataArray, label: str
     ) -> DataArray:
+        """Spread labelled values along the one budget dim that owns every key."""
         dims = template.dims
         if not e:
             return template.copy()
@@ -679,6 +692,21 @@ class PowerPriceResponse(PriceResponse):
         label: str,
         num_periods: int | None = None,
     ) -> np.ndarray:
+        """Validate and align the declared reference, then guard it against the derived one."""
+        values = self._aligned_supplied_reference(template, on, date_dim, label)
+        if derived_reference is not None:
+            expected = np.asarray(
+                derived_reference.transpose(*template.dims).values, dtype="float64"
+            )
+            self._guard_supplied_reference(
+                values, expected, on, template, label, num_periods
+            )
+        return values
+
+    def _aligned_supplied_reference(
+        self, template: DataArray, on: np.ndarray, date_dim: str, label: str
+    ) -> np.ndarray:
+        """Align the declared reference to the layout, requiring it positive and finite on optimized cells."""
         dims = template.dims
         ref = self.reference_spend
         if (
@@ -696,62 +724,63 @@ class PowerPriceResponse(PriceResponse):
             {d: template.coords[d].values.tolist() for d in dims},
             label=f"{label}: reference_spend",
         ).transpose(*dims)
-        values = self._check_reference(
+        return self._check_reference(
             np.asarray(aligned.values, dtype="float64"),
             on,
             template,
             label,
             reason="reference_spend is not positive and finite",
         )
-        if derived_reference is not None:
-            expected_all = np.asarray(
-                derived_reference.transpose(*dims).values, dtype="float64"
+
+    def _guard_supplied_reference(
+        self,
+        values: np.ndarray,
+        expected_all: np.ndarray,
+        on: np.ndarray,
+        template: DataArray,
+        label: str,
+        num_periods: int | None,
+    ) -> None:
+        """Compare the declared reference with the fitted one and refuse a unit error."""
+        supplied, expected = values[on], expected_all[on]
+        comparable = np.isfinite(expected) & (expected > 0.0)
+        if not comparable.all():
+            cells = [
+                _cell_label(idx, template) for idx in np.argwhere(on)[~comparable][:5]
+            ]
+            warnings.warn(
+                f"{label}: reference_spend could not be checked against the fitted spend for cells "
+                f"{cells}, which have no on-air period; the supplied value is used as given there.",
+                UserWarning,
+                stacklevel=4,
             )
-            supplied, expected = values[on], expected_all[on]
-            comparable = np.isfinite(expected) & (expected > 0.0)
-            if not comparable.all():
-                cells = [
-                    _cell_label(idx, template)
-                    for idx in np.argwhere(on)[~comparable][:5]
-                ]
+        # A window total handed over as a per-period rate is off by exactly num_periods
+        # on every cell; a warning rather than a refusal, because the match is a heuristic.
+        if num_periods is not None and num_periods > 1 and comparable.any():
+            scale = supplied[comparable] / expected[comparable]
+            if np.all(np.abs(scale / num_periods - 1.0) < 0.05):
                 warnings.warn(
-                    f"{label}: reference_spend could not be checked against the fitted spend for cells "
-                    f"{cells}, which have no on-air period; the supplied value is used as given there.",
+                    f"{label}: reference_spend is num_periods ({num_periods}) times the fitted "
+                    "per-period spend on every optimized cell, to within 5%: it looks like a window "
+                    "total. reference_spend is per-period money, the units of result.budgets and "
+                    f"total_budget -- if so, divide by {num_periods}.",
                     UserWarning,
-                    stacklevel=3,
+                    stacklevel=4,
                 )
-            # The mistake this guard exists for is a window total handed over
-            # as a per-period rate: off by exactly num_periods, on every cell,
-            # and under the generic tolerance for any window shorter than it.
-            # Named when the window is known. A warning, not a refusal: the
-            # match is a heuristic, and a genuine num_periods-fold plan on every
-            # channel is possible if unlikely.
-            if num_periods is not None and num_periods > 1 and comparable.any():
-                scale = supplied[comparable] / expected[comparable]
-                if np.all(np.abs(scale / num_periods - 1.0) < 0.05):
-                    warnings.warn(
-                        f"{label}: reference_spend is num_periods ({num_periods}) times the fitted "
-                        "per-period spend on every optimized cell, to within 5%: it looks like a window "
-                        "total. reference_spend is per-period money, the units of result.budgets and "
-                        f"total_budget -- if so, divide by {num_periods}.",
-                        UserWarning,
-                        stacklevel=3,
-                    )
-            ratio = np.where(
-                comparable, np.maximum(supplied / expected, expected / supplied), 0.0
+        ratio = np.where(
+            comparable, np.maximum(supplied / expected, expected / supplied), 0.0
+        )
+        worst = int(np.argmax(ratio))
+        if ratio[worst] > self.reference_spend_tolerance:
+            cell = _cell_label(np.argwhere(on)[worst], template)
+            raise ValueError(
+                f"{label}: reference_spend at cell {cell} is {supplied[worst]:.4g}, but the fitted "
+                f"spend's on-air mean per period is {expected[worst]:.4g} ({ratio[worst]:.3g}x apart; "
+                f"tolerance {self.reference_spend_tolerance:g}x). reference_spend is per-period money, "
+                "the units of result.budgets and total_budget -- a value summed over the window is off "
+                "by num_periods and shifts every price by num_periods ** elasticity. Fix the units, or "
+                "raise reference_spend_tolerance if the difference is intended."
             )
-            worst = int(np.argmax(ratio))
-            if ratio[worst] > self.reference_spend_tolerance:
-                cell = _cell_label(np.argwhere(on)[worst], template)
-                raise ValueError(
-                    f"{label}: reference_spend at cell {cell} is {supplied[worst]:.4g}, but the fitted "
-                    f"spend's on-air mean per period is {expected[worst]:.4g} ({ratio[worst]:.3g}x apart; "
-                    f"tolerance {self.reference_spend_tolerance:g}x). reference_spend is per-period money, "
-                    "the units of result.budgets and total_budget -- a value summed over the window is off "
-                    "by num_periods and shifts every price by num_periods ** elasticity. Fix the units, or "
-                    "raise reference_spend_tolerance if the difference is intended."
-                )
-        return values
 
     @staticmethod
     def _check_reference(
@@ -762,6 +791,7 @@ class PowerPriceResponse(PriceResponse):
         *,
         reason: str,
     ) -> np.ndarray:
+        """Refuse non-positive or non-finite values on optimized cells; neutralise the rest."""
         bad = on & ~(np.isfinite(values) & (values > 0.0))
         if bad.any():
             cells = [_cell_label(idx, template) for idx in np.argwhere(bad)[:5]]
@@ -770,7 +800,5 @@ class PowerPriceResponse(PriceResponse):
                 f"{label}: {reason} for optimized cells {cells}{more}, so there is no spend level to anchor "
                 "the base price to. Pass reference_spend explicitly for them."
             )
-        # Cells outside the mask scatter to exactly zero spend and deliver
-        # nothing whatever the reference is; the coefficients only need to be
-        # finite there.
+        # Masked cells scatter to exactly zero spend; coefficients there only need to be finite.
         return np.where(on, values, 1.0)
