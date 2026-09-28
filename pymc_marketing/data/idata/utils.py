@@ -184,6 +184,53 @@ def filter_idata_by_dims(
     return result
 
 
+_PERIOD_RULES = {
+    "weekly": "W",
+    "monthly": "ME",
+    "quarterly": "QE",
+    "yearly": "YE",
+}
+
+
+def _aggregate_over_time[XarrayT: (xr.Dataset, xr.DataArray)](
+    data: XarrayT,
+    period: Frequency,
+    method: Literal["sum", "mean"] = "sum",
+) -> XarrayT:
+    """Aggregate a Dataset or DataArray over ``date`` into periods.
+
+    The period boundaries of :func:`aggregate_idata_time`, for callers that
+    aggregate variables they derived from a DataTree rather than the DataTree
+    itself.
+
+    Parameters
+    ----------
+    data : xr.Dataset or xr.DataArray
+        Object to aggregate. Without a ``date`` dim it is returned unchanged.
+    period : {"original", "weekly", "monthly", "quarterly", "yearly", "all_time"}
+        Time period to aggregate to. ``"original"`` returns ``data`` unchanged,
+        ``"all_time"`` removes the ``date`` dim.
+    method : {"sum", "mean"}, default "sum"
+        Aggregation method
+
+    Returns
+    -------
+    xr.Dataset or xr.DataArray
+        Aggregated object, of the same type as ``data``.
+    """
+    if period == "original" or "date" not in data.dims:
+        return data
+
+    reducible = (
+        data if period == "all_time" else data.resample(date=_PERIOD_RULES[period])
+    )
+    if method == "sum":
+        return reducible.sum(dim="date")
+    if method == "mean":
+        return reducible.mean(dim="date")
+    raise ValueError(f"Unknown aggregation method: {method}")
+
+
 def aggregate_idata_time(
     idata: xr.DataTree,
     period: Frequency,
@@ -225,62 +272,13 @@ def aggregate_idata_time(
     if period == "original":
         return idata
 
-    if period == "all_time":
-        aggregated_groups = {}
-        for path in idata.groups:
-            if path == "/":
-                continue
-            group_name = path.lstrip("/")
-            ds = idata[path].dataset
-
-            if "date" not in ds.dims:
-                aggregated_groups[group_name] = ds
-                continue
-
-            if method == "sum":
-                aggregated = ds.sum(dim="date")
-            elif method == "mean":
-                aggregated = ds.mean(dim="date")
-            else:
-                raise ValueError(f"Unknown aggregation method: {method}")
-
-            aggregated_groups[group_name] = aggregated
-
-        result = xr.DataTree.from_dict(
-            {f"/{k}": v for k, v in aggregated_groups.items()}
-        )
-        result.attrs = idata.attrs.copy()
-        return result
-
-    period_map = {
-        "weekly": "W",
-        "monthly": "ME",
-        "quarterly": "QE",
-        "yearly": "YE",
-    }
-    freq = period_map[period]
-
-    aggregated_groups = {}
-    for path in idata.groups:
-        if path == "/":
-            continue
-        group_name = path.lstrip("/")
-        ds = idata[path].dataset
-
-        if "date" not in ds.dims:
-            aggregated_groups[group_name] = ds
-            continue
-
-        if method == "sum":
-            aggregated = ds.resample(date=freq).sum(dim="date")
-        elif method == "mean":
-            aggregated = ds.resample(date=freq).mean(dim="date")
-        else:
-            raise ValueError(f"Unknown aggregation method: {method}")
-
-        aggregated_groups[group_name] = aggregated
-
-    result = xr.DataTree.from_dict({f"/{k}": v for k, v in aggregated_groups.items()})
+    result = xr.DataTree.from_dict(
+        {
+            path: _aggregate_over_time(idata[path].dataset, period, method)
+            for path in idata.groups
+            if path != "/"
+        }
+    )
     result.attrs = idata.attrs.copy()
     return result
 
