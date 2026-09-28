@@ -301,9 +301,9 @@ class GAM:
         idata = cast(xr.DataTree, self.idata)
         tree = xr.DataTree.from_dict(
             {
-                "/fit_data": cast(xr.Dataset, self._training_data),
+                "/fit_data": _portable_strings(cast(xr.Dataset, self._training_data)),
                 **{
-                    f"/{name}": node.to_dataset()
+                    f"/{name}": _portable_strings(node.to_dataset())
                     for name, node in idata.children.items()
                     if name != "constant_data"
                 },
@@ -317,11 +317,11 @@ class GAM:
             ),
         }
         if not zipped:
-            tree.to_zarr(path, mode="w")
+            tree.to_zarr(path, mode="w", consolidated=False)
             return
         with tempfile.TemporaryDirectory() as directory:
             store = Path(directory) / "model.zarr"
-            tree.to_zarr(store)
+            tree.to_zarr(store, consolidated=False)
             with zipfile.ZipFile(path, "w", compression=zipfile.ZIP_STORED) as archive:
                 for file in sorted(store.rglob("*")):
                     if file.is_file():
@@ -354,15 +354,17 @@ class GAM:
         """
         path, zipped = _store_path(path)
         tree = xr.open_datatree(
-            zarr.storage.ZipStore(path, mode="r") if zipped else path, engine="zarr"
+            zarr.storage.ZipStore(path, mode="r") if zipped else path,
+            engine="zarr",
+            consolidated=False,
         )
         if "spec" not in tree.attrs or "fit_data" not in tree.children:
             raise ValueError(f"{str(path)!r} is not a model saved by GAM.save.")
         gam = cls(*spec_from_dict(tree.attrs["spec"]))
-        model = gam.build_model(tree["fit_data"].to_dataset())
+        model = gam.build_model(_native_strings(tree["fit_data"].to_dataset()))
         gam.idata = xr.DataTree.from_dict(
             {
-                f"/{name}": node.to_dataset()
+                f"/{name}": _native_strings(node.to_dataset())
                 for name, node in tree.children.items()
                 if name != "fit_data"
             }
@@ -625,6 +627,29 @@ def _store_path(path: str | Path) -> tuple[Path, bool]:
     if path.suffix == ".zarr":
         return path, False
     raise ValueError("Use a '.zarr' directory or a '.zarr.zip' file.")
+
+
+def _convert_strings(dataset: xr.Dataset, kind: str, dtype: Any) -> xr.Dataset:
+    converted = {
+        name: variable.astype(dtype)
+        for name, variable in dataset.variables.items()
+        if variable.dtype.kind == kind
+    }
+    return dataset.assign_coords(
+        {name: value for name, value in converted.items() if name in dataset.coords}
+    ).assign(
+        {name: value for name, value in converted.items() if name in dataset.data_vars}
+    )
+
+
+def _portable_strings(dataset: xr.Dataset) -> xr.Dataset:
+    """Store text as Zarr v3's specified variable-length strings, not fixed-width."""
+    return _convert_strings(dataset, "U", object)
+
+
+def _native_strings(dataset: xr.Dataset) -> xr.Dataset:
+    """Turn the variable-length strings Zarr returns into Python ``str`` objects."""
+    return _convert_strings(dataset, "T", object)
 
 
 def _versions() -> dict[str, str]:
