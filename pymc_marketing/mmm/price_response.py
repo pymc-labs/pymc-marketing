@@ -423,6 +423,16 @@ class PowerPriceResponse(PriceResponse):
     was observed and plan near it; a budget far from history is a statement about the price curve as much as
     about the response curve.
 
+    **What this family cannot say.** The price here is one smooth curve of the money spent in the period, so it
+    models a buy that clears worse the more of it you take. It cannot state a *schedule*: a committed tranche at
+    one contracted rate and money beyond it at another, which is how a planner holding an agreed baseline and
+    optimizing an increment on top of it describes the same channel. Calibrating this map to such a case, by
+    anchoring it at the committed level and choosing :math:`\gamma = 1 - p_0/p_1` so the marginal price there is
+    exactly the incremental rate, is exact only at the anchor: the marginal price then keeps climbing where the
+    truth is flat (measured 16% high at an increment of half the baseline, 30% at a full one), and the committed
+    tranche is silently repriced. Since allocation follows the marginal price, treat that as a bound on how far
+    the calibration can be pushed, not as a small correction.
+
     **Units.** The map acts on per-period money at the model's date granularity, after
     ``budget_distribution_over_period`` has redistributed the total. ``total_budget``, ``result.budgets`` and
     ``reference_spend`` are all per-period quantities; the window total is ``budgets * num_periods``. Pass the
