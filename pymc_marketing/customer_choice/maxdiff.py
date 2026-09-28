@@ -1155,6 +1155,7 @@ class MaxDiffMixedLogit(ModelBuilder):
 
         if not hasattr(self, "model"):
             self.build_model()
+        self._check_prior_predictive_var_names(kwargs.get("var_names"))
 
         with self.model:
             prior_pred = pm.sample_prior_predictive(draws=samples, **kwargs)

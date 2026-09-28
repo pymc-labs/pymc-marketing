@@ -1133,3 +1133,18 @@ class TestSaveLoadNotImplemented:
         )
         with pytest.raises(NotImplementedError, match="save/load"):
             m.build_from_idata(idata=None)  # type: ignore[arg-type]
+
+
+def test_prior_predictive_var_names_without_observed_raises(blp_panel_small):
+    df, truth = blp_panel_small
+    m = BayesianBLP(
+        market_data=df,
+        characteristics=truth["characteristic_cols"],
+        instruments=truth["instrument_cols"],
+        n_mc_draws=50,
+        random_seed=0,
+    )
+    m.build_model()
+    with pytest.raises(ValueError, match="observed variable"):
+        m.sample_prior_predictive(samples=5, var_names=[m.model.free_RVs[0].name])
+    assert m.idata is None
