@@ -202,6 +202,11 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :img-top: ../gallery/images/mmm_endogenous_budget.png
 :link: ../notebooks/mmm/mmm_endogenous_budget.html
 :::
+
+:::{grid-item-card} When Does the Budget Model Help? Three Endogenous-Spend Scenarios
+:img-top: ../gallery/images/mmm_endogenous_budget_scenarios.png
+:link: ../notebooks/mmm/mmm_endogenous_budget_scenarios.html
+:::
 ::::
 
 ### Time-Varying Parameters

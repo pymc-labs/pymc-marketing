@@ -84,6 +84,8 @@ sections:
             notebook: mmm/mmm_roas_experimentation
           - title: "Endogenous Budgets: Separating Designed from Chosen Spend"
             notebook: mmm/mmm_endogenous_budget
+          - title: "When Does the Budget Model Help? Three Endogenous-Spend Scenarios"
+            notebook: mmm/mmm_endogenous_budget_scenarios
       - title: Time-Varying Parameters
         cards:
           - title: MMM with time-varying media baseline

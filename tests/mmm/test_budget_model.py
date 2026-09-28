@@ -29,6 +29,7 @@ from pymc_marketing.mmm import (
     lift_test_design,
 )
 from pymc_marketing.mmm.mmm import MMM
+from pymc_marketing.mmm.synthetic_data import simulate_endogenous_spend_market
 from pymc_marketing.serialization import serialization
 from tests.mmm.conftest import mock_fit
 
@@ -513,57 +514,41 @@ def test_lift_likelihood_no_warning_for_untested_channel(data):
 
 
 # ------------------------------------------------------------------- recovery
-def _simulate_endogenous_market(seed: int = 7):
-    """Chapter-style DGP: latent AR(1) demand drives TV budgets and sales."""
-    rng = np.random.default_rng(seed)
-    n_hist, n_test, n_post = 104, 4, 12
-    n = n_hist + n_test + n_post
-    t = np.arange(n)
-    dates = pd.date_range("2022-01-03", periods=n, freq="W-MON")
-    season = np.sin(2 * np.pi * t / 52 - np.pi / 3)
-    control = rng.normal(size=n)
-    shock = np.zeros(n)
-    for i in range(1, n):
-        shock[i] = 0.8 * shock[i - 1] + np.sqrt(1 - 0.8**2) * rng.normal()
-    demand = 3 * season + 2 * control + shock
-    anticipated = 0.7 * demand + rng.normal(0, 0.4, n)
-    tv_bau = np.clip(5 + 0.5 * anticipated + rng.normal(0, 0.3, n), 0.1, None)
-    tv = tv_bau.copy()
-    tv[n_hist : n_hist + n_test] -= 1.5
-    lam, beta = 5.0, 38.0
-    y = (
-        50
-        + beta * tv / (lam + tv)
-        + 2.5 * demand
-        + 1.5 * season
-        + rng.normal(0, 1.5, n)
+@pytest.mark.parametrize(
+    "scenario", ["forecast", "target_chasing", "search", "observed_only"]
+)
+def test_synthetic_market(scenario):
+    market = simulate_endogenous_spend_market(scenario, random_seed=1)
+    again = simulate_endogenous_spend_market(scenario, random_seed=1)
+    pd.testing.assert_frame_equal(market.data, again.data)
+    assert len(market.data) == 120
+    assert market.lift_test["delta_x"].item() < 0
+    assert market.lift_test["delta_y"].item() < 0
+    shift, holdout = lift_test_design(
+        market.design, dates=market.data["date"], channels=["tv", "digital"]
     )
-    X = pd.DataFrame({"date": dates, "tv": tv, "control": control})
-    design = pd.DataFrame(
-        {
-            "channel": ["tv"],
-            "start_date": [dates[n_hist]],
-            "end_date": [dates[n_hist + n_test - 1]],
-            "delta_x": [-1.5],
-        }
-    )
-    operating = float(tv_bau[:n_hist].mean())
-    true_mr = beta * lam / (lam + operating) ** 2
-    return X, pd.Series(y, name="y"), design, operating, true_mr
+    assert int(holdout.sum()) == (4 if scenario == "search" else 0)
+    assert np.isclose(float(shift.sum()), 0 if scenario == "search" else -6.0)
+
+
+def test_synthetic_market_invalid_scenario():
+    with pytest.raises(ValueError, match="scenario must be one of"):
+        simulate_endogenous_spend_market("random")
 
 
 @pytest.mark.slow
 def test_budget_model_recovers_marginal_return():
-    X, y, design, operating, true_mr = _simulate_endogenous_market()
+    market = simulate_endogenous_spend_market("forecast", random_seed=7)
+    X, y = market.data.drop(columns="y"), market.data["y"]
 
     def fit(effect):
         mmm = MMM(
             date_column="date",
-            channel_columns=["tv"],
-            control_columns=["control"],
+            channel_columns=["tv", "digital"],
+            control_columns=["inflation", "unemployment"],
             target_column="y",
-            yearly_seasonality=2,
-            adstock=GeometricAdstock(l_max=4),
+            yearly_seasonality=4,
+            adstock=GeometricAdstock(l_max=8),
             saturation=MichaelisMentenSaturation(),
         )
         if effect is not None:
@@ -579,16 +564,20 @@ def test_budget_model_recovers_marginal_return():
             progressbar=False,
         )
         post = mmm.idata.posterior
-        scale_x = float(mmm.scalers["_channel"].sel(channel="tv"))
-        scale_y = float(mmm.scalers["_target"])
-        lam = post["saturation_lam"].sel(channel="tv") * scale_x
-        alpha = post["saturation_alpha"].sel(channel="tv") * scale_y
-        return float((alpha * lam / (lam + operating) ** 2).mean()), mmm
+        lam = post["saturation_lam"].sel(channel="tv") * float(
+            mmm.scalers["_channel"].sel(channel="tv")
+        )
+        beta = post["saturation_alpha"].sel(channel="tv") * float(
+            mmm.scalers["_target"]
+        )
+        x = market.operating_point
+        return float((beta * lam / (lam + x) ** 2).mean()), mmm
 
     plain_mr, _ = fit(None)
-    effect = BudgetModelEffect(design=design)
+    effect = BudgetModelEffect(design=market.design)
     budget_mr, mmm = fit(effect)
 
-    assert abs(budget_mr - true_mr) < abs(plain_mr - true_mr)
+    truth = market.true_marginal_return
+    assert abs(budget_mr - truth) < abs(plain_mr - truth)
     summary = effect.exogeneity_summary(mmm)
     assert summary.loc[summary["channel"] == "tv", "prob_positive"].item() > 0.9
