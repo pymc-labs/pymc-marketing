@@ -491,7 +491,17 @@ class MMMIDataWrapper:
         attrs = getattr(self.idata, "attrs", {})
         return attrs.get("link", "identity")
 
-    def get_channel_contributions(self, original_scale: bool = True) -> xr.DataArray:
+    @property
+    def _time_aggregation(self) -> str | None:
+        """Period the data was aggregated to by :meth:`aggregate_time`, if any."""
+        attrs = getattr(self.idata, "attrs", {})
+        return attrs.get("time_aggregation")
+
+    def get_channel_contributions(
+        self,
+        original_scale: bool = True,
+        period: Frequency = "original",
+    ) -> xr.DataArray:
         """Get channel contribution posterior samples.
 
         Convenience method that delegates to get_contributions() and
@@ -503,6 +513,9 @@ class MMMIDataWrapper:
             Whether to return contributions in original scale.
             If True, multiplies by target_scale (or uses pre-computed
             _original_scale variable if available).
+        period : {"original", "weekly", "monthly", "quarterly", "yearly", "all_time"}, default "original"
+            Time period to sum the per-date contributions over; see
+            :meth:`get_contributions`.
 
         Returns
         -------
@@ -514,6 +527,7 @@ class MMMIDataWrapper:
             include_baseline=False,
             include_controls=False,
             include_seasonality=False,
+            period=period,
         )
         return contributions["channels"]
 
@@ -523,6 +537,7 @@ class MMMIDataWrapper:
         include_baseline: bool = True,
         include_controls: bool = True,
         include_seasonality: bool = True,
+        period: Frequency = "original",
     ) -> xr.Dataset:
         r"""Get all contribution variables in a single dataset.
 
@@ -553,17 +568,38 @@ class MMMIDataWrapper:
             Include control variable contributions (if present)
         include_seasonality : bool, default True
             Include seasonality contributions (if present)
+        period : {"original", "weekly", "monthly", "quarterly", "yearly", "all_time"}, default "original"
+            Time period to sum the contributions over. The decomposition runs
+            on the original dates and the result is summed afterwards, which
+            ``link="log"`` requires (see :meth:`aggregate_time`). A
+            time-invariant intercept is counted once per period, as in
+            :meth:`aggregate_time`. ``"original"`` keeps every date,
+            ``"all_time"`` removes the ``date`` dim.
 
         Returns
         -------
         xr.Dataset
-            Dataset with all contribution variables
+            Dataset with all contribution variables. With a ``period``,
+            ``date`` holds the last calendar day of each period (a Sunday for
+            ``"weekly"``), which can fall after the last observed date.
 
         Raises
         ------
         ValueError
-            If original_scale=True and target_scale is not found in constant_data
+            If original_scale=True and target_scale is not found in constant_data,
+            or if the data was aggregated by :meth:`aggregate_time` and the model
+            uses ``link="log"``.
+
+        Examples
+        --------
+        >>> contributions = mmm.data.get_contributions()
+        >>> monthly = mmm.data.get_contributions(period="monthly")
         """
+        # The model adds a time-invariant intercept in every period, so it is
+        # repeated on every date before summing over the dates of each period.
+        data = (
+            self if period == "original" else self.broadcast_per_period_contributions()
+        )
         if self._link == "log" and original_scale:
             if not include_controls or not include_seasonality:
                 warnings.warn(
@@ -574,15 +610,18 @@ class MMMIDataWrapper:
                     UserWarning,
                     stacklevel=2,
                 )
-            return self._get_conserving_contributions_log_link(
+            contributions = data._get_conserving_contributions_log_link(
                 include_baseline=include_baseline,
             )
-        return self._get_contributions_identity(
-            original_scale=original_scale,
-            include_baseline=include_baseline,
-            include_controls=include_controls,
-            include_seasonality=include_seasonality,
-        )
+        else:
+            contributions = data._get_contributions_identity(
+                original_scale=original_scale,
+                include_baseline=include_baseline,
+                include_controls=include_controls,
+                include_seasonality=include_seasonality,
+            )
+        # Per variable, so each keeps its (chain, draw, date, ...) dim order
+        return contributions.map(_aggregate_over_time, period=period)
 
     def _get_contributions_identity(
         self,
@@ -741,7 +780,26 @@ class MMMIDataWrapper:
         The sum ``channels.sum("channel") + baseline`` equals
         ``exp(mu) * target_scale`` (the full posterior prediction) for every
         posterior draw.
+
+        Raises
+        ------
+        ValueError
+            If the data was aggregated over time by :meth:`aggregate_time`.
+            The decomposition is nonlinear in ``mu``, so it has to run on the
+            original dates; use the ``period`` argument of
+            :meth:`get_contributions` to aggregate the result instead.
         """
+        if (period := self._time_aggregation) is not None:
+            raise ValueError(
+                "Log-link contributions cannot be decomposed from data that was "
+                f"aggregated over time (aggregate_time(period={period!r})): the "
+                "conserving decomposition exponentiates the summed mu, and "
+                "exp(sum(mu)) is not sum(exp(mu)). Decompose on the original "
+                "dates and aggregate the contributions afterwards, with "
+                f"get_contributions(period={period!r}), "
+                f"get_elementwise_roas(period={period!r}) or "
+                f"mmm.summary.contributions(frequency={period!r})."
+            )
         # Deferred import: avoid circular import (mmm.py -> mmm_wrapper -> mmm pkg).
         from pymc_marketing.mmm.decomposition import (
             original_scale_prediction_from_mu,
@@ -784,9 +842,10 @@ class MMMIDataWrapper:
 
         ROAS = contribution / spend for each channel at each time point, or,
         with a ``period``, the contributions summed over each period divided by
-        the spend summed over it. The contributions are decomposed on the
-        original dates before any summing, which ``link="log"`` requires (see
-        :meth:`aggregate_time`).
+        the spend summed over it. The contributions come from
+        :meth:`get_channel_contributions` with the same ``period``, so they are
+        decomposed on the original dates before any summing, which
+        ``link="log"`` requires (see :meth:`aggregate_time`).
         Does NOT account for adstock carryover effects. For true incremental
         ROAS, use :meth:`pymc_marketing.mmm.incrementality.Incrementality.contribution_over_spend`
         or :meth:`pymc_marketing.mmm.summary.MMMSummaryFactory.roas` with
@@ -816,8 +875,8 @@ class MMMIDataWrapper:
         >>> roas_mean = roas.mean(dim=["chain", "draw"])
         >>> monthly_roas = mmm.data.get_elementwise_roas(period="monthly")
         """
-        contributions = _aggregate_over_time(
-            self.get_channel_contributions(original_scale=original_scale), period
+        contributions = self.get_channel_contributions(
+            original_scale=original_scale, period=period
         )
         spend = _aggregate_over_time(self.get_channel_spend(), period)
 
@@ -1082,13 +1141,16 @@ class MMMIDataWrapper:
         unchanged; use :meth:`broadcast_per_period_contributions` to get the
         intercept on every original date.
 
-        Under ``link="log"`` the result must not be decomposed:
+        The result is marked as time-aggregated (``time_aggregation`` in the
+        DataTree ``attrs``). Under ``link="log"`` it cannot be decomposed:
         :meth:`get_contributions` would exponentiate the summed ``mu``, and the
-        exponential of a sum is not the sum of the exponentials. Decompose on
-        the original dates and aggregate the contributions afterwards, as
-        :meth:`get_elementwise_roas` with a ``period`` and the ``frequency``
-        argument of the :class:`~pymc_marketing.mmm.summary.MMMSummaryFactory`
-        summaries do.
+        exponential of a sum is not the sum of the exponentials, so it raises
+        instead. Aggregating spend, the target or the raw posterior variables
+        stays valid. To aggregate contributions, decompose on the original
+        dates and sum afterwards with the ``period`` argument of
+        :meth:`get_contributions`, :meth:`get_channel_contributions` and
+        :meth:`get_elementwise_roas`, or the ``frequency`` argument of the
+        :class:`~pymc_marketing.mmm.summary.MMMSummaryFactory` summaries.
 
         Parameters
         ----------
@@ -1101,6 +1163,15 @@ class MMMIDataWrapper:
         -------
         MMMIDataWrapper
             New wrapper with aggregated idata
+
+        Examples
+        --------
+        .. code-block:: python
+
+            monthly_spend = mmm.data.aggregate_time("monthly").get_channel_spend()
+
+            # Contributions: decompose per date, then sum per period
+            monthly_contributions = mmm.data.get_contributions(period="monthly")
         """
         idata = self.idata
         if period != "original":

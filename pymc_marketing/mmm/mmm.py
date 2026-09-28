@@ -1318,10 +1318,17 @@ class MMM(RegressionModelBuilder):
             mmm.add_original_scale_contribution_variable(["channel_contribution"])
             mmm.data.validate_or_raise()
 
-            # Filter and aggregate
-            monthly = mmm.data.filter_dates("2024-01-01", "2024-12-31").aggregate_time(
-                "monthly"
+            # Filter, then aggregate spend over time
+            monthly_spend = (
+                mmm.data.filter_dates("2024-01-01", "2024-12-31")
+                .aggregate_time("monthly")
+                .get_channel_spend()
             )
+
+            # Contributions are decomposed per date, then summed per period
+            monthly_contributions = mmm.data.filter_dates(
+                "2024-01-01", "2024-12-31"
+            ).get_contributions(period="monthly")
         """
         self._validate_idata_exists()
 

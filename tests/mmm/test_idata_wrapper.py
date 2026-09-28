@@ -2796,3 +2796,144 @@ def test_log_link_get_contributions_warns_when_controls_or_seasonality_flags_ign
             include_controls=False,
             include_seasonality=False,
         )
+
+
+def _sum_over_period(samples: xr.DataArray, period: str) -> xr.DataArray:
+    """Sum ``samples`` over ``date`` into ``period`` bins, independently of the utils."""
+    if period == "all_time":
+        return samples.sum("date")
+    rule = {"weekly": "W", "monthly": "ME", "quarterly": "QE", "yearly": "YE"}[period]
+    return samples.resample(date=rule).sum("date")
+
+
+class TestLogLinkTimeAggregatedDecomposition:
+    """The conserving log-link decomposition is nonlinear in ``mu`` (#3070).
+
+    ``aggregate_time`` sums the log-space ``mu`` over the dates of each period, so
+    decomposing its result would build the contributions from ``exp(sum(mu))``
+    instead of ``sum(exp(mu))``. The wrapper has to refuse and point to the order
+    that works: decompose on the original dates, then aggregate.
+    """
+
+    @pytest.mark.parametrize("period", ["weekly", "monthly", "all_time"])
+    @pytest.mark.parametrize("method", ["sum", "mean"])
+    @pytest.mark.parametrize(
+        "decompose",
+        [
+            lambda data: data.get_contributions(original_scale=True),
+            lambda data: data.get_channel_contributions(original_scale=True),
+            lambda data: data.get_elementwise_roas(original_scale=True),
+        ],
+        ids=["get_contributions", "get_channel_contributions", "get_elementwise_roas"],
+    )
+    def test_decomposing_time_aggregated_data_raises(
+        self, idata_log_link_with_all_contributions, period, method, decompose
+    ):
+        aggregated = MMMIDataWrapper(
+            idata_log_link_with_all_contributions
+        ).aggregate_time(period=period, method=method)
+
+        with pytest.raises(ValueError, match=r"aggregated over time.*original dates"):
+            decompose(aggregated)
+
+    def test_marker_survives_filtering_after_aggregation(
+        self, idata_log_link_with_all_contributions
+    ):
+        data = (
+            MMMIDataWrapper(idata_log_link_with_all_contributions)
+            .aggregate_time("monthly")
+            .filter_dims(country="US")
+            .filter_dates(start_date="2024-02-01")
+        )
+
+        with pytest.raises(ValueError, match="aggregated over time"):
+            data.get_channel_contributions()
+
+    def test_period_original_leaves_decomposition_valid(
+        self, idata_log_link_with_all_contributions
+    ):
+        wrapper = MMMIDataWrapper(idata_log_link_with_all_contributions)
+
+        xr.testing.assert_identical(
+            wrapper.aggregate_time("original").get_channel_contributions(),
+            wrapper.get_channel_contributions(),
+        )
+
+    @pytest.mark.parametrize("period", ["monthly", "all_time"])
+    def test_aggregate_time_still_serves_spend_and_raw_variables(
+        self, idata_log_link_with_all_contributions, period
+    ):
+        """Aggregating spend, or the raw log-space variables, stays valid."""
+        wrapper = MMMIDataWrapper(idata_log_link_with_all_contributions)
+        aggregated = wrapper.aggregate_time(period)
+
+        expected_spend = _sum_over_period(wrapper.get_channel_spend(), period)
+        xr.testing.assert_allclose(
+            aggregated.get_channel_spend().transpose(*expected_spend.dims),
+            expected_spend,
+        )
+        expected_raw = _sum_over_period(
+            wrapper.get_contributions(original_scale=False)["channels"], period
+        )
+        xr.testing.assert_allclose(
+            aggregated.get_contributions(original_scale=False)["channels"].transpose(
+                *expected_raw.dims
+            ),
+            expected_raw,
+        )
+
+
+class TestContributionsPeriod:
+    """``get_contributions(period=...)`` decomposes per date, then sums per period."""
+
+    @pytest.mark.parametrize(
+        "period", ["weekly", "monthly", "quarterly", "yearly", "all_time"]
+    )
+    def test_log_link_sums_per_date_decomposition(
+        self, idata_log_link_with_all_contributions, period
+    ):
+        wrapper = MMMIDataWrapper(idata_log_link_with_all_contributions)
+        per_date = wrapper.get_contributions(original_scale=True)
+
+        result = wrapper.get_contributions(original_scale=True, period=period)
+
+        assert set(result.data_vars) == {"channels", "baseline"}
+        for component in ["channels", "baseline"]:
+            xr.testing.assert_allclose(
+                result[component], _sum_over_period(per_date[component], period)
+            )
+
+    def test_log_link_channel_contributions_and_roas_use_the_period(
+        self, idata_log_link_with_all_contributions
+    ):
+        wrapper = MMMIDataWrapper(idata_log_link_with_all_contributions)
+        channels = _sum_over_period(
+            wrapper.get_channel_contributions(original_scale=True), "monthly"
+        )
+        spend = _sum_over_period(wrapper.get_channel_spend(), "monthly")
+
+        xr.testing.assert_allclose(
+            wrapper.get_channel_contributions(original_scale=True, period="monthly"),
+            channels,
+        )
+        xr.testing.assert_allclose(
+            wrapper.get_elementwise_roas(original_scale=True, period="monthly"),
+            channels / spend,
+        )
+
+    def test_identity_link_counts_time_invariant_intercept_once_per_period(self):
+        """A time-invariant intercept is added in every period, like in ``aggregate_time``."""
+        idata = _idata_with_time_invariant_intercept()
+        posterior = idata.posterior
+        n_dates = posterior.sizes["date"]
+
+        result = MMMIDataWrapper(idata, validate_on_init=False).get_contributions(
+            original_scale=False, period="all_time"
+        )
+
+        xr.testing.assert_allclose(
+            result["baseline"], n_dates * posterior["intercept_contribution"]
+        )
+        xr.testing.assert_allclose(
+            result["channels"], posterior["channel_contribution"].sum("date")
+        )
