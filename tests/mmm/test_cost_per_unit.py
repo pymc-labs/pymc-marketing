@@ -1029,6 +1029,62 @@ class TestPriceResponseGate:
             price_response=PowerPriceResponse(elasticity=0.3),
         )
 
+    def test_partial_table_passes_when_only_priced_channels_are_curved(
+        self, simple_fitted_mmm
+    ):
+        """elasticity={"channel_1": 0.25} bends channel_1 alone; channels 2 and 3 take
+        the identity map, so their missing table entries vouch for nothing the run
+        relies on."""
+        mmm = simple_fitted_mmm
+        mmm.set_cost_per_unit(_full_table(mmm, {"channel_1": 2.0}))
+        optimizer = _optimizer(
+            mmm, price_response=PowerPriceResponse(elasticity={"channel_1": 0.25})
+        )
+        resolved = optimizer.optimization_variables.variables[0].price_response
+        assert not resolved.is_identity
+        expected = float(_on_air_reference(mmm).sel(channel="channel_1"))
+        np.testing.assert_allclose(resolved.reference_spend[0], expected)
+
+    def test_partial_table_refusal_names_only_the_curved_unpriced_channel(
+        self, simple_fitted_mmm
+    ):
+        mmm = simple_fitted_mmm
+        mmm.set_cost_per_unit(_full_table(mmm, {"channel_1": 2.0}))
+        with pytest.raises(ValueError, match="fitted on nominal spend") as info:
+            _optimizer(
+                mmm, price_response=PowerPriceResponse(elasticity={"channel_2": 0.25})
+            )
+        message = str(info.value)
+        assert "channel_2" in message
+        assert "channel_1" not in message and "channel_3" not in message
+
+    def test_unpriced_model_refusal_names_only_the_curved_channels(
+        self, simple_fitted_mmm
+    ):
+        with pytest.raises(ValueError, match="fitted on nominal spend") as info:
+            _optimizer(
+                simple_fitted_mmm,
+                price_response=PowerPriceResponse(elasticity={"channel_2": 0.3}),
+            )
+        message = str(info.value)
+        assert "channel_2" in message
+        assert "channel_1" not in message and "channel_3" not in message
+
+    def test_a_dark_flat_channel_does_not_block_curved_siblings(
+        self, simple_fitted_mmm
+    ):
+        """The reference is never read at elasticity 0, so channel_3 having no on-air
+        history cannot refuse a run that only bends channels 1 and 2."""
+        mmm = simple_fitted_mmm
+        _flight(mmm, "channel_3", on_every=0)
+        mmm.set_cost_per_unit(_full_table(mmm, dict.fromkeys(CHANNELS_3, 2.0)))
+        _optimizer(
+            mmm,
+            price_response=PowerPriceResponse(
+                elasticity={"channel_1": 0.3, "channel_2": 0.3}
+            ),
+        )
+
     def test_fully_priced_model_derives_the_on_air_reference(self, simple_fitted_mmm):
         mmm = simple_fitted_mmm
         _flight(mmm, "channel_3", on_every=4)

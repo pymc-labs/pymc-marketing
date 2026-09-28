@@ -261,7 +261,8 @@ class PriceResponse(BaseModel, ABC):
     assume_delivery_units : bool
         Attest that the model's channel data is in delivery units (or in spend deflated to constant prices) even
         though no historical ``cost_per_unit`` table prices the channel. Required, together with an explicit
-        ``reference_spend``, to apply a non-identity response to channels the fitted artifact cannot vouch for.
+        ``reference_spend``, to bend the price on channels the fitted artifact cannot vouch for; a channel the
+        response leaves at the identity needs no vouching, since its money passes through unbent.
         Default ``False``: the optimizer then refuses, because a saturation curve fitted on nominal spend has
         already absorbed part of the price curvature and a concave price map on top would bend it twice. The
         subject of that refusal is curvature, not spend dependence as such: writing the composed second
@@ -434,9 +435,10 @@ class PowerPriceResponse(PriceResponse):
     Notes
     -----
     **Precondition.** Only sound when the model was fitted on delivery units or constant-price spend. The
-    optimizer checks each optimized channel against the historical ``cost_per_unit`` table on the fitted model
-    (written by :meth:`~pymc_marketing.mmm.mmm.MMM.set_cost_per_unit` or ``MMM(cost_per_unit=...)``) and
-    refuses unpriced channels unless ``assume_delivery_units=True`` and ``reference_spend`` are both given.
+    optimizer checks each channel the response bends against the historical ``cost_per_unit`` table on the
+    fitted model (written by :meth:`~pymc_marketing.mmm.mmm.MMM.set_cost_per_unit` or ``MMM(cost_per_unit=...)``)
+    and refuses the unpriced ones unless ``assume_delivery_units=True`` and ``reference_spend`` are both given;
+    channels left at ``elasticity=0`` need no vouching.
     The ``cost_per_unit`` passed to the *optimizer* is independent of that table and proves nothing about the
     fit. A merged model (:func:`~pymc_marketing.mmm.budget_optimizer.merge_inference_data`) carries no root
     attrs and always needs the opt-out.
@@ -572,8 +574,15 @@ class PowerPriceResponse(PriceResponse):
         template, on = self._layout(dims, coords, mask)
         # A masked cell spends exactly nothing whatever its elasticity, so it gets gamma = 0.
         gamma = np.where(on, self._resolve_elasticity(template, date_dim, label), 0.0)
+        needs_reference = on & (gamma > 0.0)
         reference = self._resolve_reference(
-            template, on, gamma, derived_reference, date_dim, label, num_periods
+            template,
+            on,
+            needs_reference,
+            derived_reference,
+            date_dim,
+            label,
+            num_periods,
         )
         return ResolvedPowerPriceResponse(
             gamma=gamma,
@@ -587,19 +596,25 @@ class PowerPriceResponse(PriceResponse):
         self,
         template: DataArray,
         on: np.ndarray,
-        gamma: np.ndarray,
+        needs_reference: np.ndarray,
         derived_reference: DataArray | None,
         date_dim: str,
         label: str,
         num_periods: int | None,
     ) -> np.ndarray:
-        """Choose the reference source: unread at ``gamma = 0``, else declared, else derived."""
-        if not np.any(gamma):
+        """Choose the reference source: unread on flat cells, else declared, else derived."""
+        if not needs_reference.any():
             # The identity: the floor is 0 and (s / s_ref) ** 0 is 1, so the reference is never read.
             return np.ones(template.shape)
         if self.reference_spend is not None:
             return self._resolve_supplied_reference(
-                template, on, derived_reference, date_dim, label, num_periods
+                template,
+                on,
+                needs_reference,
+                derived_reference,
+                date_dim,
+                label,
+                num_periods,
             )
         if derived_reference is not None:
             return self._check_reference(
@@ -607,6 +622,7 @@ class PowerPriceResponse(PriceResponse):
                     derived_reference.transpose(*template.dims).values, dtype="float64"
                 ),
                 on,
+                needs_reference,
                 template,
                 label,
                 reason="the fitted spend has no on-air period",
@@ -689,26 +705,34 @@ class PowerPriceResponse(PriceResponse):
         self,
         template: DataArray,
         on: np.ndarray,
+        needs_reference: np.ndarray,
         derived_reference: DataArray | None,
         date_dim: str,
         label: str,
         num_periods: int | None = None,
     ) -> np.ndarray:
         """Validate and align the declared reference, then guard it against the derived one."""
-        values = self._aligned_supplied_reference(template, on, date_dim, label)
+        values = self._aligned_supplied_reference(
+            template, on, needs_reference, date_dim, label
+        )
         if derived_reference is not None:
             expected = np.asarray(
                 derived_reference.transpose(*template.dims).values, dtype="float64"
             )
             self._guard_supplied_reference(
-                values, expected, on, template, label, num_periods
+                values, expected, needs_reference, template, label, num_periods
             )
         return values
 
     def _aligned_supplied_reference(
-        self, template: DataArray, on: np.ndarray, date_dim: str, label: str
+        self,
+        template: DataArray,
+        on: np.ndarray,
+        needs_reference: np.ndarray,
+        date_dim: str,
+        label: str,
     ) -> np.ndarray:
-        """Align the declared reference to the layout, requiring it positive and finite on optimized cells."""
+        """Align the declared reference to the layout, requiring it positive and finite where it is read."""
         dims = template.dims
         ref = self.reference_spend
         if (
@@ -729,6 +753,7 @@ class PowerPriceResponse(PriceResponse):
         return self._check_reference(
             np.asarray(aligned.values, dtype="float64"),
             on,
+            needs_reference,
             template,
             label,
             reason="reference_spend is not positive and finite",
@@ -738,12 +763,13 @@ class PowerPriceResponse(PriceResponse):
         self,
         values: np.ndarray,
         expected_all: np.ndarray,
-        on: np.ndarray,
+        needs_reference: np.ndarray,
         template: DataArray,
         label: str,
         num_periods: int | None,
     ) -> None:
-        """Compare the declared reference with the fitted one and refuse a unit error."""
+        """Compare the declared reference with the fitted one, on the cells that read it, and refuse a unit error."""
+        on = needs_reference
         supplied, expected = values[on], expected_all[on]
         comparable = np.isfinite(expected) & (expected > 0.0)
         if not comparable.all():
@@ -789,13 +815,20 @@ class PowerPriceResponse(PriceResponse):
     def _check_reference(
         values: np.ndarray,
         on: np.ndarray,
+        needs_reference: np.ndarray,
         template: DataArray,
         label: str,
         *,
         reason: str,
     ) -> np.ndarray:
-        """Refuse non-positive or non-finite values on optimized cells; neutralise the rest."""
-        bad = on & ~(np.isfinite(values) & (values > 0.0))
+        """Refuse non-positive or non-finite values on the cells that read the reference; neutralise the rest.
+
+        A flat cell never reads its reference (the floor is 0 and ``(s / s_ref) ** 0`` is 1), so only the
+        curved cells can refuse. Valid values are kept everywhere they exist; a masked or flat cell with no
+        usable value gets a finite sentinel, since its coefficients only need to be finite.
+        """
+        valid = np.isfinite(values) & (values > 0.0)
+        bad = needs_reference & ~valid
         if bad.any():
             cells = [
                 PriceResponse._cell_label(idx, template) for idx in np.argwhere(bad)[:5]
@@ -805,5 +838,4 @@ class PowerPriceResponse(PriceResponse):
                 f"{label}: {reason} for optimized cells {cells}{more}, so there is no spend level to anchor "
                 "the base price to. Pass reference_spend explicitly for them."
             )
-        # Masked cells scatter to exactly zero spend; coefficients there only need to be finite.
-        return np.where(on, values, 1.0)
+        return np.where(on & valid, values, 1.0)

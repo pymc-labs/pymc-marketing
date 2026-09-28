@@ -2557,31 +2557,66 @@ class BudgetOptimizer(BaseModel):
         the price curvature, so a concave price map on top bends it twice. The
         proof that channel data is in delivery units is the historical
         ``cost_per_unit`` table, per channel; the ``cost_per_unit`` passed to this
-        optimizer is independent of it and proves nothing.
+        optimizer is independent of it and proves nothing. A channel the response
+        leaves at the identity needs no vouching: its money passes through unbent.
         """
-        unvouched = self._unvouched_channels()
+        unvouched = self._unvouched_channels(response)
         if unvouched:
             self._require_units_attestation(response, unvouched)
             return None
         return self._reference_from_fitted_spend(response)
 
-    def _unvouched_channels(self) -> str:
-        """Describe the optimized channels the fitted artifact cannot vouch for; empty when priced.
+    def _unvouched_channels(self, response: PriceResponse) -> str:
+        """Describe the curved optimized channels the fitted artifact cannot vouch for; empty when covered.
 
         Three distinct facts get three wordings, so a user is not told to set a
         table they already have.
         """
         priced = self._priced_channels()
-        if priced is None:
-            return "every optimized channel (no usable historical cost_per_unit table on the fitted model)"
         if "channel" not in self._budget_dims:
+            if priced is None:
+                return "every optimized channel (no usable historical cost_per_unit table on the fitted model)"
             return (
                 "every optimized channel (the fitted model prices channels, but this "
                 f"optimization's budget dims are {list(self._budget_dims)}, with no 'channel' "
                 "dim to match the table's columns against)"
             )
-        unpriced = self._unpriced_optimized_channels(priced)
+        curved = self._curved_channels(response)
+        if priced is None:
+            return (
+                f"channels {sorted(curved)} (no usable historical cost_per_unit table "
+                "on the fitted model)"
+            )
+        unpriced = [
+            channel
+            for channel in self._unpriced_optimized_channels(priced)
+            if channel in curved
+        ]
         return f"channels {unpriced}" if unpriced else ""
+
+    def _curved_channels(self, response: PriceResponse) -> set[str]:
+        """Optimized channels on which the response actually bends.
+
+        Asked channel by channel through :meth:`PriceResponse.is_identity_on`, so a
+        family that cannot answer per cell (the default answers from the whole
+        declaration) keeps every channel gated.
+        """
+        mask: DataArray = self.budgets_to_optimize  # type: ignore[assignment]
+        curved = set()
+        for channel in mask.coords["channel"].values:
+            channel_mask = mask & (mask.coords["channel"] == channel)
+            if not bool(channel_mask.any()):
+                continue
+            identity = response.is_identity_on(
+                dims=tuple(self._budget_dims),
+                coords=self._budget_coords,
+                mask=channel_mask,
+                date_dim=self.date_dim,
+                label=f"{self.channel_data_var}: price_response",
+            )
+            if not identity:
+                curved.add(str(channel))
+        return curved
 
     @staticmethod
     def _require_units_attestation(response: PriceResponse, who: str) -> None:

@@ -414,6 +414,37 @@ class TestPowerPriceResponseValidation:
         )
         np.testing.assert_array_equal(resolved.reference_spend, [100.0, 1.0, 100.0])
 
+    def test_the_reference_is_only_required_where_the_map_bends(self):
+        """A flat cell never reads its reference, so a dark channel at elasticity 0
+        cannot block the curved siblings; a sentinel keeps its coefficients finite."""
+        elasticity = xr.DataArray(
+            [0.2, 0.0, 0.2],
+            dims=("channel",),
+            coords={"channel": ["tv", "radio", "digital"]},
+        )
+        resolved = PowerPriceResponse(elasticity=elasticity).resolve(
+            **layout(), derived_reference=derived([100.0, np.nan, 100.0])
+        )
+        np.testing.assert_array_equal(resolved.reference_spend, [100.0, 1.0, 100.0])
+
+    def test_a_supplied_reference_is_only_guarded_where_the_map_bends(self):
+        """The tolerance guard reads the cells whose price the reference anchors; a
+        flat cell's value is never read, so it cannot be 52x wrong."""
+        elasticity = xr.DataArray(
+            [0.2, 0.0, 0.2],
+            dims=("channel",),
+            coords={"channel": ["tv", "radio", "digital"]},
+        )
+        fitted = derived([100.0, 100.0, 100.0])
+        supplied = derived([100.0, 5200.0, 100.0])
+        PowerPriceResponse(elasticity=elasticity, reference_spend=supplied).resolve(
+            **layout(), derived_reference=fitted
+        )
+        with pytest.raises(ValueError, match="52x apart"):
+            PowerPriceResponse(elasticity=0.2, reference_spend=supplied).resolve(
+                **layout(), derived_reference=fitted
+            )
+
     def test_identity_needs_no_reference_of_any_kind(self):
         resolved = PowerPriceResponse(elasticity=0.0).resolve(
             **layout(), derived_reference=None
