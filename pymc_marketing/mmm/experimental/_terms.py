@@ -38,25 +38,34 @@ from pymc_marketing.mmm.transformers import ConvMode
 
 
 class MediaTransform(GraphTerm):
-    """Apply configured transformations along ``date`` to a media expression.
+    """Apply one configured adstock or saturation along ``date``.
+
+    Usually created with ``>>``, which chains stages left to right:
+    ``Data("spend") >> GeometricAdstock(l_max=8) >> LogisticSaturation()``.
+    Construct it directly when the input is not a graph term, for example
+    ``MediaTransform(Data("spend") * 0.001, GeometricAdstock(l_max=8))``.
 
     Parameters
     ----------
     media : object
-        Expression producing the raw media tensor, typically ``Data("spend")``.
-        Dimensions other than ``date`` are carried through unchanged.
-    *transforms : Transformation
-        Configured adstock or saturation instances applied left to right.
-        Parameter priors keep their own declared dimensions, which must be dataset
-        dimensions. ``DataArray`` constants are aligned to dataset labels by name.
+        Expression producing the media tensor. It must carry ``date``; its other
+        dimensions are carried through in their input order.
+    transformation : Transformation
+        Configured adstock or saturation instance.
 
     Notes
     -----
-    Transformation variable names must be distinct within one model; set ``prefix``
-    when the same transformation kind appears twice.
-    ``required_history`` totals the causal lookback of every adstock stage, and
-    forecasts prepend that many training rows.
-    Reduce over ``channel`` explicitly, for example with ``Transform``; the
+    A parameter prior without ``dims`` takes the input's dimensions other than
+    ``date``, matching the stable MMM's default per-channel parameters. Declared
+    ``dims`` are kept, and ``dims=()`` shares one value across the input. The
+    configured transformation is never modified. ``DataArray`` constants are
+    aligned to dataset labels by name.
+
+    Transformation variable names must be distinct within one model; set
+    ``prefix`` when the same transformation kind appears twice. Each causal
+    adstock stage requires ``l_max - 1`` rows of training history, and forecasts
+    prepend the largest total along any dependency path.
+    Reduce over ``channel`` explicitly, for example with ``.sum("channel")``; the
     equation output never sums dimensions implicitly.
 
     Examples
@@ -65,81 +74,78 @@ class MediaTransform(GraphTerm):
 
         from pymc_extras.prior import Prior
         from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation
-        from pymc_marketing.mmm.experimental import Data, MediaTransform
+        from pymc_marketing.mmm.experimental import Data
 
-        response = MediaTransform(
-            Data("spend"),
-            GeometricAdstock(l_max=8),
-            LogisticSaturation(priors={"beta": Prior("HalfNormal", dims="channel")}),
-        )
+        contribution = (
+            Data("spend")
+            >> GeometricAdstock(l_max=8)
+            >> LogisticSaturation(priors={"beta": Prior("HalfNormal", sigma=2)})
+        ).named("channel_contribution")
+        total = contribution.sum("channel")
     """
 
-    def __init__(self, media: Any, *transforms: Transformation) -> None:
-        if not transforms or any(
-            not isinstance(transform, Transformation) for transform in transforms
-        ):
-            raise TypeError(
-                "MediaTransform requires one or more Transformation instances."
-            )
-        names = [
-            name
-            for transform in transforms
-            for name in transform.variable_mapping.values()
-        ]
-        if len(set(names)) != len(names):
-            raise ValueError(
-                "Transformation variable names must be distinct; set a distinct prefix."
-            )
+    def __init__(self, media: Any, transformation: Transformation) -> None:
+        if not isinstance(transformation, Transformation):
+            raise TypeError("MediaTransform requires a Transformation instance.")
         self.media = media
-        self.transforms = tuple(transforms)
+        self.transformation = transformation
 
     def dependencies(self) -> tuple[Any, ...]:
         """Return the media expression."""
         return (self.media,)
 
     def _specification_state(self) -> Any:
-        return self.media, self.transforms
+        return self.media, self.transformation
 
     @property
     def required_history(self) -> int:
-        """Return the total causal adstock lookback in observation periods."""
-        total = 0
-        for transform in self.transforms:
-            if not isinstance(transform, AdstockTransformation) or isinstance(
-                transform, NoAdstock
-            ):
-                continue
-            if transform.mode != ConvMode.After:
-                raise ValueError(
-                    "Adstock history requires causal mode=ConvMode.After; noncausal boundaries are unsupported."
-                )
-            total += transform.l_max - 1
-        return total
+        """Return this stage's causal adstock lookback in observation periods."""
+        transformation = self.transformation
+        if not isinstance(transformation, AdstockTransformation) or isinstance(
+            transformation, NoAdstock
+        ):
+            return 0
+        if transformation.mode != ConvMode.After:
+            raise ValueError(
+                "Adstock history requires causal mode=ConvMode.After; noncausal boundaries are unsupported."
+            )
+        return transformation.l_max - 1
 
     def _build(self, context: BuildContext) -> XTensorVariable:
         value = context.build(self.media)
-        if "date" not in getattr(value, "dims", ()):
+        dims = tuple(getattr(value, "dims", ()))
+        if "date" not in dims:
             raise ValueError(
                 "MediaTransform requires a media expression with a date dimension."
             )
-        for transform in self.transforms:
-            value = transform.function(
-                value, dim="date", **self._parameters(context, transform)
-            )
-        return value
+        parameters = self._parameters(
+            context, tuple(dim for dim in dims if dim != "date")
+        )
+        result = self.transformation.function(value, dim="date", **parameters)
+        return result.transpose(*dims, ...)
 
     def _parameters(
-        self, context: BuildContext, transform: Transformation
+        self, context: BuildContext, default_dims: tuple[str, ...]
     ) -> dict[str, Any]:
-        clone = copy(transform)
+        clone = copy(self.transformation)
         clone.__dict__ = {
-            key: _copy_recipe_value(value) for key, value in vars(transform).items()
+            key: _copy_recipe_value(value)
+            for key, value in vars(self.transformation).items()
         }
         for parameter, prior in clone.function_priors.items():
             if isinstance(prior, VariableFactory):
-                context._claim_name(clone.variable_mapping[parameter], self)
-                if prior.dims:
-                    context._ensure_dims(_dimensions(prior.dims))
+                # Same rule as Transformation.with_default_prior_dims, applied to a
+                # copy_prior clone because deepcopy drops Prior core dimensions.
+                if prior.dims is None:
+                    prior.dims = default_dims
+                name = clone.variable_mapping[parameter]
+                try:
+                    context._claim_name(name, self)
+                except ValueError as error:
+                    raise ValueError(
+                        f"{error} Give repeated transformations distinct prefixes."
+                    ) from error
+                context._ensure_dims(_dimensions(prior.dims))
             elif isinstance(prior, xr.DataArray):
                 clone.function_priors[parameter] = pmd.as_xtensor(
                     _align_labels(prior, context.ds)

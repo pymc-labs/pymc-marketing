@@ -20,6 +20,11 @@ hand the equations to ``MMM``. Data enter only through ``fit`` and
 keeps its own labeled dimensions. There is no model-wide dimension list, no
 privileged outcome, and no hidden scaling.
 
+``Data("spend") >> adstock >> saturation`` applies configured transformations
+along ``date``; their priors without ``dims`` take the input's other dimensions.
+``expression.named(name)`` records a deterministic and ``expression.sum(dim)``
+reduces a dimension.
+
 This namespace does not change the stable MMM. Its interfaces are experimental.
 
 Two targets sharing one likelihood family form one ``target`` dimension; different
@@ -30,20 +35,20 @@ families or observation layouts are separate equations sharing terms by identity
     import xarray as xr
     from pymc_extras.prior import Prior
     from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation
-    from pymc_marketing.mmm.experimental import MMM, Data, Equation, MediaTransform
-    from pymc_marketing.terms import Intercept, Parameter, Transform
+    from pymc_marketing.mmm.experimental import MMM, Data, Equation
+    from pymc_marketing.terms import Intercept, Parameter
 
-    response = MediaTransform(
-        Data("spend"),
-        GeometricAdstock(l_max=8),
-        LogisticSaturation(
+    response = (
+        Data("spend")
+        >> GeometricAdstock(l_max=8)
+        >> LogisticSaturation(
             priors={"beta": Prior("HalfNormal", dims=("channel", "target"))}
-        ),
-    )
+        )
+    ).named("channel_contribution")
     price_beta = Parameter("price_beta", Prior("Normal", dims="target"))
     mu = (
         Intercept(prior=Prior("Normal", dims=("product", "target")))
-        + Transform(response, lambda value: value.sum(dim="channel"))
+        + response.sum("channel")
         + Data("price") * price_beta
     )
     sales = Equation(

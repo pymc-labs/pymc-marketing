@@ -16,7 +16,9 @@
 
 ``pymc_marketing.terms`` provides a small set of built-in pieces
 (``Parameter`` / ``Intercept``, ``Dot``, ``Transform``) that compose with
-``+``, ``*``, and ``-`` into predictors.  **This module is not a full
+``+``, ``*``, and ``-`` into predictors; ``expression.named(name)`` records
+an expression as a deterministic and ``expression.sum(dim)`` reduces a
+dimension.  **This module is not a full
 modeling toolkit** --- it does not ship complete hierarchical,
 domain-specific, or observation-model wrappers.  It is a **thin, expressive
 core** that lets you build what you need by subclassing ``ModelTerm`` and
@@ -293,9 +295,11 @@ __all__ = [
     "Dot",
     "Intercept",
     "ModelTerm",
+    "Named",
     "Parameter",
     "Product",
     "Sum",
+    "SumOver",
     "Transform",
     "build_param",
     "collect_coords",
@@ -423,7 +427,8 @@ class _TermOps:
     returns the term): a ``Sum`` operand of ``+``, or the left operand of
     ``-``, contributes its own terms rather than nesting. The right operand of ``-`` is negated as a whole, so a ``Sum``
     there enters as one ``Product``. ``*`` and unary ``-`` produce a
-    :class:`Product`. Defining the operators once here keeps ``ModelTerm``,
+    :class:`Product`. ``named`` and ``sum`` wrap an expression in :class:`Named`
+    and :class:`SumOver`. Defining the operators once here keeps ``ModelTerm``,
     ``Sum`` and ``Product`` from drifting apart.
     """
 
@@ -456,6 +461,38 @@ class _TermOps:
     def __neg__(self) -> Product:
         """Return the negation of this term."""
         return Product(-1, self)
+
+    def named(self, name: str, dims: str | Sequence[str] | None = None) -> Named:
+        """Record this expression as a named deterministic model variable.
+
+        Parameters
+        ----------
+        name : str
+            Model variable name.
+        dims : str or sequence of str, optional
+            Output dimension order; defaults to the expression's own order.
+
+        Returns
+        -------
+        Named
+            A term whose value is this expression, recorded under ``name``.
+        """
+        return Named(self, name=name, dims=dims)
+
+    def sum(self, dim: str) -> SumOver:
+        """Sum this expression over one named dimension.
+
+        Parameters
+        ----------
+        dim : str
+            Dimension to reduce.
+
+        Returns
+        -------
+        SumOver
+            A term whose value is this expression summed over ``dim``.
+        """
+        return SumOver(self, dim=dim)
 
 
 @dataclass
@@ -885,6 +922,144 @@ class Transform(ModelTerm):
             inner=_deserialize_child(data["inner"]),
             func=_resolve_func(data["func"]),
         )
+
+
+@serialization.register
+@dataclass
+class Named(ModelTerm):
+    """Record an expression as a named deterministic model variable.
+
+    Usually created with ``expression.named(name)``. The term's value is the
+    expression itself; the recorded variable appears under ``name`` in posterior
+    and predictive draws.
+
+    Parameters
+    ----------
+    inner : Any
+        Expression accepted by ``build_param``.
+    name : str
+        Model variable name; it must be unique in the model.
+    dims : str or sequence of str, optional
+        Output dimension order, applied by transposing. Defaults to the
+        expression's own order.
+
+    Examples
+    --------
+    .. code-block:: python
+
+        from pymc_extras.prior import Prior
+        from pymc_marketing.terms import Parameter
+
+        weights = Parameter("weights", Prior("Normal", dims=("geo", "feature")))
+        total = weights.sum("feature").named("total", dims="geo")
+    """
+
+    inner: Any
+    name: str
+    dims: str | Sequence[str] | None = None
+
+    def __post_init__(self) -> None:
+        """Normalize ``dims`` to a tuple."""
+        if isinstance(self.dims, str):
+            self.dims = (self.dims,)
+        elif self.dims is not None:
+            self.dims = tuple(self.dims)
+
+    def get_coords(self, ds: xr.Dataset) -> dict[str, Any]:
+        """Collect coordinates from the inner expression."""
+        return get_coords(self.inner, ds)
+
+    def register_data(self, ds: xr.Dataset) -> None:
+        """Register shared data for the inner expression."""
+        register_data(self.inner, ds=ds)
+
+    def create_variable(self) -> pt.TensorVariable:
+        """Build the inner expression and record it as ``pmd.Deterministic``."""
+        return cast(
+            "pt.TensorVariable",
+            pmd.Deterministic(self.name, build_param(self.inner), dims=self.dims),
+        )
+
+    def set_data(self, ds: xr.Dataset, model: pm.Model | None = None) -> None:
+        """Update shared data for the inner expression."""
+        set_data(self.inner, ds=ds, model=model)
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize the inner expression, name, and dimension order."""
+        return {
+            "inner": _serialize_child(self.inner),
+            "name": self.name,
+            "dims": None if self.dims is None else list(self.dims),
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> Named:
+        """Reconstruct a named term from its serialized form."""
+        return cls(
+            inner=_deserialize_child(data["inner"]),
+            name=data["name"],
+            dims=data.get("dims"),
+        )
+
+
+@serialization.register
+@dataclass
+class SumOver(ModelTerm):
+    """Sum an expression over one named dimension.
+
+    Usually created with ``expression.sum(dim)``.
+
+    Parameters
+    ----------
+    inner : Any
+        Expression accepted by ``build_param``; its value must carry ``dim``.
+    dim : str
+        Dimension to reduce.
+
+    Examples
+    --------
+    .. code-block:: python
+
+        from pymc_extras.prior import Prior
+        from pymc_marketing.terms import Dot
+
+        contribution = Dot(var_name="x", prior=Prior("Normal", dims="feature"))
+        total = contribution.sum("obs")
+    """
+
+    inner: Any
+    dim: str
+
+    def get_coords(self, ds: xr.Dataset) -> dict[str, Any]:
+        """Collect coordinates from the inner expression."""
+        return get_coords(self.inner, ds)
+
+    def register_data(self, ds: xr.Dataset) -> None:
+        """Register shared data for the inner expression."""
+        register_data(self.inner, ds=ds)
+
+    def create_variable(self) -> pt.TensorVariable:
+        """Build the inner expression and sum it over ``dim``."""
+        value: Any = build_param(self.inner)
+        dims = tuple(getattr(value, "dims", ()))
+        if self.dim not in dims:
+            raise ValueError(
+                f"Cannot sum over {self.dim!r}; the expression has dimensions {dims}."
+            )
+        return cast("pt.TensorVariable", value.sum(dim=self.dim))
+
+    def set_data(self, ds: xr.Dataset, model: pm.Model | None = None) -> None:
+        """Update shared data for the inner expression."""
+        set_data(self.inner, ds=ds, model=model)
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize the inner expression and reduced dimension."""
+        return {"inner": _serialize_child(self.inner), "dim": self.dim}
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> SumOver:
+        """Reconstruct a dimension sum from its serialized form."""
+        return cls(inner=_deserialize_child(data["inner"]), dim=data["dim"])
 
 
 def get_coords(param: Any, ds: xr.Dataset) -> dict[str, Any]:

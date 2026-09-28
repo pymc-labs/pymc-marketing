@@ -23,7 +23,7 @@ from scipy.special import gammaln
 from scipy.stats import norm
 
 from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation
-from pymc_marketing.mmm.experimental import MMM, Data, Equation, MediaTransform
+from pymc_marketing.mmm.experimental import MMM, Data, Equation
 from pymc_marketing.terms import Intercept, Parameter, Transform
 
 SAMPLE_KWARGS = {
@@ -114,29 +114,24 @@ def _multi_target_future(spend, price, *, channel=CHANNELS, coords=None):
 
 
 def _multi_target_recipe():
-    response = MediaTransform(
-        Data("spend"),
-        GeometricAdstock(l_max=L_MAX, priors={"alpha": ALPHA}),
-        LogisticSaturation(
+    response = (
+        Data("spend")
+        >> GeometricAdstock(l_max=L_MAX, priors={"alpha": ALPHA})
+        >> LogisticSaturation(
             priors={
                 "lam": LAM,
                 "beta": Prior("HalfNormal", sigma=1, dims=("channel", "target")),
             }
-        ),
+        )
     )
     mean = (
         Intercept(prior=Prior("Normal", dims=("product", "target")))
-        + Transform(response, lambda value: value.sum(dim="channel"))
+        + response.sum("channel")
         + Data("price") * Parameter("price_beta", Prior("Normal", dims="target"))
     )
     return Equation(
         observed="sales",
-        mu=Transform(
-            mean,
-            lambda value: pmd.Deterministic(
-                "sales_mean", value, dims=("date", "product", "target")
-            ),
-        ),
+        mu=mean.named("sales_mean", dims=("date", "product", "target")),
         likelihood=Prior("Normal", sigma=Prior("HalfNormal", sigma=1)),
     )
 
@@ -317,20 +312,14 @@ def shared_slope():
     revenue = Equation(
         name="revenue",
         observed="revenue_obs",
-        mu=Transform(
-            slope * Data("driver"),
-            lambda value: pmd.Deterministic("revenue_mean", 2.0 + value),
-        ),
+        mu=(2.0 + slope * Data("driver")).named("revenue_mean"),
         likelihood=Prior("Normal", sigma=0.1),
     )
     orders = Equation(
         name="orders",
         observed="orders_obs",
-        mu=Transform(
-            slope * Data("driver"),
-            lambda value: pmd.Deterministic(
-                "order_rate", pmd.math.exp(0.3 + 0.2 * value)
-            ),
+        mu=Transform(0.3 + 0.2 * (slope * Data("driver")), pmd.math.exp).named(
+            "order_rate"
         ),
         likelihood=Prior("Poisson"),
     )
