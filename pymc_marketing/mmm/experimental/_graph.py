@@ -21,8 +21,9 @@ from contextvars import ContextVar
 from copy import copy, deepcopy
 from dataclasses import dataclass, fields, is_dataclass
 from functools import partial
+from numbers import Integral
 from types import BuiltinFunctionType, FunctionType, MethodType
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import pymc as pm
@@ -31,10 +32,12 @@ import xarray as xr
 from pymc_extras.prior import Prior, VariableFactory
 from pytensor.graph.basic import Variable
 
+from pymc_marketing.mmm.components.base import Transformation
 from pymc_marketing.mmm.link import LinkFunction, get_link_spec
 from pymc_marketing.terms import (
     Dot,
     ModelTerm,
+    Named,
     Parameter,
     Product,
     Sum,
@@ -42,6 +45,9 @@ from pymc_marketing.terms import (
     get_coords,
     register_data,
 )
+
+if TYPE_CHECKING:
+    from pymc_marketing.mmm.experimental._terms import MediaTransform
 
 _ACTIVE_CONTEXT: ContextVar[BuildContext | None] = ContextVar(
     "experimental_mmm_build_context", default=None
@@ -142,6 +148,18 @@ class GraphTerm(ModelTerm):
                 "Graph terms must be built through BuildContext.build()."
             )
         return context.build(self)
+
+    def __rshift__(self, transformation: Transformation) -> MediaTransform:
+        """Apply a configured adstock or saturation to this expression along ``date``.
+
+        ``Data("spend") >> GeometricAdstock(l_max=8) >> LogisticSaturation()``
+        applies stages left to right; each ``>>`` creates one ``MediaTransform``.
+        """
+        if not isinstance(transformation, Transformation):
+            return NotImplemented
+        from pymc_marketing.mmm.experimental import _terms
+
+        return _terms.MediaTransform(self, transformation)
 
 
 class Data(GraphTerm):
@@ -384,6 +402,52 @@ def _walk(root: Any, stop: Callable[[Any], bool] | None = None) -> Iterator[Any]
             yield value
 
     yield from visit(root)
+
+
+def _symbolic_children(value: Any) -> Iterator[Any]:
+    for child in _children(value):
+        if isinstance(child, (ModelTerm, Sum, Product)):
+            yield child
+        else:
+            yield from _symbolic_children(child)
+
+
+def total_lookback(root: Any, stop: Callable[[Any], bool] | None = None) -> int:
+    """Return the most training rows any dependency path needs before a forecast.
+
+    Parameters
+    ----------
+    root : object
+        Graph term, shared term composition, or container of expressions.
+    stop : callable, optional
+        Return true for nodes whose dependencies need no history.
+
+    Returns
+    -------
+    int
+        Largest sum of ``required_history`` along one dependency path. An adstock
+        with ``l_max=3`` feeding one with ``l_max=2`` needs ``2 + 1`` rows, even
+        when other terms sit between them.
+
+    Raises
+    ------
+    ValueError
+        If a term declares a ``required_history`` that is not a nonnegative integer.
+    """
+    totals: dict[int, int] = {}
+    for node in walk(root, stop=stop):
+        own = getattr(node, "required_history", 0)
+        if isinstance(own, bool) or not isinstance(own, Integral) or own < 0:
+            raise ValueError("Term required_history must be a nonnegative integer.")
+        upstream = (
+            0
+            if stop is not None and stop(node)
+            else max(
+                (totals[id(child)] for child in _symbolic_children(node)), default=0
+            )
+        )
+        totals[id(node)] = int(own) + upstream
+    return max(totals.values(), default=0)
 
 
 class _Reference(ModelTerm):
@@ -733,7 +797,7 @@ class BuildContext:
             if isinstance(expression, GraphTerm):
                 value = expression._build(self)
             else:
-                if isinstance(expression, (Parameter, Dot)):
+                if isinstance(expression, (Parameter, Dot, Named)):
                     variable_name = expression.name
                     if variable_name is None:
                         raise ValueError("Parameters and coefficients must have names.")

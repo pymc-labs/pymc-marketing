@@ -30,7 +30,7 @@ from pymc_marketing.mmm import (
     YearlyFourier,
 )
 from pymc_marketing.mmm.experimental import Data, MediaTransform, Seasonality
-from pymc_marketing.mmm.experimental._graph import BuildContext
+from pymc_marketing.mmm.experimental._graph import BuildContext, total_lookback
 from pymc_marketing.mmm.transformers import ConvMode
 
 DATES = pd.date_range("2025-01-06", periods=5, freq="W-MON")
@@ -74,15 +74,15 @@ def _ordered(values: np.ndarray, source: tuple[str, ...], *dims: str) -> np.ndar
 
 
 def test_adstock_then_saturation_matches_numpy_reference(ds):
-    term = MediaTransform(
-        Data("spend"),
-        GeometricAdstock(l_max=3, priors={"alpha": 0.5}),
-        LogisticSaturation(priors={"lam": 2.0, "beta": 1.5}),
+    term = (
+        Data("spend")
+        >> GeometricAdstock(l_max=3, priors={"alpha": 0.5})
+        >> LogisticSaturation(priors={"lam": 2.0, "beta": 1.5})
     )
     with pm.Model() as model:
         value = BuildContext(ds).build(term)
     expected = _logistic_saturation(_geometric_adstock(SPEND, 0.5, 3), 2.0, 1.5)
-    assert set(value.dims) == {"date", "channel"}
+    assert value.dims == ("date", "channel")
     assert model.coords["channel"] == ("radio", "tv")
     assert model.free_RVs == []
     assert_allclose(
@@ -94,10 +94,10 @@ def test_adstock_then_saturation_matches_numpy_reference(ds):
 
 
 def test_saturation_then_adstock_applies_transforms_in_order(ds):
-    term = MediaTransform(
-        Data("spend"),
-        LogisticSaturation(priors={"lam": 2.0, "beta": 1.5}),
-        GeometricAdstock(l_max=3, priors={"alpha": 0.5}),
+    term = (
+        Data("spend")
+        >> LogisticSaturation(priors={"lam": 2.0, "beta": 1.5})
+        >> GeometricAdstock(l_max=3, priors={"alpha": 0.5})
     )
     with pm.Model():
         value = BuildContext(ds).build(term)
@@ -111,11 +111,8 @@ def test_saturation_then_adstock_applies_transforms_in_order(ds):
 
 
 def test_channel_prior_is_applied_per_channel(ds):
-    term = MediaTransform(
-        Data("spend"),
-        LogisticSaturation(
-            priors={"lam": 2.0, "beta": Prior("HalfNormal", sigma=1, dims="channel")}
-        ),
+    term = Data("spend") >> LogisticSaturation(
+        priors={"lam": 2.0, "beta": Prior("HalfNormal", sigma=1, dims="channel")}
     )
     with pm.Model() as model:
         value = BuildContext(ds).build(term)
@@ -131,34 +128,52 @@ def test_channel_prior_is_applied_per_channel(ds):
     )
 
 
-def test_required_history_sums_causal_adstock_stages():
-    two_stage = MediaTransform(
-        Data("spend"),
-        GeometricAdstock(l_max=3),
-        GeometricAdstock(l_max=2, prefix="carryover"),
+def test_unspecified_prior_dims_follow_media_dims():
+    ds = xr.Dataset(
+        {"spend": (("date", "geo", "channel"), np.ones((len(DATES), 2, 2)))},
+        coords={"date": DATES, "geo": ["north", "south"], "channel": CHANNELS},
     )
-    assert two_stage.required_history == 3
-    assert MediaTransform(Data("spend"), NoAdstock(l_max=4)).required_history == 0
-    assert MediaTransform(Data("spend"), LogisticSaturation()).required_history == 0
+    adstock = GeometricAdstock(l_max=2)
+    saturation = LogisticSaturation(
+        priors={
+            "lam": Prior("Gamma", mu=2, sigma=1, dims=()),
+            "beta": Prior("HalfNormal", dims="channel"),
+        }
+    )
+    with pm.Model() as model:
+        value = BuildContext(ds).build(Data("spend") >> adstock >> saturation)
+    dims = model.named_vars_to_dims
+    assert dims["adstock_alpha"] == ("geo", "channel")
+    assert dims.get("saturation_lam", ()) == ()
+    assert dims["saturation_beta"] == ("channel",)
+    assert value.dims == ("date", "geo", "channel")
+    assert adstock.function_priors["alpha"].dims is None
+
+
+def test_lookback_sums_adstock_stages_along_each_path():
+    first = Data("spend") >> GeometricAdstock(l_max=3)
+    stacked = MediaTransform(first * 2.0, GeometricAdstock(l_max=2, prefix="carryover"))
+    parallel = Data("spend") >> GeometricAdstock(l_max=5, prefix="long")
+    assert total_lookback(stacked) == 3
+    assert total_lookback(stacked + parallel) == 4
+    assert total_lookback(Data("spend") >> NoAdstock(l_max=4)) == 0
+    assert total_lookback(Data("spend") >> LogisticSaturation()) == 0
 
 
 def test_noncausal_adstock_rejects_required_history():
-    term = MediaTransform(
-        Data("spend"), GeometricAdstock(l_max=3, mode=ConvMode.Before)
-    )
+    term = Data("spend") >> GeometricAdstock(l_max=3, mode=ConvMode.Before)
     with pytest.raises(ValueError, match="causal"):
         term.required_history
 
 
 def test_repeated_transformation_kind_needs_distinct_prefixes(ds):
-    with pytest.raises(ValueError, match="prefix"):
-        MediaTransform(
-            Data("spend"), GeometricAdstock(l_max=3), GeometricAdstock(l_max=2)
-        )
-    term = MediaTransform(
-        Data("spend"),
-        GeometricAdstock(l_max=3, priors={"alpha": 0.5}),
-        GeometricAdstock(l_max=2, prefix="carryover", priors={"alpha": 0.2}),
+    clash = Data("spend") >> GeometricAdstock(l_max=3) >> GeometricAdstock(l_max=2)
+    with pm.Model(), pytest.raises(ValueError, match="prefix"):
+        BuildContext(ds).build(clash)
+    term = (
+        Data("spend")
+        >> GeometricAdstock(l_max=3, priors={"alpha": 0.5})
+        >> GeometricAdstock(l_max=2, prefix="carryover", priors={"alpha": 0.2})
     )
     with pm.Model():
         value = BuildContext(ds).build(term)
@@ -178,7 +193,7 @@ def test_dataarray_constant_is_aligned_by_label_not_position(ds):
     adstock = GeometricAdstock(l_max=3)
     adstock.update_priors({"adstock_alpha": alpha})
     with pm.Model() as model:
-        value = BuildContext(ds).build(MediaTransform(Data("spend"), adstock))
+        value = BuildContext(ds).build(Data("spend") >> adstock)
     assert model.free_RVs == []
     assert_allclose(
         _ordered(value.eval(), value.dims, "date", "channel"),
@@ -189,17 +204,14 @@ def test_dataarray_constant_is_aligned_by_label_not_position(ds):
 
 
 def test_unlabeled_vector_constant_is_rejected(ds):
-    term = MediaTransform(
-        Data("spend"), GeometricAdstock(l_max=3, priors={"alpha": [0.2, 0.8]})
-    )
+    term = Data("spend") >> GeometricAdstock(l_max=3, priors={"alpha": [0.2, 0.8]})
     with pm.Model(), pytest.raises(ValueError, match="DataArray"):
         BuildContext(ds).build(term)
 
 
 def test_prior_dimension_absent_from_dataset_is_rejected(ds):
-    term = MediaTransform(
-        Data("spend"),
-        LogisticSaturation(priors={"beta": Prior("HalfNormal", sigma=1, dims="geo")}),
+    term = Data("spend") >> LogisticSaturation(
+        priors={"beta": Prior("HalfNormal", sigma=1, dims="geo")}
     )
     with pm.Model(), pytest.raises(ValueError, match="coordinates"):
         BuildContext(ds).build(term)
@@ -207,8 +219,8 @@ def test_prior_dimension_absent_from_dataset_is_rejected(ds):
 
 def test_shared_transformation_instance_across_terms_is_rejected(ds):
     shared = GeometricAdstock(l_max=2)
-    left = MediaTransform(Data("spend"), shared)
-    right = MediaTransform(Data("spend"), shared)
+    left = Data("spend") >> shared
+    right = Data("spend") >> shared
     with pm.Model(), pytest.raises(ValueError, match="adstock_alpha"):
         context = BuildContext(ds)
         context.build(left)
@@ -216,7 +228,7 @@ def test_shared_transformation_instance_across_terms_is_rejected(ds):
 
 
 def test_one_term_builds_once_per_context(ds):
-    term = MediaTransform(Data("spend"), GeometricAdstock(l_max=2))
+    term = Data("spend") >> GeometricAdstock(l_max=2)
     with pm.Model() as model:
         context = BuildContext(ds)
         first = context.build(term)
@@ -227,15 +239,16 @@ def test_one_term_builds_once_per_context(ds):
 
 def test_media_without_date_dimension_is_rejected(ds):
     ds = ds.assign(scale=("channel", [1.0, 2.0]))
-    term = MediaTransform(Data("scale"), GeometricAdstock(l_max=2))
+    term = Data("scale") >> GeometricAdstock(l_max=2)
     with pm.Model(), pytest.raises(ValueError, match="date"):
         BuildContext(ds).build(term)
 
 
-@pytest.mark.parametrize("transforms", [(), (object(),)])
-def test_media_transform_requires_transformations(transforms):
+def test_media_stages_require_a_transformation():
     with pytest.raises(TypeError):
-        MediaTransform(Data("spend"), *transforms)
+        _ = Data("spend") >> object()
+    with pytest.raises(TypeError):
+        MediaTransform(Data("spend"), object())
 
 
 def test_yearly_seasonality_matches_fourier_reference():

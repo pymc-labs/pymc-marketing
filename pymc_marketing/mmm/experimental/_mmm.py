@@ -16,7 +16,6 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from numbers import Integral
 from typing import Any
 
 import pandas as pd
@@ -29,6 +28,7 @@ from pymc_marketing.mmm.experimental._graph import (
     BuildContext,
     Equation,
     specification_key,
+    total_lookback,
     walk,
 )
 
@@ -54,8 +54,9 @@ class MMM:
     Prediction may change the ``date`` axis. Every other fitted coordinate must keep
     exactly the same labels, in any order; coordinates used only by omitted outputs
     are restored from fitting. Temporal terms declare ``required_history`` as a
-    nonnegative integer, and forecasts prepend that many training rows when the
-    future dates immediately follow training at the fitted cadence.
+    nonnegative integer, and forecasts prepend the largest total along any
+    dependency path in training rows when the future dates immediately follow
+    training at the fitted cadence.
     Unconditioned observed equations and ``date``-indexed latent equations are
     regenerated; all other free parameters are frozen to posterior draws.
 
@@ -68,23 +69,17 @@ class MMM:
 
         from pymc_extras.prior import Prior
         from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation
-        from pymc_marketing.mmm.experimental import (
-            MMM,
-            Data,
-            Equation,
-            MediaTransform,
-        )
-        from pymc_marketing.terms import Intercept, Transform
+        from pymc_marketing.mmm.experimental import MMM, Data, Equation
+        from pymc_marketing.terms import Intercept
 
-        response = MediaTransform(
-            Data("spend"),
-            GeometricAdstock(l_max=8),
-            LogisticSaturation(priors={"beta": Prior("HalfNormal", dims="channel")}),
+        response = (
+            Data("spend")
+            >> GeometricAdstock(l_max=8)
+            >> LogisticSaturation(priors={"beta": Prior("HalfNormal", sigma=2)})
         )
         sales = Equation(
             observed="sales",
-            mu=Intercept(prior=Prior("Normal", sigma=2))
-            + Transform(response, lambda value: value.sum(dim="channel")),
+            mu=Intercept(prior=Prior("Normal", sigma=2)) + response.sum("channel"),
             likelihood=Prior("Normal", sigma=Prior("HalfNormal", sigma=2)),
         )
         mmm = MMM(sales)
@@ -276,19 +271,7 @@ class MMM:
             for identity, binding in self._bindings.items()
             if binding.name in condition_on
         }
-        required = 0
-        for node in walk(self._roots, stop=lambda node: id(node) in stopped):
-            if id(node) in stopped:
-                continue
-            lookback = getattr(node, "required_history", 0)
-            if (
-                isinstance(lookback, bool)
-                or not isinstance(lookback, Integral)
-                or lookback < 0
-            ):
-                raise ValueError("Term required_history must be a nonnegative integer.")
-            required = max(required, int(lookback))
-        return required
+        return total_lookback(self._roots, stop=lambda node: id(node) in stopped)
 
     def _with_history(
         self, data: xr.Dataset, condition_on: Sequence[str]
