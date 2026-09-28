@@ -190,6 +190,7 @@ class DecompositionPlots:
                 f"Unknown contribution type(s): {invalid}. Valid options: {all_keys}"
             )
 
+        data = data.broadcast_per_period_contributions()
         contributions_ds = data.get_contributions(
             original_scale=original_scale,
             include_baseline="baseline" in include_set,
@@ -228,15 +229,8 @@ class DecompositionPlots:
                 )
 
         if "baseline" in contributions_ds:
-            bl_da = contributions_ds["baseline"]
-            # baseline has no date dim — broadcast it over the date axis
-            bl_broadcast = (
-                bl_da.expand_dims({"date": dates_coord})
-                if dates_coord is not None
-                else bl_da
-            )
             entries_ds["baseline"] = _select_dims(
-                bl_broadcast, dims, allow_missing=True
+                contributions_ds["baseline"], dims, allow_missing=True
             )
 
         if "controls" in contributions_ds:
