@@ -1,0 +1,29 @@
+pymc_marketing/mmm/additive_effect.py
+  s_998481d0b1a74f::t_2c15bc5a801de6 556-557,569,571-575,582
+tests/mmm/test_mmm.py
+  s_998481d0b1a74f::t_f5ee2cc032ddf1 562-563,593
+  s_998481d0b1a74f::t_2c15bc5a801de6 596-627
+  s_998481d0b1a74f::t_f48941d9c8be77 594-595
+pymc_marketing/mmm/mmm.py
+  s_998481d0b1a74f::t_2c15bc5a801de6 2419-2423
+tests/mmm/test_additive_effect.py
+  s_998481d0b1a74f::t_2c15bc5a801de6 695
+docs/source/notebooks/mmm/mmm_funnel_from_yml.ipynb
+  s_998481d0b1a74f::t_596e846596acc8 773
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "468b6930121bb41085b859fd5fadba61990cda63",
+  "prompts": {},
+  "sessions": {
+    "s_998481d0b1a74f": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0c844-02d0-7652-b30e-1618edd3ea31",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "Benjamin T. Vincent <inferencelab@gmail.com>"
+    }
+  }
+}
