@@ -41,6 +41,19 @@ _PER_PERIOD_CONTRIBUTIONS = (
 )
 
 
+def _synthetic_target_scale_dims(dataset: xr.Dataset) -> set[str]:
+    """Return singleton dimensions introduced while storing a scalar target scale."""
+    if "target_scale" not in dataset:
+        return set()
+
+    target_scale = dataset["target_scale"]
+    return {
+        dim
+        for dim, size in target_scale.sizes.items()
+        if dim.startswith("target_scale_dim_") and size == 1
+    }
+
+
 def _broadcast_per_period_contributions(idata: xr.DataTree) -> xr.DataTree:
     """Broadcast time-invariant per-period contributions over ``date``.
 
@@ -309,7 +322,11 @@ class MMMIDataWrapper:
                 "target_scale not found in constant_data. "
                 "Expected 'target_scale' variable in idata.constant_data."
             )
-        return self.idata.constant_data["target_scale"].copy()
+        target_scale = self.idata.constant_data["target_scale"].copy()
+        synthetic_dims = _synthetic_target_scale_dims(self.idata.constant_data)
+        if synthetic_dims:
+            target_scale = target_scale.squeeze(dim=synthetic_dims, drop=True)
+        return target_scale
 
     # ==================== Observed Data Access ====================
 
@@ -1210,8 +1227,11 @@ class MMMIDataWrapper:
         standard_dims = {"date", "channel", "control", "fourier_mode", "chain", "draw"}
 
         if hasattr(self.idata, "constant_data"):
+            synthetic_dims = _synthetic_target_scale_dims(self.idata.constant_data)
             return [
-                dim for dim in self.idata.constant_data.dims if dim not in standard_dims
+                dim
+                for dim in self.idata.constant_data.dims
+                if dim not in standard_dims and dim not in synthetic_dims
             ]
 
         return []
