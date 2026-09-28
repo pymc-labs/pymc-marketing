@@ -24,6 +24,13 @@ import pandas as pd
 import xarray as xr
 
 from pymc_marketing.data.idata.schema import Frequency
+from pymc_marketing.data.idata.utils import (
+    _aggregate_over_time,
+    aggregate_idata_dims,
+    aggregate_idata_time,
+    filter_idata_by_dates,
+    filter_idata_by_dims,
+)
 
 if TYPE_CHECKING:
     from pymc_marketing.mmm.mmm import MMM
@@ -798,8 +805,10 @@ class MMMIDataWrapper:
         -------
         xr.DataArray
             ROAS values with dims (chain, draw, date, channel) plus any custom dims.
-            Zero spend, on a date or summed over a period, results in NaN to
-            avoid division by zero.
+            With a ``period``, ``date`` holds the last calendar day of each period
+            (a Sunday for ``"weekly"``), which can fall after the last observed
+            date, and ``"all_time"`` has no ``date`` dim. Zero spend, on a date or
+            summed over a period, results in NaN to avoid division by zero.
 
         Examples
         --------
@@ -807,8 +816,6 @@ class MMMIDataWrapper:
         >>> roas_mean = roas.mean(dim=["chain", "draw"])
         >>> monthly_roas = mmm.data.get_elementwise_roas(period="monthly")
         """
-        from pymc_marketing.data.idata.utils import _aggregate_over_time
-
         contributions = _aggregate_over_time(
             self.get_channel_contributions(original_scale=original_scale), period
         )
@@ -982,8 +989,6 @@ class MMMIDataWrapper:
         if start_date is None and end_date is None:
             return self
 
-        from pymc_marketing.data.idata.utils import filter_idata_by_dates
-
         filtered_idata = filter_idata_by_dates(self.idata, start_date, end_date)
 
         return MMMIDataWrapper(
@@ -1014,8 +1019,6 @@ class MMMIDataWrapper:
         """
         if not dim_filters:
             return self
-
-        from pymc_marketing.data.idata.utils import filter_idata_by_dims
 
         filtered_idata = filter_idata_by_dims(self.idata, **dim_filters)
 
@@ -1099,8 +1102,6 @@ class MMMIDataWrapper:
         MMMIDataWrapper
             New wrapper with aggregated idata
         """
-        from pymc_marketing.data.idata.utils import aggregate_idata_time
-
         idata = self.idata
         if period != "original":
             idata = _broadcast_per_period_contributions(idata)
@@ -1138,8 +1139,6 @@ class MMMIDataWrapper:
         MMMIDataWrapper
             New wrapper with aggregated idata
         """
-        from pymc_marketing.data.idata.utils import aggregate_idata_dims
-
         aggregated_idata = aggregate_idata_dims(
             self.idata, dim, values, new_label, method
         )
