@@ -61,9 +61,10 @@ __all__ = [
     "ResolvedPriceResponse",
 ]
 
-# Below this fraction of the reference the derived floor is clamped. inner ** (-1 / gamma)
-# underflows to 0 for gamma below ~0.006 at the default max_slope_ratio, which would put
-# the floor at 0 and the coefficients at inf; a floor this low is always under the cap.
+# Lower bound on s_f / s_ref. The floor is max(inner ** (-1 / gamma), MIN_FLOOR_FRACTION); the
+# second term wins below gamma ~ 0.16 at the default max_slope_ratio, where the slope spread
+# (1 + gamma) / (1 - gamma) * MIN_FLOOR_FRACTION ** -gamma is below the cap. It also guards the
+# underflow below gamma ~ 0.006, where the formula's fraction is 0 and a, b would be inf.
 MIN_FLOOR_FRACTION = 1e-12
 
 
@@ -119,10 +120,13 @@ class ResolvedPowerPriceResponse(ResolvedPriceResponse):
     spend, so :math:`m = p / (1 - \gamma)` holds on the power branch only.
 
     The floor is where the slope spread the solver can meet is capped, :math:`u'(0) / u'(s_{\text{ref}}) = M`,
-    which gives :math:`s_f / s_{\text{ref}} = (M (1-\gamma)/(1+\gamma))^{-1/\gamma}`, clamped below at
-    ``MIN_FLOOR_FRACTION`` (1e-12) of the reference, where that expression underflows; the clamped floor stays
-    under the cap. Cells with :math:`\gamma = 0` have :math:`s_f = 0`, :math:`a = 1`, :math:`b = 0` and are
-    exactly :math:`s / p_0`.
+    which gives :math:`s_f / s_{\text{ref}} = \max\big((M (1-\gamma)/(1+\gamma))^{-1/\gamma},\; 10^{-12}\big)`
+    with the second term ``MIN_FLOOR_FRACTION``. That term wins below :math:`\gamma \approx 0.16` at the
+    default :math:`M = 100`; there the spread is :math:`(1+\gamma)/(1-\gamma)\, 10^{12 \gamma}`, below
+    :math:`M` exactly when the clamp binds, so ``max_slope_ratio`` has no effect on those cells. The clamp also
+    guards the underflow below :math:`\gamma \approx 0.006`, where the formula's fraction is 0 and :math:`a`,
+    :math:`b` would be infinite. Cells with :math:`\gamma = 0` have :math:`s_f = 0`, :math:`a = 1`,
+    :math:`b = 0` and are exactly :math:`s / p_0`.
 
     Both ``where`` branches receive a clipped input because ``where`` evaluates both: the power branch would have
     an infinite derivative at 0, and the quadratic price branches have a pole in the region where they are not
@@ -178,10 +182,10 @@ class ResolvedPowerPriceResponse(ResolvedPriceResponse):
         safe_gamma = np.where(active, gamma, 1.0)
         inner = max_slope_ratio * (1.0 - safe_gamma) / (1.0 + safe_gamma)
         safe_inner = np.where(active, inner, 2.0)
-        # The cap gives s_f / s_ref = inner ** (-1 / gamma), which underflows to 0 at small
-        # gamma. Clamping keeps the floor positive and the coefficients finite; where the
-        # clamp binds the spread across [MIN_FLOOR_FRACTION * s_ref, s_ref] is
-        # MIN_FLOOR_FRACTION ** -gamma, already below the cap.
+        # s_f / s_ref = max(inner ** (-1 / gamma), MIN_FLOOR_FRACTION). The clamp binds below
+        # gamma ~ 0.16 at M = 100; there u'(0) / u'(s_ref) = (1 + gamma) / (1 - gamma)
+        # * MIN_FLOOR_FRACTION ** -gamma, under the cap exactly when the clamp binds. It also
+        # keeps a, b finite below gamma ~ 0.006, where the power underflows to 0.
         fraction = np.maximum(safe_inner ** (-1.0 / safe_gamma), MIN_FLOOR_FRACTION)
         s_floor = np.where(active, reference_spend * fraction, 0.0)
         safe_floor = np.where(active, s_floor, 1.0)
@@ -426,9 +430,10 @@ class PowerPriceResponse(PriceResponse):
         and for opted-out models, which have nothing to derive from.
     max_slope_ratio : float
         Cap on :math:`u'(0) / u'(s^{\text{ref}})`, the spread of marginal returns the solver can meet on one
-        cell. Sets the floor :math:`s_f / s^{\text{ref}} = (M (1-\gamma)/(1+\gamma))^{-1/\gamma}`; must exceed
-        :math:`(1+\gamma)/(1-\gamma)`. Default ``100``. The floor is never below 1e-12 of the reference: at
-        small elasticity the formula underflows, and a floor that low is already under the cap. Warns when the
+        cell. Sets the floor :math:`s_f / s^{\text{ref}} = \max\big((M (1-\gamma)/(1+\gamma))^{-1/\gamma},\;
+        10^{-12}\big)`; must exceed :math:`(1+\gamma)/(1-\gamma)`. Default ``100``. The second term wins below
+        :math:`\gamma \approx 0.16` at the default: there the spread is :math:`(1+\gamma)/(1-\gamma)\,
+        10^{12 \gamma}`, already under the cap, so this setting has no effect on those cells. Warns when the
         floor exceeds 1% of the reference, which happens at high elasticity. Leave a channel whose bounds pin
         it to zero at ``elasticity=0`` or drop it from ``budgets_to_optimize``: the map is steepest at zero, so
         pricing an immovable channel hands the solver its largest gradient on a variable that cannot move, which

@@ -25,6 +25,7 @@ from pytensor.graph import rewrite_graph
 from pytensor.xtensor import as_xtensor
 
 from pymc_marketing.mmm.price_response import (
+    MIN_FLOOR_FRACTION,
     PowerPriceResponse,
     ResolvedPowerPriceResponse,
 )
@@ -189,11 +190,11 @@ class TestResolvedPowerPriceResponse:
     def test_small_elasticity_keeps_the_floor_positive_and_the_gradient_finite(
         self, gamma
     ):
-        """inner ** (-1 / gamma) underflows to 0 below gamma ~ 0.006 at M = 100. Without a
-        clamp the floor vanishes, a and b overflow, and the singularity at zero is back:
-        grad(0) is inf and SLSQP fails from a channel started at 0. The clamped floor is
-        always below the cap: the spread across [1e-12 s_ref, s_ref] is 1e-12 ** -gamma,
-        which is under M (1 - gamma) / (1 + gamma) exactly when the clamp binds."""
+        """The clamp binds at all three gammas (it does below gamma ~ 0.16 at M = 100), and
+        below ~ 0.006 inner ** (-1 / gamma) underflows to 0: without the clamp the floor
+        vanishes, a and b overflow, and the singularity at zero is back: grad(0) is inf and
+        SLSQP fails from a channel started at 0. With the clamp binding the spread is
+        (1 + gamma) / (1 - gamma) * MIN_FLOOR_FRACTION ** -gamma, under M exactly then."""
         with warnings.catch_warnings():
             warnings.simplefilter("error")
             resolved = ResolvedPowerPriceResponse(
@@ -213,6 +214,11 @@ class TestResolvedPowerPriceResponse:
         at_zero, at_ref = grad(np.zeros(1)), grad(np.array([100.0]))
         assert np.isfinite(at_zero).all()
         assert at_zero[0] <= M * at_ref[0] * (1 + 1e-9)
+        np.testing.assert_allclose(
+            at_zero[0] / at_ref[0],
+            (1 + gamma) / (1 - gamma) * MIN_FLOOR_FRACTION**-gamma,
+            rtol=1e-8,
+        )
         u = compile_lowered(resolved.to_delivery(spend), spend)
         assert u(np.zeros(1))[0] == 0.0
         np.testing.assert_allclose(u(np.array([100.0]))[0], 100.0, rtol=1e-12)
