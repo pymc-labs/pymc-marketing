@@ -70,7 +70,11 @@ Rules
 - ``eta`` / ``ls`` priors must be scalar. Higher-dimensional coefficients
   (e.g. one GP curve per group) are configured with ``dims``, whose
   coordinates are collected from the dataset like
-  :class:`~pymc_marketing.terms.Parameter` does.
+  :class:`~pymc_marketing.terms.Parameter` does, and recorded on first
+  registration. A curve is fit per coordinate **in order**, so ``set_data``
+  refuses a window whose coordinates for those dims were reordered, dropped,
+  or added rather than reporting each curve under the wrong label. The time
+  index itself stays one-dimensional and is shared across those dims.
 
 Time-varying media
 ^^^^^^^^^^^^^^^^^^
@@ -203,6 +207,16 @@ def _dims_to_list(dims: str | tuple[str, ...] | None) -> list[str] | None:
     return list(normalized) or None
 
 
+def _serialize_coord(values: list[Any]) -> list[Any]:
+    """Serialize an extra-dim coordinate to JSON-safe Python scalars."""
+    return [v.item() if hasattr(v, "item") else v for v in values]
+
+
+def _deserialize_coord(values: list[Any]) -> list[Any]:
+    """Deserialize a JSON-safe coordinate back to a list."""
+    return list(values)
+
+
 def _serialize_date(value: Any) -> str | None:
     """Serialize a date anchor as an ISO string (``None`` passes through)."""
     if value is None:
@@ -247,6 +261,9 @@ class GPDataTerm(ModelTerm):
     time_dim: str | None = field(default=None, init=False, repr=False)
     first_date: Any = field(default=None, init=False, repr=False)
     last_date: Any = field(default=None, init=False, repr=False)
+    extra_coords: dict[str, list[Any]] = field(
+        default_factory=dict, init=False, repr=False
+    )
 
     @property
     def index_var(self) -> str:
@@ -359,6 +376,34 @@ class GPDataTerm(ModelTerm):
             self.X_mid = float(self._time_values(da).mean())
         if self.time_dim is None:
             self.time_dim = cast("str", da.dims[0])
+        if not self.extra_coords:
+            self.extra_coords = {
+                dim: list(ds.coords[dim].values)
+                for dim in self.extra_dims
+                if dim in ds.coords
+            }
+
+    def _check_extra_coords(self, ds: xr.Dataset) -> None:
+        """Refuse a prediction window whose extra dims do not match training.
+
+        Each extra dim gets one GP curve per coordinate, positioned by order.
+        A window that reorders, drops, or adds a coordinate would silently
+        report the wrong curve under the wrong label, so it is rejected.
+        """
+        for dim, expected in self.extra_coords.items():
+            if dim not in ds.coords:
+                raise ValueError(
+                    f"The GP term {self.name!r} has one curve per {dim!r} but the "
+                    f"dataset passed to `set_data` has no {dim!r} coordinate."
+                )
+            actual = list(ds.coords[dim].values)
+            if actual != expected:
+                raise ValueError(
+                    f"The {dim!r} coordinate of the GP term {self.name!r} does not "
+                    f"match the training data. Expected {expected!r}, got {actual!r}. "
+                    "One GP curve is fit per coordinate, in order, so a different "
+                    "or reordered set would report each curve under the wrong label."
+                )
 
     def set_data(self, ds: xr.Dataset, model: pm.Model | None = None) -> None:
         """Update the shared time index for out-of-sample prediction."""
@@ -376,6 +421,7 @@ class GPDataTerm(ModelTerm):
                 f"Nothing registered for {self.var_name!r}. "
                 "Call `register_data` before `set_data`."
             )
+        self._check_extra_coords(ds)
         da = ds[self.var_name]
         coords = {dim: ds[dim].values for dim in da.dims if dim in ds.coords}
         pm.set_data({self.index_var: self._time_values(da)}, model=model, coords=coords)
@@ -467,7 +513,11 @@ class HSGPTerm(GPDataTerm):
     dims : str or tuple of str, optional
         Extra dims for the coefficients beyond the time dim, e.g.
         ``"channel"`` for one GP curve per channel. Coordinates are
-        collected from the dataset.
+        collected from the dataset. The coordinates of these dims are
+        recorded on the first registration, and :meth:`set_data` refuses a
+        window whose coordinates differ (reordered, dropped, or added),
+        since each curve is fit per coordinate in order and a mismatch would
+        report it under the wrong label.
     time_resolution : int, optional
         Number of days per observation period, dividing the day offsets of a
         datetime time reference. Default ``None``, which infers it from the
@@ -627,6 +677,9 @@ class HSGPTerm(GPDataTerm):
             "first_date": _serialize_date(self.first_date),
             "last_date": _serialize_date(self.last_date),
             "time_dim": self.time_dim,
+            "extra_coords": {
+                k: _serialize_coord(v) for k, v in self.extra_coords.items()
+            },
             "eta_mass": self.eta_mass,
             "eta_upper": self.eta_upper,
             "ls_lower": self.ls_lower,
@@ -661,6 +714,10 @@ class HSGPTerm(GPDataTerm):
         term.first_date = _deserialize_date(data.get("first_date"))
         term.last_date = _deserialize_date(data.get("last_date"))
         term.time_dim = data.get("time_dim")
+        term.extra_coords = {
+            k: _deserialize_coord(v)
+            for k, v in (data.get("extra_coords") or {}).items()
+        }
         return term
 
 
@@ -807,6 +864,9 @@ class HSGPPeriodicTerm(GPDataTerm):
             "first_date": _serialize_date(self.first_date),
             "last_date": _serialize_date(self.last_date),
             "time_dim": self.time_dim,
+            "extra_coords": {
+                k: _serialize_coord(v) for k, v in self.extra_coords.items()
+            },
         }
 
     @classmethod
@@ -827,4 +887,8 @@ class HSGPPeriodicTerm(GPDataTerm):
         term.first_date = _deserialize_date(data.get("first_date"))
         term.last_date = _deserialize_date(data.get("last_date"))
         term.time_dim = data.get("time_dim")
+        term.extra_coords = {
+            k: _deserialize_coord(v)
+            for k, v in (data.get("extra_coords") or {}).items()
+        }
         return term

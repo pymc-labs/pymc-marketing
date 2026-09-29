@@ -59,6 +59,13 @@ def ds():
 
 
 @pytest.fixture
+def ds_product():
+    """Dataset with a datetime date coordinate and a product dimension."""
+    dates = pd.date_range("2023-01-02", periods=40, freq="W-MON")
+    return xr.Dataset({}, coords={"date": dates, "product": ["EU", "US", "JP"]})
+
+
+@pytest.fixture
 def ds_num():
     """Dataset with a numeric time data variable and features."""
     rng = np.random.default_rng(42)
@@ -730,6 +737,182 @@ def test_set_data_on_restored_term_without_time_dim_explains(ds):
     with pm.Model():
         with pytest.raises(ValueError, match="does not record its time dimension"):
             set_data(restored, ds=future, model=pm.modelcontext(None))
+
+
+def test_multi_dim_term_roundtrips_frozen_state(ds_product):
+    """A GP over (date, product) keeps its frozen state and its dims.
+
+    ``dims`` adds one GP curve per group, so the extra dimension is part of the
+    recipe and must survive a round-trip as a tuple. The time index itself
+    stays one-dimensional: only the coefficients are per-product.
+    """
+    term, index = _trained(
+        HSGPTerm(name="trend", dims="product", m=20, L=200, eta=1.0, ls=1.0),
+        ds_product,
+    )
+    restored = _roundtrip(term)
+
+    for field in ("X_mid", "time_dim", "time_resolution", "m", "L"):
+        assert getattr(restored, field) == getattr(term, field)
+    assert restored.first_date == term.first_date
+    assert restored.last_date == term.last_date
+    assert restored.dims == ("product",)
+    assert restored.extra_coords == {"product": ["EU", "US", "JP"]}
+    assert index.shape == (len(ds_product.coords["date"]),)  # time axis is shared
+
+
+def test_multi_dim_term_rebuilds_with_one_curve_per_product(ds_product):
+    """The reloaded multi-dim term rebuilds the same per-product curves."""
+    original, _ = _trained(
+        HSGPTerm(name="trend", dims="product", m=20, L=200, eta=1.0, ls=1.0),
+        ds_product,
+    )
+    with pm.Model(coords=collect_coords(original, ds=ds_product)) as model:
+        register_data(original, ds=ds_product)
+        expected_shape = build_param(original).eval().shape
+        expected_vars = set(model.named_vars)
+
+    restored = _roundtrip(original)
+    with pm.Model(coords=collect_coords(restored, ds=ds_product)) as model:
+        register_data(restored, ds=ds_product)
+        effect = build_param(restored)
+        assert set(model.named_vars) == expected_vars
+        assert effect.eval().shape == expected_shape
+    assert effect.eval().shape == (
+        len(ds_product.coords["date"]),
+        len(ds_product.coords["product"]),
+    )
+
+
+def test_multi_dim_term_set_data(ds_product):
+    """A reloaded multi-dim term predicts out of sample on the training axis."""
+    future = xr.Dataset(
+        {},
+        coords={
+            "date": pd.date_range(
+                start=ds_product.coords["date"].values[-1], periods=5, freq="7D"
+            )[1:],
+            "product": ds_product.coords["product"].values,
+        },
+    )
+    original, training_index = _trained(
+        HSGPTerm(name="trend", dims="product", m=20, L=200, eta=1.0, ls=1.0),
+        ds_product,
+    )
+
+    restored = _roundtrip(original)
+    with pm.Model(coords=collect_coords(restored, ds=ds_product)) as model:
+        register_data(restored, ds=ds_product)
+        build_param(restored)
+        set_data(restored, ds=future, model=model)
+        index = model[restored.index_var].get_value()
+
+    # the shared time index continues past training, per-product curves intact
+    assert index[0] == pytest.approx(training_index[-1] + 1)
+    assert index.ndim == 1
+
+
+def test_multi_dim_term_refuses_unseen_products(ds_product):
+    """Predicting on products the GP was not trained for is refused.
+
+    A GP curve per product cannot be extrapolated to an unseen product, so the
+    coordinate mismatch must not pass silently.
+    """
+    term, _ = _trained(
+        HSGPTerm(name="trend", dims="product", m=20, L=200, eta=1.0, ls=1.0),
+        ds_product,
+    )
+    unseen = xr.Dataset(
+        {},
+        coords={
+            "date": pd.date_range(
+                start=ds_product.coords["date"].values[-1], periods=3, freq="7D"
+            )[1:],
+            "product": ["EU", "US", "JP", "BR"],
+        },
+    )
+    with pm.Model(coords=collect_coords(term, ds=ds_product)) as model:
+        register_data(term, ds=ds_product)
+        build_param(term)
+        with pytest.raises(ValueError, match="does not match the training data"):
+            set_data(term, ds=unseen, model=model)
+
+
+def test_multi_dim_term_refuses_reordered_products(ds_product):
+    """A reordered product set is refused rather than silently mislabelled.
+
+    Each extra-dim coordinate gets its own GP curve, positioned by order, so
+    reordering the prediction window would report the curve trained on one
+    product under another product's label.
+    """
+    term, _ = _trained(
+        HSGPTerm(name="trend", dims="product", m=20, L=200, eta=1.0, ls=1.0),
+        ds_product,
+    )
+    reordered = xr.Dataset(
+        {},
+        coords={
+            "date": pd.date_range(
+                start=ds_product.coords["date"].values[-1], periods=3, freq="7D"
+            )[1:],
+            "product": ["JP", "EU", "US"],
+        },
+    )
+    with pm.Model(coords=collect_coords(term, ds=ds_product)) as model:
+        register_data(term, ds=ds_product)
+        build_param(term)
+        with pytest.raises(ValueError, match="does not match the training data"):
+            set_data(term, ds=reordered, model=model)
+
+
+def test_multi_dim_term_refuses_missing_product_coord(ds_product):
+    """A prediction window without the product coordinate is refused."""
+    term, _ = _trained(
+        HSGPTerm(name="trend", dims="product", m=20, L=200, eta=1.0, ls=1.0),
+        ds_product,
+    )
+    no_product = xr.Dataset(
+        {},
+        coords={
+            "date": pd.date_range(
+                start=ds_product.coords["date"].values[-1], periods=3, freq="7D"
+            )[1:]
+        },
+    )
+    with pm.Model(coords=collect_coords(term, ds=ds_product)) as model:
+        register_data(term, ds=ds_product)
+        build_param(term)
+        with pytest.raises(ValueError, match="no 'product' coordinate"):
+            set_data(term, ds=no_product, model=model)
+
+
+def test_multi_dim_term_rejects_bad_products_after_reload(ds_product):
+    """The extra-dim guard survives serialization.
+
+    ``extra_coords`` is the only record of which coordinates the curves were
+    fit on, so it has to round-trip for the guard to work on a reloaded term.
+    """
+    term, _ = _trained(
+        HSGPTerm(name="trend", dims="product", m=20, L=200, eta=1.0, ls=1.0),
+        ds_product,
+    )
+    restored = _roundtrip(term)
+    assert restored.extra_coords == {"product": ["EU", "US", "JP"]}
+
+    reordered = xr.Dataset(
+        {},
+        coords={
+            "date": pd.date_range(
+                start=ds_product.coords["date"].values[-1], periods=3, freq="7D"
+            )[1:],
+            "product": ["US", "EU", "JP"],
+        },
+    )
+    with pm.Model(coords=collect_coords(restored, ds=ds_product)) as model:
+        register_data(restored, ds=ds_product)
+        build_param(restored)
+        with pytest.raises(ValueError, match="does not match the training data"):
+            set_data(restored, ds=reordered, model=model)
 
 
 def _sample_prior_both(term, existing):
