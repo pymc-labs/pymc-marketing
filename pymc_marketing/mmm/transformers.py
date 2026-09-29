@@ -58,6 +58,22 @@ def _check_alpha(
     return as_xtensor(checked_alpha_tensor, dims=alpha.dims)
 
 
+def _check_theta(
+    theta,
+    l_max,
+    *,
+    theta_check_op=CheckParameterValue(
+        msg="0 <= theta <= l_max - 1", can_be_replaced_by_ninf=False
+    ),
+):
+    theta = as_xtensor(theta)
+    theta_tensor = theta.values
+    checked_theta_tensor = theta_check_op(
+        theta_tensor, ((theta_tensor >= 0) & (theta_tensor <= l_max - 1)).all()
+    )
+    return as_xtensor(checked_theta_tensor, dims=theta.dims)
+
+
 def batched_convolution(
     x,
     w,
@@ -401,7 +417,7 @@ def delayed_adstock(
     """
     kernel_dim = f"{dim}_kernel"
     alpha = _check_alpha(as_xtensor(alpha))
-    theta = as_xtensor(theta)
+    theta = _check_theta(as_xtensor(theta), l_max)
     lags = as_xtensor(pt.arange(l_max, dtype=x.dtype), dims=(kernel_dim,))
     w = ptx.math.power(
         alpha,
