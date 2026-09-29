@@ -29,8 +29,9 @@ whatever those drivers do not explain is the channel's *budget surprise*
         + \phi_c^\top f_t}_{m_{c,t}} + v_{c,t},
     \qquad v_{c,t} \sim \mathcal{N}(0, s_c^2)
 
-where :math:`z_t` are the (standardised) MMM controls and :math:`f_t` an annual
-Fourier basis. The sales mean then gains a control-function term
+where :math:`z_t` are the (standardised) MMM controls and :math:`f_t` the same
+annual Fourier basis the sales equation uses. The sales mean then gains a
+control-function term
 
 .. math::
 
@@ -50,6 +51,29 @@ designed change never counts as a surprise. The test periods then enter the
 sales likelihood as ordinary data with their own counterfactual. Use
 :func:`lift_test_design` to describe the experiments.
 
+What may enter the spend equation
+---------------------------------
+Any regressor in the spend equation that is *not* in the sales equation acts
+as excluded variation (an instrument) for the response curve, and is only
+valid if it moves spend without affecting sales in any other way. The
+defaults therefore keep the spend equation's regressors inside the sales
+equation's: the MMM's controls, and a Fourier basis of the same order as the
+MMM's yearly seasonality. Seasonal spend is the textbook case: if sales had no
+seasonal terms, seasonal budget moves would become an instrument and the
+response curve would be identified from seasonal demand, the very confounding
+this component exists to remove. Variables that genuinely satisfy the
+exclusion restriction, such as media-cost shocks or an internal budget
+calendar, can be passed as ``instruments``. A recorded demand forecast is
+*not* an instrument: it predicts sales directly, and belongs in the MMM's
+``control_columns``, where both equations see it.
+
+Designs act on contemporaneous spend. With adstock, the first weeks of a test
+still carry stock from the endogenous weeks before it, and the weeks after it
+carry the designed change, so tests should last several adstock half-lives.
+A ``"shift"`` design assumes the recorded change was fully realised; if spend
+hit a floor or a minimum commitment, record the realised change or use
+``"set"``.
+
 Interventions are never surprises
 ---------------------------------
 The surprise is computed from a stored, factual copy of chosen spend, not from
@@ -65,10 +89,23 @@ Exogeneity diagnostic
 :math:`\gamma_c = 0` is the exogenous-spend special case, so the posterior of
 :math:`\gamma_c` is a control-function check of exogeneity in the spirit of
 Durbin-Wu-Hausman [2]_ [3]_: it measures how much weight the assumption was
-carrying. See :meth:`BudgetModelEffect.exogeneity_summary`. The check has
-power only where there is excluded variation. Without a lift-test design for a
-channel, :math:`\gamma_c` is identified by functional form alone, and the
-summary says so.
+carrying. See :meth:`BudgetModelEffect.exogeneity_summary`. Two caveats apply.
+
+* The check is conditional on a correctly specified sales equation. The
+  surprise is part of spend, so :math:`\gamma_c v_{c,t}` and the channel's
+  response curve compete for the same variation, and any misspecification of
+  the curve (adstock form, ``l_max``, saturation family, a missing trend)
+  leaks into :math:`\gamma_c` as a linear correction.
+* It has power only where there is excluded variation. Without a lift-test
+  design for a channel, :math:`\gamma_c` is identified by functional form
+  and the priors alone, can lean away from zero when spend is exogenous, and
+  should not be read as a test.
+
+Spend and sales are fit jointly, which is efficient when both equations are
+correctly specified, but lets the sales likelihood pull the spend equation
+towards surprises that fit sales residuals when they are not. Comparing the
+spend-equation posterior with a fit that fixes :math:`\gamma` near zero is a
+cheap check.
 
 References
 ----------
@@ -114,7 +151,7 @@ and a two-week geo holdout for Digital:
         adstock=GeometricAdstock(l_max=8),
         saturation=MichaelisMentenSaturation(),
     )
-    budget = BudgetModelEffect(design=design)
+    budget = BudgetModelEffect(design=design, surprise_lags=1)
     mmm.add_mu_effect(budget)
     mmm.fit(X, y)
 
@@ -124,7 +161,9 @@ and a two-week geo holdout for Digital:
 from __future__ import annotations
 
 import logging
-from typing import Any, Literal
+import warnings
+import weakref
+from typing import Any, Literal, cast
 
 import numpy as np
 import numpy.typing as npt
@@ -138,7 +177,12 @@ from pymc_extras.prior import Prior, VariableFactory
 from pytensor.xtensor import as_xtensor
 from pytensor.xtensor.type import XTensorVariable
 
-from pymc_marketing.mmm.additive_effect import Model, MuEffect, _get_datetime_coords
+from pymc_marketing.mmm.additive_effect import (
+    LinearTrendEffect,
+    Model,
+    MuEffect,
+    _get_datetime_coords,
+)
 from pymc_marketing.mmm.fourier import DAYS_IN_YEAR, generate_fourier_modes
 from pymc_marketing.serialization import serialization
 
@@ -302,20 +346,49 @@ class BudgetModelEffect(MuEffect):
         Whether the spend equations depend on the MMM's control columns.
         Controls are standardised with their training mean and standard
         deviation before entering the spend equation.
-    fourier_order : int, default 2
-        Order of the annual Fourier basis in the spend equations. ``0``
-        disables it.
-    drivers : list[str], optional
-        Extra budget drivers, e.g. a recorded demand forecast: columns of a
-        ``pd.DataFrame`` ``X`` (or data variables of an ``xr.Dataset``). Each
-        must vary over ``date`` and have no dims beyond the model's own.
-        Standardised like the controls. New values must be supplied for
-        prediction dates. A driver enters the spend equation but not the sales
-        equation, so it acts as an instrument and must be unrelated to the
-        sales error: do not pass recorded outcomes such as lagged sales.
+    fourier_order : int, optional
+        Order of the annual Fourier basis in the spend equations. Defaults to
+        the MMM's ``yearly_seasonality`` (``0`` when it has none), so the
+        spend equation's seasonal terms are also in the sales equation. A
+        higher order warns: the extra terms would act as instruments.
+    trend : bool, default False
+        Add a linear time trend to the spend equations, for budgets that grow
+        over the years. Enable it only if the sales equation also has a trend
+        (a :class:`~pymc_marketing.mmm.additive_effect.LinearTrendEffect` or a
+        time-varying intercept); otherwise the trend is an instrument, and the
+        effect warns.
+    instruments : list[str], optional
+        Variables that move budgets but, by assumption, affect sales only
+        through spend: columns of a ``pd.DataFrame`` ``X`` (or data variables
+        of an ``xr.Dataset``), such as media-cost shocks or an internal budget
+        calendar. They enter the spend equation only, so they must satisfy
+        the exclusion restriction. Recorded demand proxies (a demand forecast)
+        and recorded outcomes (lagged sales) do not; put demand proxies in the
+        MMM's ``control_columns`` instead. Each must vary over ``date`` and
+        have no dims beyond the model's own. Standardised like the controls.
+        Not needed for prediction dates.
     design : pd.DataFrame, optional
         Lift-test designs, in the format of :func:`lift_test_design`. Without
-        a design the effect is identified by functional form only.
+        a design the effect is identified by functional form only. Rows whose
+        window contains none of the model dates (e.g. in an early
+        cross-validation fold) are dropped with a warning.
+    surprise_lags : int, default 0
+        Number of lagged surprises in the control function, which becomes
+        :math:`\sum_c \sum_{l=0}^{L} \gamma_{c,l} v_{c,t-l}`. Persistent demand
+        shocks carry information from past budget surprises into this week's
+        sales, which a contemporaneous control function cannot absorb.
+        Lagged surprises compete with the adstock carryover of past spend, so
+        use a small number. The lagged coefficients are stored as
+        ``f"{prefix}_gamma_lag"``; :meth:`exogeneity_summary` reports the
+        contemporaneous one.
+    surprise_out_of_sample : {"zero", "observed"}, default "zero"
+        Surprise on dates outside the training data. ``"zero"``, its
+        expectation, suits scenario planning and forecasting future spend.
+        ``"observed"`` computes the surprise from the spend in the prediction
+        data, which suits evaluating held-out weeks whose spend was actually
+        chosen: with ``"zero"`` the budget model forgoes the demand
+        information that realised spend carries, and scores worse than a plain
+        MMM on such weeks even when it is closer to the causal truth.
     spend_intercept_prior : Prior, optional
         Prior for the spend-equation intercept. Spend is divided by its
         per-channel maximum, and the defaults are weakly informative on that
@@ -324,23 +397,33 @@ class BudgetModelEffect(MuEffect):
         Prior for the spend-equation coefficients on the standardised controls.
     spend_fourier_prior : Prior, optional
         Prior for the spend-equation Fourier coefficients.
-    spend_driver_prior : Prior, optional
-        Prior for the spend-equation coefficients on the standardised drivers.
+    spend_trend_prior : Prior, optional
+        Prior for the spend-equation trend coefficient (per unit of the
+        training period).
+    spend_instrument_prior : Prior, optional
+        Prior for the spend-equation coefficients on the standardised
+        instruments.
     spend_sigma_prior : Prior, optional
         Prior for the scale of the budget surprise.
     gamma_prior : Prior, optional
         Prior for the control-function coefficient, on the MMM's scaled-target
         per scaled-spend scale.
+    gamma_lag_prior : Prior, optional
+        Prior for the lagged control-function coefficients, with dims
+        ``(f"{prefix}_lag", f"{prefix}_channel")`` by default.
 
     Notes
     -----
     * With extra model dims (e.g. ``geo``) the defaults give each cell its own
-      spend intercept and surprise scale, but pool the control, Fourier and
-      driver coefficients and ``gamma`` across cells, so there is one
+      spend intercept and surprise scale, but pool the control, Fourier,
+      trend and instrument coefficients and ``gamma`` across cells, so there is one
       :math:`\gamma_c` per channel. Pass priors with the extra dims to unpool
       them. Custom priors may only use the dims ``f"{prefix}_channel"``, the
       model's extra dims, and ``"control"`` or ``f"{prefix}_fourier"`` for the
       control and Fourier coefficients.
+    * The spend equation is Gaussian. Flighted channels with many zero weeks
+      violate it badly; the effect warns when more than 20% of a modelled
+      channel's weeks are zero.
     * The spend equations add a second observed variable,
       ``f"{prefix}_spend"`` (scaled chosen spend, masked to zero with unit
       scale in holdout cells and out of sample). It is sampled alongside
@@ -355,10 +438,12 @@ class BudgetModelEffect(MuEffect):
       to :meth:`MMM.add_lift_test_measurements`; that counts the experiment
       twice. The lift likelihood remains appropriate for experiments whose
       periods or units are *not* in the MMM data.
-    * The surprise is zero on dates outside the training data, its
-      expectation. Out-of-sample predictive intervals therefore omit the
-      variance the control function absorbed in-sample, roughly
-      :math:`\sum_c \gamma_c^2 s_c^2`, and are somewhat too narrow.
+    * With ``surprise_out_of_sample="zero"``, out-of-sample predictive
+      intervals omit the variance the control function absorbed in-sample,
+      roughly :math:`\sum_c \gamma_c^2 s_c^2`, and are somewhat too narrow.
+    * An instance records the model it was last built for. Use one instance
+      per model; after :meth:`MMM.load`, use the effect in
+      ``loaded.mu_effects``.
     * With ``link="log"`` the control-function term is additive on the log
       scale.
     """
@@ -366,15 +451,20 @@ class BudgetModelEffect(MuEffect):
     prefix: str = "budget"
     channels: list[str] | None = None
     use_controls: bool = True
-    fourier_order: int = Field(2, ge=0)
-    drivers: list[str] = Field(default_factory=list)
+    fourier_order: int | None = Field(None, ge=0)
+    trend: bool = False
+    instruments: list[str] = Field(default_factory=list)
     design: InstanceOf[pd.DataFrame] | None = None
+    surprise_lags: int = Field(0, ge=0)
+    surprise_out_of_sample: Literal["zero", "observed"] = "zero"
     spend_intercept_prior: VariableFactory | None = None
     spend_control_prior: VariableFactory | None = None
     spend_fourier_prior: VariableFactory | None = None
-    spend_driver_prior: VariableFactory | None = None
+    spend_trend_prior: VariableFactory | None = None
+    spend_instrument_prior: VariableFactory | None = None
     spend_sigma_prior: VariableFactory | None = None
     gamma_prior: VariableFactory | None = None
+    gamma_lag_prior: VariableFactory | None = None
 
     model_config = {"arbitrary_types_allowed": True}
 
@@ -384,9 +474,13 @@ class BudgetModelEffect(MuEffect):
     _spend_scale: xr.DataArray | None = PrivateAttr(default=None)
     _identified_by_design: xr.DataArray | None = PrivateAttr(default=None)
     _control_stats: tuple[xr.DataArray, xr.DataArray] | None = PrivateAttr(default=None)
-    _driver_stats: dict[str, tuple[xr.DataArray, xr.DataArray]] = PrivateAttr(
+    _instrument_stats: dict[str, tuple[float, float]] = PrivateAttr(
         default_factory=dict
     )
+    _fourier_order: int = PrivateAttr(default=0)
+    _time_origin: pd.Timestamp = PrivateAttr(default_factory=lambda: pd.Timestamp(0))
+    _time_span: float = PrivateAttr(default=1.0)
+    _mmm_ref: Any = PrivateAttr(default=None)
 
     @field_validator("design")
     @classmethod
@@ -415,13 +509,53 @@ class BudgetModelEffect(MuEffect):
         return f"{self.prefix}_fourier"
 
     @property
-    def data_vars(self) -> list[str]:
-        """Dataset variables this effect reads (the extra budget drivers).
+    def lag_dim(self) -> str:
+        """Name of the coordinate indexing lagged surprises."""
+        return f"{self.prefix}_lag"
 
-        Exposed so helpers such as ``create_zero_dataset`` carry the drivers
-        into prediction and optimization datasets.
+    @property
+    def source_date_dim(self) -> str:
+        """Name of the coordinate the lag operator shifts from."""
+        return f"{self.prefix}_source_date"
+
+    def _lag_operator(self, n_dates: int) -> np.ndarray:
+        """Matrices that shift a date series down by 1, ..., ``surprise_lags``."""
+        return np.stack(
+            [np.eye(n_dates, k=-lag) for lag in range(1, self.surprise_lags + 1)]
+        )
+
+    @property
+    def data_vars(self) -> list[str]:
+        """Dataset variables this effect reads (the instruments).
+
+        Exposed so MMM keeps these columns when converting a ``pd.DataFrame``
+        ``X``, and so helpers such as ``create_zero_dataset`` carry them into
+        prediction and optimization datasets.
         """
-        return list(self.drivers)
+        return list(self.instruments)
+
+    def _is_bound_to(self, mmm: Any) -> bool:
+        return self._mmm_ref is not None and self._mmm_ref() is mmm
+
+    def _attached(self, mmm: Any) -> BudgetModelEffect:
+        """Return the effect ``mmm`` was built with, checked to belong to it."""
+        attached = [
+            effect
+            for effect in getattr(mmm, "mu_effects", [])
+            if isinstance(effect, BudgetModelEffect) and effect.prefix == self.prefix
+        ]
+        if not attached:
+            raise RuntimeError(
+                f"The MMM has no BudgetModelEffect with prefix {self.prefix!r}."
+            )
+        effect = attached[0]
+        if effect._spend_scale is None or not effect._is_bound_to(mmm):
+            raise RuntimeError(
+                "The model containing this effect has not been built, or this "
+                "effect instance was last built for a different MMM. Use one "
+                "instance per model."
+            )
+        return effect
 
     # ----------------------------------------------------------- priors
     def _default_priors(self, dims: tuple[str, ...]) -> dict[str, VariableFactory]:
@@ -432,13 +566,19 @@ class BudgetModelEffect(MuEffect):
             "spend_fourier": Prior(
                 "Normal", mu=0, sigma=0.2, dims=(self.fourier_dim, ch)
             ),
-            "spend_driver": Prior("Normal", mu=0, sigma=0.2, dims=(ch,)),
+            "spend_trend": Prior("Normal", mu=0, sigma=0.5, dims=(ch,)),
+            "spend_instrument": Prior("Normal", mu=0, sigma=0.2, dims=(ch,)),
             "spend_sigma": Prior("HalfNormal", sigma=0.2, dims=(*dims, ch)),
             "gamma": Prior("Normal", mu=0, sigma=0.5, dims=(ch,)),
+            "gamma_lag": Prior("Normal", mu=0, sigma=0.5, dims=(self.lag_dim, ch)),
         }
 
     def _allowed_prior_dims(self, name: str) -> set[str]:
-        extra = {"spend_control": {"control"}, "spend_fourier": {self.fourier_dim}}
+        extra = {
+            "spend_control": {"control"},
+            "spend_fourier": {self.fourier_dim},
+            "gamma_lag": {self.lag_dim},
+        }
         return {self.channel_dim, *self._dims, *extra.get(name, set())}
 
     def _prior(self, name: str) -> VariableFactory:
@@ -468,12 +608,26 @@ class BudgetModelEffect(MuEffect):
             shape = tuple(len(v) for v in coords.values())
             zeros = xr.DataArray(np.zeros(shape), dims=tuple(coords), coords=coords)
             return zeros, zeros.astype(bool)
+        starts = pd.to_datetime(self.design["start_date"])
+        ends = pd.to_datetime(self.design["end_date"])
+        overlaps = [
+            bool(((dates >= start) & (dates <= end)).any())
+            for start, end in zip(starts, ends, strict=True)
+        ]
+        design = self.design.loc[overlaps]
+        if len(design) < len(self.design):
+            warnings.warn(
+                f"Dropping {len(self.design) - len(design)} BudgetModelEffect design "
+                "row(s) whose window contains none of the model dates.",
+                UserWarning,
+                stacklevel=3,
+            )
         return lift_test_design(
-            self.design, dates=dates, channels=self._channels, dim_coords=dim_coords
+            design, dates=dates, channels=self._channels, dim_coords=dim_coords
         )
 
     def create_data(self, mmm: Model) -> None:
-        """Register chosen spend, the activity mask, and the budget drivers.
+        """Register chosen spend, the activity mask, and the instruments.
 
         Parameters
         ----------
@@ -481,6 +635,7 @@ class BudgetModelEffect(MuEffect):
             The MMM model instance.
         """
         model = mmm.model
+        self._mmm_ref = weakref.ref(mmm)
         self._dims = tuple(mmm.dims)
         all_channels = list(mmm.xarray_dataset["_channel"].coords["channel"].values)
         channels = list(self.channels) if self.channels is not None else all_channels
@@ -502,6 +657,28 @@ class BudgetModelEffect(MuEffect):
         shift = shift.transpose(*observed.dims).assign_coords(observed.coords)
         holdout = holdout.transpose(*observed.dims).assign_coords(observed.coords)
 
+        if bool(((shift != 0) & (observed <= 0)).any()):
+            warnings.warn(
+                "Some 'shift' design cells have zero observed spend, so the designed "
+                "change may not have been fully realised. Record the realised change "
+                "or use mode='set' for those cells.",
+                UserWarning,
+                stacklevel=2,
+            )
+        zero_share = (observed.where(~holdout) == 0).mean("date")
+        flighted = [
+            str(channel)
+            for channel in zero_share["channel"].values
+            if float(zero_share.sel(channel=channel).max()) > 0.2
+        ]
+        if flighted:
+            warnings.warn(
+                f"Channels {flighted} have zero spend in more than 20% of weeks. The "
+                "Gaussian spend equation is a poor fit for flighted channels.",
+                UserWarning,
+                stacklevel=2,
+            )
+
         chosen = observed - shift
         active = ~holdout
         spend_scale = abs(chosen.where(active, 0.0)).max("date")
@@ -518,6 +695,19 @@ class BudgetModelEffect(MuEffect):
         )
 
         model.add_coord(self.channel_dim, channels)
+        if self.surprise_lags >= len(dates):
+            raise ValueError(
+                f"surprise_lags={self.surprise_lags} must be smaller than the number "
+                f"of dates ({len(dates)})."
+            )
+        if self.surprise_lags > 0:
+            model.add_coord(self.lag_dim, list(range(1, self.surprise_lags + 1)))
+            model.add_coord(self.source_date_dim, dates)
+            pmd.Data(
+                f"{self.prefix}_lag_operator",
+                self._lag_operator(len(dates)),
+                dims=(self.lag_dim, "date", self.source_date_dim),
+            )
         pmd.Data(
             f"{self.prefix}_chosen_spend",
             self._factual["chosen"].values,
@@ -529,17 +719,49 @@ class BudgetModelEffect(MuEffect):
             dims=self._factual["active"].dims,
         )
 
-        if self.fourier_order > 0:
+        sales_order = int(getattr(mmm, "yearly_seasonality", None) or 0)
+        self._fourier_order = (
+            sales_order if self.fourier_order is None else self.fourier_order
+        )
+        if self._fourier_order > sales_order:
+            warnings.warn(
+                f"The spend equation's Fourier order ({self._fourier_order}) exceeds "
+                f"the sales equation's yearly seasonality ({sales_order}). The extra "
+                "seasonal terms act as instruments, which is invalid if seasonality "
+                "also moves sales.",
+                UserWarning,
+                stacklevel=2,
+            )
+        if self._fourier_order > 0:
             model.add_coord(
                 self.fourier_dim,
-                [f"sin_{k}" for k in range(1, self.fourier_order + 1)]
-                + [f"cos_{k}" for k in range(1, self.fourier_order + 1)],
+                [f"sin_{k}" for k in range(1, self._fourier_order + 1)]
+                + [f"cos_{k}" for k in range(1, self._fourier_order + 1)],
             )
             pmd.Data(
                 f"{self.prefix}_dayofyear",
                 dates.dayofyear.to_numpy(),
                 dims="date",
             )
+
+        if self.trend:
+            has_sales_trend = bool(
+                getattr(mmm, "time_varying_intercept", False)
+            ) or any(
+                isinstance(effect, LinearTrendEffect)
+                for effect in getattr(mmm, "mu_effects", [])
+            )
+            if not has_sales_trend:
+                warnings.warn(
+                    "trend=True adds a trend to the spend equation, but the sales "
+                    "equation has none (no LinearTrendEffect or time-varying "
+                    "intercept), so the trend acts as an instrument.",
+                    UserWarning,
+                    stacklevel=2,
+                )
+            self._time_origin = dates.min()
+            self._time_span = max(float((dates.max() - dates.min()).days), 1.0)
+            pmd.Data(f"{self.prefix}_time", self._time_index(dates), dims="date")
 
         if self.use_controls and "_control" in mmm.xarray_dataset:
             self._control_stats = _standardise_stats(
@@ -548,25 +770,28 @@ class BudgetModelEffect(MuEffect):
         else:
             self._control_stats = None
 
-        self._driver_stats = {}
-        for var_name in self.drivers:
+        self._instrument_stats = {}
+        for var_name in self.instruments:
             if var_name not in mmm.xarray_dataset:
                 raise ValueError(
-                    f"Budget driver {var_name!r} is not in the training data. Add it "
+                    f"Instrument {var_name!r} is not in the training data. Add it "
                     "as a column of X."
                 )
             da = mmm.xarray_dataset[var_name]
             if "date" not in da.dims:
-                raise ValueError(f"Budget driver {var_name!r} must have a 'date' dim.")
+                raise ValueError(f"Instrument {var_name!r} must have a 'date' dim.")
             extra = sorted(set(da.dims) - {"date", *self._dims})
             if extra:
                 raise ValueError(
-                    f"Budget driver {var_name!r} has dims {extra} beyond the model's "
+                    f"Instrument {var_name!r} has dims {extra} beyond the model's "
                     f"{('date', *self._dims)}. Aggregate it before passing it."
                 )
             da = da.transpose("date", *[d for d in self._dims if d in da.dims])
-            mean, std = da.mean(), da.std()
-            self._driver_stats[var_name] = (mean, xr.where(std > 0, std, 1.0))
+            std = float(da.std())
+            self._instrument_stats[var_name] = (
+                float(da.mean()),
+                std if std > 0 else 1.0,
+            )
             existing = model.named_vars.get(var_name)
             if existing is None:
                 pmd.Data(var_name, da.values, dims=da.dims)
@@ -575,9 +800,13 @@ class BudgetModelEffect(MuEffect):
                 or tuple(existing.get_value(borrow=True).shape) != da.shape
             ):
                 raise ValueError(
-                    f"Cannot reuse model variable {var_name!r} as a budget driver: its "
-                    "dims or shape differ from the driver's."
+                    f"Cannot reuse model variable {var_name!r} as an instrument: its "
+                    "dims or shape differ from the instrument's."
                 )
+
+    def _time_index(self, dates: pd.DatetimeIndex) -> np.ndarray:
+        """Days since the training start, as a fraction of the training span."""
+        return ((dates - self._time_origin).days / self._time_span).to_numpy()
 
     # ----------------------------------------------------------- effect
     def create_effect(self, mmm: Model) -> XTensorVariable:
@@ -614,10 +843,10 @@ class BudgetModelEffect(MuEffect):
             )
             spend_mu = spend_mu + (z * coef).sum(dim="control")
 
-        if self.fourier_order > 0:
+        if self._fourier_order > 0:
             modes = generate_fourier_modes(
                 periods=model[f"{p}_dayofyear"] / DAYS_IN_YEAR,
-                n_order=self.fourier_order,
+                n_order=self._fourier_order,
                 fourier_dim=self.fourier_dim,
             )
             coef = self._prior("spend_fourier").create_variable(
@@ -625,11 +854,17 @@ class BudgetModelEffect(MuEffect):
             )
             spend_mu = spend_mu + (modes * coef).sum(dim=self.fourier_dim)
 
-        for var_name in self.drivers:
-            mean, std = self._driver_stats[var_name]
-            z = (model[var_name] - float(mean)) / float(std)
-            coef = self._prior("spend_driver").create_variable(
-                f"{p}_driver_{var_name}_coef", xdist=True
+        if self.trend:
+            coef = self._prior("spend_trend").create_variable(
+                f"{p}_spend_trend_coef", xdist=True
+            )
+            spend_mu = spend_mu + model[f"{p}_time"] * coef
+
+        for var_name in self.instruments:
+            mean, std = self._instrument_stats[var_name]
+            z = (model[var_name] - mean) / std
+            coef = self._prior("spend_instrument").create_variable(
+                f"{p}_instrument_{var_name}_coef", xdist=True
             )
             spend_mu = spend_mu + z * coef
 
@@ -656,19 +891,41 @@ class BudgetModelEffect(MuEffect):
             f"{p}_surprise", (active * resid).transpose("date", *self._dims, ch)
         )
         gamma = self._prior("gamma").create_variable(f"{p}_gamma", xdist=True)
+        control_function = surprise * gamma
+        if self.surprise_lags > 0:
+            gamma_lag = self._prior("gamma_lag").create_variable(
+                f"{p}_gamma_lag", xdist=True
+            )
+            # Shift with a lag operator, one lag at a time: slicing and
+            # concatenating along date, or reducing over a length-one lag dim,
+            # produced graphs PyTensor failed to differentiate.
+            source = surprise.rename({"date": self.source_date_dim})
+            operator = model[f"{p}_lag_operator"]
+            for lag in range(1, self.surprise_lags + 1):
+                lagged = ptx.dot(
+                    source,
+                    operator.isel({self.lag_dim: lag - 1}),
+                    dim=self.source_date_dim,
+                )
+                control_function = control_function + lagged * gamma_lag.isel(
+                    {self.lag_dim: lag - 1}
+                )
 
         return pmd.Deterministic(
             self.contribution_var_name,
-            (surprise * gamma).sum(dim=ch).transpose("date", *self._dims),
+            control_function.sum(dim=ch).transpose("date", *self._dims),
         )
 
     def set_data(self, mmm: Model, model: pm.Model, X: xr.Dataset) -> None:
         """Align the factual surprise inputs with new prediction dates.
 
-        Chosen spend and the activity mask are reindexed from the *training*
-        data, never read from ``X``: changing spend in ``X`` is an
-        intervention, and interventions are never budget surprises. Dates
-        outside training have an inactive mask, so their surprise is zero.
+        On training dates, chosen spend and the activity mask are reindexed
+        from the *training* data, never read from ``X``: changing spend in
+        ``X`` is an intervention, and interventions are never budget
+        surprises. On other dates the surprise is zero, or, with
+        ``surprise_out_of_sample="observed"``, computed from the spend in
+        ``X``. Instruments missing from ``X`` are filled with their training
+        mean, since they only move the spend equation's mean.
 
         Parameters
         ----------
@@ -683,18 +940,47 @@ class BudgetModelEffect(MuEffect):
             raise RuntimeError(
                 "BudgetModelEffect.create_data must run before set_data."
             )
+        if not self._is_bound_to(mmm):
+            raise RuntimeError(
+                "This BudgetModelEffect instance was last built for a different MMM. "
+                "Use one instance per model."
+            )
         new_dates = _get_datetime_coords(model.coords["date"], "date")
-        factual = self._factual.reindex(date=new_dates, fill_value=0.0)
+        factual = self._factual.reindex(date=new_dates)
+        chosen, active = factual["chosen"], factual["active"]
+        if (
+            self.surprise_out_of_sample == "observed"
+            and X is not None
+            and "_channel" in X.data_vars
+        ):
+            observed = (
+                X["_channel"]
+                .sel(channel=self._channels)
+                .rename({"channel": self.channel_dim})
+                .reindex(date=new_dates)
+                .transpose(*chosen.dims)
+            )
+            chosen = chosen.fillna(observed / self._spend_scale)
+            active = active.fillna(1.0)
         new_data: dict[str, Any] = {
-            f"{self.prefix}_chosen_spend": factual["chosen"].values,
-            f"{self.prefix}_active": factual["active"].values,
+            f"{self.prefix}_chosen_spend": chosen.fillna(0.0).values,
+            f"{self.prefix}_active": active.fillna(0.0).values,
         }
-        if self.fourier_order > 0:
+        if self._fourier_order > 0:
             new_data[f"{self.prefix}_dayofyear"] = new_dates.dayofyear.to_numpy()
-        for var_name in self.drivers:
+        if self.trend:
+            new_data[f"{self.prefix}_time"] = self._time_index(new_dates)
+        for var_name in self.instruments:
             if X is not None and var_name in X.data_vars:
                 new_data[var_name] = X[var_name].values
-        pm.set_data(new_data, model=model)
+            else:
+                shape = (len(new_dates), *model[var_name].type.shape[1:])
+                new_data[var_name] = np.full(shape, self._instrument_stats[var_name][0])
+        coords = None
+        if self.surprise_lags > 0:
+            new_data[f"{self.prefix}_lag_operator"] = self._lag_operator(len(new_dates))
+            coords = {self.source_date_dim: new_dates}
+        pm.set_data(new_data, coords=coords, model=model)
 
     # ----------------------------------------------------- diagnostics
     def exogeneity_summary(self, mmm: Any, interval_prob: float = 0.94) -> pd.DataFrame:
@@ -706,9 +992,16 @@ class BudgetModelEffect(MuEffect):
         was doing work. This is a Bayesian analogue of the control-function
         (Durbin-Wu-Hausman) test, not a formal hypothesis test.
 
-        The check has power only with excluded variation. For channels
-        without a lift-test design, :math:`\gamma_c` is identified by the
-        nonlinearity of the response alone, and the summary flags it.
+        The check assumes a correctly specified sales equation: because the
+        surprise is part of spend, any misspecification of the response curve
+        leaks into :math:`\gamma_c`. It has power only with excluded
+        variation. For channels without a lift-test design,
+        :math:`\gamma_c` rests on functional form and the priors, can lean
+        away from zero when spend is exogenous, and the summary flags it.
+
+        The summary is read from the effect ``mmm`` was built with, so it can
+        be called from any instance with the same prefix, including the
+        original object after :meth:`MMM.load`.
 
         Parameters
         ----------
@@ -732,15 +1025,17 @@ class BudgetModelEffect(MuEffect):
         name = f"{self.prefix}_gamma"
         if idata is None or "posterior" not in idata or name not in idata.posterior:
             raise RuntimeError(f"No posterior for {name!r}; fit the model first.")
-        if self._spend_scale is None or self._identified_by_design is None:
-            raise RuntimeError("The model containing this effect has not been built.")
+        effect = self._attached(mmm)
+        if effect is not self:
+            return effect.exogeneity_summary(mmm, interval_prob=interval_prob)
+        spend_scale = cast(xr.DataArray, self._spend_scale)
 
         gamma = idata.posterior[name]
         sample_dims = ("chain", "draw")
         tail = (1 - interval_prob) / 2
 
         target_scale = mmm.scalers["_target"]
-        per_unit = gamma * target_scale / self._spend_scale
+        per_unit = gamma * target_scale / spend_scale
 
         prior_sd = self._prior_sd(mmm, gamma.isel(chain=0, draw=0, drop=True))
         posterior_sd = gamma.std(sample_dims)
@@ -762,7 +1057,7 @@ class BudgetModelEffect(MuEffect):
         )
         summary["contraction"] = 1 - summary["posterior_sd"] / summary["prior_sd"]
         # gamma shared across a dim is informed by a design anywhere along it.
-        identified = self._identified_by_design
+        identified = cast(xr.DataArray, self._identified_by_design)
         pooled = [d for d in identified.dims if d not in gamma.dims]
         if pooled:
             identified = identified.any(pooled)
@@ -775,7 +1070,10 @@ class BudgetModelEffect(MuEffect):
         def _note(row: pd.Series) -> str:
             notes = []
             if not row["identified_by_design"]:
-                notes.append("identified by functional form only (no lift-test design)")
+                notes.append(
+                    "no lift-test design: gamma rests on functional form and priors, "
+                    "not a test"
+                )
             if row["contraction"] < 0.1:
                 notes.append("data barely update the prior on gamma")
             return "; ".join(notes)
@@ -831,14 +1129,19 @@ class BudgetModelEffect(MuEffect):
             "channels": self.channels,
             "use_controls": self.use_controls,
             "fourier_order": self.fourier_order,
-            "drivers": list(self.drivers),
+            "trend": self.trend,
+            "instruments": list(self.instruments),
             "design": design,
+            "surprise_lags": self.surprise_lags,
+            "surprise_out_of_sample": self.surprise_out_of_sample,
             "spend_intercept_prior": _prior(self.spend_intercept_prior),
             "spend_control_prior": _prior(self.spend_control_prior),
             "spend_fourier_prior": _prior(self.spend_fourier_prior),
-            "spend_driver_prior": _prior(self.spend_driver_prior),
+            "spend_trend_prior": _prior(self.spend_trend_prior),
+            "spend_instrument_prior": _prior(self.spend_instrument_prior),
             "spend_sigma_prior": _prior(self.spend_sigma_prior),
             "gamma_prior": _prior(self.gamma_prior),
+            "gamma_lag_prior": _prior(self.gamma_lag_prior),
         }
 
     @classmethod
@@ -858,16 +1161,21 @@ class BudgetModelEffect(MuEffect):
             "spend_intercept_prior",
             "spend_control_prior",
             "spend_fourier_prior",
-            "spend_driver_prior",
+            "spend_trend_prior",
+            "spend_instrument_prior",
             "spend_sigma_prior",
             "gamma_prior",
+            "gamma_lag_prior",
         ]
         return cls(
             prefix=data.get("prefix", "budget"),
             channels=data.get("channels"),
             use_controls=data.get("use_controls", True),
-            fourier_order=data.get("fourier_order", 2),
-            drivers=data.get("drivers", []),
+            fourier_order=data.get("fourier_order"),
+            trend=data.get("trend", False),
+            instruments=data.get("instruments", []),
             design=None if design is None else pd.DataFrame(design),
+            surprise_lags=data.get("surprise_lags", 0),
+            surprise_out_of_sample=data.get("surprise_out_of_sample", "zero"),
             **{key: _prior(data.get(key)) for key in prior_keys},
         )

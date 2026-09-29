@@ -29,9 +29,12 @@ from pymc_marketing.mmm import (
     MichaelisMentenSaturation,
     lift_test_design,
 )
+from pymc_marketing.mmm.additive_effect import LinearTrendEffect
 from pymc_marketing.mmm.data_conversion import to_mmm_dataset
+from pymc_marketing.mmm.linear_trend import LinearTrend
 from pymc_marketing.mmm.mmm import MMM
 from pymc_marketing.mmm.synthetic_data import simulate_endogenous_spend_market
+from pymc_marketing.mmm.time_slice_cross_validation import TimeSliceCrossValidator
 from pymc_marketing.serialization import serialization
 from pymc_marketing.special_priors import LogNormalPrior
 from tests.mmm.conftest import mock_fit
@@ -569,18 +572,25 @@ def test_lift_test_design_edge_cases():
         )
 
 
-def test_budget_drivers(data, tmp_path):
+def test_instruments(data, tmp_path):
     X, y = data
-    X = X.assign(forecast=np.random.default_rng(3).normal(size=N_WEEKS))
-    effect = BudgetModelEffect(drivers=["forecast"])
-    assert effect.data_vars == ["forecast"]
+    X = X.assign(cost_shock=np.random.default_rng(3).normal(size=N_WEEKS))
+    effect = BudgetModelEffect(instruments=["cost_shock"])
+    assert effect.data_vars == ["cost_shock"]
     mmm = _make_mmm().add_mu_effect(effect)
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         mock_fit(mmm, X, y, random_seed=1)
-    assert "budget_driver_forecast_coef" in mmm.model.named_vars
+    assert "budget_instrument_cost_shock_coef" in mmm.model.named_vars
+    in_sample = mmm.sample_posterior_predictive(
+        X, extend_idata=False, var_names=["budget_spend_mu"], random_seed=1
+    )
+    assert np.isfinite(in_sample["budget_spend_mu"]).all()
 
-    future = X.assign(date=X["date"] + pd.Timedelta(weeks=N_WEEKS))
+    # Instruments only move the spend equation, so predictions do not need them.
+    future = X.drop(columns="cost_shock").assign(
+        date=X["date"] + pd.Timedelta(weeks=N_WEEKS)
+    )
     pp = mmm.sample_posterior_predictive(
         future,
         extend_idata=False,
@@ -589,25 +599,29 @@ def test_budget_drivers(data, tmp_path):
     )
     assert float(abs(pp["budget_effect_contribution"]).max()) == 0.0
 
-    path = tmp_path / "drivers.nc"
+    path = tmp_path / "instruments.nc"
     mmm.save(str(path))
-    assert "budget_driver_forecast_coef" in MMM.load(str(path)).model.named_vars
+    loaded = MMM.load(str(path))
+    assert "budget_instrument_cost_shock_coef" in loaded.model.named_vars
 
 
-def test_budget_driver_shared_between_effects(data):
+def test_instrument_shared_between_effects(data):
     X, y = data
-    X = X.assign(forecast=np.random.default_rng(3).normal(size=N_WEEKS))
+    X = X.assign(cost_shock=np.random.default_rng(3).normal(size=N_WEEKS))
     mmm = (
         _make_mmm()
-        .add_mu_effect(BudgetModelEffect(drivers=["forecast"], channels=["tv"]))
+        .add_mu_effect(BudgetModelEffect(instruments=["cost_shock"], channels=["tv"]))
         .add_mu_effect(
-            BudgetModelEffect(prefix="dig", drivers=["forecast"], channels=["digital"])
+            BudgetModelEffect(
+                prefix="dig", instruments=["cost_shock"], channels=["digital"]
+            )
         )
     )
     mmm.build_model(X, y)
-    assert {"budget_driver_forecast_coef", "dig_driver_forecast_coef"} <= set(
-        mmm.model.named_vars
-    )
+    assert {
+        "budget_instrument_cost_shock_coef",
+        "dig_instrument_cost_shock_coef",
+    } <= set(mmm.model.named_vars)
 
 
 @pytest.mark.parametrize(
@@ -619,7 +633,7 @@ def test_budget_driver_shared_between_effects(data):
         ("target_scale", ("date",), "Cannot reuse model variable"),
     ],
 )
-def test_budget_driver_validation(data, name, dims, match):
+def test_instrument_validation(data, name, dims, match):
     X, y = data
     ds = to_mmm_dataset(
         X, date_column="date", channel_columns=["tv", "digital"], control_columns=["c1"]
@@ -631,9 +645,244 @@ def test_budget_driver_validation(data, name, dims, match):
             np.ones(shape), dims=dims, coords={d: coords[d] for d in dims}
         )
     y_da = xr.DataArray(y.to_numpy(), dims="date", coords={"date": ds["date"]})
-    mmm = _make_mmm().add_mu_effect(BudgetModelEffect(drivers=[name]))
+    mmm = _make_mmm().add_mu_effect(BudgetModelEffect(instruments=[name]))
     with pytest.raises(ValueError, match=match):
         mmm.build_model(ds, y_da)
+
+
+class TestSurpriseLags:
+    @pytest.fixture(scope="class")
+    def lagged(self, data, design):
+        X, y = data
+        effect = BudgetModelEffect(design=design, surprise_lags=2)
+        mmm = _make_mmm().add_mu_effect(effect)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            mock_fit(mmm, X, y, random_seed=1)
+        return mmm
+
+    def test_structure(self, lagged):
+        dims = lagged.model.named_vars_to_dims
+        assert dims["budget_gamma_lag"] == ("budget_lag", "budget_channel")
+        assert list(lagged.model.coords["budget_lag"]) == [1, 2]
+        grad = lagged.model.compile_dlogp()(lagged.model.initial_point())
+        assert np.isfinite(grad).all()
+
+    def test_contribution_sums_lagged_surprises(self, lagged):
+        post = lagged.idata.posterior.isel(chain=0, draw=0)
+        surprise = post["budget_surprise"]
+        gamma, gamma_lag = post["budget_gamma"], post["budget_gamma_lag"]
+        expected = (surprise * gamma).sum("budget_channel")
+        for lag in (1, 2):
+            shifted = surprise.shift(date=lag, fill_value=0.0)
+            expected = expected + (shifted * gamma_lag.sel(budget_lag=lag)).sum(
+                "budget_channel"
+            )
+        np.testing.assert_allclose(
+            post["budget_effect_contribution"].values, expected.values, atol=1e-10
+        )
+
+    def test_future_dates_have_zero_contribution(self, lagged, data):
+        X, _ = data
+        future = X.assign(date=X["date"] + pd.Timedelta(weeks=N_WEEKS))
+        pp = lagged.sample_posterior_predictive(
+            future,
+            extend_idata=False,
+            var_names=["budget_effect_contribution"],
+            random_seed=1,
+        )
+        assert float(abs(pp["budget_effect_contribution"]).max()) == 0.0
+
+    def test_single_lag_gradient(self, data):
+        X, y = data
+        mmm = _make_mmm().add_mu_effect(BudgetModelEffect(surprise_lags=1))
+        mmm.build_model(X, y)
+        grad = mmm.model.compile_dlogp()(mmm.model.initial_point())
+        assert np.isfinite(grad).all()
+
+    def test_round_trip_and_validation(self, data):
+        effect = BudgetModelEffect(surprise_lags=3)
+        restored = BudgetModelEffect.from_dict(effect.to_dict())
+        assert restored.surprise_lags == 3
+        X, y = data
+        too_many = _make_mmm().add_mu_effect(BudgetModelEffect(surprise_lags=N_WEEKS))
+        with pytest.raises(ValueError, match="must be smaller than the number"):
+            too_many.build_model(X, y)
+
+
+class TestIdentificationGuards:
+    def test_fourier_order_follows_sales_seasonality(self, data):
+        X, y = data
+        mmm = _make_mmm(yearly_seasonality=3).add_mu_effect(BudgetModelEffect())
+        mmm.build_model(X, y)
+        assert len(mmm.model.coords["budget_fourier"]) == 6
+
+        no_season = _make_mmm().add_mu_effect(BudgetModelEffect())
+        no_season.build_model(X, y)
+        assert "budget_spend_fourier_coef" not in no_season.model.named_vars
+
+    def test_fourier_order_above_sales_warns(self, data):
+        X, y = data
+        mmm = _make_mmm().add_mu_effect(BudgetModelEffect(fourier_order=2))
+        with pytest.warns(UserWarning, match="act as instruments"):
+            mmm.build_model(X, y)
+
+    def test_trend(self, data):
+        X, y = data
+        mmm = _make_mmm().add_mu_effect(BudgetModelEffect(trend=True))
+        with pytest.warns(UserWarning, match="trend acts as an instrument"):
+            mmm.build_model(X, y)
+        assert "budget_spend_trend_coef" in mmm.model.named_vars
+
+        with_trend = (
+            _make_mmm()
+            .add_mu_effect(LinearTrendEffect(trend=LinearTrend(), prefix="trend"))
+            .add_mu_effect(BudgetModelEffect(trend=True))
+        )
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", UserWarning)
+            with_trend.build_model(X, y)
+
+    def test_trend_predictions(self, data):
+        X, y = data
+        effect = BudgetModelEffect(trend=True)
+        mmm = _make_mmm().add_mu_effect(effect)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            mock_fit(mmm, X, y, random_seed=1)
+        future = X.assign(date=X["date"] + pd.Timedelta(weeks=N_WEEKS))
+        pp = mmm.sample_posterior_predictive(
+            future, extend_idata=False, var_names=["budget_spend_mu"], random_seed=1
+        )
+        assert np.isfinite(pp["budget_spend_mu"]).all()
+
+    def test_unrealised_shift_warns(self, data):
+        X, y = data
+        X = X.copy()
+        X.loc[10, "tv"] = 0.0
+        design = pd.DataFrame(
+            {
+                "channel": ["tv"],
+                "start_date": [DATES[10]],
+                "end_date": [DATES[11]],
+                "delta_x": [-50.0],
+            }
+        )
+        mmm = _make_mmm().add_mu_effect(BudgetModelEffect(design=design))
+        with pytest.warns(UserWarning, match="may not have been fully realised"):
+            mmm.build_model(X, y)
+
+    def test_flighted_channel_warns(self, data):
+        X, y = data
+        X = X.assign(tv=np.where(np.arange(N_WEEKS) % 3 == 0, 0.0, X["tv"]))
+        mmm = _make_mmm().add_mu_effect(BudgetModelEffect())
+        with pytest.warns(UserWarning, match="zero spend in more than 20%"):
+            mmm.build_model(X, y)
+
+    def test_reused_instance_raises(self, data):
+        X, y = data
+        effect = BudgetModelEffect()
+        first = _make_mmm().add_mu_effect(effect)
+        second = _make_mmm().add_mu_effect(effect)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            mock_fit(first, X, y, random_seed=1)
+            mock_fit(second, X, y, random_seed=1)
+        with pytest.raises(RuntimeError, match="different MMM"):
+            effect.exogeneity_summary(first)
+        with pytest.raises(RuntimeError, match="different MMM"):
+            first.sample_posterior_predictive(
+                X, extend_idata=False, var_names=["y"], random_seed=1
+            )
+        assert not effect.exogeneity_summary(second).empty
+
+    def test_summary_from_original_instance_after_load(self, fitted, tmp_path):
+        mmm, effect = fitted
+        path = tmp_path / "budget.nc"
+        mmm.save(str(path))
+        loaded = MMM.load(str(path))
+        pd.testing.assert_frame_equal(
+            effect.exogeneity_summary(loaded),
+            loaded.mu_effects[0].exogeneity_summary(loaded),
+        )
+
+    def test_summary_without_attached_effect_raises(self, fitted):
+        mmm, effect = fitted
+        effects = mmm.mu_effects
+        try:
+            mmm.mu_effects = []
+            with pytest.raises(RuntimeError, match="has no BudgetModelEffect"):
+                effect.exogeneity_summary(mmm)
+        finally:
+            mmm.mu_effects = effects
+
+    def test_observed_surprise_out_of_sample(self, data):
+        X, y = data
+        effect = BudgetModelEffect(surprise_out_of_sample="observed")
+        mmm = _make_mmm().add_mu_effect(effect)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            mock_fit(mmm, X, y, random_seed=1)
+        future = X.assign(date=X["date"] + pd.Timedelta(weeks=N_WEEKS))
+        pp = mmm.sample_posterior_predictive(
+            future,
+            extend_idata=False,
+            var_names=["budget_effect_contribution"],
+            random_seed=1,
+        )
+        assert float(abs(pp["budget_effect_contribution"]).max()) > 0.0
+
+    def test_cross_validation_with_late_design(self, data):
+        X, y = data
+        design = pd.DataFrame(
+            {
+                "channel": ["tv"],
+                "start_date": [DATES[26]],
+                "end_date": [DATES[27]],
+                "delta_x": [-50.0],
+            }
+        )
+        mmm = _make_mmm().add_mu_effect(BudgetModelEffect(design=design))
+        cv = TimeSliceCrossValidator(n_init=24, forecast_horizon=2, date_column="date")
+        sampler_config = {
+            "draws": 10,
+            "tune": 10,
+            "chains": 1,
+            "progressbar": False,
+            "random_seed": 1,
+        }
+        with pytest.warns(UserWarning, match="Dropping 1 BudgetModelEffect design"):
+            cv.run(X, y, mmm=mmm, sampler_config=sampler_config)
+        assert len(cv._cv_results) == cv.get_n_splits(X, y)
+
+
+@pytest.mark.slow
+def test_negative_control_gamma_interval_contains_zero():
+    market = simulate_endogenous_spend_market("observed_only", random_seed=11)
+    X, y = market.data.drop(columns="y"), market.data["y"]
+    effect = BudgetModelEffect(design=market.design)
+    mmm = MMM(
+        date_column="date",
+        channel_columns=["tv", "digital"],
+        control_columns=["inflation", "unemployment"],
+        target_column="y",
+        yearly_seasonality=4,
+        adstock=GeometricAdstock(l_max=8),
+        saturation=MichaelisMentenSaturation(),
+    ).add_mu_effect(effect)
+    mmm.fit(
+        X,
+        y,
+        nuts_sampler="pymc",
+        draws=500,
+        tune=1000,
+        chains=2,
+        target_accept=0.95,
+        random_seed=11,
+        progressbar=False,
+    )
+    tv = effect.exogeneity_summary(mmm).set_index("channel").loc["tv"]
+    assert tv["gamma_lower"] < 0 < tv["gamma_upper"]
 
 
 def test_guards(fitted):
@@ -642,8 +891,6 @@ def test_guards(fitted):
     unbuilt = BudgetModelEffect()
     with pytest.raises(RuntimeError, match="must run before set_data"):
         unbuilt.set_data(mmm, mmm.model, None)
-    with pytest.raises(RuntimeError, match="has not been built"):
-        unbuilt.exogeneity_summary(mmm)
 
 
 def test_from_dict_registered_prior():
