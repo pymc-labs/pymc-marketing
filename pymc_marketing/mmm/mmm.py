@@ -202,7 +202,11 @@ from pytensor.xtensor import as_xtensor
 from pytensor.xtensor.type import XTensorVariable
 
 from pymc_marketing.data.idata.mmm_wrapper import MMMIDataWrapper
-from pymc_marketing.data.idata.utils import subsample_draws
+from pymc_marketing.data.idata.schema import Frequency
+from pymc_marketing.data.idata.utils import (
+    subsample_draws,
+    sum_contributions_over_time,
+)
 from pymc_marketing.hsgp_kwargs import HSGPKwargs
 from pymc_marketing.mmm import SoftPlusHSGP
 from pymc_marketing.mmm.additive_effect import (
@@ -1335,9 +1339,11 @@ class MMM(RegressionModelBuilder):
 
         return MMMIDataWrapper.from_mmm(self)
 
+    @validate_call
     def compute_counterfactual_contributions_dataset(
         self,
         central_tendency: Literal["median", "mean"] = "median",
+        period: Frequency = "original",
     ) -> xr.Dataset:
         r"""Full-posterior counterfactual contributions as an :class:`xr.Dataset`.
 
@@ -1392,12 +1398,32 @@ class MMM(RegressionModelBuilder):
         dimensions so that downstream code can compute arbitrary
         summaries (HDI, quantiles, etc.).
 
+        With a ``period``, the per-date, per-draw contributions above are
+        summed over the dates :math:`t \in T` of each period:
+
+        .. math::
+
+            \text{contribution}_j^{(d)}(T)
+            = \sum_{t \in T} \bigl[\text{inv}\bigl(\mu^{(d)}(t)\bigr)
+            - \text{inv}\bigl(\mu^{(d)}(t) - v_j^{(d)}(t)\bigr)\bigr] \cdot s
+
+        The decomposition runs on the original dates and the sum comes
+        afterwards.  Under the log link the order matters:
+        :math:`\exp(\sum_t \mu_t) - \exp(\sum_t \mu_t - \sum_t v_t)` is not
+        :math:`\sum_t [\exp(\mu_t) - \exp(\mu_t - v_t)]`, so decomposing
+        time-aggregated data (e.g. after
+        :meth:`MMMIDataWrapper.aggregate_time`) is wrong.  Under the
+        identity link both orders agree.  A time-invariant intercept is added
+        to :math:`\mu` in every period, so it is counted once per date of the
+        period, as :meth:`MMMIDataWrapper.get_contributions` with a
+        ``period`` does.
+
         This is the **counterfactual** decomposition: per-component
         ``what-if-removed`` lifts that, under the log link, do *not* sum
         to :math:`\hat y` (interactions are counted by every component
-        they touch).  For a **conserving** decomposition whose components
-        sum exactly to :math:`\hat y`, see
-        :meth:`MMMIDataWrapper.get_contributions`.
+        they touch), per date and therefore per period as well.  For a
+        **conserving** decomposition whose components sum exactly to
+        :math:`\hat y`, see :meth:`MMMIDataWrapper.get_contributions`.
 
         Parameters
         ----------
@@ -1407,6 +1433,13 @@ class MMM(RegressionModelBuilder):
             ``TruncatedNormal``, where clipping shifts the mean off ``mu``.
             For the log link, ``"median"`` uses :math:`\exp(\mu)` and
             ``"mean"`` applies the :math:`\exp(\sigma^2 / 2)` correction.
+            Applied per date, before any ``period`` sum.
+        period : {"original", "weekly", "monthly", "quarterly", "yearly", "all_time"}, default "original"
+            Time period to sum the per-date contributions over, per draw.
+            ``"original"`` keeps every date, ``"all_time"`` removes the
+            ``date`` dim. A period shorter than the spacing of the dates
+            (e.g. ``"weekly"`` on monthly data) leaves empty periods, which
+            are ``NaN``.
 
         Returns
         -------
@@ -1414,12 +1447,19 @@ class MMM(RegressionModelBuilder):
             One data variable per component (channels, controls,
             ``yearly_seasonality``, any ``mu_effects``, ``intercept``).
             Dimensions are ``(chain, draw, date, ...)`` where ``...`` are
-            any extra model dimensions (e.g. ``geo``).
+            any extra model dimensions (e.g. ``geo``).  With a ``period``,
+            ``date`` holds the last calendar day of each period (a Sunday for
+            ``"weekly"``), which can fall after the last observed date;
+            ``"all_time"`` has no ``date`` dim.  Under the identity link a
+            time-invariant ``intercept`` has no ``date`` dim with
+            ``"original"`` and the ``date`` dim of the periods otherwise.
 
         Raises
         ------
         ValueError
-            If the model has not been fitted (no ``idata``).
+            If ``central_tendency`` or ``period`` is not one of the listed
+            values (a :class:`pydantic.ValidationError`, raised before any
+            computation), or if the model has not been fitted (no ``idata``).
 
         Examples
         --------
@@ -1435,6 +1475,15 @@ class MMM(RegressionModelBuilder):
             import arviz as az
 
             az.hdi(ds)
+
+            # Per quarter and for the whole window, with credible intervals.
+            # Decompose first, sum afterwards: do not aggregate the data over
+            # time and decompose the result.
+            quarterly = mmm.compute_counterfactual_contributions_dataset(
+                period="quarterly"
+            )
+            az.hdi(quarterly)
+            total = mmm.compute_counterfactual_contributions_dataset(period="all_time")
 
         See Also
         --------
@@ -1524,11 +1573,16 @@ class MMM(RegressionModelBuilder):
                 self.output_var,
             )
 
-        return dataset
+        # Decompose per date first, then sum over the dates of each period: under
+        # the log link the inverse link is nonlinear in mu, so the other order is
+        # wrong. A time-invariant intercept is counted once per observed date.
+        return sum_contributions_over_time(dataset, period)
 
+    @validate_call
     def compute_mean_contributions_over_time(
         self,
         central_tendency: Literal["median", "mean"] = "median",
+        period: Frequency = "original",
     ) -> pd.DataFrame:
         r"""Posterior-mean counterfactual contributions as a DataFrame.
 
@@ -1566,12 +1620,17 @@ class MMM(RegressionModelBuilder):
         For **log-link** (multiplicative) models this computes a genuine
         per-component counterfactual.  Because interaction effects are
         counted by every component that participates in them, the columns
-        sum to *more* than :math:`\hat y(t)`.  This is an expected
-        property of per-component counterfactuals in a multiplicative
-        model, not a defect.  Under the log link :math:`\exp(\mu)` is the
-        conditional **median**; pass ``central_tendency="mean"`` for the
-        conditional-mean scale (see
+        sum to *more* than :math:`\hat y(t)`, per date and per ``period``
+        alike.  This is an expected property of per-component
+        counterfactuals in a multiplicative model, not a defect.  Under the
+        log link :math:`\exp(\mu)` is the conditional **median**; pass
+        ``central_tendency="mean"`` for the conditional-mean scale (see
         :meth:`compute_counterfactual_contributions_dataset`).
+
+        With a ``period`` each row holds the per-date contributions summed
+        over the dates of the period.  The decomposition runs on the
+        original dates and the sum comes afterwards, which the log link
+        requires (see :meth:`compute_counterfactual_contributions_dataset`).
 
         This method does **not** require
         :meth:`add_original_scale_contribution_variable` to have been
@@ -1582,14 +1641,20 @@ class MMM(RegressionModelBuilder):
         central_tendency : {"median", "mean"}, default "median"
             Forwarded to
             :meth:`compute_counterfactual_contributions_dataset`.
+        period : {"original", "weekly", "monthly", "quarterly", "yearly", "all_time"}, default "original"
+            Forwarded to
+            :meth:`compute_counterfactual_contributions_dataset`; one row per
+            period (x extra dims) instead of one per date.
 
         Returns
         -------
         pd.DataFrame
             Wide-format DataFrame with one row per observation (date x extra
-            dims).  Columns include:
+            dims), or per period (x extra dims) with a ``period``.  Columns
+            include:
 
-            - ``date`` -- date coordinate
+            - ``date`` -- date coordinate; the last calendar day of each
+              period with a ``period``, absent with ``"all_time"``
             - Extra dimension columns (e.g. ``geo``) when the model is
               multidimensional
             - One column per channel (named after channel coordinate labels)
@@ -1601,7 +1666,9 @@ class MMM(RegressionModelBuilder):
         Raises
         ------
         ValueError
-            If the model has not been fitted (no ``idata``).
+            If ``central_tendency`` or ``period`` is not one of the listed
+            values (a :class:`pydantic.ValidationError`, raised before any
+            computation), or if the model has not been fitted (no ``idata``).
 
         Examples
         --------
@@ -1609,6 +1676,10 @@ class MMM(RegressionModelBuilder):
 
             mmm.fit(X, y)
             contributions_df = mmm.compute_mean_contributions_over_time()
+
+            # One row per month (x extra dims); one row per extra dim with
+            # period="all_time"
+            monthly_df = mmm.compute_mean_contributions_over_time(period="monthly")
 
         See Also
         --------
@@ -1622,9 +1693,13 @@ class MMM(RegressionModelBuilder):
         self._validate_idata_exists()
 
         dataset: xr.Dataset = self.compute_counterfactual_contributions_dataset(
-            central_tendency=central_tendency
+            central_tendency=central_tendency, period=period
         )
-        return dataset.mean(("chain", "draw")).to_dataframe().reset_index()
+        posterior_mean = dataset.mean(("chain", "draw"))
+        if not posterior_mean.dims:
+            # period="all_time" without extra dims: a single row
+            return posterior_mean.to_pandas().to_frame().T.reset_index(drop=True)
+        return posterior_mean.to_dataframe().reset_index()
 
     @property
     def summary(self) -> Any:  # type: ignore[no-any-return]
