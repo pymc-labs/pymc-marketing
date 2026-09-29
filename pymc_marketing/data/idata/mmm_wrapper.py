@@ -24,9 +24,89 @@ import pandas as pd
 import xarray as xr
 
 from pymc_marketing.data.idata.schema import Frequency
+from pymc_marketing.data.idata.utils import (
+    _aggregate_over_time,
+    aggregate_idata_dims,
+    aggregate_idata_time,
+    broadcast_over_date,
+    filter_idata_by_dates,
+    filter_idata_by_dims,
+)
 
 if TYPE_CHECKING:
     from pymc_marketing.mmm.mmm import MMM
+
+# Contribution variables that the model adds to ``mu`` in every period but that
+# carry no ``date`` dim when they are time-invariant. Add any new date-less
+# additive contribution here, otherwise time aggregation counts it once for the
+# whole window instead of once per period. Parameters such as
+# ``intercept_baseline`` and totals such as
+# ``total_media_contribution_original_scale`` are deliberately not listed:
+# neither is a per-period contribution.
+_PER_PERIOD_CONTRIBUTIONS = (
+    "intercept_contribution",
+    "intercept_contribution_original_scale",
+)
+
+
+def _synthetic_target_scale_dims(dataset: xr.Dataset) -> set[str]:
+    """Return singleton dimensions introduced while storing a scalar target scale."""
+    if "target_scale" not in dataset:
+        return set()
+
+    target_scale = dataset["target_scale"]
+    return {
+        dim
+        for dim, size in target_scale.sizes.items()
+        if dim.startswith("target_scale_dim_") and size == 1
+    }
+
+
+def _broadcast_per_period_contributions(idata: xr.DataTree) -> xr.DataTree:
+    """Broadcast time-invariant per-period contributions over ``date``.
+
+    A time-invariant intercept contributes its value in every period, so
+    aggregating it over time must count it once per period, exactly like the
+    per-date contributions it is added to. Summing a variable without a
+    ``date`` dim over ``date`` would instead leave a single period's value.
+
+    Every group with a ``date`` dim is handled, so ``prior`` and
+    ``posterior`` stay consistent.
+
+    Parameters
+    ----------
+    idata : xr.DataTree
+        DataTree whose groups may hold time-invariant contribution variables.
+
+    Returns
+    -------
+    xr.DataTree
+        ``idata`` itself if there is nothing to broadcast, otherwise a shallow
+        copy, with the root node and every other variable kept, whose listed
+        contribution variables have the ``date`` dim of their group.
+    """
+    result = idata
+    for path in idata.groups:
+        node = idata[path]
+        dataset = node.dataset
+        if "date" not in dataset.dims:
+            continue
+        to_broadcast = [
+            name
+            for name in _PER_PERIOD_CONTRIBUTIONS
+            if name in node.data_vars and "date" not in dataset[name].dims
+        ]
+        if not to_broadcast:
+            continue
+        if result is idata:
+            result = idata.copy()
+        result[path].dataset = node.to_dataset(inherit=False).assign(
+            {
+                name: broadcast_over_date(dataset[name], dataset["date"])
+                for name in to_broadcast
+            }
+        )
+    return result
 
 
 class MMMIDataWrapper:
@@ -244,7 +324,11 @@ class MMMIDataWrapper:
                 "target_scale not found in constant_data. "
                 "Expected 'target_scale' variable in idata.constant_data."
             )
-        return self.idata.constant_data["target_scale"].copy()
+        target_scale = self.idata.constant_data["target_scale"].copy()
+        synthetic_dims = _synthetic_target_scale_dims(self.idata.constant_data)
+        if synthetic_dims:
+            target_scale = target_scale.squeeze(dim=synthetic_dims, drop=True)
+        return target_scale
 
     # ==================== Observed Data Access ====================
 
@@ -402,7 +486,17 @@ class MMMIDataWrapper:
         attrs = getattr(self.idata, "attrs", {})
         return attrs.get("link", "identity")
 
-    def get_channel_contributions(self, original_scale: bool = True) -> xr.DataArray:
+    @property
+    def _time_aggregation(self) -> str | None:
+        """Period the data was aggregated to by :meth:`aggregate_time`, if any."""
+        attrs = getattr(self.idata, "attrs", {})
+        return attrs.get("time_aggregation")
+
+    def get_channel_contributions(
+        self,
+        original_scale: bool = True,
+        period: Frequency = "original",
+    ) -> xr.DataArray:
         """Get channel contribution posterior samples.
 
         Convenience method that delegates to get_contributions() and
@@ -414,6 +508,9 @@ class MMMIDataWrapper:
             Whether to return contributions in original scale.
             If True, multiplies by target_scale (or uses pre-computed
             _original_scale variable if available).
+        period : {"original", "weekly", "monthly", "quarterly", "yearly", "all_time"}, default "original"
+            Time period to sum the per-date contributions over; see
+            :meth:`get_contributions`.
 
         Returns
         -------
@@ -425,6 +522,7 @@ class MMMIDataWrapper:
             include_baseline=False,
             include_controls=False,
             include_seasonality=False,
+            period=period,
         )
         return contributions["channels"]
 
@@ -434,6 +532,7 @@ class MMMIDataWrapper:
         include_baseline: bool = True,
         include_controls: bool = True,
         include_seasonality: bool = True,
+        period: Frequency = "original",
     ) -> xr.Dataset:
         r"""Get all contribution variables in a single dataset.
 
@@ -464,17 +563,50 @@ class MMMIDataWrapper:
             Include control variable contributions (if present)
         include_seasonality : bool, default True
             Include seasonality contributions (if present)
+        period : {"original", "weekly", "monthly", "quarterly", "yearly", "all_time"}, default "original"
+            Time period to sum the contributions over. The decomposition runs
+            on the original dates and the result is summed afterwards, which
+            ``link="log"`` requires (see :meth:`aggregate_time`).
+            ``"original"`` keeps every date, ``"all_time"`` removes the
+            ``date`` dim. A time-invariant intercept is counted once per
+            period, as in :meth:`aggregate_time`: with ``"original"`` its
+            ``baseline`` keeps no ``date`` dim, with any other period
+            ``baseline`` has the ``date`` dim of the periods.
 
         Returns
         -------
         xr.Dataset
-            Dataset with all contribution variables
+            Dataset with all contribution variables. With a ``period``,
+            ``date`` holds the last calendar day of each period (a Sunday for
+            ``"weekly"``), which can fall after the last observed date.
 
         Raises
         ------
         ValueError
-            If original_scale=True and target_scale is not found in constant_data
+            If original_scale=True and target_scale is not found in constant_data;
+            if the data was aggregated by :meth:`aggregate_time` and ``period``
+            is not ``"original"``, since aggregating twice would sum period
+            means or misalign period boundaries; or if the data was aggregated
+            by :meth:`aggregate_time` and the model uses ``link="log"``.
+
+        Examples
+        --------
+        >>> contributions = mmm.data.get_contributions()
+        >>> monthly = mmm.data.get_contributions(period="monthly")
         """
+        if (aggregated := self._time_aggregation) is not None and period != "original":
+            raise ValueError(
+                "The data was already aggregated over time "
+                f"(aggregate_time(period={aggregated!r})), so it cannot be "
+                f"aggregated again with period={period!r}. Call "
+                f"get_contributions(period={period!r}) on the original dates "
+                "instead."
+            )
+        # The model adds a time-invariant intercept in every period, so it is
+        # repeated on every date before summing over the dates of each period.
+        data = (
+            self if period == "original" else self.broadcast_per_period_contributions()
+        )
         if self._link == "log" and original_scale:
             if not include_controls or not include_seasonality:
                 warnings.warn(
@@ -485,15 +617,18 @@ class MMMIDataWrapper:
                     UserWarning,
                     stacklevel=2,
                 )
-            return self._get_conserving_contributions_log_link(
+            contributions = data._get_conserving_contributions_log_link(
                 include_baseline=include_baseline,
             )
-        return self._get_contributions_identity(
-            original_scale=original_scale,
-            include_baseline=include_baseline,
-            include_controls=include_controls,
-            include_seasonality=include_seasonality,
-        )
+        else:
+            contributions = data._get_contributions_identity(
+                original_scale=original_scale,
+                include_baseline=include_baseline,
+                include_controls=include_controls,
+                include_seasonality=include_seasonality,
+            )
+        # Per variable, so each keeps its (chain, draw, date, ...) dim order
+        return contributions.map(_aggregate_over_time, period=period)
 
     def _get_contributions_identity(
         self,
@@ -652,7 +787,26 @@ class MMMIDataWrapper:
         The sum ``channels.sum("channel") + baseline`` equals
         ``exp(mu) * target_scale`` (the full posterior prediction) for every
         posterior draw.
+
+        Raises
+        ------
+        ValueError
+            If the data was aggregated over time by :meth:`aggregate_time`.
+            The decomposition is nonlinear in ``mu``, so it has to run on the
+            original dates; use the ``period`` argument of
+            :meth:`get_contributions` to aggregate the result instead.
         """
+        if (period := self._time_aggregation) is not None:
+            raise ValueError(
+                "Log-link contributions cannot be decomposed from data that was "
+                f"aggregated over time (aggregate_time(period={period!r})): the "
+                "conserving decomposition exponentiates the summed mu, and "
+                "exp(sum(mu)) is not sum(exp(mu)). Decompose on the original "
+                "dates and aggregate the contributions afterwards, with "
+                f"get_contributions(period={period!r}), "
+                f"get_elementwise_roas(period={period!r}) or "
+                f"mmm.summary.contributions(frequency={period!r})."
+            )
         # Deferred import: avoid circular import (mmm.py -> mmm_wrapper -> mmm pkg).
         from pymc_marketing.mmm.decomposition import (
             original_scale_prediction_from_mu,
@@ -686,10 +840,19 @@ class MMMIDataWrapper:
 
         return xr.Dataset(contributions)
 
-    def get_elementwise_roas(self, original_scale: bool = True) -> xr.DataArray:
+    def get_elementwise_roas(
+        self,
+        original_scale: bool = True,
+        period: Frequency = "original",
+    ) -> xr.DataArray:
         """Compute element-wise ROAS (Return on Ad Spend) for each channel.
 
-        ROAS = contribution / spend for each channel at each time point.
+        ROAS = contribution / spend for each channel at each time point, or,
+        with a ``period``, the contributions summed over each period divided by
+        the spend summed over it. The contributions come from
+        :meth:`get_channel_contributions` with the same ``period``, so they are
+        decomposed on the original dates before any summing, which
+        ``link="log"`` requires (see :meth:`aggregate_time`).
         Does NOT account for adstock carryover effects. For true incremental
         ROAS, use :meth:`pymc_marketing.mmm.incrementality.Incrementality.contribution_over_spend`
         or :meth:`pymc_marketing.mmm.summary.MMMSummaryFactory.roas` with
@@ -699,20 +862,30 @@ class MMMIDataWrapper:
         ----------
         original_scale : bool, default True
             Whether to return contributions in original scale.
+        period : {"original", "weekly", "monthly", "quarterly", "yearly", "all_time"}, default "original"
+            Time period to sum contributions and spend over before dividing.
+            ``"original"`` keeps every date, ``"all_time"`` removes the
+            ``date`` dim.
 
         Returns
         -------
         xr.DataArray
             ROAS values with dims (chain, draw, date, channel) plus any custom dims.
-            Zero spend values result in NaN to avoid division by zero.
+            With a ``period``, ``date`` holds the last calendar day of each period
+            (a Sunday for ``"weekly"``), which can fall after the last observed
+            date, and ``"all_time"`` has no ``date`` dim. Zero spend, on a date or
+            summed over a period, results in NaN to avoid division by zero.
 
         Examples
         --------
         >>> roas = mmm.data.get_elementwise_roas()
         >>> roas_mean = roas.mean(dim=["chain", "draw"])
+        >>> monthly_roas = mmm.data.get_elementwise_roas(period="monthly")
         """
-        contributions = self.get_channel_contributions(original_scale=original_scale)
-        spend = self.get_channel_spend()
+        contributions = self.get_channel_contributions(
+            original_scale=original_scale, period=period
+        )
+        spend = _aggregate_over_time(self.get_channel_spend(), period)
 
         # Handle zero spend - use xr.where to avoid division by zero
         spend_safe = xr.where(spend == 0, np.nan, spend)
@@ -882,8 +1055,6 @@ class MMMIDataWrapper:
         if start_date is None and end_date is None:
             return self
 
-        from pymc_marketing.data.idata.utils import filter_idata_by_dates
-
         filtered_idata = filter_idata_by_dates(self.idata, start_date, end_date)
 
         return MMMIDataWrapper(
@@ -915,8 +1086,6 @@ class MMMIDataWrapper:
         if not dim_filters:
             return self
 
-        from pymc_marketing.data.idata.utils import filter_idata_by_dims
-
         filtered_idata = filter_idata_by_dims(self.idata, **dim_filters)
 
         # When dimensions are dropped, the data no longer conforms to
@@ -933,6 +1102,35 @@ class MMMIDataWrapper:
 
     # ==================== Aggregation Operations ====================
 
+    def broadcast_per_period_contributions(self) -> MMMIDataWrapper:
+        """Repeat time-invariant per-period contributions on every date.
+
+        The model adds a time-invariant intercept to ``mu`` in every period
+        but stores it without a ``date`` dim. In the returned wrapper,
+        ``intercept_contribution`` and ``intercept_contribution_original_scale``
+        carry the ``date`` dim of their group, so they line up with the
+        per-date contributions and add up with them date by date.
+        Contributions that already have a ``date`` dim, parameters such as
+        ``intercept_baseline``, and window totals are left as they are.
+
+        Returns
+        -------
+        MMMIDataWrapper
+            New wrapper over the broadcast data.
+
+        Examples
+        --------
+        .. code-block:: python
+
+            per_date = mmm.data.broadcast_per_period_contributions()
+            per_date.get_contributions()["baseline"]  # has a "date" dim
+        """
+        return MMMIDataWrapper(
+            _broadcast_per_period_contributions(self.idata),
+            schema=self.schema,
+            validate_on_init=False,
+        )
+
     def aggregate_time(
         self,
         period: Frequency,
@@ -941,6 +1139,27 @@ class MMMIDataWrapper:
         """Aggregate data over time periods.
 
         Delegates to standalone `aggregate_idata_time` utility function.
+
+        A time-invariant intercept (``intercept_contribution`` without a
+        ``date`` dim) is added to ``mu`` in every period, so it is broadcast
+        over ``date`` before aggregating. With ``method="sum"`` it is then
+        counted once per period, and the aggregated components still add up
+        to the aggregated prediction. ``period="original"`` returns the data
+        unchanged; use :meth:`broadcast_per_period_contributions` to get the
+        intercept on every original date.
+
+        The result is marked as time-aggregated (``time_aggregation`` in the
+        DataTree ``attrs``). Under ``link="log"`` it cannot be decomposed:
+        :meth:`get_contributions` would exponentiate the summed ``mu``, and the
+        exponential of a sum is not the sum of the exponentials, so it raises
+        instead. Aggregating spend, the target or the raw posterior variables
+        stays valid. To aggregate contributions, decompose on the original
+        dates and sum afterwards with the ``period`` argument of
+        :meth:`get_contributions`, :meth:`get_channel_contributions`,
+        :meth:`get_elementwise_roas` and
+        :meth:`~pymc_marketing.mmm.mmm.MMM.compute_counterfactual_contributions_dataset`,
+        or the ``frequency`` argument of the
+        :class:`~pymc_marketing.mmm.summary.MMMSummaryFactory` summaries.
 
         Parameters
         ----------
@@ -953,10 +1172,20 @@ class MMMIDataWrapper:
         -------
         MMMIDataWrapper
             New wrapper with aggregated idata
-        """
-        from pymc_marketing.data.idata.utils import aggregate_idata_time
 
-        aggregated_idata = aggregate_idata_time(self.idata, period, method)
+        Examples
+        --------
+        .. code-block:: python
+
+            monthly_spend = mmm.data.aggregate_time("monthly").get_channel_spend()
+
+            # Contributions: decompose per date, then sum per period
+            monthly_contributions = mmm.data.get_contributions(period="monthly")
+        """
+        idata = self.idata
+        if period != "original":
+            idata = _broadcast_per_period_contributions(idata)
+        aggregated_idata = aggregate_idata_time(idata, period, method)
 
         # For "all_time", schema no longer applies (date dimension removed)
         schema = None if period == "all_time" else self.schema
@@ -990,8 +1219,6 @@ class MMMIDataWrapper:
         MMMIDataWrapper
             New wrapper with aggregated idata
         """
-        from pymc_marketing.data.idata.utils import aggregate_idata_dims
-
         aggregated_idata = aggregate_idata_dims(
             self.idata, dim, values, new_label, method
         )
@@ -1105,8 +1332,11 @@ class MMMIDataWrapper:
         standard_dims = {"date", "channel", "control", "fourier_mode", "chain", "draw"}
 
         if hasattr(self.idata, "constant_data"):
+            synthetic_dims = _synthetic_target_scale_dims(self.idata.constant_data)
             return [
-                dim for dim in self.idata.constant_data.dims if dim not in standard_dims
+                dim
+                for dim in self.idata.constant_data.dims
+                if dim not in standard_dims and dim not in synthetic_dims
             ]
 
         return []
