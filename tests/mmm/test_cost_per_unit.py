@@ -1503,7 +1503,32 @@ class TestPriceResponseAllocation:
                 pass  # platform-dependent, and not what this test is about
         messages = [str(w.message) for w in record if "held at zero" in str(w.message)]
         assert len(messages) == 1
-        assert "channel_2" not in messages[0]
+        assert "cells [('channel_1',)]" in messages[0]
+
+    def test_a_flat_channel_pinned_at_zero_does_not_warn(self, simple_fitted_mmm):
+        """A pinned channel with elasticity 0 is the documented remedy, so it must stay
+        quiet: the warning keys on the curved cells only, not on every zero bound."""
+        mmm = simple_fitted_mmm
+        mmm.set_cost_per_unit(_full_table(mmm, self.PRICES))
+        optimizer = _optimizer(
+            mmm,
+            cost_per_unit=_window_cpu(mmm, self.PRICES),
+            price_response=PowerPriceResponse(
+                elasticity={"channel_2": 0.3, "channel_3": 0.3}
+            ),
+        )
+        bounds = xr.DataArray(
+            [[0.0, 0.0], [0.0, self.TOTAL], [0.0, self.TOTAL]],
+            dims=("channel", "bound"),
+            coords={"channel": CHANNELS_3, "bound": ["lower", "upper"]},
+        )
+        with warnings.catch_warnings(record=True) as record:
+            warnings.simplefilter("always")
+            result = optimizer.allocate_budget(
+                total_budget=self.TOTAL, budget_bounds=bounds
+            )
+        assert result.scipy_result.success, result.scipy_result.message
+        assert not [w for w in record if "held at zero" in str(w.message)]
 
 
 def _spread(values: np.ndarray) -> float:

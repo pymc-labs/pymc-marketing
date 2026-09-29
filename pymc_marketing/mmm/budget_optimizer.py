@@ -2305,10 +2305,12 @@ class BudgetOptimizer(BaseModel):
         if not pinned:
             return
         variable = self._media_variable
+        labels = {
+            dim: variable.mask.coords[dim].values.tolist() for dim in variable.dims
+        }
         cells = [
             tuple(
-                str(variable.coords[dim][int(i)])
-                for dim, i in zip(variable.dims, index, strict=True)
+                labels[dim][int(i)] for dim, i in zip(variable.dims, index, strict=True)
             )
             for index in np.argwhere(on)[pinned]
         ]
