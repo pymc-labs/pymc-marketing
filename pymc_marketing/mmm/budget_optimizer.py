@@ -1659,7 +1659,7 @@ class BudgetOptimizer(BaseModel):
     _budget_distribution_over_period_tensor: XTensorVariable | None = PrivateAttr()
     _cost_per_unit_tensor: XTensorVariable | None = PrivateAttr()
     _media_variable: MediaVariable = PrivateAttr()
-    _media_price_declaration: Any = PrivateAttr(default=None)
+    _media_price_declaration: PriceResponse | None = PrivateAttr(default=None)
     _pymc_model: Model = PrivateAttr()
     _shared_posterior: SharedPosterior | None = PrivateAttr(default=None)
     _mask_auto_detected: bool = PrivateAttr(default=False)
@@ -2503,7 +2503,7 @@ class BudgetOptimizer(BaseModel):
             return None
         if name == self.channel_data_var:
             return self._media_price_reference(response)
-        if response.reference_spend is None:
+        if response.needs_derived_reference:
             raise ValueError(
                 f"{name}: price_response: reference_spend is required for a spend variable -- "
                 "there is no fitted cost_per_unit artifact to derive the level at which its base "
@@ -2597,9 +2597,7 @@ class BudgetOptimizer(BaseModel):
     def _curved_channels(self, response: PriceResponse) -> set[str]:
         """Optimized channels on which the response actually bends.
 
-        Asked channel by channel through :meth:`PriceResponse.is_identity_on`, so a
-        family that cannot answer per cell (the default answers from the whole
-        declaration) keeps every channel gated.
+        Asked channel by channel through :meth:`PriceResponse.adds_curvature_on`.
         """
         mask: DataArray = self.budgets_to_optimize  # type: ignore[assignment]
         curved = set()
@@ -2607,21 +2605,20 @@ class BudgetOptimizer(BaseModel):
             channel_mask = mask & (mask.coords["channel"] == channel)
             if not bool(channel_mask.any()):
                 continue
-            identity = response.is_identity_on(
+            if response.adds_curvature_on(
                 dims=tuple(self._budget_dims),
                 coords=self._budget_coords,
                 mask=channel_mask,
                 date_dim=self.date_dim,
                 label=f"{self.channel_data_var}: price_response",
-            )
-            if not identity:
+            ):
                 curved.add(str(channel))
         return curved
 
     @staticmethod
     def _require_units_attestation(response: PriceResponse, who: str) -> None:
         """Refuse a curved response on unvouched channels without the explicit opt-out."""
-        if not response.assume_delivery_units:
+        if not response.attests_delivery_units:
             raise ValueError(
                 f"price_response: {who} were fitted on nominal spend as far as the fitted model can "
                 "tell, so their saturation curve already absorbed the price curvature a curved "
@@ -2632,7 +2629,7 @@ class BudgetOptimizer(BaseModel):
                 "assume_delivery_units=True together with an explicit reference_spend "
                 "(per-period money per cell, the units of result.budgets)."
             )
-        if response.reference_spend is None:
+        if response.needs_derived_reference:
             raise ValueError(
                 "price_response: assume_delivery_units=True needs an explicit reference_spend "
                 "(per-period money per cell, the units of result.budgets): with no historical "
@@ -2657,7 +2654,7 @@ class BudgetOptimizer(BaseModel):
                 problem = f"has dims {list(spend.dims)}, expected {sorted(expected)}"
                 spend = None
         if spend is None:
-            if response.reference_spend is None:
+            if response.needs_derived_reference:
                 raise ValueError(
                     "price_response: the fitted model's cost_per_unit table prices every optimized "
                     f"channel, but constant_data['channel_spend'] {problem}, so no reference spend "

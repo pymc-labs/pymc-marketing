@@ -74,6 +74,9 @@ class ResolvedPriceResponse(ABC):
     Built by :meth:`PriceResponse.resolve` and held by
     :class:`~pymc_marketing.mmm.optimization_variables.MediaVariable`. Coefficients are NumPy arrays over ``dims``
     in the model's coordinate order; the three methods build symbolic maps over per-period money.
+    ``money_scale`` is per cell in money: below ``1e-12 * money_scale`` a cell is reported as having bought
+    nothing. ``curved`` is boolean per cell: the map bends money there (``u'' != 0``), which is what the
+    optimizer checks before warning about a cell its bounds pin at zero.
 
     Every map takes ``spend``, per-period money as an ``XTensorVariable`` with dims ``(date_dim, *dims)``, and
     ``base_price``, the optimizer's ``cost_per_unit`` tensor over the same dims or ``None`` for a base price of 1.
@@ -81,7 +84,8 @@ class ResolvedPriceResponse(ABC):
 
     dims: tuple[str, ...]
     is_identity: bool
-    reference_spend: np.ndarray
+    money_scale: np.ndarray
+    curved: np.ndarray
 
     @abstractmethod
     def to_delivery(
@@ -154,6 +158,8 @@ class ResolvedPowerPriceResponse(ResolvedPriceResponse):
         self.label = label
         self.gamma = gamma
         self.reference_spend = reference_spend
+        self.money_scale = reference_spend
+        self.curved = gamma > 0.0
         self.max_slope_ratio = float(max_slope_ratio)
         self.is_identity = bool(np.all(gamma == 0.0))
         self.s_floor, self.scale, self.a, self.b = self._power_floor_coefficients(
@@ -268,46 +274,15 @@ class PriceResponse(BaseModel, ABC):
     cell layout and returns the object the optimizer's graph uses. Subclasses ship a closed, invertible
     parametric family so the implied delivery and clearing prices can be reported alongside the allocation.
 
-    Parameters
-    ----------
-    reference_spend : xarray.DataArray or None
-        Per-period money per cell at which the base price applies, over exactly the budget dims, in the units of
-        ``result.budgets`` and ``total_budget``. ``None`` lets the optimizer derive it from the fitted model where
-        one exists. A family that states price *relative* to a level needs one, and the optimizer reads it before
-        knowing the concrete type, which is why it is declared here; a family whose schedule is stated in absolute
-        money would not. Subclasses document the derivation and the guard on a supplied value.
-    assume_delivery_units : bool
-        Attest that the model's channel data is in delivery units (or in spend deflated to constant prices) even
-        though no historical ``cost_per_unit`` table prices the channel. Required, together with an explicit
-        ``reference_spend``, to bend the price on channels the fitted artifact cannot vouch for; a channel the
-        response leaves at the identity needs no vouching, since its money passes through unbent.
-        Default ``False``: the optimizer then refuses, because a saturation curve fitted on nominal spend has
-        already absorbed part of the price curvature and a concave price map on top would bend it twice. The
-        subject of that refusal is curvature, not spend dependence as such: writing the composed second
-        derivative as :math:`f''(u) u'^2 + f'(u) u''`, it is the :math:`f'(u) u''` term that double-counts, so a
-        map that is piecewise linear in money rescales the axis without bending it and has no such objection.
-        Every family shipped today is curved, which is why the gate is currently keyed on the identity.
+    The optimizer asks four things of a family before resolving it, and keys its delivery-units gate on the
+    answers rather than on the concrete type: whether the map is the identity (:attr:`is_identity`,
+    :meth:`is_identity_on`), whether it *bends* money (:attr:`adds_curvature`, :meth:`adds_curvature_on`),
+    whether the user attests that the fitted data are in delivery units (:attr:`attests_delivery_units`),
+    and whether resolution needs a reference level read off the fitted model (:attr:`needs_derived_reference`).
+    Declarations are frozen: mutating one after construction would bypass its validators.
     """
 
-    model_config = ConfigDict(arbitrary_types_allowed=True, extra="forbid")
-
-    reference_spend: InstanceOf[DataArray] | None = Field(
-        default=None,
-        description=(
-            "Per-period money per cell at which the base price applies, over exactly the budget dims; "
-            "the units of result.budgets and total_budget. None derives it from the fitted model where "
-            "one exists. Subclasses document the derivation and the guard on a supplied value."
-        ),
-    )
-
-    assume_delivery_units: bool = Field(
-        default=False,
-        description=(
-            "Attest that channel data is in delivery units although no historical cost_per_unit prices "
-            "the channel. Requires an explicit reference_spend. See the class docstring for why the "
-            "default refuses."
-        ),
-    )
+    model_config = ConfigDict(arbitrary_types_allowed=True, extra="forbid", frozen=True)
 
     @property
     @abstractmethod
@@ -328,10 +303,58 @@ class PriceResponse(BaseModel, ABC):
         :meth:`resolve` ignores the declaration outside the mask, so a response that names only masked-out
         cells resolves to the identity even though :attr:`is_identity` is False. The optimizer asks this
         before running its fitted-artifact gate, so a no-op response is not refused over channels it never
-        touches. The default answers from the declaration alone; families whose elasticity varies by cell
+        touches. The default answers from the declaration alone; families whose parameters vary by cell
         override it. ``label`` prefixes any error raised while reading the declaration.
         """
         return self.is_identity
+
+    @property
+    @abstractmethod
+    def adds_curvature(self) -> bool:
+        """True when the map bends money somewhere it is not the identity.
+
+        This is what the delivery-units gate keys on. Writing the composed second derivative as
+        :math:`f''(u) u'^2 + f'(u) u''`, it is the :math:`f'(u) u''` term that double-counts a saturation
+        curve fitted on nominal spend, so a map with a non-zero ``u''`` needs the fit to be in delivery units
+        and a map piecewise linear in money does not: it rescales the axis without bending it.
+        """
+
+    def adds_curvature_on(
+        self,
+        *,
+        dims: tuple[str, ...],
+        coords: Mapping[str, list],
+        mask: DataArray,
+        date_dim: str,
+        label: str = "price_response",
+    ) -> bool:
+        """Report whether the map bends money on some *optimized* cell of a layout.
+
+        Default: :attr:`adds_curvature` and not :meth:`is_identity_on`. Right for any family whose curvature
+        is exactly where it is not the identity; a family that is linear on some cells and curved on others
+        overrides it.
+        """
+        return self.adds_curvature and not self.is_identity_on(
+            dims=dims, coords=coords, mask=mask, date_dim=date_dim, label=label
+        )
+
+    @property
+    def attests_delivery_units(self) -> bool:
+        """The user vouches that the fitted data are in delivery units (or constant-price spend).
+
+        Read only when :attr:`adds_curvature` is True and the fitted artifact cannot vouch for a cell. Default
+        ``False``; a curved family exposes a field for it.
+        """
+        return False
+
+    @property
+    def needs_derived_reference(self) -> bool:
+        """True when :meth:`resolve` can only succeed with a ``derived_reference`` from the optimizer.
+
+        A family that states price *relative* to a level needs one unless the user supplied it; a family whose
+        schedule is stated in absolute money never does. Default ``False``.
+        """
+        return False
 
     @abstractmethod
     def resolve(
@@ -449,8 +472,13 @@ class PowerPriceResponse(PriceResponse):
         ``num_periods ** elasticity``. When the supplied value is ``num_periods`` times the derived one on
         every optimized cell (within 5%), a warning names that hypothesis instead of refusing.
     assume_delivery_units : bool
-        See :class:`PriceResponse`. Declared there, with ``reference_spend``, because the optimizer reads both
-        off any response before knowing its concrete type.
+        Attest that the node's data are in delivery units (or in spend deflated to constant prices) even
+        though no historical ``cost_per_unit`` table prices them. Required, together with an explicit
+        ``reference_spend``, to bend the price on channels the fitted artifact cannot vouch for and on every
+        spend variable, which has no such artifact; a cell left at ``elasticity=0`` needs no vouching, since
+        its money passes through unbent. Default ``False``: the optimizer then refuses, because a saturation
+        curve fitted on nominal spend has already absorbed part of the price curvature and a concave price
+        map on top would bend it twice (see :attr:`PriceResponse.adds_curvature`).
 
     Notes
     -----
@@ -528,6 +556,22 @@ class PowerPriceResponse(PriceResponse):
     elasticity: float | dict[str, float] | InstanceOf[DataArray] = 0.0
     max_slope_ratio: float = Field(default=100.0, gt=1.0)
     reference_spend_tolerance: float = Field(default=10.0, gt=1.0)
+    reference_spend: InstanceOf[DataArray] | None = Field(
+        default=None,
+        description=(
+            "Per-period money per cell at which the base price applies, over exactly the budget dims; "
+            "the units of result.budgets and total_budget. None derives it from the fitted model where "
+            "one exists (the on-air mean of constant_data['channel_spend']); a supplied value is guarded "
+            "against that default by reference_spend_tolerance."
+        ),
+    )
+    assume_delivery_units: bool = Field(
+        default=False,
+        description=(
+            "Attest that the node's data are in delivery units although no historical cost_per_unit prices "
+            "it. Requires an explicit reference_spend. See the class docstring for why the default refuses."
+        ),
+    )
 
     def _known_elasticities(self) -> np.ndarray:
         e = self.elasticity
@@ -562,6 +606,21 @@ class PowerPriceResponse(PriceResponse):
     def is_identity(self) -> bool:
         """True when every elasticity is exactly zero."""
         return bool(np.all(self._known_elasticities() == 0.0))
+
+    @property
+    def adds_curvature(self) -> bool:
+        """The power law bends money wherever its elasticity is not zero."""
+        return not self.is_identity
+
+    @property
+    def attests_delivery_units(self) -> bool:
+        """See :attr:`assume_delivery_units`."""
+        return self.assume_delivery_units
+
+    @property
+    def needs_derived_reference(self) -> bool:
+        """A relative price needs a level; without a supplied one it has to come from the fitted model."""
+        return self.reference_spend is None
 
     def is_identity_on(
         self,

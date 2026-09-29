@@ -673,7 +673,7 @@ class MediaVariable(OptimizationVariable):
         )
         # SLSQP leaves a bound-pinned cell at 1e-16 as often as at exactly 0; both
         # bought nothing. Relative to the reference so the threshold is in money.
-        zero = money <= 1e-12 * self.price_response.reference_spend
+        zero = money <= 1e-12 * self.price_response.money_scale
         price = np.where(zero, np.nan, price)
         marginal = np.where(zero, np.nan, marginal)
         dims = (self.date_dim, *self.dims)

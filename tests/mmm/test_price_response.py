@@ -20,6 +20,7 @@ import pytensor.tensor as pt
 import pytensor.xtensor as ptx
 import pytest
 import xarray as xr
+from pydantic import ValidationError
 from pytensor import function
 from pytensor.graph import rewrite_graph
 from pytensor.xtensor import as_xtensor
@@ -27,6 +28,7 @@ from pytensor.xtensor import as_xtensor
 from pymc_marketing.mmm.price_response import (
     MIN_FLOOR_FRACTION,
     PowerPriceResponse,
+    PriceResponse,
     ResolvedPowerPriceResponse,
 )
 
@@ -551,3 +553,51 @@ class TestPowerPriceResponseValidation:
         from pymc_marketing.mmm import PriceResponse
 
         assert exported is PowerPriceResponse and issubclass(exported, PriceResponse)
+
+
+class TestPriceResponseContract:
+    """What the optimizer asks of any family, so a bracket schedule (#3067) can answer
+    differently from the power law without touching the optimizer."""
+
+    def test_power_specific_fields_live_on_power_only(self):
+        assert "reference_spend" not in PriceResponse.model_fields
+        assert "assume_delivery_units" not in PriceResponse.model_fields
+        assert "reference_spend" in PowerPriceResponse.model_fields
+        assert "assume_delivery_units" in PowerPriceResponse.model_fields
+
+    def test_curvature_follows_the_elasticity(self):
+        assert PowerPriceResponse(elasticity=0.0).adds_curvature is False
+        assert PowerPriceResponse(elasticity={"tv": 0.3}).adds_curvature is True
+        # Bends only on a masked-out cell: curved as a declaration, flat on this layout.
+        assert (
+            PowerPriceResponse(elasticity={"radio": 0.3}).adds_curvature_on(
+                **layout(mask_values=[True, False, True])
+            )
+            is False
+        )
+
+    def test_attestation_and_reference_hooks_read_the_power_fields(self):
+        bare = PowerPriceResponse(elasticity=0.3)
+        assert bare.attests_delivery_units is False
+        assert bare.needs_derived_reference is True
+        attested = PowerPriceResponse(
+            elasticity=0.3,
+            assume_delivery_units=True,
+            reference_spend=derived([1, 2, 3]),
+        )
+        assert attested.attests_delivery_units is True
+        assert attested.needs_derived_reference is False
+
+    def test_declarations_are_frozen(self):
+        """A declaration is reusable across models and windows; mutating it after
+        construction would bypass _check_domain."""
+        response = PowerPriceResponse(elasticity=0.3)
+        with pytest.raises(ValidationError):
+            response.elasticity = 1.5
+
+    def test_resolved_map_exposes_a_money_scale(self):
+        resolved = PowerPriceResponse(
+            elasticity=0.2, reference_spend=derived([10.0, 20.0, 30.0])
+        ).resolve(**layout(), derived_reference=None)
+        np.testing.assert_array_equal(resolved.money_scale, resolved.reference_spend)
+        np.testing.assert_array_equal(resolved.curved, resolved.gamma > 0.0)
