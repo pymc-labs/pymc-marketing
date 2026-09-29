@@ -1,0 +1,26 @@
+{
+  "$schema": "https://context7.com/schema/context7.json",
+  "url": "https://context7.com/pymc-labs/pymc-marketing",
+  "public_key": "pk_VEVKqL1O3R30z9IzEQkg4",
+  "projectTitle": "PyMC-Marketing",
+  "description": "Bayesian marketing analytics in PyMC: media mix models, customer lifetime value, customer choice and Bass diffusion models.",
+  "excludeFolders": [
+    ".claude",
+    ".cursor",
+    ".github",
+    "data",
+    "locales",
+    "paper",
+    "scripts",
+    "streamlit",
+    "tests",
+    "docs/source/contributing",
+    "docs/source/notebooks/**/dev"
+  ],
+  "excludeFiles": ["CONTRIBUTING.md"],
+  "rules": [
+    "Import the media mix model as `from pymc_marketing.mmm import MMM`. `pymc_marketing.mmm.multidimensional` is a deprecated alias, and the pre-0.20 single-dimension MMM and `DelayedSaturatedMMM` APIs are gone.",
+    "Import `Prior` from `pymc_extras.prior`.",
+    "Pass array-valued prior parameters as `xr.DataArray` with explicit `dims` so they map to the intended model dimension."
+  ]
+}
