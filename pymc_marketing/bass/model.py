@@ -718,6 +718,7 @@ class BassModel(ModelBuilder):
         )
         idata = model.fit(data=data)
         print(az.summary(idata, var_names=["m", "p", "q"]))
+
     **Term recipes, with a per-product covariate**
 
     ``m``/``p``/``q`` accept recipes composed from
