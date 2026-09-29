@@ -202,21 +202,6 @@ class DecompositionPlots:
 
         extra_dims = list(data.custom_dims)
 
-        # Find date coordinate from any contribution that has a date dim.
-        # Fall back to the raw posterior coordinate so baseline-only plots work.
-        dates_coord = next(
-            (
-                contributions_ds[k].coords["date"]
-                for k in contributions_ds.data_vars
-                if "date" in contributions_ds[k].dims
-            ),
-            None,
-        )
-        if dates_coord is None:
-            posterior = data.idata.posterior
-            if "date" in posterior.coords:
-                dates_coord = posterior.coords["date"]
-
         # Build flat entries: each entry has dims (chain, draw, date[, extra_dims])
         # so the rendering loop below is unchanged.
         entries_ds = xr.Dataset()
