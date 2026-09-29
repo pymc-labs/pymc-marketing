@@ -1309,6 +1309,35 @@ class TestPriceResponseGate:
                 ),
             )
 
+    def test_panel_model_derives_the_reference_per_cell_and_reads_past_the_dim_column(
+        self, panel_fitted_mmm
+    ):
+        """Two things only a second budget dim exercises: the table's wide frame carries a
+        `country` column the gate must not read as a channel, and the reference is per
+        (country, channel) cell, transposed into the model's order."""
+        mmm = panel_fitted_mmm
+        data = mmm.idata.constant_data["channel_data"]
+        custom = next(d for d in data.dims if d not in ("date", "channel"))
+        dates = pd.to_datetime(data.coords["date"].values)
+        channels = [str(c) for c in data.coords["channel"].values]
+        table = pd.DataFrame(
+            [
+                {"date": d, custom: g, **dict.fromkeys(channels, 2.0)}
+                for d in dates
+                for g in data.coords[custom].values
+            ]
+        )
+        mmm.set_cost_per_unit(table)
+        optimizer = _optimizer(mmm, price_response=PowerPriceResponse(elasticity=0.3))
+        resolved = optimizer.optimization_variables.variables[0].price_response
+        assert resolved.dims == (custom, "channel")
+        spend = mmm.idata.constant_data["channel_spend"]
+        expected = spend.where(spend > 0).mean("date").transpose(*resolved.dims).values
+        np.testing.assert_allclose(resolved.reference_spend, expected)
+        result = optimizer.allocate_budget(total_budget=1000.0)
+        assert result.scipy_result.success, result.scipy_result.message
+        assert result.implied_price.dims == ("date", custom, "channel")
+
 
 class TestPriceResponseAllocation:
     TOTAL = 300.0
@@ -1352,6 +1381,11 @@ class TestPriceResponseAllocation:
             price_response=PowerPriceResponse(elasticity=gamma),
         )
         result = optimizer.allocate_budget(total_budget=self.TOTAL)
+        np.testing.assert_allclose(
+            optimizer.evaluate_plan(result.budgets).objective,
+            result.scipy_result.fun,
+            rtol=1e-10,
+        )
         assert result.scipy_result.success, result.scipy_result.message
 
         for field in (

@@ -188,6 +188,22 @@ class TestResolvedPowerPriceResponse:
         np.testing.assert_allclose((at_zero / at_ref)[act], M, rtol=1e-8)
         assert at_zero[0] == at_ref[0]
 
+    def test_mixed_elasticities_gradient_is_finite_under_jax(
+        self, resolved, spend, base_price
+    ):
+        """The double-where in _power_floor_coefficients exists for this backend: a nan in a
+        dead branch is harmless on the C backend and poisons jax.grad. Same numbers on both."""
+        pytest.importorskip("jax")
+        objective = rewrite_graph(
+            resolved.to_delivery(spend, base_price).sum().values, include=LOWER
+        )
+        gradient = pt.grad(objective, spend)
+        c_backend = function([spend], gradient)
+        jax_backend = function([spend], gradient, mode="JAX")
+        for s in (np.zeros(3), resolved.s_floor, np.full(3, 50.0)):
+            np.testing.assert_allclose(jax_backend(s), c_backend(s), rtol=1e-12)
+            assert np.all(np.isfinite(jax_backend(s)))
+
     @pytest.mark.parametrize("gamma", [1e-6, 5e-3, 1e-2])
     def test_small_elasticity_keeps_the_floor_positive_and_the_gradient_finite(
         self, gamma
