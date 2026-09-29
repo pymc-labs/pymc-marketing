@@ -46,11 +46,18 @@ Rules
 ^^^^^
 - ``var_name`` names the time reference in the dataset and is read with
   ``ds[var_name]``, which works for both **coordinates** (the common case,
-  e.g. ``coords={"date": ...}``) and data variables. Datetimes are
-  converted to **days since the anchored first training date**, divided by
-  ``time_resolution`` (the same convention as
-  :func:`pymc_marketing.mmm.tvp.infer_time_index`), and registered as
-  ``pmd.Data`` under ``{var_name}_index``.
+  e.g. ``coords={"date": ...}``) and data variables. Datetimes are converted
+  to **observation periods since the anchored first training date**, using
+  ``time_resolution`` days per period, and registered as ``pmd.Data`` under
+  ``{var_name}_index``.
+- ``time_resolution`` defaults to ``None``, which infers the number of days
+  per period from the observed date spacing -- the same convention as
+  :func:`pymc_marketing.mmm.tvp.infer_time_index` and
+  :class:`pymc_marketing.mmm.MMM`, so the numeric index counts periods rather
+  than days and the deferred ``m`` / ``L`` / lengthscale heuristics see the
+  same axis as the rest of the library. Pass it explicitly only to override
+  the inferred unit. Numeric (non-datetime) references are passed through
+  unchanged with a resolution of 1.
 - ``register_data`` must run before ``create_variable``. The module-level
   :func:`~pymc_marketing.terms.register_data` helper handles this.
 - ``X_mid`` is frozen at the first registration so out-of-sample predictions
@@ -222,7 +229,7 @@ class GPDataTerm(ModelTerm):
     X_mid: float | None = None
     dims: str | tuple[str, ...] | None = None
     demeaned_basis: bool = False
-    time_resolution: int = 1
+    time_resolution: int | None = None
     time_dim: str | None = field(default=None, init=False, repr=False)
     first_date: Any = field(default=None, init=False, repr=False)
 
@@ -237,6 +244,32 @@ class GPDataTerm(ModelTerm):
             self.dims = (self.dims,)
         elif self.dims is not None:
             self.dims = tuple(self.dims)
+
+    def _infer_time_resolution(self, da: xr.DataArray) -> int:
+        """Infer the time resolution (days per period) from a datetime ref.
+
+        Mirrors the convention in :class:`pymc_marketing.mmm.MMM`, which sets
+        ``(dates[1] - dates[0]).days`` so the numeric time index is expressed
+        in observation periods. Numeric references are passed through unchanged
+        and keep a resolution of 1.
+        """
+        values = np.asarray(da.values)
+        if not np.issubdtype(values.dtype, np.datetime64):
+            return 1
+        if len(values) < 2:
+            return 1
+        delta = (values[1] - values[0]) / np.timedelta64(1, "D")
+        return max(round(float(delta)), 1)
+
+    def _resolve_time_resolution(self, da: xr.DataArray) -> int:
+        """Resolve ``time_resolution`` once, inferring it from the data if unset.
+
+        Explicit values always win; inference happens on first use so the term
+        stays constructible without data.
+        """
+        if self.time_resolution is None:
+            self.time_resolution = self._infer_time_resolution(da)
+        return self.time_resolution
 
     @property
     def extra_dims(self) -> tuple[str, ...]:
@@ -255,11 +288,14 @@ class GPDataTerm(ModelTerm):
     def _time_values(self, da: xr.DataArray) -> np.ndarray:
         """Convert a time reference to numeric index values.
 
-        Datetimes become days since the anchored first training date,
-        divided by ``time_resolution``. Numeric values are passed through
-        as floats.
+        Datetimes become (whole) periods since the anchored first training
+        date: the day offset divided by ``time_resolution`` (inferred from the
+        observed spacing when not given, so the index is in observation
+        periods like the rest of the library). Numeric values are passed
+        through as floats.
         """
         values = np.asarray(da.values)
+        self._resolve_time_resolution(da)
         if np.issubdtype(values.dtype, np.datetime64):
             anchor = self.first_date if self.first_date is not None else values[0]
             values = (values - anchor) / np.timedelta64(1, "D")
@@ -368,11 +404,12 @@ class HSGPTerm(GPDataTerm):
         Extra dims for the coefficients beyond the time dim, e.g.
         ``"channel"`` for one GP curve per channel. Coordinates are
         collected from the dataset.
-    time_resolution : int
-        Divisor applied to the day offsets of a datetime time reference.
-        Default ``1`` (plain day offsets). For weekly data pass ``7`` (the
-        stable MMM time-varying default uses ``5``) so the deferred ``m``
-        and ``L`` heuristics see weekly-scale lengthscales.
+    time_resolution : int, optional
+        Number of days per observation period, dividing the day offsets of a
+        datetime time reference. Default ``None``, which infers it from the
+        observed date spacing so the numeric index counts periods (the same
+        convention as :class:`pymc_marketing.mmm.MMM`). Pass an explicit value
+        only to override the inferred unit.
     centered : bool
         Whether the coefficient prior is centered. Default ``False``.
     drop_first : bool

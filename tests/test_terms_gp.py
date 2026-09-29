@@ -28,6 +28,7 @@ from pymc_extras.prior import Prior, VariableFactory
 from pytensor.graph.basic import Variable as PTVariable
 
 from pymc_marketing.mmm.hsgp import HSGP, HSGPPeriodic, SoftPlusHSGP
+from pymc_marketing.mmm.tvp import infer_time_index
 from pymc_marketing.serialization import serialization
 from pymc_marketing.terms import (
     Intercept,
@@ -139,7 +140,8 @@ def test_coordinate_build(ds):
         assert "trend_m" in model.coords
         assert trend.m is not None
         assert trend.L is not None
-        assert trend.X_mid == pytest.approx(19.5 * 7)
+        assert trend.X_mid == pytest.approx(19.5)  # in observation periods, not days
+        assert trend.time_resolution == 7  # inferred from the weekly date spacing
         assert trend.time_dim == "date"
 
 
@@ -179,6 +181,71 @@ def test_time_resolution(ds):
         build_param(trend)
         assert trend.X_mid == pytest.approx(19.5)
         assert np.allclose(model["date_index"].get_value(), np.arange(40) * 7 / 7)
+
+
+@pytest.mark.parametrize("freq", ["W", "D", "2W", "3D"])
+def test_time_resolution_inferred_matches_mmm_convention(freq):
+    """The time index is in observation periods, matching the MMM convention.
+
+    ``MMM`` sets ``(dates[1] - dates[0]).days`` as its time resolution so the
+    numeric index counts periods rather than days. The term must infer the same
+    resolution, otherwise the deferred ``m`` / ``L`` / lengthscale heuristics are
+    computed on an axis scaled by the sampling cadence.
+    """
+    dates = pd.date_range("2024-01-01", periods=104, freq=freq)
+    ds = xr.Dataset({}, coords={"date": dates})
+    expected_res = max(round(float((dates[1] - dates[0]).days)), 1)
+
+    trend = HSGPTerm(name="trend")
+    assert trend.time_resolution is None  # not resolved until it sees data
+
+    with pm.Model(coords=collect_coords(trend, ds=ds)) as model:
+        register_data(trend, ds=ds)
+        build_param(trend)
+        index = model["date_index"].get_value()
+
+    assert trend.time_resolution == expected_res
+    mmm_index = infer_time_index(pd.Series(dates), pd.Series(dates), expected_res)
+    np.testing.assert_allclose(index, mmm_index)
+
+
+def test_deferred_hyperparameters_stay_in_period_units():
+    """Deferred ``m`` / ``L`` must not blow up on a realistic weekly dataset.
+
+    With the index in days instead of periods, the default weekly MMM cadence
+    resolves ~4000 basis functions for ~100 observations.
+    """
+    dates = pd.date_range("2021-01-03", periods=104, freq="W")
+    ds = xr.Dataset({}, coords={"date": dates})
+    trend = HSGPTerm(name="trend")
+    with pm.Model(coords=collect_coords(trend, ds=ds)):
+        register_data(trend, ds=ds)
+        build_param(trend)
+
+    assert trend.m < 104 * 6
+    assert trend.L < 104 * 6
+
+
+def test_explicit_time_resolution_wins_over_inference():
+    """An explicit ``time_resolution`` is never overwritten by inference."""
+    dates = pd.date_range("2024-01-01", periods=30, freq="W")
+    ds = xr.Dataset({}, coords={"date": dates})
+    trend = HSGPTerm(name="trend", time_resolution=1)
+    with pm.Model(coords=collect_coords(trend, ds=ds)) as model:
+        register_data(trend, ds=ds)
+        build_param(trend)
+        index = model["date_index"].get_value()
+    assert trend.time_resolution == 1
+    assert index[-1] > 100  # day offsets, as explicitly requested
+
+
+def test_numeric_reference_keeps_resolution_one(ds_num):
+    """A numeric reference is passed through unchanged, with resolution 1."""
+    trend = HSGPTerm(var_name="time", name="trend")
+    with pm.Model(coords=collect_coords(trend, ds=ds_num)):
+        register_data(trend, ds=ds_num)
+        build_param(trend)
+    assert trend.time_resolution == 1
 
 
 def test_deferred_values_cached(ds):
