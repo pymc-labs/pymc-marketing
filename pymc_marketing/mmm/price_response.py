@@ -130,7 +130,8 @@ class ResolvedPowerPriceResponse(ResolvedPriceResponse):
 
     Both ``where`` branches receive a clipped input because ``where`` evaluates both: the power branch would have
     an infinite derivative at 0, and the quadratic price branches have a pole in the region where they are not
-    selected.
+    selected. Money is clipped at zero first, so :math:`u(s) = 0` for :math:`s < 0` and both prices there equal
+    their value at zero.
     """
 
     def __init__(
@@ -221,6 +222,9 @@ class ResolvedPowerPriceResponse(ResolvedPriceResponse):
         return as_xtensor(pt.constant(values, dtype="float64"), dims=self.dims)
 
     def _branches(self, spend: XTensorVariable):
+        # Money below zero buys nothing: SLSQP never evaluates outside the bounds, but a
+        # labelled plan handed to evaluate_plan can, and the quadratic extrapolates there.
+        spend = ptx.math.maximum(spend, 0.0)
         above = spend >= self._s_floor
         s_power = ptx.math.maximum(spend, self._s_floor)
         s_quad = ptx.math.minimum(spend, self._s_floor)
