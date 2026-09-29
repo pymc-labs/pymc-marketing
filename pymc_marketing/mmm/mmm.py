@@ -2997,10 +2997,35 @@ class MMM(RegressionModelBuilder):
             model=self.model.copy(),
         )
 
+        self._warn_observed_budget_surprise()
         for mu_effect in self.mu_effects:
             mu_effect.set_data(self, pymc_model, dataset_xarray)
 
         return pymc_model
+
+    def _warn_observed_budget_surprise(self) -> None:
+        """Warn when a scenario tool runs on a model scoring realised surprises.
+
+        With ``surprise_out_of_sample="observed"`` a ``BudgetModelEffect`` reads
+        spend on new dates as realised budget choices, so a scenario's spend
+        would be counted as a budget surprise.
+        """
+        prefixes = [
+            effect.prefix
+            for effect in self.mu_effects
+            if isinstance(effect, BudgetModelEffect)
+            and effect.surprise_out_of_sample == "observed"
+        ]
+        if prefixes:
+            warnings.warn(
+                f"BudgetModelEffect {prefixes} use surprise_out_of_sample='observed', "
+                "which treats spend on new dates as realised budget choices. That "
+                "suits scoring held-out weeks, not budget scenarios: the scenario's "
+                "spend would count as a budget surprise. Use a model with the "
+                "default 'zero' for optimization.",
+                UserWarning,
+                stacklevel=3,
+            )
 
     def _effects_carry_media_response(self) -> bool:
         """Report whether a mu effect routes media response around the default.
@@ -4512,6 +4537,7 @@ class BudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
             dataset_xarray=dataset_xarray,
             model=self.model_class.model.copy(),
         )
+        self.model_class._warn_observed_budget_surprise()
         for mu_effect in self.model_class.mu_effects:
             mu_effect.set_data(self.model_class, pymc_model, dataset_xarray)
         return pymc_model

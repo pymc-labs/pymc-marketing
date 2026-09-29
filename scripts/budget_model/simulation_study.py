@@ -76,19 +76,23 @@ Recovery when spend is exogenous given the controls (``"observed_only"``)::
     budget_no_design            0.76 [0.62, 0.87]   +1.99     2.18    7.35   13.6
     budget_design_misspecified  0.82 [0.69, 0.91]   +0.27     0.88    3.17    4.3
 
-Share of markets where the 94% interval for TV's ``gamma`` excludes zero
-(power in ``"forecast"``, false alarms in ``"observed_only"``; nominal 6%)::
+Share of markets where TV's 94% ``gamma`` interval excludes zero (power in
+``"forecast"``, false alarms in ``"observed_only"``). "Lag 0" is the
+contemporaneous coefficient alone, with a nominal false-alarm rate of 6%. "Any
+lag" asks whether any of the ``1 + surprise_lags`` intervals excludes zero; by
+chance alone that happens about ``1 - 0.94 ** (1 + surprise_lags)`` of the time
+(12% with one lag, 22% with three)::
 
-    scenario       arm                         excludes 0          mean P(gamma > 0)
-    forecast       budget_design               0.56 [0.41, 0.70]   0.92
-    forecast       budget_design_lag1          0.56 [0.41, 0.70]   0.92
-    forecast       budget_design_lag3          0.50 [0.36, 0.64]   0.92
-    forecast       budget_no_design            0.08 [0.02, 0.19]   0.66
-    observed_only  budget_design               0.12 [0.05, 0.24]   0.41
-    observed_only  budget_design_lag1          0.14 [0.06, 0.27]   0.39
-    observed_only  budget_design_lag3          0.16 [0.07, 0.29]   0.39
-    observed_only  budget_no_design            0.14 [0.06, 0.27]   0.30
-    observed_only  budget_design_misspecified  0.08 [0.02, 0.19]   0.48
+    scenario       arm                         lag 0               any lag             mean P(gamma > 0)
+    forecast       budget_design               0.56 [0.41, 0.70]   -                   0.92
+    forecast       budget_design_lag1          0.56 [0.41, 0.70]   0.74 [0.60, 0.85]   0.92
+    forecast       budget_design_lag3          0.50 [0.36, 0.64]   0.70 [0.55, 0.82]   0.92
+    forecast       budget_no_design            0.08 [0.02, 0.19]   -                   0.66
+    observed_only  budget_design               0.12 [0.05, 0.24]   -                   0.41
+    observed_only  budget_design_lag1          0.14 [0.06, 0.27]   0.22 [0.12, 0.36]   0.39
+    observed_only  budget_design_lag3          0.16 [0.07, 0.29]   0.40 [0.26, 0.55]   0.39
+    observed_only  budget_no_design            0.14 [0.06, 0.27]   -                   0.30
+    observed_only  budget_design_misspecified  0.08 [0.02, 0.19]   -                   0.48
 
 Reading: every arm overstates TV when budgets chase demand. The lift likelihood
 halves the plain MMM's bias, and counting the experiment twice does not help.
@@ -98,16 +102,19 @@ likelihood's interval score; without the design, its coverage comes only from
 intervals twice as wide. When there is nothing to correct, the same
 configuration gives up about 0.3 in bias (interval score 3.4 to 5.5), so with a
 design the correction is cheap insurance, and without one it is a poor bet.
-With a design, ``gamma`` detects demand-chasing budgets in about half of
-markets, and its false-alarm rate is roughly twice nominal, with a negative
-lean: an interval that excludes zero is evidence worth following up, not a
-verdict. The untested Digital channel's false-alarm rate rises to 0.22 with
-three lags, one reason to keep ``surprise_lags`` small.
+With a design, the contemporaneous ``gamma`` detects demand-chasing budgets
+in about half of markets, with a false-alarm rate roughly twice nominal and a
+negative lean. Reading the lagged coefficients too raises power to about 0.74
+with one lag, but the false-alarm rate rises with it, to 0.22 against about 0.12
+expected by chance, and to 0.40 with three lags. An interval that excludes zero
+is evidence worth following up, not a verdict, and three lags make the
+diagnostic unreliable: one more reason to keep ``surprise_lags`` small.
 """
 
 from __future__ import annotations
 
 import argparse
+import csv
 import os
 import warnings
 from concurrent.futures import ProcessPoolExecutor, as_completed
@@ -146,7 +153,7 @@ COLUMNS = [
     *[
         f"gamma_{channel}_{stat}"
         for channel in ("tv", "digital")
-        for stat in ("lower", "upper", "prob_positive")
+        for stat in ("lower", "upper", "prob_positive", "any_lag_excludes")
     ],
 ]
 
@@ -239,10 +246,12 @@ def _fit_one(scenario: str, arm: str, seed: int, sample_kwargs: dict) -> dict:
     if effect is not None:
         summary = effect.exogeneity_summary(mmm, interval_prob=INTERVAL_PROB)
         for channel, frame in summary.groupby("channel"):
-            row[f"gamma_{channel}_lower"] = float(frame["gamma_lower"].iloc[0])
-            row[f"gamma_{channel}_upper"] = float(frame["gamma_upper"].iloc[0])
-            row[f"gamma_{channel}_prob_positive"] = float(
-                frame["prob_positive"].iloc[0]
+            current = frame[frame["lag"] == 0].iloc[0]
+            row[f"gamma_{channel}_lower"] = float(current["gamma_lower"])
+            row[f"gamma_{channel}_upper"] = float(current["gamma_upper"])
+            row[f"gamma_{channel}_prob_positive"] = float(current["prob_positive"])
+            row[f"gamma_{channel}_any_lag_excludes"] = bool(
+                ((frame["gamma_lower"] > 0) | (frame["gamma_upper"] < 0)).any()
             )
     return row
 
@@ -252,6 +261,36 @@ def _jobs(n_seeds: int, first_seed: int) -> list[tuple[str, str, int]]:
     return [("forecast", arm, s) for s in seeds for arm in RECOVERY_ARMS] + [
         ("observed_only", arm, s) for s in seeds for arm in CALIBRATION_ARMS
     ]
+
+
+def _read_results(path: Path) -> pd.DataFrame:
+    """Read results, including rows appended after ``COLUMNS`` gained fields.
+
+    Rows are matched to the file's header by length; longer rows were written
+    with the current ``COLUMNS``. The file is rewritten with ``COLUMNS`` so later
+    appends line up.
+    """
+    if not path.exists():
+        return pd.DataFrame(columns=COLUMNS)
+    with path.open(newline="") as handle:
+        reader = csv.reader(handle)
+        header = next(reader)
+        records = [
+            dict(zip(header if len(row) == len(header) else COLUMNS, row, strict=True))
+            for row in reader
+            if row
+        ]
+    frame = pd.DataFrame.from_records(records).reindex(columns=COLUMNS)
+    frame = frame.replace("", np.nan)
+    flags = [column for column in COLUMNS if column.endswith("_any_lag_excludes")]
+    for column in COLUMNS:
+        if column in flags:
+            frame[column] = frame[column].map({"True": True, "False": False})
+        elif column not in ("scenario", "arm"):
+            frame[column] = pd.to_numeric(frame[column])
+    if header != COLUMNS:
+        frame.to_csv(path, index=False)
+    return frame
 
 
 def _binomial_ci(successes: int, n: int) -> tuple[float, float]:
@@ -333,13 +372,24 @@ def summarise(results: pd.DataFrame) -> str:
                 frame[f"gamma_{channel}_upper"] < 0
             )
             low, high = _binomial_ci(int(excludes.sum()), len(frame))
+            any_lag = frame.get(f"gamma_{channel}_any_lag_excludes")
+            any_lag_text = "n/a"
+            if any_lag is not None and any_lag.notna().all():
+                n_any = int(any_lag.astype(bool).sum())
+                any_low, any_high = _binomial_ci(n_any, len(frame))
+                any_lag_text = (
+                    f"{n_any / len(frame):.2f} [{any_low:.2f}, {any_high:.2f}]"
+                )
             gamma_rows.append(
                 {
                     "scenario": scenario,
                     "arm": arm,
                     "channel": channel,
                     "n": len(frame),
-                    "interval excludes 0": f"{excludes.mean():.2f} [{low:.2f}, {high:.2f}]",
+                    "lag-0 interval excludes 0": (
+                        f"{excludes.mean():.2f} [{low:.2f}, {high:.2f}]"
+                    ),
+                    "any lag excludes 0": any_lag_text,
                     "mean P(gamma > 0)": f"{frame[f'gamma_{channel}_prob_positive'].mean():.2f}",
                 }
             )
@@ -374,7 +424,7 @@ def main() -> None:
 
     args.out.mkdir(parents=True, exist_ok=True)
     results_path = args.out / "results.csv"
-    done = pd.read_csv(results_path) if results_path.exists() else pd.DataFrame()
+    done = _read_results(results_path)
 
     if not args.summarise_only:
         finished = set()
@@ -409,7 +459,7 @@ def main() -> None:
                     index=False,
                 )
                 print(f"[{i}/{len(jobs)}] {job} done")
-        done = pd.read_csv(results_path)
+        done = _read_results(results_path)
 
     summary = summarise(done)
     (args.out / "summary.md").write_text(summary)

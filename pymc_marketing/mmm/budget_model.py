@@ -388,7 +388,12 @@ class BudgetModelEffect(MuEffect):
         data, which suits evaluating held-out weeks whose spend was actually
         chosen: with ``"zero"`` the budget model forgoes the demand
         information that realised spend carries, and scores worse than a plain
-        MMM on such weeks even when it is closer to the causal truth.
+        MMM on such weeks even when it is closer to the causal truth. Any
+        ``design`` rows on those dates are applied as in training (shifts
+        subtracted, holdouts masked), and ``instruments`` must be supplied.
+        This is a setting of the model, so keep a separate model with the
+        default for scenarios; :meth:`MMM.budget_optimizer` warns when it
+        runs on a model with ``"observed"``.
     spend_intercept_prior : Prior, optional
         Prior for the spend-equation intercept. Spend is divided by its
         per-channel maximum, and the defaults are weakly informative on that
@@ -597,7 +602,7 @@ class BudgetModelEffect(MuEffect):
 
     # ------------------------------------------------------------- data
     def _design_arrays(
-        self, dates: pd.DatetimeIndex, dim_coords: dict[str, Any]
+        self, dates: pd.DatetimeIndex, dim_coords: dict[str, Any], warn: bool = True
     ) -> tuple[xr.DataArray, xr.DataArray]:
         if self.design is None:
             coords: dict[str, Any] = {
@@ -615,7 +620,7 @@ class BudgetModelEffect(MuEffect):
             for start, end in zip(starts, ends, strict=True)
         ]
         design = self.design.loc[overlaps]
-        if len(design) < len(self.design):
+        if warn and len(design) < len(self.design):
             warnings.warn(
                 f"Dropping {len(self.design) - len(design)} BudgetModelEffect design "
                 "row(s) whose window contains none of the model dates.",
@@ -924,8 +929,11 @@ class BudgetModelEffect(MuEffect):
         ``X`` is an intervention, and interventions are never budget
         surprises. On other dates the surprise is zero, or, with
         ``surprise_out_of_sample="observed"``, computed from the spend in
-        ``X``. Instruments missing from ``X`` are filled with their training
-        mean, since they only move the spend equation's mean.
+        ``X`` after removing any lift-test design that falls on those dates:
+        designed changes are subtracted and designed holdouts masked, exactly
+        as in training. With ``"zero"``, instruments missing from ``X`` are
+        filled with their training mean, since they cannot move a zero
+        surprise; with ``"observed"`` they are required.
 
         Parameters
         ----------
@@ -948,20 +956,29 @@ class BudgetModelEffect(MuEffect):
         new_dates = _get_datetime_coords(model.coords["date"], "date")
         factual = self._factual.reindex(date=new_dates)
         chosen, active = factual["chosen"], factual["active"]
-        if (
+        observed_mode = (
             self.surprise_out_of_sample == "observed"
             and X is not None
             and "_channel" in X.data_vars
-        ):
+        )
+        if observed_mode:
+            dim_coords = {d: list(model.coords[d]) for d in self._dims}
+            shift, holdout = self._design_arrays(new_dates, dim_coords, warn=False)
             observed = (
                 X["_channel"]
                 .sel(channel=self._channels)
-                .rename({"channel": self.channel_dim})
                 .reindex(date=new_dates)
-                .transpose(*chosen.dims)
+                .transpose("date", *self._dims, "channel")
+                .astype(float)
             )
-            chosen = chosen.fillna(observed / self._spend_scale)
-            active = active.fillna(1.0)
+            shift = shift.transpose(*observed.dims).assign_coords(observed.coords)
+            holdout = holdout.transpose(*observed.dims).assign_coords(observed.coords)
+            rename = {"channel": self.channel_dim}
+            observed_chosen = (observed - shift).rename(rename) / self._spend_scale
+            chosen = chosen.fillna(observed_chosen.transpose(*chosen.dims))
+            active = active.fillna(
+                (~holdout).astype(float).rename(rename).transpose(*active.dims)
+            )
         new_data: dict[str, Any] = {
             f"{self.prefix}_chosen_spend": chosen.fillna(0.0).values,
             f"{self.prefix}_active": active.fillna(0.0).values,
@@ -970,9 +987,16 @@ class BudgetModelEffect(MuEffect):
             new_data[f"{self.prefix}_dayofyear"] = new_dates.dayofyear.to_numpy()
         if self.trend:
             new_data[f"{self.prefix}_time"] = self._time_index(new_dates)
+        out_of_sample = bool(factual["active"].isnull().any())
         for var_name in self.instruments:
             if X is not None and var_name in X.data_vars:
                 new_data[var_name] = X[var_name].values
+            elif observed_mode and out_of_sample:
+                raise ValueError(
+                    f"Instrument {var_name!r} is required on new dates with "
+                    "surprise_out_of_sample='observed', because it moves the spend "
+                    "equation and hence the surprise."
+                )
             else:
                 shape = (len(new_dates), *model[var_name].type.shape[1:])
                 new_data[var_name] = np.full(shape, self._instrument_stats[var_name][0])
@@ -999,6 +1023,14 @@ class BudgetModelEffect(MuEffect):
         :math:`\gamma_c` rests on functional form and the priors, can lean
         away from zero when spend is exogenous, and the summary flags it.
 
+        With ``surprise_lags > 0`` the summary has one row per lag. Persistent
+        demand can load on a lagged coefficient while the contemporaneous one
+        stays near zero, so read the rows together. More rows are also more
+        chances of a false alarm: with :math:`L` lags, at least one of the
+        :math:`L + 1` intervals excludes zero by chance about
+        :math:`1 - p^{L+1}` of the time, where :math:`p` is
+        ``interval_prob``.
+
         The summary is read from the effect ``mmm`` was built with, so it can
         be called from any instance with the same prefix, including the
         original object after :meth:`MMM.load`.
@@ -1013,7 +1045,8 @@ class BudgetModelEffect(MuEffect):
         Returns
         -------
         pd.DataFrame
-            One row per channel (and cell of any extra dimension) with columns
+            One row per channel, lag (``0`` for the contemporaneous
+            coefficient) and cell of any extra dimension, with columns
             ``gamma_mean``, ``gamma_lower``, ``gamma_upper`` (scaled units),
             ``gamma_per_spend_unit`` (target units per unexplained unit of
             spend; with ``link="log"``, log-scale change per unit of spend),
@@ -1030,14 +1063,29 @@ class BudgetModelEffect(MuEffect):
             return effect.exogeneity_summary(mmm, interval_prob=interval_prob)
         spend_scale = cast(xr.DataArray, self._spend_scale)
 
-        gamma = idata.posterior[name]
         sample_dims = ("chain", "draw")
+        contemporaneous = idata.posterior[name]
+        gammas = [contemporaneous.expand_dims(lag=[0])]
+        prior_sds = [
+            self._prior_sd(
+                mmm, contemporaneous.isel(chain=0, draw=0, drop=True), "gamma"
+            ).expand_dims(lag=[0])
+        ]
+        lag_name = f"{self.prefix}_gamma_lag"
+        if self.surprise_lags > 0 and lag_name in idata.posterior:
+            lagged = idata.posterior[lag_name].rename({self.lag_dim: "lag"})
+            gammas.append(lagged)
+            prior_sds.append(
+                self._prior_sd(
+                    mmm, lagged.isel(chain=0, draw=0, drop=True), "gamma_lag"
+                )
+            )
+        gamma = xr.concat(gammas, dim="lag")
+        prior_sd = xr.concat(prior_sds, dim="lag")
         tail = (1 - interval_prob) / 2
 
         target_scale = mmm.scalers["_target"]
         per_unit = gamma * target_scale / spend_scale
-
-        prior_sd = self._prior_sd(mmm, gamma.isel(chain=0, draw=0, drop=True))
         posterior_sd = gamma.std(sample_dims)
 
         summary = xr.Dataset(
@@ -1063,8 +1111,11 @@ class BudgetModelEffect(MuEffect):
             identified = identified.any(pooled)
         summary, identified = xr.broadcast(summary, identified)
         summary["identified_by_design"] = identified
+        order = [self.channel_dim, "lag"]
+        summary = summary.transpose(*order, ...)
 
         df = summary.to_dataframe().reset_index()
+        df = df[[*order, *[c for c in df.columns if c not in order]]]
         df = df.rename(columns={self.channel_dim: "channel"})
 
         def _note(row: pd.Series) -> str:
@@ -1081,13 +1132,15 @@ class BudgetModelEffect(MuEffect):
         df["note"] = df.apply(_note, axis=1)
         return df
 
-    def _prior_sd(self, mmm: Any, template: xr.DataArray) -> xr.DataArray:
-        """Prior standard deviation of gamma.
+    def _prior_sd(
+        self, mmm: Any, template: xr.DataArray, name: str = "gamma"
+    ) -> xr.DataArray:
+        """Prior standard deviation of a control-function coefficient.
 
         Exact for a ``Normal`` prior with a fixed ``sigma``; otherwise estimated
         from seeded prior draws so the summary is reproducible.
         """
-        factory = self._prior("gamma")
+        factory = self._prior(name)
         sigma = getattr(factory, "parameters", {}).get("sigma")
         if getattr(factory, "distribution", None) == "Normal" and isinstance(
             sigma, int | float
@@ -1101,11 +1154,14 @@ class BudgetModelEffect(MuEffect):
         pymc_logger.setLevel(logging.WARNING)
         try:
             draws = factory.sample_prior(
-                coords=coords, name="gamma", draws=4000, random_seed=0
-            )["gamma"]
+                coords=coords, name=name, draws=4000, random_seed=0
+            )[name]
         finally:
             pymc_logger.setLevel(level)
-        return draws.std([d for d in draws.dims if d in ("chain", "draw")])
+        draws = (
+            draws.rename({self.lag_dim: "lag"}) if self.lag_dim in draws.dims else draws
+        )
+        return draws.std([d for d in draws.dims if d in ("chain", "draw", "sample")])
 
     # ---------------------------------------------------- serialization
     def to_dict(self) -> dict[str, Any]:

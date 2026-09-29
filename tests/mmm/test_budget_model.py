@@ -32,7 +32,7 @@ from pymc_marketing.mmm import (
 from pymc_marketing.mmm.additive_effect import LinearTrendEffect
 from pymc_marketing.mmm.data_conversion import to_mmm_dataset
 from pymc_marketing.mmm.linear_trend import LinearTrend
-from pymc_marketing.mmm.mmm import MMM
+from pymc_marketing.mmm.mmm import MMM, BudgetOptimizerWrapper
 from pymc_marketing.mmm.synthetic_data import simulate_endogenous_spend_market
 from pymc_marketing.mmm.time_slice_cross_validation import TimeSliceCrossValidator
 from pymc_marketing.serialization import serialization
@@ -700,6 +700,13 @@ class TestSurpriseLags:
         grad = mmm.model.compile_dlogp()(mmm.model.initial_point())
         assert np.isfinite(grad).all()
 
+    def test_summary_reports_every_lag(self, lagged):
+        summary = lagged.mu_effects[0].exogeneity_summary(lagged)
+        assert list(summary.columns[:2]) == ["channel", "lag"]
+        assert sorted(summary["lag"].unique()) == [0, 1, 2]
+        assert len(summary) == 6
+        np.testing.assert_allclose(summary["prior_sd"], 0.5)
+
     def test_round_trip_and_validation(self, data):
         effect = BudgetModelEffect(surprise_lags=3)
         restored = BudgetModelEffect.from_dict(effect.to_dict())
@@ -831,6 +838,82 @@ class TestIdentificationGuards:
             random_seed=1,
         )
         assert float(abs(pp["budget_effect_contribution"]).max()) > 0.0
+
+    def test_observed_surprise_applies_design_on_new_dates(self, data):
+        # A CV fold trained on weeks 0-23 whose test window holds the experiment.
+        X, y = data
+        design = pd.DataFrame(
+            {
+                "channel": ["digital", "tv"],
+                "start_date": [DATES[25], DATES[26]],
+                "end_date": [DATES[26], DATES[27]],
+                "mode": ["set", "shift"],
+                "delta_x": [np.nan, -50.0],
+            }
+        )
+        effect = BudgetModelEffect(design=design, surprise_out_of_sample="observed")
+        mmm = _make_mmm().add_mu_effect(effect)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            mock_fit(mmm, X.iloc[:24], y.iloc[:24], random_seed=1)
+        pp = mmm.sample_posterior_predictive(
+            X,
+            extend_idata=False,
+            var_names=["budget_surprise", "budget_spend_mu"],
+            random_seed=1,
+        )
+        surprise = pp["budget_surprise"].transpose("sample", "date", "budget_channel")
+        spend_mu = pp["budget_spend_mu"].transpose("sample", "date", "budget_channel")
+        holdout = surprise.sel(budget_channel="digital").isel(date=[25, 26])
+        assert float(abs(holdout).max()) == 0.0
+
+        scale = float(effect._spend_scale.sel(budget_channel="tv"))
+        chosen_tv = (X["tv"].to_numpy()[26:28] + 50.0) / scale
+        expected = chosen_tv - spend_mu.sel(budget_channel="tv").isel(date=[26, 27])
+        np.testing.assert_allclose(
+            surprise.sel(budget_channel="tv").isel(date=[26, 27]).values,
+            expected.values,
+        )
+
+    def test_observed_surprise_requires_instruments(self, data):
+        X, y = data
+        X = X.assign(cost_shock=np.random.default_rng(3).normal(size=N_WEEKS))
+        effect = BudgetModelEffect(
+            instruments=["cost_shock"], surprise_out_of_sample="observed"
+        )
+        mmm = _make_mmm().add_mu_effect(effect)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            mock_fit(mmm, X, y, random_seed=1)
+        future = X.drop(columns="cost_shock").assign(
+            date=X["date"] + pd.Timedelta(weeks=N_WEEKS)
+        )
+        with pytest.raises(ValueError, match="is required on new dates"):
+            mmm.sample_posterior_predictive(
+                future, extend_idata=False, var_names=["y"], random_seed=1
+            )
+
+    def test_optimizer_warns_in_observed_mode(self, data):
+        X, y = data
+        mmm = _make_mmm().add_mu_effect(
+            BudgetModelEffect(surprise_out_of_sample="observed")
+        )
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            mock_fit(mmm, X, y, random_seed=1)
+        start = DATES[-1] + pd.Timedelta(weeks=1)
+        with pytest.warns(UserWarning, match="not budget scenarios"):
+            mmm.create_optimization_model(start, start + pd.Timedelta(weeks=3))
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", FutureWarning)
+            warnings.simplefilter("ignore", DeprecationWarning)
+            wrapper = BudgetOptimizerWrapper(
+                model=mmm,
+                start_date=str(start.date()),
+                end_date=str((start + pd.Timedelta(weeks=3)).date()),
+            )
+        with pytest.warns(UserWarning, match="not budget scenarios"):
+            wrapper.optimization_model(4)
 
     def test_cross_validation_with_late_design(self, data):
         X, y = data
