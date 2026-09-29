@@ -203,6 +203,20 @@ def _dims_to_list(dims: str | tuple[str, ...] | None) -> list[str] | None:
     return list(normalized) or None
 
 
+def _serialize_date(value: Any) -> str | None:
+    """Serialize a date anchor as an ISO string (``None`` passes through)."""
+    if value is None:
+        return None
+    return str(np.datetime64(value, "ns").astype("datetime64[us]"))
+
+
+def _deserialize_date(value: str | None) -> Any:
+    """Deserialize an ISO string back to a ``np.datetime64`` anchor."""
+    if value is None:
+        return None
+    return np.datetime64(value)
+
+
 def _check_scalar(label: str, value: Any) -> None:
     """Require a scalar prior for a GP hyperparameter."""
     if getattr(value, "dims", None):
@@ -232,6 +246,7 @@ class GPDataTerm(ModelTerm):
     time_resolution: int | None = None
     time_dim: str | None = field(default=None, init=False, repr=False)
     first_date: Any = field(default=None, init=False, repr=False)
+    last_date: Any = field(default=None, init=False, repr=False)
 
     @property
     def index_var(self) -> str:
@@ -306,13 +321,38 @@ class GPDataTerm(ModelTerm):
         """Numeric time index as a DataArray, preserving dims and coords."""
         return xr.DataArray(self._time_values(da), dims=da.dims, coords=da.coords)
 
+    def _check_window_start(self, values: np.ndarray) -> None:
+        """Refuse a window that begins before the recorded training anchor.
+
+        The anchor (and the frozen basis) are set by the training data. A
+        window whose earliest date precedes the anchor would place the time
+        index before zero, outside the learned domain, so it is rejected
+        rather than silently extrapolated.
+        """
+        if self.first_date is None or not np.issubdtype(values.dtype, np.datetime64):
+            return
+        earliest = values[0]
+        if earliest < self.first_date:
+            raise ValueError(
+                f"The time reference {self.var_name!r} starts at {earliest}, before "
+                f"the training anchor {self.first_date}. The GP basis and centering "
+                "are frozen on the training data, so a window that begins earlier "
+                "cannot be placed on the learned time axis. Pass data covering the "
+                "training range (or starting at/after it) instead."
+            )
+
     def register_data(self, ds: xr.Dataset) -> None:
         """Register the numeric time index as ``pmd.Data`` and freeze ``X_mid``."""
         model = pm.modelcontext(None)
         da = ds[self.var_name]
         values = np.asarray(da.values)
-        if np.issubdtype(values.dtype, np.datetime64) and self.first_date is None:
-            self.first_date = values[0]
+        is_datetime = np.issubdtype(values.dtype, np.datetime64)
+        if is_datetime:
+            self._check_window_start(values)
+            if self.first_date is None:
+                self.first_date = values[0]
+            if self.last_date is None or values[-1] > self.last_date:
+                self.last_date = values[-1]
         if self.index_var not in model:
             pmd.Data(self.index_var, self._time_index(da))
         if self.X_mid is None:
@@ -543,8 +583,9 @@ class HSGPTerm(GPDataTerm):
     def to_dict(self) -> dict[str, Any]:
         """Serialize the term recipe.
 
-        The frozen ``X_mid`` is excluded; it is re-derived from the data on
-        rebuild.
+        The frozen training state (``X_mid`` and the date anchors) is carried
+        through so a reloaded recipe indexes new data on the same time axis and
+        refuses windows that fall before the training anchor.
         """
         return {
             "var_name": self.var_name,
@@ -558,6 +599,9 @@ class HSGPTerm(GPDataTerm):
             "drop_first": self.drop_first,
             "demeaned_basis": self.demeaned_basis,
             "time_resolution": self.time_resolution,
+            "X_mid": self.X_mid,
+            "first_date": _serialize_date(self.first_date),
+            "last_date": _serialize_date(self.last_date),
             "eta_mass": self.eta_mass,
             "eta_upper": self.eta_upper,
             "ls_lower": self.ls_lower,
@@ -569,7 +613,7 @@ class HSGPTerm(GPDataTerm):
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> HSGPTerm:
         """Reconstruct a term from its serialized form."""
-        return cls(
+        term = cls(
             var_name=data["var_name"],
             name=data["name"],
             eta=_deserialize_optional(data.get("eta")),
@@ -588,6 +632,10 @@ class HSGPTerm(GPDataTerm):
             ls_mass=data["ls_mass"],
             cov_func=CovFunc(data["cov_func"]),
         )
+        term.X_mid = data.get("X_mid")
+        term.first_date = _deserialize_date(data.get("first_date"))
+        term.last_date = _deserialize_date(data.get("last_date"))
+        return term
 
 
 @serialization.register
@@ -719,7 +767,7 @@ class HSGPPeriodicTerm(GPDataTerm):
         )
 
     def to_dict(self) -> dict[str, Any]:
-        """Serialize the term recipe."""
+        """Serialize the term recipe, carrying the frozen training state."""
         return {
             "var_name": self.var_name,
             "name": self.name,
@@ -730,12 +778,15 @@ class HSGPPeriodicTerm(GPDataTerm):
             "dims": _dims_to_list(self.dims),
             "demeaned_basis": self.demeaned_basis,
             "time_resolution": self.time_resolution,
+            "X_mid": self.X_mid,
+            "first_date": _serialize_date(self.first_date),
+            "last_date": _serialize_date(self.last_date),
         }
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> HSGPPeriodicTerm:
         """Reconstruct a term from its serialized form."""
-        return cls(
+        term = cls(
             var_name=data["var_name"],
             name=data["name"],
             scale=_deserialize_optional(data.get("scale")),
@@ -746,3 +797,7 @@ class HSGPPeriodicTerm(GPDataTerm):
             demeaned_basis=data["demeaned_basis"],
             time_resolution=data["time_resolution"],
         )
+        term.X_mid = data.get("X_mid")
+        term.first_date = _deserialize_date(data.get("first_date"))
+        term.last_date = _deserialize_date(data.get("last_date"))
+        return term

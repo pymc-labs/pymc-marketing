@@ -357,6 +357,86 @@ def test_set_data_before_register_raises(ds):
             set_data(trend, ds=ds, model=pm.modelcontext(None))
 
 
+def test_roundtrip_recipe_keeps_the_training_anchor(ds):
+    """A serialized recipe carries the training range and X_mid.
+
+    Without these, a reloaded term re-derives them from whatever window it is
+    next given, which silently re-anchors the time index.
+    """
+    trend = HSGPTerm(name="trend")
+    with pm.Model(coords=collect_coords(trend, ds=ds)):
+        register_data(trend, ds=ds)
+        build_param(trend)
+
+    payload = json.loads(json.dumps(serialization.serialize(trend)))
+    assert "X_mid" in payload
+    assert "first_date" in payload
+
+    restored = HSGPTerm.from_dict(payload)
+    assert restored.first_date == trend.first_date
+    assert restored.X_mid == trend.X_mid
+
+
+def test_roundtrip_recipe_indexes_future_window_consistently(ds):
+    """A reloaded recipe indexes a future window on the training anchor.
+
+    The scenario: fit, save the recipe, reload, and register a *future* window.
+    The time index must continue from the training anchor, not restart at 0.
+    """
+    trend = HSGPTerm(name="trend")
+    with pm.Model(coords=collect_coords(trend, ds=ds)):
+        register_data(trend, ds=ds)
+        build_param(trend)
+        training_index = pm.modelcontext(None)[trend.index_var].get_value().copy()
+        payload = json.loads(json.dumps(serialization.serialize(trend)))
+
+    future = xr.Dataset(
+        {},
+        coords={
+            "date": pd.date_range(
+                start=ds.coords["date"].values[-1], periods=8, freq="7D"
+            )[1:]
+        },
+    )
+    restored = HSGPTerm.from_dict(payload)
+    with pm.Model(coords=collect_coords(restored, ds=future)) as model:
+        register_data(restored, ds=future)
+        future_index = model[restored.index_var].get_value()
+
+    # same anchor -> the future window starts right after the training range
+    assert training_index[-1] < future_index[0]
+    assert future_index[0] == pytest.approx(training_index[-1] + 1)
+    assert restored.X_mid == trend.X_mid  # centering is not re-derived
+
+
+def test_register_data_refuses_window_before_training_anchor(ds):
+    """A window starting before the training anchor is refused.
+
+    The anchor and basis are frozen on the training data. A window that begins
+    earlier would need the time index to run negative, outside the learned
+    domain, so it is rejected rather than silently extrapolated.
+    """
+    trend = HSGPTerm(name="trend")
+    with pm.Model(coords=collect_coords(trend, ds=ds)):
+        register_data(trend, ds=ds)
+        build_param(trend)
+        payload = json.loads(json.dumps(serialization.serialize(trend)))
+
+    # a window entirely before the training start
+    before = xr.Dataset(
+        {},
+        coords={
+            "date": pd.date_range(
+                end=ds.coords["date"].values[0], periods=4, freq="7D"
+            )[:-1]
+        },
+    )
+    restored = HSGPTerm.from_dict(payload)
+    with pm.Model(coords=collect_coords(restored, ds=before)):
+        with pytest.raises(ValueError, match="before the training"):
+            register_data(restored, ds=before)
+
+
 def test_tvp_media_broadcasting(ds):
     """SoftPlusHSGPTerm() * media broadcasts (date,) over (date, channel)."""
     tvp_media = SoftPlusHSGPTerm(name="tvp") * media_term()
@@ -475,7 +555,7 @@ def test_serialize_deferred_roundtrip():
 
 
 def test_serialize_resolved_keeps_m_l(ds):
-    """Resolved m/L persist; X_mid stays excluded."""
+    """Resolved m/L persist, and the frozen training state round-trips."""
     term = HSGPTerm(name="trend", m=15, L=100, eta=1.0, ls=1.0)
     with pm.Model(coords=collect_coords(term, ds=ds)):
         register_data(term, ds=ds)
@@ -483,10 +563,14 @@ def test_serialize_resolved_keeps_m_l(ds):
     data = serialization.serialize(term)
     assert data["m"] == 15
     assert data["L"] == 100
-    assert "X_mid" not in data
+    assert data["X_mid"] == term.X_mid
+    assert data["first_date"] is not None
     restored = serialization.deserialize(data)
     assert restored.m == 15
     assert restored.L == 100
+    assert restored.X_mid == term.X_mid
+    assert restored.first_date == term.first_date
+    assert restored.last_date == term.last_date
 
 
 def test_serialize_softplus_roundtrip():
