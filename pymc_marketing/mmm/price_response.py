@@ -230,6 +230,8 @@ class ResolvedPowerPriceResponse(ResolvedPriceResponse):
     def _branches(self, spend: XTensorVariable):
         # Money below zero buys nothing: SLSQP never evaluates outside the bounds, but a
         # labelled plan handed to evaluate_plan can, and the quadratic extrapolates there.
+        # pytensor's ``Maximum`` sends the tie gradient to its first input only, so ``spend``
+        # must stay the first argument for ``u'(0)`` to survive.
         spend = ptx.math.maximum(spend, 0.0)
         above = spend >= self._s_floor
         s_power = ptx.math.maximum(spend, self._s_floor)
@@ -471,7 +473,9 @@ class PowerPriceResponse(PriceResponse):
         optimized cell before it is rejected. Default ``10``. The unit error this catches is a window total
         handed over as a per-period rate: off by ``num_periods``, shifting every price by
         ``num_periods ** elasticity``. When the supplied value is ``num_periods`` times the derived one on
-        every optimized cell (within 5%), a warning names that hypothesis instead of refusing.
+        every optimized cell (within 5%), a warning names that hypothesis instead of refusing. A window total
+        for a window of ``num_periods <= reference_spend_tolerance`` periods is therefore accepted with only
+        the warning; lower the tolerance for short windows if that is a risk.
     assume_delivery_units : bool
         Attest that the node's data are in delivery units (or in spend deflated to constant prices) even
         though no historical ``cost_per_unit`` table prices them. Required, together with an explicit
@@ -492,9 +496,17 @@ class PowerPriceResponse(PriceResponse):
     fit. A merged model (:func:`~pymc_marketing.mmm.budget_optimizer.merge_inference_data`) carries no root
     attrs and always needs the opt-out.
 
-    **Extrapolation.** The power law is as confident below the reference as above it: at ``elasticity=0.4``,
-    spending 15% of the reference prices a unit at ``0.46 p_0``. Anchor ``reference_spend`` where the base
-    price was observed and plan near it.
+    **Below the reference.** The power law is as confident below the reference as above it: at
+    ``elasticity=0.4``, spending 15% of the reference prices a unit at ``0.46 p_0``, and the marginal unit at
+    ``0.77 p_0``. That moves allocations, not only reports. A channel that is worthless at ``p_0`` (measured:
+    window price 40x its siblings, zero under a constant price) receives a small budget once it is priced,
+    because its first money buys units at a fraction of ``p_0``; and with a total budget below the historical
+    spend every priced channel reports a price under ``p_0``, which is the usual planning case when budgets
+    are cut. Auction inventory is not symmetric this way -- floor prices and minimum bids hold the price up
+    below the reference. So anchor ``reference_spend`` at the level you plan to buy at, not only where
+    ``p_0`` was observed (raise ``reference_spend_tolerance`` when that is far from the fitted spend), read
+    ``implied_price`` on every channel before trusting the allocation, and sweep ``elasticity`` rather than
+    pin it. A variant flat below the reference is #3089.
 
     **Not a rate schedule.** One smooth curve cannot state a committed tranche at a contracted rate with
     incremental money at another rate. Calibrated to that case, the map is exact only at the anchor: the

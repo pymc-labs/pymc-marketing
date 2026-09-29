@@ -375,7 +375,9 @@ class BudgetOptimizationResult:
         graph the solver used, price map included. The deprecated
         ``sample_response_distribution`` takes a date-less allocation and broadcasts it
         over the window, so it needs ``implied_delivery.mean(date_dim)`` and is exact
-        only under a uniform ``budget_distribution_over_period``. ``0.0`` at zero spend.
+        only under a uniform ``budget_distribution_over_period``. That method warns when
+        it is handed ``result.budgets`` directly, keyed on a ``budgets.attrs`` stamp that
+        xarray arithmetic drops; the warning is best-effort. ``0.0`` at zero spend.
     implied_price : xarray.DataArray or None
         Average money paid per delivered unit, per period and cell. ``nan`` wherever no
         money was spent -- a masked-out cell, a channel the bounds hold at zero, a cell
@@ -2486,7 +2488,8 @@ class BudgetOptimizer(BaseModel):
         Returns ``{variable name: (response, derived reference or None)}``. The
         media entry's derived reference comes from :meth:`_media_price_reference`,
         which owns the fitted-artifact gate; a spend variable has no artifact and
-        must supply its own ``reference_spend``; an identity needs none.
+        must supply its own ``reference_spend`` (a curved one also needs
+        ``assume_delivery_units``); an identity needs none.
         """
         responses = self._price_responses_by_name()
         return {

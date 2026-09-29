@@ -2508,7 +2508,11 @@ class TestMonetarySpendVariables:
         including the ones staying at a constant price. Omitting one reproduces the
         hazard by omission: media at a constant, the spend variable on a curve, both in
         one pot. An explicit identity response is how "constant" is said."""
-        curve = PowerPriceResponse(elasticity=0.2, reference_spend=xr.DataArray(1.0))
+        curve = PowerPriceResponse(
+            elasticity=0.2,
+            reference_spend=xr.DataArray(1.0),
+            assume_delivery_units=True,
+        )
         with pytest.raises(ValueError, match=r"leaves \['channel_data'\] unpriced"):
             self._optimizer(
                 funnel_identity_fitted_mmm,

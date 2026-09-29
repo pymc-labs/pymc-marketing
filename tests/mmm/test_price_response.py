@@ -252,12 +252,13 @@ class TestResolvedPowerPriceResponse:
     def test_negative_money_buys_nothing(self, maps, resolved):
         """SLSQP clips the decision vector to its bounds, but evaluate_plan takes any
         labelled plan. Below zero the quadratic would extrapolate (b < 0 makes -5 money
-        deliver -2e5 units on a real fixture); money is clipped at zero instead, so
-        u(s < 0) == 0 and both prices stay finite."""
+        deliver about -1.6e7 units on the gamma = 0.25 cell of this fixture); money is
+        clipped at zero instead, so u(s < 0) == 0 and both prices stay finite."""
         s = np.array([-1e-9, -5.0, -100.0])
         assert np.all(maps["u"](s) == 0.0)
         assert np.all(np.isfinite(maps["p"](s))) and np.all(np.isfinite(maps["m"](s)))
         np.testing.assert_allclose(maps["p"](s), P0 / resolved.a, rtol=1e-12)
+        np.testing.assert_allclose(maps["m"](s), P0 / resolved.a, rtol=1e-12)
 
     def test_wide_floor_warns_at_high_elasticity_only(self):
         """At gamma = 0.9 and M = 100 the floor is 15.8% of the reference: a bounded slope

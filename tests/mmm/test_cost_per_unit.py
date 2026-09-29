@@ -1328,6 +1328,7 @@ class TestPriceResponseGate:
             ]
         )
         mmm.set_cost_per_unit(table)
+        assert json.loads(mmm.idata.attrs[PRICED_CHANNELS_ATTR]) == channels
         optimizer = _optimizer(mmm, price_response=PowerPriceResponse(elasticity=0.3))
         resolved = optimizer.optimization_variables.variables[0].price_response
         assert resolved.dims == (custom, "channel")
@@ -1381,12 +1382,12 @@ class TestPriceResponseAllocation:
             price_response=PowerPriceResponse(elasticity=gamma),
         )
         result = optimizer.allocate_budget(total_budget=self.TOTAL)
+        assert result.scipy_result.success, result.scipy_result.message
         np.testing.assert_allclose(
             optimizer.evaluate_plan(result.budgets).objective,
             result.scipy_result.fun,
             rtol=1e-10,
         )
-        assert result.scipy_result.success, result.scipy_result.message
 
         for field in (
             result.implied_delivery,
