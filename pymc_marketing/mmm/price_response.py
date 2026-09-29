@@ -497,13 +497,13 @@ class PowerPriceResponse(PriceResponse):
     attrs and always needs the opt-out.
 
     **Below the reference.** The power law is as confident below the reference as above it: at
-    ``elasticity=0.4``, spending 15% of the reference prices a unit at ``0.46 p_0``, and the marginal unit at
-    ``0.77 p_0``. That moves allocations, not only reports. A channel that is worthless at ``p_0`` (measured:
+    ``elasticity=0.4``, spending 15% of the reference prices a unit at ``0.47 p_0``, and the marginal unit at
+    ``0.78 p_0``. That moves allocations, not only reports. A channel that is worthless at ``p_0`` (measured:
     window price 40x its siblings, zero under a constant price) receives a small budget once it is priced,
     because its first money buys units at a fraction of ``p_0``; and with a total budget below the historical
-    spend every priced channel reports a price under ``p_0``, which is the usual planning case when budgets
-    are cut. Auction inventory is not symmetric this way -- floor prices and minimum bids hold the price up
-    below the reference. So anchor ``reference_spend`` at the level you plan to buy at, not only where
+    spend typically every priced channel reports a price under ``p_0``, which is the usual planning case when
+    budgets are cut. Auction inventory is not symmetric this way -- floor prices and minimum bids hold the price
+    up below the reference. So anchor ``reference_spend`` at the level you plan to buy at, not only where
     ``p_0`` was observed (raise ``reference_spend_tolerance`` when that is far from the fitted spend), read
     ``implied_price`` on every channel before trusting the allocation, and sweep ``elasticity`` rather than
     pin it. A variant flat below the reference is #3089.

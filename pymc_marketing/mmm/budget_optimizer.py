@@ -376,8 +376,9 @@ class BudgetOptimizationResult:
         ``sample_response_distribution`` takes a date-less allocation and broadcasts it
         over the window, so it needs ``implied_delivery.mean(date_dim)`` and is exact
         only under a uniform ``budget_distribution_over_period``. That method warns when
-        it is handed ``result.budgets`` directly, keyed on a ``budgets.attrs`` stamp that
-        xarray arithmetic drops; the warning is best-effort. ``0.0`` at zero spend.
+        it is handed a priced ``result.budgets`` directly, keyed on a ``budgets.attrs``
+        stamp that a rebuilt array lacks and that xarray before 2025.11 drops on
+        arithmetic; the warning is best-effort. ``0.0`` at zero spend.
     implied_price : xarray.DataArray or None
         Average money paid per delivered unit, per period and cell. ``nan`` wherever no
         money was spent -- a masked-out cell, a channel the bounds hold at zero, a cell
