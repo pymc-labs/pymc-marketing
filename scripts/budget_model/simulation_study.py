@@ -53,7 +53,9 @@ per fit; nutpie), the study takes a couple of hours on 5 workers and gives the
 tables below. The true marginal return is about 2. Coverage is of the 94%
 interval, with an exact 95% binomial CI. The interval score is the Winkler
 score (width plus 2/0.06 times the distance by which the interval misses the
-truth; lower is better). Divergences are per fit, out of 1,000 draws.
+truth; lower is better). Divergences are per fit, out of 1,000 draws. Every
+arm completed all 50 fits; the script reports ``n`` per arm and lists any fit
+that fails.
 
 Recovery of TV's marginal return when budgets chase demand (``"forecast"``)::
 
@@ -443,6 +445,7 @@ def main() -> None:
             "progressbar": False,
         }
         print(f"{len(jobs)} fits to run, {len(finished)} already done.")
+        failed = []
         with ProcessPoolExecutor(max_workers=args.workers) as pool:
             futures = {pool.submit(_fit_one, *job, sample_kwargs): job for job in jobs}
             for i, future in enumerate(as_completed(futures), start=1):
@@ -451,6 +454,7 @@ def main() -> None:
                     row = future.result()
                 except Exception as exc:
                     print(f"[{i}/{len(jobs)}] {job} failed: {exc}")
+                    failed.append(job)
                     continue
                 pd.DataFrame([row]).reindex(columns=COLUMNS).to_csv(
                     results_path,
@@ -460,6 +464,11 @@ def main() -> None:
                 )
                 print(f"[{i}/{len(jobs)}] {job} done")
         done = _read_results(results_path)
+        if failed:
+            print(
+                f"{len(failed)} fits failed and are missing from the tables: {failed}. "
+                "Rerun the script to retry them."
+            )
 
     summary = summarise(done)
     (args.out / "summary.md").write_text(summary)

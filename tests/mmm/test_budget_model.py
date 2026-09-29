@@ -13,6 +13,8 @@
 #   limitations under the License.
 """Tests for the budget model (control-function) effect."""
 
+import copy
+import pickle
 import warnings
 
 import numpy as np
@@ -29,8 +31,9 @@ from pymc_marketing.mmm import (
     MichaelisMentenSaturation,
     lift_test_design,
 )
-from pymc_marketing.mmm.additive_effect import LinearTrendEffect
+from pymc_marketing.mmm.additive_effect import FourierEffect, LinearTrendEffect
 from pymc_marketing.mmm.data_conversion import to_mmm_dataset
+from pymc_marketing.mmm.fourier import YearlyFourier
 from pymc_marketing.mmm.linear_trend import LinearTrend
 from pymc_marketing.mmm.mmm import MMM, BudgetOptimizerWrapper
 from pymc_marketing.mmm.synthetic_data import simulate_endogenous_spend_market
@@ -249,10 +252,10 @@ class TestBuild:
         np.testing.assert_allclose(values[20:22, 1], -0.5 * np.log(2 * np.pi))
 
     def test_chosen_spend_removes_design_shift(self, fitted, data):
-        _, effect = fitted
+        mmm, effect = fitted
         X, _ = data
-        chosen = effect._factual["chosen"].sel(budget_channel="tv")
-        scale = float(effect._spend_scale.sel(budget_channel="tv"))
+        chosen = mmm.idata.constant_data["budget_chosen_spend"].sel(budget_channel="tv")
+        scale = float(effect._training_data(mmm).spend_scale.sel(channel="tv"))
         expected = X["tv"].to_numpy().copy()
         expected[10:14] += 50.0
         np.testing.assert_allclose(chosen.values * scale, expected)
@@ -605,6 +608,24 @@ def test_instruments(data, tmp_path):
     assert "budget_instrument_cost_shock_coef" in loaded.model.named_vars
 
 
+def test_panel_instrument_not_needed_for_prediction(panel_data):
+    X, y = panel_data
+    X = X.assign(cost_shock=np.random.default_rng(3).normal(size=len(X)))
+    mmm = _make_mmm(dims=("geo",)).add_mu_effect(
+        BudgetModelEffect(instruments=["cost_shock"])
+    )
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        mock_fit(mmm, X, y, random_seed=1)
+    future = X.drop(columns="cost_shock").assign(
+        date=X["date"] + pd.Timedelta(weeks=20)
+    )
+    pp = mmm.sample_posterior_predictive(
+        future, extend_idata=False, var_names=["budget_spend_mu"], random_seed=1
+    )
+    assert np.isfinite(pp["budget_spend_mu"]).all()
+
+
 def test_instrument_shared_between_effects(data):
     X, y = data
     X = X.assign(cost_shock=np.random.default_rng(3).normal(size=N_WEEKS))
@@ -728,6 +749,16 @@ class TestIdentificationGuards:
         no_season.build_model(X, y)
         assert "budget_spend_fourier_coef" not in no_season.model.named_vars
 
+    def test_fourier_order_follows_fourier_effect(self, data):
+        X, y = data
+        mmm = (
+            _make_mmm()
+            .add_mu_effect(FourierEffect(fourier=YearlyFourier(n_order=3)))
+            .add_mu_effect(BudgetModelEffect())
+        )
+        mmm.build_model(X, y)
+        assert len(mmm.model.coords["budget_fourier"]) == 6
+
     def test_fourier_order_above_sales_warns(self, data):
         X, y = data
         mmm = _make_mmm().add_mu_effect(BudgetModelEffect(fourier_order=2))
@@ -763,20 +794,45 @@ class TestIdentificationGuards:
         )
         assert np.isfinite(pp["budget_spend_mu"]).all()
 
-    def test_unrealised_shift_warns(self, data):
+    @pytest.mark.parametrize(
+        "tv_spend, delta_x",
+        [(0.0, -50.0), (300.0, 1_000.0)],
+        ids=["zero-spend", "negative-chosen"],
+    )
+    def test_unrealised_shift_warns(self, data, tv_spend, delta_x):
         X, y = data
         X = X.copy()
-        X.loc[10, "tv"] = 0.0
+        X.loc[10, "tv"] = tv_spend
         design = pd.DataFrame(
             {
                 "channel": ["tv"],
                 "start_date": [DATES[10]],
                 "end_date": [DATES[11]],
-                "delta_x": [-50.0],
+                "delta_x": [delta_x],
             }
         )
         mmm = _make_mmm().add_mu_effect(BudgetModelEffect(design=design))
         with pytest.warns(UserWarning, match="may not have been fully realised"):
+            mmm.build_model(X, y)
+
+    def test_design_rows_and_columns(self, data, design):
+        X, y = data
+        extra_column = design.assign(measured_at=pd.Timestamp("2024-01-01"))
+        mmm = _make_mmm().add_mu_effect(BudgetModelEffect(design=extra_column))
+        with pytest.raises(ValueError, match="does not use"):
+            mmm.build_model(X, y)
+
+        typo = design.assign(channel=["tv", "digitl"])
+        mmm = _make_mmm().add_mu_effect(BudgetModelEffect(design=typo))
+        with pytest.raises(ValueError, match="the MMM does not have"):
+            mmm.build_model(X, y)
+
+        # A design for a channel that is not modelled is dropped, like one
+        # outside the data.
+        mmm = _make_mmm().add_mu_effect(
+            BudgetModelEffect(design=design, channels=["tv"])
+        )
+        with pytest.warns(UserWarning, match="Dropping 1 BudgetModelEffect design"):
             mmm.build_model(X, y)
 
     def test_flighted_channel_warns(self, data):
@@ -786,7 +842,9 @@ class TestIdentificationGuards:
         with pytest.warns(UserWarning, match="zero spend in more than 20%"):
             mmm.build_model(X, y)
 
-    def test_reused_instance_raises(self, data):
+    def test_instance_serves_each_model_it_is_in(self, data):
+        # State is derived from the model, so a shared instance cannot mix up
+        # two models trained on different data.
         X, y = data
         effect = BudgetModelEffect()
         first = _make_mmm().add_mu_effect(effect)
@@ -794,14 +852,32 @@ class TestIdentificationGuards:
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             mock_fit(first, X, y, random_seed=1)
-            mock_fit(second, X, y, random_seed=1)
-        with pytest.raises(RuntimeError, match="different MMM"):
-            effect.exogeneity_summary(first)
-        with pytest.raises(RuntimeError, match="different MMM"):
-            first.sample_posterior_predictive(
-                X, extend_idata=False, var_names=["y"], random_seed=1
-            )
+            mock_fit(second, X.iloc[:20], y.iloc[:20], random_seed=1)
+        pp = first.sample_posterior_predictive(
+            X, extend_idata=False, var_names=["budget_surprise"], random_seed=1
+        )
+        assert pp.sizes["date"] == N_WEEKS
+        assert (
+            float(abs(pp["budget_surprise"]).min(["sample", "budget_channel"]).max())
+            > 0
+        )
+        assert not effect.exogeneity_summary(first).empty
         assert not effect.exogeneity_summary(second).empty
+
+    def test_fitted_model_can_be_copied_and_pickled(self, fitted, data):
+        mmm, effect = fitted
+        X, _ = data
+        copied = copy.deepcopy(mmm)
+        pp = copied.sample_posterior_predictive(
+            X, extend_idata=False, var_names=["y"], random_seed=1
+        )
+        assert np.isfinite(pp["y"]).all()
+        pd.testing.assert_frame_equal(
+            copied.mu_effects[0].exogeneity_summary(copied),
+            effect.exogeneity_summary(mmm),
+        )
+        restored = pickle.loads(pickle.dumps(effect))  # noqa: S301
+        assert restored.to_dict() == effect.to_dict()
 
     def test_summary_from_original_instance_after_load(self, fitted, tmp_path):
         mmm, effect = fitted
@@ -867,7 +943,7 @@ class TestIdentificationGuards:
         holdout = surprise.sel(budget_channel="digital").isel(date=[25, 26])
         assert float(abs(holdout).max()) == 0.0
 
-        scale = float(effect._spend_scale.sel(budget_channel="tv"))
+        scale = float(effect._training_data(mmm).spend_scale.sel(channel="tv"))
         chosen_tv = (X["tv"].to_numpy()[26:28] + 50.0) / scale
         expected = chosen_tv - spend_mu.sel(budget_channel="tv").isel(date=[26, 27])
         np.testing.assert_allclose(
@@ -965,15 +1041,19 @@ def test_negative_control_gamma_interval_contains_zero():
         progressbar=False,
     )
     tv = effect.exogeneity_summary(mmm).set_index("channel").loc["tv"]
-    assert tv["gamma_lower"] < 0 < tv["gamma_upper"]
+    # Looser than the 94% interval, so numerical drift across releases cannot
+    # flip a single-seed false alarm that happens ~12% of the time.
+    assert 0.02 < tv["prob_positive"] < 0.98
 
 
 def test_guards(fitted):
     mmm, _ = fitted
     assert BudgetModelEffect(design=None).design is None
-    unbuilt = BudgetModelEffect()
-    with pytest.raises(RuntimeError, match="must run before set_data"):
+    unbuilt = BudgetModelEffect(prefix="unbuilt")
+    with pytest.raises(RuntimeError, match="Build the MMM with this effect"):
         unbuilt.set_data(mmm, mmm.model, None)
+    with pytest.raises(ValueError, match="interval_prob must be in"):
+        mmm.mu_effects[0].exogeneity_summary(mmm, interval_prob=1.5)
 
 
 def test_from_dict_registered_prior():
