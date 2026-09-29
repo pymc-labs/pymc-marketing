@@ -168,7 +168,16 @@ from pymc_marketing.bass import plotting
 from pymc_marketing.bass.data import to_bass_dataset
 from pymc_marketing.model_builder import ModelBuilder, SamplingMethod
 from pymc_marketing.model_config import parse_model_config
-from pymc_marketing.terms import ModelTerm, Named, Product, Sum, build_param
+from pymc_marketing.terms import (
+    ModelTerm,
+    Named,
+    Product,
+    Sum,
+    build_param,
+    collect_coords,
+    data_vars,
+    register_data,
+)
 from pymc_marketing.version import __version__
 
 #: What :func:`F` and :func:`f` accept for ``t``: a labelled xtensor, or any
@@ -359,6 +368,20 @@ def _borrow_dims(prior: Prior | Censored, dims: tuple[str, ...]):
         prior.dims = original
 
 
+def _missing_data_vars(specs: list[Any], ds: xr.Dataset) -> list[str]:
+    """Return the data variables the recipes reference that ``ds`` lacks.
+
+    Reported up front, instead of surfacing as a bare ``KeyError`` from
+    ``Dot.create_variable`` halfway through the build.
+    """
+    missing: list[str] = []
+    for spec in specs:
+        for name in data_vars(spec):
+            if name not in ds and name not in missing:
+                missing.append(name)
+    return missing
+
+
 def _observed_dims(
     observed: pt.TensorLike | xr.DataArray,
     model: Model,
@@ -400,6 +423,7 @@ def create_bass_model(
     priors: BassPriors,
     coords: dict[str, Any],
     model: Model | None = None,
+    ds: xr.Dataset | None = None,
 ) -> Model:
     r"""Define a Bass diffusion model for product adoption forecasting.
 
@@ -429,9 +453,10 @@ def create_bass_model(
         ``pm.Data`` registered with dims); anything else, such as a plain
         array or a ``pm.Data`` without dims, is labelled positionally in
         ``(T, ...)`` order with the extra dims following their first
-        appearance across the ``likelihood``, ``p``, ``q`` and ``m``
-        priors, in that order. An array laid out the way the ``likelihood``
-        prior declares it is therefore read the way it is laid out.
+        appearance across the ``likelihood`` prior and the dims that
+        ``m``, ``p`` and ``q`` actually built with, in that order. An
+        array laid out the way the ``likelihood`` prior declares it is
+        therefore read the way it is laid out.
     priors : BassPriors
         Dictionary containing priors or term recipes for:
         - 'm': Market potential prior or term
@@ -439,10 +464,12 @@ def create_bass_model(
         - 'q': Imitation coefficient prior or term
         - 'likelihood': Observation likelihood model
 
-        Terms must build free random variables (``Parameter`` /
-        ``Named``) - data-carrying terms (``Dot``) need
-        ``register_data``/``set_data`` wiring this model does not
-        perform yet.
+        A recipe may carry covariates through ``Dot`` when a dataset is
+        passed via ``ds``; pass covariates that vary across a dimension
+        such as ``product``. ``m``, ``p`` and ``q`` are built in that
+        order, so a recipe may reference an earlier coefficient with
+        ``Ref``; a forward reference fails with an error naming the
+        missing variable.
     coords : dict[str, Any]
         Coordinate values for dimensions in the model, including
         'date' for the time dimension and any other dimensions
@@ -450,6 +477,12 @@ def create_bass_model(
     model : Model, optional
         An existing PyMC model to use. If not provided, a new model is
         created with the given coords.
+    ds : xr.Dataset, optional
+        Dataset the recipes read covariates from. A recipe references a
+        covariate by name through ``Dot``, and only the variables a recipe
+        names are registered, so passing the full dataset is safe. Omit it
+        when no recipe carries data. A covariate varying over ``T`` is
+        rejected for ``p``/``q``; see the note above.
 
     Returns
     -------
@@ -474,6 +507,23 @@ def create_bass_model(
     """
     model = model or pm.Model(coords=coords)
     with model:
+        if ds is not None:
+            # Register what the recipes actually reference, so a covariate
+            # travels with the term that names it (and nothing else does).
+            specs = [priors[key] for key in ("m", "p", "q")]
+            missing = _missing_data_vars(specs, ds)
+            if missing:
+                raise ValueError(
+                    f"priors reference data variables that are not in the "
+                    f"dataset: {', '.join(missing)}. Pass a dataset "
+                    f"containing them to create_bass_model(ds=...)."
+                )
+            for name, values in collect_coords(*specs, ds=ds).items():
+                if name not in model.coords:
+                    model.add_coord(name, values)
+            for spec in specs:
+                register_data(spec, ds=ds)
+
         def build(key: str) -> pmd.XTensorVariable:
             """Build ``priors[key]`` so the posterior holds a variable ``key``.
 
@@ -485,14 +535,15 @@ def create_bass_model(
             ``az.summary(var_names=["q"])`` would report a leaf rather than
             the value the equations use.
             """
-            spec = priors[key]
+            spec: Any = cast("Any", priors)[key]
             if isinstance(spec, ModelTerm):
-                if getattr(spec, "name", None) is None:
+                name = getattr(spec, "name", None)
+                if name is None:
                     spec = Named(key, spec)
-                elif spec.name != key:
+                elif name != key:
                     raise ValueError(
                         f"Config key {key!r} must match the term name "
-                        f"{spec.name!r}; rename the term or the key so the "
+                        f"{name!r}; rename the term or the key so the "
                         f"posterior keeps a variable named {key!r}."
                     )
             elif isinstance(spec, (Sum, Product)):
@@ -504,6 +555,17 @@ def create_bass_model(
                     f"priors[{key!r}] must build the variable {key!r}; got "
                     f"{type(spec).__name__}. Name the term {key!r} or wrap it "
                     f"in Named({key!r}, ...)."
+                )
+            if key in ("p", "q") and "T" in built.dims:
+                # The closed form below is the solution for *constant* rates.
+                # A time-varying p/q builds and samples without error but the
+                # cumulative curve stops being cumulative, so refuse it.
+                raise ValueError(
+                    f"priors[{key!r}] varies over 'T' (dims {built.dims}). "
+                    "Bass uses the closed-form solution, which assumes "
+                    "time-constant innovation and imitation rates. Give the "
+                    "term a dimension other than 'T' (e.g. 'product') for a "
+                    "per-product rate."
                 )
             return built
 
@@ -572,10 +634,21 @@ class BassModel(ModelBuilder):
     ----------
     model_config : dict, optional
         Dictionary with keys ``"m"``, ``"p"``, ``"q"``, ``"likelihood"``
-        mapping to :class:`~pymc_extras.prior.Prior` or a punch-in term
-        recipe (``Parameter`` / ``Named`` composition). The names must
-        match the config keys to keep ``m``/``p``/``q`` in the model.
+        mapping to :class:`~pymc_extras.prior.Prior` or a term recipe
+        built from :mod:`pymc_marketing.terms`. A recipe may carry
+        covariates through ``Dot``; the dataset they are read from is the
+        one passed to :meth:`fit`.
+
+        A recipe that carries its own name must name itself after the
+        config key, so the posterior keeps a variable named ``m``/``p``/
+        ``q``; compositions and nameless terms (e.g. ``Transform``) are
+        wrapped in ``Named`` automatically, so no ``Named`` is needed
+        here.         ``p`` and ``q`` must not vary over ``T`` --- Bass uses the
+        closed-form solution, which assumes time-constant rates, and a
+        time-varying rate is rejected --- but may carry other dimensions
+        such as ``product``, giving a per-product rate.
         See :meth:`default_model_config` for defaults.
+
     sampler_config : dict, optional
         Dictionary of sampler settings (draws, tune, chains, …).
         See :meth:`default_sampler_config` for defaults.
@@ -645,6 +718,51 @@ class BassModel(ModelBuilder):
         )
         idata = model.fit(data=data)
         print(az.summary(idata, var_names=["m", "p", "q"]))
+    **Term recipes, with a per-product covariate**
+
+    ``m``/``p``/``q`` accept recipes composed from
+    :mod:`pymc_marketing.terms`, so a rate can be scaled by a covariate
+    read from the dataset. A recipe that names itself must use the config
+    key as its name; compositions and nameless terms are wrapped
+    automatically, so no ``Named`` is needed here. Only the variables a
+    recipe names are registered, and a covariate must vary across a
+    dimension other than ``T`` (``p`` and ``q`` assume time-constant
+    rates).
+
+    .. code-block:: python
+
+        import pytensor.xtensor as ptx
+        from pymc_extras.prior import Prior
+        from pymc_marketing.terms import Dot, Parameter, Transform
+
+        data = xr.Dataset(
+            {
+                "observed": (("T", "product"), np.random.poisson(100, size=(50, 3))),
+                # one covariate value per product
+                "log_market_size": ("product", np.log([100.0, 250.0, 60.0])),
+            },
+            coords={"T": np.arange(50), "product": ["A", "B", "C"]},
+        )
+        model = BassModel(
+            model_config={
+                "m": Parameter("m", prior=Prior("HalfNormal", sigma=100_000)),
+                # a per-product innovation rate, positive by construction
+                "p": Parameter("p_base", prior=Prior("Beta", alpha=1.5, beta=20))
+                * Transform(
+                    Dot(
+                        var_name="log_market_size",
+                        name="p_coef",
+                        prior=Prior("Normal", mu=0, sigma=0.3),
+                    ),
+                    ptx.math.exp,
+                ),
+                "q": Prior("Beta", alpha=2, beta=5),
+                "likelihood": Prior("NegativeBinomial", n=1.5, dims="product"),
+            },
+        )
+        idata = model.fit(data=data)
+        # p now carries a "product" dim, and the covariate is shared data
+        print(az.summary(idata, var_names=["m", "p", "q", "p_coef"]))
 
     **Generate synthetic data and fit**
 
@@ -764,6 +882,19 @@ class BassModel(ModelBuilder):
         ds = to_bass_dataset(X)
         new_t = ds.coords["T"].values
         set_data: dict[str, Any] = {"t": new_t}
+        # Refresh any covariate the recipes registered, so an out-of-sample
+        # call uses the new covariate values rather than the fitted ones.
+        for spec in (self.model_config.get(key) for key in ("m", "p", "q")):
+            for var_name in data_vars(spec):
+                if var_name in self.model and var_name in ds:
+                    values = ds[var_name]
+                    if "T" in values.dims and values.sizes["T"] != len(new_t):
+                        raise ValueError(
+                            f"Covariate {var_name!r} has {values.sizes['T']} "
+                            f"time points but the new time grid has "
+                            f"{len(new_t)}."
+                        )
+                    set_data[var_name] = values.values
         if "observed" in ds:
             set_data["y_obs"] = ds["observed"].values
         elif "y_obs" in self.model:
@@ -914,6 +1045,7 @@ class BassModel(ModelBuilder):
                 priors=cast(BassPriors, priors),
                 coords=coords,
                 model=self.model,
+                ds=ds,
             )
 
     def _prepare_fit(

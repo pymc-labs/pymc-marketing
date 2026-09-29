@@ -38,7 +38,7 @@ from pytensor.graph import rewrite_graph
 
 from pymc_marketing.bass import BassModel
 from pymc_marketing.bass.model import F, create_bass_model, f
-from pymc_marketing.terms import Named, Parameter, Transform
+from pymc_marketing.terms import Dot, Named, Parameter, Transform
 
 
 class BassModelComponents(BaseModel):
@@ -1516,6 +1516,38 @@ class TestBassModelTerms:
             assert var in model.named_vars
         assert model.named_vars_to_dims["adopters"] == ("T", "product")
 
+    def test_named_without_dims_labels_unlabelled_2d_observed(self) -> None:
+        """``declared_dims`` comes from the built variables, not the priors.
+
+        ``Named`` with ``dims=None`` declares none of its own, so the only
+        source of ``product`` here is the variable its ``Parameter`` built.
+        Reading dims off the priors instead (the pre-PR logic) leaves
+        ``product`` undeclared and the unlabelled ``observed`` array is
+        then labelled ``("T",)`` instead of ``("T", "product")``.
+        """
+        model = create_bass_model(
+            t=np.arange(5),
+            observed=np.ones((5, 2)),
+            priors={
+                "m": Prior("HalfNormal", sigma=500),
+                "p": Named(
+                    "p",
+                    Parameter(
+                        "p_base",
+                        prior=Prior("Beta", alpha=1.5, beta=20, dims="product"),
+                    ),
+                ),
+                "q": Prior("Beta", alpha=2, beta=5),
+                # no dims of its own: borrows the combined dims
+                "likelihood": Prior("NegativeBinomial", n=1.5),
+            },
+            coords={"T": np.arange(5), "product": ["A", "B"]},
+        )
+
+        assert model.named_vars_to_dims["adopters"] == ("T", "product")
+        assert model.named_vars_to_dims["y"] == ("T", "product")
+        assert np.shape(model["y"].eval()) == (5, 2)
+
     @staticmethod
     def _base_priors(**overrides: Any) -> dict[str, Any]:
         """Default priors for a single-product-free (scalar) Bass model."""
@@ -1552,7 +1584,7 @@ class TestBassModelTerms:
 
     def test_composition_leaf_named_after_key_fails_loudly(self) -> None:
         """A composition whose leaf already owns the key name fails instead of lying."""
-        with pytest.raises(Exception, match="already exists|must build the variable"):
+        with pytest.raises(Exception, match=r"already exists|must build the variable"):
             create_bass_model(
                 t=np.arange(10),
                 observed=None,
@@ -1574,6 +1606,170 @@ class TestBassModelTerms:
         )
 
         assert "m" in model.named_vars
+
+    def test_time_varying_rate_raises(self) -> None:
+        """A rate that varies over ``T`` is refused, not silently mis-modelled.
+
+        Bass's ``F`` is the closed-form solution for *constant* rates. A
+        time-varying ``p`` still builds and samples, but the cumulative
+        curve stops being cumulative, so it must fail loudly.
+        """
+        with pytest.raises(ValueError, match="time-constant"):
+            create_bass_model(
+                t=np.arange(6),
+                observed=None,
+                priors=self._base_priors(
+                    p=Prior("Normal", mu=0.1, sigma=0.01, dims="T")
+                ),
+                coords={"T": np.arange(6)},
+            )
+
+    def test_per_product_rate_builds(self) -> None:
+        """A rate carrying another dimension is fine: only ``T`` is forbidden."""
+        model = create_bass_model(
+            t=np.arange(6),
+            observed=None,
+            priors=self._base_priors(
+                p=Prior("Normal", mu=0.1, sigma=0.01, dims="product"),
+                likelihood=Prior("NegativeBinomial", n=1.5, dims="product"),
+            ),
+            coords={"T": np.arange(6), "product": ["A", "B"]},
+        )
+
+        assert model.named_vars_to_dims["p"] == ("product",)
+        assert model.named_vars_to_dims["peak"] == ("product",)
+
+    def test_per_product_covariate_builds(self) -> None:
+        """A recipe carrying a per-product covariate builds through Bass.
+
+        The composition itself is covered in ``tests/test_terms.py``; what
+        Bass adds is handing the dataset over so the covariate is
+        registered, and keeping the product dim in the posterior.
+        """
+        log_market_size = np.log(np.array([100.0, 250.0, 60.0]))
+        recipe = Parameter("p_base", prior=Prior("Beta", alpha=1.5, beta=20)) * (
+            Transform(
+                Dot(
+                    var_name="log_market_size",
+                    name="p_coef",
+                    prior=Prior("Normal", mu=0, sigma=0.3),
+                ),
+                ptx.math.exp,
+            )
+        )
+        model = create_bass_model(
+            t=np.arange(6),
+            observed=np.ones((6, 3)),
+            priors=self._base_priors(
+                p=recipe,
+                likelihood=Prior("NegativeBinomial", n=1.5, dims="product"),
+            ),
+            coords={"T": np.arange(6), "product": ["A", "B", "C"]},
+            ds=xr.Dataset(
+                {"log_market_size": ("product", log_market_size)},
+                coords={"T": np.arange(6), "product": ["A", "B", "C"]},
+            ),
+        )
+
+        # the covariate is registered as shared data ...
+        assert "log_market_size" in model.named_vars
+        # ... and the rate varies per product, not over time
+        assert model.named_vars_to_dims["p"] == ("product",)
+        assert model.named_vars_to_dims["peak"] == ("product",)
+        assert np.all(np.asarray(model["p"].eval()) > 0)
+
+    def test_missing_covariate_raises_named_error(self) -> None:
+        """A referenced covariate missing from the dataset is named up front."""
+        recipe = Parameter("p_base", prior=Prior("Beta", alpha=1.5, beta=20)) * (
+            Transform(
+                Dot(
+                    var_name="ad_spend",
+                    name="p_coef",
+                    prior=Prior("Normal", mu=0, sigma=0.3),
+                ),
+                ptx.math.exp,
+            )
+        )
+        with pytest.raises(ValueError, match="ad_spend"):
+            create_bass_model(
+                t=np.arange(6),
+                observed=None,
+                priors=self._base_priors(p=recipe),
+                coords={"T": np.arange(6)},
+                ds=xr.Dataset(coords={"T": np.arange(6)}),
+            )
+
+    def test_time_varying_covariate_rejected(self) -> None:
+        """A covariate over ``T`` is refused: Bass needs time-constant rates."""
+        recipe = Parameter("p_base", prior=Prior("Beta", alpha=1.5, beta=20)) * (
+            Transform(
+                Dot(
+                    var_name="ad_spend",
+                    name="p_coef",
+                    prior=Prior("Normal", mu=0, sigma=0.3),
+                ),
+                ptx.math.exp,
+            )
+        )
+        with pytest.raises(ValueError, match="time-constant"):
+            create_bass_model(
+                t=np.arange(6),
+                observed=None,
+                priors=self._base_priors(p=recipe),
+                coords={"T": np.arange(6)},
+                ds=xr.Dataset(
+                    {"ad_spend": ("T", np.arange(6, dtype=float))},
+                    coords={"T": np.arange(6)},
+                ),
+            )
+
+    def test_covariate_refreshes_out_of_sample(self, mock_pymc_sample) -> None:
+        """A new covariate value replaces the fitted one for prediction."""
+        products = ["A", "B"]
+        recipe = Parameter("p_base", prior=Prior("Beta", alpha=1.5, beta=20)) * (
+            Transform(
+                Dot(
+                    var_name="log_market_size",
+                    name="p_coef",
+                    prior=Prior("Normal", mu=0, sigma=0.3),
+                ),
+                ptx.math.exp,
+            )
+        )
+        data = xr.Dataset(
+            {
+                "observed": (("T", "product"), np.ones((6, 2))),
+                "log_market_size": ("product", np.log([100.0, 250.0])),
+            },
+            coords={"T": np.arange(6), "product": products},
+        )
+        model = BassModel(
+            model_config={
+                **self._base_priors(
+                    p=recipe,
+                    likelihood=Prior("NegativeBinomial", n=1.5, dims="product"),
+                )
+            }
+        )
+        model.fit(data=data, draws=5, tune=5, chains=1, random_seed=42)
+        assert np.allclose(
+            model.model["log_market_size"].get_value(), data["log_market_size"].values
+        )
+
+        new_data = data.copy()
+        new_data["log_market_size"] = ("product", np.log([110.0, 260.0]))
+        new_t = np.arange(10)
+        model._data_setter(
+            xr.Dataset(
+                {"log_market_size": ("product", np.log([110.0, 260.0]))},
+                coords={"T": new_t, "product": products},
+            )
+        )
+
+        assert np.allclose(
+            model.model["log_market_size"].get_value(),
+            new_data["log_market_size"].values,
+        )
 
     def test_m_recipe_opts_out_of_rescale(self) -> None:
         """The only configuration where the rescale could bite.

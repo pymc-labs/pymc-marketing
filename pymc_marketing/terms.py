@@ -310,6 +310,7 @@ __all__ = [
     "build_param",
     "collect_coords",
     "collect_terms",
+    "data_vars",
     "get_coords",
     "register_data",
     "set_data",
@@ -484,6 +485,17 @@ class ModelTerm(_TermOps):
     def get_coords(self, ds: xr.Dataset) -> dict[str, Any]:
         """Return coordinates needed for this term."""
         return {}
+
+    @property
+    def data_vars(self) -> tuple[str, ...]:
+        """Dataset variables this term reads as shared data.
+
+        Empty for terms that only build free variables. A term that reads
+        data (e.g. :class:`Dot`) overrides this, and
+        :func:`data_vars` collects the names from a whole recipe so a model
+        builder knows which variables to register.
+        """
+        return ()
 
     def add_coords(self, ds: xr.Dataset) -> None:
         """Add coordinates to the model during ``register_data``.
@@ -674,11 +686,6 @@ class Parameter(ModelTerm):
     name: str
     prior: VariableFactory = field(default_factory=lambda: Prior("Normal"))
 
-    @property
-    def dims(self) -> Any:
-        """Dims of the underlying prior (``None`` when it has none)."""
-        return getattr(self.prior, "dims", None)
-
     def get_coords(self, ds: xr.Dataset) -> dict[str, Any]:
         """Collect coordinates from ``prior.dims`` present in the dataset."""
         dims = getattr(self.prior, "dims", None)
@@ -741,8 +748,15 @@ class Dot(ModelTerm):
         Name of the data variable in the dataset.
     prior : VariableFactory
         Prior for the beta coefficients. Any ``VariableFactory`` is
-        accepted. Must have dims matching the last dimension of the
-        data variable.
+        accepted. The coefficient's dims decide what the dot product
+        contracts: giving the prior the **last** dim of the data variable
+        contracts that axis and leaves the leading dims
+        (``Dot(var_name="x", prior=Prior("Normal", dims="feature"))`` over
+        an ``(obs, feature)`` variable yields ``(obs,)``), while a prior
+        **without** dims broadcasts over that last axis, giving one
+        coefficient per element and keeping it in the result
+        (``Dot(var_name="market_size", prior=Prior("Normal"))`` over a
+        ``(product,)`` variable yields ``(product,)``).
     name : str, optional
         Name for the coefficient variable. Defaults to ``{var_name}_beta``.
         Provide a distinct ``name`` to reference the same ``var_name`` from
@@ -795,6 +809,11 @@ class Dot(ModelTerm):
         model = pm.modelcontext(None)
         if self.var_name not in model:
             pmd.Data(self.var_name, ds[self.var_name])
+
+    @property
+    def data_vars(self) -> tuple[str, ...]:
+        """The wrapped data variable."""
+        return (self.var_name,)
 
     def set_data(self, ds: xr.Dataset, model: pm.Model | None = None) -> None:
         """Update ``pmd.Data`` for prediction."""
@@ -984,8 +1003,12 @@ class Named(ModelTerm):
     def create_variable(self) -> pt.TensorVariable:
         """Build the named deterministic from the inner expression.
 
-        Bare ``VariableFactory`` children get a derived name (``<name>_param``)
-        so several ``Named`` terms do not collide on ``build_param``'s default.
+        A ``VariableFactory`` passed *directly* as ``expr`` gets a derived
+        name (``<name>_param``) instead of ``build_param``'s default, so
+        several ``Named`` terms do not collide. A factory nested inside a
+        composition does not get that treatment - wrap it in a
+        ``Parameter`` (which names itself) instead of relying on the
+        derived name.
         """
         return pmd.Deterministic(
             self.name,
@@ -1218,6 +1241,70 @@ def collect_terms(params: list[Any]) -> list[ModelTerm]:
         elif isinstance(p, Product):
             result.extend(collect_terms([p.left, p.right]))
     return result
+
+
+def data_vars(param: Any) -> list[str]:
+    """List the dataset variables a term tree reads, at any depth.
+
+    A term that reads shared data declares it through
+    :attr:`ModelTerm.data_vars` (``Dot`` declares the variable it wraps).
+    This walks compositions and term wrappers such as ``Named`` and
+    ``Transform``, so a covariate nested inside a recipe is still found.
+    Order is first-seen and names are unique.
+
+    Parameters
+    ----------
+    param : ModelTerm, Sum, Product, int, or float
+        The term tree to inspect.
+
+    Returns
+    -------
+    list[str]
+        Names of the dataset variables the tree reads.
+
+    Examples
+    --------
+    .. code-block:: python
+
+        recipe = Parameter(
+            "p_base", prior=Prior("Beta", alpha=1.5, beta=20)
+        ) * Transform(Dot(var_name="market_size", prior=Prior("Normal")), ptx.math.exp)
+        data_vars(recipe)
+        # ['market_size']
+    """
+    found: list[str] = []
+
+    def walk(node: Any) -> None:
+        for name in getattr(node, "data_vars", ()):
+            if name not in found:
+                found.append(name)
+        if isinstance(node, Sum):
+            for term in node.terms:
+                walk(term)
+        elif isinstance(node, Product):
+            walk(node.left)
+            walk(node.right)
+        elif isinstance(node, ModelTerm):
+            # wrappers (Named.expr, Transform.inner) hold the real recipe
+            for inner in _inner_specs(node):
+                walk(inner)
+
+    walk(param)
+    return found
+
+
+def _inner_specs(term: ModelTerm) -> list[Any]:
+    """Return the expressions a wrapper term delegates to, if any.
+
+    Wrapper terms hold their recipe under ``expr`` (``Named``) or ``inner``
+    (``Transform``). A custom wrapper can either use one of those names or
+    declare its own data variables through :attr:`ModelTerm.data_vars`.
+    """
+    for attribute in ("expr", "inner"):
+        inner = getattr(term, attribute, None)
+        if inner is not None:
+            return [inner]
+    return []
 
 
 def collect_coords(*params: Any, ds: xr.Dataset) -> dict[str, Any]:
