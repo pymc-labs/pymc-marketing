@@ -14,7 +14,8 @@ Report spend and sales in $ millions per week and mROAS in $ sales per $ spend. 
 
 - `docs/source/notebooks/mmm/mmm_lift_test.ipynb`: Treat the lift rows as noisy summaries of independent studies, correct the parameter and mROAS comparisons, align the plotted true adstock lag with the generating model, and show staged finite-lift and mROAS results.
 - `docs/source/notebooks/mmm/mmm_geolift_calibration.ipynb`: Preserve an untreated spend schedule, estimate four geo lifts from observed treated and paired-control outcomes, and use matching late-test effective-spend contrasts after adstock has built up. Fit both MMMs only on pre-test observations, compare against correctly scaled simulated truth, and check finite lift alongside mROAS.
-- Both notebooks place triangle anchors and known endpoints by evaluating the simulated saturation function at the programmed effective spends. Colored triangle tips show noisy measured lift. The notebooks report mROAS absolute error and interval width separately.
+- Both notebooks place triangle anchors and vertical sides on the known simulated saturation function at the programmed effective spends. Red circles with ±1 standard-error bars show noisy measured lift. The notebooks report mROAS absolute error and interval width separately.
+- Both notebooks now call out why scaling constants must remain fixed as history grows: new data maxima otherwise shift internal parameter coordinates and the business-unit meaning of priors.
 - Replace a fragile four-standard-error posterior-mean assertion with a standardized finite-lift discrepancy table. The assertion caused remote docs jobs to fail under mocked sampling even when the notebook calculations were valid.
 
 ## Testing
