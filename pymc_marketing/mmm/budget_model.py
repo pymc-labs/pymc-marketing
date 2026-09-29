@@ -164,7 +164,7 @@ from __future__ import annotations
 import logging
 import warnings
 from dataclasses import dataclass
-from typing import Any, Literal
+from typing import Any, Literal, Protocol
 
 import numpy as np
 import numpy.typing as npt
@@ -192,22 +192,27 @@ from pymc_marketing.mmm.fourier import (
 )
 from pymc_marketing.serialization import serialization
 
-__all__ = ["BudgetModelEffect", "lift_test_design"]
+__all__ = ["BudgetModelEffect", "exogeneity_summary", "lift_test_design"]
 
 DesignMode = Literal["shift", "set"]
 
 _DESIGN_REQUIRED_COLUMNS = ("channel", "start_date", "end_date")
 
-_PRIOR_NAMES = (
-    "spend_intercept",
-    "spend_control",
-    "spend_fourier",
-    "spend_trend",
-    "spend_instrument",
-    "spend_sigma",
-    "gamma",
-    "gamma_lag",
-)
+
+class FittedModel(Model, Protocol):
+    """The parts of a fitted MMM that :func:`exogeneity_summary` reads."""
+
+    @property
+    def idata(self) -> xr.DataTree | None:
+        """The inference data, with a posterior once the model is fitted."""
+
+    @property
+    def scalers(self) -> xr.Dataset:
+        """Scales of the target and channels."""
+
+    @property
+    def mu_effects(self) -> list[MuEffect]:
+        """The additive effects the model was built with."""
 
 
 def lift_test_design(
@@ -344,7 +349,7 @@ def _standardise_stats(
     return mean, std
 
 
-def _sales_fourier_order(mmm: Any) -> int:
+def _sales_fourier_order(mmm: Model) -> int:
     """Order of the annual Fourier seasonality in the sales equation."""
     orders = [int(getattr(mmm, "yearly_seasonality", None) or 0)]
     orders += [
@@ -356,12 +361,17 @@ def _sales_fourier_order(mmm: Any) -> int:
     return max(orders)
 
 
-def _has_sales_trend(mmm: Any) -> bool:
+def _has_sales_trend(mmm: Model) -> bool:
     """Whether the sales equation has a time trend of its own."""
     return bool(getattr(mmm, "time_varying_intercept", False)) or any(
         isinstance(effect, LinearTrendEffect)
         for effect in getattr(mmm, "mu_effects", [])
     )
+
+
+def _date_first(values: xr.DataArray, dims: tuple[str, ...]) -> xr.DataArray:
+    """Order ``values`` as the model does: ``date``, then any of ``dims`` it has."""
+    return values.transpose("date", *[d for d in dims if d in values.dims])
 
 
 def _time_index(
@@ -647,7 +657,7 @@ class BudgetModelEffect(MuEffect):
         return user
 
     # ------------------------------------------------------------- data
-    def _training_data(self, mmm: Any, warn: bool = False) -> _TrainingData:
+    def _training_data(self, mmm: Model, warn: bool = False) -> _TrainingData:
         """Derive spend, designs and standardisation from the MMM's training data.
 
         ``warn`` reports dropped design rows. It is set only when the model is
@@ -751,7 +761,7 @@ class BudgetModelEffect(MuEffect):
             }
         ).rename({"channel": self.channel_dim})
 
-    def _instrument(self, mmm: Any, name: str) -> xr.DataArray:
+    def _instrument(self, mmm: Model, name: str) -> xr.DataArray:
         """Return an instrument from the training data, checked against the model dims."""
         if name not in mmm.xarray_dataset:
             raise ValueError(
@@ -767,9 +777,9 @@ class BudgetModelEffect(MuEffect):
                 f"Instrument {name!r} has dims {extra} beyond the model's "
                 f"{('date', *mmm.dims)}. Aggregate it before passing it."
             )
-        return values.transpose("date", *[d for d in mmm.dims if d in values.dims])
+        return _date_first(values, mmm.dims)
 
-    def _check_design(self, mmm: Any) -> None:
+    def _check_design(self, mmm: Model) -> None:
         """Reject design columns the model cannot save and channels it lacks."""
         if self.design is None:
             return
@@ -812,7 +822,7 @@ class BudgetModelEffect(MuEffect):
                 stacklevel=3,
             )
 
-    def _warn_about_instruments(self, mmm: Any, data: _TrainingData) -> None:
+    def _warn_about_instruments(self, mmm: Model, data: _TrainingData) -> None:
         """Warn when a default regressor would act as an unintended instrument."""
         if data.fourier_order > data.sales_fourier_order:
             warnings.warn(
@@ -997,7 +1007,7 @@ class BudgetModelEffect(MuEffect):
             control_function.sum(dim=ch).transpose("date", *dims),
         )
 
-    def set_data(self, mmm: Model, model: pm.Model, X: xr.Dataset) -> None:
+    def set_data(self, mmm: Model, model: pm.Model, X: xr.Dataset | None) -> None:
         """Align the factual surprise inputs with new prediction dates.
 
         On training dates, chosen spend and the activity mask are reindexed
@@ -1005,11 +1015,10 @@ class BudgetModelEffect(MuEffect):
         ``X`` is an intervention, and interventions are never budget
         surprises. On other dates the surprise is zero, or, with
         ``surprise_out_of_sample="observed"``, computed from the spend in
-        ``X`` after removing any lift-test design that falls on those dates:
-        designed changes are subtracted and designed holdouts masked, exactly
-        as in training. With ``"zero"``, instruments missing from ``X`` are
-        filled with their training mean, since they cannot move a zero
-        surprise; with ``"observed"`` they are required.
+        ``X`` (see :meth:`_observed_surprise_inputs`). Instruments missing
+        from ``X`` keep their training values on training dates and their
+        training mean elsewhere, which cannot move a zero surprise; with
+        ``"observed"`` they are required on new dates.
 
         Parameters
         ----------
@@ -1032,25 +1041,11 @@ class BudgetModelEffect(MuEffect):
         inputs = self._surprise_inputs(
             data.spend, data.shift, data.holdout, data.spend_scale
         ).reindex(date=new_dates)
-        out_of_sample = bool(inputs["active"].isnull().any())
-        observed_mode = (
-            self.surprise_out_of_sample == "observed"
-            and X is not None
-            and "_channel" in X.data_vars
+        observed = self.surprise_out_of_sample == "observed" and bool(
+            inputs["active"].isnull().any()
         )
-        if observed_mode:
-            # Read spend on new dates as realised budget choices.
-            spend = (
-                X["_channel"]
-                .sel(channel=data.channels)
-                .reindex(date=new_dates)
-                .transpose("date", *data.dims, "channel")
-                .astype(float)
-            )
-            shift, holdout = self._design_for(spend)
-            inputs = inputs.fillna(
-                self._surprise_inputs(spend, shift, holdout, data.spend_scale)
-            )
+        if observed:
+            inputs = inputs.fillna(self._observed_surprise_inputs(X, data, new_dates))
         # Otherwise the surprise on new dates is zero: masked, with no spend.
         inputs = inputs.fillna(0.0)
 
@@ -1064,155 +1059,129 @@ class BudgetModelEffect(MuEffect):
             new_data[f"{p}_time"] = _time_index(new_dates, data.dates)
         for name in self.instruments:
             if X is not None and name in X.data_vars:
-                new_data[name] = X[name].values
-            elif observed_mode and out_of_sample:
+                values = _date_first(X[name], mmm.dims)
+            elif observed:
                 raise ValueError(
                     f"Instrument {name!r} is required on new dates with "
                     "surprise_out_of_sample='observed', because it moves the spend "
                     "equation and hence the surprise."
                 )
             else:
-                shape = [len(model.coords[d]) for d in model.named_vars_to_dims[name]]
-                new_data[name] = np.full(shape, data.instrument_stats[name][0])
+                values = (
+                    self._instrument(mmm, name)
+                    .reindex(date=new_dates)
+                    .fillna(data.instrument_stats[name][0])
+                )
+            new_data[name] = values.values
         coords = None
         if self.surprise_lags > 0:
             new_data[f"{p}_lag_operator"] = self._lag_operator(len(new_dates))
             coords = {self.source_date_dim: new_dates}
         pm.set_data(new_data, coords=coords, model=model)
 
-    # ----------------------------------------------------- diagnostics
-    def exogeneity_summary(self, mmm: Any, interval_prob: float = 0.94) -> pd.DataFrame:
-        r"""Summarise the control-function coefficients as an exogeneity check.
+    def _observed_surprise_inputs(
+        self, X: xr.Dataset | None, data: _TrainingData, new_dates: pd.DatetimeIndex
+    ) -> xr.Dataset:
+        """Surprise inputs that read spend in ``X`` as realised budget choices.
 
-        :math:`\gamma_c = 0` is the exogenous-spend case. A posterior for
-        :math:`\gamma_c` concentrated away from zero says that unexplained
-        budget moves carried demand, so the plain MMM's exogeneity assumption
-        was doing work. This is a Bayesian analogue of the control-function
-        (Durbin-Wu-Hausman) test, not a formal hypothesis test.
+        Used on new dates with ``surprise_out_of_sample="observed"``. A
+        lift-test design that falls on these dates is removed exactly as in
+        training: designed changes are subtracted and designed holdouts
+        masked, so a test in a held-out fold is not scored as a surprise.
+        """
+        if X is None or "_channel" not in X.data_vars:
+            raise ValueError(
+                "surprise_out_of_sample='observed' reads spend on new dates from the "
+                "prediction data, but it has no channel spend."
+            )
+        spend = (
+            X["_channel"]
+            .sel(channel=data.channels)
+            .reindex(date=new_dates)
+            .transpose("date", *data.dims, "channel")
+            .astype(float)
+        )
+        shift, holdout = self._design_for(spend)
+        return self._surprise_inputs(spend, shift, holdout, data.spend_scale)
 
-        The check assumes a correctly specified sales equation: because the
-        surprise is part of spend, any misspecification of the response curve
-        leaks into :math:`\gamma_c`. It has power only with excluded
-        variation. For channels without a lift-test design,
-        :math:`\gamma_c` rests on functional form and the priors, can lean
-        away from zero when spend is exogenous, and the summary flags it.
-
-        With ``surprise_lags > 0`` the summary has one row per lag. Persistent
-        demand can load on a lagged coefficient while the contemporaneous one
-        stays near zero, so read the rows together. More rows are also more
-        chances of a false alarm: with :math:`L` lags, at least one of the
-        :math:`L + 1` intervals excludes zero by chance about
-        :math:`1 - p^{L+1}` of the time, where :math:`p` is
-        ``interval_prob``.
-
-        The summary uses the configuration of the effect ``mmm`` was built
-        with, so it can be called from any instance with the same prefix,
-        including the original object after :meth:`MMM.load`.
+    # ------------------------------------------------------------ MMM hooks
+    def check_scenario_use(self, mmm: Model) -> None:
+        """Warn that ``"observed"`` surprises misread scenario spend.
 
         Parameters
         ----------
         mmm : MMM
-            A fitted MMM containing this effect.
+            The MMM model instance.
+        """
+        if self.surprise_out_of_sample == "observed":
+            warnings.warn(
+                f"BudgetModelEffect {self.prefix!r} uses "
+                "surprise_out_of_sample='observed', which treats spend on new dates "
+                "as realised budget choices. That suits scoring held-out weeks, not "
+                "budget scenarios: the scenario's spend would count as a budget "
+                "surprise. Use a model with the default 'zero' for optimization.",
+                UserWarning,
+                stacklevel=3,
+            )
+
+    def check_lift_tests(self, mmm: Model, df_lift_test: pd.DataFrame) -> None:
+        """Warn when lift tests may duplicate this effect's design.
+
+        The design puts the test periods into the sales likelihood as data, so
+        adding the lift summary of the same experiment counts it twice.
+
+        Parameters
+        ----------
+        mmm : MMM
+            The MMM model instance.
+        df_lift_test : pd.DataFrame
+            The lift tests being added.
+        """
+        if self.design is None:
+            return
+        keys = ["channel", *mmm.dims]
+        tested = set(map(tuple, df_lift_test[keys].astype(str).to_numpy()))
+        designed = set(map(tuple, self.design[keys].astype(str).to_numpy()))
+        if overlap := sorted(tested & designed):
+            warnings.warn(
+                f"Lift tests on {overlap} may duplicate the design of "
+                f"BudgetModelEffect {self.prefix!r}. The lift table has no dates, "
+                "so this matches on channel and dims only. If these are the same "
+                "experiments, their periods already enter the sales likelihood as "
+                "data and the lift likelihood counts them twice. Use "
+                "add_lift_test_measurements only for experiments whose periods or "
+                "units are not in the MMM data.",
+                UserWarning,
+                stacklevel=3,
+            )
+
+    # ----------------------------------------------------- diagnostics
+    def exogeneity_summary(
+        self, mmm: FittedModel, interval_prob: float = 0.94
+    ) -> pd.DataFrame:
+        """Summarise this effect's control-function coefficients in ``mmm``.
+
+        Equivalent to ``exogeneity_summary(mmm, prefix=self.prefix)``. The
+        summary uses the configuration of the effect ``mmm`` was built with,
+        so it can be called from any instance with the same prefix, including
+        the original object after :meth:`MMM.load`. See
+        :func:`exogeneity_summary` for the columns and how to read them.
+
+        Parameters
+        ----------
+        mmm : MMM
+            A fitted MMM containing an effect with this prefix.
         interval_prob : float, default 0.94
             Mass of the equal-tailed posterior interval.
 
         Returns
         -------
         pd.DataFrame
-            One row per channel, lag (``0`` for the contemporaneous
-            coefficient) and cell of any extra dimension, with columns
-            ``gamma_mean``, ``gamma_lower``, ``gamma_upper`` (scaled units),
-            ``gamma_per_spend_unit`` (target units per unexplained unit of
-            spend; with ``link="log"``, log-scale change per unit of spend),
-            ``prob_positive``, ``prior_sd``, ``posterior_sd``,
-            ``contraction`` (``1 - posterior_sd / prior_sd``),
-            ``identified_by_design`` and ``note``.
+            One row per channel, lag and cell of any extra dimension.
         """
-        if not 0 < interval_prob < 1:
-            raise ValueError(f"interval_prob must be in (0, 1), got {interval_prob}.")
-        idata = getattr(mmm, "idata", None)
-        name = f"{self.prefix}_gamma"
-        if idata is None or "posterior" not in idata or name not in idata.posterior:
-            raise RuntimeError(f"No posterior for {name!r}; fit the model first.")
-        effect = next(
-            (
-                effect
-                for effect in getattr(mmm, "mu_effects", [])
-                if isinstance(effect, BudgetModelEffect)
-                and effect.prefix == self.prefix
-            ),
-            None,
-        )
-        if effect is None:
-            raise RuntimeError(
-                f"The MMM has no BudgetModelEffect with prefix {self.prefix!r}."
-            )
-        if effect is not self:
-            return effect.exogeneity_summary(mmm, interval_prob=interval_prob)
+        return exogeneity_summary(mmm, prefix=self.prefix, interval_prob=interval_prob)
 
-        data = self._training_data(mmm)
-        rename = {"channel": self.channel_dim}
-        sample_dims = ("chain", "draw")
-
-        # Stack the contemporaneous coefficient (lag 0) with any lagged ones.
-        gammas = [idata.posterior[name].expand_dims(lag=[0])]
-        prior_sds = [self._prior_sd(mmm, "gamma").expand_dims(lag=[0])]
-        if self.surprise_lags > 0:
-            gammas.append(
-                idata.posterior[f"{self.prefix}_gamma_lag"].rename(
-                    {self.lag_dim: "lag"}
-                )
-            )
-            prior_sds.append(self._prior_sd(mmm, "gamma_lag"))
-        gamma = xr.concat(gammas, dim="lag")
-        tail = (1 - interval_prob) / 2
-        per_unit = gamma * mmm.scalers["_target"] / data.spend_scale.rename(rename)
-
-        summary = xr.Dataset(
-            {
-                "gamma_mean": gamma.mean(sample_dims),
-                "gamma_lower": gamma.quantile(tail, dim=sample_dims).drop_vars(
-                    "quantile"
-                ),
-                "gamma_upper": gamma.quantile(1 - tail, dim=sample_dims).drop_vars(
-                    "quantile"
-                ),
-                "gamma_per_spend_unit": per_unit.mean(sample_dims),
-                "prob_positive": (gamma > 0).mean(sample_dims),
-                "prior_sd": xr.concat(prior_sds, dim="lag"),
-                "posterior_sd": gamma.std(sample_dims),
-            }
-        )
-        summary["contraction"] = 1 - summary["posterior_sd"] / summary["prior_sd"]
-        # A gamma shared across a dim is informed by a design anywhere along it.
-        identified = ((data.shift != 0) | data.holdout).any("date").rename(rename)
-        pooled = [d for d in identified.dims if d not in gamma.dims]
-        if pooled:
-            identified = identified.any(pooled)
-        summary, identified = xr.broadcast(summary, identified)
-        summary["identified_by_design"] = identified
-        order = [self.channel_dim, "lag"]
-        summary = summary.transpose(*order, ...)
-
-        df = summary.to_dataframe().reset_index()
-        df = df[[*order, *[c for c in df.columns if c not in order]]]
-        df = df.rename(columns={self.channel_dim: "channel"})
-
-        def _note(row: pd.Series) -> str:
-            notes = []
-            if not row["identified_by_design"]:
-                notes.append(
-                    "no lift-test design: gamma rests on functional form and priors, "
-                    "not a test"
-                )
-            if row["contraction"] < 0.1:
-                notes.append("data barely update the prior on gamma")
-            return "; ".join(notes)
-
-        df["note"] = df.apply(_note, axis=1)
-        return df
-
-    def _prior_sd(self, mmm: Any, name: str) -> xr.DataArray:
+    def _prior_sd(self, mmm: Model, name: str) -> xr.DataArray:
         """Prior standard deviation of a control-function coefficient.
 
         Exact for a ``Normal`` prior with a fixed ``sigma``; otherwise estimated
@@ -1243,57 +1212,42 @@ class BudgetModelEffect(MuEffect):
         return sd.rename({self.lag_dim: "lag"}) if self.lag_dim in sd.dims else sd
 
     # ---------------------------------------------------- serialization
+    @classmethod
+    def _prior_fields(cls) -> list[str]:
+        return [name for name in cls.model_fields if name.endswith("_prior")]
+
     def to_dict(self) -> dict[str, Any]:
-        """Serialize to a JSON-safe dict. ``__type__`` is injected by the registry."""
-        design = None
-        if self.design is not None:
-            design = self.design.copy()
-            for col in ("start_date", "end_date"):
-                design[col] = pd.to_datetime(design[col]).dt.strftime(
-                    "%Y-%m-%dT%H:%M:%S"
-                )
-            design = (
-                design.astype(object).where(design.notna(), None).to_dict(orient="list")
-            )
-        return {
-            "prefix": self.prefix,
-            "channels": self.channels,
-            "use_controls": self.use_controls,
-            "fourier_order": self.fourier_order,
-            "trend": self.trend,
-            "instruments": list(self.instruments),
-            "design": design,
-            "surprise_lags": self.surprise_lags,
-            "surprise_out_of_sample": self.surprise_out_of_sample,
-            **{
-                f"{name}_prior": _prior_to_dict(getattr(self, f"{name}_prior"))
-                for name in _PRIOR_NAMES
-            },
-        }
+        """Serialize every field to a JSON-safe dict.
+
+        ``__type__`` is injected by the registry. Only the design and the
+        priors need converting; every other field is dumped as is, so a new
+        field is saved without further changes here.
+        """
+        priors = self._prior_fields()
+        data = self.model_dump(exclude={"design", *priors})
+        data["design"] = None if self.design is None else _design_to_dict(self.design)
+        for name in priors:
+            prior = getattr(self, name)
+            data[name] = None if prior is None else prior.to_dict()
+        return data
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> BudgetModelEffect:
         """Reconstruct from a dict produced by :meth:`to_dict`."""
-        design = data.get("design")
-        return cls(
-            prefix=data.get("prefix", "budget"),
-            channels=data.get("channels"),
-            use_controls=data.get("use_controls", True),
-            fourier_order=data.get("fourier_order"),
-            trend=data.get("trend", False),
-            instruments=data.get("instruments", []),
-            design=None if design is None else pd.DataFrame(design),
-            surprise_lags=data.get("surprise_lags", 0),
-            surprise_out_of_sample=data.get("surprise_out_of_sample", "zero"),
-            **{
-                f"{name}_prior": _prior_from_dict(data.get(f"{name}_prior"))
-                for name in _PRIOR_NAMES
-            },
-        )
+        fields = {key: value for key, value in data.items() if key in cls.model_fields}
+        if fields.get("design") is not None:
+            fields["design"] = pd.DataFrame(fields["design"])
+        for name in cls._prior_fields():
+            fields[name] = _prior_from_dict(fields.get(name))
+        return cls(**fields)
 
 
-def _prior_to_dict(prior: VariableFactory | None) -> dict[str, Any] | None:
-    return None if prior is None else prior.to_dict()
+def _design_to_dict(design: pd.DataFrame) -> dict[Any, list[Any]]:
+    """Design columns as lists of JSON-safe values, with ISO dates and ``None`` for NaN."""
+    design = design.copy()
+    for col in ("start_date", "end_date"):
+        design[col] = pd.to_datetime(design[col]).dt.strftime("%Y-%m-%dT%H:%M:%S")
+    return design.astype(object).where(design.notna(), None).to_dict(orient="list")
 
 
 def _prior_from_dict(value: dict[str, Any] | None) -> VariableFactory | None:
@@ -1304,3 +1258,126 @@ def _prior_from_dict(value: dict[str, Any] | None) -> VariableFactory | None:
     if "__type__" in value:
         return serialization.deserialize(value)
     return deserialize(value)
+
+
+def exogeneity_summary(
+    mmm: FittedModel, prefix: str = "budget", interval_prob: float = 0.94
+) -> pd.DataFrame:
+    r"""Summarise a budget model's control-function coefficients as an exogeneity check.
+
+    :math:`\gamma_c = 0` is the exogenous-spend case. A posterior for
+    :math:`\gamma_c` concentrated away from zero says that unexplained budget
+    moves carried demand, so the plain MMM's exogeneity assumption was doing
+    work. This is a Bayesian analogue of the control-function
+    (Durbin-Wu-Hausman) test, not a formal hypothesis test.
+
+    The check assumes a correctly specified sales equation: because the
+    surprise is part of spend, any misspecification of the response curve
+    leaks into :math:`\gamma_c`. It has power only with excluded variation.
+    For channels without a lift-test design, :math:`\gamma_c` rests on
+    functional form and the priors, can lean away from zero when spend is
+    exogenous, and the summary flags it.
+
+    With ``surprise_lags > 0`` the summary has one row per lag. Persistent
+    demand can load on a lagged coefficient while the contemporaneous one
+    stays near zero, so read the rows together. More rows are also more
+    chances of a false alarm: with :math:`L` lags, at least one of the
+    :math:`L + 1` intervals excludes zero by chance about :math:`1 - p^{L+1}`
+    of the time, where :math:`p` is ``interval_prob``.
+
+    Parameters
+    ----------
+    mmm : MMM
+        A fitted MMM containing a :class:`BudgetModelEffect`. The
+        configuration is read from that effect.
+    prefix : str, default "budget"
+        Prefix of the effect to summarise.
+    interval_prob : float, default 0.94
+        Mass of the equal-tailed posterior interval.
+
+    Returns
+    -------
+    pd.DataFrame
+        One row per channel, lag (``0`` for the contemporaneous coefficient)
+        and cell of any extra dimension, with columns ``gamma_mean``,
+        ``gamma_lower``, ``gamma_upper`` (scaled units),
+        ``gamma_per_spend_unit`` (target units per unexplained unit of spend;
+        with ``link="log"``, log-scale change per unit of spend),
+        ``prob_positive``, ``prior_sd``, ``posterior_sd``, ``contraction``
+        (``1 - posterior_sd / prior_sd``), ``identified_by_design`` and
+        ``note``.
+    """
+    if not 0 < interval_prob < 1:
+        raise ValueError(f"interval_prob must be in (0, 1), got {interval_prob}.")
+    idata = mmm.idata
+    name = f"{prefix}_gamma"
+    if idata is None or "posterior" not in idata or name not in idata.posterior:
+        raise RuntimeError(f"No posterior for {name!r}; fit the model first.")
+    effect = next(
+        (
+            effect
+            for effect in mmm.mu_effects
+            if isinstance(effect, BudgetModelEffect) and effect.prefix == prefix
+        ),
+        None,
+    )
+    if effect is None:
+        raise RuntimeError(f"The MMM has no BudgetModelEffect with prefix {prefix!r}.")
+
+    data = effect._training_data(mmm)
+    rename = {"channel": effect.channel_dim}
+    sample_dims = ("chain", "draw")
+
+    # Stack the contemporaneous coefficient (lag 0) with any lagged ones.
+    gammas = [idata.posterior[name].expand_dims(lag=[0])]
+    prior_sds = [effect._prior_sd(mmm, "gamma").expand_dims(lag=[0])]
+    if effect.surprise_lags > 0:
+        gammas.append(
+            idata.posterior[f"{prefix}_gamma_lag"].rename({effect.lag_dim: "lag"})
+        )
+        prior_sds.append(effect._prior_sd(mmm, "gamma_lag"))
+    gamma = xr.concat(gammas, dim="lag")
+    tail = (1 - interval_prob) / 2
+    per_unit = gamma * mmm.scalers["_target"] / data.spend_scale.rename(rename)
+
+    summary = xr.Dataset(
+        {
+            "gamma_mean": gamma.mean(sample_dims),
+            "gamma_lower": gamma.quantile(tail, dim=sample_dims).drop_vars("quantile"),
+            "gamma_upper": gamma.quantile(1 - tail, dim=sample_dims).drop_vars(
+                "quantile"
+            ),
+            "gamma_per_spend_unit": per_unit.mean(sample_dims),
+            "prob_positive": (gamma > 0).mean(sample_dims),
+            "prior_sd": xr.concat(prior_sds, dim="lag"),
+            "posterior_sd": gamma.std(sample_dims),
+        }
+    )
+    summary["contraction"] = 1 - summary["posterior_sd"] / summary["prior_sd"]
+    # A gamma shared across a dim is informed by a design anywhere along it.
+    identified = ((data.shift != 0) | data.holdout).any("date").rename(rename)
+    pooled = [d for d in identified.dims if d not in gamma.dims]
+    if pooled:
+        identified = identified.any(pooled)
+    summary, identified = xr.broadcast(summary, identified)
+    summary["identified_by_design"] = identified
+    order = [effect.channel_dim, "lag"]
+    summary = summary.transpose(*order, ...)
+
+    df = summary.to_dataframe().reset_index()
+    df = df[[*order, *[c for c in df.columns if c not in order]]]
+    df = df.rename(columns={effect.channel_dim: "channel"})
+
+    def _note(row: pd.Series) -> str:
+        notes = []
+        if not row["identified_by_design"]:
+            notes.append(
+                "no lift-test design: gamma rests on functional form and priors, "
+                "not a test"
+            )
+        if row["contraction"] < 0.1:
+            notes.append("data barely update the prior on gamma")
+        return "; ".join(notes)
+
+    df["note"] = df.apply(_note, axis=1)
+    return df

@@ -214,7 +214,6 @@ from pymc_marketing.mmm.additive_effect import (
     MuEffect,
     safe_to_datetime,
 )
-from pymc_marketing.mmm.budget_model import BudgetModelEffect
 from pymc_marketing.mmm.budget_optimizer import (
     DEFAULT_RESPONSE_VARIABLE,
     OptimizerCompatibleModelWrapper,
@@ -2997,35 +2996,11 @@ class MMM(RegressionModelBuilder):
             model=self.model.copy(),
         )
 
-        self._warn_observed_budget_surprise()
         for mu_effect in self.mu_effects:
+            mu_effect.check_scenario_use(self)
             mu_effect.set_data(self, pymc_model, dataset_xarray)
 
         return pymc_model
-
-    def _warn_observed_budget_surprise(self) -> None:
-        """Warn when a scenario tool runs on a model scoring realised surprises.
-
-        With ``surprise_out_of_sample="observed"`` a ``BudgetModelEffect`` reads
-        spend on new dates as realised budget choices, so a scenario's spend
-        would be counted as a budget surprise.
-        """
-        prefixes = [
-            effect.prefix
-            for effect in self.mu_effects
-            if isinstance(effect, BudgetModelEffect)
-            and effect.surprise_out_of_sample == "observed"
-        ]
-        if prefixes:
-            warnings.warn(
-                f"BudgetModelEffect {prefixes} use surprise_out_of_sample='observed', "
-                "which treats spend on new dates as realised budget choices. That "
-                "suits scoring held-out weeks, not budget scenarios: the scenario's "
-                "spend would count as a budget surprise. Use a model with the "
-                "default 'zero' for optimization.",
-                UserWarning,
-                stacklevel=3,
-            )
 
     def _effects_carry_media_response(self) -> bool:
         """Report whether a mu effect routes media response around the default.
@@ -3945,7 +3920,8 @@ class MMM(RegressionModelBuilder):
                     f"The {dim} column is required to map the lift measurements to the model."
                 )
 
-        self._warn_lift_test_double_counting(df_lift_test)
+        for mu_effect in self.mu_effects:
+            mu_effect.check_lift_tests(self, df_lift_test)
 
         # Function to scale "delta_y", and "sigma" to same scale as target in model.
         target_transform = self._make_target_transform(df_lift_test)
@@ -3976,32 +3952,6 @@ class MMM(RegressionModelBuilder):
         )
 
         return self
-
-    def _warn_lift_test_double_counting(self, df_lift_test: pd.DataFrame) -> None:
-        """Warn when a lift test may already enter the model through a budget design.
-
-        A :class:`~pymc_marketing.mmm.budget_model.BudgetModelEffect` design
-        puts the test periods into the sales likelihood as data. Adding the
-        lift summary of the same experiment counts it twice.
-        """
-        keys = ["channel", *self.dims]
-        tested = set(map(tuple, df_lift_test[keys].astype(str).to_numpy()))
-        for effect in self.mu_effects:
-            if not isinstance(effect, BudgetModelEffect) or effect.design is None:
-                continue
-            designed = set(map(tuple, effect.design[keys].astype(str).to_numpy()))
-            if overlap := sorted(tested & designed):
-                warnings.warn(
-                    f"Lift tests on {overlap} may duplicate the design of "
-                    f"BudgetModelEffect {effect.prefix!r}. The lift table has no dates, "
-                    "so this matches on channel and dims only. If these are the same "
-                    "experiments, their periods already enter the sales likelihood as "
-                    "data and the lift likelihood counts them twice. Use "
-                    "add_lift_test_measurements only for experiments whose periods or "
-                    "units are not in the MMM data.",
-                    UserWarning,
-                    stacklevel=3,
-                )
 
     def add_cost_per_target_calibration(
         self: Self,
@@ -4537,8 +4487,8 @@ class BudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
             dataset_xarray=dataset_xarray,
             model=self.model_class.model.copy(),
         )
-        self.model_class._warn_observed_budget_surprise()
         for mu_effect in self.model_class.mu_effects:
+            mu_effect.check_scenario_use(self.model_class)
             mu_effect.set_data(self.model_class, pymc_model, dataset_xarray)
         return pymc_model
 

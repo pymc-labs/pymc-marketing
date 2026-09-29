@@ -32,6 +32,7 @@ from pymc_marketing.mmm import (
     lift_test_design,
 )
 from pymc_marketing.mmm.additive_effect import FourierEffect, LinearTrendEffect
+from pymc_marketing.mmm.budget_model import exogeneity_summary
 from pymc_marketing.mmm.data_conversion import to_mmm_dataset
 from pymc_marketing.mmm.fourier import YearlyFourier
 from pymc_marketing.mmm.linear_trend import LinearTrend
@@ -440,6 +441,34 @@ class TestSerialization:
         assert restored.gamma_prior == effect.gamma_prior
         pd.testing.assert_frame_equal(restored.design, effect.design)
 
+    def test_every_field_round_trips(self, design):
+        # Guards against a new field being silently dropped on save/load.
+        prior = Prior("Normal", mu=0, sigma=2, dims="other_channel")
+        values = {
+            "prefix": "other",
+            "channels": ["tv"],
+            "use_controls": False,
+            "fourier_order": 1,
+            "trend": True,
+            "instruments": ["cost_shock"],
+            "design": design,
+            "surprise_lags": 2,
+            "surprise_out_of_sample": "observed",
+            **{
+                name: prior
+                for name in BudgetModelEffect.model_fields
+                if name.endswith("_prior")
+            },
+        }
+        assert set(values) == set(BudgetModelEffect.model_fields)
+        effect = BudgetModelEffect(**values)
+        restored = serialization.deserialize(serialization.serialize(effect))
+        for name in values:
+            if name == "design":
+                pd.testing.assert_frame_equal(restored.design, effect.design)
+            else:
+                assert getattr(restored, name) == getattr(effect, name), name
+
     def test_save_load(self, fitted, tmp_path):
         mmm, effect = fitted
         path = tmp_path / "budget.nc"
@@ -501,6 +530,12 @@ class TestExogeneitySummary:
         assert summary["identified_by_design"].all()
         np.testing.assert_allclose(summary["prior_sd"], 0.5)
         pd.testing.assert_frame_equal(summary, effect.exogeneity_summary(mmm))
+
+    def test_module_function_matches_method(self, fitted):
+        mmm, effect = fitted
+        pd.testing.assert_frame_equal(
+            exogeneity_summary(mmm, prefix="budget"), effect.exogeneity_summary(mmm)
+        )
 
     def test_sampled_prior_sd_is_reproducible(self, data):
         X, y = data
@@ -624,6 +659,46 @@ def test_panel_instrument_not_needed_for_prediction(panel_data):
         future, extend_idata=False, var_names=["budget_spend_mu"], random_seed=1
     )
     assert np.isfinite(pp["budget_spend_mu"]).all()
+
+
+def test_instrument_follows_model_dim_order(panel_data):
+    X, y = panel_data
+    X = X.assign(cost_shock=np.random.default_rng(3).normal(size=len(X)))
+    mmm = _make_mmm(dims=("geo",)).add_mu_effect(
+        BudgetModelEffect(instruments=["cost_shock"])
+    )
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        mock_fit(mmm, X, y, random_seed=1)
+    dataset = mmm._posterior_predictive_data_transformation(X)
+    dataset["cost_shock"] = dataset["cost_shock"].transpose("geo", "date")
+    model = mmm._set_xarray_data(dataset, model=mmm.model.copy())
+    mmm.mu_effects[0].set_data(mmm, model, dataset)
+    np.testing.assert_allclose(
+        model["cost_shock"].eval(),
+        mmm.xarray_dataset["cost_shock"].transpose("date", "geo").values,
+    )
+
+
+def test_missing_instrument_keeps_factual_surprise_in_sample(data):
+    X, y = data
+    X = X.assign(cost_shock=np.random.default_rng(3).normal(size=N_WEEKS))
+    mmm = _make_mmm().add_mu_effect(BudgetModelEffect(instruments=["cost_shock"]))
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        mock_fit(mmm, X, y, random_seed=1)
+    pp = mmm.sample_posterior_predictive(
+        X.drop(columns="cost_shock"),
+        extend_idata=False,
+        var_names=["budget_surprise"],
+        random_seed=1,
+    )
+    np.testing.assert_allclose(
+        pp["budget_surprise"].mean("sample").transpose("date", "budget_channel"),
+        mmm.idata.posterior["budget_surprise"]
+        .mean(("chain", "draw"))
+        .transpose("date", "budget_channel"),
+    )
 
 
 def test_instrument_shared_between_effects(data):
@@ -951,6 +1026,19 @@ class TestIdentificationGuards:
             expected.values,
         )
 
+    def test_observed_surprise_requires_spend(self, data):
+        X, y = data
+        mmm = _make_mmm().add_mu_effect(
+            BudgetModelEffect(surprise_out_of_sample="observed")
+        )
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            mock_fit(mmm, X.iloc[:24], y.iloc[:24], random_seed=1)
+        dataset = mmm._posterior_predictive_data_transformation(X)
+        model = mmm._set_xarray_data(dataset, model=mmm.model.copy())
+        with pytest.raises(ValueError, match="has no channel spend"):
+            mmm.mu_effects[0].set_data(mmm, model, dataset.drop_vars("_channel"))
+
     def test_observed_surprise_requires_instruments(self, data):
         X, y = data
         X = X.assign(cost_shock=np.random.default_rng(3).normal(size=N_WEEKS))
@@ -1081,17 +1169,19 @@ def test_lift_likelihood_double_count_warning(data, design):
         mmm.add_lift_test_measurements(df_lift)
 
 
-def test_lift_likelihood_no_warning_for_untested_channel(data):
+@pytest.mark.parametrize("tested", [["digital"], []], ids=["other-channel", "none"])
+def test_lift_likelihood_no_warning_for_untested_channel(data, tested):
     X, y = data
     design = pd.DataFrame(
         {
-            "channel": ["digital"],
-            "start_date": [DATES[3]],
-            "end_date": [DATES[4]],
-            "delta_x": [5.0],
+            "channel": tested,
+            "start_date": [DATES[3]] * len(tested),
+            "end_date": [DATES[4]] * len(tested),
+            "delta_x": [5.0] * len(tested),
         }
     )
-    mmm = _make_mmm().add_mu_effect(BudgetModelEffect(design=design))
+    effect = BudgetModelEffect(design=design if tested else None)
+    mmm = _make_mmm().add_mu_effect(effect)
     mmm.build_model(X, y)
     df_lift = pd.DataFrame(
         {
