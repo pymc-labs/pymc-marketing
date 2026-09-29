@@ -1615,6 +1615,33 @@ class TestPriceResponseOptimality:
         assert np.all(np.isfinite(result.scipy_result.x))
         assert result.scipy_result.success, result.scipy_result.message
 
+    def test_solve_with_a_small_elasticity_from_a_channel_at_zero(
+        self, simple_fitted_mmm
+    ):
+        """Below gamma ~ 0.006 the unclamped floor underflows to 0: resolve warns twice,
+        the gradient at a channel started at 0 is inf, and SLSQP stops with "Inequality
+        constraints incompatible". A sweep such as linspace(0, 0.5, 101) hits this on its
+        second point."""
+        mmm = simple_fitted_mmm
+        mmm.set_cost_per_unit(_full_table(mmm, self.PRICES))
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", RuntimeWarning)
+            optimizer = _optimizer(
+                mmm,
+                cost_per_unit=_window_cpu(mmm, self.PRICES),
+                price_response=PowerPriceResponse(elasticity=0.005),
+            )
+        x0 = xr.DataArray(
+            [0.0, self.TOTAL / 2, self.TOTAL / 2],
+            dims=("channel",),
+            coords={"channel": CHANNELS_3},
+        )
+        gradient = optimizer.evaluate_plan(x0).utility_gradient["channel_data"].values
+        assert np.isfinite(gradient).all(), gradient
+        result = optimizer.allocate_budget(total_budget=self.TOTAL, x0=x0)
+        assert result.scipy_result.success, result.scipy_result.message
+        assert np.isfinite(result.scipy_result.x).all()
+
     def test_the_more_elastic_channel_receives_less(self, simple_fitted_mmm):
         """End to end: anchored at the constant-price optimum, elasticity moves budget away.
 

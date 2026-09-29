@@ -61,6 +61,11 @@ __all__ = [
     "ResolvedPriceResponse",
 ]
 
+# Below this fraction of the reference the derived floor is clamped. inner ** (-1 / gamma)
+# underflows to 0 for gamma below ~0.006 at the default max_slope_ratio, which would put
+# the floor at 0 and the coefficients at inf; a floor this low is always under the cap.
+MIN_FLOOR_FRACTION = 1e-12
+
 
 class ResolvedPriceResponse(ABC):
     """A price response bound to one decision variable's cell layout.
@@ -114,8 +119,10 @@ class ResolvedPowerPriceResponse(ResolvedPriceResponse):
     spend, so :math:`m = p / (1 - \gamma)` holds on the power branch only.
 
     The floor is where the slope spread the solver can meet is capped, :math:`u'(0) / u'(s_{\text{ref}}) = M`,
-    which gives :math:`s_f / s_{\text{ref}} = (M (1-\gamma)/(1+\gamma))^{-1/\gamma}`. Cells with
-    :math:`\gamma = 0` have :math:`s_f = 0`, :math:`a = 1`, :math:`b = 0` and are exactly :math:`s / p_0`.
+    which gives :math:`s_f / s_{\text{ref}} = (M (1-\gamma)/(1+\gamma))^{-1/\gamma}`, clamped below at
+    ``MIN_FLOOR_FRACTION`` (1e-12) of the reference, where that expression underflows; the clamped floor stays
+    under the cap. Cells with :math:`\gamma = 0` have :math:`s_f = 0`, :math:`a = 1`, :math:`b = 0` and are
+    exactly :math:`s / p_0`.
 
     Both ``where`` branches receive a clipped input because ``where`` evaluates both: the power branch would have
     an infinite derivative at 0, and the quadratic price branches have a pole in the region where they are not
@@ -161,7 +168,7 @@ class ResolvedPowerPriceResponse(ResolvedPriceResponse):
     def _power_floor_coefficients(
         gamma: np.ndarray, reference_spend: np.ndarray, max_slope_ratio: float
     ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-        """Quadratic-floor location and coefficients ``(s_floor, scale, a, b)`` per cell.
+        """Floor location and coefficients ``(s_floor, scale, a, b)`` per cell, floor clamped at ``MIN_FLOOR_FRACTION``.
 
         Closed forms under a double ``where``: a bare ``np.where(active, f(gamma), 0.0)`` still evaluates ``f``
         on the ``gamma = 0`` cells, where ``-1 / gamma`` and ``s_f ** -1`` warn and produce ``inf``/``nan``. A
@@ -171,9 +178,12 @@ class ResolvedPowerPriceResponse(ResolvedPriceResponse):
         safe_gamma = np.where(active, gamma, 1.0)
         inner = max_slope_ratio * (1.0 - safe_gamma) / (1.0 + safe_gamma)
         safe_inner = np.where(active, inner, 2.0)
-        s_floor = np.where(
-            active, reference_spend * safe_inner ** (-1.0 / safe_gamma), 0.0
-        )
+        # The cap gives s_f / s_ref = inner ** (-1 / gamma), which underflows to 0 at small
+        # gamma. Clamping keeps the floor positive and the coefficients finite; where the
+        # clamp binds the spread across [MIN_FLOOR_FRACTION * s_ref, s_ref] is
+        # MIN_FLOOR_FRACTION ** -gamma, already below the cap.
+        fraction = np.maximum(safe_inner ** (-1.0 / safe_gamma), MIN_FLOOR_FRACTION)
+        s_floor = np.where(active, reference_spend * fraction, 0.0)
         safe_floor = np.where(active, s_floor, 1.0)
         scale = reference_spend**gamma
         a = np.where(active, (1.0 + gamma) * scale * safe_floor**-gamma, scale)
@@ -417,11 +427,12 @@ class PowerPriceResponse(PriceResponse):
     max_slope_ratio : float
         Cap on :math:`u'(0) / u'(s^{\text{ref}})`, the spread of marginal returns the solver can meet on one
         cell. Sets the floor :math:`s_f / s^{\text{ref}} = (M (1-\gamma)/(1+\gamma))^{-1/\gamma}`; must exceed
-        :math:`(1+\gamma)/(1-\gamma)`. Default ``100``. Warns when the floor exceeds 1% of the reference,
-        which happens at high elasticity. Leave a channel whose bounds pin it to zero at ``elasticity=0`` or
-        drop it from ``budgets_to_optimize``: the map is steepest at zero, so pricing an immovable channel
-        hands the solver its largest gradient on a variable that cannot move, which SLSQP tolerates on some
-        platforms and not on others.
+        :math:`(1+\gamma)/(1-\gamma)`. Default ``100``. The floor is never below 1e-12 of the reference: at
+        small elasticity the formula underflows, and a floor that low is already under the cap. Warns when the
+        floor exceeds 1% of the reference, which happens at high elasticity. Leave a channel whose bounds pin
+        it to zero at ``elasticity=0`` or drop it from ``budgets_to_optimize``: the map is steepest at zero, so
+        pricing an immovable channel hands the solver its largest gradient on a variable that cannot move, which
+        SLSQP tolerates on some platforms and not on others.
     reference_spend_tolerance : float
         Largest factor by which a supplied ``reference_spend`` may differ from the derived default on any
         optimized cell before it is rejected. Default ``10``. The unit error this catches is a window total

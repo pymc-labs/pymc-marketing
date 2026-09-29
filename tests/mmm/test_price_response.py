@@ -185,6 +185,38 @@ class TestResolvedPowerPriceResponse:
         np.testing.assert_allclose((at_zero / at_ref)[act], M, rtol=1e-8)
         assert at_zero[0] == at_ref[0]
 
+    @pytest.mark.parametrize("gamma", [1e-6, 5e-3, 1e-2])
+    def test_small_elasticity_keeps_the_floor_positive_and_the_gradient_finite(
+        self, gamma
+    ):
+        """inner ** (-1 / gamma) underflows to 0 below gamma ~ 0.006 at M = 100. Without a
+        clamp the floor vanishes, a and b overflow, and the singularity at zero is back:
+        grad(0) is inf and SLSQP fails from a channel started at 0. The clamped floor is
+        always below the cap: the spread across [1e-12 s_ref, s_ref] is 1e-12 ** -gamma,
+        which is under M (1 - gamma) / (1 + gamma) exactly when the clamp binds."""
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            resolved = ResolvedPowerPriceResponse(
+                gamma=np.array([gamma]),
+                reference_spend=np.array([100.0]),
+                max_slope_ratio=M,
+                dims=DIMS,
+                label="test",
+            )
+        assert resolved.s_floor[0] > 0.0
+        assert np.isfinite(resolved.a).all() and np.isfinite(resolved.b).all()
+        spend = ptx.xtensor("spend", shape=(1,), dims=DIMS)
+        objective = rewrite_graph(
+            resolved.to_delivery(spend).sum().values, include=LOWER
+        )
+        grad = function([spend], pt.grad(objective, spend))
+        at_zero, at_ref = grad(np.zeros(1)), grad(np.array([100.0]))
+        assert np.isfinite(at_zero).all()
+        assert at_zero[0] <= M * at_ref[0] * (1 + 1e-9)
+        u = compile_lowered(resolved.to_delivery(spend), spend)
+        assert u(np.zeros(1))[0] == 0.0
+        np.testing.assert_allclose(u(np.array([100.0]))[0], 100.0, rtol=1e-12)
+
     def test_map_is_monotone_and_concave(self, maps):
         grid = np.linspace(0.0, 400.0, 2001)
         for i in range(3):
