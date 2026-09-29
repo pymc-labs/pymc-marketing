@@ -25,7 +25,7 @@ from scipy.optimize import approx_fprime
 
 from pymc_marketing.data.idata.mmm_wrapper import MMMIDataWrapper
 from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation, PowerPriceResponse
-from pymc_marketing.mmm.budget_optimizer import BudgetOptimizer
+from pymc_marketing.mmm.budget_optimizer import BudgetOptimizer, MinimizeException
 from pymc_marketing.mmm.mmm import (
     MMM,
     BudgetOptimizerWrapper,
@@ -1476,6 +1476,34 @@ class TestPriceResponseAllocation:
         assert bool(
             result.implied_price.sel(channel=["channel_2", "channel_3"]).notnull().all()
         )
+
+    def test_a_priced_channel_pinned_at_zero_by_bounds_is_named(
+        self, simple_fitted_mmm
+    ):
+        """The map is steepest at zero, so pricing a cell the bounds hold there hands SLSQP
+        its largest gradient on a variable that cannot move; it accepts that on macOS and
+        stops with "Positive directional derivative for linesearch" on the Linux runners.
+        The warning names the cell and the remedy before the solve starts."""
+        mmm = simple_fitted_mmm
+        mmm.set_cost_per_unit(_full_table(mmm, self.PRICES))
+        optimizer = _optimizer(
+            mmm,
+            cost_per_unit=_window_cpu(mmm, self.PRICES),
+            price_response=PowerPriceResponse(elasticity=0.3),
+        )
+        bounds = xr.DataArray(
+            [[0.0, 0.0], [0.0, self.TOTAL], [0.0, self.TOTAL]],
+            dims=("channel", "bound"),
+            coords={"channel": CHANNELS_3, "bound": ["lower", "upper"]},
+        )
+        with pytest.warns(UserWarning, match=r"\('channel_1',\).*elasticity") as record:
+            try:
+                optimizer.allocate_budget(total_budget=self.TOTAL, budget_bounds=bounds)
+            except MinimizeException:
+                pass  # platform-dependent, and not what this test is about
+        messages = [str(w.message) for w in record if "held at zero" in str(w.message)]
+        assert len(messages) == 1
+        assert "channel_2" not in messages[0]
 
 
 def _spread(values: np.ndarray) -> float:

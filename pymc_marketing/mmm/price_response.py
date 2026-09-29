@@ -464,7 +464,8 @@ class PowerPriceResponse(PriceResponse):
         floor exceeds 1% of the reference, which happens at high elasticity. Leave a channel whose bounds pin
         it to zero at ``elasticity=0`` or drop it from ``budgets_to_optimize``: the map is steepest at zero, so
         pricing an immovable channel hands the solver its largest gradient on a variable that cannot move, which
-        SLSQP tolerates on some platforms and not on others.
+        SLSQP tolerates on some platforms and not on others. ``allocate_budget`` warns when ``budget_bounds``
+        does this.
     reference_spend_tolerance : float
         Largest factor by which a supplied ``reference_spend`` may differ from the derived default on any
         optimized cell before it is rejected. Default ``10``. The unit error this catches is a window total

@@ -2282,6 +2282,45 @@ class BudgetOptimizer(BaseModel):
             self.carry_in_periods : self.carry_in_periods + self.num_periods
         ]
 
+    def _warn_priced_cells_pinned_at_zero(
+        self, media_bounds: list[tuple[float | None, float | None]] | None
+    ) -> None:
+        """Name curved media cells whose bounds hold them at zero.
+
+        The price map is steepest at zero (``u'(0)`` is ``max_slope_ratio`` times
+        ``u'(reference)``), so a priced cell that cannot move hands SLSQP its largest
+        gradient on a dead variable, which it tolerates on some platforms and not on
+        others. Pricing a cell one is not buying is meaningless anyway.
+        """
+        resolved = self._media_variable.price_response
+        if media_bounds is None or resolved is None or resolved.is_identity:
+            return
+        on = np.asarray(self._media_variable.mask.values, dtype=bool)
+        curved = np.asarray(resolved.curved)[on]
+        pinned = [
+            i
+            for i, (_, high) in enumerate(media_bounds)
+            if high is not None and high <= 0.0 and curved[i]
+        ]
+        if not pinned:
+            return
+        variable = self._media_variable
+        cells = [
+            tuple(
+                str(variable.coords[dim][int(i)])
+                for dim, i in zip(variable.dims, index, strict=True)
+            )
+            for index in np.argwhere(on)[pinned]
+        ]
+        warnings.warn(
+            f"price_response: cells {cells} are held at zero by budget_bounds but carry a non-zero "
+            "elasticity. The map is steepest at zero, so the solver is handed its largest gradient on "
+            "cells that cannot move; SLSQP rejects that step on some platforms ('Positive directional "
+            "derivative for linesearch'). Set their elasticity to 0 or drop them from budgets_to_optimize.",
+            UserWarning,
+            stacklevel=3,
+        )
+
     def _validate_date_length(self) -> None:
         """Check that the three date blocks add up to the model's date axis.
 
@@ -3208,6 +3247,9 @@ class BudgetOptimizer(BaseModel):
                 for (low, high) in budget_bounds_array[self.budgets_to_optimize.values]  # type: ignore
             ]
         bounds = self._variables.bounds(total_budget, overrides=bounds_overrides)
+        self._warn_priced_cells_pinned_at_zero(
+            bounds_overrides.get(self.channel_data_var)
+        )
 
         # 3. Construct the initial guess (x0) if not provided; labelled values
         # are packed into flat order by the optimization variables, cast and
