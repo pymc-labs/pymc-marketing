@@ -153,7 +153,6 @@ class TestLiftTestDesign:
         [
             ({"channel": "radio"}, "not one of"),
             ({"start_date": DATES[5], "end_date": DATES[4]}, "after end_date"),
-            ({"end_date": DATES[-1] + pd.Timedelta(weeks=2)}, "outside"),
             ({"mode": "halve"}, "mode must be"),
             ({"delta_x": np.nan}, "require delta_x"),
         ],
@@ -294,6 +293,22 @@ class TestBuild:
         mmm.build_model(X, y)
         assert mmm.model.named_vars_to_dims["budget_gamma"] == ("budget_channel",)
 
+    def test_log_link(self, data, design):
+        X, y = data
+        mmm = _make_mmm(link="log").add_mu_effect(BudgetModelEffect(design=design))
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            mmm.build_model(X, y)
+        assert mmm.model.named_vars_to_dims["budget_effect_contribution"] == ("date",)
+        assert np.isfinite(mmm.model.compile_logp()(mmm.model.initial_point()))
+
+    def test_prior_with_wrong_channel_dim(self, data):
+        X, y = data
+        effect = BudgetModelEffect(gamma_prior=Prior("Normal", sigma=1, dims="channel"))
+        mmm = _make_mmm().add_mu_effect(effect)
+        with pytest.raises(ValueError, match="not 'channel'"):
+            mmm.build_model(X, y)
+
     def test_design_missing_column(self):
         with pytest.raises(ValueError, match="missing required columns"):
             BudgetModelEffect(design=pd.DataFrame({"channel": ["tv"]}))
@@ -428,6 +443,33 @@ class TestSerialization:
         assert isinstance(restored, BudgetModelEffect)
         pd.testing.assert_frame_equal(restored.design, effect.design)
         assert "budget_effect_contribution" in loaded.model.named_vars
+        assert loaded == mmm
+
+    def test_equality(self, design):
+        first = _make_mmm().add_mu_effect(BudgetModelEffect(design=design))
+        second = _make_mmm().add_mu_effect(BudgetModelEffect(design=design))
+        assert first == second
+        changed = design.assign(delta_x=[-10.0, np.nan])
+        assert first != _make_mmm().add_mu_effect(BudgetModelEffect(design=changed))
+
+    def test_set_only_design_round_trip(self):
+        design = pd.DataFrame(
+            {
+                "channel": ["digital"],
+                "start_date": [DATES[3]],
+                "end_date": [DATES[4]],
+                "mode": ["set"],
+                "delta_x": [None],
+            }
+        )
+        restored = BudgetModelEffect.from_dict(
+            BudgetModelEffect(design=design).to_dict()
+        )
+        shift, holdout = lift_test_design(
+            restored.design, dates=DATES, channels=["tv", "digital"]
+        )
+        assert int(holdout.sum()) == 2
+        assert float(abs(shift).sum()) == 0.0
 
 
 # ---------------------------------------------------------------- diagnostics
@@ -451,6 +493,20 @@ class TestExogeneitySummary:
             assert col in summary.columns, col
         assert (summary["gamma_lower"] <= summary["gamma_upper"]).all()
         assert summary["identified_by_design"].all()
+        np.testing.assert_allclose(summary["prior_sd"], 0.5)
+        pd.testing.assert_frame_equal(summary, effect.exogeneity_summary(mmm))
+
+    def test_sampled_prior_sd_is_reproducible(self, data):
+        X, y = data
+        effect = BudgetModelEffect(
+            gamma_prior=Prior("StudentT", nu=3, sigma=0.5, dims="budget_channel")
+        )
+        mmm = _make_mmm().add_mu_effect(effect)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            mock_fit(mmm, X, y, random_seed=1)
+        first, second = effect.exogeneity_summary(mmm), effect.exogeneity_summary(mmm)
+        pd.testing.assert_series_equal(first["prior_sd"], second["prior_sd"])
 
     def test_flags_functional_form_identification(self, data):
         X, y = data
@@ -491,6 +547,18 @@ def test_lift_test_design_edge_cases():
             dim_coords={"geo": ["A"]},
         )
 
+    overrun = pd.DataFrame(
+        [
+            {
+                **base,
+                "start_date": DATES[-2],
+                "end_date": DATES[-1] + pd.Timedelta(weeks=3),
+            }
+        ]
+    )
+    shift, _ = lift_test_design(overrun, dates=DATES, channels=["tv"])
+    assert float(shift.sum()) == 2.0
+
     between_weeks = {
         "start_date": DATES[2] + pd.Timedelta(days=1),
         "end_date": DATES[2] + pd.Timedelta(days=3),
@@ -501,41 +569,18 @@ def test_lift_test_design_edge_cases():
         )
 
 
-def _dataset_with_drivers(X: pd.DataFrame) -> xr.Dataset:
-    ds = to_mmm_dataset(
-        X, date_column="date", channel_columns=["tv", "digital"], control_columns=["c1"]
-    )
-    rng = np.random.default_rng(3)
-    ds["forecast"] = xr.DataArray(
-        rng.normal(size=len(X)), dims="date", coords={"date": ds["date"]}
-    )
-    ds["forecast_by_source"] = xr.DataArray(
-        rng.normal(size=(len(X), 2)),
-        dims=("date", "source"),
-        coords={"date": ds["date"], "source": ["a", "b"]},
-    )
-    return ds
-
-
-def test_budget_drivers(data):
+def test_budget_drivers(data, tmp_path):
     X, y = data
-    ds = _dataset_with_drivers(X)
-    y_da = xr.DataArray(y.to_numpy(), dims="date", coords={"date": ds["date"]})
-    effect = BudgetModelEffect(drivers=["forecast", "forecast_by_source"])
-    assert effect.data_vars == ["forecast", "forecast_by_source"]
+    X = X.assign(forecast=np.random.default_rng(3).normal(size=N_WEEKS))
+    effect = BudgetModelEffect(drivers=["forecast"])
+    assert effect.data_vars == ["forecast"]
     mmm = _make_mmm().add_mu_effect(effect)
-    mmm.build_model(ds, y_da)
-    with mmm.model, warnings.catch_warnings():
+    with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        idata = pm.sample_prior_predictive(draws=20, random_seed=1)
-        idata["/posterior"] = idata["/prior"].to_dataset()
-    mmm.idata = idata
-    assert "budget_forecast_coef" in mmm.model.named_vars
-    assert mmm.model.named_vars_to_dims["budget_spend_mu"] == ("date", "budget_channel")
+        mock_fit(mmm, X, y, random_seed=1)
+    assert "budget_driver_forecast_coef" in mmm.model.named_vars
 
-    future = _dataset_with_drivers(
-        X.assign(date=X["date"] + pd.Timedelta(weeks=N_WEEKS))
-    )
+    future = X.assign(date=X["date"] + pd.Timedelta(weeks=N_WEEKS))
     pp = mmm.sample_posterior_predictive(
         future,
         extend_idata=False,
@@ -544,19 +589,49 @@ def test_budget_drivers(data):
     )
     assert float(abs(pp["budget_effect_contribution"]).max()) == 0.0
 
+    path = tmp_path / "drivers.nc"
+    mmm.save(str(path))
+    assert "budget_driver_forecast_coef" in MMM.load(str(path)).model.named_vars
+
+
+def test_budget_driver_shared_between_effects(data):
+    X, y = data
+    X = X.assign(forecast=np.random.default_rng(3).normal(size=N_WEEKS))
+    mmm = (
+        _make_mmm()
+        .add_mu_effect(BudgetModelEffect(drivers=["forecast"], channels=["tv"]))
+        .add_mu_effect(
+            BudgetModelEffect(prefix="dig", drivers=["forecast"], channels=["digital"])
+        )
+    )
+    mmm.build_model(X, y)
+    assert {"budget_driver_forecast_coef", "dig_driver_forecast_coef"} <= set(
+        mmm.model.named_vars
+    )
+
 
 @pytest.mark.parametrize(
-    "drivers, match",
-    [(["unknown"], "not in the training data"), (["static"], "must have a 'date' dim")],
+    "name, dims, match",
+    [
+        ("unknown", None, "not in the training data"),
+        ("static", ("source",), "must have a 'date' dim"),
+        ("by_source", ("date", "source"), "beyond the model's"),
+        ("target_scale", ("date",), "Cannot reuse model variable"),
+    ],
 )
-def test_budget_driver_validation(data, drivers, match):
+def test_budget_driver_validation(data, name, dims, match):
     X, y = data
-    ds = _dataset_with_drivers(X)
-    ds["static"] = xr.DataArray(
-        [1.0, 2.0], dims="source", coords={"source": ["a", "b"]}
+    ds = to_mmm_dataset(
+        X, date_column="date", channel_columns=["tv", "digital"], control_columns=["c1"]
     )
+    if dims is not None:
+        coords = {"date": ds["date"], "source": ["a", "b"]}
+        shape = tuple(len(coords[d]) for d in dims)
+        ds[name] = xr.DataArray(
+            np.ones(shape), dims=dims, coords={d: coords[d] for d in dims}
+        )
     y_da = xr.DataArray(y.to_numpy(), dims="date", coords={"date": ds["date"]})
-    mmm = _make_mmm().add_mu_effect(BudgetModelEffect(drivers=drivers))
+    mmm = _make_mmm().add_mu_effect(BudgetModelEffect(drivers=[name]))
     with pytest.raises(ValueError, match=match):
         mmm.build_model(ds, y_da)
 
@@ -665,6 +740,7 @@ def test_budget_model_recovers_marginal_return():
         mmm.fit(
             X,
             y,
+            nuts_sampler="pymc",
             draws=500,
             tune=1000,
             chains=2,

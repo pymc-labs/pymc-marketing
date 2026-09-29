@@ -232,8 +232,12 @@ def simulate_endogenous_spend_market(
     sales_noise = rng.normal(0, 1.5, n)
     weights = ADSTOCK_ALPHA ** np.arange(ADSTOCK_L_MAX)
     weights /= weights.sum()
-    # The plan a target-chasing team compares last week's sales against.
-    plan = 50.0 + 19.0 + 11.0 + 2.5 * predictable + 1.5 * calendar
+    # The plan a target-chasing team compares last week's sales against: media
+    # contributions at typical spend (5 for TV, 3 for Digital) plus predictable demand.
+    typical_media = _michaelis_menten(5.0, TV_BETA, TV_LAM) + _michaelis_menten(
+        3.0, DIGITAL_BETA, DIGITAL_LAM
+    )
+    plan = 50.0 + typical_media + 2.5 * predictable + 1.5 * calendar
 
     def run(with_test: bool) -> tuple[np.ndarray, np.ndarray]:
         tv = np.zeros(n)

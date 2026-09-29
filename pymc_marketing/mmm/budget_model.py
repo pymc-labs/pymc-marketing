@@ -123,6 +123,7 @@ and a two-week geo holdout for Digital:
 
 from __future__ import annotations
 
+import logging
 from typing import Any, Literal
 
 import numpy as np
@@ -181,7 +182,9 @@ def lift_test_design(
 
         * ``channel``: channel name, one of ``channels``.
         * one column per key of ``dim_coords`` (e.g. ``geo``).
-        * ``start_date``, ``end_date``: inclusive window of the design.
+        * ``start_date``, ``end_date``: inclusive window of the design. A
+          window may run past either end of ``dates`` (a test still running at
+          the data cutoff, say); only the model dates inside it are used.
         * ``mode`` (optional): ``"shift"`` (default) or ``"set"``.
         * ``delta_x``: per-period spend change in original units. Required
           for ``"shift"`` rows, ignored for ``"set"`` rows.
@@ -204,8 +207,8 @@ def lift_test_design(
     ------
     ValueError
         If a column is missing, a channel or dimension value is unknown, a
-        window is empty, reversed, or falls outside ``dates``, a ``"shift"``
-        row has no ``delta_x``, or two windows overlap on the same cell.
+        window is reversed or contains no model dates, a ``"shift"`` row has
+        no ``delta_x``, or two windows overlap on the same cell.
     """
     dim_coords = dict(dim_coords or {})
     dims = tuple(dim_coords)
@@ -244,11 +247,6 @@ def lift_test_design(
         start, end = pd.Timestamp(row["start_date"]), pd.Timestamp(row["end_date"])
         if start > end:
             raise ValueError(f"Row {idx}: start_date {start} is after end_date {end}.")
-        if start < dates.min() or end > dates.max():
-            raise ValueError(
-                f"Row {idx}: window [{start.date()}, {end.date()}] falls outside the "
-                f"model dates [{dates.min().date()}, {dates.max().date()}]."
-            )
         in_window = (dates >= start) & (dates <= end)
         if not in_window.any():
             raise ValueError(
@@ -308,10 +306,13 @@ class BudgetModelEffect(MuEffect):
         Order of the annual Fourier basis in the spend equations. ``0``
         disables it.
     drivers : list[str], optional
-        Extra budget drivers read from the training ``xr.Dataset`` by name,
-        e.g. a recorded demand forecast. Each must have a ``date`` dim.
-        Standardised like the controls. Requires ``X`` to be an
-        ``xr.Dataset``; new values must be supplied for prediction dates.
+        Extra budget drivers, e.g. a recorded demand forecast: columns of a
+        ``pd.DataFrame`` ``X`` (or data variables of an ``xr.Dataset``). Each
+        must vary over ``date`` and have no dims beyond the model's own.
+        Standardised like the controls. New values must be supplied for
+        prediction dates. A driver enters the spend equation but not the sales
+        equation, so it acts as an instrument and must be unrelated to the
+        sales error: do not pass recorded outcomes such as lagged sales.
     design : pd.DataFrame, optional
         Lift-test designs, in the format of :func:`lift_test_design`. Without
         a design the effect is identified by functional form only.
@@ -333,6 +334,13 @@ class BudgetModelEffect(MuEffect):
 
     Notes
     -----
+    * With extra model dims (e.g. ``geo``) the defaults give each cell its own
+      spend intercept and surprise scale, but pool the control, Fourier and
+      driver coefficients and ``gamma`` across cells, so there is one
+      :math:`\gamma_c` per channel. Pass priors with the extra dims to unpool
+      them. Custom priors may only use the dims ``f"{prefix}_channel"``, the
+      model's extra dims, and ``"control"`` or ``f"{prefix}_fourier"`` for the
+      control and Fourier coefficients.
     * The spend equations add a second observed variable,
       ``f"{prefix}_spend"`` (scaled chosen spend, masked to zero with unit
       scale in holdout cells and out of sample). It is sampled alongside
@@ -347,6 +355,10 @@ class BudgetModelEffect(MuEffect):
       to :meth:`MMM.add_lift_test_measurements`; that counts the experiment
       twice. The lift likelihood remains appropriate for experiments whose
       periods or units are *not* in the MMM data.
+    * The surprise is zero on dates outside the training data, its
+      expectation. Out-of-sample predictive intervals therefore omit the
+      variance the control function absorbed in-sample, roughly
+      :math:`\sum_c \gamma_c^2 s_c^2`, and are somewhat too narrow.
     * With ``link="log"`` the control-function term is additive on the log
       scale.
     """
@@ -425,11 +437,23 @@ class BudgetModelEffect(MuEffect):
             "gamma": Prior("Normal", mu=0, sigma=0.5, dims=(ch,)),
         }
 
+    def _allowed_prior_dims(self, name: str) -> set[str]:
+        extra = {"spend_control": {"control"}, "spend_fourier": {self.fourier_dim}}
+        return {self.channel_dim, *self._dims, *extra.get(name, set())}
+
     def _prior(self, name: str) -> VariableFactory:
         user = getattr(self, f"{name}_prior")
-        if user is not None:
-            return user
-        return self._default_priors(self._dims)[name]
+        if user is None:
+            return self._default_priors(self._dims)[name]
+        dims = getattr(user, "dims", None) or ()
+        dims = (dims,) if isinstance(dims, str) else tuple(dims)
+        allowed = self._allowed_prior_dims(name)
+        if not set(dims) <= allowed:
+            raise ValueError(
+                f"{name}_prior has dims {dims}, but only {sorted(allowed)} are allowed. "
+                f"This effect indexes channels by {self.channel_dim!r}, not 'channel'."
+            )
+        return user
 
     # ------------------------------------------------------------- data
     def _design_arrays(
@@ -528,17 +552,32 @@ class BudgetModelEffect(MuEffect):
         for var_name in self.drivers:
             if var_name not in mmm.xarray_dataset:
                 raise ValueError(
-                    f"Budget driver {var_name!r} is not in the training data. Pass X as "
-                    "an xr.Dataset that contains it."
+                    f"Budget driver {var_name!r} is not in the training data. Add it "
+                    "as a column of X."
                 )
             da = mmm.xarray_dataset[var_name]
             if "date" not in da.dims:
                 raise ValueError(f"Budget driver {var_name!r} must have a 'date' dim.")
-            reduce_dims = list(da.dims)
-            mean, std = da.mean(reduce_dims), da.std(reduce_dims)
+            extra = sorted(set(da.dims) - {"date", *self._dims})
+            if extra:
+                raise ValueError(
+                    f"Budget driver {var_name!r} has dims {extra} beyond the model's "
+                    f"{('date', *self._dims)}. Aggregate it before passing it."
+                )
+            da = da.transpose("date", *[d for d in self._dims if d in da.dims])
+            mean, std = da.mean(), da.std()
             self._driver_stats[var_name] = (mean, xr.where(std > 0, std, 1.0))
-            if var_name not in model.named_vars:
+            existing = model.named_vars.get(var_name)
+            if existing is None:
                 pmd.Data(var_name, da.values, dims=da.dims)
+            elif (
+                tuple(model.named_vars_to_dims.get(var_name, ())) != da.dims
+                or tuple(existing.get_value(borrow=True).shape) != da.shape
+            ):
+                raise ValueError(
+                    f"Cannot reuse model variable {var_name!r} as a budget driver: its "
+                    "dims or shape differ from the driver's."
+                )
 
     # ----------------------------------------------------------- effect
     def create_effect(self, mmm: Model) -> XTensorVariable:
@@ -590,13 +629,9 @@ class BudgetModelEffect(MuEffect):
             mean, std = self._driver_stats[var_name]
             z = (model[var_name] - float(mean)) / float(std)
             coef = self._prior("spend_driver").create_variable(
-                f"{p}_{var_name}_coef", xdist=True
+                f"{p}_driver_{var_name}_coef", xdist=True
             )
-            term = z * coef
-            extra = [d for d in term.dims if d not in {"date", *self._dims, ch}]
-            if extra:
-                term = term.sum(dim=extra)
-            spend_mu = spend_mu + term
+            spend_mu = spend_mu + z * coef
 
         # An intercept-only equation has no date dim until broadcast against spend.
         spend_mu, _ = ptx.broadcast(spend_mu, chosen)
@@ -662,7 +697,7 @@ class BudgetModelEffect(MuEffect):
         pm.set_data(new_data, model=model)
 
     # ----------------------------------------------------- diagnostics
-    def exogeneity_summary(self, mmm: Any, hdi_prob: float = 0.94) -> pd.DataFrame:
+    def exogeneity_summary(self, mmm: Any, interval_prob: float = 0.94) -> pd.DataFrame:
         r"""Summarise the control-function coefficients as an exogeneity check.
 
         :math:`\gamma_c = 0` is the exogenous-spend case. A posterior for
@@ -679,7 +714,7 @@ class BudgetModelEffect(MuEffect):
         ----------
         mmm : MMM
             A fitted MMM containing this effect.
-        hdi_prob : float, default 0.94
+        interval_prob : float, default 0.94
             Mass of the equal-tailed posterior interval.
 
         Returns
@@ -688,7 +723,8 @@ class BudgetModelEffect(MuEffect):
             One row per channel (and cell of any extra dimension) with columns
             ``gamma_mean``, ``gamma_lower``, ``gamma_upper`` (scaled units),
             ``gamma_per_spend_unit`` (target units per unexplained unit of
-            spend), ``prob_positive``, ``prior_sd``, ``posterior_sd``,
+            spend; with ``link="log"``, log-scale change per unit of spend),
+            ``prob_positive``, ``prior_sd``, ``posterior_sd``,
             ``contraction`` (``1 - posterior_sd / prior_sd``),
             ``identified_by_design`` and ``note``.
         """
@@ -701,12 +737,12 @@ class BudgetModelEffect(MuEffect):
 
         gamma = idata.posterior[name]
         sample_dims = ("chain", "draw")
-        tail = (1 - hdi_prob) / 2
+        tail = (1 - interval_prob) / 2
 
         target_scale = mmm.scalers["_target"]
         per_unit = gamma * target_scale / self._spend_scale
 
-        prior_sd = self._prior_sd(mmm)
+        prior_sd = self._prior_sd(mmm, gamma.isel(chain=0, draw=0, drop=True))
         posterior_sd = gamma.std(sample_dims)
 
         summary = xr.Dataset(
@@ -747,11 +783,30 @@ class BudgetModelEffect(MuEffect):
         df["note"] = df.apply(_note, axis=1)
         return df
 
-    def _prior_sd(self, mmm: Any) -> xr.DataArray:
-        """Prior standard deviation of gamma, estimated from prior draws."""
+    def _prior_sd(self, mmm: Any, template: xr.DataArray) -> xr.DataArray:
+        """Prior standard deviation of gamma.
+
+        Exact for a ``Normal`` prior with a fixed ``sigma``; otherwise estimated
+        from seeded prior draws so the summary is reproducible.
+        """
         factory = self._prior("gamma")
-        coords = {d: mmm.model.coords[d] for d in getattr(factory, "dims", ()) or ()}
-        draws = factory.sample_prior(coords=coords, name="gamma", draws=2000)["gamma"]
+        sigma = getattr(factory, "parameters", {}).get("sigma")
+        if getattr(factory, "distribution", None) == "Normal" and isinstance(
+            sigma, int | float
+        ):
+            return xr.full_like(template, float(sigma), dtype=float)
+        dims = getattr(factory, "dims", None) or ()
+        dims = (dims,) if isinstance(dims, str) else tuple(dims)
+        coords = {d: mmm.model.coords[d] for d in dims}
+        pymc_logger = logging.getLogger("pymc")
+        level = pymc_logger.level
+        pymc_logger.setLevel(logging.WARNING)
+        try:
+            draws = factory.sample_prior(
+                coords=coords, name="gamma", draws=4000, random_seed=0
+            )["gamma"]
+        finally:
+            pymc_logger.setLevel(level)
         return draws.std([d for d in draws.dims if d in ("chain", "draw")])
 
     # ---------------------------------------------------- serialization
