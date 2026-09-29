@@ -15,6 +15,7 @@
 
 from __future__ import annotations
 
+import json
 import warnings
 
 import numpy as np
@@ -25,7 +26,11 @@ from scipy.optimize import approx_fprime
 
 from pymc_marketing.data.idata.mmm_wrapper import MMMIDataWrapper
 from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation, PowerPriceResponse
-from pymc_marketing.mmm.budget_optimizer import BudgetOptimizer, MinimizeException
+from pymc_marketing.mmm.budget_optimizer import (
+    PRICED_CHANNELS_ATTR,
+    BudgetOptimizer,
+    MinimizeException,
+)
 from pymc_marketing.mmm.mmm import (
     MMM,
     BudgetOptimizerWrapper,
@@ -577,11 +582,6 @@ class TestSetCostPerUnit:
             (channel_spend / channel_data).sel(channel="channel_3").values,
             1.0,
         )
-
-        import json
-
-        from pymc_marketing.mmm.budget_optimizer import PRICED_CHANNELS_ATTR
-
         assert json.loads(mmm.idata.attrs[PRICED_CHANNELS_ATTR]) == [
             "channel_1",
             "channel_2",
@@ -589,10 +589,6 @@ class TestSetCostPerUnit:
 
     def test_set_cost_per_unit_records_the_priced_channels(self, simple_fitted_mmm):
         """The optimizer's gate reads this list; the table's own JSON stays for round-trips."""
-        import json
-
-        from pymc_marketing.mmm.budget_optimizer import PRICED_CHANNELS_ATTR
-
         mmm = simple_fitted_mmm
         dates = pd.to_datetime(mmm.idata.constant_data.coords["date"].values)
         mmm.set_cost_per_unit(
@@ -762,8 +758,6 @@ class TestSerializationRoundtrip:
         assert loaded._cost_per_unit_input is not None
         assert loaded.data.cost_per_unit is not None
         xr.testing.assert_equal(loaded.data.cost_per_unit, original_cpu)
-        from pymc_marketing.mmm.budget_optimizer import PRICED_CHANNELS_ATTR
-
         assert PRICED_CHANNELS_ATTR in loaded.idata.attrs
 
         loaded_spend = loaded.data.get_channel_spend()
@@ -1256,8 +1250,6 @@ class TestPriceResponseGate:
     def test_a_malformed_table_attr_is_read_as_no_table(self, simple_fitted_mmm):
         """Garbage in idata.attrs['cost_per_unit'] must not escape the gate as a bare
         JSONDecodeError; it reads as no usable table and gets the curated refusal."""
-        from pymc_marketing.mmm.budget_optimizer import PRICED_CHANNELS_ATTR
-
         mmm = simple_fitted_mmm
         mmm.idata.attrs["cost_per_unit"] = "not json at all"
         mmm.idata.attrs.pop(PRICED_CHANNELS_ATTR, None)
@@ -1280,8 +1272,6 @@ class TestPriceResponseGate:
         self, simple_fitted_mmm
     ):
         """Released versions wrote only the split-JSON table; the gate still reads its columns."""
-        from pymc_marketing.mmm.budget_optimizer import PRICED_CHANNELS_ATTR
-
         mmm = simple_fitted_mmm
         mmm.set_cost_per_unit(_full_table(mmm, {"channel_1": 2.0}))
         del mmm.idata.attrs[PRICED_CHANNELS_ATTR]
@@ -1302,8 +1292,22 @@ class TestPriceResponseGate:
         mmm.idata["constant_data"] = xr.DataTree(
             constant_data.sel(channel=["channel_1", "channel_2"])
         )
-        with pytest.raises(ValueError, match=r"does not cover.*channel_3"):
+        with pytest.raises(
+            ValueError, match=r"does not cover the model coordinates.*channel_3"
+        ):
             _optimizer(mmm, price_response=PowerPriceResponse(elasticity=0.3))
+        # With a reference supplied nothing has to be derived, so the gap is tolerated.
+        reference = xr.DataArray(
+            [100.0, 100.0, 100.0], dims=("channel",), coords={"channel": CHANNELS_3}
+        )
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", UserWarning)
+            _optimizer(
+                mmm,
+                price_response=PowerPriceResponse(
+                    elasticity=0.3, reference_spend=reference
+                ),
+            )
 
 
 class TestPriceResponseAllocation:

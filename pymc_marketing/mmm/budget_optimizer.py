@@ -2599,6 +2599,7 @@ class BudgetOptimizer(BaseModel):
         return self._priced_channels_from_table()
 
     def _priced_channels_from_list(self) -> set[str] | None:
+        """Priced channels from the JSON list attr; ``None`` when absent or unreadable."""
         raw = self.idata.attrs.get(PRICED_CHANNELS_ATTR)
         if not isinstance(raw, str):
             return None
@@ -2611,6 +2612,7 @@ class BudgetOptimizer(BaseModel):
         return {str(channel) for channel in channels}
 
     def _priced_channels_from_table(self) -> set[str] | None:
+        """Priced channels from the split-JSON table's columns; ``None`` when absent or unreadable."""
         raw = self.idata.attrs.get("cost_per_unit")
         try:
             table = json.loads(raw) if isinstance(raw, str) else None
@@ -2751,15 +2753,6 @@ class BudgetOptimizer(BaseModel):
                     "result.budgets)."
                 )
             return None
-        if self.cost_per_unit is None:
-            warnings.warn(
-                "price_response: the fitted model prices its channels (channel data is in delivery "
-                "units) but there is no cost_per_unit for the window, so the base price is 1 and the "
-                "optimizer's money reaches the model as units. Pass cost_per_unit for the "
-                "optimization window.",
-                UserWarning,
-                stacklevel=2,
-            )
         missing = {
             dim: sorted(
                 set(self._budget_coords[dim])
@@ -2768,12 +2761,21 @@ class BudgetOptimizer(BaseModel):
             for dim in self._budget_dims
         }
         missing = {dim: labels for dim, labels in missing.items() if labels}
-        if missing:
+        if missing and response.needs_derived_reference:
             raise ValueError(
-                f"price_response: constant_data['channel_spend'] does not cover the optimized coordinates "
+                f"price_response: constant_data['channel_spend'] does not cover the model coordinates "
                 f"{missing}, so no reference spend can be derived for them. The fitted spend and this "
                 "optimization's model disagree on the cell layout; re-run mmm.set_cost_per_unit(...) on the "
                 "fitted model, or pass reference_spend explicitly (per-period money per cell)."
+            )
+        if self.cost_per_unit is None:
+            warnings.warn(
+                "price_response: the fitted model prices its channels (channel data is in delivery "
+                "units) but there is no cost_per_unit for the window, so the base price is 1 and the "
+                "optimizer's money reaches the model as units. Pass cost_per_unit for the "
+                "optimization window.",
+                UserWarning,
+                stacklevel=2,
             )
         reference = spend.where(spend > 0).mean(self.date_dim)
         return reference.reindex(self._budget_coords).transpose(*self._budget_dims)
