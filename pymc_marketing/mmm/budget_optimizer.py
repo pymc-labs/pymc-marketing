@@ -2613,7 +2613,8 @@ class BudgetOptimizer(BaseModel):
             return None
         if not isinstance(channels, list):
             return None
-        return {str(channel) for channel in channels}
+        # _parse_cost_per_unit_df refuses a table with no channel columns, so an empty list means no table.
+        return {str(channel) for channel in channels} or None
 
     def _priced_channels_from_table(self) -> set[str] | None:
         """Priced channels from the split-JSON table's columns; ``None`` when absent or unreadable."""
@@ -2661,11 +2662,21 @@ class BudgetOptimizer(BaseModel):
         return self._reference_from_fitted_spend(response)
 
     def _unvouched_channels(self, response: PriceResponse) -> str:
-        """Describe the curved optimized channels the fitted artifact cannot vouch for; empty when covered.
+        """Describe the curved optimized channels the artifact cannot vouch for; empty when covered or unbent.
 
-        Three distinct facts get three wordings, so a user is not told to set a
-        table they already have.
+        Empty when the fitted model covers the channels or when the response bends
+        nothing. Three distinct facts get three wordings, so a user is not told to
+        set a table they already have.
         """
+        # A map that is linear in money rescales the axis without bending it, so nothing needs vouching.
+        if not response.adds_curvature_on(
+            dims=tuple(self._budget_dims),
+            coords=self._budget_coords,
+            mask=self.budgets_to_optimize,
+            date_dim=self.date_dim,
+            label=f"{self.channel_data_var}: price_response",
+        ):
+            return ""
         priced = self._priced_channels()
         if "channel" not in self._budget_dims:
             if priced is None:
@@ -2759,7 +2770,7 @@ class BudgetOptimizer(BaseModel):
             return None
         missing = {
             dim: sorted(
-                set(self._budget_coords[dim])
+                set(np.asarray(self._budget_coords[dim]).tolist())
                 - set(np.asarray(spend.coords[dim].values).tolist())
             )
             for dim in self._budget_dims

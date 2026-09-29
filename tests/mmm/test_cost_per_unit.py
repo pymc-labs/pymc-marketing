@@ -1031,6 +1031,8 @@ class TestPriceResponseGate:
             )
         message = str(info.value)
         assert "set_cost_per_unit" in message and "assume_delivery_units" in message
+        # A fresh unpriced fit writes cost_per_unit_channels="[]", which is "no table", not an empty one.
+        assert "no usable historical cost_per_unit table" in message
 
     def test_partial_table_refuses_only_the_unpriced_channels(self, simple_fitted_mmm):
         """_parse_cost_per_unit_df fills absent channels with 1.0, so channel_spend exists

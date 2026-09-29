@@ -2073,6 +2073,54 @@ def test_price_gate_names_a_missing_channel_dim_rather_than_a_missing_table():
     assert "['media']" in str(info.value)
 
 
+def test_price_gate_does_not_refuse_a_map_that_adds_no_curvature():
+    """The gate keys on curvature, not on identity: a family that is linear in money
+    (#3067's bracket schedule) rescales the axis without bending it, so a spend-fitted
+    model has nothing to vouch for. Stubbed through the ABC hooks on an idata with no
+    priced-channel artifact at all, which is the branch that used to refuse regardless."""
+    from pymc_marketing.mmm import PowerPriceResponse
+
+    class LinearStub(PowerPriceResponse):
+        @property
+        def is_identity(self) -> bool:
+            return False
+
+        def is_identity_on(self, **kwargs) -> bool:
+            return False
+
+        @property
+        def adds_curvature(self) -> bool:
+            return False
+
+        @property
+        def needs_derived_reference(self) -> bool:
+            return False
+
+    n_dates, channels = 6, ["a", "b"]
+    with pm.Model(coords={"channel": channels}) as model:
+        model.add_coord("date", length=n_dates)
+        channel_data = pmd.Data(
+            "channel_data", np.ones((n_dates, 2)), dims=("date", "channel")
+        )
+        beta = pmd.Normal("beta", 1.0, 0.1, dims="channel")
+        pmd.Deterministic(
+            "total_media_contribution_original_scale",
+            (channel_data * beta).sum(),
+            dims=(),
+        )
+    prior = pm.sample_prior_predictive(draws=4, model=model, random_seed=1)
+    idata = xr.DataTree.from_dict({"posterior": prior.prior})
+
+    optimizer = BudgetOptimizer(
+        model=model,
+        idata=idata,
+        num_periods=4,
+        adstock_periods=2,
+        price_response=LinearStub(elasticity=0.0),
+    )
+    assert optimizer.optimization_variables.variables[0].price_response is not None
+
+
 def test_inference_data_root_attrs_reach_the_price_gate():
     """_to_datatree used to rebuild the tree from its groups and drop the root attrs, so a
     correctly priced model handed over as a legacy InferenceData was refused as unpriced.
