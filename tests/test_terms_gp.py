@@ -609,6 +609,129 @@ def test_serialize_composition_roundtrip(ds):
     assert isinstance(restored.terms[0], HSGPTerm)
 
 
+def _trained(term, ds):
+    """Register and build ``term`` on ``ds``.
+
+    Returns ``(term, index)`` where ``index`` is the registered time index.
+    """
+    with pm.Model(coords=collect_coords(term, ds=ds)) as model:
+        register_data(term, ds=ds)
+        build_param(term)
+        index = model[term.index_var].get_value().copy()
+    return term, index
+
+
+def _roundtrip(term):
+    """Round-trip a term through JSON, as saving and reloading a model does."""
+    payload = json.loads(json.dumps(serialization.serialize(term)))
+    return serialization.deserialize(payload)
+
+
+def test_trained_hsgp_term_roundtrips_equal(ds):
+    """A trained HSGPTerm keeps its frozen training state through a round-trip.
+
+    Every ``init=False`` field is part of dataclass equality, so this is the
+    round-trip check for the frozen state (``X_mid``, the date anchors, the
+    inferred resolution and ``time_dim``). Registering first is what makes it
+    meaningful: an untrained term has every field ``None`` on both sides and
+    compares equal vacuously.
+
+    The frozen fields are compared individually rather than via whole-dataclass
+    ``==`` because the deferred ``eta`` / ``ls`` priors resolve to a
+    ``Prior`` holding a resolved hyperparameter, and ``Prior.__eq__`` is not
+    safe for those (pymc_extras).
+    """
+    term, _ = _trained(HSGPTerm(name="g", eta=1.0, ls=1.0), ds)
+    restored = _roundtrip(term)
+    for field in ("X_mid", "time_dim", "time_resolution"):
+        assert getattr(restored, field) == getattr(term, field)
+    assert restored.first_date == term.first_date
+    assert restored.last_date == term.last_date
+    assert restored == term  # explicit scalar priors are equality-safe
+
+
+def test_deferred_term_roundtrips_frozen_state(ds):
+    """A deferred term's frozen state survives the round-trip.
+
+    The deferred ``eta`` / ``ls`` are excluded from the equality check (see
+    ``test_trained_hsgp_term_roundtrips_equal``) but must still be present and
+    equivalent on the restored term.
+    """
+    term, _ = _trained(HSGPTerm(name="g"), ds)
+    assert term.eta is not None and term.ls is not None
+    restored = _roundtrip(term)
+    for field in ("X_mid", "time_dim", "time_resolution", "m", "L"):
+        assert getattr(restored, field) == getattr(term, field)
+    assert restored.first_date == term.first_date
+    assert restored.last_date == term.last_date
+
+
+def test_trained_periodic_term_roundtrips_equal(ds):
+    """A trained HSGPPeriodicTerm round-trips its frozen training state too."""
+    term, _ = _trained(
+        HSGPPeriodicTerm(name="g", scale=1.0, ls=1.0, period=52, m=10), ds
+    )
+    for field in ("X_mid", "time_dim", "time_resolution"):
+        assert getattr(_roundtrip(term), field) == getattr(term, field)
+
+
+def test_restored_term_rebuilds_identically(ds):
+    """A restored term rebuilds a model with the same variables and time index."""
+    original, expected_index = _trained(HSGPTerm(name="trend"), ds)
+    with pm.Model(coords=collect_coords(original, ds=ds)) as model:
+        register_data(original, ds=ds)
+        build_param(original)
+        expected_vars = set(model.named_vars)
+
+    restored = _roundtrip(original)
+    with pm.Model(coords=collect_coords(restored, ds=ds)) as model:
+        register_data(restored, ds=ds)
+        build_param(restored)
+        assert set(model.named_vars) == expected_vars
+        np.testing.assert_allclose(
+            model[restored.index_var].get_value(), expected_index
+        )
+
+
+def test_restored_term_set_data(ds):
+    """A restored term can update the time index for prediction.
+
+    ``time_dim`` gates ``set_data``; if it did not survive serialization, a
+    reloaded term could not be used for out-of-sample prediction at all.
+    """
+    future = xr.Dataset(
+        {},
+        coords={
+            "date": pd.date_range(
+                start=ds.coords["date"].values[-1], periods=6, freq="7D"
+            )[1:]
+        },
+    )
+    original, training_index = _trained(HSGPTerm(name="trend"), ds)
+
+    restored = _roundtrip(original)
+    with pm.Model(coords=collect_coords(restored, ds=ds)) as model:
+        register_data(restored, ds=ds)
+        build_param(restored)
+        set_data(restored, ds=future, model=model)
+        index = model[restored.index_var].get_value()
+
+    assert index[0] == pytest.approx(training_index[-1] + 1)
+
+
+def test_set_data_on_restored_term_without_time_dim_explains(ds):
+    """A recipe missing ``time_dim`` gets an actionable error, not a wrong model."""
+    term, _ = _trained(HSGPTerm(name="trend"), ds)
+    payload = json.loads(json.dumps(serialization.serialize(term)))
+    del payload["time_dim"]  # a recipe saved before time_dim was recorded
+
+    restored = HSGPTerm.from_dict(payload)
+    future = xr.Dataset({}, coords={"date": ds.coords["date"].values[-1:]})
+    with pm.Model():
+        with pytest.raises(ValueError, match="does not record its time dimension"):
+            set_data(restored, ds=future, model=pm.modelcontext(None))
+
+
 def _sample_prior_both(term, existing):
     """Sample priors from the existing HSGP class and the term; compare."""
     n = 52

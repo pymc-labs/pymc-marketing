@@ -365,6 +365,13 @@ class GPDataTerm(ModelTerm):
         if self.var_name not in ds:
             return
         if self.time_dim is None:
+            if self.X_mid is not None:
+                raise ValueError(
+                    f"The GP term {self.name!r} was restored from a recipe that does "
+                    "not record its time dimension, so the registered time index is "
+                    "unknown. Re-serialize the term, or call `register_data` with the "
+                    "training data before `set_data`."
+                )
             raise ValueError(
                 f"Nothing registered for {self.var_name!r}. "
                 "Call `register_data` before `set_data`."
@@ -619,6 +626,7 @@ class HSGPTerm(GPDataTerm):
             "X_mid": self.X_mid,
             "first_date": _serialize_date(self.first_date),
             "last_date": _serialize_date(self.last_date),
+            "time_dim": self.time_dim,
             "eta_mass": self.eta_mass,
             "eta_upper": self.eta_upper,
             "ls_lower": self.ls_lower,
@@ -652,6 +660,7 @@ class HSGPTerm(GPDataTerm):
         term.X_mid = data.get("X_mid")
         term.first_date = _deserialize_date(data.get("first_date"))
         term.last_date = _deserialize_date(data.get("last_date"))
+        term.time_dim = data.get("time_dim")
         return term
 
 
@@ -797,6 +806,7 @@ class HSGPPeriodicTerm(GPDataTerm):
             "X_mid": self.X_mid,
             "first_date": _serialize_date(self.first_date),
             "last_date": _serialize_date(self.last_date),
+            "time_dim": self.time_dim,
         }
 
     @classmethod
@@ -816,4 +826,5 @@ class HSGPPeriodicTerm(GPDataTerm):
         term.X_mid = data.get("X_mid")
         term.first_date = _deserialize_date(data.get("first_date"))
         term.last_date = _deserialize_date(data.get("last_date"))
+        term.time_dim = data.get("time_dim")
         return term
