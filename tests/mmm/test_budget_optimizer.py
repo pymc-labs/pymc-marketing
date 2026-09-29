@@ -13,6 +13,7 @@
 #   limitations under the License.
 import ast
 import inspect
+import json
 import warnings
 from unittest.mock import patch
 
@@ -2070,6 +2071,53 @@ def test_price_gate_names_a_missing_channel_dim_rather_than_a_missing_table():
         )
     assert "no historical cost_per_unit table" not in str(info.value)
     assert "['media']" in str(info.value)
+
+
+def test_inference_data_root_attrs_reach_the_price_gate():
+    """_to_datatree used to rebuild the tree from its groups and drop the root attrs, so a
+    correctly priced model handed over as a legacy InferenceData was refused as unpriced.
+    arviz >= 1.2 has no InferenceData class (it is a DataTree), so the stand-in below is the
+    duck type the branch exists for: groups() plus one attribute per group. With the attrs
+    carried, the gate reads the table and the next error is about the missing channel_spend
+    array, which is the true state of this idata."""
+
+    class LegacyInferenceData:
+        def __init__(self, posterior, attrs):
+            self.posterior = posterior
+            self.attrs = attrs
+
+        def groups(self):
+            return ["posterior"]
+
+    from pymc_marketing.mmm import PowerPriceResponse
+    from pymc_marketing.mmm.budget_optimizer import PRICED_CHANNELS_ATTR
+
+    n_dates, channels = 6, ["a", "b"]
+    with pm.Model(coords={"channel": channels}) as model:
+        model.add_coord("date", length=n_dates)
+        channel_data = pmd.Data(
+            "channel_data", np.ones((n_dates, 2)), dims=("date", "channel")
+        )
+        beta = pmd.Normal("beta", 1.0, 0.1, dims="channel")
+        pmd.Deterministic(
+            "total_media_contribution_original_scale",
+            (channel_data * beta).sum(),
+            dims=(),
+        )
+    prior = pm.sample_prior_predictive(draws=4, model=model, random_seed=1)
+    idata = LegacyInferenceData(
+        posterior=prior.prior, attrs={PRICED_CHANNELS_ATTR: json.dumps(channels)}
+    )
+
+    with pytest.raises(ValueError, match="channel_spend") as info:
+        BudgetOptimizer(
+            model=model,
+            idata=idata,
+            num_periods=4,
+            adstock_periods=2,
+            price_response=PowerPriceResponse(elasticity=0.3),
+        )
+    assert "no usable historical cost_per_unit table" not in str(info.value)
 
 
 def test_budget_optimizer_has_no_marketing_imports():

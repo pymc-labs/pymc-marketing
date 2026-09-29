@@ -281,6 +281,11 @@ DEFAULT_RESPONSE_VARIABLE = "total_media_contribution_original_scale"
 alone. A model whose response also travels through a ``MuEffect`` wants
 ``"total_response_original_scale"`` instead."""
 
+# Root attr on the fitted idata: a JSON list of the channels the historical cost_per_unit
+# table prices. Written by MMM.set_cost_per_unit and at fit time; read by the price gate.
+# Models saved before it existed carry only the table itself, under "cost_per_unit".
+PRICED_CHANNELS_ATTR = "cost_per_unit_channels"
+
 # Delayed import inside methods to avoid circular dependency on pytensor_utils
 
 
@@ -635,13 +640,15 @@ def _extract_dataset(node: Any, group: str) -> xr.Dataset:
 
 
 def _to_datatree(idata: Any) -> DataTree:
-    """Convert InferenceData to DataTree, returning DataTree as-is."""
+    """Convert InferenceData to DataTree, returning DataTree as-is; root attrs are carried."""
     if isinstance(idata, DataTree):
         return idata
     groups = {}
     for group in idata.groups():
         groups[group] = getattr(idata, group)
-    return DataTree.from_dict(groups)
+    tree = DataTree.from_dict(groups)
+    tree.attrs = dict(getattr(idata, "attrs", {}) or {})
+    return tree
 
 
 def merge_inference_data(
@@ -2579,13 +2586,31 @@ class BudgetOptimizer(BaseModel):
     def _priced_channels(self) -> set[str] | None:
         """Channels the fitted model's historical cost_per_unit table prices, or ``None`` without a table.
 
-        The table's columns are the priced channels; ``constant_data["channel_spend"]``
-        is not, because ``_parse_cost_per_unit_df`` fills absent channels with 1.0 and
-        so writes spend for every channel. ``MMM`` writes JSON ``null`` for an unpriced
-        model, which reads as no table.
+        Read from ``attrs[PRICED_CHANNELS_ATTR]``, a JSON list ``MMM`` writes alongside the
+        table. Models saved before it existed carry only the table, as pandas'
+        ``orient="split"`` JSON under ``"cost_per_unit"``, whose columns are the priced
+        channels plus ``date`` and one column per custom dim. ``constant_data["channel_spend"]``
+        is not usable for this: ``_parse_cost_per_unit_df`` fills absent channels with 1.0 and so
+        writes spend for every channel.
         """
-        # The attr is pandas' orient="split" JSON; only its "columns" key is needed.
-        # mmm.py owns the full parser but imports this module, so it is not reusable here.
+        listed = self._priced_channels_from_list()
+        if listed is not None:
+            return listed
+        return self._priced_channels_from_table()
+
+    def _priced_channels_from_list(self) -> set[str] | None:
+        raw = self.idata.attrs.get(PRICED_CHANNELS_ATTR)
+        if not isinstance(raw, str):
+            return None
+        try:
+            channels = json.loads(raw)
+        except ValueError:
+            return None
+        if not isinstance(channels, list):
+            return None
+        return {str(channel) for channel in channels}
+
+    def _priced_channels_from_table(self) -> set[str] | None:
         raw = self.idata.attrs.get("cost_per_unit")
         try:
             table = json.loads(raw) if isinstance(raw, str) else None
@@ -2595,9 +2620,7 @@ class BudgetOptimizer(BaseModel):
             columns = None
         if columns is None:
             return None
-        # The wide frame carries one column per custom dim plus one per channel; drop
-        # the dim columns. "channel" is the axis itself, so a channel named "channel"
-        # stays priced.
+        # "channel" is the axis itself, so a channel named "channel" stays priced.
         return columns - {"date"} - (set(self._budget_dims) - {"channel"})
 
     def _unpriced_optimized_channels(self, priced: set[str]) -> list[str]:
@@ -2736,6 +2759,21 @@ class BudgetOptimizer(BaseModel):
                 "optimization window.",
                 UserWarning,
                 stacklevel=2,
+            )
+        missing = {
+            dim: sorted(
+                set(self._budget_coords[dim])
+                - set(np.asarray(spend.coords[dim].values).tolist())
+            )
+            for dim in self._budget_dims
+        }
+        missing = {dim: labels for dim, labels in missing.items() if labels}
+        if missing:
+            raise ValueError(
+                f"price_response: constant_data['channel_spend'] does not cover the optimized coordinates "
+                f"{missing}, so no reference spend can be derived for them. The fitted spend and this "
+                "optimization's model disagree on the cell layout; re-run mmm.set_cost_per_unit(...) on the "
+                "fitted model, or pass reference_spend explicitly (per-period money per cell)."
             )
         reference = spend.where(spend > 0).mean(self.date_dim)
         return reference.reindex(self._budget_coords).transpose(*self._budget_dims)

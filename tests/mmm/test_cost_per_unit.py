@@ -578,6 +578,31 @@ class TestSetCostPerUnit:
             1.0,
         )
 
+        import json
+
+        from pymc_marketing.mmm.budget_optimizer import PRICED_CHANNELS_ATTR
+
+        assert json.loads(mmm.idata.attrs[PRICED_CHANNELS_ATTR]) == [
+            "channel_1",
+            "channel_2",
+        ]
+
+    def test_set_cost_per_unit_records_the_priced_channels(self, simple_fitted_mmm):
+        """The optimizer's gate reads this list; the table's own JSON stays for round-trips."""
+        import json
+
+        from pymc_marketing.mmm.budget_optimizer import PRICED_CHANNELS_ATTR
+
+        mmm = simple_fitted_mmm
+        dates = pd.to_datetime(mmm.idata.constant_data.coords["date"].values)
+        mmm.set_cost_per_unit(
+            pd.DataFrame({"date": dates, "channel_2": 2.0, "channel_1": 3.0})
+        )
+        assert json.loads(mmm.idata.attrs[PRICED_CHANNELS_ATTR]) == [
+            "channel_1",
+            "channel_2",
+        ]
+
 
 class TestBudgetOptimizerCostPerUnitIntegration:
     """Budget optimizer with cost_per_unit."""
@@ -737,6 +762,9 @@ class TestSerializationRoundtrip:
         assert loaded._cost_per_unit_input is not None
         assert loaded.data.cost_per_unit is not None
         xr.testing.assert_equal(loaded.data.cost_per_unit, original_cpu)
+        from pymc_marketing.mmm.budget_optimizer import PRICED_CHANNELS_ATTR
+
+        assert PRICED_CHANNELS_ATTR in loaded.idata.attrs
 
         loaded_spend = loaded.data.get_channel_spend()
         xr.testing.assert_allclose(loaded_spend, original_spend)
@@ -1228,16 +1256,53 @@ class TestPriceResponseGate:
     def test_a_malformed_table_attr_is_read_as_no_table(self, simple_fitted_mmm):
         """Garbage in idata.attrs['cost_per_unit'] must not escape the gate as a bare
         JSONDecodeError; it reads as no usable table and gets the curated refusal."""
+        from pymc_marketing.mmm.budget_optimizer import PRICED_CHANNELS_ATTR
+
         mmm = simple_fitted_mmm
         mmm.idata.attrs["cost_per_unit"] = "not json at all"
+        mmm.idata.attrs.pop(PRICED_CHANNELS_ATTR, None)
         with pytest.raises(
             ValueError, match="no usable historical cost_per_unit table"
         ):
             _optimizer(mmm, price_response=PowerPriceResponse(elasticity=0.3))
         mmm.idata.attrs["cost_per_unit"] = '{"not": "a split frame"}'
+        mmm.idata.attrs.pop(PRICED_CHANNELS_ATTR, None)
         with pytest.raises(
             ValueError, match="no usable historical cost_per_unit table"
         ):
+            _optimizer(mmm, price_response=PowerPriceResponse(elasticity=0.3))
+        # Garbage in the channel list with an intact table falls back to the table.
+        mmm.set_cost_per_unit(_full_table(mmm, dict.fromkeys(CHANNELS_3, 2.0)))
+        mmm.idata.attrs[PRICED_CHANNELS_ATTR] = "not json"
+        _optimizer(mmm, price_response=PowerPriceResponse(elasticity=0.3))
+
+    def test_a_model_saved_before_the_channel_list_existed_is_gated_from_its_table(
+        self, simple_fitted_mmm
+    ):
+        """Released versions wrote only the split-JSON table; the gate still reads its columns."""
+        from pymc_marketing.mmm.budget_optimizer import PRICED_CHANNELS_ATTR
+
+        mmm = simple_fitted_mmm
+        mmm.set_cost_per_unit(_full_table(mmm, {"channel_1": 2.0}))
+        del mmm.idata.attrs[PRICED_CHANNELS_ATTR]
+        with pytest.raises(ValueError, match="fitted on nominal spend") as info:
+            _optimizer(mmm, price_response=PowerPriceResponse(elasticity=0.3))
+        assert "channel_2" in str(info.value) and "'channel_1'" not in str(info.value)
+
+    def test_channel_spend_missing_an_optimized_coordinate_is_named_as_such(
+        self, simple_fitted_mmm
+    ):
+        """A bare reindex would fill NaN and the error would say 'no on-air period', which
+        sends the user to check a flighting pattern that is not the problem. Assigning a
+        sliced array into the group would be realigned to the group's channel index (NaN for
+        channel_3), so the whole group is replaced with the coordinate dropped."""
+        mmm = simple_fitted_mmm
+        mmm.set_cost_per_unit(_full_table(mmm, dict.fromkeys(CHANNELS_3, 2.0)))
+        constant_data = mmm.idata.constant_data.to_dataset()
+        mmm.idata["constant_data"] = xr.DataTree(
+            constant_data.sel(channel=["channel_1", "channel_2"])
+        )
+        with pytest.raises(ValueError, match=r"does not cover.*channel_3"):
             _optimizer(mmm, price_response=PowerPriceResponse(elasticity=0.3))
 
 

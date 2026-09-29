@@ -216,6 +216,7 @@ from pymc_marketing.mmm.additive_effect import (
 )
 from pymc_marketing.mmm.budget_optimizer import (
     DEFAULT_RESPONSE_VARIABLE,
+    PRICED_CHANNELS_ATTR,
     OptimizerCompatibleModelWrapper,
 )
 from pymc_marketing.mmm.causal import CausalGraphModel
@@ -966,6 +967,11 @@ class MMM(RegressionModelBuilder):
             else None,
         )
 
+    def _priced_channel_columns(self, cost_per_unit: pd.DataFrame) -> list[str]:
+        """Channel columns of a cost_per_unit table: everything that is not ``date`` or a custom dim."""
+        dim_cols = {"date", *self.dims}
+        return sorted(str(c) for c in cost_per_unit.columns if c not in dim_cols)
+
     @property
     def plot_suite(self) -> Literal["legacy", "new"]:
         """Which plot suite to use: 'legacy' (default) or 'new'."""
@@ -1113,8 +1119,12 @@ class MMM(RegressionModelBuilder):
                     stacklevel=2,
                 )
             attrs["cost_per_unit"] = cpu_df.to_json(orient="split", date_format="iso")
+            attrs[PRICED_CHANNELS_ATTR] = json.dumps(
+                self._priced_channel_columns(cpu_df)
+            )
         else:
             attrs["cost_per_unit"] = json.dumps(None)
+            attrs[PRICED_CHANNELS_ATTR] = json.dumps([])
 
         return attrs
 
@@ -4337,6 +4347,9 @@ class MMM(RegressionModelBuilder):
         self._cost_per_unit_input = cost_per_unit
         self.idata.attrs["cost_per_unit"] = cost_per_unit.to_json(
             orient="split", date_format="iso"
+        )
+        self.idata.attrs[PRICED_CHANNELS_ATTR] = json.dumps(
+            self._priced_channel_columns(cost_per_unit)
         )
 
 
