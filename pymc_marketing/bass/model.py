@@ -168,7 +168,7 @@ from pymc_marketing.bass import plotting
 from pymc_marketing.bass.data import to_bass_dataset
 from pymc_marketing.model_builder import ModelBuilder, SamplingMethod
 from pymc_marketing.model_config import parse_model_config
-from pymc_marketing.terms import ModelTerm, Product, Sum, build_param
+from pymc_marketing.terms import ModelTerm, Named, Product, Sum, build_param
 from pymc_marketing.version import __version__
 
 #: What :func:`F` and :func:`f` accept for ``t``: a labelled xtensor, or any
@@ -474,23 +474,45 @@ def create_bass_model(
     """
     model = model or pm.Model(coords=coords)
     with model:
-        # Term recipes name their own free variables, so a name that differs
-        # from the config key would build a graph with no `m`/`p`/`q` in the
-        # posterior at all - fail before anything is created.
-        for key in ("m", "p", "q"):
-            entry = priors[key]
-            if isinstance(entry, ModelTerm) and getattr(entry, "name", None) != key:
+        def build(key: str) -> pmd.XTensorVariable:
+            """Build ``priors[key]`` so the posterior holds a variable ``key``.
+
+            A recipe that already names itself must name itself ``key``; that
+            check runs up front so a mismatch fails before anything is built.
+            Compositions and nameless terms (e.g. ``Transform``) have no name
+            of their own, so they are wrapped in ``Named(key, ...)`` -- without
+            that wrap the composition's leaves would be labelled, and
+            ``az.summary(var_names=["q"])`` would report a leaf rather than
+            the value the equations use.
+            """
+            spec = priors[key]
+            if isinstance(spec, ModelTerm):
+                if getattr(spec, "name", None) is None:
+                    spec = Named(key, spec)
+                elif spec.name != key:
+                    raise ValueError(
+                        f"Config key {key!r} must match the term name "
+                        f"{spec.name!r}; rename the term or the key so the "
+                        f"posterior keeps a variable named {key!r}."
+                    )
+            elif isinstance(spec, (Sum, Product)):
+                spec = Named(key, spec)
+
+            built = cast("pmd.XTensorVariable", build_param(spec, key))
+            if model.named_vars.get(key) is not built:
                 raise ValueError(
-                    f"Config key {key!r} must match the term name "
-                    f"{getattr(entry, 'name', None)!r}; rename the term or "
-                    f"the key so the posterior keeps a variable named "
-                    f"{key!r}."
+                    f"priors[{key!r}] must build the variable {key!r}; got "
+                    f"{type(spec).__name__}. Name the term {key!r} or wrap it "
+                    f"in Named({key!r}, ...)."
                 )
+            return built
 
         time = pmd.as_xtensor(t, dims=("T",))
-        m = cast("pmd.XTensorVariable", build_param(priors["m"], "m"))
-        p = cast("pmd.XTensorVariable", build_param(priors["p"], "p"))
-        q = cast("pmd.XTensorVariable", build_param(priors["q"], "q"))
+        # Build order matters: a recipe may reference an earlier coefficient
+        # with `Ref`, so `m` must exist before `p`, and `p` before `q`.
+        m = build("m")
+        p = build("p")
+        q = build("q")
 
         # Declaration order, not set order: `combined_dims` labels the axes of
         # `observed` positionally, so an order that varies between processes

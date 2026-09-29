@@ -23,6 +23,7 @@ import pymc as pm
 import pymc.dims as pmd
 import pytensor
 import pytensor.tensor as pt
+import pytensor.xtensor as ptx
 import pytest
 import xarray as xr
 from pydantic import BaseModel, ConfigDict
@@ -37,7 +38,7 @@ from pytensor.graph import rewrite_graph
 
 from pymc_marketing.bass import BassModel
 from pymc_marketing.bass.model import F, create_bass_model, f
-from pymc_marketing.terms import Named, Parameter
+from pymc_marketing.terms import Named, Parameter, Transform
 
 
 class BassModelComponents(BaseModel):
@@ -1514,6 +1515,65 @@ class TestBassModelTerms:
         for var in ("m", "p", "q", "adopters", "innovators", "imitators", "peak"):
             assert var in model.named_vars
         assert model.named_vars_to_dims["adopters"] == ("T", "product")
+
+    @staticmethod
+    def _base_priors(**overrides: Any) -> dict[str, Any]:
+        """Default priors for a single-product-free (scalar) Bass model."""
+        priors: dict[str, Any] = {
+            "m": Prior("HalfNormal", sigma=500),
+            "p": Prior("Beta", alpha=1.5, beta=20),
+            "q": Prior("Beta", alpha=2, beta=5),
+            "likelihood": Prior("NegativeBinomial", n=1.5),
+        }
+        priors.update(overrides)
+        return priors
+
+    def test_composition_under_key_is_wrapped_and_named(self) -> None:
+        """A composition under a key is auto-wrapped so the key holds the built value.
+
+        Without the wrap, ``az.summary(var_names=["q"])`` reports the leaf
+        rather than the value the equations use.
+        """
+        model = create_bass_model(
+            t=np.arange(10),
+            observed=None,
+            priors=self._base_priors(
+                q=Parameter("q_raw", prior=Prior("Beta", alpha=2, beta=5)) * 2
+            ),
+            coords={"T": np.arange(10)},
+        )
+
+        assert "q" in model.named_vars
+        # the posterior q is the composition, not the q_raw leaf
+        q_draws, raw_draws = pm.draw(
+            [model["q"], model["q_raw"]], draws=5, random_seed=0
+        )
+        assert np.allclose(q_draws, raw_draws * 2)
+
+    def test_composition_leaf_named_after_key_fails_loudly(self) -> None:
+        """A composition whose leaf already owns the key name fails instead of lying."""
+        with pytest.raises(Exception, match="already exists|must build the variable"):
+            create_bass_model(
+                t=np.arange(10),
+                observed=None,
+                priors=self._base_priors(
+                    q=Parameter("q", prior=Prior("Beta", alpha=2, beta=5)) * 2
+                ),
+                coords={"T": np.arange(10)},
+            )
+
+    def test_transform_recipe_under_key_builds(self) -> None:
+        """A nameless term (Transform) under a key is wrapped and built."""
+        model = create_bass_model(
+            t=np.arange(10),
+            observed=None,
+            priors=self._base_priors(
+                m=Transform(Parameter("log_m", prior=Prior("Normal")), ptx.math.exp)
+            ),
+            coords={"T": np.arange(10)},
+        )
+
+        assert "m" in model.named_vars
 
     def test_m_recipe_opts_out_of_rescale(self) -> None:
         """The only configuration where the rescale could bite.
