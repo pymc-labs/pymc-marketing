@@ -554,8 +554,6 @@ class PowerPriceResponse(PriceResponse):
     """
 
     elasticity: float | dict[str, float] | InstanceOf[DataArray] = 0.0
-    max_slope_ratio: float = Field(default=100.0, gt=1.0)
-    reference_spend_tolerance: float = Field(default=10.0, gt=1.0)
     reference_spend: InstanceOf[DataArray] | None = Field(
         default=None,
         description=(
@@ -565,6 +563,8 @@ class PowerPriceResponse(PriceResponse):
             "against that default by reference_spend_tolerance."
         ),
     )
+    max_slope_ratio: float = Field(default=100.0, gt=1.0)
+    reference_spend_tolerance: float = Field(default=10.0, gt=1.0)
     assume_delivery_units: bool = Field(
         default=False,
         description=(

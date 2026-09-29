@@ -2522,12 +2522,17 @@ class TestMonetarySpendVariables:
                 price_response={"channel_data": PowerPriceResponse(elasticity=0.0)},
             )
 
-    def test_a_spend_variable_price_response_needs_a_reference_and_then_solves(
+    def test_a_curved_spend_variable_needs_the_attestation_then_a_reference(
         self, funnel_identity_fitted_mmm
     ):
-        """There is no fitted artifact to derive a spend variable's reference from."""
+        """A spend variable is a money node: exactly the spend-fitted case the media gate
+        refuses, and it has no historical cost_per_unit table to vouch for it. So a curved
+        response on it needs assume_delivery_units, and then a reference_spend, since
+        there is nothing to derive one from."""
         constant_media = PowerPriceResponse(elasticity=0.0)
-        with pytest.raises(ValueError, match=r"lf_budget.*reference_spend is required"):
+        with pytest.raises(
+            ValueError, match=r"lf_budget.*no historical cost_per_unit"
+        ) as info:
             self._optimizer(
                 funnel_identity_fitted_mmm,
                 spend_vars=["lf_budget"],
@@ -2536,13 +2541,27 @@ class TestMonetarySpendVariables:
                     "lf_budget": PowerPriceResponse(elasticity=0.2),
                 },
             )
+        assert "assume_delivery_units=True" in str(info.value)
+        with pytest.raises(ValueError, match=r"lf_budget.*reference_spend is required"):
+            self._optimizer(
+                funnel_identity_fitted_mmm,
+                spend_vars=["lf_budget"],
+                price_response={
+                    "channel_data": constant_media,
+                    "lf_budget": PowerPriceResponse(
+                        elasticity=0.2, assume_delivery_units=True
+                    ),
+                },
+            )
         optimizer = self._optimizer(
             funnel_identity_fitted_mmm,
             spend_vars=["lf_budget"],
             price_response={
                 "channel_data": constant_media,
                 "lf_budget": PowerPriceResponse(
-                    elasticity=0.2, reference_spend=xr.DataArray(1.0)
+                    elasticity=0.2,
+                    assume_delivery_units=True,
+                    reference_spend=xr.DataArray(1.0),
                 ),
             },
         )
@@ -2551,6 +2570,19 @@ class TestMonetarySpendVariables:
         assert np.isfinite(result.spend_var_allocations["lf_budget"]).all()
         spent = result.budgets > 0
         assert np.all(result.implied_price.where(spent).fillna(1.0) == 1.0)
+
+    def test_an_identity_spend_variable_response_needs_nothing(
+        self, funnel_identity_fitted_mmm
+    ):
+        """elasticity=0 passes money through unbent: no attestation, no reference."""
+        self._optimizer(
+            funnel_identity_fitted_mmm,
+            spend_vars=["lf_budget"],
+            price_response={
+                "channel_data": PowerPriceResponse(elasticity=0.0),
+                "lf_budget": PowerPriceResponse(elasticity=0.0),
+            },
+        )
 
 
 def test_mmm_budget_optimizer_set_posterior_is_local_to_the_optimizer(

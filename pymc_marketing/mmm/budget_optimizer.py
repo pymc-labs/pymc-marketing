@@ -1599,9 +1599,10 @@ class BudgetOptimizer(BaseModel):
             "because a spend variable left at a constant price while media is not competes for the "
             "same pot on different terms, silently. Non-identity responses on channel_data_var are "
             "checked against the fitted model's historical cost_per_unit table per optimized channel "
-            "(see PowerPriceResponse for the precondition and the opt-out). spend_vars are not "
-            "gated -- there is no fitted price artifact for a node that is not channel data -- "
-            "and instead require an explicit reference_spend. Results carry implied_delivery, "
+            "(see PowerPriceResponse for the precondition and the opt-out). A curved response on a "
+            "spend variable needs assume_delivery_units=True -- there is no fitted price artifact for "
+            "a node that is not channel data, so nothing can vouch for it -- and an explicit "
+            "reference_spend, since nothing can derive one. Results carry implied_delivery, "
             "implied_price and implied_marginal_price for the media variable; a spend variable's "
             "report is available through optimization_variables.variables[i].delivery_report(x_slice)."
         ),
@@ -2498,11 +2499,19 @@ class BudgetOptimizer(BaseModel):
     def _settle_price_reference(
         self, name: str, response: PriceResponse
     ) -> DataArray | None:
-        """Return the derived reference for media, ``None`` for an identity or a self-referenced spend variable."""
+        """Return the derived reference for media, ``None`` for an identity or a self-referenced spend variable.
+
+        A spend variable is a money node with no historical ``cost_per_unit`` table:
+        the fitted artifact can vouch for nothing, so a response that bends it needs
+        the same attestation an unvouched channel does, and then its own reference,
+        since there is nothing to derive one from.
+        """
         if self._is_identity_for(name, response):
             return None
         if name == self.channel_data_var:
             return self._media_price_reference(response)
+        if response.adds_curvature:
+            self._require_spend_var_attestation(name, response)
         if response.needs_derived_reference:
             raise ValueError(
                 f"{name}: price_response: reference_spend is required for a spend variable -- "
@@ -2510,6 +2519,21 @@ class BudgetOptimizer(BaseModel):
                 "price applies. Pass reference_spend as per-period money over the variable's dims."
             )
         return None
+
+    @staticmethod
+    def _require_spend_var_attestation(name: str, response: PriceResponse) -> None:
+        """Refuse a curved response on a spend variable without the explicit opt-in."""
+        if response.attests_delivery_units:
+            return
+        raise ValueError(
+            f"{name}: price_response bends the price of a spend variable, but there is no historical "
+            "cost_per_unit table for a node that is not channel data, so the fitted model cannot say "
+            "whether it was fitted on delivery units. A node fitted on nominal money has already absorbed "
+            "the price curvature into its response curve, and a curved map on top would bend it twice. "
+            "If its data are in delivery units, or in spend deflated to constant prices, pass "
+            "assume_delivery_units=True together with an explicit reference_spend (per-period money over "
+            "the variable's dims)."
+        )
 
     def _priced_channels(self) -> set[str] | None:
         """Channels the fitted model's historical cost_per_unit table prices, or ``None`` without a table.
