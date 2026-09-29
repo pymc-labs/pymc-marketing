@@ -31,6 +31,7 @@ from pymc_marketing.mmm.hsgp import HSGP, HSGPPeriodic, SoftPlusHSGP
 from pymc_marketing.mmm.tvp import infer_time_index
 from pymc_marketing.serialization import serialization
 from pymc_marketing.terms import (
+    Dot,
     Intercept,
     ModelTerm,
     Named,
@@ -312,6 +313,16 @@ def test_name_collision_raises(ds):
     with pm.Model(coords=coords):
         register_data(mu, ds=ds)
         with pytest.raises(ValueError, match="already exists"):
+            build_param(mu)
+
+
+def test_name_collision_hint_names_the_term(ds):
+    """The collision error points at the offending term and the fix."""
+    mu = HSGPTerm(name="trend") + HSGPTerm(name="trend")
+    coords = collect_coords(mu, ds=ds)
+    with pm.Model(coords=coords):
+        register_data(mu, ds=ds)
+        with pytest.raises(ValueError, match="distinct `name=`"):
             build_param(mu)
 
 
@@ -643,6 +654,59 @@ def test_equivalence_periodic():
     )
     draws_existing, draws_term = _sample_prior_both(term, existing)
     np.testing.assert_allclose(draws_existing, draws_term)
+
+
+def test_time_index_parity_with_mmm_training_index(ds):
+    """The term's time index matches MMM's own training index.
+
+    ``MMM`` builds its latent-process time index as ``np.arange(n)`` (see
+    ``MMM._time_index``) and sets ``(dates[1] - dates[0]).days`` as the time
+    resolution, so a ``time_varying_media`` HSGP sees periods. The term must
+    derive the same axis, otherwise the deferred hyperparameters -- and the
+    resulting media multiplier -- do not match the MMM it is meant to mirror.
+    """
+    dates = pd.DatetimeIndex(ds.coords["date"].values)
+    n = len(dates)
+    mmm_index = np.arange(n)
+    mmm_resolution = (dates[1] - dates[0]).days
+
+    trend = HSGPTerm(name="trend")
+    with pm.Model(coords=collect_coords(trend, ds=ds)) as model:
+        register_data(trend, ds=ds)
+        build_param(trend)
+        index = model["date_index"].get_value()
+
+    assert trend.time_resolution == mmm_resolution
+    np.testing.assert_allclose(index, mmm_index)
+
+
+def test_mmm_style_media_contribution(ds):
+    """The canonical MMM media composition builds a per-channel contribution.
+
+    ``MMM`` computes ``channel_contribution = baseline * media_latent_process``,
+    where the latent process is a ``SoftPlusHSGP`` over the time index that
+    broadcasts across the channel dimension. The term equivalent --
+    ``SoftPlusHSGPTerm() * Dot(media)`` -- must build the same way, with a
+    strictly positive, mean-one multiplier so the composition is meaningful.
+    """
+    media = Dot(var_name="media", prior=Prior("Normal", dims="channel"))
+    tvp_media = SoftPlusHSGPTerm() * media
+    mu = Intercept("intercept") + tvp_media
+    with pm.Model(coords=collect_coords(mu, ds=ds)) as model:
+        register_data(mu, ds=ds)
+        build_param(mu)
+        # the multiplier is a named GP output alongside the media coefficients
+        assert "tvp" in model.named_vars
+        assert "media_beta" in model.named_vars
+        multiplier = (
+            pm.sample_prior_predictive(random_seed=7, draws=5, var_names=["tvp"])
+            .prior["tvp"]
+            .values
+        )
+
+    # strictly positive, and mean one over the time dimension
+    assert (multiplier > 0).all()
+    np.testing.assert_allclose(multiplier.mean(axis=-1), 1.0, atol=1e-6)
 
 
 def test_equivalence_softplus():

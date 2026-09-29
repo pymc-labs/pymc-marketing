@@ -393,12 +393,29 @@ class GPDataTerm(ModelTerm):
         The wrapped spec owns the basis coordinate, hyperparameter variables,
         and the final deterministic; this term feeds it the frozen centering
         value and the shared time index.
+
+        Raises
+        ------
+        ValueError
+            If another term in the model already created a variable with this
+            term's ``name``. Each GP term's ``name`` is used as the prefix for
+            its variables (``{name}_eta``, ``{name}_ls``, ``{name}_hsgp_coefs``),
+            so two terms cannot share one.
         """
         model = self._check_registered()
         spec = self._spec()
         spec.X_mid = self.X_mid
-        spec.register_data(model[self.index_var])
-        return spec.create_variable(self.name, xdist=True)
+        try:
+            spec.register_data(model[self.index_var])
+            return spec.create_variable(self.name, xdist=True)
+        except ValueError as err:
+            if f"{self.name}_" in str(err):
+                raise ValueError(
+                    f"A variable for the GP term named {self.name!r} already exists "
+                    f"in this model: {err} Each GP term's `name` is the prefix for "
+                    "its variables, so give each GP term a distinct `name=`."
+                ) from err
+            raise
 
 
 @serialization.register
@@ -736,7 +753,6 @@ class HSGPPeriodicTerm(GPDataTerm):
         )
     """
 
-    var_name: str = "date"
     name: str = "hsgp_periodic"
     scale: VariableFactory | float
     ls: VariableFactory | float
