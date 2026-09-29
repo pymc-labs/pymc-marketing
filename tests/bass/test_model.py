@@ -1678,6 +1678,74 @@ class TestBassModelTerms:
         assert model.named_vars_to_dims["peak"] == ("product",)
         assert np.all(np.asarray(model["p"].eval()) > 0)
 
+    def test_covariate_bringing_its_own_coord(self) -> None:
+        """A covariate whose dim is absent from ``coords`` is added to the model.
+
+        ``create_bass_model`` receives coords from the caller, but a recipe
+        may reference a dim the caller did not declare; the recipe's own
+        coords fill the gap.
+        """
+        recipe = Parameter("p_base", prior=Prior("Beta", alpha=1.5, beta=20)) * (
+            Transform(
+                Dot(
+                    var_name="log_market_size",
+                    name="p_coef",
+                    prior=Prior("Normal", mu=0, sigma=0.3),
+                ),
+                ptx.math.exp,
+            )
+        )
+        model = create_bass_model(
+            t=np.arange(6),
+            observed=None,
+            priors=self._base_priors(p=recipe),
+            coords={"T": np.arange(6)},  # note: no "product"
+            ds=xr.Dataset(
+                {"log_market_size": ("product", np.log([100.0, 250.0]))},
+                coords={"T": np.arange(6), "product": ["A", "B"]},
+            ),
+        )
+
+        assert "product" in model.coords
+        assert model.named_vars_to_dims["p"] == ("product",)
+
+    def test_covariate_time_length_mismatch_raises(self, mock_pymc_sample) -> None:
+        """A covariate that disagrees with the new time grid is rejected.
+
+        Without a check the covariate would be silently misaligned with the
+        new grid and the prediction would use the wrong values. Reachable
+        through ``m``, the one key a time-varying covariate may enter
+        (``p``/``q`` are refused for it).
+        """
+        recipe = Parameter("m_base", prior=Prior("HalfNormal", sigma=100_000)) * (
+            Transform(
+                Dot(
+                    var_name="market_index",
+                    name="m_coef",
+                    prior=Prior("Normal", mu=0, sigma=0.3),
+                ),
+                ptx.math.exp,
+            )
+        )
+        data = xr.Dataset(
+            {
+                "observed": ("T", np.ones(6)),
+                "market_index": ("T", np.linspace(0.0, 1.0, 6)),
+            },
+            coords={"T": np.arange(6)},
+        )
+        model = BassModel(model_config={**self._base_priors(m=recipe)})
+        model.fit(data=data, draws=5, tune=5, chains=1, random_seed=42)
+
+        # 5 covariate points against a 10-step grid
+        with pytest.raises(ValueError, match=r"conflicting sizes|'T'|T"):
+            model._data_setter(
+                xr.Dataset(
+                    {"market_index": ("T", np.linspace(0.0, 1.0, 5))},
+                    coords={"T": np.arange(10)},
+                )
+            )
+
     def test_missing_covariate_raises_named_error(self) -> None:
         """A referenced covariate missing from the dataset is named up front."""
         recipe = Parameter("p_base", prior=Prior("Beta", alpha=1.5, beta=20)) * (
@@ -1770,6 +1838,37 @@ class TestBassModelTerms:
             model.model["log_market_size"].get_value(),
             new_data["log_market_size"].values,
         )
+
+    def test_covariate_refreshes_without_observed(self, mock_pymc_sample) -> None:
+        """A covariate refreshes even when the new data carries no ``observed``."""
+        recipe = Parameter("m_base", prior=Prior("HalfNormal", sigma=100_000)) * (
+            Transform(
+                Dot(
+                    var_name="market_index",
+                    name="m_coef",
+                    prior=Prior("Normal", mu=0, sigma=0.3),
+                ),
+                ptx.math.exp,
+            )
+        )
+        data = xr.Dataset(
+            {
+                "observed": ("T", np.ones(6)),
+                "market_index": ("T", np.linspace(0.0, 1.0, 6)),
+            },
+            coords={"T": np.arange(6)},
+        )
+        model = BassModel(model_config={**self._base_priors(m=recipe)})
+        model.fit(data=data, draws=5, tune=5, chains=1, random_seed=42)
+
+        new_index = np.linspace(0.0, 1.0, 12)
+        # no "observed" -> y_obs is zero-filled, but the covariate still refreshes
+        model._data_setter(
+            xr.Dataset({"market_index": ("T", new_index)}, coords={"T": np.arange(12)})
+        )
+
+        assert np.allclose(model.model["market_index"].get_value(), new_index)
+        assert np.allclose(model.model["y_obs"].get_value(), np.zeros(12))
 
     def test_m_recipe_opts_out_of_rescale(self) -> None:
         """The only configuration where the rescale could bite.

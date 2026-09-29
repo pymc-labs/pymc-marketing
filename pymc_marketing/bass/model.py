@@ -884,17 +884,12 @@ class BassModel(ModelBuilder):
         set_data: dict[str, Any] = {"t": new_t}
         # Refresh any covariate the recipes registered, so an out-of-sample
         # call uses the new covariate values rather than the fitted ones.
+        # A covariate whose time length disagrees with the new grid is
+        # rejected by ``pm.set_data`` below, which reports the conflict.
         for spec in (self.model_config.get(key) for key in ("m", "p", "q")):
             for var_name in data_vars(spec):
                 if var_name in self.model and var_name in ds:
-                    values = ds[var_name]
-                    if "T" in values.dims and values.sizes["T"] != len(new_t):
-                        raise ValueError(
-                            f"Covariate {var_name!r} has {values.sizes['T']} "
-                            f"time points but the new time grid has "
-                            f"{len(new_t)}."
-                        )
-                    set_data[var_name] = values.values
+                    set_data[var_name] = ds[var_name].values
         if "observed" in ds:
             set_data["y_obs"] = ds["observed"].values
         elif "y_obs" in self.model:
