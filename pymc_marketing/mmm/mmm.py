@@ -1094,6 +1094,9 @@ class MMM(RegressionModelBuilder):
             [
                 {
                     "data": df.to_json(orient="split", date_format="iso"),
+                    "dtypes": {
+                        column: str(dtype) for column, dtype in df.dtypes.items()
+                    },
                     "likelihood": serialization.serialize_model_config(
                         {"likelihood": likelihood}
                     )["likelihood"],
@@ -3812,8 +3815,10 @@ class MMM(RegressionModelBuilder):
         likelihood : Prior, optional
             Serializable likelihood prior, by default ``Prior("Normal")``.
             The lift-test standard errors are used as its ``sigma`` parameter.
+            Supported distributions are ``Normal``, ``StudentT``, and ``Gamma``.
             Use ``Prior("StudentT", nu=...)`` for a heavier-tailed sampling
-            model. Lift estimates retain their signs.
+            model. Lift estimates retain their signs; custom ``sigma`` parameters
+            are rejected because scale comes from the ``sigma`` column.
         dist : pymc.dims.DimDistribution, optional
             Deprecated alias for selecting a distribution by class. Prefer a
             ``Prior`` passed to ``likelihood``.
@@ -3931,6 +3936,8 @@ class MMM(RegressionModelBuilder):
         self._lift_test_calibrations.append(
             (df_lift_test.copy(), likelihood.deepcopy(), name)
         )
+        if self.idata is not None:
+            self.idata.attrs.update(self.create_idata_attrs())
 
         return self
 
@@ -4285,9 +4292,32 @@ class MMM(RegressionModelBuilder):
         # model-implied-lift diagnostic are present again.
         if "lift_test_calibrations" in idata.attrs:
             for calibration in json.loads(idata.attrs["lift_test_calibrations"]):
-                df_lift_test = pd.read_json(
-                    io.StringIO(calibration["data"]), orient="split"
-                )
+                if "dtypes" in calibration:
+                    df_lift_test = pd.read_json(
+                        io.StringIO(calibration["data"]),
+                        orient="split",
+                        dtype=False,
+                        convert_dates=False,
+                    )
+                    for column, dtype in calibration["dtypes"].items():
+                        if dtype.startswith("datetime64"):
+                            if "," in dtype:
+                                timezone = dtype.split(",", maxsplit=1)[1].rstrip(" ]")
+                                df_lift_test[column] = pd.to_datetime(
+                                    df_lift_test[column], utc=True
+                                ).dt.tz_convert(timezone)
+                            else:
+                                df_lift_test[column] = pd.to_datetime(
+                                    df_lift_test[column]
+                                ).astype(dtype)
+                        else:
+                            df_lift_test[column] = df_lift_test[column].astype(dtype)
+                else:
+                    # Attributes written before dtype metadata was added used
+                    # pandas' default type inference.
+                    df_lift_test = pd.read_json(
+                        io.StringIO(calibration["data"]), orient="split"
+                    )
                 likelihood = serialization.deserialize_model_config(
                     {"likelihood": calibration["likelihood"]}
                 )["likelihood"]

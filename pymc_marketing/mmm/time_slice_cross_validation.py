@@ -28,6 +28,7 @@ from typing import Any, Literal, overload
 import numpy as np
 import pandas as pd
 import xarray as xr
+from pymc_extras.prior import Prior
 from tqdm.auto import tqdm
 
 from pymc_marketing.mmm.builders.yaml import build_mmm_from_yaml
@@ -456,6 +457,7 @@ class TimeSliceCrossValidator:
         original_scale_vars: list[str] | None = None,
         df_lift_test: pd.DataFrame | None = None,
         lift_test_date_column: str | None = None,
+        lift_test_likelihood: Prior | None = None,
     ) -> Any:
         """Prepare a fold-local MMM before fitting.
 
@@ -473,6 +475,9 @@ class TimeSliceCrossValidator:
             observations available up to the end of the training window.
         lift_test_date_column : str, optional
             Date column in ``df_lift_test`` used for leakage-safe filtering.
+        lift_test_likelihood : Prior, optional
+            Likelihood passed to ``MMM.add_lift_test_measurements`` for each
+            fold. Defaults to the lift-test method's signed Normal likelihood.
 
         Returns
         -------
@@ -510,7 +515,10 @@ class TimeSliceCrossValidator:
                     f"`{lift_test_date_column}` <= train end ({train_end})."
                 )
 
-            mmm.add_lift_test_measurements(df_lift_test=fold_lift_df)
+            mmm.add_lift_test_measurements(
+                df_lift_test=fold_lift_df,
+                likelihood=lift_test_likelihood,
+            )
 
         return mmm
 
@@ -680,6 +688,7 @@ class TimeSliceCrossValidator:
         original_scale_vars: list[str] | None = ...,
         df_lift_test: pd.DataFrame | None = ...,
         lift_test_date_column: str | None = ...,
+        lift_test_likelihood: Prior | None = ...,
         return_models: Literal[False] = ...,
     ) -> xr.DataTree: ...
 
@@ -695,6 +704,7 @@ class TimeSliceCrossValidator:
         original_scale_vars: list[str] | None = ...,
         df_lift_test: pd.DataFrame | None = ...,
         lift_test_date_column: str | None = ...,
+        lift_test_likelihood: Prior | None = ...,
         return_models: Literal[True] = ...,
     ) -> tuple[xr.DataTree, list[MMMBuilder]]: ...
 
@@ -709,6 +719,7 @@ class TimeSliceCrossValidator:
         original_scale_vars: list[str] | None = None,
         df_lift_test: pd.DataFrame | None = None,
         lift_test_date_column: str | None = None,
+        lift_test_likelihood: Prior | None = None,
         return_models: bool = False,
     ) -> xr.DataTree | tuple[xr.DataTree, list[MMMBuilder]]:
         """Run the complete time-slice cross-validation loop.
@@ -753,6 +764,9 @@ class TimeSliceCrossValidator:
         lift_test_date_column : str, optional
             Name of the date column in ``df_lift_test``. Required when
             ``df_lift_test`` is provided.
+        lift_test_likelihood : Prior, optional
+            Serializable lift-test sampling model used for every fold. Defaults
+            to ``Prior("Normal")`` through ``MMM.add_lift_test_measurements``.
         return_models : bool, optional
             If ``True``, return the fitted MMM instances for each fold
             alongside the combined DataTree. Default is ``False``.
@@ -874,6 +888,7 @@ class TimeSliceCrossValidator:
                 original_scale_vars=original_scale_vars,
                 df_lift_test=df_lift_test,
                 lift_test_date_column=lift_test_date_column,
+                lift_test_likelihood=lift_test_likelihood,
             )
 
             # determine name for this fold

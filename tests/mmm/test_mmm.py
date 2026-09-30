@@ -969,12 +969,13 @@ def test_save_load_restores_lift_test_likelihood_and_diagnostic(
 ):
     from pymc_extras.prior import Prior
 
+    df = df.assign(country=df["country"].map({"A": "001", "B": "002"}))
     X = df.drop(columns=[target_column])
     y = df[target_column]
     mmm.build_model(X, y)
     calibration = pd.DataFrame(
         {
-            "country": ["A"],
+            "country": ["001"],
             "channel": ["C1"],
             "x": [1.0],
             "delta_x": [1.0],
@@ -999,6 +1000,8 @@ def test_save_load_restores_lift_test_likelihood_and_diagnostic(
     assert "geo_lift_model_estimated_lift" in loaded.model.named_vars
     assert len(loaded._lift_test_calibrations) == 1
     restored_df, restored_likelihood, restored_name = loaded._lift_test_calibrations[0]
+    assert restored_df["country"].tolist() == ["001"]
+    assert restored_df["country"].dtype == calibration["country"].dtype
     assert restored_df["delta_y"].tolist() == [-0.2]
     assert restored_likelihood.distribution == "StudentT"
     assert restored_likelihood.parameters["nu"] == 4

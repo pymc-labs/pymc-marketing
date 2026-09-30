@@ -41,23 +41,10 @@ Indices = dict[str, Index]
 Values = npt.NDArray[np.int_] | npt.NDArray | npt.NDArray[np.str_]
 
 _POSITIVE_SUPPORT_DISTRIBUTIONS = {
-    "Exponential",
     "Gamma",
-    "InverseGamma",
-    "LogNormal",
-    "Pareto",
-    "Wald",
-    "Weibull",
 }
 _REAL_LINE_LIKELIHOODS = {
-    "AsymmetricLaplace",
-    "Cauchy",
-    "Gumbel",
-    "Laplace",
-    "Logistic",
-    "Moyal",
     "Normal",
-    "SkewNormal",
     "StudentT",
 }
 _POSITIVE_SUPPORT_RV_OPS = {
@@ -78,13 +65,19 @@ def _validate_lift_likelihood_data(
     df_lift_test: pd.DataFrame, likelihood: Prior
 ) -> None:
     """Validate observations against known likelihood support constraints."""
+    if "sigma" in likelihood.parameters:
+        raise ValueError(
+            "The lift-test `sigma` is taken from the `sigma` column. Do not pass "
+            "`sigma` in `likelihood`; use a supported likelihood parameter such "
+            "as `nu` for StudentT."
+        )
     if likelihood.distribution not in (
         _POSITIVE_SUPPORT_DISTRIBUTIONS | _REAL_LINE_LIKELIHOODS
     ):
         raise ValueError(
-            f"Cannot validate the support of the {likelihood.distribution} lift "
-            "likelihood. Use a supported real-line likelihood or a known "
-            "positive-support likelihood."
+            f"The {likelihood.distribution} distribution is not supported as a "
+            "lift-test likelihood. Supported distributions are Normal, StudentT, "
+            "and Gamma."
         )
     if likelihood.distribution in _POSITIVE_SUPPORT_DISTRIBUTIONS:
         if (df_lift_test["delta_y"] <= 0).any():
@@ -379,7 +372,9 @@ def add_saturation_observations(
     likelihood : Prior, optional
         Serializable likelihood prior, by default ``Prior("Normal")``. Its
         ``sigma`` parameter is set from the lift-test standard errors. Choose a
-        distribution that matches the estimator's sampling model.
+        distribution that matches the estimator's sampling model. The supported
+        distributions are ``Normal``, ``StudentT``, and ``Gamma``; a custom
+        ``sigma`` parameter is not accepted because scale comes from the data.
     name : str, optional
         Name of the likelihood, by default "lift_measurements"
     get_indices : Callable[[pd.DataFrame, pm.Model], Indices], optional
@@ -569,7 +564,6 @@ def add_saturation_observations(
             f"{name}_model_estimated_lift", model_estimated_lift
         )
         likelihood = likelihood.deepcopy()
-        likelihood.parameters.pop("sigma", None)
         likelihood.parameters["sigma"] = as_xtensor(
             df_lift_test["sigma"].to_numpy(), dims=(lift_dim,)
         )

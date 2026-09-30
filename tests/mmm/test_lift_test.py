@@ -76,6 +76,35 @@ def test_add_saturation_observations_defaults_to_signed_normal_likelihood() -> N
     assert "lift_measurements_model_estimated_lift" in model
 
 
+@pytest.mark.parametrize("distribution", ["Normal", "StudentT", "Gamma"])
+def test_supported_lift_likelihoods_build_with_finite_logp(distribution: str) -> None:
+    with pm.Model(coords={"channel": ["one"]}) as model:
+        pmd.HalfNormal("beta", sigma=1.0, dims="channel")
+
+    df_lift_test = pd.DataFrame(
+        {
+            "channel": ["one"],
+            "x": [0.0],
+            "delta_x": [1.0],
+            "delta_y": [1.0],
+            "sigma": [0.5],
+        }
+    )
+    likelihood = (
+        Prior(distribution, nu=4) if distribution == "StudentT" else Prior(distribution)
+    )
+    add_saturation_observations(
+        df_lift_test,
+        variable_mapping={"beta": "beta"},
+        saturation_function=lambda x, beta: beta * x,
+        model=model,
+        likelihood=likelihood,
+    )
+
+    logp = model.compile_logp()(model.initial_point())
+    assert np.isfinite(logp)
+
+
 def test_add_saturation_observations_allows_explicit_gamma_likelihood() -> None:
     with pm.Model(coords={"channel": ["one"]}) as model:
         pmd.HalfNormal("beta", sigma=1.0, dims="channel")
@@ -127,15 +156,62 @@ def test_positive_support_likelihood_rejects_unknown_or_signed_parameter_support
             likelihood=Prior("Gamma"),
         )
 
-    with pytest.raises(
-        ValueError, match="Cannot validate the support of the HalfNormal"
-    ):
+    with pytest.raises(ValueError, match="HalfNormal distribution is not supported"):
         add_saturation_observations(
             df_lift_test,
             variable_mapping={"beta": "beta"},
             saturation_function=lambda x, beta: beta * x,
             model=model,
             likelihood=Prior("HalfNormal"),
+        )
+
+
+@pytest.mark.parametrize("distribution", ["Laplace", "LogNormal", "InverseGamma"])
+def test_unverified_lift_likelihoods_are_rejected(distribution: str) -> None:
+    with pm.Model(coords={"channel": ["one"]}) as model:
+        pmd.HalfNormal("beta", sigma=1.0, dims="channel")
+
+    df_lift_test = pd.DataFrame(
+        {
+            "channel": ["one"],
+            "x": [0.0],
+            "delta_x": [1.0],
+            "delta_y": [1.0],
+            "sigma": [0.5],
+        }
+    )
+    with pytest.raises(
+        ValueError, match=f"{distribution} distribution is not supported"
+    ):
+        add_saturation_observations(
+            df_lift_test,
+            variable_mapping={"beta": "beta"},
+            saturation_function=lambda x, beta: beta * x,
+            model=model,
+            likelihood=Prior(distribution),
+        )
+
+
+def test_lift_likelihood_rejects_user_sigma_parameter() -> None:
+    with pm.Model(coords={"channel": ["one"]}) as model:
+        pmd.HalfNormal("beta", sigma=1.0, dims="channel")
+
+    df_lift_test = pd.DataFrame(
+        {
+            "channel": ["one"],
+            "x": [0.0],
+            "delta_x": [1.0],
+            "delta_y": [1.0],
+            "sigma": [0.5],
+        }
+    )
+    with pytest.raises(ValueError, match="Do not pass `sigma` in `likelihood`"):
+        add_saturation_observations(
+            df_lift_test,
+            variable_mapping={"beta": "beta"},
+            saturation_function=lambda x, beta: beta * x,
+            model=model,
+            likelihood=Prior("StudentT", nu=4, sigma=2.0),
         )
 
 

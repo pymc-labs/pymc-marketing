@@ -22,6 +22,7 @@ import pandas as pd
 import pytest
 import xarray as xr
 from pymc.testing import mock_sample_setup_and_teardown
+from pymc_extras.prior import Prior
 
 from pymc_marketing.mmm.components.adstock import GeometricAdstock
 from pymc_marketing.mmm.components.saturation import LogisticSaturation
@@ -806,8 +807,9 @@ class _RecordingFoldModel:
     def add_original_scale_contribution_variable(self, var):
         self._original_scale_vars = list(var)
 
-    def add_lift_test_measurements(self, df_lift_test):
+    def add_lift_test_measurements(self, df_lift_test, likelihood=None):
         self._last_lift_test_df = df_lift_test.copy()
+        self._last_lift_test_likelihood = likelihood
 
     def fit(self, X, y, progressbar=True):
         return None
@@ -937,6 +939,35 @@ def test_run_filters_lift_tests_to_train_window():
         for result in cv._cv_results
     ]
     assert rows_used == [1, 2, 3]
+
+
+def test_prepare_fold_model_passes_lift_test_likelihood():
+    dates = pd.date_range("2025-01-01", periods=3, freq="D")
+    X_train = pd.DataFrame({"date": dates})
+    df_lift_test = pd.DataFrame(
+        {
+            "date": dates,
+            "channel": ["x1"] * len(dates),
+            "x": [0.1] * len(dates),
+            "delta_x": [0.1] * len(dates),
+            "delta_y": [1.0] * len(dates),
+            "sigma": [0.5] * len(dates),
+        }
+    )
+    likelihood = Prior("StudentT", nu=4)
+    cv = TimeSliceCrossValidator(
+        n_init=1, forecast_horizon=1, date_column="date", step_size=1
+    )
+
+    fold_model = cv._prepare_fold_model(
+        _RecordingFoldModel(),
+        X_train=X_train,
+        df_lift_test=df_lift_test,
+        lift_test_date_column="date",
+        lift_test_likelihood=likelihood,
+    )
+
+    assert fold_model._last_lift_test_likelihood == likelihood
 
 
 def test_run_with_lift_tests_and_raw_mmm_instance():
