@@ -1,0 +1,30 @@
+tests/mmm/test_lift_test.py
+  s_6d816e27f52dc0::t_98d79f60da733d 36,250
+  s_6d816e27f52dc0::t_ccb9e72dfc1793 242-249,251-297
+  s_6d816e27f52dc0::t_8a4b2a431961da 298-299
+tests/mmm/builders/test_yaml.py
+  s_6d816e27f52dc0::t_ccb9e72dfc1793 287-299
+tests/mmm/test_mmm.py
+  s_6d816e27f52dc0::t_80a74c569942ef 1032-1041
+  s_6d816e27f52dc0::t_5876c093c59f56 970,1042-1063
+  s_6d816e27f52dc0::t_699e871c784eaa 15
+  s_6d816e27f52dc0::t_dfa35a89af0a67 1064-1066
+  s_6d816e27f52dc0::t_ccb9e72dfc1793 1027-1031
+  s_6d816e27f52dc0::t_6e7a0d415e435a 1067-1069
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "8737d7ba546721c5f1988131e7a58b7c51992777",
+  "prompts": {},
+  "sessions": {
+    "s_6d816e27f52dc0": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0f1eb-e3b4-7bd3-ae0b-db7de0488cc4",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "Benjamin T. Vincent <inferencelab@gmail.com>"
+    }
+  }
+}
