@@ -216,6 +216,37 @@ def test_lift_likelihood_rejects_user_sigma_parameter() -> None:
         )
 
 
+@pytest.mark.parametrize(
+    ("likelihood", "parameter"),
+    [
+        (Prior("Normal", mu=0.0), "mu"),
+        (Prior("Normal", dims="channel"), "dims"),
+    ],
+)
+def test_lift_likelihood_rejects_model_determined_parameters(
+    likelihood: Prior, parameter: str
+) -> None:
+    with pm.Model(coords={"channel": ["one"]}) as model:
+        pmd.HalfNormal("beta", sigma=1.0, dims="channel")
+    lift = pd.DataFrame(
+        {
+            "channel": ["one"],
+            "x": [0.0],
+            "delta_x": [1.0],
+            "delta_y": [1.0],
+            "sigma": [0.5],
+        }
+    )
+    with pytest.raises(ValueError, match=f"Do not pass `{parameter}` in `likelihood`"):
+        add_saturation_observations(
+            lift,
+            variable_mapping={"beta": "beta"},
+            saturation_function=lambda x, beta: beta * x,
+            model=model,
+            likelihood=likelihood,
+        )
+
+
 def test_student_t_likelihood_requires_degrees_of_freedom() -> None:
     with pm.Model(coords={"channel": ["one"]}) as model:
         pmd.HalfNormal("beta", sigma=1.0, dims="channel")

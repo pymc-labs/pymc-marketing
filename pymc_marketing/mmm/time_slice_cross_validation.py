@@ -20,6 +20,7 @@ constructed per-fold from a YAML configuration or supplied to ``run()``.
 """
 
 import copy
+import json
 import warnings
 from collections.abc import Generator
 from dataclasses import dataclass
@@ -33,10 +34,12 @@ from pymc_extras.prior import Prior
 from tqdm.auto import tqdm
 
 from pymc_marketing.mmm.builders.yaml import build_mmm_from_yaml
+from pymc_marketing.mmm.link import LinkFunction
 from pymc_marketing.mmm.plot import MMMPlotSuite
 from pymc_marketing.mmm.plotting.cv import MMMCVPlotSuite
 from pymc_marketing.mmm.summary.cv import MMMCVSummaryFactory
 from pymc_marketing.mmm.types import MMMBuilder
+from pymc_marketing.serialization import serialization
 
 
 @dataclass
@@ -772,7 +775,9 @@ class TimeSliceCrossValidator:
             ``df_lift_test`` is provided.
         lift_test_likelihood : Prior, optional
             Serializable lift-test sampling model used for every fold. Defaults
-            to ``Prior("Normal")`` through ``MMM.add_lift_test_measurements``.
+            to the template MMM's likelihood when all its lift tests use the
+            same one, otherwise to ``Prior("Normal")``. The template's lift
+            rows are replaced by date-filtered ``df_lift_test`` rows in each fold.
         return_models : bool, optional
             If ``True``, return the fitted MMM instances for each fold
             alongside the combined DataTree. Default is ``False``.
@@ -854,6 +859,27 @@ class TimeSliceCrossValidator:
         """
         if lift_test_likelihood is not None and df_lift_test is None:
             raise ValueError("`lift_test_likelihood` requires `df_lift_test`.")
+
+        if df_lift_test is not None and getattr(mmm, "link", None) == LinkFunction.LOG:
+            raise NotImplementedError(
+                "Lift-test calibration is not supported with link='log': the "
+                "saturation difference is on the log-median scale, while "
+                "delta_y is a level change."
+            )
+
+        if df_lift_test is not None and lift_test_likelihood is None:
+            calibrations = getattr(mmm, "_lift_test_calibrations", [])
+            likelihoods = [calibration["likelihood"] for calibration in calibrations]
+            distinct = {json.dumps(value, sort_keys=True) for value in likelihoods}
+            if len(distinct) > 1:
+                raise ValueError(
+                    "The template has lift tests with different likelihoods; "
+                    "pass `lift_test_likelihood` explicitly."
+                )
+            if likelihoods:
+                lift_test_likelihood = serialization.deserialize_model_config(
+                    {"likelihood": likelihoods[0]}
+                )["likelihood"]
 
         # Upfront validation of model_names length
         n_splits = self.get_n_splits(X, y)

@@ -664,7 +664,7 @@ class MMM(RegressionModelBuilder):
             )
 
         self.mu_effects: list[MuEffect] = []
-        self._lift_test_calibrations: list[tuple[pd.DataFrame, Prior, str]] = []
+        self._lift_test_calibrations: list[dict[str, Any]] = []
 
     def add_mu_effect(
         self: Self,
@@ -1090,21 +1090,7 @@ class MMM(RegressionModelBuilder):
         attrs["target_column"] = self.target_column
         attrs["link"] = self.link.value
         attrs["scaling"] = json.dumps(serialization.serialize(self.scaling))
-        attrs["lift_test_calibrations"] = json.dumps(
-            [
-                {
-                    "data": df.to_json(orient="split", date_format="iso"),
-                    "dtypes": {
-                        column: str(dtype) for column, dtype in df.dtypes.items()
-                    },
-                    "likelihood": serialization.serialize_model_config(
-                        {"likelihood": likelihood}
-                    )["likelihood"],
-                    "name": name,
-                }
-                for df, likelihood, name in self._lift_test_calibrations
-            ]
-        )
+        attrs["lift_test_calibrations"] = json.dumps(self._lift_test_calibrations)
         attrs["dag"] = json.dumps(getattr(self, "dag", None))
         attrs["treatment_nodes"] = json.dumps(getattr(self, "treatment_nodes", None))
         attrs["outcome_node"] = json.dumps(getattr(self, "outcome_node", None))
@@ -3807,6 +3793,9 @@ class MMM(RegressionModelBuilder):
             likelihood(model_estimated_lift, sigma=sigma, observed=empirical_lift)
 
         The model has to be built before adding the lift tests.
+        Lift tests require the identity link: with ``link='log'``, the
+        saturation difference is on the log-median scale and cannot be
+        compared directly with an observed level change.
         Lift tests can be added after a fit, but they only affect posterior
         inference after the model is fit again. Posterior metadata is refreshed
         by fitting, so adding measurements without refitting leaves the existing
@@ -3822,13 +3811,17 @@ class MMM(RegressionModelBuilder):
                 * `delta_x`: change in x axis value of the lift test.
                 * `delta_y`: change in y axis value of the lift test.
                 * `sigma`: standard deviation of the lift test.
+            The optional ``date`` column is used for time-varying media.
+            Other columns are ignored when saving calibration metadata.
         likelihood : Prior, optional
             Serializable likelihood prior, by default ``Prior("Normal")``.
             The lift-test standard errors are used as its ``sigma`` parameter.
             Supported distributions are ``Normal``, ``StudentT``, and ``Gamma``.
             Use ``Prior("StudentT", nu=...)`` for a heavier-tailed sampling
-            model. Lift estimates retain their signs; custom ``sigma`` parameters
-            are rejected because scale comes from the ``sigma`` column.
+            model. A Prior-valued ``nu`` adds a free variable named from ``name``
+            (for example ``lift_measurements_nu``) to the posterior. Lift
+            estimates retain their signs; custom ``sigma``, ``mu``, and ``dims``
+            are rejected because they are determined by the lift data and model.
         dist : pymc.dims.DimDistribution, optional
             Deprecated alias for selecting a distribution by class. Prefer a
             ``Prior`` passed to ``likelihood``.
@@ -3902,6 +3895,13 @@ class MMM(RegressionModelBuilder):
                 "The model has not been built yet. Please, build the model first."
             )
 
+        if self.link == LinkFunction.LOG:
+            raise NotImplementedError(
+                "Lift-test calibration is not supported with link='log': the "
+                "saturation difference is on the log-median scale, while "
+                "delta_y is a level change."
+            )
+
         if "channel" not in df_lift_test.columns:
             raise KeyError(
                 "The 'channel' column is required to map the lift measurements to the model."
@@ -3914,6 +3914,30 @@ class MMM(RegressionModelBuilder):
                 )
 
         likelihood = _resolve_likelihood(likelihood, dist)
+
+        # Validate persistence before changing the PyMC graph. Only columns
+        # consumed by lift calibration belong in the saved model.
+        columns = list(
+            dict.fromkeys(
+                ["channel", *self.dims, "x", "delta_x", "delta_y", "sigma"]
+                + (["date"] if "date" in df_lift_test.columns else [])
+            )
+        )
+        persisted_df = df_lift_test.loc[:, columns]
+        calibration = {
+            "format_version": 1,
+            "data": persisted_df.to_json(
+                orient="split", date_format="iso", double_precision=15
+            ),
+            "dtypes": {
+                column: str(dtype) for column, dtype in persisted_df.dtypes.items()
+            },
+            "likelihood": serialization.serialize_model_config(
+                {"likelihood": likelihood}
+            )["likelihood"],
+            "name": name,
+        }
+        json.dumps(calibration)
 
         # Function to scale "delta_y", and "sigma" to same scale as target in model.
         target_transform = self._make_target_transform(df_lift_test)
@@ -3955,9 +3979,7 @@ class MMM(RegressionModelBuilder):
                 * as_xtensor(target_scale_factor, dims=(f"_{name}_dim",)),
             )
 
-        self._lift_test_calibrations.append(
-            (df_lift_test.copy(), likelihood.deepcopy(), name)
-        )
+        self._lift_test_calibrations.append(calibration)
 
         return self
 
@@ -3986,6 +4008,10 @@ class MMM(RegressionModelBuilder):
         means is the definition of the aggregate cost-per-target (or ROAS) over
         the period; averaging per-date ratios would estimate a different
         quantity.
+
+        Calibration requires the identity link. Under ``link='log'``, an
+        individual channel contribution cannot be converted to a level change
+        without the baseline.
 
         Parameters
         ----------
@@ -4061,6 +4087,13 @@ class MMM(RegressionModelBuilder):
         """
         if not hasattr(self, "model"):
             raise RuntimeError("Model must be built before adding calibration.")
+
+        if self.link == LinkFunction.LOG:
+            raise NotImplementedError(
+                "Cost-per-target calibration is not supported with link='log': "
+                "individual channel contributions do not represent level "
+                "changes without the baseline."
+            )
 
         # Check for existing potentials with the same name_prefix
         if name_prefix in self.model.named_vars:
@@ -4278,6 +4311,8 @@ class MMM(RegressionModelBuilder):
             target column named ``self.output_var``.
         - Sets ``self.idata`` to the provided ``idata``, enabling downstream
             methods like ``sample_posterior_predictive`` to access posterior samples.
+        - Restores lift-test calibration. Cost-per-target calibration is not
+            currently restored because its input data are not saved.
 
         Examples
         --------
@@ -4317,6 +4352,7 @@ class MMM(RegressionModelBuilder):
                     orient="split",
                     dtype=False,
                     convert_dates=False,
+                    precise_float=True,
                 )
                 for column, dtype in calibration["dtypes"].items():
                     if dtype.startswith("datetime64"):

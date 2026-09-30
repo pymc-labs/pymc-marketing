@@ -1018,6 +1018,62 @@ def test_run_rejects_lift_likelihood_without_lift_tests():
         )
 
 
+def test_run_inherits_template_lift_likelihood_after_fold_rebuild():
+    class Template(_RecordingFoldModel):
+        def build_model(self, X, y):
+            self._lift_test_calibrations = []
+
+    dates = pd.date_range("2025-01-01", periods=4, freq="D")
+    X = pd.DataFrame({"date": dates})
+    y = pd.Series(np.arange(len(dates)))
+    lift = pd.DataFrame({"date": dates, "channel": ["x1"] * len(dates)})
+    template = Template()
+    template._lift_test_calibrations = [
+        {"likelihood": {"dist": "StudentT", "kwargs": {"nu": 4}}}
+    ]
+    cv = TimeSliceCrossValidator(n_init=1, forecast_horizon=1, date_column="date")
+    _, models = cv.run(
+        X,
+        y,
+        mmm=template,
+        df_lift_test=lift,
+        lift_test_date_column="date",
+        return_models=True,
+    )
+    assert all(
+        model._last_lift_test_likelihood.distribution == "StudentT" for model in models
+    )
+    assert all(
+        model._last_lift_test_likelihood.parameters["nu"] == 4 for model in models
+    )
+    assert [len(model._last_lift_test_df) for model in models] == [1, 2, 3]
+
+
+def test_run_requires_explicit_likelihood_for_mixed_template():
+    dates = pd.date_range("2025-01-01", periods=4, freq="D")
+    X = pd.DataFrame({"date": dates})
+    y = pd.Series(np.arange(len(dates)))
+    template = _RecordingFoldModel()
+    template._lift_test_calibrations = [
+        {"likelihood": {"dist": "Normal", "kwargs": {}}},
+        {"likelihood": {"dist": "StudentT", "kwargs": {"nu": 4}}},
+    ]
+    cv = TimeSliceCrossValidator(n_init=1, forecast_horizon=1, date_column="date")
+    with pytest.raises(ValueError, match="different likelihoods"):
+        cv.run(X, y, mmm=template, df_lift_test=pd.DataFrame({"date": dates}))
+
+
+def test_run_rejects_log_link_lift_before_first_fold():
+    dates = pd.date_range("2025-01-01", periods=4, freq="D")
+    X = pd.DataFrame({"date": dates})
+    y = pd.Series(np.arange(len(dates)))
+    template = _RecordingFoldModel()
+    template.link = "log"
+    cv = TimeSliceCrossValidator(n_init=1, forecast_horizon=1, date_column="date")
+    with pytest.raises(NotImplementedError, match="link='log'"):
+        cv.run(X, y, mmm=template, df_lift_test=pd.DataFrame({"date": dates}))
+
+
 def test_run_with_lift_tests_and_raw_mmm_instance():
     dates = pd.date_range("2025-01-01", periods=4, freq="D")
     X = pd.DataFrame({"date": dates, "geo": ["g1"] * len(dates)})

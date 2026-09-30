@@ -71,6 +71,16 @@ def _validate_lift_likelihood_data(
             "`sigma` in `likelihood`; use a supported likelihood parameter such "
             "as `nu` for StudentT."
         )
+    if "mu" in likelihood.parameters:
+        raise ValueError(
+            "The lift-test `mu` is determined by the model-implied lift. Do not "
+            "pass `mu` in `likelihood`."
+        )
+    if likelihood.dims is not None:
+        raise ValueError(
+            "The lift-test dimensions are determined by the calibration rows. "
+            "Do not pass `dims` in `likelihood`."
+        )
     if likelihood.distribution == "StudentT" and "nu" not in likelihood.parameters:
         raise ValueError(
             "The StudentT lift likelihood requires a `nu` parameter, for example "
