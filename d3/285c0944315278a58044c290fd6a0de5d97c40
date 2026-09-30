@@ -1,0 +1,21 @@
+scripts/budget_optimizer_causal_audit/ISSUE.md
+  s_72eb83189ab758::t_426f13e0338c17 135-141
+scripts/budget_optimizer_causal_audit/README.md
+  s_72eb83189ab758::t_426f13e0338c17 123-124
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "d3285c0944315278a58044c290fd6a0de5d97c40",
+  "prompts": {},
+  "sessions": {
+    "s_72eb83189ab758": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0f28b-afd5-7ca1-b17b-4ed43ca51f38",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Benjamin T. Vincent <inferencelab@gmail.com>"
+    }
+  }
+}
