@@ -1,0 +1,40 @@
+pymc_marketing/mmm/mmm.py
+  s_6d816e27f52dc0::t_9412cfd09b056c 1154-1157,4357
+  s_6d816e27f52dc0::t_99715b60188075 4363-4368
+  s_6d816e27f52dc0::t_5c1dfc28a500ad 2431-2433,3810-3813,3932-3934,3936,3951-3957,4314-4331,4333-4341
+  s_6d816e27f52dc0::t_311af86aa37887 3789,3935
+tests/mmm/test_time_slice_cross_validator.py
+  s_6d816e27f52dc0::t_f601db18060766 973-1003
+tests/mmm/test_mmm.py
+  s_6d816e27f52dc0::t_f601db18060766 996-998
+  s_6d816e27f52dc0::t_8f4fe9cafeefde 1003,1006-1011,1015,1022,1074-1095
+  s_6d816e27f52dc0::t_6f692a19fbe30c 999-1002
+  s_6d816e27f52dc0::t_5e4386be1c9a7f 1096-1097
+tests/mmm/test_lift_test.py
+  s_6d816e27f52dc0::t_7e67bccc139d11 562,566-568
+pymc_marketing/mmm/time_slice_cross_validation.py
+  s_6d816e27f52dc0::t_5c1dfc28a500ad 519-523,526
+  s_6d816e27f52dc0::t_062b0e6f4e68cc 30,461,697,713,728
+pymc_marketing/mmm/lift_test.py
+  s_6d816e27f52dc0::t_5c1dfc28a500ad 127
+  s_6d816e27f52dc0::t_7e67bccc139d11 139,314,320-321,323-327,342,782
+  s_6d816e27f52dc0::t_559455ea7cc5b7 318
+docs/source/notebooks/mmm/mmm_lift_test.ipynb
+  s_6d816e27f52dc0::t_d3c27aed00c9c1 3636,3641,3643-3644,3647
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "0932181dfa2ddbd11e102b61251bfd3271e80bfc",
+  "prompts": {},
+  "sessions": {
+    "s_6d816e27f52dc0": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0f1eb-e3b4-7bd3-ae0b-db7de0488cc4",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "Benjamin T. Vincent <inferencelab@gmail.com>"
+    }
+  }
+}
