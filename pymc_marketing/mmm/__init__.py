@@ -49,10 +49,6 @@ from pymc_marketing.mmm.components.saturation import (
     TanhSaturation,
     TanhSaturationBaselined,
 )
-from pymc_marketing.mmm.distributions import (
-    DimWeightedZeroSumNormal,
-    WeightedZeroSumNormal,
-)
 from pymc_marketing.mmm.fourier import MonthlyFourier, WeeklyFourier, YearlyFourier
 from pymc_marketing.mmm.hsgp import (
     HSGP,
@@ -118,7 +114,6 @@ __all__ = [
     "DataDerivedScaling",
     "DataVarMuEffect",
     "DelayedAdstock",
-    "DimWeightedZeroSumNormal",
     "FancyLinearRegression",
     "FixedScaling",
     "GeometricAdstock",
@@ -161,7 +156,6 @@ __all__ = [
     "WeeklyFourier",
     "WeibullCDFAdstock",
     "WeibullPDFAdstock",
-    "WeightedZeroSumNormal",
     "YearlyFourier",
     "approx_hsgp_hyperparams",
     "create_complexity_penalizing_prior",

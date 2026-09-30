@@ -93,12 +93,12 @@ import xarray as xr
 from pydantic import Field, InstanceOf, PrivateAttr
 from pytensor.xtensor.type import XTensorVariable
 
+from pymc_marketing.distributions import DimWeightedZeroSumNormal
 from pymc_marketing.mmm.additive_effect import DataVarMuEffect, Model
 from pymc_marketing.mmm.components.saturation import (
     MichaelisMentenSaturation,
     SaturationTransformation,
 )
-from pymc_marketing.mmm.distributions import DimWeightedZeroSumNormal
 from pymc_marketing.mmm.lift_test import add_saturation_observations
 from pymc_marketing.mmm.scaling import DataDerivedScaling, FixedScaling, VariableScaling
 from pymc_marketing.serialization import serialization
@@ -505,7 +505,7 @@ class NestedMediaEffect(DataVarMuEffect):
     def _zero_sum_multiplier(self, model: pm.Model, name: str) -> XTensorVariable:
         """Standardised log-multiplier with a spend-share-weighted zero sum per channel.
 
-        One :class:`~pymc_marketing.mmm.distributions.DimWeightedZeroSumNormal`
+        One :class:`~pymc_marketing.distributions.DimWeightedZeroSumNormal`
         per channel block, weighted by the block's spend shares, concatenated
         along the live-campaign coordinate and gathered back to the campaign
         dimension. Campaigns outside every block get zero, i.e. multiplier one;

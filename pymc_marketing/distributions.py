@@ -11,12 +11,14 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
-"""Probability distributions for marketing mix models.
+r"""Probability distributions for PyMC models.
 
 :class:`WeightedZeroSumNormal` is :class:`pymc.ZeroSumNormal` in reflected
-coordinates. A weighted zero-sum hyperplane ``sum(weights * x) = 0`` is the
-plain zero-sum hyperplane reflected by the Householder map that sends the
-unit weight vector onto the ones direction, so the distribution draws from
+coordinates. A weighted zero-sum hyperplane :math:`w^\top x = 0` is the
+plain zero-sum hyperplane :math:`\mathbf{1}^\top x = 0` reflected by the
+Householder map that sends the unit weight vector
+:math:`w / \lVert w \rVert` onto the ones direction
+:math:`\mathbf{1} / \sqrt{n}`, so the distribution draws from
 ``ZeroSumNormal`` and reflects, and its transform composes that reflection
 with pymc's ``ZeroSumTransform``. It is provided for the tensor API
 (:class:`WeightedZeroSumNormal`) and the :mod:`pymc.dims` API
@@ -68,15 +70,20 @@ __all__ = [
 ]
 
 
-def _reflect(value: TensorLike, weights: TensorLike) -> TensorVariable:
-    """Householder reflection swapping the weighted and the plain zero-sum planes.
+def _householder_reflection(value: TensorLike, weights: TensorLike) -> TensorVariable:
+    r"""Householder reflection swapping the weighted and the plain zero-sum planes.
 
-    With ``u = weights / |weights|`` and ``v = u + 1/sqrt(n)`` the map
-    ``x - 2 v (v . x) / (v . v)`` sends ``u`` to ``-1/sqrt(n)``, so it carries
-    the plane ``u . x = 0`` onto the plane ``sum(x) = 0`` and back: it is its
-    own inverse and an isometry. For strictly positive weights ``|v|^2 >= 2``,
-    so the map is never degenerate; with equal weights it is the identity on
-    the plane.
+    With :math:`u = w / \lVert w \rVert` and :math:`v = u + \mathbf{1} / \sqrt{n}`,
+
+    .. math::
+
+        H x = x - 2 \, \frac{v^\top x}{v^\top v} \, v
+
+    sends :math:`u` to :math:`-\mathbf{1} / \sqrt{n}`, so it carries the plane
+    :math:`u^\top x = 0` onto the plane :math:`\mathbf{1}^\top x = 0` and back:
+    :math:`H` is its own inverse and an isometry. For strictly positive
+    weights :math:`\lVert v \rVert^2 \ge 2`, so the map is never degenerate;
+    with equal weights it is the identity on the plane.
     """
     value = pt.as_tensor(value)
     weights = pt.as_tensor(weights)
@@ -121,13 +128,15 @@ def _check_length(weights: TensorVariable, expected: TensorLike) -> TensorVariab
     return Assert(msg=msg)(weights, pt.eq(weights.shape[0], expected))
 
 
-# ---------------------------------------------------------------------------
-# Tensor API
-# ---------------------------------------------------------------------------
+def _same_direction(a: np.ndarray, b: np.ndarray) -> bool:
+    """Whether two weight vectors are proportional, i.e. define the same constraint."""
+    return a.shape == b.shape and np.allclose(
+        a / np.linalg.norm(a), b / np.linalg.norm(b)
+    )
 
 
-class _Reflect(Transform):
-    """The reflection of :func:`_reflect` as a transform: self-inverse, zero Jacobian."""
+class _HouseholderReflection(Transform):
+    """:func:`_householder_reflection` as a transform: self-inverse, zero Jacobian."""
 
     name = "reflect"
     ndim_supp = 1
@@ -148,10 +157,10 @@ class _Reflect(Transform):
         )
 
     def forward(self, value: TensorVariable, *rv_inputs: Variable) -> TensorVariable:
-        return _reflect(value, self._weights(rv_inputs))
+        return _householder_reflection(value, self._weights(rv_inputs))
 
     def backward(self, value: TensorVariable, *rv_inputs: Variable) -> TensorVariable:
-        return _reflect(value, self._weights(rv_inputs))
+        return _householder_reflection(value, self._weights(rv_inputs))
 
     def log_jac_det(
         self, value: TensorVariable, *rv_inputs: Variable
@@ -183,7 +192,9 @@ class WeightedZeroSumTransform(ChainedTransform):
 
     def __init__(self, weights: TensorLike | None = None) -> None:
         self.weights = None if weights is None else _validate_weights(weights)
-        super().__init__([_Reflect(self.weights), ZeroSumTransform(zerosum_axes=(-1,))])
+        super().__init__(
+            [_HouseholderReflection(self.weights), ZeroSumTransform(zerosum_axes=(-1,))]
+        )
 
     def log_jac_det(
         self, value: TensorVariable, *rv_inputs: Variable
@@ -213,9 +224,35 @@ class WeightedZeroSumNormalRV(ZeroSumNormalRV):
         rng, size = zerosum.owner.inputs[:2]
         return cls(
             inputs=[rng, size, sigma, weights],
-            outputs=[next_rng, _reflect(zerosum, weights)],
+            outputs=[next_rng, _householder_reflection(zerosum, weights)],
             extended_signature="[rng],[size],(),(n)->[rng],(n)",
         )(rng, size, sigma, weights)
+
+
+def _check_supplied_transform(transform: object, weights: TensorLike | None) -> None:
+    """Refuse a transform whose own weights are not the distribution's.
+
+    A transform without weights reads them from the random variable and is
+    always fine. Weights that cannot be compared as constants are refused.
+    """
+    if not (
+        isinstance(transform, WeightedZeroSumTransform)
+        and transform.weights is not None
+    ):
+        return
+    message = (
+        "the transform's weights must match the distribution's constant "
+        "weights; pass WeightedZeroSumTransform() without weights to have "
+        "them derived"
+    )
+    if weights is None:
+        raise ValueError(message)
+    try:
+        theirs, ours = constant_fold([transform.weights, _validate_weights(weights)])
+    except NotConstantValueError as err:
+        raise ValueError(message) from err
+    if not _same_direction(theirs, ours):
+        raise ValueError(message)
 
 
 class WeightedZeroSumNormal(Distribution):
@@ -261,7 +298,7 @@ class WeightedZeroSumNormal(Distribution):
 
         import numpy as np
         import pymc as pm
-        from pymc_marketing.mmm import WeightedZeroSumNormal
+        from pymc_marketing.distributions import WeightedZeroSumNormal
 
         share = np.array([0.7, 0.2, 0.1])
         with pm.Model(coords={"channel": ["tv", "radio", "web"]}):
@@ -277,32 +314,7 @@ class WeightedZeroSumNormal(Distribution):
     ):
         """Create the named variable; ``dims`` or ``observed`` fix the constrained length."""
         for key in ("transform", "default_transform"):
-            transform = kwargs.get(key)
-            if not (
-                isinstance(transform, WeightedZeroSumTransform)
-                and transform.weights is not None
-            ):
-                continue
-            # a transform with its own weights is fine only if they are the
-            # distribution's; anything that cannot be checked is refused
-            message = (
-                "the transform's weights must match the distribution's constant "
-                "weights; pass WeightedZeroSumTransform() without weights to have "
-                "them derived"
-            )
-            own = kwargs.get("weights")
-            if own is None:
-                raise ValueError(message)
-            try:
-                theirs, ours = constant_fold(
-                    [transform.weights, _validate_weights(own)]
-                )
-            except NotConstantValueError as err:
-                raise ValueError(message) from err
-            if theirs.shape != ours.shape or not np.allclose(
-                theirs / np.linalg.norm(theirs), ours / np.linalg.norm(ours)
-            ):
-                raise ValueError(message)
+            _check_supplied_transform(kwargs.get(key), kwargs.get("weights"))
         if dims is not None or kwargs.get("observed") is not None:
             support_shape = get_support_shape_1d(
                 support_shape=support_shape,
@@ -350,16 +362,13 @@ def _logp(op, values, rng, size, sigma, weights, **kwargs):
         support_shape=(value.shape[-1],),
     )
     return check_parameters(
-        logp(zerosum, _reflect(value, weights)), pt.all(weights > 0), msg="weights > 0"
+        logp(zerosum, _householder_reflection(value, weights)),
+        pt.all(weights > 0),
+        msg="weights > 0",
     )
 
 
-# ---------------------------------------------------------------------------
-# pymc.dims API
-# ---------------------------------------------------------------------------
-
-
-def _constant_weights(
+def _coerce_weights_to_constant(
     weights: TensorLike | XTensorVariable, dim: str
 ) -> XTensorConstant:
     """Coerce weights to a constant xtensor over ``dim``.
@@ -410,15 +419,14 @@ class DimWeightedZeroSumTransform(DimTransform):
 
     def __init__(self, dim: str, weights: TensorLike | XTensorVariable) -> None:
         self.dim = dim
-        self.weights = _constant_weights(weights, dim)
-        w = self.weights.data
-        self.v = as_xtensor(w / np.linalg.norm(w) + 1 / np.sqrt(len(w)), dims=(dim,))
+        self.weights = _coerce_weights_to_constant(weights, dim)
         self.zerosum = DimZeroSumTransform(dims=(dim,))
 
     def _reflect(self, value: XTensorVariable) -> XTensorVariable:
-        return value - 2 * self.v * (value * self.v).sum(self.dim) / (
-            self.v * self.v
-        ).sum(self.dim)
+        """:func:`_householder_reflection` along ``dim``."""
+        last = value.transpose(..., self.dim)
+        reflected = _householder_reflection(last.values, self.weights.values)
+        return as_xtensor(reflected, dims=last.dims).transpose(*value.dims)
 
     def forward(self, value: XTensorVariable, *rv_inputs: Variable) -> XTensorVariable:
         """Map a value on the constraint hyperplane to unconstrained coordinates."""
@@ -433,6 +441,20 @@ class DimWeightedZeroSumTransform(DimTransform):
     ) -> XTensorVariable:
         """Zero: both steps are isometries."""
         return as_xtensor(0.0).broadcast_like(value, exclude=(self.dim,))
+
+
+def _check_supplied_dim_transform(
+    transform: object, weights: TensorLike | XTensorVariable | None, core_dim: str
+) -> None:
+    """Refuse a :class:`DimWeightedZeroSumTransform` on another dim or with other weights."""
+    if not isinstance(transform, DimWeightedZeroSumTransform) or weights is None:
+        return
+    own = _coerce_weights_to_constant(weights, transform.dim).data
+    if transform.dim != core_dim or not _same_direction(own, transform.weights.data):
+        raise ValueError(
+            "the transform's dim and weights must match the distribution's; "
+            "leave default_transform unset to have them derived"
+        )
 
 
 class DimWeightedZeroSumNormal(VectorDimDistribution):
@@ -460,7 +482,7 @@ class DimWeightedZeroSumNormal(VectorDimDistribution):
 
         import numpy as np
         import pymc as pm
-        from pymc_marketing.mmm import DimWeightedZeroSumNormal
+        from pymc_marketing.distributions import DimWeightedZeroSumNormal
 
         share = np.array([0.7, 0.2, 0.1])
         with pm.Model(coords={"channel": ["tv", "radio", "web"]}):
@@ -487,23 +509,9 @@ class DimWeightedZeroSumNormal(VectorDimDistribution):
                 if default_transform is not UNSET
                 else kwargs.get("transform")
             )
-            if (
-                isinstance(supplied, DimWeightedZeroSumTransform)
-                and "weights" in kwargs
-            ):
-                own = _constant_weights(kwargs["weights"], supplied.dim).data
-                theirs = supplied.weights.data
-                if (
-                    supplied.dim != core_dims[-1]
-                    or own.shape != theirs.shape
-                    or not np.allclose(
-                        own / np.linalg.norm(own), theirs / np.linalg.norm(theirs)
-                    )
-                ):
-                    raise ValueError(
-                        "the transform's dim and weights must match the distribution's; "
-                        "leave default_transform unset to have them derived"
-                    )
+            _check_supplied_dim_transform(
+                supplied, kwargs.get("weights"), core_dims[-1]
+            )
             if observed is None and default_transform is UNSET:
                 default_transform = DimWeightedZeroSumTransform(
                     core_dims[-1], kwargs["weights"]
@@ -537,7 +545,7 @@ class DimWeightedZeroSumNormal(VectorDimDistribution):
         if weights is None:
             raise ValueError("DimWeightedZeroSumNormal requires weights")
         (core_dim,) = core_dims
-        weights = _constant_weights(weights, core_dim)
+        weights = _coerce_weights_to_constant(weights, core_dim)
         if core_dim in dim_lengths:
             checked = _check_length(weights.values, dim_lengths[core_dim])
             weights = as_xtensor(checked, dims=(core_dim,))

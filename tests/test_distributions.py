@@ -26,7 +26,7 @@ from pymc.model.transform.optimization import freeze_dims_and_data
 from pymc.testing import assert_support_point_is_expected
 from pytensor.xtensor import as_xtensor
 
-from pymc_marketing.mmm.distributions import (
+from pymc_marketing.distributions import (
     DimWeightedZeroSumNormal,
     DimWeightedZeroSumTransform,
     WeightedZeroSumNormal,
@@ -606,6 +606,22 @@ def test_dim_weighted_zerosum_equal_weights_matches_zerosum(n):
         uniform.forward(x).transpose("batch", "a").eval(),
         atol=1e-12,
     )
+
+
+def test_dim_weighted_zerosum_leading_dim():
+    transform = DimWeightedZeroSumTransform(dim="a", weights=TRANSFORM_WEIGHTS[0])
+    z_np = np.random.default_rng(3).normal(size=(11, 3))
+    trailing = as_xtensor(z_np, dims=("batch", "a"))
+    leading = as_xtensor(z_np.T, dims=("a", "batch"))
+
+    x = transform.backward(leading)
+    assert x.type.dims == ("a", "batch")
+    np.testing.assert_allclose(
+        x.transpose("batch", "a").eval(), transform.backward(trailing).eval()
+    )
+    z_back = transform.forward(x)
+    assert z_back.type.dims == ("a", "batch")
+    np.testing.assert_allclose(z_back.eval(), z_np.T, atol=1e-12)
 
 
 def test_dim_weighted_zerosum_invalid_weights():
