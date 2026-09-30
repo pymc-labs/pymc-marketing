@@ -970,6 +970,37 @@ def test_prepare_fold_model_passes_lift_test_likelihood():
     assert fold_model._last_lift_test_likelihood == likelihood
 
 
+def test_prepare_fold_model_omits_default_likelihood_keyword():
+    class LegacyFoldModel:
+        def add_lift_test_measurements(self, df_lift_test):
+            self._last_lift_test_df = df_lift_test
+
+    dates = pd.date_range("2025-01-01", periods=2, freq="D")
+    X_train = pd.DataFrame({"date": dates})
+    df_lift_test = pd.DataFrame(
+        {
+            "date": dates,
+            "channel": ["x1"] * len(dates),
+            "x": [0.1] * len(dates),
+            "delta_x": [0.1] * len(dates),
+            "delta_y": [1.0] * len(dates),
+            "sigma": [0.5] * len(dates),
+        }
+    )
+    cv = TimeSliceCrossValidator(
+        n_init=1, forecast_horizon=1, date_column="date", step_size=1
+    )
+
+    fold_model = cv._prepare_fold_model(
+        LegacyFoldModel(),
+        X_train=X_train,
+        df_lift_test=df_lift_test,
+        lift_test_date_column="date",
+    )
+
+    assert len(fold_model._last_lift_test_df) == len(df_lift_test)
+
+
 def test_run_rejects_lift_likelihood_without_lift_tests():
     dates = pd.date_range("2025-01-01", periods=4, freq="D")
     X = pd.DataFrame({"date": dates})

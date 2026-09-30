@@ -124,6 +124,7 @@ def _validate_positive_model_lift(
     replaced_lift = model.replace_rvs_by_values([model_estimated_lift])[0]
     initial_lift = model.compile_fn(
         replaced_lift,
+        inputs=model.value_vars,
         point_fn=True,
         on_unused_input="ignore",
     )(model.initial_point())
@@ -135,7 +136,7 @@ def _validate_positive_model_lift(
 
 
 def _resolve_likelihood(
-    likelihood: Prior | None,
+    likelihood: Prior | type[pmd.DimDistribution] | None,
     dist: type[pmd.DimDistribution] | None = None,
 ) -> Prior:
     """Resolve the serializable likelihood, preserving the old ``dist`` alias."""
@@ -310,28 +311,20 @@ def assert_is_subset(required: set[str], available: set[str]) -> None:
 
 
 class NonMonotonicError(ValueError):
-    """Data is not monotonic."""
+    """Deprecated exception for the removed increasing-assumption check."""
 
 
 def assert_monotonic(delta_x: pd.Series, delta_y: pd.Series) -> None:
+    """Check monotonic lift measurements (deprecated).
+
+    Lift measurements may have signed estimates, so the MMM no longer uses this
+    check. This function remains temporarily for callers that imported it.
     """
-    Check if the lift test results satisfy the increasing assumption.
-
-    The increasing assumption states that if delta_x is positive, delta_y must be positive, and vice versa.
-
-    Parameters
-    ----------
-    delta_x : pd.Series
-        Series with the change in x axis value of the lift test.
-    delta_y : pd.Series
-        Series with the change in y axis value of the lift test.
-
-    Raises
-    ------
-    NonMonotonicError
-        If the lift test results do not satisfy the increasing assumption.
-
-    """
+    warnings.warn(
+        "assert_monotonic is deprecated; signed lift estimates are supported.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
     if not (delta_x * delta_y >= 0).all():
         raise NonMonotonicError("The data is not monotonic.")
 
@@ -346,7 +339,7 @@ def add_saturation_observations(
     variable_mapping: VariableMapping,
     saturation_function: SaturationFunc,
     model: pm.Model | None = None,
-    likelihood: Prior | None = None,
+    likelihood: Prior | type[pmd.DimDistribution] | None = None,
     name: str = "lift_measurements",
     get_indices: Callable[[pd.DataFrame, pm.Model], Indices] = exact_row_indices,
     *,
@@ -786,7 +779,7 @@ def add_lift_measurements_to_likelihood_from_saturation(
     saturation: SaturationTransformation,
     time_varying_var_name: str | None = None,
     model: pm.Model | None = None,
-    likelihood: Prior | None = None,
+    likelihood: Prior | type[pmd.DimDistribution] | None = None,
     name: str = "lift_measurements",
     get_indices: Callable[[pd.DataFrame, pm.Model], Indices] = exact_row_indices,
     *,

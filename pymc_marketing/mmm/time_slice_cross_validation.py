@@ -27,6 +27,7 @@ from typing import Any, Literal, overload
 
 import numpy as np
 import pandas as pd
+import pymc.dims as pmd
 import xarray as xr
 from pymc_extras.prior import Prior
 from tqdm.auto import tqdm
@@ -457,7 +458,7 @@ class TimeSliceCrossValidator:
         original_scale_vars: list[str] | None = None,
         df_lift_test: pd.DataFrame | None = None,
         lift_test_date_column: str | None = None,
-        lift_test_likelihood: Prior | None = None,
+        lift_test_likelihood: Prior | type[pmd.DimDistribution] | None = None,
     ) -> Any:
         """Prepare a fold-local MMM before fitting.
 
@@ -515,9 +516,14 @@ class TimeSliceCrossValidator:
                     f"`{lift_test_date_column}` <= train end ({train_end})."
                 )
 
+            likelihood_kwargs = (
+                {"likelihood": lift_test_likelihood}
+                if lift_test_likelihood is not None
+                else {}
+            )
             mmm.add_lift_test_measurements(
                 df_lift_test=fold_lift_df,
-                likelihood=lift_test_likelihood,
+                **likelihood_kwargs,
             )
 
         return mmm
@@ -688,7 +694,7 @@ class TimeSliceCrossValidator:
         original_scale_vars: list[str] | None = ...,
         df_lift_test: pd.DataFrame | None = ...,
         lift_test_date_column: str | None = ...,
-        lift_test_likelihood: Prior | None = ...,
+        lift_test_likelihood: Prior | type[pmd.DimDistribution] | None = ...,
         return_models: Literal[False] = ...,
     ) -> xr.DataTree: ...
 
@@ -704,7 +710,7 @@ class TimeSliceCrossValidator:
         original_scale_vars: list[str] | None = ...,
         df_lift_test: pd.DataFrame | None = ...,
         lift_test_date_column: str | None = ...,
-        lift_test_likelihood: Prior | None = ...,
+        lift_test_likelihood: Prior | type[pmd.DimDistribution] | None = ...,
         return_models: Literal[True] = ...,
     ) -> tuple[xr.DataTree, list[MMMBuilder]]: ...
 
@@ -719,7 +725,7 @@ class TimeSliceCrossValidator:
         original_scale_vars: list[str] | None = None,
         df_lift_test: pd.DataFrame | None = None,
         lift_test_date_column: str | None = None,
-        lift_test_likelihood: Prior | None = None,
+        lift_test_likelihood: Prior | type[pmd.DimDistribution] | None = None,
         return_models: bool = False,
     ) -> xr.DataTree | tuple[xr.DataTree, list[MMMBuilder]]:
         """Run the complete time-slice cross-validation loop.

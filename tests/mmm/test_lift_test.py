@@ -559,13 +559,13 @@ def test_works_with_negative_delta(df_lift_test_with_numerics) -> None:
         pytest.fail("Negative delta values caused a sampling error.")
 
 
-def test_check_increasing_assumption() -> None:
+def test_assert_monotonic_is_deprecated() -> None:
     delta_x = pd.Series([1, 2, 3])
     delta_y = pd.Series([1, -2, 3])
 
-    match = r"The data is not monotonic."
-    with pytest.raises(NonMonotonicError, match=match):
-        assert_monotonic(delta_x, delta_y)
+    with pytest.warns(DeprecationWarning, match="signed lift estimates are supported"):
+        with pytest.raises(NonMonotonicError, match="not monotonic"):
+            assert_monotonic(delta_x, delta_y)
 
 
 def saturation_functions() -> list[SaturationTransformation]:

@@ -665,7 +665,6 @@ class MMM(RegressionModelBuilder):
 
         self.mu_effects: list[MuEffect] = []
         self._lift_test_calibrations: list[tuple[pd.DataFrame, Prior, str]] = []
-        self._restoring_lift_test_calibrations = False
 
     def add_mu_effect(
         self: Self,
@@ -1152,6 +1151,10 @@ class MMM(RegressionModelBuilder):
             name[: -len(suffix)]
             for name in self.model.named_vars
             if name.endswith(suffix)
+            and (
+                name[: -len(suffix)].endswith("_contribution")
+                or name[: -len(suffix)] == self.output_var
+            )
         ]
         self.idata.attrs["original_scale_vars"] = json.dumps(original_scale_vars)
 
@@ -2425,6 +2428,9 @@ class MMM(RegressionModelBuilder):
             )
 
         """
+        # Calibration rows belong to a particular graph. A rebuild creates a
+        # fresh graph, so callers must re-add any lift tests they want to use.
+        self._lift_test_calibrations = []
         self._generate_and_preprocess_model_data(
             X=X,
             y=y,
@@ -3780,7 +3786,7 @@ class MMM(RegressionModelBuilder):
     def add_lift_test_measurements(
         self: Self,
         df_lift_test: pd.DataFrame,
-        likelihood: Prior | None = None,
+        likelihood: Prior | type[pmd.DimDistribution] | None = None,
         name: str = "lift_measurements",
         *,
         dist: type[pmd.DimDistribution] | None = None,
@@ -3801,9 +3807,10 @@ class MMM(RegressionModelBuilder):
             likelihood(model_estimated_lift, sigma=sigma, observed=empirical_lift)
 
         The model has to be built before adding the lift tests.
-        Lift tests must be added before fitting so the posterior is conditioned
-        on them. Adding them after a fit raises ``RuntimeError``; rebuild and
-        refit the model instead.
+        Lift tests can be added after a fit, but they only affect posterior
+        inference after the model is fit again. Posterior metadata is refreshed
+        by fitting, so adding measurements without refitting leaves the existing
+        posterior unchanged.
 
         Parameters
         ----------
@@ -3895,17 +3902,6 @@ class MMM(RegressionModelBuilder):
                 "The model has not been built yet. Please, build the model first."
             )
 
-        if (
-            self.idata is not None
-            and "posterior" in self.idata
-            and not getattr(self, "_restoring_lift_test_calibrations", False)
-        ):
-            raise RuntimeError(
-                "Lift-test measurements must be added before fitting. Rebuild the "
-                "model, add the measurements, and fit it again to condition the "
-                "posterior on the lift tests."
-            )
-
         if "channel" not in df_lift_test.columns:
             raise KeyError(
                 "The 'channel' column is required to map the lift measurements to the model."
@@ -3933,6 +3929,11 @@ class MMM(RegressionModelBuilder):
             target_transform=target_transform,
             dim_cols=list(self.dims),
         )
+        # The likelihood and its primary diagnostic use model-scaled target
+        # units. Also retain a companion in the units supplied by the user.
+        target_scale_factor = 1 / target_transform(np.ones(len(df_lift_test))).reshape(
+            -1
+        )
         # This is coupled with the name of the
         # latent process Deterministic
         time_varying_var_name = (
@@ -3946,6 +3947,13 @@ class MMM(RegressionModelBuilder):
             likelihood=likelihood,
             name=name,
         )
+
+        with self.model:
+            pmd.Deterministic(
+                f"{name}_model_estimated_lift_original_scale",
+                self.model[f"{name}_model_estimated_lift"]
+                * as_xtensor(target_scale_factor, dims=(f"_{name}_dim",)),
+            )
 
         self._lift_test_calibrations.append(
             (df_lift_test.copy(), likelihood.deepcopy(), name)
@@ -4303,49 +4311,34 @@ class MMM(RegressionModelBuilder):
         # them after rebuilding the base MMM so their likelihood and posterior
         # model-implied-lift diagnostic are present again.
         if "lift_test_calibrations" in idata.attrs:
-            self._restoring_lift_test_calibrations = True
-            try:
-                for calibration in json.loads(idata.attrs["lift_test_calibrations"]):
-                    if "dtypes" in calibration:
-                        df_lift_test = pd.read_json(
-                            io.StringIO(calibration["data"]),
-                            orient="split",
-                            dtype=False,
-                            convert_dates=False,
-                        )
-                        for column, dtype in calibration["dtypes"].items():
-                            if dtype.startswith("datetime64"):
-                                if "," in dtype:
-                                    timezone = dtype.split(",", maxsplit=1)[1].strip(
-                                        " ]"
-                                    )
-                                    df_lift_test[column] = pd.to_datetime(
-                                        df_lift_test[column], utc=True
-                                    ).dt.tz_convert(timezone)
-                                else:
-                                    df_lift_test[column] = pd.to_datetime(
-                                        df_lift_test[column]
-                                    ).astype(dtype)
-                            else:
-                                df_lift_test[column] = df_lift_test[column].astype(
-                                    dtype
-                                )
+            for calibration in json.loads(idata.attrs["lift_test_calibrations"]):
+                df_lift_test = pd.read_json(
+                    io.StringIO(calibration["data"]),
+                    orient="split",
+                    dtype=False,
+                    convert_dates=False,
+                )
+                for column, dtype in calibration["dtypes"].items():
+                    if dtype.startswith("datetime64"):
+                        if "," in dtype:
+                            timezone = dtype.split(",", maxsplit=1)[1].strip(" ]")
+                            df_lift_test[column] = pd.to_datetime(
+                                df_lift_test[column], utc=True
+                            ).dt.tz_convert(timezone)
+                        else:
+                            df_lift_test[column] = pd.to_datetime(
+                                df_lift_test[column]
+                            ).astype(dtype)
                     else:
-                        # Attributes written before dtype metadata was added used
-                        # pandas' default type inference.
-                        df_lift_test = pd.read_json(
-                            io.StringIO(calibration["data"]), orient="split"
-                        )
-                    likelihood = serialization.deserialize_model_config(
-                        {"likelihood": calibration["likelihood"]}
-                    )["likelihood"]
-                    self.add_lift_test_measurements(
-                        df_lift_test,
-                        likelihood=likelihood,
-                        name=calibration["name"],
-                    )
-            finally:
-                self._restoring_lift_test_calibrations = False
+                        df_lift_test[column] = df_lift_test[column].astype(dtype)
+                likelihood = serialization.deserialize_model_config(
+                    {"likelihood": calibration["likelihood"]}
+                )["likelihood"]
+                self.add_lift_test_measurements(
+                    df_lift_test,
+                    likelihood=likelihood,
+                    name=calibration["name"],
+                )
 
         # Re-add any *_original_scale Deterministics that were present when the
         # model was saved.  These are added by add_original_scale_contribution_variable
@@ -4361,12 +4354,18 @@ class MMM(RegressionModelBuilder):
                 v
                 for v in json.loads(idata.attrs["original_scale_vars"])
                 if v in self.model.named_vars
+                and (v.endswith("_contribution") or v == self.output_var)
             ]
         elif hasattr(idata, "posterior"):
             vars_to_restore = [
                 v[: -len(suffix)]
                 for v in idata.posterior.data_vars
-                if v.endswith(suffix) and v[: -len(suffix)] in self.model.named_vars
+                if v.endswith(suffix)
+                and (
+                    v[: -len(suffix)].endswith("_contribution")
+                    or v[: -len(suffix)] == self.output_var
+                )
+                and v[: -len(suffix)] in self.model.named_vars
             ]
         else:
             vars_to_restore = []

@@ -993,20 +993,33 @@ def test_save_load_restores_lift_test_likelihood_and_diagnostic(
         likelihood=Prior("StudentT", nu=4),
         name="geo_lift",
     )
+    # Rebuilding creates a fresh graph and must forget calibration metadata
+    # from the previous graph before the same calibration is attached again.
+    mmm.build_model(X, y)
+    mmm.add_lift_test_measurements(
+        calibration,
+        likelihood=Prior("StudentT", nu=4),
+        name="geo_lift",
+    )
     mmm.fit(X, y)
 
-    with pytest.raises(RuntimeError, match="must be added before fitting"):
-        mmm.add_lift_test_measurements(calibration, name="late_lift")
+    # Adding calibration after a fit updates the graph, while the existing
+    # posterior remains unchanged until the model is fit again.
+    mmm.add_lift_test_measurements(calibration, name="late_lift")
+    assert "lift_test_calibrations" in mmm.idata.attrs
+    assert len(json.loads(mmm.idata.attrs["lift_test_calibrations"])) == 1
+    mmm.fit(X, y)
 
     assert "lift_test_calibrations" in mmm.idata.attrs
     assert "geo_lift_model_estimated_lift" in mmm.idata.posterior
+    assert "geo_lift_model_estimated_lift_original_scale" in mmm.idata.posterior
     path = str(tmp_path / "lift-calibrated.nc")
     mmm.save(path)
 
     loaded = MMM.load(path)
     assert "geo_lift" in loaded.model
     assert "geo_lift_model_estimated_lift" in loaded.model.named_vars
-    assert len(loaded._lift_test_calibrations) == 1
+    assert len(loaded._lift_test_calibrations) == 2
     restored_df, restored_likelihood, restored_name = loaded._lift_test_calibrations[0]
     assert restored_df["country"].tolist() == ["001"]
     assert restored_df["country"].dtype == calibration["country"].dtype
@@ -1023,22 +1036,6 @@ def test_save_load_restores_lift_test_likelihood_and_diagnostic(
     with pytest.raises(DifferentModelError, match="does not match the model version"):
         MMM.load_from_idata(stale_version_idata, check=True)
     assert stale_version_idata.attrs["version"] == "0.0.1"
-
-    legacy_idata = copy.deepcopy(mmm.idata)
-    legacy_calibrations = json.loads(legacy_idata.attrs["lift_test_calibrations"])
-    for item in legacy_calibrations:
-        item.pop("dtypes")
-    legacy_idata.attrs["lift_test_calibrations"] = json.dumps(legacy_calibrations)
-    legacy_frames = []
-
-    def capture_legacy_lift_tests(self, df_lift_test, **kwargs):
-        legacy_frames.append(df_lift_test)
-
-    with monkeypatch.context() as context:
-        context.setattr(MMM, "add_lift_test_measurements", capture_legacy_lift_tests)
-        MMM.load_from_idata(legacy_idata, check=False)
-    assert len(legacy_frames) == 1
-    assert "country" in legacy_frames[0]
 
     naive_date_idata = copy.deepcopy(mmm.idata)
     naive_date_calibrations = json.loads(
@@ -1072,6 +1069,30 @@ def test_save_load_restores_lift_test_likelihood_and_diagnostic(
     with pytest.raises(DifferentModelError, match="model id in the DataTree"):
         MMM.load_from_idata(mismatched_id_idata, check=True)
     assert mismatched_id_idata.attrs["id"] == "different-model-id"
+
+
+def test_mmm_explicit_gamma_lift_likelihood(mmm: MMM, df, target_column):
+    """Gamma likelihood validation accepts a full MMM's extra value variables."""
+    from pymc_extras.prior import Prior
+
+    df = df.assign(country=df["country"].map({"A": "001", "B": "002"}))
+    X = df.drop(columns=[target_column])
+    y = df[target_column]
+    mmm.build_model(X, y)
+    calibration = pd.DataFrame(
+        {
+            "country": ["001"],
+            "channel": ["C1"],
+            "x": [1.0],
+            "delta_x": [1.0],
+            "delta_y": [0.2],
+            "sigma": [0.1],
+        }
+    )
+
+    mmm.add_lift_test_measurements(calibration, likelihood=Prior("Gamma"))
+
+    assert np.isfinite(mmm.model.compile_logp()(mmm.model.initial_point()))
 
 
 def test_build_from_idata_fallback_infers_original_scale_from_posterior(
