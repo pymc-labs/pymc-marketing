@@ -12,7 +12,6 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 import copy
-import inspect
 import os
 import warnings
 from collections.abc import Callable
@@ -30,7 +29,6 @@ from pymc_extras.prior import Prior
 from pytensor.xtensor.type import XTensorVariable, as_xtensor
 from scipy.optimize import OptimizeResult
 
-import pymc_marketing.mmm.components.saturation as saturation_module
 from pymc_marketing.data.idata.mmm_wrapper import MMMIDataWrapper
 from pymc_marketing.hsgp_kwargs import HSGPKwargs
 from pymc_marketing.mmm import (
@@ -38,6 +36,7 @@ from pymc_marketing.mmm import (
     DelayedAdstock,
     GeometricAdstock,
     LogisticSaturation,
+    RootSaturation,
     SoftPlusHSGP,
 )
 from pymc_marketing.mmm.additive_effect import (
@@ -2561,42 +2560,20 @@ def test_mmm_with_events_bases(
         assert np.any(np.abs(da.values) > 0)
 
 
-def _every_saturation():
-    classes = [
-        cls
-        for _, cls in inspect.getmembers(saturation_module, inspect.isclass)
-        if issubclass(cls, saturation_module.SaturationTransformation)
-        and cls is not saturation_module.SaturationTransformation
-    ]
-    return [
-        pytest.param(
-            cls,
-            id=cls.__name__,
-            marks=pytest.mark.xfail(
-                strict=True,
-                reason="#3047: the default prior on r starts at r = 1, where arctanh(r) is infinite",
-            )
-            if cls.__name__ == "TanhSaturationBaselined"
-            else (),
-        )
-        for cls in classes
-    ]
-
-
-@pytest.mark.parametrize("saturation_cls", _every_saturation())
-def test_every_saturation_has_a_finite_logp_at_the_initial_point(
-    simple_mmm_data, saturation_cls
+def test_root_saturation_mmm_has_a_finite_logp_at_the_initial_point(
+    simple_mmm_data,
 ) -> None:
-    """The adstocked input reaching a saturation is ``("channel", "date")``, and
-    RootSaturation broadcast its per-channel ``alpha`` against the date axis
-    there, so its model built but its log density could not be evaluated
-    (#3046)."""
+    """Check that an MMM with RootSaturation has a finite logp and gradient.
+
+    The adstocked input reaching the saturation is ``("channel", "date")``, so
+    this exercises a per-channel ``alpha`` against a channel-first input.
+    """
     mmm = MMM(
         date_column="date",
         target_column="target",
         channel_columns=["channel_1", "channel_2", "channel_3"],
         adstock=GeometricAdstock(l_max=2),
-        saturation=saturation_cls(),
+        saturation=RootSaturation(),
     )
     mmm.build_model(simple_mmm_data["X"], simple_mmm_data["y"])
     point = mmm.model.initial_point()

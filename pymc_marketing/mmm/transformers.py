@@ -1254,8 +1254,10 @@ def root_saturation(
     ----------
     x : tensor
         Input tensor.
-    alpha : float
-        Exponent for the root transformation. Must be non-negative.
+    alpha : float or tensor
+        Exponent for the root transformation. Must be non-negative. A tensor
+        with dims, such as a per-channel ``("channel",)`` alpha, is matched to
+        ``x`` by dimension name, not by position.
 
     Returns
     -------
@@ -1265,10 +1267,8 @@ def root_saturation(
     """
     x = as_xtensor(x)
     alpha = as_xtensor(alpha)
-    # Stay in xtensor so ``x`` and ``alpha`` broadcast by dimension name. On raw
-    # tensors a ``(channel,)`` alpha lines up with the last axis of ``x``, which
-    # after adstock is ``date`` (#3046). ``x_safe`` keeps the gradient finite at
-    # zero input: ``d/dx x**alpha`` is infinite there for ``alpha < 1``.
+    # Do not drop to ``.values`` here: ``x`` and ``alpha`` must broadcast by dim
+    # name. ``x_safe`` keeps the gradient finite at ``x == 0`` for ``alpha < 1``.
     positive = x > 0
     x_safe = ptx.where(positive, x, 1.0)
     return ptx.where(positive, x_safe**alpha, 0.0)
