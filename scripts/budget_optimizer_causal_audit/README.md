@@ -120,3 +120,5 @@ reference_spend=2)` in PR #3045 chooses 4.731 / 5.269 at the pinned commit.
 This audit does not claim that every use of the current optimizer is wrong, or
 that its numerical solver failed any case. Each example isolates a condition
 under which a recommendation can differ from the desired causal optimum.
+Date-level decisions are already tracked in issue #2799, spend-dependent
+prices in issue #3036 and PR #3045, and driver composition in issue #3088.

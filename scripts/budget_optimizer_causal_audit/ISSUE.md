@@ -132,3 +132,10 @@ work.
 These examples use fixed one-draw posteriors for optimizer behavior and a
 separate fitted linear toy for confounding. They establish mechanisms and
 outcomes in the stated scenarios, not their prevalence in real campaigns.
+
+Related work already tracks parts of this space: #2799 requests date-level
+budget decisions, #3036 and PR #3045 address spend-dependent prices, and
+#3088 discusses driver-level additive and multiplicative composition. This
+issue collects decision-focused evidence across those boundaries and raises
+the future-input assumption explicitly; it does not request duplicate
+implementations of the linked proposals.
