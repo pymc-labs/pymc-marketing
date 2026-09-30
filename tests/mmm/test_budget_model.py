@@ -789,6 +789,25 @@ class TestSurpriseLags:
         )
         assert float(abs(pp["budget_effect_contribution"]).max()) == 0.0
 
+    def test_prediction_window_starting_early_keeps_lags(self, lagged, data):
+        # Lags are rebuilt within the prediction window, so a window that
+        # starts surprise_lags dates early reproduces the training terms.
+        X, _ = data
+        pp = lagged.sample_posterior_predictive(
+            X.iloc[8:20],
+            extend_idata=False,
+            var_names=["budget_effect_contribution"],
+            random_seed=1,
+        )
+        predicted = pp["budget_effect_contribution"].mean("sample")
+        fitted = lagged.idata.posterior["budget_effect_contribution"].mean(
+            ("chain", "draw")
+        )
+        np.testing.assert_allclose(
+            predicted.isel(date=slice(2, None)).values,
+            fitted.isel(date=slice(10, 20)).values,
+        )
+
     def test_single_lag_gradient(self, data):
         X, y = data
         mmm = _make_mmm().add_mu_effect(BudgetModelEffect(surprise_lags=1))
@@ -964,15 +983,12 @@ class TestIdentificationGuards:
             loaded.mu_effects[0].exogeneity_summary(loaded),
         )
 
-    def test_summary_without_attached_effect_raises(self, fitted):
-        mmm, effect = fitted
-        effects = mmm.mu_effects
-        try:
-            mmm.mu_effects = []
-            with pytest.raises(RuntimeError, match="has no BudgetModelEffect"):
-                effect.exogeneity_summary(mmm)
-        finally:
-            mmm.mu_effects = effects
+    def test_summary_with_unknown_prefix_raises(self, fitted):
+        mmm, _ = fitted
+        with pytest.raises(RuntimeError, match="no BudgetModelEffect with prefix"):
+            exogeneity_summary(mmm, prefix="nope")
+        with pytest.raises(RuntimeError, match="no BudgetModelEffect with prefix"):
+            BudgetModelEffect(prefix="nope").exogeneity_summary(mmm)
 
     def test_observed_surprise_out_of_sample(self, data):
         X, y = data

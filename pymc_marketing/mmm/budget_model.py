@@ -479,10 +479,12 @@ class BudgetModelEffect(MuEffect):
         ``f"{prefix}_gamma_lag"`` and reported by :meth:`exogeneity_summary`.
         Each lag stores a dense date-by-date shift matrix in the model and in
         saved files: negligible for weekly data, about 17 MB per lag for four
-        years of daily data. On new dates the lagged terms see only surprises
-        within the prediction data; predict with
-        ``include_last_observations=True`` to carry the last training
-        surprises into the first forecast periods.
+        years of daily data. Predictions rebuild the lags within the
+        prediction window, so the first ``surprise_lags`` rows of any window
+        lose their lagged terms, including rows that are training dates:
+        predict on a window that starts ``surprise_lags`` dates early, or, for
+        a forecast, pass ``include_last_observations=True`` to carry the last
+        training surprises into the first forecast periods.
     surprise_out_of_sample : {"zero", "observed"}, default "zero"
         Surprise on dates outside the training data. ``"zero"``, its
         expectation, suits scenario planning and forecasting future spend.
@@ -1020,6 +1022,10 @@ class BudgetModelEffect(MuEffect):
         training mean elsewhere, which cannot move a zero surprise; with
         ``"observed"`` they are required on new dates.
 
+        Lagged surprises are shifted within the prediction window only, so
+        its first ``surprise_lags`` rows have no lagged terms even when the
+        dates before them are training dates.
+
         Parameters
         ----------
         mmm : MMM
@@ -1309,10 +1315,6 @@ def exogeneity_summary(
     """
     if not 0 < interval_prob < 1:
         raise ValueError(f"interval_prob must be in (0, 1), got {interval_prob}.")
-    idata = mmm.idata
-    name = f"{prefix}_gamma"
-    if idata is None or "posterior" not in idata or name not in idata.posterior:
-        raise RuntimeError(f"No posterior for {name!r}; fit the model first.")
     effect = next(
         (
             effect
@@ -1323,6 +1325,10 @@ def exogeneity_summary(
     )
     if effect is None:
         raise RuntimeError(f"The MMM has no BudgetModelEffect with prefix {prefix!r}.")
+    idata = mmm.idata
+    name = f"{prefix}_gamma"
+    if idata is None or "posterior" not in idata or name not in idata.posterior:
+        raise RuntimeError(f"No posterior for {name!r}; fit the model first.")
 
     data = effect._training_data(mmm)
     rename = {"channel": effect.channel_dim}
