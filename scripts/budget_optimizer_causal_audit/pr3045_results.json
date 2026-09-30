@@ -1,0 +1,14 @@
+{
+  "case": "spend_dependent_price_pr3045",
+  "optimized_allocation": [
+    4.731,
+    5.269
+  ],
+  "oracle_allocation": [
+    4.73,
+    5.27
+  ],
+  "optimized_truth": 4.645867,
+  "oracle_truth": 4.645867,
+  "regret": 0.0
+}

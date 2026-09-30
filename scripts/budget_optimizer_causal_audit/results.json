@@ -1,0 +1,136 @@
+[
+  {
+    "case": "additive_seasonality",
+    "optimizer_allocation": [
+      6.3846,
+      3.6154
+    ],
+    "oracle_allocation": [
+      6.38,
+      3.62
+    ],
+    "optimizer_truth": 26.728433,
+    "oracle_truth": 26.728433,
+    "regret": 0.0
+  },
+  {
+    "case": "log_link_future_control",
+    "optimizer_allocation": [
+      8.724,
+      1.276
+    ],
+    "oracle_allocation": [
+      2.34,
+      7.66
+    ],
+    "optimizer_truth": 12.389944,
+    "oracle_truth": 15.057528,
+    "regret": 2.667583,
+    "corrected_allocation": [
+      2.3392,
+      7.6608
+    ],
+    "corrected_regret": 0.0
+  },
+  {
+    "case": "media_driven_mediator",
+    "optimizer_allocation": [
+      2.5294,
+      7.4706
+    ],
+    "oracle_allocation": [
+      6.64,
+      3.36
+    ],
+    "optimizer_truth": 5.212295,
+    "oracle_truth": 6.037101,
+    "regret": 0.824806,
+    "corrected_allocation": [
+      6.6364,
+      3.3636
+    ],
+    "corrected_regret": 0.0
+  },
+  {
+    "case": "fixed_timing",
+    "optimizer_allocation_per_period": [
+      6.999973214231744,
+      3.000026785768255
+    ],
+    "optimizer_schedule": [
+      [
+        7.0,
+        3.0
+      ],
+      [
+        7.0,
+        3.0
+      ]
+    ],
+    "flexible_oracle_schedule": [
+      [
+        1.6667,
+        0.3333
+      ],
+      [
+        12.3333,
+        5.6667
+      ]
+    ],
+    "optimizer_truth": 16.635532,
+    "oracle_truth": 18.818806,
+    "regret": 2.183274,
+    "comparison": "Broader time-by-channel decision set; not an optimizer bug"
+  },
+  {
+    "case": "unobserved_demand",
+    "optimizer_allocation": [
+      10.0,
+      0.0
+    ],
+    "oracle_allocation": [
+      0.0,
+      10.0
+    ],
+    "optimizer_truth": 5.0,
+    "oracle_truth": 11.0,
+    "regret": 6.0,
+    "true_beta": [
+      0.25,
+      0.55
+    ],
+    "season_adjusted_fitted_beta": [
+      1.213365,
+      0.547791
+    ],
+    "season_adjusted_fit_r_squared": 0.968844,
+    "fit_note": "OLS establishes the causal identification failure; the fitted coefficients are then passed as posterior draws to the real BudgetOptimizer."
+  },
+  {
+    "case": "spend_dependent_price",
+    "optimizer_allocation": [
+      7.0,
+      3.0
+    ],
+    "oracle_allocation": [
+      4.73,
+      5.27
+    ],
+    "optimizer_truth": 4.499072,
+    "oracle_truth": 4.645867,
+    "regret": 0.146794,
+    "price_map": "A: delivery=sqrt(2*spend); B: delivery=spend",
+    "status": "Fixed-price path on this checkout; PR #3045 proposes a power map"
+  },
+  {
+    "case": "standard_mmm_future_control_default",
+    "historical_carry_in_control": 0.9,
+    "future_and_tail_controls": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "status": "API inspection; no optimization or causal regret claimed"
+  }
+]
