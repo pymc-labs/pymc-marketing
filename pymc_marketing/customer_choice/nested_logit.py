@@ -353,8 +353,8 @@ class NestedLogit(ModelBuilder):
         --------
         >>> nest_dict = {"Land": ["Car", "Bus"], "Air": ["Plane"]}
         >>> product_indices = {"Car": 0, "Bus": 1, "Plane": 2}
-        >>> _parse_nesting(nest_dict, product_indices)
-        {"Land": array([0, 1]), "Air": array([2])}
+        >>> NestedLogit._parse_nesting(nest_dict, product_indices)
+        {'Land': array([0, 1]), 'Air': array([2])}
         """
         if not nest_dict:
             raise ValueError("Nesting structure must not be empty.")

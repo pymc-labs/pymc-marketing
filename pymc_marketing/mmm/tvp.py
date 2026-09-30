@@ -235,16 +235,23 @@ def create_hsgp_from_config(
 
     Examples
     --------
+    Must be called with ``dims`` registered as coordinates on an active
+    ``pymc.Model``, e.g. inside ``with pm.Model(coords={"date": range(52)}):``.
+
     Using HSGPKwargs instance:
 
     >>> from pymc_marketing.hsgp_kwargs import HSGPKwargs
     >>> config = HSGPKwargs(m=200, eta_lam=1.0, ls_mu=5.0, ls_sigma=10.0)
-    >>> hsgp = create_hsgp_from_config(X=np.arange(52), dims="date", config=config)
+    >>> hsgp = create_hsgp_from_config(
+    ...     X=np.arange(52), dims="date", config=config
+    ... )  # doctest: +SKIP
 
     Using parameterize_from_data format dict:
 
     >>> config = {"ls_lower": 0.3, "ls_upper": 2.0}
-    >>> hsgp = create_hsgp_from_config(X=np.arange(52), dims="date", config=config)
+    >>> hsgp = create_hsgp_from_config(
+    ...     X=np.arange(52), dims="date", config=config
+    ... )  # doctest: +SKIP
 
     """
     # Case 1: HSGPKwargs instance -> use existing _create_hsgp_instance
