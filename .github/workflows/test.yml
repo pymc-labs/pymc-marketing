@@ -2,9 +2,9 @@ name: Test
 
 on:
   pull_request:
-    branches: [main, v1.0.0]
+    branches: [main]
   push:
-    branches: [main, v1.0.0]
+    branches: [main]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
