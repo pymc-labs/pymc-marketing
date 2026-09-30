@@ -1,0 +1,28 @@
+pymc_marketing/mmm/lift_test.py
+  s_833efc871a70d2::t_d265e8c9a4d958 224,253-256,652,679-681
+  s_833efc871a70d2::t_35cc45e6279d23 442
+  s_833efc871a70d2::t_6d1143403e13d3 444
+tests/mmm/test_lift_test.py
+  s_833efc871a70d2::t_c1b627cd773c31 49-101
+  s_833efc871a70d2::t_8864b828ea60ca 38,102-103
+pymc_marketing/mmm/mmm.py
+  s_833efc871a70d2::t_d265e8c9a4d958 3765,3781,3797-3800
+docs/source/notebooks/mmm/mmm_lift_test.ipynb
+  s_833efc871a70d2::t_a095f6207223e8 1641,1651,1662,1673,1677-1679,1691,1693,1695,1697,1786,1790,1792,1794,2387,2397,2843,2853
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "64e5847b0cddf96d800a26e743dcb794e3aec68d",
+  "prompts": {},
+  "sessions": {
+    "s_833efc871a70d2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0f1b1-f8e5-7301-9df0-3f1f072917da",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "Benjamin T. Vincent <inferencelab@gmail.com>"
+    }
+  }
+}
