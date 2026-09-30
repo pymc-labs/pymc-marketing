@@ -12,6 +12,7 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 import copy
+import json
 import os
 import warnings
 from collections.abc import Callable
@@ -966,7 +967,7 @@ def test_save_load_restores_original_scale_deterministic(
 
 
 def test_save_load_restores_lift_test_likelihood_and_diagnostic(
-    mmm: MMM, df, target_column, mock_pymc_sample, tmp_path
+    mmm: MMM, df, target_column, mock_pymc_sample, monkeypatch, tmp_path
 ):
     from pymc_extras.prior import Prior
 
@@ -1022,6 +1023,49 @@ def test_save_load_restores_lift_test_likelihood_and_diagnostic(
     with pytest.raises(DifferentModelError, match="does not match the model version"):
         MMM.load_from_idata(stale_version_idata, check=True)
     assert stale_version_idata.attrs["version"] == "0.0.1"
+
+    legacy_idata = copy.deepcopy(mmm.idata)
+    legacy_calibrations = json.loads(legacy_idata.attrs["lift_test_calibrations"])
+    for item in legacy_calibrations:
+        item.pop("dtypes")
+    legacy_idata.attrs["lift_test_calibrations"] = json.dumps(legacy_calibrations)
+    legacy_frames = []
+
+    def capture_legacy_lift_tests(self, df_lift_test, **kwargs):
+        legacy_frames.append(df_lift_test)
+
+    with monkeypatch.context() as context:
+        context.setattr(MMM, "add_lift_test_measurements", capture_legacy_lift_tests)
+        MMM.load_from_idata(legacy_idata, check=False)
+    assert len(legacy_frames) == 1
+    assert "country" in legacy_frames[0]
+
+    naive_date_idata = copy.deepcopy(mmm.idata)
+    naive_date_calibrations = json.loads(
+        naive_date_idata.attrs["lift_test_calibrations"]
+    )
+    naive_date_df = calibration.assign(collection_date=pd.to_datetime(["2025-01-07"]))
+    naive_date_calibrations[0]["data"] = naive_date_df.to_json(
+        orient="split", date_format="iso"
+    )
+    naive_date_calibrations[0]["dtypes"]["collection_date"] = str(
+        naive_date_df["collection_date"].dtype
+    )
+    naive_date_idata.attrs["lift_test_calibrations"] = json.dumps(
+        naive_date_calibrations
+    )
+    restored_frames = []
+
+    def capture_lift_tests(self, df_lift_test, **kwargs):
+        restored_frames.append(df_lift_test)
+
+    with monkeypatch.context() as context:
+        context.setattr(MMM, "add_lift_test_measurements", capture_lift_tests)
+        MMM.load_from_idata(naive_date_idata, check=False)
+    assert (
+        restored_frames[0]["collection_date"].dtype
+        == naive_date_df["collection_date"].dtype
+    )
 
     mismatched_id_idata = copy.deepcopy(mmm.idata)
     mismatched_id_idata.attrs["id"] = "different-model-id"

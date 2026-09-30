@@ -284,6 +284,19 @@ def test_apply_calibration_likelihood_supported_in_yaml(dummy_mmm):
     assert dummy_mmm.called_with["likelihood"].parameters["nu"] == 4
 
 
+def test_apply_calibration_string_likelihood_in_yaml(dummy_mmm):
+    steps = [
+        CalibrationStep.model_validate(
+            {"add_lift_test_measurements": {"likelihood": "Normal"}}
+        )
+    ]
+
+    _apply_and_validate_calibration_steps(dummy_mmm, steps)
+
+    assert isinstance(dummy_mmm.called_with["likelihood"], Prior)
+    assert dummy_mmm.called_with["likelihood"].distribution == "Normal"
+
+
 def test_apply_calibration_dist_yaml_rejected(dummy_mmm):
     steps = [
         CalibrationStep.model_validate(

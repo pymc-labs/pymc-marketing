@@ -33,6 +33,7 @@ from pymc_marketing.mmm.components.saturation import (
 from pymc_marketing.mmm.lift_test import (
     NonMonotonicError,
     UnalignedValuesError,
+    _resolve_likelihood,
     add_cost_per_target_observations,
     add_cost_per_target_potentials,
     add_lift_measurements_to_likelihood_from_saturation,
@@ -235,6 +236,64 @@ def test_student_t_likelihood_requires_degrees_of_freedom() -> None:
             saturation_function=lambda x, beta: beta * x,
             model=model,
             likelihood=Prior("StudentT"),
+        )
+
+
+def test_lift_likelihood_resolver_validates_legacy_and_invalid_inputs() -> None:
+    with pytest.warns(DeprecationWarning, match="distribution class"):
+        resolved = _resolve_likelihood(pmd.Gamma)
+    assert resolved.distribution == "Gamma"
+
+    with pytest.raises(ValueError, match="Specify only one"):
+        _resolve_likelihood(Prior("Normal"), pmd.Gamma)
+
+    with pytest.raises(TypeError, match=r"must be a pymc_extras.prior.Prior"):
+        _resolve_likelihood("Normal")  # type: ignore[arg-type]
+
+
+def test_gamma_likelihood_rejects_nonpositive_spend_change() -> None:
+    with pm.Model(coords={"channel": ["one"]}) as model:
+        pmd.HalfNormal("beta", sigma=1.0, dims="channel")
+
+    df_lift_test = pd.DataFrame(
+        {
+            "channel": ["one"],
+            "x": [0.0],
+            "delta_x": [-1.0],
+            "delta_y": [1.0],
+            "sigma": [0.5],
+        }
+    )
+    with pytest.raises(ValueError, match="only valid when the spend changes"):
+        add_saturation_observations(
+            df_lift_test,
+            variable_mapping={"beta": "beta"},
+            saturation_function=lambda x, beta: beta * x,
+            model=model,
+            likelihood=Prior("Gamma"),
+        )
+
+
+def test_gamma_likelihood_rejects_negative_initial_model_lift() -> None:
+    with pm.Model(coords={"channel": ["one"]}) as model:
+        pmd.HalfNormal("beta", sigma=1.0, dims="channel")
+
+    df_lift_test = pd.DataFrame(
+        {
+            "channel": ["one"],
+            "x": [0.0],
+            "delta_x": [1.0],
+            "delta_y": [1.0],
+            "sigma": [0.5],
+        }
+    )
+    with pytest.raises(ValueError, match="at the model's initial point"):
+        add_saturation_observations(
+            df_lift_test,
+            variable_mapping={"beta": "beta"},
+            saturation_function=lambda x, beta: -beta * x,
+            model=model,
+            likelihood=Prior("Gamma"),
         )
 
 
