@@ -17,6 +17,7 @@ import pymc as pm
 import pymc.dims as pmd
 import pytest
 from pymc.model_graph import fast_eval
+from pymc_extras.prior import Prior
 from pytensor.xtensor import as_xtensor
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import MaxAbsScaler
@@ -56,7 +57,7 @@ def test_add_saturation_observations_defaults_to_signed_normal_likelihood() -> N
             "channel": ["one"],
             "x": [2.0],
             "delta_x": [-1.0],
-            "delta_y": [-1.0],
+            "delta_y": [-0.5],
             "sigma": [sigma],
         }
     )
@@ -68,10 +69,11 @@ def test_add_saturation_observations_defaults_to_signed_normal_likelihood() -> N
     )
 
     lift_rv = model["lift_measurements"]
-    assert model.rvs_to_values[lift_rv].eval().item() == -1.0
+    assert model.rvs_to_values[lift_rv].eval().item() == -0.5
     logp = model.compile_logp(vars=[lift_rv])(model.initial_point())
-    expected_logp = -np.log(sigma * np.sqrt(2 * np.pi))
+    expected_logp = -np.log(sigma * np.sqrt(2 * np.pi)) - 0.5 * (0.5 / sigma) ** 2
     assert np.isclose(logp, expected_logp)
+    assert "lift_measurements_model_estimated_lift" in model
 
 
 def test_add_saturation_observations_allows_explicit_gamma_likelihood() -> None:
@@ -92,13 +94,37 @@ def test_add_saturation_observations_allows_explicit_gamma_likelihood() -> None:
         variable_mapping={"beta": "beta"},
         saturation_function=lambda x, beta: beta * x,
         model=model,
-        dist=pmd.Gamma,
+        likelihood=Prior("Gamma"),
     )
 
     logp = model.compile_logp(vars=[model["lift_measurements"]])(model.initial_point())
     # Gamma(mu=1, sigma=0.5) has shape=4 and rate=4.
     expected_logp = np.log(4**4 / 6) - 4
     assert np.isclose(logp, expected_logp)
+
+
+def test_explicit_gamma_rejects_negative_lift_at_construction() -> None:
+    with pm.Model(coords={"channel": ["one"]}) as model:
+        pmd.Normal("beta", mu=1.0, sigma=0.1, dims="channel")
+
+    df_lift_test = pd.DataFrame(
+        {
+            "channel": ["one", "one"],
+            "x": [0.0, 2.0],
+            "delta_x": [1.0, -1.0],
+            "delta_y": [1.0, -0.5],
+            "sigma": [0.5, 0.5],
+        }
+    )
+    with pytest.raises(ValueError, match="Gamma lift likelihood requires positive"):
+        with pytest.warns(DeprecationWarning, match="`dist` argument is deprecated"):
+            add_saturation_observations(
+                df_lift_test,
+                variable_mapping={"beta": "beta"},
+                saturation_function=lambda x, beta: beta * x,
+                model=model,
+                dist=pmd.Gamma,
+            )
 
 
 @pytest.fixture(scope="module")

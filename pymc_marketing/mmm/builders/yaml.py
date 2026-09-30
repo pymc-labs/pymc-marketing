@@ -20,6 +20,7 @@ from pathlib import Path
 
 import pandas as pd
 import xarray as xr
+from pymc_extras.prior import Prior
 
 from pymc_marketing.mmm.builders.factories import build, naming, resolve
 from pymc_marketing.mmm.builders.schema import CalibrationStep, MMMYamlConfig
@@ -57,20 +58,24 @@ def _apply_and_validate_calibration_steps(
         if not callable(method):
             raise TypeError(f"Attribute '{step.method_name}' is not callable on MMM.")
 
-        if (
-            step.method_name == "add_lift_test_measurements"
-            and step.params
-            and "dist" in step.params
-        ):
-            raise ValueError(
-                "`dist` parameter for 'add_lift_test_measurements' is not "
-                "supported via YAML configuration yet."
-            )
-
         resolved_kwargs = {}
         for key, value in (step.params or {}).items():
             with naming(f"{step.method_name}.{key}"):
                 resolved_kwargs[key] = resolve(value)
+
+        # Keep the legacy string form usable for existing YAML files while
+        # directing new configs to the serializable Prior interface.
+        if step.method_name == "add_lift_test_measurements":
+            if "dist" in resolved_kwargs:
+                if "likelihood" in resolved_kwargs:
+                    raise ValueError("Specify only one of `likelihood` and `dist`.")
+                legacy_dist = resolved_kwargs.pop("dist")
+                if isinstance(legacy_dist, str):
+                    resolved_kwargs["likelihood"] = Prior(legacy_dist)
+                else:
+                    resolved_kwargs["likelihood"] = Prior(legacy_dist.__name__)
+            elif isinstance(resolved_kwargs.get("likelihood"), str):
+                resolved_kwargs["likelihood"] = Prior(resolved_kwargs["likelihood"])
 
         try:
             method(**resolved_kwargs)

@@ -233,6 +233,7 @@ from pymc_marketing.mmm.fourier import YearlyFourier
 from pymc_marketing.mmm.hsgp import HSGPBase
 from pymc_marketing.mmm.incrementality import Incrementality
 from pymc_marketing.mmm.lift_test import (
+    _resolve_likelihood,
     add_cost_per_target_observations,
     add_lift_measurements_to_likelihood_from_saturation,
     scale_lift_measurements,
@@ -663,6 +664,7 @@ class MMM(RegressionModelBuilder):
             )
 
         self.mu_effects: list[MuEffect] = []
+        self._lift_test_calibrations: list[tuple[pd.DataFrame, Prior, str]] = []
 
     def add_mu_effect(
         self: Self,
@@ -1088,6 +1090,18 @@ class MMM(RegressionModelBuilder):
         attrs["target_column"] = self.target_column
         attrs["link"] = self.link.value
         attrs["scaling"] = json.dumps(serialization.serialize(self.scaling))
+        attrs["lift_test_calibrations"] = json.dumps(
+            [
+                {
+                    "data": df.to_json(orient="split", date_format="iso"),
+                    "likelihood": serialization.serialize_model_config(
+                        {"likelihood": likelihood}
+                    )["likelihood"],
+                    "name": name,
+                }
+                for df, likelihood, name in self._lift_test_calibrations
+            ]
+        )
         attrs["dag"] = json.dumps(getattr(self, "dag", None))
         attrs["treatment_nodes"] = json.dumps(getattr(self, "treatment_nodes", None))
         attrs["outcome_node"] = json.dumps(getattr(self, "outcome_node", None))
@@ -3762,15 +3776,17 @@ class MMM(RegressionModelBuilder):
     def add_lift_test_measurements(
         self: Self,
         df_lift_test: pd.DataFrame,
-        dist: type[pmd.DimDistribution] = pmd.Normal,
+        likelihood: Prior | None = None,
         name: str = "lift_measurements",
+        *,
+        dist: type[pmd.DimDistribution] | None = None,
     ) -> Self:
         """Add lift tests to the model.
 
         The model for the difference of a channel's saturation curve is created
         from `x` and `x + delta_x` for each channel. This random variable is
         then conditioned using the empirical lift, `delta_y`, and `sigma` of the lift test
-        with the specified distribution `dist`.
+        with the specified ``likelihood``.
 
         The pseudo-code for the lift test is as follows:
 
@@ -3778,7 +3794,7 @@ class MMM(RegressionModelBuilder):
 
             model_estimated_lift = saturation_curve(x + delta_x) - saturation_curve(x)
             empirical_lift = delta_y
-            dist(model_estimated_lift, sigma=sigma, observed=empirical_lift)
+            likelihood(model_estimated_lift, sigma=sigma, observed=empirical_lift)
 
 
         The model has to be built before adding the lift tests.
@@ -3793,11 +3809,14 @@ class MMM(RegressionModelBuilder):
                 * `delta_x`: change in x axis value of the lift test.
                 * `delta_y`: change in y axis value of the lift test.
                 * `sigma`: standard deviation of the lift test.
+        likelihood : Prior, optional
+            Serializable likelihood prior, by default ``Prior("Normal")``.
+            The lift-test standard errors are used as its ``sigma`` parameter.
+            Use ``Prior("StudentT", nu=...)`` for a heavier-tailed sampling
+            model. Lift estimates retain their signs.
         dist : pymc.dims.DimDistribution, optional
-            The distribution to use for the likelihood, by default
-            pymc.dims.Normal. Lift estimates and model-estimated lifts retain
-            their signs, so a custom distribution must support those values
-            and represent the sampling model for the lift-test estimator.
+            Deprecated alias for selecting a distribution by class. Prefer a
+            ``Prior`` passed to ``likelihood``.
         name : str, optional
             The name of the likelihood of the lift test contribution(s),
             by default "lift_measurements". Name change required if calling
@@ -3879,6 +3898,8 @@ class MMM(RegressionModelBuilder):
                     f"The {dim} column is required to map the lift measurements to the model."
                 )
 
+        likelihood = _resolve_likelihood(likelihood, dist)
+
         # Function to scale "delta_y", and "sigma" to same scale as target in model.
         target_transform = self._make_target_transform(df_lift_test)
 
@@ -3903,8 +3924,12 @@ class MMM(RegressionModelBuilder):
             saturation=self.saturation,
             time_varying_var_name=time_varying_var_name,
             model=self.model,
-            dist=dist,
+            likelihood=likelihood,
             name=name,
+        )
+
+        self._lift_test_calibrations.append(
+            (df_lift_test.copy(), likelihood.deepcopy(), name)
         )
 
         return self
@@ -4254,6 +4279,23 @@ class MMM(RegressionModelBuilder):
         y = dataset[self.target_column]
 
         self.build_model(X, y)  # type: ignore
+
+        # Lift-test rows are model inputs, rather than part of fit_data. Restore
+        # them after rebuilding the base MMM so their likelihood and posterior
+        # model-implied-lift diagnostic are present again.
+        if "lift_test_calibrations" in idata.attrs:
+            for calibration in json.loads(idata.attrs["lift_test_calibrations"]):
+                df_lift_test = pd.read_json(
+                    io.StringIO(calibration["data"]), orient="split"
+                )
+                likelihood = serialization.deserialize_model_config(
+                    {"likelihood": calibration["likelihood"]}
+                )["likelihood"]
+                self.add_lift_test_measurements(
+                    df_lift_test,
+                    likelihood=likelihood,
+                    name=calibration["name"],
+                )
 
         # Re-add any *_original_scale Deterministics that were present when the
         # model was saved.  These are added by add_original_scale_contribution_variable

@@ -964,6 +964,47 @@ def test_save_load_restores_original_scale_deterministic(
     assert "channel_contribution_original_scale" in loaded.model.named_vars
 
 
+def test_save_load_restores_lift_test_likelihood_and_diagnostic(
+    mmm: MMM, df, target_column, mock_pymc_sample, tmp_path
+):
+    from pymc_extras.prior import Prior
+
+    X = df.drop(columns=[target_column])
+    y = df[target_column]
+    mmm.build_model(X, y)
+    calibration = pd.DataFrame(
+        {
+            "country": ["A"],
+            "channel": ["C1"],
+            "x": [1.0],
+            "delta_x": [1.0],
+            "delta_y": [-0.2],
+            "sigma": [0.5],
+        }
+    )
+    mmm.add_lift_test_measurements(
+        calibration,
+        likelihood=Prior("StudentT", nu=4),
+        name="geo_lift",
+    )
+    mmm.fit(X, y)
+
+    assert "lift_test_calibrations" in mmm.idata.attrs
+    assert "geo_lift_model_estimated_lift" in mmm.idata.posterior
+    path = str(tmp_path / "lift-calibrated.nc")
+    mmm.save(path)
+
+    loaded = MMM.load(path)
+    assert "geo_lift" in loaded.model
+    assert "geo_lift_model_estimated_lift" in loaded.model.named_vars
+    assert len(loaded._lift_test_calibrations) == 1
+    restored_df, restored_likelihood, restored_name = loaded._lift_test_calibrations[0]
+    assert restored_df["delta_y"].tolist() == [-0.2]
+    assert restored_likelihood.distribution == "StudentT"
+    assert restored_likelihood.parameters["nu"] == 4
+    assert restored_name == "geo_lift"
+
+
 def test_build_from_idata_fallback_infers_original_scale_from_posterior(
     mmm: MMM, df, target_column, mock_pymc_sample, tmp_path
 ):
@@ -3297,6 +3338,46 @@ def test_add_lift_test_measurements(
         mmm.fit(X, y)
     except Exception as e:
         pytest.fail(f"Sampling failed with error: {e}")
+
+
+def test_add_lift_test_measurements_accepts_noisy_signed_estimate() -> None:
+    X = pd.DataFrame(
+        {
+            "date": pd.date_range("2023-01-01", periods=12, freq="W"),
+            "channel_1": np.arange(1, 13, dtype=float),
+            "channel_2": np.arange(12, 0, -1, dtype=float),
+        }
+    )
+    y = pd.Series(np.arange(20, 32, dtype=float), name="target")
+    mmm = MMM(
+        date_column="date",
+        channel_columns=["channel_1", "channel_2"],
+        target_column="target",
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+    )
+    mmm.build_model(X, y)
+
+    mmm.add_lift_test_measurements(
+        pd.DataFrame(
+            {
+                "channel": ["channel_1"],
+                "x": [2.0],
+                "delta_x": [1.0],
+                "delta_y": [-0.5],
+                "sigma": [0.5],
+            }
+        )
+    )
+
+    observed = mmm.model.rvs_to_values[mmm.model["lift_measurements"]].eval()
+    assert observed.item() < 0
+    assert np.isfinite(
+        mmm.model.compile_logp(vars=[mmm.model["lift_measurements"]])(
+            mmm.model.initial_point()
+        )
+    )
+    assert "lift_measurements_model_estimated_lift" in mmm.model
 
 
 def test_add_lift_test_measurements_no_model() -> None:
