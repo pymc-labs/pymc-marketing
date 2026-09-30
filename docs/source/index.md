@@ -85,7 +85,7 @@ Powered by
 PyMC-Marketing is built and maintained by the **core developers of [PyMC](https://www.pymc.io)** — the Bayesian modeling library at the heart of the scientific Python stack. Data science teams use it to plan and defend real marketing budgets, with results validated against experiments and lift tests.
 
 :::{div} sd-text-center
-**750,000+ downloads** · **1,100+ GitHub stars** · **Apache-2.0 licensed** — free, open, and auditable
+**2M+ downloads** · **1,200+ GitHub stars** · **Apache-2.0 licensed** — free, open, and auditable
 :::
 
 ## Get started
@@ -120,7 +120,6 @@ See how PyMC-Marketing compares to [Google Meridian, Meta Robyn, and other MMM f
 
 ::::{grid-item-card} Getting Started
 :class-header: no-border
-:class-title: pm-card-title
 :class-footer: no-border
 
 {material-outlined}`photo_library;1.75em`
@@ -142,7 +141,6 @@ To the getting started guide
 
 ::::{grid-item-card} Example notebooks
 :class-header: no-border
-:class-title: pm-card-title
 :class-footer: no-border
 
 {material-outlined}`menu_book;1.75em`
@@ -163,7 +161,6 @@ To the example notebooks
 ::::
 ::::{grid-item-card} API Reference
 :class-header: no-border
-:class-title: pm-card-title
 :class-footer: no-border
 
 {material-outlined}`data_object;1.75em`
@@ -261,7 +258,6 @@ Predict the *incremental* effect of ad campaigns that never ran an experiment wi
 
 The `pymc_marketing.pie` module is in **alpha**: the API and defaults may change between releases. See the [PIE example notebook](https://www.pymc-marketing.io/en/stable/notebooks/pie/pie_example.html) for a worked example, including where predictions beat last-click attribution.
 
----
 
 ## Resources
 
@@ -286,7 +282,6 @@ See how Bolt uses PyMC-Marketing to assess the impact of its marketing efforts.
 
 For more videos, webinars and resources, check out the [PyMC Labs YouTube channel](https://www.youtube.com/@PyMCLabs).
 
----
 
 ### More [PyMC Labs](https://www.pymc-labs.com/) Blog Posts and Resources
 
@@ -304,14 +299,13 @@ For more videos, webinars and resources, check out the [PyMC Labs YouTube channe
 ### Case Studies
 
 - [Building an in-house marketing analytics solution](https://www.pymc-labs.com/blog-posts/2023-07-18-niall-In-house-marketing/)
-- [Bayesian Media Mix Models: Modeling changes in marketing effectiveness over time](https://www.pymc-labs.com/blog-posts/modelling-changes-marketing-effectiveness-over-time/)
+- [Bayesian Media Mix Models: Modelling changes in marketing effectiveness over time](https://www.pymc-labs.com/blog-posts/modelling-changes-marketing-effectiveness-over-time/)
 - [Improving the Speed and Accuracy of Bayesian Media Mix Models](https://www.pymc-labs.com/blog-posts/reducing-customer-acquisition-costs-how-we-helped-optimizing-hellofreshs-marketing-budget/)
 - [Bayesian Media Mix Modeling for Marketing Optimization](https://www.pymc-labs.com/blog-posts/bayesian-media-mix-modeling-for-marketing-optimization/)
 - [Bayesian inference at scale: Running A/B tests with millions of observations](https://www.pymc-labs.com/blog-posts/bayesian-inference-at-scale-running-ab-tests-with-millions-of-observations/)
 
 For more blogposts and resources, check out the [PyMC Labs Blog](https://www.pymc-labs.com/blog-posts/).
 
----
 
 ## Frequently Asked Questions
 
@@ -350,7 +344,6 @@ PyMC-Marketing supports Python 3.12 and above.
 Yes. PyMC-Marketing includes built-in [budget optimization](https://www.pymc-marketing.io/en/stable/notebooks/mmm/mmm_budget_allocation_example.html) that allocates spend across channels to maximize ROI, accounting for diminishing returns via saturation curves and carry-over effects via adstock transformations.
 :::
 
----
 
 ## Need help with PyMC-Marketing?
 

@@ -6,7 +6,9 @@ orphan: true
 
 ## Submit an RFP or project brief
 
+:::{div} pm-brief
 Tell the team behind PyMC-Marketing what you want to achieve. We can discuss marketing mix modeling, customer lifetime value, model review, training and implementation support.
+:::
 
 **Already have an RFP?** Share its scope, submission deadline and a link to the brief through our inquiry page. A short description is enough if you are still defining the project.
 
@@ -49,4 +51,4 @@ When is the decision needed? Who will use and maintain the model? Include procur
 
 - [Building an in-house marketing analytics solution](https://www.pymc-labs.com/blog-posts/2023-07-18-niall-In-house-marketing/)
 - [Bolt's experience with PyMC-Marketing](https://www.youtube.com/watch?v=djXoPq60bRM)
-- [Explore the MMM learning path](https://www.pymc-marketing.io/en/stable/notebooks/mmm/mmm_example.html)
+- {ref}`Explore the MMM learning path <mmm_learning_path>`
