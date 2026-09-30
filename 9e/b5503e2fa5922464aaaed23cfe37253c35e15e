@@ -1,0 +1,21 @@
+docs/source/notebooks/mmm/mmm_geolift_calibration.ipynb
+  s_592cffb5157485::t_ef00ea4746fe08 2187,2286
+docs/source/notebooks/mmm/mmm_lift_test.ipynb
+  s_592cffb5157485::t_123c000cb0f88f 2356,2374,2391,2394,2397,2420,2422,2517,2519,3566
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "9eb5503e2fa5922464aaaed23cfe37253c35e15e",
+  "prompts": {},
+  "sessions": {
+    "s_592cffb5157485": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0f31a-7de4-7442-825e-983ee9a37329",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Benjamin T. Vincent <inferencelab@gmail.com>"
+    }
+  }
+}
