@@ -221,7 +221,7 @@ def add_saturation_observations(
     variable_mapping: VariableMapping,
     saturation_function: SaturationFunc,
     model: pm.Model | None = None,
-    dist: type[pmd.DimDistribution] = pmd.Gamma,
+    dist: type[pmd.DimDistribution] = pmd.Normal,
     name: str = "lift_measurements",
     get_indices: Callable[[pd.DataFrame, pm.Model], Indices] = exact_row_indices,
 ) -> None:
@@ -250,7 +250,10 @@ def add_saturation_observations(
     model : Optional[Model], optional
         PyMC model with arbitrary number of coordinates, by default None
     dist : pymc.dims.DimDistribution class, optional
-        PyMC dim distribution to use for the likelihood, by default Gamma
+        PyMC dim distribution to use for the likelihood, by default Normal.
+        The distribution must support the signed observed and model-estimated
+        lift values. Use another distribution only when it matches the sampling
+        model for the lift-test estimator.
     name : str, optional
         Name of the likelihood, by default "lift_measurements"
     get_indices : Callable[[pd.DataFrame, pm.Model], Indices], optional
@@ -436,11 +439,9 @@ def add_saturation_observations(
         current_model.add_coord(lift_dim, length=len(df_lift_test))
         dist(
             name=name,
-            mu=ptx.math.abs(model_estimated_lift),
+            mu=model_estimated_lift,
             sigma=as_xtensor(df_lift_test["sigma"].to_numpy(), dims=(lift_dim,)),
-            observed=as_xtensor(
-                np.abs(df_lift_test["delta_y"].to_numpy()), dims=(lift_dim,)
-            ),
+            observed=as_xtensor(df_lift_test["delta_y"].to_numpy(), dims=(lift_dim,)),
         )
 
 
@@ -648,7 +649,7 @@ def add_lift_measurements_to_likelihood_from_saturation(
     saturation: SaturationTransformation,
     time_varying_var_name: str | None = None,
     model: pm.Model | None = None,
-    dist: type[pmd.DimDistribution] = pmd.Gamma,
+    dist: type[pmd.DimDistribution] = pmd.Normal,
     name: str = "lift_measurements",
     get_indices: Callable[[pd.DataFrame, pm.Model], Indices] = exact_row_indices,
 ) -> None:
@@ -675,7 +676,9 @@ def add_lift_measurements_to_likelihood_from_saturation(
     model : Optional[Model], optional
         PyMC model with arbitrary number of coordinates, by default None
     dist : pymc.dims.Distribution class, optional
-        PyMC distribution to use for the likelihood, by default Gamma
+        PyMC distribution to use for the likelihood, by default Normal. The
+        distribution must support the signed observed and model-estimated lift
+        values and match the sampling model for the lift-test estimator.
     name : str, optional
         Name of the likelihood, by default "lift_measurements"
     get_indices : Callable[[pd.DataFrame, pm.Model], Indices], optional

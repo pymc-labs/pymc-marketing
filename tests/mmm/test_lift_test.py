@@ -35,6 +35,7 @@ from pymc_marketing.mmm.lift_test import (
     add_cost_per_target_observations,
     add_cost_per_target_potentials,
     add_lift_measurements_to_likelihood_from_saturation,
+    add_saturation_observations,
     assert_monotonic,
     create_time_varying_saturation,
     exact_row_indices,
@@ -43,6 +44,61 @@ from pymc_marketing.mmm.lift_test import (
     scale_target_for_lift_measurements,
 )
 from pymc_marketing.mmm.mmm import MMM
+
+
+def test_add_saturation_observations_defaults_to_signed_normal_likelihood() -> None:
+    sigma = 0.5
+    with pm.Model(coords={"channel": ["one"]}) as model:
+        pmd.Normal("beta", mu=1.0, sigma=0.1, dims="channel")
+
+    df_lift_test = pd.DataFrame(
+        {
+            "channel": ["one"],
+            "x": [2.0],
+            "delta_x": [-1.0],
+            "delta_y": [-1.0],
+            "sigma": [sigma],
+        }
+    )
+    add_saturation_observations(
+        df_lift_test,
+        variable_mapping={"beta": "beta"},
+        saturation_function=lambda x, beta: beta * x,
+        model=model,
+    )
+
+    lift_rv = model["lift_measurements"]
+    assert model.rvs_to_values[lift_rv].eval().item() == -1.0
+    logp = model.compile_logp(vars=[lift_rv])(model.initial_point())
+    expected_logp = -np.log(sigma * np.sqrt(2 * np.pi))
+    assert np.isclose(logp, expected_logp)
+
+
+def test_add_saturation_observations_allows_explicit_gamma_likelihood() -> None:
+    with pm.Model(coords={"channel": ["one"]}) as model:
+        pmd.Normal("beta", mu=1.0, sigma=0.1, dims="channel")
+
+    df_lift_test = pd.DataFrame(
+        {
+            "channel": ["one"],
+            "x": [0.0],
+            "delta_x": [1.0],
+            "delta_y": [1.0],
+            "sigma": [0.5],
+        }
+    )
+    add_saturation_observations(
+        df_lift_test,
+        variable_mapping={"beta": "beta"},
+        saturation_function=lambda x, beta: beta * x,
+        model=model,
+        dist=pmd.Gamma,
+    )
+
+    logp = model.compile_logp(vars=[model["lift_measurements"]])(model.initial_point())
+    # Gamma(mu=1, sigma=0.5) has shape=4 and rate=4.
+    expected_logp = np.log(4**4 / 6) - 4
+    assert np.isclose(logp, expected_logp)
 
 
 @pytest.fixture(scope="module")
@@ -261,8 +317,6 @@ def test_works_with_negative_delta(df_lift_test_with_numerics) -> None:
     )
 
     alpha_dims = "date"
-    dist = pmd.Gamma
-
     coords = {
         "date": pd.to_datetime(["2020-01-01", "2020-01-02", "2020-01-03"]),
         "channel": [0, 1, 2],
@@ -274,7 +328,6 @@ def test_works_with_negative_delta(df_lift_test_with_numerics) -> None:
         add_lift_measurements_to_likelihood_from_saturation(
             df_lift_test=df_lift_test_with_numerics_negative,
             saturation=MichaelisMentenSaturation(),
-            dist=dist,
         )
 
     assert "lift_measurements" in model

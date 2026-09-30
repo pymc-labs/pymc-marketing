@@ -3762,7 +3762,7 @@ class MMM(RegressionModelBuilder):
     def add_lift_test_measurements(
         self: Self,
         df_lift_test: pd.DataFrame,
-        dist: type[pmd.DimDistribution] = pmd.Gamma,
+        dist: type[pmd.DimDistribution] = pmd.Normal,
         name: str = "lift_measurements",
     ) -> Self:
         """Add lift tests to the model.
@@ -3778,7 +3778,7 @@ class MMM(RegressionModelBuilder):
 
             model_estimated_lift = saturation_curve(x + delta_x) - saturation_curve(x)
             empirical_lift = delta_y
-            dist(abs(model_estimated_lift), sigma=sigma, observed=abs(empirical_lift))
+            dist(model_estimated_lift, sigma=sigma, observed=empirical_lift)
 
 
         The model has to be built before adding the lift tests.
@@ -3794,7 +3794,10 @@ class MMM(RegressionModelBuilder):
                 * `delta_y`: change in y axis value of the lift test.
                 * `sigma`: standard deviation of the lift test.
         dist : pymc.dims.DimDistribution, optional
-            The distribution to use for the likelihood, by default pymc.dims.Gamma
+            The distribution to use for the likelihood, by default
+            pymc.dims.Normal. Lift estimates and model-estimated lifts retain
+            their signs, so a custom distribution must support those values
+            and represent the sampling model for the lift-test estimator.
         name : str, optional
             The name of the likelihood of the lift test contribution(s),
             by default "lift_measurements". Name change required if calling
