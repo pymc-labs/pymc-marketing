@@ -34,6 +34,7 @@ from pymc_marketing.clv.models.basic import CLVModel
 from pymc_marketing.clv.utils import to_xarray
 from pymc_marketing.model_config import ModelConfig
 from pymc_marketing.serialization import serialization
+from pymc_marketing.special_priors import ParetoPrior
 from pymc_marketing.terms import (
     Dot,
     ModelTerm,
@@ -271,12 +272,8 @@ def _default_hierarchical_dropout_recipes(config: ModelConfig) -> dict[str, Mode
     """Build the default hierarchical (``phi``/``kappa``) dropout recipes from the model configuration."""
     cols = list(config.get("dropout_covariate_cols") or [])
     recipes: dict[str, ModelTerm] = {
-        "phi_dropout": Parameter(
-            "phi_dropout", prior=config["phi_dropout"], xdist=False
-        ),
-        "kappa_dropout": Parameter(
-            "kappa_dropout", prior=config["kappa_dropout"], xdist=False
-        ),
+        "phi_dropout": Parameter("phi_dropout", prior=config["phi_dropout"]),
+        "kappa_dropout": Parameter("kappa_dropout", prior=config["kappa_dropout"]),
     }
     if cols:
         coefficient_prior: Any = config.get("dropout_coefficient") or Prior(
@@ -652,7 +649,7 @@ class BetaGeoModel(CLVModel):
             "alpha": Prior("Weibull", alpha=2, beta=10),
             "r": Prior("Weibull", alpha=2, beta=1),
             "phi_dropout": Prior("Uniform", lower=0, upper=1),
-            "kappa_dropout": Prior("Pareto", alpha=1, m=1),
+            "kappa_dropout": ParetoPrior(alpha=1, m=1),
         }
 
     @property

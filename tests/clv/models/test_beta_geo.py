@@ -32,6 +32,7 @@ from pymc_marketing.clv.models.beta_geo import (
     create_purchase_covariates,
 )
 from pymc_marketing.serialization import serialization
+from pymc_marketing.special_priors import ParetoPrior
 from pymc_marketing.terms import (
     Dot,
     Named,
@@ -1092,7 +1093,7 @@ class TestBetaGeoModelWithCovariates:
             "r": Prior("Exponential", scale=10),
             "alpha": Prior("Exponential", scale=10),
             "phi_dropout": Prior("Uniform", lower=0, upper=1),
-            "kappa_dropout": Prior("Pareto", alpha=1, m=1),
+            "kappa_dropout": ParetoPrior(alpha=1, m=1),
             "purchase_coefficient": Prior("Normal", mu=0, sigma=5),
             "dropout_coefficient": Prior("Normal", mu=0, sigma=5),
         }
