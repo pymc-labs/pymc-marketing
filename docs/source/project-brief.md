@@ -6,17 +6,17 @@ orphan: true
 
 ## Submit an RFP or project brief
 
-Tell the team behind PyMC-Marketing what you want to achieve. We can discuss marketing mix modelling, customer lifetime value, model review, training and implementation support.
+Tell the team behind PyMC-Marketing what you want to achieve. We can discuss marketing mix modeling, customer lifetime value, model review, training and implementation support.
 
-**Already have an RFP?** Share its scope, submission deadline and a link to the brief through our enquiry page. A short description is enough if you are still defining the project.
+**Already have an RFP?** Share its scope, submission deadline and a link to the brief through our inquiry page. A short description is enough if you are still defining the project.
 
 :::{button-link} https://www.pymc-labs.com/contact
 :color: primary
 
-Send your project enquiry
+Send your project inquiry
 :::
 
-Prefer to talk it through? [Book a free 30-minute scoping call with Niall](https://calendly.com/niall-oulton).
+Prefer to talk it through? [Speak to one of our team](https://calendly.com/niall-oulton).
 
 (prepare-your-brief)=
 ## Prepare your brief
@@ -27,11 +27,11 @@ You do not need to answer every question before getting in touch. These prompts 
 :gutter: 3
 
 :::{grid-item-card} 1. The decision
-What should this work help you decide? For example, allocating next year's media budget, evaluating channel effectiveness or prioritising customer acquisition.
+What should this work help you decide? For example, allocating next year's media budget, evaluating channel effectiveness or prioritizing customer acquisition.
 :::
 
 :::{grid-item-card} 2. The data
-Which markets, channels and outcomes matter? Summarise the available history, frequency and known gaps. Keep customer records out of your initial enquiry.
+Which markets, channels and outcomes matter? Summarize the available history, frequency and known gaps. Keep customer records out of your initial inquiry.
 :::
 
 :::{grid-item-card} 3. The evidence

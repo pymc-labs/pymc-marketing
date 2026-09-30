@@ -27,22 +27,27 @@ PyMC-Marketing is an open-source Python library for Bayesian marketing analytics
 
 :::::
 
-::::{card} Have a marketing analytics project in mind?
+:::::{card} Have a marketing analytics project in mind?
 :class-card: pm-project
 
-Work with **PyMC Labs, the team behind PyMC-Marketing**, on marketing mix modelling, customer lifetime value or a review of your existing model.
+Work with **PyMC Labs, the team behind PyMC-Marketing**, on marketing mix modeling, customer lifetime value or a review of your existing model.
+
+::::{div} pm-project-actions
+
+:::{div} pm-project-guidance
+[Speak to one of our team](https://calendly.com/niall-oulton) · {ref}`What should I include in a brief? <prepare-your-brief>`
+
+An existing RFP or a few sentences about your business question is enough to start.
+:::
 
 :::{button-ref} project-brief
 :color: primary
-:class: sd-mr-2 sd-mb-2
+:class: pm-rfp-button
 
 Submit an RFP
 :::
-
-[Help me scope a project](https://calendly.com/niall-oulton) · {ref}`What should I include in a brief? <prepare-your-brief>`
-
-An existing RFP or a few sentences about your business question is enough to start.
 ::::
+:::::
 
 :::::{div} pm-proof
 
@@ -252,7 +257,7 @@ See the [Bass Diffusion Model example notebook](https://www.pymc-marketing.io/en
 
 ## Predicted Incrementality by Experimentation (PIE)
 
-Predict the *incremental* effect of ad campaigns that never ran an experiment with **PIE** (alpha). Randomised experiments — geo tests and ghost-ad holdouts — are the gold standard for measuring campaign incrementality, but they are costly and slow. PIE fits a Bayesian BART model on the corpus of campaigns that *did* run an experiment, learning the map from campaign features to measured incrementality, then predicts a full posterior of incrementality for the campaigns that never did.
+Predict the *incremental* effect of ad campaigns that never ran an experiment with **PIE** (alpha). Randomized experiments — geo tests and ghost-ad holdouts — are the gold standard for measuring campaign incrementality, but they are costly and slow. PIE fits a Bayesian BART model on the corpus of campaigns that *did* run an experiment, learning the map from campaign features to measured incrementality, then predicts a full posterior of incrementality for the campaigns that never did.
 
 The `pymc_marketing.pie` module is in **alpha**: the API and defaults may change between releases. See the [PIE example notebook](https://www.pymc-marketing.io/en/stable/notebooks/pie/pie_example.html) for a worked example, including where predictions beat last-click attribution.
 
@@ -275,7 +280,7 @@ See how Bolt uses PyMC-Marketing to assess the impact of its marketing efforts.
 
 ::::{grid-item}
 ### Customer Lifetime Value Modeling in Marine Industry
-<iframe width="800" height="450" src="https://www.youtube.com/embed/u3oMWgStIZY" title="Customer lifetime value modelling in the marine industry" loading="lazy" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>
+<iframe width="800" height="450" src="https://www.youtube.com/embed/u3oMWgStIZY" title="Customer lifetime value modeling in the marine industry" loading="lazy" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>
 ::::
 :::::
 
@@ -299,7 +304,7 @@ For more videos, webinars and resources, check out the [PyMC Labs YouTube channe
 ### Case Studies
 
 - [Building an in-house marketing analytics solution](https://www.pymc-labs.com/blog-posts/2023-07-18-niall-In-house-marketing/)
-- [Bayesian Media Mix Models: Modelling changes in marketing effectiveness over time](https://www.pymc-labs.com/blog-posts/modelling-changes-marketing-effectiveness-over-time/)
+- [Bayesian Media Mix Models: Modeling changes in marketing effectiveness over time](https://www.pymc-labs.com/blog-posts/modelling-changes-marketing-effectiveness-over-time/)
 - [Improving the Speed and Accuracy of Bayesian Media Mix Models](https://www.pymc-labs.com/blog-posts/reducing-customer-acquisition-costs-how-we-helped-optimizing-hellofreshs-marketing-budget/)
 - [Bayesian Media Mix Modeling for Marketing Optimization](https://www.pymc-labs.com/blog-posts/bayesian-media-mix-modeling-for-marketing-optimization/)
 - [Bayesian inference at scale: Running A/B tests with millions of observations](https://www.pymc-labs.com/blog-posts/bayesian-inference-at-scale-running-ab-tests-with-millions-of-observations/)
@@ -349,7 +354,7 @@ Yes. PyMC-Marketing includes built-in [budget optimization](https://www.pymc-mar
 
 ## Need help with PyMC-Marketing?
 
-[Submit an RFP or project brief](project-brief.md), or [book a free 30-minute scoping call with Niall](https://calendly.com/niall-oulton).
+[Submit an RFP or project brief](project-brief.md), or [speak to one of our team](https://calendly.com/niall-oulton).
 
 :::{toctree}
 :hidden:
