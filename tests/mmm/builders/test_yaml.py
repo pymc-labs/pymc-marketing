@@ -284,17 +284,15 @@ def test_apply_calibration_likelihood_supported_in_yaml(dummy_mmm):
     assert dummy_mmm.called_with["likelihood"].parameters["nu"] == 4
 
 
-def test_apply_calibration_legacy_dist_yaml_supported(dummy_mmm):
+def test_apply_calibration_dist_yaml_rejected(dummy_mmm):
     steps = [
         CalibrationStep.model_validate(
             {"add_lift_test_measurements": {"dist": "Gamma"}}
         )
     ]
 
-    _apply_and_validate_calibration_steps(dummy_mmm, steps)
-
-    assert isinstance(dummy_mmm.called_with["likelihood"], Prior)
-    assert dummy_mmm.called_with["likelihood"].distribution == "Gamma"
+    with pytest.raises(ValueError, match="Use `likelihood` for YAML"):
+        _apply_and_validate_calibration_steps(dummy_mmm, steps)
 
 
 def test_apply_calibration_propagates_failure(failing_mmm):

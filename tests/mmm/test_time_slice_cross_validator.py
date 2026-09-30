@@ -970,6 +970,23 @@ def test_prepare_fold_model_passes_lift_test_likelihood():
     assert fold_model._last_lift_test_likelihood == likelihood
 
 
+def test_run_rejects_lift_likelihood_without_lift_tests():
+    dates = pd.date_range("2025-01-01", periods=4, freq="D")
+    X = pd.DataFrame({"date": dates})
+    y = pd.Series(np.arange(len(dates)))
+    cv = TimeSliceCrossValidator(
+        n_init=1, forecast_horizon=1, date_column="date", step_size=1
+    )
+
+    with pytest.raises(ValueError, match="requires `df_lift_test`"):
+        cv.run(
+            X,
+            y,
+            mmm=_RecordingFoldModel(),
+            lift_test_likelihood=Prior("StudentT", nu=4),
+        )
+
+
 def test_run_with_lift_tests_and_raw_mmm_instance():
     dates = pd.date_range("2025-01-01", periods=4, freq="D")
     X = pd.DataFrame({"date": dates, "geo": ["g1"] * len(dates)})

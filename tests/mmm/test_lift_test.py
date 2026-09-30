@@ -147,7 +147,7 @@ def test_positive_support_likelihood_rejects_unknown_or_signed_parameter_support
     with pm.Model(coords={"channel": ["one"]}) as model:
         pmd.Normal("beta", mu=1.0, sigma=0.1, dims="channel")
 
-    with pytest.raises(ValueError, match="parameters with known positive support"):
+    with pytest.raises(ValueError, match="positivity could not be established"):
         add_saturation_observations(
             df_lift_test,
             variable_mapping={"beta": "beta"},
@@ -212,6 +212,29 @@ def test_lift_likelihood_rejects_user_sigma_parameter() -> None:
             saturation_function=lambda x, beta: beta * x,
             model=model,
             likelihood=Prior("StudentT", nu=4, sigma=2.0),
+        )
+
+
+def test_student_t_likelihood_requires_degrees_of_freedom() -> None:
+    with pm.Model(coords={"channel": ["one"]}) as model:
+        pmd.HalfNormal("beta", sigma=1.0, dims="channel")
+
+    df_lift_test = pd.DataFrame(
+        {
+            "channel": ["one"],
+            "x": [0.0],
+            "delta_x": [1.0],
+            "delta_y": [1.0],
+            "sigma": [0.5],
+        }
+    )
+    with pytest.raises(ValueError, match="requires a `nu` parameter"):
+        add_saturation_observations(
+            df_lift_test,
+            variable_mapping={"beta": "beta"},
+            saturation_function=lambda x, beta: beta * x,
+            model=model,
+            likelihood=Prior("StudentT"),
         )
 
 

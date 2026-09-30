@@ -665,6 +665,7 @@ class MMM(RegressionModelBuilder):
 
         self.mu_effects: list[MuEffect] = []
         self._lift_test_calibrations: list[tuple[pd.DataFrame, Prior, str]] = []
+        self._restoring_lift_test_calibrations = False
 
     def add_mu_effect(
         self: Self,
@@ -3799,8 +3800,10 @@ class MMM(RegressionModelBuilder):
             empirical_lift = delta_y
             likelihood(model_estimated_lift, sigma=sigma, observed=empirical_lift)
 
-
         The model has to be built before adding the lift tests.
+        Lift tests must be added before fitting so the posterior is conditioned
+        on them. Adding them after a fit raises ``RuntimeError``; rebuild and
+        refit the model instead.
 
         Parameters
         ----------
@@ -3892,6 +3895,17 @@ class MMM(RegressionModelBuilder):
                 "The model has not been built yet. Please, build the model first."
             )
 
+        if (
+            self.idata is not None
+            and "posterior" in self.idata
+            and not getattr(self, "_restoring_lift_test_calibrations", False)
+        ):
+            raise RuntimeError(
+                "Lift-test measurements must be added before fitting. Rebuild the "
+                "model, add the measurements, and fit it again to condition the "
+                "posterior on the lift tests."
+            )
+
         if "channel" not in df_lift_test.columns:
             raise KeyError(
                 "The 'channel' column is required to map the lift measurements to the model."
@@ -3936,8 +3950,6 @@ class MMM(RegressionModelBuilder):
         self._lift_test_calibrations.append(
             (df_lift_test.copy(), likelihood.deepcopy(), name)
         )
-        if self.idata is not None:
-            self.idata.attrs.update(self.create_idata_attrs())
 
         return self
 
@@ -4291,41 +4303,49 @@ class MMM(RegressionModelBuilder):
         # them after rebuilding the base MMM so their likelihood and posterior
         # model-implied-lift diagnostic are present again.
         if "lift_test_calibrations" in idata.attrs:
-            for calibration in json.loads(idata.attrs["lift_test_calibrations"]):
-                if "dtypes" in calibration:
-                    df_lift_test = pd.read_json(
-                        io.StringIO(calibration["data"]),
-                        orient="split",
-                        dtype=False,
-                        convert_dates=False,
-                    )
-                    for column, dtype in calibration["dtypes"].items():
-                        if dtype.startswith("datetime64"):
-                            if "," in dtype:
-                                timezone = dtype.split(",", maxsplit=1)[1].rstrip(" ]")
-                                df_lift_test[column] = pd.to_datetime(
-                                    df_lift_test[column], utc=True
-                                ).dt.tz_convert(timezone)
+            self._restoring_lift_test_calibrations = True
+            try:
+                for calibration in json.loads(idata.attrs["lift_test_calibrations"]):
+                    if "dtypes" in calibration:
+                        df_lift_test = pd.read_json(
+                            io.StringIO(calibration["data"]),
+                            orient="split",
+                            dtype=False,
+                            convert_dates=False,
+                        )
+                        for column, dtype in calibration["dtypes"].items():
+                            if dtype.startswith("datetime64"):
+                                if "," in dtype:
+                                    timezone = dtype.split(",", maxsplit=1)[1].strip(
+                                        " ]"
+                                    )
+                                    df_lift_test[column] = pd.to_datetime(
+                                        df_lift_test[column], utc=True
+                                    ).dt.tz_convert(timezone)
+                                else:
+                                    df_lift_test[column] = pd.to_datetime(
+                                        df_lift_test[column]
+                                    ).astype(dtype)
                             else:
-                                df_lift_test[column] = pd.to_datetime(
-                                    df_lift_test[column]
-                                ).astype(dtype)
-                        else:
-                            df_lift_test[column] = df_lift_test[column].astype(dtype)
-                else:
-                    # Attributes written before dtype metadata was added used
-                    # pandas' default type inference.
-                    df_lift_test = pd.read_json(
-                        io.StringIO(calibration["data"]), orient="split"
+                                df_lift_test[column] = df_lift_test[column].astype(
+                                    dtype
+                                )
+                    else:
+                        # Attributes written before dtype metadata was added used
+                        # pandas' default type inference.
+                        df_lift_test = pd.read_json(
+                            io.StringIO(calibration["data"]), orient="split"
+                        )
+                    likelihood = serialization.deserialize_model_config(
+                        {"likelihood": calibration["likelihood"]}
+                    )["likelihood"]
+                    self.add_lift_test_measurements(
+                        df_lift_test,
+                        likelihood=likelihood,
+                        name=calibration["name"],
                     )
-                likelihood = serialization.deserialize_model_config(
-                    {"likelihood": calibration["likelihood"]}
-                )["likelihood"]
-                self.add_lift_test_measurements(
-                    df_lift_test,
-                    likelihood=likelihood,
-                    name=calibration["name"],
-                )
+            finally:
+                self._restoring_lift_test_calibrations = False
 
         # Re-add any *_original_scale Deterministics that were present when the
         # model was saved.  These are added by add_original_scale_contribution_variable

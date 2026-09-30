@@ -58,6 +58,7 @@ from pymc_marketing.mmm.scaling import (
     FixedScaling,
     Scaling,
 )
+from pymc_marketing.model_builder import DifferentModelError
 from pymc_marketing.serialization import serialization
 from pymc_marketing.special_priors import LogNormalPrior
 
@@ -981,6 +982,9 @@ def test_save_load_restores_lift_test_likelihood_and_diagnostic(
             "delta_x": [1.0],
             "delta_y": [-0.2],
             "sigma": [0.5],
+            "experiment_date": pd.to_datetime(["2025-01-07"]).tz_localize(
+                "Europe/London"
+            ),
         }
     )
     mmm.add_lift_test_measurements(
@@ -989,6 +993,9 @@ def test_save_load_restores_lift_test_likelihood_and_diagnostic(
         name="geo_lift",
     )
     mmm.fit(X, y)
+
+    with pytest.raises(RuntimeError, match="must be added before fitting"):
+        mmm.add_lift_test_measurements(calibration, name="late_lift")
 
     assert "lift_test_calibrations" in mmm.idata.attrs
     assert "geo_lift_model_estimated_lift" in mmm.idata.posterior
@@ -1002,10 +1009,25 @@ def test_save_load_restores_lift_test_likelihood_and_diagnostic(
     restored_df, restored_likelihood, restored_name = loaded._lift_test_calibrations[0]
     assert restored_df["country"].tolist() == ["001"]
     assert restored_df["country"].dtype == calibration["country"].dtype
+    pd.testing.assert_series_equal(
+        restored_df["experiment_date"], calibration["experiment_date"]
+    )
     assert restored_df["delta_y"].tolist() == [-0.2]
     assert restored_likelihood.distribution == "StudentT"
     assert restored_likelihood.parameters["nu"] == 4
     assert restored_name == "geo_lift"
+
+    stale_version_idata = copy.deepcopy(mmm.idata)
+    stale_version_idata.attrs["version"] = "0.0.1"
+    with pytest.raises(DifferentModelError, match="does not match the model version"):
+        MMM.load_from_idata(stale_version_idata, check=True)
+    assert stale_version_idata.attrs["version"] == "0.0.1"
+
+    mismatched_id_idata = copy.deepcopy(mmm.idata)
+    mismatched_id_idata.attrs["id"] = "different-model-id"
+    with pytest.raises(DifferentModelError, match="model id in the DataTree"):
+        MMM.load_from_idata(mismatched_id_idata, check=True)
+    assert mismatched_id_idata.attrs["id"] == "different-model-id"
 
 
 def test_build_from_idata_fallback_infers_original_scale_from_posterior(

@@ -846,6 +846,9 @@ class TimeSliceCrossValidator:
 
         >>> combined_idata, models = cv.run(X, y, mmm=mmm, return_models=True)
         """
+        if lift_test_likelihood is not None and df_lift_test is None:
+            raise ValueError("`lift_test_likelihood` requires `df_lift_test`.")
+
         # Upfront validation of model_names length
         n_splits = self.get_n_splits(X, y)
         if model_names is not None and len(model_names) != n_splits:

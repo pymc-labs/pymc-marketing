@@ -71,6 +71,11 @@ def _validate_lift_likelihood_data(
             "`sigma` in `likelihood`; use a supported likelihood parameter such "
             "as `nu` for StudentT."
         )
+    if likelihood.distribution == "StudentT" and "nu" not in likelihood.parameters:
+        raise ValueError(
+            "The StudentT lift likelihood requires a `nu` parameter, for example "
+            "`Prior('StudentT', nu=4)`."
+        )
     if likelihood.distribution not in (
         _POSITIVE_SUPPORT_DISTRIBUTIONS | _REAL_LINE_LIKELIHOODS
     ):
@@ -109,9 +114,11 @@ def _validate_positive_model_lift(
     ]
     if unsupported_parameters:
         raise ValueError(
-            f"{likelihood.distribution} lift likelihood requires saturation "
-            "parameters with known positive support; these parameters may be "
-            f"negative: {unsupported_parameters}."
+            f"{likelihood.distribution} lift likelihood requires a model-implied "
+            "lift that stays positive, but positivity could not be established "
+            "for upstream random variables. Hierarchical or time-varying "
+            "saturation terms may include real-line effects. Unsupported "
+            f"upstream variables: {unsupported_parameters}."
         )
 
     replaced_lift = model.replace_rvs_by_values([model_estimated_lift])[0]

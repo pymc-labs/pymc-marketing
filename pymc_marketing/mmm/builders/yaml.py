@@ -63,18 +63,13 @@ def _apply_and_validate_calibration_steps(
             with naming(f"{step.method_name}.{key}"):
                 resolved_kwargs[key] = resolve(value)
 
-        # Keep the legacy string form usable for existing YAML files while
-        # directing new configs to the serializable Prior interface.
         if step.method_name == "add_lift_test_measurements":
             if "dist" in resolved_kwargs:
-                if "likelihood" in resolved_kwargs:
-                    raise ValueError("Specify only one of `likelihood` and `dist`.")
-                legacy_dist = resolved_kwargs.pop("dist")
-                if isinstance(legacy_dist, str):
-                    resolved_kwargs["likelihood"] = Prior(legacy_dist)
-                else:
-                    resolved_kwargs["likelihood"] = Prior(legacy_dist.__name__)
-            elif isinstance(resolved_kwargs.get("likelihood"), str):
+                raise ValueError(
+                    "Use `likelihood` for YAML lift-test configuration; `dist` is "
+                    "only supported as a deprecated Python API argument."
+                )
+            if isinstance(resolved_kwargs.get("likelihood"), str):
                 resolved_kwargs["likelihood"] = Prior(resolved_kwargs["likelihood"])
 
         try:
