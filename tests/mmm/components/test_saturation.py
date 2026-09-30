@@ -120,6 +120,26 @@ def test_parameters_broadcast_against_x_by_dim_name(
         )
 
 
+@pytest.mark.parametrize(
+    "saturation_cls",
+    [cls for cls in ALL_SATURATION_CLASSES if cls.amplitude_param is not None],
+)
+def test_amplitude_param_scales_the_curve(
+    saturation_cls: type[SaturationTransformation],
+) -> None:
+    saturation = saturation_cls()
+    amplitude = saturation.amplitude_param
+    assert amplitude in saturation.default_priors
+
+    x = as_xtensor(np.linspace(0.1, 3.0, 20), dims=("date",))
+    params = {name: 0.7 for name in saturation.default_priors}
+    scaled = {**params, amplitude: 3 * params[amplitude]}
+    np.testing.assert_allclose(
+        saturation.function(x, **scaled).eval(),
+        3 * saturation.function(x, **params).eval(),
+    )
+
+
 def test_root_saturation_logp_is_differentiable_at_zero_input() -> None:
     """RootSaturation gradients must stay finite at exactly-zero input.
 

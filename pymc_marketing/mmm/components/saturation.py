@@ -179,6 +179,15 @@ class SaturationTransformation(Transformation):
     interpretation (an elasticity) when the input is not rescaled.
     """
 
+    amplitude_param: str | None = None
+    """Name of the parameter that scales the curve vertically, if any.
+
+    Set when ``function`` is that parameter times a curve free of it (or,
+    as for :class:`MichaelisMentenSaturation`, the curve's asymptote), so
+    components that rescale the curve's height can report the rescaled
+    amplitude. ``None`` when no single parameter plays that role.
+    """
+
     @validate_call
     def sample_curve(
         self,
@@ -254,6 +263,8 @@ class LogisticSaturation(SaturationTransformation):
 
     """
 
+    amplitude_param = "beta"
+
     def function(self, x, lam, beta, *, dim: str | None = None):
         """Logistic saturation function."""
         return beta * logistic_saturation(x, lam)
@@ -297,6 +308,8 @@ class InverseScaledLogisticSaturation(SaturationTransformation):
         plt.show()
 
     """
+
+    amplitude_param = "beta"
 
     def function(self, x, lam, beta, *, dim: str | None = None):
         """Inverse scaled logistic saturation function."""
@@ -394,6 +407,8 @@ class TanhSaturationBaselined(SaturationTransformation):
 
     """
 
+    amplitude_param = "beta"
+
     def function(self, x, x0, gain, r, beta, *, dim: str | None = None):
         """Tanh saturation function."""
         return beta * tanh_saturation_baselined(x, x0, gain, r)
@@ -440,6 +455,8 @@ class MichaelisMentenSaturation(SaturationTransformation):
 
     """
 
+    amplitude_param = "alpha"
+
     def function(self, x, alpha, lam, *, dim: str | None = None):
         """Michaelis-Menten saturation function."""
         return michaelis_menten(x, alpha, lam)
@@ -485,6 +502,8 @@ class HillSaturation(SaturationTransformation):
         plt.show()
 
     """
+
+    amplitude_param = "beta"
 
     def function(self, x, slope, kappa, beta, *, dim: str | None = None):
         """Hill saturation function."""
@@ -537,6 +556,8 @@ class HillSaturationSigmoid(SaturationTransformation):
 
     """
 
+    amplitude_param = "sigma"
+
     def function(self, x, sigma, beta, lam, *, dim: str | None = None):
         """Hill sigmoid function."""
         return hill_saturation_sigmoid(x, sigma, beta, lam)
@@ -580,6 +601,8 @@ class RootSaturation(SaturationTransformation):
         plt.show()
 
     """
+
+    amplitude_param = "beta"
 
     def function(self, x, alpha, beta, *, dim: str | None = None):
         """Root saturation function."""
@@ -634,6 +657,8 @@ class LogSaturation(SaturationTransformation):
 
     """
 
+    amplitude_param = "beta"
+
     requires_unscaled_input: bool = True
 
     def function(self, x, beta, *, dim: str | None = None):
@@ -674,6 +699,8 @@ class NoSaturation(SaturationTransformation):
         plt.show()
 
     """
+
+    amplitude_param = "beta"
 
     def function(self, x, beta, *, dim: str | None = None):
         """Linear saturation function."""

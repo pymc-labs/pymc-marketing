@@ -310,11 +310,11 @@ def test_lift_test_with_per_geo_channel_scale_builds():
             "sigma": [0.02, 0.03],
         }
     )
-    effect.add_lift_test_measurements(df_lift, mmm)
+    effect.add_campaign_lift_test_measurements(df_lift, mmm)
     assert "nested_media_lift_measurements" in mmm.model.named_vars
     assert np.isfinite(mmm.model.compile_logp()(mmm.model.initial_point()))
     with pytest.raises(KeyError, match="geo"):
-        effect.add_lift_test_measurements(df_lift.drop(columns="geo"), mmm)
+        effect.add_campaign_lift_test_measurements(df_lift.drop(columns="geo"), mmm)
 
 
 @pytest.mark.parametrize("reduce_dims", [(), ("geo",)])
@@ -360,7 +360,7 @@ def test_lift_test_scaling_with_model_dims(monkeypatch, reduce_dims):
             "sigma": [0.02, 0.03],
         }
     )
-    mmm.mu_effects[0].add_lift_test_measurements(df_lift, mmm)
+    mmm.mu_effects[0].add_campaign_lift_test_measurements(df_lift, mmm)
     scaled = captured["df"]
 
     # the effect's channel scale follows the MMM's channel scaling: per geo
@@ -399,9 +399,9 @@ def test_lift_test_scaling_with_model_dims(monkeypatch, reduce_dims):
     no_geo = df_lift.drop(columns="geo")
     if per_geo:
         with pytest.raises(KeyError, match="geo"):
-            mmm.mu_effects[0].add_lift_test_measurements(no_geo, mmm)
+            mmm.mu_effects[0].add_campaign_lift_test_measurements(no_geo, mmm)
     else:
-        mmm.mu_effects[0].add_lift_test_measurements(no_geo, mmm)
+        mmm.mu_effects[0].add_campaign_lift_test_measurements(no_geo, mmm)
 
 
 def test_set_data_without_campaign_data_zeroes_spend(built_mmm, campaign_mmm_data):
@@ -446,6 +446,6 @@ def test_lift_test_on_real_mmm(campaign_mmm_data):
             "sigma": [0.02],
         }
     )
-    effect.add_lift_test_measurements(df_lift, mmm)
+    effect.add_campaign_lift_test_measurements(df_lift, mmm)
     assert "nested_media_lift_measurements" in mmm.model.named_vars
     assert np.isfinite(mmm.model.compile_logp()(mmm.model.initial_point()))

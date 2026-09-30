@@ -14,10 +14,18 @@
 import numpy as np
 import pandas as pd
 import pymc as pm
+import pymc.dims as pmd
 import pytest
 import xarray as xr
+from pytensor.xtensor import as_xtensor
 
-from pymc_marketing.mmm.nested_media import NestedMediaEffect
+from pymc_marketing.mmm.components.saturation import (
+    HillSaturationSigmoid,
+    LogisticSaturation,
+    MichaelisMentenSaturation,
+    TanhSaturation,
+)
+from pymc_marketing.mmm.nested_media import NestedMediaEffect, _live_blocks
 from pymc_marketing.serialization import serialization
 
 CAMPAIGNS = ["tv_brand", "tv_promo", "search_gen", "search_brand", "search_promo"]
@@ -65,6 +73,85 @@ def test_create_data_registers_variables():
     ]:
         assert name in mmm.model.named_vars
     assert list(mmm.model.coords["nested_media_channel"]) == ["tv", "search"]
+
+
+def _channel_of(campaigns=CAMPAIGNS):
+    return xr.DataArray(
+        [MAPPING[c] for c in campaigns],
+        dims="campaign",
+        coords={"campaign": list(campaigns)},
+        name="nested_media_channel",
+    )
+
+
+def test_prepare_saturation_builds_a_channel_level_copy():
+    mmm = _make_mock_mmm()
+    effect = NestedMediaEffect(child_to_parent=MAPPING)
+    effect._prepare_saturation(mmm.model, "nested_media_channel", ["tv", "search"])
+
+    assert list(mmm.model.coords["nested_media_channel"]) == ["tv", "search"]
+    assert effect._saturation.prefix == "nested_media_saturation"
+    for prior in effect._saturation.function_priors.values():
+        assert prior.dims == ("nested_media_channel",)
+    # the user's saturation is left as it was
+    assert effect.saturation.prefix == "saturation"
+    for prior in effect.saturation.function_priors.values():
+        assert prior.dims is None
+
+
+def test_scale_and_cap_aligns_and_warns_on_dead_campaigns():
+    mmm = _make_mock_mmm()
+    spend = mmm.xarray_dataset["campaign_data"].copy()
+    spend.loc[{"campaign": "tv_promo"}] = 0.0
+    effect = NestedMediaEffect(child_to_parent=MAPPING)
+
+    with pytest.warns(UserWarning, match=r"\['tv_promo'\].*cap 0"):
+        scale, cap = effect._scale_and_cap(mmm, spend, _channel_of(), ["search", "tv"])
+    assert scale.dims == ("nested_media_channel",)
+    assert list(scale["nested_media_channel"].values) == ["search", "tv"]
+    assert cap.dims == ("campaign",)
+    assert float(cap.sel(campaign="tv_promo")) == 0.0
+    assert float(cap.sel(campaign="tv_brand")) > 0.0
+
+
+def test_register_covariates():
+    share = xr.DataArray(
+        np.full(len(CAMPAIGNS), 0.5), dims="campaign", coords={"campaign": CAMPAIGNS}
+    )
+
+    mmm = _make_mock_mmm_with_covariates()
+    effect = NestedMediaEffect(child_to_parent=MAPPING)
+    with mmm.model:
+        effect._register_covariates(mmm, mmm.model, share, _channel_of())
+    assert "nested_media_covariates" not in mmm.model.named_vars
+
+    effect = NestedMediaEffect(child_to_parent=MAPPING, covariate_var="covariates")
+    with mmm.model:
+        effect._register_covariates(mmm, mmm.model, share, _channel_of())
+    assert mmm.model.named_vars_to_dims["nested_media_covariates"] == (
+        "campaign",
+        "covariate",
+    )
+    assert list(mmm.model.coords["covariate"]) == ["log_impressions", "ctr"]
+
+
+def test_live_blocks():
+    # search_gen is dead, but it still makes search the first channel seen
+    campaigns = ["search_gen", "tv_brand", "tv_promo", "search_brand", "search_promo"]
+    share = xr.DataArray(
+        [0.0, 0.6, 0.4, 0.5, 0.5], dims="campaign", coords={"campaign": campaigns}
+    )
+    blocks = _live_blocks(campaigns, _channel_of(campaigns), share)
+    assert blocks == {
+        "search": ["search_brand", "search_promo"],
+        "tv": ["tv_brand", "tv_promo"],
+    }
+    assert list(blocks) == ["search", "tv"]
+
+    share[1] = 0.0  # tv drops to one live campaign: no free direction, no block
+    assert _live_blocks(campaigns, _channel_of(campaigns), share) == {
+        "search": ["search_brand", "search_promo"]
+    }
 
 
 def test_mapping_mismatch_raises():
@@ -118,16 +205,94 @@ def test_prior_predictive_and_channel_rollup():
     )
 
 
-def test_saturation_bounded_by_beta():
-    # saturation shapes are bounded by 1: each campaign contribution is
-    # bounded by its amplitude deterministic beta_campaign
-    mmm, _ = _build()
+class _SubclassedLogistic(LogisticSaturation):
+    pass
+
+
+@pytest.mark.parametrize(
+    "saturation",
+    [
+        MichaelisMentenSaturation(),
+        LogisticSaturation(),
+        HillSaturationSigmoid(),
+        _SubclassedLogistic(),
+    ],
+    ids=lambda s: type(s).__name__,
+)
+def test_saturation_bounded_by_beta(saturation):
+    # bounded saturation shapes top out at their amplitude parameter: each
+    # campaign contribution is bounded by its amplitude deterministic
+    mmm, _ = _build(NestedMediaEffect(child_to_parent=MAPPING, saturation=saturation))
     with mmm.model:
         idata = pm.sample_prior_predictive(draws=13, random_seed=2)
     prior = idata.prior
     contrib_max = prior["nested_media_campaign_contribution"].max("date")
     beta_c = prior["nested_media_beta_campaign"]
     assert ((contrib_max <= beta_c + 1e-12).all()).item()
+
+
+def test_campaign_multipliers_add_the_covariate_shift():
+    mmm = _make_mock_mmm_with_covariates()
+    effect = NestedMediaEffect(
+        child_to_parent=MAPPING,
+        covariate_var="covariates",
+        zero_sum_multipliers=False,
+    )
+    model = mmm.model
+    with model:
+        effect.create_data(mmm)
+        beta_mult, lam_mult = effect._campaign_multipliers(model)
+    assert beta_mult.type.dims == lam_mult.type.dims == ("campaign",)
+
+    names = ["tau_beta", "z_beta", "gamma", "tau_lam", "z_lam"]
+    draws = pm.draw(
+        [beta_mult, lam_mult, *(model[f"nested_media_{n}"] for n in names)],
+        draws=4,
+        random_seed=3,
+    )
+    beta, lam, tau_beta, z_beta, gamma, tau_lam, z_lam = draws
+    cov = model["nested_media_covariates"].values.eval()
+    np.testing.assert_allclose(
+        np.log(beta), tau_beta[:, None] * z_beta + gamma @ cov.T, rtol=1e-6
+    )
+    np.testing.assert_allclose(np.log(lam), tau_lam[:, None] * z_lam, rtol=1e-6)
+
+
+def test_register_campaign_parameters():
+    mmm = _make_mock_mmm()
+    effect = NestedMediaEffect(child_to_parent=MAPPING)  # Michaelis-Menten
+    model = mmm.model
+
+    def const(value):
+        return as_xtensor(np.full(len(CAMPAIGNS), value), dims=("campaign",))
+
+    with model:
+        effect.create_data(mmm)
+        effect._built._create_distributions()
+        effect._register_campaign_parameters(
+            model, const(1.0), const(2.0), const(3.0), const(5.0)
+        )
+
+    alpha, lam, beta_c, lam_c = pm.draw(
+        [
+            model["nested_media_saturation_alpha"],
+            model["nested_media_saturation_lam"],
+            model["nested_media_beta_campaign"],
+            model["nested_media_lam_campaign"],
+        ],
+        random_seed=4,
+    )
+    parent = [["tv", "search"].index(MAPPING[c]) for c in CAMPAIGNS]
+    np.testing.assert_allclose(beta_c, alpha[parent] * 2.0 * 3.0, rtol=1e-6)
+    np.testing.assert_allclose(lam_c, lam[parent] * 2.0 * 5.0, rtol=1e-6)
+
+
+def test_no_amplitude_deterministic_without_amplitude_param():
+    mmm, _ = _build(
+        NestedMediaEffect(child_to_parent=MAPPING, saturation=TanhSaturation())
+    )
+    assert "nested_media_beta_campaign" not in mmm.model.named_vars
+    assert "nested_media_campaign_contribution" in mmm.model.named_vars
 
 
 def test_multipliers_weighted_zero_sum_within_channel():
@@ -473,7 +638,7 @@ def test_lift_test_measurements():
             "sigma": [0.05, 0.03],
         }
     )
-    effect.add_lift_test_measurements(df_lift, mmm)
+    effect.add_campaign_lift_test_measurements(df_lift, mmm)
     assert "nested_media_lift_measurements" in mmm.model.named_vars
     logp = mmm.model.compile_logp()(mmm.model.initial_point())
     assert np.isfinite(logp)
@@ -492,7 +657,7 @@ def test_lift_test_requires_built_model():
         }
     )
     with pytest.raises(RuntimeError, match="has not been built"):
-        effect.add_lift_test_measurements(df_lift, mmm)
+        effect.add_campaign_lift_test_measurements(df_lift, mmm)
 
 
 def test_lift_test_unknown_campaign_raises():
@@ -507,22 +672,10 @@ def test_lift_test_unknown_campaign_raises():
         }
     )
     with pytest.raises(ValueError, match="Unknown campaigns"):
-        effect.add_lift_test_measurements(df_lift, mmm)
+        effect.add_campaign_lift_test_measurements(df_lift, mmm)
 
 
-@pytest.mark.parametrize(
-    "column, value",
-    [
-        ("sigma", 0.0),
-        ("delta_x", 0.0),
-        ("x", np.nan),
-        ("sigma", np.nan),
-    ],
-)
-def test_lift_test_rejects_rows_outside_contract(column, value):
-    # rows outside the lift-table contract would only surface as a -inf model
-    # logp at sample() time; the hook rejects them and names the row
-    mmm, effect = _build()
+def _lift_row(**overrides):
     row = {
         "campaign": ["tv_promo"],
         "x": [1.0],
@@ -530,9 +683,74 @@ def test_lift_test_rejects_rows_outside_contract(column, value):
         "delta_y": [0.3],
         "sigma": [0.02],
     }
-    row[column] = [value]
+    return pd.DataFrame({**row, **overrides})
+
+
+def test_validate_lift_table():
+    mmm = _make_mock_mmm()
+    effect = NestedMediaEffect(child_to_parent=MAPPING)
+    with mmm.model:
+        effect.create_data(mmm)
+    with pytest.raises(RuntimeError, match="not been built"):
+        effect._validate_lift_table(_lift_row(), mmm.model)
+
+    mmm, effect = _build()
+    effect._validate_lift_table(_lift_row(), mmm.model)
+    with pytest.raises(KeyError, match="missing columns \\['sigma'\\]"):
+        effect._validate_lift_table(_lift_row().drop(columns="sigma"), mmm.model)
+    with pytest.raises(ValueError, match="Unknown campaigns"):
+        effect._validate_lift_table(_lift_row(campaign=["radio"]), mmm.model)
+
+
+def test_row_channel_scale_selects_by_channel_and_geo():
+    effect = NestedMediaEffect(child_to_parent=MAPPING)
+    coords = {"nested_media_channel": ["tv", "search"], "geo": ["north", "south"]}
+    with pm.Model(coords=coords) as model:
+        pmd.Data(
+            "nested_media_channel_scale",
+            np.array([[1.0, 2.0], [10.0, 20.0]]),
+            dims=("geo", "nested_media_channel"),
+        )
+    rows = pd.DataFrame({"geo": ["south", "north", "south"]})
+    row_channel = pd.Series(["tv", "search", "search"])
+
+    scale = effect._row_channel_scale(rows, row_channel, model)
+    np.testing.assert_allclose(scale, [10.0, 2.0, 20.0])
+    with pytest.raises(KeyError, match="\\['geo'\\] needed to scale x/delta_x"):
+        effect._row_channel_scale(rows.drop(columns="geo"), row_channel, model)
+
+
+def test_row_target_scale():
+    effect = NestedMediaEffect(child_to_parent=MAPPING)
+    rows = pd.DataFrame({"geo": ["south", "north"]})
+
+    def mmm_with(target):
+        scalers = type("Scalers", (), {"_target": target})()
+        return type("MockMMM", (), {"scalers": scalers})()
+
+    no_scalers = type("MockMMM", (), {})()
+    np.testing.assert_allclose(effect._row_target_scale(rows, no_scalers), [1, 1])
+    np.testing.assert_allclose(effect._row_target_scale(rows, mmm_with(4.0)), [4, 4])
+    per_geo = xr.DataArray([2.0, 3.0], dims="geo", coords={"geo": ["north", "south"]})
+    np.testing.assert_allclose(
+        effect._row_target_scale(rows, mmm_with(per_geo)), [3.0, 2.0]
+    )
+    with pytest.raises(KeyError, match="\\['geo'\\] needed to scale delta_y/sigma"):
+        effect._row_target_scale(rows.drop(columns="geo"), mmm_with(per_geo))
+
+
+def test_lift_test_rejects_rows_outside_contract():
+    # the row contract itself is tested in test_lift_test.py
+    mmm, effect = _build()
+    row = {
+        "campaign": ["tv_promo"],
+        "x": [1.0],
+        "delta_x": [2.0],
+        "delta_y": [0.3],
+        "sigma": [0.0],
+    }
     with pytest.raises(ValueError, match="offending rows: \\[0\\]"):
-        effect.add_lift_test_measurements(pd.DataFrame(row), mmm)
+        effect.add_campaign_lift_test_measurements(pd.DataFrame(row), mmm)
 
 
 def test_lift_test_accepts_null_result():
@@ -548,7 +766,7 @@ def test_lift_test_accepts_null_result():
             "sigma": [0.02],
         }
     )
-    effect.add_lift_test_measurements(df_lift, mmm)
+    effect.add_campaign_lift_test_measurements(df_lift, mmm)
     assert np.isfinite(mmm.model.compile_logp()(mmm.model.initial_point()))
 
 
@@ -594,7 +812,7 @@ def test_lift_test_calibrates_response_at_operating_point():
             "sigma": [0.02],
         }
     )
-    effect.add_lift_test_measurements(df_lift, mmm)
+    effect.add_campaign_lift_test_measurements(df_lift, mmm)
     with mmm.model:
         prior = pm.sample_prior_predictive(draws=500, random_seed=7)
         idata = pm.sample(

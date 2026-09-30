@@ -99,42 +99,12 @@ from pymc_marketing.mmm.components.saturation import (
     MichaelisMentenSaturation,
     SaturationTransformation,
 )
-from pymc_marketing.mmm.lift_test import add_saturation_observations
+from pymc_marketing.mmm.lift_test import (
+    add_saturation_observations,
+    assert_valid_lift_rows,
+)
 from pymc_marketing.mmm.scaling import DataDerivedScaling, FixedScaling, VariableScaling
 from pymc_marketing.serialization import serialization
-
-# Which function parameter plays the amplitude role, per saturation class.
-# Used only to expose the f"{prefix}_beta_{child_dim}" deterministic; shapes
-# not listed here still work, they just skip that convenience deterministic.
-_AMPLITUDE_PARAM: dict[str, str] = {
-    "MichaelisMentenSaturation": "alpha",
-    "LogisticSaturation": "beta",
-    "InverseScaledLogisticSaturation": "beta",
-    "TanhSaturationBaselined": "beta",
-    "HillSaturation": "beta",
-    "HillSaturationSigmoid": "beta",
-    "RootSaturation": "beta",
-    "LogSaturation": "beta",
-    "NoSaturation": "beta",
-}
-
-
-def _check_lift_rows(df_lift_test: pd.DataFrame) -> None:
-    """Enforce the lift-table contract: finite values, ``sigma > 0``, nonzero ``delta_x``.
-
-    Rows outside this contract cannot be scored by a lift likelihood and
-    would only surface as a ``-inf`` model logp at ``sample()`` time with
-    nothing pointing at the offending row.
-    """
-    cols = df_lift_test[["x", "delta_x", "delta_y", "sigma"]]
-    bad = ~np.isfinite(cols).all(axis=1) | (cols["sigma"] <= 0) | (cols["delta_x"] == 0)
-    if bad.any():
-        raise ValueError(
-            "df_lift_test rows must have finite x, delta_x, delta_y and sigma, "
-            "with sigma > 0 and nonzero delta_x; offending rows: "
-            f"{df_lift_test.index[bad].tolist()}"
-        )
-
 
 # Scaled spend at or below this counts as zero when sizing campaigns. It is
 # relative to the channel scale, so it is float dust (a residue of a
@@ -142,7 +112,7 @@ def _check_lift_rows(df_lift_test: pd.DataFrame) -> None:
 _SPEND_DUST = 1e-12
 
 
-def _channel_scales(
+def _channel_scale_and_campaign_cap(
     spend: xr.DataArray,
     channel_of: xr.DataArray,
     child_dim: str,
@@ -202,6 +172,26 @@ def _channel_scales(
         parent_dim
     )
     return scale, cap.fillna(0.0)
+
+
+def _live_blocks(
+    campaigns: list[str], channel_of: xr.DataArray, share: xr.DataArray
+) -> dict[str, list[str]]:
+    """Live campaigns (positive spend share) of each channel that has at least two.
+
+    Channels keep their first-seen order across all campaigns.
+    """
+    live_by_channel: dict[str, list[str]] = {
+        channel: [] for channel in dict.fromkeys(channel_of.values)
+    }
+    for campaign, channel, spend_share in zip(
+        campaigns, channel_of.values, share.values, strict=True
+    ):
+        if spend_share > 0:
+            live_by_channel[channel].append(campaign)
+    return {
+        channel: names for channel, names in live_by_channel.items() if len(names) >= 2
+    }
 
 
 def _spend_shares(
@@ -358,42 +348,10 @@ class NestedMediaEffect(DataVarMuEffect):
         )
         parent_idx = np.array([channels.index(ch) for ch in channel_of.values])
 
-        # channel-level saturation priors, gathered to campaigns at build time
-        if channel_coord not in model.coords:
-            model.add_coord(channel_coord, channels)
-        # a build-time copy: the user's object keeps its prefix and prior dims
-        self._saturation = self.saturation.with_default_prior_dims((channel_coord,))
-        self._saturation.prefix = f"{p}_saturation"
+        self._prepare_saturation(model, channel_coord, channels)
         super().create_data(mmm)
 
-        scaling = getattr(getattr(mmm, "scaling", None), "channel", None)
-        unscaled = bool(getattr(self.saturation, "requires_unscaled_input", False))
-        if unscaled and getattr(mmm, "_channel_scaling_explicit", False):
-            warnings.warn(
-                f"Saturation {type(self.saturation).__name__} requires unscaled "
-                "inputs, so the channel scaling you configured is ignored for "
-                f"the {p} effect and its channel scale is set to 1.",
-                UserWarning,
-                stacklevel=2,
-            )
-        scale, cap = _channel_scales(
-            spend, channel_of, self.child_dim, scaling, unscaled=unscaled
-        )
-        scale = scale.sel({channel_coord: channels})
-        extra_dims = [d for d in scale.dims if d != channel_coord]
-        scale = scale.transpose(*extra_dims, channel_coord)
-        cap = cap.transpose(*extra_dims, self.child_dim)
-        cap_any = cap.max(extra_dims) if extra_dims else cap
-        dead = [c for c, k in zip(campaigns, cap_any.values, strict=True) if not k > 0]
-        if dead:
-            warnings.warn(
-                f"Campaigns {dead} have no spend in the data. They get cap 0: "
-                "they contribute nothing at any spend, so neither a forecast "
-                "nor the budget optimizer can fund them. Drop them, or refit "
-                "once they have run.",
-                UserWarning,
-                stacklevel=2,
-            )
+        scale, cap = self._scale_and_cap(mmm, spend, channel_of, channels)
         total_spend = spend.sum([d for d in spend.dims if d != self.child_dim])
         share = _spend_shares(total_spend, channel_of, self.child_dim)
 
@@ -410,27 +368,90 @@ class NestedMediaEffect(DataVarMuEffect):
         if self.zero_sum_multipliers:
             self._register_zero_sum_blocks(model, campaigns, channel_of, share)
 
-        if self.covariate_var is not None:
-            cov = mmm.xarray_dataset[self.covariate_var]
-            if set(cov.dims) != {self.child_dim, self.covariate_dim}:
-                raise ValueError(
-                    f"{self.covariate_var!r} must have dims exactly "
-                    f"({self.child_dim!r}, {self.covariate_dim!r}); got {cov.dims}"
-                )
-            cov = cov.transpose(self.child_dim, self.covariate_dim)
-            centred = _centred_covariates(cov, share, channel_of, self.child_dim)
-            if self.covariate_dim not in model.coords:
-                model.add_coord(
-                    self.covariate_dim,
-                    [str(c) for c in cov[self.covariate_dim].values]
-                    if self.covariate_dim in cov.coords
-                    else np.arange(cov.sizes[self.covariate_dim]),
-                )
-            pmd.Data(
-                f"{p}_covariates",
-                centred.transpose(self.child_dim, self.covariate_dim).values,
-                dims=(self.child_dim, self.covariate_dim),
+        self._register_covariates(mmm, model, share, channel_of)
+
+    def _prepare_saturation(
+        self, model: pm.Model, channel_coord: str, channels: list[str]
+    ) -> None:
+        """Build the saturation with channel-level priors, gathered to campaigns later."""
+        if channel_coord not in model.coords:
+            model.add_coord(channel_coord, channels)
+        # a build-time copy: the user's object keeps its prefix and prior dims
+        self._saturation = self.saturation.with_default_prior_dims((channel_coord,))
+        self._saturation.prefix = f"{self.prefix}_saturation"
+
+    def _scale_and_cap(
+        self,
+        mmm: Model,
+        spend: xr.DataArray,
+        channel_of: xr.DataArray,
+        channels: list[str],
+    ) -> tuple[xr.DataArray, xr.DataArray]:
+        """Channel scale and campaign cap, aligned for registration, warning on dead campaigns."""
+        p = self.prefix
+        channel_coord = str(channel_of.name)
+        campaigns = [str(c) for c in spend[self.child_dim].values]
+        scaling = getattr(getattr(mmm, "scaling", None), "channel", None)
+        unscaled = bool(getattr(self.saturation, "requires_unscaled_input", False))
+        if unscaled and getattr(mmm, "_channel_scaling_explicit", False):
+            warnings.warn(
+                f"Saturation {type(self.saturation).__name__} requires unscaled "
+                "inputs, so the channel scaling you configured is ignored for "
+                f"the {p} effect and its channel scale is set to 1.",
+                UserWarning,
+                stacklevel=3,
             )
+        scale, cap = _channel_scale_and_campaign_cap(
+            spend, channel_of, self.child_dim, scaling, unscaled=unscaled
+        )
+        scale = scale.sel({channel_coord: channels})
+        extra_dims = [d for d in scale.dims if d != channel_coord]
+        scale = scale.transpose(*extra_dims, channel_coord)
+        cap = cap.transpose(*extra_dims, self.child_dim)
+        cap_any = cap.max(extra_dims) if extra_dims else cap
+        dead = [c for c, k in zip(campaigns, cap_any.values, strict=True) if not k > 0]
+        if dead:
+            warnings.warn(
+                f"Campaigns {dead} have no spend in the data. They get cap 0: "
+                "they contribute nothing at any spend, so neither a forecast "
+                "nor the budget optimizer can fund them. Drop them, or refit "
+                "once they have run.",
+                UserWarning,
+                stacklevel=3,
+            )
+        return scale, cap
+
+    def _register_covariates(
+        self,
+        mmm: Model,
+        model: pm.Model,
+        share: xr.DataArray,
+        channel_of: xr.DataArray,
+    ) -> None:
+        """Register the campaign covariates, centred within each channel."""
+        if self.covariate_var is None:
+            return
+        p = self.prefix
+        cov = mmm.xarray_dataset[self.covariate_var]
+        if set(cov.dims) != {self.child_dim, self.covariate_dim}:
+            raise ValueError(
+                f"{self.covariate_var!r} must have dims exactly "
+                f"({self.child_dim!r}, {self.covariate_dim!r}); got {cov.dims}"
+            )
+        cov = cov.transpose(self.child_dim, self.covariate_dim)
+        centred = _centred_covariates(cov, share, channel_of, self.child_dim)
+        if self.covariate_dim not in model.coords:
+            model.add_coord(
+                self.covariate_dim,
+                [str(c) for c in cov[self.covariate_dim].values]
+                if self.covariate_dim in cov.coords
+                else np.arange(cov.sizes[self.covariate_dim]),
+            )
+        pmd.Data(
+            f"{p}_covariates",
+            centred.transpose(self.child_dim, self.covariate_dim).values,
+            dims=(self.child_dim, self.covariate_dim),
+        )
 
     def _validate_mapping(self, campaigns: list[str], model: pm.Model) -> list[str]:
         """Check the campaign-to-channel map and return the channels in first-seen order."""
@@ -475,18 +496,8 @@ class NestedMediaEffect(DataVarMuEffect):
         live-campaign coordinate; an index per campaign gathers them back to
         the campaign dimension, with dead campaigns pointing at a zero slot.
         """
-        live = share.values > 0
         live_names: list[str] = []
-        for channel in dict.fromkeys(channel_of.values):
-            names = [
-                c
-                for c, ch, is_live in zip(
-                    campaigns, channel_of.values, live, strict=True
-                )
-                if ch == channel and is_live
-            ]
-            if len(names) < 2:
-                continue
+        for channel, names in _live_blocks(campaigns, channel_of, share).items():
             sub_dim = self._parent_child_dim(channel)
             if sub_dim not in model.coords:
                 model.add_coord(sub_dim, names)
@@ -572,20 +583,59 @@ class NestedMediaEffect(DataVarMuEffect):
         """Build the nested campaign media contribution."""
         model = mmm.model
         p = self.prefix
-        channel_coord_name = f"{p}_{self.parent_dim}"
 
         x = model[self.data_vars[0]]
-        parent_idx = model[f"{p}_parent_idx"]
         onehot = model[f"{p}_parent_onehot"]
         scale = model[f"{p}_{self.parent_dim}_scale"]
         cap = model[f"{p}_{self.child_dim}_cap"]
         live = (cap > 0).astype(cap.type.dtype)  # derived, so it cannot desync
 
-        def gather(var):
-            return var[{channel_coord_name: parent_idx}]
+        x_scaled = x / self._gather_to_campaigns(model, scale)
+        beta_multiplier, lam_multiplier = self._campaign_multipliers(model)
 
-        x_scaled = x / gather(scale)
+        # channel-level saturation parameters, gathered to campaigns
+        shape_params = {
+            name: self._gather_to_campaigns(model, var)
+            for name, var in self._built._create_distributions().items()
+        }
 
+        # the campaign curve is the channel curve scaled by campaign size on
+        # both axes: split-invariant for any saturation shape
+        # a dead campaign (cap 0) evaluates on size 1 and is then zeroed, so
+        # nothing divides by zero and it contributes nothing at any spend
+        size = (cap + (1 - live)) ** self.rho
+        x_rel = x_scaled / (size * lam_multiplier)
+        curve = self._built.function(x_rel, dim="date", **shape_params)
+        campaign_contribution = pmd.Deterministic(
+            f"{p}_{self.child_dim}_contribution",
+            live * size * beta_multiplier * curve,
+        )
+
+        self._register_campaign_parameters(
+            model, live, size, beta_multiplier, lam_multiplier
+        )
+
+        pmd.Deterministic(
+            f"{p}_{self.parent_dim}_contribution",
+            (campaign_contribution * onehot).sum(dim=self.child_dim),
+        )
+        return pmd.Deterministic(
+            f"{p}_effect_contribution",
+            campaign_contribution.sum(dim=self.child_dim),
+        )
+
+    def _gather_to_campaigns(
+        self, model: pm.Model, var: XTensorVariable
+    ) -> XTensorVariable:
+        """Index a channel-level variable by each campaign's channel."""
+        channel_coord = f"{self.prefix}_{self.parent_dim}"
+        return var[{channel_coord: model[f"{self.prefix}_parent_idx"]}]
+
+    def _campaign_multipliers(
+        self, model: pm.Model
+    ) -> tuple[XTensorVariable, XTensorVariable]:
+        """Campaign amplitude and x-scale multipliers around the channel curve."""
+        p = self.prefix
         tau_beta = pmd.HalfNormal(f"{p}_tau_beta", sigma=self.tau_beta_sigma)
         tau_lam = pmd.HalfNormal(f"{p}_tau_lam", sigma=self.tau_lam_sigma)
         if self.zero_sum_multipliers:
@@ -611,30 +661,25 @@ class NestedMediaEffect(DataVarMuEffect):
         lam_multiplier = pmd.Deterministic(
             f"{p}_lam_multiplier", pmd.math.exp(tau_lam * z_lam)
         )
+        return beta_multiplier, lam_multiplier
 
-        # channel-level saturation parameters, gathered to campaigns
-        shape_params = {
-            name: gather(var)
-            for name, var in self._built._create_distributions().items()
-        }
-
-        # the campaign curve is the channel curve scaled by campaign size on
-        # both axes: split-invariant for any saturation shape
-        # a dead campaign (cap 0) evaluates on size 1 and is then zeroed, so
-        # nothing divides by zero and it contributes nothing at any spend
-        size = (cap + (1 - live)) ** self.rho
-        x_rel = x_scaled / (size * lam_multiplier)
-        curve = self._built.function(x_rel, dim="date", **shape_params)
-        campaign_contribution = pmd.Deterministic(
-            f"{p}_{self.child_dim}_contribution",
-            live * size * beta_multiplier * curve,
-        )
-
-        amplitude = _AMPLITUDE_PARAM.get(type(self._built).__name__)
+    def _register_campaign_parameters(
+        self,
+        model: pm.Model,
+        live: XTensorVariable,
+        size: XTensorVariable,
+        beta_multiplier: XTensorVariable,
+        lam_multiplier: XTensorVariable,
+    ) -> None:
+        """Per-campaign amplitude and half-saturation point, for reporting."""
+        p = self.prefix
+        amplitude = self._built.amplitude_param
         if amplitude is not None:
             pmd.Deterministic(
                 f"{p}_beta_{self.child_dim}",
-                gather(model[self._built.variable_mapping[amplitude]])
+                self._gather_to_campaigns(
+                    model, model[self._built.variable_mapping[amplitude]]
+                )
                 * live
                 * size
                 * beta_multiplier,
@@ -643,21 +688,14 @@ class NestedMediaEffect(DataVarMuEffect):
             # half-saturation point of campaign c on the scaled-spend axis
             pmd.Deterministic(
                 f"{p}_lam_{self.child_dim}",
-                gather(model[self._built.variable_mapping["lam"]])
+                self._gather_to_campaigns(
+                    model, model[self._built.variable_mapping["lam"]]
+                )
                 * size
                 * lam_multiplier,
             )
 
-        pmd.Deterministic(
-            f"{p}_{self.parent_dim}_contribution",
-            (campaign_contribution * onehot).sum(dim=self.child_dim),
-        )
-        return pmd.Deterministic(
-            f"{p}_effect_contribution",
-            campaign_contribution.sum(dim=self.child_dim),
-        )
-
-    def add_lift_test_measurements(
+    def add_campaign_lift_test_measurements(
         self,
         df_lift_test: pd.DataFrame,
         mmm: Model,
@@ -704,75 +742,14 @@ class NestedMediaEffect(DataVarMuEffect):
         model = mmm.model
         p = self.prefix
         channel_coord_name = f"{p}_{self.parent_dim}"
-        if f"{p}_beta_multiplier" not in model.named_vars:
-            raise RuntimeError(
-                "The model has not been built yet. Build the model before "
-                "adding lift test measurements."
-            )
-        required = {self.child_dim, "x", "delta_x", "delta_y", "sigma"}
-        missing = required - set(df_lift_test.columns)
-        if missing:
-            raise KeyError(f"df_lift_test is missing columns {sorted(missing)}")
-
-        campaigns = [str(c) for c in model.coords[self.child_dim]]
-        unknown = set(df_lift_test[self.child_dim].astype(str)) - set(campaigns)
-        if unknown:
-            raise ValueError(f"Unknown campaigns in df_lift_test: {sorted(unknown)}")
-        _check_lift_rows(df_lift_test)
+        self._validate_lift_table(df_lift_test, model)
 
         rows = df_lift_test.reset_index(drop=True)
         row_channel = rows[self.child_dim].astype(str).map(self.child_to_parent)
-        scale_name = f"{p}_{self.parent_dim}_scale"
-        scale_dims = tuple(model.named_vars_to_dims[scale_name])
-        channel_scale = xr.DataArray(
-            model[scale_name].get_value(),
-            dims=scale_dims,
-            coords={d: list(model.coords[d]) for d in scale_dims},
-        )
-        # the scale carries the parent and any model dim the MMM's channel
-        # scaling did not reduce; the lift table must provide those as columns
-        missing_dims = set(scale_dims) - {channel_coord_name} - set(rows.columns)
-        if missing_dims:
-            raise KeyError(
-                f"df_lift_test is missing the model dim columns "
-                f"{sorted(missing_dims)} needed to scale x/delta_x"
-            )
-        row_scale = channel_scale.sel(
-            {
-                channel_coord_name: xr.DataArray(row_channel.to_numpy(), dims="row"),
-                **{
-                    d: xr.DataArray(rows[d].to_numpy(), dims="row")
-                    for d in scale_dims
-                    if d != channel_coord_name
-                },
-            }
-        ).to_numpy()
+        row_scale = self._row_channel_scale(rows, row_channel, model)
 
         if target_transform is None:
-            # Scale delta_y and sigma into the model's target units. The
-            # fitted target scaler is a scalar, or an array over some of the
-            # model dims: select on exactly the dims it carries, which the
-            # lift table must then provide as columns.
-            target_scale = getattr(getattr(mmm, "scalers", None), "_target", None)
-            if target_scale is None:
-                row_target_scale = np.ones(len(rows))
-            else:
-                target_scale = xr.DataArray(target_scale)
-                missing_dims = set(target_scale.dims) - set(rows.columns)
-                if missing_dims:
-                    raise KeyError(
-                        f"df_lift_test is missing the model dim columns "
-                        f"{sorted(missing_dims)} needed to scale delta_y/sigma"
-                    )
-                row_target_scale = np.broadcast_to(
-                    target_scale.sel(
-                        {
-                            d: xr.DataArray(rows[d].to_numpy(), dims="row")
-                            for d in target_scale.dims
-                        }
-                    ).to_numpy(),
-                    (len(rows),),
-                )
+            row_target_scale = self._row_target_scale(rows, mmm)
 
             def target_transform(values: np.ndarray) -> np.ndarray:
                 return values / row_target_scale[:, None]
@@ -821,6 +798,86 @@ class NestedMediaEffect(DataVarMuEffect):
             name=name or f"{p}_lift_measurements",
         )
         return self
+
+    def _validate_lift_table(self, df_lift_test: pd.DataFrame, model: pm.Model) -> None:
+        """Check the model is built and the lift table's columns, campaigns and rows."""
+        p = self.prefix
+        if f"{p}_beta_multiplier" not in model.named_vars:
+            raise RuntimeError(
+                "The model has not been built yet. Build the model before "
+                "adding lift test measurements."
+            )
+        required = {self.child_dim, "x", "delta_x", "delta_y", "sigma"}
+        missing = required - set(df_lift_test.columns)
+        if missing:
+            raise KeyError(f"df_lift_test is missing columns {sorted(missing)}")
+
+        campaigns = [str(c) for c in model.coords[self.child_dim]]
+        unknown = set(df_lift_test[self.child_dim].astype(str)) - set(campaigns)
+        if unknown:
+            raise ValueError(f"Unknown campaigns in df_lift_test: {sorted(unknown)}")
+        assert_valid_lift_rows(df_lift_test)
+
+    def _row_channel_scale(
+        self, rows: pd.DataFrame, row_channel: pd.Series, model: pm.Model
+    ) -> np.ndarray:
+        """Channel scale of each lift row, selected by its channel and model dims.
+
+        The scale carries the parent and any model dim the MMM's channel
+        scaling did not reduce; the lift table must provide those as columns.
+        """
+        p = self.prefix
+        channel_coord_name = f"{p}_{self.parent_dim}"
+        scale_name = f"{p}_{self.parent_dim}_scale"
+        scale_dims = tuple(model.named_vars_to_dims[scale_name])
+        channel_scale = xr.DataArray(
+            model[scale_name].get_value(),
+            dims=scale_dims,
+            coords={d: list(model.coords[d]) for d in scale_dims},
+        )
+        missing_dims = set(scale_dims) - {channel_coord_name} - set(rows.columns)
+        if missing_dims:
+            raise KeyError(
+                f"df_lift_test is missing the model dim columns "
+                f"{sorted(missing_dims)} needed to scale x/delta_x"
+            )
+        return channel_scale.sel(
+            {
+                channel_coord_name: xr.DataArray(row_channel.to_numpy(), dims="row"),
+                **{
+                    d: xr.DataArray(rows[d].to_numpy(), dims="row")
+                    for d in scale_dims
+                    if d != channel_coord_name
+                },
+            }
+        ).to_numpy()
+
+    def _row_target_scale(self, rows: pd.DataFrame, mmm: Model) -> np.ndarray:
+        """Target scale of each lift row, from the MMM's fitted target scaler.
+
+        The scaler is a scalar, or an array over some of the model dims:
+        select on exactly the dims it carries, which the lift table must then
+        provide as columns. Without a scaler, targets are assumed unscaled.
+        """
+        target_scale = getattr(getattr(mmm, "scalers", None), "_target", None)
+        if target_scale is None:
+            return np.ones(len(rows))
+        target_scale = xr.DataArray(target_scale)
+        missing_dims = set(target_scale.dims) - set(rows.columns)
+        if missing_dims:
+            raise KeyError(
+                f"df_lift_test is missing the model dim columns "
+                f"{sorted(missing_dims)} needed to scale delta_y/sigma"
+            )
+        return np.broadcast_to(
+            target_scale.sel(
+                {
+                    d: xr.DataArray(rows[d].to_numpy(), dims="row")
+                    for d in target_scale.dims
+                }
+            ).to_numpy(),
+            (len(rows),),
+        )
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize to a dict."""

@@ -339,6 +339,36 @@ def assert_monotonic(delta_x: pd.Series, delta_y: pd.Series) -> None:
         raise NonMonotonicError("The data is not monotonic.")
 
 
+def assert_valid_lift_rows(df_lift_test: pd.DataFrame) -> None:
+    """Check that every lift test row can be scored by a lift likelihood.
+
+    Rows need finite ``x``, ``delta_x``, ``delta_y`` and ``sigma``, with
+    ``sigma > 0`` and a nonzero ``delta_x``. Rows outside this contract would
+    otherwise only surface as a ``-inf`` model logp at sampling time, with
+    nothing pointing at the offending row.
+
+    Parameters
+    ----------
+    df_lift_test : pd.DataFrame
+        Lift test measurements with columns ``x``, ``delta_x``, ``delta_y``
+        and ``sigma``.
+
+    Raises
+    ------
+    ValueError
+        If any row is outside the contract; the message lists their index.
+
+    """
+    cols = df_lift_test[["x", "delta_x", "delta_y", "sigma"]]
+    bad = ~np.isfinite(cols).all(axis=1) | (cols["sigma"] <= 0) | (cols["delta_x"] == 0)
+    if bad.any():
+        raise ValueError(
+            "df_lift_test rows must have finite x, delta_x, delta_y and sigma, "
+            "with sigma > 0 and nonzero delta_x; offending rows: "
+            f"{df_lift_test.index[bad].tolist()}"
+        )
+
+
 P = ParamSpec("P")
 SaturationFunc = Callable[Concatenate[XTensorVariable, P], XTensorVariable]
 VariableMapping = dict[str, str]
