@@ -1,0 +1,40 @@
+scripts/budget_optimizer_causal_audit/run.py
+  s_72eb83189ab758::t_cd1c5535386495 42,113
+  s_72eb83189ab758::t_197555a72eb586 335-339,341,344-354
+  s_72eb83189ab758::t_e7bd417c8662e8 19,161-162,184-185,266-312,331-332,334
+  s_72eb83189ab758::t_28e96a65ea8bf6 1-18,20-24,26-39,41,43-57,61-64,66-67,69-70,73-85,93-100,104-112,114-160,163-171,174-183,186-199,211-220,264-265,313-319,321-329,333,355-361
+  s_72eb83189ab758::t_cd33cb7fe88391 340,342-343
+  s_72eb83189ab758::t_e21497a5b485ee 25,58-60,71-72,86-92,101-103,172-173,235-240
+  s_72eb83189ab758::t_8267a398d10ca5 40,65,68,200-210,221-234,241-263,320,330
+scripts/budget_optimizer_causal_audit/results.json
+  s_72eb83189ab758::t_29821f1c513831 1-13,15-29,32,34-48,51,53-83,135-136
+  s_72eb83189ab758::t_e26c3fd897a200 30-31,33,49-50,52,108-134
+  s_72eb83189ab758::t_738b3836488de2 14,84-107
+scripts/budget_optimizer_causal_audit/pr3045_results.json
+  s_72eb83189ab758::t_f6cbf54bb626cc 1-14
+scripts/budget_optimizer_causal_audit/README.md
+  s_72eb83189ab758::t_f1b2aa855a82cb 1-122
+scripts/budget_optimizer_causal_audit/ISSUE.md
+  s_72eb83189ab758::t_2f55996fa2b1bc 1-9,14-134
+  s_72eb83189ab758::t_250a0703ac22d9 10-13
+scripts/budget_optimizer_causal_audit/run_pr3045.py
+  s_72eb83189ab758::t_197555a72eb586 45-46
+  s_72eb83189ab758::t_cd1c5535386495 1-13,15-19,21-25,27-36,41-44,47-54
+  s_72eb83189ab758::t_e21497a5b485ee 14,20,26,37-40
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "726b2bb3b74b4c26efe549d98b7a8da689bbb0b0",
+  "prompts": {},
+  "sessions": {
+    "s_72eb83189ab758": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0f28b-afd5-7ca1-b17b-4ed43ca51f38",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Benjamin T. Vincent <inferencelab@gmail.com>"
+    }
+  }
+}
