@@ -1,0 +1,51 @@
+tests/mmm/test_lift_test.py
+  s_592cffb5157485::t_b6398bb1a562f0 219-236,238-249
+  s_592cffb5157485::t_42c4d068a00998 237
+pymc_marketing/mmm/mmm.py
+  s_592cffb5157485::t_acec6a77f72d3f 667,1093,3898-3904,3918-3941,3982,4091-4097,4314-4315
+  s_592cffb5157485::t_1f6fb3b4e447f1 3796-3798,3814-3815,4012-4014
+  s_592cffb5157485::t_55e42f76d583cf 3821-3824
+  s_592cffb5157485::t_74fcb8ba86ef3a 4355
+  s_592cffb5157485::t_cfa19fab35d6a0 4015
+pymc_marketing/mlflow.py
+  s_592cffb5157485::t_93418c3cf348be 1106,1109
+  s_592cffb5157485::t_b10582af17fb23 1108
+pymc_marketing/mmm/lift_test.py
+  s_592cffb5157485::t_6737fd2f990409 74-83
+pymc_marketing/mmm/time_slice_cross_validation.py
+  s_592cffb5157485::t_a8818aa4f3d211 23,37,42,778-780,863-882
+  s_592cffb5157485::t_a0c60f98e197f0 883
+tests/mmm/test_mmm.py
+  s_592cffb5157485::t_603404c524ae23 3507-3528
+  s_592cffb5157485::t_745baf0bd5a8f9 3480-3506,3529-3550,3552-3559
+  s_592cffb5157485::t_cd98a1dd8f629f 990,1032
+  s_592cffb5157485::t_0226fdc939329d 15,1035-1036
+  s_592cffb5157485::t_ccbb4b36bb35bf 1025-1028,1031,1034,1037
+  s_592cffb5157485::t_01bc711f676f6e 1049-1051
+  s_592cffb5157485::t_3fd1ff94c8395b 3551
+  s_592cffb5157485::t_b9fe4398b096ff 3560-3561
+tests/mmm/test_time_slice_cross_validator.py
+  s_592cffb5157485::t_0221df17fe6113 1021-1040,1042-1076
+  s_592cffb5157485::t_c2f7c19af53320 1041
+tests/test_mlflow.py
+  s_592cffb5157485::t_d7b5544ed05bec 592
+  s_592cffb5157485::t_47913bcaf5ce0d 599
+  s_592cffb5157485::t_8182683740f199 591,593-598,600-605
+  s_592cffb5157485::t_a0bed9f4c8722b 606-607
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "31f65777697ae955788d37dc2f921a7212d65415",
+  "prompts": {},
+  "sessions": {
+    "s_592cffb5157485": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0f31a-7de4-7442-825e-983ee9a37329",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "Benjamin T. Vincent <inferencelab@gmail.com>"
+    }
+  }
+}
