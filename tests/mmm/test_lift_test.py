@@ -78,7 +78,7 @@ def test_add_saturation_observations_defaults_to_signed_normal_likelihood() -> N
 
 def test_add_saturation_observations_allows_explicit_gamma_likelihood() -> None:
     with pm.Model(coords={"channel": ["one"]}) as model:
-        pmd.Normal("beta", mu=1.0, sigma=0.1, dims="channel")
+        pmd.HalfNormal("beta", sigma=1.0, dims="channel")
 
     df_lift_test = pd.DataFrame(
         {
@@ -101,6 +101,42 @@ def test_add_saturation_observations_allows_explicit_gamma_likelihood() -> None:
     # Gamma(mu=1, sigma=0.5) has shape=4 and rate=4.
     expected_logp = np.log(4**4 / 6) - 4
     assert np.isclose(logp, expected_logp)
+
+
+def test_positive_support_likelihood_rejects_unknown_or_signed_parameter_support() -> (
+    None
+):
+    df_lift_test = pd.DataFrame(
+        {
+            "channel": ["one"],
+            "x": [0.0],
+            "delta_x": [1.0],
+            "delta_y": [1.0],
+            "sigma": [0.5],
+        }
+    )
+    with pm.Model(coords={"channel": ["one"]}) as model:
+        pmd.Normal("beta", mu=1.0, sigma=0.1, dims="channel")
+
+    with pytest.raises(ValueError, match="parameters with known positive support"):
+        add_saturation_observations(
+            df_lift_test,
+            variable_mapping={"beta": "beta"},
+            saturation_function=lambda x, beta: beta * x,
+            model=model,
+            likelihood=Prior("Gamma"),
+        )
+
+    with pytest.raises(
+        ValueError, match="Cannot validate the support of the HalfNormal"
+    ):
+        add_saturation_observations(
+            df_lift_test,
+            variable_mapping={"beta": "beta"},
+            saturation_function=lambda x, beta: beta * x,
+            model=model,
+            likelihood=Prior("HalfNormal"),
+        )
 
 
 def test_explicit_gamma_rejects_negative_lift_at_construction() -> None:

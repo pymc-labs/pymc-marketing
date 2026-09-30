@@ -30,6 +30,7 @@ import pytensor.xtensor as ptx
 from numpy import typing as npt
 from pymc import modelcontext
 from pymc_extras.prior import Prior
+from pytensor.graph.traversal import ancestors
 from pytensor.xtensor import as_xtensor
 from pytensor.xtensor.type import XTensorVariable
 
@@ -48,12 +49,43 @@ _POSITIVE_SUPPORT_DISTRIBUTIONS = {
     "Wald",
     "Weibull",
 }
+_REAL_LINE_LIKELIHOODS = {
+    "AsymmetricLaplace",
+    "Cauchy",
+    "Gumbel",
+    "Laplace",
+    "Logistic",
+    "Moyal",
+    "Normal",
+    "SkewNormal",
+    "StudentT",
+}
+_POSITIVE_SUPPORT_RV_OPS = {
+    "beta",
+    "exponential",
+    "gamma",
+    "halfcauchy",
+    "halfnormal",
+    "halft",
+    "invgamma",
+    "lognormal",
+    "pareto",
+    "weibull",
+}
 
 
 def _validate_lift_likelihood_data(
     df_lift_test: pd.DataFrame, likelihood: Prior
 ) -> None:
     """Validate observations against known likelihood support constraints."""
+    if likelihood.distribution not in (
+        _POSITIVE_SUPPORT_DISTRIBUTIONS | _REAL_LINE_LIKELIHOODS
+    ):
+        raise ValueError(
+            f"Cannot validate the support of the {likelihood.distribution} lift "
+            "likelihood. Use a supported real-line likelihood or a known "
+            "positive-support likelihood."
+        )
     if likelihood.distribution in _POSITIVE_SUPPORT_DISTRIBUTIONS:
         if (df_lift_test["delta_y"] <= 0).any():
             raise ValueError(
@@ -66,6 +98,40 @@ def _validate_lift_likelihood_data(
                 f"{likelihood.distribution} lift likelihood is only valid when "
                 "the spend changes and model-implied lifts are positive."
             )
+
+
+def _validate_positive_model_lift(
+    model: pm.Model, model_estimated_lift: XTensorVariable, likelihood: Prior
+) -> None:
+    """Ensure positive likelihoods have a valid model lift at initialization."""
+    if likelihood.distribution not in _POSITIVE_SUPPORT_DISTRIBUTIONS:
+        return
+
+    free_rvs = set(model.free_RVs)
+    parameter_rvs = [rv for rv in ancestors([model_estimated_lift]) if rv in free_rvs]
+    unsupported_parameters = [
+        rv.name
+        for rv in parameter_rvs
+        if rv.owner.op.name.lower() not in _POSITIVE_SUPPORT_RV_OPS
+    ]
+    if unsupported_parameters:
+        raise ValueError(
+            f"{likelihood.distribution} lift likelihood requires saturation "
+            "parameters with known positive support; these parameters may be "
+            f"negative: {unsupported_parameters}."
+        )
+
+    replaced_lift = model.replace_rvs_by_values([model_estimated_lift])[0]
+    initial_lift = model.compile_fn(
+        replaced_lift,
+        point_fn=True,
+        on_unused_input="ignore",
+    )(model.initial_point())
+    if (np.asarray(initial_lift) <= 0).any():
+        raise ValueError(
+            f"{likelihood.distribution} lift likelihood requires positive "
+            "model-implied lifts at the model's initial point."
+        )
 
 
 def _resolve_likelihood(
@@ -498,6 +564,7 @@ def add_saturation_observations(
 
     with current_model:
         current_model.add_coord(lift_dim, length=len(df_lift_test))
+        _validate_positive_model_lift(current_model, model_estimated_lift, likelihood)
         model_estimated_lift = pmd.Deterministic(
             f"{name}_model_estimated_lift", model_estimated_lift
         )
