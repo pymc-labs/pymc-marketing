@@ -17,6 +17,7 @@ from enum import StrEnum
 from typing import NamedTuple
 
 import numpy as np
+import pytensor
 import pytensor.tensor as pt
 import pytensor.xtensor as ptx
 from pymc.dims import Weibull
@@ -55,6 +56,11 @@ def _check_alpha(
     checked_alpha_tensor = alpha_check_op(
         alpha_tensor, ((alpha_tensor >= 0) & (alpha_tensor <= 1)).all()
     )
+    alpha_dtype = checked_alpha_tensor.dtype
+    tiny = np.finfo(
+        alpha_dtype if alpha_dtype.startswith("float") else pytensor.config.floatX
+    ).smallest_normal
+    checked_alpha_tensor = pt.maximum(checked_alpha_tensor, tiny)
     return as_xtensor(checked_alpha_tensor, dims=alpha.dims)
 
 
