@@ -78,6 +78,7 @@ from pymc_marketing.mmm.optimization_variables import (
     OptimizationVariable,
     OptimizationVariables,
 )
+from pymc_marketing.mmm.original_scale_index import OriginalScaleIndex
 from pymc_marketing.mmm.plotting import MMMPlotSuiteFacade
 from pymc_marketing.mmm.preprocessing import (
     preprocessing_method_X,
@@ -134,6 +135,7 @@ __all__ = [
     "NoSaturation",
     "OptimizationVariable",
     "OptimizationVariables",
+    "OriginalScaleIndex",
     "PeriodicCovFunc",
     "PlanEvaluation",
     "RootSaturation",
