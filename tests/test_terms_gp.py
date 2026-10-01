@@ -1220,3 +1220,30 @@ def test_datetime_extra_coord_survives_serialization():
     with pm.Model(coords=collect_coords(restored, ds=data)):
         register_data(restored, ds=data)
         set_data(restored, ds=data, model=pm.modelcontext(None))
+
+
+def test_set_data_refuses_mismatched_resolution(ds):
+    """set_data re-checks the shared index's unit, not only register_data.
+
+    register_data catches two terms that disagree at build time, but a recipe
+    can be restored and retuned between the two calls, so the unit has to be
+    re-checked when the index is rewritten too.
+    """
+    trend = HSGPTerm(name="trend", time_resolution=7)
+    mu = Intercept("intercept") + trend
+    with pm.Model(coords=collect_coords(mu, ds=ds)) as model:
+        register_data(mu, ds=ds)
+        build_param(mu)
+
+        future = xr.Dataset(
+            {},
+            coords={
+                "date": pd.date_range(
+                    ds.coords["date"].values[-1], periods=8, freq="W-MON"
+                )
+            },
+        )
+        # retune the restored recipe to a different unit for the same reference
+        trend.time_resolution = 1
+        with pytest.raises(ValueError, match="must agree on time_resolution"):
+            set_data(trend, ds=future, model=model)
