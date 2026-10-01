@@ -208,13 +208,41 @@ def _dims_to_list(dims: str | tuple[str, ...] | None) -> list[str] | None:
 
 
 def _serialize_coord(values: list[Any]) -> list[Any]:
-    """Serialize an extra-dim coordinate to JSON-safe Python scalars."""
-    return [v.item() if hasattr(v, "item") else v for v in values]
+    """Serialize an extra-dim coordinate to JSON-safe Python scalars.
+
+    Datetime values become ISO strings rather than ``.item()`` integers: the
+    naive ``.item()`` turns a ``datetime64[ns]`` coordinate into a count of
+    nanoseconds since the epoch, which ``_check_extra_coords`` would then
+    reject as a mismatch against the identical coordinate after a reload.
+    """
+    out: list[Any] = []
+    for value in values:
+        if isinstance(value, np.datetime64):
+            out.append(str(value.astype("datetime64[us]")))
+        elif hasattr(value, "item"):
+            out.append(value.item())
+        else:
+            out.append(value)
+    return out
 
 
 def _deserialize_coord(values: list[Any]) -> list[Any]:
-    """Deserialize a JSON-safe coordinate back to a list."""
-    return list(values)
+    """Deserialize a JSON-safe coordinate back to a list.
+
+    ISO strings produced by :func:`_serialize_coord` for a datetime
+    coordinate are restored as ``datetime64``, so a reloaded term compares
+    equal to the datetime coordinate it was registered with.
+    """
+    out: list[Any] = []
+    for value in values:
+        if isinstance(value, str):
+            try:
+                out.append(np.datetime64(value))
+                continue
+            except (ValueError, TypeError):
+                pass
+        out.append(value)
+    return out
 
 
 def _serialize_date(value: Any) -> str | None:
@@ -264,6 +292,30 @@ class GPDataTerm(ModelTerm):
     extra_coords: dict[str, list[Any]] = field(
         default_factory=dict, init=False, repr=False
     )
+
+    @property
+    def _index_time_resolution(self) -> int | None:
+        """The ``time_resolution`` the shared index was registered with, if any.
+
+        Recorded on the model (not the term), because the term that registers
+        the index is not necessarily the term that later checks it: two terms
+        sharing a time reference each resolve their own resolution, and the
+        second one has to see what the first one committed to.
+        """
+        model = pm.modelcontext(None)
+        registry = getattr(model, "_gp_index_time_resolutions", None)
+        if registry is None:
+            return None
+        return registry.get(self.index_var)
+
+    def _record_index_time_resolution(self) -> None:
+        """Record this term's resolution as the one the shared index uses."""
+        model = pm.modelcontext(None)
+        registry = getattr(model, "_gp_index_time_resolutions", None)
+        if registry is None:
+            registry = {}
+            model._gp_index_time_resolutions = registry
+        registry.setdefault(self.index_var, self.time_resolution)
 
     @property
     def index_var(self) -> str:
@@ -348,7 +400,7 @@ class GPDataTerm(ModelTerm):
         """
         if self.first_date is None or not np.issubdtype(values.dtype, np.datetime64):
             return
-        earliest = values[0]
+        earliest = values.min()
         if earliest < self.first_date:
             raise ValueError(
                 f"The time reference {self.var_name!r} starts at {earliest}, before "
@@ -357,6 +409,36 @@ class GPDataTerm(ModelTerm):
                 "cannot be placed on the learned time axis. Pass data covering the "
                 "training range (or starting at/after it) instead."
             )
+
+    def _check_index_agreement(self) -> None:
+        """Refuse to shadow a shared time index with a differently-scaled one.
+
+        ``{var_name}_index`` is registered once per ``var_name`` and shared by
+        every term referencing it, but each term resolves its own
+        ``time_resolution``, ``X_mid``, ``m``, and ``L`` from its own view of
+        the data. If two terms disagree on the resolution, the second would
+        build its basis against a shared axis in different units, centering
+        and sizing it wrong. ``set_data`` has the same hazard: each term
+        writes its own values into the shared index and the last one wins.
+
+        Only the *unit* is compared, not the values: a prediction window that
+        extends or shifts the training range is the normal out-of-sample case
+        and must keep working.
+        """
+        registered = self._index_time_resolution
+        if registered is None or registered == self.time_resolution:
+            return
+        raise ValueError(
+            f"The GP term {self.name!r} resolves {self.var_name!r} at "
+            f"time_resolution={self.time_resolution}, but {self.index_var!r} was "
+            f"already registered at time_resolution={registered}. The index is "
+            "registered once per time reference and shared, so terms on the same "
+            "reference must agree on time_resolution; otherwise each basis is "
+            "centered and sized on a different axis and one term silently "
+            "overwrites the other's values. Pass the same explicit "
+            f"time_resolution to every term sharing {self.var_name!r}, or give "
+            "them separate time references."
+        )
 
     def register_data(self, ds: xr.Dataset) -> None:
         """Register the numeric time index as ``pmd.Data`` and freeze ``X_mid``."""
@@ -367,11 +449,14 @@ class GPDataTerm(ModelTerm):
         if is_datetime:
             self._check_window_start(values)
             if self.first_date is None:
-                self.first_date = values[0]
-            if self.last_date is None or values[-1] > self.last_date:
-                self.last_date = values[-1]
+                self.first_date = values.min()
+            if self.last_date is None or values.max() > self.last_date:
+                self.last_date = values.max()
+        index = self._time_index(da)
+        self._check_index_agreement()
         if self.index_var not in model:
-            pmd.Data(self.index_var, self._time_index(da))
+            pmd.Data(self.index_var, index)
+            self._record_index_time_resolution()
         if self.X_mid is None:
             self.X_mid = float(self._time_values(da).mean())
         if self.time_dim is None:
@@ -423,8 +508,14 @@ class GPDataTerm(ModelTerm):
             )
         self._check_extra_coords(ds)
         da = ds[self.var_name]
+        # The anchor applies here too, not only in register_data: a prediction
+        # window starting before it would place the time index before zero,
+        # outside the frozen basis, and extrapolate silently.
+        self._check_window_start(np.asarray(da.values))
         coords = {dim: ds[dim].values for dim in da.dims if dim in ds.coords}
-        pm.set_data({self.index_var: self._time_values(da)}, model=model, coords=coords)
+        values = self._time_values(da)
+        self._check_index_agreement()
+        pm.set_data({self.index_var: values}, model=model, coords=coords)
 
     def _check_registered(self) -> pm.Model:
         """Return the active model, raising if the time reference is unregistered."""

@@ -1042,3 +1042,181 @@ def test_defaults_match_parameterize_from_data():
     assert term.X_mid == expected.X_mid
     assert type(term.eta).__name__ == "Prior"
     assert type(term.ls).__name__ == "Prior"
+
+
+def test_set_data_refuses_window_before_training_anchor(ds):
+    """set_data enforces the anchor, not only register_data.
+
+    The anchor is frozen on the training data, so a fitted term must refuse a
+    prediction window that begins earlier: it would place the time index before
+    zero, outside the learned basis, and extrapolate silently.
+    """
+    trend = HSGPTerm(name="trend")
+    with pm.Model(coords=collect_coords(trend, ds=ds)) as model:
+        register_data(trend, ds=ds)
+        build_param(trend)
+        anchor = trend.first_date
+
+        before = xr.Dataset(
+            {},
+            coords={
+                "date": pd.date_range(
+                    pd.Timestamp(anchor) - pd.Timedelta(weeks=6),
+                    periods=12,
+                    freq="W-MON",
+                )
+            },
+        )
+        with pytest.raises(ValueError, match="before the training anchor"):
+            set_data(trend, ds=before, model=model)
+
+        # the shared index is untouched by the rejected window
+        assert np.asarray(model["date_index"].get_value()).min() == 0.0
+
+
+def test_set_data_allows_window_extending_past_training(ds):
+    """A window that extends the training range is the normal case, and works."""
+    trend = HSGPTerm(name="trend")
+    with pm.Model(coords=collect_coords(trend, ds=ds)) as model:
+        register_data(trend, ds=ds)
+        build_param(trend)
+
+        future = xr.Dataset(
+            {},
+            coords={
+                "date": pd.date_range(
+                    ds.coords["date"].values[-1], periods=8, freq="W-MON"
+                )
+            },
+        )
+        set_data(trend, ds=future, model=model)
+        assert np.asarray(model["date_index"].get_value()).max() > 0.0
+
+
+def test_shared_time_reference_requires_matching_resolution(ds):
+    """Two terms on one time reference must agree on time_resolution.
+
+    {var_name}_index is registered once and shared, but each term resolves its
+    own resolution, X_mid, m, and L. With a daily term and an inferred weekly
+    one on the same reference, the index ends up in one unit while a term
+    centers and sizes its basis in the other.
+    """
+    daily = HSGPTerm(name="trend", time_resolution=1)
+    weekly = SoftPlusHSGPTerm(name="season")  # infers 7 from weekly data
+    mu = Intercept("intercept") + daily + weekly
+
+    with pm.Model(coords=collect_coords(mu, ds=ds)):
+        with pytest.raises(ValueError, match="must agree on time_resolution"):
+            register_data(mu, ds=ds)
+
+
+def test_shared_time_reference_with_matching_resolution_builds(ds):
+    """Sharing a reference is fine when both terms agree on the resolution."""
+    trend = HSGPTerm(name="trend", time_resolution=7)
+    season = SoftPlusHSGPTerm(name="season", time_resolution=7)
+    mu = Intercept("intercept") + trend + season
+
+    with pm.Model(coords=collect_coords(mu, ds=ds)) as model:
+        register_data(mu, ds=ds)
+        build_param(mu)
+
+    assert "date_index" in model
+    assert trend.X_mid == pytest.approx(season.X_mid)
+
+
+def test_anchor_uses_earliest_date_not_first_element():
+    """An unsorted time reference anchors on its earliest date."""
+    base = pd.date_range("2023-01-02", periods=40, freq="W-MON")
+    order = [
+        20,
+        3,
+        39,
+        11,
+        0,
+        25,
+        7,
+        33,
+        15,
+        1,
+        28,
+        19,
+        35,
+        9,
+        30,
+        12,
+        22,
+        5,
+        38,
+        17,
+        26,
+        2,
+        31,
+        14,
+        23,
+        8,
+        37,
+        18,
+        27,
+        6,
+        34,
+        13,
+        24,
+        10,
+        36,
+        16,
+        29,
+        4,
+        32,
+        21,
+    ]
+    shuffled = xr.Dataset(
+        {},
+        coords={"date": xr.DataArray(base[order].values, dims="date")},
+    )
+    # explicit m/L so the test exercises the anchor, not the data-driven
+    # recommendation (which assumes a sorted, evenly spaced index).
+    trend = HSGPTerm(name="trend", var_name="date", m=10, L=30)
+    with pm.Model(coords=collect_coords(trend, ds=shuffled)):
+        register_data(trend, ds=shuffled)
+    assert trend.first_date == base.min()
+    assert trend.last_date == base.max()
+
+
+def test_datetime_extra_coord_survives_serialization():
+    """A datetime extra dim round-trips instead of becoming an epoch integer."""
+    dates = pd.date_range("2023-01-02", periods=20, freq="W-MON")
+    monthly = pd.date_range("2023-01-01", periods=3, freq="MS")
+    data = xr.Dataset(
+        {},
+        coords={
+            "date": dates,
+            "month": xr.DataArray(
+                np.array(monthly, dtype="datetime64[ns]"), dims="month"
+            ),
+        },
+    )
+    term = HSGPPeriodicTerm(
+        name="periodic",
+        var_name="date",
+        period=52,
+        m=10,
+        scale=1.0,
+        ls=1.0,
+        dims="month",
+    )
+    with pm.Model(coords=collect_coords(term, ds=data)):
+        register_data(term, ds=data)
+        payload = json.loads(json.dumps(serialization.serialize(term)))
+
+    assert all(isinstance(v, str) for v in payload["extra_coords"]["month"])
+    restored = serialization.deserialize(payload)
+    assert restored.extra_coords["month"] == [
+        np.datetime64("2023-01-01"),
+        np.datetime64("2023-02-01"),
+        np.datetime64("2023-03-01"),
+    ]
+
+    # and the restored term accepts the identical datetime coordinate
+    with pm.Model(coords=collect_coords(restored, ds=data)):
+        register_data(restored, ds=data)
+        set_data(restored, ds=data, model=pm.modelcontext(None))
