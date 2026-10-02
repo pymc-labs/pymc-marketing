@@ -263,10 +263,8 @@ def test_deferred_values_cached(ds):
         register_data(trend, ds=ds)
         build_param(trend)
     m, L, X_mid = trend.m, trend.L, trend.X_mid
-
-    shifted = ds.assign_coords(date=ds.coords["date"].values + pd.Timedelta(days=1))
-    with pm.Model(coords=collect_coords(trend, ds=shifted)):
-        register_data(trend, ds=shifted)
+    with pm.Model(coords=collect_coords(trend, ds=ds)):
+        register_data(trend, ds=ds)
         build_param(trend)
         assert trend.m == m
         assert trend.L == L
@@ -393,38 +391,6 @@ def test_roundtrip_recipe_keeps_the_training_anchor(ds):
     restored = HSGPTerm.from_dict(payload)
     assert restored.first_date == trend.first_date
     assert restored.X_mid == trend.X_mid
-
-
-def test_roundtrip_recipe_indexes_future_window_consistently(ds):
-    """A reloaded recipe indexes a future window on the training anchor.
-
-    The scenario: fit, save the recipe, reload, and register a *future* window.
-    The time index must continue from the training anchor, not restart at 0.
-    """
-    trend = HSGPTerm(name="trend")
-    with pm.Model(coords=collect_coords(trend, ds=ds)):
-        register_data(trend, ds=ds)
-        build_param(trend)
-        training_index = pm.modelcontext(None)[trend.index_var].get_value().copy()
-        payload = json.loads(json.dumps(serialization.serialize(trend)))
-
-    future = xr.Dataset(
-        {},
-        coords={
-            "date": pd.date_range(
-                start=ds.coords["date"].values[-1], periods=8, freq="7D"
-            )[1:]
-        },
-    )
-    restored = HSGPTerm.from_dict(payload)
-    with pm.Model(coords=collect_coords(restored, ds=future)) as model:
-        register_data(restored, ds=future)
-        future_index = model[restored.index_var].get_value()
-
-    # same anchor -> the future window starts right after the training range
-    assert training_index[-1] < future_index[0]
-    assert future_index[0] == pytest.approx(training_index[-1] + 1)
-    assert restored.X_mid == trend.X_mid  # centering is not re-derived
 
 
 def test_register_data_refuses_window_before_training_anchor(ds):
@@ -724,6 +690,79 @@ def test_restored_term_set_data(ds):
         index = model[restored.index_var].get_value()
 
     assert index[0] == pytest.approx(training_index[-1] + 1)
+
+
+def test_restored_term_rebuild_on_training_window_matches_in_model(ds):
+    """Reload contract: rebuild on the training window, then ``set_data``.
+
+    A restored term rebuilt on the recorded training data must produce the
+    same curve as the original in-model flow (rebuild, then ``set_data`` for
+    the prediction window). This is the reference behavior the reload
+    contract guarantees.
+    """
+    future = xr.Dataset(
+        {},
+        coords={
+            "date": pd.date_range(
+                start=ds.coords["date"].values[-1], periods=6, freq="7D"
+            )[1:]
+        },
+    )
+
+    def curve(term, ds_build, predict):
+        """Draw from a (possibly restored) term, optionally after ``set_data``."""
+        with pm.Model(coords=collect_coords(term, ds=ds_build)) as model:
+            register_data(term, ds=ds_build)
+            variable = build_param(term)
+            if predict:
+                set_data(term, ds=future, model=model)
+            return pm.draw(variable, draws=5, random_seed=7)
+
+    trained = HSGPTerm(name="trend")
+    reference = curve(trained, ds, predict=True)
+    restored = _roundtrip(trained)
+    np.testing.assert_allclose(curve(restored, ds, predict=True), reference)
+
+
+def test_register_data_on_fitted_term_refuses_other_window(ds):
+    """A fitted term only rebuilds on its recorded training window.
+
+    Rebuilding on any other window (a future-only window, or train + future)
+    would center and size the basis on data the term was never fit with, and
+    the resulting GP is silently different from the trained one. The reload
+    contract is: rebuild on the training window, then ``set_data`` for
+    prediction windows.
+    """
+    trained, _ = _trained(HSGPTerm(name="trend"), ds)
+    restored = _roundtrip(trained)
+
+    future = xr.Dataset(
+        {},
+        coords={
+            "date": pd.date_range(
+                start=ds.coords["date"].values[-1], periods=6, freq="7D"
+            )[1:]
+        },
+    )
+    with pm.Model(coords=collect_coords(restored, ds=future)):
+        with pytest.raises(ValueError, match="training window"):
+            register_data(restored, ds=future)
+
+    # train + future is refused too: only the exact training window rebuilds
+    extended = xr.Dataset(
+        {},
+        coords={
+            "date": pd.date_range(
+                start=ds.coords["date"].values[0],
+                periods=len(ds.coords["date"]) + 6,
+                freq="7D",
+            )
+        },
+    )
+    restored = _roundtrip(trained)
+    with pm.Model(coords=collect_coords(restored, ds=extended)):
+        with pytest.raises(ValueError, match="training window"):
+            register_data(restored, ds=extended)
 
 
 def test_set_data_on_restored_term_without_time_dim_explains(ds):

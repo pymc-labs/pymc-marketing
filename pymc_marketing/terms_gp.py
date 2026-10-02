@@ -289,6 +289,8 @@ class GPDataTerm(ModelTerm):
     time_dim: str | None = field(default=None, init=False, repr=False)
     first_date: Any = field(default=None, init=False, repr=False)
     last_date: Any = field(default=None, init=False, repr=False)
+    first_index: float | None = field(default=None, init=False, repr=False)
+    last_index: float | None = field(default=None, init=False, repr=False)
     extra_coords: dict[str, list[Any]] = field(
         default_factory=dict, init=False, repr=False
     )
@@ -440,6 +442,30 @@ class GPDataTerm(ModelTerm):
             "them separate time references."
         )
 
+    def _check_training_window(self, index: xr.DataArray) -> None:
+        """Refuse to re-register a fitted term on any window but the training one.
+
+        A rebuilt basis must be centered and sized on the training data itself:
+        ``X_mid``, ``m``, and ``L`` were resolved from it and are frozen. A
+        later registration on a different window (a future-only window, or
+        train + future) would build the basis against data the term was never
+        fit with and silently produce a different GP. The reload contract is:
+        rebuild on the training window, then use ``set_data`` for prediction
+        windows.
+        """
+        if self.first_index is None:
+            return
+        lo = float(index.min())
+        hi = float(index.max())
+        if lo == self.first_index and hi == self.last_index:
+            return
+        raise ValueError(
+            f"The GP term {self.name!r} was fitted on the training window "
+            f"[{self.first_index}, {self.last_index}] of {self.index_var!r}, but "
+            f"the data given to `register_data` covers [{lo}, {hi}]. Rebuild on "
+            "the training window and use `set_data` for prediction windows."
+        )
+
     def register_data(self, ds: xr.Dataset) -> None:
         """Register the numeric time index as ``pmd.Data`` and freeze ``X_mid``."""
         model = pm.modelcontext(None)
@@ -450,15 +476,19 @@ class GPDataTerm(ModelTerm):
             self._check_window_start(values)
             if self.first_date is None:
                 self.first_date = values.min()
-            if self.last_date is None or values.max() > self.last_date:
+            if self.last_date is None:
                 self.last_date = values.max()
         index = self._time_index(da)
+        self._check_training_window(index)
         self._check_index_agreement()
         if self.index_var not in model:
             pmd.Data(self.index_var, index)
             self._record_index_time_resolution()
         if self.X_mid is None:
             self.X_mid = float(self._time_values(da).mean())
+        if self.first_index is None:
+            self.first_index = float(index.min())
+            self.last_index = float(index.max())
         if self.time_dim is None:
             self.time_dim = cast("str", da.dims[0])
         if not self.extra_coords:
@@ -767,6 +797,8 @@ class HSGPTerm(GPDataTerm):
             "X_mid": self.X_mid,
             "first_date": _serialize_date(self.first_date),
             "last_date": _serialize_date(self.last_date),
+            "first_index": self.first_index,
+            "last_index": self.last_index,
             "time_dim": self.time_dim,
             "extra_coords": {
                 k: _serialize_coord(v) for k, v in self.extra_coords.items()
@@ -804,6 +836,8 @@ class HSGPTerm(GPDataTerm):
         term.X_mid = data.get("X_mid")
         term.first_date = _deserialize_date(data.get("first_date"))
         term.last_date = _deserialize_date(data.get("last_date"))
+        term.first_index = data.get("first_index")
+        term.last_index = data.get("last_index")
         term.time_dim = data.get("time_dim")
         term.extra_coords = {
             k: _deserialize_coord(v)
@@ -954,6 +988,8 @@ class HSGPPeriodicTerm(GPDataTerm):
             "X_mid": self.X_mid,
             "first_date": _serialize_date(self.first_date),
             "last_date": _serialize_date(self.last_date),
+            "first_index": self.first_index,
+            "last_index": self.last_index,
             "time_dim": self.time_dim,
             "extra_coords": {
                 k: _serialize_coord(v) for k, v in self.extra_coords.items()
@@ -977,6 +1013,8 @@ class HSGPPeriodicTerm(GPDataTerm):
         term.X_mid = data.get("X_mid")
         term.first_date = _deserialize_date(data.get("first_date"))
         term.last_date = _deserialize_date(data.get("last_date"))
+        term.first_index = data.get("first_index")
+        term.last_index = data.get("last_index")
         term.time_dim = data.get("time_dim")
         term.extra_coords = {
             k: _deserialize_coord(v)
