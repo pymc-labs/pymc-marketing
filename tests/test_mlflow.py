@@ -341,7 +341,9 @@ def test_log_model_graph_no_graphviz(
 
 def metric_checks(metrics, nuts_sampler) -> None:
     assert metrics["total_divergences"] >= 0.0
-    if nuts_sampler not in ["numpyro", "nutpie", "blackjax"]:
+    # numpyro and blackjax do not report sampling time; nutpie does, on
+    # `posterior.attrs` rather than `sample_stats.attrs`.
+    if nuts_sampler not in ["numpyro", "blackjax"]:
         assert metrics["sampling_time"] >= 0.0
         assert metrics["time_per_draw"] >= 0.0
 

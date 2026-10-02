@@ -669,7 +669,11 @@ def log_sample_diagnostics(
     draws = posterior.sizes["draw"]
     posterior_samples = chains * draws
 
-    tuning_step = sample_stats.attrs.get("tuning_steps", tune)
+    # External NUTS samplers stamp these on `posterior` rather than
+    # `sample_stats` (see `pymc.backends.arviz.patch_nutpie_idata`), so look in
+    # both before falling back to the caller-supplied `tune`.
+    attrs = {**posterior.attrs, **sample_stats.attrs}
+    tuning_step = attrs.get("tuning_steps", tune)
     if tuning_step is not None:
         tuning_samples = tuning_step * chains
         mlflow.log_param("tuning_steps", tuning_step)
@@ -677,7 +681,7 @@ def log_sample_diagnostics(
 
     total_divergences = diverging.sum().item()
     mlflow.log_metric("total_divergences", total_divergences)
-    if sampling_time := sample_stats.attrs.get("sampling_time"):
+    if sampling_time := attrs.get("sampling_time"):
         mlflow.log_metric("sampling_time", sampling_time)
         mlflow.log_metric(
             "time_per_draw",
