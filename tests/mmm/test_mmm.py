@@ -38,6 +38,7 @@ from pymc_marketing.mmm import (
     LogisticSaturation,
     RootSaturation,
     SoftPlusHSGP,
+    TanhSaturationBaselined,
 )
 from pymc_marketing.mmm.additive_effect import (
     DataVarMuEffect,
@@ -2579,6 +2580,34 @@ def test_root_saturation_mmm_has_a_finite_logp_at_the_initial_point(
     point = mmm.model.initial_point()
 
     assert np.isfinite(mmm.model.compile_logp()(point))
+    assert np.all(np.isfinite(mmm.model.compile_dlogp()(point)))
+
+
+def test_tanh_saturation_baselined_mmm_has_a_finite_logp_at_the_initial_point(
+    simple_mmm_data,
+) -> None:
+    """The issue's reproduction must give a finite ``point_logps`` (#3047).
+
+    The pre-fix default ``r ~ HalfNormal(1)`` started at the pole of
+    ``arctanh(r)``, so an MMM with a zero-spend period had a NaN logp and NUTS
+    could not start.
+    """
+    X = simple_mmm_data["X"].copy()
+    X.loc[0, "channel_1"] = 0.0  # zero-spend periods are routine in MMM data
+    y = simple_mmm_data["y"]
+    mmm = MMM(
+        date_column="date",
+        target_column="target",
+        channel_columns=["channel_1", "channel_2", "channel_3"],
+        adstock=GeometricAdstock(l_max=2),
+        saturation=TanhSaturationBaselined(),
+    )
+    mmm.build_model(X, y)
+
+    logps = mmm.model.point_logps()
+    point = mmm.model.initial_point()
+
+    assert all(np.isfinite(value) for value in logps.values())
     assert np.all(np.isfinite(mmm.model.compile_dlogp()(point)))
 
 
