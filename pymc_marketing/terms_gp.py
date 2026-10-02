@@ -431,6 +431,9 @@ class GPDataTerm(ModelTerm):
                 self.last_date = values.max()
         index = self._time_index(da)
         self._check_training_window(index)
+        if self.extra_coords:
+            # rebuilt term: the same label order the curves were fit with
+            self._check_extra_coords(ds)
         if self.index_var not in model:
             pmd.Data(self.index_var, index)
         if self.X_mid is None:

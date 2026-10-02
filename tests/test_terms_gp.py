@@ -861,6 +861,25 @@ def test_multi_dim_term_roundtrips_frozen_state(ds_product):
     assert index.shape == (len(ds_product.coords["date"]),)  # time axis is shared
 
 
+def test_register_data_on_fitted_term_refuses_reordered_coords(ds_product):
+    """A fitted multi-dim term refuses a rebuilt window with reordered coords.
+
+    Each extra dim gets one GP curve per coordinate, positioned by order. A
+    rebuild on reordered coordinates would silently report each curve under
+    the wrong label, so it is refused wherever the window is registered.
+    """
+    original, _ = _trained(
+        HSGPTerm(name="trend", dims="product", m=20, L=200, eta=1.0, ls=1.0),
+        ds_product,
+    )
+    restored = _roundtrip(original)
+
+    reordered = ds_product.assign_coords(product=["JP", "EU", "US"])
+    with pm.Model(coords=collect_coords(restored, ds=reordered)):
+        with pytest.raises(ValueError, match="reordered"):
+            register_data(restored, ds=reordered)
+
+
 def test_multi_dim_term_rebuilds_with_one_curve_per_product(ds_product):
     """The reloaded multi-dim term rebuilds the same per-product curves."""
     original, _ = _trained(
