@@ -29,6 +29,7 @@ from pymc_marketing.mmm.components.saturation import (
     MichaelisMentenSaturation,
     RootSaturation,
     SaturationTransformation,
+    TanhSaturationBaselined,
 )
 from pymc_marketing.serialization import serialization
 
@@ -145,6 +146,111 @@ def test_root_saturation_logp_is_differentiable_at_zero_input() -> None:
     dlogp = model.compile_dlogp()
     grad = dlogp(model.initial_point())
     assert np.all(np.isfinite(grad))
+
+
+def test_tanh_saturation_baselined_default_priors_have_a_finite_logp() -> None:
+    """The default priors must not put a pole at the sampler's starting point.
+
+    PyMC initialises each parameter at its distribution's moment, so a default
+    prior for a parameter that feeds a pole of the transformation can land
+    exactly on it. The overspend fraction ``r`` was the offending case: the
+    pre-fix default ``r ~ HalfNormal(1)`` started at ``r = 1``, where
+    ``arctanh(r)`` is infinite, so the logp and its gradient were NaN for the
+    zero-spend periods that occur in real MMM data (#3047).
+    """
+    x = np.linspace(0.0, 1.0, 10)
+    x[:2] = 0.0  # exact zero-spend periods
+    with pm.Model(coords={"time": range(x.shape[0])}) as model:
+        x_tensor = as_xtensor(x, dims=("time",))
+        mu = TanhSaturationBaselined().apply(x_tensor)
+        sigma = pm.HalfNormal("sigma", 1)
+        pm.Normal(
+            "obs", mu=mu.values, sigma=sigma, observed=np.zeros_like(x), dims=("time",)
+        )
+
+    point = model.initial_point()
+    assert np.isfinite(model.compile_logp()(point))
+    assert np.all(np.isfinite(model.compile_dlogp()(point)))
+
+
+@pytest.mark.parametrize(
+    "saturation_cls", ALL_SATURATION_CLASSES, ids=lambda c: c.__name__
+)
+def test_all_saturation_default_priors_have_a_finite_logp_at_the_initial_point(
+    saturation_cls: type[SaturationTransformation],
+) -> None:
+    """Every saturation's default priors must give a finite logp and gradient.
+
+    PyMC starts each parameter at its distribution's support point.
+    If it lands on a pole of the transformation, the logp or gradient is non-finite at ``initial_point()``.
+    ``TanhSaturationBaselined`` was the reported case (#3047).
+    Its old ``r ~ HalfNormal(1)`` started at ``r = 1``, where ``arctanh(r)`` diverges.
+    On positive input that breaks only the gradient, which is what this test catches.
+    The zero-spend logp case is covered by ``test_tanh_saturation_baselined_default_priors_have_a_finite_logp``.
+    Covering every class catches a future singular default anywhere.
+    """
+    x = np.linspace(0.1, 1.0, 10)
+    saturation = saturation_cls()
+    with pm.Model(coords={"time": range(x.shape[0])}) as model:
+        x_tensor = as_xtensor(x, dims=("time",))
+        mu = saturation.apply(x_tensor)
+        sigma = pm.HalfNormal("sigma", 1)
+        pm.Normal(
+            "obs", mu=mu.values, sigma=sigma, observed=np.zeros_like(x), dims=("time",)
+        )
+
+    point = model.initial_point()
+    assert np.isfinite(model.compile_logp()(point))
+    assert np.all(np.isfinite(model.compile_dlogp()(point)))
+
+
+def test_tanh_saturation_baselined_default_r_prior() -> None:
+    """The default prior for ``r`` is ``Beta(2, 3)``."""
+    assert TanhSaturationBaselined().default_priors["r"] == Prior(
+        "Beta", alpha=2, beta=3
+    )
+
+
+def test_tanh_saturation_baselined_default_r_is_in_unit_interval() -> None:
+    """All default ``r`` draws must be strictly inside (0, 1).
+
+    The transformation evaluates ``arctanh(r)``, so any mass at ``r >= 1`` is
+    invalid. This rejects a fix such as ``HalfNormal(sigma < 1)``, which would
+    start the sampler at a finite point but still allow ``r > 1`` (#3047).
+    """
+    prior = TanhSaturationBaselined().sample_prior(draws=5000, random_seed=0)
+
+    r = prior["saturation_r"].values
+    assert np.all((r > 0) & (r < 1))
+
+
+def test_tanh_saturation_baselined_saved_priors_are_preserved() -> None:
+    """A saved payload's priors win over the class defaults.
+
+    Saved models store ``function_priors`` in full (see
+    :meth:`pymc_marketing.mmm.components.base.Transformation.to_dict`), so a
+    model saved before the default changed carries ``r ~ HalfNormal(1)``. It
+    must load with that prior instead of adopting the new default (#3047).
+    """
+    payload = {
+        "__type__": (
+            "pymc_marketing.mmm.components.saturation.TanhSaturationBaselined"
+        ),
+        "prefix": "saturation",
+        "priors": {
+            "x0": {"dist": "HalfNormal", "kwargs": {"sigma": 2}},
+            "gain": {"dist": "HalfNormal", "kwargs": {"sigma": 3}},
+            "r": {"dist": "HalfNormal", "kwargs": {"sigma": 1}},
+            "beta": {"dist": "HalfNormal", "kwargs": {"sigma": 4}},
+        },
+    }
+
+    restored = serialization.deserialize(payload)
+
+    assert restored.function_priors["r"] == Prior("HalfNormal", sigma=1)
+    assert restored.function_priors["x0"] == Prior("HalfNormal", sigma=2)
+    assert restored.function_priors["gain"] == Prior("HalfNormal", sigma=3)
+    assert restored.function_priors["beta"] == Prior("HalfNormal", sigma=4)
 
 
 @pytest.mark.parametrize(
