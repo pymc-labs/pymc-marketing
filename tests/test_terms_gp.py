@@ -27,6 +27,7 @@ import xarray as xr
 from pymc_extras.prior import Prior, VariableFactory
 from pytensor.graph.basic import Variable as PTVariable
 
+from pymc_marketing.hsgp_kwargs import CovFunc
 from pymc_marketing.mmm.hsgp import HSGP, HSGPPeriodic, SoftPlusHSGP
 from pymc_marketing.mmm.tvp import infer_time_index
 from pymc_marketing.serialization import serialization
@@ -553,6 +554,19 @@ def test_periodic_build(ds):
         effect = build_param(seasonality)
         assert isinstance(effect, PTVariable)
         assert len(model.coords["seasonality_m"]) == 20 * 2 - 1
+
+
+def test_string_cov_func_roundtrips():
+    """A string ``cov_func`` is coerced and serializes like the enum.
+
+    ``HSGP`` accepts a string covariance name, and recipes are serialized at
+    sampling time after a fit, so a string passed at construction must not
+    crash ``to_dict``.
+    """
+    term = HSGPTerm(cov_func="matern52", m=15, L=100, eta=1.0, ls=1.0)
+    assert term.cov_func is CovFunc.Matern52
+    restored = _roundtrip(term)
+    assert restored.cov_func is CovFunc.Matern52
 
 
 def test_serialize_hsgp_term_roundtrip():

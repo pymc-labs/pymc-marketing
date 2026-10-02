@@ -666,6 +666,14 @@ class HSGPTerm(GPDataTerm):
     ls_mass: float = 0.9
     cov_func: CovFunc = CovFunc.ExpQuad
 
+    def __post_init__(self) -> None:
+        """Normalize dims and coerce a string ``cov_func`` to the enum."""
+        super().__post_init__()
+        if isinstance(self.cov_func, str):
+            # HSGP accepts a covariance name as a string; coerce so the
+            # recipe serializes the same way regardless of how it was built.
+            self.cov_func = CovFunc(self.cov_func)
+
     def _resolve(self, ds: xr.Dataset) -> None:
         """Resolve deferred hyperparameters from the dataset (fill-if-None)."""
         X = self._time_values(ds[self.var_name])
