@@ -173,6 +173,37 @@ def test_tanh_saturation_baselined_default_priors_have_a_finite_logp() -> None:
     assert np.all(np.isfinite(model.compile_dlogp()(point)))
 
 
+@pytest.mark.parametrize(
+    "saturation_cls", ALL_SATURATION_CLASSES, ids=lambda c: c.__name__
+)
+def test_all_saturation_default_priors_have_a_finite_logp_at_the_initial_point(
+    saturation_cls: type[SaturationTransformation],
+) -> None:
+    """Every saturation's default priors must give a finite logp and gradient.
+
+    PyMC starts each parameter at its distribution's support point.
+    If it lands on a pole of the transformation, the logp or gradient is non-finite at ``initial_point()``.
+    ``TanhSaturationBaselined`` was the reported case (#3047).
+    Its old ``r ~ HalfNormal(1)`` started at ``r = 1``, where ``arctanh(r)`` diverges.
+    On positive input that breaks only the gradient, which is what this test catches.
+    The zero-spend logp case is covered by ``test_tanh_saturation_baselined_default_priors_have_a_finite_logp``.
+    Covering every class catches a future singular default anywhere.
+    """
+    x = np.linspace(0.1, 1.0, 10)
+    saturation = saturation_cls()
+    with pm.Model(coords={"time": range(x.shape[0])}) as model:
+        x_tensor = as_xtensor(x, dims=("time",))
+        mu = saturation.apply(x_tensor)
+        sigma = pm.HalfNormal("sigma", 1)
+        pm.Normal(
+            "obs", mu=mu.values, sigma=sigma, observed=np.zeros_like(x), dims=("time",)
+        )
+
+    point = model.initial_point()
+    assert np.isfinite(model.compile_logp()(point))
+    assert np.all(np.isfinite(model.compile_dlogp()(point)))
+
+
 def test_tanh_saturation_baselined_default_r_prior() -> None:
     """The default prior for ``r`` is ``Beta(2, 3)``."""
     assert TanhSaturationBaselined().default_priors["r"] == Prior(
