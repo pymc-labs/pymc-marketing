@@ -89,6 +89,8 @@ _NOTEBOOKS.append(DOC_SOURCE / "guide" / "mmm" / "mmm_learning_path.ipynb")
 # Notebooks to exclude from testing (relative to repo root)
 BLACKLIST: set[str] = {
     "docs/source/notebooks/mmm/mmm_chronos.ipynb",
+    # Requires the development arviz-stats LFO-CV API until it is released.
+    "docs/source/notebooks/mmm/mmm_lfo_cv_model_comparison.ipynb",
     # PIE relies on pymc-bart: variable importance and out-of-sample prediction
     # need the real posterior trees, which the mocked sampler never fits (empty
     # `all_trees`), so those cells fail under the mock. Validated via real
