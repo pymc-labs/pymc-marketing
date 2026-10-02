@@ -419,6 +419,21 @@ def test_name_collision_hint_names_the_term(ds):
             build_param(mu)
 
 
+def test_name_collision_hint_only_for_real_collisions(ds):
+    """The naming hint fires on collisions, not unrelated build errors.
+
+    An extra dim missing from the model coords is reported by PyMC with the
+    term's basis coordinate in it, which the hint's name-prefix match used
+    to swallow into a misleading "variable already exists" message.
+    """
+    trend = HSGPTerm(name="trend", dims="channel", m=20, L=200, eta=1.0, ls=1.0)
+    with pm.Model(coords={"date": ds.coords["date"].values}):
+        register_data(trend, ds=ds)
+        with pytest.raises(ValueError, match="part of the model coords") as excinfo:
+            build_param(trend)
+    assert "already exists" not in str(excinfo.value)
+
+
 def test_non_scalar_prior_raises(ds):
     """Dimensional eta/ls priors are rejected."""
     trend = HSGPTerm(

@@ -533,7 +533,7 @@ class GPDataTerm(ModelTerm):
             spec.register_data(model[self.index_var])
             return spec.create_variable(self.name, xdist=True)
         except ValueError as err:
-            if f"{self.name}_" in str(err):
+            if "already exists" in str(err):
                 raise ValueError(
                     f"A variable for the GP term named {self.name!r} already exists "
                     f"in this model: {err} Each GP term's `name` is the prefix for "
