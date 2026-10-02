@@ -1285,6 +1285,29 @@ def test_anchor_uses_earliest_date_not_first_element():
     assert trend.last_date == base.max()
 
 
+def test_string_extra_coords_survive_serialization(ds):
+    """Numeric-looking string coords stay strings after a reload.
+
+    ``np.datetime64`` parses far more than ISO timestamps (``"12"`` becomes
+    year 12, ``"NaT"`` becomes not-a-time, ``"today"`` becomes today), so a
+    string coordinate must not be re-typed by guesswork on deserialize: the
+    restored term would then refuse the identical string coordinate.
+    """
+    data = ds.assign_coords(store=["12", "2020"])
+    original, _ = _trained(
+        HSGPTerm(name="trend", dims="store", m=20, L=200, eta=1.0, ls=1.0),
+        data,
+    )
+    restored = _roundtrip(original)
+    assert restored.extra_coords == {"store": ["12", "2020"]}
+    assert all(isinstance(v, str) for v in restored.extra_coords["store"])
+
+    # and the restored term accepts the identical string coordinate
+    with pm.Model(coords=collect_coords(restored, ds=data)):
+        register_data(restored, ds=data)
+        build_param(restored)
+
+
 def test_datetime_extra_coord_survives_serialization():
     """A datetime extra dim round-trips instead of becoming an epoch integer."""
     dates = pd.date_range("2023-01-02", periods=20, freq="W-MON")

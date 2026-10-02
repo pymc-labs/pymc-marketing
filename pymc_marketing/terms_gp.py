@@ -226,23 +226,22 @@ def _serialize_coord(values: list[Any]) -> list[Any]:
     return out
 
 
-def _deserialize_coord(values: list[Any]) -> list[Any]:
+def _deserialize_coord(values: list[Any], *, datetime64: bool = False) -> list[Any]:
     """Deserialize a JSON-safe coordinate back to a list.
 
-    ISO strings produced by :func:`_serialize_coord` for a datetime
-    coordinate are restored as ``datetime64``, so a reloaded term compares
-    equal to the datetime coordinate it was registered with.
+    Coordinates tagged ``datetime64`` at serialize time are restored as
+    ``datetime64`` from their ISO strings. Everything else is passed
+    through as-is: string coordinates are never re-typed by guesswork,
+    since ``np.datetime64`` parses strings like ``"12"`` or ``"NaT"``.
     """
-    out: list[Any] = []
-    for value in values:
-        if isinstance(value, str):
-            try:
-                out.append(np.datetime64(value))
-                continue
-            except (ValueError, TypeError):
-                pass
-        out.append(value)
-    return out
+    if datetime64:
+        return [np.datetime64(value) for value in values]
+    return list(values)
+
+
+def _coord_is_datetime(values: list[Any]) -> bool:
+    """Whether a serialized extra-dim coordinate holds datetime values."""
+    return bool(values) and np.issubdtype(np.asarray(values).dtype, np.datetime64)
 
 
 def _serialize_date(value: Any) -> str | None:
@@ -754,6 +753,11 @@ class HSGPTerm(GPDataTerm):
             "extra_coords": {
                 k: _serialize_coord(v) for k, v in self.extra_coords.items()
             },
+            "extra_coord_dtypes": {
+                k: "datetime64"
+                for k, v in self.extra_coords.items()
+                if _coord_is_datetime(v)
+            },
             "eta_mass": self.eta_mass,
             "eta_upper": self.eta_upper,
             "ls_lower": self.ls_lower,
@@ -790,8 +794,9 @@ class HSGPTerm(GPDataTerm):
         term.first_index = data.get("first_index")
         term.last_index = data.get("last_index")
         term.time_dim = data.get("time_dim")
+        dtypes = data.get("extra_coord_dtypes") or {}
         term.extra_coords = {
-            k: _deserialize_coord(v)
+            k: _deserialize_coord(v, datetime64=dtypes.get(k) == "datetime64")
             for k, v in (data.get("extra_coords") or {}).items()
         }
         return term
@@ -945,6 +950,11 @@ class HSGPPeriodicTerm(GPDataTerm):
             "extra_coords": {
                 k: _serialize_coord(v) for k, v in self.extra_coords.items()
             },
+            "extra_coord_dtypes": {
+                k: "datetime64"
+                for k, v in self.extra_coords.items()
+                if _coord_is_datetime(v)
+            },
         }
 
     @classmethod
@@ -967,8 +977,9 @@ class HSGPPeriodicTerm(GPDataTerm):
         term.first_index = data.get("first_index")
         term.last_index = data.get("last_index")
         term.time_dim = data.get("time_dim")
+        dtypes = data.get("extra_coord_dtypes") or {}
         term.extra_coords = {
-            k: _deserialize_coord(v)
+            k: _deserialize_coord(v, datetime64=dtypes.get(k) == "datetime64")
             for k, v in (data.get("extra_coords") or {}).items()
         }
         return term
