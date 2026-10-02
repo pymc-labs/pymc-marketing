@@ -20,6 +20,7 @@ from pymc_marketing.mmm.additive_effect import (
     IncrementalitySpec,
     MediaMuEffect,
 )
+from pymc_marketing.mmm.budget_model import BudgetModelEffect, lift_test_design
 from pymc_marketing.mmm.budget_optimizer import (
     BudgetOptimizationResult,
     BudgetOptimizer,
@@ -102,6 +103,7 @@ __all__ = [
     "MMM",
     "AdstockTransformation",
     "BinomialAdstock",
+    "BudgetModelEffect",
     "BudgetOptimizationResult",
     "BudgetOptimizer",
     "BudgetOptimizerWrapper",
@@ -155,6 +157,7 @@ __all__ = [
     "create_constrained_inverse_gamma_prior",
     "create_eta_prior",
     "create_m_and_L_recommendations",
+    "lift_test_design",
     "merge_inference_data",
     "merge_models_and_idata",
     "preprocessing",

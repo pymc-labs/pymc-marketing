@@ -506,6 +506,34 @@ class MuEffect(SerializableBaseModel, ABC):
         """
         return None
 
+    def check_scenario_use(self, mmm: Model) -> None:
+        """Warn if this effect misreads the placeholder spend of budget scenarios.
+
+        Called before the budget optimizer sets scenario data on the model.
+        The default does nothing; override it in effects whose configuration
+        suits evaluation but not scenarios.
+
+        Parameters
+        ----------
+        mmm : MMM
+            The MMM model instance.
+        """
+
+    def check_lift_tests(self, mmm: Model, df_lift_test: pd.DataFrame) -> None:
+        """Warn if lift tests added to the MMM overlap data this effect uses.
+
+        Called by :meth:`MMM.add_lift_test_measurements` before the lift
+        likelihood is added. The default does nothing; override it in effects
+        that already use the same experiments, so they are not counted twice.
+
+        Parameters
+        ----------
+        mmm : MMM
+            The MMM model instance.
+        df_lift_test : pd.DataFrame
+            The lift tests being added.
+        """
+
     def idata_groups(self) -> dict[str, xr.Dataset]:
         """Return supplementary data groups to store in DataTree.
 
