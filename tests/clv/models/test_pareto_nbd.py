@@ -246,6 +246,24 @@ class TestParetoNBDModel:
             "\nrecency_frequency~ParetoNBD(r,alpha,s,beta,<constant>)"
         )
 
+    def test_logp_fn_is_compiled_once(self):
+        model = ParetoNBDModel()
+        model.build_model(data=self.pred_data)
+        create_mock_fit(
+            {
+                "r": self.r_true,
+                "alpha": self.alpha_true,
+                "s": self.s_true,
+                "beta": self.beta_true,
+            }
+        )(model, chains=2, draws=5, rng=np.random.default_rng(42))
+
+        assert "_logp_fn" not in model.__dict__
+        model.expected_purchases(self.pred_data.assign(future_t=1))
+        compiled = model.__dict__["_logp_fn"]
+        model.expected_purchases(self.pred_data.assign(future_t=2))
+        assert model.__dict__["_logp_fn"] is compiled
+
     @pytest.mark.parametrize("future_t", [1, 3, 6])
     def test_expected_purchases(self, future_t):
         # Reference values from Pareto/NBD MLE on CDNOW subsample (25 customers)

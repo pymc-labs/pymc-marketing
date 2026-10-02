@@ -209,11 +209,56 @@ class TestBetaGeoBetaBinom:
         assert logp_fn(np.array([-1, 1.5])) == -np.inf
         assert logp_fn(np.array([11, 1.5])) == -np.inf
 
-    def test_notimplemented_logp(self):
-        dist = BetaGeoBetaBinom.dist(alpha=1, beta=1, gamma=2, delta=2, T=10)
-        invalid_value = np.broadcast_to([1, 3], (4, 3, 2))
-        with pytest.raises(NotImplementedError):
-            pm.logp(dist, invalid_value)
+    def test_logp_broadcasts_value_against_parameters(self):
+        """A length-1 `value` must give the same answer as a materialized one.
+
+        `x` used to be left out of the broadcast inside `logp`, which truncated the
+        scan to `len(value)`. The length-1 result then broadcast back out against the
+        full-length normalizer, so the shape was right and the values were wrong.
+        This asserts the invariant the broadcast is supposed to guarantee, rather
+        than comparing against a reference, so it holds regardless of the reference.
+        """
+        alpha = np.array([1.20, 1.35, 0.90, 1.60, 1.05, 1.45])
+        beta = np.array([0.75, 0.60, 0.95, 0.55, 0.85, 0.70])
+        gamma = np.array([0.66, 0.80, 0.50, 0.72, 0.61, 0.90])
+        delta = np.array([2.78, 2.10, 3.40, 2.55, 3.05, 2.35])
+        t_x, x, T = 3, 2, 6
+
+        def logp_of(value, T):
+            dist = BetaGeoBetaBinom.dist(
+                alpha=alpha, beta=beta, gamma=gamma, delta=delta, T=T
+            )
+            return pm.logp(dist, value).eval()
+
+        broadcast = logp_of(np.array([[t_x, x]]), np.array([T]))
+        materialized = logp_of(
+            np.tile([[t_x, x]], (len(alpha), 1)), np.full(len(alpha), T)
+        )
+
+        assert broadcast.shape == materialized.shape == alpha.shape
+        np.testing.assert_allclose(broadcast, materialized)
+        # A collapsed logp is constant up to the normalizer, so guard against a
+        # result that happens to agree because nothing varies across draws.
+        assert materialized.std() > 1e-8
+
+    def test_logp_supports_batched_parameters(self):
+        """`logp` broadcasts over any parameter shape, not just vectors.
+
+        This used to raise NotImplementedError for ndim > 1.
+        """
+        alpha = np.array([[1.20, 1.35, 0.90], [1.60, 1.05, 1.45]])
+        dist = BetaGeoBetaBinom.dist(
+            alpha=alpha, beta=0.75, gamma=0.66, delta=2.78, T=6
+        )
+        batched = pm.logp(dist, np.array([3, 2])).eval()
+
+        flat_dist = BetaGeoBetaBinom.dist(
+            alpha=alpha.ravel(), beta=0.75, gamma=0.66, delta=2.78, T=6
+        )
+        flat = pm.logp(flat_dist, np.array([3, 2])).eval()
+
+        assert batched.shape == alpha.shape
+        np.testing.assert_allclose(batched.ravel(), flat)
 
     @pytest.mark.parametrize(
         "alpha_size, beta_size, gamma_size, delta_size, beta_geo_beta_binom_size, expected_size",
