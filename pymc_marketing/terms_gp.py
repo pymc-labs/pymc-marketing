@@ -319,7 +319,7 @@ class GPDataTerm(ModelTerm):
         in observation periods. Numeric references are passed through unchanged
         and keep a resolution of 1.
         """
-        values = np.asarray(da.values)
+        values = np.sort(np.asarray(da.values))
         if not np.issubdtype(values.dtype, np.datetime64):
             return 1
         if len(values) < 2:
@@ -363,7 +363,7 @@ class GPDataTerm(ModelTerm):
         values = np.asarray(da.values)
         self._resolve_time_resolution(da)
         if np.issubdtype(values.dtype, np.datetime64):
-            anchor = self.first_date if self.first_date is not None else values[0]
+            anchor = self.first_date if self.first_date is not None else values.min()
             values = (values - anchor) / np.timedelta64(1, "D")
             values = values / self.time_resolution
         return np.asarray(values, dtype=float)

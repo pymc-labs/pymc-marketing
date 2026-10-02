@@ -239,6 +239,34 @@ def test_deferred_hyperparameters_stay_in_period_units():
     assert trend.L < 104 * 6
 
 
+def test_time_resolution_independent_of_row_order():
+    """The same dates in any order resolve the same term hyperparameters.
+
+    ``time_resolution`` was inferred from the first two values and the anchor
+    fell back to the first element, so a shuffled time reference resolved a
+    different resolution, ``X_mid``, and basis size than the sorted one.
+    """
+    dates = pd.date_range("2024-01-01", periods=40, freq="7D")
+    shuffled = np.random.default_rng(0).permutation(dates.values)
+    ds_sorted = xr.Dataset({}, coords={"date": dates})
+    ds_shuffled = xr.Dataset({}, coords={"date": shuffled})
+
+    def resolved(ds_build):
+        term = HSGPTerm(name="trend")
+        with pm.Model(coords=collect_coords(term, ds=ds_build)):
+            register_data(term, ds=ds_build)
+            build_param(term)
+        return term
+
+    term_sorted = resolved(ds_sorted)
+    term_shuffled = resolved(ds_shuffled)
+
+    assert term_shuffled.time_resolution == term_sorted.time_resolution
+    assert term_shuffled.X_mid == pytest.approx(term_sorted.X_mid)
+    assert term_shuffled.m == term_sorted.m
+    assert term_shuffled.L == pytest.approx(term_sorted.L)
+
+
 def test_explicit_time_resolution_wins_over_inference():
     """An explicit ``time_resolution`` is never overwritten by inference."""
     dates = pd.date_range("2024-01-01", periods=30, freq="W")
