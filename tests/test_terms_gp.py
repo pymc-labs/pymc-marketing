@@ -30,6 +30,7 @@ from pytensor.graph.basic import Variable as PTVariable
 from pymc_marketing.hsgp_kwargs import CovFunc
 from pymc_marketing.mmm.hsgp import HSGP, HSGPPeriodic, SoftPlusHSGP
 from pymc_marketing.mmm.tvp import infer_time_index
+from pymc_marketing.model_graph import deterministics_to_flat
 from pymc_marketing.serialization import serialization
 from pymc_marketing.terms import (
     Dot,
@@ -39,6 +40,7 @@ from pymc_marketing.terms import (
     Sum,
     build_param,
     collect_coords,
+    frozen_deterministics,
     register_data,
     set_data,
 )
@@ -1363,6 +1365,69 @@ def test_string_extra_coords_survive_serialization(ds):
     with pm.Model(coords=collect_coords(restored, ds=data)):
         register_data(restored, ds=data)
         build_param(restored)
+
+
+def test_frozen_deterministics_collected_for_forecast(ds):
+    """Forecasting a SoftPlus term keeps the training mean of one.
+
+    ``{name}_f_mean`` is a mean over the time dimension; recomputing it on a
+    prediction window renormalizes every draw to the new window and erases
+    the time variation. Collecting the term's frozen deterministics across a
+    recipe and replacing them with ``deterministics_to_flat`` keeps the
+    training normalization instead.
+    """
+    recipe = SoftPlusHSGPTerm(name="tvp") * media_term()
+    with pm.Model(coords=collect_coords(recipe, ds=ds)) as model:
+        register_data(recipe, ds=ds)
+        build_param(recipe)
+
+    assert frozen_deterministics(recipe) == ["tvp_f_mean"]
+
+    n_channel = len(ds.coords["channel"])
+    future_dates = pd.date_range(
+        start=ds.coords["date"].values[-1], periods=8, freq="7D"
+    )[1:]
+    future = xr.Dataset(
+        {
+            "media": (
+                ("date", "channel"),
+                np.ones((len(future_dates), n_channel)),
+            ),
+        },
+        coords={"date": future_dates},
+    )
+
+    def forecast(freeze):
+        """Draw the tvp multiplier on the future window, optionally frozen."""
+        if freeze:
+            with model:
+                f_mean = pm.draw(model["tvp_f_mean"], draws=20, random_seed=7)
+            mock = xr.Dataset(
+                {"tvp_f_mean": (("chain", "draw"), f_mean[None, :])},
+                coords={"chain": [0], "draw": np.arange(20)},
+            )
+            target = deterministics_to_flat(model, ["tvp_f_mean"])
+            with target:
+                set_data(recipe, ds=future, model=target)
+                draws = (
+                    pm.sample_posterior_predictive(
+                        mock, model=target, var_names=["tvp"], random_seed=7
+                    )
+                    .posterior_predictive["tvp"]
+                    .values.reshape(20, -1)
+                )
+        else:
+            with model:
+                set_data(recipe, ds=future, model=model)
+                draws = pm.draw(model["tvp"], draws=20, random_seed=7)
+        return np.abs(draws.mean(axis=1) - 1.0)  # deviation from mean one
+
+    # without freezing, every draw renormalizes to exactly mean one over the
+    # prediction window: the time variation is erased
+    np.testing.assert_allclose(forecast(freeze=False), 0.0, atol=1e-10)
+
+    # with the frozen deterministic, the training normalization survives
+    assert forecast(freeze=True).std() > 0
 
 
 def test_datetime_extra_coord_survives_serialization():

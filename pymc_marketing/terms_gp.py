@@ -840,6 +840,18 @@ class SoftPlusHSGPTerm(HSGPTerm):
 
     name: str = "tvp"
 
+    @property
+    def frozen_deterministics(self) -> tuple[str, ...]:
+        """Deterministic to freeze for out-of-sample evaluation.
+
+        ``{name}_f_mean`` is a mean over the time dimension: recomputing it
+        on a prediction window renormalizes every draw to the new window and
+        erases the time variation. Replace it with ``pm.Flat`` via
+        :func:`pymc_marketing.model_graph.deterministics_to_flat` so the
+        training time-mean of one is kept and the curves stay continuous.
+        """
+        return (f"{self.name}_f_mean",)
+
     def _spec(self) -> SoftPlusHSGP:
         """Build the wrapped :class:`~pymc_marketing.mmm.hsgp.SoftPlusHSGP`."""
         return SoftPlusHSGP(**self._spec_kwargs())
