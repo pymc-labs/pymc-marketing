@@ -242,19 +242,6 @@ def _exclude_tuning(func):
     return callback
 
 
-def _take_every(n: int):
-    def decorator(func):
-        def callback(trace, draw):
-            if draw.draw_idx % n != 0:
-                return
-
-            return func(trace, draw)
-
-        return callback
-
-    return decorator
-
-
 def _recorded_point(trace, draw) -> Mapping[str, Any]:
     """Return the values PyMC recorded for ``draw``.
 
@@ -277,6 +264,7 @@ def create_log_callback(
     parameters: list[str] | None = None,
     exclude_tuning: bool = True,
     take_every: int = 100,
+    rebase_steps: bool = False,
 ):
     """Create callback function to log sample stats and parameter values to MLflow during sampling.
 
@@ -285,7 +273,11 @@ def create_log_callback(
     Parameters
     ----------
     stats : list of str, optional
-        List of sample statistics to log from the Draw
+        List of sample statistics to log from the Draw. Prefer the
+        cumulative ``divergences`` over the per-draw ``diverging`` indicator:
+        a counter makes divergence bursts visible as changes in slope,
+        whereas a ``0/1`` that is only sampled every ``take_every`` draws
+        usually misses the rare events it exists to catch.
     parameters : list of str, optional
         Names of variables to log from the draw PyMC has just recorded. A
         model-level name such as ``sigma`` is logged on its constrained scale,
@@ -296,6 +288,12 @@ def create_log_callback(
         Whether to exclude tuning steps from logging. Defaults to True.
     take_every : int, optional
         Specifies the interval at which to log values. Defaults to 100.
+        Each logged metric is a write to the tracking store, so the interval
+        -- not the number of draws -- is what bounds the cost of sampling.
+    rebase_steps : bool, optional
+        Log post-tuning draws starting at step 0 instead of at their position
+        in the full ``tune + draws`` sequence. Defaults to False, which keeps
+        the raw ``draw_idx`` axis. Requires ``exclude_tuning=True``.
 
     Returns
     -------
@@ -333,6 +331,19 @@ def create_log_callback(
         with mlflow.start_run():
             idata = pm.sample(model=model, callback=callback)
 
+    Log the running number of divergences instead of a per-draw ``0/1``.
+    The counter only covers draws that are recorded, so with
+    ``exclude_tuning=True`` it starts from zero after tuning:
+
+    .. code-block:: python
+
+        from pymc_marketing.mlflow import create_log_callback
+
+        callback = create_log_callback(
+            stats=["divergences"],
+            take_every=100,
+        )
+
     Log the parameters `mu` and `sigma` every 100th draw. PyMC samples
     `sigma` on the unconstrained scale as `sigma_log__`; the callback logs
     `sigma` itself, read from the draw PyMC just recorded. Pass
@@ -358,16 +369,37 @@ def create_log_callback(
     if not stats and not parameters:
         raise ValueError("At least one of `stats` or `parameters` must be provided.")
 
+    if rebase_steps and not exclude_tuning:
+        raise ValueError("`rebase_steps=True` requires `exclude_tuning=True`.")
+
+    offsets: dict[int, int] = {}
+
+    def _step(chain: int, draw_idx: int) -> int:
+        if not rebase_steps:
+            return draw_idx
+
+        # First draw of a chain after tuning is where its axis starts.
+        return draw_idx - offsets.setdefault(chain, draw_idx)
+
     def callback(trace, draw):
-        prefix = f"chain_{draw.chain}"
+        chain, draw_idx = draw.chain, draw.draw_idx
+        prefix = f"chain_{chain}"
+        step = _step(chain, draw_idx)
+        on_interval = not take_every or draw_idx % take_every == 0
+
         for stat in stats or []:
+            if not on_interval:
+                break
+
             mlflow.log_metric(
                 key=f"{prefix}/{stat}",
                 value=draw.stats[0][stat],
-                step=draw.draw_idx,
+                step=step,
             )
 
-        if not parameters:
+        if not parameters or not on_interval:
+            # Reading the recorded draw can be expensive (it is a zarr read
+            # for non-default traces), so keep it on the `take_every` grid.
             return
 
         point = _recorded_point(trace, draw)
@@ -384,14 +416,11 @@ def create_log_callback(
             mlflow.log_metric(
                 key=f"{prefix}/{parameter}",
                 value=point[parameter],
-                step=draw.draw_idx,
+                step=step,
             )
 
     if exclude_tuning:
         callback = _exclude_tuning(callback)
-
-    if take_every:
-        callback = _take_every(n=take_every)(callback)
 
     return callback
 

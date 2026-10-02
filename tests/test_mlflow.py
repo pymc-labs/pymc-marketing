@@ -1189,3 +1189,95 @@ def test_mlflow_docstrings_have_no_removed_methods(doc_source):
     """
     assert doc_source is not None
     assert "plot_components_contributions" not in doc_source
+
+
+def _draw(chain=0, draw_idx=0, tuning=False, stats=None, point=None):
+    return SimpleNamespace(
+        chain=chain,
+        draw_idx=draw_idx,
+        tuning=tuning,
+        stats=[stats or {}],
+        point=point or {},
+    )
+
+
+def test_logging_callback_logs_cumulative_divergences(mocker) -> None:
+    """`divergences` is passed through as-is: pymc already counts them."""
+    log_metric = mocker.patch.object(pmm_mlflow.mlflow, "log_metric")
+    callback = create_log_callback(stats=["divergences"], take_every=2)
+    trace = mocker.MagicMock()
+
+    for idx, divergences in enumerate([0.0, 0.0, 1.0, 2.0, 2.0, 3.0]):
+        callback(trace, _draw(draw_idx=idx, stats={"divergences": divergences}))
+
+    assert log_metric.call_args_list == [
+        mocker.call(key="chain_0/divergences", value=0.0, step=0),
+        mocker.call(key="chain_0/divergences", value=1.0, step=2),
+        mocker.call(key="chain_0/divergences", value=2.0, step=4),
+    ]
+
+
+def test_logging_callback_take_every_bounds_the_writes(mocker) -> None:
+    """The number of store writes follows `take_every`, not the draw count."""
+    log_metric = mocker.patch.object(pmm_mlflow.mlflow, "log_metric")
+    callback = create_log_callback(stats=["divergences", "step_size"], take_every=100)
+    trace = mocker.MagicMock()
+
+    for idx in range(1000):
+        callback(
+            trace,
+            _draw(draw_idx=idx, stats={"divergences": 1.0, "step_size": 0.1}),
+        )
+
+    # 10 draws on the grid x 2 stats.
+    assert log_metric.call_count == 20
+
+
+def test_logging_callback_rebase_steps(mocker) -> None:
+    """Post-tuning draws are logged starting at step 0."""
+    log_metric = mocker.patch.object(pmm_mlflow.mlflow, "log_metric")
+    callback = create_log_callback(
+        stats=["energy"],
+        rebase_steps=True,
+        take_every=1,
+    )
+    trace = mocker.MagicMock()
+
+    # Tuning draws are skipped, but still set each chain's offset.
+    for idx in range(3):
+        callback(trace, _draw(draw_idx=idx, tuning=True, stats={"energy": 9.0}))
+    for idx in range(3, 6):
+        callback(trace, _draw(draw_idx=idx, stats={"energy": 1.0}))
+
+    assert log_metric.call_args_list == [
+        mocker.call(key="chain_0/energy", value=1.0, step=0),
+        mocker.call(key="chain_0/energy", value=1.0, step=1),
+        mocker.call(key="chain_0/energy", value=1.0, step=2),
+    ]
+
+
+def test_logging_callback_step_not_rebased_by_default(mocker) -> None:
+    """By default the raw draw_idx is kept, so the axis still counts tuning."""
+    log_metric = mocker.patch.object(pmm_mlflow.mlflow, "log_metric")
+    callback = create_log_callback(stats=["energy"], take_every=1)
+    trace = mocker.MagicMock()
+
+    for idx in range(3):
+        callback(trace, _draw(draw_idx=idx, tuning=True, stats={"energy": 9.0}))
+    callback(trace, _draw(draw_idx=3, stats={"energy": 1.0}))
+
+    log_metric.assert_called_once_with(key="chain_0/energy", value=1.0, step=3)
+
+
+@pytest.mark.parametrize(
+    ("kwargs", "match"),
+    [
+        (
+            {"stats": ["energy"], "rebase_steps": True, "exclude_tuning": False},
+            "requires `exclude_tuning=True`",
+        ),
+    ],
+)
+def test_logging_callback_invalid_arguments(kwargs, match) -> None:
+    with pytest.raises(ValueError, match=match):
+        create_log_callback(**kwargs)
