@@ -35,6 +35,7 @@ from pymc_marketing.clv import BetaGeoModel
 from pymc_marketing.mlflow import (
     autolog,
     create_log_callback,
+    create_nutpie_log_callback,
     log_error,
     log_likelihood_type,
     log_mmm,
@@ -1281,3 +1282,198 @@ def test_logging_callback_step_not_rebased_by_default(mocker) -> None:
 def test_logging_callback_invalid_arguments(kwargs, match) -> None:
     with pytest.raises(ValueError, match=match):
         create_log_callback(**kwargs)
+
+
+class _Chain:
+    """Stand-in for `nutpie.ChainProgress`."""
+
+    def __init__(
+        self,
+        finished_draws=100,
+        total_draws=1000,
+        tuning=False,
+        divergences=0,
+        step_size=0.1,
+        latest_num_steps=7,
+        total_num_steps=70,
+        runtime_ms=1500.0,
+    ):
+        self.finished_draws = finished_draws
+        self.total_draws = total_draws
+        self.tuning = tuning
+        self.divergences = divergences
+        self.step_size = step_size
+        self.latest_num_steps = latest_num_steps
+        self.total_num_steps = total_num_steps
+        self.runtime_ms = runtime_ms
+
+
+def test_nutpie_callback_logs_chain_progress(mocker) -> None:
+    """Stats are logged per chain at `finished_draws`, keyed like the pymc path."""
+    client = mocker.patch.object(pmm_mlflow.mlflow.tracking, "MlflowClient")
+    create_nutpie_log_callback(stats=["divergences", "step_size"], run_id="run-1")
+    log_metric = client.return_value.log_metric
+
+    callback = create_nutpie_log_callback(
+        stats=["divergences", "step_size"],
+        run_id="run-1",
+        min_interval=0.0,
+    )
+    callback([_Chain(finished_draws=300, divergences=4), _Chain(finished_draws=250)])
+
+    assert log_metric.call_args_list == [
+        mocker.call("run-1", "chain_0/divergences", 4.0, step=300),
+        mocker.call("run-1", "chain_0/step_size", 0.1, step=300),
+        mocker.call("run-1", "chain_1/divergences", 0.0, step=250),
+        mocker.call("run-1", "chain_1/step_size", 0.1, step=250),
+    ]
+
+
+def test_nutpie_callback_skips_unchanged_values(mocker) -> None:
+    """A poll that reports the same numbers does not write again."""
+    client = mocker.patch.object(pmm_mlflow.mlflow.tracking, "MlflowClient")
+    callback = create_nutpie_log_callback(
+        stats=["divergences"], run_id="r", min_interval=0.0
+    )
+
+    callback([_Chain(divergences=2)])
+    callback([_Chain(divergences=2)])
+
+    assert client.return_value.log_metric.call_count == 1
+
+
+def test_nutpie_callback_throttles_by_min_interval(mocker) -> None:
+    """`min_interval` bounds the write rate; nutpie polls far more often."""
+    client = mocker.patch.object(pmm_mlflow.mlflow.tracking, "MlflowClient")
+    callback = create_nutpie_log_callback(
+        stats=["divergences"], run_id="r", min_interval=60.0
+    )
+
+    for i in range(10):
+        callback([_Chain(finished_draws=i, divergences=i)])
+
+    assert client.return_value.log_metric.call_count == 1
+
+
+def test_nutpie_callback_divergences_new_is_a_delta(mocker) -> None:
+    """`divergences_new` marks only the polls where a burst happened."""
+    client = mocker.patch.object(pmm_mlflow.mlflow.tracking, "MlflowClient")
+    callback = create_nutpie_log_callback(
+        stats=["divergences_new"],
+        run_id="r",
+        min_interval=0.0,
+    )
+
+    callback([_Chain(finished_draws=100, divergences=0)])
+    callback([_Chain(finished_draws=200, divergences=5)])
+    callback([_Chain(finished_draws=300, divergences=5)])
+
+    calls = client.return_value.log_metric.call_args_list
+    assert [c.args[2] for c in calls] == [5.0]
+    assert calls[0].kwargs["step"] == 200
+
+
+def test_nutpie_callback_excludes_tuning(mocker) -> None:
+    """Chains still tuning are skipped by default."""
+    client = mocker.patch.object(pmm_mlflow.mlflow.tracking, "MlflowClient")
+    callback = create_nutpie_log_callback(
+        stats=["divergences"], run_id="r", min_interval=0.0
+    )
+
+    callback([_Chain(tuning=True), _Chain(finished_draws=10)])
+
+    keys = [c.args[1] for c in client.return_value.log_metric.call_args_list]
+    assert keys == ["chain_1/divergences"]
+
+
+def test_nutpie_callback_rebase_steps(mocker) -> None:
+    """Post-tuning draws are logged from step 0."""
+    client = mocker.patch.object(pmm_mlflow.mlflow.tracking, "MlflowClient")
+    callback = create_nutpie_log_callback(
+        stats=["divergences"],
+        run_id="r",
+        min_interval=0.0,
+        rebase_steps=True,
+    )
+
+    callback([_Chain(finished_draws=1000, tuning=True)])
+    callback([_Chain(finished_draws=1200)])
+    callback([_Chain(finished_draws=1300, divergences=1)])
+
+    steps = [c.kwargs["step"] for c in client.return_value.log_metric.call_args_list]
+    assert steps == [0, 100]
+
+
+def test_nutpie_callback_uses_active_run(mocker) -> None:
+    """Without an explicit `run_id`, the active run is captured up front."""
+    client = mocker.patch.object(pmm_mlflow.mlflow.tracking, "MlflowClient")
+    active_run = SimpleNamespace(info=SimpleNamespace(run_id="active-run"))
+    mocker.patch.object(pmm_mlflow.mlflow, "active_run", return_value=active_run)
+
+    callback = create_nutpie_log_callback(stats=["divergences"], min_interval=0.0)
+    callback([_Chain(divergences=1)])
+
+    assert client.return_value.log_metric.call_args.args[0] == "active-run"
+
+
+def test_nutpie_callback_requires_a_run(mocker) -> None:
+    mocker.patch.object(pmm_mlflow.mlflow, "active_run", return_value=None)
+
+    with pytest.raises(ValueError, match="No active run"):
+        create_nutpie_log_callback(stats=["divergences"])
+
+
+def test_nutpie_callback_rejects_unknown_stats() -> None:
+    with pytest.raises(ValueError, match="Unknown stats"):
+        create_nutpie_log_callback(stats=["not_a_stat"], run_id="r")
+
+
+def test_nutpie_callback_swallows_and_logs_errors(mocker, caplog) -> None:
+    """nutpie discards callback exceptions, so failures must be visible here."""
+    client = mocker.patch.object(pmm_mlflow.mlflow.tracking, "MlflowClient")
+    client.return_value.log_metric.side_effect = RuntimeError("store is down")
+    callback = create_nutpie_log_callback(
+        stats=["divergences"], run_id="r", min_interval=0.0
+    )
+
+    with caplog.at_level(logging.ERROR, logger="pymc_marketing.mlflow"):
+        callback([_Chain(divergences=1)])
+
+    assert "store is down" in caplog.text
+
+
+def test_nutpie_callback_take_every_bounds_the_writes(mocker) -> None:
+    """`take_every` caps writes by draws, independently of the poll rate."""
+    client = mocker.patch.object(pmm_mlflow.mlflow.tracking, "MlflowClient")
+    callback = create_nutpie_log_callback(
+        stats=["step_size"],
+        run_id="r",
+        min_interval=0.0,
+        take_every=100,
+    )
+
+    # 1000 draws polled every 10, with a value that changes every poll.
+    for idx in range(0, 1000, 10):
+        callback([_Chain(finished_draws=idx, step_size=idx / 1000)])
+
+    assert client.return_value.log_metric.call_count == 10
+
+
+def test_nutpie_callback_take_every_does_not_throttle_bursts(mocker) -> None:
+    """`divergences_new` is logged even between `take_every` marks."""
+    client = mocker.patch.object(pmm_mlflow.mlflow.tracking, "MlflowClient")
+    callback = create_nutpie_log_callback(
+        stats=["divergences_new"],
+        run_id="r",
+        min_interval=0.0,
+        take_every=1000,
+    )
+
+    callback([_Chain(finished_draws=10, divergences=0)])
+    callback([_Chain(finished_draws=20, divergences=3)])
+    callback([_Chain(finished_draws=30, divergences=3)])
+
+    calls = client.return_value.log_metric.call_args_list
+    assert len(calls) == 1
+    assert calls[0].args[2] == 3.0
+    assert calls[0].kwargs["step"] == 20

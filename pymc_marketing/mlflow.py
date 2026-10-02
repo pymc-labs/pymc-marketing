@@ -191,6 +191,8 @@ Autologging for a PyMC-Marketing Bass model:
 import logging
 import os
 import tempfile
+import threading
+import time
 import traceback
 import warnings
 from collections.abc import Callable, Mapping
@@ -421,6 +423,183 @@ def create_log_callback(
 
     if exclude_tuning:
         callback = _exclude_tuning(callback)
+
+    return callback
+
+
+# ChainProgress exposes aggregate progress only, and the names differ from
+# pymc's sample_stats. `divergences` is the one to chart: like pymc's
+# `divergences` it is a running total, so divergence bursts show up as a
+# change in slope instead of a spike that `take_every` may miss.
+NUTPIE_CHAIN_STATS: Mapping[str, Callable[[Any], float]] = {
+    "divergences": lambda chain: chain.divergences,
+    "divergences_new": lambda chain: chain.divergences,  # handled specially
+    "step_size": lambda chain: chain.step_size,
+    "num_steps": lambda chain: chain.latest_num_steps,
+    "total_num_steps": lambda chain: chain.total_num_steps,
+    "progress_fraction": lambda chain: chain.finished_draws / chain.total_draws,
+    "runtime_seconds": lambda chain: chain.runtime_ms / 1000,
+}
+
+
+def create_nutpie_log_callback(
+    stats: list[str] | None = None,
+    exclude_tuning: bool = True,
+    rebase_steps: bool = False,
+    take_every: int | None = None,
+    min_interval: float = 1.0,
+    run_id: str | None = None,
+):
+    """Create a ``progress_callback`` that logs nutpie progress to MLflow.
+
+    Unlike :func:`create_log_callback`, which pymc invokes once per draw,
+    nutpie invokes this periodically (every ``progress_rate`` ms) from its
+    worker threads with the progress of *all* chains. Two consequences are
+    handled here:
+
+    - **The run must be addressed explicitly.** MLflow keeps the active run in
+      a thread-local, so ``mlflow.log_metric`` called from a sampler thread
+      does not reach the run started in the main thread -- it is silently
+      dropped. The run id is therefore captured now, while we are still on the
+      calling thread, and metrics are logged through ``MlflowClient``.
+    - **Writes are throttled.** ``min_interval`` keeps the callback to one
+      round of writes per interval, which is what makes it safe to leave on
+      for a long run. Values that have not changed since the last write are
+      skipped.
+
+    Parameters
+    ----------
+    stats : list of str, optional
+        Chain-level statistics to log, from :data:`NUTPIE_CHAIN_STATS`.
+        Defaults to ``["divergences", "step_size"]``. ``divergences_new``
+        only logs the polls in which the count moved.
+    exclude_tuning : bool, optional
+        Whether to skip chains that are still tuning. Defaults to True.
+    rebase_steps : bool, optional
+        Log post-tuning draws starting at step 0 instead of at
+        ``finished_draws``, which counts tuning draws too. Because nutpie
+        only reports progress periodically, the rebased axis can start at a
+        draw greater than 0. Defaults to False.
+    take_every : int, optional
+        Log a chain's stat at most once per this many draws, mirroring
+        :func:`create_log_callback`. This bounds the number of writes to
+        roughly ``total_draws / take_every`` per chain and stat, rather than
+        to the poll rate, which depends on how fast the sampler happens to be
+        running. Defaults to None, i.e. only ``min_interval`` and unchanged
+        values limit the writes. ``divergences_new`` ignores this, so a burst
+        is never throttled away.
+    min_interval : float, optional
+        Minimum number of seconds between rounds of writes. Defaults to 1.0.
+    run_id : str, optional
+        Run to log to. Defaults to the active run in the calling thread.
+
+    Returns
+    -------
+    callback : Callable
+        A function suitable for ``nutpie.sample(progress_callback=...)``.
+
+    Notes
+    -----
+    ``pm.sample`` cannot be used to pass this through: it sets
+    ``progress_callback`` itself for the progress bar, and raises if a
+    ``callback`` is given with ``nuts_sampler="nutpie"``. Call
+    ``nutpie.sample`` directly. See https://github.com/pymc-devs/pymc/issues/8292.
+
+    Examples
+    --------
+    .. code-block:: python
+
+        import mlflow
+        import nutpie
+
+        from pymc_marketing.mlflow import create_nutpie_log_callback
+
+        compiled = nutpie.compile_pymc_model(model)
+
+        # The callback has to be built inside the run: it captures the run id
+        # now, because it will be called from a thread that cannot see it.
+        with mlflow.start_run():
+            callback = create_nutpie_log_callback(stats=["divergences"])
+            idata = nutpie.sample(compiled, progress_callback=callback)
+
+    """
+    stats = list(stats) if stats else ["divergences", "step_size"]
+    if unknown := sorted(set(stats) - set(NUTPIE_CHAIN_STATS)):
+        raise ValueError(
+            f"Unknown stats {unknown}. Available: {sorted(NUTPIE_CHAIN_STATS)}."
+        )
+
+    resolved_run_id = run_id
+    if resolved_run_id is None:
+        active_run = mlflow.active_run()
+        if active_run is not None:
+            resolved_run_id = active_run.info.run_id
+    if resolved_run_id is None:
+        raise ValueError(
+            "No active run found in the calling thread. Pass `run_id` "
+            "explicitly, or create the callback inside `mlflow.start_run()`."
+        )
+
+    client = mlflow.tracking.MlflowClient()
+    lock = threading.Lock()
+    logged: dict[tuple[int, str], tuple[int, float]] = {}
+    divergences: dict[int, int] = {}
+    offsets: dict[int, int] = {}
+    last_write = 0.0
+
+    def _value(chain_id: int, chain: Any, stat: str) -> float:
+        if stat == "divergences_new":
+            # `divergences` is cumulative, so the delta since the previous
+            # poll is what marks a burst. Chains are identified by position:
+            # nutpie hands out a fresh object per poll, so `id()` is no use.
+            previous = divergences.get(chain_id, 0)
+            divergences[chain_id] = chain.divergences
+            return float(chain.divergences - previous)
+        return float(NUTPIE_CHAIN_STATS[stat](chain))
+
+    def callback(chains: list[Any]) -> None:
+        nonlocal last_write
+        try:
+            now = time.monotonic()
+            if now - last_write < min_interval:
+                return
+            last_write = now
+
+            with lock:
+                for chain_id, chain in enumerate(chains):
+                    if exclude_tuning and chain.tuning:
+                        continue
+                    step = chain.finished_draws
+                    if rebase_steps:
+                        step -= offsets.setdefault(chain_id, step)
+                    for stat in stats:
+                        value = _value(chain_id, chain, stat)
+                        if stat == "divergences_new" and value == 0:
+                            # Only the bursts are interesting; `divergences`
+                            # already carries the running total.
+                            continue
+                        key = (chain_id, stat)
+                        previous = logged.get(key)
+                        if (
+                            previous is not None
+                            and take_every
+                            and stat != "divergences_new"
+                            and chain.finished_draws - previous[0] < take_every
+                        ):
+                            continue
+                        if previous is not None and previous[1] == value:
+                            continue
+                        logged[key] = (chain.finished_draws, value)
+                        client.log_metric(
+                            resolved_run_id,
+                            f"chain_{chain_id}/{stat}",
+                            value,
+                            step=step,
+                        )
+        except Exception:
+            # nutpie prints callback exceptions and carries on, so without
+            # this a broken callback would look like a silent no-op.
+            logger.exception("Failed to log nutpie progress to MLflow.")
 
     return callback
 
