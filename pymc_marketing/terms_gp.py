@@ -49,7 +49,7 @@ Rules
   e.g. ``coords={"date": ...}``) and data variables. Datetimes are converted
   to **observation periods since the anchored first training date**, using
   ``time_resolution`` days per period, and registered as ``pmd.Data`` under
-  ``{var_name}_index``.
+  ``{name}_index``.
 - ``time_resolution`` defaults to ``None``, which infers the number of days
   per period from the observed date spacing -- the same convention as
   :func:`pymc_marketing.mmm.tvp.infer_time_index` and
@@ -277,7 +277,7 @@ class GPDataTerm(ModelTerm):
     ``var_name`` names the time reference in the dataset and is read with
     ``ds[var_name]``, which works for both coordinates and data variables.
     The numeric index is always registered as ``pmd.Data`` under
-    ``{var_name}_index``; use :attr:`index_var` for that name.
+    ``{name}_index``; use :attr:`index_var` for that name.
     """
 
     var_name: str = "date"
@@ -296,33 +296,14 @@ class GPDataTerm(ModelTerm):
     )
 
     @property
-    def _index_time_resolution(self) -> int | None:
-        """The ``time_resolution`` the shared index was registered with, if any.
-
-        Recorded on the model (not the term), because the term that registers
-        the index is not necessarily the term that later checks it: two terms
-        sharing a time reference each resolve their own resolution, and the
-        second one has to see what the first one committed to.
-        """
-        model = pm.modelcontext(None)
-        registry = getattr(model, "_gp_index_time_resolutions", None)
-        if registry is None:
-            return None
-        return registry.get(self.index_var)
-
-    def _record_index_time_resolution(self) -> None:
-        """Record this term's resolution as the one the shared index uses."""
-        model = pm.modelcontext(None)
-        registry = getattr(model, "_gp_index_time_resolutions", None)
-        if registry is None:
-            registry = {}
-            model._gp_index_time_resolutions = registry
-        registry.setdefault(self.index_var, self.time_resolution)
-
-    @property
     def index_var(self) -> str:
-        """Name of the registered numeric index data variable."""
-        return f"{self.var_name}_index"
+        """Name of this term's registered numeric index data variable.
+
+        Per term, not shared: two terms referencing the same time reference
+        resolve their own ``time_resolution`` and anchor, so a shared index
+        would force one term's basis onto the other's units.
+        """
+        return f"{self.name}_index"
 
     def __post_init__(self) -> None:
         """Normalize ``dims`` to a tuple for stable serialization round-trips."""
@@ -412,36 +393,6 @@ class GPDataTerm(ModelTerm):
                 "training range (or starting at/after it) instead."
             )
 
-    def _check_index_agreement(self) -> None:
-        """Refuse to shadow a shared time index with a differently-scaled one.
-
-        ``{var_name}_index`` is registered once per ``var_name`` and shared by
-        every term referencing it, but each term resolves its own
-        ``time_resolution``, ``X_mid``, ``m``, and ``L`` from its own view of
-        the data. If two terms disagree on the resolution, the second would
-        build its basis against a shared axis in different units, centering
-        and sizing it wrong. ``set_data`` has the same hazard: each term
-        writes its own values into the shared index and the last one wins.
-
-        Only the *unit* is compared, not the values: a prediction window that
-        extends or shifts the training range is the normal out-of-sample case
-        and must keep working.
-        """
-        registered = self._index_time_resolution
-        if registered is None or registered == self.time_resolution:
-            return
-        raise ValueError(
-            f"The GP term {self.name!r} resolves {self.var_name!r} at "
-            f"time_resolution={self.time_resolution}, but {self.index_var!r} was "
-            f"already registered at time_resolution={registered}. The index is "
-            "registered once per time reference and shared, so terms on the same "
-            "reference must agree on time_resolution; otherwise each basis is "
-            "centered and sized on a different axis and one term silently "
-            "overwrites the other's values. Pass the same explicit "
-            f"time_resolution to every term sharing {self.var_name!r}, or give "
-            "them separate time references."
-        )
-
     def _check_training_window(self, index: xr.DataArray) -> None:
         """Refuse to re-register a fitted term on any window but the training one.
 
@@ -480,10 +431,8 @@ class GPDataTerm(ModelTerm):
                 self.last_date = values.max()
         index = self._time_index(da)
         self._check_training_window(index)
-        self._check_index_agreement()
         if self.index_var not in model:
             pmd.Data(self.index_var, index)
-            self._record_index_time_resolution()
         if self.X_mid is None:
             self.X_mid = float(self._time_values(da).mean())
         if self.first_index is None:
@@ -544,7 +493,6 @@ class GPDataTerm(ModelTerm):
         self._check_window_start(np.asarray(da.values))
         coords = {dim: ds[dim].values for dim in da.dims if dim in ds.coords}
         values = self._time_values(da)
-        self._check_index_agreement()
         pm.set_data({self.index_var: values}, model=model, coords=coords)
 
     def _check_registered(self) -> pm.Model:
@@ -614,7 +562,7 @@ class HSGPTerm(GPDataTerm):
         ``ds[var_name]`` (works for both coordinates and data variables).
         Datetimes are converted to days since the first date, divided by
         ``time_resolution``, and registered as ``pmd.Data`` under
-        ``{var_name}_index``. Defaults to ``"date"``.
+        ``{name}_index``. Defaults to ``"date"``.
     name : str, optional
         Prefix for the variables and the output deterministic. Defaults to
         ``"hsgp"``.
@@ -910,7 +858,7 @@ class HSGPPeriodicTerm(GPDataTerm):
         ``ds[var_name]`` (works for both coordinates and data variables).
         Datetimes are converted to days since the first date, divided by
         ``time_resolution``, and registered as ``pmd.Data`` under
-        ``{var_name}_index``. Defaults to ``"date"``.
+        ``{name}_index``. Defaults to ``"date"``.
     name : str, optional
         Prefix for the variables and the output deterministic. Defaults to
         ``"hsgp_periodic"``.

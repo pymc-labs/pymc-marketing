@@ -135,7 +135,7 @@ def test_softplus_defaults():
 
 
 def test_coordinate_build(ds):
-    """No-arg term resolves the date coordinate into date_index."""
+    """No-arg term resolves the date coordinate into a per-term index."""
     trend = HSGPTerm(name="trend")
     mu = Intercept("intercept") + trend
     coords = collect_coords(mu, ds=ds)
@@ -143,8 +143,8 @@ def test_coordinate_build(ds):
     with pm.Model(coords=coords) as model:
         register_data(mu, ds=ds)
         build_param(mu)
-        assert trend.index_var == "date_index"
-        assert "date_index" in model
+        assert trend.index_var == "trend_index"
+        assert trend.index_var in model
         assert "trend_m" in model.coords
         assert trend.m is not None
         assert trend.L is not None
@@ -160,9 +160,11 @@ def test_numeric_data_var_build(ds_num):
         register_data(trend, ds=ds_num)
         effect = build_param(trend)
         assert isinstance(effect, PTVariable)
-        assert trend.index_var == "time_index"
-        assert "time_index" in model
-        assert np.allclose(model["time_index"].get_value(), np.arange(52, dtype=float))
+        assert trend.index_var == "trend_index"
+        assert trend.index_var in model
+        assert np.allclose(
+            model[trend.index_var].get_value(), np.arange(52, dtype=float)
+        )
         assert trend.time_dim == "t"
 
 
@@ -177,8 +179,10 @@ def test_datetime_data_var_conversion():
     with pm.Model(coords=collect_coords(trend, ds=ds)) as model:
         register_data(trend, ds=ds)
         build_param(trend)
-        assert trend.index_var == "when_index"
-        assert np.allclose(model["when_index"].get_value(), np.arange(n, dtype=float))
+        assert trend.index_var == "trend_index"
+        assert np.allclose(
+            model[trend.index_var].get_value(), np.arange(n, dtype=float)
+        )
 
 
 def test_time_resolution(ds):
@@ -188,7 +192,7 @@ def test_time_resolution(ds):
         register_data(trend, ds=ds)
         build_param(trend)
         assert trend.X_mid == pytest.approx(19.5)
-        assert np.allclose(model["date_index"].get_value(), np.arange(40) * 7 / 7)
+        assert np.allclose(model[trend.index_var].get_value(), np.arange(40) * 7 / 7)
 
 
 @pytest.mark.parametrize("freq", ["W", "D", "2W", "3D"])
@@ -210,7 +214,7 @@ def test_time_resolution_inferred_matches_mmm_convention(freq):
     with pm.Model(coords=collect_coords(trend, ds=ds)) as model:
         register_data(trend, ds=ds)
         build_param(trend)
-        index = model["date_index"].get_value()
+        index = model[trend.index_var].get_value()
 
     assert trend.time_resolution == expected_res
     mmm_index = infer_time_index(pd.Series(dates), pd.Series(dates), expected_res)
@@ -242,7 +246,7 @@ def test_explicit_time_resolution_wins_over_inference():
     with pm.Model(coords=collect_coords(trend, ds=ds)) as model:
         register_data(trend, ds=ds)
         build_param(trend)
-        index = model["date_index"].get_value()
+        index = model[trend.index_var].get_value()
     assert trend.time_resolution == 1
     assert index[-1] > 100  # day offsets, as explicitly requested
 
@@ -295,7 +299,7 @@ def test_float_hyperparams(ds):
 
 
 def test_register_data_dedup(ds):
-    """Two terms on the same time reference share one data variable."""
+    """Two terms on the same time reference each register their own index."""
     trend = HSGPTerm(name="trend")
     seasonality = HSGPPeriodicTerm(
         name="seasonality",
@@ -308,7 +312,62 @@ def test_register_data_dedup(ds):
     with pm.Model(coords=collect_coords(mu, ds=ds)) as model:
         register_data(mu, ds=ds)
         build_param(mu)
-        assert "date_index" in model
+        assert trend.index_var in model
+        assert seasonality.index_var in model
+
+
+def test_terms_sharing_reference_keep_their_own_index(ds):
+    """Two terms on one time reference each get their own time index.
+
+    Each term resolves ``time_resolution`` (and the anchor) from its own
+    recipe, so a shared index would force one term's basis onto the other's
+    units. Separate indexes keep every basis on the axis it was resolved
+    for, with no cross-term clobbering.
+    """
+    trend = HSGPTerm(name="trend", time_resolution=7)
+    seasonality = HSGPPeriodicTerm(
+        name="seasonality",
+        time_resolution=1,
+        scale=Prior("HalfNormal", sigma=1),
+        ls=Prior("InverseGamma", alpha=2, beta=1),
+        period=52,
+        m=20,
+    )
+    mu = trend + seasonality
+    with pm.Model(coords=collect_coords(mu, ds=ds)) as model:
+        register_data(mu, ds=ds)
+        build_param(mu)
+        # resolution divides the day offsets: res=7 -> weeks, res=1 -> days
+        np.testing.assert_allclose(model[trend.index_var].get_value(), np.arange(40))
+        np.testing.assert_allclose(
+            model[seasonality.index_var].get_value(), np.arange(40) * 7.0
+        )
+
+
+def test_set_data_after_model_context_exits(ds):
+    """``set_data`` with an explicit model works outside the model context.
+
+    The lifecycle docs offer ``set_data`` as a standalone step with an
+    explicit ``model`` argument, so it must not require an active ``with``
+    block.
+    """
+    trend = HSGPTerm(name="trend", time_resolution=7)
+    with pm.Model(coords=collect_coords(trend, ds=ds)) as model:
+        register_data(trend, ds=ds)
+        build_param(trend)
+
+    future = xr.Dataset(
+        {},
+        coords={
+            "date": pd.date_range(
+                start=ds.coords["date"].values[-1], periods=6, freq="7D"
+            )[1:]
+        },
+    )
+    trend.set_data(ds=future, model=model)
+    index = model[trend.index_var].get_value()
+    # res=7 -> the future window starts one period after the training range
+    assert index[0] == pytest.approx(40)
 
 
 def test_name_collision_raises(ds):
@@ -362,7 +421,9 @@ def test_set_data_anchored_index(ds):
         shifted = ds.assign_coords(date=ds.coords["date"].values + pd.Timedelta(days=7))
         set_data(mu, ds=shifted, model=model)
         assert trend.X_mid == X_mid
-        assert np.allclose(model["date_index"].get_value(), np.arange(40) * 7 + 7)
+        np.testing.assert_allclose(
+            model[trend.index_var].get_value(), np.arange(40) * 7 + 7
+        )
         assert model.coords["date"][0] == shifted.coords["date"].values[0]
 
 
@@ -1019,7 +1080,7 @@ def test_time_index_parity_with_mmm_training_index(ds):
     with pm.Model(coords=collect_coords(trend, ds=ds)) as model:
         register_data(trend, ds=ds)
         build_param(trend)
-        index = model["date_index"].get_value()
+        index = model[trend.index_var].get_value()
 
     assert trend.time_resolution == mmm_resolution
     np.testing.assert_allclose(index, mmm_index)
@@ -1110,7 +1171,7 @@ def test_set_data_refuses_window_before_training_anchor(ds):
             set_data(trend, ds=before, model=model)
 
         # the shared index is untouched by the rejected window
-        assert np.asarray(model["date_index"].get_value()).min() == 0.0
+        assert np.asarray(model[trend.index_var].get_value()).min() == 0.0
 
 
 def test_set_data_allows_window_extending_past_training(ds):
@@ -1129,28 +1190,11 @@ def test_set_data_allows_window_extending_past_training(ds):
             },
         )
         set_data(trend, ds=future, model=model)
-        assert np.asarray(model["date_index"].get_value()).max() > 0.0
-
-
-def test_shared_time_reference_requires_matching_resolution(ds):
-    """Two terms on one time reference must agree on time_resolution.
-
-    {var_name}_index is registered once and shared, but each term resolves its
-    own resolution, X_mid, m, and L. With a daily term and an inferred weekly
-    one on the same reference, the index ends up in one unit while a term
-    centers and sizes its basis in the other.
-    """
-    daily = HSGPTerm(name="trend", time_resolution=1)
-    weekly = SoftPlusHSGPTerm(name="season")  # infers 7 from weekly data
-    mu = Intercept("intercept") + daily + weekly
-
-    with pm.Model(coords=collect_coords(mu, ds=ds)):
-        with pytest.raises(ValueError, match="must agree on time_resolution"):
-            register_data(mu, ds=ds)
+        assert np.asarray(model[trend.index_var].get_value()).max() > 0.0
 
 
 def test_shared_time_reference_with_matching_resolution_builds(ds):
-    """Sharing a reference is fine when both terms agree on the resolution."""
+    """Sharing a reference with matching resolutions builds cleanly."""
     trend = HSGPTerm(name="trend", time_resolution=7)
     season = SoftPlusHSGPTerm(name="season", time_resolution=7)
     mu = Intercept("intercept") + trend + season
@@ -1159,7 +1203,8 @@ def test_shared_time_reference_with_matching_resolution_builds(ds):
         register_data(mu, ds=ds)
         build_param(mu)
 
-    assert "date_index" in model
+    assert trend.index_var in model
+    assert season.index_var in model
     assert trend.X_mid == pytest.approx(season.X_mid)
 
 
@@ -1259,30 +1304,3 @@ def test_datetime_extra_coord_survives_serialization():
     with pm.Model(coords=collect_coords(restored, ds=data)):
         register_data(restored, ds=data)
         set_data(restored, ds=data, model=pm.modelcontext(None))
-
-
-def test_set_data_refuses_mismatched_resolution(ds):
-    """set_data re-checks the shared index's unit, not only register_data.
-
-    register_data catches two terms that disagree at build time, but a recipe
-    can be restored and retuned between the two calls, so the unit has to be
-    re-checked when the index is rewritten too.
-    """
-    trend = HSGPTerm(name="trend", time_resolution=7)
-    mu = Intercept("intercept") + trend
-    with pm.Model(coords=collect_coords(mu, ds=ds)) as model:
-        register_data(mu, ds=ds)
-        build_param(mu)
-
-        future = xr.Dataset(
-            {},
-            coords={
-                "date": pd.date_range(
-                    ds.coords["date"].values[-1], periods=8, freq="W-MON"
-                )
-            },
-        )
-        # retune the restored recipe to a different unit for the same reference
-        trend.time_resolution = 1
-        with pytest.raises(ValueError, match="must agree on time_resolution"):
-            set_data(trend, ds=future, model=model)
