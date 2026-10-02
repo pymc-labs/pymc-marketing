@@ -1500,3 +1500,14 @@ class TestFullCovariance:
         )
         assert corr_post[0, 1] > 0.3
         assert corr_post[0, 1] > corr_post[0, 3]
+
+
+def test_prior_predictive_var_names_without_observed_raises(small_maxdiff):
+    task_df, items, _ = small_maxdiff
+    model = MaxDiffMixedLogit(task_df=task_df, items=items)
+    model.build_model()
+    with pytest.raises(ValueError, match="observed variable"):
+        model.sample_prior_predictive(
+            samples=5, var_names=[model.model.free_RVs[0].name]
+        )
+    assert model.idata is None

@@ -806,6 +806,19 @@ def test_sample_prior_predictive_returns_dataset_with_attrs(toy_X, combined):
     assert "inference_library_version" in result.attrs
 
 
+def test_sample_prior_predictive_var_names_without_observed_raises(toy_X):
+    model = RegressionModelBuilderTest()
+    with pytest.raises(ValueError, match="output"):
+        model.sample_prior_predictive(toy_X, samples=10, var_names=["a", "b"])
+    assert model.idata is None
+
+
+def test_sample_prior_predictive_var_names_with_observed(toy_X):
+    model = RegressionModelBuilderTest()
+    result = model.sample_prior_predictive(toy_X, samples=10, var_names=["a", "output"])
+    assert list(result.data_vars) == ["output"]
+
+
 @pytest.mark.parametrize("combined", [True, False])
 def test_sample_posterior_predictive_returns_dataset_with_attrs(
     fitted_regression_model_instance, toy_X, combined
