@@ -15,14 +15,22 @@
 
 from __future__ import annotations
 
+import json
+import warnings
+
 import numpy as np
 import pandas as pd
 import pytest
 import xarray as xr
+from scipy.optimize import approx_fprime
 
 from pymc_marketing.data.idata.mmm_wrapper import MMMIDataWrapper
-from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation
-from pymc_marketing.mmm.budget_optimizer import BudgetOptimizer
+from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation, PowerPriceResponse
+from pymc_marketing.mmm.budget_optimizer import (
+    PRICED_CHANNELS_ATTR,
+    BudgetOptimizer,
+    MinimizeException,
+)
 from pymc_marketing.mmm.mmm import (
     MMM,
     BudgetOptimizerWrapper,
@@ -574,6 +582,22 @@ class TestSetCostPerUnit:
             (channel_spend / channel_data).sel(channel="channel_3").values,
             1.0,
         )
+        assert json.loads(mmm.idata.attrs[PRICED_CHANNELS_ATTR]) == [
+            "channel_1",
+            "channel_2",
+        ]
+
+    def test_set_cost_per_unit_records_the_priced_channels(self, simple_fitted_mmm):
+        """The optimizer's gate reads this list; the table's own JSON stays for round-trips."""
+        mmm = simple_fitted_mmm
+        dates = pd.to_datetime(mmm.idata.constant_data.coords["date"].values)
+        mmm.set_cost_per_unit(
+            pd.DataFrame({"date": dates, "channel_2": 2.0, "channel_1": 3.0})
+        )
+        assert json.loads(mmm.idata.attrs[PRICED_CHANNELS_ATTR]) == [
+            "channel_1",
+            "channel_2",
+        ]
 
 
 class TestBudgetOptimizerCostPerUnitIntegration:
@@ -734,6 +758,7 @@ class TestSerializationRoundtrip:
         assert loaded._cost_per_unit_input is not None
         assert loaded.data.cost_per_unit is not None
         xr.testing.assert_equal(loaded.data.cost_per_unit, original_cpu)
+        assert PRICED_CHANNELS_ATTR in loaded.idata.attrs
 
         loaded_spend = loaded.data.get_channel_spend()
         xr.testing.assert_allclose(loaded_spend, original_spend)
@@ -947,3 +972,904 @@ class TestSummaryColumnName:
         factory = MMMSummaryFactory(wrapper)
         df = factory.channel_spend()
         assert "channel_data" in df.columns
+
+
+WINDOW_WEEKS = 4
+CHANNELS_3 = ["channel_1", "channel_2", "channel_3"]
+
+
+def _window(mmm):
+    last = pd.Timestamp(mmm.idata.constant_data.coords["date"].values.max())
+    return last + pd.Timedelta(weeks=1), last + pd.Timedelta(weeks=WINDOW_WEEKS)
+
+
+def _optimizer(mmm, **kwargs):
+    start, end = _window(mmm)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", UserWarning)
+        return mmm.budget_optimizer(start, end, **kwargs)
+
+
+def _full_table(mmm, prices: dict[str, float]) -> pd.DataFrame:
+    dates = pd.to_datetime(mmm.idata.constant_data.coords["date"].values)
+    return pd.DataFrame({"date": dates, **{ch: float(p) for ch, p in prices.items()}})
+
+
+def _on_air_reference(mmm) -> xr.DataArray:
+    spend = mmm.idata.constant_data["channel_spend"]
+    return spend.where(spend > 0).mean("date")
+
+
+def _flight(mmm, channel: str, on_every: int) -> None:
+    """Zero a channel's fitted data except every ``on_every``-th period (0 = always off)."""
+    data = mmm.idata.constant_data["channel_data"]
+    keep = np.zeros(data.sizes["date"], dtype=bool)
+    if on_every:
+        keep[::on_every] = True
+    data.loc[{"channel": channel}] = data.sel(channel=channel).where(
+        xr.DataArray(keep, dims=("date",)), 0.0
+    )
+
+
+def _window_cpu(mmm, prices: dict[str, float]) -> xr.DataArray:
+    start, _ = _window(mmm)
+    dates = pd.date_range(start, periods=WINDOW_WEEKS, freq="7D")
+    return xr.DataArray(
+        np.tile([prices[ch] for ch in CHANNELS_3], (WINDOW_WEEKS, 1)),
+        dims=("date", "channel"),
+        coords={"date": dates, "channel": CHANNELS_3},
+    )
+
+
+class TestPriceResponseGate:
+    """A non-identity price response is refused unless the fit is provably in delivery units."""
+
+    def test_unpriced_model_is_refused_naming_both_remedies(self, simple_fitted_mmm):
+        with pytest.raises(ValueError, match="fitted on nominal spend") as info:
+            _optimizer(
+                simple_fitted_mmm, price_response=PowerPriceResponse(elasticity=0.3)
+            )
+        message = str(info.value)
+        assert "set_cost_per_unit" in message and "assume_delivery_units" in message
+        # A fresh unpriced fit writes cost_per_unit_channels="[]", which is "no table", not an empty one.
+        assert "no usable historical cost_per_unit table" in message
+
+    def test_partial_table_refuses_only_the_unpriced_channels(self, simple_fitted_mmm):
+        """_parse_cost_per_unit_df fills absent channels with 1.0, so channel_spend exists
+        for every channel; the gate must read the table's columns, not that array."""
+        mmm = simple_fitted_mmm
+        mmm.set_cost_per_unit(_full_table(mmm, {"channel_1": 2.0}))
+        assert "channel_spend" in mmm.idata.constant_data
+        with pytest.raises(ValueError, match="fitted on nominal spend") as info:
+            _optimizer(mmm, price_response=PowerPriceResponse(elasticity=0.3))
+        assert "channel_2" in str(info.value) and "channel_3" in str(info.value)
+        assert "'channel_1'" not in str(info.value)
+        mask = xr.DataArray(
+            [True, False, False], dims=("channel",), coords={"channel": CHANNELS_3}
+        )
+        _optimizer(
+            mmm,
+            budgets_to_optimize=mask,
+            price_response=PowerPriceResponse(elasticity=0.3),
+        )
+
+    def test_partial_table_passes_when_only_priced_channels_are_curved(
+        self, simple_fitted_mmm
+    ):
+        """elasticity={"channel_1": 0.25} bends channel_1 alone; channels 2 and 3 take
+        the identity map, so their missing table entries vouch for nothing the run
+        relies on."""
+        mmm = simple_fitted_mmm
+        mmm.set_cost_per_unit(_full_table(mmm, {"channel_1": 2.0}))
+        optimizer = _optimizer(
+            mmm, price_response=PowerPriceResponse(elasticity={"channel_1": 0.25})
+        )
+        resolved = optimizer.optimization_variables.variables[0].price_response
+        assert not resolved.is_identity
+        expected = float(_on_air_reference(mmm).sel(channel="channel_1"))
+        np.testing.assert_allclose(resolved.reference_spend[0], expected)
+
+    def test_partial_table_refusal_names_only_the_curved_unpriced_channel(
+        self, simple_fitted_mmm
+    ):
+        mmm = simple_fitted_mmm
+        mmm.set_cost_per_unit(_full_table(mmm, {"channel_1": 2.0}))
+        with pytest.raises(ValueError, match="fitted on nominal spend") as info:
+            _optimizer(
+                mmm, price_response=PowerPriceResponse(elasticity={"channel_2": 0.25})
+            )
+        message = str(info.value)
+        assert "channel_2" in message
+        assert "channel_1" not in message and "channel_3" not in message
+
+    def test_unpriced_model_refusal_names_only_the_curved_channels(
+        self, simple_fitted_mmm
+    ):
+        with pytest.raises(ValueError, match="fitted on nominal spend") as info:
+            _optimizer(
+                simple_fitted_mmm,
+                price_response=PowerPriceResponse(elasticity={"channel_2": 0.3}),
+            )
+        message = str(info.value)
+        assert "channel_2" in message
+        assert "channel_1" not in message and "channel_3" not in message
+
+    def test_a_dark_flat_channel_does_not_block_curved_siblings(
+        self, simple_fitted_mmm
+    ):
+        """The reference is never read at elasticity 0, so channel_3 having no on-air
+        history cannot refuse a run that only bends channels 1 and 2."""
+        mmm = simple_fitted_mmm
+        _flight(mmm, "channel_3", on_every=0)
+        mmm.set_cost_per_unit(_full_table(mmm, dict.fromkeys(CHANNELS_3, 2.0)))
+        _optimizer(
+            mmm,
+            price_response=PowerPriceResponse(
+                elasticity={"channel_1": 0.3, "channel_2": 0.3}
+            ),
+        )
+
+    def test_fully_priced_model_derives_the_on_air_reference(self, simple_fitted_mmm):
+        mmm = simple_fitted_mmm
+        _flight(mmm, "channel_3", on_every=4)
+        mmm.set_cost_per_unit(_full_table(mmm, dict.fromkeys(CHANNELS_3, 2.0)))
+        optimizer = _optimizer(mmm, price_response=PowerPriceResponse(elasticity=0.3))
+        resolved = optimizer.optimization_variables.variables[0].price_response
+        expected = _on_air_reference(mmm).sel(channel=CHANNELS_3).values
+        np.testing.assert_allclose(resolved.reference_spend, expected)
+        all_weeks = float(
+            mmm.idata.constant_data["channel_spend"]
+            .mean("date")
+            .sel(channel="channel_3")
+        )
+        assert resolved.reference_spend[2] > 2.5 * all_weeks
+
+    def test_optimized_cell_with_no_on_air_history_is_refused(self, simple_fitted_mmm):
+        mmm = simple_fitted_mmm
+        _flight(mmm, "channel_3", on_every=0)
+        mmm.set_cost_per_unit(_full_table(mmm, dict.fromkeys(CHANNELS_3, 2.0)))
+        with pytest.raises(ValueError, match=r"no on-air period.*channel_3"):
+            _optimizer(mmm, price_response=PowerPriceResponse(elasticity=0.3))
+
+    def test_opt_out_requires_an_explicit_reference(self, simple_fitted_mmm):
+        with pytest.raises(ValueError, match="reference_spend"):
+            _optimizer(
+                simple_fitted_mmm,
+                price_response=PowerPriceResponse(
+                    elasticity=0.3, assume_delivery_units=True
+                ),
+            )
+        reference = xr.DataArray(
+            [100.0, 100.0, 100.0], dims=("channel",), coords={"channel": CHANNELS_3}
+        )
+        _optimizer(
+            simple_fitted_mmm,
+            price_response=PowerPriceResponse(
+                elasticity=0.3, assume_delivery_units=True, reference_spend=reference
+            ),
+        )
+
+    def test_identity_response_skips_the_gate(self, simple_fitted_mmm):
+        _optimizer(simple_fitted_mmm, price_response=PowerPriceResponse(elasticity=0.0))
+
+    def test_a_response_that_only_prices_masked_channels_is_the_identity(
+        self, simple_fitted_mmm
+    ):
+        """resolve() zeroes elasticity outside the mask, so the gate must judge the
+        response after masking too. Otherwise a no-op response on an unpriced model is
+        refused with a message about channels it never touches."""
+        mask = xr.DataArray(
+            [True, True, False], dims=("channel",), coords={"channel": CHANNELS_3}
+        )
+        optimizer = _optimizer(
+            simple_fitted_mmm,
+            budgets_to_optimize=mask,
+            price_response=PowerPriceResponse(elasticity={"channel_3": 0.4}),
+        )
+        assert optimizer.optimization_variables.variables[0].price_response.is_identity
+
+    def test_priced_table_with_unusable_channel_spend_names_the_real_problem(
+        self, simple_fitted_mmm
+    ):
+        """The table prices every optimized channel but constant_data has no usable
+        channel_spend: the fit is in delivery units, only the reference cannot be
+        derived. Saying "no historical cost_per_unit table" would send the user to set
+        the table they already set. An explicit reference_spend is enough here; no
+        assume_delivery_units, because the artifact does vouch for the units."""
+        mmm = simple_fitted_mmm
+        mmm.set_cost_per_unit(_full_table(mmm, dict.fromkeys(CHANNELS_3, 2.0)))
+        del mmm.idata.constant_data["channel_spend"]
+        with pytest.raises(ValueError, match="channel_spend") as info:
+            _optimizer(mmm, price_response=PowerPriceResponse(elasticity=0.3))
+        assert "no historical cost_per_unit table" not in str(info.value)
+        assert "fitted on nominal spend" not in str(info.value)
+        reference = xr.DataArray(
+            [100.0, 100.0, 100.0], dims=("channel",), coords={"channel": CHANNELS_3}
+        )
+        _optimizer(
+            mmm,
+            price_response=PowerPriceResponse(
+                elasticity=0.3, reference_spend=reference
+            ),
+        )
+
+    def test_priced_model_without_a_window_price_warns(self, simple_fitted_mmm):
+        """The gate has just established that channel data is in delivery units. With no
+        window cost_per_unit the base price is 1 and money reaches the model as units; the
+        deprecated wrapper already warns about this for the constant-price path, the
+        optimizer did not."""
+        mmm = simple_fitted_mmm
+        mmm.set_cost_per_unit(_full_table(mmm, dict.fromkeys(CHANNELS_3, 2.0)))
+        start, end = _window(mmm)
+        with pytest.warns(UserWarning, match="no cost_per_unit for the window"):
+            mmm.budget_optimizer(
+                start, end, price_response=PowerPriceResponse(elasticity=0.3)
+            )
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", UserWarning)
+            mmm.budget_optimizer(
+                start,
+                end,
+                cost_per_unit=_window_cpu(mmm, dict.fromkeys(CHANNELS_3, 2.0)),
+                price_response=PowerPriceResponse(elasticity=0.3),
+            )
+
+    def test_reference_spend_at_window_granularity_is_refused(self, simple_fitted_mmm):
+        """A 52-week-window total is 52x the per-period rate; the generic 10x guard refuses
+        it. A 4-week-window total is only 4x, under the default tolerance, but the
+        optimizer knows num_periods and names that hypothesis as a warning -- a heuristic,
+        so it does not block a genuine num_periods-fold plan."""
+        mmm = simple_fitted_mmm
+        mmm.set_cost_per_unit(_full_table(mmm, dict.fromkeys(CHANNELS_3, 2.0)))
+        fitted = _on_air_reference(mmm)
+        with pytest.raises(ValueError, match=r"52x apart.*per-period money"):
+            _optimizer(
+                mmm,
+                price_response=PowerPriceResponse(
+                    elasticity=0.3, reference_spend=fitted * 52
+                ),
+            )
+        start, end = _window(mmm)
+        with pytest.warns(UserWarning, match=r"num_periods \(4\).*window total"):
+            mmm.budget_optimizer(
+                start,
+                end,
+                cost_per_unit=_window_cpu(mmm, dict.fromkeys(CHANNELS_3, 2.0)),
+                price_response=PowerPriceResponse(
+                    elasticity=0.3, reference_spend=fitted * WINDOW_WEEKS
+                ),
+            )
+        with pytest.raises(ValueError, match="4x apart"):
+            _optimizer(
+                mmm,
+                price_response=PowerPriceResponse(
+                    elasticity=0.3,
+                    reference_spend=fitted * 4,
+                    reference_spend_tolerance=2.0,
+                ),
+            )
+
+    def test_a_malformed_table_attr_is_read_as_no_table(self, simple_fitted_mmm):
+        """Garbage in idata.attrs['cost_per_unit'] must not escape the gate as a bare
+        JSONDecodeError; it reads as no usable table and gets the curated refusal."""
+        mmm = simple_fitted_mmm
+        mmm.idata.attrs["cost_per_unit"] = "not json at all"
+        mmm.idata.attrs.pop(PRICED_CHANNELS_ATTR, None)
+        with pytest.raises(
+            ValueError, match="no usable historical cost_per_unit table"
+        ):
+            _optimizer(mmm, price_response=PowerPriceResponse(elasticity=0.3))
+        mmm.idata.attrs["cost_per_unit"] = '{"not": "a split frame"}'
+        mmm.idata.attrs.pop(PRICED_CHANNELS_ATTR, None)
+        with pytest.raises(
+            ValueError, match="no usable historical cost_per_unit table"
+        ):
+            _optimizer(mmm, price_response=PowerPriceResponse(elasticity=0.3))
+        # Garbage in the channel list with an intact table falls back to the table.
+        mmm.set_cost_per_unit(_full_table(mmm, dict.fromkeys(CHANNELS_3, 2.0)))
+        mmm.idata.attrs[PRICED_CHANNELS_ATTR] = "not json"
+        _optimizer(mmm, price_response=PowerPriceResponse(elasticity=0.3))
+
+    def test_a_model_saved_before_the_channel_list_existed_is_gated_from_its_table(
+        self, simple_fitted_mmm
+    ):
+        """Released versions wrote only the split-JSON table; the gate still reads its columns."""
+        mmm = simple_fitted_mmm
+        mmm.set_cost_per_unit(_full_table(mmm, {"channel_1": 2.0}))
+        del mmm.idata.attrs[PRICED_CHANNELS_ATTR]
+        with pytest.raises(ValueError, match="fitted on nominal spend") as info:
+            _optimizer(mmm, price_response=PowerPriceResponse(elasticity=0.3))
+        assert "channel_2" in str(info.value) and "'channel_1'" not in str(info.value)
+
+    def test_channel_spend_missing_an_optimized_coordinate_is_named_as_such(
+        self, simple_fitted_mmm
+    ):
+        """A bare reindex would fill NaN and the error would say 'no on-air period', which
+        sends the user to check a flighting pattern that is not the problem. Assigning a
+        sliced array into the group would be realigned to the group's channel index (NaN for
+        channel_3), so the whole group is replaced with the coordinate dropped."""
+        mmm = simple_fitted_mmm
+        mmm.set_cost_per_unit(_full_table(mmm, dict.fromkeys(CHANNELS_3, 2.0)))
+        constant_data = mmm.idata.constant_data.to_dataset()
+        mmm.idata["constant_data"] = xr.DataTree(
+            constant_data.sel(channel=["channel_1", "channel_2"])
+        )
+        with pytest.raises(
+            ValueError, match=r"does not cover the model coordinates.*channel_3"
+        ):
+            _optimizer(mmm, price_response=PowerPriceResponse(elasticity=0.3))
+        # With a reference supplied nothing has to be derived, so the gap is tolerated.
+        reference = xr.DataArray(
+            [100.0, 100.0, 100.0], dims=("channel",), coords={"channel": CHANNELS_3}
+        )
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", UserWarning)
+            _optimizer(
+                mmm,
+                price_response=PowerPriceResponse(
+                    elasticity=0.3, reference_spend=reference
+                ),
+            )
+
+    def test_panel_model_derives_the_reference_per_cell_and_reads_past_the_dim_column(
+        self, panel_fitted_mmm
+    ):
+        """Two things only a second budget dim exercises: the table's wide frame carries a
+        `country` column the gate must not read as a channel, and the reference is per
+        (country, channel) cell, transposed into the model's order."""
+        mmm = panel_fitted_mmm
+        data = mmm.idata.constant_data["channel_data"]
+        custom = next(d for d in data.dims if d not in ("date", "channel"))
+        dates = pd.to_datetime(data.coords["date"].values)
+        channels = [str(c) for c in data.coords["channel"].values]
+        table = pd.DataFrame(
+            [
+                {"date": d, custom: g, **dict.fromkeys(channels, 2.0)}
+                for d in dates
+                for g in data.coords[custom].values
+            ]
+        )
+        mmm.set_cost_per_unit(table)
+        assert json.loads(mmm.idata.attrs[PRICED_CHANNELS_ATTR]) == channels
+        optimizer = _optimizer(mmm, price_response=PowerPriceResponse(elasticity=0.3))
+        resolved = optimizer.optimization_variables.variables[0].price_response
+        assert resolved.dims == (custom, "channel")
+        spend = mmm.idata.constant_data["channel_spend"]
+        expected = spend.where(spend > 0).mean("date").transpose(*resolved.dims).values
+        np.testing.assert_allclose(resolved.reference_spend, expected)
+        result = optimizer.allocate_budget(total_budget=1000.0)
+        assert result.scipy_result.success, result.scipy_result.message
+        assert result.implied_price.dims == ("date", custom, "channel")
+
+
+class TestPriceResponseAllocation:
+    TOTAL = 300.0
+    PRICES = {"channel_1": 2.0, "channel_2": 3.0, "channel_3": 1.5}
+
+    def test_zero_elasticity_reproduces_the_constant_price_allocation(
+        self, simple_fitted_mmm
+    ):
+        """The regression guard: elasticity = 0 must not move the solver, and it must
+        still report prices (== p0 == 1 here) so a baseline can be tabled beside a sweep."""
+        baseline = _optimizer(simple_fitted_mmm).allocate_budget(
+            total_budget=self.TOTAL
+        )
+        identity = _optimizer(
+            simple_fitted_mmm, price_response=PowerPriceResponse(elasticity=0.0)
+        ).allocate_budget(total_budget=self.TOTAL)
+        xr.testing.assert_allclose(identity.budgets, baseline.budgets)
+        np.testing.assert_allclose(
+            identity.scipy_result.fun, baseline.scipy_result.fun, rtol=1e-8
+        )
+
+        assert baseline.implied_delivery is None and baseline.implied_price is None
+        assert baseline.implied_marginal_price is None
+        spent = identity.budgets > 0
+        assert np.all(identity.implied_price.where(spent).fillna(1.0) == 1.0)
+        assert np.all(identity.implied_marginal_price.where(spent).fillna(1.0) == 1.0)
+
+        assert "price_response" not in identity.budgets.attrs
+        xr.testing.assert_identical(identity.budgets, baseline.budgets)
+
+    def test_reported_prices_satisfy_the_money_identity(self, simple_fitted_mmm):
+        """Labels, the exact money identity on spent cells, the marginal/average ratio on
+        the power branch, and the base price applying at the reference."""
+        mmm = simple_fitted_mmm
+        mmm.set_cost_per_unit(_full_table(mmm, self.PRICES))
+        window_cpu = _window_cpu(mmm, self.PRICES)
+        gamma = {"channel_1": 0.3, "channel_2": 0.0, "channel_3": 0.5}
+        optimizer = _optimizer(
+            mmm,
+            cost_per_unit=window_cpu,
+            price_response=PowerPriceResponse(elasticity=gamma),
+        )
+        result = optimizer.allocate_budget(total_budget=self.TOTAL)
+        assert result.scipy_result.success, result.scipy_result.message
+        np.testing.assert_allclose(
+            optimizer.evaluate_plan(result.budgets).objective,
+            result.scipy_result.fun,
+            rtol=1e-10,
+        )
+
+        for field in (
+            result.implied_delivery,
+            result.implied_price,
+            result.implied_marginal_price,
+        ):
+            assert field.dims == ("date", "channel") and field.shape == (
+                WINDOW_WEEKS,
+                3,
+            )
+            assert pd.DatetimeIndex(field["date"].values).equals(
+                pd.DatetimeIndex(window_cpu["date"].values)
+            )
+
+        money = xr.where(
+            np.isnan(result.implied_price),
+            0.0,
+            result.implied_delivery * result.implied_price,
+        )
+        xr.testing.assert_allclose(
+            money.sum("date"), result.budgets * optimizer.num_periods
+        )
+
+        gamma_da = xr.DataArray(
+            [gamma[ch] for ch in CHANNELS_3],
+            dims=("channel",),
+            coords={"channel": CHANNELS_3},
+        )
+        spent = result.implied_price.notnull().any("date")
+        floor = optimizer.optimization_variables.variables[0].price_response.s_floor
+        floor_da = xr.DataArray(
+            floor, dims=("channel",), coords={"channel": CHANNELS_3}
+        )
+        on_power_branch = spent & (result.budgets > floor_da)
+        ratio = (result.implied_marginal_price / result.implied_price).mean("date")
+        xr.testing.assert_allclose(
+            ratio.where(on_power_branch, drop=True),
+            (1 / (1 - gamma_da)).where(on_power_branch, drop=True),
+        )
+
+        reference = _on_air_reference(mmm).sel(channel=CHANNELS_3)
+        p0 = window_cpu.isel(date=0, drop=True)
+        mean_price = result.implied_price.mean("date")
+        below = spent & (result.budgets < reference) & (gamma_da > 0)
+        above = spent & (result.budgets > reference) & (gamma_da > 0)
+        assert bool(below.any()), (
+            "fixture drifted: expected a priced cell below its reference"
+        )
+        assert bool((mean_price < p0).where(below, drop=True).all())
+        if bool(above.any()):
+            assert bool((mean_price > p0).where(above, drop=True).all())
+
+    def test_result_is_directly_instantiable_without_the_new_fields(self):
+        from scipy.optimize import OptimizeResult
+
+        from pymc_marketing.mmm import BudgetOptimizationResult
+
+        result = BudgetOptimizationResult(
+            budgets=xr.DataArray([1.0, 2.0], dims=("channel",)),
+            scipy_result=OptimizeResult(success=True),
+        )
+        assert result.implied_delivery is None
+        assert result.implied_price is None
+        assert result.implied_marginal_price is None
+
+    def test_response_distribution_sees_the_price_map(self, simple_fitted_mmm):
+        """The non-deprecated way to score a plan's posterior response is
+        evaluate_response_distribution, which runs the same graph the solver used, price
+        map included. implied_delivery is per period; the deprecated
+        sample_response_distribution takes a date-less allocation, so it needs the
+        per-period mean and is exact only under a uniform spread."""
+        mmm = simple_fitted_mmm
+        mmm.set_cost_per_unit(_full_table(mmm, self.PRICES))
+        window_cpu = _window_cpu(mmm, self.PRICES)
+        constant = _optimizer(mmm, cost_per_unit=window_cpu)
+        aware = _optimizer(
+            mmm,
+            cost_per_unit=window_cpu,
+            price_response=PowerPriceResponse(elasticity={"channel_2": 0.4}),
+        )
+        result = aware.allocate_budget(total_budget=600.0)
+
+        response_constant = constant.evaluate_response_distribution(result.budgets)
+        response_aware = aware.evaluate_response_distribution(result.budgets)
+        assert response_constant.dims == response_aware.dims
+        assert not np.allclose(response_constant.values, response_aware.values)
+
+        per_period = result.implied_delivery.mean("date")
+        assert "date" not in per_period.dims
+        xr.testing.assert_allclose(
+            per_period, result.implied_delivery.isel(date=0, drop=True)
+        )
+
+    def test_non_uniform_distribution_end_to_end(self, simple_fitted_mmm):
+        """Through allocate_budget, not only at the MediaVariable level: the money
+        identity holds with a non-uniform spread including a period whose factor is
+        exactly 0 (which reports a nan price), a gamma = 0 channel reports a flat p0, and
+        a priced channel's price follows its per-period money -- so implied_delivery
+        already carries the spread, which is why sample_response_distribution must not
+        be handed the distribution a second time."""
+        mmm = simple_fitted_mmm
+        mmm.set_cost_per_unit(_full_table(mmm, self.PRICES))
+        window_cpu = _window_cpu(mmm, self.PRICES)
+        factors = np.array(
+            [[0.4, 0.25, 0.7], [0.3, 0.25, 0.3], [0.2, 0.25, 0.0], [0.1, 0.25, 0.0]]
+        )
+        distribution = xr.DataArray(
+            factors, dims=("date", "channel"), coords=window_cpu.coords
+        )
+        gamma = {"channel_1": 0.3, "channel_2": 0.0, "channel_3": 0.5}
+        optimizer = _optimizer(
+            mmm,
+            cost_per_unit=window_cpu,
+            budget_distribution_over_period=distribution,
+            price_response=PowerPriceResponse(elasticity=gamma),
+        )
+        result = optimizer.allocate_budget(total_budget=600.0)
+        assert result.scipy_result.success, result.scipy_result.message
+        assert bool((result.budgets > 0).all())
+
+        price = result.implied_price
+        money = xr.where(np.isnan(price), 0.0, result.implied_delivery * price)
+        xr.testing.assert_allclose(
+            money.sum("date"), result.budgets * optimizer.num_periods
+        )
+
+        dark = price.sel(channel="channel_3").isel(date=[2, 3])
+        assert bool(np.isnan(dark).all())
+        assert bool(
+            (
+                result.implied_delivery.sel(channel="channel_3").isel(date=[2, 3]) == 0
+            ).all()
+        )
+        flat = price.sel(channel="channel_2")
+        np.testing.assert_allclose(flat.values, self.PRICES["channel_2"])
+        front_loaded = price.sel(channel="channel_1").values
+        assert np.all(np.diff(front_loaded) < 0), front_loaded
+
+    def test_a_channel_bounded_to_zero_reports_no_price_at_all(self, simple_fitted_mmm):
+        """A channel held at zero bought nothing, so its whole price row is nan and the
+        obvious summary of it (mean, hdi, plot) is nan too. Contract, not an accident:
+        the same happens to any cell the solver drives to a lower bound of 0, and to
+        every period a budget_distribution_over_period zeroes out.
+
+        The pinned channel deliberately carries no elasticity. The map is steepest at
+        zero -- by construction, bounded at max_slope_ratio * (1 + gamma) / (1 - gamma)
+        -- so pricing a channel that is held there hands SLSQP its largest gradient on a
+        variable that cannot move: measured on this fixture, 833 against ~10 for the
+        funded channels, a 90x spread. Whether SLSQP accepts that is platform-dependent:
+        the priced-pinned variant solves on macOS/arm64 and fails on the Linux CI runners
+        with "Positive directional derivative for linesearch", on every backend and
+        Python version. Both reach the same optimum, so the conditioning is the whole
+        difference, and pricing a channel one is not buying is meaningless anyway. See
+        the max_slope_ratio docs."""
+        mmm = simple_fitted_mmm
+        mmm.set_cost_per_unit(_full_table(mmm, self.PRICES))
+        optimizer = _optimizer(
+            mmm,
+            cost_per_unit=_window_cpu(mmm, self.PRICES),
+            price_response=PowerPriceResponse(
+                elasticity={"channel_2": 0.3, "channel_3": 0.3}
+            ),
+        )
+        bounds = xr.DataArray(
+            [[0.0, 0.0], [0.0, self.TOTAL], [0.0, self.TOTAL]],
+            dims=("channel", "bound"),
+            coords={"channel": CHANNELS_3, "bound": ["lower", "upper"]},
+        )
+        x0 = xr.DataArray(
+            [0.0, self.TOTAL / 2, self.TOTAL / 2],
+            dims=("channel",),
+            coords={"channel": CHANNELS_3},
+        )
+        start_gradient = optimizer.evaluate_plan(x0).utility_gradient["channel_data"]
+        spread = float(start_gradient.max() / start_gradient.min())
+        assert spread < 5.0, f"ill-conditioned start, gradient spread {spread:.1f}"
+
+        result = optimizer.allocate_budget(
+            total_budget=self.TOTAL, budget_bounds=bounds, x0=x0
+        )
+        assert result.scipy_result.success, result.scipy_result.message
+
+        off = result.implied_price.sel(channel="channel_1")
+        assert bool(np.isnan(off).all())
+        assert bool(
+            np.isnan(result.implied_marginal_price.sel(channel="channel_1")).all()
+        )
+        assert bool((result.implied_delivery.sel(channel="channel_1") == 0.0).all())
+        assert np.isnan(float(off.mean()))
+        assert bool(
+            result.implied_price.sel(channel=["channel_2", "channel_3"]).notnull().all()
+        )
+
+    def test_a_priced_channel_pinned_at_zero_by_bounds_is_named(
+        self, simple_fitted_mmm
+    ):
+        """The map is steepest at zero, so pricing a cell the bounds hold there hands SLSQP
+        its largest gradient on a variable that cannot move; it accepts that on macOS and
+        stops with "Positive directional derivative for linesearch" on the Linux runners.
+        The warning names the cell and the remedy before the solve starts."""
+        mmm = simple_fitted_mmm
+        mmm.set_cost_per_unit(_full_table(mmm, self.PRICES))
+        optimizer = _optimizer(
+            mmm,
+            cost_per_unit=_window_cpu(mmm, self.PRICES),
+            price_response=PowerPriceResponse(elasticity=0.3),
+        )
+        bounds = xr.DataArray(
+            [[0.0, 0.0], [0.0, self.TOTAL], [0.0, self.TOTAL]],
+            dims=("channel", "bound"),
+            coords={"channel": CHANNELS_3, "bound": ["lower", "upper"]},
+        )
+        with pytest.warns(UserWarning, match=r"\('channel_1',\).*elasticity") as record:
+            try:
+                optimizer.allocate_budget(total_budget=self.TOTAL, budget_bounds=bounds)
+            except MinimizeException:
+                pass  # platform-dependent, and not what this test is about
+        messages = [str(w.message) for w in record if "held at zero" in str(w.message)]
+        assert len(messages) == 1
+        assert "cells [('channel_1',)]" in messages[0]
+
+    def test_a_flat_channel_pinned_at_zero_does_not_warn(self, simple_fitted_mmm):
+        """A pinned channel with elasticity 0 is the documented remedy, so it must stay
+        quiet: the warning keys on the curved cells only, not on every zero bound."""
+        mmm = simple_fitted_mmm
+        mmm.set_cost_per_unit(_full_table(mmm, self.PRICES))
+        optimizer = _optimizer(
+            mmm,
+            cost_per_unit=_window_cpu(mmm, self.PRICES),
+            price_response=PowerPriceResponse(
+                elasticity={"channel_2": 0.3, "channel_3": 0.3}
+            ),
+        )
+        bounds = xr.DataArray(
+            [[0.0, 0.0], [0.0, self.TOTAL], [0.0, self.TOTAL]],
+            dims=("channel", "bound"),
+            coords={"channel": CHANNELS_3, "bound": ["lower", "upper"]},
+        )
+        with warnings.catch_warnings(record=True) as record:
+            warnings.simplefilter("always")
+            result = optimizer.allocate_budget(
+                total_budget=self.TOTAL, budget_bounds=bounds
+            )
+        assert result.scipy_result.success, result.scipy_result.message
+        assert not [w for w in record if "held at zero" in str(w.message)]
+
+
+def _spread(values: np.ndarray) -> float:
+    return float((values.max() - values.min()) / abs(values.mean()))
+
+
+def _fixed_point_allocation(mmm, base, reference, gamma, total, *, passes=8, tol=1e-6):
+    """Solve at an assumed price, reprice from the realized spend, re-solve.
+
+    One fresh optimizer and one full compile per pass: cost_per_unit is a
+    construction-time field with no setter, which is also why the issue body's
+    claim that set_constraints makes the repeats cheap is wrong.
+    """
+    price, previous, budgets = base, None, None
+    for _ in range(passes):
+        budgets = (
+            _optimizer(mmm, cost_per_unit=price)
+            .allocate_budget(total_budget=total)
+            .budgets
+        )
+        if previous is not None and float(abs(budgets - previous).max()) < tol:
+            break
+        previous = budgets
+        price = base * (budgets / reference) ** gamma
+    return budgets
+
+
+class TestPriceResponseOptimality:
+    TOTAL = 600.0
+    PRICES = {"channel_1": 2.0, "channel_2": 3.0, "channel_3": 1.5}
+    TIGHT = {"options": {"ftol": 1e-12, "maxiter": 2000}}
+
+    def test_objective_gradient_matches_finite_differences(self, simple_fitted_mmm):
+        """Flat on purpose: `approx_fprime` differentiates the vector function, so this
+        goes through the compiled callable rather than the labelled `evaluate_plan`
+        wrapper around it (as tests/mmm/test_budget_optimizer_mmm.py does)."""
+        mmm = simple_fitted_mmm
+        mmm.set_cost_per_unit(_full_table(mmm, self.PRICES))
+        optimizer = _optimizer(
+            mmm,
+            cost_per_unit=_window_cpu(mmm, self.PRICES),
+            price_response=PowerPriceResponse(
+                elasticity={"channel_1": 0.4, "channel_3": 0.2}
+            ),
+        )
+        x = optimizer.optimization_variables.x0(self.TOTAL)
+        _, gradient = optimizer._objective_and_grad(x)
+        finite_differences = approx_fprime(
+            x, lambda z: optimizer._objective_and_grad(z)[0], 1e-6
+        )
+        np.testing.assert_allclose(gradient, finite_differences, rtol=1e-4)
+
+    @pytest.mark.parametrize(
+        "elasticity, fixed_point_is_optimal",
+        [({"channel_1": 0.4}, False), (0.3, True)],
+        ids=["heterogeneous", "homogeneous"],
+    )
+    def test_first_order_condition_separates_the_optimum_from_the_fixed_point(
+        self, simple_fitted_mmm, elasticity, fixed_point_is_optimal
+    ):
+        """At an interior optimum under the sum constraint the utility gradient is equal
+        across cells. Fixed-point iteration holds the price constant inside each solve
+        and converges to R'(u)/p = const, missing the (1 - gamma) factor: with one common
+        gamma the factor is absorbed and the fixed point is the optimum; with
+        heterogeneous gamma it is not, by a gradient spread of about gamma on the
+        priced cell (0.6 vs 1 at gamma = 0.4)."""
+        mmm = simple_fitted_mmm
+        mmm.set_cost_per_unit(_full_table(mmm, self.PRICES))
+        base = _window_cpu(mmm, self.PRICES)
+        reference = _on_air_reference(mmm).sel(channel=CHANNELS_3)
+        resolved = PowerPriceResponse(elasticity=elasticity).resolve(
+            dims=("channel",),
+            coords={"channel": CHANNELS_3},
+            mask=xr.DataArray(
+                [True] * 3, dims=("channel",), coords={"channel": CHANNELS_3}
+            ),
+            date_dim="date",
+            derived_reference=reference,
+            label="t",
+        )
+        gamma_da = xr.DataArray(
+            resolved.gamma, dims=("channel",), coords={"channel": CHANNELS_3}
+        )
+
+        aware = _optimizer(
+            mmm,
+            cost_per_unit=base,
+            price_response=PowerPriceResponse(elasticity=elasticity),
+        )
+        result = aware.allocate_budget(
+            total_budget=self.TOTAL, minimize_kwargs=self.TIGHT
+        )
+        assert result.scipy_result.success, result.scipy_result.message
+        x = result.budgets
+        interior = (x > 1e-3) & (x < self.TOTAL - 1e-3)
+        assert bool(interior.all()), (
+            f"FOC equality needs an interior optimum, got {x.values}"
+        )
+        at_optimum = aware.evaluate_plan(x).utility_gradient["channel_data"].values
+        assert _spread(at_optimum) < 1e-2, at_optimum
+
+        fixed = _fixed_point_allocation(mmm, base, reference, gamma_da, self.TOTAL)
+        at_fixed_point = (
+            aware.evaluate_plan(fixed).utility_gradient["channel_data"].values
+        )
+        if fixed_point_is_optimal:
+            assert _spread(at_fixed_point) < 2e-2, at_fixed_point
+            xr.testing.assert_allclose(fixed, x, rtol=2e-2)
+        else:
+            assert _spread(at_fixed_point) > 0.1, at_fixed_point
+            assert float(fixed.sel(channel="channel_1")) > float(
+                x.sel(channel="channel_1")
+            )
+
+    def test_solve_started_with_a_channel_at_exactly_zero_is_finite(
+        self, simple_fitted_mmm
+    ):
+        """default_bounds make zero reachable; the floor must give a finite gradient there."""
+        mmm = simple_fitted_mmm
+        mmm.set_cost_per_unit(_full_table(mmm, self.PRICES))
+        optimizer = _optimizer(
+            mmm,
+            cost_per_unit=_window_cpu(mmm, self.PRICES),
+            price_response=PowerPriceResponse(
+                elasticity={"channel_1": 0.5, "channel_2": 0.25}
+            ),
+        )
+        x0 = xr.DataArray(
+            [0.0, 150.0, 150.0], dims=("channel",), coords={"channel": CHANNELS_3}
+        )
+        assert np.all(
+            np.isfinite(
+                optimizer.evaluate_plan(x0).utility_gradient["channel_data"].values
+            )
+        )
+        result = optimizer.allocate_budget(total_budget=self.TOTAL, x0=x0)
+        assert np.all(np.isfinite(result.scipy_result.x))
+        assert result.scipy_result.success, result.scipy_result.message
+
+    def test_solve_with_a_small_elasticity_from_a_channel_at_zero(
+        self, simple_fitted_mmm
+    ):
+        """Below gamma ~ 0.006 the unclamped floor underflows to 0: resolve warns twice,
+        the gradient at a channel started at 0 is inf, and SLSQP stops with "Inequality
+        constraints incompatible". A sweep such as linspace(0, 0.5, 101) hits this on its
+        second point."""
+        mmm = simple_fitted_mmm
+        mmm.set_cost_per_unit(_full_table(mmm, self.PRICES))
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", RuntimeWarning)
+            optimizer = _optimizer(
+                mmm,
+                cost_per_unit=_window_cpu(mmm, self.PRICES),
+                price_response=PowerPriceResponse(elasticity=0.005),
+            )
+        x0 = xr.DataArray(
+            [0.0, self.TOTAL / 2, self.TOTAL / 2],
+            dims=("channel",),
+            coords={"channel": CHANNELS_3},
+        )
+        gradient = optimizer.evaluate_plan(x0).utility_gradient["channel_data"].values
+        assert np.isfinite(gradient).all(), gradient
+        result = optimizer.allocate_budget(total_budget=self.TOTAL, x0=x0)
+        assert result.scipy_result.success, result.scipy_result.message
+        assert np.isfinite(result.scipy_result.x).all()
+
+    def test_the_more_elastic_channel_receives_less(self, simple_fitted_mmm):
+        """End to end: anchored at the constant-price optimum, elasticity moves budget away.
+
+        Anchoring matters. Below the reference the power law says units are *cheaper* than
+        p0, and at this fixture's TOTAL the constant-price optimum sits ~5x below the
+        historical on-air reference, where the marginal-return factor
+        (1 - gamma) (s / s_ref) ** -gamma is 1.3-1.4 -- more return, not less. With
+        reference_spend set to the baseline allocation, p(b) == p0 there and only the
+        (1 - gamma) factor remains, so the elastic channel must receive less.
+        """
+        mmm = simple_fitted_mmm
+        mmm.set_cost_per_unit(_full_table(mmm, self.PRICES))
+        base = _window_cpu(mmm, self.PRICES)
+        baseline = (
+            _optimizer(mmm, cost_per_unit=base)
+            .allocate_budget(total_budget=self.TOTAL)
+            .budgets
+        )
+        anchored = PowerPriceResponse(
+            elasticity={"channel_2": 0.4},
+            reference_spend=baseline,
+            reference_spend_tolerance=20.0,
+        )
+        elastic = (
+            _optimizer(mmm, cost_per_unit=base, price_response=anchored)
+            .allocate_budget(total_budget=self.TOTAL)
+            .budgets
+        )
+        assert float(elastic.sel(channel="channel_2")) < float(
+            baseline.sel(channel="channel_2")
+        )
+
+    def test_below_the_reference_even_the_marginal_unit_is_cheaper_than_p0(
+        self, simple_fitted_mmm
+    ):
+        """The other side of the anchoring statement, so nobody 'fixes' the docs into a
+        one-directional claim. With the historical reference and a budget far below it,
+        the map says small buys are cheap: at the constant-price optimum the elastic
+        channel's average price is p0 (s / s_ref) ** gamma < p0, and its marginal price
+        p0 (s / s_ref) ** gamma / (1 - gamma) is below p0 too whenever
+        (s / s_ref) ** gamma < 1 - gamma. Exact statements about the map, read off the
+        report at that plan -- not about the utility gradient, whose ratio to the
+        constant-price one also carries R'(u) at two different deliveries."""
+        mmm = simple_fitted_mmm
+        mmm.set_cost_per_unit(_full_table(mmm, self.PRICES))
+        base = _window_cpu(mmm, self.PRICES)
+        baseline = (
+            _optimizer(mmm, cost_per_unit=base)
+            .allocate_budget(total_budget=self.TOTAL)
+            .budgets
+        )
+        aware = _optimizer(
+            mmm,
+            cost_per_unit=base,
+            price_response=PowerPriceResponse(elasticity={"channel_2": 0.4}),
+        )
+        s = float(baseline.sel(channel="channel_2"))
+        reference = float(_on_air_reference(mmm).sel(channel="channel_2"))
+        assert (s / reference) ** 0.4 < 0.6, (
+            "fixture drifted: the test needs s / s_ref below 0.6 ** 2.5"
+        )
+
+        media = aware.optimization_variables.variables[0]
+        report = media.delivery_report(aware.optimization_variables.pack(baseline))
+        price = float(report["implied_price"].sel(channel="channel_2").mean("date"))
+        marginal = float(
+            report["implied_marginal_price"].sel(channel="channel_2").mean("date")
+        )
+        p0 = self.PRICES["channel_2"]
+        np.testing.assert_allclose(price, p0 * (s / reference) ** 0.4, rtol=1e-9)
+        np.testing.assert_allclose(marginal, price / 0.6, rtol=1e-9)
+        assert marginal < p0
