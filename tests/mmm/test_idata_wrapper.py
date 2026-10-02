@@ -25,6 +25,7 @@ from pymc_marketing.data.idata.utils import (
     aggregate_idata_time,
     filter_idata_by_dates,
     filter_idata_by_dims,
+    sum_contributions_over_time,
 )
 
 # Seed for reproducibility
@@ -2972,3 +2973,61 @@ class TestContributionsPeriod:
 
         for component in ["channels", "baseline"]:
             xr.testing.assert_allclose(after[component], before[component])
+
+
+class TestSumContributionsOverTime:
+    """``sum_contributions_over_time`` sums per-date components over each period.
+
+    Every variable is a component the model adds to the linear predictor in
+    every period, so one without a ``date`` dim is repeated on every date
+    before summing and counted once per period, as in ``aggregate_time``.
+    """
+
+    @staticmethod
+    def _contributions(geos: list[str] | None = None) -> xr.Dataset:
+        posterior = _idata_with_time_invariant_intercept(geos=geos).posterior
+        return xr.Dataset(
+            {
+                "TV": posterior["channel_contribution"].sel(channel="TV", drop=True),
+                "intercept": posterior["intercept_contribution"],
+            }
+        )
+
+    @pytest.mark.parametrize("geos", [None, ["A", "B"]], ids=["no_extra_dims", "geo"])
+    @pytest.mark.parametrize(
+        "period", ["weekly", "monthly", "quarterly", "yearly", "all_time"]
+    )
+    def test_time_invariant_component_is_counted_once_per_period(self, period, geos):
+        contributions = self._contributions(geos=geos)
+        # Number of observed dates in each period, from a per-date component
+        dates_per_period = _sum_over_period(
+            xr.ones_like(contributions["TV"].isel(chain=0, draw=0, drop=True)), period
+        )
+        if geos:
+            dates_per_period = dates_per_period.isel(geo=0, drop=True)
+
+        result = sum_contributions_over_time(contributions, period)
+
+        xr.testing.assert_allclose(
+            result["TV"], _sum_over_period(contributions["TV"], period)
+        )
+        expected_intercept = contributions["intercept"] * dates_per_period
+        xr.testing.assert_allclose(
+            result["intercept"], expected_intercept.transpose(*result["intercept"].dims)
+        )
+
+    @pytest.mark.parametrize("period", ["monthly", "all_time"])
+    def test_each_component_keeps_its_dim_order(self, period):
+        """Per-variable aggregation, unlike ``Dataset.resample`` which moves ``date`` first."""
+        contributions = self._contributions(geos=["A", "B"])
+
+        result = sum_contributions_over_time(contributions, period)
+
+        date_dim = () if period == "all_time" else ("date",)
+        assert result["TV"].dims == ("chain", "draw", *date_dim, "geo")
+        assert result["intercept"].dims == ("chain", "draw", *date_dim, "geo")
+
+    def test_original_period_returns_the_input(self):
+        contributions = self._contributions()
+
+        assert sum_contributions_over_time(contributions, "original") is contributions

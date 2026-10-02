@@ -27,6 +27,9 @@ directly and are evaluated on the dataset dates. ``expression.named(name)`` reco
 a deterministic and ``expression.sum(dim)`` reduces a dimension.
 
 This namespace does not change the stable MMM. Its interfaces are experimental.
+``expression.named(name)`` uses the shared ``Named(name, expr=expression)`` term.
+Older draft GAM stores containing ``Named`` terms with an ``inner`` field are incompatible with this revision.
+Recreate the model, refit it, and save a new store; ``check=False`` does not convert older specifications.
 
 Two targets sharing one likelihood family form one ``target`` dimension; different
 families or observation layouts are separate equations sharing terms by identity:
