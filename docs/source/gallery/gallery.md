@@ -302,6 +302,11 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :link: ../notebooks/mmm/mmm_case_study2.html
 :::
 
+:::{grid-item-card} Pareto Optimization Across Products with a Shared Media Budget
+:img-top: ../gallery/images/mmm_pareto_optimization_frontier.png
+:link: ../notebooks/mmm/mmm_pareto_optimization.html
+:::
+
 :::{grid-item-card} Integrating Foundational Time Series Models with PyMC-Marketing MMM
 :img-top: ../gallery/images/mmm_chronos.png
 :link: ../notebooks/mmm/mmm_chronos.html
