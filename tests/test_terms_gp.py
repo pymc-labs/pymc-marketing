@@ -149,9 +149,11 @@ def test_coordinate_build(ds):
         assert trend.index_var == "trend_index"
         assert trend.index_var in model
         assert "trend_m" in model.coords
-        assert trend.m is not None
-        assert trend.L is not None
-        assert trend.X_mid == pytest.approx(19.5)  # in observation periods, not days
+        assert trend.resolved.m is not None
+        assert trend.resolved.L is not None
+        assert trend.resolved.X_mid == pytest.approx(
+            19.5
+        )  # in observation periods, not days
         assert trend.time_resolution == 7  # inferred from the weekly date spacing
         assert trend.time_dim == "date"
 
@@ -194,7 +196,7 @@ def test_time_resolution(ds):
     with pm.Model(coords=collect_coords(trend, ds=ds)) as model:
         register_data(trend, ds=ds)
         build_param(trend)
-        assert trend.X_mid == pytest.approx(19.5)
+        assert trend.resolved.X_mid == pytest.approx(19.5)
         assert np.allclose(model[trend.index_var].get_value(), np.arange(40) * 7 / 7)
 
 
@@ -237,8 +239,8 @@ def test_deferred_hyperparameters_stay_in_period_units():
         register_data(trend, ds=ds)
         build_param(trend)
 
-    assert trend.m < 104 * 6
-    assert trend.L < 104 * 6
+    assert trend.resolved.m < 104 * 6
+    assert trend.resolved.L < 104 * 6
 
 
 def test_time_resolution_independent_of_row_order():
@@ -306,8 +308,32 @@ def test_deferred_values_cached(ds):
         assert trend.X_mid == X_mid
 
 
-def test_explicit_values_win(ds):
-    """Explicit m/L/eta/ls are kept during resolution."""
+def test_fitting_does_not_overwrite_the_declared_recipe(ds):
+    """Resolution is recorded separately from the declared recipe.
+
+    Filling ``m`` / ``L`` / ``eta`` / ``ls`` / ``X_mid`` back into the
+    constructor fields made the first registration silently become the
+    term's configuration: after a build the recipe could no longer tell
+    user config from learned state, and there was no way back.
+    """
+    trend = HSGPTerm(name="trend")
+    with pm.Model(coords=collect_coords(trend, ds=ds)):
+        register_data(trend, ds=ds)
+        build_param(trend)
+
+    assert trend.m is None
+    assert trend.L is None
+    assert trend.eta is None
+    assert trend.ls is None
+    assert trend.X_mid is None
+
+    assert trend.resolved is not None
+    assert trend.resolved.m is not None
+    assert trend.resolved.X_mid == pytest.approx(19.5)
+
+
+def test_declared_hyperparameters_win_over_resolution(ds):
+    """Explicit values always win during resolution."""
     eta = Prior("Exponential", lam=1)
     ls = Prior("InverseGamma", alpha=2, beta=1)
     trend = HSGPTerm(name="trend", eta=eta, ls=ls, m=15, L=100)
@@ -318,6 +344,10 @@ def test_explicit_values_win(ds):
         assert trend.L == 100
         assert trend.eta is eta
         assert trend.ls is ls
+        assert trend.resolved.m == 15
+        assert trend.resolved.L == 100
+        assert trend.resolved.eta is eta
+        assert trend.resolved.ls is ls
 
 
 def test_float_hyperparams(ds):
@@ -751,10 +781,13 @@ def test_deferred_term_roundtrips_frozen_state(ds):
     equivalent on the restored term.
     """
     term, _ = _trained(HSGPTerm(name="g"), ds)
-    assert term.eta is not None and term.ls is not None
+    assert term.resolved is not None
+    assert term.resolved.m is not None and term.resolved.ls is not None
     restored = _roundtrip(term)
-    for field in ("X_mid", "time_dim", "time_resolution", "m", "L"):
-        assert getattr(restored, field) == getattr(term, field)
+    assert restored.resolved is not None
+    for field in ("X_mid", "m", "L"):
+        assert getattr(restored.resolved, field) == getattr(term.resolved, field)
+    assert restored.time_dim == term.time_dim
     assert restored.first_date == term.first_date
     assert restored.last_date == term.last_date
 
@@ -1215,11 +1248,11 @@ def test_defaults_match_parameterize_from_data():
         register_data(term, ds=ds)
         build_param(term)
 
-    assert term.m == expected.m
-    assert term.L == expected.L
-    assert term.X_mid == expected.X_mid
-    assert type(term.eta).__name__ == "Prior"
-    assert type(term.ls).__name__ == "Prior"
+    assert term.resolved.m == expected.m
+    assert term.resolved.L == expected.L
+    assert term.resolved.X_mid == expected.X_mid
+    assert type(term.resolved.eta).__name__ == "Prior"
+    assert type(term.resolved.ls).__name__ == "Prior"
 
 
 def test_set_data_refuses_window_before_training_anchor(ds):

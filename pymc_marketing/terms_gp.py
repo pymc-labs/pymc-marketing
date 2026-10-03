@@ -151,7 +151,7 @@ Periodic seasonality term:
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Any, cast
 
 import numpy as np
@@ -258,10 +258,54 @@ def _deserialize_date(value: str | None) -> Any:
     return np.datetime64(value)
 
 
+def _serialize_resolved(resolved: ResolvedGPState | None) -> dict[str, Any] | None:
+    """Serialize the fitted hyperparameters, if the term was fitted."""
+    if resolved is None:
+        return None
+    return {
+        "X_mid": resolved.X_mid,
+        "m": resolved.m,
+        "L": resolved.L,
+        "eta": _serialize_optional(resolved.eta),
+        "ls": _serialize_optional(resolved.ls),
+    }
+
+
+def _deserialize_resolved(data: dict[str, Any] | None) -> ResolvedGPState | None:
+    """Reconstruct fitted hyperparameters from their serialized form."""
+    if data is None:
+        return None
+    return ResolvedGPState(
+        X_mid=data["X_mid"],
+        m=data.get("m"),
+        L=data.get("L"),
+        eta=_deserialize_optional(data.get("eta")),
+        ls=_deserialize_optional(data.get("ls")),
+    )
+
+
 def _check_scalar(label: str, value: Any) -> None:
     """Require a scalar prior for a GP hyperparameter."""
     if getattr(value, "dims", None):
         raise ValueError(f"The {label} prior must be a scalar random variable.")
+
+
+@dataclass(frozen=True, kw_only=True)
+class ResolvedGPState:
+    """Hyperparameters and centering resolved from a training window.
+
+    Recorded when the term is fitted, kept apart from the declared recipe:
+    the constructor fields stay exactly as the user wrote them, so a
+    serialized term tells user config from learned state and the same
+    recipe can be resolved again against other data. Fields the term does
+    not resolve (a periodic term has no ``eta``) stay ``None``.
+    """
+
+    X_mid: float
+    m: int | None = None
+    L: float | None = None
+    eta: VariableFactory | float | None = None
+    ls: VariableFactory | float | None = None
 
 
 @dataclass(kw_only=True)
@@ -293,6 +337,15 @@ class GPDataTerm(ModelTerm):
     extra_coords: dict[str, list[Any]] = field(
         default_factory=dict, init=False, repr=False
     )
+    resolved: ResolvedGPState | None = field(default=None, init=False, repr=False)
+
+    def _record_resolution(self, **values: Any) -> None:
+        """Record fitted hyperparameters, keeping any already recorded."""
+        self.resolved = (
+            replace(self.resolved, **values)
+            if self.resolved is not None
+            else ResolvedGPState(**values)
+        )
 
     @property
     def index_var(self) -> str:
@@ -435,8 +488,8 @@ class GPDataTerm(ModelTerm):
             self._check_extra_coords(ds)
         if self.index_var not in model:
             pmd.Data(self.index_var, index)
-        if self.X_mid is None:
-            self.X_mid = float(self._time_values(da).mean())
+        if self.resolved is None:
+            self._record_resolution(X_mid=float(self._time_values(da).mean()))
         if self.first_index is None:
             self.first_index = float(index.min())
             self.last_index = float(index.max())
@@ -476,7 +529,7 @@ class GPDataTerm(ModelTerm):
         if self.var_name not in ds:
             return
         if self.time_dim is None:
-            if self.X_mid is not None:
+            if self.resolved is not None:
                 raise ValueError(
                     f"The GP term {self.name!r} was restored from a recipe that does "
                     "not record its time dimension, so the registered time index is "
@@ -500,7 +553,7 @@ class GPDataTerm(ModelTerm):
     def _check_registered(self) -> pm.Model:
         """Return the active model, raising if the time reference is unregistered."""
         model = pm.modelcontext(None)
-        if self.X_mid is None or self.time_dim is None:
+        if self.resolved is None or self.time_dim is None:
             raise ValueError(
                 "The data must be registered before creating a variable. "
                 f"Call `register_data` with a dataset containing {self.var_name!r}."
@@ -515,8 +568,8 @@ class GPDataTerm(ModelTerm):
         """Build the GP curve through the wrapped HSGP class.
 
         The wrapped spec owns the basis coordinate, hyperparameter variables,
-        and the final deterministic; this term feeds it the frozen centering
-        value and the shared time index.
+        and the final deterministic; this term feeds it the resolved
+        centering value and the term's own time index.
 
         Raises
         ------
@@ -528,7 +581,7 @@ class GPDataTerm(ModelTerm):
         """
         model = self._check_registered()
         spec = self._spec()
-        spec.X_mid = self.X_mid
+        spec.X_mid = cast("ResolvedGPState", self.resolved).X_mid
         try:
             spec.register_data(model[self.index_var])
             return spec.create_variable(self.name, xdist=True)
@@ -675,34 +728,46 @@ class HSGPTerm(GPDataTerm):
             self.cov_func = CovFunc(self.cov_func)
 
     def _resolve(self, ds: xr.Dataset) -> None:
-        """Resolve deferred hyperparameters from the dataset (fill-if-None)."""
+        """Resolve deferred hyperparameters from the dataset.
+
+        Declared values always win; the rest are resolved from the data and
+        recorded in :attr:`resolved`, leaving the recipe untouched.
+        """
+        if self.resolved is not None:
+            return
         X = self._time_values(ds[self.var_name])
-        if self.X_mid is None:
-            self.X_mid = float(X.mean())
+        X_mid = self.X_mid if self.X_mid is not None else float(X.mean())
         if self.m is None or self.L is None:
             m, L = create_m_and_L_recommendations(
                 X,
-                self.X_mid,
+                X_mid,
                 ls_lower=self.ls_lower,
                 ls_upper=self.ls_upper,
                 cov_func=self.cov_func,
             )
-            self.m = self.m if self.m is not None else m
-            self.L = self.L if self.L is not None else L
+        else:
+            m, L = self.m, self.L
         if self.eta is None:
-            self.eta = create_eta_prior(mass=self.eta_mass, upper=self.eta_upper)
+            eta: VariableFactory | float = create_eta_prior(
+                mass=self.eta_mass, upper=self.eta_upper
+            )
+        else:
+            eta = self.eta
         if self.ls is None:
             if self.ls_upper is None:
-                self.ls = create_complexity_penalizing_prior(
+                ls: VariableFactory | float = create_complexity_penalizing_prior(
                     lower=self.ls_lower,
                     alpha=self.ls_mass,
                 )
             else:
-                self.ls = create_constrained_inverse_gamma_prior(
+                ls = create_constrained_inverse_gamma_prior(
                     lower=self.ls_lower,
                     upper=self.ls_upper,
                     mass=self.ls_mass,
                 )
+        else:
+            ls = self.ls
+        self._record_resolution(X_mid=X_mid, m=m, L=L, eta=eta, ls=ls)
 
     def add_coords(self, ds: xr.Dataset) -> None:
         """Resolve deferred values.
@@ -714,12 +779,13 @@ class HSGPTerm(GPDataTerm):
 
     def _spec_kwargs(self) -> dict[str, Any]:
         """Keyword arguments for the wrapped HSGP spec."""
+        resolved = cast("ResolvedGPState", self.resolved)
         dims = (cast("str", self.time_dim), *self.extra_dims)
         return {
-            "ls": self.ls,
-            "eta": self.eta,
-            "m": cast("int", self.m),
-            "L": cast("float", self.L),
+            "ls": resolved.ls,
+            "eta": resolved.eta,
+            "m": cast("int", resolved.m),
+            "L": cast("float", resolved.L),
             "dims": dims,
             "centered": self.centered,
             "drop_first": self.drop_first,
@@ -729,16 +795,18 @@ class HSGPTerm(GPDataTerm):
 
     def _spec(self) -> HSGPBase:
         """Build the wrapped :class:`~pymc_marketing.mmm.hsgp.HSGP` spec."""
-        _check_scalar("eta", self.eta)
-        _check_scalar("ls", self.ls)
+        resolved = cast("ResolvedGPState", self.resolved)
+        _check_scalar("eta", resolved.eta)
+        _check_scalar("ls", resolved.ls)
         return HSGP(**self._spec_kwargs())
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize the term recipe.
 
-        The frozen training state (``X_mid`` and the date anchors) is carried
-        through so a reloaded recipe indexes new data on the same time axis and
-        refuses windows that fall before the training anchor.
+        The declared recipe is kept apart from the fitted state, which is
+        carried under ``resolved`` alongside the training anchors: a
+        reloaded recipe rebuilds the same model from the fitted values,
+        while the declared recipe stays reusable on other data.
         """
         return {
             "var_name": self.var_name,
@@ -753,6 +821,7 @@ class HSGPTerm(GPDataTerm):
             "demeaned_basis": self.demeaned_basis,
             "time_resolution": self.time_resolution,
             "X_mid": self.X_mid,
+            "resolved": _serialize_resolved(self.resolved),
             "first_date": _serialize_date(self.first_date),
             "last_date": _serialize_date(self.last_date),
             "first_index": self.first_index,
@@ -797,6 +866,7 @@ class HSGPTerm(GPDataTerm):
             cov_func=CovFunc(data["cov_func"]),
         )
         term.X_mid = data.get("X_mid")
+        term.resolved = _deserialize_resolved(data.get("resolved"))
         term.first_date = _deserialize_date(data.get("first_date"))
         term.last_date = _deserialize_date(data.get("last_date"))
         term.first_index = data.get("first_index")
@@ -927,13 +997,15 @@ class HSGPPeriodicTerm(GPDataTerm):
     m: int
 
     def add_coords(self, ds: xr.Dataset) -> None:
-        """Freeze the centering value.
+        """Resolve the centering value from the data.
 
         The basis coordinate is added by the wrapped HSGPPeriodic class at
         build time.
         """
-        if self.X_mid is None:
-            self.X_mid = float(self._time_values(ds[self.var_name]).mean())
+        if self.resolved is None:
+            self._record_resolution(
+                X_mid=float(self._time_values(ds[self.var_name]).mean())
+            )
 
     def _spec(self) -> HSGPBase:
         """Build the wrapped :class:`~pymc_marketing.mmm.hsgp.HSGPPeriodic`."""
@@ -962,6 +1034,7 @@ class HSGPPeriodicTerm(GPDataTerm):
             "demeaned_basis": self.demeaned_basis,
             "time_resolution": self.time_resolution,
             "X_mid": self.X_mid,
+            "resolved": _serialize_resolved(self.resolved),
             "first_date": _serialize_date(self.first_date),
             "last_date": _serialize_date(self.last_date),
             "first_index": self.first_index,
@@ -992,6 +1065,7 @@ class HSGPPeriodicTerm(GPDataTerm):
             time_resolution=data["time_resolution"],
         )
         term.X_mid = data.get("X_mid")
+        term.resolved = _deserialize_resolved(data.get("resolved"))
         term.first_date = _deserialize_date(data.get("first_date"))
         term.last_date = _deserialize_date(data.get("last_date"))
         term.first_index = data.get("first_index")
