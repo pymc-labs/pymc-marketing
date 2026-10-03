@@ -55,6 +55,26 @@ are patched:
     - :func:`log_bass_configuration`: Log the configuration of the Bass model.
     - Stamp the active MLflow run id on ``idata.attrs["mlflow_run_id"]``.
 
+Live tracking during sampling
+-----------------------------
+Metrics can be written while the sampler runs rather than only afterwards.
+
+- :func:`create_log_callback` is passed to ``pm.sample(callback=...)`` and is
+  invoked once per draw, for the "pymc" sampler only. It can log parameter
+  values as well as stats. Every metric is a write to the tracking store, so
+  ``take_every`` (default 100 draws) is what bounds the cost.
+
+- :func:`create_nutpie_log_callback` is passed to
+  ``nutpie.sample(progress_callback=...)``. nutpie reports progress
+  periodically, per chain, from its own threads, so it logs stats only (no
+  parameter values) and at a coarser resolution. The callback slot already
+  exists for nutpie's progress bar, so this adds no cost to the sampler.
+  ``pm.sample`` cannot forward it. See
+  https://github.com/pymc-devs/pymc/issues/8292.
+
+Both log the cumulative ``divergences`` counter rather than the per-draw
+``diverging`` indicator, which makes bursts visible at ``take_every=100``.
+
 Examples
 --------
 Autologging for a PyMC model:
@@ -191,6 +211,8 @@ Autologging for a PyMC-Marketing Bass model:
 import logging
 import os
 import tempfile
+import threading
+import time
 import traceback
 import warnings
 from collections.abc import Callable, Mapping
@@ -242,19 +264,6 @@ def _exclude_tuning(func):
     return callback
 
 
-def _take_every(n: int):
-    def decorator(func):
-        def callback(trace, draw):
-            if draw.draw_idx % n != 0:
-                return
-
-            return func(trace, draw)
-
-        return callback
-
-    return decorator
-
-
 def _recorded_point(trace, draw) -> Mapping[str, Any]:
     """Return the values PyMC recorded for ``draw``.
 
@@ -277,6 +286,7 @@ def create_log_callback(
     parameters: list[str] | None = None,
     exclude_tuning: bool = True,
     take_every: int = 100,
+    rebase_steps: bool = False,
 ):
     """Create callback function to log sample stats and parameter values to MLflow during sampling.
 
@@ -285,7 +295,11 @@ def create_log_callback(
     Parameters
     ----------
     stats : list of str, optional
-        List of sample statistics to log from the Draw
+        List of sample statistics to log from the Draw. Prefer the
+        cumulative ``divergences`` over the per-draw ``diverging`` indicator:
+        a counter makes divergence bursts visible as changes in slope,
+        whereas a ``0/1`` that is only sampled every ``take_every`` draws
+        usually misses the rare events it exists to catch.
     parameters : list of str, optional
         Names of variables to log from the draw PyMC has just recorded. A
         model-level name such as ``sigma`` is logged on its constrained scale,
@@ -296,6 +310,12 @@ def create_log_callback(
         Whether to exclude tuning steps from logging. Defaults to True.
     take_every : int, optional
         Specifies the interval at which to log values. Defaults to 100.
+        Each logged metric is a write to the tracking store, so the number of
+        writes is bounded by the interval rather than by the number of draws.
+    rebase_steps : bool, optional
+        Log post-tuning draws starting at step 0 instead of at their position
+        in the full ``tune + draws`` sequence. Defaults to False, which keeps
+        the raw ``draw_idx`` axis. Requires ``exclude_tuning=True``.
 
     Returns
     -------
@@ -333,6 +353,19 @@ def create_log_callback(
         with mlflow.start_run():
             idata = pm.sample(model=model, callback=callback)
 
+    Log the running number of divergences instead of a per-draw ``0/1``.
+    The counter only covers draws that are recorded, so with
+    ``exclude_tuning=True`` it starts from zero after tuning:
+
+    .. code-block:: python
+
+        from pymc_marketing.mlflow import create_log_callback
+
+        callback = create_log_callback(
+            stats=["divergences"],
+            take_every=100,
+        )
+
     Log the parameters `mu` and `sigma` every 100th draw. PyMC samples
     `sigma` on the unconstrained scale as `sigma_log__`; the callback logs
     `sigma` itself, read from the draw PyMC just recorded. Pass
@@ -358,16 +391,37 @@ def create_log_callback(
     if not stats and not parameters:
         raise ValueError("At least one of `stats` or `parameters` must be provided.")
 
+    if rebase_steps and not exclude_tuning:
+        raise ValueError("`rebase_steps=True` requires `exclude_tuning=True`.")
+
+    offsets: dict[int, int] = {}
+
+    def _step(chain: int, draw_idx: int) -> int:
+        if not rebase_steps:
+            return draw_idx
+
+        # First draw of a chain after tuning is where its axis starts.
+        return draw_idx - offsets.setdefault(chain, draw_idx)
+
     def callback(trace, draw):
-        prefix = f"chain_{draw.chain}"
+        chain, draw_idx = draw.chain, draw.draw_idx
+        prefix = f"chain_{chain}"
+        step = _step(chain, draw_idx)
+        on_interval = not take_every or draw_idx % take_every == 0
+
         for stat in stats or []:
+            if not on_interval:
+                break
+
             mlflow.log_metric(
                 key=f"{prefix}/{stat}",
                 value=draw.stats[0][stat],
-                step=draw.draw_idx,
+                step=step,
             )
 
-        if not parameters:
+        if not parameters or not on_interval:
+            # Reading the recorded draw can be expensive (it is a zarr read
+            # for non-default traces), so keep it on the `take_every` grid.
             return
 
         point = _recorded_point(trace, draw)
@@ -384,14 +438,205 @@ def create_log_callback(
             mlflow.log_metric(
                 key=f"{prefix}/{parameter}",
                 value=point[parameter],
-                step=draw.draw_idx,
+                step=step,
             )
 
     if exclude_tuning:
         callback = _exclude_tuning(callback)
 
-    if take_every:
-        callback = _take_every(n=take_every)(callback)
+    return callback
+
+
+# ChainProgress exposes aggregate progress only, and the names differ from
+# pymc's sample_stats. `divergences` is the one to chart: like pymc's
+# `divergences` it is a running total, so divergence bursts show up as a
+# change in slope instead of a spike that `take_every` may miss.
+NUTPIE_CHAIN_STATS: Mapping[str, Callable[[Any], float]] = {
+    "divergences": lambda chain: chain.divergences,
+    "divergences_new": lambda chain: chain.divergences,  # handled specially
+    "step_size": lambda chain: chain.step_size,
+    "num_steps": lambda chain: chain.latest_num_steps,
+    "total_num_steps": lambda chain: chain.total_num_steps,
+    "progress_fraction": lambda chain: chain.finished_draws / chain.total_draws,
+    "runtime_seconds": lambda chain: chain.runtime_ms / 1000,
+}
+
+
+def create_nutpie_log_callback(
+    stats: list[str] | None = None,
+    exclude_tuning: bool = True,
+    rebase_steps: bool = False,
+    take_every: int | None = None,
+    min_interval: float = 1.0,
+    run_id: str | None = None,
+):
+    """Create a ``progress_callback`` that logs nutpie progress to MLflow.
+
+    Unlike :func:`create_log_callback`, which pymc invokes once per draw,
+    nutpie invokes this periodically (every ``progress_rate`` ms) from its
+    worker threads with the progress of *all* chains. Two consequences are
+    handled here:
+
+    - **The run must be addressed explicitly.** MLflow keeps the active run in
+      a thread-local, so ``mlflow.log_metric`` called from a sampler thread
+      does not reach the run started in the main thread. The write is
+      silently dropped. The run id is therefore captured now, while we are
+      still on the calling thread, and metrics are logged through
+      ``MlflowClient``.
+    - **Writes are throttled.** ``min_interval`` keeps the callback to one
+      round of writes per interval, which is what makes it safe to leave on
+      for a long run. Values that have not changed since the last write are
+      skipped.
+
+    Parameters
+    ----------
+    stats : list of str, optional
+        Chain-level statistics to log, from :data:`NUTPIE_CHAIN_STATS`.
+        Defaults to ``["divergences", "step_size"]``. ``divergences_new``
+        only logs the polls in which the count moved.
+    exclude_tuning : bool, optional
+        Whether to skip chains that are still tuning. Defaults to True.
+    rebase_steps : bool, optional
+        Log post-tuning draws starting at step 0 instead of at
+        ``finished_draws``, which counts tuning draws too. Because nutpie
+        only reports progress periodically, the rebased axis can start at a
+        draw greater than 0. Defaults to False.
+    take_every : int, optional
+        Log a chain's stat at most once per this many draws, mirroring
+        :func:`create_log_callback`. This bounds the number of writes to
+        roughly ``total_draws / take_every`` per chain and stat, rather than
+        to the poll rate, which depends on how fast the sampler happens to be
+        running. Defaults to None, i.e. only ``min_interval`` and unchanged
+        values limit the writes. ``divergences_new`` ignores this, so a burst
+        is never throttled away.
+    min_interval : float, optional
+        Minimum number of seconds between rounds of writes. Defaults to 1.0.
+        Polls that write nothing do not count towards it, such as when every
+        chain is still tuning or every value is unchanged.
+    run_id : str, optional
+        Run to log to. Defaults to the active run in the calling thread.
+
+    Returns
+    -------
+    callback : Callable
+        A function suitable for ``nutpie.sample(progress_callback=...)``.
+
+    Notes
+    -----
+    ``pm.sample`` cannot be used to pass this through: it sets
+    ``progress_callback`` itself for the progress bar, and raises if a
+    ``callback`` is given with ``nuts_sampler="nutpie"``. Call
+    ``nutpie.sample`` directly. See https://github.com/pymc-devs/pymc/issues/8292.
+
+    Pass at least one tuning draw: nuts-rs asserts ``early_end < num_tune``
+    and panics on ``tune=0``. ``pm.sample`` works around this by raising a
+    zero tune to one, but a direct call to ``nutpie.sample`` does not.
+
+    Examples
+    --------
+    .. code-block:: python
+
+        import mlflow
+        import nutpie
+
+        from pymc_marketing.mlflow import create_nutpie_log_callback
+
+        compiled = nutpie.compile_pymc_model(model)
+
+        # The callback has to be built inside the run: it captures the run id
+        # now, because it will be called from a thread that cannot see it.
+        with mlflow.start_run():
+            callback = create_nutpie_log_callback(stats=["divergences"])
+            idata = nutpie.sample(compiled, progress_callback=callback)
+
+    """
+    stats = list(stats) if stats else ["divergences", "step_size"]
+    if unknown := sorted(set(stats) - set(NUTPIE_CHAIN_STATS)):
+        raise ValueError(
+            f"Unknown stats {unknown}. Available: {sorted(NUTPIE_CHAIN_STATS)}."
+        )
+
+    resolved_run_id = run_id
+    if resolved_run_id is None:
+        active_run = mlflow.active_run()
+        if active_run is not None:
+            resolved_run_id = active_run.info.run_id
+    if resolved_run_id is None:
+        raise ValueError(
+            "No active run found in the calling thread. Pass `run_id` "
+            "explicitly, or create the callback inside `mlflow.start_run()`."
+        )
+
+    client = mlflow.tracking.MlflowClient()
+    lock = threading.Lock()
+    logged: dict[tuple[int, str], tuple[int, float]] = {}
+    divergences: dict[int, int] = {}
+    offsets: dict[int, int] = {}
+    last_write = 0.0
+
+    def _value(chain_id: int, chain: Any, stat: str) -> float:
+        if stat == "divergences_new":
+            # `divergences` is cumulative, so the delta since the previous
+            # poll is what marks a burst. Chains are identified by position:
+            # nutpie hands out a fresh object per poll, so `id()` is no use.
+            previous = divergences.get(chain_id, 0)
+            divergences[chain_id] = chain.divergences
+            return float(chain.divergences - previous)
+        return float(NUTPIE_CHAIN_STATS[stat](chain))
+
+    def callback(chains: list[Any]) -> None:
+        nonlocal last_write
+        try:
+            with lock:
+                # The rate check and the writes share one lock: nutpie calls
+                # this from a thread per chain, so two callbacks can land at
+                # the same instant and both pass a check-then-act outside.
+                now = time.monotonic()
+                if now - last_write < min_interval:
+                    return
+
+                wrote = False
+                for chain_id, chain in enumerate(chains):
+                    if exclude_tuning and chain.tuning:
+                        continue
+                    step = chain.finished_draws
+                    if rebase_steps:
+                        step -= offsets.setdefault(chain_id, step)
+                    for stat in stats:
+                        value = _value(chain_id, chain, stat)
+                        if stat == "divergences_new" and value == 0:
+                            # Only the bursts are interesting; `divergences`
+                            # already carries the running total.
+                            continue
+                        key = (chain_id, stat)
+                        previous = logged.get(key)
+                        if (
+                            previous is not None
+                            and take_every
+                            and stat != "divergences_new"
+                            and chain.finished_draws - previous[0] < take_every
+                        ):
+                            continue
+                        if previous is not None and previous[1] == value:
+                            continue
+                        logged[key] = (chain.finished_draws, value)
+                        client.log_metric(
+                            resolved_run_id,
+                            f"chain_{chain_id}/{stat}",
+                            value,
+                            step=step,
+                        )
+                        wrote = True
+
+                # Only a round that actually wrote resets the clock: a poll
+                # during warmup writes nothing, and counting it would spend
+                # the whole interval before the first real metric.
+                if wrote:
+                    last_write = now
+        except Exception:
+            # nutpie prints callback exceptions and carries on, so without
+            # this a broken callback would look like a silent no-op.
+            logger.exception("Failed to log nutpie progress to MLflow.")
 
     return callback
 
@@ -669,7 +914,11 @@ def log_sample_diagnostics(
     draws = posterior.sizes["draw"]
     posterior_samples = chains * draws
 
-    tuning_step = sample_stats.attrs.get("tuning_steps", tune)
+    # External NUTS samplers stamp these on `posterior` rather than
+    # `sample_stats` (see `pymc.backends.arviz.patch_nutpie_idata`), so look in
+    # both before falling back to the caller-supplied `tune`.
+    attrs = {**posterior.attrs, **sample_stats.attrs}
+    tuning_step = attrs.get("tuning_steps", tune)
     if tuning_step is not None:
         tuning_samples = tuning_step * chains
         mlflow.log_param("tuning_steps", tuning_step)
@@ -677,7 +926,7 @@ def log_sample_diagnostics(
 
     total_divergences = diverging.sum().item()
     mlflow.log_metric("total_divergences", total_divergences)
-    if sampling_time := sample_stats.attrs.get("sampling_time"):
+    if sampling_time := attrs.get("sampling_time"):
         mlflow.log_metric("sampling_time", sampling_time)
         mlflow.log_metric(
             "time_per_draw",
