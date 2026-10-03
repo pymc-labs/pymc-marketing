@@ -1312,7 +1312,6 @@ class _Chain:
 def test_nutpie_callback_logs_chain_progress(mocker) -> None:
     """Stats are logged per chain at `finished_draws`, keyed like the pymc path."""
     client = mocker.patch.object(pmm_mlflow.mlflow.tracking, "MlflowClient")
-    create_nutpie_log_callback(stats=["divergences", "step_size"], run_id="run-1")
     log_metric = client.return_value.log_metric
 
     callback = create_nutpie_log_callback(
