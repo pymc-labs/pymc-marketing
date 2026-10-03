@@ -55,6 +55,26 @@ are patched:
     - :func:`log_bass_configuration`: Log the configuration of the Bass model.
     - Stamp the active MLflow run id on ``idata.attrs["mlflow_run_id"]``.
 
+Live tracking during sampling
+-----------------------------
+Metrics can be written while the sampler runs rather than only afterwards.
+
+- :func:`create_log_callback` is passed to ``pm.sample(callback=...)`` and is
+  invoked once per draw, for the "pymc" sampler only. It can log parameter
+  values as well as stats. Every metric is a write to the tracking store, so
+  ``take_every`` (default 100 draws) is what bounds the cost.
+
+- :func:`create_nutpie_log_callback` is passed to
+  ``nutpie.sample(progress_callback=...)``. nutpie reports progress
+  periodically, per chain, from its own threads, so it logs stats only (no
+  parameter values) and at a coarser resolution. The callback slot already
+  exists for nutpie's progress bar, so this adds no cost to the sampler.
+  ``pm.sample`` cannot forward it. See
+  https://github.com/pymc-devs/pymc/issues/8292.
+
+Both log the cumulative ``divergences`` counter rather than the per-draw
+``diverging`` indicator, which makes bursts visible at ``take_every=100``.
+
 Examples
 --------
 Autologging for a PyMC model:
@@ -290,8 +310,8 @@ def create_log_callback(
         Whether to exclude tuning steps from logging. Defaults to True.
     take_every : int, optional
         Specifies the interval at which to log values. Defaults to 100.
-        Each logged metric is a write to the tracking store, so the interval
-        -- not the number of draws -- is what bounds the cost of sampling.
+        Each logged metric is a write to the tracking store, so the number of
+        writes is bounded by the interval rather than by the number of draws.
     rebase_steps : bool, optional
         Log post-tuning draws starting at step 0 instead of at their position
         in the full ``tune + draws`` sequence. Defaults to False, which keeps
@@ -459,9 +479,10 @@ def create_nutpie_log_callback(
 
     - **The run must be addressed explicitly.** MLflow keeps the active run in
       a thread-local, so ``mlflow.log_metric`` called from a sampler thread
-      does not reach the run started in the main thread -- it is silently
-      dropped. The run id is therefore captured now, while we are still on the
-      calling thread, and metrics are logged through ``MlflowClient``.
+      does not reach the run started in the main thread. The write is
+      silently dropped. The run id is therefore captured now, while we are
+      still on the calling thread, and metrics are logged through
+      ``MlflowClient``.
     - **Writes are throttled.** ``min_interval`` keeps the callback to one
       round of writes per interval, which is what makes it safe to leave on
       for a long run. Values that have not changed since the last write are
@@ -490,8 +511,8 @@ def create_nutpie_log_callback(
         is never throttled away.
     min_interval : float, optional
         Minimum number of seconds between rounds of writes. Defaults to 1.0.
-        Polls that write nothing -- chains still tuning, or every value
-        unchanged -- do not count towards it.
+        Polls that write nothing do not count towards it, such as when every
+        chain is still tuning or every value is unchanged.
     run_id : str, optional
         Run to log to. Defaults to the active run in the calling thread.
 
