@@ -1560,3 +1560,21 @@ def test_nutpie_callback_against_a_real_sampler() -> None:
     # The last poll can land just before the final draws, so allow a little
     # slack -- but it must never claim more divergences than actually happened.
     assert 0 <= trace_total - sum(logged_totals.values()) <= 2 * chains
+
+
+def test_nutpie_callback_min_interval_starts_at_the_first_write(mocker) -> None:
+    """A poll that only sees warmup must not spend the whole interval.
+
+    Otherwise a long warmup swallows the budget and a run shorter than
+    `min_interval` logs nothing at all.
+    """
+    client = mocker.patch.object(pmm_mlflow.mlflow.tracking, "MlflowClient")
+    callback = create_nutpie_log_callback(
+        stats=["divergences"], run_id="r", min_interval=60.0
+    )
+
+    callback([_Chain(tuning=True)])
+    callback([_Chain(tuning=True, divergences=0)])
+    callback([_Chain(finished_draws=1200)])
+
+    assert client.return_value.log_metric.call_count == 1

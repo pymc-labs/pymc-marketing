@@ -490,6 +490,8 @@ def create_nutpie_log_callback(
         is never throttled away.
     min_interval : float, optional
         Minimum number of seconds between rounds of writes. Defaults to 1.0.
+        Polls that write nothing -- chains still tuning, or every value
+        unchanged -- do not count towards it.
     run_id : str, optional
         Run to log to. Defaults to the active run in the calling thread.
 
@@ -504,6 +506,10 @@ def create_nutpie_log_callback(
     ``progress_callback`` itself for the progress bar, and raises if a
     ``callback`` is given with ``nuts_sampler="nutpie"``. Call
     ``nutpie.sample`` directly. See https://github.com/pymc-devs/pymc/issues/8292.
+
+    Pass at least one tuning draw: nuts-rs asserts ``early_end < num_tune``
+    and panics on ``tune=0``. ``pm.sample`` works around this by raising a
+    zero tune to one, but a direct call to ``nutpie.sample`` does not.
 
     Examples
     --------
@@ -567,8 +573,8 @@ def create_nutpie_log_callback(
                 now = time.monotonic()
                 if now - last_write < min_interval:
                     return
-                last_write = now
 
+                wrote = False
                 for chain_id, chain in enumerate(chains):
                     if exclude_tuning and chain.tuning:
                         continue
@@ -599,6 +605,13 @@ def create_nutpie_log_callback(
                             value,
                             step=step,
                         )
+                        wrote = True
+
+                # Only a round that actually wrote resets the clock: a poll
+                # during warmup writes nothing, and counting it would spend
+                # the whole interval before the first real metric.
+                if wrote:
+                    last_write = now
         except Exception:
             # nutpie prints callback exceptions and carries on, so without
             # this a broken callback would look like a silent no-op.
