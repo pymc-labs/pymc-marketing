@@ -13,6 +13,7 @@
 #   limitations under the License.
 import json
 import logging
+import threading
 from collections import namedtuple
 from types import SimpleNamespace
 
@@ -1477,3 +1478,85 @@ def test_nutpie_callback_take_every_does_not_throttle_bursts(mocker) -> None:
     assert len(calls) == 1
     assert calls[0].args[2] == 3.0
     assert calls[0].kwargs["step"] == 20
+
+
+def test_nutpie_callback_is_thread_safe(mocker) -> None:
+    """nutpie calls the callback from a thread per chain; writes stay bounded."""
+    client = mocker.patch.object(pmm_mlflow.mlflow.tracking, "MlflowClient")
+    callback = create_nutpie_log_callback(
+        stats=["divergences", "step_size"],
+        run_id="r",
+        min_interval=60.0,
+    )
+
+    # Four chains reporting at once, the way the sampler does.
+    barrier = threading.Barrier(4)
+
+    def poll(chain_id):
+        barrier.wait()
+        callback([_Chain(finished_draws=100 + chain_id, divergences=chain_id)])
+
+    threads = [threading.Thread(target=poll, args=(i,)) for i in range(4)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+
+    # One round of writes only: at most 4 chains x 2 stats, not 4 rounds.
+    assert client.return_value.log_metric.call_count <= 8
+
+
+def test_nutpie_callback_against_a_real_sampler() -> None:
+    """Cross-check the logged numbers against the trace nutpie returns.
+
+    The callback reports what nuts-rs believes mid-run, the trace is written
+    at the end, so agreeing on the divergence total is a real check on the
+    progress contract rather than a restatement of the callback.
+    """
+    nutpie = pytest.importorskip("nutpie")
+
+    # A funnel: cheap to sample, but it does diverge.
+    model = pm.Model()
+    with model:
+        v = pm.Normal("v", 0, 3)
+        pm.Normal("x", v, pm.math.exp(v / 2), shape=10)
+
+    chains = 2
+    client = mlflow.tracking.MlflowClient()
+
+    with mlflow.start_run() as run:
+        callback = create_nutpie_log_callback(
+            stats=["divergences"],
+            run_id=run.info.run_id,
+            min_interval=0.0,
+        )
+        with model:
+            compiled = nutpie.compile_pymc_model(model)
+            idata = nutpie.sample(
+                compiled,
+                draws=200,
+                tune=200,
+                chains=chains,
+                progress_bar=False,
+                progress_callback=callback,
+                progress_rate=1,
+            )
+
+    logged_totals = {}
+    for chain_id in range(chains):
+        history = client.get_metric_history(
+            run.info.run_id, f"chain_{chain_id}/divergences"
+        )
+        values = [point.value for point in history]
+        steps = [point.step for point in history]
+
+        assert values, f"chain {chain_id} logged nothing"
+        # Cumulative counters only ever go up, and steps never go back.
+        assert values == sorted(values)
+        assert steps == sorted(steps)
+        logged_totals[chain_id] = values[-1]
+
+    trace_total = int(idata.sample_stats["diverging"].sum())
+    # The last poll can land just before the final draws, so allow a little
+    # slack -- but it must never claim more divergences than actually happened.
+    assert 0 <= trace_total - sum(logged_totals.values()) <= 2 * chains

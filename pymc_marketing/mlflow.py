@@ -560,12 +560,15 @@ def create_nutpie_log_callback(
     def callback(chains: list[Any]) -> None:
         nonlocal last_write
         try:
-            now = time.monotonic()
-            if now - last_write < min_interval:
-                return
-            last_write = now
-
             with lock:
+                # The rate check and the writes share one lock: nutpie calls
+                # this from a thread per chain, so two callbacks can land at
+                # the same instant and both pass a check-then-act outside.
+                now = time.monotonic()
+                if now - last_write < min_interval:
+                    return
+                last_write = now
+
                 for chain_id, chain in enumerate(chains):
                     if exclude_tuning and chain.tuning:
                         continue
