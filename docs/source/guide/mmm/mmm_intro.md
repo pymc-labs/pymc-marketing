@@ -101,6 +101,7 @@ To effectively implement a Media Mix Model (MMM), you need to gather specific ty
    - Competitor activities (if available)
    - Seasonal factors (e.g., holidays, special events)
    - Price changes or promotions
+   - PyMC-Marketing scales the target and the channels, but uses control columns as they are, on purpose: a control enters the model linearly, so its coefficient absorbs its scale. The default prior on the control coefficients is stated on the scaled target and shared by every control, so put controls on a comparable scale yourself (for example, divide each by its maximum absolute value) or give the `gamma_control` prior a `sigma` per control. Prefer a `LinearTrendEffect` and `yearly_seasonality` to time-index columns for trend and seasonality.
 
 4. External Factors:
    - Weather data (if relevant to your business)
