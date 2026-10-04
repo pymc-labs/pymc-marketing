@@ -484,7 +484,7 @@ def weibull_adstock(
     k : float, by default 1.
         Shape parameter of the Weibull distribution. Must be positive.
     l_max : int, by default 12
-        Maximum duration of carryover effect.
+        Number of kernel weights: the current period plus ``l_max - 1`` lags.
     dim : str
         The dimension of the x input along which to perform the convolution.
     mode : ConvMode, optional
