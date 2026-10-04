@@ -69,10 +69,25 @@ families or observation layouts are separate equations sharing terms by identity
     # gam.sample_posterior_predictive(future)
 
 Prediction is forward simulation with fitted parameters, not a causal-identification procedure.
+
+``optimize`` maximizes a scalar callback over selected fitted deterministic terms.
+It requires exactly their ``Data`` dependencies.
+Callbacks write every reduction, trade-off, and unit conversion.
+Inputs, bounds, objectives, residuals, and allocations remain in original units.
+``OptimizationResult`` reports fixed internal solver scaling and the untouched SciPy diagnostics.
+Measured history is explicit and fixed; the user chooses scoring windows and carryover.
 """
 
 from pymc_marketing.mmm.experimental._gam import GAM
 from pymc_marketing.mmm.experimental._graph import Data, Equation
+from pymc_marketing.mmm.experimental._optimizer import OptimizationResult, optimize
 from pymc_marketing.mmm.experimental._terms import MediaTransform
 
-__all__ = ["GAM", "Data", "Equation", "MediaTransform"]
+__all__ = [
+    "GAM",
+    "Data",
+    "Equation",
+    "MediaTransform",
+    "OptimizationResult",
+    "optimize",
+]

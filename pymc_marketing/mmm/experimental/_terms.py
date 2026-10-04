@@ -26,7 +26,7 @@ from pytensor.xtensor.type import XTensorVariable
 
 from pymc_marketing.mmm.components.adstock import AdstockTransformation, NoAdstock
 from pymc_marketing.mmm.components.base import Transformation
-from pymc_marketing.mmm.experimental._data import _align_labels, _dates
+from pymc_marketing.mmm.experimental._data import _dates
 from pymc_marketing.mmm.experimental._graph import (
     BuildContext,
     GraphTerm,
@@ -146,9 +146,7 @@ class MediaTransform(GraphTerm):
                     ) from error
                 context._ensure_dims(_dimensions(prior.dims))
             elif isinstance(prior, xr.DataArray):
-                clone.function_priors[parameter] = pmd.as_xtensor(
-                    _align_labels(prior, context.ds)
-                )
+                clone.function_priors[parameter] = context._constant(prior)
             elif np.ndim(prior):
                 raise ValueError(
                     "Non-scalar transformation constants require a DataArray with named coordinates."

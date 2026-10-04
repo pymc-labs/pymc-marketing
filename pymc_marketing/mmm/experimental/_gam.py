@@ -427,7 +427,7 @@ class GAM:
         if self._context is None:
             raise RuntimeError("Call fit before posterior prediction.")
         fitted = {
-            dim: pd.Index(labels, name=dim)
+            dim: pd.Index(labels, name=dim, tupleize_cols=False)
             for dim, labels in self._context.model.coords.items()
             if dim != "date" and labels is not None
         }
