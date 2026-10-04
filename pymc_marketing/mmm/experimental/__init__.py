@@ -27,6 +27,9 @@ directly and are evaluated on the dataset dates. ``expression.named(name)`` reco
 a deterministic and ``expression.sum(dim)`` reduces a dimension.
 
 This namespace does not change the stable MMM. Its interfaces are experimental.
+``expression.named(name)`` uses the shared ``Named(name, expr=expression)`` term.
+Older draft GAM stores containing ``Named`` terms with an ``inner`` field are incompatible with this revision.
+Recreate the model, refit it, and save a new store; ``check=False`` does not convert older specifications.
 
 Two targets sharing one likelihood family form one ``target`` dimension; different
 families or observation layouts are separate equations sharing terms by identity:
@@ -66,10 +69,25 @@ families or observation layouts are separate equations sharing terms by identity
     # gam.sample_posterior_predictive(future)
 
 Prediction is forward simulation with fitted parameters, not a causal-identification procedure.
+
+``optimize`` maximizes a scalar callback over selected fitted deterministic terms.
+It requires exactly their ``Data`` dependencies.
+Callbacks write every reduction, trade-off, and unit conversion.
+Inputs, bounds, objectives, residuals, and allocations remain in original units.
+``OptimizationResult`` reports fixed internal solver scaling and the untouched SciPy diagnostics.
+Measured history is explicit and fixed; the user chooses scoring windows and carryover.
 """
 
 from pymc_marketing.mmm.experimental._gam import GAM
 from pymc_marketing.mmm.experimental._graph import Data, Equation
+from pymc_marketing.mmm.experimental._optimizer import OptimizationResult, optimize
 from pymc_marketing.mmm.experimental._terms import MediaTransform
 
-__all__ = ["GAM", "Data", "Equation", "MediaTransform"]
+__all__ = [
+    "GAM",
+    "Data",
+    "Equation",
+    "MediaTransform",
+    "OptimizationResult",
+    "optimize",
+]

@@ -78,6 +78,47 @@ def test_apply_method(
     assert y.eval().shape == x.type.shape
 
 
+@pytest.mark.parametrize("saturation_cls", ALL_SATURATION_CLASSES)
+def test_parameters_broadcast_against_x_by_dim_name(
+    saturation_cls: type[SaturationTransformation],
+) -> None:
+    """Check that per-channel parameters pair with ``x`` by dim name, not position.
+
+    The result on a channel-first and on a channel-last input must both match
+    applying the function to each channel on its own. The date and channel
+    lengths differ, so a positional broadcast either fails or pairs a
+    parameter with the wrong axis.
+    """
+    saturation = saturation_cls()
+    x_date_channel = np.array(
+        [[0.0, 1.0, 2.0], [0.5, 3.0, 0.0], [2.0, 0.25, 1.0], [4.0, 2.0, 0.75]]
+    )
+    per_channel = np.array([0.3, 0.5, 0.7])
+    params = {
+        name: as_xtensor(per_channel, dims=("channel",))
+        for name in saturation.default_priors
+    }
+
+    expected = np.stack(
+        [
+            saturation.function(
+                as_xtensor(x_date_channel[:, i], dims=("date",)),
+                **{name: per_channel[i] for name in saturation.default_priors},
+            ).eval()
+            for i in range(per_channel.size)
+        ],
+        axis=1,
+    )
+    for dims, x in [
+        (("date", "channel"), x_date_channel),
+        (("channel", "date"), x_date_channel.T),
+    ]:
+        y = saturation.function(as_xtensor(x, dims=dims), **params)
+        np.testing.assert_allclose(
+            y.transpose("date", "channel").eval(), expected, err_msg=str(dims)
+        )
+
+
 def test_root_saturation_logp_is_differentiable_at_zero_input() -> None:
     """RootSaturation gradients must stay finite at exactly-zero input.
 
@@ -86,8 +127,8 @@ def test_root_saturation_logp_is_differentiable_at_zero_input() -> None:
     derivative ``d/dx (x ** alpha) = alpha * x ** (alpha - 1)`` is infinite at
     ``x == 0`` for ``alpha < 1``, so the resulting NaN propagated into the
     log-probability gradient of every upstream parameter and broke NUTS. The
-    transformation guards the gradient with ``pt.where`` so that ``f(0) = 0``
-    exactly and the derivative is finite everywhere.
+    transformation evaluates the power on a safe input (``ptx.where`` in
+    xtensor) so that ``f(0) = 0`` exactly and the derivative is finite everywhere.
     """
     x = np.linspace(0.0, 1.0, 30)
     x[:5] = 0.0  # exact zero-spend periods

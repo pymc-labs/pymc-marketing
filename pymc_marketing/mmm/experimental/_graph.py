@@ -26,6 +26,7 @@ from types import BuiltinFunctionType, FunctionType, MethodType
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
+import pandas as pd
 import pymc as pm
 import pymc.dims as pmd
 import xarray as xr
@@ -33,7 +34,7 @@ from pymc_extras.prior import Prior, VariableFactory
 from pytensor.graph.basic import Variable
 
 from pymc_marketing.mmm.components.base import Transformation
-from pymc_marketing.mmm.experimental._data import _align_labels
+from pymc_marketing.mmm.experimental._data import _align_labels, _dates
 from pymc_marketing.mmm.fourier import FourierBase
 from pymc_marketing.mmm.link import LinkFunction, get_link_spec
 from pymc_marketing.terms import (
@@ -171,6 +172,11 @@ class Data(GraphTerm):
     ----------
     var_name : str
         Dataset variable name; no scaling is applied by this term.
+
+    Notes
+    -----
+    Inputs are registered as ``float64`` in original units; the source dataset's values and dtype are unchanged.
+    Integer inputs must lie in ``[-2**53, 2**53]`` to convert exactly; explicit casts remain part of the graph.
     """
 
     def __init__(self, var_name: str) -> None:
@@ -478,7 +484,7 @@ class BuildContext:
     Parameters
     ----------
     ds : xarray.Dataset
-        Normalized model data, including any fixed prediction-history prefix.
+        Labeled model data, including any fixed prediction-history prefix.
     bindings : mapping, optional
         Equation identities (``id(equation)`` or equation objects) mapped to effective bindings.
     prediction : bool, default False
@@ -489,6 +495,9 @@ class BuildContext:
         Number of measured historical rows prepended to a prediction dataset.
     default_dims : tuple of str, default ()
         Dimensions for latent equations without explicit or likelihood dimensions.
+    allow_constant_date_subset : bool, default False
+        Select array constants to covered dataset dates before registering wrapper coordinates.
+        Ordinary model and prior construction retain exact date-label alignment.
 
     Attributes
     ----------
@@ -499,7 +508,7 @@ class BuildContext:
     equation_names : dict
         Equation identities to actual named PyMC outputs, not anonymous downstream history expressions.
     data_variables : dict
-        Raw dataset variable names to uniquely named model data containers.
+        Raw input names to uniquely named, mutable ``float64`` model data containers.
 
     Notes
     -----
@@ -507,6 +516,9 @@ class BuildContext:
     Shared terms retain their lifecycle on one shallow clone per identity.
     Child references bind to this context.
     Priors are independent distribution recipes; only a shared ``Parameter`` object establishes parameter identity.
+    Declared numeric inputs use ``float64`` views before any shared-term lifecycle runs.
+    Observations are frozen from the raw dataset without input conversion or the integer precision guard.
+    Neither input registration nor observation registration changes ``ds``.
     """
 
     def __init__(
@@ -518,6 +530,7 @@ class BuildContext:
         condition_on: Sequence[str] = (),
         history_length: int = 0,
         default_dims: tuple[str, ...] = (),
+        allow_constant_date_subset: bool = False,
     ) -> None:
         if not isinstance(ds, xr.Dataset):
             raise TypeError("BuildContext requires an xarray.Dataset.")
@@ -540,11 +553,16 @@ class BuildContext:
         self.condition_on = frozenset(condition_on)
         self.history_length = history_length
         self.default_dims = _dimensions(default_dims)
+        self._allow_constant_date_subset = allow_constant_date_subset
         self.model = pm.modelcontext(None)
         self.variables: dict[int, Any] = {}
         self.equations: dict[int, Equation] = {}
         self.equation_names: dict[int, str] = {}
         self.data_variables: dict[str, str] = {}
+        self._registered_inputs: dict[Variable, str] = {}
+        self._input_arrays: dict[str, xr.DataArray] = {}
+        self._registration_datasets: dict[int, xr.Dataset] = {}
+        self._labeled_constants: dict[Variable, xr.DataArray] = {}
         self._shared_data_aliases: set[str] = set()
         self._bindings: dict[int, Binding] = {}
         for equation, binding in (bindings or {}).items():
@@ -606,7 +624,9 @@ class BuildContext:
             existing = self.model.coords.get(dim)
             if existing is None:
                 self.model.add_coord(dim, values=labels)
-            elif not np.array_equal(np.asarray(existing), np.asarray(labels)):
+            elif not pd.Index(existing, tupleize_cols=False).equals(
+                pd.Index(labels, tupleize_cols=False)
+            ):
                 raise ValueError(
                     f"Coordinate labels for dimension {dim!r} do not match the model."
                 )
@@ -632,18 +652,70 @@ class BuildContext:
                 f"Data variable {name!r} contains missing or nonfinite observations."
             )
 
+    @staticmethod
+    def _canonical_input(
+        value: xr.DataArray, name: str, *, copy: bool = False
+    ) -> xr.DataArray:
+        """Validate raw input precision and return finite canonical ``float64`` values."""
+        if value.dtype.kind not in "biuf":
+            raise ValueError(
+                f"Input data variable {name!r} must contain finite real numeric values."
+            )
+        if value.dtype.kind in "iu" and value.size:
+            values = value.values
+            if int(values.min()) < -(2**53) or int(values.max()) > 2**53:
+                raise ValueError(
+                    f"Integer input data variable {name!r} must lie in "
+                    "[-2**53, 2**53] for exact float64 conversion."
+                )
+        value = value.astype("float64", copy=copy)
+        BuildContext._finite(value, name)
+        return value
+
+    def _input_array(self, var_name: str) -> xr.DataArray:
+        """Return a finite, exact-integer-safe floating view without changing raw data."""
+        if var_name not in self._input_arrays:
+            if var_name not in self.ds:
+                raise ValueError(f"Required data variable {var_name!r} is missing.")
+            self._input_arrays[var_name] = self._canonical_input(
+                self.ds[var_name], var_name
+            )
+        return self._input_arrays[var_name]
+
+    def _registration_dataset(self, term: Any) -> xr.Dataset:
+        """Float active declared inputs without reopening cached fitted dependencies."""
+        key = id(term)
+        if key not in self._registration_datasets:
+            names = set(self._input_arrays)
+
+            def cached(node: Any) -> bool:
+                return self._conditioned(node) or id(node) in self.variables
+
+            for node in _walk(term, stop=cached):
+                if cached(node):
+                    continue
+                if isinstance(node, Data):
+                    names.add(node.var_name)
+                elif isinstance(node, ModelTerm):
+                    names.update(node.data_vars)
+            self._registration_datasets[key] = (
+                self.ds.assign(
+                    {name: self._input_array(name) for name in sorted(names)}
+                )
+                if names
+                else self.ds
+            )
+        return self._registration_datasets[key]
+
     def data(self, var_name: str) -> Any:
-        """Register and return a finite, raw mutable dataset variable."""
-        if var_name not in self.ds:
-            raise ValueError(f"Required data variable {var_name!r} is missing.")
+        """Register and return an unscaled, finite, mutable ``float64`` input."""
         if var_name in self.data_variables:
             return self.model[self.data_variables[var_name]]
-        array = self.ds[var_name]
-        self._finite(array, var_name)
+        array = self._input_array(var_name)
         self._ensure_dims(array.dims)
         index = len(self.data_variables)
         name = f"_experimental_data_{index}"
-        while name in self.model.named_vars or name in self._names:
+        while name in self.model.named_vars or name in self._names or name in self.ds:
             index += 1
             name = f"_experimental_data_{index}"
         variable = pmd.Data(name, array)
@@ -663,11 +735,13 @@ class BuildContext:
         return array.transpose(*binding.dims)
 
     def _observations(self, binding: Binding) -> Any:
+        """Freeze raw observations separately from floating mutable inputs."""
         observed = binding.observed
         if observed is None:
             raise ValueError("Cannot read observations for a latent equation.")
-        self._finite(self._observation_array(binding), observed)
-        return self.data(observed)
+        array = self._observation_array(binding)
+        self._finite(array, observed)
+        return pmd.as_xtensor(array.copy(deep=True))
 
     def _recipe(self, value: Any) -> Any:
         """Copy a recipe, matching labeled ``DataArray`` parameters of ``Prior`` to the data.
@@ -678,13 +752,38 @@ class BuildContext:
         """
         return self._aligned(_copy_recipe_value(value))
 
+    def _select_constant_dates(self, value: xr.DataArray) -> xr.DataArray:
+        """Select only covered constant dates, preserving the dataset's labeled order."""
+        if "date" not in self.ds.dims:
+            raise ValueError(
+                "Date-indexed deterministic constants require labeled scenario dates."
+            )
+        if "date" not in value.coords or value.coords["date"].dims != ("date",):
+            raise ValueError(
+                "Date-indexed deterministic constants require labeled scenario and constant dates."
+            )
+        labels = _dates(self.ds.get_index("date")).as_unit("us")
+        given = _dates(value.get_index("date")).as_unit("us")
+        if not given.is_unique or not labels.isin(given).all():
+            raise ValueError(
+                "A deterministic constant does not cover the requested 'date' labels."
+            )
+        return value.assign_coords(date=given).sel(date=labels)
+
     def _aligned(self, value: Any) -> Any:
         if type(value) is Prior:
             value.parameters.update(
-                {name: self._aligned(item) for name, item in value.parameters.items()}
+                {
+                    name: self._constant(item)
+                    if isinstance(item, xr.DataArray)
+                    else self._aligned(item)
+                    for name, item in value.parameters.items()
+                }
             )
             return value
         if isinstance(value, xr.DataArray):
+            if self._allow_constant_date_subset and "date" in value.dims:
+                value = self._select_constant_dates(value)
             dims = [
                 dim for dim in value.dims if dim in value.coords and dim in self.ds.dims
             ]
@@ -692,6 +791,14 @@ class BuildContext:
         if isinstance(value, dict):
             return {key: self._aligned(item) for key, item in value.items()}
         return value
+
+    def _constant(self, value: xr.DataArray) -> Variable:
+        """Freeze a labeled array and retain the provenance of its exact graph leaf."""
+        array = self._aligned(value).copy(deep=True)
+        self._add_model_coords(self._coords(array))
+        variable = pmd.as_xtensor(array)
+        self._labeled_constants[variable] = array
+        return variable
 
     def _fourier_term(self, fourier: FourierBase) -> Any:
         """Return the one graph node that evaluates ``fourier`` on the data dates."""
@@ -705,7 +812,7 @@ class BuildContext:
     def _bound_value(self, value: Any) -> Any:
         if isinstance(value, FourierBase):
             value = self._fourier_term(value)
-        if isinstance(value, (ModelTerm, Sum, Product)):
+        if isinstance(value, (ModelTerm, Sum, Product, xr.DataArray)):
             key = id(value)
             if key not in self._references:
                 self._references[key] = _Reference(self, value)
@@ -739,29 +846,51 @@ class BuildContext:
         return True
 
     def _coords(self, term: Any) -> dict[str, Any]:
+        if isinstance(term, xr.DataArray):
+            value = self._aligned(term)
+            return {
+                dim: value.coords[dim].values
+                for dim in value.dims
+                if dim in value.coords and value.coords[dim].dims == (dim,)
+            }
         if isinstance(term, GraphTerm):
             return {}
         key = id(term)
+        if key in self.variables:
+            # A cached graph supplies its dimensions without rebuilding its parameter recipes.
+            return {
+                dim: self.ds.coords[dim].values
+                if dim in self.ds.coords
+                else self.model.coords[dim]
+                for dim in getattr(self.variables[key], "dims", ())
+                if dim in self.ds.coords or self.model.coords.get(dim) is not None
+            }
         if self._start_phase("coords", term):
             try:
-                self._coordinate_cache[key] = get_coords(self._clone(term), self.ds)
+                self._coordinate_cache[key] = get_coords(
+                    self._clone(term), self._registration_dataset(term)
+                )
             finally:
                 self._phase_active.remove(("coords", key))
             self._phase_done.add(("coords", key))
         return self._coordinate_cache[key]
 
     def _add_coords(self, term: Any) -> None:
-        if isinstance(term, GraphTerm) or not isinstance(term, ModelTerm):
+        if (
+            isinstance(term, GraphTerm)
+            or not isinstance(term, ModelTerm)
+            or id(term) in self.variables
+        ):
             return
         if self._start_phase("add_coords", term):
             try:
-                self._clone(term).add_coords(self.ds)
+                self._clone(term).add_coords(self._registration_dataset(term))
             finally:
                 self._phase_active.remove(("add_coords", id(term)))
             self._phase_done.add(("add_coords", id(term)))
 
     def _register(self, term: Any) -> None:
-        if isinstance(term, GraphTerm):
+        if isinstance(term, GraphTerm) or id(term) in self.variables:
             return
         if self._start_phase("register", term):
             try:
@@ -779,11 +908,34 @@ class BuildContext:
                             f"Data variable name {term.var_name!r} is already owned by another model variable."
                         )
                 self._add_model_coords(self._coords(term))
+                before = set(self.model.data_vars)
                 if isinstance(term, ModelTerm):
                     self._add_coords(term)
-                    self._clone(term).register_data(self.ds)
+                    self._clone(term).register_data(self._registration_dataset(term))
                 else:
-                    register_data(self._clone(term), ds=self.ds)
+                    register_data(
+                        self._clone(term), ds=self._registration_dataset(term)
+                    )
+                if isinstance(term, ModelTerm):
+                    declared = set(term.data_vars)
+                    known = set(self._registered_inputs) | {
+                        self.model[name] for name in self.data_variables.values()
+                    }
+                    added = set(self.model.data_vars).difference(before, known)
+                    unbound = []
+                    bound: set[str] = set()
+                    for variable in added:
+                        raw = variable.name
+                        if raw is not None and raw in declared:
+                            self._registered_inputs[variable] = raw
+                            bound.add(raw)
+                        else:
+                            unbound.append(variable)
+                    remaining = declared.difference(bound)
+                    if len(remaining) == len(unbound) == 1:
+                        # The lifecycle declaration uniquely owns its new container,
+                        # even when the registered name differs from the raw column.
+                        self._registered_inputs[unbound[0]] = next(iter(remaining))
                 if isinstance(term, Dot):
                     self._shared_data_aliases.add(term.var_name)
             finally:
@@ -809,11 +961,13 @@ class BuildContext:
             expression = expression.item()
         if isinstance(expression, FourierBase):
             expression = self._fourier_term(expression)
+        if isinstance(expression, xr.DataArray):
+            return self._constant(expression)
         if not isinstance(expression, (ModelTerm, Sum, Product)):
             recipe = (
                 self._recipe(expression)
                 if isinstance(expression, VariableFactory)
-                else expression
+                else self._aligned(expression)
             )
             if isinstance(recipe, VariableFactory):
                 self._claim_name(name, object())

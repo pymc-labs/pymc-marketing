@@ -381,3 +381,84 @@ def test_specification_key_preserves_core_dims_but_ignores_prior_runtime_state()
     assert specification_key(prior) == before
     prior.core_dims = ("component",)
     assert specification_key(prior) != before
+
+
+@pytest.mark.parametrize("dot_first", [False, True])
+def test_raw_shared_aliases_keep_their_values_independent_of_equation_order(dot_first):
+    ds = xr.Dataset(
+        {
+            "spend": ("date", [1.0, 2.0, 3.0]),
+            "_experimental_data_0": (("date", "feature"), [[10.0], [20.0], [30.0]]),
+            "sales": ("date", [1.0, 2.0, 3.0]),
+            "aux": ("date", [10.0, 20.0, 30.0]),
+        },
+        coords={"date": np.arange(3), "feature": ["a"]},
+    )
+    raw = Equation(
+        observed="sales", mu=Data("spend"), likelihood=Prior("Normal", sigma=0.1)
+    )
+    dot = Equation(
+        observed="aux",
+        mu=Dot(
+            var_name="_experimental_data_0",
+            prior=Prior("Normal", mu=1.0, sigma=0.2, dims="feature"),
+        ),
+        likelihood=Prior("Normal", sigma=0.1),
+    )
+    with pm.Model() as model:
+        context = BuildContext(ds)
+        for equation in (dot, raw) if dot_first else (raw, dot):
+            context.build(equation)
+    coefficient = np.array([0.7])
+    expected = (
+        _normal_logp(coefficient, 1.0, 0.2).sum()
+        + _normal_logp(ds["sales"], ds["spend"], 0.1).sum()
+        + _normal_logp(
+            ds["aux"], ds["_experimental_data_0"].sum("feature") * coefficient[0], 0.1
+        ).sum()
+    )
+    assert_allclose(
+        model.compile_logp()({model.free_RVs[0].name: coefficient}), float(expected)
+    )
+
+
+def test_discrete_observations_keep_their_joint_likelihood_with_continuous_inputs():
+    values = [1, 3, 4]
+    ds = xr.Dataset(
+        {
+            "y": ("geo", np.asarray(values, dtype="int32")),
+            "aux": ("geo", [0.0, 0.7, 1.4]),
+        },
+        coords={"geo": ["a", "b", "c"], "category": [0, 1, 2]},
+    )
+    before = ds.copy(deep=True)
+    likelihood = Prior("Poisson", mu=2.0)
+    expected_y = ds["y"].values * np.log(2.0) - 2.0 - gammaln(ds["y"].values + 1)
+    outcome = Equation(observed="y", likelihood=likelihood)
+    slope = Parameter("slope", Prior("Normal"))
+    downstream = Equation(
+        observed="aux",
+        mu=slope * Data("y"),
+        likelihood=Prior("Normal", sigma=0.2),
+    )
+    with pm.Model() as model:
+        context = BuildContext(ds)
+        # Register y as a continuous predictor before reading it as raw observations.
+        context.build(downstream)
+        context.build(outcome)
+    expected = (
+        expected_y.sum()
+        + float(_normal_logp(0.7, 0.0, 1.0))
+        + _normal_logp(ds["aux"], 0.7 * ds["y"], 0.2).sum()
+    )
+    assert_allclose(model.compile_logp()({"slope": 0.7}), float(expected), atol=1e-10)
+    xr.testing.assert_identical(ds, before)
+
+
+@pytest.mark.parametrize("value", [2**53 + 1, -(2**53 + 1)])
+def test_integer_inputs_cannot_lose_units_during_float_conversion(value):
+    ds = xr.Dataset(
+        {"x": ("geo", np.asarray([value], dtype="int64"))}, coords={"geo": ["a"]}
+    )
+    with pm.Model(), pytest.raises(ValueError):
+        BuildContext(ds).build(Data("x"))

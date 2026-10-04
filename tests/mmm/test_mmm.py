@@ -36,6 +36,7 @@ from pymc_marketing.mmm import (
     DelayedAdstock,
     GeometricAdstock,
     LogisticSaturation,
+    RootSaturation,
     SoftPlusHSGP,
 )
 from pymc_marketing.mmm.additive_effect import (
@@ -2557,6 +2558,28 @@ def test_mmm_with_events_bases(
         np.testing.assert_allclose(da, 0)
     else:
         assert np.any(np.abs(da.values) > 0)
+
+
+def test_root_saturation_mmm_has_a_finite_logp_at_the_initial_point(
+    simple_mmm_data,
+) -> None:
+    """Check that an MMM with RootSaturation has a finite logp and gradient.
+
+    The adstocked input reaching the saturation is ``("channel", "date")``, so
+    this exercises a per-channel ``alpha`` against a channel-first input.
+    """
+    mmm = MMM(
+        date_column="date",
+        target_column="target",
+        channel_columns=["channel_1", "channel_2", "channel_3"],
+        adstock=GeometricAdstock(l_max=2),
+        saturation=RootSaturation(),
+    )
+    mmm.build_model(simple_mmm_data["X"], simple_mmm_data["y"])
+    point = mmm.model.initial_point()
+
+    assert np.isfinite(mmm.model.compile_logp()(point))
+    assert np.all(np.isfinite(mmm.model.compile_dlogp()(point)))
 
 
 @pytest.mark.parametrize(

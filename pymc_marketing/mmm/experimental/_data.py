@@ -41,8 +41,9 @@ def _align_labels(
 ) -> xr.DataArray:
     """Require matching labeled dimensions, then restore reference order.
 
-    ``dims`` limits the check and reordering to those dimensions; by default every
-    dimension of ``array`` must be labeled and present in ``reference``.
+    ``dims`` limits validation and reordering to the listed dimensions.
+    Otherwise, every dimension of ``array`` must be labeled and present in ``reference``.
+    Date labels use the same datetime normalization as dataset validation.
     """
     indexers = {}
     for dim in array.dims if dims is None else dims:
@@ -50,6 +51,10 @@ def _align_labels(
             raise ValueError(f"Dimension {dim!r} must have matching named coordinates.")
         source = array.get_index(dim)
         target = reference.get_index(dim)
+        if dim == "date":
+            source = _dates(source).as_unit("us")
+            target = _dates(target).as_unit("us")
+            array = array.assign_coords(date=source)
         if (
             not source.is_unique
             or len(source) != len(target)
@@ -58,7 +63,7 @@ def _align_labels(
             raise ValueError(
                 f"Coordinate labels for dimension {dim!r} do not match the data."
             )
-        indexers[dim] = reference.coords[dim]
+        indexers[dim] = target if dim == "date" else reference.coords[dim]
     return array.sel(indexers)
 
 
