@@ -511,14 +511,14 @@ def weibull_adstock(
     kernel_dim = f"{dim}_kernel"
     lam = as_xtensor(lam)
     k = as_xtensor(k)
-    t = as_xtensor(pt.arange(l_max, dtype=x.dtype) + 1, dims=(kernel_dim,))
-
     if type == WeibullType.PDF:
+        t = as_xtensor(pt.arange(l_max, dtype=x.dtype) + 1, dims=(kernel_dim,))
         w = density(Weibull, value=t, alpha=k, beta=lam)
         w = (w - w.min(dim=kernel_dim)) / (
             w.max(dim=kernel_dim) - w.min(dim=kernel_dim)
         )
     elif type == WeibullType.CDF:
+        t = as_xtensor(pt.arange(l_max - 1, dtype=x.dtype) + 1, dims=(kernel_dim,))
         w = 1 - cdf(Weibull, value=t, alpha=k, beta=lam)
         padded_w = ptx.concat([1, w], dim=kernel_dim)
         w = padded_w.cumprod(dim=kernel_dim)
