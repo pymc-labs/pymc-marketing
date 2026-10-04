@@ -48,6 +48,7 @@ from scipy.stats import gaussian_kde
 
 from pymc_marketing.data.idata.mmm_wrapper import MMMIDataWrapper
 from pymc_marketing.data.idata.schema import Frequency
+from pymc_marketing.data.idata.utils import _aggregate_over_time
 from pymc_marketing.mmm.incrementality import Incrementality
 from pymc_marketing.mmm.summary.helpers import (
     DataFrameType,
@@ -346,7 +347,11 @@ class MMMSummaryFactory:
         4. Repeats a time-invariant intercept on every date, since the model
            adds it to ``mu`` in every period
            (:meth:`MMMIDataWrapper.broadcast_per_period_contributions`)
-        5. Aggregates data by frequency if specified
+        5. Aggregates data by frequency if specified. Summaries that decompose
+           contributions pass ``frequency=None`` and sum the decomposed
+           samples over each period instead: under ``link="log"`` the
+           decomposition is nonlinear in ``mu``, so it has to run on the
+           original dates.
 
         Parameters
         ----------
@@ -501,7 +506,7 @@ class MMMSummaryFactory:
         """
         # Resolve all defaults in one call
         data, hdi_probs, output_format = self._prepare_data_and_hdi(
-            hdi_probs, frequency, output_format
+            hdi_probs, frequency=None, output_format=output_format
         )
 
         if component == "control":
@@ -521,6 +526,9 @@ class MMMSummaryFactory:
             if component not in contributions.data_vars:
                 raise ValueError(f"No {component} contributions found in model")
             component_data = contributions[component]
+
+        # Sum the per-date decomposition over each period
+        component_data = _aggregate_over_time(component_data, frequency or "original")
 
         # Compute summary stats with HDI
         df = self._compute_summary_stats_with_hdi(component_data, hdi_probs)
@@ -561,7 +569,8 @@ class MMMSummaryFactory:
             - **elementwise**: Simple element-wise division of contributions
               by spend. Does NOT account for carryover effects. Useful for
               daily efficiency tracking but not true incrementality.
-              Works with data-only factory.
+              Works with data-only factory. With a ``frequency``, contributions
+              and spend are each summed over the period before dividing.
         include_carryover : bool, default True
             Include adstock carryover effects. Only used when
             ``method="incremental"``.
@@ -681,9 +690,9 @@ class MMMSummaryFactory:
             )
         elif method == "elementwise":
             data = data.filter_dates(start_date=start_date, end_date=end_date)
-            if frequency is not None and frequency != "original":
-                data = data.aggregate_time(frequency)
-            roas = data.get_elementwise_roas(original_scale=True)
+            roas = data.get_elementwise_roas(
+                original_scale=True, period=frequency or "original"
+            )
         else:
             raise ValueError(
                 f"method must be 'incremental' or 'elementwise', got {method!r}"
@@ -996,11 +1005,13 @@ class MMMSummaryFactory:
         """
         # Resolve all defaults in one call
         data, hdi_probs, output_format = self._prepare_data_and_hdi(
-            hdi_probs, frequency, output_format
+            hdi_probs, frequency=None, output_format=output_format
         )
 
-        # Get all contributions
-        contributions = data.get_contributions(original_scale=True)
+        # Get all contributions, the per-date decomposition summed over each period
+        contributions = _aggregate_over_time(
+            data.get_contributions(original_scale=True), frequency or "original"
+        )
 
         all_dfs = []
 
@@ -1077,11 +1088,14 @@ class MMMSummaryFactory:
         """
         # Resolve all defaults in one call
         data, hdi_probs, output_format = self._prepare_data_and_hdi(
-            hdi_probs, frequency, output_format
+            hdi_probs, frequency=None, output_format=output_format
         )
 
-        # Get contributions (chain, draw, date, channel)
-        contributions = data.get_channel_contributions(original_scale=True)
+        # Get contributions (chain, draw, date, channel), summed over each period
+        contributions = _aggregate_over_time(
+            data.get_channel_contributions(original_scale=True),
+            frequency or "original",
+        )
 
         # Check for date dimension
         if "date" not in contributions.dims:

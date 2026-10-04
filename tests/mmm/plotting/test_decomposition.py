@@ -298,6 +298,36 @@ class TestContributionsOverTime:
             f"Baseline line should be horizontal (constant y), got: {ydata[:5]}…"
         )
 
+    def test_time_varying_baseline_keeps_date_dimension(self, simple_idata):
+        """A time-varying intercept is plotted without broadcasting date twice."""
+        posterior = simple_idata.posterior.to_dataset().copy()
+        n_chain = posterior.sizes["chain"]
+        n_draw = posterior.sizes["draw"]
+        dates = posterior.coords["date"]
+        expected = np.arange(dates.size, dtype=float)
+        posterior["intercept_contribution"] = xr.DataArray(
+            np.broadcast_to(expected, (n_chain, n_draw, dates.size)),
+            dims=("chain", "draw", "date"),
+            coords={
+                "chain": posterior.coords["chain"],
+                "draw": posterior.coords["draw"],
+                "date": dates,
+            },
+        )
+        idata = xr.DataTree.from_dict(
+            {
+                "/posterior": posterior,
+                "/constant_data": simple_idata.constant_data.to_dataset(),
+            }
+        )
+        plots = DecompositionPlots(MMMIDataWrapper(idata, validate_on_init=False))
+
+        _fig, axes = plots.contributions_over_time(include=["baseline"])
+
+        data_lines = [ln for ln in axes[0].get_lines() if len(ln.get_xdata()) > 1]
+        assert len(data_lines) == 1
+        np.testing.assert_allclose(data_lines[0].get_ydata(), expected * 1000)
+
     def test_no_summing_warning(self, simple_plots):
         # Channels are plotted individually (not summed) — no UserWarning should be emitted
         with warnings.catch_warnings(record=True) as caught:

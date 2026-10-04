@@ -184,6 +184,138 @@ def filter_idata_by_dims(
     return result
 
 
+_PERIOD_RULES = {
+    "weekly": "W",
+    "monthly": "ME",
+    "quarterly": "QE",
+    "yearly": "YE",
+}
+
+
+def _aggregate_over_time[XarrayT: (xr.Dataset, xr.DataArray)](
+    data: XarrayT,
+    period: Frequency,
+    method: Literal["sum", "mean"] = "sum",
+) -> XarrayT:
+    """Aggregate a Dataset or DataArray over ``date`` into periods.
+
+    The period boundaries of :func:`aggregate_idata_time`, for callers that
+    aggregate variables they derived from a DataTree rather than the DataTree
+    itself.
+
+    Parameters
+    ----------
+    data : xr.Dataset or xr.DataArray
+        Object to aggregate. Without a ``date`` dim it is returned unchanged.
+    period : {"original", "weekly", "monthly", "quarterly", "yearly", "all_time"}
+        Time period to aggregate to. ``"original"`` returns ``data`` unchanged,
+        ``"all_time"`` removes the ``date`` dim.
+    method : {"sum", "mean"}, default "sum"
+        Aggregation method
+
+    Returns
+    -------
+    xr.Dataset or xr.DataArray
+        Aggregated object, of the same type as ``data``.
+    """
+    if period == "original" or "date" not in data.dims:
+        return data
+
+    reducible = (
+        data if period == "all_time" else data.resample(date=_PERIOD_RULES[period])
+    )
+    if method == "sum":
+        return reducible.sum(dim="date")
+    if method == "mean":
+        return reducible.mean(dim="date")
+    raise ValueError(f"Unknown aggregation method: {method}")
+
+
+def broadcast_over_date(variable: xr.DataArray, date: xr.DataArray) -> xr.DataArray:
+    """Repeat a time-invariant variable on every ``date``.
+
+    An MMM adds a time-invariant intercept to the linear predictor on every
+    date but stores it without a ``date`` dim. Repeating it on the dates of
+    the per-date variables lets it line up with them, so that summing over
+    ``date`` counts it once per date like every other component.
+
+    Parameters
+    ----------
+    variable : xr.DataArray
+        Variable without a ``date`` dim, e.g. with dims ``(chain, draw, ...)``.
+    date : xr.DataArray
+        The ``date`` coordinate to repeat ``variable`` on.
+
+    Returns
+    -------
+    xr.DataArray
+        ``variable`` with the ``date`` dim inserted after ``chain`` and
+        ``draw`` (those present), before any other dim, the order the per-date
+        variables of the same group use.
+
+    Examples
+    --------
+    .. code-block:: python
+
+        posterior = mmm.idata.posterior
+        intercept = broadcast_over_date(
+            posterior["intercept_contribution"], posterior["date"]
+        )
+        intercept.dims  # ("chain", "draw", "date", ...)
+    """
+    return variable.expand_dims(date=date).transpose(
+        *[d for d in ("chain", "draw") if d in variable.dims], "date", ...
+    )
+
+
+def sum_contributions_over_time(
+    contributions: xr.Dataset,
+    period: Frequency,
+) -> xr.Dataset:
+    """Sum per-date contributions over the dates of each period.
+
+    Every variable of ``contributions`` is a component the model adds to the
+    linear predictor on every date. A component without a ``date`` dim, such
+    as a time-invariant intercept, is repeated on every date of
+    ``contributions`` first (see :func:`broadcast_over_date`), so that it is
+    counted once per observed date within each period, exactly like the
+    per-date components. The aggregation runs per variable, so each keeps its
+    ``(chain, draw, date, ...)`` dim order.
+
+    Decompose first, then call this: under a nonlinear inverse link the
+    decomposition of the summed linear predictor is not the sum of the per-date
+    decompositions.
+
+    Parameters
+    ----------
+    contributions : xr.Dataset
+        One data variable per component, on the original dates.
+    period : {"original", "weekly", "monthly", "quarterly", "yearly", "all_time"}
+        Time period to sum over. ``"original"`` returns ``contributions``
+        unchanged, ``"all_time"`` removes the ``date`` dim; otherwise ``date``
+        holds the last calendar day of each period. A period shorter than the
+        spacing of the dates (e.g. ``"weekly"`` on monthly data) leaves empty
+        periods, which are ``NaN``.
+
+    Returns
+    -------
+    xr.Dataset
+        The contributions of each period.
+    """
+    if period == "original" or "date" not in contributions.dims:
+        return contributions
+
+    date = contributions["date"]
+    per_date = contributions.map(
+        lambda component: (
+            component
+            if "date" in component.dims
+            else broadcast_over_date(component, date)
+        )
+    )
+    return per_date.map(_aggregate_over_time, period=period)
+
+
 def aggregate_idata_time(
     idata: xr.DataTree,
     period: Frequency,
@@ -205,7 +337,10 @@ def aggregate_idata_time(
     Returns
     -------
     xr.DataTree
-        New DataTree with aggregated groups (or unchanged if period="original")
+        New DataTree with aggregated groups (or unchanged if period="original").
+        Its root ``attrs`` record the aggregation as ``time_aggregation=period``
+        so that consumers of per-date quantities can tell the data apart from
+        the original dates.
 
     Notes
     -----
@@ -225,63 +360,14 @@ def aggregate_idata_time(
     if period == "original":
         return idata
 
-    if period == "all_time":
-        aggregated_groups = {}
-        for path in idata.groups:
-            if path == "/":
-                continue
-            group_name = path.lstrip("/")
-            ds = idata[path].dataset
-
-            if "date" not in ds.dims:
-                aggregated_groups[group_name] = ds
-                continue
-
-            if method == "sum":
-                aggregated = ds.sum(dim="date")
-            elif method == "mean":
-                aggregated = ds.mean(dim="date")
-            else:
-                raise ValueError(f"Unknown aggregation method: {method}")
-
-            aggregated_groups[group_name] = aggregated
-
-        result = xr.DataTree.from_dict(
-            {f"/{k}": v for k, v in aggregated_groups.items()}
-        )
-        result.attrs = idata.attrs.copy()
-        return result
-
-    period_map = {
-        "weekly": "W",
-        "monthly": "ME",
-        "quarterly": "QE",
-        "yearly": "YE",
-    }
-    freq = period_map[period]
-
-    aggregated_groups = {}
-    for path in idata.groups:
-        if path == "/":
-            continue
-        group_name = path.lstrip("/")
-        ds = idata[path].dataset
-
-        if "date" not in ds.dims:
-            aggregated_groups[group_name] = ds
-            continue
-
-        if method == "sum":
-            aggregated = ds.resample(date=freq).sum(dim="date")
-        elif method == "mean":
-            aggregated = ds.resample(date=freq).mean(dim="date")
-        else:
-            raise ValueError(f"Unknown aggregation method: {method}")
-
-        aggregated_groups[group_name] = aggregated
-
-    result = xr.DataTree.from_dict({f"/{k}": v for k, v in aggregated_groups.items()})
-    result.attrs = idata.attrs.copy()
+    result = xr.DataTree.from_dict(
+        {
+            path: _aggregate_over_time(idata[path].dataset, period, method)
+            for path in idata.groups
+            if path != "/"
+        }
+    )
+    result.attrs = {**idata.attrs, "time_aggregation": period}
     return result
 
 
