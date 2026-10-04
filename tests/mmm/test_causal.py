@@ -752,11 +752,7 @@ def test_get_unique_adjustment_nodes(dag, treatment, outcome, expected_adjustmen
     assert set(adjustment_set) == set(expected_adjustment_set), (
         f"Expected {expected_adjustment_set}, but got {adjustment_set}"
     )
-    assert causal_model.causal_model._graph.check_valid_backdoor_set(
-        nodes1=causal_model.treatment,
-        nodes2=[causal_model.outcome],
-        nodes3=adjustment_set,
-    )["is_dseparated"]
+    assert causal_model.is_valid_adjustment_set(adjustment_set)
 
 
 @pytest.mark.parametrize(
@@ -894,7 +890,7 @@ def test_minimal_set_stays_minimal_while_safe_user_controls_are_retained():
     assert controls == ["A", "S"]
 
 
-def test_multi_treatment_uses_proper_backdoor_graph_with_dowhy_oracle():
+def test_multi_treatment_uses_proper_backdoor_graph_with_public_validator():
     causal_model = CausalGraphModel.build_graphical_model(
         graph="""
         digraph {
@@ -915,11 +911,7 @@ def test_multi_treatment_uses_proper_backdoor_graph_with_dowhy_oracle():
     adjustment_set = causal_model.get_unique_adjustment_nodes()
 
     assert adjustment_set == ["N", "U2"]
-    assert causal_model.causal_model._graph.check_valid_backdoor_set(
-        nodes1=causal_model.treatment,
-        nodes2=[causal_model.outcome],
-        nodes3=adjustment_set,
-    )["is_dseparated"]
+    assert causal_model.is_valid_adjustment_set(adjustment_set)
 
 
 def test_multi_treatment_forbids_descendants_of_causal_treatment():
