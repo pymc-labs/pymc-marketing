@@ -168,7 +168,7 @@ class MNLogit(ModelBuilder):
             "alphas_": self.model_config["alphas_"].to_dict(),
             "likelihood": self.model_config["likelihood"].to_dict(),
             "betas": self.model_config["betas"].to_dict(),
-            "betas_fixed": self.model_config["betas_fixed_"].to_dict(),
+            "betas_fixed_": self.model_config["betas_fixed_"].to_dict(),
         }
 
         return result
@@ -480,9 +480,28 @@ class MNLogit(ModelBuilder):
         attrs = super().create_idata_attrs()
         attrs["covariates"] = json.dumps(self.covariates)
         attrs["depvar"] = json.dumps(self.depvar)
-        attrs["choice_df"] = json.dumps("Placeholder for DF")
+        # The choice data is persisted in the fit_data group rather than duplicated here.
+        # The base class still requires one attr per __init__ argument, so keep the key.
+        attrs["choice_df"] = json.dumps(None)
         attrs["utility_equations"] = json.dumps(self.utility_equations)
         return attrs
+
+    @classmethod
+    def attrs_to_init_kwargs(cls, attrs) -> dict[str, Any]:
+        """Rehydrate the ``__init__`` kwargs from the serialised DataTree attrs.
+
+        The choice data itself lives in the ``fit_data`` group and is restored by :meth:`build_from_idata`.
+        """
+        return {
+            "choice_df": pd.DataFrame(),
+            "utility_equations": json.loads(attrs["utility_equations"]),
+            "depvar": json.loads(attrs["depvar"]),
+            "covariates": json.loads(attrs["covariates"]),
+            "model_config": cls._model_config_formatting(
+                json.loads(attrs["model_config"])
+            ),
+            "sampler_config": json.loads(attrs["sampler_config"]),
+        }
 
     def sample_prior_predictive(  # type: ignore[override]
         self,
@@ -546,8 +565,7 @@ class MNLogit(ModelBuilder):
         xr.Dataset
             Choice data as xarray Dataset with 'obs' dimension
         """
-        df_xr = self.choice_df.to_xarray()
-        df_xr = df_xr.rename({"index": "obs"})
+        df_xr = self.choice_df.rename_axis("obs").to_xarray()
         return df_xr
 
     def fit(  # type: ignore[override]
@@ -612,7 +630,7 @@ class MNLogit(ModelBuilder):
         idata : xr.DataTree
             Loaded inference data
         """
-        self.choice_df = idata["fit_data"].dataset.to_dataframe()
+        self.choice_df = idata["fit_data"].dataset.to_dataframe().rename_axis(None)
         if not hasattr(self, "model"):
             self.build_model()
 

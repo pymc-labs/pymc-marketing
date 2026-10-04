@@ -13,6 +13,8 @@
 #   limitations under the License.
 
 
+import json
+
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -199,6 +201,49 @@ def test_make_change_plot_returns_figure(mnl, sample_change_df):
     fig = mnl.plot_change(sample_change_df, title="Test Intervention")
 
     assert isinstance(fig, plt.Figure)
+
+
+class TestSaveLoadRoundtrip:
+    """Save/load round-trip for MNLogit (issue #2824)."""
+
+    def test_save_load_roundtrip(self, mnl, tmp_path, mock_pymc_sample):
+        mnl.fit(random_seed=42)
+
+        path = tmp_path / "mnl.nc"
+        mnl.save(str(path))
+        loaded = MNLogit.load(str(path))
+
+        # Model settings are rebuilt from the serialised attrs.
+        assert loaded.utility_equations == mnl.utility_equations
+        assert loaded.depvar == mnl.depvar
+        assert loaded.covariates == mnl.covariates
+        assert loaded.model_config == mnl.model_config
+
+        # Choice data is restored from the fit_data group exactly as written.
+        fit_data = mnl.idata["fit_data"].dataset.to_dataframe().rename_axis(None)
+        pd.testing.assert_frame_equal(loaded.choice_df, fit_data)
+        assert loaded.choice_df.index.name is None
+        assert loaded.choice_df.index.tolist() == mnl.choice_df.index.tolist()
+        for column in mnl.choice_df.columns:
+            assert loaded.choice_df[column].dtype == mnl.choice_df[column].dtype
+
+        # The choice data is not duplicated into the attrs as a placeholder.
+        assert json.loads(mnl.idata.attrs["choice_df"]) is None
+
+        # Posterior and model id survive the file round trip.
+        xr.testing.assert_equal(loaded.idata["posterior"], mnl.idata["posterior"])
+        assert loaded.id == mnl.id
+
+        # Posterior predictive sampling runs on the loaded model.
+        post_pred = loaded.sample_posterior_predictive(extend_idata=False)
+        assert "posterior_predictive" in post_pred
+
+        # Re-fitting and re-saving the loaded model must round-trip again.
+        loaded.fit(random_seed=42)
+        refit_path = tmp_path / "mnl_refit.nc"
+        loaded.save(str(refit_path))
+        reloaded = MNLogit.load(str(refit_path))
+        pd.testing.assert_frame_equal(reloaded.choice_df, loaded.choice_df)
 
 
 class TestMakeIntercepts:
