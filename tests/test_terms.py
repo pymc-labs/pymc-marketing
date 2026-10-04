@@ -1340,7 +1340,7 @@ def test_ref_resolves_built_variable():
     assert "a" in model.named_vars
     assert model.named_vars_to_dims["a"] == ("product",)
 
-    # the contract is the dependency edge, not just name existence
+    # the contract is the dependency edge, not just name existence.
     assert model["a_scale"] in set(ancestors([model["a"]]))
 
 
