@@ -26,6 +26,7 @@ import pytest
 import xarray as xr
 from pymc_extras.prior import CUSTOM_TRANSFORMS, Prior
 from pytensor.graph.basic import Variable as PTVariable
+from pytensor.graph.traversal import ancestors
 
 from pymc_marketing.model_builder import ModelBuilder
 from pymc_marketing.r2d2 import R2D2
@@ -39,8 +40,10 @@ from pymc_marketing.terms import (
     Dot,
     Intercept,
     ModelTerm,
+    Named,
     Parameter,
     Product,
+    Ref,
     Sum,
     Transform,
     _deserialize_child,
@@ -48,6 +51,7 @@ from pymc_marketing.terms import (
     build_param,
     collect_coords,
     collect_terms,
+    data_vars,
     get_coords,
     register_data,
     set_data,
@@ -322,6 +326,44 @@ def test_collect_terms_flat():
     assert len(result) == 2
 
 
+def test_data_vars_empty_for_free_terms():
+    """A tree of free variables reads no data."""
+    assert data_vars(Parameter("a", prior=Prior("Normal")) * 2) == []
+    assert data_vars(5) == []
+
+
+def test_data_vars_finds_nested_covariate():
+    """A covariate nested in a composition is found."""
+    recipe = Parameter("p_base", prior=Prior("Beta", alpha=1.5, beta=20)) * Transform(
+        Dot(var_name="market_size", prior=Prior("Normal")), ptx.math.exp
+    )
+    assert data_vars(recipe) == ["market_size"]
+
+
+def test_data_vars_descends_into_wrappers():
+    """Wrappers (``Named`` / ``Transform``) are descended, unlike collect_terms.
+
+    ``collect_terms`` stops at a wrapper because the wrapper *is* a term;
+    ``data_vars`` has to look inside to find the covariate it holds.
+    """
+    inner = Dot(var_name="market_size", prior=Prior("Normal"))
+
+    named = Named("q", inner)
+    assert [type(t) for t in collect_terms([named])] == [Named]
+    assert data_vars(named) == ["market_size"]
+    assert data_vars(Transform(inner, func=ptx.math.exp)) == ["market_size"]
+
+
+def test_data_vars_dedupes_and_keeps_order():
+    """Shared covariates are listed once, in first-seen order."""
+    recipe = (
+        Dot(var_name="market_size", name="a", prior=Prior("Normal"))
+        + Dot(var_name="price_index", name="b", prior=Prior("Normal"))
+        + Dot(var_name="market_size", name="c", prior=Prior("Normal"))
+    )
+    assert data_vars(recipe) == ["market_size", "price_index"]
+
+
 def test_collect_terms_nested():
     terms = [
         Intercept(name="a") + Dot(var_name="x", prior=Prior("Normal", dims="feature"))
@@ -587,6 +629,77 @@ def test_dot_default_name(simple_ds):
     """Dot without `name` defaults to `{var_name}_beta` (unchanged behavior)."""
     dot = Dot(var_name="x", prior=Prior("Normal", dims="feature"))
     assert dot.name == "x_beta"
+
+
+@pytest.fixture
+def product_ds():
+    """Dataset with a 1-D covariate carrying one value per product."""
+    return xr.Dataset(
+        {"market_size": ("product", np.array([100.0, 250.0, 60.0]))},
+        coords={"product": ["A", "B", "C"]},
+    )
+
+
+def test_dot_scalar_coefficient_broadcasts_over_last_dim(product_ds):
+    """A coefficient without dims gives one coefficient per element.
+
+    This is the per-item case: a covariate that differs across products
+    yields a result carrying ``product``, so it composes into a term that
+    varies by item.
+    """
+    dot = Dot(var_name="market_size", prior=Prior("Normal", mu=0, sigma=0.3))
+    coords = dot.get_coords(product_ds)
+    with pm.Model(coords=coords) as model:
+        dot.register_data(product_ds)
+        result = build_param(dot, "d")
+
+    assert result.dims == ("product",)
+    assert np.shape(result.eval()) == (3,)
+    assert "market_size" in model.named_vars
+
+
+def test_dot_coefficient_with_dims_contracts_that_axis(product_ds):
+    """A coefficient carrying the data's last dim contracts it to a scalar."""
+    dot = Dot(
+        var_name="market_size",
+        name="shared_coef",
+        prior=Prior("Normal", mu=0, sigma=0.3, dims="product"),
+    )
+    with pm.Model(coords=dot.get_coords(product_ds)):
+        dot.register_data(product_ds)
+        result = build_param(dot, "d")
+
+    assert result.dims == ()
+    assert np.shape(result.eval()) == ()
+
+
+def test_dot_product_covariate_composes_into_term(product_ds):
+    """A per-product covariate scales a base term, keeping the product dim."""
+    recipe = Parameter("p_base", prior=Prior("Beta", alpha=1.5, beta=20)) * Transform(
+        Dot(var_name="market_size", name="p_coef", prior=Prior("Normal", sigma=0.3)),
+        ptx.math.exp,
+    )
+    coords = collect_coords(recipe, ds=product_ds)
+    with pm.Model(coords=coords) as model:
+        register_data(recipe, ds=product_ds)
+        result = build_param(recipe, "p")
+
+    assert result.dims == ("product",)
+    assert model.named_vars_to_dims["market_size"] == ("product",)
+
+
+def test_dot_product_covariate_set_data(product_ds):
+    """A per-product covariate refreshes out of sample, as any ``Dot`` does."""
+    recipe = Dot(var_name="market_size", name="p_coef", prior=Prior("Normal"))
+    with pm.Model(coords=recipe.get_coords(product_ds)) as model:
+        recipe.register_data(product_ds)
+        build_param(recipe, "p")
+
+        ds2 = product_ds.copy()
+        ds2["market_size"] = ("product", np.array([110.0, 260.0, 70.0]))
+        recipe.set_data(ds2, model=model)
+
+        assert np.allclose(model["market_size"].get_value(), ds2["market_size"].values)
 
 
 def test_dot_distinct_name_no_collision(simple_ds):
@@ -1149,3 +1262,215 @@ def test_merge_walk_preserves_unchanged_list_identity():
 def test_deserialize_child_passthrough_non_dict():
     """Non-dict children pass through (defensive; _serialize_child emits dicts)."""
     assert _deserialize_child(52) == 52
+
+
+def test_named_builds_pmd_deterministic():
+    coords = {"product": ["p1", "p2"]}
+    with pm.Model(coords=coords) as model:
+        term = Named(
+            "sigma",
+            Parameter("scale", prior=Prior("HalfNormal", dims="product")),
+            dims="product",
+        )
+        term.create_variable()
+
+    assert "sigma" in model.named_vars
+    assert model.named_vars_to_dims["sigma"] == ("product",)
+
+
+def test_named_dims_none_scalar():
+    with pm.Model() as model:
+        term = Named(
+            "sigma",
+            Parameter("scale", prior=Prior("HalfNormal")),
+            dims=None,
+        )
+        term.create_variable()
+
+    assert "sigma" in model.named_vars
+    assert model.named_vars_to_dims["sigma"] == ()
+
+
+def test_named_delegates_lifecycle(simple_ds):
+    term = Named(
+        "effect",
+        Transform(
+            Dot(var_name="x", prior=Prior("Normal", dims="feature")),
+            func=ptx.math.exp,
+        ),
+        dims="obs",
+    )
+    coords = term.get_coords(simple_ds)
+    assert "feature" in coords
+
+    with pm.Model(coords=coords) as model:
+        term.register_data(simple_ds)
+        term.create_variable()
+
+    assert "effect" in model.named_vars
+    assert model.named_vars_to_dims["effect"] == ("obs",)
+
+    ds2 = simple_ds.copy()
+    ds2["x"] = xr.DataArray(
+        np.roll(simple_ds["x"].values, 1, axis=0), dims=("obs", "feature")
+    )
+    term.set_data(ds2, model=model)
+    assert np.allclose(model["x"].get_value(), ds2["x"].values)
+
+
+def test_ref_resolves_built_variable():
+    coords = {"product": ["p1", "p2"]}
+    with pm.Model(coords=coords) as model:
+        scale = Named(
+            "a_scale",
+            Parameter("phi", prior=Prior("Uniform", lower=0, upper=1, dims="product")),
+            dims="product",
+        )
+        scale.create_variable()
+
+        effect = Named(
+            "a",
+            Ref("a_scale")
+            * Parameter("kappa", prior=Prior("HalfNormal", sigma=1, dims="product")),
+            dims="product",
+        )
+        effect.create_variable()
+
+    assert "a_scale" in model.named_vars
+    assert "a" in model.named_vars
+    assert model.named_vars_to_dims["a"] == ("product",)
+
+    # the contract is the dependency edge, not just name existence
+    assert model["a_scale"] in set(ancestors([model["a"]]))
+
+
+def test_ref_missing_raises():
+    with pm.Model():
+        ref = Ref("missing")
+        with pytest.raises(ValueError, match="is not built yet"):
+            ref.create_variable()
+
+
+def test_serialize_named_roundtrip():
+    term = Named(
+        "alpha",
+        Parameter("alpha_scale", prior=Prior("HalfFlat"))
+        * Transform(
+            Dot(
+                var_name="purchase_data",
+                name="purchase_coefficient_alpha",
+                prior=Prior("Normal", mu=0, sigma=1, dims="purchase_covariate"),
+            ),
+            func=ptx.math.exp,
+        ),
+        dims="customer_id",
+    )
+    restored = serialization.deserialize(serialization.serialize(term))
+    assert restored == term
+    assert restored.dims == ("customer_id",)
+
+
+def test_serialize_ref_roundtrip():
+    term = Ref("a_scale")
+    restored = serialization.deserialize(serialization.serialize(term))
+    assert restored == term
+
+
+def test_named_dims_normalization():
+    """Named normalizes dims (str and list) to tuples, like Prior."""
+    assert Named("x", Parameter("p", prior=Prior("HalfNormal")), dims="a").dims == (
+        "a",
+    )
+    assert Named(
+        "x", Parameter("p", prior=Prior("HalfNormal")), dims=["a", "b"]
+    ).dims == ("a", "b")
+
+
+def test_serialize_named_json_roundtrip():
+    """A JSON hop keeps dims a tuple and round-trip equality (tuple dims)."""
+    term = Named(
+        "eff",
+        Parameter("p", prior=Prior("Normal", dims=("a", "b"))),
+        dims=("a", "b"),
+    )
+    restored = serialization.deserialize(
+        json.loads(json.dumps(serialization.serialize(term)))
+    )
+    assert restored == term
+    assert restored.dims == ("a", "b")
+
+
+def test_ref_not_dims_native_raises():
+    with pm.Model(coords={"product": ["p1"]}):
+        pm.Normal("plain", mu=0, sigma=1, dims="product")
+        with pytest.raises(ValueError, match=r"not dims-native.*plain"):
+            Ref("plain").create_variable()
+
+
+def test_ref_reusable_in_multiple_named():
+    coords = {"product": ["p1", "p2"]}
+    with pm.Model(coords=coords) as model:
+        scale = Named(
+            "base",
+            Parameter("raw", prior=Prior("HalfNormal", dims="product")),
+            dims="product",
+        )
+        scale.create_variable()
+
+        named = Named(
+            "e1",
+            Ref("base") * Parameter("kappa", prior=Prior("HalfNormal", dims="product")),
+            dims="product",
+        )
+        named.create_variable()
+        named2 = Named(
+            "e2",
+            Ref("base")
+            + Parameter("kappa2", prior=Prior("HalfNormal", dims="product")),
+            dims="product",
+        )
+        named2.create_variable()
+
+    assert {"base", "e1", "e2"} <= set(model.named_vars)
+
+
+def test_named_value_matches_expression():
+    """The deterministic wraps the inner expression, not some other operand."""
+    with pm.Model() as model:
+        term = Named(
+            "doubled",
+            Parameter("scale", prior=Prior("HalfNormal")) * 2,
+            dims=None,
+        )
+        term.create_variable()
+
+    inner, doubled = pm.draw(
+        [model["scale"], model["doubled"]], draws=3, random_seed=42
+    )
+    np.testing.assert_allclose(doubled, inner * 2)
+
+
+def test_named_bare_factory_named_not_param():
+    """Bare factories get a derived name, not build_param's default."""
+    with pm.Model(coords={"product": ["p1", "p2"]}) as model:
+        term = Named(
+            "s",
+            Prior("HalfNormal", dims="product"),
+            dims="product",
+        )
+        term.create_variable()
+
+    assert "s_param" in model.named_vars
+    assert "param" not in model.named_vars
+
+
+def test_named_reuse_raises():
+    with pm.Model(coords={"product": ["p1"]}):
+        term = Named(
+            "q",
+            Parameter("q_scale", prior=Prior("Beta", alpha=2, beta=5, dims="product")),
+            dims="product",
+        )
+        term.create_variable()
+        with pytest.raises(ValueError, match="already exists"):
+            term.create_variable()
