@@ -13,6 +13,8 @@
 #   limitations under the License.
 
 
+import json
+
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -275,3 +277,69 @@ def test_make_change_plot_returns_figure(nstL, sample_change_df):
     fig = nstL.plot_change(sample_change_df, title="Test Intervention")
 
     assert isinstance(fig, plt.Figure)
+
+
+class TestSaveLoadRoundtrip:
+    """Save/load round-trip for NestedLogit (issue #2824)."""
+
+    @pytest.mark.parametrize("alphas_nests", [False, True])
+    def test_save_load_roundtrip(
+        self,
+        sample_df,
+        utility_eqs,
+        nesting_structure_1,
+        tmp_path,
+        mock_pymc_sample,
+        alphas_nests,
+    ):
+        model = NestedLogit(
+            sample_df,
+            utility_eqs,
+            "choice",
+            ["X1", "X2"],
+            nesting_structure_1,
+            alphas_nests=alphas_nests,
+        )
+        model.fit(random_seed=42)
+
+        path = tmp_path / "nested_logit.nc"
+        model.save(str(path))
+        loaded = NestedLogit.load(str(path))
+
+        # Model settings are rebuilt from the serialised attrs.
+        assert loaded.utility_equations == model.utility_equations
+        assert loaded.depvar == model.depvar
+        assert loaded.covariates == model.covariates
+        assert loaded.nesting_structure == model.nesting_structure
+        assert loaded.alphas_nests == model.alphas_nests == alphas_nests
+        assert loaded.model_config == model.model_config
+        assert ("alphas_nests" in loaded.model.named_vars) == alphas_nests
+
+        # Choice data is restored from the fit_data group exactly as written.
+        fit_data = model.idata["fit_data"].dataset.to_dataframe().rename_axis(None)
+        pd.testing.assert_frame_equal(loaded.choice_df, fit_data)
+        pd.testing.assert_frame_equal(
+            loaded.choice_df, model.choice_df, check_index_type=False
+        )
+        assert loaded.choice_df.index.name is None
+        assert loaded.choice_df.index.tolist() == model.choice_df.index.tolist()
+        for column in model.choice_df.columns:
+            assert loaded.choice_df[column].dtype == model.choice_df[column].dtype
+
+        # The choice data is not duplicated into the attrs as a placeholder.
+        assert json.loads(model.idata.attrs["choice_df"]) is None
+
+        # Posterior and model id survive the file round trip.
+        xr.testing.assert_equal(loaded.idata["posterior"], model.idata["posterior"])
+        assert loaded.id == model.id
+
+        # Posterior predictive sampling runs on the loaded model.
+        post_pred = loaded.sample_posterior_predictive(extend_idata=False)
+        assert "posterior_predictive" in post_pred
+
+        # Re-fitting and re-saving the loaded model must round-trip again.
+        loaded.fit(random_seed=42)
+        refit_path = tmp_path / "nested_logit_refit.nc"
+        loaded.save(str(refit_path))
+        reloaded = NestedLogit.load(str(refit_path))
+        pd.testing.assert_frame_equal(reloaded.choice_df, loaded.choice_df)
