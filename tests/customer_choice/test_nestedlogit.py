@@ -14,6 +14,7 @@
 
 
 import json
+import warnings
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -91,21 +92,23 @@ def nesting_structure_invalid_two_layer():
 
 
 @pytest.fixture
-def nstL(sample_df, utility_eqs, nesting_structure_1):
+def nstL(utility_eqs, nesting_structure_1):
     return NestedLogit(
-        sample_df, utility_eqs, "choice", ["X1", "X2"], nesting_structure_1
+        utility_equations=utility_eqs,
+        depvar="choice",
+        covariates=["X1", "X2"],
+        nesting_structure=nesting_structure_1,
     )
 
 
 @pytest.fixture
-def nstL2_invalid(sample_df, utility_eqs, nesting_structure_invalid_two_layer):
+def nstL2_invalid(utility_eqs, nesting_structure_invalid_two_layer):
     """NestedLogit instance that will fail with two-layer nesting."""
     return NestedLogit(
-        sample_df,
-        utility_eqs,
-        "choice",
-        ["X1", "X2"],
-        nesting_structure_invalid_two_layer,
+        utility_equations=utility_eqs,
+        depvar="choice",
+        covariates=["X1", "X2"],
+        nesting_structure=nesting_structure_invalid_two_layer,
     )
 
 
@@ -214,8 +217,7 @@ def test_build_model_2layer_raises_error(nstL2_invalid, sample_df, utility_eqs):
 
 
 def test_sample(nstL, sample_df, utility_eqs, mock_pymc_sample):
-    X, F, y = nstL.preprocess_model_data(sample_df, utility_eqs)
-    _ = nstL.make_model(X, F, y)
+    nstL.fit(sample_df)
     nstL.sample_prior_predictive(
         samples=5,
         extend_idata=True,
@@ -244,11 +246,8 @@ def test_sample(nstL, sample_df, utility_eqs, mock_pymc_sample):
         )
 
 
-def test_counterfactual(
-    nstL, sample_df, utility_eqs, new_utility_eqs, mock_pymc_sample
-):
-    X, F, y = nstL.preprocess_model_data(sample_df, utility_eqs)
-    _ = nstL.make_model(X, F, y)
+def test_counterfactual(nstL, sample_df, new_utility_eqs, mock_pymc_sample):
+    nstL.fit(sample_df)
     nstL.sample()
     new = sample_df.copy()
     nstL.apply_intervention(new)
@@ -264,8 +263,7 @@ def test_counterfactual(
 def test_counterfactual_removal(
     nstL, sample_df, utility_eqs_non_fixed, new_utility_eqs, mock_pymc_sample
 ):
-    X, F, y = nstL.preprocess_model_data(sample_df, utility_eqs_non_fixed)
-    _ = nstL.make_model(X, F, y)
+    nstL.fit(sample_df, utility_equations=utility_eqs_non_fixed)
     nstL.sample()
     new = sample_df[sample_df["choice"] != "another"]
     nstL.nesting_structure = {"nest1": ["alt", "other"], "nest2": ["option"]}
@@ -277,6 +275,104 @@ def test_make_change_plot_returns_figure(nstL, sample_change_df):
     fig = nstL.plot_change(sample_change_df, title="Test Intervention")
 
     assert isinstance(fig, plt.Figure)
+
+
+class TestChoiceDataInFit:
+    """Choice data is passed to fit(); the constructor form is deprecated (#2824)."""
+
+    def test_new_api_fits_and_stores_choice_data(
+        self, nstL, sample_df, mock_pymc_sample
+    ):
+        nstL.fit(sample_df)
+
+        assert nstL.choice_df is not None
+        pd.testing.assert_frame_equal(nstL.choice_df, sample_df)
+        assert "fit_data" in nstL.idata
+
+    def test_sample_accepts_choice_data(self, nstL, sample_df, mock_pymc_sample):
+        nstL.sample(sample_prior_predictive_kwargs={"choice_df": sample_df})
+
+        assert "prior_predictive" in nstL.idata
+        assert "posterior_predictive" in nstL.idata
+
+    def test_refit_with_different_data_raises(self, nstL, sample_df, mock_pymc_sample):
+        nstL.fit(sample_df)
+
+        changed_df = sample_df.copy()
+        changed_df["alt_X1"] = changed_df["alt_X1"] * 1.2
+
+        with pytest.raises(ValueError, match="different data"):
+            nstL.fit(changed_df)
+
+        nstL.fit(sample_df)  # same data is fine
+
+    def test_deprecated_positional_choice_df_warns(
+        self, sample_df, utility_eqs, nesting_structure_1
+    ):
+        with pytest.warns(DeprecationWarning, match="removed in a future release"):
+            model = NestedLogit(
+                sample_df,
+                utility_eqs,
+                "choice",
+                ["X1", "X2"],
+                nesting_structure_1,
+            )
+
+        assert model.choice_df.equals(sample_df)
+        model.build_model()
+        assert hasattr(model, "model")
+
+    @pytest.mark.parametrize(
+        "kwargs, missing",
+        [
+            (
+                {"depvar": "choice", "covariates": ["X1"], "nesting_structure": {}},
+                "utility_equations",
+            ),
+            (
+                {
+                    "utility_equations": ["alt ~ alt_X1"],
+                    "covariates": ["X1"],
+                    "nesting_structure": {},
+                },
+                "depvar",
+            ),
+            (
+                {
+                    "utility_equations": ["alt ~ alt_X1"],
+                    "depvar": "choice",
+                    "nesting_structure": {},
+                },
+                "covariates",
+            ),
+            (
+                {
+                    "utility_equations": ["alt ~ alt_X1"],
+                    "depvar": "choice",
+                    "covariates": ["X1"],
+                },
+                "nesting_structure",
+            ),
+        ],
+    )
+    def test_missing_setting_raises(self, kwargs, missing):
+        with pytest.raises(ValueError, match=missing):
+            NestedLogit(**kwargs)
+
+    @pytest.mark.parametrize(
+        "method, kwargs",
+        [
+            ("build_model", {}),
+            ("sample_prior_predictive", {}),
+            ("sample_posterior_predictive", {}),
+            ("create_fit_data_group", {}),
+            ("sample", {}),
+            ("apply_intervention", {"new_choice_df": pd.DataFrame()}),
+        ],
+    )
+    def test_data_dependent_methods_require_choice_data(self, nstL, method, kwargs):
+        with pytest.raises(ValueError, match="Choice data is required"):
+            getattr(nstL, method)(**kwargs)
 
 
 class TestSaveLoadRoundtrip:
@@ -293,18 +389,19 @@ class TestSaveLoadRoundtrip:
         alphas_nests,
     ):
         model = NestedLogit(
-            sample_df,
-            utility_eqs,
-            "choice",
-            ["X1", "X2"],
-            nesting_structure_1,
+            utility_equations=utility_eqs,
+            depvar="choice",
+            covariates=["X1", "X2"],
+            nesting_structure=nesting_structure_1,
             alphas_nests=alphas_nests,
         )
-        model.fit(random_seed=42)
+        model.fit(sample_df, random_seed=42)
 
         path = tmp_path / "nested_logit.nc"
         model.save(str(path))
-        loaded = NestedLogit.load(str(path))
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", DeprecationWarning)
+            loaded = NestedLogit.load(str(path))
 
         # Model settings are rebuilt from the serialised attrs.
         assert loaded.utility_equations == model.utility_equations
