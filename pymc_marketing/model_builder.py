@@ -410,7 +410,7 @@ class ModelIO:
         the JSON round-trip.
         """
         from pymc_marketing.serialization import (
-            _merge_shared_decompositions,
+            merge_shared_decompositions,
             serialization,
         )
 
@@ -450,7 +450,7 @@ class ModelIO:
                         d[key] = np.array(value)
             return d
 
-        return _merge_shared_decompositions(_format(model_config.copy()))
+        return merge_shared_decompositions(_format(model_config.copy()))
 
     @classmethod
     def attrs_to_init_kwargs(cls, attrs) -> dict[str, Any]:

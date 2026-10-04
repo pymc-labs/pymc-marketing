@@ -330,7 +330,7 @@ class TypeRegistry:
             Dict with live objects (Priors, R2D2 splits, etc.).
         """
         config = {k: self._deserialize_config_value(v) for k, v in data.items()}
-        return _merge_shared_decompositions(config)
+        return merge_shared_decompositions(config)
 
     def _deserialize_config_value(self, value: Any) -> Any:
         """Deserialize a single config value."""
@@ -367,7 +367,7 @@ class TypeRegistry:
             return None
 
 
-def _merge_shared_decompositions(config: dict[str, Any]) -> dict[str, Any]:
+def merge_shared_decompositions(config: dict[str, Any]) -> dict[str, Any]:
     """Merge identical R2D2 instances after deserialization.
 
     When model_config contains both R2D2Split and R2D2Sigma entries,

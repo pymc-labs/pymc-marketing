@@ -33,7 +33,7 @@ from pymc_marketing.r2d2 import R2D2
 from pymc_marketing.serialization import (
     DeferredFactory,
     SerializationError,
-    _merge_shared_decompositions,
+    merge_shared_decompositions,
     serialization,
 )
 from pymc_marketing.terms import (
@@ -1253,7 +1253,7 @@ def test_merge_walk_preserves_unchanged_list_identity():
     holder = ListHolder(columns=list("abc"))
     cols = holder.columns
 
-    out = _merge_shared_decompositions({"m": holder})
+    out = merge_shared_decompositions({"m": holder})
 
     assert out["m"] is holder
     assert out["m"].columns is cols
