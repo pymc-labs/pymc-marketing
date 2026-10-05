@@ -1276,6 +1276,30 @@ class TestIncrementalReducers:
         assert np.exp(tiny) - 1.0 == 0.0
         np.testing.assert_allclose(result.values, [[tiny]])
 
+    @pytest.mark.parametrize("link", ["identity", "log"])
+    def test_per_date_increment_sums_to_the_reduction(self, link):
+        """The kept-axis term is exactly what the window sum reduces."""
+        dates = pd.date_range("2024-01-01", periods=3, freq="W")
+        delta = self._delta([[[0.1, -0.2], [0.3, 0.4], [0.05, 0.5]]], dates)
+        reducer = (
+            IdentityLinkReducer(scale=10.0)
+            if link == "identity"
+            else LogLinkReducer(
+                baseline_response=xr.DataArray(
+                    [[2.0, 3.0, 5.0]],
+                    dims=("sample", "date"),
+                    coords={"date": dates},
+                )
+            )
+        )
+
+        per_date = reducer.per_date_increment(delta)
+
+        assert "date" in per_date.dims
+        xr.testing.assert_allclose(
+            per_date.sum("date"), reducer.counterfactual_minus_baseline(delta)
+        )
+
     def test_reducer_is_abstract(self):
         """The base class cannot be instantiated without a reduction."""
         with pytest.raises(TypeError):
@@ -3240,3 +3264,247 @@ class TestWarningFrameAttribution:
             f"warning attributed to {fallback[0].filename!r}, inside the "
             f"package directory {package_dir!r}"
         )
+
+
+def _fit_custom_mmm(data, **kwargs):
+    from tests.mmm.conftest import mock_fit
+
+    mmm = MMM(
+        channel_columns=["channel_1", "channel_2", "channel_3"],
+        date_column="date",
+        target_column="target",
+        control_columns=None,
+        saturation=LogisticSaturation(),
+        **kwargs,
+    )
+    mock_fit(mmm, data["X"], data["y"], random_seed=42)
+    return mmm
+
+
+@pytest.fixture
+def adstock_last_fitted_mmm(simple_mmm_data):
+    """An ``adstock_first=False`` model, where saturation runs before carryover."""
+    return _fit_custom_mmm(
+        simple_mmm_data, adstock=GeometricAdstock(l_max=4), adstock_first=False
+    )
+
+
+@pytest.fixture
+def no_carryover_fitted_mmm(simple_mmm_data):
+    """An ``l_max=1`` model: spend lands entirely in its own period."""
+    return _fit_custom_mmm(simple_mmm_data, adstock=GeometricAdstock(l_max=1))
+
+
+class TestCarryoverMatrix:
+    """``carryover_matrix`` and ``current_vs_future_value`` (issue #2941, PR 1)."""
+
+    @staticmethod
+    def _row_sums(matrix):
+        """Sum each row and relabel it the way the incrementality API does."""
+        summed = matrix.sum("realization_date")
+        if "spend_date" in summed.dims:
+            summed = summed.rename(spend_date="date")
+        return summed.drop_vars(
+            ["period_start", "spend_date"], errors="ignore"
+        ).transpose(*matrix.dims[:2], ...)
+
+    @pytest.mark.parametrize(
+        "model_fixture, frequency, counterfactual_spend_factor",
+        [
+            ("simple_fitted_mmm", "original", 0.0),
+            ("simple_fitted_mmm", "monthly", 0.0),
+            ("simple_fitted_mmm", "all_time", 0.0),
+            ("simple_fitted_mmm", "monthly", 1.01),
+            ("panel_fitted_mmm", "monthly", 0.0),
+            ("monthly_fitted_mmm", "original", 0.0),
+            ("time_varying_media_fitted_mmm", "original", 0.0),
+            ("time_varying_intercept_fitted_mmm", "monthly", 0.0),
+            ("adstock_last_fitted_mmm", "original", 0.0),
+            ("adstock_last_fitted_mmm", "monthly", 0.0),
+            ("log_link_fitted_mmm", "monthly", 0.0),
+            ("log_link_fitted_mmm", "all_time", 0.0),
+            ("log_link_fitted_mmm", "original", 1.01),
+            ("log_link_panel_fitted_mmm", "monthly", 0.0),
+        ],
+    )
+    def test_rows_reconcile_with_incremental_contribution(
+        self, request, model_fixture, frequency, counterfactual_spend_factor
+    ):
+        """Summing a row over realization dates gives today's incrementality."""
+        mmm = request.getfixturevalue(model_fixture)
+        incr = mmm.incrementality
+
+        matrix = incr.carryover_matrix(
+            frequency=frequency,
+            counterfactual_spend_factor=counterfactual_spend_factor,
+        )
+        expected = incr.compute_incremental_contribution(
+            frequency=frequency,
+            counterfactual_spend_factor=counterfactual_spend_factor,
+        )
+
+        assert matrix.dims[:2] == ("chain", "draw")
+        assert "realization_date" in matrix.dims
+        assert ("spend_date" in matrix.dims) == (frequency != "all_time")
+        xr.testing.assert_allclose(
+            self._row_sums(matrix).transpose(*expected.dims), expected, rtol=1e-8
+        )
+
+    def test_no_carryover_gives_a_diagonal(self, no_carryover_fitted_mmm):
+        """With ``l_max=1`` every row's increment sits on its own date."""
+        matrix = no_carryover_fitted_mmm.incrementality.carryover_matrix(
+            frequency="original"
+        )
+        spend = pd.DatetimeIndex(matrix.spend_date.values)
+        realization = pd.DatetimeIndex(matrix.realization_date.values)
+        off_diagonal = xr.DataArray(
+            spend.values[:, None] != realization.values[None, :],
+            dims=("spend_date", "realization_date"),
+        )
+
+        mean = matrix.mean(("chain", "draw"))
+        assert np.all(np.abs(mean.where(off_diagonal, 0.0).fillna(0.0)) < 1e-10)
+        diagonal = mean.where(~off_diagonal).sum("realization_date")
+        assert np.all(np.abs(diagonal) > 0)
+
+    def test_truncated_cohorts_are_marked_unobserved(self, simple_fitted_mmm):
+        """Carryover past the last fitted date is NaN and observed=False."""
+        matrix = simple_fitted_mmm.incrementality.carryover_matrix(
+            frequency="original"
+        )
+        dates = pd.DatetimeIndex(simple_fitted_mmm.idata.fit_data.date.values)
+        observed = matrix.coords["observed"]
+
+        # The realization axis runs past the data so the missing tail is visible.
+        assert pd.Timestamp(matrix.realization_date.values[-1]) > dates[-1]
+        assert not bool(observed.isel(spend_date=-1).all())
+        assert bool(observed.isel(spend_date=0).all())
+        assert bool(matrix.where(~observed).isnull().all())
+        assert not bool(matrix.where(observed).isnull().all("realization_date").any())
+        assert matrix.attrs["warnings"]
+
+    def test_attrs(self, simple_fitted_mmm):
+        """The matrix says what it is and what it assumed."""
+        matrix = simple_fitted_mmm.incrementality.carryover_matrix(frequency="monthly")
+
+        assert matrix.attrs["estimand"] == "counterfactual"
+        assert matrix.attrs["method"] == "pipeline"
+        assert matrix.attrs["effective_horizon"] >= simple_fitted_mmm.adstock.l_max - 1
+        assumptions = matrix.attrs["assumptions"]
+        assert assumptions["adstock_first"] is True
+        assert assumptions["l_max"] == simple_fitted_mmm.adstock.l_max
+        assert isinstance(matrix.attrs["warnings"], list)
+
+    @pytest.mark.parametrize(
+        "kwargs, error",
+        [
+            ({"estimand": "allocation"}, NotImplementedError),
+            ({"method": "closed_form"}, NotImplementedError),
+            ({"estimand": "shapley"}, ValueError),
+            ({"method": "approximate"}, ValueError),
+        ],
+    )
+    def test_unsupported_options_raise(self, simple_fitted_mmm, kwargs, error):
+        """Later PRs' options fail loudly rather than falling back."""
+        with pytest.raises(error):
+            simple_fitted_mmm.incrementality.carryover_matrix(
+                frequency="monthly", **kwargs
+            )
+
+    def test_non_after_mode_warns_but_reconciles(self, non_after_fitted_mmm):
+        """A leading kernel is reported, with a warning, and still reconciles."""
+        incr = non_after_fitted_mmm.incrementality
+        with pytest.warns(UserWarning, match="leading kernel mass"):
+            matrix = incr.carryover_matrix(frequency="monthly")
+        expected = incr.compute_incremental_contribution(frequency="monthly")
+
+        xr.testing.assert_allclose(
+            self._row_sums(matrix).transpose(*expected.dims), expected, rtol=1e-8
+        )
+
+    def test_current_vs_future_rejects_non_after_mode(self, non_after_fitted_mmm):
+        """Under a leading kernel there is no current/future split to report."""
+        with pytest.raises(ValueError, match="ConvMode.After"):
+            non_after_fitted_mmm.incrementality.current_vs_future_value(
+                frequency="monthly"
+            )
+
+    def test_current_vs_future_rejects_full_axis(self, global_normalization_fitted_mmm):
+        """No measured horizon means no future share."""
+        mmm = global_normalization_fitted_mmm
+        assert mmm.adstock.mode == ConvMode.After
+        with pytest.raises(ValueError, match="full date axis"):
+            mmm.incrementality.current_vs_future_value(frequency="monthly")
+
+    @pytest.mark.parametrize("frequency", ["original", "monthly", "all_time"])
+    def test_current_plus_future_is_the_increment(self, simple_fitted_mmm, frequency):
+        """Where the window is observed, current + future is today's number."""
+        incr = simple_fitted_mmm.incrementality
+        split = incr.current_vs_future_value(frequency=frequency)
+        expected = incr.compute_incremental_contribution(frequency=frequency)
+
+        total = split["current"] + split["future"]
+        if "spend_date" in total.dims:
+            total = total.rename(spend_date="date")
+            complete = split["complete"].rename(spend_date="date")
+            assert bool(complete.any())
+            total = total.where(complete, drop=True)
+            expected = expected.sel(date=total.date)
+        total = total.drop_vars(
+            ["complete", "period_start", "spend_date"], errors="ignore"
+        )
+        xr.testing.assert_allclose(
+            total.transpose(*expected.dims), expected, rtol=1e-8
+        )
+
+    def test_incomplete_periods_report_nan_future(self, simple_fitted_mmm):
+        """A truncated window gives NaN future, not a silently short one."""
+        split = simple_fitted_mmm.incrementality.current_vs_future_value(
+            frequency="original"
+        )
+        incomplete = ~split["complete"]
+
+        assert bool(incomplete.any())
+        assert bool(split["future"].where(incomplete).isnull().all())
+        assert not bool(split["current"].isnull().any())
+
+    def test_original_frequency_current_is_lag_zero(self, simple_fitted_mmm):
+        """At the data's own frequency, current is exactly the diagonal."""
+        incr = simple_fitted_mmm.incrementality
+        matrix = incr.carryover_matrix(frequency="original")
+        split = incr.current_vs_future_value(frequency="original")
+
+        diagonal = xr.concat(
+            [
+                matrix.sel(spend_date=date, realization_date=date)
+                for date in matrix.spend_date.values
+            ],
+            dim="spend_date",
+        ).drop_vars(["realization_date", "observed"], errors="ignore")
+        xr.testing.assert_allclose(
+            split["current"].drop_vars("complete"),
+            diagonal.transpose(*split["current"].dims),
+        )
+
+    def test_horizon(self, simple_fitted_mmm):
+        """A wider current window moves value from future to current."""
+        incr = simple_fitted_mmm.incrementality
+        default = incr.current_vs_future_value(frequency="original")
+        zero = incr.current_vs_future_value(frequency="original", horizon=0)
+        two = incr.current_vs_future_value(frequency="original", horizon=2)
+
+        xr.testing.assert_allclose(default, zero)
+        # Widening "current" only relabels value: the total is conserved.
+        complete = default["complete"]
+        xr.testing.assert_allclose(
+            (two["current"] + two["future"]).where(complete, drop=True),
+            (default["current"] + default["future"]).where(complete, drop=True),
+        )
+        assert bool((two["current"] != default["current"]).any())
+        assert two.attrs["horizon"] == 2
+
+        horizon = default.attrs["effective_horizon"]
+        with pytest.raises(ValueError, match="horizon must be in"):
+            incr.current_vs_future_value(frequency="original", horizon=horizon + 1)
+        with pytest.raises(ValueError, match="horizon must be >= 0"):
+            incr.current_vs_future_value(frequency="original", horizon=-1)

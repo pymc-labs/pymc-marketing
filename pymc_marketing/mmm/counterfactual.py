@@ -234,6 +234,12 @@ class PeriodWindow:
         sum.  A subset of :attr:`in_window`, by construction.
     eval_dates : pd.DatetimeIndex
         Those dates, in order.
+    eval_start, eval_end : pd.Timestamp or None
+        The evaluation bounds *before* clamping to the fitted dates.  Where
+        they reach past the axis, the dates between the bound and the axis end
+        are part of the period's carryover that the data cannot show, which is
+        what :meth:`~pymc_marketing.mmm.incrementality.Incrementality.carryover_matrix`
+        reports as unobserved rather than as zero.
     """
 
     start: pd.Timestamp
@@ -242,6 +248,8 @@ class PeriodWindow:
     actual_dates: pd.DatetimeIndex
     in_eval: np.ndarray
     eval_dates: pd.DatetimeIndex
+    eval_start: pd.Timestamp | None = None
+    eval_end: pd.Timestamp | None = None
 
     @classmethod
     def build(
@@ -283,6 +291,8 @@ class PeriodWindow:
             actual_dates=dates[in_window],
             in_eval=in_eval,
             eval_dates=dates[in_eval],
+            eval_start=pd.Timestamp(eval_start),
+            eval_end=pd.Timestamp(eval_end),
         )
 
     @property
