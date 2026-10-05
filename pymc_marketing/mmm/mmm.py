@@ -290,6 +290,27 @@ def _deserialize_cost_per_unit(json_str: str) -> pd.DataFrame:
     return df
 
 
+def _mu_effects_equal(first: MuEffect, second: MuEffect) -> bool:
+    """Compare two mu_effects by their JSON-safe serialized form.
+
+    ``model_dump()`` can hold array-like fields (e.g. a ``pd.DataFrame``),
+    whose ``==`` is elementwise and cannot be used in a boolean context.
+    Data that an effect persists outside its serialized dict is compared
+    through ``idata_groups()``.
+    """
+    if first.__class__ is not second.__class__:
+        return False
+    if serialization.is_registered(first):
+        if serialization.serialize(first) != serialization.serialize(second):
+            return False
+    elif hasattr(first, "model_dump") and first.model_dump() != second.model_dump():
+        return False
+    first_groups, second_groups = first.idata_groups(), second.idata_groups()
+    return first_groups.keys() == second_groups.keys() and all(
+        first_groups[name].equals(second_groups[name]) for name in first_groups
+    )
+
+
 class _WindowLayout(NamedTuple):
     """The three blocks an optimization model's date axis divides into.
 
@@ -799,13 +820,8 @@ class MMM(RegressionModelBuilder):
             return False
         # Length check above ensures zip lengths match, suppressing B905 warning
         for self_effect, other_effect in zip(self.mu_effects, other.mu_effects):  # noqa: B905
-            if self_effect.__class__ is not other_effect.__class__:
+            if not _mu_effects_equal(self_effect, other_effect):
                 return False
-            if hasattr(self_effect, "model_dump") and hasattr(
-                other_effect, "model_dump"
-            ):
-                if self_effect.model_dump() != other_effect.model_dump():
-                    return False
 
         # Causal graph
         if (
@@ -1911,6 +1927,7 @@ class MMM(RegressionModelBuilder):
             dims=self.dims,
             channel_columns=self.channel_columns,
             control_columns=self.control_columns,
+            extra_vars=self._effect_extra_vars(X),
             target_column=self.target_column,
         ).fillna(0)
 
@@ -2694,6 +2711,31 @@ class MMM(RegressionModelBuilder):
                 f"Either set include_last_observations=False or use input dates that don't overlap with training data."
             )
 
+    def _effect_extra_vars(
+        self, X: pd.DataFrame | xr.Dataset | xr.DataArray
+    ) -> list[str] | None:
+        """Columns of a DataFrame ``X`` that mu_effects read as data variables.
+
+        ``xr.Dataset`` inputs keep all their data variables, so this only
+        matters for DataFrames, whose extra columns are otherwise dropped.
+        """
+        if not isinstance(X, pd.DataFrame):
+            return None
+        reserved = {
+            self.date_column,
+            self.target_column,
+            *self.dims,
+            *self.channel_columns,
+            *(self.control_columns or []),
+        }
+        names = [
+            var_name
+            for effect in self.mu_effects
+            for var_name in getattr(effect, "data_vars", [])
+            if var_name in X.columns and var_name not in reserved
+        ]
+        return list(dict.fromkeys(names)) or None
+
     def _posterior_predictive_data_transformation(
         self,
         X: pd.DataFrame | xr.Dataset | xr.DataArray,
@@ -2707,6 +2749,7 @@ class MMM(RegressionModelBuilder):
             dims=self.dims,
             channel_columns=self.channel_columns,
             control_columns=self.control_columns,
+            extra_vars=self._effect_extra_vars(X),
             target_column=self.target_column,
         )
 
@@ -2967,6 +3010,7 @@ class MMM(RegressionModelBuilder):
         )
 
         for mu_effect in self.mu_effects:
+            mu_effect.check_scenario_use(self)
             mu_effect.set_data(self, pymc_model, dataset_xarray)
 
         return pymc_model
@@ -3889,6 +3933,9 @@ class MMM(RegressionModelBuilder):
                     f"The {dim} column is required to map the lift measurements to the model."
                 )
 
+        for mu_effect in self.mu_effects:
+            mu_effect.check_lift_tests(self, df_lift_test)
+
         # Function to scale "delta_y", and "sigma" to same scale as target in model.
         target_transform = self._make_target_transform(df_lift_test)
 
@@ -4454,6 +4501,7 @@ class BudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
             model=self.model_class.model.copy(),
         )
         for mu_effect in self.model_class.mu_effects:
+            mu_effect.check_scenario_use(self.model_class)
             mu_effect.set_data(self.model_class, pymc_model, dataset_xarray)
         return pymc_model
 
