@@ -335,7 +335,7 @@ class TestsAdstockTransformers:
         ).eval()
 
         assert np.all(np.isfinite(y))
-        w = 1 - sp.stats.weibull_min.cdf(np.arange(l_max) + 1, c=k, scale=lam)
+        w = 1 - sp.stats.weibull_min.cdf(np.arange(l_max - 1) + 1, c=k, scale=lam)
         w = np.cumprod(np.concatenate([[1], w]))
         sp_y = batched_convolution(
             as_xtensor(x, dims=("t",)),
@@ -344,6 +344,51 @@ class TestsAdstockTransformers:
             kernel_dim="k",
         ).eval()
         np.testing.assert_almost_equal(y, sp_y)
+
+    @pytest.mark.parametrize("normalize", [False, True])
+    def test_weibull_cdf_adstock_uses_exact_l_max(self, normalize):
+        l_max = 4
+        lam = 10.0
+        k = 1.0
+        impulse = np.zeros(6)
+        impulse[0] = 1.0
+
+        y = weibull_adstock(
+            x=as_xtensor(impulse, dims=("t",)),
+            lam=lam,
+            k=k,
+            l_max=l_max,
+            type=WeibullType.CDF,
+            normalize=normalize,
+            dim="t",
+        ).eval()
+
+        survival = 1 - sp.stats.weibull_min.cdf(
+            np.arange(l_max - 1) + 1, c=k, scale=lam
+        )
+        expected_weights = np.cumprod(np.concatenate([[1], survival]))
+        if normalize:
+            expected_weights = expected_weights / expected_weights.sum()
+            np.testing.assert_allclose(y.sum(), 1.0)
+
+        np.testing.assert_allclose(y[:l_max], expected_weights)
+        np.testing.assert_array_equal(y[l_max:], 0.0)
+
+    @pytest.mark.parametrize("normalize", [False, True])
+    def test_weibull_cdf_adstock_l_max_one(self, normalize):
+        impulse = np.array([1.0, 0.0, 0.0])
+
+        y = weibull_adstock(
+            x=as_xtensor(impulse, dims=("t",)),
+            lam=10.0,
+            k=1.0,
+            l_max=1,
+            type=WeibullType.CDF,
+            normalize=normalize,
+            dim="t",
+        ).eval()
+
+        np.testing.assert_array_equal(y, impulse)
 
     @pytest.mark.parametrize(
         "type",
