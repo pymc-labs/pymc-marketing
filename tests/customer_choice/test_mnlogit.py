@@ -235,6 +235,21 @@ class TestChoiceDataInFit:
 
         mnl.fit(sample_df)  # same data is fine
 
+    def test_refit_with_different_utility_equations_raises(
+        self, mnl, sample_df, new_utility_eqs, mock_pymc_sample
+    ):
+        mnl.fit(sample_df)
+
+        with pytest.raises(ValueError, match="different utility equations"):
+            mnl.fit(utility_equations=new_utility_eqs)
+
+    def test_refit_with_fresh_copy_of_same_data(self, mnl, sample_df, mock_pymc_sample):
+        fresh_df = sample_df.copy()
+        mnl.fit(sample_df)
+
+        assert list(sample_df.columns) == list(fresh_df.columns)
+        mnl.fit(fresh_df)
+
     def test_deprecated_positional_choice_df_warns(self, sample_df, utility_eqs):
         with pytest.warns(DeprecationWarning, match="removed in a future release"):
             model = MNLogit(sample_df, utility_eqs, "choice", ["X1", "X2"])

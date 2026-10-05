@@ -306,6 +306,23 @@ class TestChoiceDataInFit:
 
         nstL.fit(sample_df)  # same data is fine
 
+    def test_refit_with_different_utility_equations_raises(
+        self, nstL, sample_df, new_utility_eqs, mock_pymc_sample
+    ):
+        nstL.fit(sample_df)
+
+        with pytest.raises(ValueError, match="different utility equations"):
+            nstL.fit(utility_equations=new_utility_eqs)
+
+    def test_refit_with_fresh_copy_of_same_data(
+        self, nstL, sample_df, mock_pymc_sample
+    ):
+        fresh_df = sample_df.copy()
+        nstL.fit(sample_df)
+
+        assert list(sample_df.columns) == list(fresh_df.columns)
+        nstL.fit(fresh_df)
+
     def test_deprecated_positional_choice_df_warns(
         self, sample_df, utility_eqs, nesting_structure_1
     ):

@@ -398,8 +398,7 @@ class NestedLogit(ModelBuilder):
         utility formulas.
         """
         prod_mapping = dict(zip(alternatives, range(len(alternatives)), strict=False))
-        df["mode_encoded"] = df[depvar].map(prod_mapping)
-        y = np.asarray(df["mode_encoded"].values)
+        y = df[depvar].map(prod_mapping).to_numpy()
         return y, prod_mapping
 
     @staticmethod

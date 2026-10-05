@@ -336,8 +336,7 @@ class MNLogit(ModelBuilder):
         utility formulas.
         """
         mode_mapping = dict(zip(alternatives, range(len(alternatives)), strict=False))
-        df["mode_encoded"] = df[depvar].map(mode_mapping)
-        y = df["mode_encoded"].values
+        y = df[depvar].map(mode_mapping).to_numpy()
         return y
 
     @staticmethod
