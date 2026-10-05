@@ -1370,6 +1370,20 @@ class ModelBuilder(ABC, ModelIO, ModelFitter):
                             posterior_flat[var_name] = var
                 self.idata["/posterior"] = posterior_flat
 
+    def _check_prior_predictive_var_names(self, var_names: list[str] | None) -> None:
+        """Raise if ``var_names`` leaves out every observed variable.
+
+        Without an observed variable the ``prior_predictive`` group is empty.
+        """
+        if var_names is None:
+            return
+        observed = [rv.name for rv in self.model.observed_RVs]
+        if not set(var_names) & set(observed):
+            raise ValueError(
+                f"var_names must include at least one observed variable {observed} "
+                "when sampling the prior predictive."
+            )
+
     prior = create_idata_accessor(
         "prior",
         "The model hasn't been sampled yet, call .sample_prior_predictive() first",
@@ -1761,6 +1775,7 @@ class RegressionModelBuilder(ModelBuilder):
             Combine chain and draw dims into sample. Won't work if a dim named sample already exists.
             Defaults to True.
         **kwargs: Additional arguments to pass to pymc.sample_prior_predictive
+            If ``var_names`` is given, it must include at least one observed variable.
 
         Returns
         -------
@@ -1775,6 +1790,7 @@ class RegressionModelBuilder(ModelBuilder):
 
         if not hasattr(self, "model"):
             self.build_model(X, y)
+        self._check_prior_predictive_var_names(kwargs.get("var_names"))
 
         with self.model:  # sample with new input data
             prior_pred: xr.DataTree = pm.sample_prior_predictive(
