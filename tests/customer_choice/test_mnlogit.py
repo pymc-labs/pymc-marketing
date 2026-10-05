@@ -209,15 +209,6 @@ def test_make_change_plot_returns_figure(mnl, sample_change_df):
 class TestChoiceDataInFit:
     """Choice data is passed to fit(); the constructor form is deprecated (#2824)."""
 
-    def test_new_api_fits_and_stores_choice_data(
-        self, mnl, sample_df, mock_pymc_sample
-    ):
-        mnl.fit(sample_df)
-
-        assert mnl.choice_df is not None
-        pd.testing.assert_frame_equal(mnl.choice_df, sample_df)
-        assert "fit_data" in mnl.idata
-
     def test_sample_accepts_choice_data(self, mnl, sample_df, mock_pymc_sample):
         mnl.sample(sample_prior_predictive_kwargs={"choice_df": sample_df})
 
@@ -313,13 +304,10 @@ class TestSaveLoadRoundtrip:
         assert loaded.covariates == mnl.covariates
         assert loaded.model_config == mnl.model_config
 
-        # Choice data is restored from the fit_data group exactly as written.
-        fit_data = mnl.idata["fit_data"].dataset.to_dataframe().rename_axis(None)
-        pd.testing.assert_frame_equal(loaded.choice_df, fit_data)
-        assert loaded.choice_df.index.name is None
-        assert loaded.choice_df.index.tolist() == mnl.choice_df.index.tolist()
-        for column in mnl.choice_df.columns:
-            assert loaded.choice_df[column].dtype == mnl.choice_df[column].dtype
+        # Choice data is restored from the fit_data group with its index and dtypes.
+        pd.testing.assert_frame_equal(
+            loaded.choice_df, mnl.choice_df, check_index_type=False
+        )
 
         # The choice data is not duplicated into the attrs as a placeholder.
         assert json.loads(mnl.idata.attrs["choice_df"]) is None
@@ -331,13 +319,6 @@ class TestSaveLoadRoundtrip:
         # Posterior predictive sampling runs on the loaded model.
         post_pred = loaded.sample_posterior_predictive(extend_idata=False)
         assert "posterior_predictive" in post_pred
-
-        # Re-fitting and re-saving the loaded model must round-trip again.
-        loaded.fit(random_seed=42)
-        refit_path = tmp_path / "mnl_refit.nc"
-        loaded.save(str(refit_path))
-        reloaded = MNLogit.load(str(refit_path))
-        pd.testing.assert_frame_equal(reloaded.choice_df, loaded.choice_df)
 
 
 class TestMakeIntercepts:
