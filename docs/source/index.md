@@ -214,6 +214,7 @@ Understand and optimize your customer's value with our **CLV models**. Our API s
 - [Gamma-Gamma model](https://www.pymc-marketing.io/en/stable/notebooks/clv/gamma_gamma.html)
 - [Shifted BG model](https://www.pymc-marketing.io/en/stable/notebooks/clv/sbg.html)
 - [Modified BG/NBD model](https://www.pymc-marketing.io/en/stable/notebooks/clv/mbg_nbd.html)
+- [BG/BB model](https://www.pymc-marketing.io/en/stable/notebooks/clv/bg_bb.html)
 
 Each of these models is tailored to different types of data and business scenarios:
 
