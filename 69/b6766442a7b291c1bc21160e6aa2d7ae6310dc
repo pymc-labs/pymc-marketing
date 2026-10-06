@@ -1,0 +1,21 @@
+docs/source/gallery/gallery.yaml
+  s_f674f283222c60::t_c6993266b8b6e7 114-115
+docs/source/notebooks/mmm/mmm_full_funnel_joint_optimization.ipynb
+  s_f674f283222c60::t_af1746049a7350 1-1154
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "69b6766442a7b291c1bc21160e6aa2d7ae6310dc",
+  "prompts": {},
+  "sessions": {
+    "s_f674f283222c60": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "08fb1bca-c493-4704-9d0c-d9ff1ab51b0f",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "root <root@e2b.local>"
+    }
+  }
+}
