@@ -3811,6 +3811,7 @@ class MMM(RegressionModelBuilder):
                 * `delta_x`: change in x axis value of the lift test.
                 * `delta_y`: change in y axis value of the lift test.
                 * `sigma`: standard deviation of the lift test.
+
             The optional ``date`` column is used for time-varying media.
             Other columns are ignored when saving calibration metadata.
         likelihood : Prior, optional
