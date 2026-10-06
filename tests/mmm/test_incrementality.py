@@ -3362,10 +3362,20 @@ class TestCarryoverMatrix:
             dims=("spend_date", "realization_date"),
         )
 
+        # No NaN anywhere: with l_max=1 there is no carryover to miss, so even
+        # the last row is fully observed.
+        assert bool(matrix.coords["observed"].all())
+        assert not bool(matrix.isnull().any())
         mean = matrix.mean(("chain", "draw"))
-        assert np.all(np.abs(mean.where(off_diagonal, 0.0).fillna(0.0)) < 1e-10)
+        assert np.all(np.abs(mean.where(off_diagonal, 0.0)) < 1e-10)
         diagonal = mean.where(~off_diagonal).sum("realization_date")
         assert np.all(np.abs(diagonal) > 0)
+
+        split = no_carryover_fitted_mmm.incrementality.current_vs_future_value(
+            frequency="original"
+        )
+        assert bool(split["complete"].all())
+        assert bool((split["future"] == 0).all())
 
     def test_truncated_cohorts_are_marked_unobserved(self, simple_fitted_mmm):
         """Carryover past the last fitted date is NaN and observed=False."""
@@ -3380,6 +3390,12 @@ class TestCarryoverMatrix:
         assert not bool(observed.isel(spend_date=-1).all())
         assert bool(observed.isel(spend_date=0).all())
         assert bool(matrix.where(~observed).isnull().all())
+
+        # l_max=10 on 14 dates: cohort 4's carryover ends (lag 9) exactly on the
+        # last date, cohort 5's does not.
+        complete = observed.all("realization_date").values
+        assert complete[:5].all()
+        assert not complete[5:].any()
         assert not bool(matrix.where(observed).isnull().all("realization_date").any())
         assert matrix.attrs["warnings"]
 
@@ -3389,11 +3405,30 @@ class TestCarryoverMatrix:
 
         assert matrix.attrs["estimand"] == "counterfactual"
         assert matrix.attrs["method"] == "pipeline"
-        assert matrix.attrs["effective_horizon"] >= simple_fitted_mmm.adstock.l_max - 1
-        assumptions = matrix.attrs["assumptions"]
-        assert assumptions["adstock_first"] is True
-        assert assumptions["l_max"] == simple_fitted_mmm.adstock.l_max
+        # A plain GeometricAdstock(l_max=10) lands through lag 9, exactly.
+        assert matrix.attrs["effective_horizon"] == 9
+        assert matrix.attrs["full_axis"] == "False"
+        assert matrix.attrs["assumption_adstock_first"] == "True"
+        assert matrix.attrs["assumption_l_max"] == simple_fitted_mmm.adstock.l_max
         assert isinstance(matrix.attrs["warnings"], list)
+
+    def test_attrs_are_netcdf_serialisable(self, simple_fitted_mmm, tmp_path):
+        """Flat scalar attrs let the result be written next to the idata."""
+        incr = simple_fitted_mmm.incrementality
+        matrix = incr.carryover_matrix(frequency="monthly", num_samples=4)
+        matrix.to_dataset(name="carryover").to_netcdf(tmp_path / "matrix.nc")
+        split = incr.current_vs_future_value(frequency="original", num_samples=4)
+        split.to_netcdf(tmp_path / "split.nc")
+
+    def test_full_axis_matrix_has_no_horizon(self, global_normalization_fitted_mmm):
+        """Full-axis mode returns the full band, with no measured horizon."""
+        matrix = global_normalization_fitted_mmm.incrementality.carryover_matrix(
+            frequency="monthly"
+        )
+        assert matrix.attrs["full_axis"] == "True"
+        assert "effective_horizon" not in matrix.attrs
+        assert "observed" in matrix.coords
+        assert any("full date axis" in note for note in matrix.attrs["warnings"])
 
     @pytest.mark.parametrize(
         "kwargs, error",
@@ -3424,7 +3459,7 @@ class TestCarryoverMatrix:
 
     def test_current_vs_future_rejects_non_after_mode(self, non_after_fitted_mmm):
         """Under a leading kernel there is no current/future split to report."""
-        with pytest.raises(ValueError, match="ConvMode.After"):
+        with pytest.raises(ValueError, match=r"ConvMode\.After"):
             non_after_fitted_mmm.incrementality.current_vs_future_value(
                 frequency="monthly"
             )
@@ -3436,9 +3471,13 @@ class TestCarryoverMatrix:
         with pytest.raises(ValueError, match="full date axis"):
             mmm.incrementality.current_vs_future_value(frequency="monthly")
 
-    @pytest.mark.parametrize("frequency", ["original", "monthly", "all_time"])
+    @pytest.mark.parametrize("frequency", ["original", "monthly"])
     def test_current_plus_future_is_the_increment(self, simple_fitted_mmm, frequency):
-        """Where the window is observed, current + future is today's number."""
+        """Where the window is observed, current + future is today's number.
+
+        ``all_time`` is left out: with the default dates its single cohort always
+        contains the last date's carryover, so ``future`` is ``NaN`` there.
+        """
         incr = simple_fitted_mmm.incrementality
         split = incr.current_vs_future_value(frequency=frequency)
         expected = incr.compute_incremental_contribution(frequency=frequency)
@@ -3449,7 +3488,7 @@ class TestCarryoverMatrix:
             complete = split["complete"].rename(spend_date="date")
             assert bool(complete.any())
             total = total.where(complete, drop=True)
-            expected = expected.sel(date=total.date)
+            expected = expected.sel(date=total.date.values)
         total = total.drop_vars(
             ["complete", "period_start", "spend_date"], errors="ignore"
         )
@@ -3504,7 +3543,40 @@ class TestCarryoverMatrix:
         assert two.attrs["horizon"] == 2
 
         horizon = default.attrs["effective_horizon"]
+        assert horizon == 9
         with pytest.raises(ValueError, match="horizon must be in"):
             incr.current_vs_future_value(frequency="original", horizon=horizon + 1)
         with pytest.raises(ValueError, match="horizon must be >= 0"):
             incr.current_vs_future_value(frequency="original", horizon=-1)
+        with pytest.raises(ValueError, match="non-negative integer"):
+            incr.current_vs_future_value(frequency="original", horizon=1.5)  # type: ignore[arg-type]
+        with pytest.raises(ValueError, match="only supported at frequency='original'"):
+            incr.current_vs_future_value(frequency="monthly", horizon=1)
+
+        # The upper bound is measured, so it is allowed: everything is current.
+        full = incr.current_vs_future_value(frequency="original", horizon=horizon)
+        assert bool(full["future"].fillna(0.0).abs().max() == 0)
+
+    def test_horizon_zero_current_is_the_period_without_carryover(
+        self, simple_fitted_mmm
+    ):
+        """At horizon=0, current is the increment with carryover switched off."""
+        incr = simple_fitted_mmm.incrementality
+        split = incr.current_vs_future_value(frequency="original", horizon=0)
+        expected = incr.compute_incremental_contribution(
+            frequency="original", include_carryover=False
+        )
+        current = (
+            split["current"]
+            .rename(spend_date="date")
+            .drop_vars(["period_start", "complete"], errors="ignore")
+        )
+        xr.testing.assert_allclose(current.transpose(*expected.dims), expected)
+
+    def test_current_is_nan_where_its_window_is_unobserved(self, simple_fitted_mmm):
+        """A horizon reaching past the last date gives NaN, not a short sum."""
+        split = simple_fitted_mmm.incrementality.current_vs_future_value(
+            frequency="original", horizon=5
+        )
+        assert bool(split["current"].isel(spend_date=-1).isnull().all())
+        assert not bool(split["current"].isel(spend_date=0).isnull().any())

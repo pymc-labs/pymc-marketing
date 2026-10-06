@@ -338,10 +338,15 @@ class TemporalReach:
         longer than the axis can show), or moves dates *before* the perturbed one
         -- the signature of a reduction over ``date``, which takes a different
         value on a truncated axis and so cannot be windowed at all.
+    max_lag : int, default=0
+        The longest lag, in periods, at which a change in spend at one date was
+        measured still moving the node (``0`` for a node that does not move).
+        A lower bound alongside ``requires_full_axis``.
     """
 
     additional_carryover_lags: int
     requires_full_axis: bool
+    max_lag: int = 0
 
     @classmethod
     def none(cls) -> TemporalReach:
@@ -349,7 +354,9 @@ class TemporalReach:
         return cls(additional_carryover_lags=0, requires_full_axis=False)
 
     @classmethod
-    def full_axis(cls, additional_carryover_lags: int = 0) -> TemporalReach:
+    def full_axis(
+        cls, additional_carryover_lags: int = 0, max_lag: int = 0
+    ) -> TemporalReach:
         """Return the reach of a node no window can reproduce.
 
         Parameters
@@ -368,6 +375,7 @@ class TemporalReach:
         return cls(
             additional_carryover_lags=additional_carryover_lags,
             requires_full_axis=True,
+            max_lag=max_lag,
         )
 
     @classmethod
@@ -390,6 +398,7 @@ class TemporalReach:
                 (reach.additional_carryover_lags for reach in reaches), default=0
             ),
             requires_full_axis=any(reach.requires_full_axis for reach in reaches),
+            max_lag=max((reach.max_lag for reach in reaches), default=0),
         )
 
 
@@ -412,6 +421,15 @@ class SpendReach:
     requires_full_axis : bool
         Whether every period has to be evaluated on the complete fitted date
         axis, because some node's value depends on the whole series.
+    max_lag : int or None
+        The longest lag, in periods, at which a change in spend at one date
+        moves any evaluated node: ``adstock.l_max - 1`` for a plain adstock,
+        longer where a mediated path outlives it.  Never below ``l_max - 1``,
+        and widened to cover a wider declaration.  ``None`` under
+        ``requires_full_axis``, where the probe could not close the tail and
+        there is no measured horizon.  ``effective_l_max`` is the window
+        half-length, which is ``max(l_max, max_lag)`` and so can exceed
+        ``max_lag + 1`` only through a declaration.
     measured : mapping
         Per evaluated node, its :class:`TemporalReach`.  Empty when no probe was
         possible.
@@ -419,6 +437,7 @@ class SpendReach:
 
     effective_l_max: int
     requires_full_axis: bool
+    max_lag: int | None = None
     measured: Mapping[str, TemporalReach] = field(default_factory=dict)
 
 
@@ -882,9 +901,24 @@ class SpendProbe:
                 *self._reconcile_declarations(effects, measured),
             ]
         )
+        max_lag: int | None = None
+        if not combined.requires_full_axis:
+            # The kernel always lands through lag l_max - 1, whatever the probe
+            # resolved above tolerance; a mediated path can reach further; and a
+            # declaration wider than anything measured is honoured by the window,
+            # so it is honoured here too.
+            max_lag = max(l_max - 1, combined.max_lag)
+            measured_lags = TemporalReach.widest(
+                measured.values()
+            ).additional_carryover_lags
+            if combined.additional_carryover_lags > measured_lags:
+                max_lag = max(
+                    max_lag, l_max + combined.additional_carryover_lags - 1
+                )
         return SpendReach(
             effective_l_max=l_max + combined.additional_carryover_lags,
             requires_full_axis=combined.requires_full_axis,
+            max_lag=max_lag,
             measured=measured,
         )
 
@@ -925,16 +959,20 @@ class SpendProbe:
 
         moved = per_date > self.REACH_TOLERANCE * largest
         last_moved = int(np.flatnonzero(moved)[-1])
-        lags = max(last_moved - probe_index - l_max, 0)
+        max_lag = last_moved - probe_index
+        lags = max(max_lag - l_max, 0)
         if moved[:probe_index].any() or last_moved == n_dates - 1:
             # The axis could not bound the tail, but it did establish that the
             # node still moved that far, and a declaration claiming less than
             # that is still falsified.  Carrying the bound is what keeps
             # _reconcile_declarations able to say so.
-            return TemporalReach.full_axis(additional_carryover_lags=lags)
+            return TemporalReach.full_axis(
+                additional_carryover_lags=lags, max_lag=max_lag
+            )
         return TemporalReach(
             additional_carryover_lags=lags,
             requires_full_axis=False,
+            max_lag=max_lag,
         )
 
     @staticmethod
@@ -1034,6 +1072,7 @@ class SpendProbe:
                 TemporalReach(
                     additional_carryover_lags=lags,
                     requires_full_axis=requires_full_axis,
+                    max_lag=own.max_lag,
                 )
             )
 

@@ -234,7 +234,7 @@ class PeriodWindow:
         sum.  A subset of :attr:`in_window`, by construction.
     eval_dates : pd.DatetimeIndex
         Those dates, in order.
-    eval_start, eval_end : pd.Timestamp or None
+    eval_start, eval_end : pd.Timestamp
         The evaluation bounds *before* clamping to the fitted dates.  Where
         they reach past the axis, the dates between the bound and the axis end
         are part of the period's carryover that the data cannot show, which is
@@ -248,8 +248,8 @@ class PeriodWindow:
     actual_dates: pd.DatetimeIndex
     in_eval: np.ndarray
     eval_dates: pd.DatetimeIndex
-    eval_start: pd.Timestamp | None = None
-    eval_end: pd.Timestamp | None = None
+    eval_start: pd.Timestamp
+    eval_end: pd.Timestamp
 
     @classmethod
     def build(
