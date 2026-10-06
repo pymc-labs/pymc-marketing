@@ -1779,3 +1779,27 @@ def test_embedded_zarr_carries_no_nonstandard_sidecar(tmp_path):
     path = save_model(build_model(), tmp_path / "model", idata=build_sampled_idata())
 
     assert not (path / "data.zarr" / ".zarr_metadata").exists()
+
+
+def test_a_model_only_bundle_has_no_data_key_at_all(bundle_path):
+    """The documented default: absent, not null, and nothing zarr-shaped."""
+    import json
+
+    raw = json.loads((bundle_path / "manifest.json").read_text())
+
+    assert "data" not in raw
+    assert load(bundle_path).data is None
+    assert load(bundle_path).datatree() is None
+
+
+def test_a_model_only_bundle_needs_no_zarr(bundle_path, monkeypatch):
+    """Most bundles store only the model, so they must not require zarr installed."""
+    real = importlib.util.find_spec
+
+    monkeypatch.setattr(
+        "importlib.util.find_spec",
+        lambda name: None if name == "zarr" else real(name),
+    )
+
+    assert load(bundle_path).validate().ok
+    assert not (bundle_path / "data.zarr").exists()

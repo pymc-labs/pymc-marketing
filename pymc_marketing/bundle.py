@@ -21,7 +21,7 @@ halves stay readable by anything that speaks zarr.
 Writing the model
 -----------------
 
-::
+.. code-block:: python
 
     from pymc_marketing.bundle import audit, load, load_model, save_model
 
@@ -31,6 +31,11 @@ Writing the model
 
 The second argument is any local directory you like, written as a path so it
 reads as one. Nothing here infers a bundle from its name.
+
+``idata`` is optional, and leaving it out is the common case: a model on its
+own is two files, ``manifest.json`` and ``graph.cloudpickle``, with no ``data``
+key in the manifest at all, rather than an empty or null pointer. The next
+section covers what changes when you pass one.
 
 Writing the inference data
 --------------------------
@@ -66,7 +71,7 @@ Or pass neither and point at wherever you already keep it::
 Reading it back
 ---------------
 
-::
+.. code-block:: python
 
     model = load_model("runs/42/model")  # a real pm.Model
     bundle = load("runs/42/model")  # Model plus metadata
@@ -1041,7 +1046,13 @@ def save_model(
     metadata : dict, optional
         Free-form, must be JSON-serializable. Stored verbatim.
     idata : DataRef, path, Dataset or DataTree, optional
-        Where the inference data is. Pass a ``DataRef`` or a path to record a pointer to
+        Where the inference data is. Omit to store the Model alone: the bundle is
+        then just ``manifest.json`` and ``graph.cloudpickle``, the manifest has no
+        ``data`` key, and nothing zarr-related is imported. Note that the Model's
+        own ``pm.Data`` values and ``observed`` arrays travel inside the graph
+        either way, so a bundle without ``idata`` still holds the training data.
+
+        Pass a ``DataRef`` or a path to record a pointer to
         data you already wrote, or pass the ``DataTree`` / ``Dataset`` itself to
         embed it in the bundle. Anything in a ``pm.sample`` result can be stored:
         posterior, posterior_predictive, observed_data, constant_data,
