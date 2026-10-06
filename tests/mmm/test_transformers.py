@@ -36,6 +36,7 @@ from pymc_marketing.mmm.transformers import (
     inverse_scaled_logistic_saturation,
     logistic_saturation,
     michaelis_menten,
+    root_saturation,
     tanh_saturation,
     tanh_saturation_baselined,
     weibull_adstock,
@@ -334,7 +335,7 @@ class TestsAdstockTransformers:
         ).eval()
 
         assert np.all(np.isfinite(y))
-        w = 1 - sp.stats.weibull_min.cdf(np.arange(l_max) + 1, c=k, scale=lam)
+        w = 1 - sp.stats.weibull_min.cdf(np.arange(l_max - 1) + 1, c=k, scale=lam)
         w = np.cumprod(np.concatenate([[1], w]))
         sp_y = batched_convolution(
             as_xtensor(x, dims=("t",)),
@@ -343,6 +344,51 @@ class TestsAdstockTransformers:
             kernel_dim="k",
         ).eval()
         np.testing.assert_almost_equal(y, sp_y)
+
+    @pytest.mark.parametrize("normalize", [False, True])
+    def test_weibull_cdf_adstock_uses_exact_l_max(self, normalize):
+        l_max = 4
+        lam = 10.0
+        k = 1.0
+        impulse = np.zeros(6)
+        impulse[0] = 1.0
+
+        y = weibull_adstock(
+            x=as_xtensor(impulse, dims=("t",)),
+            lam=lam,
+            k=k,
+            l_max=l_max,
+            type=WeibullType.CDF,
+            normalize=normalize,
+            dim="t",
+        ).eval()
+
+        survival = 1 - sp.stats.weibull_min.cdf(
+            np.arange(l_max - 1) + 1, c=k, scale=lam
+        )
+        expected_weights = np.cumprod(np.concatenate([[1], survival]))
+        if normalize:
+            expected_weights = expected_weights / expected_weights.sum()
+            np.testing.assert_allclose(y.sum(), 1.0)
+
+        np.testing.assert_allclose(y[:l_max], expected_weights)
+        np.testing.assert_array_equal(y[l_max:], 0.0)
+
+    @pytest.mark.parametrize("normalize", [False, True])
+    def test_weibull_cdf_adstock_l_max_one(self, normalize):
+        impulse = np.array([1.0, 0.0, 0.0])
+
+        y = weibull_adstock(
+            x=as_xtensor(impulse, dims=("t",)),
+            lam=10.0,
+            k=1.0,
+            l_max=1,
+            type=WeibullType.CDF,
+            normalize=normalize,
+            dim="t",
+        ).eval()
+
+        np.testing.assert_array_equal(y, impulse)
 
     @pytest.mark.parametrize(
         "type",
@@ -761,6 +807,28 @@ class TestSaturationTransformers:
             expected,
             decimal=5,
             err_msg="The function does not approach sigma as x approaches infinity.",
+        )
+
+    @pytest.mark.parametrize(
+        "x_dims",
+        [("date", "channel"), ("channel", "date")],
+        ids=["date-first", "channel-first"],
+    )
+    def test_root_saturation_broadcasts_alpha_by_dim_name(self, x_dims):
+        # After adstock the input is ("channel", "date"); a per-channel alpha
+        # must still pair with the channel axis, not the last one (#3046).
+        x_date_channel = np.array([[0.0, 1.0], [4.0, 0.0], [9.0, 16.0]])
+        alpha = np.array([0.5, 0.25])
+        expected = np.where(x_date_channel > 0, x_date_channel**alpha, 0.0)
+        x = x_date_channel if x_dims[0] == "date" else x_date_channel.T
+
+        y = root_saturation(
+            as_xtensor(x, dims=x_dims), as_xtensor(alpha, dims=("channel",))
+        )
+
+        assert y.dims == x_dims
+        np.testing.assert_allclose(
+            y.transpose("date", "channel").eval(), expected, rtol=1e-12
         )
 
 

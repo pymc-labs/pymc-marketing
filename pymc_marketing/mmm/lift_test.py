@@ -29,6 +29,8 @@ import pymc.dims as pmd
 import pytensor.xtensor as ptx
 from numpy import typing as npt
 from pymc import modelcontext
+from pymc_extras.prior import Prior
+from pytensor.graph.traversal import ancestors
 from pytensor.xtensor import as_xtensor
 from pytensor.xtensor.type import XTensorVariable
 
@@ -37,6 +39,140 @@ from pymc_marketing.mmm.components.saturation import SaturationTransformation
 Index = Sequence[int] | npt.NDArray[np.integer]
 Indices = dict[str, Index]
 Values = npt.NDArray[np.int_] | npt.NDArray | npt.NDArray[np.str_]
+
+_POSITIVE_SUPPORT_DISTRIBUTIONS = {
+    "Gamma",
+}
+_REAL_LINE_LIKELIHOODS = {
+    "Normal",
+    "StudentT",
+}
+_POSITIVE_SUPPORT_RV_OPS = {
+    "beta",
+    "exponential",
+    "gamma",
+    "halfcauchy",
+    "halfnormal",
+    "halft",
+    "invgamma",
+    "lognormal",
+    "pareto",
+    "weibull",
+}
+
+
+def _validate_lift_likelihood_data(
+    df_lift_test: pd.DataFrame, likelihood: Prior
+) -> None:
+    """Validate observations against known likelihood support constraints."""
+    if "sigma" in likelihood.parameters:
+        raise ValueError(
+            "The lift-test `sigma` is taken from the `sigma` column. Do not pass "
+            "`sigma` in `likelihood`; use a supported likelihood parameter such "
+            "as `nu` for StudentT."
+        )
+    if "mu" in likelihood.parameters:
+        raise ValueError(
+            "The lift-test `mu` is determined by the model-implied lift. Do not "
+            "pass `mu` in `likelihood`."
+        )
+    if likelihood.dims is not None:
+        raise ValueError(
+            "The lift-test dimensions are determined by the calibration rows. "
+            "Do not pass `dims` in `likelihood`."
+        )
+    if likelihood.distribution == "StudentT" and "nu" not in likelihood.parameters:
+        raise ValueError(
+            "The StudentT lift likelihood requires a `nu` parameter, for example "
+            "`Prior('StudentT', nu=4)`."
+        )
+    if likelihood.distribution not in (
+        _POSITIVE_SUPPORT_DISTRIBUTIONS | _REAL_LINE_LIKELIHOODS
+    ):
+        raise ValueError(
+            f"The {likelihood.distribution} distribution is not supported as a "
+            "lift-test likelihood. Supported distributions are Normal, StudentT, "
+            "and Gamma."
+        )
+    if likelihood.distribution in _POSITIVE_SUPPORT_DISTRIBUTIONS:
+        if (df_lift_test["delta_y"] <= 0).any():
+            raise ValueError(
+                f"{likelihood.distribution} lift likelihood requires positive "
+                "observed lift values; use a real-valued likelihood such as "
+                "Prior('Normal') for signed estimates."
+            )
+        if (df_lift_test["delta_x"] <= 0).any():
+            raise ValueError(
+                f"{likelihood.distribution} lift likelihood is only valid when "
+                "the spend changes and model-implied lifts are positive."
+            )
+
+
+def _validate_positive_model_lift(
+    model: pm.Model, model_estimated_lift: XTensorVariable, likelihood: Prior
+) -> None:
+    """Ensure positive likelihoods have a valid model lift at initialization."""
+    if likelihood.distribution not in _POSITIVE_SUPPORT_DISTRIBUTIONS:
+        return
+
+    free_rvs = set(model.free_RVs)
+    parameter_rvs = [rv for rv in ancestors([model_estimated_lift]) if rv in free_rvs]
+    unsupported_parameters = [
+        rv.name
+        for rv in parameter_rvs
+        if rv.owner.op.name.lower() not in _POSITIVE_SUPPORT_RV_OPS
+    ]
+    if unsupported_parameters:
+        raise ValueError(
+            f"{likelihood.distribution} lift likelihood requires a model-implied "
+            "lift that stays positive, but positivity could not be established "
+            "for upstream random variables. Hierarchical or time-varying "
+            "saturation terms may include real-line effects. Unsupported "
+            f"upstream variables: {unsupported_parameters}."
+        )
+
+    replaced_lift = model.replace_rvs_by_values([model_estimated_lift])[0]
+    initial_lift = model.compile_fn(
+        replaced_lift,
+        inputs=model.value_vars,
+        point_fn=True,
+        on_unused_input="ignore",
+    )(model.initial_point())
+    if (np.asarray(initial_lift) <= 0).any():
+        raise ValueError(
+            f"{likelihood.distribution} lift likelihood requires positive "
+            "model-implied lifts at the model's initial point."
+        )
+
+
+def _resolve_likelihood(
+    likelihood: Prior | type[pmd.DimDistribution] | None,
+    dist: type[pmd.DimDistribution] | None = None,
+) -> Prior:
+    """Resolve the serializable likelihood, preserving the old ``dist`` alias."""
+    if dist is not None:
+        if likelihood is not None:
+            raise ValueError("Specify only one of `likelihood` and `dist`.")
+        warnings.warn(
+            "The `dist` argument is deprecated; pass a serializable Prior "
+            "using `likelihood` instead.",
+            DeprecationWarning,
+            stacklevel=3,
+        )
+        likelihood = Prior(dist.__name__)
+    elif likelihood is None:
+        likelihood = Prior("Normal")
+    elif isinstance(likelihood, type) and issubclass(likelihood, pmd.DimDistribution):
+        warnings.warn(
+            "Passing a distribution class as `likelihood` is deprecated; "
+            "pass a serializable Prior instead.",
+            DeprecationWarning,
+            stacklevel=3,
+        )
+        likelihood = Prior(likelihood.__name__)
+    if not isinstance(likelihood, Prior):
+        raise TypeError("`likelihood` must be a pymc_extras.prior.Prior.")
+    return likelihood
 
 
 def _find_unaligned_values(same_value: npt.NDArray[np.int_]) -> list[int]:
@@ -185,28 +321,20 @@ def assert_is_subset(required: set[str], available: set[str]) -> None:
 
 
 class NonMonotonicError(ValueError):
-    """Data is not monotonic."""
+    """Deprecated exception for the removed increasing-assumption check."""
 
 
 def assert_monotonic(delta_x: pd.Series, delta_y: pd.Series) -> None:
+    """Check monotonic lift measurements (deprecated).
+
+    Lift measurements may have signed estimates, so the MMM no longer uses this
+    check. This function remains temporarily for callers that imported it.
     """
-    Check if the lift test results satisfy the increasing assumption.
-
-    The increasing assumption states that if delta_x is positive, delta_y must be positive, and vice versa.
-
-    Parameters
-    ----------
-    delta_x : pd.Series
-        Series with the change in x axis value of the lift test.
-    delta_y : pd.Series
-        Series with the change in y axis value of the lift test.
-
-    Raises
-    ------
-    NonMonotonicError
-        If the lift test results do not satisfy the increasing assumption.
-
-    """
+    warnings.warn(
+        "assert_monotonic is deprecated; signed lift estimates are supported.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
     if not (delta_x * delta_y >= 0).all():
         raise NonMonotonicError("The data is not monotonic.")
 
@@ -221,9 +349,11 @@ def add_saturation_observations(
     variable_mapping: VariableMapping,
     saturation_function: SaturationFunc,
     model: pm.Model | None = None,
-    dist: type[pmd.DimDistribution] = pmd.Gamma,
+    likelihood: Prior | type[pmd.DimDistribution] | None = None,
     name: str = "lift_measurements",
     get_indices: Callable[[pd.DataFrame, pm.Model], Indices] = exact_row_indices,
+    *,
+    dist: type[pmd.DimDistribution] | None = None,
 ) -> None:
     """Add saturation observations to the likelihood of the model.
 
@@ -249,8 +379,12 @@ def add_saturation_observations(
         Function that takes spend and returns saturation.
     model : Optional[Model], optional
         PyMC model with arbitrary number of coordinates, by default None
-    dist : pymc.dims.DimDistribution class, optional
-        PyMC dim distribution to use for the likelihood, by default Gamma
+    likelihood : Prior, optional
+        Serializable likelihood prior, by default ``Prior("Normal")``. Its
+        ``sigma`` parameter is set from the lift-test standard errors. Choose a
+        distribution that matches the estimator's sampling model. The supported
+        distributions are ``Normal``, ``StudentT``, and ``Gamma``; a custom
+        ``sigma`` parameter is not accepted because scale comes from the data.
     name : str, optional
         Name of the likelihood, by default "lift_measurements"
     get_indices : Callable[[pd.DataFrame, pm.Model], Indices], optional
@@ -396,7 +530,8 @@ def add_saturation_observations(
     """
     required_columns = ["x", "delta_x", "delta_y", "sigma"]
     assert_is_subset(set(required_columns), set(df_lift_test.columns))
-    assert_monotonic(df_lift_test["delta_x"], df_lift_test["delta_y"])
+    likelihood = _resolve_likelihood(likelihood, dist)
+    _validate_lift_likelihood_data(df_lift_test, likelihood)
 
     current_model: pm.Model = modelcontext(model)
 
@@ -434,13 +569,19 @@ def add_saturation_observations(
 
     with current_model:
         current_model.add_coord(lift_dim, length=len(df_lift_test))
-        dist(
+        _validate_positive_model_lift(current_model, model_estimated_lift, likelihood)
+        model_estimated_lift = pmd.Deterministic(
+            f"{name}_model_estimated_lift", model_estimated_lift
+        )
+        likelihood = likelihood.deepcopy()
+        likelihood.parameters["sigma"] = as_xtensor(
+            df_lift_test["sigma"].to_numpy(), dims=(lift_dim,)
+        )
+        likelihood.create_likelihood_variable(
             name=name,
-            mu=ptx.math.abs(model_estimated_lift),
-            sigma=as_xtensor(df_lift_test["sigma"].to_numpy(), dims=(lift_dim,)),
-            observed=as_xtensor(
-                np.abs(df_lift_test["delta_y"].to_numpy()), dims=(lift_dim,)
-            ),
+            mu=model_estimated_lift,
+            observed=as_xtensor(df_lift_test["delta_y"].to_numpy(), dims=(lift_dim,)),
+            xdist=True,
         )
 
 
@@ -648,9 +789,11 @@ def add_lift_measurements_to_likelihood_from_saturation(
     saturation: SaturationTransformation,
     time_varying_var_name: str | None = None,
     model: pm.Model | None = None,
-    dist: type[pmd.DimDistribution] = pmd.Gamma,
+    likelihood: Prior | type[pmd.DimDistribution] | None = None,
     name: str = "lift_measurements",
     get_indices: Callable[[pd.DataFrame, pm.Model], Indices] = exact_row_indices,
+    *,
+    dist: type[pmd.DimDistribution] | None = None,
 ) -> None:
     """
     Add lift measurements to the likelihood from a saturation transformation.
@@ -674,8 +817,9 @@ def add_lift_measurements_to_likelihood_from_saturation(
         Name of the time-varying variable in model.
     model : Optional[Model], optional
         PyMC model with arbitrary number of coordinates, by default None
-    dist : pymc.dims.Distribution class, optional
-        PyMC distribution to use for the likelihood, by default Gamma
+    likelihood : Prior, optional
+        Serializable likelihood prior, by default ``Prior("Normal")``. The
+        standard errors are supplied as its ``sigma`` parameter.
     name : str, optional
         Name of the likelihood, by default "lift_measurements"
     get_indices : Callable[[pd.DataFrame, pm.Model], Indices], optional
@@ -698,6 +842,7 @@ def add_lift_measurements_to_likelihood_from_saturation(
         df_lift_test=df_lift_test,
         variable_mapping=variable_mapping,
         saturation_function=saturation_function,
+        likelihood=likelihood,
         dist=dist,
         name=name,
         model=model,

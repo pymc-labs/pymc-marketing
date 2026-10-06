@@ -10,3 +10,488 @@ div.cell_output img {
 readthedocs-notification.toast:not(.show) {
   display: block !important;
 }
+
+/* Explicit content markers keep presentation independent of page titles.
+   Nest the rules once to avoid repeating the page scope on every selector. */
+.bd-article:has(.pm-home-intro, .pm-brief) > section {
+  --pm-border: #cbdadf;
+  --pm-surface: #edf4f5;
+  --pm-ink: #102f43;
+  --pm-muted: #526570;
+  font-size: 1rem;
+  line-height: 1.72;
+
+  html[data-theme="dark"] & {
+    --pm-border: #344750;
+    --pm-surface: #202e36;
+    --pm-ink: #d4eaf5;
+    --pm-muted: #b2c2ca;
+  }
+
+  & > h1 {
+    font-size: clamp(1.85rem, 3vw, 2.65rem);
+    line-height: 1.17;
+    letter-spacing: -.035em;
+    color: var(--pm-ink);
+    margin: .55rem 0 1.75rem;
+    max-width: 34ch;
+  }
+
+  & h2 {
+    font-size: clamp(1.55rem, 2.4vw, 2rem);
+    line-height: 1.25;
+    letter-spacing: -.025em;
+    color: var(--pm-ink);
+    margin: 0 0 1.25rem;
+  }
+
+  & h3 {
+    font-size: 1.2rem;
+    line-height: 1.4;
+    letter-spacing: -.012em;
+    color: var(--pm-ink);
+    margin: 1.5rem 0 .9rem;
+  }
+
+  & h4 {
+    font-size: 1rem;
+    color: var(--pm-ink);
+    margin-top: 1.5rem;
+  }
+
+  & > section {
+    margin-top: 3.5rem;
+    padding-top: 2.5rem;
+    border-top: 1px solid var(--pm-border);
+  }
+
+  & p {
+    margin-bottom: 1.2rem;
+  }
+
+  & a {
+    text-underline-offset: .18em;
+    text-decoration-thickness: 1px;
+  }
+
+  & a:focus-visible, & summary:focus-visible {
+    outline: 3px solid #81c240;
+    outline-offset: 4px;
+    border-radius: 3px;
+  }
+
+  & .pm-home-intro {
+    display: grid;
+    grid-template-columns: minmax(0,1fr) 150px;
+    gap: 2rem;
+    align-items: center;
+    margin-bottom: 1.75rem;
+  }
+
+  & .pm-home-intro > a {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  & .pm-home-intro > p {
+    grid-column: 1;
+    grid-row: 1;
+    margin: 0;
+    color: var(--pm-muted);
+  }
+
+  & .pm-home-intro img {
+    max-width: 100%;
+    height: auto;
+  }
+
+  & .pm-project {
+    border: 1px solid rgb(105 187 196 / 38%);
+    border-radius: 16px;
+    background: radial-gradient(ellipse at 100% 0%, rgb(44 143 151 / 28%), transparent 65%), linear-gradient(125deg, #092d42, #12495a) !important;
+    color: #fff;
+    box-shadow: none !important;
+  }
+
+  & .pm-project .sd-card-body {
+    padding: 1.75rem 2rem;
+    background: transparent !important;
+    border-radius: 12px;
+  }
+
+  & .pm-project .sd-card-title {
+    font-size: 1.28rem;
+    line-height: 1.35;
+    margin-bottom: .65rem;
+    color: #fff;
+  }
+
+  & .pm-project p {
+    color: #e1ebf0;
+    margin-bottom: .8rem;
+  }
+
+  & .pm-project .pm-project-guidance p:last-child {
+    font-size: .85rem;
+    color: #c9dce6;
+    margin-bottom: 0;
+  }
+
+  & .pm-project a {
+    color: #fff;
+  }
+
+  & .pm-project .sd-btn-primary {
+    background: #a9e34b !important;
+    color: #102c1d !important;
+    border-color: #a9e34b !important;
+    font-weight: 700;
+    padding: .65rem 1.15rem;
+    margin: .15rem 0 0 !important;
+  }
+
+  & .pm-project .sd-btn-primary:hover {
+    background: #c2f277 !important;
+    border-color: #c2f277 !important;
+    color: #102618 !important;
+  }
+
+  & .pm-proof {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .6rem 1rem;
+    flex-wrap: wrap;
+    margin: 1.4rem 0 2.5rem;
+  }
+
+  & .pm-proof p {
+    margin: 0;
+  }
+
+  & .pm-proof > .sd-text-center:first-child {
+    flex: 1 1 330px;
+    min-width: 0;
+    max-width: 100%;
+    text-align: left !important;
+  }
+
+  & .pm-proof > .sd-text-muted {
+    font-size: .75rem;
+  }
+
+  & .pm-proof img[alt="PyMC Labs logo"] {
+    width: 90px !important;
+    height: auto !important;
+    margin: 0;
+  }
+
+  html[data-theme="light"] & .pm-proof a:has(img.only-dark), html[data-theme="dark"] & .pm-proof a:has(img.only-light) {
+    display: none;
+  }
+
+  & #trusted-in-production {
+    padding: 1.5rem 1.75rem;
+    background: linear-gradient(110deg, rgb(22 139 144 / 8%), transparent), var(--pm-surface);
+    border: 1px solid var(--pm-border);
+    border-left: 3px solid #168b90;
+    border-radius: 12px;
+    margin-top: 1.8rem;
+  }
+
+  & #trusted-in-production h2 {
+    font-size: 1.25rem;
+  }
+
+  & #trusted-in-production .sd-text-center {
+    text-align: left !important;
+    font-size: .85rem;
+    color: var(--pm-muted);
+  }
+
+  & #trusted-in-production p:last-child {
+    margin-bottom: 0;
+  }
+
+  & .highlight {
+    border: 1px solid var(--pm-border);
+    border-radius: 10px;
+    background: var(--pm-surface);
+  }
+
+  & .highlight pre {
+    padding: 1.2rem 1.4rem;
+    font-size: .86rem;
+    line-height: 1.65;
+  }
+
+  & .sd-card:not(.pm-project) {
+    border: 1px solid var(--pm-border);
+    border-radius: 12px;
+    box-shadow: 0 4px 18px rgb(9 45 66 / 4%) !important;
+    background: linear-gradient(145deg, rgb(31 137 151 / 5%), transparent 70%), var(--pst-color-background);
+  }
+
+  & .sd-card:not(.pm-project) .sd-card-body {
+    padding: 1.3rem;
+  }
+
+  & .sd-card:not(.pm-project) .sd-card-header {
+    padding: 1.2rem 1.3rem .2rem;
+    background: transparent;
+    color: var(--pst-color-primary);
+  }
+
+  & .sd-card:not(.pm-project) .sd-card-title {
+    color: var(--pm-ink);
+    font-size: 1.05rem;
+  }
+
+  & .sd-card:not(.pm-project) .sd-card-text {
+    font-size: .93rem;
+  }
+
+  & .sd-card-footer {
+    padding: .2rem 1.3rem 1.3rem;
+    background: transparent;
+  }
+
+  & .sd-btn {
+    border-radius: 6px;
+  }
+
+  & .sd-btn-secondary {
+    background: var(--pm-surface) !important;
+    border-color: var(--pm-border) !important;
+    color: var(--pm-ink) !important;
+    font-size: .85rem;
+    font-weight: 600;
+    padding: .65rem .6rem;
+  }
+
+  & .sd-btn-secondary:hover {
+    background: var(--pst-color-secondary-bg) !important;
+    border-color: var(--pst-color-secondary) !important;
+  }
+
+  & .sd-card-hover:hover {
+    border-color: var(--pst-color-primary);
+    box-shadow: 0 8px 24px rgb(9 45 66 / 10%) !important;
+  }
+
+  & table {
+    width: 100%;
+    border: 1px solid var(--pm-border);
+    font-size: .92rem;
+    line-height: 1.6;
+    margin: 1.5rem 0;
+  }
+
+  & table thead {
+    background: var(--pm-surface);
+  }
+
+  & table th {
+    color: var(--pm-ink);
+    font-size: .82rem;
+    letter-spacing: .015em;
+  }
+
+  & table th, & table td {
+    padding: .95rem 1.1rem;
+    border-color: var(--pm-border);
+  }
+
+  & table td:first-child {
+    width: 28%;
+    min-width: 140px;
+    font-weight: 600;
+    color: var(--pm-ink);
+  }
+
+  & table tbody tr:nth-child(even) {
+    background: var(--pm-surface);
+  }
+
+  & table tbody tr:hover {
+    background: var(--pm-surface);
+  }
+
+  & table p {
+    margin: 0;
+  }
+
+  & .pst-scrollable-table-container {
+    border-radius: 10px;
+  }
+
+  & iframe {
+    display: block;
+    width: 100%;
+    height: auto;
+    aspect-ratio: 16 / 9;
+    border: 1px solid var(--pm-border);
+    border-radius: 10px;
+    margin: 1rem 0 1.5rem;
+  }
+
+  & .pm-videos {
+    margin-top: 1rem;
+  }
+
+  & .pm-videos .rubric {
+    font-size: 1.05rem;
+    min-height: 2.8em;
+    margin-top: .5rem;
+  }
+
+  & #case-studies > ul, & #more-pymc-labs-blog-posts-and-resources ul {
+    padding: 0;
+    list-style: none;
+  }
+
+  & #case-studies > ul > li, & #more-pymc-labs-blog-posts-and-resources li {
+    padding: .8rem 0;
+    border-bottom: 1px solid var(--pm-border);
+  }
+
+  & #case-studies li p, & #more-pymc-labs-blog-posts-and-resources li p {
+    margin: 0;
+  }
+
+  & .pm-faq {
+    border: 1px solid var(--pm-border) !important;
+    border-radius: 8px;
+    box-shadow: none !important;
+    margin: .75rem 0;
+    overflow: hidden;
+  }
+
+  & .pm-faq summary {
+    padding: 1rem 1.2rem !important;
+    font-weight: 600;
+    background: var(--pm-surface) !important;
+    color: var(--pm-ink) !important;
+  }
+
+  & .pm-faq .sd-summary-content {
+    padding: 1rem 1.2rem;
+  }
+
+  & #need-help-with-pymc-marketing {
+    border: 1px solid var(--pm-border);
+    border-left: 4px solid #81c240;
+    border-radius: 10px;
+    padding: 1.5rem 1.75rem;
+    background: var(--pm-surface);
+    margin-bottom: 3rem;
+  }
+
+  & #need-help-with-pymc-marketing h2 {
+    font-size: 1.3rem;
+  }
+
+  & #need-help-with-pymc-marketing p {
+    margin: 0;
+  }
+
+  /* Keep the enquiry action in normal reading order and use the panel's lower right. */
+  & .pm-project-actions {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 1.25rem 2rem;
+    margin-top: 1.3rem;
+    padding-top: 1.2rem;
+    border-top: 1px solid rgb(224 244 249 / 20%);
+  }
+
+  & .pm-project-guidance {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+
+  & .pm-project-actions > p {
+    flex: 0 0 auto;
+    margin: 0;
+  }
+
+  & .pm-rfp-button {
+    white-space: nowrap;
+    min-height: 48px;
+    box-shadow: 0 4px 16px rgb(0 0 0 / 15%);
+  }
+
+  & .pm-project a:focus-visible {
+    outline-color: #d5f99f;
+  }
+
+  & .sd-card-hover {
+    transition: border-color .18s ease, box-shadow .18s ease;
+  }
+
+  & .pm-faq[open] {
+    border-color: var(--pst-color-primary) !important;
+  }
+
+  @media (max-width: 767px) {
+    & .pm-project-actions {
+      flex-direction: column;
+      align-items: stretch;
+      gap: 1rem;
+    }
+    & .pm-rfp-button {
+      display: block;
+      width: 100%;
+      text-align: center;
+    }
+
+    & > h1 {
+      font-size: 1.9rem;
+      max-width: none;
+    }
+    & .pm-home-intro {
+      grid-template-columns: minmax(0,1fr);
+      gap: .75rem;
+    }
+    & .pm-home-intro > a {
+      grid-column: 1;
+      grid-row: 1;
+      justify-self: start;
+    }
+    & .pm-home-intro img {
+      width: 110px !important;
+    }
+    & .pm-home-intro > p {
+      grid-column: 1;
+      grid-row: 2;
+    }
+    & .pm-project .sd-card-body {
+      padding: 1.3rem;
+    }
+    & .pm-proof {
+      justify-content: flex-start;
+    }
+    & > section {
+      margin-top: 2.5rem;
+      padding-top: 1.75rem;
+    }
+    & table th, & table td {
+      padding: .75rem;
+    }
+    & #trusted-in-production {
+      padding: 1.2rem;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    & * {
+      scroll-behavior: auto !important;
+      transition: none !important;
+    }
+  }
+}
+
+body:has(.pm-home-intro) .bd-sidebar-secondary {
+  font-size: .8rem;
+}

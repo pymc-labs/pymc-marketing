@@ -12,6 +12,8 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 import copy
+import io
+import json
 import os
 import warnings
 from collections.abc import Callable
@@ -36,6 +38,7 @@ from pymc_marketing.mmm import (
     DelayedAdstock,
     GeometricAdstock,
     LogisticSaturation,
+    RootSaturation,
     SoftPlusHSGP,
 )
 from pymc_marketing.mmm.additive_effect import (
@@ -58,6 +61,7 @@ from pymc_marketing.mmm.scaling import (
     FixedScaling,
     Scaling,
 )
+from pymc_marketing.model_builder import DifferentModelError
 from pymc_marketing.serialization import serialization
 from pymc_marketing.special_priors import LogNormalPrior
 
@@ -962,6 +966,141 @@ def test_save_load_restores_original_scale_deterministic(
 
     loaded = MMM.load(file)
     assert "channel_contribution_original_scale" in loaded.model.named_vars
+
+
+def test_save_load_restores_lift_test_likelihood_and_diagnostic(
+    mmm: MMM, df, target_column, mock_pymc_sample, monkeypatch, tmp_path
+):
+    from pymc_extras.prior import Prior
+
+    df = df.assign(country=df["country"].map({"A": "001", "B": "002"}))
+    X = df.drop(columns=[target_column])
+    y = df[target_column]
+    mmm.build_model(X, y)
+    calibration = pd.DataFrame(
+        {
+            "country": ["001"],
+            "channel": ["C1"],
+            "x": [1.0],
+            "delta_x": [1.0],
+            "delta_y": [-0.2],
+            "sigma": [0.5],
+            "experiment_date": pd.to_datetime(["2025-01-07"]).tz_localize(
+                "Europe/London"
+            ),
+            "test_month": pd.period_range("2025-01", periods=1, freq="M"),
+        }
+    )
+    mmm.add_lift_test_measurements(
+        calibration,
+        likelihood=Prior("StudentT", nu=4),
+        name="geo_lift",
+    )
+    # Rebuilding creates a fresh graph and must forget calibration metadata
+    # from the previous graph before the same calibration is attached again.
+    mmm.build_model(X, y)
+    mmm.add_lift_test_measurements(
+        calibration,
+        likelihood=Prior("StudentT", nu=4),
+        name="geo_lift",
+    )
+    mmm.fit(X, y)
+
+    # Adding calibration after a fit updates the graph, while the existing
+    # posterior remains unchanged until the model is fit again.
+    mmm.add_lift_test_measurements(calibration, name="late_lift")
+    assert "lift_test_calibrations" in mmm.idata.attrs
+    assert len(json.loads(mmm.idata.attrs["lift_test_calibrations"])) == 1
+    mmm.fit(X, y)
+
+    assert "lift_test_calibrations" in mmm.idata.attrs
+    assert "geo_lift_model_estimated_lift" in mmm.idata.posterior
+    assert "geo_lift_model_estimated_lift_original_scale" in mmm.idata.posterior
+    path = str(tmp_path / "lift-calibrated.nc")
+    mmm.save(path)
+
+    loaded = MMM.load(path)
+    assert "geo_lift" in loaded.model
+    assert "geo_lift_model_estimated_lift" in loaded.model.named_vars
+    assert len(loaded._lift_test_calibrations) == 2
+    restored_calibration = loaded._lift_test_calibrations[0]
+    restored_df = pd.read_json(
+        io.StringIO(restored_calibration["data"]), orient="split", dtype=False
+    )
+    assert restored_df["country"].tolist() == ["001"]
+    assert restored_df["country"].dtype == calibration["country"].dtype
+    assert "experiment_date" not in restored_df
+    assert "test_month" not in restored_df
+    assert restored_df["delta_y"].tolist() == [-0.2]
+    assert restored_calibration["format_version"] == 1
+    assert restored_calibration["likelihood"]["dist"] == "StudentT"
+    assert restored_calibration["likelihood"]["kwargs"]["nu"] == 4
+    assert restored_calibration["name"] == "geo_lift"
+
+    stale_version_idata = copy.deepcopy(mmm.idata)
+    stale_version_idata.attrs["version"] = "0.0.1"
+    with pytest.raises(DifferentModelError, match="does not match the model version"):
+        MMM.load_from_idata(stale_version_idata, check=True)
+    assert stale_version_idata.attrs["version"] == "0.0.1"
+
+    naive_date_idata = copy.deepcopy(mmm.idata)
+    naive_date_calibrations = json.loads(
+        naive_date_idata.attrs["lift_test_calibrations"]
+    )
+    naive_date_df = calibration.drop(columns="test_month").assign(
+        collection_date=pd.to_datetime(["2025-01-07"])
+    )
+    naive_date_calibrations[0]["data"] = naive_date_df.to_json(
+        orient="split", date_format="iso"
+    )
+    naive_date_calibrations[0]["dtypes"]["collection_date"] = str(
+        naive_date_df["collection_date"].dtype
+    )
+    naive_date_idata.attrs["lift_test_calibrations"] = json.dumps(
+        naive_date_calibrations
+    )
+    restored_frames = []
+
+    def capture_lift_tests(self, df_lift_test, **kwargs):
+        restored_frames.append(df_lift_test)
+
+    with monkeypatch.context() as context:
+        context.setattr(MMM, "add_lift_test_measurements", capture_lift_tests)
+        MMM.load_from_idata(naive_date_idata, check=False)
+    assert (
+        restored_frames[0]["collection_date"].dtype
+        == naive_date_df["collection_date"].dtype
+    )
+
+    mismatched_id_idata = copy.deepcopy(mmm.idata)
+    mismatched_id_idata.attrs["id"] = "different-model-id"
+    with pytest.raises(DifferentModelError, match="model id in the DataTree"):
+        MMM.load_from_idata(mismatched_id_idata, check=True)
+    assert mismatched_id_idata.attrs["id"] == "different-model-id"
+
+
+def test_mmm_explicit_gamma_lift_likelihood(mmm: MMM, df, target_column):
+    """Gamma likelihood validation accepts a full MMM's extra value variables."""
+    from pymc_extras.prior import Prior
+
+    df = df.assign(country=df["country"].map({"A": "001", "B": "002"}))
+    X = df.drop(columns=[target_column])
+    y = df[target_column]
+    mmm.build_model(X, y)
+    calibration = pd.DataFrame(
+        {
+            "country": ["001"],
+            "channel": ["C1"],
+            "x": [1.0],
+            "delta_x": [1.0],
+            "delta_y": [0.2],
+            "sigma": [0.1],
+        }
+    )
+
+    mmm.add_lift_test_measurements(calibration, likelihood=Prior("Gamma"))
+
+    assert np.isfinite(mmm.model.compile_logp()(mmm.model.initial_point()))
 
 
 def test_build_from_idata_fallback_infers_original_scale_from_posterior(
@@ -2559,6 +2698,28 @@ def test_mmm_with_events_bases(
         assert np.any(np.abs(da.values) > 0)
 
 
+def test_root_saturation_mmm_has_a_finite_logp_at_the_initial_point(
+    simple_mmm_data,
+) -> None:
+    """Check that an MMM with RootSaturation has a finite logp and gradient.
+
+    The adstocked input reaching the saturation is ``("channel", "date")``, so
+    this exercises a per-channel ``alpha`` against a channel-first input.
+    """
+    mmm = MMM(
+        date_column="date",
+        target_column="target",
+        channel_columns=["channel_1", "channel_2", "channel_3"],
+        adstock=GeometricAdstock(l_max=2),
+        saturation=RootSaturation(),
+    )
+    mmm.build_model(simple_mmm_data["X"], simple_mmm_data["y"])
+    point = mmm.model.initial_point()
+
+    assert np.isfinite(mmm.model.compile_logp()(point))
+    assert np.all(np.isfinite(mmm.model.compile_dlogp()(point)))
+
+
 @pytest.mark.parametrize(
     "adstock, saturation, dims",
     [
@@ -3297,6 +3458,128 @@ def test_add_lift_test_measurements(
         mmm.fit(X, y)
     except Exception as e:
         pytest.fail(f"Sampling failed with error: {e}")
+
+
+def test_add_lift_test_measurements_accepts_noisy_signed_estimate() -> None:
+    X = pd.DataFrame(
+        {
+            "date": pd.date_range("2023-01-01", periods=12, freq="W"),
+            "channel_1": np.arange(1, 13, dtype=float),
+            "channel_2": np.arange(12, 0, -1, dtype=float),
+        }
+    )
+    y = pd.Series(np.arange(20, 32, dtype=float), name="target")
+    mmm = MMM(
+        date_column="date",
+        channel_columns=["channel_1", "channel_2"],
+        target_column="target",
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+    )
+    mmm.build_model(X, y)
+
+    mmm.add_lift_test_measurements(
+        pd.DataFrame(
+            {
+                "channel": ["channel_1"],
+                "x": [2.0],
+                "delta_x": [1.0],
+                "delta_y": [-0.5],
+                "sigma": [0.5],
+            }
+        )
+    )
+
+    observed = mmm.model.rvs_to_values[mmm.model["lift_measurements"]].eval()
+    assert observed.item() < 0
+    assert np.isfinite(
+        mmm.model.compile_logp(vars=[mmm.model["lift_measurements"]])(
+            mmm.model.initial_point()
+        )
+    )
+    assert "lift_measurements_model_estimated_lift" in mmm.model
+
+
+def test_lift_calibration_metadata_preserves_small_sigma_before_fit(
+    mmm: MMM, df, target_column
+) -> None:
+    X = df.drop(columns=[target_column])
+    mmm.build_model(X, df[target_column])
+    calibration = pd.DataFrame(
+        {
+            "country": ["A"],
+            "channel": ["C1"],
+            "x": [1.0],
+            "delta_x": [1.0],
+            "delta_y": [0.123456789012345],
+            "sigma": [3.3e-11],
+            "test_month": pd.period_range("2025-01", periods=1, freq="M"),
+        }
+    )
+    mmm.add_lift_test_measurements(calibration)
+    saved = json.loads(mmm.create_idata_attrs()["lift_test_calibrations"])[0]
+    restored = pd.read_json(
+        io.StringIO(saved["data"]), orient="split", precise_float=True
+    )
+    assert saved["format_version"] == 1
+    assert "test_month" not in restored
+    assert restored["delta_y"].iloc[0] == pytest.approx(0.123456789012345, abs=1e-15)
+    assert restored["sigma"].iloc[0] == pytest.approx(3.3e-11, rel=1e-12)
+
+
+def test_unserializable_lift_date_fails_before_graph_changes(
+    mmm: MMM, df, target_column
+) -> None:
+    mmm.build_model(df.drop(columns=[target_column]), df[target_column])
+    calibration = pd.DataFrame(
+        {
+            "country": ["A"],
+            "channel": ["C1"],
+            "x": [1.0],
+            "delta_x": [1.0],
+            "delta_y": [0.2],
+            "sigma": [0.5],
+            "date": pd.period_range("2025-01", periods=1, freq="M"),
+        }
+    )
+    initial_vars = set(mmm.model.named_vars)
+    with pytest.raises(OverflowError, match="Maximum recursion level"):
+        mmm.add_lift_test_measurements(calibration)
+    assert set(mmm.model.named_vars) == initial_vars
+    assert mmm._lift_test_calibrations == []
+
+
+def test_log_link_rejects_level_calibrations_before_graph_changes() -> None:
+    X = pd.DataFrame(
+        {
+            "date": pd.date_range("2025-01-01", periods=4, freq="W"),
+            "C1": [1.0, 2.0, 3.0, 4.0],
+        }
+    )
+    y = pd.Series([5.0, 6.0, 7.0, 8.0], name="y")
+    mmm = MMM(
+        date_column="date",
+        channel_columns=["C1"],
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+        link="log",
+    )
+    mmm.build_model(X, y)
+    calibration = pd.DataFrame(
+        {
+            "channel": ["C1"],
+            "x": [1.0],
+            "delta_x": [1.0],
+            "delta_y": [1.0],
+            "sigma": [0.5],
+        }
+    )
+    initial_vars = set(mmm.model.named_vars)
+    with pytest.raises(NotImplementedError, match="link='log'"):
+        mmm.add_lift_test_measurements(calibration)
+    with pytest.raises(NotImplementedError, match="link='log'"):
+        mmm.add_cost_per_target_calibration(X, calibration)
+    assert set(mmm.model.named_vars) == initial_vars
 
 
 def test_add_lift_test_measurements_no_model() -> None:
