@@ -71,7 +71,6 @@ def test_audit_passes_for_an_ordinary_model():
     report = audit(build_model())
     assert report.ok
     assert report.blockers == []
-    assert report.stdlib_pickle_fails is False
     assert report.n_nodes > 0
     assert report.depth > 0
 
@@ -106,7 +105,6 @@ def test_audit_flags_custom_dist_random_without_logp():
 
     report = audit(model)
     assert "customdist_random" in report.kinds()
-    assert report.stdlib_pickle_fails is True
 
 
 def test_audit_accepts_symbolic_custom_dist():
@@ -323,16 +321,14 @@ def test_restored_model_preserves_variable_roles(bundle_path):
         }
 
 
-@pytest.mark.xfail(
-    strict=False,
-    reason=(
-        "Needs pymc/model/fgraph.py to hand add_named_variable a tuple, as its "
-        "signature declares, instead of a list. Fixed upstream by pymc-devs/pymc#8465; "
-        "this turns green on its own once that lands, hence strict=False."
-    ),
-)
 def test_restored_model_preserves_dims(bundle_path):
-    """dims must come back in the same container type, so dict equality holds."""
+    """dims come back in the same container type, so dict equality holds.
+
+    Rebuilding the Model from a FunctionGraph would re-derive these through
+    add_named_variable and land a list where the Model holds a tuple, on a pymc
+    that has not fixed it (pymc-devs/pymc#8465). Unpickling the Model keeps
+    them, so this holds on released pymc too.
+    """
     assert (
         load_model(bundle_path).named_vars_to_dims == build_model().named_vars_to_dims
     )
@@ -354,7 +350,7 @@ def test_pymc_itself_agrees_the_graph_survives_the_fgraph_round_trip():
     merge can never succeed however identical the structure is. Within one
     process it is the strongest check available, and it passes.
     """
-    from pymc.model.fgraph import fgraph_from_model, model_from_fgraph
+    from pymc.model.fgraph import fgraph_from_model
     from pymc.testing import assert_equivalent_model
 
     model = build_model()
@@ -638,15 +634,12 @@ def test_repr_mentions_the_pointer(tmp_path):
 
 
 def test_serialize_graph_returns_loadable_bytes():
-    from pymc_marketing.bundle import serialize_graph
-
     blob = serialize_graph(build_model())
     assert isinstance(blob, bytes) and blob
 
     import cloudpickle
-    from pymc.model.fgraph import model_from_fgraph
 
-    assert isinstance(model_from_fgraph(cloudpickle.loads(blob)), pm.Model)
+    assert isinstance(cloudpickle.loads(blob), pm.Model)
 
 
 def test_build_manifest_is_json_serializable():
@@ -672,7 +665,7 @@ def test_build_manifest_matches_what_save_model_writes(tmp_path):
 
 def test_a_bundle_written_by_hand_loads_and_validates():
     """A different route to saving produces a first-class bundle."""
-    from pymc_marketing.bundle import ModelBundle, build_manifest, serialize_graph
+    from pymc_marketing.bundle import ModelBundle, build_manifest
 
     model = build_model()
     manifest = build_manifest(model, idata="runs/x.zarr")
@@ -685,7 +678,7 @@ def test_a_bundle_written_by_hand_loads_and_validates():
 
 
 def test_from_parts_accepts_raw_json():
-    from pymc_marketing.bundle import ModelBundle, build_manifest, serialize_graph
+    from pymc_marketing.bundle import ModelBundle, build_manifest
 
     model = build_model()
     raw = json.dumps(build_manifest(model)).encode()
@@ -694,7 +687,7 @@ def test_from_parts_accepts_raw_json():
 
 
 def test_from_parts_defaults_to_an_in_memory_label():
-    from pymc_marketing.bundle import ModelBundle, build_manifest, serialize_graph
+    from pymc_marketing.bundle import ModelBundle, build_manifest
 
     model = build_model()
     bundle = ModelBundle.from_parts(build_manifest(model), serialize_graph(model))
@@ -704,7 +697,7 @@ def test_from_parts_defaults_to_an_in_memory_label():
 
 def test_a_hand_written_bundle_can_be_written_to_disk_and_loaded_back(tmp_path):
     """Hand-built parts and save_model output are interchangeable."""
-    from pymc_marketing.bundle import build_manifest, serialize_graph
+    from pymc_marketing.bundle import build_manifest
 
     model = build_model()
     by_hand = tmp_path / "hand"
@@ -722,14 +715,12 @@ def test_a_hand_written_bundle_can_be_written_to_disk_and_loaded_back(tmp_path):
 
 def test_the_pickler_is_not_baked_into_the_contract():
     """A different protocol produces a bundle that validates identically."""
-    import cloudpickle
-    from pymc.model.fgraph import fgraph_from_model
 
     from pymc_marketing.bundle import ModelBundle, build_manifest, serialize_graph
 
     model = build_model()
     default_blob = serialize_graph(model)
-    other_blob = cloudpickle.dumps(fgraph_from_model(model)[0], protocol=4)
+    other_blob = cloudpickle.dumps(model, protocol=4)
     assert other_blob != default_blob, "expected a different encoding"
 
     for blob in (default_blob, other_blob):
@@ -791,14 +782,18 @@ def test_a_bare_path_needs_no_filesystem_library(tmp_path):
     assert load(path).data.exists() is True, "remote URLs are not probed"
 
 
-def test_a_user_model_subclass_round_trips_as_a_plain_model(tmp_path):
-    """Documented behaviour: model_from_fgraph constructs a plain pm.Model.
+def test_a_user_model_subclass_survives_the_round_trip(tmp_path):
+    """A subclass of pm.Model comes back as its own type, not a plain Model.
 
-    It calls ``Model(model=None)`` on purpose, so a subclass of pm.Model comes
-    back as its base. Everything structural survives; only the Python type does
-    not. This is why wrapper classes that *contain* a Model (MMM, LinearModel,
-    BayesianSARIMAX, every ModelBuilder) are unaffected: they hand you a plain
-    pm.Model to begin with.
+    The Model is unpickled, so the Python type travels with it. Rebuilding from
+    a graph instead would call ``Model(model=None)`` and flatten every subclass
+    to its base. That also means a class defined only in a notebook or a REPL
+    comes back by value, since cloudpickle serializes it rather than importing
+    it, so the restored model does not need that code present at load time.
+
+    Wrapper classes that *contain* a Model (MMM, LinearModel, BayesianSARIMAX,
+    every ModelBuilder) are unaffected either way: they hand you a plain
+    ``pm.Model`` to begin with.
     """
 
     class MyModel(pm.Model):
@@ -808,12 +803,9 @@ def test_a_user_model_subclass_round_trips_as_a_plain_model(tmp_path):
         pm.Normal("y", 0, 1, observed=np.zeros(4))
 
     restored = load_model(save_model(model, tmp_path / "m"))
-    assert isinstance(restored, pm.Model)
-    assert type(restored) is pm.Model, "documented: the subclass is not preserved"
+    assert type(restored) is MyModel, "the subclass is preserved"
+    assert restored.marker == "custom", "subclass state is preserved"
     assert set(restored.named_vars) == set(model.named_vars)
-    assert getattr(restored, "marker", None) is None, (
-        "documented: subclass state is gone"
-    )
 
 
 def test_wrapper_objects_are_rejected_with_a_pointer_to_dot_model():
@@ -1033,7 +1025,7 @@ def test_build_manifest_describes_embedded_data_identically(tmp_path):
 @needs_zarr
 def test_build_manifest_cannot_embed_bytes(tmp_path):
     """It describes the data but writes nothing, so the caller must do that."""
-    from pymc_marketing.bundle import build_manifest, serialize_graph
+    from pymc_marketing.bundle import build_manifest
 
     idata = build_sampled_idata()
     manifest = build_manifest(build_model(), idata=idata)
@@ -1115,21 +1107,6 @@ def test_a_marginalized_model_round_trips(tmp_path):
     assert type(bundle.model["y"].owner.op) is type(marginal["y"].owner.op)
 
 
-def test_marginalized_models_do_not_need_cloudpickle(tmp_path):
-    """A module-level Op class is reachable by import path, unlike CustomDist."""
-    import pymc as pm
-    import pytensor.tensor as pt
-    from pymc_extras.marginal import marginalize
-
-    with pm.Model() as model:
-        sigma = pm.HalfNormal("sigma")
-        idx = pm.Categorical("idx", p=[0.1, 0.3, 0.6])
-        mu = pt.switch(pt.eq(idx, 0), -1.0, pt.switch(pt.eq(idx, 1), 0.0, 1.0))
-        pm.Normal("y", mu=mu, sigma=sigma)
-
-    assert audit(marginalize(model, [idx])).stdlib_pickle_fails is False
-
-
 def test_a_wrapper_object_is_rejected_so_the_model_attribute_is_used():
     """Every pymc_extras wrapper contains a Model rather than being one."""
     import pymc as pm
@@ -1166,15 +1143,12 @@ def test_manifest_and_blob_come_from_one_graph(tmp_path, monkeypatch):
     assert bundle.manifest.raw["fingerprint"] == "same-every-time"
 
 
-def test_reusing_an_audited_graph_serializes_the_same_model():
+def test_manifest_can_reuse_the_graph_audit_already_built():
+    """audit() hands back its graph so a save need not build it a second time."""
     model = build_model()
     report = audit(model)
     assert report.fgraph is not None
 
-    blob = serialize_graph(model, fgraph=report.fgraph)
-    restored = model_from_fgraph(cloudpickle.loads(blob))
-
-    assert _fingerprint(restored) == _fingerprint(model)
     assert build_manifest(model, fgraph=report.fgraph)["n_nodes"] == report.n_nodes
 
 
@@ -1291,7 +1265,7 @@ def test_the_bundle_travels_through_an_object_store(route, tmp_path, monkeypatch
     MLflow, an artifact registry, or a database row all reduce to that, so the
     contract is asserted here rather than against any one of them.
     """
-    from pymc_marketing.bundle import ModelBundle, build_manifest, serialize_graph
+    from pymc_marketing.bundle import ModelBundle, build_manifest
 
     if route == "pointer":
         manifest = build_manifest(build_model(), idata="s3://bucket/run.zarr")
@@ -1803,3 +1777,46 @@ def test_a_model_only_bundle_needs_no_zarr(bundle_path, monkeypatch):
 
     assert load(bundle_path).validate().ok
     assert not (bundle_path / "data.zarr").exists()
+
+
+def _posterior_predictive(model, idata, seed):
+    """Draw posterior predictive samples, from whatever container this pymc returns."""
+    res = pm.sample_posterior_predictive(
+        idata,
+        model=model,
+        var_names=["y"],
+        random_seed=seed,
+        extend_inferencedata=False,
+    )
+    for group in res.groups:
+        node = res[group].to_dataset()
+        if "y" in node:
+            return node["y"].values
+    raise AssertionError(f"no y in any group of {res.groups}")
+
+
+def test_a_restored_model_predicts_the_same_as_the_original(tmp_path):
+    """The claim a bundle rests on: a restored model, given the same draws, predicts the same.
+
+    Every other test checks structure, which is a proxy. This one runs the
+    posterior predictive through both models with a shared seed and compares the
+    numbers, which is the property a bundle is actually for.
+    """
+    model = build_model()
+    idata = pm.sample(
+        draws=100,
+        tune=100,
+        chains=2,
+        cores=1,
+        progressbar=False,
+        random_seed=7,
+        compute_convergence_checks=False,
+        model=model,
+    )
+
+    restored = load_model(save_model(model, tmp_path / "model"))
+
+    np.testing.assert_allclose(
+        _posterior_predictive(restored, idata, seed=99),
+        _posterior_predictive(model, idata, seed=99),
+    )

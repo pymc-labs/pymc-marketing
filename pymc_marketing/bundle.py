@@ -196,32 +196,33 @@ valid, and nothing here infers a bundle from its name. A URL is refused, since
 the compose route below for anywhere but a local disk.
 ``data.zarr`` appears only when you embed, named by ``data_format``.
 
-The graph is pymc's own round trip: ``pymc.model.fgraph.fgraph_from_model``
-builds a ``pytensor.FunctionGraph`` and ``model_from_fgraph`` reverses it.  This
-package owns neither, it only serializes the result and describes it.
+The Model itself is what gets serialized: cloudpickled whole, and unpickled on
+the way back.  Not lowered to a ``pytensor.FunctionGraph`` and rebuilt with
+``pymc.model.fgraph.model_from_fgraph``.  Both routes round trip the same numbers,
+but rebuilding re-derives ``named_vars_to_dims`` and lands a list where the Model
+holds a tuple, so dims do not survive on a pymc that has not fixed it
+(pymc-devs/pymc#8465).  ``Model.copy()`` and ``copy.deepcopy`` go through the same
+pair and have the same defect, so the Module is pickled rather than rebuilt.
+
+That also means a **subclass** of ``pm.Model`` comes back as its own type, with
+its state, and a class defined only in a notebook comes back by value without
+needing that code at load time.  Wrapper classes that *contain* a Model are
+unaffected, because they hand you a plain ``pm.Model`` to begin with.
 
 **Scope: a raw** ``pm.Model`` **in the environment that wrote it.**  This is a
 same-environment artefact, not an archival format: it depends on the pymc,
-pytensor and Python that produced the graph, which is why the manifest pins
+pytensor and Python that produced the model, which is why the manifest pins
 them.  For a builder class such as ``MMM``, use ``ModelIO.save`` / ``ModelIO.load``,
 which calls your class again, stores your configuration, and survives you editing
-the class.  This module stores the lowered graph instead, which is the faithful
-answer for a model built without one and the least portable.  If a format that
+the class.  This module stores the Model as built, which is the faithful answer
+for a model built without a builder and the least portable.  If a format that
 crosses versions is what you need, this is not it.
 
-Two consequences of that round trip, both tested:
-
-* ``model_from_fgraph`` calls ``Model(model=None)``, so a **subclass** of
-  ``pm.Model`` comes back as a plain ``Model``. Everything structural survives;
-  the Python type does not. Wrapper classes that *contain* a Model are
-  unaffected, because they hand you a plain ``pm.Model`` to begin with.
-* ``model_from_fgraph`` dispatches with ``isinstance``, so a **subclass** of one
-  of its marker Ops keeps the same branch and lands in the same model collection.
-
 The manifest deliberately does *not* copy the model structure.  Names, roles,
-dims, transforms and coords already live in the graph, as ``ModelVar`` props and
-``fgraph._coords``, and come back with the reconstructed Model.  What the graph
-cannot know is what wrote it, so that plus a fingerprint is all that is stored.
+dims, transforms and coords travel with the Model, so re-deriving them into the
+manifest would be a second thing to keep in step, and not the thing that is
+actually loaded.  What a Model cannot know is what wrote it, so that plus a
+fingerprint is all that is stored.
 """
 
 from __future__ import annotations
@@ -610,11 +611,6 @@ class AuditReport:
     """The result of :func:`audit`."""
 
     blockers: list[Blocker] = field(default_factory=list)
-    #: Whether ``pickle`` alone cannot round-trip this graph in *this* process.
-    #: That is not a portability guarantee: a class defined in ``__main__``
-    #: pickles by reference, so this can be False for a graph that still needs
-    #: its classes present elsewhere.
-    stdlib_pickle_fails: bool = False
     n_nodes: int = 0
     depth: int = 0
     #: The graph that was audited, so callers can reuse it instead of rebuilding.
@@ -632,8 +628,6 @@ class AuditReport:
     def __str__(self) -> str:
         """Return the report as lines: sizes, then any blocker and its remedy."""
         lines = [f"nodes={self.n_nodes} depth={self.depth} ok={self.ok}"]
-        if self.stdlib_pickle_fails:
-            lines.append("  ! stdlib pickle will not work; cloudpickle is required")
         lines.extend(
             f"  x {b.kind}: {b.detail}\n      remedy: {b.remedy}" for b in self.blockers
         )
@@ -729,24 +723,8 @@ def audit(model: pm.Model, *, fgraph: Any = None) -> AuditReport:
 
     report.fgraph = fgraph
     report.n_nodes, report.depth = _stats(fgraph)
-    report.stdlib_pickle_fails = _stdlib_pickle_fails(fgraph)
     report.blockers.extend(_customdist_blockers(model))
     return report
-
-
-def _stdlib_pickle_fails(fgraph) -> bool:
-    """Report whether the standard library cannot round-trip this graph.
-
-    Only ever called on a graph we just built in this process, so the ``loads``
-    here executes our own output rather than anything untrusted.
-    """
-    import pickle
-
-    try:
-        pickle.loads(pickle.dumps(fgraph, -1))  # noqa: S301 - our own graph
-    except Exception:
-        return True
-    return False
 
 
 def _customdist_blockers(model: pm.Model) -> list[Blocker]:
@@ -786,8 +764,8 @@ def _customdist_blockers(model: pm.Model) -> list[Blocker]:
     return found
 
 
-def serialize_graph(model: pm.Model, *, fgraph: Any = None) -> bytes:
-    """Serialize the model's graph, without deciding where it goes.
+def serialize_graph(model: pm.Model) -> bytes:
+    """Serialize the model, without deciding where it goes.
 
     Use this together with :func:`build_manifest` when you need to write a bundle
     somewhere :func:`save_model` does not cover: an object store, a registry, a
@@ -798,15 +776,24 @@ def serialize_graph(model: pm.Model, *, fgraph: Any = None) -> bytes:
     ----------
     model : pm.Model
         The model to serialize.
-    fgraph : pytensor.graph.fg.FunctionGraph, optional
-        An already built graph, to avoid a second build.
 
     Returns
     -------
     bytes
-        A cloudpickled ``pytensor.FunctionGraph``. cloudpickle rather than
-        stdlib pickle because pymc builds Op classes dynamically and they cannot
-        be resolved by import path.
+        A cloudpickled ``pm.Model``. cloudpickle rather than stdlib pickle
+        because pymc builds Op classes dynamically and they cannot be resolved
+        by import path.
+
+    Notes
+    -----
+    The Model is pickled whole, rather than lowered to a
+    ``pytensor.FunctionGraph`` and rebuilt with ``model_from_fgraph``. Both round
+    trip the same numbers, but rebuilding re-derives ``named_vars_to_dims``
+    through ``add_named_variable`` and lands a list where the Model holds a
+    tuple, so dims do not survive. That is pymc#8465, and it costs a caller on a
+    released pymc a Model whose declared dims disagree with its own.
+    ``Model.copy()`` and ``copy.deepcopy`` go through the same pair and have the
+    same defect, so picking the Model avoids inheriting it.
 
     Examples
     --------
@@ -819,11 +806,7 @@ def serialize_graph(model: pm.Model, *, fgraph: Any = None) -> bytes:
     """
     import cloudpickle
 
-    if fgraph is None:
-        fgraph, blocker = _fgraph_or_blocker(model)
-        if blocker is not None:
-            raise ValueError(f"cannot serialize this model:\n  {blocker.detail}")
-    return cloudpickle.dumps(fgraph, protocol=-1)
+    return cloudpickle.dumps(model, protocol=-1)
 
 
 #: File name for data embedded in a bundle, by format.
@@ -1137,7 +1120,7 @@ def save_model(
         data_format=data_format,
         fgraph=report.fgraph,
     )
-    blob = serialize_graph(model, fgraph=report.fgraph)
+    blob = serialize_graph(model)
     # Render before creating anything, so a bad manifest leaves no half-built
     # directory behind.
     text = _dump_json(manifest)
@@ -1483,17 +1466,16 @@ class ModelBundle:
     def model(self) -> pm.Model:
         """The reconstructed Model.
 
-        Dims round trip as-is. pymc used to hand ``model_from_fgraph`` a list
-        where ``add_named_variable`` declares a tuple, which made a cloned
-        model's ``named_vars_to_dims`` compare unequal to the original's; that
-        is fixed upstream, and nothing here works around it.
+        Dims round trip as-is, because the Model is unpickled rather than rebuilt
+        from a graph. Rebuilding re-derives ``named_vars_to_dims`` and on a
+        released pymc lands a list where the Model holds a tuple, so a restored
+        model's declared dims would not compare equal to the original's.
         """
         if self._model is None:
             import cloudpickle
-            from pymc.model.fgraph import model_from_fgraph
 
             _warn_untrusted_blob()
-            self._model = model_from_fgraph(cloudpickle.loads(self._blob))
+            self._model = cloudpickle.loads(self._blob)
         return self._model
 
     def validate(self, rtol: float = 1e-6, atol: float = 1e-8) -> ValidationResult:
