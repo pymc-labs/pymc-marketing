@@ -215,9 +215,13 @@ from __future__ import annotations
 import datetime as dt
 import hashlib
 import json
+import os
+import re
+import shutil
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
+from urllib.parse import urlparse, urlunparse
 
 if TYPE_CHECKING:
     import pymc as pm
@@ -251,6 +255,11 @@ GRAPH_FILE = "graph.cloudpickle"
 
 #: Suffixes we recognise when inferring a data format from a location.
 _NETCDF_SUFFIXES = (".nc", ".nc4", ".cdf", ".netcdf")
+
+#: A Windows drive-letter path, e.g. ``C:\\data``. ``Path("C:\\data").drive`` is
+#: empty on POSIX, because pathlib does not treat backslash as a separator, so the
+#: pattern has to be matched against the raw string.
+_WINDOWS_DRIVE = re.compile(r"^[A-Za-z]:[\\/]")
 
 
 @dataclass(frozen=True)
@@ -292,6 +301,9 @@ class DataRef:
     location: str
     format: str | None = None
     groups: tuple[str, ...] = ()
+    #: True only for data this bundle wrote into itself. A relative path that the
+    #: caller pointed at is *not* portable, even though it looks relative.
+    embedded: bool = False
 
     @staticmethod
     def _infer_format(location: str) -> str:
@@ -328,6 +340,7 @@ class DataRef:
             "location": self.location,
             "format": self.format,
             "groups": list(self.groups),
+            "embedded": self.embedded,
         }
 
     @classmethod
@@ -337,27 +350,60 @@ class DataRef:
             location=raw["location"],
             format=raw.get("format"),
             groups=tuple(raw.get("groups", ())),
+            embedded=raw.get("embedded", False),
         )
 
     @property
     def is_remote(self) -> bool:
-        """True for a URL with a scheme, e.g. ``s3://bucket/run.zarr``."""
-        return "://" in self.location and not self.location.startswith("file://")
+        """True for a URL this package cannot open itself, e.g. ``s3://bucket/run.zarr``.
+
+        ``file://`` is deliberately *not* remote: it is a local path, and treating
+        it as remote would hide the fact that ``Path("file:///x").is_absolute()``
+        is False, which would otherwise make it look like a portable ref.
+        """
+        scheme = urlparse(self.location).scheme
+        if scheme in ("", "file"):
+            return False
+        if _WINDOWS_DRIVE.match(self.location):
+            return False
+        return True
+
+    @property
+    def is_absolute(self) -> bool:
+        """True for a location that names the same place in every process."""
+        if self.is_remote:
+            return True
+        if urlparse(self.location).scheme == "file":
+            return True
+        # Windows drive letters are absolute on Windows, which is where such a
+        # path would have been written, so treat them as absolute everywhere.
+        if _WINDOWS_DRIVE.match(self.location):
+            return True
+        return Path(self.location).expanduser().is_absolute()
 
     @property
     def is_portable(self) -> bool:
-        """True when the location is relative and so travels with the bundle.
+        """True when the location travels with the bundle.
 
-        ``save_model`` records embedded data relative to the bundle directory, so
-        a bundle can be moved or copied and still find its own data.
+        Only data this bundle wrote into itself, and only when its location is
+        relative. A *relative path the caller pointed at* is not portable: it is
+        the caller's path, and resolving it against the bundle would look for
+        ``runs/42/model/runs/42/run.zarr``.
         """
-        return not self.is_remote and not Path(self.location).is_absolute()
+        return self.embedded and not self.is_remote and not self.is_absolute
+
+    def expanded(self) -> Path:
+        """Return the local path with ``~`` expanded."""
+        text = self.location
+        if urlparse(text).scheme == "file":
+            text = urlunparse(urlparse(text)._replace(scheme=""))
+        return Path(text).expanduser()
 
     def exists(self) -> bool:
         """Whether the location resolves. Remote URLs are not probed."""
         if self.is_remote:
             return True
-        return Path(self.location).expanduser().exists()
+        return self.expanded().exists()
 
 
 @dataclass(frozen=True)
@@ -440,6 +486,12 @@ class Manifest:
             "pymc": _version("pymc"),
             "pytensor": _version("pytensor"),
             "pymc_marketing": _version("pymc_marketing"),
+            # cloudpickle stores dynamic classes as bytecode, so the Python that
+            # writes a bundle is the version most likely to break loading it.
+            "python": _python_version(),
+            # The logp reference is only meaningful at the precision it was taken
+            # at, so record the precision it was taken at.
+            "floatX": _floatX(),
         }
         return {
             k: (self.raw[k], live[k])
@@ -464,15 +516,10 @@ def _fingerprint(model: pm.Model) -> str:
 
     Order is excluded on purpose: it is not preserved and does not matter.
     Dims are joined to a string so the hash does not care whether they arrive as
-    a tuple or a list.
-
-    Only comparable within one pytensor version: coord values go through
-    ``Constant.signature``, whose semantics pytensor owns. A drift there shows up
-    as a "structure changed" note from :meth:`ModelBundle.validate`, never as a
-    failed check.
+    a tuple or a list. Coord values are hashed from their dtype and bytes, so a
+    string or datetime coord moves the hash when it changes, and a long coord is
+    not abbreviated.
     """
-    import pytensor.tensor as pt
-
     h = hashlib.sha256()
     h.update(("named:" + ",".join(sorted(model.named_vars))).encode())
     for collection, label in (
@@ -496,19 +543,43 @@ def _fingerprint(model: pm.Model) -> str:
         h.update(f"|tr:{name}={_transform_label(transforms[key])}".encode())
     coords = getattr(model, "_coords", None) or getattr(model, "coords", None) or {}
     for key in sorted(coords):
-        try:
-            # pytensor's own value signature: stable across processes, unlike a
-            # repr, and unlike len() it notices the values and not just length
-            # signature() is on Variable at runtime; the stubs do not say so.
-            sig = pt.as_tensor_variable(coords[key]).signature()  # type: ignore[attr-defined]
-        except Exception:  # noqa: S112 - a coord we cannot put on a tensor
-            # contributes nothing to the hash, and skipping it keeps an exotic
-            # coord from making every model look changed.
-            continue
-        h.update(
-            f"|coord:{key}={hashlib.sha256(repr(sig).encode()).hexdigest()[:16]}".encode()
-        )
+        h.update(f"|coord:{key}={_coord_digest(coords[key])}".encode())
     return h.hexdigest()[:32]
+
+
+def _coord_digest(value: Any) -> str:
+    """Return a hash of a coord's dtype and exact bytes.
+
+    Going through ``pytensor.tensor.as_tensor_variable`` looks tidier, but it
+    rejects the dtypes that matter most here: ``["a", "b"]`` raises
+    ``TypeError: Unsupported dtype for TensorType: <U1``. An earlier version
+    swallowed that, which meant every model with a string coord, a datetime
+    coord, or a pandas index fingerprinted the same however its coord changed.
+
+    Hashing dtype, shape and bytes covers every dtype numpy can hold, and unlike
+    ``repr`` it does not abbreviate long arrays to ``...``.
+    """
+    import numpy as np
+
+    try:
+        arr = np.asarray(value)
+    except Exception:
+        # Not array-like at all. Hash a repr rather than dropping the coord, so
+        # that a change to it still moves the fingerprint.
+        return "repr:" + hashlib.sha256(repr(value).encode()).hexdigest()[:16]
+    if arr.dtype == object:
+        # Object arrays hold arbitrary Python. Hash element reprs, which still
+        # distinguishes values, rather than bailing out of the coord.
+        try:
+            joined = "\x00".join(repr(item) for item in arr.ravel().tolist())
+        except Exception:
+            joined = repr(value)
+        return "object:" + hashlib.sha256(joined.encode()).hexdigest()[:16]
+    digest = hashlib.sha256()
+    digest.update(str(arr.dtype).encode())
+    digest.update(str(arr.shape).encode())
+    digest.update(np.ascontiguousarray(arr).tobytes())
+    return f"{arr.dtype}:{digest.hexdigest()[:16]}"
 
 
 @dataclass(frozen=True)
@@ -752,6 +823,35 @@ def _looks_remote(value: str | Path) -> bool:
     return "://" in str(value)
 
 
+def _logp_close(actual: float, recorded: float, rtol: float, atol: float) -> bool:
+    """Compare two logp values on both a relative and an absolute scale.
+
+    Relative alone would be wrong for a logp near zero, and absolute alone is
+    hopeless for a logp of 1e6, where a relative difference of 1e-9 is already
+    1e-3 in absolute terms.
+    """
+    import numpy as np
+
+    return bool(np.isclose(actual, recorded, rtol=rtol, atol=atol))
+
+
+def _require_zarr(action: str) -> None:
+    """Raise with the install line if zarr is missing.
+
+    zarr is deliberately not a hard dependency: a bundle that only stores the
+    model never touches it, and adding it to the environment for those users
+    would be worse than a clear message when they actually embed or open data.
+    """
+    import importlib.util
+
+    if importlib.util.find_spec("zarr") is None:
+        raise ImportError(
+            f"cannot {action} zarr data, because zarr is not installed. "
+            f"Install it with `pip install zarr` or `uv add zarr`, or use "
+            f"data_format='netcdf', which needs h5netcdf or netCDF4 instead."
+        )
+
+
 def _netcdf_engine(action: str) -> Literal["h5netcdf", "netcdf4"]:
     """Pick a netCDF engine that can handle groups, or say why none can.
 
@@ -805,16 +905,8 @@ def _write_embedded(idata, dest: Path, fmt: str, groups) -> None:
         tree.to_netcdf(str(dest), engine=_netcdf_engine("write"))
         return
 
-    try:
-        tree.to_zarr(dest, zarr_format=2)
-    except ImportError as exc:
-        # xarray says "Missing optional dependency 'zarr'", which is true and
-        # unhelpful: say what to do instead.
-        raise ImportError(
-            "cannot embed data as zarr, because zarr is not installed. "
-            "Install zarr, or pass data_format='netcdf', which needs "
-            "h5netcdf or netCDF4."
-        ) from exc
+    _require_zarr("embed")
+    tree.to_zarr(dest, zarr_format=2)
 
 
 def _groups_of(idata) -> tuple[str, ...]:
@@ -876,6 +968,8 @@ def build_manifest(
         "pymc": _version("pymc"),
         "pytensor": _version("pytensor"),
         "pymc_marketing": _version("pymc_marketing"),
+        "python": _python_version(),
+        "floatX": _floatX(),
         "n_nodes": n_nodes,
         "depth": depth,
         # change detection rather than a structural copy
@@ -902,7 +996,12 @@ def _data_ref(idata, groups, *, embedded: bool, data_format: str = "zarr") -> Da
                 "use build_manifest with a DataRef or path if you are writing the files yourself"
             )
         kept = tuple(groups) if groups else _groups_of(idata)
-        return DataRef(EMBEDDED_NAMES[data_format], format=data_format, groups=kept)
+        return DataRef(
+            EMBEDDED_NAMES[data_format],
+            format=data_format,
+            groups=kept,
+            embedded=True,
+        )
     return DataRef.coerce(idata)
 
 
@@ -938,6 +1037,20 @@ def save_model(
         embed it in the bundle. Anything in a ``pm.sample`` result can be stored:
         posterior, posterior_predictive, observed_data, constant_data,
         prior_predictive, sample_stats.
+
+        This is inference output only. The values the Model itself was built
+        from, meaning ``pm.Data`` containers and the ``observed`` arrays, are part
+        of the graph and always go into ``graph.cloudpickle`` whether or not you
+        pass ``idata``. So a bundle holds your training data, including anything
+        personal in it, and should be treated as sensitive wherever it is stored.
+        Replace those values with empty containers before saving if the bundle
+        has to leave a trusted boundary.
+
+        A relative path you pass here is recorded exactly as written and resolved
+        by the caller, against the process working directory. It is not resolved
+        against the bundle, so the same bundle reads the same data only from the
+        same working directory. Pass an absolute path, or embed the data, when the
+        bundle has to be readable from elsewhere.
     data_groups : tuple of str, optional
         Which groups to embed. Omit to keep all of them. Only used when
         embedding.
@@ -950,6 +1063,15 @@ def save_model(
     -------
     Path
         The bundle directory.
+
+    Notes
+    -----
+    Saving builds the bundle in a sibling directory and moves it into place at the
+    end, so an interrupted save cannot leave a mixture of two models. Saving over
+    an existing bundle replaces it wholesale, which means data the previous
+    bundle held is not carried over: passing no ``idata`` to a re-save drops the
+    old ``data.zarr`` rather than leaving it stranded next to a manifest that no
+    longer mentions it.
 
     Raises
     ------
@@ -999,30 +1121,134 @@ def save_model(
             f"serialize_graph, then write the two parts wherever you like, and read "
             f"them back with ModelBundle.from_parts."
         )
+    # Build in a sibling and move it into place, so the destination is either the
+    # old bundle or the new one and never a mixture. Writing directly meant a
+    # failure part-way through left a manifest describing one model beside the
+    # previous model's data, and a re-save over an existing data.zarr raised
+    # FileExistsError *after* the manifest and graph had already been replaced.
     root = Path(path)
-    root.mkdir(parents=True, exist_ok=True)
-    (root / MANIFEST_FILE).write_text(text)
-    (root / GRAPH_FILE).write_bytes(blob)
+    staging = root.with_name(root.name + ".incomplete")
+    backup = root.with_name(root.name + ".previous")
+    _recover_interrupted_save(root, backup)
+    _clear_staging(staging)
 
-    if embedding:
-        _write_embedded(
-            idata, root / EMBEDDED_NAMES[data_format], data_format, data_groups or ()
-        )
+    try:
+        staging.mkdir(parents=True)
+        (staging / MANIFEST_FILE).write_text(text)
+        (staging / GRAPH_FILE).write_bytes(blob)
+        if embedding:
+            _write_embedded(
+                idata,
+                staging / EMBEDDED_NAMES[data_format],
+                data_format,
+                data_groups or (),
+            )
+    except BaseException:
+        shutil.rmtree(staging, ignore_errors=True)
+        raise
+
+    _swap_into_place(staging, root, backup)
     return root
 
 
+_UNTRUSTED_BLOB_WARNED = False
+
+
+def _warn_untrusted_blob() -> None:
+    """Say plainly that reading the graph runs code from whoever wrote it.
+
+    cloudpickle is a pickle: unpickling can import modules and call anything the
+    payload names. pickle has no equivalent of ``load`` versus a restricted
+    reader, so the honest options are to trust the bundle or not read it at all,
+    and silence here is how people lose track of which one they did.
+
+    Once per process. The step happens once per bundle, but ``load_model`` builds
+    a fresh bundle per call, and a warning that fires on every ordinary load
+    trains people to ignore it.
+    """
+    global _UNTRUSTED_BLOB_WARNED
+    if _UNTRUSTED_BLOB_WARNED:
+        return
+
+    import warnings
+
+    warnings.warn(
+        "loading a bundle unpickles graph.cloudpickle, which runs code from "
+        "whoever wrote the bundle, the same way pickle.load does. Only load a "
+        "bundle you produced yourself or otherwise trust.",
+        UserWarning,
+        stacklevel=3,
+    )
+    _UNTRUSTED_BLOB_WARNED = True
+
+
+def _swap_into_place(staging: Path, root: Path, backup: Path) -> None:
+    """Move a finished staging directory over the destination.
+
+    ``os.replace`` cannot move a directory over a non-empty one, which is the
+    re-save case, so the old bundle is renamed aside first. Same filesystem, so
+    these are renames and not copies.
+    """
+    if root.exists():
+        os.replace(root, backup)
+    try:
+        os.replace(staging, root)
+    except BaseException:
+        # Never leave the caller with nothing where a working bundle used to be.
+        if backup.exists() and not root.exists():
+            os.replace(backup, root)
+        shutil.rmtree(staging, ignore_errors=True)
+        raise
+    shutil.rmtree(backup, ignore_errors=True)
+
+
+def _recover_interrupted_save(root: Path, backup: Path) -> None:
+    """Restore a bundle stranded by a save killed between the two renames."""
+    if backup.exists() and not root.exists():
+        os.replace(backup, root)
+
+
+def _clear_staging(staging: Path) -> None:
+    """Remove a leftover staging directory from an interrupted save."""
+    if staging.exists():
+        shutil.rmtree(staging)
+
+
 def _reference_logp(model: pm.Model) -> float | None:
-    """Logp at the initial point, so :meth:`ModelBundle.validate` has something to compare."""
+    """Logp at the initial point, so :meth:`ModelBundle.validate` has something to compare.
+
+    Returns None when the model cannot produce one, and says so. A bundle whose
+    reference is silently missing reads as "nothing to compare", which is easy to
+    mistake for "nothing to worry about".
+    """
+    import warnings
+
     try:
         import numpy as np
 
         point = model.initial_point()
         value = float(np.asarray(model.compile_logp()(point), dtype=float))
-    except Exception:
+    except Exception as exc:
+        warnings.warn(
+            f"could not compute a reference logp for this model, so the bundle "
+            f"will record reference_logp=null and validate() cannot check drift: "
+            f"{type(exc).__name__}: {exc}",
+            UserWarning,
+            stacklevel=3,
+        )
         return None
     # NaN and inf are not JSON, and a reference that cannot be compared is worse
     # than no reference at all.
-    return value if np.isfinite(value) else None
+    if not np.isfinite(value):
+        warnings.warn(
+            f"the reference logp for this model is {value}, which is not JSON "
+            f"representable, so the bundle will record reference_logp=null and "
+            f"validate() cannot check drift.",
+            UserWarning,
+            stacklevel=3,
+        )
+        return None
+    return value
 
 
 def _unserializable(value: Any, path: str = "manifest"):
@@ -1094,6 +1320,10 @@ class ModelBundle:
         this when the bundle did not come from a local directory, such as an
         object store, a registry, or a database.
 
+        Reading ``graph`` unpickles it, which runs code the same way
+        ``pickle.load`` does, so treat anything you fetched from a remote store
+        as untrusted until you know who wrote it.
+
         Parameters
         ----------
         manifest : dict or str or bytes
@@ -1148,15 +1378,16 @@ class ModelBundle:
     def resolve(self, ref: DataRef | None = None) -> str | Path:
         """Resolve a pointer to something openable.
 
-        A relative location is taken as relative to the bundle, which is how
-        embedded data is recorded, so a bundle can be moved and still find its
-        own data. Absolute paths and remote URLs are returned unchanged.
+        Data this bundle embedded is recorded relative to the bundle, so it moves
+        with it and is resolved against ``self.path``. Anything else is the
+        caller's own path or URL and is returned as written, with ``~`` expanded
+        so it still means the same directory to the process that opens it.
         """
         ref = ref if ref is not None else self.data
         if ref is None:
             raise ValueError(f"{self.path} records no data pointer")
         if not ref.is_portable:
-            return ref.location
+            return ref.location if ref.is_remote else ref.expanded()
         if str(self.path) == _IN_MEMORY:
             # Embedded data travels with the bundle, so a bundle assembled from
             # bytes in memory has nowhere to look. MLflow and friends hand the
@@ -1206,6 +1437,7 @@ class ModelBundle:
         if ref.format == "netcdf":
             tree = xr.open_datatree(target, engine=_netcdf_engine("read"))
         else:
+            _require_zarr("read")
             tree = xr.open_datatree(target, engine="zarr")
         return tree if group is None else tree[group].to_dataset()
 
@@ -1226,11 +1458,32 @@ class ModelBundle:
             import cloudpickle
             from pymc.model.fgraph import model_from_fgraph
 
+            _warn_untrusted_blob()
             self._model = model_from_fgraph(cloudpickle.loads(self._blob))
         return self._model
 
-    def validate(self, atol: float = 1e-8) -> ValidationResult:
+    def validate(self, rtol: float = 1e-6, atol: float = 1e-8) -> ValidationResult:
         """Check this bundle really is the Model that was saved.
+
+        Parameters
+        ----------
+        rtol : float
+            Relative tolerance on the logp comparison. A logp on real data is
+            often 1e4 to 1e6, where summation order alone across BLAS builds or
+            thread counts moves it by more than any sensible absolute tolerance.
+            Under ``floatX=float32`` the recorded value is itself noisy, so raise
+            this if you validate such a bundle repeatedly.
+        atol : float
+            Absolute tolerance, for a logp near zero where a relative test would
+            be meaningless.
+
+        Notes
+        -----
+        The comparison is against the logp at the moment the bundle was written.
+        Replacing shared variables afterwards, with ``pm.set_data``, changes the
+        current logp without meaning the bundle is wrong, so a ``logp`` failure
+        on a model you have re-pointed at new data is expected rather than a
+        warning sign.
 
         Returns
         -------
@@ -1282,10 +1535,17 @@ class ModelBundle:
             else:
                 result.reference_logp = recorded
                 result.logp_delta = abs(actual - recorded)
-                result.checks["logp"] = result.logp_delta <= atol
+                result.checks["logp"] = _logp_close(actual, recorded, rtol, atol)
                 if not result.checks["logp"]:
                     result.differences.append(
                         f"logp drifted: recorded {recorded!r}, now {actual!r}"
+                    )
+                    result.notes.append(
+                        "the reference logp is the value at the time this bundle was "
+                        "written. Changing shared variables since then, with "
+                        "pm.set_data, moves the current value without meaning the "
+                        "bundle is damaged, so check whether you did that before "
+                        "treating this as corruption."
                     )
 
         result.ok = (
@@ -1332,6 +1592,10 @@ class ValidationResult:
 def load(path: str | Path) -> ModelBundle:
     """Open a bundle without rebuilding the Model.
 
+    Reading the manifest and the data is safe. The graph is only unpickled when
+    you ask for :attr:`ModelBundle.model`, and that step runs code the same way
+    ``pickle.load`` does, so :attr:`ModelBundle.model` warns.
+
     Parameters
     ----------
     path : str or Path
@@ -1346,6 +1610,10 @@ def load(path: str | Path) -> ModelBundle:
 
 def load_model(path: str | Path) -> pm.Model:
     """Return the Model. The short path: hand me a bundle, get a Model.
+
+    The graph is unpickled to get the Model, so only call this on a bundle you
+    produced yourself or otherwise trust; loading runs code the same way
+    ``pickle.load`` does.
 
     Parameters
     ----------
@@ -1386,6 +1654,20 @@ def _stats(fgraph) -> tuple[int, int]:
 def _names(sequence) -> list[str]:
     """Model collections mix treelists of Variables with treedicts keyed by name."""
     return [v if isinstance(v, str) else v.name for v in sequence]
+
+
+def _python_version() -> str:
+    """Return the running Python version, which cloudpickled bytecode depends on."""
+    import platform
+
+    return platform.python_version()
+
+
+def _floatX() -> str:
+    """Return pytensor's floatX, which bounds how precise a logp can be."""
+    import pytensor
+
+    return str(pytensor.config.floatX)
 
 
 def _version(module: str) -> str:

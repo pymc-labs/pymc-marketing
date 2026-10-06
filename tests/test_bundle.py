@@ -14,7 +14,9 @@
 import importlib.util
 import inspect
 import json
+import os
 import re
+from pathlib import Path
 
 import cloudpickle
 import numpy as np
@@ -25,6 +27,7 @@ import pytest
 from pymc.model.fgraph import fgraph_from_model, model_from_fgraph
 
 from pymc_marketing.bundle import (
+    DataRef,
     ModelBundle,
     _fingerprint,
     _names,
@@ -512,7 +515,23 @@ def test_data_ref_has_a_fixed_key_set():
     """The name is standardized, so consumers can rely on the keys."""
     from pymc_marketing.bundle import DataRef
 
-    assert sorted(DataRef("a.zarr").as_dict()) == ["format", "groups", "location"]
+    assert sorted(DataRef("a.zarr").as_dict()) == [
+        "embedded",
+        "format",
+        "groups",
+        "location",
+    ]
+
+
+def test_a_manifest_written_before_the_embedded_key_still_loads(tmp_path):
+    """`embedded` was added after the first release, so old manifests lack it."""
+    from pymc_marketing.bundle import DataRef, Manifest
+
+    old = DataRef.from_dict(
+        {"location": "data.zarr", "format": "zarr", "groups": ["posterior"]}
+    )
+    assert old.embedded is False
+    assert Manifest({}).raw == {}
 
 
 def test_saving_without_data_records_no_pointer(tmp_path):
@@ -1433,3 +1452,301 @@ def test_the_documented_prediction_recipe_works(tmp_path):
     # "'tuple' object has no attribute 'maker'".
     doc = inspect.getdoc(bundle_module) or ""
     assert "core, _volatile = compile_forward_sampling_function(" in doc
+
+
+@pytest.mark.parametrize(
+    ("label", "before", "after"),
+    [
+        ("string", ["alpha", "beta"], ["alpha", "GAMMA"]),
+        ("integer", [1, 2, 3], [1, 2, 4]),
+        ("datetime", ["2020-01-01", "2020-01-02"], ["2021-01-01", "2021-01-02"]),
+        ("mixed-types", [1, "a"], [1, "b"]),
+    ],
+)
+def test_fingerprint_notices_a_changed_string_or_datetime_coord(label, before, after):
+    """A coord change must move the fingerprint, whatever its dtype.
+
+    Regression: hashing went through pytensor's as_tensor_variable, which raises
+    TypeError on a unicode dtype. That was swallowed, so every model with a
+    string coord fingerprinted identically however the coord changed.
+    """
+    import pydantic
+
+    def build(coord):
+        with pm.Model(
+            coords={"feature": pydantic.TypeAdapter(list).validate_python(coord)}
+        ) as m:
+            pm.Normal("b", 0, 1, dims="feature")
+        return _fingerprint(m)
+
+    assert build(before) != build(after), label
+
+
+def test_fingerprint_notices_a_change_in_a_long_coord():
+    """repr abbreviates past 1000 elements, which used to hide the change."""
+    before = list(range(1500))
+    after = list(range(1500))
+    after[-1] = -1
+
+    def build(coord):
+        with pm.Model(coords={"feature": coord}) as m:
+            pm.Normal("b", 0, 1, dims="feature")
+        return _fingerprint(m)
+
+    assert build(before) != build(after)
+
+
+def test_fingerprint_is_stable_for_an_unchanged_coord():
+    with pm.Model(coords={"feature": ["alpha", "beta"]}) as m:
+        pm.Normal("b", 0, 1, dims="feature")
+
+    assert _fingerprint(m) == _fingerprint(m)
+
+
+def test_a_relative_pointer_is_the_callers_path_not_the_bundles(tmp_path):
+    """A relative path the caller pointed at must not resolve inside the bundle.
+
+    Regression: `is_portable` was true for any relative location, so the
+    `runs/42/run.zarr` this module's own docstring recommends resolving to
+    `runs/42/model/runs/42/run.zarr`.
+    """
+    path = save_model(build_model(), tmp_path / "model", idata="runs/42/run.zarr")
+    bundle = load(path)
+
+    assert bundle.data.embedded is False
+    assert bundle.data.is_portable is False
+    assert bundle.resolve() == Path("runs/42/run.zarr").expanduser()
+
+
+def test_embedded_data_is_still_relocatable(tmp_path):
+    """The case the relative resolution exists for must keep working."""
+    import shutil
+
+    saved = save_model(build_model(), tmp_path / "model", idata=build_sampled_idata())
+    assert load(saved).resolve() == saved / "data.zarr"
+
+    moved = tmp_path / "moved"
+    shutil.copytree(saved, moved)
+
+    assert load(moved).resolve() == moved / "data.zarr"
+    assert "posterior" in load(moved).open_data()
+
+
+@pytest.mark.parametrize(
+    ("location", "remote", "absolute"),
+    [
+        ("s3://bucket/run.zarr", True, True),
+        ("file:///data/run.zarr", False, True),
+        ("C:\\data\\run.zarr", False, True),
+        ("~/run.zarr", False, True),
+        ("/abs/run.zarr", False, True),
+        ("runs/42/run.zarr", False, False),
+    ],
+)
+def test_location_parsing(location, remote, absolute):
+    """`file://`, Windows drives and `~` all name a fixed place, not a relative one.
+
+    Regression: `file:///x` and `C:\\x` were treated as relative because
+    `Path("file:///x").is_absolute()` is False, so they resolved inside the bundle.
+    """
+    ref = DataRef(location)
+
+    assert ref.is_remote is remote
+    assert ref.is_absolute is absolute
+    assert ref.is_portable is False
+
+
+def test_tilde_is_expanded_when_resolving(tmp_path):
+    ref = DataRef("~/run.zarr")
+
+    assert "~" not in str(ref.expanded())
+    assert str(ref.expanded()) == str(Path("~/run.zarr").expanduser())
+
+
+def test_a_missing_zarr_says_how_to_install_it(tmp_path, monkeypatch):
+    """zarr is optional, so the error must name the install rather than leak xarray's."""
+    from pymc_marketing.bundle import _require_zarr
+
+    monkeypatch.setattr("importlib.util.find_spec", lambda name: None)
+
+    with pytest.raises(ImportError, match=r"pip install zarr"):
+        _require_zarr("read")
+    with pytest.raises(ImportError, match="data_format='netcdf'"):
+        _require_zarr("embed")
+
+
+def test_reading_zarr_data_checks_for_zarr_first(tmp_path, monkeypatch):
+    """The guard runs before xarray is asked, so the message is ours."""
+    path = save_model(build_model(), tmp_path / "model", idata=build_sampled_idata())
+    real = importlib.util.find_spec
+
+    def without_zarr(name):
+        return None if name == "zarr" else real(name)
+
+    monkeypatch.setattr("importlib.util.find_spec", without_zarr)
+
+    with pytest.raises(ImportError, match=r"pip install zarr"):
+        load(path).open_data()
+
+
+def test_a_large_logp_is_not_failed_by_a_tiny_relative_difference(bundle_path):
+    """An absolute tolerance alone fails a correct bundle at realistic logp sizes.
+
+    A logp of order 1e4-1e6 moves by more than 1e-8 under summation-order
+    changes alone, so comparing on `atol` alone reports a false FAIL.
+    """
+    from pymc_marketing.bundle import _logp_close
+
+    recorded = -4594.7
+    perturbed = recorded * (1 + 1e-9)
+
+    assert abs(perturbed - recorded) > 1e-8, "the perturbation is the problem"
+    assert _logp_close(perturbed, recorded, rtol=1e-6, atol=1e-8)
+    assert not _logp_close(recorded * 1.01, recorded, rtol=1e-6, atol=1e-8)
+
+
+def test_a_logp_near_zero_compares_absolutely():
+    """Relative alone is meaningless when the reference is ~0."""
+    from pymc_marketing.bundle import _logp_close
+
+    assert _logp_close(0.0, 1e-12, rtol=1e-6, atol=1e-8)
+    assert not _logp_close(1e-3, 0.0, rtol=1e-6, atol=1e-8)
+
+
+def test_manifest_records_python_and_floatx(tmp_path):
+    """cloudpickle stores bytecode, so the Python version is the fragile one."""
+    import platform
+
+    raw = json.loads(
+        (save_model(build_model(), tmp_path / "model") / "manifest.json").read_text()
+    )
+
+    assert raw["python"] == platform.python_version()
+    assert raw["floatX"] in ("float32", "float64")
+
+
+def test_a_missing_reference_logp_warns_rather_than_going_quiet(tmp_path):
+    """Silently recording null reads as 'nothing to compare', which is not the same."""
+    import pytensor.tensor as pt
+
+    from pymc_marketing.bundle import build_manifest
+
+    with pm.Model() as model:
+        x = pt.scalar("x")
+        pm.Normal("y", x, 1, observed=1.0)
+
+    with pytest.warns(UserWarning, match="cannot check drift"):
+        manifest = build_manifest(model)
+
+    assert manifest["reference_logp"] is None
+
+
+def _scaled_idata(value):
+    import xarray as xr
+
+    draw = xr.Dataset(
+        {"b": (("chain", "draw"), np.full((2, 3), value))},
+        coords={"chain": [0, 1], "draw": np.arange(3)},
+    )
+    return xr.DataTree.from_dict({"/posterior": draw})
+
+
+def test_resaving_over_a_bundle_replaces_it(tmp_path):
+    """Regression: re-saving raised FileExistsError once data.zarr existed."""
+    path = save_model(build_model(), tmp_path / "model", idata=_scaled_idata(2.0))
+
+    save_model(build_model(), path, idata=_scaled_idata(3.0))
+
+    assert load(path).open_data(group="posterior")["b"].values[0, 0] == 3.0
+    assert [p.name for p in tmp_path.iterdir()] == ["model"], "staging left behind"
+
+
+def test_resaving_without_data_does_not_leave_the_old_data(tmp_path):
+    """Regression: the new manifest said no data while the old data.zarr remained."""
+    path = save_model(build_model(), tmp_path / "model", idata=_scaled_idata(2.0))
+
+    save_model(build_model(), path)
+
+    assert load(path).manifest.data is None
+    assert not (path / "data.zarr").exists()
+
+
+def test_a_failed_save_leaves_the_previous_bundle_intact(tmp_path, monkeypatch):
+    """A save that dies part-way through must not mix two models in one directory."""
+    path = save_model(build_model(), tmp_path / "model", idata=_scaled_idata(2.0))
+    before = load(path).validate()
+    assert before.ok, before.notes
+
+    def fail(*args, **kwargs):
+        raise RuntimeError("disk full")
+
+    monkeypatch.setattr("pymc_marketing.bundle._write_embedded", fail)
+
+    with pytest.raises(RuntimeError, match="disk full"):
+        save_model(build_model(), path, idata=_scaled_idata(9.0))
+
+    after = load(path)
+    assert after.open_data(group="posterior")["b"].values[0, 0] == 2.0
+    assert after.validate().ok, after.validate().notes
+    assert [p.name for p in tmp_path.iterdir()] == ["model"]
+
+
+def test_a_bundle_stranded_between_renames_is_recovered(tmp_path):
+    """A save killed after moving the old bundle aside leaves it recoverable."""
+    path = save_model(build_model(), tmp_path / "model", idata=_scaled_idata(2.0))
+
+    stranded = tmp_path / "model.previous"
+    os.replace(path, stranded)
+    assert not path.exists()
+
+    save_model(build_model(), path, idata=_scaled_idata(4.0))
+
+    assert load(path).open_data(group="posterior")["b"].values[0, 0] == 4.0
+    assert [p.name for p in tmp_path.iterdir()] == ["model"]
+
+
+def test_building_the_model_warns_that_the_graph_is_unpickled(bundle_path):
+    """cloudpickle runs code like pickle, so the one unpickling step says so."""
+    monkeypatch = pytest.MonkeyPatch()
+    monkeypatch.setattr("pymc_marketing.bundle._UNTRUSTED_BLOB_WARNED", False)
+    try:
+        with pytest.warns(UserWarning, match=r"runs code from.*trust"):
+            load(bundle_path).model
+
+        # Once is enough. A notice on every load gets ignored, which is the one
+        # outcome that leaves the reader thinking they checked.
+        import warnings
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            load(bundle_path).model
+    finally:
+        monkeypatch.undo()
+
+
+def test_reading_the_manifest_alone_warns_about_nothing(bundle_path):
+    """Only the unpickling step is risky, so that is the only step that warns."""
+    import warnings
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        bundle = load(bundle_path)
+
+    assert bundle.manifest.fingerprint
+
+
+def test_repointing_shared_variables_explains_the_logp_failure(tmp_path):
+    """Regression: pm.set_data moved the logp and validate said only 'False'."""
+    import pymc as pm
+
+    with pm.Model(coords={"obs": [0, 1]}) as model:
+        x = pm.Data("x", np.zeros(2), dims="obs")
+        pm.Normal("y", x, 1, dims="obs", observed=np.zeros(2))
+
+    bundle = load(save_model(model, tmp_path / "model"))
+    with bundle.model:
+        pm.set_data({"x": np.array([9.0, 9.0])})
+
+    result = bundle.validate()
+    assert result.checks["logp"] is False
+    assert any("pm.set_data" in note for note in result.notes)
