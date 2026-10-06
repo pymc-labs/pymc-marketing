@@ -200,6 +200,15 @@ The graph is pymc's own round trip: ``pymc.model.fgraph.fgraph_from_model``
 builds a ``pytensor.FunctionGraph`` and ``model_from_fgraph`` reverses it.  This
 package owns neither, it only serializes the result and describes it.
 
+**Scope: a raw** ``pm.Model`` **in the environment that wrote it.**  This is a
+same-environment artefact, not an archival format: it depends on the pymc,
+pytensor and Python that produced the graph, which is why the manifest pins
+them.  For a builder class such as ``MMM``, use ``ModelIO.save`` / ``ModelIO.load``,
+which calls your class again, stores your configuration, and survives you editing
+the class.  This module stores the lowered graph instead, which is the faithful
+answer for a model built without one and the least portable.  If a format that
+crosses versions is what you need, this is not it.
+
 Two consequences of that round trip, both tested:
 
 * ``model_from_fgraph`` calls ``Model(model=None)``, so a **subclass** of
