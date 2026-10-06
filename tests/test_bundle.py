@@ -1357,3 +1357,34 @@ def test_validate_without_a_reference_still_checks_logp(bundle_path):
     result = bundle.validate()
     assert result.checks == {"logp_computable": True}
     assert result.ok
+
+
+def test_version_pins_resolve_to_real_versions(tmp_path):
+    """The drift pins are only useful if they are actually written.
+
+    A silent fallback to "unknown" is invisible: version_mismatch compares the
+    recorded value against the live one, so "unknown" matched "unknown" and the
+    drift the pin exists to warn about was never reported.
+    """
+    import pymc
+    import pytensor
+
+    import pymc_marketing
+    from pymc_marketing.bundle import save_model
+
+    path = save_model(build_model(), tmp_path / "model")
+    raw = json.loads((path / "manifest.json").read_text())
+
+    assert raw["pymc"] == pymc.__version__
+    assert raw["pytensor"] == pytensor.__version__
+    assert raw["pymc_marketing"] == pymc_marketing.__version__
+    assert "unknown" not in raw.values()
+
+
+def test_a_freshly_saved_bundle_reports_no_version_drift(tmp_path):
+    """Guards the same thing from the other end: recorded against live."""
+    from pymc_marketing.bundle import load, save_model
+
+    bundle = load(save_model(build_model(), tmp_path / "model"))
+
+    assert bundle.manifest.version_mismatch() == {}

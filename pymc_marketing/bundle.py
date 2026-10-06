@@ -385,7 +385,7 @@ class Manifest:
         live = {
             "pymc": _version("pymc"),
             "pytensor": _version("pytensor"),
-            "pymc_marketing": _version("pymc-marketing"),
+            "pymc_marketing": _version("pymc_marketing"),
         }
         return {
             k: (self.raw[k], live[k])
@@ -821,7 +821,7 @@ def build_manifest(
         # the graph cannot record what wrote it
         "pymc": _version("pymc"),
         "pytensor": _version("pytensor"),
-        "pymc_marketing": _version("pymc-marketing"),
+        "pymc_marketing": _version("pymc_marketing"),
         "n_nodes": n_nodes,
         "depth": depth,
         # change detection rather than a structural copy
@@ -1335,9 +1335,15 @@ def _names(sequence) -> list[str]:
 
 
 def _version(module: str) -> str:
+    """Return ``module.__version__``, for the drift pins in the manifest.
+
+    Deliberately not wrapped in a bare ``except``: the three callers are all hard
+    dependencies, so a failure here means the environment is broken rather than
+    the version being unknown. Swallowing it wrote ``"unknown"`` into the
+    manifest, and because :meth:`Manifest.version_mismatch` compared
+    ``"unknown"`` against ``"unknown"`` it never reported the drift the pin
+    exists to warn about.
+    """
     import importlib
 
-    try:
-        return importlib.import_module(module).__version__
-    except Exception:
-        return "unknown"
+    return importlib.import_module(module).__version__
