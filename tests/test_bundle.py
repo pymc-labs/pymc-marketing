@@ -12,6 +12,7 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 import importlib.util
+import inspect
 import json
 import re
 
@@ -1388,3 +1389,47 @@ def test_a_freshly_saved_bundle_reports_no_version_drift(tmp_path):
     bundle = load(save_model(build_model(), tmp_path / "model"))
 
     assert bundle.manifest.version_mismatch() == {}
+
+
+def test_the_documented_prediction_recipe_works(tmp_path):
+    """The module docstring shows this recipe; run it so it cannot rot.
+
+    Two details are easy to get wrong and both fail loudly only at the call:
+    ``compile_forward_sampling_function`` returns a ``(fn, volatile)`` tuple,
+    and ``outputs`` wants the symbolic model variable rather than a drawn array.
+    """
+    import pymc_marketing.bundle as bundle_module
+    from pymc_marketing.bundle import save_model
+
+    with pm.Model(coords={"series": np.arange(50)}) as model:
+        a = pm.Normal("a", 0, 1, dims="series")
+        pm.Normal("y", a.sum(), 1.0, observed=0.0)
+
+    restored = load_model(save_model(model, tmp_path / "model"))
+
+    from pymc.sampling import compile_forward_sampling_function
+    from pymc.util import point_wrapper
+
+    core, volatile = compile_forward_sampling_function(
+        outputs=[restored["y"]],  # symbolic, not pm.draw(...)
+        vars_in_trace=["a"],
+        basic_rvs=restored.basic_RVs,
+        model=restored,
+        random_seed=1,
+    )
+    predict = point_wrapper(core)
+
+    first = predict(a=np.zeros(50))
+    second = predict(a=np.zeros(50))
+
+    assert first[0].shape == ()
+    assert not np.allclose(first, second), "the compiled function should resample"
+    assert sorted(v.name for v in volatile) == ["a", "y"]
+
+    # Sync check. The test above runs its own copy of the recipe, so it pins the
+    # pattern but cannot notice the docstring drifting from it. This is the exact
+    # mistake the first draft of that example made: passing the (fn, volatile)
+    # tuple straight into point_wrapper, which fails at call time with
+    # "'tuple' object has no attribute 'maker'".
+    doc = inspect.getdoc(bundle_module) or ""
+    assert "core, _volatile = compile_forward_sampling_function(" in doc

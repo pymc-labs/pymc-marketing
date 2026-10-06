@@ -78,6 +78,60 @@ Reading it back
     bundle.data.location  # where the data is, embedded or not
     bundle.open_data("posterior")  # xr.Dataset, for embedded or local data
 
+Compiling a prediction function
+-------------------------------
+
+You often want the prediction function rather than the model, for serving. A
+bundle stores the model, so you compile it once on load. ``pm.sample``'s
+posterior predictive already does this through
+:func:`pymc.sampling.compile_forward_sampling_function`, which is public, and
+reusing it keeps your graph identical to the one you validated::
+
+    from pymc.sampling import compile_forward_sampling_function
+    from pymc.util import point_wrapper
+
+    # it returns (function, volatile_rvs), so unpack before wrapping
+    core, _volatile = compile_forward_sampling_function(
+        outputs=[model["y"]],  # symbolic, not pm.draw(...)
+        vars_in_trace=["a"],  # the names you supply per call
+        basic_rvs=model.basic_RVs,
+        model=model,
+        random_seed=1,
+    )
+    predict = point_wrapper(core)
+    predict(a=draws)
+
+**Call it once at startup, not on the request path.** The first call is much
+more expensive than the ones after it, and by how much depends on your backend
+and whether its on-disk cache is warm. Two measurements of the same model and
+code, one env with a cold numba cache and one with a warm one:
+
+======================================== ============ ============
+step                                     cold cache   warm cache
+======================================== ============ ============
+``from_parts`` + ``model_from_fgraph``   0.5 ms       0.5 ms
+``compile_forward_sampling_function``    329 ms       7 ms
+first predict call                       150 ms       3 ms
+steady-state predict call                0.02 ms      0.02 ms
+======================================== ============ ============
+
+The steady-state cost is stable; the startup cost is not, and it shrinks as the
+backend caches fill. Treat the top three rows as a budget to measure for your own
+model and backend rather than numbers to rely on. The one that does not vary is
+the last: every request after the first is a fraction of a millisecond.
+
+What does *not* vary is that the cost is paid once, not per bundle. A second
+model compiled in the same process reuses the warm caches, so a service holding
+several bundles pays the startup cost once at boot rather than once per model.
+
+You *can* pickle the compiled function instead, and it round-trips across
+processes. It is still the wrong thing to persist here, for three reasons. It
+ties the artifact to the pytensor that linked it rather than merely imported it.
+Its pickled ``Generator`` is its own, so the draw sequence does not continue
+from the model's. And you get back a callable, not a ``pm.Model``, so you cannot
+refit or change the predictive. Persisting the model costs one recompile and
+keeps all of that.
+
 Saving somewhere else
 ---------------------
 
