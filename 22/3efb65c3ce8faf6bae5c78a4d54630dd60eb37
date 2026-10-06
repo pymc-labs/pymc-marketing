@@ -1,0 +1,19 @@
+pymc_marketing/mmm/mmm.py
+  s_874642903ca6a4::t_9fb735de7b7ee0 3814
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "223efb65c3ce8faf6bae5c78a4d54630dd60eb37",
+  "prompts": {},
+  "sessions": {
+    "s_874642903ca6a4": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a10f6b-3beb-7303-b51e-2e0d77ec2679",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "Benjamin T. Vincent <inferencelab@gmail.com>"
+    }
+  }
+}
