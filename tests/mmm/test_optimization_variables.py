@@ -855,6 +855,7 @@ def _priced_variable(
     cost_per_unit=None,
     mask_values=None,
     compile_kwargs=None,
+    num_periods=4,
 ):
     mask = xr.DataArray(
         np.ones(3, dtype=bool)
@@ -873,7 +874,7 @@ def _priced_variable(
     return MediaVariable(
         name="channel_data",
         mask=mask,
-        num_periods=4,
+        num_periods=num_periods,
         adstock_periods=2,
         channel_scales=scales,
         dtype="float64",
@@ -972,6 +973,33 @@ def test_concentrated_distribution_buys_less_delivery_than_uniform():
             .sum("date")
         )
         assert np.all(comparison(concentrated.values, uniform.values)), gamma
+
+
+def test_window_length_moves_the_price_only_through_the_per_period_rate():
+    """total_budget and result.budgets are per-period money, so the same per-period plan
+    clears at the same price over any window. Holding the *window* total fixed instead, a
+    shorter window spends more per period, and a strictly concave map makes it clear
+    higher and buy less in total; at gamma = 0 the window length changes nothing."""
+    per_period = np.array([150.0, 150.0, 150.0])
+    prices = [
+        _priced_variable(elasticity=0.3, num_periods=periods)
+        .delivery_report(per_period)["implied_price"]
+        .values
+        for periods in (4, 12)
+    ]
+    np.testing.assert_allclose(prices[0][0], prices[1][0], rtol=1e-12)
+
+    window_total = np.array([2400.0, 2400.0, 2400.0])
+    for gamma, comparison in ((0.3, np.less), (0.0, np.isclose)):
+        delivered, mean_price = {}, {}
+        for periods in (4, 12):
+            report = _priced_variable(
+                elasticity=gamma, num_periods=periods
+            ).delivery_report(window_total / periods)
+            delivered[periods] = report["implied_delivery"].sum("date").values
+            mean_price[periods] = report["implied_price"].mean("date").values
+        assert np.all(comparison(delivered[4], delivered[12])), gamma
+        assert np.all(comparison(mean_price[12], mean_price[4])), gamma
 
 
 def test_delivery_report_is_labelled_and_nan_where_no_money_is_spent():

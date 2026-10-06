@@ -120,7 +120,8 @@ class TestResolvedPowerPriceResponse:
 
     def test_money_identity_holds_in_both_regions(self, maps, resolved):
         """u * p == s is exact by construction above and below the floor."""
-        for s in (np.full(3, 60.0), resolved.s_floor * 0.5):
+        below = np.where(resolved.s_floor > 0.0, resolved.s_floor * 0.5, 7.0)
+        for s in (np.full(3, 60.0), below):
             np.testing.assert_allclose(
                 maps["u"](s) * maps["p"](s), s, rtol=1e-12, atol=0.0
             )
@@ -159,12 +160,16 @@ class TestResolvedPowerPriceResponse:
         )
 
     def test_marginal_price_relation_to_average_price(self, maps, resolved):
-        """m == p / (1 - gamma) is a power-branch statement. At zero spend both prices
-        equal p0 / a, and m(0) / m(s_f) == (1 - gamma) / (1 + gamma)."""
+        """m == p / (1 - gamma) is a power-branch statement. As spend falls to zero both
+        prices tend to p0 / a; at zero nothing is bought, so p is nan there while
+        m(0) == p0 / a, and m(0) / m(s_f) == (1 - gamma) / (1 + gamma)."""
         s = np.full(3, 60.0)
         np.testing.assert_allclose(maps["m"](s), maps["p"](s) / (1 - GAMMA), rtol=1e-12)
         zero = np.zeros(3)
-        np.testing.assert_allclose(maps["p"](zero), P0 / resolved.a, rtol=1e-12)
+        np.testing.assert_allclose(
+            maps["p"](np.full(3, 1e-12)), P0 / resolved.a, rtol=1e-6
+        )
+        assert np.all(np.isnan(maps["p"](zero)))
         np.testing.assert_allclose(maps["m"](zero), P0 / resolved.a, rtol=1e-12)
         act = GAMMA > 0
         np.testing.assert_allclose(
@@ -253,11 +258,11 @@ class TestResolvedPowerPriceResponse:
         """SLSQP clips the decision vector to its bounds, but evaluate_plan takes any
         labelled plan. Below zero the quadratic would extrapolate (b < 0 makes -5 money
         deliver about -1.6e7 units on the gamma = 0.25 cell of this fixture); money is
-        clipped at zero instead, so u(s < 0) == 0 and both prices stay finite."""
+        clipped at zero instead, so u(s < 0) == 0, no unit was paid for (the average price
+        is nan) and the marginal price stays at its finite value at zero."""
         s = np.array([-1e-9, -5.0, -100.0])
         assert np.all(maps["u"](s) == 0.0)
-        assert np.all(np.isfinite(maps["p"](s))) and np.all(np.isfinite(maps["m"](s)))
-        np.testing.assert_allclose(maps["p"](s), P0 / resolved.a, rtol=1e-12)
+        assert np.all(np.isnan(maps["p"](s)))
         np.testing.assert_allclose(maps["m"](s), P0 / resolved.a, rtol=1e-12)
 
     def test_wide_floor_warns_at_high_elasticity_only(self):
@@ -327,21 +332,34 @@ class TestPowerPriceResponseValidation:
     @pytest.mark.parametrize(
         "elasticity, expected",
         [
-            (0.0, True),
-            ({}, True),
-            ({"tv": 0.0}, True),
-            ({"tv": 0.1}, False),
+            (0.0, False),
+            ({}, False),
+            ({"tv": 0.0}, False),
+            ({"tv": 0.1}, True),
             (
                 xr.DataArray(
                     [0.0, 0.0], dims=("channel",), coords={"channel": ["tv", "radio"]}
                 ),
-                True,
+                False,
             ),
-            (0.2, False),
+            (0.2, True),
         ],
     )
-    def test_is_identity_only_when_every_elasticity_is_zero(self, elasticity, expected):
-        assert PowerPriceResponse(elasticity=elasticity).is_identity is expected
+    def test_curved_only_when_some_elasticity_is_not_zero(self, elasticity, expected):
+        assert PowerPriceResponse(elasticity=elasticity).adds_curvature is expected
+
+    def test_an_elasticity_mutated_in_place_is_still_refused_at_resolve(self):
+        """frozen stops a field being reassigned, not the caller's DataArray or dict it
+        holds being mutated, so resolve checks the domain again on the cells it binds."""
+        e = xr.DataArray(
+            [0.1, 0.2, 0.3],
+            dims=("channel",),
+            coords={"channel": ["tv", "radio", "digital"]},
+        )
+        response = PowerPriceResponse(elasticity=e, reference_spend=derived([1, 1, 1]))
+        e[:] = 1.5
+        with pytest.raises(ValueError, match="0 <= elasticity < 1"):
+            response.resolve(**layout(), derived_reference=None)
 
     def test_scalar_elasticity_broadcasts_to_every_cell(self):
         resolved = PowerPriceResponse(
@@ -391,13 +409,7 @@ class TestPowerPriceResponseValidation:
         with pytest.raises(
             ValueError, match="channel_data: price_response: elasticity varies"
         ):
-            PowerPriceResponse(elasticity=e + 0.2).is_identity_on(
-                dims=("channel",),
-                coords={"channel": ["tv", "radio", "digital"]},
-                mask=layout()["mask"],
-                date_dim="date",
-                label="channel_data: price_response",
-            )
+            PowerPriceResponse(elasticity=e + 0.2).curved_cells(**layout())
 
     def test_dataarray_elasticity_with_an_unknown_label_is_rejected(self):
         e = xr.DataArray(
@@ -551,19 +563,88 @@ class TestPowerPriceResponseValidation:
         assert resolved.is_identity
         np.testing.assert_array_equal(resolved.gamma, [0.0, 0.0, 0.0])
 
-    def test_tolerance_guard_skips_cells_with_no_derived_value_and_says_so(self):
+    def test_tolerance_guard_compares_only_where_a_fitted_value_exists(self):
         """np.argmax lands on a NaN and `nan > tol` is False, so an unguarded comparison would
-        pass silently. The guard compares where the fitted spend exists and reports the rest."""
+        pass silently. A cell with no fitted value (an attested channel the table does not
+        price, a cell never on air) keeps the supplied value as given, and the others are
+        still guarded."""
         fitted = derived([100.0, np.nan, 100.0])
-        with pytest.warns(UserWarning, match=r"could not be checked.*\('radio',\)"):
-            PowerPriceResponse(
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            resolved = PowerPriceResponse(
                 elasticity=0.2, reference_spend=derived([100.0, 5.0, 100.0])
             ).resolve(**layout(), derived_reference=fitted)
-        with pytest.warns(UserWarning, match="could not be checked"):
-            with pytest.raises(ValueError, match="52x apart"):
-                PowerPriceResponse(
-                    elasticity=0.2, reference_spend=derived([5200.0, 5.0, 100.0])
-                ).resolve(**layout(), derived_reference=fitted)
+        np.testing.assert_array_equal(resolved.reference_spend, [100.0, 5.0, 100.0])
+        with pytest.raises(ValueError, match="52x apart"):
+            PowerPriceResponse(
+                elasticity=0.2, reference_spend=derived([5200.0, 5.0, 100.0])
+            ).resolve(**layout(), derived_reference=fitted)
+
+    def test_a_supplied_reference_overrides_the_derived_one_cell_by_cell(self):
+        """Cells reference_spend leaves out (absent labels or nan) keep the derived default,
+        and the cells it gives are guarded against it. A curved cell with neither is refused
+        with every possible cause, not only a flighting pattern; unknown labels are still
+        refused rather than dropped."""
+        fitted = derived([100.0, np.nan, 300.0])
+        expected = [100.0, 40.0, 300.0]
+        for partial in (
+            xr.DataArray([40.0], dims=("channel",), coords={"channel": ["radio"]}),
+            derived([np.nan, 40.0, np.nan]),
+        ):
+            resolved = PowerPriceResponse(
+                elasticity=0.2, reference_spend=partial
+            ).resolve(**layout(), derived_reference=fitted)
+            np.testing.assert_array_equal(resolved.reference_spend, expected)
+        with pytest.raises(ValueError, match="52x apart"):
+            PowerPriceResponse(
+                elasticity=0.2,
+                reference_spend=xr.DataArray(
+                    [5200.0, 40.0],
+                    dims=("channel",),
+                    coords={"channel": ["tv", "radio"]},
+                ),
+            ).resolve(**layout(), derived_reference=fitted)
+        with pytest.raises(
+            ValueError, match=r"neither a reference_spend value nor a derived one"
+        ) as info:
+            PowerPriceResponse(
+                elasticity=0.2,
+                reference_spend=xr.DataArray(
+                    [100.0], dims=("channel",), coords={"channel": ["tv"]}
+                ),
+            ).resolve(**layout(), derived_reference=fitted)
+        assert "('radio',)" in str(info.value) and "does not price" in str(info.value)
+        with pytest.raises(ValueError, match="coordinates the model does not have"):
+            PowerPriceResponse(
+                elasticity=0.2,
+                reference_spend=xr.DataArray(
+                    [1.0], dims=("channel",), coords={"channel": ["print"]}
+                ),
+            ).resolve(**layout(), derived_reference=fitted)
+
+    @pytest.mark.parametrize("bad", [-5.0, 0.0, np.inf])
+    def test_a_given_reference_that_is_unusable_is_refused_not_replaced(self, bad):
+        """Only a missing value falls back to the derived default; a value the user does give
+        must be usable, or a typo would silently become the fitted mean."""
+        with pytest.raises(ValueError, match=r"not positive and finite.*\('tv',\)"):
+            PowerPriceResponse(
+                elasticity=0.2, reference_spend=derived([bad, 40.0, np.nan])
+            ).resolve(**layout(), derived_reference=derived([100.0, np.nan, 300.0]))
+
+    def test_a_partial_reference_with_nothing_to_derive_names_the_gap(self):
+        """A spend variable, or an attested model with no table, has no fitted reference:
+        the cells a partial reference leaves out are refused, without blaming a table."""
+        with pytest.raises(
+            ValueError, match=r"no reference_spend value.*no fitted spend"
+        ) as info:
+            PowerPriceResponse(
+                elasticity=0.2,
+                reference_spend=xr.DataArray(
+                    [100.0], dims=("channel",), coords={"channel": ["tv"]}
+                ),
+            ).resolve(**layout(), derived_reference=None)
+        assert "('radio',)" in str(info.value) and "('tv',)" not in str(info.value)
+        assert "cost_per_unit" not in str(info.value)
 
     def test_public_import(self):
         from pymc_marketing.mmm import PowerPriceResponse as exported
@@ -582,15 +663,34 @@ class TestPriceResponseContract:
         assert "reference_spend" in PowerPriceResponse.model_fields
         assert "assume_delivery_units" in PowerPriceResponse.model_fields
 
-    def test_curvature_follows_the_elasticity(self):
-        assert PowerPriceResponse(elasticity=0.0).adds_curvature is False
-        assert PowerPriceResponse(elasticity={"tv": 0.3}).adds_curvature is True
-        # Bends only on a masked-out cell: curved as a declaration, flat on this layout.
-        assert (
-            PowerPriceResponse(elasticity={"radio": 0.3}).adds_curvature_on(
-                **layout(mask_values=[True, False, True])
-            )
-            is False
+    @pytest.mark.parametrize(
+        "elasticity, mask_values",
+        [
+            (0.3, None),
+            (0.0, None),
+            ({"radio": 0.3}, None),
+            ({"radio": 0.3}, [True, False, True]),
+            (
+                xr.DataArray(
+                    [0.2, 0.0, 0.4],
+                    dims=("channel",),
+                    coords={"channel": ["tv", "radio", "digital"]},
+                ),
+                [True, True, False],
+            ),
+        ],
+    )
+    def test_curved_cells_is_what_resolve_bends(self, elasticity, mask_values):
+        """The gate reads curved_cells before resolving; the pinned-cell warning reads the
+        resolved map's curved. They must agree, masked-out cells included: a response that
+        bends only a masked-out cell is curved as a declaration and flat on that layout."""
+        response = PowerPriceResponse(elasticity=elasticity)
+        on_layout = layout(mask_values=mask_values)
+        resolved = response.resolve(
+            **on_layout, derived_reference=derived([100.0, 100.0, 100.0])
+        )
+        np.testing.assert_array_equal(
+            response.curved_cells(**on_layout), resolved.curved
         )
 
     def test_attestation_and_reference_hooks_read_the_power_fields(self):

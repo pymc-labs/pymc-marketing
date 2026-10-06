@@ -75,9 +75,11 @@ def _reject_unknown_coords(
     function are wanted separately: every consumer must reject unknown labels,
     since ``reindex`` drops them silently and the input is then consumed
     positionally against a tensor that never saw them, but only some consumers
-    can demand full coverage. :meth:`MediaVariable.pack` is the exception --
+    can demand full coverage. :meth:`MediaVariable.pack` is one exception --
     a plan may legitimately omit a cell that is masked out of the
-    optimization, so it scopes its own missing-value check to the mask.
+    optimization, so it scopes its own missing-value check to the mask -- and
+    ``PowerPriceResponse.reference_spend`` another: a cell it leaves out takes
+    the reference derived from the fitted model.
 
     Parameters
     ----------
@@ -314,12 +316,12 @@ class MediaVariable(OptimizationVariable):
         Spend-dependent price of a delivered unit, resolved here against this
         variable's dims, coords and mask. ``None`` or an identity response
         leaves the constant-price graph untouched; an identity response is
-        still held so :meth:`delivery_report` can report ``implied_price == p0``
-        for a baseline run.
+        still held so :meth:`delivery_report` can report ``implied_price`` at
+        ``p0`` for a baseline run.
     price_reference : DataArray or None
         Per-period money per cell the optimizer derived from the fitted model,
-        the default ``reference_spend``. ``None`` when the response supplies
-        its own or there is nothing to derive from.
+        the default ``reference_spend``; ``nan`` on cells it cannot vouch for.
+        ``None`` when there is nothing to derive from or no cell is curved.
     compile_kwargs : dict or None
         Keyword arguments for ``pytensor.function`` when compiling
         :meth:`delivery_report`, the same ones the optimizer compiles its
@@ -667,7 +669,9 @@ class MediaVariable(OptimizationVariable):
                 f"{self.name}: expected a slice of shape ({self.size},), got {x.shape}"
             )
         if self._delivery_report_fn is None:
-            self._delivery_report_fn = self._compile_delivery_report()
+            self._delivery_report_fn = self._compile_delivery_report(
+                self.price_response
+            )
         money, delivery, price, marginal = (
             np.asarray(v) for v in self._delivery_report_fn(x)
         )
@@ -686,10 +690,10 @@ class MediaVariable(OptimizationVariable):
             "implied_marginal_price": DataArray(marginal, dims=dims, coords=coords),
         }
 
-    def _compile_delivery_report(self):
+    def _compile_delivery_report(
+        self, response: ResolvedPriceResponse
+    ) -> Callable[..., list[np.ndarray]]:
         """Compile money, delivery and both prices from the flat slice, over ``(date_dim, *dims)``."""
-        if self.price_response is None:  # pragma: no cover - guarded by delivery_report
-            raise RuntimeError(f"{self.name}: no price response to report on")
         z = ptx.xtensor(
             f"{self.name}_report_x", shape=(self.size,), dims=(self.flat_dim,)
         )
@@ -697,9 +701,9 @@ class MediaVariable(OptimizationVariable):
         p0 = self.cost_per_unit_tensor
         outputs = [
             money,
-            self.price_response.to_delivery(money, base_price=p0),
-            self.price_response.implied_price(money, base_price=p0),
-            self.price_response.implied_marginal_price(money, base_price=p0),
+            response.to_delivery(money, base_price=p0),
+            response.implied_price(money, base_price=p0),
+            response.implied_marginal_price(money, base_price=p0),
         ]
         return function(
             [z],

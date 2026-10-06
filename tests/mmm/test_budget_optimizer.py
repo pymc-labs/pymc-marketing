@@ -13,7 +13,6 @@
 #   limitations under the License.
 import ast
 import inspect
-import json
 import warnings
 from unittest.mock import patch
 
@@ -2073,34 +2072,12 @@ def test_price_gate_names_a_missing_channel_dim_rather_than_a_missing_table():
     assert "['media']" in str(info.value)
 
 
-def test_price_gate_does_not_refuse_a_map_that_adds_no_curvature():
-    """The gate keys on curvature, not on identity: a family that is linear in money
-    (#3067's bracket schedule) rescales the axis without bending it, so a spend-fitted
-    model has nothing to vouch for. Stubbed through the ABC hooks on an idata with no
-    priced-channel artifact at all, which is the branch that used to refuse regardless."""
-    from pymc_marketing.mmm import PowerPriceResponse
-
-    class LinearStub(PowerPriceResponse):
-        @property
-        def is_identity(self) -> bool:
-            return False
-
-        def is_identity_on(self, **kwargs) -> bool:
-            return False
-
-        @property
-        def adds_curvature(self) -> bool:
-            return False
-
-        @property
-        def needs_derived_reference(self) -> bool:
-            return False
-
-    n_dates, channels = 6, ["a", "b"]
+def _channel_model(channels, n_dates=6):
+    """A ``(date, channel)`` channel_data node feeding the default response; prior draws stand in for the posterior."""
     with pm.Model(coords={"channel": channels}) as model:
         model.add_coord("date", length=n_dates)
         channel_data = pmd.Data(
-            "channel_data", np.ones((n_dates, 2)), dims=("date", "channel")
+            "channel_data", np.ones((n_dates, len(channels))), dims=("date", "channel")
         )
         beta = pmd.Normal("beta", 1.0, 0.1, dims="channel")
         pmd.Deterministic(
@@ -2109,16 +2086,76 @@ def test_price_gate_does_not_refuse_a_map_that_adds_no_curvature():
             dims=(),
         )
     prior = pm.sample_prior_predictive(draws=4, model=model, random_seed=1)
-    idata = xr.DataTree.from_dict({"posterior": prior.prior})
+    return model, prior.prior
 
+
+def _split_json_table(prices: dict) -> str:
+    """A historical cost_per_unit table as MMM stores it in ``idata.attrs``."""
+    dates = pd.date_range("2025-01-05", periods=3, freq="7D")
+    return pd.DataFrame({"date": dates, **prices}).to_json(
+        orient="split", date_format="iso"
+    )
+
+
+def test_price_gate_does_not_refuse_a_map_that_adds_no_curvature():
+    """The gate keys on curvature, not on identity: a family that is linear in money
+    (#3067's bracket schedule) rescales the axis without bending it, so a spend-fitted
+    model has nothing to vouch for. Written against the ABC alone, with its default
+    curved_cells and the base implied_price, on an idata with no priced-channel table at
+    all, which is the branch that refuses any curved map."""
+    import pytensor.xtensor as ptx
+
+    from pymc_marketing.mmm.price_response import (
+        PriceResponse,
+        ResolvedPriceResponse,
+    )
+
+    class ResolvedHalfPrice(ResolvedPriceResponse):
+        def __init__(self, dims, shape):
+            self.dims = dims
+            self.is_identity = False
+            self.money_scale = np.ones(shape)
+            self.curved = np.zeros(shape, dtype=bool)
+
+        def to_delivery(self, spend, base_price=None):
+            units = 2.0 * ptx.math.maximum(spend, 0.0)
+            return units if base_price is None else units / base_price
+
+        def implied_marginal_price(self, spend, base_price=None):
+            price = 0.0 * spend + 0.5
+            return price if base_price is None else price * base_price
+
+    class HalfPrice(PriceResponse):
+        @property
+        def adds_curvature(self) -> bool:
+            return False
+
+        def resolve(
+            self,
+            *,
+            dims,
+            coords,
+            mask,
+            date_dim,
+            derived_reference,
+            label,
+            num_periods=None,
+        ):
+            template, _ = self._layout(dims, coords, mask)
+            return ResolvedHalfPrice(tuple(dims), template.shape)
+
+    model, posterior = _channel_model(["a", "b"])
     optimizer = BudgetOptimizer(
         model=model,
-        idata=idata,
+        idata=xr.DataTree.from_dict({"posterior": posterior}),
         num_periods=4,
         adstock_periods=2,
-        price_response=LinearStub(elasticity=0.0),
+        price_response=HalfPrice(),
     )
-    assert optimizer.optimization_variables.variables[0].price_response is not None
+    media = optimizer.optimization_variables.variables[0]
+    assert isinstance(media.price_response, ResolvedHalfPrice)
+    report = media.delivery_report(np.array([3.0, 5.0]))
+    np.testing.assert_allclose(report["implied_price"].values, 0.5)
 
 
 def test_inference_data_root_attrs_reach_the_price_gate():
@@ -2138,23 +2175,11 @@ def test_inference_data_root_attrs_reach_the_price_gate():
             return ["posterior"]
 
     from pymc_marketing.mmm import PowerPriceResponse
-    from pymc_marketing.mmm.budget_optimizer import PRICED_CHANNELS_ATTR
 
-    n_dates, channels = 6, ["a", "b"]
-    with pm.Model(coords={"channel": channels}) as model:
-        model.add_coord("date", length=n_dates)
-        channel_data = pmd.Data(
-            "channel_data", np.ones((n_dates, 2)), dims=("date", "channel")
-        )
-        beta = pmd.Normal("beta", 1.0, 0.1, dims="channel")
-        pmd.Deterministic(
-            "total_media_contribution_original_scale",
-            (channel_data * beta).sum(),
-            dims=(),
-        )
-    prior = pm.sample_prior_predictive(draws=4, model=model, random_seed=1)
+    model, posterior = _channel_model(["a", "b"])
     idata = LegacyInferenceData(
-        posterior=prior.prior, attrs={PRICED_CHANNELS_ATTR: json.dumps(channels)}
+        posterior=posterior,
+        attrs={"cost_per_unit": _split_json_table({"a": 2.0, "b": 3.0})},
     )
 
     with pytest.raises(ValueError, match="channel_spend") as info:
@@ -2166,6 +2191,36 @@ def test_inference_data_root_attrs_reach_the_price_gate():
             price_response=PowerPriceResponse(elasticity=0.3),
         )
     assert "no usable historical cost_per_unit table" not in str(info.value)
+
+
+def test_price_gate_matches_non_string_channel_labels_against_the_table():
+    """The table's JSON columns and the model's channel coords are compared as strings, so
+    integer labels priced by the table are vouched for and an unpriced one is still named.
+    The vouched run then stops at the missing channel_spend, the true state of this idata."""
+    from pymc_marketing.mmm import PowerPriceResponse
+
+    model, posterior = _channel_model([1, 2])
+    idata = xr.DataTree.from_dict({"posterior": posterior})
+    idata.attrs["cost_per_unit"] = _split_json_table({1: 2.0})
+
+    def build(elasticity):
+        return BudgetOptimizer(
+            model=model,
+            idata=idata,
+            num_periods=4,
+            adstock_periods=2,
+            price_response=PowerPriceResponse(elasticity=elasticity),
+        )
+
+    with pytest.raises(ValueError, match="fitted on nominal spend") as info:
+        build(0.3)
+    assert "channels ['2']" in str(info.value)
+    only_priced = xr.DataArray(
+        [0.3, 0.0], dims=("channel",), coords={"channel": [1, 2]}
+    )
+    with pytest.raises(ValueError, match="channel_spend") as info:
+        build(only_priced)
+    assert "fitted on nominal spend" not in str(info.value)
 
 
 def test_budget_optimizer_has_no_marketing_imports():

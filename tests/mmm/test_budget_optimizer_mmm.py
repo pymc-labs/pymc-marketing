@@ -1766,7 +1766,9 @@ def test_budget_optimizer_new_api(dummy_df, fitted_mmm):
 
 
 def test_wrapper_optimize_budget_forwards_price_response(dummy_df, fitted_mmm):
-    """The issue's suggested API is wrapper.optimize_budget(..., price_response=...)."""
+    """The issue's suggested API is wrapper.optimize_budget(..., price_response=...), and
+    a curved, attested response with a (geo, channel) reference goes through the panel
+    wrapper: every spent cell's next unit costs more than its average unit."""
     _df_kwargs, X_dummy, _y_dummy = dummy_df
     fitted_mmm.add_original_scale_contribution_variable(["channel_contribution"])
     with pytest.warns(DeprecationWarning):
@@ -1779,7 +1781,6 @@ def test_wrapper_optimize_budget_forwards_price_response(dummy_df, fitted_mmm):
         budget=10.0, price_response=PowerPriceResponse(elasticity=0.0)
     )
     assert result.implied_price is not None
-    assert "price_response" not in result.budgets.attrs
 
     reference = xr.DataArray(
         np.full((2, 2), 5.0),
@@ -1792,9 +1793,11 @@ def test_wrapper_optimize_budget_forwards_price_response(dummy_df, fitted_mmm):
             elasticity=0.3, reference_spend=reference, assume_delivery_units=True
         ),
     )
-    assert priced.budgets.attrs["price_response"] == "PowerPriceResponse"
-    with pytest.warns(UserWarning, match="implied_delivery"):
-        wrapper.sample_response_distribution(priced.budgets)
+    spent = priced.implied_price.notnull()
+    assert bool(spent.any())
+    assert bool(
+        (priced.implied_marginal_price > priced.implied_price).where(spent, True).all()
+    )
 
 
 class _MediatedEffect(MuEffect):

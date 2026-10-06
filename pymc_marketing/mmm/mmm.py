@@ -216,7 +216,6 @@ from pymc_marketing.mmm.additive_effect import (
 )
 from pymc_marketing.mmm.budget_optimizer import (
     DEFAULT_RESPONSE_VARIABLE,
-    PRICED_CHANNELS_ATTR,
     OptimizerCompatibleModelWrapper,
 )
 from pymc_marketing.mmm.causal import CausalGraphModel
@@ -967,11 +966,6 @@ class MMM(RegressionModelBuilder):
             else None,
         )
 
-    def _priced_channel_columns(self, cost_per_unit: pd.DataFrame) -> list[str]:
-        """Channel columns of a cost_per_unit table: everything that is not ``date`` or a custom dim."""
-        dim_cols = {"date", *self.dims}
-        return sorted(str(c) for c in cost_per_unit.columns if c not in dim_cols)
-
     @property
     def plot_suite(self) -> Literal["legacy", "new"]:
         """Which plot suite to use: 'legacy' (default) or 'new'."""
@@ -1119,12 +1113,8 @@ class MMM(RegressionModelBuilder):
                     stacklevel=2,
                 )
             attrs["cost_per_unit"] = cpu_df.to_json(orient="split", date_format="iso")
-            attrs[PRICED_CHANNELS_ATTR] = json.dumps(
-                self._priced_channel_columns(cpu_df)
-            )
         else:
             attrs["cost_per_unit"] = json.dumps(None)
-            attrs[PRICED_CHANNELS_ATTR] = json.dumps([])
 
         return attrs
 
@@ -4349,9 +4339,6 @@ class MMM(RegressionModelBuilder):
         self.idata.attrs["cost_per_unit"] = cost_per_unit.to_json(
             orient="split", date_format="iso"
         )
-        self.idata.attrs[PRICED_CHANNELS_ATTR] = json.dumps(
-            self._priced_channel_columns(cost_per_unit)
-        )
 
 
 class BudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
@@ -4742,17 +4729,6 @@ class BudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
         xr.Dataset
             The posterior predictive samples based on the synthetic dataset.
         """
-        if "price_response" in getattr(allocation_strategy, "attrs", {}):
-            warnings.warn(
-                "allocation_strategy was optimized under a spend-dependent price "
-                f"({allocation_strategy.attrs['price_response']}): it is money, and this "
-                "method feeds it to the model as channel units. Pass "
-                "result.implied_delivery.mean('date') instead (exact under a uniform "
-                "budget_distribution_over_period), or score the plan with "
-                "BudgetOptimizer.evaluate_response_distribution, which runs the price map.",
-                UserWarning,
-                stacklevel=2,
-            )
         data = create_zero_dataset(
             model=self,
             start_date=self.start_date,

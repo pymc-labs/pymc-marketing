@@ -15,7 +15,6 @@
 
 from __future__ import annotations
 
-import json
 import warnings
 
 import numpy as np
@@ -27,7 +26,6 @@ from scipy.optimize import approx_fprime
 from pymc_marketing.data.idata.mmm_wrapper import MMMIDataWrapper
 from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation, PowerPriceResponse
 from pymc_marketing.mmm.budget_optimizer import (
-    PRICED_CHANNELS_ATTR,
     BudgetOptimizer,
     MinimizeException,
 )
@@ -582,22 +580,6 @@ class TestSetCostPerUnit:
             (channel_spend / channel_data).sel(channel="channel_3").values,
             1.0,
         )
-        assert json.loads(mmm.idata.attrs[PRICED_CHANNELS_ATTR]) == [
-            "channel_1",
-            "channel_2",
-        ]
-
-    def test_set_cost_per_unit_records_the_priced_channels(self, simple_fitted_mmm):
-        """The optimizer's gate reads this list; the table's own JSON stays for round-trips."""
-        mmm = simple_fitted_mmm
-        dates = pd.to_datetime(mmm.idata.constant_data.coords["date"].values)
-        mmm.set_cost_per_unit(
-            pd.DataFrame({"date": dates, "channel_2": 2.0, "channel_1": 3.0})
-        )
-        assert json.loads(mmm.idata.attrs[PRICED_CHANNELS_ATTR]) == [
-            "channel_1",
-            "channel_2",
-        ]
 
 
 class TestBudgetOptimizerCostPerUnitIntegration:
@@ -758,7 +740,6 @@ class TestSerializationRoundtrip:
         assert loaded._cost_per_unit_input is not None
         assert loaded.data.cost_per_unit is not None
         xr.testing.assert_equal(loaded.data.cost_per_unit, original_cpu)
-        assert PRICED_CHANNELS_ATTR in loaded.idata.attrs
 
         loaded_spend = loaded.data.get_channel_spend()
         xr.testing.assert_allclose(loaded_spend, original_spend)
@@ -1031,7 +1012,6 @@ class TestPriceResponseGate:
             )
         message = str(info.value)
         assert "set_cost_per_unit" in message and "assume_delivery_units" in message
-        # A fresh unpriced fit writes cost_per_unit_channels="[]", which is "no table", not an empty one.
         assert "no usable historical cost_per_unit table" in message
 
     def test_partial_table_refuses_only_the_unpriced_channels(self, simple_fitted_mmm):
@@ -1149,6 +1129,87 @@ class TestPriceResponseGate:
             ),
         )
 
+    def test_attested_and_priced_channels_each_keep_their_reference(
+        self, simple_fitted_mmm
+    ):
+        """channel_2 bends and is unpriced, so the user attests it and gives its reference;
+        channel_1 bends and is priced, so it keeps the derived on-air reference and the
+        tolerance guard on a value the user does give. Attesting one channel used to drop
+        the derived reference for the whole response."""
+        mmm = simple_fitted_mmm
+        mmm.set_cost_per_unit(_full_table(mmm, {"channel_1": 2.0}))
+        elasticity = {"channel_1": 0.3, "channel_2": 0.2}
+        unpriced_only = xr.DataArray(
+            [50.0], dims=("channel",), coords={"channel": ["channel_2"]}
+        )
+        optimizer = _optimizer(
+            mmm,
+            price_response=PowerPriceResponse(
+                elasticity=elasticity,
+                assume_delivery_units=True,
+                reference_spend=unpriced_only,
+            ),
+        )
+        resolved = optimizer.optimization_variables.variables[0].price_response
+        fitted = float(_on_air_reference(mmm).sel(channel="channel_1"))
+        np.testing.assert_allclose(resolved.reference_spend[:2], [fitted, 50.0])
+        window_total = xr.DataArray(
+            [fitted * 52, 50.0],
+            dims=("channel",),
+            coords={"channel": ["channel_1", "channel_2"]},
+        )
+        with pytest.raises(ValueError, match="52x apart"):
+            _optimizer(
+                mmm,
+                price_response=PowerPriceResponse(
+                    elasticity=elasticity,
+                    assume_delivery_units=True,
+                    reference_spend=window_total,
+                ),
+            )
+
+    def test_an_attested_channel_left_out_of_the_reference_is_named(
+        self, simple_fitted_mmm
+    ):
+        """With the reference covering only the priced channel, the attested unpriced one
+        has a value from neither source. The refusal names that channel and every cause it
+        could have, rather than only the flighting pattern a priced channel's NaN means."""
+        mmm = simple_fitted_mmm
+        mmm.set_cost_per_unit(_full_table(mmm, {"channel_1": 2.0}))
+        priced_only = _on_air_reference(mmm).sel(channel=["channel_1"])
+        with pytest.raises(
+            ValueError, match="neither a reference_spend value nor a derived one"
+        ) as info:
+            _optimizer(
+                mmm,
+                price_response=PowerPriceResponse(
+                    elasticity={"channel_1": 0.3, "channel_2": 0.2},
+                    assume_delivery_units=True,
+                    reference_spend=priced_only,
+                ),
+            )
+        message = str(info.value)
+        assert "channel_2" in message and "channel_1" not in message
+        assert "does not price" in message
+
+    def test_a_response_that_bends_nothing_never_reads_the_fitted_spend(
+        self, simple_fitted_mmm
+    ):
+        """An elasticity-0 baseline must build like a run without a response: no gate and
+        no derived reference, so a broken channel_spend is not reported for it."""
+        mmm = simple_fitted_mmm
+        mmm.set_cost_per_unit(_full_table(mmm, dict.fromkeys(CHANNELS_3, 2.0)))
+        del mmm.idata.constant_data["channel_spend"]
+        start, end = _window(mmm)
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", UserWarning)
+            mmm.budget_optimizer(
+                start,
+                end,
+                cost_per_unit=_window_cpu(mmm, dict.fromkeys(CHANNELS_3, 2.0)),
+                price_response=PowerPriceResponse(elasticity=0.0),
+            )
+
     def test_identity_response_skips_the_gate(self, simple_fitted_mmm):
         _optimizer(simple_fitted_mmm, price_response=PowerPriceResponse(elasticity=0.0))
 
@@ -1254,32 +1315,15 @@ class TestPriceResponseGate:
         JSONDecodeError; it reads as no usable table and gets the curated refusal."""
         mmm = simple_fitted_mmm
         mmm.idata.attrs["cost_per_unit"] = "not json at all"
-        mmm.idata.attrs.pop(PRICED_CHANNELS_ATTR, None)
         with pytest.raises(
             ValueError, match="no usable historical cost_per_unit table"
         ):
             _optimizer(mmm, price_response=PowerPriceResponse(elasticity=0.3))
         mmm.idata.attrs["cost_per_unit"] = '{"not": "a split frame"}'
-        mmm.idata.attrs.pop(PRICED_CHANNELS_ATTR, None)
         with pytest.raises(
             ValueError, match="no usable historical cost_per_unit table"
         ):
             _optimizer(mmm, price_response=PowerPriceResponse(elasticity=0.3))
-        # Garbage in the channel list with an intact table falls back to the table.
-        mmm.set_cost_per_unit(_full_table(mmm, dict.fromkeys(CHANNELS_3, 2.0)))
-        mmm.idata.attrs[PRICED_CHANNELS_ATTR] = "not json"
-        _optimizer(mmm, price_response=PowerPriceResponse(elasticity=0.3))
-
-    def test_a_model_saved_before_the_channel_list_existed_is_gated_from_its_table(
-        self, simple_fitted_mmm
-    ):
-        """Released versions wrote only the split-JSON table; the gate still reads its columns."""
-        mmm = simple_fitted_mmm
-        mmm.set_cost_per_unit(_full_table(mmm, {"channel_1": 2.0}))
-        del mmm.idata.attrs[PRICED_CHANNELS_ATTR]
-        with pytest.raises(ValueError, match="fitted on nominal spend") as info:
-            _optimizer(mmm, price_response=PowerPriceResponse(elasticity=0.3))
-        assert "channel_2" in str(info.value) and "'channel_1'" not in str(info.value)
 
     def test_channel_spend_missing_an_optimized_coordinate_is_named_as_such(
         self, simple_fitted_mmm
@@ -1330,7 +1374,6 @@ class TestPriceResponseGate:
             ]
         )
         mmm.set_cost_per_unit(table)
-        assert json.loads(mmm.idata.attrs[PRICED_CHANNELS_ATTR]) == channels
         optimizer = _optimizer(mmm, price_response=PowerPriceResponse(elasticity=0.3))
         resolved = optimizer.optimization_variables.variables[0].price_response
         assert resolved.dims == (custom, "channel")
@@ -1368,7 +1411,6 @@ class TestPriceResponseAllocation:
         assert np.all(identity.implied_price.where(spent).fillna(1.0) == 1.0)
         assert np.all(identity.implied_marginal_price.where(spent).fillna(1.0) == 1.0)
 
-        assert "price_response" not in identity.budgets.attrs
         xr.testing.assert_identical(identity.budgets, baseline.budgets)
 
     def test_reported_prices_satisfy_the_money_identity(self, simple_fitted_mmm):

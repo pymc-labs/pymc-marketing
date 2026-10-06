@@ -18,9 +18,9 @@ on how much is bought in that period, which is what auction bid-up and rate-card
 where budget optimization is used: with a constant price every marginal return the optimizer sees is an upper
 bound, and it is too high precisely on the channels it is choosing to grow.
 
-A :class:`PriceResponse` is a monotone map from per-period money to delivered units. It is applied inside the
-optimizer's differentiable graph, on unscaled money and before ``channel_scales``, with ``cost_per_unit`` as the
-base price. The decision variables, the bounds and every constraint stay in money; the model graph keeps
+A :class:`PriceResponse` is a non-decreasing, concave map from per-period money to delivered units. It is applied
+inside the optimizer's differentiable graph, on unscaled money and before ``channel_scales``, with ``cost_per_unit``
+as the base price. The decision variables, the bounds and every constraint stay in money; the model graph keeps
 receiving units.
 
 One parametric form ships, :class:`PowerPriceResponse`, whose ``elasticity=0`` reproduces the constant-price
@@ -33,8 +33,8 @@ restated into constant prices. A model fitted on nominal spend has already absor
 into its saturation curve, because price and volume moved together historically; a concave price map on top bends
 the same curve twice and understates marginal return. The optimizer checks this against the fitted artifact -- the
 historical ``cost_per_unit`` table set through :meth:`~pymc_marketing.mmm.mmm.MMM.set_cost_per_unit`, per
-channel -- and refuses otherwise. ``assume_delivery_units=True`` with an explicit ``reference_spend`` is the
-opt-out for spend deflated outside the library.
+channel -- and refuses otherwise. ``assume_delivery_units=True`` with a ``reference_spend`` for the channels the
+table does not price is the opt-out for spend deflated outside the library.
 """
 
 from __future__ import annotations
@@ -52,7 +52,10 @@ from pytensor.xtensor import as_xtensor
 from pytensor.xtensor.type import XTensorVariable
 from xarray import DataArray
 
-from pymc_marketing.mmm.optimization_variables import align_to_model_coords
+from pymc_marketing.mmm.optimization_variables import (
+    _reject_unknown_coords,
+    align_to_model_coords,
+)
 
 __all__ = [
     "PowerPriceResponse",
@@ -72,14 +75,22 @@ class ResolvedPriceResponse(ABC):
     """A price response bound to one decision variable's cell layout.
 
     Built by :meth:`PriceResponse.resolve` and held by
-    :class:`~pymc_marketing.mmm.optimization_variables.MediaVariable`. Coefficients are NumPy arrays over ``dims``
-    in the model's coordinate order; the three methods build symbolic maps over per-period money.
-    ``money_scale`` is per cell in money: below ``1e-12 * money_scale`` a cell is reported as having bought
-    nothing. ``curved`` is boolean per cell: the map bends money there (``u'' != 0``), which is what the
-    optimizer checks before warning about a cell its bounds pin at zero.
+    :class:`~pymc_marketing.mmm.optimization_variables.MediaVariable`. How a family stores its coefficients is its
+    own business; what the optimizer reads is per cell over ``dims`` (a family whose parameters vary by date reduces
+    over it): ``money_scale``, in money, below ``1e-12 * money_scale`` of which a cell is reported as having bought
+    nothing; ``curved``, boolean, where the map bends money (``u'' != 0``), equal to
+    :meth:`PriceResponse.curved_cells` on the same layout and read before warning about a cell its bounds pin at
+    zero; and ``is_identity``, which keeps the constant-price graph operation for operation.
 
     Every map takes ``spend``, per-period money as an ``XTensorVariable`` with dims ``(date_dim, *dims)``, and
     ``base_price``, the optimizer's ``cost_per_unit`` tensor over the same dims or ``None`` for a base price of 1.
+    A family implements :meth:`to_delivery` and :meth:`implied_marginal_price`; :meth:`implied_price` follows.
+
+    Contract: :meth:`to_delivery` is non-decreasing and concave in money with ``u(0) = 0``, and it and
+    :meth:`implied_marginal_price` are finite, in value and gradient, on every cell including those outside the
+    mask and those the map leaves unbent. ``where`` evaluates both of its branches, so a ``nan`` or ``inf`` in a
+    branch that is not selected is harmless on the C backend and poisons the gradient under JAX.
+    :meth:`implied_price` is reported only, never differentiated, and is ``nan`` where nothing is delivered.
     """
 
     dims: tuple[str, ...]
@@ -93,11 +104,19 @@ class ResolvedPriceResponse(ABC):
     ) -> XTensorVariable:
         """Delivered units bought with ``spend``."""
 
-    @abstractmethod
     def implied_price(
         self, spend: XTensorVariable, base_price: XTensorVariable | None = None
     ) -> XTensorVariable:
-        """Average price of a delivered unit at ``spend``: ``spend / to_delivery(spend)``."""
+        """Average price of a delivered unit at ``spend``: ``spend / to_delivery(spend)``.
+
+        ``nan`` where nothing is delivered (zero or negative money): no unit was bought, so none was paid for.
+        """
+        units = self.to_delivery(spend, base_price)
+        bought = units > 0.0
+        # Double where: the division is evaluated on every cell, so it gets a safe denominator.
+        return ptx.math.where(
+            bought, spend / ptx.math.where(bought, units, 1.0), np.nan
+        )
 
     @abstractmethod
     def implied_marginal_price(
@@ -120,8 +139,9 @@ class ResolvedPowerPriceResponse(ResolvedPriceResponse):
     Below it :math:`u(s) = (a s + b s^2) / p_0` with :math:`a = (1+\gamma)\,\text{scale}\, s_f^{-\gamma}` and
     :math:`b = -\gamma\,\text{scale}\, s_f^{-\gamma-1}`, which pins :math:`u(0) = 0`, matches value and slope at
     :math:`s_f` (the map is C1), and stays concave and increasing. There :math:`p(s) = p_0 / (a + b s)` and
-    :math:`m(s) = p_0 / (a + 2 b s)`; both are continuous at :math:`s_f` and both tend to :math:`p_0 / a` at zero
-    spend, so :math:`m = p / (1 - \gamma)` holds on the power branch only.
+    :math:`m(s) = p_0 / (a + 2 b s)`; both are continuous at :math:`s_f` and both tend to :math:`p_0 / a` as
+    spend falls to zero, so :math:`m = p / (1 - \gamma)` holds on the power branch only. At zero nothing is
+    bought, so :math:`p` is ``nan`` there while :math:`m(0) = p_0 / a`.
 
     The floor is where the slope spread the solver can meet is capped, :math:`u'(0) / u'(s_{\text{ref}}) = M`,
     which gives :math:`s_f / s_{\text{ref}} = \max\big((M (1-\gamma)/(1+\gamma))^{-1/\gamma},\; 10^{-12}\big)`
@@ -133,9 +153,9 @@ class ResolvedPowerPriceResponse(ResolvedPriceResponse):
     :math:`b = 0` and are exactly :math:`s / p_0`.
 
     Both ``where`` branches receive a clipped input because ``where`` evaluates both: the power branch would have
-    an infinite derivative at 0, and the quadratic price branches have a pole in the region where they are not
-    selected. Money is clipped at zero first, so :math:`u(s) = 0` for :math:`s < 0` and both prices there equal
-    their value at zero.
+    an infinite derivative at 0, and the quadratic marginal price has a pole in the region where it is not
+    selected. Money is clipped at zero first, so :math:`u(s) = 0` for :math:`s < 0`, where the marginal price
+    equals its value at zero and the average price is ``nan``.
     """
 
     def __init__(
@@ -248,16 +268,6 @@ class ResolvedPowerPriceResponse(ResolvedPriceResponse):
         units = ptx.math.where(above, power, quadratic)
         return units if base_price is None else units / base_price
 
-    def implied_price(
-        self, spend: XTensorVariable, base_price: XTensorVariable | None = None
-    ) -> XTensorVariable:
-        """Average price of a delivered unit at ``spend``."""
-        above, s_power, s_quad = self._branches(spend)
-        power = (s_power / self._reference) ** self._gamma
-        quadratic = 1.0 / (self._a + self._b * s_quad)
-        ratio = ptx.math.where(above, power, quadratic)
-        return ratio if base_price is None else ratio * base_price
-
     def implied_marginal_price(
         self, spend: XTensorVariable, base_price: XTensorVariable | None = None
     ) -> XTensorVariable:
@@ -270,50 +280,32 @@ class ResolvedPowerPriceResponse(ResolvedPriceResponse):
 
 
 class PriceResponse(BaseModel, ABC):
-    """A monotone map from per-period money to delivered units, declared once and bound per variable.
+    """A non-decreasing, concave map from per-period money to delivered units, declared once and bound per variable.
 
     The declaration is reusable across models and windows; :meth:`resolve` binds it to one decision variable's
     cell layout and returns the object the optimizer's graph uses. Subclasses ship a closed, invertible
     parametric family so the implied delivery and clearing prices can be reported alongside the allocation.
 
-    The optimizer asks four things of a family before resolving it, and keys its delivery-units gate on the
-    answers rather than on the concrete type: whether the map is the identity (:attr:`is_identity`,
-    :meth:`is_identity_on`), whether it *bends* money (:attr:`adds_curvature`, :meth:`adds_curvature_on`),
-    whether the user attests that the fitted data are in delivery units (:attr:`attests_delivery_units`),
-    and whether resolution needs a reference level read off the fitted model (:attr:`needs_derived_reference`).
-    Declarations are frozen: mutating one after construction would bypass its validators.
+    Every map a family resolves to must be non-decreasing and concave in money with ``u(0) = 0`` (see
+    :class:`ResolvedPriceResponse`): a convex map, such as a volume discount, makes the allocation non-convex. A
+    family refuses a declaration that would break this when it is constructed, as :class:`PowerPriceResponse`
+    refuses ``elasticity < 0``.
+
+    The optimizer asks three things of a family before resolving it, and keys its delivery-units gate on the
+    answers rather than on the concrete type: where the map *bends* money (:attr:`adds_curvature`,
+    :meth:`curved_cells`), whether the user attests that the fitted data are in delivery units
+    (:attr:`attests_delivery_units`), and whether the declaration supplies no reference level of its own
+    (:attr:`needs_derived_reference`). The gate runs before :meth:`resolve`, because a refusal must name its
+    cause rather than the missing reference spend that cause implies. Declarations are frozen: mutating one after
+    construction would bypass its validators.
     """
 
     model_config = ConfigDict(arbitrary_types_allowed=True, extra="forbid", frozen=True)
 
     @property
     @abstractmethod
-    def is_identity(self) -> bool:
-        """True when the map is exactly ``spend / base_price`` on every cell."""
-
-    def is_identity_on(
-        self,
-        *,
-        dims: tuple[str, ...],
-        coords: Mapping[str, list],
-        mask: DataArray,
-        date_dim: str,
-        label: str = "price_response",
-    ) -> bool:
-        """Report whether the map is the identity on every *optimized* cell of a layout.
-
-        :meth:`resolve` ignores the declaration outside the mask, so a response that names only masked-out
-        cells resolves to the identity even though :attr:`is_identity` is False. The optimizer asks this
-        before running its fitted-artifact gate, so a no-op response is not refused over channels it never
-        touches. The default answers from the declaration alone; families whose parameters vary by cell
-        override it. ``label`` prefixes any error raised while reading the declaration.
-        """
-        return self.is_identity
-
-    @property
-    @abstractmethod
     def adds_curvature(self) -> bool:
-        """True when the map bends money somewhere it is not the identity.
+        """True when the map bends money on some cell.
 
         This is what the delivery-units gate keys on. Writing the composed second derivative as
         :math:`f''(u) u'^2 + f'(u) u''`, it is the :math:`f'(u) u''` term that double-counts a saturation
@@ -321,7 +313,7 @@ class PriceResponse(BaseModel, ABC):
         and a map piecewise linear in money does not: it rescales the axis without bending it.
         """
 
-    def adds_curvature_on(
+    def curved_cells(
         self,
         *,
         dims: tuple[str, ...],
@@ -329,32 +321,32 @@ class PriceResponse(BaseModel, ABC):
         mask: DataArray,
         date_dim: str,
         label: str = "price_response",
-    ) -> bool:
-        """Report whether the map bends money on some *optimized* cell of a layout.
+    ) -> np.ndarray:
+        """Boolean per cell of a layout, in ``dims`` order: where the resolved map would bend money.
 
-        Default: :attr:`adds_curvature` and not :meth:`is_identity_on`. Right for any family whose curvature
-        is exactly where it is not the identity; a family that is linear on some cells and curved on others
-        overrides it.
+        Equal to ``resolve(...).curved`` on the same layout, and ``False`` outside the mask, which :meth:`resolve`
+        ignores. Answered without a reference spend, so the optimizer can gate a response before resolving it.
+        The default is :attr:`adds_curvature` on every optimized cell; a family whose parameters vary by cell
+        overrides it. ``label`` prefixes any error raised while reading the declaration.
         """
-        return self.adds_curvature and not self.is_identity_on(
-            dims=dims, coords=coords, mask=mask, date_dim=date_dim, label=label
-        )
+        _, on = self._layout(dims, coords, mask)
+        return on & self.adds_curvature
 
     @property
     def attests_delivery_units(self) -> bool:
         """The user vouches that the fitted data are in delivery units (or constant-price spend).
 
-        Read only when :attr:`adds_curvature` is True and the fitted artifact cannot vouch for a cell. Default
-        ``False``; a curved family exposes a field for it.
+        Read only for a response that bends a cell the fitted artifact cannot vouch for. Default ``False``; a
+        curved family exposes a field for it.
         """
         return False
 
     @property
     def needs_derived_reference(self) -> bool:
-        """True when :meth:`resolve` can only succeed with a ``derived_reference`` from the optimizer.
+        """True when the declaration supplies no reference level, so a curved cell can only take a derived one.
 
-        A family that states price *relative* to a level needs one unless the user supplied it; a family whose
-        schedule is stated in absolute money never does. Default ``False``.
+        A family that states price *relative* to a level needs one; a family whose schedule is stated in
+        absolute money never does. Default ``False``.
         """
         return False
 
@@ -379,15 +371,21 @@ class PriceResponse(BaseModel, ABC):
         mask : DataArray
             Boolean mask over ``dims`` selecting the optimized cells.
         date_dim : str
-            Name of the date dimension, which no input here may carry.
+            Name of the date dimension, passed so a family can validate its inputs against it. Whether a
+            parameter may vary by date is the family's choice: :class:`PowerPriceResponse` refuses it, and a
+            family that accepts it takes a ``date_dim`` of length ``num_periods`` aligned by position, as the
+            optimizer's ``cost_per_unit`` is.
         derived_reference : DataArray or None
-            Per-period money per cell read off the fitted artifact by the optimizer, or ``None`` when there is
-            none (a spend variable, an opted-out model). In the units of ``result.budgets``.
+            Per-period money per cell read off the fitted artifact by the optimizer, in the units of
+            ``result.budgets``; ``nan`` on cells it cannot vouch for (a channel the historical ``cost_per_unit``
+            table does not price, a cell never on air). ``None`` when there is nothing to read (a spend variable,
+            a model with no table).
         label : str
             Prefix for error messages, naming the variable.
         num_periods : int or None
-            Length of the optimization window, when known. Lets a family test the specific hypothesis that a
-            supplied reference is a window total rather than a per-period rate.
+            Length of the optimization window, when known: the length of any date axis a family accepts, and
+            what lets :class:`PowerPriceResponse` test the hypothesis that a supplied reference is a window total
+            rather than a per-period rate.
         """
 
     @staticmethod
@@ -452,11 +450,15 @@ class PowerPriceResponse(PriceResponse):
         *sensitivity* is not supported.
     reference_spend : xarray.DataArray or None
         Where :math:`p_0` applies: **per-period money per cell, in the units of** ``result.budgets`` **and**
-        ``total_budget``, over exactly the budget dims. Default ``None`` derives it from the fitted model as the
+        ``total_budget``, carrying every budget dim. Default ``None`` derives it from the fitted model as the
         mean of ``constant_data["channel_spend"]`` over the periods each cell was on air (``spend > 0``), so a
-        flighted channel is anchored at the level it actually bought at. A supplied value is checked against
-        that derived default when one exists; see ``reference_spend_tolerance``. Required for ``spend_vars``
-        and for opted-out models, which have nothing to derive from.
+        flighted channel is anchored at the level it actually bought at. Only channels the historical
+        ``cost_per_unit`` table prices get a derived value: an unpriced channel's ``channel_spend`` is its
+        units, not money. A supplied value overrides the default cell by cell: its labels may be partial, cells
+        it leaves out (absent labels or ``nan``) keep the derived one, and the cells it gives are checked
+        against it where it exists (see ``reference_spend_tolerance``). It must cover every curved cell with no
+        derived value: every cell of a spend variable, and the channels an attested model's table does not
+        price.
     max_slope_ratio : float
         Cap on :math:`u'(0) / u'(s^{\text{ref}})`, the spread of marginal returns the solver can meet on one
         cell. Sets the floor :math:`s_f / s^{\text{ref}} = \max\big((M (1-\gamma)/(1+\gamma))^{-1/\gamma},\;
@@ -470,49 +472,42 @@ class PowerPriceResponse(PriceResponse):
         does this.
     reference_spend_tolerance : float
         Largest factor by which a supplied ``reference_spend`` may differ from the derived default on any
-        optimized cell before it is rejected. Default ``10``. The unit error this catches is a window total
+        curved cell before it is rejected. Default ``10``. The unit error this catches is a window total
         handed over as a per-period rate: off by ``num_periods``, shifting every price by
         ``num_periods ** elasticity``. When the supplied value is ``num_periods`` times the derived one on
-        every optimized cell (within 5%), a warning names that hypothesis instead of refusing. A window total
-        for a window of ``num_periods <= reference_spend_tolerance`` periods is therefore accepted with only
-        the warning; lower the tolerance for short windows if that is a risk.
+        every cell it can be checked on (within 5%), a warning names that hypothesis instead of refusing. A
+        window total for a window of ``num_periods <= reference_spend_tolerance`` periods is therefore accepted
+        with only the warning; lower the tolerance for short windows if that is a risk.
     assume_delivery_units : bool
         Attest that the node's data are in delivery units (or in spend deflated to constant prices) even
-        though no historical ``cost_per_unit`` table prices them. Required, together with an explicit
-        ``reference_spend``, to bend the price on channels the fitted artifact cannot vouch for and on every
-        spend variable, which has no such artifact; a cell left at ``elasticity=0`` needs no vouching, since
-        its money passes through unbent. Default ``False``: the optimizer then refuses, because a saturation
-        curve fitted on nominal spend has already absorbed part of the price curvature and a concave price
-        map on top would bend it twice (see :attr:`PriceResponse.adds_curvature`).
+        though no historical ``cost_per_unit`` table prices them. Required, together with a ``reference_spend``
+        covering those cells, to bend the price on channels the fitted artifact cannot vouch for and on every
+        spend variable, which has no such artifact. Channels the table does price keep their derived reference
+        alongside the attested ones, and a cell left at ``elasticity=0`` needs no vouching, since its money
+        passes through unbent. Default ``False``: the optimizer then refuses, because a saturation curve fitted
+        on nominal spend has already absorbed part of the price curvature and a concave price map on top would
+        bend it twice (see :attr:`PriceResponse.adds_curvature`).
 
     Notes
     -----
     **Precondition.** Only sound when the model was fitted on delivery units or constant-price spend. The
     optimizer checks each channel the response bends against the historical ``cost_per_unit`` table on the
     fitted model (written by :meth:`~pymc_marketing.mmm.mmm.MMM.set_cost_per_unit` or ``MMM(cost_per_unit=...)``)
-    and refuses the unpriced ones unless ``assume_delivery_units=True`` and ``reference_spend`` are both given;
-    channels left at ``elasticity=0`` need no vouching.
+    and refuses the unpriced ones unless ``assume_delivery_units=True`` and a ``reference_spend`` covering them
+    are given; channels left at ``elasticity=0`` need no vouching.
     The ``cost_per_unit`` passed to the *optimizer* is independent of that table and proves nothing about the
     fit. A merged model (:func:`~pymc_marketing.mmm.budget_optimizer.merge_inference_data`) carries no root
     attrs and always needs the opt-out.
 
-    **Below the reference.** The power law is as confident below the reference as above it: at
-    ``elasticity=0.4``, spending 15% of the reference prices a unit at ``0.47 p_0``, and the marginal unit at
-    ``0.78 p_0``. That moves allocations, not only reports. A channel that is worthless at ``p_0`` (measured:
-    window price 40x its siblings, zero under a constant price) receives a small budget once it is priced,
-    because its first money buys units at a fraction of ``p_0``; and with a total budget below the historical
-    spend typically every priced channel reports a price under ``p_0``, which is the usual planning case when
-    budgets are cut. Auction inventory is not symmetric this way -- floor prices and minimum bids hold the price
-    up below the reference. So anchor ``reference_spend`` at the level you plan to buy at, not only where
-    ``p_0`` was observed (raise ``reference_spend_tolerance`` when that is far from the fitted spend), read
-    ``implied_price`` on every channel before trusting the allocation, and sweep ``elasticity`` rather than
-    pin it. A variant flat below the reference is #3089.
+    **Below the reference.** The power law is as confident below the reference as above it, so a priced channel
+    bought far below its reference looks cheap and can attract budget: anchor ``reference_spend`` where you plan
+    to buy (raising ``reference_spend_tolerance`` if that is far from the fitted spend) and read
+    ``implied_price`` on every channel before trusting the allocation. A variant flat below the reference is
+    #3089.
 
-    **Not a rate schedule.** One smooth curve cannot state a committed tranche at a contracted rate with
-    incremental money at another rate. Calibrated to that case, the map is exact only at the anchor: the
-    marginal price keeps climbing where the truth is flat (measured 16% high at an increment of half the
-    baseline, 30% at a full one) and the committed tranche is repriced. Allocation follows the marginal price,
-    so treat those numbers as a bound on the calibration, not a small correction.
+    **Not a rate schedule.** One smooth curve cannot hold a committed tranche at a contracted rate while the
+    increment clears at another: calibrated to that case, its marginal price keeps climbing where the true rate
+    is flat. Bracket rates are #3067.
 
     **Units.** The map acts on per-period money at the model's date granularity, after
     ``budget_distribution_over_period`` has redistributed the total. ``total_budget``, ``result.budgets`` and
@@ -522,17 +517,22 @@ class PowerPriceResponse(PriceResponse):
 
     **Behaviour change with** :math:`\gamma > 0`. The delivery map is strictly concave, so at equal total
     spend a non-uniform ``budget_distribution_over_period`` buys less delivery than a uniform one:
-    concentrated buying clears higher.
+    concentrated buying clears higher. The same holds across windows: for a given per-period plan the window
+    length does not move the price, but holding the *window* total fixed, a shorter window spends more per
+    period and clears higher.
+
+    **Volume discounts are out of scope.** :math:`\gamma` models bid-up on the incremental money of this plan.
+    A negotiated or contract discount belongs in the base price, ``cost_per_unit``. A price that falls with
+    volume (:math:`\gamma < 0`) makes delivery convex and the allocation non-convex for SLSQP, so it is
+    refused; leave such a channel at ``elasticity=0``.
 
     **The elasticity is an input.** The model never observes price, so :math:`\gamma` comes from buying data
     with its own endogeneity. Treat it as a sensitivity sweep, running ``elasticity=0.0`` beside the values
     you believe.
 
-    **Why not fixed-point iteration.** Solving at an assumed price and repricing from the result converges to
-    :math:`R'(u_i) / p_i = \text{const}`; the true first-order condition is
-    :math:`R'(u_i)(1 - \gamma_i) / p_i = \text{const}`. One common :math:`\gamma` absorbs the factor;
-    heterogeneous :math:`\gamma` over-allocates to the high-elasticity channels, which is the case this
-    feature exists for.
+    **Why not fixed-point iteration.** Re-solving at repriced constant prices misses the :math:`(1 - \gamma_i)`
+    factor of the first-order condition, so it over-allocates to the high-elasticity channels whenever
+    elasticities differ.
 
     **Reading the result.** ``result.implied_delivery`` is per-period delivery before ``channel_scales``.
     Score a plan with
@@ -570,10 +570,12 @@ class PowerPriceResponse(PriceResponse):
     reference_spend: InstanceOf[DataArray] | None = Field(
         default=None,
         description=(
-            "Per-period money per cell at which the base price applies, over exactly the budget dims; "
-            "the units of result.budgets and total_budget. None derives it from the fitted model where "
-            "one exists (the on-air mean of constant_data['channel_spend']); a supplied value is guarded "
-            "against that default by reference_spend_tolerance."
+            "Per-period money per cell at which the base price applies, carrying every budget dim; the units "
+            "of result.budgets and total_budget. None derives it from the fitted model for the channels its "
+            "historical cost_per_unit table prices (the on-air mean of constant_data['channel_spend']). A "
+            "supplied value overrides that default cell by cell: its labels may be partial, cells it leaves "
+            "out (absent or nan) keep the default, "
+            "and the cells it gives are guarded against it by reference_spend_tolerance."
         ),
     )
     max_slope_ratio: float = Field(default=100.0, gt=1.0)
@@ -582,7 +584,8 @@ class PowerPriceResponse(PriceResponse):
         default=False,
         description=(
             "Attest that the node's data are in delivery units although no historical cost_per_unit prices "
-            "it. Requires an explicit reference_spend. See the class docstring for why the default refuses."
+            "it. Requires a reference_spend covering the cells it attests for. See the class docstring for "
+            "why the default refuses."
         ),
     )
 
@@ -596,34 +599,42 @@ class PowerPriceResponse(PriceResponse):
 
     @model_validator(mode="after")
     def _check_domain(self) -> Self:
-        values = self._known_elasticities()
+        self._require_valid_elasticity(
+            self._known_elasticities(), self.max_slope_ratio, "PowerPriceResponse"
+        )
+        return self
+
+    @staticmethod
+    def _require_valid_elasticity(
+        values: np.ndarray, max_slope_ratio: float, label: str
+    ) -> None:
+        """Refuse an elasticity outside ``[0, 1)``, or one too steep for ``max_slope_ratio``.
+
+        Run at construction and again on the resolved cells: ``frozen`` stops a field being reassigned, but the
+        declaration holds the caller's ``DataArray`` or dict, which can still be mutated in place.
+        """
         bad = values[~((values >= 0.0) & (values < 1.0))]
         if bad.size:
             raise ValueError(
-                f"PowerPriceResponse requires 0 <= elasticity < 1, got {bad.tolist()}. At 1 delivery is "
+                f"{label}: requires 0 <= elasticity < 1, got {np.unique(bad).tolist()}. At 1 delivery is "
                 "constant in spend; above it more money buys less and the optimizer drives the channel to "
-                "its lower bound."
+                "its lower bound. Below 0 the price falls with volume, which makes delivery convex: a "
+                "negotiated or contract discount belongs in cost_per_unit, the base price."
             )
         if values.size:
             g_max = float(values.max())
             minimum = (1.0 + g_max) / (1.0 - g_max)
-            if self.max_slope_ratio <= minimum:
+            if max_slope_ratio <= minimum:
                 raise ValueError(
-                    f"PowerPriceResponse: max_slope_ratio must exceed {minimum:g} for elasticity "
-                    f"{g_max:g} (it is (1 + gamma) / (1 - gamma)); got {self.max_slope_ratio:g}. Below "
+                    f"{label}: max_slope_ratio must exceed {minimum:g} for elasticity "
+                    f"{g_max:g} (it is (1 + gamma) / (1 - gamma)); got {max_slope_ratio:g}. Below "
                     "that the quadratic floor would land above the reference spend."
                 )
-        return self
-
-    @property
-    def is_identity(self) -> bool:
-        """True when every elasticity is exactly zero."""
-        return bool(np.all(self._known_elasticities() == 0.0))
 
     @property
     def adds_curvature(self) -> bool:
         """The power law bends money wherever its elasticity is not zero."""
-        return not self.is_identity
+        return bool(np.any(self._known_elasticities() != 0.0))
 
     @property
     def attests_delivery_units(self) -> bool:
@@ -635,7 +646,7 @@ class PowerPriceResponse(PriceResponse):
         """A relative price needs a level; without a supplied one it has to come from the fitted model."""
         return self.reference_spend is None
 
-    def is_identity_on(
+    def curved_cells(
         self,
         *,
         dims: tuple[str, ...],
@@ -643,13 +654,10 @@ class PowerPriceResponse(PriceResponse):
         mask: DataArray,
         date_dim: str,
         label: str = "price_response",
-    ) -> bool:
-        """Report whether every *optimized* cell has zero elasticity; see :meth:`PriceResponse.is_identity_on`."""
-        if self.is_identity:
-            return True
+    ) -> np.ndarray:
+        """Optimized cells with a non-zero elasticity; see :meth:`PriceResponse.curved_cells`."""
         template, on = self._layout(dims, coords, mask)
-        gamma = self._resolve_elasticity(template, date_dim, label)
-        return bool(np.all(gamma[on] == 0.0))
+        return self._optimized_elasticity(template, on, date_dim, label) > 0.0
 
     def resolve(
         self,
@@ -664,13 +672,11 @@ class PowerPriceResponse(PriceResponse):
     ) -> ResolvedPowerPriceResponse:
         """Bind to one variable's layout; see :meth:`PriceResponse.resolve`."""
         template, on = self._layout(dims, coords, mask)
-        # A masked cell spends exactly nothing whatever its elasticity, so it gets gamma = 0.
-        gamma = np.where(on, self._resolve_elasticity(template, date_dim, label), 0.0)
-        needs_reference = on & (gamma > 0.0)
+        gamma = self._optimized_elasticity(template, on, date_dim, label)
         reference = self._resolve_reference(
             template,
             on,
-            needs_reference,
+            gamma > 0.0,
             derived_reference,
             date_dim,
             label,
@@ -684,6 +690,14 @@ class PowerPriceResponse(PriceResponse):
             label=label,
         )
 
+    def _optimized_elasticity(
+        self, template: DataArray, on: np.ndarray, date_dim: str, label: str
+    ) -> np.ndarray:
+        """Elasticity per cell of ``template``; a masked cell spends exactly nothing, so it gets 0."""
+        gamma = np.where(on, self._resolve_elasticity(template, date_dim, label), 0.0)
+        self._require_valid_elasticity(gamma, self.max_slope_ratio, label)
+        return gamma
+
     def _resolve_reference(
         self,
         template: DataArray,
@@ -694,34 +708,70 @@ class PowerPriceResponse(PriceResponse):
         label: str,
         num_periods: int | None,
     ) -> np.ndarray:
-        """Choose the reference source: unread on flat cells, else declared, else derived."""
+        """Choose the reference per cell: unread on flat cells, else supplied, else derived."""
         if not needs_reference.any():
             # The identity: the floor is 0 and (s / s_ref) ** 0 is 1, so the reference is never read.
             return np.ones(template.shape)
-        if self.reference_spend is not None:
-            return self._resolve_supplied_reference(
-                template,
-                on,
-                needs_reference,
-                derived_reference,
-                date_dim,
-                label,
-                num_periods,
+        derived = (
+            None
+            if derived_reference is None
+            else np.asarray(
+                derived_reference.transpose(*template.dims).values, dtype="float64"
             )
-        if derived_reference is not None:
+        )
+        if self.reference_spend is None:
+            if derived is None:
+                raise ValueError(
+                    f"{label}: reference_spend is required -- there is no fitted spend to derive the level "
+                    "at which the base price applies. Pass reference_spend as per-period money per cell."
+                )
             return self._check_reference(
-                np.asarray(
-                    derived_reference.transpose(*template.dims).values, dtype="float64"
-                ),
+                derived,
                 on,
                 needs_reference,
                 template,
                 label,
                 reason="the fitted spend has no on-air period",
             )
-        raise ValueError(
-            f"{label}: reference_spend is required -- there is no fitted spend to derive the level at "
-            "which the base price applies. Pass reference_spend as per-period money per cell."
+        supplied = self._aligned_supplied_reference(
+            self.reference_spend, template, date_dim, label
+        )
+        given = ~np.isnan(supplied)
+        # A value that is given must be usable on its own; a missing one falls back below.
+        self._check_reference(
+            np.where(given, supplied, 1.0),
+            on,
+            needs_reference,
+            template,
+            label,
+            reason="reference_spend is not positive and finite",
+        )
+        if derived is None:
+            return self._check_reference(
+                supplied,
+                on,
+                needs_reference,
+                template,
+                label,
+                reason=(
+                    "there is no reference_spend value (absent label or nan) and no fitted spend to "
+                    "derive one from"
+                ),
+            )
+        self._guard_supplied_reference(
+            supplied, derived, needs_reference & given, template, label, num_periods
+        )
+        return self._check_reference(
+            np.where(given, supplied, derived),
+            on,
+            needs_reference,
+            template,
+            label,
+            reason=(
+                "there is neither a reference_spend value nor a derived one (the historical "
+                "cost_per_unit table does not price the channel, it was never on air, or channel_spend "
+                "lacks the cell)"
+            ),
         )
 
     def _resolve_elasticity(
@@ -735,13 +785,7 @@ class PowerPriceResponse(PriceResponse):
             full = self._elasticity_from_mapping(e, template, label)
         else:
             full = template + float(e)
-        gamma = np.asarray(full.values, dtype="float64")
-        bad = ~((gamma >= 0.0) & (gamma < 1.0))
-        if bad.any():
-            raise ValueError(
-                f"{label}: requires 0 <= elasticity < 1, got {np.unique(gamma[bad]).tolist()}."
-            )
-        return gamma
+        return np.asarray(full.values, dtype="float64")
 
     @staticmethod
     def _elasticity_from_dataarray(
@@ -793,107 +837,62 @@ class PowerPriceResponse(PriceResponse):
         )
         return values.broadcast_like(template).transpose(*dims)
 
-    def _resolve_supplied_reference(
-        self,
-        template: DataArray,
-        on: np.ndarray,
-        needs_reference: np.ndarray,
-        derived_reference: DataArray | None,
-        date_dim: str,
-        label: str,
-        num_periods: int | None = None,
-    ) -> np.ndarray:
-        """Validate and align the declared reference, then guard it against the derived one."""
-        values = self._aligned_supplied_reference(
-            template, on, needs_reference, date_dim, label
-        )
-        if derived_reference is not None:
-            expected = np.asarray(
-                derived_reference.transpose(*template.dims).values, dtype="float64"
-            )
-            self._guard_supplied_reference(
-                values, expected, needs_reference, template, label, num_periods
-            )
-        return values
-
     def _aligned_supplied_reference(
-        self,
-        template: DataArray,
-        on: np.ndarray,
-        needs_reference: np.ndarray,
-        date_dim: str,
-        label: str,
+        self, ref: DataArray, template: DataArray, date_dim: str, label: str
     ) -> np.ndarray:
-        """Align the declared reference to the layout, requiring it positive and finite where it is read."""
+        """Align the declared reference to the layout, ``nan`` on the cells it leaves out.
+
+        Unknown labels are refused, as for every labelled input; missing ones are not, because a cell the
+        reference leaves out takes the derived default.
+        """
         dims = template.dims
-        ref = self.reference_spend
-        if (
-            ref is None
-        ):  # pragma: no cover - resolve() only calls this with a supplied reference
-            raise ValueError(f"{label}: reference_spend is required here.")
         if set(ref.dims) != set(dims):
             raise ValueError(
                 f"{label}: reference_spend must have exactly the budget dims {list(dims)} -- per-period "
                 f"money per cell, with no {date_dim!r} dim -- got {list(ref.dims)}."
             )
         self._require_labelled(ref, f"{label}: reference_spend")
-        aligned = align_to_model_coords(
-            ref,
-            {d: template.coords[d].values.tolist() for d in dims},
-            label=f"{label}: reference_spend",
-        ).transpose(*dims)
-        return self._check_reference(
-            np.asarray(aligned.values, dtype="float64"),
-            on,
-            needs_reference,
-            template,
-            label,
-            reason="reference_spend is not positive and finite",
-        )
+        coords = {d: template.coords[d].values.tolist() for d in dims}
+        _reject_unknown_coords(ref, coords, label=f"{label}: reference_spend")
+        return np.asarray(ref.reindex(coords).transpose(*dims).values, dtype="float64")
 
     def _guard_supplied_reference(
         self,
         values: np.ndarray,
         expected_all: np.ndarray,
-        needs_reference: np.ndarray,
+        checked: np.ndarray,
         template: DataArray,
         label: str,
         num_periods: int | None,
     ) -> None:
-        """Compare the declared reference with the fitted one, on the cells that read it, and refuse a unit error."""
-        on = needs_reference
-        supplied, expected = values[on], expected_all[on]
-        comparable = np.isfinite(expected) & (expected > 0.0)
-        if not comparable.all():
-            cells = [
-                self._cell_label(idx, template)
-                for idx in np.argwhere(on)[~comparable][:5]
-            ]
-            warnings.warn(
-                f"{label}: reference_spend could not be checked against the fitted spend for cells "
-                f"{cells}, which have no on-air period; the supplied value is used as given there.",
-                UserWarning,
-                stacklevel=4,
-            )
+        """Refuse a unit error: compare the supplied reference with the fitted one on ``checked`` cells.
+
+        ``checked`` holds the curved cells the user gave a value for; only those with a fitted value can be
+        compared. The rest (an attested channel the table does not price, a cell never on air) are used as
+        given, since nothing fitted is in money there.
+        """
+        comparable = checked & np.isfinite(expected_all) & (expected_all > 0.0)
+        if not comparable.any():
+            return
+        cells = np.argwhere(comparable)
+        supplied, expected = values[comparable], expected_all[comparable]
         # A window total handed over as a per-period rate is off by exactly num_periods
         # on every cell; a warning rather than a refusal, because the match is a heuristic.
-        if num_periods is not None and num_periods > 1 and comparable.any():
-            scale = supplied[comparable] / expected[comparable]
+        if num_periods is not None and num_periods > 1:
+            scale = supplied / expected
             if np.all(np.abs(scale / num_periods - 1.0) < 0.05):
                 warnings.warn(
                     f"{label}: reference_spend is num_periods ({num_periods}) times the fitted "
-                    "per-period spend on every optimized cell, to within 5%: it looks like a window "
-                    "total. reference_spend is per-period money, the units of result.budgets and "
+                    "per-period spend on every cell it can be checked on, to within 5%: it looks like a "
+                    "window total. reference_spend is per-period money, the units of result.budgets and "
                     f"total_budget -- if so, divide by {num_periods}.",
                     UserWarning,
-                    stacklevel=4,
+                    stacklevel=3,
                 )
-        ratio = np.where(
-            comparable, np.maximum(supplied / expected, expected / supplied), 0.0
-        )
+        ratio = np.maximum(supplied / expected, expected / supplied)
         worst = int(np.argmax(ratio))
         if ratio[worst] > self.reference_spend_tolerance:
-            cell = self._cell_label(np.argwhere(on)[worst], template)
+            cell = self._cell_label(cells[worst], template)
             raise ValueError(
                 f"{label}: reference_spend at cell {cell} is {supplied[worst]:.4g}, but the fitted "
                 f"spend's on-air mean per period is {expected[worst]:.4g} ({ratio[worst]:.3g}x apart; "
