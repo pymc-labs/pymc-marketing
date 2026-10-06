@@ -2165,11 +2165,13 @@ class Incrementality:
         for row, (band, unseen) in enumerate(zip(bands, off_axis, strict=True)):
             band = band.transpose("chain", "draw", "date", *out_dims)
             cols = realization.get_indexer(pd.DatetimeIndex(band.coords["date"].values))
-            assert (cols >= 0).all()
+            if (cols < 0).any():  # pragma: no cover - internal contract
+                raise ValueError("A band date is missing from the realization axis.")
             values[:, :, row, cols] = band.values
             if len(unseen):
                 missing = realization.get_indexer(unseen)
-                assert (missing >= 0).all()
+                if (missing < 0).any():  # pragma: no cover - internal contract
+                    raise ValueError("An off-axis date is missing from the axis.")
                 values[:, :, row, missing] = np.nan
                 observed[row, missing] = False
 
