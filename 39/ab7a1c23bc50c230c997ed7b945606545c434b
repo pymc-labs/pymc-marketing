@@ -1,0 +1,23 @@
+pymc_marketing/mmm/counterfactual.py
+  s_b7d8bb59467b0c::t_dd79866f231b3a 237-242,251-252,294-295
+pymc_marketing/mmm/incrementality.py
+  s_b7d8bb59467b0c::t_19ca7a126a064f 259,263,321-339,362,390-392,437-438,440,981-1317,1330,1358-1361,1561,1575-1576,1578-1583,1743-1744,1796-1802,1810-1811,1867-1874,1877,1891-1892,1894-1902,1907-1917,1933-2051
+tests/mmm/test_incrementality.py
+  s_b7d8bb59467b0c::t_4345ba2fd3e107 1279-1302,3267-3510
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "39ab7a1c23bc50c230c997ed7b945606545c434b",
+  "prompts": {},
+  "sessions": {
+    "s_b7d8bb59467b0c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "929e4e30-94e2-4302-8154-b5ae732952b6",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "daimon-pymclabs <daimon@pymc-labs.com>"
+    }
+  }
+}
