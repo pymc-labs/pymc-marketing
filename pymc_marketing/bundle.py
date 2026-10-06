@@ -114,10 +114,10 @@ code, one env with a cold numba cache and one with a warm one:
 ======================================== ============ ============
 step                                     cold cache   warm cache
 ======================================== ============ ============
-``from_parts`` + ``model_from_fgraph``   0.5 ms       0.5 ms
-``compile_forward_sampling_function``    329 ms       7 ms
-first predict call                       150 ms       3 ms
-steady-state predict call                0.02 ms      0.02 ms
+``from_parts`` + unpickle                0.2 ms       0.2 ms
+``compile_forward_sampling_function``    13 ms        13 ms
+first predict call                       532 ms       7 ms
+steady-state predict call                0.03 ms      0.02 ms
 ======================================== ============ ============
 
 The steady-state cost is stable; the startup cost is not, and it shrinks as the
@@ -289,6 +289,20 @@ class DataRef:
     ``.zarr`` directory, a ``.nc`` file, or an object-store URL, and ``format`` is
     only a hint for choosing an opener.
 
+    **How a consumer must resolve ``location``.** The keys are fixed, and the
+    rule for reading them is part of the contract:
+
+    * ``embedded`` is ``true`` only for data this bundle wrote into itself, and
+      its ``location`` is relative to the bundle directory. Resolve it against the
+      bundle and the bundle is relocatable.
+    * ``embedded`` is ``false`` for a path or URL the caller supplied. Resolve it
+      as written, against the process working directory for a relative path. Do
+      **not** resolve it against the bundle: a caller who wrote
+      ``runs/42/run.zarr`` means that path, and joining it to the bundle
+      directory would look for ``runs/42/model/runs/42/run.zarr``.
+    * ``file://`` URLs and Windows drive letters name one fixed location and are
+      never relative. ``~`` expands in the reading process.
+
     Parameters
     ----------
     location : str
@@ -426,9 +440,45 @@ class Manifest:
     """The durable half of a bundle: plain JSON, readable without pymc.
 
     Deliberately does not hold the model structure. Names, roles, dims,
-    transforms and coords are already in the graph and are re-derivable from
-    the reconstructed Model. What the graph cannot know is what wrote it, and
-    that is what this records.
+    transforms and coords travel with the Model, so copying them here would be a
+    second thing to keep in step and not the thing that is actually loaded. What
+    a Model cannot know is what wrote it, and that is what this records.
+
+    **The key set is a contract.** A consumer of a bundle written by a compatible
+    ``schema_version`` may rely on these keys being present with these meanings,
+    and should ignore any key it does not recognise so that a newer writer is not
+    a failure.
+
+    ================== ==================================================
+    key                what a consumer may rely on
+    ================== ==================================================
+    ``schema_version`` present, and greater than this package understands
+                       means the manifest must not be loaded.
+    ``created``        ISO 8601 UTC, second resolution. Informational.
+    ``pymc``           version that wrote it. Drift is reported, never fatal.
+    ``pytensor``       as above.
+    ``pymc_marketing`` as above.
+    ``python``         as above. The pin most likely to matter on load,
+                       since cloudpickle stores classes as bytecode.
+    ``floatX``         precision the reference logp was taken at.
+    ``n_nodes``        graph size, informational. 0 when the graph could not
+                       be built, which is not a failure.
+    ``depth``          as above.
+    ``fingerprint``    structural hash of names, roles, dims, transforms and
+                       coord values. Change means the model changed.
+    ``reference_logp`` logp at the initial point when saved. May be ``null``
+                       when it could not be computed, which is warned at
+                       save time rather than hidden.
+    ``metadata``       your own JSON, verbatim.
+    ``data``           a :class:`DataRef` under a fixed key set. **Absent**
+                       when the bundle holds only the Model. Absent is not
+                       the same as null.
+    ================== ==================================================
+
+    Adding a key is a minor change; removing one, renaming one, or changing what
+    one means requires a ``schema_version`` bump. Fields have only ever been
+    added, which is what lets an older reader pass a newer manifest through
+    untouched rather than refusing it.
     """
 
     raw: dict
@@ -527,7 +577,7 @@ def _transform_label(transform: Any) -> str:
 
 
 def _fingerprint(model: pm.Model) -> str:
-    """Structural hash covering what ``model_from_fgraph`` should preserve.
+    """Structural hash of everything a bundle should hand back unchanged.
 
     Order is excluded on purpose: it is not preserved and does not matter.
     Dims are joined to a string so the hash does not care whether they arrive as
@@ -611,9 +661,14 @@ class AuditReport:
     """The result of :func:`audit`."""
 
     blockers: list[Blocker] = field(default_factory=list)
+    #: Things worth saying that do not stop the save. A blocker demoted because
+    #: the model turned out to round-trip anyway lands here.
+    notes: list[str] = field(default_factory=list)
     n_nodes: int = 0
     depth: int = 0
     #: The graph that was audited, so callers can reuse it instead of rebuilding.
+    #: None when the graph could not be built, which costs n_nodes and depth but
+    #: not the bundle, since the Model is what actually gets written.
     fgraph: Any = field(default=None, repr=False, compare=False)
 
     @property
@@ -628,6 +683,7 @@ class AuditReport:
     def __str__(self) -> str:
         """Return the report as lines: sizes, then any blocker and its remedy."""
         lines = [f"nodes={self.n_nodes} depth={self.depth} ok={self.ok}"]
+        lines.extend(f"  - {note}" for note in self.notes)
         lines.extend(
             f"  x {b.kind}: {b.detail}\n      remedy: {b.remedy}" for b in self.blockers
         )
@@ -637,16 +693,17 @@ class AuditReport:
 def _fgraph_or_blocker(model: pm.Model) -> tuple[Any, Blocker | None]:
     """Build the model's graph, or report why it cannot be built.
 
-    Shared so that auditing, describing and serializing a model all work from one
-    build. ``fgraph_from_model`` is not free, and three separate calls mean the
-    manifest can describe a different graph than the bytes written next to it.
+    Shared so that auditing and describing a model agree on its size, since
+    ``fgraph_from_model`` is not free and two builds could differ. The graph is
+    informational: the Model is what gets written, so failing to build one costs
+    ``n_nodes`` and ``depth`` rather than the bundle.
     """
     from pymc.model.fgraph import fgraph_from_model
 
     try:
         fgraph, _ = fgraph_from_model(model)
     except NotImplementedError as exc:
-        return None, Blocker("fgraph", str(exc), "see the initial_values blocker")
+        return None, Blocker("fgraph", str(exc), "check for a model that sets initval")
     except ValueError as exc:
         return None, Blocker("fgraph", str(exc), "export the top-level model")
     return fgraph, None
@@ -666,7 +723,17 @@ def audit(model: pm.Model, *, fgraph: Any = None) -> AuditReport:
     Returns
     -------
     AuditReport
-        ``ok`` is False if any blocker applies.
+        ``ok`` is False if any blocker applies. There is currently one kind:
+        a ``CustomDist`` built with ``random=`` and no explicit ``logp=``, which
+        derives its logp numerically and loses it once serialized, so a bundle
+        carrying it reloads into a model that cannot be evaluated.
+
+        Things that used to block, and now only note, because the Model is
+        pickled rather than rebuilt from a graph: a model that sets ``initval``,
+        which travels with the Model; a nested model, which is pickled together
+        with its parent and so makes a larger bundle; and a graph that cannot be
+        built, which costs ``n_nodes`` and ``depth`` rather than the bundle.
+        Their notes are worth reading, but none of them stops a save.
 
     Raises
     ------
@@ -698,31 +765,27 @@ def audit(model: pm.Model, *, fgraph: Any = None) -> AuditReport:
 
     report = AuditReport()
 
-    if any(v is not None for v in (model.rvs_to_initial_values or {}).values()):
-        report.blockers.append(
-            Blocker(
-                "initial_values",
-                "model sets initvals=, which fgraph_from_model does not represent",
-                "clear them before export, or add initval to ModelValuedVar.__props__",
-            )
-        )
     if getattr(model, "parent", None) is not None:
-        report.blockers.append(
-            Blocker(
-                "submodel",
-                "model is nested under a parent",
-                "export the top-level model",
-            )
+        # A nested model does not own copies of its variables, it shares them with
+        # the parent, so pickling it serialises the parent too. The bundle is valid
+        # and loads correctly; it is larger, and it carries whatever data the parent
+        # holds, which is worth saying but is not a reason to refuse the save.
+        report.notes.append(
+            "this model is nested, and a nested model is pickled together with the "
+            "parent that owns it, so the bundle also carries the parent's variables "
+            "and data; export the top-level model if you do not want that"
         )
 
     if fgraph is None:
         fgraph, blocker = _fgraph_or_blocker(model)
         if blocker is not None:
-            report.blockers.append(blocker)
-            return report
+            # The graph is no longer what gets written, so failing to build one
+            # costs n_nodes and depth rather than the bundle. Note it and carry on.
+            report.notes.append(f"{blocker.kind}: {blocker.detail}")
 
     report.fgraph = fgraph
-    report.n_nodes, report.depth = _stats(fgraph)
+    if fgraph is not None:
+        report.n_nodes, report.depth = _stats(fgraph)
     report.blockers.extend(_customdist_blockers(model))
     return report
 
@@ -962,10 +1025,10 @@ def build_manifest(
         JSON-serializable manifest.
     """
     if fgraph is None:
-        fgraph, blocker = _fgraph_or_blocker(model)
-        if blocker is not None:
-            raise ValueError(f"cannot describe this model:\n  {blocker.detail}")
-    n_nodes, depth = _stats(fgraph)
+        fgraph, _ = _fgraph_or_blocker(model)
+    # A graph we could not build costs n_nodes and depth, not the bundle: the
+    # Model is what gets written, and it pickles either way.
+    n_nodes, depth = _stats(fgraph) if fgraph is not None else (0, 0)
 
     manifest = {
         "schema_version": SCHEMA_VERSION,
@@ -1032,7 +1095,9 @@ def save_model(
     Parameters
     ----------
     model : pm.Model
-        The model to save. Must not set ``initvals=`` and must not be nested.
+        The model to save. Must be a ``pm.Model`` and not a class that wraps one;
+        pass the wrapped ``.model`` instead. A nested model saves, and carries its
+        parent with it, which :func:`audit` notes.
     path : str or Path
         Directory to create.
     metadata : dict, optional

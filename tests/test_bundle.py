@@ -75,23 +75,56 @@ def test_audit_passes_for_an_ordinary_model():
     assert report.depth > 0
 
 
-def test_audit_flags_initial_values():
+def test_a_model_with_initval_is_not_blocked(tmp_path):
+    """Regression: audit used to refuse these because fgraph_from_model drops initval.
+
+    The Model is pickled rather than rebuilt, so the initial values travel with
+    it. Blocking them rejected models that round-trip correctly.
+    """
     with pm.Model() as model:
         pm.Normal("a", 0, 1, initval=-2.0)
         pm.Normal("y", pm.Normal("b", 0, 1), 1, observed=np.zeros(3))
 
-    assert not audit(model).ok
-    assert "initial_values" in audit(model).kinds()
+    assert audit(model).ok, audit(model).blockers
+
+    restored = load_model(save_model(model, tmp_path / "model"))
+    assert restored.initial_point()["a"] == model.initial_point()["a"]
 
 
-def test_audit_flags_nested_models():
+def test_a_graph_that_will_not_build_is_a_note_not_a_blocker(tmp_path):
+    """The graph is no longer what gets written, so failing to build one is survivable."""
+    with pm.Model():
+        pm.Normal("a", 0, 1, shape=20)
+        with pm.Model() as inner:
+            pm.Normal("b", 0, 1)
+
+    report = audit(inner)
+    assert "fgraph" not in report.kinds()
+    assert any("fgraph" in note for note in report.notes)
+
+
+def test_a_nested_model_is_a_note_and_still_saves(tmp_path):
+    """Regression: audit used to refuse nested models.
+
+    The reason was that fgraph_from_model could not represent one, which is no
+    longer the round trip. A nested model pickles and loads correctly, so the
+    only consequence is size, and that is worth a note rather than a refusal.
+    """
     with pm.Model() as outer:
         pm.Normal("a", 0, 1)
         with pm.Model() as inner:
             pm.Normal("b", 0, 1)
 
     assert inner.parent is outer
-    assert "submodel" in audit(inner).kinds()
+    assert "b" in outer.named_vars, "a nested model shares variables with its parent"
+
+    report = audit(inner)
+    assert report.ok, report.blockers
+    assert any("nested" in note for note in report.notes)
+
+    restored = load_model(save_model(inner, tmp_path / "model"))
+    assert set(restored.named_vars) == set(inner.named_vars)
+    assert restored.initial_point()["b"] == inner.initial_point()["b"]
 
 
 def test_audit_flags_custom_dist_random_without_logp():
@@ -148,10 +181,16 @@ def test_save_writes_exactly_two_files(bundle_path):
 
 
 def test_save_strict_refuses_blocked_models(tmp_path):
-    with pm.Model() as model:
-        pm.Normal("a", 0, 1, initval=-2.0)
+    """The only remaining blocker is a CustomDist whose logp cannot be rebuilt."""
 
-    with pytest.raises(ValueError, match="initial_values"):
+    def random_fn(mu, sigma, rng, size):
+        return rng.normal(mu, sigma, size)
+
+    with pm.Model() as model:
+        pm.Normal("a", 0, 1)
+        pm.CustomDist("y", pm.Normal.dist(0, 1), random=random_fn, observed=np.zeros(3))
+
+    with pytest.raises(ValueError, match="customdist_random"):
         save_model(model, tmp_path / "model")
 
 
