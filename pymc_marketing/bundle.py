@@ -906,7 +906,16 @@ def _write_embedded(idata, dest: Path, fmt: str, groups) -> None:
         return
 
     _require_zarr("embed")
-    tree.to_zarr(dest, zarr_format=2)
+    # No zarr_format: take xarray's default, which follows the zarr spec the
+    # installed zarr implements. Pinning 2 here wrote the legacy layout, which
+    # the tools this module exists to interoperate with have moved away from.
+    #
+    # consolidated=False for the same reason. The consolidated form is a
+    # .zarr_metadata sidecar that is not part of the zarr 3 specification, so
+    # writing it would trade one portability problem for another. zarr also
+    # warns about it on every write, and a reader cannot open the store faster
+    # if the sidecar is missing anyway.
+    tree.to_zarr(dest, consolidated=False)
 
 
 def _groups_of(idata) -> tuple[str, ...]:
@@ -1438,7 +1447,12 @@ class ModelBundle:
             tree = xr.open_datatree(target, engine=_netcdf_engine("read"))
         else:
             _require_zarr("read")
-            tree = xr.open_datatree(target, engine="zarr")
+            # consolidated=False because _write_embedded does not write the
+            # .zarr_metadata sidecar. Asking for consolidated on a store that has
+            # none buys no speed, only a failed attempt and a RuntimeWarning on
+            # every read. For a store someone else did consolidate, this skips a
+            # real speedup, which is the cost of not writing one ourselves.
+            tree = xr.open_datatree(target, engine="zarr", consolidated=False)
         return tree if group is None else tree[group].to_dataset()
 
     def datatree(self):

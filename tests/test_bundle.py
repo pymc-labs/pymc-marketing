@@ -466,7 +466,7 @@ def test_bundle_does_not_touch_the_posterior(tmp_path):
         {"/posterior": xr.Dataset({"b": (("chain", "draw"), np.zeros((2, 3)))})}
     )
     draws = tmp_path / "run.zarr"
-    idata.to_zarr(draws, zarr_format=2)
+    idata.to_zarr(draws, consolidated=False)
 
     path = save_model(build_model(), tmp_path / "model")
     assert sorted(p.name for p in path.iterdir()) == [
@@ -474,7 +474,9 @@ def test_bundle_does_not_touch_the_posterior(tmp_path):
         "manifest.json",
     ]
 
-    posterior = xr.open_datatree(draws, engine="zarr")["posterior"].to_dataset()
+    posterior = xr.open_datatree(draws, engine="zarr", consolidated=False)[
+        "posterior"
+    ].to_dataset()
     assert "b" in posterior.data_vars
 
 
@@ -577,7 +579,7 @@ def test_open_data_reads_a_zarr_pointer(tmp_path):
     draws = tmp_path / "run.zarr"
     xr.DataTree.from_dict(
         {"/posterior": xr.Dataset({"b": (("chain", "draw"), np.zeros((2, 3)))})}
-    ).to_zarr(draws, zarr_format=2)
+    ).to_zarr(draws, consolidated=False)
     path = save_model(build_model(), tmp_path / "m", idata=draws)
 
     posterior = load(path).open_data("posterior")
@@ -1750,3 +1752,30 @@ def test_repointing_shared_variables_explains_the_logp_failure(tmp_path):
     result = bundle.validate()
     assert result.checks["logp"] is False
     assert any("pm.set_data" in note for note in result.notes)
+
+
+def test_embedded_zarr_uses_the_format_the_installed_zarr_writes(tmp_path):
+    """No zarr_format pin: the bundle follows the zarr spec currently installed.
+
+    The port wrote zarr_format=2, which is the legacy layout. Every tool this
+    module exists to interoperate with has moved to v3, so pinning v2 made the
+    bundle the odd one out for no benefit. The assertion is on v3 specifically
+    because that is the spec zarr 3 implements, and a future zarr 4 would be a
+    deliberate change to revisit rather than an accident.
+    """
+    import zarr
+
+    path = save_model(build_model(), tmp_path / "model", idata=build_sampled_idata())
+
+    assert zarr.open(path / "data.zarr").metadata.zarr_format == 3
+
+
+def test_embedded_zarr_carries_no_nonstandard_sidecar(tmp_path):
+    """The consolidated form is an xarray extension, not part of the zarr 3 spec.
+
+    Writing it would swap a legacy-layout problem for a portability one, since a
+    store carrying .zarr_metadata is readable by fewer tools, not more.
+    """
+    path = save_model(build_model(), tmp_path / "model", idata=build_sampled_idata())
+
+    assert not (path / "data.zarr" / ".zarr_metadata").exists()
