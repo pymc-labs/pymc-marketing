@@ -233,6 +233,7 @@ from pymc_marketing.mmm.fourier import YearlyFourier
 from pymc_marketing.mmm.hsgp import HSGPBase
 from pymc_marketing.mmm.incrementality import Incrementality
 from pymc_marketing.mmm.lift_test import (
+    _resolve_likelihood,
     add_cost_per_target_observations,
     add_lift_measurements_to_likelihood_from_saturation,
     scale_lift_measurements,
@@ -676,6 +677,7 @@ class MMM(RegressionModelBuilder):
             )
 
         self.mu_effects: list[MuEffect] = []
+        self._lift_test_calibrations: list[dict[str, Any]] = []
 
     def add_mu_effect(
         self: Self,
@@ -1101,6 +1103,7 @@ class MMM(RegressionModelBuilder):
         attrs["target_column"] = self.target_column
         attrs["link"] = self.link.value
         attrs["scaling"] = json.dumps(serialization.serialize(self.scaling))
+        attrs["lift_test_calibrations"] = json.dumps(self._lift_test_calibrations)
         attrs["dag"] = json.dumps(getattr(self, "dag", None))
         attrs["treatment_nodes"] = json.dumps(getattr(self, "treatment_nodes", None))
         attrs["outcome_node"] = json.dumps(getattr(self, "outcome_node", None))
@@ -1147,6 +1150,10 @@ class MMM(RegressionModelBuilder):
             name[: -len(suffix)]
             for name in self.model.named_vars
             if name.endswith(suffix)
+            and (
+                name[: -len(suffix)].endswith("_contribution")
+                or name[: -len(suffix)] == self.output_var
+            )
         ]
         self.idata.attrs["original_scale_vars"] = json.dumps(original_scale_vars)
 
@@ -2420,6 +2427,9 @@ class MMM(RegressionModelBuilder):
             )
 
         """
+        # Calibration rows belong to a particular graph. A rebuild creates a
+        # fresh graph, so callers must re-add any lift tests they want to use.
+        self._lift_test_calibrations = []
         self._generate_and_preprocess_model_data(
             X=X,
             y=y,
@@ -3775,15 +3785,17 @@ class MMM(RegressionModelBuilder):
     def add_lift_test_measurements(
         self: Self,
         df_lift_test: pd.DataFrame,
-        dist: type[pmd.DimDistribution] = pmd.Gamma,
+        likelihood: Prior | type[pmd.DimDistribution] | None = None,
         name: str = "lift_measurements",
+        *,
+        dist: type[pmd.DimDistribution] | None = None,
     ) -> Self:
         """Add lift tests to the model.
 
         The model for the difference of a channel's saturation curve is created
         from `x` and `x + delta_x` for each channel. This random variable is
         then conditioned using the empirical lift, `delta_y`, and `sigma` of the lift test
-        with the specified distribution `dist`.
+        with the specified ``likelihood``.
 
         The pseudo-code for the lift test is as follows:
 
@@ -3791,10 +3803,16 @@ class MMM(RegressionModelBuilder):
 
             model_estimated_lift = saturation_curve(x + delta_x) - saturation_curve(x)
             empirical_lift = delta_y
-            dist(abs(model_estimated_lift), sigma=sigma, observed=abs(empirical_lift))
-
+            likelihood(model_estimated_lift, sigma=sigma, observed=empirical_lift)
 
         The model has to be built before adding the lift tests.
+        Lift tests require the identity link: with ``link='log'``, the
+        saturation difference is on the log-median scale and cannot be
+        compared directly with an observed level change.
+        Lift tests can be added after a fit, but they only affect posterior
+        inference after the model is fit again. Posterior metadata is refreshed
+        by fitting, so adding measurements without refitting leaves the existing
+        posterior unchanged.
 
         Parameters
         ----------
@@ -3806,8 +3824,21 @@ class MMM(RegressionModelBuilder):
                 * `delta_x`: change in x axis value of the lift test.
                 * `delta_y`: change in y axis value of the lift test.
                 * `sigma`: standard deviation of the lift test.
+
+            The optional ``date`` column is used for time-varying media.
+            Other columns are ignored when saving calibration metadata.
+        likelihood : Prior, optional
+            Serializable likelihood prior, by default ``Prior("Normal")``.
+            The lift-test standard errors are used as its ``sigma`` parameter.
+            Supported distributions are ``Normal``, ``StudentT``, and ``Gamma``.
+            Use ``Prior("StudentT", nu=...)`` for a heavier-tailed sampling
+            model. A Prior-valued ``nu`` adds a free variable named from ``name``
+            (for example ``lift_measurements_nu``) to the posterior. Lift
+            estimates retain their signs; custom ``sigma``, ``mu``, and ``dims``
+            are rejected because they are determined by the lift data and model.
         dist : pymc.dims.DimDistribution, optional
-            The distribution to use for the likelihood, by default pymc.dims.Gamma
+            Deprecated alias for selecting a distribution by class. Prefer a
+            ``Prior`` passed to ``likelihood``.
         name : str, optional
             The name of the likelihood of the lift test contribution(s),
             by default "lift_measurements". Name change required if calling
@@ -3878,6 +3909,13 @@ class MMM(RegressionModelBuilder):
                 "The model has not been built yet. Please, build the model first."
             )
 
+        if self.link == LinkFunction.LOG:
+            raise NotImplementedError(
+                "Lift-test calibration is not supported with link='log': the "
+                "saturation difference is on the log-median scale, while "
+                "delta_y is a level change."
+            )
+
         if "channel" not in df_lift_test.columns:
             raise KeyError(
                 "The 'channel' column is required to map the lift measurements to the model."
@@ -3888,6 +3926,32 @@ class MMM(RegressionModelBuilder):
                 raise KeyError(
                     f"The {dim} column is required to map the lift measurements to the model."
                 )
+
+        likelihood = _resolve_likelihood(likelihood, dist)
+
+        # Validate persistence before changing the PyMC graph. Only columns
+        # consumed by lift calibration belong in the saved model.
+        columns = list(
+            dict.fromkeys(
+                ["channel", *self.dims, "x", "delta_x", "delta_y", "sigma"]
+                + (["date"] if "date" in df_lift_test.columns else [])
+            )
+        )
+        persisted_df = df_lift_test.loc[:, columns]
+        calibration = {
+            "format_version": 1,
+            "data": persisted_df.to_json(
+                orient="split", date_format="iso", double_precision=15
+            ),
+            "dtypes": {
+                column: str(dtype) for column, dtype in persisted_df.dtypes.items()
+            },
+            "likelihood": serialization.serialize_model_config(
+                {"likelihood": likelihood}
+            )["likelihood"],
+            "name": name,
+        }
+        json.dumps(calibration)
 
         # Function to scale "delta_y", and "sigma" to same scale as target in model.
         target_transform = self._make_target_transform(df_lift_test)
@@ -3903,6 +3967,11 @@ class MMM(RegressionModelBuilder):
             target_transform=target_transform,
             dim_cols=list(self.dims),
         )
+        # The likelihood and its primary diagnostic use model-scaled target
+        # units. Also retain a companion in the units supplied by the user.
+        target_scale_factor = 1 / target_transform(np.ones(len(df_lift_test))).reshape(
+            -1
+        )
         # This is coupled with the name of the
         # latent process Deterministic
         time_varying_var_name = (
@@ -3913,9 +3982,18 @@ class MMM(RegressionModelBuilder):
             saturation=self.saturation,
             time_varying_var_name=time_varying_var_name,
             model=self.model,
-            dist=dist,
+            likelihood=likelihood,
             name=name,
         )
+
+        with self.model:
+            pmd.Deterministic(
+                f"{name}_model_estimated_lift_original_scale",
+                self.model[f"{name}_model_estimated_lift"]
+                * as_xtensor(target_scale_factor, dims=(f"_{name}_dim",)),
+            )
+
+        self._lift_test_calibrations.append(calibration)
 
         return self
 
@@ -3944,6 +4022,10 @@ class MMM(RegressionModelBuilder):
         means is the definition of the aggregate cost-per-target (or ROAS) over
         the period; averaging per-date ratios would estimate a different
         quantity.
+
+        Calibration requires the identity link. Under ``link='log'``, an
+        individual channel contribution cannot be converted to a level change
+        without the baseline.
 
         Parameters
         ----------
@@ -4019,6 +4101,13 @@ class MMM(RegressionModelBuilder):
         """
         if not hasattr(self, "model"):
             raise RuntimeError("Model must be built before adding calibration.")
+
+        if self.link == LinkFunction.LOG:
+            raise NotImplementedError(
+                "Cost-per-target calibration is not supported with link='log': "
+                "individual channel contributions do not represent level "
+                "changes without the baseline."
+            )
 
         # Check for existing potentials with the same name_prefix
         if name_prefix in self.model.named_vars:
@@ -4236,6 +4325,8 @@ class MMM(RegressionModelBuilder):
             target column named ``self.output_var``.
         - Sets ``self.idata`` to the provided ``idata``, enabling downstream
             methods like ``sample_posterior_predictive`` to access posterior samples.
+        - Restores lift-test calibration. Cost-per-target calibration is not
+            currently restored because its input data are not saved.
 
         Examples
         --------
@@ -4265,6 +4356,40 @@ class MMM(RegressionModelBuilder):
 
         self.build_model(X, y)  # type: ignore
 
+        # Lift-test rows are model inputs, rather than part of fit_data. Restore
+        # them after rebuilding the base MMM so their likelihood and posterior
+        # model-implied-lift diagnostic are present again.
+        if "lift_test_calibrations" in idata.attrs:
+            for calibration in json.loads(idata.attrs["lift_test_calibrations"]):
+                df_lift_test = pd.read_json(
+                    io.StringIO(calibration["data"]),
+                    orient="split",
+                    dtype=False,
+                    convert_dates=False,
+                    precise_float=True,
+                )
+                for column, dtype in calibration["dtypes"].items():
+                    if dtype.startswith("datetime64"):
+                        if "," in dtype:
+                            timezone = dtype.split(",", maxsplit=1)[1].strip(" ]")
+                            df_lift_test[column] = pd.to_datetime(
+                                df_lift_test[column], utc=True
+                            ).dt.tz_convert(timezone)
+                        else:
+                            df_lift_test[column] = pd.to_datetime(
+                                df_lift_test[column]
+                            ).astype(dtype)
+                    else:
+                        df_lift_test[column] = df_lift_test[column].astype(dtype)
+                likelihood = serialization.deserialize_model_config(
+                    {"likelihood": calibration["likelihood"]}
+                )["likelihood"]
+                self.add_lift_test_measurements(
+                    df_lift_test,
+                    likelihood=likelihood,
+                    name=calibration["name"],
+                )
+
         # Re-add any *_original_scale Deterministics that were present when the
         # model was saved.  These are added by add_original_scale_contribution_variable
         # but the PyMC model graph is not serialized, so build_model does not know
@@ -4279,12 +4404,18 @@ class MMM(RegressionModelBuilder):
                 v
                 for v in json.loads(idata.attrs["original_scale_vars"])
                 if v in self.model.named_vars
+                and (v.endswith("_contribution") or v == self.output_var)
             ]
         elif hasattr(idata, "posterior"):
             vars_to_restore = [
                 v[: -len(suffix)]
                 for v in idata.posterior.data_vars
-                if v.endswith(suffix) and v[: -len(suffix)] in self.model.named_vars
+                if v.endswith(suffix)
+                and (
+                    v[: -len(suffix)].endswith("_contribution")
+                    or v[: -len(suffix)] == self.output_var
+                )
+                and v[: -len(suffix)] in self.model.named_vars
             ]
         else:
             vars_to_restore = []
