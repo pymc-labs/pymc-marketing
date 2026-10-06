@@ -29,10 +29,13 @@ import numpy as np
 import pymc as pm
 import pymc.dims as pmd
 import pytensor.tensor as pt
+import pytensor.xtensor.random as ptxr
 import xarray as xr
 from numpy.typing import (
     ArrayLike,  # resolves pt.TensorLike's ForwardRef('ArrayLike') for sphinx_autodoc_typehints (#1197)
 )
+from pymc.dims.distributions.scalar import UNSET, PositiveDimDistribution
+from pymc.dims.distributions.transforms import IntervalTransform
 from pymc.distributions.dist_math import check_parameters
 from pymc_extras.deserialize import deserialize, register_deserialization
 from pymc_extras.prior import (
@@ -677,6 +680,147 @@ def _is_LaplacePrior_type(data: dict) -> bool:
 register_deserialization(
     is_type=_is_LaplacePrior_type,
     deserialize=LaplacePrior.from_dict,
+)
+
+
+# TEMPORARY: delete ParetoDimDistribution and ParetoPrior (and swap them back to
+# Prior("Pareto", ...)) once a pymc release containing
+# pymc-devs/pymc#8422 ships, and the pymc floor in pyproject.toml is raised past
+# it. #8422 is merged upstream and adds Pareto to pymc.dims, but it landed
+# after the pymc v6.3.2 release, so no installable pymc provides it yet. Until
+# then this is a straight port of that PR, and the `xdist=False` escape hatch
+# on the terms that consume it.
+class ParetoDimDistribution(PositiveDimDistribution):
+    """A ``pymc.dims`` Pareto distribution.
+
+    A temporary port of `pymc-devs/pymc#8422
+    <https://github.com/pymc-devs/pymc/pull/8422>`_, which adds ``Pareto`` to
+    ``pymc.dims``. That PR is merged upstream but landed after the ``v6.3.2``
+    release, so no released ``pymc`` provides it yet. This class mirrors it so
+    the CLV models can use a dims-native Pareto prior now.
+
+    Delete this class together with :class:`ParetoPrior` once a ``pymc``
+    release containing #8422 is available and the floor in ``pyproject.toml``
+    allows it.
+
+    References
+    ----------
+    - `pymc-devs/pymc#8422 <https://github.com/pymc-devs/pymc/pull/8422>`_.
+    """
+
+    def __new__(
+        cls,
+        name,
+        alpha,
+        m,
+        default_transform=UNSET,
+        observed=None,
+        **kwargs,
+    ):
+        """Create the variable, defaulting the transform to ``IntervalTransform(m, inf)``.
+
+        The transform keeps the transformed logp equivalent to the regular
+        distribution's, by the same ``Uniform`` ``__new__`` override the other
+        bounded dims distributions use.
+        """
+        if observed is None and default_transform is UNSET:
+            default_transform = IntervalTransform(m, float("inf"))
+        return super().__new__(
+            cls,
+            name,
+            alpha,
+            m,
+            default_transform=default_transform,
+            observed=observed,
+            **kwargs,
+        )
+
+    xrv_op = ptxr.pareto
+
+    @classmethod
+    def dist(cls, alpha, m, **kwargs):
+        """Return the distribution over the concatenated parameters."""
+        return super().dist([alpha, m], **kwargs)
+
+
+# TEMPORARY: see the note above ParetoDimDistribution. ParetoPrior exists only
+# because pymc_extras resolves dims distributions via getattr(pymc.dims, name)
+# with no registry to add one, so a Pareto cannot be dims-native without it.
+@serialization.register
+class ParetoPrior(SpecialPrior):
+    """A Pareto prior parameterized by a shape and a scale.
+
+    ``Pareto`` is the default concentration hyperprior in the CLV models (for
+    example ``kappa_dropout`` in BG/NBD), but it is not available through
+    :class:`pymc_extras.prior.Prior` on the ``xdist`` path, because
+    ``pymc_extras`` resolves dims distributions strictly through
+    ``getattr(pymc.dims, name)`` and offers no registry to add one. Without a
+    dims-native Pareto those parameters have to be built as plain tensors,
+    which in turn means they cannot be referenced from a composed recipe.
+
+    This prior wraps :class:`ParetoDimDistribution` so the parameters stay
+    dims-native. Delete it (restoring ``Prior("Pareto", ...)`` in the CLV model
+    configs) once a ``pymc`` release containing #8422 is available.
+
+    Parameters
+    ----------
+    alpha : Prior, float, int, array-like
+        The shape parameter of the distribution.
+    m : float
+        The scale parameter of the distribution. Must be a constant, which is a
+        limitation of the dims ``IntervalTransform``.
+    dims : tuple[str, ...], optional
+        The dimensions of the distribution, by default None.
+    centered : bool, optional
+        Unused; retained for the :class:`SpecialPrior` interface.
+
+    References
+    ----------
+    - `pymc-devs/pymc#8422 <https://github.com/pymc-devs/pymc/pull/8422>`_.
+    """
+
+    def _checks(self) -> None:
+        self._parameters_are_correct_set()
+
+    def _parameters_are_correct_set(self) -> None:
+        # Only allow exactly these keys after alias normalization
+        if set(self.parameters.keys()) != {"alpha", "m"}:
+            raise ValueError("Parameters must be alpha and m")
+
+    def create_variable(self, name: str, xdist: bool = False) -> TensorVariable:
+        """Create a Pareto variable.
+
+        With ``xdist=True`` this is a dims-native variable built from
+        :class:`ParetoDimDistribution`, so it can be referenced from a composed
+        recipe. With ``xdist=False`` it falls back to the regular ``pm.Pareto``,
+        which is what the legacy (non-terms) build paths use.
+        """
+        parameters = {
+            param: self._create_parameter(param, value, name, xdist=xdist)
+            for param, value in self.parameters.items()
+        }
+        if xdist:
+            return ParetoDimDistribution(
+                name, alpha=parameters["alpha"], m=parameters["m"], dims=self.dims
+            )
+        return pm.Pareto(
+            name,
+            alpha=parameters["alpha"],
+            m=parameters["m"],
+            dims=self.dims,
+        )
+
+
+def _is_ParetoPrior_type(data: dict) -> bool:
+    if "special_prior" in data:
+        return data["special_prior"] == "ParetoPrior"
+    else:
+        return False
+
+
+register_deserialization(
+    is_type=_is_ParetoPrior_type,
+    deserialize=ParetoPrior.from_dict,
 )
 
 
