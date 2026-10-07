@@ -36,7 +36,7 @@ from pymc_marketing.bundle import (
     load,
     load_model,
     save_model,
-    serialize_graph,
+    serialize_model,
 )
 
 COORDS = {"obs": np.arange(12), "feature": ["alpha", "beta", "gamma"]}
@@ -170,13 +170,13 @@ def test_save_returns_the_bundle_path(tmp_path):
     assert path == target
     assert path.is_dir()
     assert (path / "manifest.json").exists()
-    assert (path / "graph.cloudpickle").exists()
+    assert (path / "model.cloudpickle").exists()
 
 
 def test_save_writes_exactly_two_files(bundle_path):
     assert sorted(p.name for p in bundle_path.iterdir()) == [
-        "graph.cloudpickle",
         "manifest.json",
+        "model.cloudpickle",
     ]
 
 
@@ -219,7 +219,7 @@ def test_manifest_records_version_pins(bundle_path):
     assert manifest.created
 
 
-def test_manifest_does_not_duplicate_the_graph(bundle_path):
+def test_manifest_does_not_duplicate_the_model(bundle_path):
     """Structure lives in the graph, so the manifest must not copy it."""
     manifest = json.loads((bundle_path / "manifest.json").read_text())
     for copied in (
@@ -380,14 +380,17 @@ def test_restored_model_preserves_coords(bundle_path):
     }
 
 
-def test_pymc_itself_agrees_the_graph_survives_the_fgraph_round_trip():
-    """pymc's own structural check, on the part of the round trip it can see.
+def test_pymc_itself_agrees_a_model_survives_its_own_fgraph_round_trip():
+    """pymc's own structural check, on the pair it still supports.
 
     assert_equivalent_model rebuilds both fgraphs and merges them, comparing
     shared variables by identity. Deserialization necessarily produces fresh
     RandomGeneratorType shared variables, so across the cloudpickle boundary the
     merge can never succeed however identical the structure is. Within one
     process it is the strongest check available, and it passes.
+
+    This is pymc's round trip, not the bundle's. The bundle pickles the Model, so
+    this asserts that the alternative route is sound rather than that we use it.
     """
     from pymc.model.fgraph import fgraph_from_model
     from pymc.testing import assert_equivalent_model
@@ -458,7 +461,7 @@ def test_validate_reports_the_logp_it_compared(bundle_path):
     assert "max|delta|" in str(result)
 
 
-def test_validate_fails_when_the_graph_does_not_match_the_manifest(bundle_path):
+def test_validate_fails_when_the_model_does_not_match_the_manifest(bundle_path):
     bundle = load(bundle_path)
     raw = dict(bundle.manifest.raw)
     raw["reference_logp"] = raw["reference_logp"] + 1.0
@@ -505,8 +508,8 @@ def test_bundle_does_not_touch_the_posterior(tmp_path):
 
     path = save_model(build_model(), tmp_path / "model")
     assert sorted(p.name for p in path.iterdir()) == [
-        "graph.cloudpickle",
         "manifest.json",
+        "model.cloudpickle",
     ]
 
     posterior = xr.open_datatree(draws, engine="zarr", consolidated=False)[
@@ -672,8 +675,8 @@ def test_repr_mentions_the_pointer(tmp_path):
     assert "runs/churn.zarr" in repr(load(path))
 
 
-def test_serialize_graph_returns_loadable_bytes():
-    blob = serialize_graph(build_model())
+def test_serialize_model_returns_loadable_bytes():
+    blob = serialize_model(build_model())
     assert isinstance(blob, bytes) and blob
 
     import cloudpickle
@@ -708,7 +711,7 @@ def test_a_bundle_written_by_hand_loads_and_validates():
 
     model = build_model()
     manifest = build_manifest(model, idata="runs/x.zarr")
-    blob = serialize_graph(model)
+    blob = serialize_model(model)
 
     bundle = ModelBundle.from_parts(manifest, blob)
     assert isinstance(bundle.model, pm.Model)
@@ -721,7 +724,7 @@ def test_from_parts_accepts_raw_json():
 
     model = build_model()
     raw = json.dumps(build_manifest(model)).encode()
-    bundle = ModelBundle.from_parts(raw, serialize_graph(model))
+    bundle = ModelBundle.from_parts(raw, serialize_model(model))
     assert bundle.validate().ok
 
 
@@ -729,7 +732,7 @@ def test_from_parts_defaults_to_an_in_memory_label():
     from pymc_marketing.bundle import ModelBundle, build_manifest
 
     model = build_model()
-    bundle = ModelBundle.from_parts(build_manifest(model), serialize_graph(model))
+    bundle = ModelBundle.from_parts(build_manifest(model), serialize_model(model))
     assert str(bundle.path) == "<memory>"
     assert "<memory>" in repr(bundle)
 
@@ -742,7 +745,7 @@ def test_a_hand_written_bundle_can_be_written_to_disk_and_loaded_back(tmp_path):
     by_hand = tmp_path / "hand"
     by_hand.mkdir()
     (by_hand / "manifest.json").write_text(json.dumps(build_manifest(model), indent=2))
-    (by_hand / "graph.cloudpickle").write_bytes(serialize_graph(model))
+    (by_hand / "model.cloudpickle").write_bytes(serialize_model(model))
 
     assert load(by_hand).validate().ok
     assert set(load_model(by_hand).named_vars) == set(build_model().named_vars)
@@ -755,10 +758,10 @@ def test_a_hand_written_bundle_can_be_written_to_disk_and_loaded_back(tmp_path):
 def test_the_pickler_is_not_baked_into_the_contract():
     """A different protocol produces a bundle that validates identically."""
 
-    from pymc_marketing.bundle import ModelBundle, build_manifest, serialize_graph
+    from pymc_marketing.bundle import ModelBundle, build_manifest, serialize_model
 
     model = build_model()
-    default_blob = serialize_graph(model)
+    default_blob = serialize_model(model)
     other_blob = cloudpickle.dumps(model, protocol=4)
     assert other_blob != default_blob, "expected a different encoding"
 
@@ -890,8 +893,8 @@ def test_the_directory_name_is_arbitrary(tmp_path):
         path = save_model(build_model(), target)
         assert path == target
         assert sorted(p.name for p in path.iterdir()) == [
-            "graph.cloudpickle",
             "manifest.json",
+            "model.cloudpickle",
         ]
         assert load(path).validate().ok
 
@@ -911,11 +914,11 @@ def test_a_bundle_is_recognised_by_its_files_not_its_name(tmp_path):
 
 def test_the_two_filenames_are_the_contract(tmp_path):
     """These are fixed; renaming either one is a breaking change."""
-    from pymc_marketing.bundle import GRAPH_FILE, MANIFEST_FILE
+    from pymc_marketing.bundle import MANIFEST_FILE, MODEL_FILE
 
-    assert (MANIFEST_FILE, GRAPH_FILE) == ("manifest.json", "graph.cloudpickle")
+    assert (MANIFEST_FILE, MODEL_FILE) == ("manifest.json", "model.cloudpickle")
     path = save_model(build_model(), tmp_path / "m")
-    assert {p.name for p in path.iterdir()} == {MANIFEST_FILE, GRAPH_FILE}
+    assert {p.name for p in path.iterdir()} == {MANIFEST_FILE, MODEL_FILE}
 
 
 SAMPLE_GROUPS = (
@@ -955,8 +958,8 @@ def test_every_sample_group_can_be_embedded(tmp_path):
 
     assert sorted(p.name for p in path.iterdir()) == [
         "data.zarr",
-        "graph.cloudpickle",
         "manifest.json",
+        "model.cloudpickle",
     ]
 
     bundle = load(path)
@@ -1071,7 +1074,7 @@ def test_build_manifest_cannot_embed_bytes(tmp_path):
     root = tmp_path / "by-hand"
     root.mkdir()
     (root / "manifest.json").write_text(json.dumps(manifest))
-    (root / "graph.cloudpickle").write_bytes(serialize_graph(build_model()))
+    (root / "model.cloudpickle").write_bytes(serialize_model(build_model()))
 
     # the manifest points at data.zarr, which this route never wrote
     assert not (root / "data.zarr").exists()
@@ -1244,9 +1247,9 @@ def test_an_older_schema_is_fine(tmp_path):
     assert load(tmp_path / "m").model is not None
 
 
-def test_a_manifest_without_a_graph_says_so(tmp_path):
+def test_a_manifest_without_a_model_says_so(tmp_path):
     save_model(build_model(), tmp_path / "m")
-    (tmp_path / "m" / "graph.cloudpickle").unlink()
+    (tmp_path / "m" / "model.cloudpickle").unlink()
 
     with pytest.raises(FileNotFoundError, match="from_parts"):
         load(tmp_path / "m")
@@ -1262,13 +1265,13 @@ def test_embedded_data_needs_a_base_directory(tmp_path_factory):
     """A bundle assembled from bytes has nowhere to resolve a relative pointer."""
     import json
 
-    from pymc_marketing.bundle import GRAPH_FILE, MANIFEST_FILE, ModelBundle
+    from pymc_marketing.bundle import MANIFEST_FILE, MODEL_FILE, ModelBundle
 
     work = tmp_path_factory.mktemp("parts")
     save_model(build_model(), work, idata=build_sampled_idata())
 
     manifest = json.loads((work / MANIFEST_FILE).read_text())
-    graph = (work / GRAPH_FILE).read_bytes()
+    graph = (work / MODEL_FILE).read_bytes()
 
     with pytest.raises(ValueError, match="built from memory"):
         ModelBundle.from_parts(manifest, graph).resolve()
@@ -1311,7 +1314,7 @@ def test_the_bundle_travels_through_an_object_store(route, tmp_path, monkeypatch
     else:
         manifest = build_manifest(build_model(), idata=build_sampled_idata())
 
-    store = {"manifest": manifest, "graph": serialize_graph(build_model())}
+    store = {"manifest": manifest, "graph": serialize_model(build_model())}
 
     # a stand-in for whatever moved the bytes: a dict keyed by artifact path
     def fetch(key):
@@ -1720,7 +1723,7 @@ def test_a_bundle_stranded_between_renames_is_recovered(tmp_path):
     assert [p.name for p in tmp_path.iterdir()] == ["model"]
 
 
-def test_building_the_model_warns_that_the_graph_is_unpickled(bundle_path):
+def test_building_the_model_warns_that_it_is_unpickled(bundle_path):
     """cloudpickle runs code like pickle, so the one unpickling step says so."""
     monkeypatch = pytest.MonkeyPatch()
     monkeypatch.setattr("pymc_marketing.bundle._UNTRUSTED_BLOB_WARNED", False)

@@ -33,7 +33,7 @@ The second argument is any local directory you like, written as a path so it
 reads as one. Nothing here infers a bundle from its name.
 
 ``idata`` is optional, and leaving it out is the common case: a model on its
-own is two files, ``manifest.json`` and ``graph.cloudpickle``, with no ``data``
+own is two files, ``manifest.json`` and ``model.cloudpickle``, with no ``data``
 key in the manifest at all, rather than an empty or null pointer. The next
 section covers what changes when you pass one.
 
@@ -154,20 +154,20 @@ create and that *you* would have to add to your own dependencies::
 
     import fsspec  # your dependency, not ours
 
-    from pymc_marketing.bundle import ModelBundle, build_manifest, serialize_graph
+    from pymc_marketing.bundle import ModelBundle, build_manifest, serialize_model
 
     fs = fsspec.filesystem("s3")  # needs s3fs, also yours
 
     manifest = build_manifest(model, idata="s3://bucket/runs/42/run.zarr")
-    blob = serialize_graph(model)
+    blob = serialize_model(model)
 
     fs.pipe_file("s3://bucket/runs/42/model/manifest.json", json.dumps(manifest))
-    fs.pipe_file("s3://bucket/runs/42/model/graph.cloudpickle", blob)
+    fs.pipe_file("s3://bucket/runs/42/model/model.cloudpickle", blob)
 
     # and back, from wherever you keep it
     bundle = ModelBundle.from_parts(
         json.loads(fs.cat("s3://bucket/runs/42/model/manifest.json")),
-        fs.cat("s3://bucket/runs/42/model/graph.cloudpickle"),
+        fs.cat("s3://bucket/runs/42/model/model.cloudpickle"),
     )
     bundle.validate()
 
@@ -181,15 +181,18 @@ you want alongside.
 What a bundle is
 ----------------
 
-Two files, both plain: a JSON manifest and a cloudpickled graph::
+A JSON manifest and a cloudpickled Model, plus data only if you embedded it:
+
+.. code-block:: text
 
     model/
       manifest.json       version pins, fingerprint, reference logp, metadata
-      graph.cloudpickle   the model structure
+      model.cloudpickle   the Model itself, pickled
       data.zarr           only if you embedded data, and only the groups named
 
-``manifest.json`` and ``graph.cloudpickle`` are the whole contract and they are
-fixed.  The **directory** is not: ``save_model`` creates whatever local path you
+``manifest.json`` and ``model.cloudpickle`` are the whole contract and they are
+fixed, as are the keys inside the manifest.  The **directory** is not: ``save_model``
+creates whatever local path you
 give it, so ``runs/42/model``, ``churn/`` and ``churn.model`` are all equally
 valid, and nothing here infers a bundle from its name. A URL is refused, since
 ``Path("s3://b/runs/42/model")`` would otherwise create a directory named ``s3:``; use
@@ -254,14 +257,14 @@ __all__ = [
     "load",
     "load_model",
     "save_model",
-    "serialize_graph",
+    "serialize_model",
 ]
 
 SCHEMA_VERSION = 1
 #: Label for a bundle assembled from bytes rather than read off a directory.
 _IN_MEMORY = "<memory>"
 MANIFEST_FILE = "manifest.json"
-GRAPH_FILE = "graph.cloudpickle"
+MODEL_FILE = "model.cloudpickle"
 
 # Zarr is not involved, but pymc declares cloudpickle (requirements.txt) and uses
 # it for its own idata hashing, so serializing the graph adds no new dependency.
@@ -544,7 +547,7 @@ class Manifest:
     def version_mismatch(self) -> dict[str, tuple[str, str]]:
         """Return the recorded pins against the live environment.
 
-        Informational, not fatal, but worth surfacing: a cloudpickled graph is
+        Informational, not fatal, but worth surfacing: a pickled Model is
         not guaranteed to load under a different pymc or pytensor.
         """
         live = {
@@ -827,7 +830,7 @@ def _customdist_blockers(model: pm.Model) -> list[Blocker]:
     return found
 
 
-def serialize_graph(model: pm.Model) -> bytes:
+def serialize_model(model: pm.Model) -> bytes:
     """Serialize the model, without deciding where it goes.
 
     Use this together with :func:`build_manifest` when you need to write a bundle
@@ -862,8 +865,8 @@ def serialize_graph(model: pm.Model) -> bytes:
     --------
     .. code-block:: python
 
-        blob = serialize_graph(model)
-        write_somewhere("model/graph.cloudpickle", blob)
+        blob = serialize_model(model)
+        write_somewhere("model/model.cloudpickle", blob)
 
     ``write_somewhere`` is yours; this function only produces bytes.
     """
@@ -998,7 +1001,7 @@ def build_manifest(
 ) -> dict:
     """Describe the model as a plain dict, without deciding where it goes.
 
-    Pair this with :func:`serialize_graph` to write a bundle by any route you
+    Pair this with :func:`serialize_model` to write a bundle by any route you
     like. The keys are the bundle's contract, so a bundle written this way is
     indistinguishable from one :func:`save_model` produced.
 
@@ -1087,8 +1090,8 @@ def save_model(
     """Serialize ``model`` into a bundle directory and return the path.
 
     This is the convenience route: it writes ``manifest.json`` and
-    ``graph.cloudpickle`` into a local directory. For anywhere else, compose
-    :func:`build_manifest` and :func:`serialize_graph` yourself and write them
+    ``model.cloudpickle`` into a local directory. For anywhere else, compose
+    :func:`build_manifest` and :func:`serialize_model` yourself and write them
     however you like; a bundle built that way loads through :func:`load` or
     :meth:`ModelBundle.from_parts` unchanged.
 
@@ -1104,7 +1107,7 @@ def save_model(
         Free-form, must be JSON-serializable. Stored verbatim.
     idata : DataRef, path, Dataset or DataTree, optional
         Where the inference data is. Omit to store the Model alone: the bundle is
-        then just ``manifest.json`` and ``graph.cloudpickle``, the manifest has no
+        then just ``manifest.json`` and ``model.cloudpickle``, the manifest has no
         ``data`` key, and nothing zarr-related is imported. Note that the Model's
         own ``pm.Data`` values and ``observed`` arrays travel inside the graph
         either way, so a bundle without ``idata`` still holds the training data.
@@ -1117,7 +1120,7 @@ def save_model(
 
         This is inference output only. The values the Model itself was built
         from, meaning ``pm.Data`` containers and the ``observed`` arrays, are part
-        of the graph and always go into ``graph.cloudpickle`` whether or not you
+        of the Model and always go into ``model.cloudpickle`` whether or not you
         pass ``idata``. So a bundle holds your training data, including anything
         personal in it, and should be treated as sensitive wherever it is stored.
         Replace those values with empty containers before saving if the bundle
@@ -1185,7 +1188,7 @@ def save_model(
         data_format=data_format,
         fgraph=report.fgraph,
     )
-    blob = serialize_graph(model)
+    blob = serialize_model(model)
     # Render before creating anything, so a bad manifest leaves no half-built
     # directory behind.
     text = _dump_json(manifest)
@@ -1195,7 +1198,7 @@ def save_model(
             f"cannot write a bundle to {path!r}: save_model only writes to a local "
             f"directory, and given a URL it would silently create a directory named "
             f"{str(path).split('/')[0]!r} instead. Use build_manifest and "
-            f"serialize_graph, then write the two parts wherever you like, and read "
+            f"serialize_model, then write the two parts wherever you like, and read "
             f"them back with ModelBundle.from_parts."
         )
     # Build in a sibling and move it into place, so the destination is either the
@@ -1212,7 +1215,7 @@ def save_model(
     try:
         staging.mkdir(parents=True)
         (staging / MANIFEST_FILE).write_text(text)
-        (staging / GRAPH_FILE).write_bytes(blob)
+        (staging / MODEL_FILE).write_bytes(blob)
         if embedding:
             _write_embedded(
                 idata,
@@ -1250,7 +1253,7 @@ def _warn_untrusted_blob() -> None:
     import warnings
 
     warnings.warn(
-        "loading a bundle unpickles graph.cloudpickle, which runs code from "
+        "loading a bundle unpickles model.cloudpickle, which runs code from "
         "whoever wrote the bundle, the same way pickle.load does. Only load a "
         "bundle you produced yourself or otherwise trust.",
         UserWarning,
@@ -1371,14 +1374,14 @@ class ModelBundle:
         manifest = json.loads((root / MANIFEST_FILE).read_text())
         wrapped = Manifest(manifest)
         wrapped.check_schema()
-        if not (root / GRAPH_FILE).exists():
+        if not (root / MODEL_FILE).exists():
             raise FileNotFoundError(
-                f"{root} has a {MANIFEST_FILE} but no {GRAPH_FILE}, so the model "
+                f"{root} has a {MANIFEST_FILE} but no {MODEL_FILE}, so the model "
                 f"is missing. The bundle was probably copied incompletely, or the "
                 f"graph was written somewhere else on purpose; in the latter case "
                 f"use ModelBundle.from_parts."
             )
-        self._blob = (root / GRAPH_FILE).read_bytes()
+        self._blob = (root / MODEL_FILE).read_bytes()
         self.path = root
         self.manifest = wrapped
         self._model: pm.Model | None = None
@@ -1387,17 +1390,17 @@ class ModelBundle:
     def from_parts(
         cls,
         manifest: dict | str | bytes,
-        graph: bytes,
+        blob: bytes,
         *,
         path: str | Path = _IN_MEMORY,
     ) -> ModelBundle:
         """Build a bundle from a manifest and a graph you fetched yourself.
 
-        The counterpart to :func:`build_manifest` and :func:`serialize_graph`: use
+        The counterpart to :func:`build_manifest` and :func:`serialize_model`: use
         this when the bundle did not come from a local directory, such as an
         object store, a registry, or a database.
 
-        Reading ``graph`` unpickles it, which runs code the same way
+        Reading ``blob`` unpickles it, which runs code the same way
         ``pickle.load`` does, so treat anything you fetched from a remote store
         as untrusted until you know who wrote it.
 
@@ -1405,8 +1408,8 @@ class ModelBundle:
         ----------
         manifest : dict or str or bytes
             The manifest, as a dict or as raw JSON.
-        graph : bytes
-            The serialized graph from :func:`serialize_graph`.
+        blob : bytes
+            The serialized Model from :func:`serialize_model`.
         path : str or Path, optional
             Directory the parts were fetched into. Defaults to
             ``"<memory>"``, which is only a label for ``repr`` and error
@@ -1425,13 +1428,13 @@ class ModelBundle:
             # a pointer to data you already have works with no directory
             bundle = ModelBundle.from_parts(
                 read_somewhere("model/manifest.json"),
-                read_somewhere("model/graph.cloudpickle"),
+                read_somewhere("model/model.cloudpickle"),
             )
 
             # embedded data needs the directory it was downloaded into
             bundle = ModelBundle.from_parts(
-                manifest_dict,
-                graph_bytes,
+                manifest_bytes,
+                blob_bytes,
                 path=downloaded_dir,
             )
 
@@ -1443,7 +1446,7 @@ class ModelBundle:
         bundle = cls.__new__(cls)
         bundle.path = Path(path)
         bundle.manifest = wrapped
-        bundle._blob = graph
+        bundle._blob = blob
         bundle._model = None
         return bundle
 
@@ -1474,7 +1477,7 @@ class ModelBundle:
                 f"this bundle records data at {ref.location!r}, which is relative, "
                 f"but it was built from memory rather than read from a directory. "
                 f"Pass the directory the parts came from: "
-                f"ModelBundle.from_parts(manifest, graph, path=that_directory)."
+                f"ModelBundle.from_parts(manifest, blob, path=that_directory)."
             )
         return self.path / ref.location
 
@@ -1673,7 +1676,7 @@ class ValidationResult:
 def load(path: str | Path) -> ModelBundle:
     """Open a bundle without rebuilding the Model.
 
-    Reading the manifest and the data is safe. The graph is only unpickled when
+    Reading the manifest and the data is safe. The Model is only unpickled when
     you ask for :attr:`ModelBundle.model`, and that step runs code the same way
     ``pickle.load`` does, so :attr:`ModelBundle.model` warns.
 
@@ -1692,7 +1695,7 @@ def load(path: str | Path) -> ModelBundle:
 def load_model(path: str | Path) -> pm.Model:
     """Return the Model. The short path: hand me a bundle, get a Model.
 
-    The graph is unpickled to get the Model, so only call this on a bundle you
+    Unpickling the Model runs code, so only call this on a bundle you
     produced yourself or otherwise trust; loading runs code the same way
     ``pickle.load`` does.
 
