@@ -62,15 +62,10 @@ import xarray as xr
 from pytensor.graph.basic import Variable
 from pytensor.graph.traversal import ancestors
 
-from pymc_marketing.mmm.counterfactual import (
-    CounterfactualEvaluator,
-    _kernel_trailing_lags,
-    find_named_node,
-)
+from pymc_marketing.mmm.counterfactual import CounterfactualEvaluator, find_named_node
 
 if TYPE_CHECKING:
     from pymc_marketing.mmm.mmm import MMM
-    from pymc_marketing.mmm.transformers import ConvMode
 
 _PKG_PREFIX = str(Path(__file__).resolve().parent.parent)
 """The ``pymc_marketing`` package directory, computed once.
@@ -849,7 +844,7 @@ class SpendProbe:
         *,
         effects: Sequence[ChannelDependentEffect],
         l_max: int,
-        mode: ConvMode,
+        trailing_lags: int,
     ) -> SpendReach:
         r"""Measure how far in time a change in spend moves the evaluated nodes.
 
@@ -883,9 +878,11 @@ class SpendProbe:
         l_max : int
             The model's own ``adstock.l_max``, subtracted from each measured
             reach because the window already carries it.
-        mode : ConvMode
-            The model's own ``adstock.mode``.  With ``l_max`` it fixes the
-            kernel's trailing lags, the floor under the measured ``max_lag``.
+        trailing_lags : int
+            The lags after a spend date that the adstock kernel itself reaches,
+            from :func:`~pymc_marketing.mmm.incrementality.kernel_trailing_lags`
+            for the model's ``adstock.l_max`` and ``adstock.mode``.  The floor
+            under the measured ``max_lag``.
 
         Returns
         -------
@@ -951,7 +948,7 @@ class SpendProbe:
             None
             if combined.requires_full_axis
             else max(
-                _kernel_trailing_lags(l_max, mode),
+                trailing_lags,
                 max(reach.max_lag for reach in measured.values()),
             )
         )
