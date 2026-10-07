@@ -234,6 +234,7 @@ import warnings
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
+from functools import partial
 from typing import TYPE_CHECKING, Literal
 
 import numpy as np
@@ -249,7 +250,6 @@ from pymc_marketing.mmm.counterfactual import (
     CounterfactualScenarios,
     Estimand,
     EvaluationWindows,
-    _kernel_trailing_lags,
 )
 from pymc_marketing.mmm.link import LinkFunction
 from pymc_marketing.mmm.spend_reach import (
@@ -279,6 +279,8 @@ __all__ = [
     "IncrementalReducer",
     "Incrementality",
     "LogLinkReducer",
+    "PeriodIncrements",
+    "kernel_trailing_lags",
 ]
 
 CentralTendency = Literal["median", "mean"]
@@ -327,8 +329,10 @@ class IncrementalReducer(ABC):
         r"""Return :math:`\hat{Y}^{\text{cf}}_t - \hat{Y}_t` for every date.
 
         The per-date term every reduction is built from.  Keeping the ``date``
-        axis is what lets :meth:`Incrementality.carryover_matrix` say *when* a
-        period's increment lands, rather than only how large it is in total.
+        axis is what lets
+        :meth:`Incrementality.split_incremental_contribution_over_time` say
+        *when* a period's increment lands, rather than only how large it is in
+        total.
 
         Parameters
         ----------
@@ -445,22 +449,80 @@ class LogLinkReducer(IncrementalReducer):
         return baseline * np.expm1(delta)
 
 
+def kernel_trailing_lags(l_max: int, mode: ConvMode) -> int:
+    """Lags after a spend date that the adstock kernel itself reaches.
+
+    Follows the padding in
+    :func:`~pymc_marketing.mmm.transformers.batched_convolution`: ``After``
+    places the kernel's ``l_max`` weights on lags ``0 .. l_max - 1``, ``Overlap``
+    centres them so ``l_max // 2`` fall after the spend date, and ``Before``
+    places them all on or before it.
+    :meth:`~pymc_marketing.mmm.counterfactual.EvaluationWindows.build` ends the
+    ``Overlap`` and ``Before`` evaluation ranges the same way; its windowed
+    ``After`` range keeps one date of slack past the last lag.
+
+    The one definition of how far a plain kernel carries.  :class:`Incrementality`
+    passes it to :meth:`~pymc_marketing.mmm.spend_reach.SpendProbe.measure` as
+    the floor under the measured horizon, and under full-axis evaluation, where
+    no horizon was measured, uses it as a lower bound on how far a period's
+    carryover runs.
+
+    Parameters
+    ----------
+    l_max : int
+        The adstock's number of kernel weights.
+    mode : ConvMode
+        The adstock's convolution mode.
+
+    Returns
+    -------
+    int
+        The last lag the kernel places weight on, ``0`` for ``Before``.
+
+    Raises
+    ------
+    ValueError
+        For an unknown mode.
+
+    Examples
+    --------
+    .. code-block:: python
+
+        from pymc_marketing.mmm.incrementality import kernel_trailing_lags
+        from pymc_marketing.mmm.transformers import ConvMode
+
+        kernel_trailing_lags(8, ConvMode.After)  # 7
+        kernel_trailing_lags(8, ConvMode.Overlap)  # 4
+        kernel_trailing_lags(8, ConvMode.Before)  # 0
+    """
+    if mode == ConvMode.After:
+        return int(l_max - 1)
+    if mode == ConvMode.Overlap:
+        return int(l_max // 2)
+    if mode == ConvMode.Before:
+        return 0
+    raise ValueError(f"Wrong Mode: {mode}, expected one of {', '.join(ConvMode)}")
+
+
 @dataclass(frozen=True)
-class _PeriodIncrements:
+class PeriodIncrements:
     """Every period's increment, before the periods are laid out together.
 
-    What :meth:`Incrementality._compute_increments` returns, so that each public
-    method chooses its own layout without re-deriving what the evaluation
-    established: stacked totals for
+    What the evaluation shared by every :class:`Incrementality` method returns,
+    so that each public method chooses its own layout without re-deriving what
+    the evaluation established: stacked totals for
     :meth:`~Incrementality.compute_incremental_contribution`, a dense matrix for
-    :meth:`~Incrementality.carryover_matrix`, and one band at a time for
-    :meth:`~Incrementality.current_vs_future_value`.
+    :meth:`~Incrementality.split_incremental_contribution_over_time`, and one
+    band at a time for
+    :meth:`~Incrementality.split_incremental_contribution_current_future`.
 
     Parameters
     ----------
     periods : list of xr.DataArray
-        One per period, in period order; see
-        :meth:`Incrementality._compute_period_increments` for the two shapes.
+        One per period, in period order.  Either the period's total, with a
+        length-one ``date`` dimension holding the period end, or its band: the
+        per-date increment on ``realization_date`` over the period's evaluated
+        dates plus its unobserved tail, with a boolean ``observed`` coordinate.
     windows : EvaluationWindows
         The windows the periods were evaluated over, in the same order.
     reach : SpendReach
@@ -1015,7 +1077,7 @@ class Incrementality:
         )
         return self._stack_periods(increments, frequency)
 
-    def carryover_matrix(
+    def split_incremental_contribution_over_time(
         self,
         frequency: Frequency,
         start_date: str | pd.Timestamp | None = None,
@@ -1172,18 +1234,19 @@ class Incrementality:
         At ``frequency="original"`` the matrix's size is
         ``n_samples x n_dates x (n_dates + effective_horizon) x n_channels``;
         use ``num_samples`` or an aggregated frequency on long series.
-        :meth:`current_vs_future_value` works on each period's band instead and
-        never builds this matrix.
+        :meth:`split_incremental_contribution_current_future` works on each
+        period's band instead and never builds this matrix.
 
         See Also
         --------
-        current_vs_future_value : The matrix reduced to realized vs future value.
+        split_incremental_contribution_current_future : The matrix reduced to
+            realized vs future value.
 
         Examples
         --------
         .. code-block:: python
 
-            A = mmm.incrementality.carryover_matrix(
+            A = mmm.incrementality.split_incremental_contribution_over_time(
                 frequency="monthly", num_samples=500, random_state=0
             )
             # Reconciles with today's per-period incrementality:
@@ -1195,16 +1258,19 @@ class Incrementality:
             raise ValueError(
                 f"estimand must be 'counterfactual' or 'allocation', got {estimand!r}"
             )
+
         if method not in ("pipeline", "closed_form"):
             raise ValueError(
                 f"method must be 'pipeline' or 'closed_form', got {method!r}"
             )
+
         if estimand == "allocation":
             raise NotImplementedError(
                 "estimand='allocation' (Aumann-Shapley shares that reconcile with "
                 "channel_contribution) is not implemented yet. See "
                 "https://github.com/pymc-labs/pymc-marketing/issues/2941."
             )
+
         if method == "closed_form":
             raise NotImplementedError(
                 "method='closed_form' is not implemented yet; use "
@@ -1214,6 +1280,7 @@ class Incrementality:
 
         mode = self.model.adstock.mode
         notes: list[str] = []
+
         if mode != ConvMode.After:
             message = (
                 f"adstock.mode is {mode!s}, so spend moves dates before its own "
@@ -1236,7 +1303,9 @@ class Incrementality:
             central_tendency=central_tendency,
             keep_date_axis=True,
         )
+
         matrix = self._carryover_band_to_matrix(increments, frequency=frequency)
+
         if not bool(matrix.coords["observed"].all()):
             notes.append(
                 "Some periods' carryover runs past the end of the fitted data; "
@@ -1244,11 +1313,12 @@ class Incrementality:
                 "count only the part the data covers."
             )
 
-        custom_dims = list(self.model.dims)
         dim_order = ["chain", "draw", "spend_date", "realization_date", "channel"]
         if frequency == "all_time":
             dim_order.remove("spend_date")
-        matrix = matrix.transpose(*dim_order, *custom_dims)
+
+        matrix = matrix.transpose(*dim_order, *self.model.dims)
+
         matrix.attrs = self._carryover_attrs(
             increments,
             estimand=estimand,
@@ -1257,9 +1327,10 @@ class Incrementality:
             counterfactual_spend_factor=counterfactual_spend_factor,
             notes=notes,
         )
+
         return matrix
 
-    def current_vs_future_value(
+    def split_incremental_contribution_current_future(
         self,
         frequency: Frequency,
         start_date: str | pd.Timestamp | None = None,
@@ -1276,8 +1347,9 @@ class Incrementality:
         reporting period, *future* is the carryover that lands afterwards.  The
         two add up to :meth:`compute_incremental_contribution` wherever the
         carryover window is fully observed.  The numbers are those of
-        :meth:`carryover_matrix` reduced over ``realization_date``, but they are
-        reduced one period's band at a time, so the dense matrix is never built.
+        :meth:`split_incremental_contribution_over_time` reduced over
+        ``realization_date``, but they are reduced one period's band at a time,
+        so the dense matrix is never built.
 
         Parameters
         ----------
@@ -1321,7 +1393,8 @@ class Incrementality:
             partway through).  ``future_share`` is ``NaN`` there too, and also
             wherever current plus future is zero, as for a channel with no spend
             in the period; ``complete`` tells the two apart.  Attributes are
-            those of :meth:`carryover_matrix`, plus ``horizon``.
+            those of :meth:`split_incremental_contribution_over_time`, plus
+            ``horizon``.
 
         Raises
         ------
@@ -1350,46 +1423,32 @@ class Incrementality:
 
         See Also
         --------
-        carryover_matrix : The per-date increments this reduces.
+        split_incremental_contribution_over_time : The per-date increments this
+            reduces.
+
+        Examples
+        --------
+        .. code-block:: python
+
+            split = mmm.incrementality.split_incremental_contribution_current_future(
+                frequency="monthly", num_samples=500, random_state=0
+            )
+            # Share of each month's value that lands after the month, on the
+            # months whose carryover the data fully shows:
+            split["future_share"].where(split["complete"])
         """
         mode = self.model.adstock.mode
         if mode != ConvMode.After:
             raise ValueError(
-                f"current_vs_future_value needs adstock.mode=ConvMode.After, got "
-                f"{mode!s}.  Under a leading kernel spend moves dates before its "
-                "own period, which is neither current nor future value.  Use "
-                "carryover_matrix to inspect where the effect lands."
+                "split_incremental_contribution_current_future needs "
+                f"adstock.mode=ConvMode.After, got {mode!s}.  Under a leading "
+                "kernel spend moves dates before its own period, which is "
+                "neither current nor future value.  Use "
+                "split_incremental_contribution_over_time to inspect where the "
+                "effect lands."
             )
-        if horizon is not None:
-            if isinstance(horizon, bool) or not isinstance(horizon, int | np.integer):
-                raise TypeError(f"horizon must be an integer, got {horizon!r}")
-            if horizon < 0:
-                raise ValueError(f"horizon must be >= 0, got {horizon}")
-            if horizon > 0 and frequency != "original":
-                raise ValueError(
-                    "A positive horizon needs frequency='original', where it "
-                    "counts lags 0..horizon after each spend date; got "
-                    f"frequency={frequency!r}.  At an aggregated frequency, "
-                    "current is the spend's own reporting period."
-                )
-        lags = 0 if horizon is None else int(horizon)
 
-        def validate_reach(reach: SpendReach) -> None:
-            # Checked as soon as the probe has measured the reach, before the
-            # periods themselves are evaluated.
-            if reach.requires_full_axis or reach.max_lag is None:
-                raise ValueError(
-                    "The spend probe could not bound this model's reach, so "
-                    "periods would be evaluated on the full date axis.  A future "
-                    "share against a horizon the model was measured not to "
-                    "respect is not a number; use carryover_matrix and its "
-                    "observed coordinate instead."
-                )
-            if lags > reach.max_lag:
-                raise ValueError(
-                    f"horizon must be in 0..{reach.max_lag} (the measured "
-                    f"carryover lags), got {lags}"
-                )
+        lags = self._validate_horizon(horizon, frequency)
 
         increments = self._compute_increments(
             scope="per_channel",
@@ -1402,47 +1461,34 @@ class Incrementality:
             counterfactual_spend_factor=counterfactual_spend_factor,
             central_tendency=central_tendency,
             keep_date_axis=True,
-            validate_reach=validate_reach,
+            # Checked as soon as the probe has measured the reach, before the
+            # periods themselves are evaluated.
+            validate_reach=partial(self._check_reach_supports_split, lags=lags),
         )
 
         windows = increments.windows.windows
         current, future, complete = [], [], []
         for window, band in zip(windows, increments.periods, strict=True):
-            realization = band.indexes["realization_date"]
-            current_end = (
-                window.end + lags * increments.freq_offset if lags else window.end
+            period_current, period_future, period_complete = self._split_band(
+                band,
+                start=window.start,
+                end=window.end,
+                lags=lags,
+                freq_offset=increments.freq_offset,
             )
-            in_current = (realization >= window.start) & (realization <= current_end)
-            # skipna=False on both sides: an unobserved date is carryover the
-            # model has and the data cannot show, not a zero.
-            current.append(
-                band.isel(realization_date=in_current).sum(
-                    "realization_date", skipna=False
-                )
-            )
-            future.append(
-                band.isel(realization_date=realization > current_end).sum(
-                    "realization_date", skipna=False
-                )
-            )
-            complete.append(bool(band.coords["observed"].all()))
+            current.append(period_current)
+            future.append(period_future)
+            complete.append(period_complete)
 
-        spend_date = pd.DatetimeIndex([window.end for window in windows])
-        split = {
-            name: xr.concat(parts, dim=pd.Index(spend_date, name="spend_date"))
-            for name, parts in (("current", current), ("future", future))
-        }
-        total = split["current"] + split["future"]
-        split["future_share"] = (split["future"] / total).where(total != 0)
-        result = xr.Dataset(split).assign_coords(
-            period_start=("spend_date", [window.start for window in windows]),
-            complete=("spend_date", complete),
+        result = self._stack_current_future(
+            current,
+            future,
+            complete,
+            spend_dates=pd.DatetimeIndex([window.end for window in windows]),
+            period_starts=pd.DatetimeIndex([window.start for window in windows]),
+            frequency=frequency,
+            custom_dims=list(self.model.dims),
         )
-        dim_order = ["chain", "draw", "spend_date", "channel", *self.model.dims]
-        if frequency == "all_time":
-            result = result.squeeze("spend_date", drop=False)
-            dim_order.remove("spend_date")
-        result = result.transpose(*dim_order)
 
         notes: list[str] = []
         if not all(complete):
@@ -1451,6 +1497,7 @@ class Incrementality:
                 "future is NaN there, and so is current where that carryover "
                 "falls inside the current window."
             )
+
         result.attrs = self._carryover_attrs(
             increments,
             estimand="counterfactual",
@@ -1460,11 +1507,198 @@ class Incrementality:
             notes=notes,
         )
         result.attrs["horizon"] = lags
+
         return result
+
+    @staticmethod
+    def _validate_horizon(horizon: int | None, frequency: Frequency) -> int:
+        """Check a requested ``horizon`` and turn it into a number of lags.
+
+        Parameters
+        ----------
+        horizon : int or None
+            As passed to :meth:`split_incremental_contribution_current_future`.
+        frequency : Frequency
+            Reporting period of the split.
+
+        Returns
+        -------
+        int
+            Lags after each spend date that count as current, ``0`` for
+            ``None``.
+
+        Raises
+        ------
+        TypeError
+            If ``horizon`` is not an integer; a ``bool`` is refused too.
+        ValueError
+            If ``horizon`` is negative, or positive at an aggregated frequency.
+        """
+        if horizon is None:
+            return 0
+
+        if isinstance(horizon, bool) or not isinstance(horizon, int | np.integer):
+            raise TypeError(f"horizon must be an integer, got {horizon!r}")
+
+        if horizon < 0:
+            raise ValueError(f"horizon must be >= 0, got {horizon}")
+
+        if horizon > 0 and frequency != "original":
+            raise ValueError(
+                "A positive horizon needs frequency='original', where it "
+                "counts lags 0..horizon after each spend date; got "
+                f"frequency={frequency!r}.  At an aggregated frequency, "
+                "current is the spend's own reporting period."
+            )
+
+        return int(horizon)
+
+    @staticmethod
+    def _check_reach_supports_split(reach: SpendReach, *, lags: int) -> None:
+        """Refuse a current/future split the measured reach cannot support.
+
+        Parameters
+        ----------
+        reach : SpendReach
+            What the probe measured about how far spend moves the evaluated
+            nodes.
+        lags : int
+            Lags after each spend date that count as current.
+
+        Raises
+        ------
+        ValueError
+            If the evaluation needs the full date axis, which leaves no
+            measured horizon for *future* to be a share of, or if ``lags`` is
+            past the measured horizon.
+        """
+        if reach.requires_full_axis or reach.max_lag is None:
+            raise ValueError(
+                "The spend probe could not bound this model's reach, so "
+                "periods would be evaluated on the full date axis.  A future "
+                "share against a horizon the model was measured not to "
+                "respect is not a number; use "
+                "split_incremental_contribution_over_time and its observed "
+                "coordinate instead."
+            )
+
+        if lags > reach.max_lag:
+            raise ValueError(
+                f"horizon must be in 0..{reach.max_lag} (the measured "
+                f"carryover lags), got {lags}"
+            )
+
+    @staticmethod
+    def _split_band(
+        band: xr.DataArray,
+        *,
+        start: pd.Timestamp,
+        end: pd.Timestamp,
+        lags: int,
+        freq_offset: BaseOffset,
+    ) -> tuple[xr.DataArray, xr.DataArray, bool]:
+        """Reduce one period's band to its current and future value.
+
+        Current is every realization date from the period's start through its
+        end plus ``lags`` data periods, future every date after that.
+
+        Parameters
+        ----------
+        band : xr.DataArray
+            The period's per-date increment on ``realization_date``, with a
+            boolean ``observed`` coordinate on the same dimension.  Unobserved
+            dates hold ``NaN``.
+        start, end : pd.Timestamp
+            The period's bounds.
+        lags : int
+            Data periods after ``end`` that still count as current.
+        freq_offset : BaseOffset
+            The data's date frequency, which ``lags`` is counted in.
+
+        Returns
+        -------
+        current, future : xr.DataArray
+            *band* summed over each window, without ``realization_date``.
+            Neither sum skips ``NaN``: an unobserved date is carryover the model
+            has and the data cannot show, not a zero.
+        complete : bool
+            Whether every date in the band is observed.
+        """
+        # Adding zero periods of an anchored offset rolls an off-anchor date
+        # forward (a month end plus 0 weeks is the next Sunday), so a zero lag
+        # leaves the period end where it is.
+        current_end = end + lags * freq_offset if lags else end
+        realization = band.indexes["realization_date"]
+        in_current = (realization >= start) & (realization <= current_end)
+
+        current = band.isel(realization_date=in_current).sum(
+            "realization_date", skipna=False
+        )
+        future = band.isel(realization_date=realization > current_end).sum(
+            "realization_date", skipna=False
+        )
+        complete = bool(band.coords["observed"].all())
+
+        return current, future, complete
+
+    @staticmethod
+    def _stack_current_future(
+        current: Sequence[xr.DataArray],
+        future: Sequence[xr.DataArray],
+        complete: Sequence[bool],
+        *,
+        spend_dates: pd.DatetimeIndex,
+        period_starts: pd.DatetimeIndex,
+        frequency: Frequency,
+        custom_dims: Sequence[str],
+    ) -> xr.Dataset:
+        """Stack each period's current and future value into one dataset.
+
+        Parameters
+        ----------
+        current, future : sequence of xr.DataArray
+            One per period, in period order, each with dims
+            ``(chain, draw, channel, *custom_dims)`` in any order.
+        complete : sequence of bool
+            Per period, whether its carryover is fully observed.
+        spend_dates, period_starts : pd.DatetimeIndex
+            Per period, its end, which labels ``spend_date``, and its start.
+        frequency : Frequency
+            Aggregation of the spend periods.  ``"all_time"`` keeps
+            ``spend_date`` as a scalar coordinate instead of a dimension.
+        custom_dims : sequence of str
+            The model's own dimensions, placed last.
+
+        Returns
+        -------
+        xr.Dataset
+            ``current``, ``future`` and ``future_share``, the future value over
+            current plus future, ``NaN`` where that total is zero.  Coordinates
+            ``period_start`` and ``complete`` sit on ``spend_date``.
+        """
+        index = pd.Index(spend_dates, name="spend_date")
+        split = {
+            "current": xr.concat(current, dim=index),
+            "future": xr.concat(future, dim=index),
+        }
+        total = split["current"] + split["future"]
+        split["future_share"] = (split["future"] / total).where(total != 0)
+
+        result = xr.Dataset(split).assign_coords(
+            period_start=("spend_date", period_starts),
+            complete=("spend_date", list(complete)),
+        )
+
+        dim_order = ["chain", "draw", "spend_date", "channel", *custom_dims]
+        if frequency == "all_time":
+            result = result.squeeze("spend_date", drop=False)
+            dim_order.remove("spend_date")
+
+        return result.transpose(*dim_order)
 
     def _carryover_attrs(
         self,
-        increments: _PeriodIncrements,
+        increments: PeriodIncrements,
         *,
         estimand: str,
         method: str,
@@ -1476,10 +1710,10 @@ class Incrementality:
 
         Parameters
         ----------
-        increments : _PeriodIncrements
+        increments : PeriodIncrements
             The evaluation the result was reduced from.
         estimand, method : str
-            As passed to :meth:`carryover_matrix`.
+            As passed to :meth:`split_incremental_contribution_over_time`.
         frequency : Frequency
             Aggregation of the spend periods.
         counterfactual_spend_factor : float
@@ -1554,7 +1788,7 @@ class Incrementality:
         central_tendency: CentralTendency,
         keep_date_axis: bool = False,
         validate_reach: Callable[[SpendReach], None] | None = None,
-    ) -> _PeriodIncrements:
+    ) -> PeriodIncrements:
         """Shared machinery behind the per-channel and joint increments.
 
         Resolves which nodes the counterfactual reaches, compiles one batched
@@ -1593,7 +1827,7 @@ class Incrementality:
 
         Returns
         -------
-        _PeriodIncrements
+        PeriodIncrements
             Each period's increment in the original scale of the target, with
             the windows, measured reach and date frequency they came from.
 
@@ -1741,10 +1975,16 @@ class Incrementality:
         probe.assert_increment_is_complete(
             effects=effects, non_date_dims=evaluator.non_date_dims
         )
+        # The adstock kernel's own trailing lags: the floor under the measured
+        # horizon, and the lower bound on the unobserved tail when the probe
+        # sends every period to the full date axis.
+        trailing_lags = kernel_trailing_lags(
+            self.model.adstock.l_max, self.model.adstock.mode
+        )
         reach = probe.measure(
             effects=effects,
             l_max=self.model.adstock.l_max,
-            mode=self.model.adstock.mode,
+            trailing_lags=trailing_lags,
         )
         if validate_reach is not None:
             validate_reach(reach)
@@ -1813,16 +2053,10 @@ class Incrementality:
             # How far past a period's last spend date its carryover is known to
             # land: the measured reach, or under full-axis evaluation the
             # kernel's own trailing lags, which bound it from below.
-            tail_lags=(
-                reach.max_lag
-                if reach.max_lag is not None
-                else _kernel_trailing_lags(
-                    self.model.adstock.l_max, self.model.adstock.mode
-                )
-            ),
+            tail_lags=reach.max_lag if reach.max_lag is not None else trailing_lags,
             keep_date_axis=keep_date_axis,
         )
-        return _PeriodIncrements(
+        return PeriodIncrements(
             periods=period_results,
             windows=windows,
             reach=reach,
@@ -1831,13 +2065,13 @@ class Incrementality:
 
     @staticmethod
     def _stack_periods(
-        increments: _PeriodIncrements, frequency: Frequency
+        increments: PeriodIncrements, frequency: Frequency
     ) -> xr.DataArray:
         """Stack per-period totals into one array, one ``date`` per period.
 
         Parameters
         ----------
-        increments : _PeriodIncrements
+        increments : PeriodIncrements
             Per-period totals, as returned by :meth:`_compute_increments`
             without ``keep_date_axis``.
         frequency : Frequency
@@ -2226,8 +2460,8 @@ class Incrementality:
         on the axis can label, so ``observed`` does not mark it.  Such a kernel
         moves dates before the probed one, which sends the model to full-axis
         evaluation; one whose leading weights the probe cannot see stays
-        windowed, and :meth:`current_vs_future_value` refuses every mode other
-        than ``ConvMode.After`` regardless.
+        windowed, and :meth:`split_incremental_contribution_current_future`
+        refuses every mode other than ``ConvMode.After`` regardless.
 
         Parameters
         ----------
@@ -2263,7 +2497,7 @@ class Incrementality:
 
     @staticmethod
     def _carryover_band_to_matrix(
-        increments: _PeriodIncrements, frequency: Frequency
+        increments: PeriodIncrements, frequency: Frequency
     ) -> xr.DataArray:
         """Lay per-period increment bands out as a spend x realization matrix.
 
@@ -2294,7 +2528,7 @@ class Incrementality:
 
         Parameters
         ----------
-        increments : _PeriodIncrements
+        increments : PeriodIncrements
             Per-period bands, from :meth:`_compute_increments` with
             ``keep_date_axis``.
         frequency : Frequency

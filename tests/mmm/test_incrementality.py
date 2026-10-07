@@ -21,6 +21,7 @@ from types import SimpleNamespace
 import numpy as np
 import pandas as pd
 import pymc as pm
+import pytensor.xtensor as ptx
 import pytest
 import xarray as xr
 from pydantic import ValidationError
@@ -43,15 +44,18 @@ from pymc_marketing.mmm.incrementality import (
     Incrementality,
     IncrementalReducer,
     LogLinkReducer,
+    kernel_trailing_lags,
 )
 from pymc_marketing.mmm.spend_reach import (
     LINEAR_PREDICTOR,
     SpendProbe,
+    SpendReach,
     TemporalReach,
     resolve_channel_dependent_effects,
 )
 from pymc_marketing.mmm.transformers import (
     ConvMode,
+    batched_convolution,
     geometric_adstock,
     logistic_saturation,
 )
@@ -3296,8 +3300,12 @@ def no_carryover_fitted_mmm(simple_mmm_data):
     return _fit_custom_mmm(simple_mmm_data, adstock=GeometricAdstock(l_max=1))
 
 
-class TestCarryoverMatrix:
-    """``carryover_matrix`` and ``current_vs_future_value`` (issue #2941, PR 1)."""
+class TestSplitIncrementalContribution:
+    """``split_incremental_contribution_over_time`` and its reduction.
+
+    The reduction is ``split_incremental_contribution_current_future``; issue
+    #2941, PR 1.
+    """
 
     @staticmethod
     def _row_sums(matrix):
@@ -3362,7 +3370,7 @@ class TestCarryoverMatrix:
         mmm = request.getfixturevalue(model_fixture)
         incr = mmm.incrementality
 
-        matrix = incr.carryover_matrix(
+        matrix = incr.split_incremental_contribution_over_time(
             frequency=frequency,
             counterfactual_spend_factor=counterfactual_spend_factor,
         )
@@ -3385,7 +3393,7 @@ class TestCarryoverMatrix:
         the last date's spend lands entirely on the last date.
         """
         incr = no_carryover_fitted_mmm.incrementality
-        matrix = incr.carryover_matrix(frequency="original")
+        matrix = incr.split_incremental_contribution_over_time(frequency="original")
         spend = pd.DatetimeIndex(matrix.spend_date.values)
         realization = pd.DatetimeIndex(matrix.realization_date.values)
         off_diagonal = xr.DataArray(
@@ -3401,14 +3409,18 @@ class TestCarryoverMatrix:
         diagonal = mean.where(~off_diagonal).sum("realization_date")
         assert np.all(np.abs(diagonal) > 0)
 
-        split = incr.current_vs_future_value(frequency="original")
+        split = incr.split_incremental_contribution_current_future(frequency="original")
         assert bool(split["complete"].all())
         assert bool((split["future"] == 0).all())
         assert not bool(split["current"].isnull().any())
 
     def test_truncated_cohorts_are_marked_unobserved(self, simple_fitted_mmm):
         """Carryover past the last fitted date is NaN and observed=False."""
-        matrix = simple_fitted_mmm.incrementality.carryover_matrix(frequency="original")
+        matrix = (
+            simple_fitted_mmm.incrementality.split_incremental_contribution_over_time(
+                frequency="original"
+            )
+        )
         dates = pd.DatetimeIndex(simple_fitted_mmm.idata.fit_data.date.values)
         observed = matrix.coords["observed"]
         horizon = matrix.attrs["effective_horizon"]
@@ -3444,8 +3456,8 @@ class TestCarryoverMatrix:
         both, which comparing the first row with the last cannot.
         """
         incr = simple_fitted_mmm.incrementality
-        matrix = incr.carryover_matrix(frequency=frequency)
-        split = incr.current_vs_future_value(frequency=frequency)
+        matrix = incr.split_incremental_contribution_over_time(frequency=frequency)
+        split = incr.split_incremental_contribution_current_future(frequency=frequency)
 
         assert matrix.attrs["effective_horizon"] == 9
         complete = matrix.coords["observed"].all("realization_date")
@@ -3464,7 +3476,11 @@ class TestCarryoverMatrix:
         That spend reaches 9 weeks on, to 06-04; the April dates after 04-02
         carry none of it beyond what that reach covers.
         """
-        matrix = simple_fitted_mmm.incrementality.carryover_matrix(frequency="monthly")
+        matrix = (
+            simple_fitted_mmm.incrementality.split_incremental_contribution_over_time(
+                frequency="monthly"
+            )
+        )
         april = matrix.coords["observed"].isel(spend_date=-1)
         unobserved = pd.DatetimeIndex(april.realization_date.values[~april.values])
 
@@ -3474,7 +3490,11 @@ class TestCarryoverMatrix:
 
     def test_attrs(self, simple_fitted_mmm):
         """The matrix says what it is and what it assumed."""
-        matrix = simple_fitted_mmm.incrementality.carryover_matrix(frequency="monthly")
+        matrix = (
+            simple_fitted_mmm.incrementality.split_incremental_contribution_over_time(
+                frequency="monthly"
+            )
+        )
 
         assert matrix.attrs["estimand"] == "counterfactual"
         assert matrix.attrs["method"] == "pipeline"
@@ -3506,8 +3526,8 @@ class TestCarryoverMatrix:
         which refuses list attributes outright.
         """
         incr = request.getfixturevalue(fixture).incrementality
-        matrix = incr.carryover_matrix(frequency=frequency)
-        split = incr.current_vs_future_value(frequency=frequency)
+        matrix = incr.split_incremental_contribution_over_time(frequency=frequency)
+        split = incr.split_incremental_contribution_current_future(frequency=frequency)
         assert len(json.loads(matrix.attrs["warnings"])) == n_notes
 
         matrix.to_netcdf(tmp_path / "matrix.nc", engine="scipy")
@@ -3544,7 +3564,9 @@ class TestCarryoverMatrix:
         carryover, so it moves neither the horizon nor the unobserved tail.
         """
         mmm = request.getfixturevalue(model_fixture)
-        matrix = mmm.incrementality.carryover_matrix(frequency="original")
+        matrix = mmm.incrementality.split_incremental_contribution_over_time(
+            frequency="original"
+        )
 
         assert mmm.adstock.l_max == 3
         assert matrix.attrs["effective_horizon"] == 4
@@ -3558,8 +3580,10 @@ class TestCarryoverMatrix:
         3-month kernel carries that two months on.  Every earlier quarter's
         carryover lands inside the data.
         """
-        matrix = monthly_fitted_mmm.incrementality.carryover_matrix(
-            frequency="quarterly"
+        matrix = (
+            monthly_fitted_mmm.incrementality.split_incremental_contribution_over_time(
+                frequency="quarterly"
+            )
         )
         observed = matrix.coords["observed"]
         last = observed.isel(spend_date=-1)
@@ -3584,7 +3608,7 @@ class TestCarryoverMatrix:
     def test_unsupported_options_raise(self, simple_fitted_mmm, kwargs, error):
         """Later PRs' options fail loudly rather than falling back."""
         with pytest.raises(error):
-            simple_fitted_mmm.incrementality.carryover_matrix(
+            simple_fitted_mmm.incrementality.split_incremental_contribution_over_time(
                 frequency="monthly", **kwargs
             )
 
@@ -3592,17 +3616,17 @@ class TestCarryoverMatrix:
         """A leading kernel is reported, with a warning, and still reconciles."""
         incr = non_after_fitted_mmm.incrementality
         with pytest.warns(UserWarning, match="leading kernel mass"):
-            matrix = incr.carryover_matrix(frequency="monthly")
+            matrix = incr.split_incremental_contribution_over_time(frequency="monthly")
         expected = incr.compute_incremental_contribution(frequency="monthly")
 
         xr.testing.assert_allclose(
             self._row_sums(matrix).transpose(*expected.dims), expected, rtol=1e-8
         )
 
-    def test_current_vs_future_rejects_non_after_mode(self, non_after_fitted_mmm):
+    def test_split_current_future_rejects_non_after_mode(self, non_after_fitted_mmm):
         """Under a leading kernel there is no current/future split to report."""
         with pytest.raises(ValueError, match=r"ConvMode\.After"):
-            non_after_fitted_mmm.incrementality.current_vs_future_value(
+            non_after_fitted_mmm.incrementality.split_incremental_contribution_current_future(
                 frequency="monthly"
             )
 
@@ -3628,7 +3652,7 @@ class TestCarryoverMatrix:
         incr = mmm.incrementality
         dates = incr.data.dates
         tail = mmm.adstock.l_max - 1
-        matrix = incr.carryover_matrix(frequency=frequency)
+        matrix = incr.split_incremental_contribution_over_time(frequency=frequency)
         expected_total = incr.compute_incremental_contribution(frequency=frequency)
 
         xr.testing.assert_allclose(
@@ -3663,7 +3687,7 @@ class TestCarryoverMatrix:
         dates = incr.data.dates
         tail = {ConvMode.Before: 0, ConvMode.Overlap: 2}[mmm.adstock.mode]
         with pytest.warns(UserWarning, match="leading kernel mass"):
-            matrix = incr.carryover_matrix(frequency="original")
+            matrix = incr.split_incremental_contribution_over_time(frequency="original")
         expected = incr.compute_incremental_contribution(frequency="original")
 
         xr.testing.assert_allclose(
@@ -3710,7 +3734,7 @@ class TestCarryoverMatrix:
         )
         incr = mmm.incrementality
         with pytest.warns(UserWarning, match="leading kernel mass"):
-            matrix = incr.carryover_matrix(frequency="original")
+            matrix = incr.split_incremental_contribution_over_time(frequency="original")
         expected = incr.compute_incremental_contribution(frequency="original")
 
         assert json.loads(matrix.attrs["assumptions"])["evaluation"] == "window"
@@ -3723,7 +3747,7 @@ class TestCarryoverMatrix:
             self._row_sums(matrix).transpose(*expected.dims), expected, rtol=1e-8
         )
 
-    def test_current_vs_future_rejects_full_axis(
+    def test_split_current_future_rejects_full_axis(
         self, global_normalization_fitted_mmm, monkeypatch
     ):
         """No measured horizon means no future share, known before evaluating."""
@@ -3731,7 +3755,9 @@ class TestCarryoverMatrix:
         assert mmm.adstock.mode == ConvMode.After
         self._evaluation_forbidden(monkeypatch)
         with pytest.raises(ValueError, match="full date axis"):
-            mmm.incrementality.current_vs_future_value(frequency="monthly")
+            mmm.incrementality.split_incremental_contribution_current_future(
+                frequency="monthly"
+            )
 
     @pytest.mark.parametrize("frequency", ["original", "monthly", "all_time"])
     def test_current_plus_future_is_the_increment(self, simple_fitted_mmm, frequency):
@@ -3742,7 +3768,9 @@ class TestCarryoverMatrix:
         # is never complete.  Ending the spend range effective_horizon (9)
         # periods early lets its whole carryover land on fitted dates.
         end_date = dates[-1 - 9] if frequency == "all_time" else None
-        split = incr.current_vs_future_value(frequency=frequency, end_date=end_date)
+        split = incr.split_incremental_contribution_current_future(
+            frequency=frequency, end_date=end_date
+        )
         expected = incr.compute_incremental_contribution(
             frequency=frequency, end_date=end_date
         )
@@ -3773,7 +3801,7 @@ class TestCarryoverMatrix:
         rather than the truncated sum ``include_carryover=False`` reports.
         """
         incr = simple_fitted_mmm.incrementality
-        split = incr.current_vs_future_value(frequency=frequency)
+        split = incr.split_incremental_contribution_current_future(frequency=frequency)
         expected = incr.compute_incremental_contribution(
             frequency=frequency, include_carryover=False
         )
@@ -3792,7 +3820,7 @@ class TestCarryoverMatrix:
 
     def test_incomplete_periods_report_nan_future(self, simple_fitted_mmm):
         """A truncated window gives NaN future, not a silently short one."""
-        split = simple_fitted_mmm.incrementality.current_vs_future_value(
+        split = simple_fitted_mmm.incrementality.split_incremental_contribution_current_future(
             frequency="original"
         )
         incomplete = ~split["complete"]
@@ -3806,7 +3834,9 @@ class TestCarryoverMatrix:
     def test_unobserved_current_is_not_summed_as_zero(self, simple_fitted_mmm):
         """Current is NaN wherever its own window runs past the data."""
         incr = simple_fitted_mmm.incrementality
-        split = incr.current_vs_future_value(frequency="original", horizon=5)
+        split = incr.split_incremental_contribution_current_future(
+            frequency="original", horizon=5
+        )
 
         # Lags 0..5 after spend at index i stay on the 14 fitted dates for i <= 8.
         assert self._any_nan_per_row(split["current"]).values.tolist() == (
@@ -3816,8 +3846,8 @@ class TestCarryoverMatrix:
     def test_original_frequency_current_is_lag_zero(self, simple_fitted_mmm):
         """At the data's own frequency, current is exactly the diagonal."""
         incr = simple_fitted_mmm.incrementality
-        matrix = incr.carryover_matrix(frequency="original")
-        split = incr.current_vs_future_value(frequency="original")
+        matrix = incr.split_incremental_contribution_over_time(frequency="original")
+        split = incr.split_incremental_contribution_current_future(frequency="original")
 
         # Pointwise: the indexer runs along spend_date, so each row picks out
         # the column on its own date.
@@ -3832,10 +3862,16 @@ class TestCarryoverMatrix:
     def test_horizon(self, simple_fitted_mmm):
         """A wider current window moves value from future to current."""
         incr = simple_fitted_mmm.incrementality
-        default = incr.current_vs_future_value(frequency="original")
-        zero = incr.current_vs_future_value(frequency="original", horizon=0)
-        two = incr.current_vs_future_value(frequency="original", horizon=2)
-        everything = incr.current_vs_future_value(
+        default = incr.split_incremental_contribution_current_future(
+            frequency="original"
+        )
+        zero = incr.split_incremental_contribution_current_future(
+            frequency="original", horizon=0
+        )
+        two = incr.split_incremental_contribution_current_future(
+            frequency="original", horizon=2
+        )
+        everything = incr.split_incremental_contribution_current_future(
             frequency="original", horizon=default.attrs["effective_horizon"]
         )
 
@@ -3854,21 +3890,259 @@ class TestCarryoverMatrix:
         )
 
     @pytest.mark.parametrize(
-        "frequency, horizon, error, match",
+        "frequency, horizon, match",
         [
-            ("original", 1.5, TypeError, "integer"),
-            ("original", True, TypeError, "integer"),
-            ("original", -1, ValueError, "horizon must be >= 0"),
-            ("monthly", 1, ValueError, "frequency='original'"),
-            ("original", 10, ValueError, r"horizon must be in 0\.\.9"),
+            # One refusal per check: the horizon on its own, then the horizon
+            # against the measured reach.  The helper tests own the full matrix.
+            ("monthly", 1, "frequency='original'"),
+            ("original", 10, r"horizon must be in 0\.\.9"),
         ],
     )
     def test_horizon_is_validated_before_evaluating(
-        self, simple_fitted_mmm, monkeypatch, frequency, horizon, error, match
+        self, simple_fitted_mmm, monkeypatch, frequency, horizon, match
     ):
         """A bad horizon fails before any period is evaluated."""
         self._evaluation_forbidden(monkeypatch)
-        with pytest.raises(error, match=match):
-            simple_fitted_mmm.incrementality.current_vs_future_value(
+        with pytest.raises(ValueError, match=match):
+            simple_fitted_mmm.incrementality.split_incremental_contribution_current_future(
                 frequency=frequency, horizon=horizon
             )
+
+
+class TestKernelTrailingLags:
+    """``kernel_trailing_lags``, the floor every carryover horizon starts from."""
+
+    @pytest.mark.parametrize("mode", list(ConvMode), ids=str)
+    @pytest.mark.parametrize("l_max", [1, 2, 3, 4, 5])
+    def test_matches_the_convolution(self, l_max, mode):
+        """The lags returned are exactly the ones ``batched_convolution`` reaches.
+
+        A unit impulse convolved with an all-ones kernel is nonzero on every
+        date the kernel covers, so its last nonzero date after the impulse is
+        the last trailing lag.  An even ``l_max`` under ``Overlap`` separates
+        ``l_max // 2`` from ``(l_max - 1) // 2``, and ``l_max >= 2`` separates
+        ``After``'s ``l_max - 1`` from ``l_max``.
+        """
+        impulse_at = 10
+        spend = np.zeros(2 * impulse_at + 1)
+        spend[impulse_at] = 1.0
+        response = batched_convolution(
+            ptx.as_xtensor(spend, dims=("date",)),
+            ptx.as_xtensor(np.ones(l_max), dims=("lag",)),
+            dim="date",
+            kernel_dim="lag",
+            mode=mode,
+        ).eval()
+
+        last_reached = int(np.flatnonzero(response)[-1])
+        assert kernel_trailing_lags(l_max, mode) == last_reached - impulse_at
+
+    def test_rejects_an_unknown_mode(self):
+        """A mode the convolution does not know has no trailing lags."""
+        with pytest.raises(ValueError, match="Wrong Mode"):
+            kernel_trailing_lags(4, "Sideways")
+
+
+def _band(values, dates, observed=None):
+    """One period's band: one chain, draw and channel, NaN where unobserved."""
+    values = np.asarray(values, dtype=float)
+    observed = np.isfinite(values) if observed is None else np.asarray(observed)
+    return xr.DataArray(
+        values.reshape(1, 1, -1, 1),
+        dims=("chain", "draw", "realization_date", "channel"),
+        coords={
+            "chain": [0],
+            "draw": [0],
+            "realization_date": pd.DatetimeIndex(dates),
+            "channel": ["c"],
+        },
+    ).assign_coords(observed=("realization_date", observed))
+
+
+class TestSplitIncrementalContributionHelpers:
+    """The pieces ``split_incremental_contribution_current_future`` is built from.
+
+    Synthetic inputs with hand-computed answers, no model: the end-to-end tests
+    in :class:`TestSplitIncrementalContribution` pin the assembled behaviour.
+    """
+
+    WEEKS = pd.date_range("2023-01-01", periods=6, freq="W-SUN")
+    WEEKLY = pd.tseries.frequencies.to_offset("W-SUN")
+
+    @pytest.mark.parametrize(
+        "horizon, frequency, error, match",
+        [
+            (1.5, "original", TypeError, "integer"),
+            (True, "original", TypeError, "integer"),
+            (-1, "original", ValueError, "horizon must be >= 0"),
+            (1, "monthly", ValueError, "frequency='original'"),
+        ],
+    )
+    def test_validate_horizon_refuses(self, horizon, frequency, error, match):
+        """Non-integers, ``bool``, negatives, and positives off ``original``."""
+        with pytest.raises(error, match=match):
+            Incrementality._validate_horizon(horizon, frequency)
+
+    @pytest.mark.parametrize(
+        "horizon, frequency, lags",
+        [
+            # No horizon, or zero, is the same-period default at any frequency.
+            (None, "monthly", 0),
+            (0, "monthly", 0),
+            # A NumPy integer is an integer.
+            (np.int64(2), "original", 2),
+        ],
+    )
+    def test_validate_horizon_returns_the_lags(self, horizon, frequency, lags):
+        """An accepted ``horizon`` comes back as a plain ``int`` of lags."""
+        result = Incrementality._validate_horizon(horizon, frequency)
+
+        assert result == lags
+        assert type(result) is int
+
+    def test_a_horizon_may_reach_exactly_the_measured_lag(self):
+        """The measured horizon is the last lag allowed, not the first refused."""
+        reach = SpendReach(effective_l_max=4, requires_full_axis=False, max_lag=3)
+
+        Incrementality._check_reach_supports_split(reach, lags=3)
+        with pytest.raises(ValueError, match=r"horizon must be in 0\.\.3"):
+            Incrementality._check_reach_supports_split(reach, lags=4)
+
+    def test_a_full_axis_reach_supports_no_split(self):
+        """Without a measured horizon even the same-period split is refused."""
+        reach = SpendReach(effective_l_max=4, requires_full_axis=True)
+
+        with pytest.raises(ValueError, match="full date axis"):
+            Incrementality._check_reach_supports_split(reach, lags=0)
+
+    @pytest.mark.parametrize(
+        "lags, current, future",
+        [(0, 1.0, 14.0), (1, 3.0, 12.0), (3, 15.0, 0.0)],
+    )
+    def test_split_band_counts_lags_after_the_period_end(self, lags, current, future):
+        """Spend on one date: current is lags ``0 .. lags``, future the rest."""
+        band = _band([1.0, 2.0, 4.0, 8.0], self.WEEKS[:4])
+
+        got_current, got_future, complete = Incrementality._split_band(
+            band,
+            start=self.WEEKS[0],
+            end=self.WEEKS[0],
+            lags=lags,
+            freq_offset=self.WEEKLY,
+        )
+
+        assert float(got_current.squeeze()) == current
+        assert float(got_future.squeeze()) == future
+        assert complete
+        assert "realization_date" not in got_current.dims
+
+    @pytest.mark.parametrize(
+        "lags, current, future",
+        [
+            # The unobserved date is future: future is unknown, current is not.
+            (1, 3.0, np.nan),
+            # The unobserved date is current: current is unknown.
+            (3, np.nan, 0.0),
+        ],
+    )
+    def test_split_band_does_not_sum_an_unobserved_date_as_zero(
+        self, lags, current, future
+    ):
+        """A ``NaN`` date makes the sum it falls in ``NaN``, and the band incomplete."""
+        band = _band([1.0, 2.0, 4.0, np.nan], self.WEEKS[:4])
+
+        got_current, got_future, complete = Incrementality._split_band(
+            band,
+            start=self.WEEKS[0],
+            end=self.WEEKS[0],
+            lags=lags,
+            freq_offset=self.WEEKLY,
+        )
+
+        np.testing.assert_equal(float(got_current.squeeze()), current)
+        np.testing.assert_equal(float(got_future.squeeze()), future)
+        assert not complete
+
+    def test_split_band_keeps_a_period_end_off_the_data_frequency(self):
+        """A month ending mid-week keeps the next Sunday out of its current window.
+
+        ``2023-01-31`` plus zero ``W-SUN`` periods rolls forward to
+        ``2023-02-05``, so computing the end with a zero lag would count
+        February's first week as January's current value.
+        """
+        band = _band([1.0, 1.0, 1.0, 1.0, 1.0, 10.0], self.WEEKS)
+
+        current, future, _ = Incrementality._split_band(
+            band,
+            start=pd.Timestamp("2023-01-01"),
+            end=pd.Timestamp("2023-01-31"),
+            lags=0,
+            freq_offset=self.WEEKLY,
+        )
+
+        assert float(current.squeeze()) == 5.0
+        assert float(future.squeeze()) == 10.0
+
+    @staticmethod
+    def _per_period(values):
+        """One ``(geo, channel, chain, draw)`` array per period, out of order."""
+        return [
+            xr.DataArray(
+                np.full((1, 1, 1, 1), value),
+                dims=("geo", "channel", "chain", "draw"),
+                coords={"geo": ["g"], "channel": ["c"], "chain": [0], "draw": [0]},
+            )
+            for value in values
+        ]
+
+    def test_stack_current_future(self):
+        """Periods stack on ``spend_date``, with the share and both coordinates."""
+        spend_dates = pd.DatetimeIndex(["2023-01-31", "2023-02-28"])
+        period_starts = pd.DatetimeIndex(["2023-01-01", "2023-02-01"])
+
+        result = Incrementality._stack_current_future(
+            self._per_period([3.0, -1.0]),
+            self._per_period([1.0, 1.0]),
+            [True, False],
+            spend_dates=spend_dates,
+            period_starts=period_starts,
+            frequency="monthly",
+            custom_dims=["geo"],
+        )
+
+        assert result["current"].dims == (
+            "chain",
+            "draw",
+            "spend_date",
+            "channel",
+            "geo",
+        )
+        # 1 / (3 + 1); a zero total leaves no share, not 1 / 0.
+        np.testing.assert_equal(
+            result["future_share"].squeeze(("chain", "draw", "channel", "geo")).values,
+            [0.25, np.nan],
+        )
+        np.testing.assert_array_equal(
+            result.coords["spend_date"].values, spend_dates.values
+        )
+        np.testing.assert_array_equal(
+            result.coords["period_start"].values, period_starts.values
+        )
+        assert result.coords["complete"].values.tolist() == [True, False]
+
+    def test_stack_current_future_all_time(self):
+        """``all_time`` keeps the single period's labels as scalar coordinates."""
+        result = Incrementality._stack_current_future(
+            self._per_period([3.0]),
+            self._per_period([1.0]),
+            [True],
+            spend_dates=pd.DatetimeIndex(["2023-04-02"]),
+            period_starts=pd.DatetimeIndex(["2023-01-01"]),
+            frequency="all_time",
+            custom_dims=["geo"],
+        )
+
+        assert result["future_share"].dims == ("chain", "draw", "channel", "geo")
+        assert result.coords["spend_date"].values == np.datetime64("2023-04-02")
+        assert result.coords["period_start"].values == np.datetime64("2023-01-01")
+        assert bool(result.coords["complete"])
