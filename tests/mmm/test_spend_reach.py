@@ -455,6 +455,66 @@ class TestSpendProbe:
 
         assert probe.measure(effects=(), l_max=self.l_max).effective_l_max == self.l_max
 
+    @pytest.mark.parametrize(
+        "length, max_lag, effective_l_max",
+        [
+            # A plain kernel: lags 0..l_max-1, in a window one date longer.
+            (3, 2, 3),
+            # A kernel whose last weights fall below the probe's tolerance still
+            # counts at its full length, so the horizon does not depend on draws.
+            (2, 2, 3),
+            # A tail ending exactly at lag l_max fits the same window, but its
+            # last lag is l_max, not l_max - 1.
+            (4, 3, 3),
+            # A tail past l_max sizes the window to exactly its last lag.
+            (6, 5, 5),
+        ],
+    )
+    def test_the_longest_lag_is_measured_not_derived_from_the_window(
+        self, length, max_lag, effective_l_max
+    ):
+        """``max_lag`` is the last lag that moved, not ``effective_l_max - 1``.
+
+        The two differ by one for a plain adstock and agree for a tail past
+        ``l_max``, so neither can be computed from the other.  The kernel's own
+        length is the floor.
+        """
+        probe = self._probe(
+            self._spend(), **{CHANNEL_CONTRIBUTION: causal_filter(length)}
+        )
+
+        reach = probe.measure(effects=(), l_max=self.l_max)
+
+        assert reach.max_lag == max_lag
+        assert reach.effective_l_max == effective_l_max
+
+    def test_a_wider_declaration_widens_the_window_not_the_longest_lag(self):
+        """A declaration the probe could not confirm sizes the window only.
+
+        The documented recipe declares the mediator's own ``l_max``, which
+        overstates a chained reach, so counting it as carryover would flag fully
+        observed cohorts as truncated.
+        """
+        effect = ChannelDependentEffect(
+            contribution_var="mediator",
+            label="Mediator",
+            declared_carryover_lags=4,
+            declared_evaluation_mode="auto",
+        )
+        probe = self._probe(
+            self._spend(),
+            **{
+                CHANNEL_CONTRIBUTION: causal_filter(self.l_max),
+                "mediator": causal_filter(2),
+            },
+        )
+
+        reach = probe.measure(effects=(effect,), l_max=self.l_max)
+
+        assert not reach.requires_full_axis
+        assert reach.effective_l_max == self.l_max + 4
+        assert reach.max_lag == self.l_max - 1
+
     def test_a_reduction_over_date_cannot_be_windowed(self):
         """A direct path that is not causal in ``date`` selects the full axis.
 
@@ -470,6 +530,8 @@ class TestSpendProbe:
 
         assert reach.measured[CHANNEL_CONTRIBUTION].requires_full_axis
         assert reach.requires_full_axis
+        # No window bounds the reach, so there is no longest lag either.
+        assert reach.max_lag is None
 
     def test_a_full_axis_reach_still_carries_the_lags_it_demonstrated(self):
         """A tail that runs off the axis is unbounded, not unmeasured.
@@ -833,13 +895,16 @@ class TestSpendProbe:
         """
         combined = TemporalReach.widest(
             [
-                TemporalReach(additional_carryover_lags=2, requires_full_axis=False),
-                TemporalReach.full_axis(),
+                TemporalReach(
+                    additional_carryover_lags=2, requires_full_axis=False, max_lag=5
+                ),
+                TemporalReach.full_axis(max_lag=1),
             ]
         )
 
         assert combined.additional_carryover_lags == 2
         assert combined.requires_full_axis
+        assert combined.max_lag == 5
         assert TemporalReach.widest([]) == TemporalReach.none()
 
     def test_the_predictor_is_recoverable_under_an_identity_link(
@@ -921,6 +986,7 @@ class TestSpendProbe:
 
         assert reach.requires_full_axis
         assert reach.effective_l_max == self.l_max + 4
+        assert reach.max_lag is None
 
     def test_a_plain_mmm_has_its_direct_path_measured(self, simple_fitted_mmm):
         """The probe runs on a model with no ``mu_effects`` in sight.
@@ -934,6 +1000,7 @@ class TestSpendProbe:
         assert set(reach.measured) == {CHANNEL_CONTRIBUTION}
         assert not reach.requires_full_axis
         assert reach.effective_l_max == simple_fitted_mmm.adstock.l_max
+        assert reach.max_lag == simple_fitted_mmm.adstock.l_max - 1
 
     # ---------- non-finite predictions ----------
 

@@ -338,10 +338,16 @@ class TemporalReach:
         longer than the axis can show), or moves dates *before* the perturbed one
         -- the signature of a reduction over ``date``, which takes a different
         value on a truncated axis and so cannot be windowed at all.
+    max_lag : int, default=0
+        The last lag, in data periods after the perturbed date, at which the
+        node still moved.  ``adstock.l_max - 1`` for a plain adstock, whose
+        kernel covers lags ``0 .. l_max - 1``.  A lower bound alongside
+        ``requires_full_axis``, like ``additional_carryover_lags``.
     """
 
     additional_carryover_lags: int
     requires_full_axis: bool
+    max_lag: int = 0
 
     @classmethod
     def none(cls) -> TemporalReach:
@@ -349,7 +355,9 @@ class TemporalReach:
         return cls(additional_carryover_lags=0, requires_full_axis=False)
 
     @classmethod
-    def full_axis(cls, additional_carryover_lags: int = 0) -> TemporalReach:
+    def full_axis(
+        cls, additional_carryover_lags: int = 0, max_lag: int = 0
+    ) -> TemporalReach:
         """Return the reach of a node no window can reproduce.
 
         Parameters
@@ -359,6 +367,9 @@ class TemporalReach:
             evaluation sums to the axis end regardless, so this does not size
             anything; it is kept so that a declaration narrower than what was
             plainly measured can still be refused rather than accepted.
+        max_lag : int, default=0
+            The same lower bound, counted from the perturbed date rather than
+            from ``adstock.l_max``.
 
         Returns
         -------
@@ -368,6 +379,7 @@ class TemporalReach:
         return cls(
             additional_carryover_lags=additional_carryover_lags,
             requires_full_axis=True,
+            max_lag=max_lag,
         )
 
     @classmethod
@@ -390,6 +402,7 @@ class TemporalReach:
                 (reach.additional_carryover_lags for reach in reaches), default=0
             ),
             requires_full_axis=any(reach.requires_full_axis for reach in reaches),
+            max_lag=max((reach.max_lag for reach in reaches), default=0),
         )
 
 
@@ -398,9 +411,9 @@ class SpendReach:
     """What the evaluation is allowed to assume about its window.
 
     The whole contract between this module and
-    :class:`~pymc_marketing.mmm.incrementality.Incrementality`: two numbers, plus
-    the per-node measurements they were derived from for anyone who wants to see
-    the working.
+    :class:`~pymc_marketing.mmm.incrementality.Incrementality`: the window
+    length, the evaluation mode and the longest lag, plus the per-node
+    measurements they were derived from for anyone who wants to see the working.
 
     Parameters
     ----------
@@ -415,11 +428,25 @@ class SpendReach:
     measured : mapping
         Per evaluated node, its :class:`TemporalReach`.  Empty when no probe was
         possible.
+    max_lag : int or None, default=None
+        The last lag, in data periods after the spend date, at which a change in
+        spend moves any evaluated node.  Not ``effective_l_max - 1``: the window
+        is one date longer than a plain adstock's kernel, which covers lags
+        ``0 .. l_max - 1``, while a mediated tail that outlives the direct path
+        sizes the window to exactly its own last lag.  Never less than
+        ``l_max - 1``, so a plain adstock's horizon is its kernel length and
+        does not shift with how far the sampled weights stay above
+        :attr:`SpendProbe.REACH_TOLERANCE`.  Measured only: a declaration wider
+        than the measurement widens the window, but the documented recipe
+        declares a mediator's own ``l_max``, which overstates the chained reach,
+        so it does not move this.  ``None`` when ``requires_full_axis``: no
+        window bounds the reach, so there is no longest lag to report.
     """
 
     effective_l_max: int
     requires_full_axis: bool
     measured: Mapping[str, TemporalReach] = field(default_factory=dict)
+    max_lag: int | None = None
 
 
 class SpendProbe:
@@ -882,10 +909,20 @@ class SpendProbe:
                 *self._reconcile_declarations(effects, measured),
             ]
         )
+        # The longest lag spend was measured to move anything at, floored at the
+        # kernel's own length.  Read off the measurements, not the window: the
+        # window keeps one date of slack past a plain kernel and honours wider
+        # declarations, neither of which is carryover that lands.
+        max_lag = (
+            None
+            if combined.requires_full_axis
+            else max(l_max - 1, max(reach.max_lag for reach in measured.values()))
+        )
         return SpendReach(
             effective_l_max=l_max + combined.additional_carryover_lags,
             requires_full_axis=combined.requires_full_axis,
             measured=measured,
+            max_lag=max_lag,
         )
 
     def _reach_of(
@@ -925,16 +962,20 @@ class SpendProbe:
 
         moved = per_date > self.REACH_TOLERANCE * largest
         last_moved = int(np.flatnonzero(moved)[-1])
-        lags = max(last_moved - probe_index - l_max, 0)
+        max_lag = last_moved - probe_index
+        lags = max(max_lag - l_max, 0)
         if moved[:probe_index].any() or last_moved == n_dates - 1:
             # The axis could not bound the tail, but it did establish that the
             # node still moved that far, and a declaration claiming less than
             # that is still falsified.  Carrying the bound is what keeps
             # _reconcile_declarations able to say so.
-            return TemporalReach.full_axis(additional_carryover_lags=lags)
+            return TemporalReach.full_axis(
+                additional_carryover_lags=lags, max_lag=max_lag
+            )
         return TemporalReach(
             additional_carryover_lags=lags,
             requires_full_axis=False,
+            max_lag=max_lag,
         )
 
     @staticmethod
@@ -1034,6 +1075,7 @@ class SpendProbe:
                 TemporalReach(
                     additional_carryover_lags=lags,
                     requires_full_axis=requires_full_axis,
+                    max_lag=own.max_lag,
                 )
             )
 
