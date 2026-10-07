@@ -1582,14 +1582,16 @@ def test_tilde_is_expanded_when_resolving(tmp_path):
 
 
 def test_a_missing_zarr_says_how_to_install_it(tmp_path, monkeypatch):
-    """zarr is optional, so the error must name the install rather than leak xarray's."""
+    """zarr is not declared, so the error is the only thing standing in for it."""
     from pymc_marketing.bundle import _require_zarr
 
     monkeypatch.setattr("importlib.util.find_spec", lambda name: None)
 
     with pytest.raises(ImportError, match=r"pip install zarr"):
         _require_zarr("read")
-    with pytest.raises(ImportError, match="data_format='netcdf'"):
+    # The message must not offer netcdf as a way out, since h5netcdf and netCDF4
+    # are undeclared too and the alternative fails the same way.
+    with pytest.raises(ImportError, match="not declared either"):
         _require_zarr("embed")
 
 

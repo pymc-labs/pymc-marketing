@@ -50,11 +50,6 @@ dependencies = [
     "tqdm",
     "xarray-einstats>=0.5.1",
     "xarray>=2024.1.0",
-    # The default data_format for pymc_marketing.bundle. Declared because it is
-    # the default, so a clean install can embed inference data: xarray offers zarr
-    # only as an `io` extra and pymc only pulls nutpie, which needs zarr, under its
-    # own extra, so nothing else in the chain above installs it.
-    "zarr>=3.1.0",
 ]
 
 [project.optional-dependencies]

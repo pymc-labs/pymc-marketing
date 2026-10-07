@@ -901,19 +901,23 @@ def _logp_close(actual: float, recorded: float, rtol: float, atol: float) -> boo
 def _require_zarr(action: str) -> None:
     """Raise with the install line if zarr is missing.
 
-    zarr is a declared dependency, since it is the default ``data_format``. This
-    guard is for environments that do not have it anyway: ``--no-deps`` installs,
-    and a bare ``python`` that has picked up pymc without the rest. It earns its
-    keep by naming the fix, where xarray's own message is only
-    "Missing optional dependency 'zarr'".
+    zarr is not a declared dependency, so a clean install does not have it and the
+    default ``data_format`` will not work until it is installed. That is a
+    deliberate trade: a bundle that stores only the Model never reaches this, and
+    a dependency nobody uses should not be forced on everyone. The error names
+    the fix, which xarray's own does not.
+
+    The alternative format is not free either, so say so rather than offering it
+    as a way out: h5netcdf and netCDF4 are undeclared too.
     """
     import importlib.util
 
     if importlib.util.find_spec("zarr") is None:
         raise ImportError(
-            f"cannot {action} zarr data, because zarr is not installed. "
-            f"Install it with `pip install zarr` or `uv add zarr`, or use "
-            f"data_format='netcdf', which needs h5netcdf or netCDF4 instead."
+            f"cannot {action} zarr data: zarr is not installed, and pymc-marketing "
+            f"does not declare it. Install it with `pip install zarr` or "
+            f"`uv add zarr`. The other format, data_format='netcdf', needs h5netcdf "
+            f"or netCDF4, which are not declared either."
         )
 
 
