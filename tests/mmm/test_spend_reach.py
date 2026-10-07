@@ -23,6 +23,7 @@ from pymc_marketing.mmm.spend_reach import (
     LINEAR_PREDICTOR,
     ChannelDependentEffect,
     SpendProbe,
+    SpendReach,
     TemporalReach,
     linear_predictor,
     resolve_channel_dependent_effects,
@@ -434,6 +435,22 @@ class TestSpendProbe:
         )
 
     # ---------- reach ----------
+
+    @pytest.mark.parametrize(
+        "requires_full_axis, max_lag",
+        [(False, None), (True, 3)],
+        ids=["windowed-without-horizon", "full-axis-with-horizon"],
+    )
+    def test_a_reach_without_a_consistent_horizon_is_unrepresentable(
+        self, requires_full_axis, max_lag
+    ):
+        """A windowed reach must carry max_lag, and only a windowed one may."""
+        with pytest.raises(ValueError, match="max_lag must be None exactly when"):
+            SpendReach(
+                effective_l_max=4,
+                requires_full_axis=requires_full_axis,
+                max_lag=max_lag,
+            )
 
     def test_a_causal_filter_is_measured_at_its_own_length(self):
         """A node reaching past the model's adstock widens the window by the excess."""

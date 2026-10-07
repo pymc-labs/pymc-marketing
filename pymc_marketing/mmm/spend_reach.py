@@ -448,6 +448,18 @@ class SpendReach:
     measured: Mapping[str, TemporalReach] = field(default_factory=dict)
     max_lag: int | None = None
 
+    def __post_init__(self) -> None:
+        """Reject a windowed reach without a horizon, or a full-axis one with."""
+        # A missing max_lag reads downstream as "nothing past the fitted axis",
+        # the unsafe direction, so it is only allowed where it is true by
+        # definition: full-axis evaluation, which measured no horizon.
+        if (self.max_lag is None) != self.requires_full_axis:
+            raise ValueError(
+                "SpendReach.max_lag must be None exactly when requires_full_axis "
+                f"is True (got max_lag={self.max_lag!r}, "
+                f"requires_full_axis={self.requires_full_axis!r})."
+            )
+
 
 class SpendProbe:
     """Single-date spend perturbations, and the two facts read off them.

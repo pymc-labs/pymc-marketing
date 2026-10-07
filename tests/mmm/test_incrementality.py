@@ -3421,7 +3421,7 @@ class TestCarryoverMatrix:
         assert bool(observed.isel(spend_date=0).all())
         assert bool(matrix.where(~observed).isnull().all())
         assert not bool(matrix.where(observed).isnull().all("realization_date").any())
-        assert matrix.attrs["warnings"]
+        assert json.loads(matrix.attrs["warnings"])
 
     @pytest.mark.parametrize(
         "frequency, expected",
@@ -3485,25 +3485,35 @@ class TestCarryoverMatrix:
         assert assumptions["l_max"] == simple_fitted_mmm.adstock.l_max
         assert assumptions["frequency"] == "monthly"
         assert assumptions["evaluation"] == "window"
-        assert isinstance(matrix.attrs["warnings"], list)
+        assert isinstance(json.loads(matrix.attrs["warnings"]), list)
 
     def test_results_can_be_written_to_netcdf(self, simple_fitted_mmm, tmp_path):
-        """Both outputs persist next to the idata, attributes included."""
+        """Both outputs persist next to the idata, attributes included.
+
+        Written with the scipy engine, which is what xarray falls back to on a
+        plain install without h5netcdf or netCDF4.
+        """
         incr = simple_fitted_mmm.incrementality
         matrix = incr.carryover_matrix(frequency="monthly")
         split = incr.current_vs_future_value(frequency="monthly")
 
-        matrix.to_netcdf(tmp_path / "matrix.nc")
-        split.to_netcdf(tmp_path / "split.nc")
+        matrix.to_netcdf(tmp_path / "matrix.nc", engine="scipy")
+        split.to_netcdf(tmp_path / "split.nc", engine="scipy")
 
-        with xr.open_dataarray(tmp_path / "matrix.nc") as reloaded:
+        with xr.open_dataarray(tmp_path / "matrix.nc", engine="scipy") as reloaded:
             assert reloaded.attrs["assumptions"] == matrix.attrs["assumptions"]
+            assert json.loads(reloaded.attrs["warnings"]) == json.loads(
+                matrix.attrs["warnings"]
+            )
             assert reloaded.attrs["effective_horizon"] == 9
             np.testing.assert_array_equal(
                 reloaded.coords["observed"].values, matrix.coords["observed"].values
             )
-        with xr.open_dataset(tmp_path / "split.nc") as reloaded:
+        with xr.open_dataset(tmp_path / "split.nc", engine="scipy") as reloaded:
             assert reloaded.attrs["horizon"] == 0
+            assert json.loads(reloaded.attrs["warnings"]) == json.loads(
+                split.attrs["warnings"]
+            )
             np.testing.assert_array_equal(
                 reloaded.coords["complete"].values, split.coords["complete"].values
             )
@@ -3594,11 +3604,17 @@ class TestCarryoverMatrix:
         xr.testing.assert_allclose(
             self._row_sums(matrix).transpose(*expected.dims), expected, rtol=1e-8
         )
-        # No measured horizon: no tail is appended, and none is claimed.
-        assert bool(matrix.coords["observed"].all())
+        # No measured horizon, so none is claimed, but the kernel's own lags
+        # 1..l_max-1 of the last cohort still land past the data: flagged.
+        observed = matrix.coords["observed"]
+        l_max = global_normalization_fitted_mmm.adstock.l_max
+        assert int((~observed.isel(spend_date=-1)).sum()) == l_max - 1
+        assert bool(observed.isel(spend_date=0).all())
+        assert bool(matrix.where(~observed).isnull().all())
         assert "effective_horizon" not in matrix.attrs
         assert json.loads(matrix.attrs["assumptions"])["evaluation"] == "full_axis"
-        assert any("full date axis" in note for note in matrix.attrs["warnings"])
+        notes = json.loads(matrix.attrs["warnings"])
+        assert any("full date axis" in note for note in notes)
 
     def test_current_vs_future_rejects_full_axis(
         self, global_normalization_fitted_mmm, monkeypatch
@@ -3702,6 +3718,7 @@ class TestCarryoverMatrix:
                 for date in matrix.spend_date.values
             ],
             dim="spend_date",
+            coords="minimal",
         ).drop_vars(["realization_date", "observed"], errors="ignore")
         xr.testing.assert_allclose(
             split["current"].drop_vars("complete"),
