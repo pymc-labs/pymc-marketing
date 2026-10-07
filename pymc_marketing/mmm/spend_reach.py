@@ -439,14 +439,36 @@ class SpendReach:
         :attr:`SpendProbe.REACH_TOLERANCE`.  Measured only: a declaration wider
         than the measurement widens the window, but the documented recipe
         declares a mediator's own ``l_max``, which overstates the chained reach,
-        so it does not move this.  ``None`` when ``requires_full_axis``: no
-        window bounds the reach, so there is no longest lag to report.
+        so it does not move this.  ``None`` exactly when ``requires_full_axis``:
+        no window bounds the reach, so there is no longest lag to report.  Any
+        other combination raises ``ValueError``, so a windowed reach always
+        carries a horizon.
     """
 
     effective_l_max: int
     requires_full_axis: bool
     measured: Mapping[str, TemporalReach] = field(default_factory=dict)
     max_lag: int | None = None
+
+    def __post_init__(self) -> None:
+        """Reject a windowed reach without a horizon, and the reverse.
+
+        Readers take ``max_lag is None`` to mean full-axis evaluation.  A
+        windowed reach built without one would read as having no carryover past
+        the fitted axis at all.
+
+        Raises
+        ------
+        ValueError
+            If ``max_lag`` is ``None`` and ``requires_full_axis`` is not set, or
+            the other way round.
+        """
+        if (self.max_lag is None) != self.requires_full_axis:
+            raise ValueError(
+                "SpendReach.max_lag must be None exactly when requires_full_axis "
+                f"is set; got requires_full_axis={self.requires_full_axis} with "
+                f"max_lag={self.max_lag}."
+            )
 
 
 class SpendProbe:

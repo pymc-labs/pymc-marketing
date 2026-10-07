@@ -23,6 +23,7 @@ from pymc_marketing.mmm.spend_reach import (
     LINEAR_PREDICTOR,
     ChannelDependentEffect,
     SpendProbe,
+    SpendReach,
     TemporalReach,
     linear_predictor,
     resolve_channel_dependent_effects,
@@ -906,6 +907,31 @@ class TestSpendProbe:
         assert combined.requires_full_axis
         assert combined.max_lag == 5
         assert TemporalReach.widest([]) == TemporalReach.none()
+
+    @pytest.mark.parametrize(
+        "requires_full_axis, max_lag, valid",
+        [
+            (False, 3, True),
+            (True, None, True),
+            # A window without a horizon would read as nothing past the axis.
+            (False, None, False),
+            (True, 3, False),
+        ],
+    )
+    def test_a_reach_has_a_horizon_exactly_when_windowed(
+        self, requires_full_axis, max_lag, valid
+    ):
+        """``max_lag`` is ``None`` for full-axis evaluation and for nothing else."""
+        kwargs = {
+            "effective_l_max": 4,
+            "requires_full_axis": requires_full_axis,
+            "max_lag": max_lag,
+        }
+        if valid:
+            assert SpendReach(**kwargs).max_lag == max_lag
+        else:
+            with pytest.raises(ValueError, match="max_lag must be None exactly"):
+                SpendReach(**kwargs)
 
     def test_the_predictor_is_recoverable_under_an_identity_link(
         self, simple_fitted_mmm

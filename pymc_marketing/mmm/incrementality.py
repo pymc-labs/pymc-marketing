@@ -444,6 +444,44 @@ class LogLinkReducer(IncrementalReducer):
         return baseline * np.expm1(delta)
 
 
+def _kernel_trailing_lags(l_max: int, mode: ConvMode) -> int:
+    """Lags after a spend date that the adstock kernel itself reaches.
+
+    Follows the padding in
+    :func:`~pymc_marketing.mmm.transformers.batched_convolution`: ``After``
+    places the kernel's ``l_max`` weights on lags ``0 .. l_max - 1``, ``Overlap``
+    centres them so ``l_max // 2`` fall after the spend date, and ``Before``
+    places them all on or before it.  Used under full-axis evaluation, where no
+    horizon was measured, as a lower bound on how far a period's carryover runs.
+
+    Parameters
+    ----------
+    l_max : int
+        The adstock's number of kernel weights.
+    mode : ConvMode
+        The adstock's convolution mode.
+
+    Returns
+    -------
+    int
+        The last lag the kernel places weight on, ``0`` for ``Before``.
+
+    Raises
+    ------
+    ValueError
+        For an unknown mode.
+    """
+    if mode == ConvMode.After:
+        return int(l_max - 1)
+    if mode == ConvMode.Overlap:
+        return int(l_max // 2)
+    if mode == ConvMode.Before:
+        return 0
+    raise ValueError(  # pragma: no cover
+        f"Wrong Mode: {mode}, expected one of {', '.join(ConvMode)}"
+    )
+
+
 @dataclass(frozen=True)
 class _PeriodIncrements:
     """Every period's increment, before the periods are laid out together.
@@ -1085,19 +1123,34 @@ class Incrementality:
               same dimension gives the other bound.
             - ``observed`` on ``(spend_date, realization_date)``: ``False``
               where the period's carryover runs past the end of the fitted data.
-              Those entries are ``NaN``, and they run from the last fitted date
-              to the period's last spend date plus ``effective_horizon``.
+              Those entries are ``NaN``, and they run from the first date after
+              the last fitted date to the period's last spend date plus
+              ``effective_horizon``.
 
             Entries outside a period's evaluated dates are ``0``.  With a
             windowed evaluation (the usual case) the probe measured every date
             the period's spend moves, so these are zero by construction.  When
-            the probe could not bound the reach and every period was evaluated
-            on the full date axis (``assumptions["evaluation"] == "full_axis"``),
-            two things change.  Dates before a period are left out by
-            convention, since a node that reduces over ``date`` can move them,
-            and keeping them would make rows overlap.  And no horizon was
-            measured, so ``observed`` covers the fitted axis only: it cannot say
-            whether a late period's carryover continues past it.
+            the probe could not bound the reach, every period is evaluated on
+            the full date axis (``assumptions["evaluation"] == "full_axis"``),
+            and two things change.
+
+            First, which dates a row covers follows ``adstock.mode``.  Under
+            ``ConvMode.After`` a row runs from the period's start to the end of
+            the axis, and the dates before the period are left out by
+            convention: a node that reduces over ``date`` can move them, and
+            keeping them would make rows overlap.  A leading kernel places real
+            mass before the period, so those dates are kept: from the start of
+            the axis to its end under ``ConvMode.Overlap``, and to the period's
+            end under ``ConvMode.Before``.
+
+            Second, no horizon was measured, so the unobserved tail runs to the
+            period's last spend date plus the kernel's own trailing lags
+            (``l_max - 1`` under ``After``, ``l_max // 2`` under ``Overlap``,
+            none under ``Before``).  ``observed=False`` is then a lower bound
+            on what the data cannot show, because a node that reduces over
+            ``date``, or a mediated path, can carry the effect further.
+            ``observed`` only ever marks the trailing side: a leading kernel's
+            mass before the first fitted date has no date on the axis to mark.
 
             Its ``attrs``:
 
@@ -1113,7 +1166,8 @@ class Incrementality:
               model settings the matrix depends on and ``"evaluation"``,
               ``"window"`` or ``"full_axis"``.  A string, like every attribute
               here, so the result can be written with ``to_netcdf``.
-            - ``warnings``: a list of notes on how to read the result.
+            - ``warnings``: notes on how to read the result, as a JSON string
+              holding a list (``json.loads`` it), for the same reason.
 
         Raises
         ------
@@ -1458,19 +1512,30 @@ class Incrementality:
         -------
         dict
             ``estimand``, ``method``, ``effective_horizon`` (omitted under
-            full-axis evaluation), ``assumptions`` as a JSON string, and
-            ``warnings``.
+            full-axis evaluation), and ``assumptions`` and ``warnings`` as JSON
+            strings.  A list attribute would not survive ``to_netcdf``: the
+            scipy engine, the one a plain install has, refuses it, and h5netcdf
+            reads an empty list back as a float array and a single note as a
+            bare string.
         """
         reach = increments.reach
         notes = list(notes)
         if reach.requires_full_axis:
-            notes.append(
+            note = (
                 "The spend probe could not bound the perturbation's reach, so each "
                 "period was evaluated on the full date axis.  There is no "
-                "measured carryover horizon, observed covers the fitted axis "
-                "only, and dates before a period are excluded by convention "
-                "rather than measured to be zero."
+                "measured carryover horizon: observed=False marks only the "
+                "adstock kernel's own trailing lags past the fitted axis, a lower "
+                "bound on what the data cannot show."
             )
+            if self.model.adstock.mode == ConvMode.After:
+                # Under a leading kernel the dates before a period are kept, and
+                # the mode warning already says so.
+                note += (
+                    "  Dates before a period are excluded by convention rather "
+                    "than measured to be zero."
+                )
+            notes.append(note)
         if self.model.time_varying_media:
             notes.append(
                 "time_varying_media scales the contribution on each realization "
@@ -1492,7 +1557,7 @@ class Incrementality:
         if reach.max_lag is not None:
             attrs["effective_horizon"] = int(reach.max_lag)
         attrs["assumptions"] = json.dumps(assumptions)
-        attrs["warnings"] = notes
+        attrs["warnings"] = json.dumps(notes)
         return attrs
 
     def _compute_increments(
@@ -1760,9 +1825,18 @@ class Incrementality:
             reducer=reducer,
             scope=scope,
             dedicated_channel_rows=channel_axis is not None,
-            keep_date_axis=keep_date_axis,
-            max_lag=reach.max_lag,
             freq_offset=freq_offset,
+            # How far past a period's last spend date its carryover is known to
+            # land: the measured reach, or under full-axis evaluation the
+            # kernel's own trailing lags, which bound it from below.
+            tail_lags=(
+                reach.max_lag
+                if reach.max_lag is not None
+                else _kernel_trailing_lags(
+                    self.model.adstock.l_max, self.model.adstock.mode
+                )
+            ),
+            keep_date_axis=keep_date_axis,
         )
         return _PeriodIncrements(
             periods=period_results,
@@ -1958,8 +2032,8 @@ class Incrementality:
         scope: Estimand,
         dedicated_channel_rows: bool,
         freq_offset: BaseOffset,
+        tail_lags: int,
         keep_date_axis: bool = False,
-        max_lag: int | None = None,
     ) -> list[xr.DataArray]:
         """Compute each period's incremental result.
 
@@ -2012,14 +2086,17 @@ class Incrementality:
         freq_offset : BaseOffset
             The data's date frequency, to label the carryover dates that fall
             past the fitted axis when *keep_date_axis* is set.
+        tail_lags : int
+            Lags after a period's last fitted spend date that its carryover is
+            known to reach: the measured
+            :attr:`~pymc_marketing.mmm.spend_reach.SpendReach.max_lag`, or under
+            full-axis evaluation the kernel's own trailing lags.  Required, so
+            that no caller gets a band without its unobserved tail by leaving it
+            out; it goes unused when *keep_date_axis* is not set.
         keep_date_axis : bool, default=False
             Keep the per-date increment instead of summing it over the window,
             and extend it past the fitted axis as far as the carryover reaches;
             see :meth:`_append_unobserved_tail`.
-        max_lag : int or None, optional
-            The measured reach,
-            :attr:`~pymc_marketing.mmm.spend_reach.SpendReach.max_lag`.  Read
-            only with *keep_date_axis*.
 
         Returns
         -------
@@ -2120,7 +2197,7 @@ class Incrementality:
                     band,
                     window=window,
                     dates=dates,
-                    max_lag=max_lag,
+                    tail_lags=tail_lags,
                     freq_offset=freq_offset,
                 )
             else:
@@ -2138,7 +2215,7 @@ class Incrementality:
         *,
         window: PeriodWindow,
         dates: pd.DatetimeIndex,
-        max_lag: int | None,
+        tail_lags: int,
         freq_offset: BaseOffset,
     ) -> xr.DataArray:
         """Extend a period's band past the fitted axis, as far as it reaches.
@@ -2149,15 +2226,21 @@ class Incrementality:
         the model has but the data ends before, which summing as zero would
         silently truncate.
 
-        They run to the period's last fitted spend date plus *max_lag*, the
-        reach the probe measured.  Not to the window's own bound, which sits one
-        date past a plain adstock's kernel, and not to the period's calendar
-        end, which for a last period the data ends partway through lies past
-        any spend there is.  Under full-axis evaluation *max_lag* is ``None``:
-        no horizon was measured and nothing is appended.
+        They start at the first date after the last fitted date and run to the
+        period's last fitted spend date plus *tail_lags*.  Not to the window's
+        own bound, which sits one date past a plain adstock's kernel, and not to
+        the period's calendar end, which for a last period the data ends
+        partway through lies past any spend there is.  With a windowed
+        evaluation *tail_lags* is the reach the probe measured.  Under full-axis
+        evaluation no horizon was measured, and *tail_lags* is the kernel's own
+        trailing lags, so the appended dates are a lower bound on what the data
+        cannot show: a node that reduces over ``date``, or a mediated path, can
+        reach further.
 
-        Only the trailing side is extended.  A kernel with leading mass moves
-        dates before the probed one, which sends the model to full-axis
+        Only the trailing side is extended.  A kernel with leading mass also
+        loses the mass that falls before the first fitted date, which no date
+        on the axis can label, so ``observed`` does not mark it.  Such a kernel
+        moves dates before the probed one, which sends the model to full-axis
         evaluation; one whose leading weights the probe cannot see stays
         windowed, and :meth:`current_vs_future_value` refuses every mode other
         than ``ConvMode.After`` regardless.
@@ -2171,8 +2254,9 @@ class Incrementality:
             The period's window.
         dates : pd.DatetimeIndex
             The full fitted date axis.
-        max_lag : int or None
-            Longest measured carryover lag, in data periods.
+        tail_lags : int
+            Lags after the period's last fitted spend date that its carryover
+            is known to reach, in data periods.
         freq_offset : BaseOffset
             The data's date frequency.
 
@@ -2184,8 +2268,8 @@ class Incrementality:
         """
         spend = dates[(dates >= window.start) & (dates <= window.end)]
         tail = pd.DatetimeIndex([])
-        if max_lag is not None and len(spend):
-            reach_end = spend[-1] + max_lag * freq_offset
+        if len(spend):
+            reach_end = spend[-1] + tail_lags * freq_offset
             tail = pd.date_range(dates[-1], reach_end, freq=freq_offset)
             tail = tail[tail > dates[-1]]
         realization = band.indexes["realization_date"].append(tail)
@@ -2211,11 +2295,15 @@ class Incrementality:
         - off the row's band: ``0``.  With a windowed evaluation the probe
           (:class:`~pymc_marketing.mmm.spend_reach.SpendProbe`) measured the
           window to contain every date the perturbation moves, so these entries
-          are zero by construction.  Under full-axis evaluation the band starts
-          at the period itself and runs to the axis end, and the dates before
-          the period are excluded by convention, not measured: a node that
-          reduces over ``date`` can move them, and keeping them would make rows
-          overlap.
+          are zero by construction.  Under full-axis evaluation the band
+          follows ``adstock.mode``.  With ``ConvMode.After`` it starts at the
+          period itself and runs to the axis end, and the dates before the
+          period are excluded by convention, not measured: a node that reduces
+          over ``date`` can move them, and keeping them would make rows
+          overlap.  A leading kernel keeps the dates before the period, where
+          it places real mass: the band starts at the axis start and ends at
+          the axis end under ``ConvMode.Overlap``, at the period's end under
+          ``ConvMode.Before``.
 
         A sum over ``realization_date`` with xarray's default ``skipna`` therefore
         reproduces :meth:`compute_incremental_contribution` exactly.

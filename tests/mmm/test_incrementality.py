@@ -3421,7 +3421,7 @@ class TestCarryoverMatrix:
         assert bool(observed.isel(spend_date=0).all())
         assert bool(matrix.where(~observed).isnull().all())
         assert not bool(matrix.where(observed).isnull().all("realization_date").any())
-        assert matrix.attrs["warnings"]
+        assert json.loads(matrix.attrs["warnings"])
 
     @pytest.mark.parametrize(
         "frequency, expected",
@@ -3485,25 +3485,48 @@ class TestCarryoverMatrix:
         assert assumptions["l_max"] == simple_fitted_mmm.adstock.l_max
         assert assumptions["frequency"] == "monthly"
         assert assumptions["evaluation"] == "window"
-        assert isinstance(matrix.attrs["warnings"], list)
+        assert isinstance(json.loads(matrix.attrs["warnings"]), list)
 
-    def test_results_can_be_written_to_netcdf(self, simple_fitted_mmm, tmp_path):
-        """Both outputs persist next to the idata, attributes included."""
-        incr = simple_fitted_mmm.incrementality
-        matrix = incr.carryover_matrix(frequency="monthly")
-        split = incr.current_vs_future_value(frequency="monthly")
+    @pytest.mark.parametrize(
+        "fixture, frequency, n_notes",
+        [
+            # Some months run past the data: one note.
+            ("simple_fitted_mmm", "monthly", 1),
+            # No carryover and nothing to say: an empty list, which h5netcdf
+            # would read back as a float array.
+            ("no_carryover_fitted_mmm", "original", 0),
+        ],
+    )
+    def test_results_can_be_written_to_netcdf(
+        self, request, fixture, frequency, n_notes, tmp_path
+    ):
+        """Both outputs persist next to the idata, attributes included.
 
-        matrix.to_netcdf(tmp_path / "matrix.nc")
-        split.to_netcdf(tmp_path / "split.nc")
+        Written with the scipy engine, the one a plain install falls back to,
+        which refuses list attributes outright.
+        """
+        incr = request.getfixturevalue(fixture).incrementality
+        matrix = incr.carryover_matrix(frequency=frequency)
+        split = incr.current_vs_future_value(frequency=frequency)
+        assert len(json.loads(matrix.attrs["warnings"])) == n_notes
 
-        with xr.open_dataarray(tmp_path / "matrix.nc") as reloaded:
-            assert reloaded.attrs["assumptions"] == matrix.attrs["assumptions"]
-            assert reloaded.attrs["effective_horizon"] == 9
+        matrix.to_netcdf(tmp_path / "matrix.nc", engine="scipy")
+        split.to_netcdf(tmp_path / "split.nc", engine="scipy")
+
+        with xr.open_dataarray(tmp_path / "matrix.nc", engine="scipy") as reloaded:
+            for name in ("assumptions", "effective_horizon"):
+                assert reloaded.attrs[name] == matrix.attrs[name]
+            assert json.loads(reloaded.attrs["warnings"]) == json.loads(
+                matrix.attrs["warnings"]
+            )
             np.testing.assert_array_equal(
                 reloaded.coords["observed"].values, matrix.coords["observed"].values
             )
-        with xr.open_dataset(tmp_path / "split.nc") as reloaded:
+        with xr.open_dataset(tmp_path / "split.nc", engine="scipy") as reloaded:
             assert reloaded.attrs["horizon"] == 0
+            assert json.loads(reloaded.attrs["warnings"]) == json.loads(
+                split.attrs["warnings"]
+            )
             np.testing.assert_array_equal(
                 reloaded.coords["complete"].values, split.coords["complete"].values
             )
@@ -3583,22 +3606,81 @@ class TestCarryoverMatrix:
                 frequency="monthly"
             )
 
+    @pytest.mark.parametrize(
+        "frequency, expected",
+        [
+            # 24 weekly cohorts, a kernel reaching 2 lags past each: cohort 21
+            # lands its last carryover on the last fitted date, 22 does not.
+            ("original", [True] * 22 + [False] * 2),
+            # May's last spend (05-29) plus 2 weeks is the last fitted date.
+            ("monthly", [True] * 5 + [False]),
+        ],
+    )
     def test_full_axis_matrix_is_returned_with_observed(
-        self, global_normalization_fitted_mmm
+        self, global_normalization_fitted_mmm, frequency, expected
     ):
-        """Full-axis evaluation still returns the matrix, saying what it lacks."""
-        incr = global_normalization_fitted_mmm.incrementality
-        matrix = incr.carryover_matrix(frequency="monthly")
-        expected = incr.compute_incremental_contribution(frequency="monthly")
+        """Full-axis evaluation still returns the matrix, saying what it lacks.
+
+        No horizon was measured, so the tail past the data is the kernel's own
+        ``l_max - 1`` lags: a lower bound on what is unobserved, not nothing.
+        """
+        mmm = global_normalization_fitted_mmm
+        incr = mmm.incrementality
+        dates = incr.data.dates
+        tail = mmm.adstock.l_max - 1
+        matrix = incr.carryover_matrix(frequency=frequency)
+        expected_total = incr.compute_incremental_contribution(frequency=frequency)
+
+        xr.testing.assert_allclose(
+            self._row_sums(matrix).transpose(*expected_total.dims),
+            expected_total,
+            rtol=1e-8,
+        )
+        observed = matrix.coords["observed"]
+        assert tail == 2
+        assert observed.all("realization_date").values.tolist() == expected
+        assert int((~observed.isel(spend_date=-1)).sum()) == tail
+        last = pd.Timestamp(matrix.realization_date.values[-1])
+        assert last == dates[-1] + pd.Timedelta(weeks=tail)
+        assert bool(matrix.where(~observed).isnull().all())
+        # A lower bound is not a measured horizon, so none is claimed.
+        assert "effective_horizon" not in matrix.attrs
+        assert json.loads(matrix.attrs["assumptions"])["evaluation"] == "full_axis"
+        notes = json.loads(matrix.attrs["warnings"])
+        assert any("full date axis" in note for note in notes)
+        assert any("excluded by convention" in note for note in notes)
+
+    def test_full_axis_tail_follows_the_convolution_mode(self, non_after_fitted_mmm):
+        """A leading kernel's tail past the data is its own trailing lags.
+
+        With ``l_max=4``, ``Overlap`` places ``4 // 2 = 2`` lags after the spend
+        date and ``Before`` none, so only ``Overlap`` has dates past the axis.
+        Neither excludes the dates before a period, and the notes say nothing
+        of the kind.
+        """
+        mmm = non_after_fitted_mmm
+        incr = mmm.incrementality
+        dates = incr.data.dates
+        tail = {ConvMode.Before: 0, ConvMode.Overlap: 2}[mmm.adstock.mode]
+        with pytest.warns(UserWarning, match="leading kernel mass"):
+            matrix = incr.carryover_matrix(frequency="original")
+        expected = incr.compute_incremental_contribution(frequency="original")
 
         xr.testing.assert_allclose(
             self._row_sums(matrix).transpose(*expected.dims), expected, rtol=1e-8
         )
-        # No measured horizon: no tail is appended, and none is claimed.
-        assert bool(matrix.coords["observed"].all())
-        assert "effective_horizon" not in matrix.attrs
         assert json.loads(matrix.attrs["assumptions"])["evaluation"] == "full_axis"
-        assert any("full date axis" in note for note in matrix.attrs["warnings"])
+        observed = matrix.coords["observed"]
+        n_dates = len(dates)
+        assert observed.all("realization_date").values.tolist() == (
+            [True] * (n_dates - tail) + [False] * tail
+        )
+        last = pd.Timestamp(matrix.realization_date.values[-1])
+        assert last == dates[-1] + pd.Timedelta(weeks=tail)
+        notes = json.loads(matrix.attrs["warnings"])
+        assert any("full date axis" in note for note in notes)
+        assert not any("excluded by convention" in note for note in notes)
+        assert any("runs past the end" in note for note in notes) == bool(tail)
 
     def test_current_vs_future_rejects_full_axis(
         self, global_normalization_fitted_mmm, monkeypatch
@@ -3696,13 +3778,11 @@ class TestCarryoverMatrix:
         matrix = incr.carryover_matrix(frequency="original")
         split = incr.current_vs_future_value(frequency="original")
 
-        diagonal = xr.concat(
-            [
-                matrix.sel(spend_date=date, realization_date=date)
-                for date in matrix.spend_date.values
-            ],
-            dim="spend_date",
-        ).drop_vars(["realization_date", "observed"], errors="ignore")
+        # Pointwise: the indexer runs along spend_date, so each row picks out
+        # the column on its own date.
+        diagonal = matrix.sel(realization_date=matrix["spend_date"]).drop_vars(
+            ["realization_date", "observed"]
+        )
         xr.testing.assert_allclose(
             split["current"].drop_vars("complete"),
             diagonal.transpose(*split["current"].dims),
