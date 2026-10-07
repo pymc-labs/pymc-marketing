@@ -901,9 +901,11 @@ def _logp_close(actual: float, recorded: float, rtol: float, atol: float) -> boo
 def _require_zarr(action: str) -> None:
     """Raise with the install line if zarr is missing.
 
-    zarr is deliberately not a hard dependency: a bundle that only stores the
-    model never touches it, and adding it to the environment for those users
-    would be worse than a clear message when they actually embed or open data.
+    zarr is a declared dependency, since it is the default ``data_format``. This
+    guard is for environments that do not have it anyway: ``--no-deps`` installs,
+    and a bare ``python`` that has picked up pymc without the rest. It earns its
+    keep by naming the fix, where xarray's own message is only
+    "Missing optional dependency 'zarr'".
     """
     import importlib.util
 
