@@ -1,0 +1,25 @@
+pymc_marketing/mmm/incrementality.py
+  s_1b5dd2da2b8a65::t_ca9a032bd3eec6 1088-1090,1097-1105,1121-1122,1467-1468,1473,1476-1478,1480-1485,1507-1510,1779,1976,2034-2038,2139,2151-2173,2180,2191-2199,2216-2217,2229-2230,2256-2262
+pymc_marketing/mmm/spend_reach.py
+  s_1b5dd2da2b8a65::t_13fae83e2ae784 451-462
+tests/mmm/test_incrementality.py
+  s_1b5dd2da2b8a65::t_ad42c01ebb79fb 3424,3488,3491-3495,3500-3501,3503,3505-3507,3512,3514-3516,3607-3613,3616-3617,3721
+tests/mmm/test_spend_reach.py
+  s_1b5dd2da2b8a65::t_fe26fef77edb5e 26,439-454
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "27747f4c65f63f951a03fe23a0a51d91d5fdf4ee",
+  "prompts": {},
+  "sessions": {
+    "s_1b5dd2da2b8a65": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e9c2a1ef-7071-4403-b3fe-58553d3c5ca6",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "daimon-pymclabs <daimon@pymc-labs.com>"
+    }
+  }
+}
