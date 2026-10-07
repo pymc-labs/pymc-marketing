@@ -249,6 +249,7 @@ from pymc_marketing.mmm.counterfactual import (
     CounterfactualScenarios,
     Estimand,
     EvaluationWindows,
+    _kernel_trailing_lags,
 )
 from pymc_marketing.mmm.link import LinkFunction
 from pymc_marketing.mmm.spend_reach import (
@@ -442,44 +443,6 @@ class LogLinkReducer(IncrementalReducer):
         """See :meth:`IncrementalReducer.per_date_increment`."""
         baseline = self.baseline_response.sel(date=delta.coords["date"])
         return baseline * np.expm1(delta)
-
-
-def _kernel_trailing_lags(l_max: int, mode: ConvMode) -> int:
-    """Lags after a spend date that the adstock kernel itself reaches.
-
-    Follows the padding in
-    :func:`~pymc_marketing.mmm.transformers.batched_convolution`: ``After``
-    places the kernel's ``l_max`` weights on lags ``0 .. l_max - 1``, ``Overlap``
-    centres them so ``l_max // 2`` fall after the spend date, and ``Before``
-    places them all on or before it.  Used under full-axis evaluation, where no
-    horizon was measured, as a lower bound on how far a period's carryover runs.
-
-    Parameters
-    ----------
-    l_max : int
-        The adstock's number of kernel weights.
-    mode : ConvMode
-        The adstock's convolution mode.
-
-    Returns
-    -------
-    int
-        The last lag the kernel places weight on, ``0`` for ``Before``.
-
-    Raises
-    ------
-    ValueError
-        For an unknown mode.
-    """
-    if mode == ConvMode.After:
-        return int(l_max - 1)
-    if mode == ConvMode.Overlap:
-        return int(l_max // 2)
-    if mode == ConvMode.Before:
-        return 0
-    raise ValueError(  # pragma: no cover
-        f"Wrong Mode: {mode}, expected one of {', '.join(ConvMode)}"
-    )
 
 
 @dataclass(frozen=True)
@@ -1157,11 +1120,11 @@ class Incrementality:
             - ``estimand`` and ``method``, as passed.
             - ``effective_horizon``: the longest carryover lag, in data periods
               (:attr:`~pymc_marketing.mmm.spend_reach.SpendReach.max_lag`).
-              ``l_max - 1`` for a plain adstock, whose kernel covers lags
-              ``0 .. l_max - 1``, and longer where the probe measured a mediated
-              path that outlives it.  Absent under full-axis evaluation, where
-              there is no measured horizon; ``attrs.get("effective_horizon")``
-              then gives ``None``.
+              The kernel's own trailing lags for a plain adstock, ``l_max - 1``
+              under ``ConvMode.After``, and longer where the probe measured a
+              mediated path that outlives them.  Absent under full-axis
+              evaluation, where there is no measured horizon;
+              ``attrs.get("effective_horizon")`` then gives ``None``.
             - ``assumptions``: a JSON string (``json.loads`` it) recording the
               model settings the matrix depends on and ``"evaluation"``,
               ``"window"`` or ``"full_axis"``.  A string, like every attribute
@@ -1192,8 +1155,21 @@ class Incrementality:
         number driven by the adstock prior, not by the data.
 
         The matrix is dense in ``realization_date``, so that columns line up
-        across rows: ``sel``, ``resample(realization_date=...)`` and sums over
-        ``spend_date`` work directly.  At ``frequency="original"`` its size is
+        across rows and ``sel`` works directly.  Reductions need care on two
+        counts.  With xarray's default ``skipna`` they count the unobserved cells
+        as zero: ``A.sum("spend_date")`` is ``0`` on every date past the last
+        fitted one instead of a gap, and
+        ``A.resample(realization_date="MS").sum()`` gives a finite total for a
+        month the data only partly shows.  Pass ``skipna=False`` to any reduction
+        over the matrix to keep those cells ``NaN``.  And because ``observed`` is
+        defined on both ``spend_date`` and ``realization_date``, a reduction or
+        ``resample`` over either one drops it, so reduce it alongside if you
+        need it, for example ``A.observed.all("spend_date")``.  Row sums are the
+        one deliberate exception: ``A.sum("realization_date")`` with the default
+        ``skipna`` adds up the observed part of each period's effect, which is
+        what :meth:`compute_incremental_contribution` reports.
+
+        At ``frequency="original"`` the matrix's size is
         ``n_samples x n_dates x (n_dates + effective_horizon) x n_channels``;
         use ``num_samples`` or an aggregated frequency on long series.
         :meth:`current_vs_future_value` works on each period's band instead and
@@ -1212,6 +1188,8 @@ class Incrementality:
             )
             # Reconciles with today's per-period incrementality:
             A.sum("realization_date")
+            # Value landing on each date, NaN where the data cannot show it:
+            A.sum("spend_date", skipna=False)
         """
         if estimand not in ("counterfactual", "allocation"):
             raise ValueError(
@@ -1340,8 +1318,10 @@ class Incrementality:
             ``complete`` is ``False``, and so is ``current`` when some of the
             unobserved carryover falls inside its own window (a positive
             ``horizon`` near the end of the data, or a last period the data ends
-            partway through).  Attributes are those of :meth:`carryover_matrix`,
-            plus ``horizon``.
+            partway through).  ``future_share`` is ``NaN`` there too, and also
+            wherever current plus future is zero, as for a channel with no spend
+            in the period; ``complete`` tells the two apart.  Attributes are
+            those of :meth:`carryover_matrix`, plus ``horizon``.
 
         Raises
         ------
@@ -1761,7 +1741,11 @@ class Incrementality:
         probe.assert_increment_is_complete(
             effects=effects, non_date_dims=evaluator.non_date_dims
         )
-        reach = probe.measure(effects=effects, l_max=self.model.adstock.l_max)
+        reach = probe.measure(
+            effects=effects,
+            l_max=self.model.adstock.l_max,
+            mode=self.model.adstock.mode,
+        )
         if validate_reach is not None:
             validate_reach(reach)
         l_max = reach.effective_l_max

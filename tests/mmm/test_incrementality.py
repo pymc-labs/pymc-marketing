@@ -3682,6 +3682,47 @@ class TestCarryoverMatrix:
         assert not any("excluded by convention" in note for note in notes)
         assert any("runs past the end" in note for note in notes) == bool(tail)
 
+    def test_windowed_leading_kernel_has_no_horizon_past_its_spend_date(
+        self, simple_mmm_data
+    ):
+        """A ``Before`` kernel the probe can bound reports no unobserved tail.
+
+        With ``adstock_alpha`` near zero the leading weights fall below the
+        probe's tolerance, so the model stays windowed and only lag 0 moves.
+        The horizon floor follows the convolution mode, as the full-axis tail
+        does, so it is ``0`` rather than ``l_max - 1``, and no date past the
+        data is reported unobserved.
+        """
+        from tests.mmm.conftest import mock_fit
+
+        mmm = MMM(
+            channel_columns=["channel_1", "channel_2", "channel_3"],
+            date_column="date",
+            target_column="target",
+            control_columns=None,
+            adstock=GeometricAdstock(l_max=4, mode=ConvMode.Before),
+            saturation=LogisticSaturation(),
+        )
+        mock_fit(mmm, simple_mmm_data["X"], simple_mmm_data["y"], random_seed=42)
+        posterior = mmm.idata.posterior.dataset
+        mmm.idata["/posterior"] = posterior.assign(
+            adstock_alpha=xr.full_like(posterior["adstock_alpha"], 1e-10)
+        )
+        incr = mmm.incrementality
+        with pytest.warns(UserWarning, match="leading kernel mass"):
+            matrix = incr.carryover_matrix(frequency="original")
+        expected = incr.compute_incremental_contribution(frequency="original")
+
+        assert json.loads(matrix.attrs["assumptions"])["evaluation"] == "window"
+        assert matrix.attrs["effective_horizon"] == 0
+        assert bool(matrix.coords["observed"].all())
+        assert not bool(matrix.isnull().any())
+        last = pd.Timestamp(matrix.realization_date.values[-1])
+        assert last == incr.data.dates[-1]
+        xr.testing.assert_allclose(
+            self._row_sums(matrix).transpose(*expected.dims), expected, rtol=1e-8
+        )
+
     def test_current_vs_future_rejects_full_axis(
         self, global_normalization_fitted_mmm, monkeypatch
     ):

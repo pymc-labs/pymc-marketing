@@ -328,6 +328,50 @@ class PeriodWindow:
         return np.where(selected)[0]
 
 
+def _kernel_trailing_lags(l_max: int, mode: ConvMode) -> int:
+    """Lags after a spend date that the adstock kernel itself reaches.
+
+    Follows the padding in
+    :func:`~pymc_marketing.mmm.transformers.batched_convolution`: ``After``
+    places the kernel's ``l_max`` weights on lags ``0 .. l_max - 1``, ``Overlap``
+    centres them so ``l_max // 2`` fall after the spend date, and ``Before``
+    places them all on or before it.  :meth:`EvaluationWindows.build` ends the
+    ``Overlap`` and ``Before`` evaluation ranges the same way; its windowed
+    ``After`` range keeps one date of slack past the last lag.
+
+    The one definition of how far a plain kernel carries.  The reach probe
+    floors its measured horizon at it, and full-axis evaluation, where no
+    horizon was measured, uses it as a lower bound on how far a period's
+    carryover runs.
+
+    Parameters
+    ----------
+    l_max : int
+        The adstock's number of kernel weights.
+    mode : ConvMode
+        The adstock's convolution mode.
+
+    Returns
+    -------
+    int
+        The last lag the kernel places weight on, ``0`` for ``Before``.
+
+    Raises
+    ------
+    ValueError
+        For an unknown mode.
+    """
+    if mode == ConvMode.After:
+        return int(l_max - 1)
+    if mode == ConvMode.Overlap:
+        return int(l_max // 2)
+    if mode == ConvMode.Before:
+        return 0
+    raise ValueError(  # pragma: no cover
+        f"Wrong Mode: {mode}, expected one of {', '.join(ConvMode)}"
+    )
+
+
 @dataclass(frozen=True)
 class EvaluationWindows:
     """Per-period evaluation windows, and the cutting of arrays to fit them.

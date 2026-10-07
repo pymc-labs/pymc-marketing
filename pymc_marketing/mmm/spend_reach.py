@@ -62,10 +62,15 @@ import xarray as xr
 from pytensor.graph.basic import Variable
 from pytensor.graph.traversal import ancestors
 
-from pymc_marketing.mmm.counterfactual import CounterfactualEvaluator, find_named_node
+from pymc_marketing.mmm.counterfactual import (
+    CounterfactualEvaluator,
+    _kernel_trailing_lags,
+    find_named_node,
+)
 
 if TYPE_CHECKING:
     from pymc_marketing.mmm.mmm import MMM
+    from pymc_marketing.mmm.transformers import ConvMode
 
 _PKG_PREFIX = str(Path(__file__).resolve().parent.parent)
 """The ``pymc_marketing`` package directory, computed once.
@@ -340,9 +345,9 @@ class TemporalReach:
         value on a truncated axis and so cannot be windowed at all.
     max_lag : int, default=0
         The last lag, in data periods after the perturbed date, at which the
-        node still moved.  ``adstock.l_max - 1`` for a plain adstock, whose
-        kernel covers lags ``0 .. l_max - 1``.  A lower bound alongside
-        ``requires_full_axis``, like ``additional_carryover_lags``.
+        node still moved.  ``adstock.l_max - 1`` for a plain ``ConvMode.After``
+        adstock, whose kernel covers lags ``0 .. l_max - 1``.  A lower bound
+        alongside ``requires_full_axis``, like ``additional_carryover_lags``.
     """
 
     additional_carryover_lags: int
@@ -429,20 +434,22 @@ class SpendReach:
         Per evaluated node, its :class:`TemporalReach`.  Empty when no probe was
         possible.
     max_lag : int or None, default=None
-        The last lag, in data periods after the spend date, at which a change in
-        spend moves any evaluated node.  Not ``effective_l_max - 1``: the window
-        is one date longer than a plain adstock's kernel, which covers lags
-        ``0 .. l_max - 1``, while a mediated tail that outlives the direct path
-        sizes the window to exactly its own last lag.  Never less than
-        ``l_max - 1``, so a plain adstock's horizon is its kernel length and
-        does not shift with how far the sampled weights stay above
+        The last lag, in data periods after the spend date, at which a change
+        in spend moves any evaluated node.  Not ``effective_l_max - 1``: the
+        window is one date longer than a plain adstock's kernel, which covers
+        lags ``0 .. l_max - 1``, while a mediated tail that outlives the direct
+        path sizes the window to exactly its own last lag.  Never less than the
+        kernel's own trailing lags (``l_max - 1`` under ``ConvMode.After``,
+        ``l_max // 2`` under ``Overlap``, none under ``Before``), so a plain
+        adstock's horizon is its kernel length and does not shift with how far
+        the sampled weights stay above
         :attr:`SpendProbe.REACH_TOLERANCE`.  Measured only: a declaration wider
         than the measurement widens the window, but the documented recipe
-        declares a mediator's own ``l_max``, which overstates the chained reach,
-        so it does not move this.  ``None`` exactly when ``requires_full_axis``:
-        no window bounds the reach, so there is no longest lag to report.  Any
-        other combination raises ``ValueError``, so a windowed reach always
-        carries a horizon.
+        declares a mediator's own ``l_max``, which overstates the chained
+        reach, so it does not move this.  ``None`` exactly when
+        ``requires_full_axis``: no window bounds the reach, so there is no
+        longest lag to report.  Any other combination raises ``ValueError``, so
+        a windowed reach always carries a horizon.
     """
 
     effective_l_max: int
@@ -842,6 +849,7 @@ class SpendProbe:
         *,
         effects: Sequence[ChannelDependentEffect],
         l_max: int,
+        mode: ConvMode,
     ) -> SpendReach:
         r"""Measure how far in time a change in spend moves the evaluated nodes.
 
@@ -875,6 +883,9 @@ class SpendProbe:
         l_max : int
             The model's own ``adstock.l_max``, subtracted from each measured
             reach because the window already carries it.
+        mode : ConvMode
+            The model's own ``adstock.mode``.  With ``l_max`` it fixes the
+            kernel's trailing lags, the floor under the measured ``max_lag``.
 
         Returns
         -------
@@ -932,13 +943,17 @@ class SpendProbe:
             ]
         )
         # The longest lag spend was measured to move anything at, floored at the
-        # kernel's own length.  Read off the measurements, not the window: the
-        # window keeps one date of slack past a plain kernel and honours wider
-        # declarations, neither of which is carryover that lands.
+        # kernel's own trailing lags for its convolution mode, the same floor
+        # full-axis evaluation uses.  Read off the measurements, not the window:
+        # the window keeps one date of slack past a plain kernel and honours
+        # wider declarations, neither of which is carryover that lands.
         max_lag = (
             None
             if combined.requires_full_axis
-            else max(l_max - 1, max(reach.max_lag for reach in measured.values()))
+            else max(
+                _kernel_trailing_lags(l_max, mode),
+                max(reach.max_lag for reach in measured.values()),
+            )
         )
         return SpendReach(
             effective_l_max=l_max + combined.additional_carryover_lags,

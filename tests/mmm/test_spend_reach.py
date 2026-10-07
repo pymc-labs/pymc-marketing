@@ -28,6 +28,7 @@ from pymc_marketing.mmm.spend_reach import (
     linear_predictor,
     resolve_channel_dependent_effects,
 )
+from pymc_marketing.mmm.transformers import ConvMode
 
 
 class FakeEvaluator:
@@ -297,7 +298,9 @@ def build_spend_probe(mmm, counterfactual_spend_factor=0.0):
 def measure_spend_reach(mmm, counterfactual_spend_factor=0.0):
     """Return the :class:`SpendReach` the module's probe arrives at for *mmm*."""
     probe, _, effects = build_spend_probe(mmm, counterfactual_spend_factor)
-    return probe.measure(effects=effects, l_max=mmm.adstock.l_max)
+    return probe.measure(
+        effects=effects, l_max=mmm.adstock.l_max, mode=mmm.adstock.mode
+    )
 
 
 def measures_channel_mixing(mmm, counterfactual_spend_factor=0.0):
@@ -442,7 +445,7 @@ class TestSpendProbe:
             self._spend(), **{CHANNEL_CONTRIBUTION: causal_filter(self.l_max + 3)}
         )
 
-        reach = probe.measure(effects=(), l_max=self.l_max)
+        reach = probe.measure(effects=(), l_max=self.l_max, mode=ConvMode.After)
 
         assert not reach.requires_full_axis
         # Reaching l_max + 3 dates is l_max + 2 lags, of which l_max is covered.
@@ -454,7 +457,9 @@ class TestSpendProbe:
             self._spend(), **{CHANNEL_CONTRIBUTION: causal_filter(self.l_max)}
         )
 
-        assert probe.measure(effects=(), l_max=self.l_max).effective_l_max == self.l_max
+        reach = probe.measure(effects=(), l_max=self.l_max, mode=ConvMode.After)
+
+        assert reach.effective_l_max == self.l_max
 
     @pytest.mark.parametrize(
         "length, max_lag, effective_l_max",
@@ -484,10 +489,35 @@ class TestSpendProbe:
             self._spend(), **{CHANNEL_CONTRIBUTION: causal_filter(length)}
         )
 
-        reach = probe.measure(effects=(), l_max=self.l_max)
+        reach = probe.measure(effects=(), l_max=self.l_max, mode=ConvMode.After)
 
         assert reach.max_lag == max_lag
         assert reach.effective_l_max == effective_l_max
+
+    @pytest.mark.parametrize(
+        "mode, max_lag",
+        [(ConvMode.After, 2), (ConvMode.Overlap, 1), (ConvMode.Before, 0)],
+        ids=str,
+    )
+    def test_the_longest_lag_is_floored_at_the_mode_s_trailing_lags(
+        self, mode, max_lag
+    ):
+        """The floor under ``max_lag`` follows the convolution mode.
+
+        A node that moves only its own date is what a ``Before`` kernel looks
+        like when the probe cannot see its leading weights.  Flooring it at
+        ``l_max - 1`` whatever the mode would report carryover that does not
+        exist.  ``l_max = 3`` puts ``2`` lags after the spend date under
+        ``After``, ``3 // 2 = 1`` under ``Overlap`` and none under ``Before``,
+        the same lags the full-axis tail uses.
+        """
+        probe = self._probe(self._spend(), **{CHANNEL_CONTRIBUTION: causal_filter(1)})
+
+        reach = probe.measure(effects=(), l_max=self.l_max, mode=mode)
+
+        assert not reach.requires_full_axis
+        assert reach.max_lag == max_lag
+        assert reach.effective_l_max == self.l_max
 
     def test_a_wider_declaration_widens_the_window_not_the_longest_lag(self):
         """A declaration the probe could not confirm sizes the window only.
@@ -510,7 +540,7 @@ class TestSpendProbe:
             },
         )
 
-        reach = probe.measure(effects=(effect,), l_max=self.l_max)
+        reach = probe.measure(effects=(effect,), l_max=self.l_max, mode=ConvMode.After)
 
         assert not reach.requires_full_axis
         assert reach.effective_l_max == self.l_max + 4
@@ -527,7 +557,7 @@ class TestSpendProbe:
         """
         probe = self._probe(self._spend(), **{CHANNEL_CONTRIBUTION: date_normalized})
 
-        reach = probe.measure(effects=(), l_max=self.l_max)
+        reach = probe.measure(effects=(), l_max=self.l_max, mode=ConvMode.After)
 
         assert reach.measured[CHANNEL_CONTRIBUTION].requires_full_axis
         assert reach.requires_full_axis
@@ -552,7 +582,7 @@ class TestSpendProbe:
         )
         assert probe.probe_indices == [1]
 
-        reach = probe.measure(effects=(), l_max=self.l_max)
+        reach = probe.measure(effects=(), l_max=self.l_max, mode=ConvMode.After)
         measured = reach.measured[CHANNEL_CONTRIBUTION]
 
         assert measured.requires_full_axis
@@ -589,10 +619,12 @@ class TestSpendProbe:
                 "mediator": single_channel_filter(self.n_dates, channel=0),
             },
         )
-        assert probe.measure(effects=(), l_max=self.l_max).effective_l_max == self.l_max
+        reach = probe.measure(effects=(), l_max=self.l_max, mode=ConvMode.After)
+
+        assert reach.effective_l_max == self.l_max
 
         with pytest.raises(ValueError, match="at least 19 periods further") as excinfo:
-            probe.measure(effects=(effect,), l_max=self.l_max)
+            probe.measure(effects=(effect,), l_max=self.l_max, mode=ConvMode.After)
 
         message = str(excinfo.value)
         assert "nothing is cut" in message
@@ -614,9 +646,8 @@ class TestSpendProbe:
         # Every channel spends past the dark run, so one probe covers them all.
         assert len(probe.probe_indices) == 1
         assert spend[probe.probe_indices[0]].all()
-        assert probe.measure(effects=(), l_max=self.l_max).effective_l_max == (
-            self.l_max + 2
-        )
+        reach = probe.measure(effects=(), l_max=self.l_max, mode=ConvMode.After)
+        assert reach.effective_l_max == self.l_max + 2
 
     def test_the_probe_avoids_the_last_date_too(self):
         """Flighted spend peaking on the final date must not park the probe there.
@@ -636,7 +667,7 @@ class TestSpendProbe:
 
         assert probe.probe_indices != []
         assert probe.probe_indices[0] != self.n_dates - 1
-        reach = probe.measure(effects=(), l_max=0)
+        reach = probe.measure(effects=(), l_max=0, mode=ConvMode.After)
         assert not reach.requires_full_axis
 
     def test_perturbing_a_dark_date_moves_nothing_at_all(self):
@@ -682,7 +713,7 @@ class TestSpendProbe:
 
         assert probe.probe_indices == []
         with pytest.warns(UserWarning, match="could not be measured"):
-            reach = probe.measure(effects=(), l_max=self.l_max)
+            reach = probe.measure(effects=(), l_max=self.l_max, mode=ConvMode.After)
 
         assert reach.requires_full_axis
         assert reach.effective_l_max == self.l_max
@@ -715,7 +746,7 @@ class TestSpendProbe:
         )
 
         with pytest.warns(UserWarning, match="completeness .* goes unverified"):
-            probe.measure(effects=(), l_max=self.l_max)
+            probe.measure(effects=(), l_max=self.l_max, mode=ConvMode.After)
 
     def test_a_mediator_reading_a_dark_channel_gets_its_own_probe(self):
         """Channels with no common spend date are probed one by one.
@@ -748,7 +779,7 @@ class TestSpendProbe:
         assert len(probe.probe_indices) == 2
         assert spend[probe.probe_indices].any(axis=0).all()
 
-        reach = probe.measure(effects=(effect,), l_max=self.l_max)
+        reach = probe.measure(effects=(effect,), l_max=self.l_max, mode=ConvMode.After)
 
         assert reach.measured["mediator"] != TemporalReach.none()
         assert not reach.requires_full_axis
@@ -790,7 +821,8 @@ class TestSpendProbe:
 
         assert probe.probe_indices == []
         with pytest.warns(UserWarning, match="could not be measured"):
-            assert probe.measure(effects=(), l_max=self.l_max).requires_full_axis
+            reach = probe.measure(effects=(), l_max=self.l_max, mode=ConvMode.After)
+        assert reach.requires_full_axis
 
     def test_a_channel_spending_only_on_the_last_date_disables_the_probe(self):
         """The last-date counterpart of the first-date-only case.
@@ -1008,7 +1040,9 @@ class TestSpendProbe:
         )
 
         with pytest.warns(UserWarning, match="could not be measured"):
-            reach = probe.measure(effects=(effect,), l_max=self.l_max)
+            reach = probe.measure(
+                effects=(effect,), l_max=self.l_max, mode=ConvMode.After
+            )
 
         assert reach.requires_full_axis
         assert reach.effective_l_max == self.l_max + 4
