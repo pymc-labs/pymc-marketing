@@ -51,7 +51,8 @@ def write_source(
     source = tmp_path / "source"
     (source / "gallery").mkdir(parents=True, exist_ok=True)
     (source / "gallery" / "gallery.yaml").write_text(yaml_text)
-    for rel, text in {**_indexes(), **(extra_files or {})}.items():
+    defaults = {**_indexes(), "gallery/redirects.yaml": "[]\n"}
+    for rel, text in {**defaults, **(extra_files or {})}.items():
         path = source / rel
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(text)

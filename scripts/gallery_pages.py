@@ -13,6 +13,7 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
+import gallery_redirects
 import yaml
 
 logger = logging.getLogger(__name__)
@@ -542,6 +543,7 @@ def check_gallery(source_dir: Path, *, write: bool = False) -> tuple[int, list[s
     Check mode never writes. Validation failures also skip the write.
     """
     data, messages = load_gallery(source_dir / "gallery" / "gallery.yaml")
+    messages.extend(gallery_redirects.validate_redirect_map(source_dir))
     if data is None:
         return 1, messages
     cards, structural = collect_cards(data)

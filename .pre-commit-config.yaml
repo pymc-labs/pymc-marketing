@@ -68,4 +68,4 @@ repos:
         language: python
         additional_dependencies: [pyyaml, matplotlib]
         pass_filenames: false
-        files: ^(scripts/(generate_gallery|gallery_pages)\.py|docs/source/gallery/(gallery\.(md|yaml)|holding\.md)|docs/source/getting_started/(intro_guides\.md|index\.md)|docs/source/guide/(technical_guides\.md|index\.md)|docs/source/index\.md|docs/source/notebooks/.+\.ipynb|docs/source/(getting_started|guide|gallery)/notebooks/.+\.ipynb)$
+        files: ^(scripts/(generate_gallery|gallery_pages|gallery_redirects)\.py|docs/source/gallery/(gallery\.(md|yaml)|holding\.md|redirects\.yaml)|docs/source/_templates/redirect\.html|docs/source/getting_started/(intro_guides\.md|index\.md)|docs/source/guide/(technical_guides\.md|index\.md)|docs/source/index\.md|docs/source/notebooks/.+\.ipynb|docs/source/(getting_started|guide|gallery)/notebooks/.+\.ipynb)$
