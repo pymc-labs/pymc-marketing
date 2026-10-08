@@ -869,8 +869,10 @@ class TimeSliceCrossValidator:
             ``link="log"`` this differs from the fold's
             ``posterior["y_original_scale"]``, which is the LogNormal median
             ``exp(mu) * target_scale``. A fold model that does not provide
-            the draws or ``target_scale`` emits a ``UserWarning`` and the CV
-            summaries and plots are unavailable. Returned when
+            the draws or ``target_scale`` emits a ``UserWarning``;
+            ``cv.summary.predictions()``/``crps()`` and
+            ``cv.plot.predictions()``/``crps()`` then raise, while the
+            ``param_stability`` summary and plot keep working. Returned when
             ``return_models`` is ``False`` (the default).
         tuple[xr.DataTree, list[MMMBuilder]]
             A tuple of the combined DataTree and a list of fitted MMM

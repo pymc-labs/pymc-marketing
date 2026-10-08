@@ -1503,14 +1503,29 @@ def _fold_original_scale_draws(fold: xr.DataTree) -> xr.DataArray:
 
 
 @pytest.mark.parametrize(
+    "per_country_scale", [False, True], ids=["scalar_scale", "per_country_scale"]
+)
+@pytest.mark.parametrize(
     "original_scale_vars", [None, ["y"]], ids=["derived", "registered"]
 )
 @pytest.mark.parametrize("link", ["identity", "log"])
 def test_run_provides_original_scale_predictive_draws(
-    link, original_scale_vars, mock_pymc_sample
+    link, original_scale_vars, per_country_scale, mock_pymc_sample
 ):
     """Every fold's posterior_predictive carries y * target_scale, whether or not y was registered in the graph."""
-    cv, results = _run_cv(link, original_scale_vars=original_scale_vars)
+    cv, results = _run_cv(
+        link,
+        per_country_scale=per_country_scale,
+        original_scale_vars=original_scale_vars,
+    )
+    expected_scale_dims = ("country",) if per_country_scale else ()
+    assert (
+        cv._cv_results[0]
+        .idata["posterior_predictive_constant_data"]
+        .dataset["target_scale"]
+        .dims
+        == expected_scale_dims
+    )
 
     assert "y_original_scale" in results.posterior_predictive
     for result in cv._cv_results:
