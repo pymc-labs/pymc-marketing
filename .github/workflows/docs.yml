@@ -36,6 +36,7 @@ jobs:
               - "docs/**"
               - "pymc_marketing/**"
               - "scripts/generate_gallery.py"
+              - "scripts/gallery_pages.py"
 
   build:
     needs: changes

@@ -63,9 +63,9 @@ repos:
         files: \.ipynb$
         exclude: ^docs/source/notebooks/(mmm/mmm_components|mmm/mmm_dims_migration_guide|mmm/mmm_quickstart)\.ipynb$
       - id: gallery-in-sync
-        name: gallery.md is in sync with gallery.yaml
+        name: generated part pages are in sync with gallery.yaml
         entry: python3 scripts/generate_gallery.py --check --no-thumbnails
         language: python
         additional_dependencies: [pyyaml, matplotlib]
         pass_filenames: false
-        files: ^(docs/source/gallery/gallery\.(md|yaml)|docs/source/notebooks/.+\.ipynb|scripts/generate_gallery\.py)$
+        files: ^(scripts/(generate_gallery|gallery_pages)\.py|docs/source/gallery/(gallery\.(md|yaml)|holding\.md)|docs/source/getting_started/(intro_guides\.md|index\.md)|docs/source/guide/(technical_guides\.md|index\.md)|docs/source/index\.md|docs/source/notebooks/.+\.ipynb|docs/source/(getting_started|guide|gallery)/notebooks/.+\.ipynb)$
