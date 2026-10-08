@@ -137,7 +137,7 @@ def test_audit_flags_custom_dist_random_without_logp():
         pm.CustomDist("y", mu, sigma, random=random_fn, observed=np.zeros(5))
 
     report = audit(model)
-    assert "customdist_random" in report.kinds()
+    assert "logp_registration_lost" in report.kinds()
 
 
 def test_audit_accepts_symbolic_custom_dist():
@@ -151,14 +151,27 @@ def test_audit_accepts_symbolic_custom_dist():
         sigma = pm.HalfNormal("sigma", 1)
         pm.CustomDist("y", mu, sigma, dist=dist_fn, observed=np.zeros(5))
 
-    assert "customdist_random" not in audit(model).kinds()
+    assert "logp_registration_lost" not in audit(model).kinds()
 
 
 def test_blocker_carries_a_remedy():
-    with pm.Model() as model:
-        pm.Normal("a", 0, 1, initval=-2.0)
+    """A refusal nobody can act on is not worth having.
 
-    for blocker in audit(model).blockers:
+    The model must actually be blocked, or the loop below checks nothing, which
+    is what happened when this used an initval model: initval no longer blocks.
+    """
+
+    def random_fn(mu, sigma, rng, size):
+        return rng.normal(mu, sigma, size)
+
+    with pm.Model() as model:
+        mu = pm.Normal("mu", 0, 1)
+        sigma = pm.HalfNormal("sigma", 1)
+        pm.CustomDist("y", mu, sigma, random=random_fn, observed=np.zeros(5))
+
+    blockers = audit(model).blockers
+    assert blockers, "expected this model to be blocked"
+    for blocker in blockers:
         assert blocker.detail
         assert blocker.remedy
 
@@ -190,7 +203,7 @@ def test_save_strict_refuses_blocked_models(tmp_path):
         pm.Normal("a", 0, 1)
         pm.CustomDist("y", pm.Normal.dist(0, 1), random=random_fn, observed=np.zeros(3))
 
-    with pytest.raises(ValueError, match="customdist_random"):
+    with pytest.raises(ValueError, match="logp_registration_lost"):
         save_model(model, tmp_path / "model")
 
 
@@ -203,7 +216,7 @@ def test_lenient_save_still_warns_about_custom_dist(tmp_path):
         sigma = pm.HalfNormal("sigma", 1)
         pm.CustomDist("y", mu, sigma, random=random_fn, observed=np.zeros(5))
 
-    with pytest.raises(ValueError, match="customdist_random"):
+    with pytest.raises(ValueError, match="logp_registration_lost"):
         save_model(model, tmp_path / "model")
 
     # opting out writes it, because that is sometimes the only way forward
@@ -1361,9 +1374,9 @@ def test_audit_flags_a_free_custom_dist_too(tmp_path):
         pm.CustomDist("d", mu=0.0, sigma=1.0, random=random_fn)
         pm.Normal("y", 0.0, 1.0, observed=0.5)
 
-    assert "customdist_random" in audit(model).kinds()
+    assert "logp_registration_lost" in audit(model).kinds()
 
-    with pytest.raises(ValueError, match="customdist_random"):
+    with pytest.raises(ValueError, match="logp_registration_lost"):
         save_model(model, tmp_path / "model")
 
     # bypass the gate the way a determined user would, and the bundle must

@@ -212,6 +212,12 @@ its state, and a class defined only in a notebook comes back by value without
 needing that code at load time.  Wrapper classes that *contain* a Model are
 unaffected, because they hand you a plain ``pm.Model`` to begin with.
 
+For an **Op** the same by-value rebuild is the failure mode rather than the
+feature.  pymc registers logprob implementations on the class object, so a
+rebuilt class has none and ``compile_logp`` raises.  That is the one thing
+:func:`audit` refuses; a Model subclass and a notebook-defined Op are handled
+oppositely despite being pickled the same way.
+
 **Scope: a raw** ``pm.Model`` **in the environment that wrote it.**  This is a
 same-environment artefact, not an archival format: it depends on the pymc,
 pytensor and Python that produced the model, which is why the manifest pins
@@ -261,6 +267,11 @@ __all__ = [
 ]
 
 SCHEMA_VERSION = 1
+
+#: ``initial_point`` draws when an RV has ``initval="prior"``, so an unseeded
+#: reference moves on every save and validate() fails a perfectly good bundle.
+#: Both the writer and the checker must use this value or neither agrees.
+_REFERENCE_SEED = 0
 #: Label for a bundle assembled from bytes rather than read off a directory.
 _IN_MEMORY = "<memory>"
 MANIFEST_FILE = "manifest.json"
@@ -726,10 +737,16 @@ def audit(model: pm.Model, *, fgraph: Any = None) -> AuditReport:
     Returns
     -------
     AuditReport
-        ``ok`` is False if any blocker applies. There is currently one kind:
-        a ``CustomDist`` built with ``random=`` and no explicit ``logp=``, which
-        derives its logp numerically and loses it once serialized, so a bundle
-        carrying it reloads into a model that cannot be evaluated.
+        ``ok`` is False if any blocker applies. There is currently one kind: an
+        Op whose logprob pymc registered on the class object itself, where that
+        class cannot be imported again. Serializing rebuilds the class by value
+        without the registration, so the bundle reloads into a model whose
+        ``compile_logp`` raises ``Logprob method not implemented``. In practice
+        that is a ``CustomDist`` given an explicit ``logp=``, whether or not it
+        also has ``random=`` or a symbolic ``dist=``, and any Op defined where
+        it cannot be imported again, such as a notebook. A symbolic ``dist=`` on
+        its own is fine: its logp comes from the graph, so nothing is registered
+        against the class.
 
         Things that used to block, and now only note, because the Model is
         pickled rather than rebuilt from a graph: a model that sets ``initval``,
@@ -789,42 +806,70 @@ def audit(model: pm.Model, *, fgraph: Any = None) -> AuditReport:
     report.fgraph = fgraph
     if fgraph is not None:
         report.n_nodes, report.depth = _stats(fgraph)
-    report.blockers.extend(_customdist_blockers(model))
+    report.blockers.extend(_unserializable_logp_blockers(model))
     return report
 
 
-def _customdist_blockers(model: pm.Model) -> list[Blocker]:
-    """CustomDist(random=...) without an explicit logp= cannot reload.
+def _pickled_by_reference(cls: type) -> bool:
+    """Whether cloudpickle will store this class by reference rather than by value.
 
-    Such a distribution derives logp numerically and registers it against the
-    dynamically-created Op class. Serializing by value produces a *different*
-    class, so the registration no longer applies and compile_logp raises.
-
-    A symbolic ``dist=`` is fine: it builds a pure pytensor graph up front, and
-    its Op has no ``_random_fn`` at all. Both forms name their class
-    ``CustomDist_<var>``, so the presence of ``_random_fn`` is the only
-    discriminator.
-
-    Free and observed RVs are both inspected: a free CustomDist is what
-    ``pm.sample`` trips over, and it is just as unserializable.
+    This mirrors cloudpickle's own test (``_lookup_module_and_qualname`` in
+    ``cloudpickle.cloudpickle``): by reference only when ``cls.__module__`` is not
+    ``__main__``, that module is already imported, and reading ``cls.__qualname__``
+    off it returns ``cls``. Everything else, including an interactive session or a
+    notebook, is rebuilt by value in the process that loads the bundle.
     """
+    import sys
+
+    module_name = getattr(cls, "__module__", None)
+    if module_name is None or module_name == "__main__":
+        return False
+    module = sys.modules.get(module_name)
+    if module is None:
+        return False
+    try:
+        return getattr(module, cls.__qualname__) is cls
+    except AttributeError:
+        return False
+
+
+def _unserializable_logp_blockers(model: pm.Model) -> list[Blocker]:
+    """Random variables that reload into a model that cannot evaluate their logp.
+
+    pymc registers a logprob implementation against the Op class object itself,
+    with ``_logprob.register(rv_type)`` in ``pymc.distributions.custom``, and those
+    classes are made with ``type()``. Such a class is not reachable by import path,
+    so cloudpickle rebuilds it by value, the registration does not travel with it,
+    and ``compile_logp`` raises ``Logprob method not implemented`` in the process
+    that loads the bundle.
+
+    Both halves are needed to fail: the registration must be there, *and* the class
+    must be unreachable. A symbolic ``dist=`` with no explicit ``logp=`` sets
+    ``inline_logprob`` instead, so nothing is registered and it reloads correctly
+    even though its class is just as unreachable. In the other direction, a class
+    defined at the top level of an importable module is re-imported when the bundle
+    is loaded, which re-runs the registration, so it is safe too.
+
+    Free and observed RVs are both inspected: a free one is what ``pm.sample``
+    trips over, and it is just as unserializable.
+    """
+    from pymc.logprob.abstract import _logprob
+
     found = []
     for rv in list(model.free_RVs) + list(model.observed_RVs):
         if not rv.owner:
             continue
-        op_type = type(rv.owner.op)
-        if "CustomDist" not in op_type.__name__:
-            continue
-        random_fn = getattr(op_type, "_random_fn", None)
-        if random_fn is None:
-            continue
-        if getattr(op_type, "_logprob_fn", None) in (None, random_fn):
+        cls = type(rv.owner.op)
+        if cls in _logprob.registry and not _pickled_by_reference(cls):
             found.append(
                 Blocker(
-                    "customdist_random",
-                    f"{rv.name}: CustomDist(random=...) without an explicit logp= "
-                    "loses its logp once serialized",
-                    "pass logp= explicitly, or use a symbolic dist=",
+                    "logp_registration_lost",
+                    f"{rv.name}: pymc registered this Op's logprob on the class "
+                    f"{cls.__name__}, and {cls.__module__!r} cannot supply that "
+                    "class again, so loading would build a different class with "
+                    "no logprob and compile_logp would raise",
+                    "use a symbolic dist= and leave logp= unset, so the logp is "
+                    "derived from the graph instead of registered against the class",
                 )
             )
     return found
@@ -1303,16 +1348,18 @@ def _clear_staging(staging: Path) -> None:
 def _reference_logp(model: pm.Model) -> float | None:
     """Logp at the initial point, so :meth:`ModelBundle.validate` has something to compare.
 
-    Returns None when the model cannot produce one, and says so. A bundle whose
-    reference is silently missing reads as "nothing to compare", which is easy to
-    mistake for "nothing to worry about".
+    The point is computed with :data:`_REFERENCE_SEED`, because ``initval="prior"``
+    draws and an unseeded reference would differ on every save. It returns None and
+    says so when the model cannot produce one: a bundle whose reference is silently
+    missing reads as "nothing to compare", which is easy to mistake for "nothing to
+    worry about".
     """
     import warnings
 
     try:
         import numpy as np
 
-        point = model.initial_point()
+        point = model.initial_point(random_seed=_REFERENCE_SEED)
         value = float(np.asarray(model.compile_logp()(point), dtype=float))
     except Exception as exc:
         warnings.warn(
@@ -1607,7 +1654,11 @@ class ModelBundle:
             import numpy as np
 
             actual = float(
-                np.asarray(self.model.compile_logp()(self.model.initial_point()))
+                np.asarray(
+                    self.model.compile_logp()(
+                        self.model.initial_point(random_seed=_REFERENCE_SEED)
+                    )
+                )
             )
             result.logp = actual
         except Exception as exc:
@@ -1724,21 +1775,25 @@ def load_model(path: str | Path) -> pm.Model:
 
 
 def _stats(fgraph) -> tuple[int, int]:
-    """Node count and graph depth."""
-    memo: dict = {}
+    """Node count and graph depth.
 
-    def depth(variable) -> int:
-        if variable in memo:
-            return memo[variable]
-        memo[variable] = 0
-        memo[variable] = (
-            1 + max((depth(i) for i in variable.owner.inputs), default=0)
-            if variable.owner
-            else 0
-        )
-        return memo[variable]
+    Walked in topological order rather than recursed, because depth is exactly the
+    quantity that scales with graph size: a model with a few thousand chained
+    additions recursed until the stack ran out and took save_model with it, while
+    ``compile_logp`` handled the same graph without complaint.
+    """
+    depths: dict = {}
+    for node in fgraph.toposort():
+        # Inputs without an entry are leaves or graph inputs, which the recursive
+        # definition counted as 0.
+        node_depth = 1 + max((depths.get(inp, 0) for inp in node.inputs), default=0)
+        for output in node.outputs:
+            depths[output] = node_depth
 
-    return len(fgraph.apply_nodes), max((depth(o) for o in fgraph.outputs), default=0)
+    return (
+        len(fgraph.apply_nodes),
+        max((depths.get(output, 0) for output in fgraph.outputs), default=0),
+    )
 
 
 def _names(sequence) -> list[str]:
