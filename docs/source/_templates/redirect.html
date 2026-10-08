@@ -1,0 +1,13 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Redirect</title>
+<meta http-equiv="refresh" content="0; url=${to_uri}">
+<link rel="canonical" href="${to_uri}">
+<script>var target="${to_uri}";if(window.location.hash){window.location.replace(target+window.location.hash);}else{window.location.replace(target);}</script>
+</head>
+<body>
+<p><a href="${to_uri}">Continue</a></p>
+</body>
+</html>

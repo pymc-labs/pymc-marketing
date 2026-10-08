@@ -14,7 +14,7 @@ This directory holds the example-gallery page and the manifest for every publish
 
 `part` is optional. Leave it off while a notebook still mixes an introduction, a feature how-to, and a business case.
 An empty part page is expected during that transition. The notebook stays on the holding page, at its current URL, until the card sets `part`.
-Each notebook has one toctree home. The pre-commit hook `gallery-in-sync` fails the commit if a notebook is missing, duplicated, tagged with an unknown part, or listed in more than one toctree.
+Each notebook has one toctree home. The pre-commit hook `gallery-in-sync` fails the commit if a notebook is missing, duplicated, tagged with an unknown part, listed in more than one toctree, or if `gallery/redirects.yaml` is invalid.
 
 `notebook` is a docname relative to `docs/source/`, with no suffix. A notebook that has not moved yet is `notebooks/<category>/<stem>`.
 After it is tagged, the docname becomes `getting_started/notebooks/<category>/<stem>`, `guide/notebooks/<category>/<stem>`, or `gallery/notebooks/<category>/<stem>`.
@@ -42,8 +42,23 @@ python scripts/generate_gallery.py --check --no-thumbnails
 ```
 
 This does not write pages or thumbnails, and it does not require thumbnail files to exist.
-It fails when a generated page is out of sync, when a published notebook is missing from the yaml, when the yaml lists a missing file, or when a notebook has two toctree homes.
-A missing `part` is not a failure.
+It fails when a generated page is out of sync, when a published notebook is missing from the yaml, when the yaml lists a missing file, when a notebook has two toctree homes, or when `gallery/redirects.yaml` is invalid.
+A missing `part` is not a failure. An empty redirect map is valid.
+
+## Moving a notebook
+
+A migration PR adds one entry to `gallery/redirects.yaml` and removes the old notebook file in the same change. It does not edit the Read the Docs dashboard.
+`from` is the docname the example gallery publishes today. `to` is the new docname under `getting_started/notebooks/`, `guide/notebooks/`, or `gallery/notebooks/`.
+Neither field is a URL. Do not include a language (`/en/`, `/es/`) or a version (`/stable/`, `/latest/`).
+
+```yaml
+- from: notebooks/mmm/mmm_case_study
+  to: gallery/notebooks/mmm/mmm_case_study
+```
+
+The docs build writes a redirect page at the old docname. The refresh and canonical targets are relative to that page, so a reader stays on the language and version they requested.
+The weekly link checker follows the redirect to a 200. A 404 on a `from` path is a failed migration.
+`--check` fails if `from` is still a source file, if `to` has no source file, or if `to` is absolute or contains a language or version prefix.
 
 ## Thumbnails
 

@@ -11,6 +11,11 @@ import plotly.io as pio
 
 import pymc_marketing  # isort:skip
 
+_REPO_SCRIPTS = str(Path(__file__).resolve().parents[2] / "scripts")
+if _REPO_SCRIPTS not in sys.path:
+    sys.path.insert(0, _REPO_SCRIPTS)
+from gallery_redirects import REDIRECT_TEMPLATE, sphinx_redirects  # noqa: E402
+
 # -- General configuration ------------------------------------------------
 
 # General information about the project.
@@ -43,6 +48,7 @@ extensions = [
     "sphinx_remove_toctrees",
     "sphinx_sitemap",
     "sphinxext.opengraph",
+    "sphinx_reredirects",
 ]
 
 # Add any paths that contain templates here, relative to this directory.
@@ -287,6 +293,15 @@ ogp_enable_meta_description = True
 # sitemap extension configuration
 site_url = "https://www.pymc-marketing.io/"
 sitemap_url_scheme = f"{{lang}}{rtd_version}/{{link}}"
+# Old notebook paths are redirect HTML, not documents. Exclude them so the
+# old URL cannot be a second canonical or a sitemap URL (#3118, #3028).
+_redirects, _redirect_excludes, _redirect_errors = sphinx_redirects(
+    Path(__file__).resolve().parent
+)
+if _redirect_errors:
+    raise RuntimeError("invalid gallery redirect map:\n" + "\n".join(_redirect_errors))
+redirects = _redirects
+redirect_html_template_file = REDIRECT_TEMPLATE
 # Keep thin auto-generated pages out of the sitemap so crawl budget goes to
 # real content. The classmethods stubs alone are ~80% of all pages and sit in
 # Search Console as "Crawled - currently not indexed".
@@ -296,6 +311,7 @@ sitemap_excludes = [
     "py-modindex.html",
     "api/generated/classmethods/*",
     "api/generated/classattributes/*",
+    *_redirect_excludes,
 ]
 
 

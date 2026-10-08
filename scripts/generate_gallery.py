@@ -356,9 +356,9 @@ def main() -> None:
         "--check",
         action="store_true",
         help="Do not write generated pages or thumbnails. Exit non-zero if "
-        "the pages are out of sync with gallery.yaml, or if a notebook is "
+        "the pages are out of sync with gallery.yaml, if a notebook is "
         "missing, duplicated, tagged with an unknown part, or listed in "
-        "more than one toctree.",
+        "more than one toctree, or if gallery/redirects.yaml is invalid.",
     )
     parser.add_argument(
         "--no-thumbnails",
