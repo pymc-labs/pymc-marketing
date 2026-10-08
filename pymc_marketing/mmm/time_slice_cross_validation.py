@@ -70,36 +70,20 @@ class TimeSliceCrossValidationResult:
 
 
 def _add_original_scale_predictions(idata: xr.DataTree, output_var: str) -> None:
-    """Ensure ``posterior_predictive`` holds the fold's predictive draws on the original scale.
+    """Add ``{output_var}_original_scale = {output_var} * target_scale`` to ``posterior_predictive``.
 
-    The CV summaries and plots read ``posterior_predictive["y_original_scale"]``,
-    which must be ``y * target_scale``: the likelihood observes
-    ``target / target_scale`` under every link, so this product is the
-    original-scale posterior predictive draw regardless of link. The variable
-    is already present when the fold model registered the Deterministic
-    ``y * target_scale`` on the observed variable
-    (``add_original_scale_contribution_variable(var=["y"])``, identity link
-    only). Under the log link the model registers
-    ``y_original_scale = exp(mu) * target_scale`` instead, the LogNormal
-    median, which lives in ``posterior`` and is not a predictive draw, and the
-    name cannot be reused. In that case, or when the Deterministic was never
-    registered, the variable is derived here from the draws and the
-    ``target_scale`` the fold actually sampled with. When the draws or
-    ``target_scale`` are unavailable (a fold model that is not the library's
-    ``MMM``) a ``UserWarning`` names what is missing, since the CV summaries
-    and plots fail without the variable.
+    The CV summaries and plots need these original-scale predictive draws under
+    every link. An existing variable is kept; otherwise it is derived from the
+    fold's ``posterior_predictive_constant_data["target_scale"]``. Under
+    ``link="log"``, ``posterior["y_original_scale"]`` is the LogNormal median,
+    a different quantity. Warns when the draws or ``target_scale`` are missing.
 
     Parameters
     ----------
     idata : xr.DataTree
-        Fold inference data after ``sample_posterior_predictive(extend_idata=True)``.
-        Mutated in place.
+        Fold inference data after ``sample_posterior_predictive``. Mutated in place.
     output_var : str
-        Name of the model's observed variable (``MMM.output_var``). The draws
-        are read from ``posterior_predictive[output_var]`` and written to
-        ``posterior_predictive[f"{output_var}_original_scale"]``; the CV
-        summaries and plots look for the ``"y"`` spelling, which is what
-        ``MMM`` uses.
+        Name of the observed variable (``MMM.output_var``).
     """
     name = f"{output_var}_original_scale"
     pp = None
@@ -862,18 +846,10 @@ class TimeSliceCrossValidator:
         xr.DataTree
             Combined DataTree where each fold is concatenated along a new
             coordinate named 'cv'. Includes a 'cv_metadata' group with per-fold
-            train/test data. For folds fitted with the library's ``MMM``,
-            ``posterior_predictive["y_original_scale"]`` holds the posterior
-            predictive draws of the target on the original scale
-            (``y * target_scale``) under both link functions; under
-            ``link="log"`` this differs from the fold's
-            ``posterior["y_original_scale"]``, which is the LogNormal median
-            ``exp(mu) * target_scale``. A fold model that does not provide
-            the draws or ``target_scale`` emits a ``UserWarning``;
-            ``cv.summary.predictions()``/``crps()`` and
-            ``cv.plot.predictions()``/``crps()`` then raise, while the
-            ``param_stability`` summary and plot keep working. Returned when
-            ``return_models`` is ``False`` (the default).
+            train/test data. ``posterior_predictive["y_original_scale"]`` holds
+            the predictive draws ``y * target_scale`` under both links (a
+            ``UserWarning`` is emitted for folds where it cannot be derived).
+            Returned when ``return_models`` is ``False`` (the default).
         tuple[xr.DataTree, list[MMMBuilder]]
             A tuple of the combined DataTree and a list of fitted MMM
             instances (one per fold). Returned when ``return_models`` is
