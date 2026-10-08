@@ -72,8 +72,8 @@ class TimeSliceCrossValidationResult:
 def _add_original_scale_predictions(idata: xr.DataTree, output_var: str) -> None:
     """Ensure ``posterior_predictive`` holds the fold's predictive draws on the original scale.
 
-    The CV summaries and plots score ``{output_var}_original_scale``, which
-    must be ``{output_var} * target_scale``: the likelihood observes
+    The CV summaries and plots read ``posterior_predictive["y_original_scale"]``,
+    which must be ``y * target_scale``: the likelihood observes
     ``target / target_scale`` under every link, so this product is the
     original-scale posterior predictive draw regardless of link. The variable
     is already present when the fold model registered the Deterministic
@@ -95,24 +95,28 @@ def _add_original_scale_predictions(idata: xr.DataTree, output_var: str) -> None
         Fold inference data after ``sample_posterior_predictive(extend_idata=True)``.
         Mutated in place.
     output_var : str
-        Name of the model's observed variable (``MMM.output_var``).
+        Name of the model's observed variable (``MMM.output_var``). The draws
+        are read from ``posterior_predictive[output_var]`` and written to
+        ``posterior_predictive[f"{output_var}_original_scale"]``; the CV
+        summaries and plots look for the ``"y"`` spelling, which is what
+        ``MMM`` uses.
     """
     name = f"{output_var}_original_scale"
-    pp = (
-        idata["posterior_predictive"].dataset
-        if "posterior_predictive" in idata.children
-        else None
-    )
-    if pp is not None and name in pp:
-        return
-
+    pp = None
     target_scale = None
-    if "posterior_predictive_constant_data" in idata.children:
-        target_scale = idata["posterior_predictive_constant_data"].dataset.get(
-            "target_scale"
-        )
+    if isinstance(idata, xr.DataTree):
+        if "posterior_predictive" in idata.children:
+            pp = idata["posterior_predictive"].dataset
+        if pp is not None and name in pp:
+            return
+        if "posterior_predictive_constant_data" in idata.children:
+            target_scale = idata["posterior_predictive_constant_data"].dataset.get(
+                "target_scale"
+            )
 
-    if pp is None:
+    if not isinstance(idata, xr.DataTree):
+        missing = "idata is not an xr.DataTree"
+    elif pp is None:
         missing = "no posterior_predictive group"
     elif output_var not in pp:
         missing = f"no '{output_var}' draws in posterior_predictive"
@@ -123,12 +127,13 @@ def _add_original_scale_predictions(idata: xr.DataTree, output_var: str) -> None
         idata["posterior_predictive"] = pp.assign({name: draws})
         return
 
+    # helper -> _time_slice_step -> run -> the user's cv.run(...) call.
     warnings.warn(
         f"Fold idata has no posterior_predictive['{name}'] and it cannot be "
         f"derived ({missing}). cv.summary.predictions()/crps() and "
         "cv.plot.predictions()/crps() require it.",
         UserWarning,
-        stacklevel=2,
+        stacklevel=4,
     )
 
 
@@ -887,7 +892,10 @@ class TimeSliceCrossValidator:
         Notes
         -----
         Per-fold results are also stored in ``self._cv_results`` after calling
-        this method.
+        this method. The derived ``posterior_predictive["y_original_scale"]``
+        has the size of ``posterior_predictive["y"]``, so it adds one
+        predictive-draw array per fold to the memory noted in the class
+        docstring.
 
         Examples
         --------

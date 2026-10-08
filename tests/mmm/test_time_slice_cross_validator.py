@@ -1651,3 +1651,17 @@ def test_add_original_scale_predictions_warns_when_underivable(
         )
     else:
         assert "posterior_predictive" not in idata.children
+
+
+def test_add_original_scale_predictions_warns_on_non_datatree_idata():
+    """A fold whose idata is not an xr.DataTree gets the warning, not an AttributeError."""
+    from pymc_marketing.mmm.time_slice_cross_validation import (
+        _add_original_scale_predictions,
+    )
+
+    class _NotATree:
+        pass
+
+    with pytest.warns(UserWarning, match=_HELPER_WARNING) as record:
+        _add_original_scale_predictions(_NotATree(), output_var="y")
+    assert "not an xr.DataTree" in str(record[0].message)
