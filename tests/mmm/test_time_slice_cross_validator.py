@@ -17,6 +17,7 @@ import copy
 import warnings
 from unittest.mock import MagicMock
 
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import pytest
@@ -29,6 +30,7 @@ from pymc_marketing.mmm.components.saturation import LogisticSaturation
 from pymc_marketing.mmm.mmm import MMM
 from pymc_marketing.mmm.plot import MMMPlotSuite
 from pymc_marketing.mmm.plotting.cv import MMMCVPlotSuite
+from pymc_marketing.mmm.scaling import DataDerivedScaling
 from pymc_marketing.mmm.time_slice_cross_validation import (
     TimeSliceCrossValidationResult,
     TimeSliceCrossValidator,
@@ -1441,3 +1443,240 @@ def test_summary_property_returns_factory():
 
     cv = _make_legacy_cv_with_idata()
     assert isinstance(cv.summary, MMMCVSummaryFactory)
+
+
+_HELPER_WARNING = "cannot be derived"
+
+
+def _positive_panel(n_dates: int = 6) -> tuple[pd.DataFrame, pd.Series]:
+    """Two-country panel with a strictly positive target, valid under both links."""
+    rng = np.random.default_rng(3129)
+    dates = pd.date_range("2025-01-06", periods=n_dates, freq="W-MON")
+    rows = [
+        {
+            "date": d,
+            "country": c,
+            "C1": rng.uniform(10, 100),
+            "C2": rng.uniform(10, 100),
+            "y": rng.uniform(50, 500) * (1 if c == "A" else 3),
+        }
+        for d in dates
+        for c in ("A", "B")
+    ]
+    df = pd.DataFrame(rows)
+    y = df.pop("y")
+    return df, y
+
+
+def _run_cv(link: str, per_country_scale: bool = False, **run_kwargs):
+    """Run a two-fold CV on the positive panel; assert the runner never warned about the derived variable."""
+    X, y = _positive_panel()
+    mmm = MMM(
+        date_column="date",
+        channel_columns=["C1", "C2"],
+        dims=("country",),
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+        link=link,
+        # dims=() reduces over date only, so target_scale has dims ("country",);
+        # the default reduces over every dim and gives a scalar.
+        scaling={"target": DataDerivedScaling(method="max", dims=())}
+        if per_country_scale
+        else None,
+    )
+    cv = TimeSliceCrossValidator(n_init=4, forecast_horizon=1, date_column="date")
+    cv.plot_suite = "new"
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        warnings.simplefilter("ignore", FutureWarning)
+        results = cv.run(X, y, mmm=mmm, **run_kwargs)
+    assert not [w for w in caught if _HELPER_WARNING in str(w.message)]
+    return cv, results
+
+
+def _fold_original_scale_draws(fold: xr.DataTree) -> xr.DataArray:
+    """``y * target_scale`` from the fold's own predictive draws and constants."""
+    return (
+        fold["posterior_predictive"].dataset["y"]
+        * fold["posterior_predictive_constant_data"].dataset["target_scale"]
+    )
+
+
+@pytest.mark.parametrize(
+    "per_country_scale", [False, True], ids=["scalar_scale", "per_country_scale"]
+)
+@pytest.mark.parametrize(
+    "original_scale_vars", [None, ["y"]], ids=["derived", "registered"]
+)
+@pytest.mark.parametrize("link", ["identity", "log"])
+def test_run_provides_original_scale_predictive_draws(
+    link, original_scale_vars, per_country_scale, mock_pymc_sample
+):
+    """Every fold's posterior_predictive carries y * target_scale, whether or not y was registered in the graph."""
+    cv, results = _run_cv(
+        link,
+        per_country_scale=per_country_scale,
+        original_scale_vars=original_scale_vars,
+    )
+    expected_scale_dims = ("country",) if per_country_scale else ()
+    assert (
+        cv._cv_results[0]
+        .idata["posterior_predictive_constant_data"]
+        .dataset["target_scale"]
+        .dims
+        == expected_scale_dims
+    )
+
+    assert "y_original_scale" in results.posterior_predictive
+    for result in cv._cv_results:
+        fold = result.idata
+        got = fold["posterior_predictive"].dataset["y_original_scale"]
+        xr.testing.assert_allclose(
+            got, _fold_original_scale_draws(fold).transpose(*got.dims)
+        )
+        if link == "log":
+            # The fold posterior holds the LogNormal median exp(mu) * target_scale,
+            # which carries no observation noise; the predictive variable must not be it.
+            median = fold["posterior"].dataset["y_original_scale"]
+            train_dates = median.coords["date"].values
+            assert not np.allclose(
+                got.sel(date=train_dates).transpose(*median.dims).values,
+                median.values,
+            )
+
+
+@pytest.mark.parametrize("link", ["identity", "log"])
+def test_cv_summary_and_plots_score_original_scale_draws(link, mock_pymc_sample):
+    """summary/plot APIs succeed on a per-country target_scale; CRPS equals the one recomputed from y * target_scale."""
+    from pymc_marketing.metrics import crps
+
+    cv, results = _run_cv(link, per_country_scale=True)
+    assert cv._cv_results[0].idata["posterior_predictive_constant_data"].dataset[
+        "target_scale"
+    ].dims == ("country",)
+
+    df = cv.summary.crps()
+    labels = list(results.cv_metadata.coords["cv"].values)
+    for result, label in zip(cv._cv_results, labels, strict=True):
+        draws = _fold_original_scale_draws(result.idata).stack(sample=("chain", "draw"))
+        X_test, y_test = result.X_test, np.asarray(result.y_test, dtype=float)
+        for country in ("A", "B"):
+            mask = (X_test["country"] == country).to_numpy()
+            pred = np.column_stack(
+                [
+                    draws.sel(date=d, country=country).transpose("sample").values
+                    for d in X_test.loc[mask, "date"]
+                ]
+            )
+            expected = crps(y_true=y_test[mask], y_pred=pred)
+            assert np.isfinite(expected)
+            row = df[
+                (df["split"] == "test")
+                & (df["cv"] == label)
+                & (df["country"] == country)
+            ]
+            np.testing.assert_allclose(row["mean_crps"].item(), expected)
+
+    predictions = cv.summary.predictions()
+    assert set(labels) == set(predictions["cv"])
+    cv.plot.predictions()
+    cv.plot.crps()
+    plt.close("all")
+
+
+def _pp_tree(
+    y: xr.DataArray | None, scale: xr.DataArray | None, **extra_pp
+) -> xr.DataTree:
+    groups: dict[str, xr.Dataset] = {}
+    if y is not None or extra_pp:
+        pp = {"sales": y} if y is not None else {}
+        groups["/posterior_predictive"] = xr.Dataset({**pp, **extra_pp})
+    if scale is not None:
+        groups["/posterior_predictive_constant_data"] = xr.Dataset(
+            {"target_scale": scale}
+        )
+    return xr.DataTree.from_dict(groups)
+
+
+@pytest.fixture
+def pp_draws() -> tuple[xr.DataArray, xr.DataArray]:
+    dates = pd.date_range("2025-01-06", periods=3, freq="W-MON")
+    y = xr.DataArray(
+        np.arange(2 * 3 * 2, dtype=float).reshape(1, 2, 3, 2),
+        dims=("chain", "draw", "date", "geo"),
+        coords={"date": dates, "geo": ["g1", "g2"]},
+    )
+    scale = xr.DataArray([10.0, 100.0], dims=("geo",), coords={"geo": ["g1", "g2"]})
+    return y, scale
+
+
+def test_add_original_scale_predictions_derives_from_target_scale(pp_draws):
+    """Builds `{output_var}_original_scale = draws * target_scale`, broadcasting target_scale over extra dims."""
+    from pymc_marketing.mmm.time_slice_cross_validation import (
+        _add_original_scale_predictions,
+    )
+
+    y, scale = pp_draws
+    idata = _pp_tree(y, scale)
+    _add_original_scale_predictions(idata, output_var="sales")
+    got = idata["posterior_predictive"].dataset["sales_original_scale"]
+    assert got.dims == y.dims
+    xr.testing.assert_allclose(got, y * scale)
+
+
+def test_add_original_scale_predictions_keeps_registered_variable(pp_draws):
+    """A graph-registered variable in posterior_predictive takes precedence over the derived one."""
+    from pymc_marketing.mmm.time_slice_cross_validation import (
+        _add_original_scale_predictions,
+    )
+
+    y, scale = pp_draws
+    idata = _pp_tree(y, scale, sales_original_scale=y * 7.0)
+    _add_original_scale_predictions(idata, output_var="sales")
+    xr.testing.assert_allclose(
+        idata["posterior_predictive"].dataset["sales_original_scale"], y * 7.0
+    )
+
+
+@pytest.mark.parametrize(
+    ("with_pp", "with_scale", "output_var", "reason"),
+    [
+        (False, True, "sales", "no posterior_predictive group"),
+        (True, False, "sales", "no 'target_scale'"),
+        (True, True, "revenue", "no 'revenue' draws"),
+    ],
+    ids=["missing_group", "missing_target_scale", "missing_output_draws"],
+)
+def test_add_original_scale_predictions_warns_when_underivable(
+    pp_draws, with_pp, with_scale, output_var, reason
+):
+    """Warns with the reason instead of failing silently, and leaves the tree unchanged."""
+    from pymc_marketing.mmm.time_slice_cross_validation import (
+        _add_original_scale_predictions,
+    )
+
+    y, scale = pp_draws
+    idata = _pp_tree(y if with_pp else None, scale if with_scale else None)
+    with pytest.warns(UserWarning, match=_HELPER_WARNING) as record:
+        _add_original_scale_predictions(idata, output_var=output_var)
+    assert reason in str(record[0].message)
+    if with_pp:
+        assert (
+            f"{output_var}_original_scale" not in idata["posterior_predictive"].dataset
+        )
+    else:
+        assert "posterior_predictive" not in idata.children
+
+
+def test_add_original_scale_predictions_warns_on_non_datatree_idata():
+    """A fold whose idata is not an xr.DataTree gets the warning, not an AttributeError."""
+    from pymc_marketing.mmm.time_slice_cross_validation import (
+        _add_original_scale_predictions,
+    )
+
+    class _NotATree:
+        pass
+
+    with pytest.warns(UserWarning, match=_HELPER_WARNING) as record:
+        _add_original_scale_predictions(_NotATree(), output_var="y")
+    assert "not an xr.DataTree" in str(record[0].message)
