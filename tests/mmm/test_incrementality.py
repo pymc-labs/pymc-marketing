@@ -3386,6 +3386,63 @@ class TestSplitIncrementalContribution:
             self._row_sums(matrix).transpose(*expected.dims), expected, rtol=1e-8
         )
 
+    def test_adstock_last_matches_the_analytic_split(
+        self, simple_mmm_data, adstock_last_fitted_mmm
+    ):
+        """Each row is the saturated spend spread over the adstock kernel.
+
+        With saturation before carryover the response is separable by cohort,
+        so the split has a closed form: spend on date ``s`` lands on ``s + l``
+        as ``target_scale * beta * saturation(x_s / channel_scale) * w_l`` with
+        ``w_l = alpha**l / sum_k alpha**k`` for ``l < l_max``, and nothing at
+        ``l_max`` or beyond (up to floating-point noise from the difference of
+        two forward passes).  This pins the entries to numbers computed outside
+        the pipeline, not to the pipeline's own row sums.
+        """
+        mmm = adstock_last_fitted_mmm
+        matrix = mmm.incrementality.split_incremental_contribution_over_time(
+            frequency="original"
+        )
+        post = mmm.idata.posterior
+        scalers = mmm.scalers
+        l_max = mmm.adstock.l_max
+
+        spend_dates = pd.DatetimeIndex(matrix.spend_date.values)
+        realization = pd.DatetimeIndex(matrix.realization_date.values)
+        assert realization[0] == spend_dates[0]
+        n_spend, n_real = len(spend_dates), len(realization)
+        lag = xr.DataArray(
+            np.arange(n_real)[None, :] - np.arange(n_spend)[:, None],
+            dims=("spend_date", "realization_date"),
+        )
+
+        x = xr.DataArray(
+            simple_mmm_data["X"][["channel_1", "channel_2", "channel_3"]].to_numpy(),
+            dims=("spend_date", "channel"),
+            coords={"channel": ["channel_1", "channel_2", "channel_3"]},
+        )
+        lam_x = post["saturation_lam"] * x / scalers["_channel"]
+        saturated = (
+            post["saturation_beta"] * (1 - np.exp(-lam_x)) / (1 + np.exp(-lam_x))
+        )
+        alpha = post["adstock_alpha"]
+        in_kernel = (lag >= 0) & (lag < l_max)
+        weight = (alpha ** lag.clip(0, l_max - 1)).where(in_kernel, 0.0)
+        weight = weight / sum(alpha**k for k in range(l_max))
+        expected = (scalers["_target"] * saturated * weight).transpose(*matrix.dims)
+
+        observed = matrix.coords["observed"]
+        np.testing.assert_allclose(
+            matrix.where(observed).values,
+            expected.where(observed).values,
+            rtol=1e-6,
+            atol=1e-10,
+        )
+        at_l_max = np.abs(matrix.where(lag == l_max)).max(
+            ("spend_date", "realization_date")
+        )
+        assert float(at_l_max.max()) < 1e-9 * float(np.abs(matrix).max())
+
     def test_no_carryover_gives_a_diagonal(self, no_carryover_fitted_mmm):
         """With ``l_max=1`` every row's increment sits on its own date.
 

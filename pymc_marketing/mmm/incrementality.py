@@ -1106,6 +1106,18 @@ class Incrementality:
         spend) is a different estimand when the response mixes cohorts, which is
         what ``estimand="allocation"`` will provide.
 
+        In particular, the entries do not add up to ``channel_contribution``
+        when saturation follows adstock (``adstock_first=True``, the default).
+        Each row zeroes one period's spend against all the others, so with a
+        concave response the period increments summed over ``spend_date``
+        come in below the channel's total contribution, by how much depends on
+        how saturated the channel is.  Only the all-time counterfactual, which
+        zeroes every period at once, matches ``channel_contribution``.  Use
+        these numbers to value a period's spend, not to decompose the reported
+        total; ``estimand="allocation"`` is the one that will reconcile with
+        it.  With ``adstock_first=False`` the response is separable by cohort
+        and the two agree.
+
         Parameters
         ----------
         frequency : {"original", "weekly", "monthly", "quarterly", "yearly", "all_time"}
@@ -1251,7 +1263,9 @@ class Incrementality:
             )
             # Reconciles with today's per-period incrementality:
             A.sum("realization_date")
-            # Value landing on each date, NaN where the data cannot show it:
+            # Increments landing on each date, NaN where the data cannot show
+            # it.  With adstock_first=True (the default) this is not the
+            # channel_contribution on that date: see the summary above.
             A.sum("spend_date", skipna=False)
         """
         if estimand not in ("counterfactual", "allocation"):
@@ -1414,6 +1428,19 @@ class Incrementality:
         The shares are shares of *modelled* value within the truncated kernel.
         Nothing past ``l_max`` is attributed, so with ``l_max=13`` on weekly data
         "future" means future within a quarter.
+
+        At an aggregated frequency ``future_share`` is not a property of the
+        channel.  It depends on when the spend fell within the period: the same
+        channel and model give a month whose spend is front-loaded a smaller
+        future share than one whose spend comes in the last week, exactly as the
+        adstock weights predict.  To combine periods, divide the sums,
+        ``future.sum() / (current + future).sum()``, rather than averaging the
+        shares.
+
+        ``current + future`` is each period's incremental contribution, so the
+        caveat of :meth:`split_incremental_contribution_over_time` applies:
+        summed across periods it falls short of ``channel_contribution`` when
+        saturation follows adstock.
 
         With the default dates, ``frequency="all_time"`` always reports
         ``future`` as ``NaN``: the single period contains the last fitted date,
