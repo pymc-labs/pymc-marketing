@@ -4034,7 +4034,7 @@ class TestAllocationEstimand:
         assert bool(matrix.coords["observed"].all())
         xr.testing.assert_allclose(
             by_date.drop_vars(
-                ["spend_date", "period_start", "observed"], errors="ignore"
+                ["spend_date", "period_start", "observed", "complete"], errors="ignore"
             ).transpose(*expected.dims),
             expected,
             rtol=1e-8,
@@ -4073,7 +4073,7 @@ class TestAllocationEstimand:
 
         assert float(abs(allocation).max()) > 0
         xr.testing.assert_allclose(
-            allocation.drop_vars("observed"),
+            allocation.drop_vars(["observed", "complete"]),
             counterfactual.drop_vars("observed"),
             rtol=1e-9,
             atol=1e-9,
@@ -4190,6 +4190,98 @@ class TestAllocationEstimand:
                 np.allclose(sample, candidate, rtol=1e-8, atol=1e-8)
                 for candidate in flat.values
             )
+
+    @pytest.mark.parametrize("normalize", [True, False])
+    def test_shares_follow_the_adstock_weights_under_concave_saturation(
+        self, simple_mmm_data, normalize
+    ):
+        """Two spikes on one channel split a date by ``w_lag * spend``.
+
+        Every share column sums to one whatever the weights are, so the column
+        reconciliation cannot tell right weights from wrong ones, and with
+        concave saturation the counterfactual is not the allocation to compare
+        with.  Here the ratio of two cohorts' entries on a date they both reach
+        is pinned to ``alpha**lag * spend`` computed outside the pipeline, draw
+        by draw.
+        """
+        X = simple_mmm_data["X"].copy()
+        X["channel_1"] = 0.0
+        first, second, landing = 1, 3, 4
+        X.loc[X.index[first], "channel_1"] = 300.0
+        X.loc[X.index[second], "channel_1"] = 900.0
+        mmm = _fit_with_saturation(
+            {"X": X, "y": simple_mmm_data["y"]},
+            LogisticSaturation(),
+            adstock=GeometricAdstock(l_max=6, normalize=normalize),
+        )
+
+        matrix = self._allocation(mmm).sel(channel="channel_1")
+        dates = pd.DatetimeIndex(matrix.spend_date.values)
+        a_first = matrix.sel(spend_date=dates[first], realization_date=dates[landing])
+        a_second = matrix.sel(spend_date=dates[second], realization_date=dates[landing])
+
+        alpha = mmm.idata.posterior.dataset["adstock_alpha"].sel(channel="channel_1")
+        expected = (alpha ** (landing - first) * 300.0) / (
+            alpha ** (landing - second) * 900.0
+        )
+        np.testing.assert_allclose(
+            (a_first / a_second).values, expected.values, rtol=1e-8
+        )
+        # The two cohorts are all that reaches that date, so they split it whole.
+        column = matrix.sum("spend_date").sel(realization_date=dates[landing])
+        np.testing.assert_allclose(
+            (a_first + a_second).values, column.values, rtol=1e-10
+        )
+        # And with concave saturation this is not what zeroing a cohort gives.
+        counterfactual = mmm.incrementality.split_incremental_contribution_over_time(
+            frequency="original"
+        ).sel(channel="channel_1")
+        assert not np.allclose(
+            counterfactual.sel(
+                spend_date=dates[first], realization_date=dates[landing]
+            ).values,
+            a_first.values,
+            rtol=1e-3,
+        )
+
+    @pytest.mark.parametrize(
+        "model_fixture", ["simple_fitted_mmm", "adstock_last_fitted_mmm"]
+    )
+    @pytest.mark.parametrize("frequency", ["original", "monthly"])
+    def test_late_rows_are_marked_incomplete(self, request, model_fixture, frequency):
+        """A row whose carryover runs past the data says so; the others do not."""
+        mmm = request.getfixturevalue(model_fixture)
+        matrix = self._allocation(mmm, frequency=frequency)
+        counterfactual = mmm.incrementality.split_incremental_contribution_over_time(
+            frequency=frequency
+        )
+
+        complete = matrix.coords["complete"]
+        assert complete.dims == ("spend_date",)
+        assert not bool(complete.values[-1])
+        assert bool(complete.values[0])
+        # The same rows the counterfactual matrix has cells unobserved in.
+        np.testing.assert_array_equal(
+            complete.values,
+            counterfactual.coords["observed"].all("realization_date").values,
+        )
+        assert any(
+            "complete=False" in note for note in json.loads(matrix.attrs["warnings"])
+        )
+
+    def test_all_time_completeness_is_a_scalar(self, simple_fitted_mmm):
+        matrix = self._allocation(simple_fitted_mmm, frequency="all_time")
+
+        assert matrix.coords["complete"].dims == ()
+        assert not bool(matrix.coords["complete"])
+
+    def test_no_carryover_leaves_every_row_complete(self, no_carryover_fitted_mmm):
+        matrix = self._allocation(no_carryover_fitted_mmm)
+
+        assert bool(matrix.coords["complete"].all())
+        assert not any(
+            "complete=False" in note for note in json.loads(matrix.attrs["warnings"])
+        )
 
     def test_attrs_describe_the_allocation(self, simple_fitted_mmm, tmp_path):
         matrix = self._allocation(simple_fitted_mmm, frequency="monthly")

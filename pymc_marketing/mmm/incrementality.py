@@ -1264,9 +1264,12 @@ class Incrementality:
         :math:`\beta\,g(z_t)` for the adstocked spend
         :math:`z_t = \sum_l w_l x_{t-l}`, and saturation mixes the cohorts into
         :math:`z_t`, so no cohort has a contribution of its own.  The
-        Aumann-Shapley value (integrated gradients along the ray from zero spend
-        to actual spend) is the one split that is symmetric between cohorts and
-        adds up, and for this response it collapses to a share split,
+        Aumann-Shapley value, the continuous counterpart of the Shapley value
+        (integrated gradients along the ray from zero spend to actual spend), is
+        symmetric between cohorts and adds up.  It is one choice among several
+        such splits -- the discrete Shapley value has the same properties and
+        gives different numbers for a concave response -- and for this response
+        it collapses to a share split,
 
         .. math::
 
@@ -1282,10 +1285,14 @@ class Incrementality:
         separable by cohort, the counterfactual matrix reconciles by column,
         and the allocation is that matrix.  The allocation covers the fitted
         dates only: attributing a date past the data would need spend that has
-        not happened, so rows are the part of each period's effect the data can
-        show, and there is no ``observed=False`` tail.  The columns are
-        complete only when every spend period is a row; a narrower
-        ``start_date`` / ``end_date`` leaves out the other periods' shares.
+        not happened, so there is no ``observed=False`` tail.  Rows are the part
+        of each period's effect the data can show, and the ``complete``
+        coordinate on ``spend_date`` marks the ones that are the whole of it:
+        ``False`` for the last periods, whose carryover runs past the last
+        fitted date.  Reduce only ``complete`` rows to a current-vs-future
+        reading.  The columns add up to the contribution only when every spend
+        period is a row; a narrower ``start_date`` / ``end_date`` leaves out the
+        other periods' shares.
 
         The matrix is dense in ``realization_date``, so that columns line up
         across rows and ``sel`` works directly.  Reductions need care on two
@@ -1456,7 +1463,8 @@ class Incrementality:
         -------
         xr.DataArray
             As :meth:`split_incremental_contribution_over_time`, with
-            ``realization_date`` restricted to the fitted dates.
+            ``realization_date`` restricted to the fitted dates and a ``complete``
+            coordinate on ``spend_date``.
 
         Raises
         ------
@@ -1573,6 +1581,30 @@ class Incrementality:
             fitted = matrix.realization_date.values <= self.data.dates[-1]
             matrix = matrix.isel(realization_date=fitted)
 
+        # A row is complete when the period's carryover has all landed within
+        # the fitted dates.  The cells past them are not in the matrix, so
+        # ``observed`` cannot say so; without this a late period's row reads
+        # as a whole when it is the part the data shows.
+        tail_lags = (
+            increments.reach.max_lag
+            if increments.reach.max_lag is not None
+            else kernel_trailing_lags(self.model.adstock.l_max, mode)
+        )
+        complete = self._rows_complete(periods, self.data.dates, tail_lags)
+        matrix = matrix.assign_coords(
+            complete=complete[0]
+            if frequency == "all_time"
+            else ("spend_date", complete)
+        )
+        if not all(complete):
+            notes.append(
+                "Rows with complete=False are periods whose carryover runs past "
+                "the end of the fitted data.  Their entries are exact, but the "
+                "part landing after the last fitted date is not in the matrix, "
+                "so reducing them to current vs future value understates future "
+                "value."
+            )
+
         dim_order = ["chain", "draw", "spend_date", "realization_date", "channel"]
         if frequency == "all_time":
             dim_order.remove("spend_date")
@@ -1587,6 +1619,38 @@ class Incrementality:
             extra_assumptions={"allocation_rule": rule},
         )
         return matrix
+
+    @staticmethod
+    def _rows_complete(
+        periods: list[tuple[pd.Timestamp, pd.Timestamp]],
+        dates: pd.DatetimeIndex,
+        tail_lags: int,
+    ) -> list[bool]:
+        """Whether each period's carryover lands within the fitted dates.
+
+        Parameters
+        ----------
+        periods : list of tuple
+            ``(start, end)`` of each spend period.
+        dates : pd.DatetimeIndex
+            The fitted date axis.
+        tail_lags : int
+            Lags after a period's last spend date that its carryover reaches,
+            in data periods.
+
+        Returns
+        -------
+        list of bool
+            ``True`` where the period's last fitted spend date plus *tail_lags*
+            is still a fitted date; a period with no fitted date is ``False``.
+        """
+        complete = []
+        for start, end in periods:
+            spent = np.flatnonzero((dates >= start) & (dates <= end))
+            complete.append(
+                bool(len(spent) and spent[-1] + tail_lags <= len(dates) - 1)
+            )
+        return complete
 
     def _allocate_by_shares(
         self,
