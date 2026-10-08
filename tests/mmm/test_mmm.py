@@ -42,6 +42,7 @@ from pymc_marketing.mmm import (
     SoftPlusHSGP,
 )
 from pymc_marketing.mmm.additive_effect import (
+    ControlMuEffect,
     DataVarMuEffect,
     EventAdditiveEffect,
     LinearTrendEffect,
@@ -7404,3 +7405,154 @@ def test_fit_after_prior_predictive_with_target_does_not_warn(
         mmm.fit(X, y, chains=1, draws=10, tune=10, random_seed=42)
 
     assert not any("placeholder" in str(r.message) for r in records)
+
+
+class TestLegacyControlWiring:
+    """Controls route through the auto-inserted legacy ``ControlMuEffect``.
+
+    ``control_columns`` and ``model_config["gamma_control"]`` keep their
+    public API, while the graph construction is delegated to the
+    ``MuEffect`` protocol. The preserved graph names (``gamma_control``,
+    ``control_data``, ``control_contribution``) are load-bearing for
+    downstream consumers (idata schema, decomposition), so they are
+    asserted here.
+    """
+
+    @pytest.fixture
+    def data(self):
+        dates = pd.date_range("2024-01-07", periods=12, freq="W")
+        rng = np.random.default_rng(0)
+        X = pd.DataFrame(
+            {
+                "date": dates,
+                "x1": rng.uniform(size=12),
+                "x2": rng.uniform(size=12),
+                "price": rng.uniform(size=12),
+                "promo": rng.uniform(size=12),
+            }
+        )
+        y = pd.Series(rng.uniform(size=12), name="y")
+        return X, y
+
+    def _mmm(self, **kwargs):
+        return MMM(
+            date_column="date",
+            channel_columns=["x1", "x2"],
+            adstock=GeometricAdstock(l_max=2),
+            saturation=LogisticSaturation(),
+            control_columns=["price", "promo"],
+            **kwargs,
+        )
+
+    def test_graph_contract_preserved(self, data):
+        X, y = data
+        mmm = self._mmm()
+
+        legacy = [e for e in mmm.mu_effects if isinstance(e, ControlMuEffect)]
+        assert len(legacy) == 1
+
+        mmm.build_model(X, y)
+        for name in ("gamma_control", "control_data", "control_contribution"):
+            assert name in mmm.model.named_vars
+        assert set(mmm.model.named_vars_to_dims["gamma_control"]) == {"control"}
+        assert set(mmm.model.named_vars_to_dims["control_contribution"]) == {
+            "date",
+            "control",
+        }
+
+    def test_no_controls_no_effect(self, data):
+        X, y = data
+        mmm = MMM(
+            date_column="date",
+            channel_columns=["x1", "x2"],
+            adstock=GeometricAdstock(l_max=2),
+            saturation=LogisticSaturation(),
+        )
+        assert mmm.mu_effects == []
+
+        mmm.build_model(X[["date", "x1", "x2"]], y)
+        for name in ("gamma_control", "control_data", "control_contribution"):
+            assert name not in mmm.model.named_vars
+
+    def test_save_load_roundtrip_reinjects_effect(
+        self, data, tmp_path, mock_pymc_sample
+    ):
+        X, y = data
+        mmm = self._mmm()
+        mmm.fit(X, y)
+
+        # The legacy effect is derived state: it must not be serialized
+        # (its prior is shared with model_config, e.g. via R2D2), and is
+        # re-injected from model_config on load instead.
+        assert json.loads(mmm.idata.attrs["mu_effects"]) == []
+
+        file = str(tmp_path / "controls.nc")
+        mmm.save(file)
+        loaded = MMM.load(file)
+
+        assert len(loaded.mu_effects) == 1
+        assert isinstance(loaded.mu_effects[0], ControlMuEffect)
+        assert "control_contribution" in loaded.model.named_vars
+
+    def test_old_idata_without_mu_effects_reinjects_effect(
+        self, data, tmp_path, mock_pymc_sample
+    ):
+        """idata saved before the wiring carries no mu_effects entry."""
+        X, y = data
+        mmm = self._mmm()
+        mmm.fit(X, y)
+
+        file = str(tmp_path / "old_controls.nc")
+        mmm.save(file)
+        loaded = MMM.load(file)
+
+        # Simulate a pre-wiring save: drop the (already empty)
+        # mu_effects attribute the way older versions would have.
+        loaded.idata.attrs.pop("mu_effects", None)
+        loaded.build_from_idata(loaded.idata)
+
+        assert len(loaded.mu_effects) == 1
+        assert isinstance(loaded.mu_effects[0], ControlMuEffect)
+        assert "gamma_control" in loaded.model.named_vars
+        assert "control_contribution" in loaded.model.named_vars
+
+
+def test_user_control_effect_coexists_with_legacy_wiring():
+    dates = pd.date_range("2024-01-01", periods=10, freq="W")
+    rng = np.random.default_rng(1)
+    X = xr.Dataset(
+        {
+            "_channel": (("date", "channel"), rng.uniform(size=(10, 2))),
+            "_target": (("date",), rng.uniform(size=10)),
+            "_control": (("date", "control"), rng.uniform(size=(10, 2))),
+            "control_national": (("date",), rng.uniform(size=10)),
+        },
+        coords={
+            "date": dates,
+            "channel": ["C1", "C2"],
+            "control": ["c1", "c2"],
+        },
+    )
+    mmm = MMM(
+        date_column="date",
+        channel_columns=["C1", "C2"],
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+        control_columns=["c1", "c2"],
+    ).add_mu_effect(
+        ControlMuEffect(
+            data_vars=["control_national"],
+            prefix="national",
+        )
+    )
+    mmm.build_model(X)
+
+    for name in (
+        "gamma_control",
+        "control_data",
+        "control_contribution",
+        "national_control_national_coef",
+        "national_effect_contribution",
+    ):
+        assert name in mmm.model.named_vars
+    assert set(mmm.model.named_vars_to_dims["gamma_control"]) == {"control"}

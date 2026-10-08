@@ -210,6 +210,7 @@ from pymc_marketing.data.idata.utils import (
 from pymc_marketing.hsgp_kwargs import HSGPKwargs
 from pymc_marketing.mmm import SoftPlusHSGP
 from pymc_marketing.mmm.additive_effect import (
+    ControlMuEffect,
     EventAdditiveEffect,
     MuEffect,
     safe_to_datetime,
@@ -289,6 +290,56 @@ def _deserialize_cost_per_unit(json_str: str) -> pd.DataFrame:
         if hasattr(dt_accessor, "tz") and dt_accessor.tz is not None:
             df["date"] = dt_accessor.tz_localize(None)
     return df
+
+
+def _make_legacy_control_effect(gamma_control: Prior) -> ControlMuEffect:
+    """Build the ``ControlMuEffect`` that replaces MMM's inline control block.
+
+    Preserves the graph contract of the pre-MuEffect implementation: one
+    shared ``gamma_control`` prior over ``(*dims, "control")``, a
+    ``control_data`` ``pm.Data`` node sourced from the ``_control``
+    dataset variable, and an unsummed ``control_contribution``
+    Deterministic for decomposition and the idata schema.
+    """
+    return ControlMuEffect(
+        data_vars=["_control"],
+        prefix="control",
+        control_dim="control",
+        prior=deepcopy(gamma_control),
+        contribution_name="control_contribution",
+        coefficient_name="gamma_control",
+        data_node_names={"_control": "control_data"},
+    )
+
+
+def _has_non_legacy_effects(effects: list[MuEffect]) -> bool:
+    """Whether any registered effect is not the auto-inserted control effect.
+
+    Gates whose behavior must not change for plain control models (the
+    pre-MuEffect inline block made ``mu_effects`` logically empty for
+    them): the log-link multiplicative warning and the
+    ``total_response_original_scale`` registration.
+    """
+    return any(not _is_legacy_control_effect(effect) for effect in effects)
+
+
+def _is_legacy_control_effect(effect: MuEffect) -> bool:
+    """Whether ``effect`` is the MMM auto-inserted legacy control effect.
+
+    Matched structurally rather than by identity because the effect is
+    re-derived on load. The legacy effect is derived state (from
+    ``control_columns`` and ``model_config["gamma_control"]``), not
+    configuration, so it is excluded from ``create_idata_attrs``
+    serialization: re-serializing it would duplicate priors shared with
+    ``model_config`` (e.g. an R2D2 tree referenced by both
+    ``gamma_control`` and the likelihood) across two independent
+    deserialization passes, colliding on graph variable names.
+    """
+    return (
+        isinstance(effect, ControlMuEffect)
+        and effect.data_vars == ["_control"]
+        and effect.control_dim == "control"
+    )
 
 
 class _WindowLayout(NamedTuple):
@@ -677,6 +728,10 @@ class MMM(RegressionModelBuilder):
             )
 
         self.mu_effects: list[MuEffect] = []
+        if self.control_columns:
+            self.mu_effects.append(
+                _make_legacy_control_effect(self.model_config["gamma_control"])
+            )
         self._lift_test_calibrations: list[dict[str, Any]] = []
 
     def add_mu_effect(
@@ -1109,7 +1164,9 @@ class MMM(RegressionModelBuilder):
         attrs["outcome_node"] = json.dumps(getattr(self, "outcome_node", None))
 
         mu_effects_list = [
-            serialization.serialize(effect) for effect in self.mu_effects
+            serialization.serialize(effect)
+            for effect in self.mu_effects
+            if not _is_legacy_control_effect(effect)  # see _is_legacy_control_effect
         ]
         attrs["mu_effects"] = json.dumps(mu_effects_list)
 
@@ -1562,6 +1619,10 @@ class MMM(RegressionModelBuilder):
             )
 
         for mu_effect in self.mu_effects:
+            if _is_legacy_control_effect(mu_effect):
+                # The control contribution decomposes per control column in
+                # the dedicated branch above; do not also add the block.
+                continue
             var_name = mu_effect.contribution_var_name
             label = (
                 var_name[: -len("_contribution")]
@@ -2445,7 +2506,7 @@ class MMM(RegressionModelBuilder):
                 likelihood.validate_observed(self.xarray_dataset["_target"].values)
         LinkSpec.validate_likelihood_compatibility(self.link, likelihood)
 
-        if self.link == LinkFunction.LOG and self.mu_effects:
+        if self.link == LinkFunction.LOG and _has_non_legacy_effects(self.mu_effects):
             warnings.warn(
                 "With link='log', MuEffect components that are additive on "
                 "the linear predictor become multiplicative factors on y "
@@ -2603,20 +2664,9 @@ class MMM(RegressionModelBuilder):
             # Add other contributions and likelihood
             mu_var = intercept + channel_contribution.sum(dim="channel")
 
-            if self.control_columns is not None and len(self.control_columns) > 0:
-                gamma_control = self.model_config["gamma_control"].create_variable(
-                    name="gamma_control", xdist=True
-                )
-
-                control_data_ = pmd.Data("control_data", self.xarray_dataset._control)
-
-                control_contribution = pmd.Deterministic(
-                    "control_contribution",
-                    control_data_ * gamma_control,
-                )
-
-                mu_var += control_contribution.sum(dim="control")
-
+            # Controls are contributed by the auto-inserted ControlMuEffect
+            # (see `_make_legacy_control_effect`); any user-added
+            # ControlMuEffect at other grains lands in the same loop.
             if self.yearly_seasonality is not None:
                 dayofyear = pmd.Data(
                     "dayofyear",
@@ -2670,7 +2720,7 @@ class MMM(RegressionModelBuilder):
             # is invisible to it, and a budget optimized against it undervalues
             # whatever drives that effect. Registered only when the model has
             # effects, so plain media models keep their posterior unchanged.
-            if self.mu_effects:
+            if _has_non_legacy_effects(self.mu_effects):
                 self._link_spec.create_total_response_deterministic(
                     mu_var=mu_var,
                     target_scale=_target_scale,
@@ -4343,6 +4393,18 @@ class MMM(RegressionModelBuilder):
                 serialization.deserialize(effect_data, context=ctx)
                 for effect_data in mu_effects_data
             ]
+
+        # The legacy control effect is never serialized (see
+        # `_is_legacy_control_effect`), and idata saved before controls
+        # were routed through ControlMuEffect carries control_columns
+        # with no control entry at all. Re-inject so the rebuilt graph
+        # matches what build_model would create today.
+        if self.control_columns and not any(
+            _is_legacy_control_effect(effect) for effect in self.mu_effects
+        ):
+            self.mu_effects.insert(
+                0, _make_legacy_control_effect(self.model_config["gamma_control"])
+            )
 
         dataset = idata.fit_data.dataset.to_dataframe()
 
