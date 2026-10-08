@@ -69,6 +69,69 @@ class TimeSliceCrossValidationResult:
     mmm: MMMBuilder | None = None
 
 
+def _add_original_scale_predictions(idata: xr.DataTree, output_var: str) -> None:
+    """Ensure ``posterior_predictive`` holds the fold's predictive draws on the original scale.
+
+    The CV summaries and plots score ``{output_var}_original_scale``, which
+    must be ``{output_var} * target_scale``: the likelihood observes
+    ``target / target_scale`` under every link, so this product is the
+    original-scale posterior predictive draw regardless of link. The variable
+    is already present when the fold model registered the Deterministic
+    ``y * target_scale`` on the observed variable
+    (``add_original_scale_contribution_variable(var=["y"])``, identity link
+    only). Under the log link the model registers
+    ``y_original_scale = exp(mu) * target_scale`` instead, the LogNormal
+    median, which lives in ``posterior`` and is not a predictive draw, and the
+    name cannot be reused. In that case, or when the Deterministic was never
+    registered, the variable is derived here from the draws and the
+    ``target_scale`` the fold actually sampled with. When the draws or
+    ``target_scale`` are unavailable (a fold model that is not the library's
+    ``MMM``) a ``UserWarning`` names what is missing, since the CV summaries
+    and plots fail without the variable.
+
+    Parameters
+    ----------
+    idata : xr.DataTree
+        Fold inference data after ``sample_posterior_predictive(extend_idata=True)``.
+        Mutated in place.
+    output_var : str
+        Name of the model's observed variable (``MMM.output_var``).
+    """
+    name = f"{output_var}_original_scale"
+    pp = (
+        idata["posterior_predictive"].dataset
+        if "posterior_predictive" in idata.children
+        else None
+    )
+    if pp is not None and name in pp:
+        return
+
+    target_scale = None
+    if "posterior_predictive_constant_data" in idata.children:
+        target_scale = idata["posterior_predictive_constant_data"].dataset.get(
+            "target_scale"
+        )
+
+    if pp is None:
+        missing = "no posterior_predictive group"
+    elif output_var not in pp:
+        missing = f"no '{output_var}' draws in posterior_predictive"
+    elif target_scale is None:
+        missing = "no 'target_scale' in posterior_predictive_constant_data"
+    else:
+        draws = (pp[output_var] * target_scale).transpose(*pp[output_var].dims)
+        idata["posterior_predictive"] = pp.assign({name: draws})
+        return
+
+    warnings.warn(
+        f"Fold idata has no posterior_predictive['{name}'] and it cannot be "
+        f"derived ({missing}). cv.summary.predictions()/crps() and "
+        "cv.plot.predictions()/crps() require it.",
+        UserWarning,
+        stacklevel=2,
+    )
+
+
 class TimeSliceCrossValidator:
     """Time-Slice Cross Validator for Media Mix Models (MMM).
 
@@ -583,6 +646,10 @@ class TimeSliceCrossValidator:
             extend_idata=True,
             progressbar=False,
         )
+        if mmm.idata is not None:
+            _add_original_scale_predictions(
+                mmm.idata, output_var=getattr(mmm, "output_var", "y")
+            )
 
         return TimeSliceCrossValidationResult(
             X_train=X_train,
@@ -765,7 +832,10 @@ class TimeSliceCrossValidator:
         original_scale_vars : list of str, optional
             Contribution variables to register with
             ``add_original_scale_contribution_variable(var=...)`` on each
-            fold-local model after build and before fit.
+            fold-local model after build and before fit. ``"y"`` is not
+            needed for the CV summaries and plots: for every fold fitted with
+            the library's ``MMM`` the runner provides
+            ``posterior_predictive["y_original_scale"]`` itself (see Returns).
         df_lift_test : pd.DataFrame, optional
             Lift-test measurements to apply on each fold-local model.
             Rows are filtered leakage-safely per fold using
@@ -787,8 +857,16 @@ class TimeSliceCrossValidator:
         xr.DataTree
             Combined DataTree where each fold is concatenated along a new
             coordinate named 'cv'. Includes a 'cv_metadata' group with per-fold
-            train/test data. Returned when ``return_models`` is ``False``
-            (the default).
+            train/test data. For folds fitted with the library's ``MMM``,
+            ``posterior_predictive["y_original_scale"]`` holds the posterior
+            predictive draws of the target on the original scale
+            (``y * target_scale``) under both link functions; under
+            ``link="log"`` this differs from the fold's
+            ``posterior["y_original_scale"]``, which is the LogNormal median
+            ``exp(mu) * target_scale``. A fold model that does not provide
+            the draws or ``target_scale`` emits a ``UserWarning`` and the CV
+            summaries and plots are unavailable. Returned when
+            ``return_models`` is ``False`` (the default).
         tuple[xr.DataTree, list[MMMBuilder]]
             A tuple of the combined DataTree and a list of fitted MMM
             instances (one per fold). Returned when ``return_models`` is
