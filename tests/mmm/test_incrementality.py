@@ -32,6 +32,8 @@ from pymc_marketing.mmm import (
     GeometricAdstock,
     LogisticSaturation,
     LogSaturation,
+    NoSaturation,
+    RootSaturation,
 )
 from pymc_marketing.mmm import incrementality as incrementality_module
 from pymc_marketing.mmm.additive_effect import IncrementalitySpec
@@ -3656,14 +3658,14 @@ class TestSplitIncrementalContribution:
     @pytest.mark.parametrize(
         "kwargs, error",
         [
-            ({"estimand": "allocation"}, NotImplementedError),
             ({"method": "closed_form"}, NotImplementedError),
+            ({"estimand": "allocation", "method": "closed_form"}, NotImplementedError),
             ({"estimand": "shapley"}, ValueError),
             ({"method": "approximate"}, ValueError),
         ],
     )
     def test_unsupported_options_raise(self, simple_fitted_mmm, kwargs, error):
-        """Later PRs' options fail loudly rather than falling back."""
+        """Options for later PRs fail loudly rather than falling back."""
         with pytest.raises(error):
             simple_fitted_mmm.incrementality.split_incremental_contribution_over_time(
                 frequency="monthly", **kwargs
@@ -3964,6 +3966,298 @@ class TestSplitIncrementalContribution:
             simple_fitted_mmm.incrementality.split_incremental_contribution_current_future(
                 frequency=frequency, horizon=horizon
             )
+
+
+def _fit_with_saturation(data, saturation, **kwargs):
+    from tests.mmm.conftest import mock_fit
+
+    mmm = MMM(
+        channel_columns=["channel_1", "channel_2", "channel_3"],
+        date_column="date",
+        target_column="target",
+        control_columns=None,
+        saturation=saturation,
+        **kwargs,
+    )
+    mock_fit(mmm, data["X"], data["y"], random_seed=42)
+    return mmm
+
+
+class TestAllocationEstimand:
+    """``split_incremental_contribution_over_time(estimand="allocation")``.
+
+    Aumann-Shapley shares that reconcile with ``channel_contribution`` by
+    column; issue #2941, PR 2.
+    """
+
+    @staticmethod
+    def _allocation(mmm, **kwargs):
+        kwargs.setdefault("frequency", "original")
+        return mmm.incrementality.split_incremental_contribution_over_time(
+            estimand="allocation", **kwargs
+        )
+
+    @staticmethod
+    def _channel_contribution(mmm, like):
+        """The model's own ``channel_contribution`` in the matrix's layout."""
+        stored = mmm.idata.posterior.dataset["channel_contribution_original_scale"]
+        return stored.rename(date="realization_date").transpose(
+            "chain", "draw", "realization_date", ...
+        )
+
+    @pytest.mark.parametrize(
+        "model_fixture, frequency",
+        [
+            ("simple_fitted_mmm", "original"),
+            ("simple_fitted_mmm", "monthly"),
+            ("simple_fitted_mmm", "all_time"),
+            ("panel_fitted_mmm", "monthly"),
+            ("monthly_fitted_mmm", "original"),
+            ("time_varying_media_fitted_mmm", "original"),
+            ("time_varying_intercept_fitted_mmm", "monthly"),
+            ("adstock_last_fitted_mmm", "original"),
+            ("adstock_last_fitted_mmm", "monthly"),
+            ("adstock_last_fitted_mmm", "all_time"),
+        ],
+    )
+    def test_columns_reconcile_with_channel_contribution(
+        self, request, model_fixture, frequency
+    ):
+        """Summing over spend periods gives the model's contribution on each date."""
+        mmm = request.getfixturevalue(model_fixture)
+
+        matrix = self._allocation(mmm, frequency=frequency)
+        by_date = matrix.sum("spend_date") if "spend_date" in matrix.dims else matrix
+        expected = self._channel_contribution(mmm, matrix)
+
+        assert not matrix.isnull().any()
+        assert bool(matrix.coords["observed"].all())
+        xr.testing.assert_allclose(
+            by_date.drop_vars(
+                ["spend_date", "period_start", "observed"], errors="ignore"
+            ).transpose(*expected.dims),
+            expected,
+            rtol=1e-8,
+            atol=1e-8,
+        )
+        # So the grand total is the contribution over the fitted data.
+        np.testing.assert_allclose(
+            by_date.sum("realization_date").values,
+            expected.sum("realization_date").transpose(*by_date.dims[:2], ...).values,
+            rtol=1e-8,
+        )
+
+    @pytest.mark.parametrize("frequency", ["original", "monthly"])
+    @pytest.mark.parametrize(
+        "saturation",
+        [
+            pytest.param(NoSaturation(), id="NoSaturation"),
+            pytest.param(
+                RootSaturation(priors={"alpha": 1.0}), id="RootSaturation-alpha-1"
+            ),
+        ],
+    )
+    def test_matches_the_counterfactual_when_the_response_is_linear(
+        self, simple_mmm_data, saturation, frequency
+    ):
+        """Without saturation nothing is shared, so both estimands agree exactly."""
+        mmm = _fit_with_saturation(
+            simple_mmm_data, saturation, adstock=GeometricAdstock(l_max=4)
+        )
+        incr = mmm.incrementality
+
+        allocation = self._allocation(mmm, frequency=frequency)
+        counterfactual = incr.split_incremental_contribution_over_time(
+            frequency=frequency
+        ).sel(realization_date=allocation.realization_date)
+
+        assert float(abs(allocation).max()) > 0
+        xr.testing.assert_allclose(
+            allocation.drop_vars("observed"),
+            counterfactual.drop_vars("observed"),
+            rtol=1e-9,
+            atol=1e-9,
+        )
+
+    def test_concave_saturation_separates_the_estimands(self, simple_fitted_mmm):
+        """Counterfactual rows undershoot; the allocation is what adds up."""
+        incr = simple_fitted_mmm.incrementality
+        allocation = self._allocation(simple_fitted_mmm, frequency="monthly")
+        counterfactual = incr.split_incremental_contribution_over_time(
+            frequency="monthly"
+        ).sel(realization_date=allocation.realization_date)
+
+        assert float(counterfactual.sum()) < float(allocation.sum())
+        assert not np.allclose(allocation.values, counterfactual.values, rtol=1e-3)
+
+    def test_entries_are_shares_of_the_date_contribution(self, simple_fitted_mmm):
+        """Positive beta and spend give non-negative entries, none above their column."""
+        matrix = self._allocation(simple_fitted_mmm)
+        column = matrix.sum("spend_date")
+
+        assert float(matrix.min()) >= -1e-9
+        assert bool((matrix <= column + 1e-9).all())
+
+    def test_a_date_without_adstocked_spend_allocates_nothing(self, simple_mmm_data):
+        """No spend within the kernel's reach gives zeros, not NaN from 0 / 0."""
+        X = simple_mmm_data["X"].copy()
+        channels = ["channel_1", "channel_2", "channel_3"]
+        X.loc[X.index[:3], channels] = 0.0
+        mmm = _fit_with_saturation(
+            {"X": X, "y": simple_mmm_data["y"]},
+            LogisticSaturation(),
+            adstock=GeometricAdstock(l_max=2),
+        )
+
+        matrix = self._allocation(mmm)
+
+        assert not matrix.isnull().any()
+        assert float(abs(matrix.isel(realization_date=slice(0, 3))).max()) == 0.0
+
+    def test_rows_are_the_requested_periods_and_columns_the_fitted_dates(
+        self, simple_fitted_mmm
+    ):
+        """A narrower range picks rows only; the shares still use every cohort."""
+        full = self._allocation(simple_fitted_mmm, frequency="monthly")
+        dates = simple_fitted_mmm.incrementality.data.dates
+        narrow = self._allocation(
+            simple_fitted_mmm,
+            frequency="monthly",
+            start_date=pd.Timestamp(full.period_start.values[1]),
+            end_date=pd.Timestamp(full.spend_date.values[2]),
+        )
+
+        assert narrow.sizes["spend_date"] == 2
+        assert pd.DatetimeIndex(narrow.realization_date.values).equals(dates)
+        xr.testing.assert_allclose(
+            narrow,
+            full.isel(spend_date=slice(1, 3)),
+            rtol=1e-10,
+            atol=1e-10,
+        )
+
+    def test_labels_match_the_counterfactual_layout(self, simple_fitted_mmm):
+        """The rows carry the same ``spend_date`` and ``period_start`` labels."""
+        incr = simple_fitted_mmm.incrementality
+        allocation = self._allocation(simple_fitted_mmm, frequency="monthly")
+        counterfactual = incr.split_incremental_contribution_over_time(
+            frequency="monthly"
+        )
+
+        assert allocation.dims == counterfactual.dims
+        np.testing.assert_array_equal(
+            allocation.spend_date.values, counterfactual.spend_date.values
+        )
+        np.testing.assert_array_equal(
+            allocation.period_start.values, counterfactual.period_start.values
+        )
+
+    def test_all_time_drops_the_spend_axis_but_keeps_its_bounds(
+        self, simple_fitted_mmm
+    ):
+        matrix = self._allocation(simple_fitted_mmm, frequency="all_time")
+
+        assert "spend_date" not in matrix.dims
+        assert "spend_date" in matrix.coords
+        assert "period_start" in matrix.coords
+
+    def test_the_same_draws_feed_both_computations(self, simple_fitted_mmm):
+        """A subsample is drawn once, so columns still match the contribution."""
+        matrix = self._allocation(
+            simple_fitted_mmm, frequency="monthly", num_samples=7, random_state=3
+        )
+        again = self._allocation(
+            simple_fitted_mmm, frequency="monthly", num_samples=7, random_state=3
+        )
+        generator = self._allocation(
+            simple_fitted_mmm,
+            frequency="monthly",
+            num_samples=7,
+            random_state=np.random.default_rng(3),
+        )
+
+        assert matrix.sizes["draw"] == 7
+        xr.testing.assert_identical(matrix, again)
+        # Each draw's column is that draw's contribution, whichever draws they are.
+        stored = self._channel_contribution(simple_fitted_mmm, matrix)
+        flat = stored.stack(sample=("chain", "draw")).transpose(
+            "sample", "realization_date", "channel"
+        )
+        by_date = generator.sum("spend_date").stack(sample=("chain", "draw"))
+        by_date = by_date.transpose("sample", "realization_date", "channel")
+        for sample in by_date.values:
+            assert any(
+                np.allclose(sample, candidate, rtol=1e-8, atol=1e-8)
+                for candidate in flat.values
+            )
+
+    def test_attrs_describe_the_allocation(self, simple_fitted_mmm, tmp_path):
+        matrix = self._allocation(simple_fitted_mmm, frequency="monthly")
+        assumptions = json.loads(matrix.attrs["assumptions"])
+
+        assert matrix.attrs["estimand"] == "allocation"
+        assert matrix.attrs["method"] == "pipeline"
+        assert matrix.attrs["effective_horizon"] == simple_fitted_mmm.adstock.l_max - 1
+        assert assumptions["allocation_rule"] == "aumann_shapley_share"
+        assert any(
+            "fitted dates only" in n for n in json.loads(matrix.attrs["warnings"])
+        )
+
+        matrix.to_netcdf(tmp_path / "allocation.nc", engine="scipy")
+        with xr.open_dataarray(tmp_path / "allocation.nc", engine="scipy") as back:
+            assert back.attrs["assumptions"] == matrix.attrs["assumptions"]
+
+    def test_adstock_last_reports_the_separable_rule(self, adstock_last_fitted_mmm):
+        matrix = self._allocation(adstock_last_fitted_mmm)
+
+        assert (
+            json.loads(matrix.attrs["assumptions"])["allocation_rule"]
+            == "separable_cohorts"
+        )
+
+    def test_degenerate_adstock_is_diagonal(self, no_carryover_fitted_mmm):
+        """With no carryover each date's contribution belongs to its own spend."""
+        matrix = self._allocation(no_carryover_fitted_mmm)
+        diagonal = xr.DataArray(
+            np.eye(matrix.sizes["spend_date"], dtype=bool),
+            dims=("spend_date", "realization_date"),
+            coords={
+                "spend_date": matrix.spend_date,
+                "realization_date": matrix.realization_date,
+            },
+        )
+
+        assert float(abs(matrix.where(~diagonal)).max()) == 0.0
+        assert float(abs(matrix.where(diagonal)).max()) > 0.0
+
+    @pytest.mark.parametrize(
+        "model_fixture, error, match",
+        [
+            ("log_link_fitted_mmm", NotImplementedError, "identity"),
+            ("funnel_identity_fitted_mmm", NotImplementedError, "mu_effect"),
+            ("mixing_identity_fitted_mmm", NotImplementedError, "mixes"),
+        ],
+    )
+    def test_unsupported_models_raise_before_evaluating(
+        self, request, monkeypatch, model_fixture, error, match
+    ):
+        mmm = request.getfixturevalue(model_fixture)
+        TestSplitIncrementalContribution._evaluation_forbidden(monkeypatch)
+
+        with pytest.raises(error, match=match):
+            self._allocation(mmm, frequency="monthly")
+
+    def test_a_leading_kernel_raises_before_evaluating(
+        self, non_after_fitted_mmm, monkeypatch
+    ):
+        TestSplitIncrementalContribution._evaluation_forbidden(monkeypatch)
+
+        with pytest.raises(NotImplementedError, match=r"ConvMode\.After"):
+            self._allocation(non_after_fitted_mmm, frequency="monthly")
+
+    def test_a_spend_factor_other_than_zero_raises(self, simple_fitted_mmm):
+        with pytest.raises(ValueError, match="must be 0"):
+            self._allocation(simple_fitted_mmm, counterfactual_spend_factor=1.01)
 
 
 class TestKernelTrailingLags:
