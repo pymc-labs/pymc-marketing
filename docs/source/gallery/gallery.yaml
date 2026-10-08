@@ -123,6 +123,8 @@ sections:
             notebook: mmm/mmm_case_study
           - title: "MMM Case Study II: Funnel-Aware Modeling, ROAS Calibration, and Budget Planning"
             notebook: mmm/mmm_case_study2
+          - title: "MMM Case Study III: Multiplicative Funnel Model, Channel Synergies, and Prior Sensitivity"
+            notebook: mmm/mmm_case_study3
           - title: Integrating Foundational Time Series Models with PyMC-Marketing MMM
             notebook: mmm/mmm_chronos
   - title: Customer Lifetime Value (CLV) Models
