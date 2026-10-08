@@ -237,6 +237,7 @@ from pymc_marketing.mmm.lift_test import (
     add_cost_per_target_observations,
     add_lift_measurements_to_likelihood_from_saturation,
     scale_lift_measurements,
+    validate_cost_per_target_rows,
 )
 from pymc_marketing.mmm.link import (
     BASELINE_PART,
@@ -3997,6 +3998,28 @@ class MMM(RegressionModelBuilder):
 
         return self
 
+    def _channel_incremental_contribution(self) -> XTensorVariable:
+        """Return the per-channel increment, registering it on first use.
+
+        Registered under :attr:`LinkSpec.channel_increment_var`: the identity
+        link reuses ``channel_contribution_original_scale``, which is the same
+        tensor, while the log link registers ``channel_incremental_contribution``
+        on the median scale.  Later calibrations share the node.
+        """
+        name = self._link_spec.channel_increment_var
+        if name in self.model.named_vars:
+            return self.model[name]
+
+        with self.model:
+            return pmd.Deterministic(
+                name,
+                self._link_spec.channel_incremental_contribution(
+                    mu_var=self.model["mu"],
+                    channel_contribution=self.model["channel_contribution"],
+                    target_scale=self.model["target_scale"],
+                ).transpose("date", ...),
+            )
+
     def add_cost_per_target_calibration(
         self: Self,
         data: pd.DataFrame,
@@ -4005,8 +4028,9 @@ class MMM(RegressionModelBuilder):
         *,
         target_column: str = "cost_per_target",
         target_per_cost: bool = False,
+        central_tendency: Literal["median", "mean"] = "mean",
     ) -> Self:
-        """Calibrate cost-per-target (or ROAS) using an observed Normal likelihood.
+        r"""Calibrate cost-per-target (or ROAS) using an observed Normal likelihood.
 
         By default this computes cost-per-target as
         ``mean(spend) / mean(contribution)`` over the date dimension and adds
@@ -4023,9 +4047,48 @@ class MMM(RegressionModelBuilder):
         the period; averaging per-date ratios would estimate a different
         quantity.
 
-        Calibration requires the identity link. Under ``link='log'``, an
-        individual channel contribution cannot be converted to a level change
-        without the baseline.
+        The model side of the ratio is the per-channel level change on the
+        original scale of the target: the response with the channel's term in
+        the linear predictor minus the response without it,
+        :math:`\Delta_{t,c} = s\,(\text{inv}(\mu_t) - \text{inv}(\mu_t - m_{t,c}))`
+        with target scale :math:`s`.  It is registered on first use and shared
+        by later calibrations:
+
+        * ``link="identity"``: :math:`\Delta_{t,c} = s\,m_{t,c}`, the tensor
+          :meth:`add_original_scale_contribution_variable` registers as
+          ``channel_contribution_original_scale`` (reused when present).
+        * ``link="log"``: :math:`\Delta_{t,c} = s\,(e^{\mu_t} - e^{\mu_t - m_{t,c}})`,
+          registered as ``channel_incremental_contribution`` on the
+          conditional-median scale, like every other original-scale node under
+          this link.  ``channel_contribution_original_scale`` is not used: under
+          the log link it is the factor :math:`s\,e^{m_{t,c}}`, not a level
+          change.
+
+        For a channel that no ``mu_effect`` reads, the calibrated ratio equals
+        ``mmm.incrementality.contribution_over_spend(frequency="all_time",
+        central_tendency=central_tendency)`` draw for draw, wherever that method
+        accepts the scale (it refuses ``"mean"`` under the identity link with a
+        ``TruncatedNormal`` likelihood, where this calibration uses the
+        latent-mean change; see ``central_tendency``).  Three properties of that
+        ratio to match against the calibration values:
+
+        * **Full window.** ``data`` covers the model's dates, so the ratio
+          averages over the whole fitted window, while an experiment run over
+          part of it (a peak quarter, say) measures that part.  Under the log
+          link :math:`\Delta_{t,c}` scales with the baseline :math:`e^{\mu_t}`,
+          so seasonality moves a window's ratio away from the full-window one
+          more than under the identity link.
+        * **One channel at a time.** Under the log link the per-channel
+          increments do not add up to ``total_media_contribution_original_scale``,
+          which removes every channel at once: for non-negative contributions
+          :math:`\sum_c (1 - e^{-m_c}) \ge 1 - e^{-\sum_c m_c}`.  Do not
+          calibrate per-channel values obtained by splitting a total-media
+          figure.
+        * **Direct path.** Under both links the ratio is the channel's direct
+          path.  A channel whose spend also feeds a ``mu_effect`` (a funnel
+          mediator, for example) moves the response through that effect as
+          well, and an experiment on it measures both paths; calibrate
+          direct-only channels, or read the value as a direct-path ratio.
 
         Parameters
         ----------
@@ -4051,6 +4114,43 @@ class MMM(RegressionModelBuilder):
             If ``False`` (default), calibrate ``mean(spend) / mean(contribution)``
             (cost-per-target). If ``True``, calibrate
             ``mean(contribution) / mean(spend)`` (target-per-cost, e.g. ROAS).
+        central_tendency : {"mean", "median"}, default ``"mean"``
+            Scale of the calibration values.  ``"mean"`` is the scale of an
+            experiment, which estimates the expected realized change in the
+            response, :math:`E[y \mid \text{spend}] - E[y \mid \text{no spend}]`.
+            Under the log link that is the median-scale :math:`\Delta` times
+            :math:`e^{\sigma^2/2}`, taken per cell of the likelihood scale
+            (per ``dims`` cell by default) inside the date average: a factor of
+            1.03 at :math:`\sigma = 0.25`, 1.13 at 0.5 and 1.32 at 0.75.
+            ``"median"`` drops the factor and matches the default scale of
+            :meth:`~pymc_marketing.mmm.incrementality.Incrementality.contribution_over_spend`,
+            but no experiment measures that scale.
+            Under the identity link :math:`\Delta` is the same on both scales
+            for every likelihood whose mean is ``mu`` (the default ``Normal``);
+            under ``TruncatedNormal`` it leaves out the change in the
+            truncation offset, as :meth:`compute_counterfactual_contributions_dataset`
+            does.
+
+        Raises
+        ------
+        RuntimeError
+            If the model has not been built.
+        KeyError
+            If ``calibration_data`` lacks a required column (``channel``,
+            ``sigma``, ``target_column``, or one per model dim).
+        UnalignedValuesError
+            If a ``channel`` or dim label in ``calibration_data`` is not a
+            model coordinate
+            (:class:`~pymc_marketing.mmm.lift_test.UnalignedValuesError`).
+        ValueError
+            If ``central_tendency`` is not ``"mean"`` or ``"median"``, if a
+            calibration value or ``sigma`` is not numeric, if the spend
+            coordinates do not match the model's, or if
+            ``central_tendency="mean"`` under the log link and the likelihood
+            scale is fixed rather than a model variable.
+
+        Every error is raised before the increment node is registered, so a
+        refused call leaves the model unchanged.
 
         Examples
         --------
@@ -4101,12 +4201,9 @@ class MMM(RegressionModelBuilder):
         """
         if not hasattr(self, "model"):
             raise RuntimeError("Model must be built before adding calibration.")
-
-        if self.link == LinkFunction.LOG:
-            raise NotImplementedError(
-                "Cost-per-target calibration is not supported with link='log': "
-                "individual channel contributions do not represent level "
-                "changes without the baseline."
+        if central_tendency not in ("median", "mean"):
+            raise ValueError(
+                f"central_tendency must be 'median' or 'mean', got {central_tendency!r}"
             )
 
         # Check for existing potentials with the same name_prefix
@@ -4129,6 +4226,12 @@ class MMM(RegressionModelBuilder):
                 raise KeyError(
                     f"The {dim} column is required in calibration_data to map to model dims."
                 )
+        # The checks add_cost_per_target_observations makes (sigma column,
+        # channel and dim labels, numeric values), run here first so a bad
+        # table is refused before the increment node is registered.
+        validate_cost_per_target_rows(
+            calibration_data, self.model, target_column=target_column
+        )
 
         channel_data_dims = self.model.named_vars_to_dims["channel_data"]
 
@@ -4155,19 +4258,22 @@ class MMM(RegressionModelBuilder):
                     f"expected {model_labels.tolist()}, got {spend_labels.tolist()}"
                 )
 
-        with self.model:
-            if "channel_contribution_original_scale" not in self.model.named_vars:
-                raise ValueError(
-                    "`channel_contribution_original_scale` is not in the model."
-                    "Please, add the original scale contribution variable using the method "
-                    "`add_original_scale_contribution_variable` before adding the cost-per-target calibration."
-                )
+        # Built before the increment is registered, so a model that cannot give
+        # the mean scale fails without changing the graph.
+        mean_ratio = (
+            self._link_spec.mean_ratio_tensor(self.model, self.output_var)
+            if central_tendency == "mean"
+            else None
+        )
+        target_value = self._channel_incremental_contribution()
+        if mean_ratio is not None:
+            target_value = target_value * mean_ratio
 
         add_cost_per_target_observations(
             calibration_df=calibration_data,
             model=self.model,
             cost_value=as_xtensor(spend_xarray),
-            target_value=self.model["channel_contribution_original_scale"],
+            target_value=target_value,
             target_column=target_column,
             name_prefix=name_prefix,
             target_per_cost=target_per_cost,

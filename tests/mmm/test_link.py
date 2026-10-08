@@ -325,6 +325,66 @@ class TestLinkSpec:
                 LinkFunction.LOG, Prior("Normal", sigma=1)
             )
 
+    @staticmethod
+    def _increment_inputs():
+        from pytensor.xtensor import as_xtensor
+
+        rng = np.random.default_rng(7)
+        mu = rng.normal(0, 0.5, size=(5, 2))
+        contribution = rng.uniform(0.01, 0.3, size=(5, 2, 3))
+        contribution[0, 0, 0] = 1e-12
+        scale = np.array([100.0, 250.0])
+        return (
+            (mu, contribution, scale),
+            (
+                as_xtensor(mu, dims=("date", "geo")),
+                as_xtensor(contribution, dims=("date", "geo", "channel")),
+                as_xtensor(scale, dims=("geo",)),
+            ),
+        )
+
+    def test_identity_channel_increment_is_scaled_contribution(self):
+        (_, contribution, scale), tensors = self._increment_inputs()
+        out = IdentityLinkSpec().channel_incremental_contribution(*tensors)
+        assert out.dims == ("date", "geo", "channel")
+        np.testing.assert_allclose(out.eval(), contribution * scale[None, :, None])
+
+    def test_log_channel_increment_is_counterfactual_level_change(self):
+        """s(exp(mu) - exp(mu - m_c)), accurate where m_c is tiny."""
+        (mu, contribution, scale), tensors = self._increment_inputs()
+        out = LogLinkSpec().channel_incremental_contribution(*tensors)
+        assert out.dims == ("date", "geo", "channel")
+        expected = scale[None, :, None] * (
+            np.exp(mu)[:, :, None] - np.exp(mu[:, :, None] - contribution)
+        )
+        values = out.eval()
+        np.testing.assert_allclose(values[1:], expected[1:], rtol=1e-12)
+        # First-order limit s * exp(mu) * m_c, which the literal difference
+        # exp(mu) - exp(mu - m_c) only reproduces to ~1e-4 at m_c = 1e-12.
+        np.testing.assert_allclose(
+            values[0, 0, 0], scale[0] * np.exp(mu[0, 0]) * 1e-12, rtol=1e-9
+        )
+
+    def test_mean_ratio_tensor_is_lognormal_factor_with_sigma_dims(self):
+        """Identity: no factor. Log: exp(sigma**2 / 2) carrying y_sigma's dims."""
+        with pm.Model(coords={"geo": ["a", "b"]}) as model:
+            sigma = pmd.HalfNormal("y_sigma", sigma=0.5, dims=("geo",))
+
+        assert IdentityLinkSpec().mean_ratio_tensor(model) is None
+
+        factor = LogLinkSpec().mean_ratio_tensor(model)
+        assert factor.dims == ("geo",)
+        values = np.array([0.25, 0.5])
+        np.testing.assert_allclose(
+            factor.eval({sigma: values}), np.exp(values**2 / 2), rtol=1e-12
+        )
+
+    def test_log_mean_ratio_tensor_needs_sigma_variable(self):
+        with pm.Model() as model:
+            pmd.Normal("other", dims=())
+        with pytest.raises(ValueError, match="central_tendency='median'"):
+            LogLinkSpec().mean_ratio_tensor(model)
+
 
 class TestLogSaturation:
     """Targeted tests for LogSaturation beyond the auto-discovered parametrized suite."""

@@ -25,7 +25,7 @@ import numbers
 import warnings
 from abc import ABC, abstractmethod
 from enum import StrEnum
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import pymc.dims as pmd
@@ -35,6 +35,9 @@ from pytensor.xtensor import math as ptxm
 from pytensor.xtensor.type import XTensorVariable
 from scipy.special import erfcx
 from scipy.stats import truncnorm
+
+if TYPE_CHECKING:
+    import pymc as pm
 
 
 class LinkFunction(StrEnum):
@@ -329,7 +332,7 @@ _SUPPORT_CHECKS = {
 class LinkSpec(ABC):
     """Strategy object that centralises all link-dependent behaviour.
 
-    Subclasses implement the five link-specific decisions:
+    Subclasses implement the six link-specific decisions:
 
     * :meth:`inverse_link` -- map the linear predictor to the response scale.
     * :meth:`default_likelihood` -- default likelihood prior.
@@ -337,14 +340,24 @@ class LinkSpec(ABC):
     * :meth:`validate_target` -- fit-time target checks.
     * :meth:`create_media_contribution_deterministic` -- graph for
       ``total_media_contribution_original_scale``.
+    * :meth:`channel_incremental_contribution` -- the per-channel level change
+      a cost-per-target calibration constrains, registered under
+      :attr:`channel_increment_var`.
 
     One concrete helper is shared by all links:
     :meth:`create_total_response_deterministic` (the mu-effect objective
     ``total_response_original_scale``, registered by ``MMM.build_model`` only
-    when the model has mu effects).
+    when the model has mu effects).  :meth:`mean_ratio_tensor` is concrete too:
+    it returns ``None`` unless the link overrides it.
     """
 
     link: LinkFunction
+
+    #: Name of the Deterministic holding :meth:`channel_incremental_contribution`.
+    #: A name ending in ``_original_scale`` is rebuilt on load with
+    #: ``MMM.add_original_scale_contribution_variable``, so only a link whose
+    #: increment *is* that transform of a model variable may use one.
+    channel_increment_var: str
 
     @abstractmethod
     def inverse_link(self, mu: XTensorVariable) -> XTensorVariable:
@@ -403,6 +416,90 @@ class LinkSpec(ABC):
         link, ``{output_var}_original_scale``) as :func:`pmd.Deterministic`
         nodes.
         """
+
+    @abstractmethod
+    def channel_incremental_contribution(
+        self,
+        mu_var: XTensorVariable,
+        channel_contribution: XTensorVariable,
+        target_scale: XTensorVariable,
+    ) -> XTensorVariable:
+        r"""Per-channel, per-date level change from removing that channel's term.
+
+        The change in the response (original scale) at date :math:`t` when
+        channel :math:`c`'s term :math:`m_{t,c}` is dropped from the linear
+        predictor, every other term held fixed:
+
+        .. math::
+
+            \Delta_{t,c} = \text{inv}(\mu_t) - \text{inv}(\mu_t - m_{t,c})
+
+        on the ``target_scale``.  For a channel whose spend reaches the
+        response only through ``channel_contribution`` -- no ``mu_effect``
+        reads its spend -- dropping its term is the same as setting its spend
+        to zero over the fitted window, so :math:`\sum_t \Delta_{t,c}` is the
+        all-time spend counterfactual of
+        :class:`~pymc_marketing.mmm.incrementality.Incrementality`, and it is
+        what :meth:`~pymc_marketing.mmm.mmm.MMM.add_cost_per_target_calibration`
+        constrains.
+
+        :math:`\text{inv}(\mu)` is the conditional **median** of the response
+        (the mean too, under the identity link with a ``Normal`` likelihood);
+        :meth:`mean_ratio_tensor` is the factor to the conditional mean.
+
+        Parameters
+        ----------
+        mu_var : XTensorVariable
+            The finalized linear predictor, carrying ``date`` and ``dims`` in
+            any order (``MMM.build_model`` transposes it to ``("date", *dims)``
+            under the log link only).
+        channel_contribution : XTensorVariable
+            The per-channel term of the linear predictor, dims
+            ``("date", *dims, "channel")``.
+        target_scale : XTensorVariable
+            The target scaling factor.
+
+        Returns
+        -------
+        XTensorVariable
+            The increment, dims ``("date", *dims, "channel")``, on the
+            original scale of the target.
+        """
+
+    def mean_ratio_tensor(
+        self,
+        model: pm.Model,
+        output_var: str = "y",
+    ) -> XTensorVariable | None:
+        """Graph counterpart of :meth:`_mean_ratio` for a channel increment.
+
+        The factor taking :meth:`channel_incremental_contribution` from the
+        median to the conditional-mean scale, built from *model*'s own
+        likelihood parameters so that it can enter a likelihood term (a
+        cost-per-target calibration) rather than post-process a posterior.
+
+        ``None`` by default, meaning the increment is the same on both scales.
+        That holds for the identity link with every likelihood whose mean is
+        ``mu``.  Under ``TruncatedNormal`` the mean also moves through the
+        truncation offset, which is not a factor; like
+        ``MMM.compute_counterfactual_contributions_dataset``, the increment
+        leaves that offset out.
+
+        Parameters
+        ----------
+        model : pm.Model
+            The model whose likelihood parameters the factor is built from.
+        output_var : str, default ``"y"``
+            Name of the observed variable, used to locate the likelihood
+            parameters in *model*.
+
+        Returns
+        -------
+        XTensorVariable or None
+            The factor, with the dims of the likelihood parameters it is built
+            from, or ``None`` when the link needs none.
+        """
+        return None
 
     def create_total_response_deterministic(
         self,
@@ -811,6 +908,10 @@ class IdentityLinkSpec(LinkSpec):
     """Identity link: ``E[y] = mu * target_scale``."""
 
     link = LinkFunction.IDENTITY
+    # The increment is channel_contribution * target_scale, exactly what
+    # add_original_scale_contribution_variable registers under this name, so
+    # the two share one node and the name is rebuilt on load.
+    channel_increment_var = "channel_contribution_original_scale"
 
     def inverse_link(self, mu: XTensorVariable) -> XTensorVariable:
         """Return *mu* unchanged (identity transform)."""
@@ -851,6 +952,21 @@ class IdentityLinkSpec(LinkSpec):
             "total_media_contribution_original_scale",
             (channel_contribution.sum(dim="date") * target_scale).sum(),
         )
+
+    def channel_incremental_contribution(
+        self,
+        mu_var: XTensorVariable,
+        channel_contribution: XTensorVariable,
+        target_scale: XTensorVariable,
+    ) -> XTensorVariable:
+        """Return ``channel_contribution * target_scale``.
+
+        Under the identity link the base term cancels in the difference, so the
+        increment is the contribution itself -- the same tensor
+        ``add_original_scale_contribution_variable(["channel_contribution"])``
+        registers as ``channel_contribution_original_scale``.
+        """
+        return channel_contribution * target_scale
 
     def to_mean_scale(
         self,
@@ -1149,6 +1265,10 @@ class LogLinkSpec(LinkSpec):
     """
 
     link = LinkFunction.LOG
+    # No _original_scale suffix: under this link that suffix means
+    # exp(variable) * target_scale, and there is no variable whose transform
+    # the increment is, so build_from_idata could not rebuild it.
+    channel_increment_var = "channel_incremental_contribution"
 
     def inverse_link(self, mu: XTensorVariable) -> XTensorVariable:
         """Return ``exp(mu)`` (the conditional median of the LogNormal response)."""
@@ -1225,6 +1345,29 @@ class LogLinkSpec(LinkSpec):
             y_hat.transpose("date", ...),
         )
 
+    def channel_incremental_contribution(
+        self,
+        mu_var: XTensorVariable,
+        channel_contribution: XTensorVariable,
+        target_scale: XTensorVariable,
+    ) -> XTensorVariable:
+        r"""Return ``target_scale * exp(mu) * (1 - exp(-channel_contribution))``.
+
+        This is :math:`s\,(e^{\mu_t} - e^{\mu_t - m_{t,c}})`, the median-scale
+        response with channel *c*'s factor removed, written with ``expm1`` so a
+        small :math:`m_{t,c}` does not cancel.  The baseline :math:`s\,e^{\mu_t}`
+        enters as a weight: a dollar in a strong week moves more of the
+        response than a dollar in a weak one, which is a property of the
+        multiplicative model, not of this formula.
+
+        It is on the **median** scale, like every other original-scale node
+        the log link registers.  The conditional-mean increment is this times
+        :meth:`mean_ratio_tensor`, :math:`\exp(\sigma^2 / 2)`, which carries the
+        dims of the likelihood scale (``dims`` by default), so it moves each
+        cell's ratio by that cell's factor rather than every ratio by one.
+        """
+        return -ptxm.expm1(-channel_contribution) * ptxm.exp(mu_var) * target_scale
+
     def to_mean_scale(
         self,
         dataset: xr.Dataset,
@@ -1274,6 +1417,45 @@ class LogLinkSpec(LinkSpec):
                 f"prior. Use central_tendency='median' or give sigma a prior."
             )
         return np.exp(posterior[sigma_name] ** 2 / 2)
+
+    def mean_ratio_tensor(
+        self,
+        model: pm.Model,
+        output_var: str = "y",
+    ) -> XTensorVariable | None:
+        r"""Return ``exp(sigma**2 / 2)`` built from *model*'s likelihood scale.
+
+        The graph counterpart of :meth:`_mean_ratio`, with the same
+        requirement: the scale has to be a model variable,
+        ``f"{output_var}_sigma"``.
+
+        Parameters
+        ----------
+        model : pm.Model
+            The model holding the likelihood scale.
+        output_var : str, default ``"y"``
+            Name of the observed variable.
+
+        Returns
+        -------
+        XTensorVariable
+            The factor, with the dims of the likelihood scale.
+
+        Raises
+        ------
+        ValueError
+            If ``f"{output_var}_sigma"`` is not a variable of *model* (e.g. a
+            fixed-sigma likelihood).
+        """
+        sigma_name = f"{output_var}_sigma"
+        if sigma_name not in model.named_vars:
+            raise ValueError(
+                f"A mean-scale increment requires the likelihood scale "
+                f"'{sigma_name}' as a model variable, which was not found. This "
+                f"happens when the LogNormal sigma is fixed rather than given a "
+                f"prior. Use central_tendency='median' or give sigma a prior."
+            )
+        return ptxm.exp(model[sigma_name] ** 2 / 2)
 
 
 LINK_SPECS: dict[LinkFunction, type[LinkSpec]] = {
