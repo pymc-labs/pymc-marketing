@@ -876,6 +876,21 @@ class Incrementality:
             additive in the channels; see
             :meth:`compute_joint_incremental_contribution`.
 
+            **End of the data**: with ``include_carryover=True`` and
+            ``ConvMode.After``, a period's increment is summed only up to the
+            last fitted date, which leaves out the carryover the data does not
+            show: that of the last periods, and with the default ``end_date``
+            that of the ``"all_time"`` period.
+            Their numbers are then lower bounds on the periods' effects, not
+            totals, provided more spend never lowers the response on a later
+            date (as with the library's adstocks and saturations and
+            non-negative coefficients, under either link) and the periods were
+            evaluated on a window, the usual case (see ``assumptions`` in
+            :meth:`split_incremental_contribution_over_time`).  The shortfall
+            grows with the spend late in the data;
+            :meth:`split_incremental_contribution_current_future` flags those
+            periods with ``complete=False``.
+
         Raises
         ------
         ValueError
@@ -1102,9 +1117,10 @@ class Incrementality:
 
         holds to floating-point tolerance, for both links and either
         ``adstock_first``.  Rows are the carryover-inclusive value of a period's
-        spend; reading a column instead (what landed on a date, from all earlier
-        spend) is a different estimand when the response mixes cohorts, which is
-        what ``estimand="allocation"`` will provide.
+        spend, up to the last fitted date (see Notes); reading a column instead
+        (what landed on a date, from all earlier spend) is a different estimand
+        when the response mixes cohorts, which is what ``estimand="allocation"``
+        will provide.
 
         In particular, the entries do not add up to ``channel_contribution``
         when saturation follows adstock (``adstock_first=True``, the default).
@@ -1246,7 +1262,13 @@ class Incrementality:
         need it, for example ``A.observed.all("spend_date")``.  Row sums are the
         one deliberate exception: ``A.sum("realization_date")`` with the default
         ``skipna`` adds up the observed part of each period's effect, which is
-        what :meth:`compute_incremental_contribution` reports.
+        what :meth:`compute_incremental_contribution` reports.  For a row with
+        ``observed=False`` cells, that sum is a lower bound on the period's
+        effect, not its total, under the conditions given in
+        :meth:`compute_incremental_contribution`: ``ConvMode.After``, a
+        windowed evaluation (``assumptions["evaluation"] == "window"``), and a
+        response that more spend never lowers on a later date.  Pass
+        ``skipna=False`` to get ``NaN`` for those rows instead.
 
         At ``frequency="original"`` the matrix's size is
         ``n_samples x n_dates x (n_dates + effective_horizon) x n_channels``;
@@ -1266,7 +1288,8 @@ class Incrementality:
             A = mmm.incrementality.split_incremental_contribution_over_time(
                 frequency="monthly", num_samples=500, random_state=0
             )
-            # Reconciles with today's per-period incrementality:
+            # Reconciles with today's per-period incrementality, and like it is
+            # a lower bound for the last periods (see Notes):
             A.sum("realization_date")
             # Increments landing on each date, NaN where the data cannot show
             # it.  With adstock_first=True (the default) this is not the
@@ -1326,11 +1349,20 @@ class Incrementality:
         matrix = self._carryover_band_to_matrix(increments, frequency=frequency)
 
         if not bool(matrix.coords["observed"].all()):
-            notes.append(
+            note = (
                 "Some periods' carryover runs past the end of the fitted data; "
                 "those entries are NaN with observed=False, and the row sums "
-                "count only the part the data covers."
+                "count only the part the data covers"
             )
+            # Only a forward-only kernel on a measured window keeps the observed
+            # cells independent of what comes after the data, so that the
+            # skipped tail is all a row sum misses.
+            if mode == ConvMode.After and not increments.reach.requires_full_axis:
+                note += (
+                    ", a lower bound on those periods' effect whenever more "
+                    "spend never lowers the response on a later date"
+                )
+            notes.append(note + ".")
 
         dim_order = ["chain", "draw", "spend_date", "realization_date", "channel"]
         if frequency == "all_time":
@@ -1365,7 +1397,10 @@ class Incrementality:
         *Current* is what a period's spend produced on the dates of that same
         reporting period, *future* is the carryover that lands afterwards.  The
         two add up to :meth:`compute_incremental_contribution` wherever the
-        carryover window is fully observed.  The numbers are those of
+        carryover window is fully observed.  Elsewhere ``future`` is ``NaN``,
+        while :meth:`compute_incremental_contribution` counts only the observed
+        part, a lower bound on the period's effect when more spend never lowers
+        the response on a later date.  The numbers are those of
         :meth:`split_incremental_contribution_over_time` reduced over
         ``realization_date``, but they are reduced one period's band at a time,
         so the dense matrix is never built.
