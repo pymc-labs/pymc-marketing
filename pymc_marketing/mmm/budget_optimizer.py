@@ -281,6 +281,10 @@ DEFAULT_RESPONSE_VARIABLE = "total_media_contribution_original_scale"
 alone. A model whose response also travels through a ``MuEffect`` wants
 ``"total_response_original_scale"`` instead."""
 
+MMM_CHANNEL_DATA_VAR = "channel_data"
+"""The node ``MMM`` fits its channels on, and the only one its historical
+``cost_per_unit`` table (``idata.attrs["cost_per_unit"]``) vouches for."""
+
 # Delayed import inside methods to avoid circular dependency on pytensor_utils
 
 
@@ -363,14 +367,18 @@ class BudgetOptimizationResult:
     implied_delivery : xarray.DataArray or None
         Units the allocation buys per period and cell, over ``(date_dim, *budget_dims)``,
         when a ``price_response`` was passed (identity included); ``None`` otherwise. In
-        the delivery units the money buys, per period, before ``channel_scales`` -- the
+        the delivery units the money buys, per period, before ``channel_scales``. The
         model node receives ``implied_delivery / channel_scales``, which coincides for an
-        ``MMM`` (its scales are 1). To score the plan's posterior response
-        use :meth:`BudgetOptimizer.evaluate_response_distribution`, which runs the same
+        ``MMM`` (its scales are 1). To score the plan's posterior response, use
+        :meth:`BudgetOptimizer.evaluate_response_distribution`, which runs the same
         graph the solver used, price map included. The deprecated
-        ``sample_response_distribution`` takes a date-less allocation and broadcasts it
-        over the window, so it needs ``implied_delivery.mean(date_dim)`` and is exact
-        only under a uniform ``budget_distribution_over_period``. ``0.0`` at zero spend.
+        ``sample_response_distribution`` repeats one date-less allocation over the
+        window, so ``implied_delivery.mean(date_dim)`` passed on its own matches the
+        solver's delivery only when delivery is constant over the window: the
+        optimizer's ``budget_distribution_over_period`` is uniform and
+        ``cost_per_unit`` does not vary by date. By default it also adds input noise
+        and starts from a cold adstock, so it approximates the response rather than
+        reproducing it. ``0.0`` at zero spend.
     implied_price : xarray.DataArray or None
         Average money paid per delivered unit, per period and cell. ``nan`` wherever no
         money was spent -- a masked-out cell, a channel the bounds hold at zero, a cell
@@ -1603,12 +1611,11 @@ class BudgetOptimizer(BaseModel):
             "spend_var); say constant with PowerPriceResponse(elasticity=0.0). A bare object or a "
             "partial dict then raises, because a spend variable left at a constant price while media "
             "is not competes for the same pot on different terms, silently. Curved responses on "
-            "channel_data_var are checked against the fitted model's historical cost_per_unit table "
-            "per channel they bend (see PowerPriceResponse for the precondition and the opt-out). A "
-            "curved response on a "
-            "spend variable needs assume_delivery_units=True -- there is no fitted price artifact for "
-            "a node that is not channel data, so nothing can vouch for it -- and an explicit "
-            "reference_spend, since nothing can derive one. Results carry implied_delivery, "
+            "MMM's channel_data node are checked against the fitted model's historical cost_per_unit "
+            "table per channel they bend (see PowerPriceResponse for the precondition and the opt-out). "
+            "That table vouches for that node only, so a curved response on a spend variable, or on a "
+            "custom channel_data_var, needs assume_delivery_units=True and an explicit reference_spend, "
+            "since nothing can vouch for its units or derive its reference. Results carry implied_delivery, "
             "implied_price and implied_marginal_price for the media variable; a spend variable's "
             "report is available through optimization_variables.variables[i].delivery_report(x_slice)."
         ),
@@ -2537,34 +2544,37 @@ class BudgetOptimizer(BaseModel):
         the same attestation an unvouched channel does, and then its own reference,
         since there is nothing to derive one from. A spend variable has no mask, so
         the declaration's own :attr:`~PriceResponse.adds_curvature` is exact for it.
+        A custom ``channel_data_var`` is gated the same way in
+        :meth:`_media_price_reference`.
         """
         if name == self.channel_data_var:
             return self._media_price_reference(response)
         if not response.adds_curvature:
             return None
-        self._require_spend_var_attestation(name, response)
-        if response.needs_derived_reference:
-            raise ValueError(
-                f"{name}: price_response: reference_spend is required for a spend variable -- "
-                "there is no fitted cost_per_unit artifact to derive the level at which its base "
-                "price applies. Pass reference_spend as per-period money over the variable's dims."
-            )
+        self._require_node_attestation(name, response, "a spend variable")
         return None
 
     @staticmethod
-    def _require_spend_var_attestation(name: str, response: PriceResponse) -> None:
-        """Refuse a curved response on a spend variable without the explicit opt-in."""
-        if response.attests_delivery_units:
-            return
-        raise ValueError(
-            f"{name}: price_response bends the price of a spend variable, but there is no historical "
-            "cost_per_unit table for a node that is not channel data, so the fitted model cannot say "
-            "whether it was fitted on delivery units. A node fitted on nominal money has already absorbed "
-            "the price curvature into its response curve, and a curved map on top would bend it twice. "
-            "If its data are in delivery units, or in spend deflated to constant prices, pass "
-            "assume_delivery_units=True together with a reference_spend (per-period money over the "
-            "variable's dims)."
-        )
+    def _require_node_attestation(
+        name: str, response: PriceResponse, what: str
+    ) -> None:
+        """Refuse a curved response on a node no historical table vouches for, unless attested with a reference."""
+        if not response.attests_delivery_units:
+            raise ValueError(
+                f"{name}: price_response bends the price of {what}, but there is no historical "
+                f"cost_per_unit table for a node other than MMM's {MMM_CHANNEL_DATA_VAR!r}, so the fitted "
+                "model cannot say whether it was fitted on delivery units. A node fitted on nominal money has "
+                "already absorbed the price curvature into its response curve, and a curved map on top would "
+                "bend it twice. If its data are in delivery units, or in spend deflated to constant prices, "
+                "pass assume_delivery_units=True together with a reference_spend (per-period money over the "
+                "variable's dims)."
+            )
+        if response.needs_derived_reference:
+            raise ValueError(
+                f"{name}: price_response: reference_spend is required for {what}: no fitted "
+                "cost_per_unit artifact describes it, so nothing can derive the level at which its base "
+                "price applies. Pass reference_spend as per-period money over the variable's dims."
+            )
 
     def _priced_channels(self) -> set[str] | None:
         """Channels the fitted model's historical cost_per_unit table prices, or ``None`` without a table.
@@ -2599,7 +2609,9 @@ class BudgetOptimizer(BaseModel):
         gate reads :meth:`PriceResponse.curved_cells` before anything is resolved,
         so a refusal names its cause rather than the reference spend it implies is
         missing. Channels the table prices keep their derived reference when others
-        are attested.
+        are attested. The table is written for ``MMM_CHANNEL_DATA_VAR`` only, so a
+        custom ``channel_data_var`` is not vouched for by it and needs the opt-out
+        and a reference, as a spend variable does.
         """
         curved = response.curved_cells(
             dims=tuple(self._budget_dims),
@@ -2609,6 +2621,13 @@ class BudgetOptimizer(BaseModel):
             label=f"{self.channel_data_var}: price_response",
         )
         if not curved.any():
+            return None
+        if self.channel_data_var != MMM_CHANNEL_DATA_VAR:
+            # The table is written for MMM's own node; a custom node that shares its
+            # channel labels is not tied to it, so it is vouched for like a spend variable.
+            self._require_node_attestation(
+                self.channel_data_var, response, "a custom channel_data_var node"
+            )
             return None
         priced = self._priced_channels()
         no_table = " (no usable historical cost_per_unit table on the fitted model)"

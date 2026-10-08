@@ -209,6 +209,24 @@ class TestResolvedPowerPriceResponse:
             np.testing.assert_allclose(jax_backend(s), c_backend(s), rtol=1e-12)
             assert np.all(np.isfinite(jax_backend(s)))
 
+    @pytest.mark.parametrize("mode", [None, "JAX"], ids=["c", "jax"])
+    def test_marginal_price_gradient_is_finite_on_every_cell(
+        self, resolved, spend, base_price, mode
+    ):
+        """The contract asks implied_marginal_price for a finite gradient as well. A flat cell
+        has no floor, so at zero money (and below it, clipped to zero) its power branch
+        differentiated 0 ** 0 and gave nan; its ratio is 1 at any spend, so its gradient is 0."""
+        if mode == "JAX":
+            pytest.importorskip("jax")
+        marginal = resolved.implied_marginal_price(spend, base_price)
+        objective = rewrite_graph(marginal.sum().values, include=LOWER)
+        gradient = function([spend], pt.grad(objective, spend), mode=mode)
+
+        for s in (np.zeros(3), np.full(3, -1.0), resolved.s_floor, np.full(3, 50.0)):
+            at_s = gradient(s)
+            assert np.all(np.isfinite(at_s)), s
+            assert at_s[0] == 0.0
+
     @pytest.mark.parametrize("gamma", [1e-6, 5e-3, 1e-2])
     def test_small_elasticity_keeps_the_floor_positive_and_the_gradient_finite(
         self, gamma
@@ -395,6 +413,20 @@ class TestPowerPriceResponseValidation:
                 **layout(dims=("geo", "channel"), coords=clashing),
                 derived_reference=None,
             )
+
+    def test_mapping_keys_match_non_string_labels_by_their_string_form(self):
+        """Channel labels need not be strings. A dict is matched the way the fitted cost_per_unit
+        table is, by string form, so an integer key and its string both name the integer label;
+        two keys naming one label are refused rather than one of them silently winning."""
+        coords = {"channel": [1, 2, 3]}
+        reference = derived([50.0, 50.0, 50.0], coords=coords)
+        for elasticity in ({1: 0.3}, {"1": 0.3}):
+            resolved = PowerPriceResponse(
+                elasticity=elasticity, reference_spend=reference
+            ).resolve(**layout(coords=coords), derived_reference=None)
+            np.testing.assert_array_equal(resolved.gamma, [0.3, 0.0, 0.0])
+        with pytest.raises(ValidationError, match="same label more than once"):
+            PowerPriceResponse(elasticity={1: 0.3, "1": 0.2})
 
     def test_dataarray_elasticity_with_a_date_dim_is_rejected(self):
         e = xr.DataArray(

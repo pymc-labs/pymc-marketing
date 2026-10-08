@@ -41,7 +41,7 @@ import numpy as np
 import pytensor.tensor as pt
 import pytensor.xtensor as ptx
 from pymc import Model
-from pytensor import function
+from pytensor import In, function
 from pytensor.xtensor import as_xtensor
 from pytensor.xtensor.type import XTensorVariable
 from xarray import DataArray
@@ -705,8 +705,10 @@ class MediaVariable(OptimizationVariable):
             response.implied_price(money, base_price=p0),
             response.implied_marginal_price(money, base_price=p0),
         ]
+        # The input follows floatX, like the solver's decision vector, while a
+        # solution comes back from scipy in float64: let it downcast.
         return function(
-            [z],
+            [In(z, allow_downcast=True)],
             [out.transpose(self.date_dim, *self.dims) for out in outputs],
             **(self.compile_kwargs or {}),
         )

@@ -1104,6 +1104,40 @@ class TestPriceResponseGate:
         )
         assert resolved.reference_spend[2] > 2.5 * all_weeks
 
+    def test_a_trailing_reference_anchors_a_grown_channel_at_recent_buying(
+        self, simple_fitted_mmm
+    ):
+        """The derived default averages the whole fit, which lags a channel whose spend has
+        grown. The docstring's recipe, the on-air mean of a trailing window, overrides it on
+        that channel alone and passes the tolerance guard; the others keep the default."""
+        mmm = simple_fitted_mmm
+        recent_periods = 4
+
+        # channel_1 spends three times as much over the last recent_periods periods.
+        data = mmm.idata.constant_data["channel_data"]
+        n_dates = data.sizes["date"]
+        growth = xr.DataArray(
+            np.r_[np.ones(n_dates - recent_periods), np.full(recent_periods, 3.0)],
+            dims=("date",),
+        )
+        data.loc[{"channel": "channel_1"}] = data.sel(channel="channel_1") * growth
+        mmm.set_cost_per_unit(_full_table(mmm, dict.fromkeys(CHANNELS_3, 2.0)))
+
+        spend = mmm.idata.constant_data["channel_spend"].isel(
+            date=slice(-recent_periods, None)
+        )
+        recent = spend.where(spend > 0).mean("date").sel(channel=["channel_1"])
+        optimizer = _optimizer(
+            mmm,
+            price_response=PowerPriceResponse(elasticity=0.3, reference_spend=recent),
+        )
+        resolved = optimizer.optimization_variables.variables[0].price_response
+        whole_fit = _on_air_reference(mmm).sel(channel=CHANNELS_3).values
+
+        np.testing.assert_allclose(resolved.reference_spend[0], recent.values[0])
+        assert resolved.reference_spend[0] > 1.5 * whole_fit[0]
+        np.testing.assert_allclose(resolved.reference_spend[1:], whole_fit[1:])
+
     def test_optimized_cell_with_no_on_air_history_is_refused(self, simple_fitted_mmm):
         mmm = simple_fitted_mmm
         _flight(mmm, "channel_3", on_every=0)

@@ -15,6 +15,7 @@ import numpy as np
 import pandas as pd
 import pymc as pm
 import pymc.dims as pmd
+import pytensor
 import pytensor.tensor as pt
 import pytensor.xtensor as ptx
 import pytest
@@ -957,9 +958,10 @@ def test_identity_price_response_builds_the_constant_price_graph_bitwise():
 
 
 def test_concentrated_distribution_buys_less_delivery_than_uniform():
-    """Jensen: a strictly concave map delivers less for the same total when spend is
-    concentrated. This is the behaviour change gamma > 0 introduces for existing users
-    of budget_distribution_over_period, and it vanishes at gamma = 0."""
+    """Jensen: at one base price for every period, a strictly concave map delivers less for
+    the same total when spend is concentrated. This is the behavior change gamma > 0
+    introduces for existing users of budget_distribution_over_period, and it vanishes at
+    gamma = 0."""
     x = np.array([80.0, 80.0, 80.0])
     for gamma, comparison in ((0.3, np.less), (0.0, np.isclose)):
         uniform = (
@@ -975,11 +977,35 @@ def test_concentrated_distribution_buys_less_delivery_than_uniform():
         assert np.all(comparison(concentrated.values, uniform.values)), gamma
 
 
+def test_a_date_varying_base_price_can_reward_concentrated_spend():
+    """The comparison above needs one base price for every period. When the first period
+    is four times cheaper, concentrating the money there buys more delivery, and so clears
+    lower on average, with or without curvature."""
+    x = np.array([80.0, 80.0, 80.0])
+    cpu = np.array([[1.0] * 3, [4.0] * 3, [4.0] * 3, [4.0] * 3])
+
+    for gamma in (0.3, 0.0):
+        uniform = (
+            _priced_variable(elasticity=gamma, cost_per_unit=cpu)
+            .delivery_report(x)["implied_delivery"]
+            .sum("date")
+        )
+        concentrated = (
+            _priced_variable(
+                elasticity=gamma, cost_per_unit=cpu, distribution=CONCENTRATED
+            )
+            .delivery_report(x)["implied_delivery"]
+            .sum("date")
+        )
+        assert np.all(concentrated.values > uniform.values), gamma
+
+
 def test_window_length_moves_the_price_only_through_the_per_period_rate():
-    """total_budget and result.budgets are per-period money, so the same per-period plan
-    clears at the same price over any window. Holding the *window* total fixed instead, a
-    shorter window spends more per period, and a strictly concave map makes it clear
-    higher and buy less in total; at gamma = 0 the window length changes nothing."""
+    """total_budget and result.budgets are per-period money, so at a constant base price
+    the same per-period plan clears at the same price over any window. Holding the
+    *window* total fixed instead, a shorter window spends more per period, and a strictly
+    concave map makes it clear higher and buy less in total; at gamma = 0 the window
+    length changes nothing."""
     per_period = np.array([150.0, 150.0, 150.0])
     prices = [
         _priced_variable(elasticity=0.3, num_periods=periods)
@@ -1052,6 +1078,27 @@ def test_delivery_report_compiles_with_the_optimizer_compile_kwargs():
     assert (
         type(default._delivery_report_fn.maker.mode.linker).__name__ != "PerformLinker"
     )
+
+
+def test_delivery_report_input_follows_floatx():
+    """The report's input follows floatX, like the solver's decision vector, while a
+    solution comes back from scipy in float64; under float32 the slice was cast to float64
+    and refused. The report compiles on its first call, so that call runs under float32."""
+    x = np.array([50.0, 60.0, 70.0])
+    expected = _priced_variable(elasticity=0.3).delivery_report(x)
+
+    with pytensor.config.change_flags(floatX="float32"):
+        variable = _priced_variable(elasticity=0.3)
+        reports = [
+            variable.delivery_report(x),
+            variable.delivery_report(x.astype("float32")),
+        ]
+
+    report_input = variable._delivery_report_fn.maker.fgraph.inputs[0]
+    assert report_input.type.dtype == "float32"
+    for report in reports:
+        for name, values in report.items():
+            np.testing.assert_allclose(values, expected[name], rtol=1e-5)
 
 
 def test_the_node_receives_implied_delivery_over_channel_scales():

@@ -47,7 +47,14 @@ from typing import Self
 import numpy as np
 import pytensor.tensor as pt
 import pytensor.xtensor as ptx
-from pydantic import BaseModel, ConfigDict, Field, InstanceOf, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    InstanceOf,
+    field_validator,
+    model_validator,
+)
 from pytensor.xtensor import as_xtensor
 from pytensor.xtensor.type import XTensorVariable
 from xarray import DataArray
@@ -273,7 +280,10 @@ class ResolvedPowerPriceResponse(ResolvedPriceResponse):
     ) -> XTensorVariable:
         """Money the next delivered unit costs at ``spend``: ``p / (1 - gamma)`` above the floor."""
         above, s_power, s_quad = self._branches(spend)
-        power = (s_power / self._reference) ** self._gamma / (1.0 - self._gamma)
+        # A flat cell has no floor, so s_power reaches 0 and the gradient of 0 ** 0 is nan;
+        # its ratio is 1 at any spend, so it gets a base of 1 and a zero gradient.
+        relative = ptx.math.where(self._gamma > 0.0, s_power / self._reference, 1.0)
+        power = relative**self._gamma / (1.0 - self._gamma)
         quadratic = 1.0 / (self._a + 2.0 * self._b * s_quad)
         ratio = ptx.math.where(above, power, quadratic)
         return ratio if base_price is None else ratio * base_price
@@ -379,7 +389,7 @@ class PriceResponse(BaseModel, ABC):
             Per-period money per cell read off the fitted artifact by the optimizer, in the units of
             ``result.budgets``; ``nan`` on cells it cannot vouch for (a channel the historical ``cost_per_unit``
             table does not price, a cell never on air). ``None`` when there is nothing to read (a spend variable,
-            a model with no table).
+            a custom ``channel_data_var``, a model with no table).
         label : str
             Prefix for error messages, naming the variable.
         num_periods : int or None
@@ -444,21 +454,26 @@ class PowerPriceResponse(PriceResponse):
     ----------
     elasticity : float, dict[str, float] or xarray.DataArray
         :math:`\gamma` per cell in ``[0, 1)``. A float applies everywhere. A dict maps coordinate labels of
-        exactly one budget dim (usually channels) to values; labels not named default to ``0.0``. A ``DataArray``
-        over a subset of the budget dims is aligned to the model's coordinates. It may not carry the date dim:
-        a date-varying ``cost_per_unit`` already covers seasonal price *level*, and seasonal price
-        *sensitivity* is not supported.
+        exactly one budget dim (usually channels) to values; labels not named default to ``0.0``. Keys are
+        matched to labels by their string form, as the fitted ``cost_per_unit`` table's columns are, so
+        ``{1: 0.3}`` and ``{"1": 0.3}`` both name channel ``1``. A ``DataArray`` over a subset of the budget
+        dims is aligned to the model's coordinates. It may not carry the date dim: a date-varying
+        ``cost_per_unit`` already covers seasonal price *level*, and seasonal price *sensitivity* is not
+        supported.
     reference_spend : xarray.DataArray or None
         Where :math:`p_0` applies: **per-period money per cell, in the units of** ``result.budgets`` **and**
         ``total_budget``, carrying every budget dim. Default ``None`` derives it from the fitted model as the
         mean of ``constant_data["channel_spend"]`` over the periods each cell was on air (``spend > 0``), so a
         flighted channel is anchored at the level it actually bought at. Only channels the historical
         ``cost_per_unit`` table prices get a derived value: an unpriced channel's ``channel_spend`` is its
-        units, not money. A supplied value overrides the default cell by cell: its labels may be partial, cells
-        it leaves out (absent labels or ``nan``) keep the derived one, and the cells it gives are checked
-        against it where it exists (see ``reference_spend_tolerance``). It must cover every curved cell with no
-        derived value: every cell of a spend variable, and the channels an attested model's table does not
-        price.
+        units, not money. As :math:`p_0` applies here, anchor it at the spend the window ``cost_per_unit`` was
+        quoted at: for a channel whose spend trended over the fit, the whole-fit mean lags today's level, and
+        the on-air mean of a trailing window anchors at recent buying (see Examples). A supplied value
+        overrides the default cell by cell: its labels may be partial, cells it leaves out (absent labels or
+        ``nan``) keep the derived one, and the cells it gives are checked against it where it exists (see
+        ``reference_spend_tolerance``). It must cover every curved cell with no derived value: every cell of a
+        spend variable or of a custom ``channel_data_var``, and the channels an attested model's table does
+        not price.
     max_slope_ratio : float
         Cap on :math:`u'(0) / u'(s^{\text{ref}})`, the spread of marginal returns the solver can meet on one
         cell. Sets the floor :math:`s_f / s^{\text{ref}} = \max\big((M (1-\gamma)/(1+\gamma))^{-1/\gamma},\;
@@ -482,11 +497,12 @@ class PowerPriceResponse(PriceResponse):
         Attest that the node's data are in delivery units (or in spend deflated to constant prices) even
         though no historical ``cost_per_unit`` table prices them. Required, together with a ``reference_spend``
         covering those cells, to bend the price on channels the fitted artifact cannot vouch for and on every
-        spend variable, which has no such artifact. Channels the table does price keep their derived reference
-        alongside the attested ones, and a cell left at ``elasticity=0`` needs no vouching, since its money
-        passes through unbent. Default ``False``: the optimizer then refuses, because a saturation curve fitted
-        on nominal spend has already absorbed part of the price curvature and a concave price map on top would
-        bend it twice (see :attr:`PriceResponse.adds_curvature`).
+        spend variable or custom ``channel_data_var``, which the table does not describe. Channels the table
+        does price keep their derived reference alongside the attested ones, and a cell left at
+        ``elasticity=0`` needs no vouching, since its money passes through unbent. Default ``False``: the
+        optimizer then refuses, because a saturation curve fitted on nominal spend has already absorbed part of
+        the price curvature and a concave price map on top would bend it twice (see
+        :attr:`PriceResponse.adds_curvature`).
 
     Notes
     -----
@@ -494,7 +510,8 @@ class PowerPriceResponse(PriceResponse):
     optimizer checks each channel the response bends against the historical ``cost_per_unit`` table on the
     fitted model (written by :meth:`~pymc_marketing.mmm.mmm.MMM.set_cost_per_unit` or ``MMM(cost_per_unit=...)``)
     and refuses the unpriced ones unless ``assume_delivery_units=True`` and a ``reference_spend`` covering them
-    are given; channels left at ``elasticity=0`` need no vouching.
+    are given; channels left at ``elasticity=0`` need no vouching. The table describes the ``channel_data``
+    node of ``MMM`` only, so a custom ``channel_data_var`` needs the opt-out, as a spend variable does.
     The ``cost_per_unit`` passed to the *optimizer* is independent of that table and proves nothing about the
     fit. A merged model (:func:`~pymc_marketing.mmm.budget_optimizer.merge_inference_data`) carries no root
     attrs and always needs the opt-out.
@@ -515,11 +532,14 @@ class PowerPriceResponse(PriceResponse):
     a window ``cost_per_unit`` the base price is 1 and money reaches the model as units, which the optimizer
     warns about.
 
-    **Behaviour change with** :math:`\gamma > 0`. The delivery map is strictly concave, so at equal total
-    spend a non-uniform ``budget_distribution_over_period`` buys less delivery than a uniform one:
-    concentrated buying clears higher. The same holds across windows: for a given per-period plan the window
-    length does not move the price, but holding the *window* total fixed, a shorter window spends more per
-    period and clears higher.
+    **Behavior change with** :math:`\gamma > 0`. Above the floor each period's price rises with that period's
+    money alone, :math:`p_t / p_{0,t} = (s_t / s^{\text{ref}})^{\gamma}`, so concentrated buying clears higher
+    relative to the base price. At a base price that is the same in every period, a non-uniform
+    ``budget_distribution_over_period`` therefore buys less delivery than a uniform one at equal total spend.
+    With a date-varying ``cost_per_unit`` this need not hold: moving money into the cheaper periods can buy
+    more and clear lower on average. Across windows, a given per-period plan pays the same price relative to
+    the base price whatever the window length. Holding the *window* total fixed, a shorter window spends more
+    per period and pays more relative to its base price.
 
     **Volume discounts are out of scope.** :math:`\gamma` models bid-up on the incremental money of this plan.
     A negotiated or contract discount belongs in the base price, ``cost_per_unit``. A price that falls with
@@ -537,9 +557,14 @@ class PowerPriceResponse(PriceResponse):
     **Reading the result.** ``result.implied_delivery`` is per-period delivery before ``channel_scales``.
     Score a plan with
     :meth:`~pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.evaluate_response_distribution`, which runs
-    the same graph the solver used, price map included; the deprecated ``sample_response_distribution`` takes
-    a date-less allocation, so feed it ``implied_delivery.mean(date_dim)``, exact only under a uniform
-    ``budget_distribution_over_period``. Above the floor
+    the same graph the solver used, price map included. The deprecated ``sample_response_distribution``
+    repeats one date-less allocation over the window, so ``implied_delivery.mean(date_dim)`` passed on its
+    own matches the delivery the solver used only when that delivery is constant over the window: the
+    optimizer's ``budget_distribution_over_period`` is uniform and ``cost_per_unit`` does not vary by date.
+    Uniform spend alone is not enough, because a date-varying base price buys different units on different
+    dates, and averaging them before adstock and saturation changes the response. By default that method
+    also adds input noise and starts from a cold adstock, so it approximates the solver's response rather
+    than reproducing it. Above the floor
     ``implied_marginal_price / implied_price == 1 / (1 - elasticity)``.
 
     **The price report is sparse.** Both price arrays are ``nan`` wherever no money was spent, including
@@ -564,6 +589,18 @@ class PowerPriceResponse(PriceResponse):
         )
         result = optimizer.allocate_budget(total_budget=weekly_budget)
         result.budgets, result.implied_price, result.implied_marginal_price
+
+    Anchor the base price at recent buying instead of the whole fit, here the last 13 weekly periods (a
+    quarter), on the priced channels the response bends. A cell off air in that window is ``nan`` and keeps
+    the derived default:
+
+    .. code-block:: python
+
+        spend = mmm.idata.constant_data["channel_spend"].isel(date=slice(-13, None))
+        recent = spend.where(spend > 0).mean("date").sel(channel=["tv", "display"])
+        price_response = PowerPriceResponse(
+            elasticity={"tv": 0.25, "display": 0.10}, reference_spend=recent
+        )
     """
 
     elasticity: float | dict[str, float] | InstanceOf[DataArray] = 0.0
@@ -572,7 +609,8 @@ class PowerPriceResponse(PriceResponse):
         description=(
             "Per-period money per cell at which the base price applies, carrying every budget dim; the units "
             "of result.budgets and total_budget. None derives it from the fitted model for the channels its "
-            "historical cost_per_unit table prices (the on-air mean of constant_data['channel_spend']). A "
+            "historical cost_per_unit table prices on MMM's channel_data node (the on-air mean of "
+            "constant_data['channel_spend']). A "
             "supplied value overrides that default cell by cell: its labels may be partial, cells it leaves "
             "out (absent or nan) keep the default, "
             "and the cells it gives are guarded against it by reference_spend_tolerance."
@@ -596,6 +634,25 @@ class PowerPriceResponse(PriceResponse):
         if isinstance(e, Mapping):
             return np.asarray(list(e.values()), dtype="float64")
         return np.asarray([e], dtype="float64")
+
+    @field_validator("elasticity", mode="before")
+    @classmethod
+    def _key_by_label_string(cls, value: object) -> object:
+        """Key a dict elasticity by the string form of each label, so non-string labels can be named.
+
+        Channel labels need not be strings (``channel=[1, 2]``), JSON object keys are strings, and the gate
+        compares the fitted ``cost_per_unit`` table's columns by their string form; matching on ``str`` serves
+        all three.
+        """
+        if not isinstance(value, Mapping):
+            return value
+        keyed = {str(key): v for key, v in value.items()}
+        if len(keyed) != len(value):
+            raise ValueError(
+                f"PowerPriceResponse: elasticity keys {list(value)} name the same label more than once: "
+                "keys are matched to coordinate labels by their string form."
+            )
+        return keyed
 
     @model_validator(mode="after")
     def _check_domain(self) -> Self:
@@ -814,15 +871,15 @@ class PowerPriceResponse(PriceResponse):
 
     @staticmethod
     def _elasticity_from_mapping(
-        e: Mapping, template: DataArray, label: str
+        e: Mapping[str, float], template: DataArray, label: str
     ) -> DataArray:
-        """Spread labelled values along the one budget dim that owns every key."""
+        """Spread labeled values along the one budget dim that owns every key, matching labels as strings."""
         dims = template.dims
         if not e:
             return template.copy()
         keys = set(e)
         labels = {d: template.coords[d].values.tolist() for d in dims}
-        owners = [d for d in dims if keys <= set(labels[d])]
+        owners = [d for d in dims if keys <= {str(lbl) for lbl in labels[d]}]
         if len(owners) != 1:
             where = "none matches" if not owners else f"they match {owners}"
             raise ValueError(
@@ -831,7 +888,7 @@ class PowerPriceResponse(PriceResponse):
             )
         dim = owners[0]
         values = DataArray(
-            [float(e.get(lbl, 0.0)) for lbl in labels[dim]],
+            [float(e.get(str(lbl), 0.0)) for lbl in labels[dim]],
             dims=(dim,),
             coords={dim: labels[dim]},
         )

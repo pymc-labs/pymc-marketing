@@ -2072,12 +2072,12 @@ def test_price_gate_names_a_missing_channel_dim_rather_than_a_missing_table():
     assert "['media']" in str(info.value)
 
 
-def _channel_model(channels, n_dates=6):
-    """A ``(date, channel)`` channel_data node feeding the default response; prior draws stand in for the posterior."""
+def _channel_model(channels, n_dates=6, node="channel_data"):
+    """A ``(date, channel)`` data node feeding the default response; prior draws stand in for the posterior."""
     with pm.Model(coords={"channel": channels}) as model:
         model.add_coord("date", length=n_dates)
         channel_data = pmd.Data(
-            "channel_data", np.ones((n_dates, len(channels))), dims=("date", "channel")
+            node, np.ones((n_dates, len(channels))), dims=("date", "channel")
         )
         beta = pmd.Normal("beta", 1.0, 0.1, dims="channel")
         pmd.Deterministic(
@@ -2194,9 +2194,10 @@ def test_inference_data_root_attrs_reach_the_price_gate():
 
 
 def test_price_gate_matches_non_string_channel_labels_against_the_table():
-    """The table's JSON columns and the model's channel coords are compared as strings, so
-    integer labels priced by the table are vouched for and an unpriced one is still named.
-    The vouched run then stops at the missing channel_spend, the true state of this idata."""
+    """The table's JSON columns, the model's channel coords and a dict elasticity's keys are
+    compared as strings, so integer labels priced by the table are vouched for and an unpriced
+    one is still named. The vouched run then stops at the missing channel_spend, the true state
+    of this idata."""
     from pymc_marketing.mmm import PowerPriceResponse
 
     model, posterior = _channel_model([1, 2])
@@ -2215,12 +2216,97 @@ def test_price_gate_matches_non_string_channel_labels_against_the_table():
     with pytest.raises(ValueError, match="fitted on nominal spend") as info:
         build(0.3)
     assert "channels ['2']" in str(info.value)
+    with pytest.raises(ValueError, match="fitted on nominal spend") as info:
+        build({2: 0.3})
+    assert "channels ['2']" in str(info.value)
     only_priced = xr.DataArray(
         [0.3, 0.0], dims=("channel",), coords={"channel": [1, 2]}
     )
-    with pytest.raises(ValueError, match="channel_spend") as info:
-        build(only_priced)
-    assert "fitted on nominal spend" not in str(info.value)
+    for elasticity in (only_priced, {1: 0.3}, {"1": 0.3}):
+        with pytest.raises(ValueError, match="channel_spend") as info:
+            build(elasticity)
+        assert "fitted on nominal spend" not in str(info.value)
+
+
+def test_price_gate_does_not_let_the_table_vouch_for_a_custom_node():
+    """MMM writes the historical cost_per_unit table for its channel_data node. A custom
+    channel_data_var that shares its channel labels is not tied to it, so a curved response
+    there needs the attestation and then a reference, as a spend variable does. A flat
+    response bends nothing and passes without either."""
+    from pymc_marketing.mmm import PowerPriceResponse
+
+    model, posterior = _channel_model(["a", "b"], node="media_spend")
+    idata = xr.DataTree.from_dict({"posterior": posterior})
+    idata.attrs["cost_per_unit"] = _split_json_table({"a": 2.0, "b": 3.0})
+
+    def build(response):
+        return BudgetOptimizer(
+            model=model,
+            idata=idata,
+            num_periods=4,
+            adstock_periods=2,
+            channel_data_var="media_spend",
+            price_response=response,
+        )
+
+    with pytest.raises(
+        ValueError, match=r"media_spend.*custom channel_data_var"
+    ) as info:
+        build(PowerPriceResponse(elasticity=0.3))
+    assert "assume_delivery_units=True" in str(info.value)
+    with pytest.raises(ValueError, match=r"media_spend.*reference_spend is required"):
+        build(PowerPriceResponse(elasticity=0.3, assume_delivery_units=True))
+
+    reference = xr.DataArray(
+        [50.0, 80.0], dims=("channel",), coords={"channel": ["a", "b"]}
+    )
+    attested = build(
+        PowerPriceResponse(
+            elasticity=0.3, assume_delivery_units=True, reference_spend=reference
+        )
+    )
+    resolved = attested.optimization_variables.variables[0].price_response
+    np.testing.assert_array_equal(resolved.reference_spend, [50.0, 80.0])
+    build(PowerPriceResponse(elasticity=0.0))
+
+
+def test_pinned_cell_warning_on_a_national_budget_warns_instead_of_raising():
+    """A channel_data node over date alone has a 0-d mask and a 0-d ``curved``. NumPy indexes a
+    0-d array with a 0-d boolean as one cell, so a priced national budget the bounds hold at
+    zero gets the warning instead of an IndexError."""
+    from pymc_marketing.mmm import PowerPriceResponse
+
+    n_dates = 6
+    with pm.Model() as model:
+        model.add_coord("date", length=n_dates)
+        channel_data = pmd.Data("channel_data", np.ones(n_dates), dims=("date",))
+        beta = pmd.Normal("beta", 1.0, 0.1)
+        pmd.Deterministic(
+            "total_media_contribution_original_scale",
+            (channel_data * beta).sum(),
+            dims=(),
+        )
+    prior = pm.sample_prior_predictive(draws=4, model=model, random_seed=1)
+    optimizer = BudgetOptimizer(
+        model=model,
+        idata=xr.DataTree.from_dict({"posterior": prior.prior}),
+        num_periods=4,
+        adstock_periods=2,
+        price_response=PowerPriceResponse(
+            elasticity=0.3,
+            reference_spend=xr.DataArray(50.0),
+            assume_delivery_units=True,
+        ),
+    )
+    assert optimizer.optimization_variables.variables[0].mask.ndim == 0
+    bounds = xr.DataArray(
+        [0.0, 0.0], dims=("bound",), coords={"bound": ["lower", "upper"]}
+    )
+    with pytest.warns(UserWarning, match="held at zero by budget_bounds"):
+        result = optimizer.allocate_budget(total_budget=0.0, budget_bounds=bounds)
+    # Every variable is fixed by its bounds, so SLSQP returns before it evaluates anything.
+    assert result.scipy_result.success, result.scipy_result.message
+    assert float(result.budgets) == 0.0
 
 
 def test_budget_optimizer_has_no_marketing_imports():
