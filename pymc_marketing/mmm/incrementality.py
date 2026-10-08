@@ -1111,12 +1111,15 @@ class Incrementality:
         Each row zeroes one period's spend against all the others, so with a
         concave response the period increments summed over ``spend_date``
         come in below the channel's total contribution, by how much depends on
-        how saturated the channel is.  Only the all-time counterfactual, which
-        zeroes every period at once, matches ``channel_contribution``.  Use
-        these numbers to value a period's spend, not to decompose the reported
-        total; ``estimand="allocation"`` is the one that will reconcile with
-        it.  With ``adstock_first=False`` the response is separable by cohort
-        and the two agree.
+        how saturated the channel is.  Use these numbers to value a period's
+        spend, not to decompose the reported total; ``estimand="allocation"``
+        is the one that will reconcile with it.  On an identity-link model
+        without mediated effects, the all-time counterfactual, which zeroes
+        every period at once, matches ``channel_contribution``; the
+        period increments match it only with ``adstock_first=False``, where the
+        response is separable by cohort.  Under the log link
+        ``channel_contribution`` lives in the linear predictor and the
+        increments on the response scale, so neither matches it.
 
         Parameters
         ----------
@@ -1135,8 +1138,10 @@ class Incrementality:
             ``channel_contribution`` column by column) is not implemented yet.
         method : {"pipeline", "closed_form"}, default="pipeline"
             ``"pipeline"`` evaluates the model graph and is exact for every
-            supported model.  ``"closed_form"`` (cumulative adstock weights,
-            valid only for cohort-separable models) is not implemented yet.
+            supported model.  ``"closed_form"`` (cumulative adstock weights) is
+            not implemented yet.  It will be valid only for cohort-separable
+            models, and will raise rather than approximate on the others,
+            ``adstock_first=True`` among them.
         num_samples : int or None, optional
             Number of posterior samples to use; all of them when None.
         random_state : RandomState or Generator or None, optional
@@ -1433,9 +1438,12 @@ class Incrementality:
         channel.  It depends on when the spend fell within the period: the same
         channel and model give a month whose spend is front-loaded a smaller
         future share than one whose spend comes in the last week, exactly as the
-        adstock weights predict.  To combine periods, divide the sums,
-        ``future.sum() / (current + future).sum()``, rather than averaging the
-        shares.
+        adstock weights predict.  To combine periods, divide the sums over
+        ``spend_date`` rather than averaging the shares:
+        ``split["future"].sum("spend_date")`` over
+        ``(split["current"] + split["future"]).sum("spend_date")``.  With the
+        default ``skipna`` both sums run over the complete periods only, because
+        ``future`` is ``NaN`` on the others.
 
         ``current + future`` is each period's incremental contribution, so the
         caveat of :meth:`split_incremental_contribution_over_time` applies:
