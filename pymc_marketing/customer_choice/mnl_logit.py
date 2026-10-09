@@ -14,6 +14,7 @@
 """Multinomial Logit for Product Preference Analysis."""
 
 import json
+import warnings
 from collections.abc import Sequence
 from typing import Any, Self
 
@@ -47,17 +48,16 @@ class MNLogit(ModelBuilder):
 
     Parameters
     ----------
-    choice_df : pd.DataFrame
-        A wide DataFrame where each row is a choice scenario. Product-specific
-        attributes are stored in columns, and the dependent variable identifies
-        the chosen product.
+    choice_df : pd.DataFrame, optional
+        Deprecated. Pass the choice data to :meth:`fit` instead.
+        A wide DataFrame where each row is a choice scenario.
+        Product-specific attributes are stored in columns, and the dependent variable identifies the chosen product.
 
     utility_equations : list of formula strings
-        A list of formulas specifying how to model the utility of
-        each product alternative. The formulas should be in Wilkinson
-        style notation and allow the target product to be specified as
-        as a function of the alternative specific attributes and the individual
-        specific attributes::
+        Formulas specifying how to model the utility of each product alternative.
+        The formulas use Wilkinson style notation.
+        The target product is specified as a function of the alternative-specific attributes.
+        Individual-specific attributes may be added after a ``|``::
 
             target_product ~ target_attribute1 + target_attribute2 | individual_attribute
 
@@ -95,6 +95,17 @@ class MNLogit(ModelBuilder):
             "alt_3 ~ X1_alt3 + X2_alt3 | income",
         ]
 
+    Create the model with its settings and pass the choice data to ``fit``:
+
+    .. code-block:: python
+
+        mnl = MNLogit(
+            utility_equations=utility_equations,
+            depvar="depvar",
+            covariates=["X1", "X2"],
+        )
+        mnl.fit(choice_df)
+
     """
 
     #: Deterministics on these models span the full (obs, alts) panel, so the
@@ -107,22 +118,76 @@ class MNLogit(ModelBuilder):
 
     def __init__(
         self,
-        choice_df: pd.DataFrame,
-        utility_equations: list[str],
-        depvar: str,
-        covariates: list[str],
+        choice_df: pd.DataFrame | None = None,
+        utility_equations: list[str] | None = None,
+        depvar: str | None = None,
+        covariates: list[str] | None = None,
         model_config: dict | None = None,
         sampler_config: dict | None = None,
     ):
-        self.choice_df = choice_df
-        self.utility_equations = utility_equations
-        self.depvar = depvar
-        self.covariates = covariates
+        """Initialize the model.
+
+        Raises
+        ------
+        ValueError
+            If any of ``utility_equations``, ``depvar`` or ``covariates`` is None.
+        """
+        if utility_equations is None or depvar is None or covariates is None:
+            missing = [
+                name
+                for name, value in (
+                    ("utility_equations", utility_equations),
+                    ("depvar", depvar),
+                    ("covariates", covariates),
+                )
+                if value is None
+            ]
+            raise ValueError(
+                f"Missing required argument(s): {', '.join(missing)}. "
+                "Provide utility_equations, depvar and covariates when constructing MNLogit."
+            )
+
+        if choice_df is not None:
+            warnings.warn(
+                "Passing the choice data as the first argument to MNLogit is "
+                "deprecated and will be removed in a future release. "
+                "Pass it to `fit(choice_df)` instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+
+        self.choice_df: pd.DataFrame | None = choice_df
+        self.utility_equations: list[str] = utility_equations
+        self.depvar: str = depvar
+        self.covariates: list[str] = covariates
 
         model_config = model_config or {}
         model_config = parse_model_config(model_config)
 
         super().__init__(model_config=model_config, sampler_config=sampler_config)
+
+    def _require_choice_df(self, hint: str | None = None) -> pd.DataFrame:
+        """Return the stored choice data, raising if none has been provided.
+
+        Parameters
+        ----------
+        hint : str, optional
+            Extra guidance appended to the error message.
+
+        Returns
+        -------
+        pd.DataFrame
+            The choice data set at construction or fit time.
+
+        Raises
+        ------
+        ValueError
+            If no choice data has been provided to the constructor or :meth:`fit`.
+        """
+        if self.choice_df is None:
+            hint = hint or "Pass it to `fit(choice_df)` first."
+            raise ValueError(f"Choice data is required to build the model. {hint}")
+        return self.choice_df
 
     @property
     def default_model_config(self) -> dict:
@@ -168,7 +233,7 @@ class MNLogit(ModelBuilder):
             "alphas_": self.model_config["alphas_"].to_dict(),
             "likelihood": self.model_config["likelihood"].to_dict(),
             "betas": self.model_config["betas"].to_dict(),
-            "betas_fixed": self.model_config["betas_fixed_"].to_dict(),
+            "betas_fixed_": self.model_config["betas_fixed_"].to_dict(),
         }
 
         return result
@@ -271,8 +336,7 @@ class MNLogit(ModelBuilder):
         utility formulas.
         """
         mode_mapping = dict(zip(alternatives, range(len(alternatives)), strict=False))
-        df["mode_encoded"] = df[depvar].map(mode_mapping)
-        y = df["mode_encoded"].values
+        y = df[depvar].map(mode_mapping).to_numpy()
         return y
 
     @staticmethod
@@ -319,12 +383,18 @@ class MNLogit(ModelBuilder):
 
     def build_model(self, **kwargs) -> None:
         """
-        Build model using stored choice_df and utility_equations.
+        Build the model from the stored choice data and utility equations.
 
-        This is the abstract method from ModelBuilder. For discrete choice,
-        we don't pass data as arguments - we use the stored data from __init__.
+        This is the abstract method from ModelBuilder.
+        The choice data must have been provided to :meth:`fit`.
+
+        Raises
+        ------
+        ValueError
+            If no choice data has been provided.
         """
-        X, F, y = self.preprocess_model_data(self.choice_df, self.utility_equations)
+        choice_df = self._require_choice_df()
+        X, F, y = self.preprocess_model_data(choice_df, self.utility_equations)
         self.model = self.make_model(X, F, y)
 
     def make_intercepts(self) -> pt.TensorVariable:
@@ -480,9 +550,27 @@ class MNLogit(ModelBuilder):
         attrs = super().create_idata_attrs()
         attrs["covariates"] = json.dumps(self.covariates)
         attrs["depvar"] = json.dumps(self.depvar)
-        attrs["choice_df"] = json.dumps("Placeholder for DF")
+        # The choice data is persisted in the fit_data group rather than duplicated here.
+        # The base class still requires one attr per __init__ argument, so keep the key.
+        attrs["choice_df"] = json.dumps(None)
         attrs["utility_equations"] = json.dumps(self.utility_equations)
         return attrs
+
+    @classmethod
+    def attrs_to_init_kwargs(cls, attrs) -> dict[str, Any]:
+        """Rehydrate the ``__init__`` kwargs from the serialised DataTree attrs.
+
+        The choice data itself lives in the ``fit_data`` group and is restored by :meth:`build_from_idata`.
+        """
+        return {
+            "utility_equations": json.loads(attrs["utility_equations"]),
+            "depvar": json.loads(attrs["depvar"]),
+            "covariates": json.loads(attrs["covariates"]),
+            "model_config": cls._model_config_formatting(
+                json.loads(attrs["model_config"])
+            ),
+            "sampler_config": json.loads(attrs["sampler_config"]),
+        }
 
     def sample_prior_predictive(  # type: ignore[override]
         self,
@@ -498,9 +586,9 @@ class MNLogit(ModelBuilder):
         Parameters
         ----------
         choice_df : pd.DataFrame, optional
-            New choice data. If None, uses data from initialization.
+            New choice data. If None, uses the choice data already set on the model.
         utility_equations : list[str], optional
-            New utility equations. If None, uses from initialization.
+            New utility equations. If None, uses the equations already set on the model.
         samples : int, optional
             Number of prior samples
         extend_idata : bool, optional
@@ -512,6 +600,11 @@ class MNLogit(ModelBuilder):
         -------
         xr.DataTree
             Prior predictive samples
+
+        Raises
+        ------
+        ValueError
+            If no choice data has been provided.
         """
         if choice_df is not None:
             self.choice_df = choice_df
@@ -546,8 +639,8 @@ class MNLogit(ModelBuilder):
         xr.Dataset
             Choice data as xarray Dataset with 'obs' dimension
         """
-        df_xr = self.choice_df.to_xarray()
-        df_xr = df_xr.rename({"index": "obs"})
+        choice_df = self._require_choice_df()
+        df_xr = choice_df.rename_axis("obs").to_xarray()
         return df_xr
 
     def fit(  # type: ignore[override]
@@ -567,9 +660,9 @@ class MNLogit(ModelBuilder):
         Parameters
         ----------
         choice_df : pd.DataFrame, optional
-            New choice data. If None, uses data from initialization.
+            New choice data. If None, uses the choice data already set on the model.
         utility_equations : list[str], optional
-            New utility equations. If None, uses equations from initialization.
+            New utility equations. If None, uses the equations already set on the model.
         method : str
             Method used to fit the model. One of ``"mcmc"``, ``"map"``, ``"demz"``,
             ``"advi"`` or ``"fullrank_advi"``.
@@ -586,7 +679,34 @@ class MNLogit(ModelBuilder):
         -------
         xr.DataTree
             Fitted model with posterior samples
+
+        Raises
+        ------
+        ValueError
+            If no choice data has been provided.
+        ValueError
+            If the model was already built with different choice data or utility equations.
         """
+        if (
+            hasattr(self, "model")
+            and choice_df is not None
+            and self.choice_df is not None
+            and not self.choice_df.equals(choice_df)
+        ):
+            raise ValueError(
+                "The model was built with different data. "
+                "Create a new model instance to fit new data."
+            )
+        if (
+            hasattr(self, "model")
+            and utility_equations is not None
+            and utility_equations != self.utility_equations
+        ):
+            raise ValueError(
+                "The model was built with different utility equations. "
+                "Create a new model instance to fit new data."
+            )
+
         # Allow updating data at fit time
         if choice_df is not None:
             self.choice_df = choice_df
@@ -612,7 +732,7 @@ class MNLogit(ModelBuilder):
         idata : xr.DataTree
             Loaded inference data
         """
-        self.choice_df = idata["fit_data"].dataset.to_dataframe()
+        self.choice_df = idata["fit_data"].dataset.to_dataframe().rename_axis(None)
         if not hasattr(self, "model"):
             self.build_model()
 
@@ -638,7 +758,14 @@ class MNLogit(ModelBuilder):
         -------
         xr.DataTree
             Posterior predictive samples
+
+        Raises
+        ------
+        ValueError
+            If no choice data has been provided.
         """
+        self._require_choice_df()
+
         if choice_df is not None:
             # Update data in existing model
             new_X, new_F, new_y = self.preprocess_model_data(
@@ -695,10 +822,14 @@ class MNLogit(ModelBuilder):
         fit_kwargs = fit_kwargs or {}
         sample_posterior_predictive_kwargs = sample_posterior_predictive_kwargs or {}
 
-        if not hasattr(self, "model"):
-            X, F, y = self.preprocess_model_data(self.choice_df, self.utility_equations)  # type: ignore
-            model = self.make_model(X, F, y)
-            self.model = model
+        if (
+            self.choice_df is None
+            and sample_prior_predictive_kwargs.get("choice_df") is None
+        ):
+            self._require_choice_df(
+                hint="Pass it to `fit(choice_df)` first, or to "
+                "`sample_prior_predictive_kwargs` when calling `sample`."
+            )
 
         self.sample_prior_predictive(
             extend_idata=True, **sample_prior_predictive_kwargs
@@ -714,13 +845,19 @@ class MNLogit(ModelBuilder):
     ) -> xr.DataTree:
         """Apply one of two types of intervention.
 
-        The first type of intervention assumes we have a fitted model and
-        just aims to sample from the posterior predictive distribution after
-        adjusting one of more of the models observable attributes and passing
-        in the new_choice_df. The second type of intervention allows that we remove a
-        product entirely from the market place and model the market share which
-        accrues to each product in the adjusted market.
+        The first type of intervention assumes we have a fitted model.
+        It samples from the posterior predictive distribution after adjusting one or more observable attributes.
+        The adjusted attributes are passed in through the new_choice_df.
+        The second type of intervention removes a product entirely from the market place.
+        It models the market share which accrues to each product in the adjusted market.
+
+        Raises
+        ------
+        ValueError
+            If no choice data has been provided.
         """
+        self._require_choice_df()
+
         if not hasattr(self, "model"):
             self.sample()
         if new_utility_equations is None:

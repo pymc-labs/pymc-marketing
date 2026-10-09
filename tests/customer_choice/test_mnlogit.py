@@ -13,6 +13,9 @@
 #   limitations under the License.
 
 
+import json
+import warnings
+
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -67,8 +70,10 @@ def utility_eqs():
 
 
 @pytest.fixture
-def mnl(sample_df, utility_eqs):
-    return MNLogit(sample_df, utility_eqs, "choice", ["X1", "X2"])
+def mnl(utility_eqs):
+    return MNLogit(
+        utility_equations=utility_eqs, depvar="choice", covariates=["X1", "X2"]
+    )
 
 
 @pytest.fixture
@@ -77,8 +82,10 @@ def utility_eqs_no_fixed():
 
 
 @pytest.fixture
-def mnl_no_fixed(sample_df, utility_eqs_no_fixed):
-    return MNLogit(sample_df, utility_eqs_no_fixed, "choice", ["X1", "X2"])
+def mnl_no_fixed(utility_eqs_no_fixed):
+    return MNLogit(
+        utility_equations=utility_eqs_no_fixed, depvar="choice", covariates=["X1", "X2"]
+    )
 
 
 def test_parse_formula_valid(mnl, sample_df):
@@ -153,9 +160,8 @@ def test_build_model_returns_pymc_model(mnl, sample_df, utility_eqs):
     assert mnl.covariates == ["X1", "X2"]
 
 
-def test_sample(mnl, mock_pymc_sample):
-    X, F, y = mnl.preprocess_model_data(mnl.choice_df, mnl.utility_equations)
-    _ = mnl.make_model(X, F, y)
+def test_sample(mnl, sample_df, mock_pymc_sample):
+    mnl.fit(sample_df)
     mnl.sample()
     assert "prior_predictive" in mnl.idata
     mnl.sample()
@@ -167,10 +173,10 @@ def test_sample(mnl, mock_pymc_sample):
     assert "posterior_predictive" in mnl.idata
     assert "fit_data" in mnl.idata
 
-    mnl.sample_posterior_predictive(choice_df=mnl.choice_df, extend_idata=True)
+    mnl.sample_posterior_predictive(choice_df=sample_df, extend_idata=True)
     assert isinstance(mnl.idata, xr.DataTree)
 
-    mnl.fit(choice_df=mnl.choice_df, utility_equations=mnl.utility_equations)
+    mnl.fit(choice_df=sample_df, utility_equations=mnl.utility_equations)
 
     with pytest.raises(
         RuntimeError, match=r"self.idata must be initialized before extending"
@@ -181,11 +187,10 @@ def test_sample(mnl, mock_pymc_sample):
         )
 
 
-def test_counterfactual(mnl, mock_pymc_sample):
-    X, F, y = mnl.preprocess_model_data(mnl.choice_df, mnl.utility_equations)
-    _ = mnl.make_model(X, F, y)
+def test_counterfactual(mnl, sample_df, mock_pymc_sample):
+    mnl.fit(sample_df)
     mnl.sample()
-    new = mnl.choice_df.copy()
+    new = sample_df.copy()
     new["alt_X1"] = new["alt_X1"] * 1.2
     mnl.apply_intervention(new)
     change_df = mnl.calculate_share_change(mnl.idata, mnl.intervention_idata)
@@ -199,6 +204,121 @@ def test_make_change_plot_returns_figure(mnl, sample_change_df):
     fig = mnl.plot_change(sample_change_df, title="Test Intervention")
 
     assert isinstance(fig, plt.Figure)
+
+
+class TestChoiceDataInFit:
+    """Choice data is passed to fit(); the constructor form is deprecated (#2824)."""
+
+    def test_sample_accepts_choice_data(self, mnl, sample_df, mock_pymc_sample):
+        mnl.sample(sample_prior_predictive_kwargs={"choice_df": sample_df})
+
+        assert "prior_predictive" in mnl.idata
+        assert "posterior_predictive" in mnl.idata
+
+    def test_refit_with_different_data_raises(self, mnl, sample_df, mock_pymc_sample):
+        mnl.fit(sample_df)
+
+        changed_df = sample_df.copy()
+        changed_df["alt_X1"] = changed_df["alt_X1"] * 1.2
+
+        with pytest.raises(ValueError, match="different data"):
+            mnl.fit(changed_df)
+
+        mnl.fit(sample_df)  # same data is fine
+
+    def test_refit_with_different_utility_equations_raises(
+        self, mnl, sample_df, new_utility_eqs, mock_pymc_sample
+    ):
+        mnl.fit(sample_df)
+
+        with pytest.raises(ValueError, match="different utility equations"):
+            mnl.fit(utility_equations=new_utility_eqs)
+
+    def test_refit_with_fresh_copy_of_same_data(self, mnl, sample_df, mock_pymc_sample):
+        fresh_df = sample_df.copy()
+        mnl.fit(sample_df)
+
+        assert list(sample_df.columns) == list(fresh_df.columns)
+        mnl.fit(fresh_df)
+
+    def test_deprecated_positional_choice_df_warns(self, sample_df, utility_eqs):
+        with pytest.warns(DeprecationWarning, match="removed in a future release"):
+            model = MNLogit(sample_df, utility_eqs, "choice", ["X1", "X2"])
+
+        assert model.choice_df.equals(sample_df)
+        model.build_model()
+        assert hasattr(model, "model")
+
+    @pytest.mark.parametrize(
+        "kwargs, missing",
+        [
+            (
+                {"depvar": "choice", "covariates": ["X1"]},
+                "utility_equations",
+            ),
+            (
+                {"utility_equations": ["alt ~ alt_X1"], "covariates": ["X1"]},
+                "depvar",
+            ),
+            (
+                {"utility_equations": ["alt ~ alt_X1"], "depvar": "choice"},
+                "covariates",
+            ),
+        ],
+    )
+    def test_missing_setting_raises(self, kwargs, missing):
+        with pytest.raises(ValueError, match=missing):
+            MNLogit(**kwargs)
+
+    @pytest.mark.parametrize(
+        "method, kwargs",
+        [
+            ("build_model", {}),
+            ("sample_prior_predictive", {}),
+            ("sample_posterior_predictive", {}),
+            ("create_fit_data_group", {}),
+            ("sample", {}),
+            ("apply_intervention", {"new_choice_df": pd.DataFrame()}),
+        ],
+    )
+    def test_data_dependent_methods_require_choice_data(self, mnl, method, kwargs):
+        with pytest.raises(ValueError, match="Choice data is required"):
+            getattr(mnl, method)(**kwargs)
+
+
+class TestSaveLoadRoundtrip:
+    """Save/load round-trip for MNLogit (issue #2824)."""
+
+    def test_save_load_roundtrip(self, mnl, sample_df, tmp_path, mock_pymc_sample):
+        mnl.fit(sample_df, random_seed=42)
+
+        path = tmp_path / "mnl.nc"
+        mnl.save(str(path))
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", DeprecationWarning)
+            loaded = MNLogit.load(str(path))
+
+        # Model settings are rebuilt from the serialised attrs.
+        assert loaded.utility_equations == mnl.utility_equations
+        assert loaded.depvar == mnl.depvar
+        assert loaded.covariates == mnl.covariates
+        assert loaded.model_config == mnl.model_config
+
+        # Choice data is restored from the fit_data group with its index and dtypes.
+        pd.testing.assert_frame_equal(
+            loaded.choice_df, mnl.choice_df, check_index_type=False
+        )
+
+        # The choice data is not duplicated into the attrs as a placeholder.
+        assert json.loads(mnl.idata.attrs["choice_df"]) is None
+
+        # Posterior and model id survive the file round trip.
+        xr.testing.assert_equal(loaded.idata["posterior"], mnl.idata["posterior"])
+        assert loaded.id == mnl.id
+
+        # Posterior predictive sampling runs on the loaded model.
+        post_pred = loaded.sample_posterior_predictive(extend_idata=False)
+        assert "posterior_predictive" in post_pred
 
 
 class TestMakeIntercepts:
@@ -435,12 +555,9 @@ class TestMakeModelIntegration:
 class TestBackwardCompatibility:
     """Tests to ensure refactored code maintains backward compatibility."""
 
-    def test_same_model_structure_as_original(
-        self, mnl, sample_df, utility_eqs, mock_pymc_sample
-    ):
+    def test_same_model_structure_as_original(self, mnl, sample_df, mock_pymc_sample):
         """Test that refactored model produces same structure as original."""
-        X, F, y = mnl.preprocess_model_data(sample_df, utility_eqs)
-        _ = mnl.make_model(X, F, y)
+        mnl.fit(sample_df)
 
         # Test sampling still works
         mnl.sample()
@@ -452,11 +569,10 @@ class TestBackwardCompatibility:
 
     def test_intervention_still_works(self, mnl, sample_df, mock_pymc_sample):
         """Test that interventions work with refactored model."""
-        X, F, y = mnl.preprocess_model_data(mnl.choice_df, mnl.utility_equations)
-        _ = mnl.make_model(X, F, y)
+        mnl.fit(sample_df)
         mnl.sample()
 
-        new = mnl.choice_df.copy()
+        new = sample_df.copy()
         new["alt_X1"] = new["alt_X1"] * 1.2
         idata_new = mnl.apply_intervention(new)
 
@@ -470,7 +586,9 @@ class TestEdgeCases:
     def test_single_covariate(self, sample_df):
         """Test model with single alternative-specific covariate."""
         utility_eqs_single = ["alt ~ alt_X1 | income", "other ~ other_X1 | income"]
-        mnl_single = MNLogit(sample_df, utility_eqs_single, "choice", ["X1"])
+        mnl_single = MNLogit(
+            utility_equations=utility_eqs_single, depvar="choice", covariates=["X1"]
+        )
 
         X, F, y = mnl_single.preprocess_model_data(sample_df, utility_eqs_single)
         model = mnl_single.make_model(X, F, y)
@@ -495,7 +613,9 @@ class TestEdgeCases:
             "alt3 ~ alt3_X1",
             "alt4 ~ alt4_X1",
         ]
-        mnl_many = MNLogit(df_many, utility_eqs_many, "choice", ["X1"])
+        mnl_many = MNLogit(
+            utility_equations=utility_eqs_many, depvar="choice", covariates=["X1"]
+        )
 
         X, F, y = mnl_many.preprocess_model_data(df_many, utility_eqs_many)
         model = mnl_many.make_model(X, F, y)
