@@ -1153,7 +1153,9 @@ def save_model(
         pass the wrapped ``.model`` instead. A nested model saves, and carries its
         parent with it, which :func:`audit` notes.
     path : str or Path
-        Directory to create.
+        Directory to create. It must not exist, be empty, or be a bundle written
+        here before. A directory holding anything else is left untouched and
+        refused, because replacing one is not recoverable.
     metadata : dict, optional
         Free-form, must be JSON-serializable. Stored verbatim.
     idata : DataRef, path, Dataset or DataTree, optional
@@ -1204,10 +1206,15 @@ def save_model(
     old ``data.zarr`` rather than leaving it stranded next to a manifest that no
     longer mentions it.
 
+    Overwriting is limited to an empty directory, or one holding exactly the files
+    this module writes. A directory with anything else in it, a report, a log, a
+    ``.git``, is somebody's data and is refused rather than emptied for them.
+
     Raises
     ------
     ValueError
-        If ``strict`` and ``audit(model)`` reports a blocker.
+        If ``strict`` and ``audit(model)`` reports a blocker, or if ``path``
+        already exists and is not empty and not a bundle.
 
     Examples
     --------
@@ -1257,9 +1264,14 @@ def save_model(
     # failure part-way through left a manifest describing one model beside the
     # previous model's data, and a re-save over an existing data.zarr raised
     # FileExistsError *after* the manifest and graph had already been replaced.
-    root = Path(path)
+    # ``Path(".").name`` is "", so the sibling names have to come from a path
+    # that has one. ``absolute`` and not ``resolve``: on macOS resolve rewrites
+    # /var to /private/var, and the directory we then write is no longer the
+    # one asked for.
+    root = Path(path).absolute()
     staging = root.with_name(root.name + ".incomplete")
     backup = root.with_name(root.name + ".previous")
+    _check_destination_is_a_bundle(root)
     _recover_interrupted_save(root, backup)
     _clear_staging(staging)
 
@@ -1274,11 +1286,12 @@ def save_model(
                 data_format,
                 data_groups or (),
             )
+        # Inside the try, so a swap that fails does not leave a half-built
+        # staging directory behind for the next save to trip over.
+        _swap_into_place(staging, root, backup)
     except BaseException:
         shutil.rmtree(staging, ignore_errors=True)
         raise
-
-    _swap_into_place(staging, root, backup)
     return root
 
 
@@ -1313,12 +1326,57 @@ def _warn_untrusted_blob() -> None:
     _UNTRUSTED_BLOB_WARNED = True
 
 
+_BUNDLE_ENTRIES = frozenset({MANIFEST_FILE, MODEL_FILE, *EMBEDDED_NAMES.values()})
+
+
+def _check_destination_is_a_bundle(root: Path) -> None:
+    """Refuse to replace a directory this module did not write.
+
+    ``os.replace`` cannot move a directory over a non-empty one, so re-saving
+    over a bundle already worked; over somebody else's run directory would have
+    taken emptying it first, and doing that quietly turns a save into an
+    unrecoverable loss. So the destination must be absent, empty, or hold
+    exactly what a bundle holds.
+    """
+    if not root.exists():
+        return
+
+    if not root.is_dir():
+        raise ValueError(
+            f"cannot write a bundle to {root}: a file of that name already "
+            "exists. Move it aside, or save to a path that does not."
+        )
+
+    entries = list(root.iterdir())
+    if not entries:
+        return
+
+    foreign = sorted(p.name for p in entries if p.name not in _BUNDLE_ENTRIES)
+    if foreign:
+        raise ValueError(
+            f"refusing to write a bundle to {root}: it is not empty, and "
+            f"{', '.join(repr(name) for name in foreign)} would be destroyed. "
+            "A bundle holds only "
+            f"{', '.join(sorted(_BUNDLE_ENTRIES))}, so that directory is not "
+            "one. Move its contents aside, or save to a path that does not "
+            "exist."
+        )
+
+    if MANIFEST_FILE not in {p.name for p in entries}:
+        raise ValueError(
+            f"refusing to write a bundle to {root}: it holds some of a "
+            "bundle's files but no manifest.json, so nothing there could be "
+            f"read back as one. Delete {root} yourself if that is fine."
+        )
+
+
 def _swap_into_place(staging: Path, root: Path, backup: Path) -> None:
     """Move a finished staging directory over the destination.
 
     ``os.replace`` cannot move a directory over a non-empty one, which is the
     re-save case, so the old bundle is renamed aside first. Same filesystem, so
-    these are renames and not copies.
+    these are renames and not copies. :func:`_recover_interrupted_save` ran
+    first and cleared any leftover, so ``backup`` is free here.
     """
     if root.exists():
         os.replace(root, backup)
@@ -1328,14 +1386,32 @@ def _swap_into_place(staging: Path, root: Path, backup: Path) -> None:
         # Never leave the caller with nothing where a working bundle used to be.
         if backup.exists() and not root.exists():
             os.replace(backup, root)
-        shutil.rmtree(staging, ignore_errors=True)
         raise
+    # Deliberately best-effort: the new bundle is in place, and raising here
+    # would report a failure after a successful save. The next save to the same
+    # path clears the leftover before it reuses the name.
     shutil.rmtree(backup, ignore_errors=True)
 
 
 def _recover_interrupted_save(root: Path, backup: Path) -> None:
-    """Restore a bundle stranded by a save killed between the two renames."""
-    if backup.exists() and not root.exists():
+    """Clear a backup left by a save that was killed part-way through.
+
+    A save that died after the first rename left no ``root`` and the old bundle
+    as ``backup``; one that died after the second left a new bundle at ``root``
+    and the old one as ``backup``. ``backup`` only ever holds what sat at
+    ``root`` before this save started, so ``root`` is the newer of the two and
+    the old one is the one to drop.
+
+    Plain ``rmtree`` rather than ``ignore_errors``: a backup that survives is
+    still non-empty, and the next ``os.replace`` onto it fails anyway, only with
+    a message about a directory nobody chose.
+    """
+    if not backup.exists():
+        return
+
+    if root.exists():
+        shutil.rmtree(backup)
+    else:
         os.replace(backup, root)
 
 

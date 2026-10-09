@@ -1738,6 +1738,183 @@ def test_a_bundle_stranded_between_renames_is_recovered(tmp_path):
     assert [p.name for p in tmp_path.iterdir()] == ["model"]
 
 
+def test_a_backup_and_a_new_bundle_left_behind_are_reconciled(tmp_path):
+    """A save killed after the second rename leaves both, and root is the newer.
+
+    The next save then found a non-empty ``.previous`` and failed with
+    Errno 66: a save aborted by a file the previous save made.
+    """
+    path = save_model(build_model(), tmp_path / "model")
+    stranded = tmp_path / "model.previous"
+    stranded.mkdir()
+    (stranded / "manifest.json").write_text("{}")
+    (stranded / "model.cloudpickle").write_bytes(b"old")
+
+    save_model(build_model(), path)
+
+    assert not stranded.exists()
+    assert [p.name for p in tmp_path.iterdir()] == ["model"]
+    assert load(path).validate().ok
+
+
+def test_a_failed_swap_cleans_up_staging_and_keeps_the_old_bundle(
+    tmp_path, monkeypatch
+):
+    """The swap used to sit outside the try, so a failed rename left ``.incomplete``."""
+    path = save_model(build_model(), tmp_path / "model")
+    assert load(path).validate().ok
+
+    real_replace = os.replace
+    calls = {"n": 0}
+
+    def fail_second(src, dst):
+        calls["n"] += 1
+        if calls["n"] == 2:
+            raise OSError("simulated crash between the two renames")
+        return real_replace(src, dst)
+
+    monkeypatch.setattr("os.replace", fail_second)
+
+    with pytest.raises(OSError, match="simulated crash"):
+        save_model(build_model(), path)
+
+    assert [p.name for p in tmp_path.iterdir()] == ["model"]
+    assert load(path).validate().ok
+
+
+@pytest.mark.parametrize(
+    "entries",
+    [["fit.png", "report.csv"], ["sub"], [".git"]],
+    ids=["files", "sub", "dotdir"],
+)
+def test_save_refuses_a_directory_that_is_not_a_bundle(tmp_path, entries):
+    """Overwriting is for an empty directory or a bundle, never for somebody's run."""
+    path = tmp_path / "run"
+    path.mkdir()
+    for name in entries:
+        entry = path / name
+        if name in ("sub", ".git"):
+            entry.mkdir()
+            (entry / "a").write_text("x")
+        else:
+            entry.write_bytes(b"data")
+    before = sorted(p.name for p in path.iterdir())
+
+    with pytest.raises(ValueError, match="refusing to write a bundle"):
+        save_model(build_model(), path)
+
+    assert sorted(p.name for p in path.iterdir()) == before
+
+
+def test_save_refuses_when_a_file_already_has_the_name(tmp_path):
+    path = tmp_path / "model"
+    path.write_bytes(b"not a directory")
+
+    with pytest.raises(ValueError, match="a file of that name"):
+        save_model(build_model(), path)
+
+
+def test_save_overwrites_an_empty_directory(tmp_path):
+    """A directory that exists but is empty is one nobody loses by replacing."""
+    path = tmp_path / "model"
+    path.mkdir()
+
+    save_model(build_model(), path)
+
+    assert [p.name for p in path.iterdir()] == ["manifest.json", "model.cloudpickle"]
+
+
+def test_dot_as_a_path_is_resolved_before_use(tmp_path, monkeypatch):
+    """``Path(".").name`` is empty, and the sibling directory names came from it.
+
+    ``save_model(m, ".")`` raised IndexError, and any fix that resolved the path
+    later would have staged beside the process working directory rather than the
+    directory asked for.
+    """
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "pyproject.toml").write_text("[]")
+
+    with pytest.raises(ValueError, match="refusing to write a bundle"):
+        save_model(build_model(), ".")
+
+    assert [p.name for p in tmp_path.iterdir()] == ["pyproject.toml"]
+
+    empty = tmp_path / "empty"
+    empty.mkdir()
+    monkeypatch.chdir(empty)
+    path = save_model(build_model(), ".")
+
+    assert path.name == "empty"
+    assert (empty / "manifest.json").exists()
+    assert (empty / "model.cloudpickle").exists()
+    assert [p.name for p in tmp_path.iterdir()] == ["empty", "pyproject.toml"]
+
+
+def test_the_reference_logp_does_not_move_between_runs():
+    """validate() drifted because the reference it compared against moved.
+
+    ``initial_point()`` draws wherever an RV sets ``initval="prior"``, so the
+    same model produced a different ``reference_logp`` each time it was saved,
+    and each of those bundles then failed validate() against the next reference
+    computed. Five audits used to give five different values.
+    """
+    with pm.Model() as model:
+        pm.Normal("mu", 0, 1, initval="prior")
+        pm.HalfNormal("sigma", 1, initval="prior")
+
+    references = {build_manifest(model)["reference_logp"] for _ in range(5)}
+
+    assert build_manifest(model)["reference_logp"] is not None
+    assert len(references) == 1, references
+
+
+def test_validate_in_another_process_agrees(tmp_path):
+    """A bundle must validate where it was not written.
+
+    The in-process check cannot separate the two cases, because both sides draw
+    from the generator this process already used. A subprocess that has drawn
+    numbers of its own gets the same reference or the reference is not fixed.
+    """
+    import subprocess
+    import sys
+
+    path = save_model(build_model(), tmp_path / "model")
+
+    code = (
+        "import numpy as np; np.random.seed(99999); "
+        "from pymc_marketing.bundle import load; "
+        f"r = load({str(path)!r}).validate(); "
+        "print('ok' if r.ok else 'fail ' + '; '.join(r.differences))"
+    )
+    result = subprocess.run(  # noqa: S603 - fixed argv, no shell
+        [sys.executable, "-c", code], capture_output=True, text=True
+    )
+    assert result.returncode == 0, result.stderr.strip().splitlines()[-1]
+    assert result.stdout.strip().endswith("ok"), result.stdout
+
+
+def test_a_deep_graph_reports_depth_instead_of_recursing_out():
+    """``_stats`` used to recurse, so a deep graph aborted what it was measuring.
+
+    The depth is 1500, past the interpreter recursion limit. Such a model still
+    cannot be saved, but for a reason outside this module: cloudpickle refuses a
+    chain this long on its own. What has to hold is that we measure it rather
+    than fail on the way to measuring it.
+    """
+    x = pt.vector("x")
+    y = x
+    for _ in range(1500):
+        y = y + 1
+
+    with pm.Model() as model:
+        pm.Deterministic("y", y)
+
+    report = audit(model)
+
+    assert report.depth >= 1500
+    assert report.n_nodes > 1500
+
+
 def test_building_the_model_warns_that_it_is_unpickled(bundle_path):
     """cloudpickle runs code like pickle, so the one unpickling step says so."""
     monkeypatch = pytest.MonkeyPatch()
