@@ -4454,12 +4454,13 @@ class MMM(RegressionModelBuilder):
 
         Notes
         -----
-        Setting a channel's historical price is also what lets the budget
-        optimizer apply a spend-dependent
-        :class:`~pymc_marketing.mmm.price_response.PowerPriceResponse` to it,
-        since a priced channel is one whose data the library can take to be in
-        delivery units (what it can check is that a table was set for it);
-        channels absent from the table stay refused.
+        Setting a channel's historical price is what lets the budget optimizer
+        derive the ``reference_spend`` of a spend-dependent
+        :class:`~pymc_marketing.mmm.price_response.PowerPriceResponse` on it,
+        as the on-air mean of ``channel_spend``. It does not attest that the
+        channel's data are in delivery units: the table is written the same way
+        at fit time and here, after the fit, without touching the model, so a
+        curved response always needs ``assume_delivery_units=True``.
         """
         if not hasattr(self, "idata") or self.idata is None:
             raise RuntimeError(

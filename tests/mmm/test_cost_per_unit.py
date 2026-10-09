@@ -971,6 +971,11 @@ def _optimizer(mmm, **kwargs):
         return mmm.budget_optimizer(start, end, **kwargs)
 
 
+def _curved(**kwargs) -> PowerPriceResponse:
+    """A curved response with the attestation every curved response needs through the optimizer."""
+    return PowerPriceResponse(assume_delivery_units=True, **kwargs)
+
+
 def _full_table(mmm, prices: dict[str, float]) -> pd.DataFrame:
     dates = pd.to_datetime(mmm.idata.constant_data.coords["date"].values)
     return pd.DataFrame({"date": dates, **{ch: float(p) for ch, p in prices.items()}})
@@ -1002,47 +1007,113 @@ def _window_cpu(mmm, prices: dict[str, float]) -> xr.DataArray:
     )
 
 
-class TestPriceResponseGate:
-    """A non-identity price response is refused unless the fit is provably in delivery units."""
+def _fit_with_table(simple_mmm_data, table_at: str) -> MMM:
+    """Run ``MMM.fit`` (sampling replaced by ``mock_fit``) with the historical table given
+    to the constructor or set after the fit. ``fit()`` applies a constructor table by
+    calling ``set_cost_per_unit`` after sampling, so both are the same declaration."""
+    from unittest.mock import patch
 
-    def test_unpriced_model_is_refused_naming_both_remedies(self, simple_fitted_mmm):
-        with pytest.raises(ValueError, match="fitted on nominal spend") as info:
+    from tests.mmm.conftest import mock_fit
+
+    X, y = simple_mmm_data["X"], simple_mmm_data["y"]
+    table = pd.DataFrame({"date": X["date"], **dict.fromkeys(CHANNELS_3, 2.0)})
+    mmm = MMM(
+        channel_columns=CHANNELS_3,
+        date_column="date",
+        target_column="target",
+        control_columns=None,
+        adstock=GeometricAdstock(l_max=10),
+        saturation=LogisticSaturation(),
+        cost_per_unit=table if table_at == "fit" else None,
+    )
+
+    def patched_super_fit(self_inner, X, y, **kwargs):
+        mock_fit(self_inner, X, y)
+        return self_inner.idata
+
+    with patch(
+        "pymc_marketing.model_builder.RegressionModelBuilder.fit", patched_super_fit
+    ):
+        mmm.fit(X, y)
+    if table_at == "post_fit":
+        mmm.set_cost_per_unit(table)
+    assert "channel_spend" in mmm.idata.constant_data
+    return mmm
+
+
+class TestPriceResponseGate:
+    """A curved price response needs the user's attestation that the fit is in delivery
+    units; the historical cost_per_unit table only anchors its reference spend."""
+
+    @pytest.mark.parametrize("table_at", ["fit", "post_fit"])
+    def test_a_historical_table_does_not_attest_delivery_units(
+        self, simple_mmm_data, table_at
+    ):
+        """The fitted data are nominal spend as far as the model knows. A historical
+        cost_per_unit table writes channel_spend and an attr without touching the model,
+        whether it reaches the fit through the constructor or through set_cost_per_unit
+        afterwards, so it is a declaration, not evidence. A curved response stays refused
+        until the user attests the units; the table then anchors the reference."""
+        mmm = _fit_with_table(simple_mmm_data, table_at)
+        with pytest.raises(ValueError, match="a declaration, not evidence") as info:
+            _optimizer(mmm, price_response=PowerPriceResponse(elasticity=0.3))
+        message = str(info.value)
+        assert "assume_delivery_units=True" in message
+        assert "set_cost_per_unit" not in message
+        optimizer = _optimizer(
+            mmm,
+            price_response=PowerPriceResponse(
+                elasticity=0.3, assume_delivery_units=True
+            ),
+        )
+        resolved = optimizer.optimization_variables.variables[0].price_response
+        np.testing.assert_allclose(
+            resolved.reference_spend,
+            _on_air_reference(mmm).sel(channel=CHANNELS_3).values,
+        )
+
+    def test_a_curved_response_is_refused_without_attestation(self, simple_fitted_mmm):
+        with pytest.raises(ValueError, match="a declaration, not evidence") as info:
             _optimizer(
                 simple_fitted_mmm, price_response=PowerPriceResponse(elasticity=0.3)
             )
         message = str(info.value)
-        assert "set_cost_per_unit" in message and "assume_delivery_units" in message
-        assert "no usable historical cost_per_unit table" in message
+        assert "assume_delivery_units=True" in message
+        assert "set_cost_per_unit" not in message
+        assert "reference_spend is required" not in message
 
-    def test_partial_table_refuses_only_the_unpriced_channels(self, simple_fitted_mmm):
+    def test_partial_table_anchors_only_the_priced_channels(self, simple_fitted_mmm):
         """_parse_cost_per_unit_df fills absent channels with 1.0, so channel_spend exists
-        for every channel; the gate must read the table's columns, not that array."""
+        for every channel; the reference must come from the table's columns, not that
+        array. An attested response on the unpriced channels then needs a reference."""
         mmm = simple_fitted_mmm
         mmm.set_cost_per_unit(_full_table(mmm, {"channel_1": 2.0}))
         assert "channel_spend" in mmm.idata.constant_data
-        with pytest.raises(ValueError, match="fitted on nominal spend") as info:
-            _optimizer(mmm, price_response=PowerPriceResponse(elasticity=0.3))
-        assert "channel_2" in str(info.value) and "channel_3" in str(info.value)
-        assert "'channel_1'" not in str(info.value)
+        attested = PowerPriceResponse(elasticity=0.3, assume_delivery_units=True)
+        with pytest.raises(ValueError, match="reference_spend is required") as info:
+            _optimizer(mmm, price_response=attested)
+        message = str(info.value)
+        assert "channel_2" in message and "channel_3" in message
+        assert "'channel_1'" not in message
+        assert "does not price them" in message and "set_cost_per_unit" in message
         mask = xr.DataArray(
             [True, False, False], dims=("channel",), coords={"channel": CHANNELS_3}
         )
-        _optimizer(
-            mmm,
-            budgets_to_optimize=mask,
-            price_response=PowerPriceResponse(elasticity=0.3),
-        )
+        _optimizer(mmm, budgets_to_optimize=mask, price_response=attested)
 
     def test_partial_table_passes_when_only_priced_channels_are_curved(
         self, simple_fitted_mmm
     ):
         """elasticity={"channel_1": 0.25} bends channel_1 alone; channels 2 and 3 take
-        the identity map, so their missing table entries vouch for nothing the run
+        the identity map, so their missing table entries anchor nothing the run
         relies on."""
         mmm = simple_fitted_mmm
         mmm.set_cost_per_unit(_full_table(mmm, {"channel_1": 2.0}))
         optimizer = _optimizer(
-            mmm, price_response=PowerPriceResponse(elasticity={"channel_1": 0.25})
+            mmm,
+            price_response=PowerPriceResponse(
+                elasticity={"channel_1": 0.25}, assume_delivery_units=True
+            ),
         )
         resolved = optimizer.optimization_variables.variables[0].price_response
         assert not resolved.is_identity
@@ -1054,18 +1125,21 @@ class TestPriceResponseGate:
     ):
         mmm = simple_fitted_mmm
         mmm.set_cost_per_unit(_full_table(mmm, {"channel_1": 2.0}))
-        with pytest.raises(ValueError, match="fitted on nominal spend") as info:
+        with pytest.raises(ValueError, match="reference_spend is required") as info:
             _optimizer(
-                mmm, price_response=PowerPriceResponse(elasticity={"channel_2": 0.25})
+                mmm,
+                price_response=PowerPriceResponse(
+                    elasticity={"channel_2": 0.25}, assume_delivery_units=True
+                ),
             )
         message = str(info.value)
         assert "channel_2" in message
         assert "channel_1" not in message and "channel_3" not in message
 
-    def test_unpriced_model_refusal_names_only_the_curved_channels(
+    def test_attestation_refusal_names_only_the_curved_channels(
         self, simple_fitted_mmm
     ):
-        with pytest.raises(ValueError, match="fitted on nominal spend") as info:
+        with pytest.raises(ValueError, match="a declaration, not evidence") as info:
             _optimizer(
                 simple_fitted_mmm,
                 price_response=PowerPriceResponse(elasticity={"channel_2": 0.3}),
@@ -1085,7 +1159,8 @@ class TestPriceResponseGate:
         _optimizer(
             mmm,
             price_response=PowerPriceResponse(
-                elasticity={"channel_1": 0.3, "channel_2": 0.3}
+                elasticity={"channel_1": 0.3, "channel_2": 0.3},
+                assume_delivery_units=True,
             ),
         )
 
@@ -1093,7 +1168,12 @@ class TestPriceResponseGate:
         mmm = simple_fitted_mmm
         _flight(mmm, "channel_3", on_every=4)
         mmm.set_cost_per_unit(_full_table(mmm, dict.fromkeys(CHANNELS_3, 2.0)))
-        optimizer = _optimizer(mmm, price_response=PowerPriceResponse(elasticity=0.3))
+        optimizer = _optimizer(
+            mmm,
+            price_response=PowerPriceResponse(
+                elasticity=0.3, assume_delivery_units=True
+            ),
+        )
         resolved = optimizer.optimization_variables.variables[0].price_response
         expected = _on_air_reference(mmm).sel(channel=CHANNELS_3).values
         np.testing.assert_allclose(resolved.reference_spend, expected)
@@ -1129,7 +1209,9 @@ class TestPriceResponseGate:
         recent = spend.where(spend > 0).mean("date").sel(channel=["channel_1"])
         optimizer = _optimizer(
             mmm,
-            price_response=PowerPriceResponse(elasticity=0.3, reference_spend=recent),
+            price_response=PowerPriceResponse(
+                elasticity=0.3, reference_spend=recent, assume_delivery_units=True
+            ),
         )
         resolved = optimizer.optimization_variables.variables[0].price_response
         whole_fit = _on_air_reference(mmm).sel(channel=CHANNELS_3).values
@@ -1143,16 +1225,24 @@ class TestPriceResponseGate:
         _flight(mmm, "channel_3", on_every=0)
         mmm.set_cost_per_unit(_full_table(mmm, dict.fromkeys(CHANNELS_3, 2.0)))
         with pytest.raises(ValueError, match=r"no on-air period.*channel_3"):
-            _optimizer(mmm, price_response=PowerPriceResponse(elasticity=0.3))
+            _optimizer(
+                mmm,
+                price_response=PowerPriceResponse(
+                    elasticity=0.3, assume_delivery_units=True
+                ),
+            )
 
-    def test_opt_out_requires_an_explicit_reference(self, simple_fitted_mmm):
-        with pytest.raises(ValueError, match="reference_spend"):
+    def test_attestation_without_a_table_requires_an_explicit_reference(
+        self, simple_fitted_mmm
+    ):
+        with pytest.raises(ValueError, match="reference_spend is required") as info:
             _optimizer(
                 simple_fitted_mmm,
                 price_response=PowerPriceResponse(
                     elasticity=0.3, assume_delivery_units=True
                 ),
             )
+        assert "no usable historical cost_per_unit table" in str(info.value)
         reference = xr.DataArray(
             [100.0, 100.0, 100.0], dims=("channel",), coords={"channel": CHANNELS_3}
         )
@@ -1267,46 +1357,48 @@ class TestPriceResponseGate:
         self, simple_fitted_mmm
     ):
         """The table prices every optimized channel but constant_data has no usable
-        channel_spend: the fit is in delivery units, only the reference cannot be
-        derived. Saying "no historical cost_per_unit table" would send the user to set
-        the table they already set. An explicit reference_spend is enough here; no
-        assume_delivery_units, because the artifact does vouch for the units."""
+        channel_spend: the response is attested, only the reference cannot be derived.
+        Saying "no historical cost_per_unit table" would send the user to set the table
+        they already set. An explicit reference_spend is enough here."""
         mmm = simple_fitted_mmm
         mmm.set_cost_per_unit(_full_table(mmm, dict.fromkeys(CHANNELS_3, 2.0)))
         del mmm.idata.constant_data["channel_spend"]
         with pytest.raises(ValueError, match="channel_spend") as info:
-            _optimizer(mmm, price_response=PowerPriceResponse(elasticity=0.3))
-        assert "no historical cost_per_unit table" not in str(info.value)
-        assert "fitted on nominal spend" not in str(info.value)
+            _optimizer(
+                mmm,
+                price_response=PowerPriceResponse(
+                    elasticity=0.3, assume_delivery_units=True
+                ),
+            )
+        assert "no usable historical cost_per_unit table" not in str(info.value)
+        assert "a declaration, not evidence" not in str(info.value)
         reference = xr.DataArray(
             [100.0, 100.0, 100.0], dims=("channel",), coords={"channel": CHANNELS_3}
         )
         _optimizer(
             mmm,
             price_response=PowerPriceResponse(
-                elasticity=0.3, reference_spend=reference
+                elasticity=0.3, reference_spend=reference, assume_delivery_units=True
             ),
         )
 
     def test_priced_model_without_a_window_price_warns(self, simple_fitted_mmm):
-        """The gate has just established that channel data is in delivery units. With no
-        window cost_per_unit the base price is 1 and money reaches the model as units; the
-        deprecated wrapper already warns about this for the constant-price path, the
-        optimizer did not."""
+        """The table says channel_spend is money. With no window cost_per_unit the base
+        price is 1 and money reaches the model as units; the deprecated wrapper already
+        warns about this for the constant-price path, the optimizer did not."""
         mmm = simple_fitted_mmm
         mmm.set_cost_per_unit(_full_table(mmm, dict.fromkeys(CHANNELS_3, 2.0)))
         start, end = _window(mmm)
+        attested = PowerPriceResponse(elasticity=0.3, assume_delivery_units=True)
         with pytest.warns(UserWarning, match="no cost_per_unit for the window"):
-            mmm.budget_optimizer(
-                start, end, price_response=PowerPriceResponse(elasticity=0.3)
-            )
+            mmm.budget_optimizer(start, end, price_response=attested)
         with warnings.catch_warnings():
             warnings.simplefilter("error", UserWarning)
             mmm.budget_optimizer(
                 start,
                 end,
                 cost_per_unit=_window_cpu(mmm, dict.fromkeys(CHANNELS_3, 2.0)),
-                price_response=PowerPriceResponse(elasticity=0.3),
+                price_response=attested,
             )
 
     def test_reference_spend_at_window_granularity_is_refused(self, simple_fitted_mmm):
@@ -1321,7 +1413,9 @@ class TestPriceResponseGate:
             _optimizer(
                 mmm,
                 price_response=PowerPriceResponse(
-                    elasticity=0.3, reference_spend=fitted * 52
+                    elasticity=0.3,
+                    reference_spend=fitted * 52,
+                    assume_delivery_units=True,
                 ),
             )
         start, end = _window(mmm)
@@ -1331,7 +1425,9 @@ class TestPriceResponseGate:
                 end,
                 cost_per_unit=_window_cpu(mmm, dict.fromkeys(CHANNELS_3, 2.0)),
                 price_response=PowerPriceResponse(
-                    elasticity=0.3, reference_spend=fitted * WINDOW_WEEKS
+                    elasticity=0.3,
+                    reference_spend=fitted * WINDOW_WEEKS,
+                    assume_delivery_units=True,
                 ),
             )
         with pytest.raises(ValueError, match="4x apart"):
@@ -1341,23 +1437,22 @@ class TestPriceResponseGate:
                     elasticity=0.3,
                     reference_spend=fitted * 4,
                     reference_spend_tolerance=2.0,
+                    assume_delivery_units=True,
                 ),
             )
 
     def test_a_malformed_table_attr_is_read_as_no_table(self, simple_fitted_mmm):
-        """Garbage in idata.attrs['cost_per_unit'] must not escape the gate as a bare
-        JSONDecodeError; it reads as no usable table and gets the curated refusal."""
+        """Garbage in idata.attrs['cost_per_unit'] must not escape as a bare
+        JSONDecodeError; it reads as no usable table, so an attested response gets the
+        curated request for a reference."""
         mmm = simple_fitted_mmm
-        mmm.idata.attrs["cost_per_unit"] = "not json at all"
-        with pytest.raises(
-            ValueError, match="no usable historical cost_per_unit table"
-        ):
-            _optimizer(mmm, price_response=PowerPriceResponse(elasticity=0.3))
-        mmm.idata.attrs["cost_per_unit"] = '{"not": "a split frame"}'
-        with pytest.raises(
-            ValueError, match="no usable historical cost_per_unit table"
-        ):
-            _optimizer(mmm, price_response=PowerPriceResponse(elasticity=0.3))
+        attested = PowerPriceResponse(elasticity=0.3, assume_delivery_units=True)
+        for garbage in ("not json at all", '{"not": "a split frame"}'):
+            mmm.idata.attrs["cost_per_unit"] = garbage
+            with pytest.raises(
+                ValueError, match="no usable historical cost_per_unit table"
+            ):
+                _optimizer(mmm, price_response=attested)
 
     def test_channel_spend_missing_an_optimized_coordinate_is_named_as_such(
         self, simple_fitted_mmm
@@ -1375,7 +1470,12 @@ class TestPriceResponseGate:
         with pytest.raises(
             ValueError, match=r"does not cover the model coordinates.*channel_3"
         ):
-            _optimizer(mmm, price_response=PowerPriceResponse(elasticity=0.3))
+            _optimizer(
+                mmm,
+                price_response=PowerPriceResponse(
+                    elasticity=0.3, assume_delivery_units=True
+                ),
+            )
         # With a reference supplied nothing has to be derived, so the gap is tolerated.
         reference = xr.DataArray(
             [100.0, 100.0, 100.0], dims=("channel",), coords={"channel": CHANNELS_3}
@@ -1385,7 +1485,9 @@ class TestPriceResponseGate:
             _optimizer(
                 mmm,
                 price_response=PowerPriceResponse(
-                    elasticity=0.3, reference_spend=reference
+                    elasticity=0.3,
+                    reference_spend=reference,
+                    assume_delivery_units=True,
                 ),
             )
 
@@ -1408,7 +1510,12 @@ class TestPriceResponseGate:
             ]
         )
         mmm.set_cost_per_unit(table)
-        optimizer = _optimizer(mmm, price_response=PowerPriceResponse(elasticity=0.3))
+        optimizer = _optimizer(
+            mmm,
+            price_response=PowerPriceResponse(
+                elasticity=0.3, assume_delivery_units=True
+            ),
+        )
         resolved = optimizer.optimization_variables.variables[0].price_response
         assert resolved.dims == (custom, "channel")
         spend = mmm.idata.constant_data["channel_spend"]
@@ -1457,7 +1564,7 @@ class TestPriceResponseAllocation:
         optimizer = _optimizer(
             mmm,
             cost_per_unit=window_cpu,
-            price_response=PowerPriceResponse(elasticity=gamma),
+            price_response=_curved(elasticity=gamma),
         )
         result = optimizer.allocate_budget(total_budget=self.TOTAL)
         assert result.scipy_result.success, result.scipy_result.message
@@ -1544,7 +1651,7 @@ class TestPriceResponseAllocation:
         aware = _optimizer(
             mmm,
             cost_per_unit=window_cpu,
-            price_response=PowerPriceResponse(elasticity={"channel_2": 0.4}),
+            price_response=_curved(elasticity={"channel_2": 0.4}),
         )
         result = aware.allocate_budget(total_budget=600.0)
 
@@ -1580,7 +1687,7 @@ class TestPriceResponseAllocation:
             mmm,
             cost_per_unit=window_cpu,
             budget_distribution_over_period=distribution,
-            price_response=PowerPriceResponse(elasticity=gamma),
+            price_response=_curved(elasticity=gamma),
         )
         result = optimizer.allocate_budget(total_budget=600.0)
         assert result.scipy_result.success, result.scipy_result.message
@@ -1625,9 +1732,7 @@ class TestPriceResponseAllocation:
         optimizer = _optimizer(
             mmm,
             cost_per_unit=_window_cpu(mmm, self.PRICES),
-            price_response=PowerPriceResponse(
-                elasticity={"channel_2": 0.3, "channel_3": 0.3}
-            ),
+            price_response=_curved(elasticity={"channel_2": 0.3, "channel_3": 0.3}),
         )
         bounds = xr.DataArray(
             [[0.0, 0.0], [0.0, self.TOTAL], [0.0, self.TOTAL]],
@@ -1671,7 +1776,7 @@ class TestPriceResponseAllocation:
         optimizer = _optimizer(
             mmm,
             cost_per_unit=_window_cpu(mmm, self.PRICES),
-            price_response=PowerPriceResponse(elasticity=0.3),
+            price_response=_curved(elasticity=0.3),
         )
         bounds = xr.DataArray(
             [[0.0, 0.0], [0.0, self.TOTAL], [0.0, self.TOTAL]],
@@ -1695,9 +1800,7 @@ class TestPriceResponseAllocation:
         optimizer = _optimizer(
             mmm,
             cost_per_unit=_window_cpu(mmm, self.PRICES),
-            price_response=PowerPriceResponse(
-                elasticity={"channel_2": 0.3, "channel_3": 0.3}
-            ),
+            price_response=_curved(elasticity={"channel_2": 0.3, "channel_3": 0.3}),
         )
         bounds = xr.DataArray(
             [[0.0, 0.0], [0.0, self.TOTAL], [0.0, self.TOTAL]],
@@ -1752,9 +1855,7 @@ class TestPriceResponseOptimality:
         optimizer = _optimizer(
             mmm,
             cost_per_unit=_window_cpu(mmm, self.PRICES),
-            price_response=PowerPriceResponse(
-                elasticity={"channel_1": 0.4, "channel_3": 0.2}
-            ),
+            price_response=_curved(elasticity={"channel_1": 0.4, "channel_3": 0.2}),
         )
         x = optimizer.optimization_variables.x0(self.TOTAL)
         _, gradient = optimizer._objective_and_grad(x)
@@ -1798,7 +1899,7 @@ class TestPriceResponseOptimality:
         aware = _optimizer(
             mmm,
             cost_per_unit=base,
-            price_response=PowerPriceResponse(elasticity=elasticity),
+            price_response=_curved(elasticity=elasticity),
         )
         result = aware.allocate_budget(
             total_budget=self.TOTAL, minimize_kwargs=self.TIGHT
@@ -1834,9 +1935,7 @@ class TestPriceResponseOptimality:
         optimizer = _optimizer(
             mmm,
             cost_per_unit=_window_cpu(mmm, self.PRICES),
-            price_response=PowerPriceResponse(
-                elasticity={"channel_1": 0.5, "channel_2": 0.25}
-            ),
+            price_response=_curved(elasticity={"channel_1": 0.5, "channel_2": 0.25}),
         )
         x0 = xr.DataArray(
             [0.0, 150.0, 150.0], dims=("channel",), coords={"channel": CHANNELS_3}
@@ -1864,7 +1963,7 @@ class TestPriceResponseOptimality:
             optimizer = _optimizer(
                 mmm,
                 cost_per_unit=_window_cpu(mmm, self.PRICES),
-                price_response=PowerPriceResponse(elasticity=0.005),
+                price_response=_curved(elasticity=0.005),
             )
         x0 = xr.DataArray(
             [0.0, self.TOTAL / 2, self.TOTAL / 2],
@@ -1895,7 +1994,7 @@ class TestPriceResponseOptimality:
             .allocate_budget(total_budget=self.TOTAL)
             .budgets
         )
-        anchored = PowerPriceResponse(
+        anchored = _curved(
             elasticity={"channel_2": 0.4},
             reference_spend=baseline,
             reference_spend_tolerance=20.0,
@@ -1931,7 +2030,7 @@ class TestPriceResponseOptimality:
         aware = _optimizer(
             mmm,
             cost_per_unit=base,
-            price_response=PowerPriceResponse(elasticity={"channel_2": 0.4}),
+            price_response=_curved(elasticity={"channel_2": 0.4}),
         )
         s = float(baseline.sel(channel="channel_2"))
         reference = float(_on_air_reference(mmm).sel(channel="channel_2"))

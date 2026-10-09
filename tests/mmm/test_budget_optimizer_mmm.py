@@ -2532,13 +2532,12 @@ class TestMonetarySpendVariables:
     def test_a_curved_spend_variable_needs_the_attestation_then_a_reference(
         self, funnel_identity_fitted_mmm
     ):
-        """A spend variable is a money node: exactly the spend-fitted case the media gate
-        refuses, and it has no historical cost_per_unit table to vouch for it. So a curved
-        response on it needs assume_delivery_units, and then a reference_spend, since
-        there is nothing to derive one from."""
+        """A spend variable is a money node, so a curved response on it needs the same
+        attestation as one on media, and then a reference_spend, since no historical
+        cost_per_unit table describes a spend variable."""
         constant_media = PowerPriceResponse(elasticity=0.0)
         with pytest.raises(
-            ValueError, match=r"lf_budget.*no historical cost_per_unit"
+            ValueError, match=r"lf_budget.*a declaration, not evidence"
         ) as info:
             self._optimizer(
                 funnel_identity_fitted_mmm,

@@ -320,8 +320,9 @@ class MediaVariable(OptimizationVariable):
         ``p0`` for a baseline run.
     price_reference : DataArray or None
         Per-period money per cell the optimizer derived from the fitted model,
-        the default ``reference_spend``; ``nan`` on cells it cannot vouch for.
-        ``None`` when there is nothing to derive from or no cell is curved.
+        the default ``reference_spend``; ``nan`` on cells with no fitted money
+        (an unpriced channel, a cell never on air). ``None`` when there is
+        nothing to derive from or no cell is curved.
     compile_kwargs : dict or None
         Keyword arguments for ``pytensor.function`` when compiling
         :meth:`delivery_report`, the same ones the optimizer compiles its

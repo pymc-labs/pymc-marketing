@@ -2035,10 +2035,11 @@ def test_price_response_and_channel_scales_compose_through_the_optimizer(mmm_wra
 
 def test_price_gate_names_a_missing_channel_dim_rather_than_a_missing_table():
     """A model whose media dim is not called ``channel`` cannot be matched against the
-    fitted cost_per_unit table's columns. That is a different fact from "no table", and
-    the refusal has to say which one it is, or the user goes and sets a table they
-    already have. Not reachable through MMM (its channel data always carries a
-    ``channel`` dim); reachable through any custom model with the attr set."""
+    fitted cost_per_unit table's columns, so no reference can be derived. That is a
+    different fact from "no table", and the refusal has to say which one it is, or the
+    user goes and sets a table they already have. Not reachable through MMM (its channel
+    data always carries a ``channel`` dim); reachable through any custom model with the
+    attr set. Without the attestation the refusal is about the attestation."""
     from pymc_marketing.mmm import PowerPriceResponse
 
     n_dates, media = 6, ["a", "b"]
@@ -2060,15 +2061,22 @@ def test_price_gate_names_a_missing_channel_dim_rather_than_a_missing_table():
     )
     idata.attrs["cost_per_unit"] = table.to_json(orient="split", date_format="iso")
 
-    with pytest.raises(ValueError, match=r"no 'channel' dim") as info:
-        BudgetOptimizer(
+    def build(response):
+        return BudgetOptimizer(
             model=model,
             idata=idata,
             num_periods=4,
             adstock_periods=2,
-            price_response=PowerPriceResponse(elasticity=0.3),
+            price_response=response,
         )
-    assert "no historical cost_per_unit table" not in str(info.value)
+
+    with pytest.raises(ValueError, match="a declaration, not evidence") as info:
+        build(PowerPriceResponse(elasticity=0.3))
+    assert "every optimized channel" in str(info.value)
+    with pytest.raises(ValueError, match=r"no 'channel' dim") as info:
+        build(PowerPriceResponse(elasticity=0.3, assume_delivery_units=True))
+    assert "no usable historical cost_per_unit table" not in str(info.value)
+    assert "set_cost_per_unit" not in str(info.value)
     assert "['media']" in str(info.value)
 
 
@@ -2099,10 +2107,10 @@ def _split_json_table(prices: dict) -> str:
 
 def test_price_gate_does_not_refuse_a_map_that_adds_no_curvature():
     """The gate keys on curvature, not on identity: a family that is linear in money
-    (#3067's bracket schedule) rescales the axis without bending it, so a spend-fitted
-    model has nothing to vouch for. Written against the ABC alone, with its default
-    curved_cells and the base implied_price, on an idata with no priced-channel table at
-    all, which is the branch that refuses any curved map."""
+    (#3067's bracket schedule) rescales the axis without bending it, so it needs no
+    attestation. Written against the ABC alone, with its default curved_cells and the
+    base implied_price, on an idata with no table at all, so nothing could anchor a
+    reference either."""
     import pytensor.xtensor as ptx
 
     from pymc_marketing.mmm.price_response import (
@@ -2160,11 +2168,11 @@ def test_price_gate_does_not_refuse_a_map_that_adds_no_curvature():
 
 def test_inference_data_root_attrs_reach_the_price_gate():
     """_to_datatree used to rebuild the tree from its groups and drop the root attrs, so a
-    correctly priced model handed over as a legacy InferenceData was refused as unpriced.
+    priced model handed over as a legacy InferenceData could derive no reference.
     arviz >= 1.2 has no InferenceData class (it is a DataTree), so the stand-in below is the
     duck type the branch exists for: groups() plus one attribute per group. With the attrs
-    carried, the gate reads the table and the next error is about the missing channel_spend
-    array, which is the true state of this idata."""
+    carried, the attested response reads the table and the next error is about the missing
+    channel_spend array, which is the true state of this idata."""
 
     class LegacyInferenceData:
         def __init__(self, posterior, attrs):
@@ -2188,47 +2196,50 @@ def test_inference_data_root_attrs_reach_the_price_gate():
             idata=idata,
             num_periods=4,
             adstock_periods=2,
-            price_response=PowerPriceResponse(elasticity=0.3),
+            price_response=PowerPriceResponse(
+                elasticity=0.3, assume_delivery_units=True
+            ),
         )
     assert "no usable historical cost_per_unit table" not in str(info.value)
 
 
 def test_price_gate_matches_non_string_channel_labels_against_the_table():
     """The table's JSON columns, the model's channel coords and a dict elasticity's keys are
-    compared as strings, so integer labels priced by the table are vouched for and an unpriced
-    one is still named. The vouched run then stops at the missing channel_spend, the true state
-    of this idata."""
+    compared as strings, so integer labels priced by the table get a derived reference and
+    an unpriced one is still named. The priced run then stops at the missing channel_spend,
+    the true state of this idata. The attestation refusal names every curved channel."""
     from pymc_marketing.mmm import PowerPriceResponse
 
     model, posterior = _channel_model([1, 2])
     idata = xr.DataTree.from_dict({"posterior": posterior})
     idata.attrs["cost_per_unit"] = _split_json_table({1: 2.0})
 
-    def build(elasticity):
+    def build(elasticity, **kwargs):
         return BudgetOptimizer(
             model=model,
             idata=idata,
             num_periods=4,
             adstock_periods=2,
-            price_response=PowerPriceResponse(elasticity=elasticity),
+            price_response=PowerPriceResponse(elasticity=elasticity, **kwargs),
         )
 
-    with pytest.raises(ValueError, match="fitted on nominal spend") as info:
+    with pytest.raises(ValueError, match="a declaration, not evidence") as info:
         build(0.3)
-    assert "channels ['2']" in str(info.value)
-    with pytest.raises(ValueError, match="fitted on nominal spend") as info:
-        build({2: 0.3})
-    assert "channels ['2']" in str(info.value)
+    assert "channels ['1', '2']" in str(info.value)
+    for elasticity in (0.3, {2: 0.3}):
+        with pytest.raises(ValueError, match="reference_spend is required") as info:
+            build(elasticity, assume_delivery_units=True)
+        assert "channels ['2']" in str(info.value)
     only_priced = xr.DataArray(
         [0.3, 0.0], dims=("channel",), coords={"channel": [1, 2]}
     )
     for elasticity in (only_priced, {1: 0.3}, {"1": 0.3}):
         with pytest.raises(ValueError, match="channel_spend") as info:
-            build(elasticity)
-        assert "fitted on nominal spend" not in str(info.value)
+            build(elasticity, assume_delivery_units=True)
+        assert "reference_spend is required" not in str(info.value)
 
 
-def test_price_gate_does_not_let_the_table_vouch_for_a_custom_node():
+def test_the_table_anchors_no_reference_for_a_custom_node():
     """MMM writes the historical cost_per_unit table for its channel_data node. A custom
     channel_data_var that shares its channel labels is not tied to it, so a curved response
     there needs the attestation and then a reference, as a spend variable does. A flat
@@ -2250,12 +2261,17 @@ def test_price_gate_does_not_let_the_table_vouch_for_a_custom_node():
         )
 
     with pytest.raises(
-        ValueError, match=r"media_spend.*custom channel_data_var"
+        ValueError, match=r"media_spend.*a declaration, not evidence"
     ) as info:
         build(PowerPriceResponse(elasticity=0.3))
     assert "assume_delivery_units=True" in str(info.value)
-    with pytest.raises(ValueError, match=r"media_spend.*reference_spend is required"):
+    assert "no historical table describes this node" in str(info.value)
+    with pytest.raises(
+        ValueError, match=r"media_spend.*reference_spend is required"
+    ) as info:
         build(PowerPriceResponse(elasticity=0.3, assume_delivery_units=True))
+    assert "describes MMM's 'channel_data' node only" in str(info.value)
+    assert "set_cost_per_unit" not in str(info.value)
 
     reference = xr.DataArray(
         [50.0, 80.0], dims=("channel",), coords={"channel": ["a", "b"]}

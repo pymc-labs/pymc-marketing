@@ -31,10 +31,11 @@ Precondition
 The feature is only sound when the model was fitted on **delivery units** (impressions, clicks), or on spend
 restated into constant prices. A model fitted on nominal spend has already absorbed part of the price curvature
 into its saturation curve, because price and volume moved together historically; a concave price map on top bends
-the same curve twice and understates marginal return. The optimizer checks this against the fitted artifact -- the
-historical ``cost_per_unit`` table set through :meth:`~pymc_marketing.mmm.mmm.MMM.set_cost_per_unit`, per
-channel -- and refuses otherwise. ``assume_delivery_units=True`` with a ``reference_spend`` for the channels the
-table does not price is the opt-out for spend deflated outside the library.
+the same curve twice and understates marginal return. The optimizer cannot check this: the fitted model carries
+no evidence of the units of its data, and its historical ``cost_per_unit`` table is a declaration that
+:meth:`~pymc_marketing.mmm.mmm.MMM.set_cost_per_unit` writes after the fit without touching the model. So a
+response that bends money anywhere requires ``assume_delivery_units=True``. The historical table then anchors
+``reference_spend`` on the channels it prices; every other curved cell needs a ``reference_spend``.
 """
 
 from __future__ import annotations
@@ -301,11 +302,11 @@ class PriceResponse(BaseModel, ABC):
     family refuses a declaration that would break this when it is constructed, as :class:`PowerPriceResponse`
     refuses ``elasticity < 0``.
 
-    The optimizer asks three things of a family before resolving it, and keys its delivery-units gate on the
-    answers rather than on the concrete type: where the map *bends* money (:attr:`adds_curvature`,
-    :meth:`curved_cells`), whether the user attests that the fitted data are in delivery units
-    (:attr:`attests_delivery_units`), and whether the declaration supplies no reference level of its own
-    (:attr:`needs_derived_reference`). The gate runs before :meth:`resolve`, because a refusal must name its
+    The optimizer asks three things of a family before resolving it, and keys on the answers rather than on the
+    concrete type: where the map *bends* money (:attr:`adds_curvature`, :meth:`curved_cells`), whether the user
+    attests that the fitted data are in delivery units (:attr:`attests_delivery_units`, required wherever the
+    map bends), and whether the declaration supplies no reference level of its own
+    (:attr:`needs_derived_reference`). These are read before :meth:`resolve`, because a refusal must name its
     cause rather than the missing reference spend that cause implies. Declarations are frozen: mutating one after
     construction would bypass its validators.
     """
@@ -317,7 +318,7 @@ class PriceResponse(BaseModel, ABC):
     def adds_curvature(self) -> bool:
         """True when the map bends money on some cell.
 
-        This is what the delivery-units gate keys on. Writing the composed second derivative as
+        This is what the attestation requirement keys on. Writing the composed second derivative as
         :math:`f''(u) u'^2 + f'(u) u''`, it is the :math:`f'(u) u''` term that double-counts a saturation
         curve fitted on nominal spend, so a map with a non-zero ``u''`` needs the fit to be in delivery units
         and a map piecewise linear in money does not: it rescales the axis without bending it.
@@ -335,7 +336,7 @@ class PriceResponse(BaseModel, ABC):
         """Boolean per cell of a layout, in ``dims`` order: where the resolved map would bend money.
 
         Equal to ``resolve(...).curved`` on the same layout, and ``False`` outside the mask, which :meth:`resolve`
-        ignores. Answered without a reference spend, so the optimizer can gate a response before resolving it.
+        ignores. Answered without a reference spend, so the optimizer can judge a response before resolving it.
         The default is :attr:`adds_curvature` on every optimized cell; a family whose parameters vary by cell
         overrides it. ``label`` prefixes any error raised while reading the declaration.
         """
@@ -344,10 +345,11 @@ class PriceResponse(BaseModel, ABC):
 
     @property
     def attests_delivery_units(self) -> bool:
-        """The user vouches that the fitted data are in delivery units (or constant-price spend).
+        """The user attests that the fitted data are in delivery units (or constant-price spend).
 
-        Read only for a response that bends a cell the fitted artifact cannot vouch for. Default ``False``; a
-        curved family exposes a field for it.
+        Required of every response that bends a cell, on any node: the fitted model has no evidence of its
+        own units, and its historical ``cost_per_unit`` table is a declaration that can be set after the fit.
+        Default ``False``; a curved family exposes a field for it.
         """
         return False
 
@@ -386,8 +388,8 @@ class PriceResponse(BaseModel, ABC):
             family that accepts it takes a ``date_dim`` of length ``num_periods`` aligned by position, as the
             optimizer's ``cost_per_unit`` is.
         derived_reference : DataArray or None
-            Per-period money per cell read off the fitted artifact by the optimizer, in the units of
-            ``result.budgets``; ``nan`` on cells it cannot vouch for (a channel the historical ``cost_per_unit``
+            Per-period money per cell read off the fitted model by the optimizer, in the units of
+            ``result.budgets``; ``nan`` on cells with no fitted money (a channel the historical ``cost_per_unit``
             table does not price, a cell never on air). ``None`` when there is nothing to read (a spend variable,
             a custom ``channel_data_var``, a model with no table).
         label : str
@@ -472,8 +474,8 @@ class PowerPriceResponse(PriceResponse):
         overrides the default cell by cell: its labels may be partial, cells it leaves out (absent labels or
         ``nan``) keep the derived one, and the cells it gives are checked against it where it exists (see
         ``reference_spend_tolerance``). It must cover every curved cell with no derived value: every cell of a
-        spend variable or of a custom ``channel_data_var``, and the channels an attested model's table does
-        not price.
+        spend variable or of a custom ``channel_data_var``, and the channels the historical table does not
+        price.
     max_slope_ratio : float
         Cap on :math:`u'(0) / u'(s^{\text{ref}})`, the spread of marginal returns the solver can meet on one
         cell. Sets the floor :math:`s_f / s^{\text{ref}} = \max\big((M (1-\gamma)/(1+\gamma))^{-1/\gamma},\;
@@ -494,27 +496,27 @@ class PowerPriceResponse(PriceResponse):
         window total for a window of ``num_periods <= reference_spend_tolerance`` periods is therefore accepted
         with only the warning; lower the tolerance for short windows if that is a risk.
     assume_delivery_units : bool
-        Attest that the node's data are in delivery units (or in spend deflated to constant prices) even
-        though no historical ``cost_per_unit`` table prices them. Required, together with a ``reference_spend``
-        covering those cells, to bend the price on channels the fitted artifact cannot vouch for and on every
-        spend variable or custom ``channel_data_var``, which the table does not describe. Channels the table
-        does price keep their derived reference alongside the attested ones, and a cell left at
-        ``elasticity=0`` needs no vouching, since its money passes through unbent. Default ``False``: the
-        optimizer then refuses, because a saturation curve fitted on nominal spend has already absorbed part of
-        the price curvature and a concave price map on top would bend it twice (see
-        :attr:`PriceResponse.adds_curvature`).
+        Attest that the node's data are in delivery units (or in spend deflated to constant prices). Required
+        wherever the response bends money, on every node; a cell left at ``elasticity=0`` needs no attestation,
+        since its money passes through unbent. Default ``False``: the optimizer then refuses, because a
+        saturation curve fitted on nominal spend has already absorbed part of the price curvature and a concave
+        price map on top would bend it twice (see :attr:`PriceResponse.adds_curvature`). The fitted model
+        cannot establish its own units: its historical ``cost_per_unit`` table is a declaration, written the
+        same way by ``MMM(cost_per_unit=...)`` and by :meth:`~pymc_marketing.mmm.mmm.MMM.set_cost_per_unit`
+        after the fit, so it does not stand in for this flag. It anchors ``reference_spend`` instead, on the
+        channels it prices.
 
     Notes
     -----
     **Precondition.** Only sound when the model was fitted on delivery units or constant-price spend. The
-    optimizer checks each channel the response bends against the historical ``cost_per_unit`` table on the
-    fitted model (written by :meth:`~pymc_marketing.mmm.mmm.MMM.set_cost_per_unit` or ``MMM(cost_per_unit=...)``)
-    and refuses the unpriced ones unless ``assume_delivery_units=True`` and a ``reference_spend`` covering them
-    are given; channels left at ``elasticity=0`` need no vouching. The table describes the ``channel_data``
-    node of ``MMM`` only, so a custom ``channel_data_var`` needs the opt-out, as a spend variable does.
-    The ``cost_per_unit`` passed to the *optimizer* is independent of that table and proves nothing about the
-    fit. A merged model (:func:`~pymc_marketing.mmm.budget_optimizer.merge_inference_data`) carries no root
-    attrs and always needs the opt-out.
+    optimizer cannot check this and requires ``assume_delivery_units=True`` on every channel the response bends;
+    channels left at ``elasticity=0`` need no attestation. The historical ``cost_per_unit`` table on the fitted
+    model (written by :meth:`~pymc_marketing.mmm.mmm.MMM.set_cost_per_unit` or ``MMM(cost_per_unit=...)``)
+    anchors ``reference_spend`` on the channels it prices; it describes the ``channel_data`` node of ``MMM``
+    only, so a custom ``channel_data_var``, a spend variable and any channel the table does not price need a
+    ``reference_spend``. The ``cost_per_unit`` passed to the *optimizer* is independent of that table and
+    proves nothing about the fit. A merged model (:func:`~pymc_marketing.mmm.budget_optimizer.merge_inference_data`)
+    carries no root attrs and so no derived reference.
 
     **Below the reference.** The power law is as confident below the reference as above it, so a priced channel
     bought far below its reference looks cheap and can attract budget: anchor ``reference_spend`` where you plan
@@ -580,12 +582,15 @@ class PowerPriceResponse(PriceResponse):
 
         mmm.set_cost_per_unit(
             historical_cpu_df
-        )  # records that the fit is in delivery units
+        )  # anchors reference_spend on tv and display
         optimizer = mmm.budget_optimizer(
             start_date,
             end_date,
             cost_per_unit=window_cpu,  # xarray.DataArray over (date, *budget_dims); see BudgetOptimizer
-            price_response=PowerPriceResponse(elasticity={"tv": 0.25, "display": 0.10}),
+            price_response=PowerPriceResponse(
+                elasticity={"tv": 0.25, "display": 0.10},
+                assume_delivery_units=True,  # the fit is in impressions, not spend
+            ),
         )
         result = optimizer.allocate_budget(total_budget=weekly_budget)
         result.budgets, result.implied_price, result.implied_marginal_price
@@ -599,7 +604,9 @@ class PowerPriceResponse(PriceResponse):
         spend = mmm.idata.constant_data["channel_spend"].isel(date=slice(-13, None))
         recent = spend.where(spend > 0).mean("date").sel(channel=["tv", "display"])
         price_response = PowerPriceResponse(
-            elasticity={"tv": 0.25, "display": 0.10}, reference_spend=recent
+            elasticity={"tv": 0.25, "display": 0.10},
+            reference_spend=recent,
+            assume_delivery_units=True,
         )
     """
 
@@ -621,9 +628,9 @@ class PowerPriceResponse(PriceResponse):
     assume_delivery_units: bool = Field(
         default=False,
         description=(
-            "Attest that the node's data are in delivery units although no historical cost_per_unit prices "
-            "it. Requires a reference_spend covering the cells it attests for. See the class docstring for "
-            "why the default refuses."
+            "Attest that the node's data are in delivery units (or constant-price spend). Required wherever "
+            "the response bends money; the historical cost_per_unit table does not stand in for it. See the "
+            "class docstring for why the default refuses."
         ),
     )
 
