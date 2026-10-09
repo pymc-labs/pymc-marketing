@@ -192,6 +192,46 @@ def _distribution_name(likelihood: Prior) -> str:
     return dist if dist is not None else type(likelihood).__name__
 
 
+def _reject_wrapped_likelihood(likelihood: Prior) -> None:
+    """Raise for a wrapper likelihood, whose mean is not a function of ``mu`` alone.
+
+    Wrappers such as ``Censored`` and ``Scaled`` resolve to the name of the
+    distribution they hold but move its mean, so ``E[y]`` is not the
+    ``mu``-based mean of that distribution under either link.  Rejected before
+    any mean correction is dispatched on the held name, rather than silently
+    returning median-scale numbers labelled as means.
+
+    Named types first, so that the day pymc-extras gives a wrapper its own
+    ``parameters`` the hard error stays a hard error instead of turning into
+    wrong numbers.  The duck-typed arm stays as the catch-all for a wrapper
+    this module has not been told about.  It is narrower than the check in
+    :meth:`LinkSpec.validate_likelihood_support` on purpose: a ``SpecialPrior``
+    such as ``LogNormalPrior`` has parameters and passes.
+
+    Raises
+    ------
+    ValueError
+        If *likelihood* is one of ``WRAPPER_LIKELIHOODS`` or has no
+        ``parameters`` attribute.
+    """
+    if not (
+        isinstance(likelihood, WRAPPER_LIKELIHOODS)
+        or getattr(likelihood, "parameters", None) is None
+    ):
+        return
+    dist_name = _distribution_name(likelihood)
+    wrapper = type(likelihood).__name__
+    # Censored resolves to the name it holds, Scaled to its own, so naming
+    # both would read as "Scaled holding 'Scaled'".
+    held = "" if dist_name == wrapper else f" holding '{dist_name}'"
+    raise ValueError(
+        f"No mean correction is defined for a wrapped likelihood "
+        f"({wrapper}{held}). The "
+        f"wrapper moves the mean off 'mu', so the contributions cannot "
+        f"be read as means. Use central_tendency='median'."
+    )
+
+
 def _label_parameter(
     value: Any,
     likelihood: Prior,
@@ -469,6 +509,7 @@ class LinkSpec(ABC):
     def mean_ratio_tensor(
         self,
         model: pm.Model,
+        likelihood: Prior,
         output_var: str = "y",
     ) -> XTensorVariable | None:
         """Graph counterpart of :meth:`_mean_ratio` for a channel increment.
@@ -483,12 +524,19 @@ class LinkSpec(ABC):
         ``mu``.  Under ``TruncatedNormal`` the mean also moves through the
         truncation offset, which is not a factor; like
         ``MMM.compute_counterfactual_contributions_dataset``, the increment
-        leaves that offset out.
+        leaves that offset out.  A wrapper likelihood (``Censored``,
+        ``Scaled``) is refused on every link, as :meth:`to_mean_scale` and
+        :meth:`mean_scale_factor` refuse it: the wrapper moves the observed
+        mean off any ``mu``-based quantity, so no increment on the mean scale
+        can be built from the graph.
 
         Parameters
         ----------
         model : pm.Model
             The model whose likelihood parameters the factor is built from.
+        likelihood : Prior
+            The likelihood prior the model was built with.  The refusal
+            dispatches on it, not on the model's variables.
         output_var : str, default ``"y"``
             Name of the observed variable, used to locate the likelihood
             parameters in *model*.
@@ -498,7 +546,13 @@ class LinkSpec(ABC):
         XTensorVariable or None
             The factor, with the dims of the likelihood parameters it is built
             from, or ``None`` when the link needs none.
+
+        Raises
+        ------
+        ValueError
+            If *likelihood* is a wrapper.
         """
+        _reject_wrapped_likelihood(likelihood)
         return None
 
     def create_total_response_deterministic(
@@ -705,9 +759,10 @@ class LinkSpec(ABC):
     ) -> None:
         """Raise or warn where ``E[y]`` is undefined or unknown for *likelihood*.
 
-        No-op by default: :meth:`validate_likelihood_compatibility` pins each
-        non-identity link to one likelihood, so there is nothing left to
-        dispatch on.  ``IdentityLinkSpec`` overrides it.
+        No-op by default, for a link whose :meth:`validate_likelihood_compatibility`
+        leaves nothing to check at this point.  Both built-in links override
+        it: the identity link dispatches on the likelihood, and the log link
+        refuses the wrappers its validator looks through.
 
         Parameters
         ----------
@@ -1055,31 +1110,7 @@ class IdentityLinkSpec(LinkSpec):
         """
         dist_name = _distribution_name(likelihood)
 
-        # Wrappers such as Censored and Scaled resolve to the name of the
-        # distribution they hold, but move its mean, so E[y] != mu even for the
-        # response-scale names. Reject them before dispatching, rather than
-        # silently returning median-scale numbers labelled as means.
-        #
-        # Named types first, so that the day pymc-extras gives a wrapper its
-        # own 'parameters' the hard error stays a hard error instead of turning
-        # into wrong numbers. The duck-typed arm stays as the catch-all for a
-        # wrapper this module has not been told about. It is narrower than the
-        # check in validate_likelihood_support on purpose: a SpecialPrior such
-        # as LogNormalPrior has parameters and passes.
-        if (
-            isinstance(likelihood, WRAPPER_LIKELIHOODS)
-            or getattr(likelihood, "parameters", None) is None
-        ):
-            wrapper = type(likelihood).__name__
-            # Censored resolves to the name it holds, Scaled to its own, so
-            # naming both would read as "Scaled holding 'Scaled'".
-            held = "" if dist_name == wrapper else f" holding '{dist_name}'"
-            raise ValueError(
-                f"No mean correction is defined for a wrapped likelihood "
-                f"({wrapper}{held}). The "
-                f"wrapper moves the mean off 'mu', so the contributions cannot "
-                f"be read as means. Use central_tendency='median'."
-            )
+        _reject_wrapped_likelihood(likelihood)
 
         # validate_likelihood_compatibility rejects these at build time, so a
         # model cannot reach here with one. Rejected again rather than warned
@@ -1379,15 +1410,45 @@ class LogLinkSpec(LinkSpec):
         """Multiply by the LogNormal mean/median ratio.
 
         The log-link model is multiplicative in the components, so the
-        proportional form is the right one here, and the base
-        :meth:`_validate_mean_defined` is a no-op because
-        :meth:`validate_likelihood_compatibility` already pins the log link to
-        ``LogNormal``.  It is still called, so that both entry points reject
-        the same likelihoods on every link rather than only on the one that
-        currently overrides the check.
+        proportional form is the right one here.  :meth:`_validate_mean_defined`
+        is called first, so that both entry points reject the same likelihoods
+        on every link.
         """
         self._validate_mean_defined(posterior, likelihood, output_var)
         return dataset * self._mean_ratio(posterior, output_var)
+
+    def _validate_mean_defined(
+        self,
+        posterior: xr.Dataset,
+        likelihood: Prior,
+        output_var: str,
+        as_factor: bool = False,
+    ) -> None:
+        """Refuse a wrapper likelihood; every other log-link likelihood is LogNormal.
+
+        :meth:`validate_likelihood_compatibility` pins the log link to
+        ``LogNormal`` but looks through ``Censored``, so a censored model
+        reaches here with an observed mean that is not
+        ``exp(mu + sigma**2 / 2)``.  The factor would then be the latent mean
+        correction, labelled as the observed one.
+
+        Parameters
+        ----------
+        posterior : xr.Dataset
+            Posterior group of the fitted model's ``DataTree``; unused.
+        likelihood : Prior
+            The likelihood prior to check.
+        output_var : str
+            Name of the observed variable; unused.
+        as_factor : bool, default ``False``
+            Unused: the LogNormal correction is always a factor.
+
+        Raises
+        ------
+        ValueError
+            If *likelihood* is a wrapper.
+        """
+        _reject_wrapped_likelihood(likelihood)
 
     def _mean_ratio(
         self,
@@ -1421,18 +1482,24 @@ class LogLinkSpec(LinkSpec):
     def mean_ratio_tensor(
         self,
         model: pm.Model,
+        likelihood: Prior,
         output_var: str = "y",
     ) -> XTensorVariable | None:
         r"""Return ``exp(sigma**2 / 2)`` built from *model*'s likelihood scale.
 
         The graph counterpart of :meth:`_mean_ratio`, with the same
-        requirement: the scale has to be a model variable,
-        ``f"{output_var}_sigma"``.
+        requirements: the likelihood has to be a plain ``LogNormal`` (a
+        ``Censored`` one is refused first, before the scale is looked up,
+        because the model still carries ``y_sigma`` and the factor would be
+        the latent, not the observed, mean correction), and the scale has to
+        be a model variable, ``f"{output_var}_sigma"``.
 
         Parameters
         ----------
         model : pm.Model
             The model holding the likelihood scale.
+        likelihood : Prior
+            The likelihood prior the model was built with.
         output_var : str, default ``"y"``
             Name of the observed variable.
 
@@ -1444,9 +1511,10 @@ class LogLinkSpec(LinkSpec):
         Raises
         ------
         ValueError
-            If ``f"{output_var}_sigma"`` is not a variable of *model* (e.g. a
-            fixed-sigma likelihood).
+            If *likelihood* is a wrapper, or if ``f"{output_var}_sigma"`` is
+            not a variable of *model* (e.g. a fixed-sigma likelihood).
         """
+        _reject_wrapped_likelihood(likelihood)
         sigma_name = f"{output_var}_sigma"
         if sigma_name not in model.named_vars:
             raise ValueError(

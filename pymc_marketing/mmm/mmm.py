@@ -1453,6 +1453,9 @@ class MMM(RegressionModelBuilder):
             ``TruncatedNormal``, where clipping shifts the mean off ``mu``.
             For the log link, ``"median"`` uses :math:`\exp(\mu)` and
             ``"mean"`` applies the :math:`\exp(\sigma^2 / 2)` correction.
+            A wrapped likelihood (``Censored``, ``Scaled``) is refused under
+            ``"mean"`` on either link, because the wrapper moves the observed
+            mean off any ``mu``-based quantity.
             Applied per date, before any ``period`` sum.
         period : {"original", "weekly", "monthly", "quarterly", "yearly", "all_time"}, default "original"
             Time period to sum the per-date contributions over, per draw.
@@ -1479,7 +1482,8 @@ class MMM(RegressionModelBuilder):
         ValueError
             If ``central_tendency`` or ``period`` is not one of the listed
             values (a :class:`pydantic.ValidationError`, raised before any
-            computation), or if the model has not been fitted (no ``idata``).
+            computation), if the model has not been fitted (no ``idata``),
+            or if ``central_tendency="mean"`` with a wrapped likelihood.
 
         Examples
         --------
@@ -4130,6 +4134,14 @@ class MMM(RegressionModelBuilder):
             under ``TruncatedNormal`` it leaves out the change in the
             truncation offset, as :meth:`compute_counterfactual_contributions_dataset`
             does.
+            A wrapped likelihood (``Censored`` on either link, ``Scaled`` on
+            the identity link) is refused under ``"mean"``, as
+            :meth:`compute_counterfactual_contributions_dataset` and
+            ``contribution_over_spend`` refuse it: the wrapper moves the
+            observed mean off any ``mu``-based quantity, so the increment
+            would be the latent (pre-censoring) lift labelled as the observed
+            one.  ``"median"`` still calibrates the latent-median lift there,
+            like every other original-scale node of such a model.
 
         Raises
         ------
@@ -4143,11 +4155,14 @@ class MMM(RegressionModelBuilder):
             model coordinate
             (:class:`~pymc_marketing.mmm.lift_test.UnalignedValuesError`).
         ValueError
-            If ``central_tendency`` is not ``"mean"`` or ``"median"``, if a
-            calibration value or ``sigma`` is not numeric, if the spend
-            coordinates do not match the model's, or if
-            ``central_tendency="mean"`` under the log link and the likelihood
-            scale is fixed rather than a model variable.
+            If ``central_tendency`` is not ``"mean"`` or ``"median"``; if
+            ``name_prefix`` is the name of the increment node or of any model
+            variable other than a prior calibration with that prefix; if a
+            calibration value or ``sigma`` is not numeric; if the spend
+            coordinates do not match the model's; or if
+            ``central_tendency="mean"`` with a wrapped likelihood, or under
+            the log link with a likelihood scale that is fixed rather than a
+            model variable.
 
         Every error is raised before the increment node is registered, so a
         refused call leaves the model unchanged.
@@ -4206,8 +4221,24 @@ class MMM(RegressionModelBuilder):
                 f"central_tendency must be 'median' or 'mean', got {central_tendency!r}"
             )
 
-        # Check for existing potentials with the same name_prefix
+        # A name that is, or will be, a model variable is refused before any
+        # graph change. Only a prior calibration with the same prefix -- its
+        # observed variable plus its `_<prefix>` coord -- is skipped.
+        if name_prefix == self._link_spec.channel_increment_var:
+            raise ValueError(
+                f"name_prefix {name_prefix!r} is reserved for the increment node "
+                "this calibration registers; choose another name."
+            )
         if name_prefix in self.model.named_vars:
+            is_calibration = (
+                name_prefix in {rv.name for rv in self.model.observed_RVs}
+                and f"_{name_prefix}" in self.model.coords
+            )
+            if not is_calibration:
+                raise ValueError(
+                    f"name_prefix {name_prefix!r} is already the name of a model "
+                    "variable; choose another name."
+                )
             warnings.warn(
                 f"Cost-per-target potentials with name '{name_prefix}' already exist. "
                 "Skipping to avoid duplicates.",
@@ -4261,7 +4292,9 @@ class MMM(RegressionModelBuilder):
         # Built before the increment is registered, so a model that cannot give
         # the mean scale fails without changing the graph.
         mean_ratio = (
-            self._link_spec.mean_ratio_tensor(self.model, self.output_var)
+            self._link_spec.mean_ratio_tensor(
+                self.model, self.model_config["likelihood"], self.output_var
+            )
             if central_tendency == "mean"
             else None
         )

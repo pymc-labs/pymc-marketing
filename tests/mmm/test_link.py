@@ -369,10 +369,11 @@ class TestLinkSpec:
         """Identity: no factor. Log: exp(sigma**2 / 2) carrying y_sigma's dims."""
         with pm.Model(coords={"geo": ["a", "b"]}) as model:
             sigma = pmd.HalfNormal("y_sigma", sigma=0.5, dims=("geo",))
+        likelihood = Prior("LogNormal", sigma=Prior("HalfNormal", sigma=0.5))
 
-        assert IdentityLinkSpec().mean_ratio_tensor(model) is None
+        assert IdentityLinkSpec().mean_ratio_tensor(model, likelihood) is None
 
-        factor = LogLinkSpec().mean_ratio_tensor(model)
+        factor = LogLinkSpec().mean_ratio_tensor(model, likelihood)
         assert factor.dims == ("geo",)
         values = np.array([0.25, 0.5])
         np.testing.assert_allclose(
@@ -383,7 +384,23 @@ class TestLinkSpec:
         with pm.Model() as model:
             pmd.Normal("other", dims=())
         with pytest.raises(ValueError, match="central_tendency='median'"):
-            LogLinkSpec().mean_ratio_tensor(model)
+            LogLinkSpec().mean_ratio_tensor(model, Prior("LogNormal", sigma=0.2))
+
+    @pytest.mark.parametrize("spec", [IdentityLinkSpec, LogLinkSpec])
+    def test_mean_ratio_tensor_refuses_wrapped_likelihood(self, spec):
+        """Censoring moves E[y] off the mu-based mean on either link.
+
+        The log link looks through ``Censored`` at build time and the model
+        still carries ``y_sigma``, so the wrapper has to be refused here, before
+        the factor is built, with the message the posterior entry points use.
+        """
+        with pm.Model(coords={"geo": ["a", "b"]}) as model:
+            pmd.HalfNormal("y_sigma", sigma=0.5, dims=("geo",))
+        likelihood = Censored(
+            Prior("LogNormal", sigma=Prior("HalfNormal", sigma=0.5)), upper=1.0
+        )
+        with pytest.raises(ValueError, match="wrapped likelihood"):
+            spec().mean_ratio_tensor(model, likelihood)
 
 
 class TestLogSaturation:
@@ -1341,6 +1358,23 @@ class TestTruncatedNormalMeanCorrection:
                 xr.DataArray(1.0),
             )
 
+    def test_log_censored_wrapper_raises_rather_than_using_the_wrong_mean(self):
+        """The log link reaches here with a censored LogNormal and must refuse it."""
+        posterior = xr.Dataset(
+            {
+                "mu": xr.DataArray([[1.0]], dims=("chain", "date")),
+                "y_sigma": xr.DataArray([[1.0]], dims=("chain", "date")),
+            }
+        )
+        dataset = xr.Dataset({"intercept": posterior["mu"]})
+        with pytest.raises(ValueError, match="wrapped likelihood"):
+            LogLinkSpec().to_mean_scale(
+                dataset,
+                posterior,
+                Censored(Prior("LogNormal", sigma=1), upper=1.0),
+                xr.DataArray(1.0),
+            )
+
     def test_scaled_wrapper_is_refused_and_named(self):
         """A Scaled likelihood moves the mean off ``mu`` like any other wrapper.
 
@@ -1596,6 +1630,16 @@ class TestMeanScaleFactor:
             IdentityLinkSpec().mean_scale_factor(
                 self._posterior(),
                 Censored(Prior("TruncatedNormal", lower=0, sigma=1), lower=0),
+            )
+
+    def test_log_censored_wrapper_refuses(self):
+        """``validate_likelihood_compatibility`` looks through ``Censored`` under
+        the log link, so the factor entry point is where a censored LogNormal
+        has to be refused rather than rescaled by ``exp(sigma**2 / 2)``."""
+        with pytest.raises(ValueError, match="wrapped likelihood"):
+            LogLinkSpec().mean_scale_factor(
+                self._posterior(),
+                Censored(Prior("LogNormal", sigma=1), upper=1.0),
             )
 
     def test_studentt_at_or_below_one_refuses(self):
