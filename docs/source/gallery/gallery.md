@@ -276,6 +276,11 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :link: ../notebooks/mmm/mmm_funnel_mueffect_advanced.html
 :::
 
+:::{grid-item-card} One-Stage vs Two-Stage Funnel Models: When Does Joint Estimation Matter?
+:img-top: ../gallery/images/mmm_funnel_one_vs_two_stage.png
+:link: ../notebooks/mmm/mmm_funnel_one_vs_two_stage.html
+:::
+
 :::{grid-item-card} Funnel MMMs from YAML
 :img-top: ../gallery/images/mmm_funnel_from_yml.png
 :link: ../notebooks/mmm/mmm_funnel_from_yml.html
