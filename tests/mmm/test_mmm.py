@@ -27,8 +27,9 @@ import pytest
 import xarray as xr
 from pydantic import ValidationError
 from pymc.model_graph import fast_eval
-from pymc_extras.prior import Prior
+from pymc_extras.prior import Censored, Prior
 from pytensor.xtensor.type import XTensorVariable, as_xtensor
+from scipy import stats
 from scipy.optimize import OptimizeResult
 
 from pymc_marketing.data.idata.mmm_wrapper import MMMIDataWrapper
@@ -48,7 +49,10 @@ from pymc_marketing.mmm.additive_effect import (
     MuEffect,
 )
 from pymc_marketing.mmm.events import EventEffect, GaussianBasis, HalfGaussianBasis
-from pymc_marketing.mmm.lift_test import _swap_columns_and_last_index_level
+from pymc_marketing.mmm.lift_test import (
+    UnalignedValuesError,
+    _swap_columns_and_last_index_level,
+)
 from pymc_marketing.mmm.linear_trend import LinearTrend
 from pymc_marketing.mmm.mmm import (
     MMM,
@@ -3549,25 +3553,58 @@ def test_unserializable_lift_date_fails_before_graph_changes(
     assert mmm._lift_test_calibrations == []
 
 
-def test_log_link_rejects_level_calibrations_before_graph_changes() -> None:
-    X = pd.DataFrame(
-        {
-            "date": pd.date_range("2025-01-01", periods=4, freq="W"),
-            "C1": [1.0, 2.0, 3.0, 4.0],
-        }
+def _mmm_for_calibration(
+    model_config: dict | None = None,
+    link: str = "log",
+) -> tuple[MMM, pd.DataFrame, pd.Series]:
+    rng = np.random.default_rng(3128)
+    n = 12
+    dates = pd.date_range("2025-01-05", periods=n, freq="W")
+    X = pd.concat(
+        [
+            pd.DataFrame(
+                {
+                    "date": dates,
+                    "geo": geo,
+                    "C1": rng.uniform(50, 150, n),
+                    "C2": rng.uniform(20, 80, n),
+                }
+            )
+            for geo in ("a", "b")
+        ],
+        ignore_index=True,
     )
-    y = pd.Series([5.0, 6.0, 7.0, 8.0], name="y")
+    y = pd.Series(rng.uniform(500, 900, 2 * n), name="y")
     mmm = MMM(
         date_column="date",
-        channel_columns=["C1"],
+        channel_columns=["C1", "C2"],
+        dims=("geo",),
         adstock=GeometricAdstock(l_max=2),
         saturation=LogisticSaturation(),
-        link="log",
+        link=link,
+        model_config=model_config,
     )
     mmm.build_model(X, y)
+    return mmm, X, y
+
+
+def _roas_rows() -> pd.DataFrame:
+    return pd.DataFrame(
+        {
+            "channel": ["C1", "C2", "C1"],
+            "geo": ["a", "a", "b"],
+            "roas": [2.0, 3.0, 1.5],
+            "sigma": [0.5, 0.5, 0.4],
+        }
+    )
+
+
+def test_log_link_rejects_lift_test_before_graph_changes() -> None:
+    mmm, _, _ = _mmm_for_calibration()
     calibration = pd.DataFrame(
         {
             "channel": ["C1"],
+            "geo": ["a"],
             "x": [1.0],
             "delta_x": [1.0],
             "delta_y": [1.0],
@@ -3577,9 +3614,288 @@ def test_log_link_rejects_level_calibrations_before_graph_changes() -> None:
     initial_vars = set(mmm.model.named_vars)
     with pytest.raises(NotImplementedError, match="link='log'"):
         mmm.add_lift_test_measurements(calibration)
-    with pytest.raises(NotImplementedError, match="link='log'"):
-        mmm.add_cost_per_target_calibration(X, calibration)
     assert set(mmm.model.named_vars) == initial_vars
+
+
+@pytest.mark.parametrize(
+    ("central_tendency", "sigma_dims"),
+    [
+        pytest.param("mean", ("geo",), id="mean-per-geo-sigma"),
+        pytest.param("mean", ("date", "geo"), id="mean-date-varying-sigma"),
+        pytest.param("median", ("geo",), id="median"),
+    ],
+)
+def test_log_link_cost_per_target_calibration_matches_incrementality(
+    mock_pymc_sample, central_tendency, sigma_dims
+) -> None:
+    """Under link='log' the calibrated ratio is the all-time spend counterfactual.
+
+    For a channel no ``mu_effect`` reads, removing its term from ``mu`` equals
+    zeroing its spend, so every calibration row must be centred on
+    ``incrementality.contribution_over_spend(frequency="all_time")`` at the same
+    ``central_tendency``, draw for draw.  On the mean scale that includes the
+    ``exp(sigma**2 / 2)`` factor per cell of ``y_sigma``; with a date-varying
+    ``y_sigma`` the factor has to multiply the increment inside the date mean,
+    which a factor applied after the mean gets wrong.
+    """
+    mmm, X, y = _mmm_for_calibration(
+        model_config={
+            "likelihood": Prior(
+                "LogNormal",
+                sigma=Prior("HalfNormal", sigma=0.5, dims=sigma_dims),
+                dims=("date", "geo"),
+            ),
+        }
+    )
+    rows = _roas_rows()
+    mmm.add_cost_per_target_calibration(
+        data=X,
+        calibration_data=rows,
+        name_prefix="roas_calibration",
+        target_column="roas",
+        target_per_cost=True,
+        central_tendency=central_tendency,
+    )
+    mmm.fit(X, y, random_seed=1)
+
+    loglik = pm.compute_log_likelihood(
+        mmm.idata.copy(),
+        var_names=["roas_calibration"],
+        model=mmm.model,
+        progressbar=False,
+    )["log_likelihood"]["roas_calibration"]
+    roas = mmm.incrementality.contribution_over_spend(
+        frequency="all_time", central_tendency=central_tendency
+    )
+    centre = roas.sel(
+        channel=xr.DataArray(rows["channel"].to_numpy(), dims="row"),
+        geo=xr.DataArray(rows["geo"].to_numpy(), dims="row"),
+    ).transpose("chain", "draw", "row")
+    expected = stats.norm.logpdf(
+        rows["roas"].to_numpy(), loc=centre.values, scale=rows["sigma"].to_numpy()
+    )
+
+    np.testing.assert_allclose(loglik.values, expected, rtol=1e-8)
+
+
+def test_log_link_cost_per_target_calibration_registers_increment_once(
+    mock_pymc_sample, tmp_path
+) -> None:
+    """Two calibrations share one increment node, which survives save/load."""
+    mmm, X, y = _mmm_for_calibration()
+    rows = _roas_rows()
+    cpt_rows = rows.assign(cost_per_target=1 / rows["roas"])
+
+    mmm.add_cost_per_target_calibration(
+        data=X,
+        calibration_data=rows,
+        name_prefix="roas_calibration",
+        target_column="roas",
+        target_per_cost=True,
+    )
+    increment = mmm.model["channel_incremental_contribution"]
+    mmm.add_cost_per_target_calibration(
+        data=X,
+        calibration_data=cpt_rows,
+        name_prefix="cpt_calibration",
+        central_tendency="median",
+    )
+
+    assert mmm.model["channel_incremental_contribution"] is increment
+    assert {"roas_calibration", "cpt_calibration"} <= {
+        rv.name for rv in mmm.model.observed_RVs
+    }
+
+    mmm.fit(X, y, random_seed=1)
+    assert "channel_incremental_contribution" in mmm.idata.posterior
+    path = tmp_path / "log_link_calibrated.nc"
+    mmm.save(str(path))
+    loaded = MMM.load(str(path))
+    # No `_original_scale` suffix, so build_from_idata does not try to rebuild
+    # the node through add_original_scale_contribution_variable; the posterior
+    # round-trips untouched.
+    assert set(loaded.idata.posterior.data_vars) == set(mmm.idata.posterior.data_vars)
+
+
+def test_log_link_mean_scale_calibration_needs_a_sampled_sigma() -> None:
+    """A fixed LogNormal sigma has no model variable to build the mean factor from.
+
+    The default ``central_tendency="mean"`` refuses before touching the graph
+    and leads with the safe remedy (give sigma a prior); ``"median"`` still
+    calibrates.
+    """
+    mmm, X, _ = _mmm_for_calibration(
+        model_config={
+            "likelihood": Prior("LogNormal", sigma=0.2, dims=("date", "geo")),
+        }
+    )
+    rows = _roas_rows()
+    kwargs = dict(
+        data=X,
+        calibration_data=rows,
+        name_prefix="roas_calibration",
+        target_column="roas",
+        target_per_cost=True,
+    )
+    initial_vars = set(mmm.model.named_vars)
+    with pytest.raises(ValueError, match="Give sigma a prior"):
+        mmm.add_cost_per_target_calibration(**kwargs)
+    assert set(mmm.model.named_vars) == initial_vars
+
+    mmm.add_cost_per_target_calibration(**kwargs, central_tendency="median")
+    assert "roas_calibration" in {rv.name for rv in mmm.model.observed_RVs}
+
+
+@pytest.mark.parametrize(
+    ("rows", "exc", "match"),
+    [
+        pytest.param(
+            _roas_rows().drop(columns="sigma"),
+            KeyError,
+            "sigma",
+            id="missing-sigma-column",
+        ),
+        pytest.param(
+            _roas_rows().assign(channel=["C1", "C9", "C1"]),
+            UnalignedValuesError,
+            "not aligned",
+            id="unknown-channel",
+        ),
+        pytest.param(
+            _roas_rows().assign(geo=["a", "a", "z"]),
+            UnalignedValuesError,
+            "not aligned",
+            id="unknown-geo",
+        ),
+        pytest.param(
+            _roas_rows().assign(roas=["2.0", "abc", "1.5"]),
+            ValueError,
+            "could not convert",
+            id="non-numeric-value",
+        ),
+    ],
+)
+def test_add_cost_per_target_calibration_bad_rows_fail_before_graph_changes(
+    rows, exc, match
+) -> None:
+    """A bad calibration table is refused before the increment node is registered."""
+    mmm, X, _ = _mmm_for_calibration()
+    initial_vars = set(mmm.model.named_vars)
+    with pytest.raises(exc, match=match):
+        mmm.add_cost_per_target_calibration(
+            data=X,
+            calibration_data=rows,
+            name_prefix="roas_calibration",
+            target_column="roas",
+            target_per_cost=True,
+        )
+    assert set(mmm.model.named_vars) == initial_vars
+
+
+def test_log_link_censored_likelihood_refuses_mean_scale_calibration(
+    mock_pymc_sample,
+) -> None:
+    """Censoring moves the observed mean off ``exp(mu + sigma**2 / 2)``.
+
+    ``"mean"`` is refused before any graph change.  The message says that
+    observed-outcome calibration is unsupported and that ``"median"`` pairs
+    the values with the latent-median lift, so a caller cannot turn the
+    refusal into a silent miscalibration by following it;
+    ``contribution_over_spend(central_tendency="mean")`` refuses the same
+    model.  ``"median"`` still calibrates the latent-median lift and matches
+    that method draw for draw.  The cap sits inside the scaled target range
+    (the likelihood observes ``y / target_scale``), so the censoring binds.
+    """
+    mmm, X, y = _mmm_for_calibration(
+        model_config={
+            "likelihood": Censored(
+                Prior(
+                    "LogNormal",
+                    sigma=Prior("HalfNormal", sigma=0.5, dims=("geo",)),
+                    dims=("date", "geo"),
+                ),
+                upper=0.95,
+            ),
+        }
+    )
+    rows = _roas_rows()
+    kwargs = dict(
+        data=X,
+        calibration_data=rows,
+        name_prefix="roas_calibration",
+        target_column="roas",
+        target_per_cost=True,
+    )
+    initial_vars = set(mmm.model.named_vars)
+    with pytest.raises(
+        ValueError,
+        match=r"not supported for a wrapped likelihood.*appropriate only when",
+    ):
+        mmm.add_cost_per_target_calibration(**kwargs)
+    assert set(mmm.model.named_vars) == initial_vars
+
+    mmm.add_cost_per_target_calibration(**kwargs, central_tendency="median")
+    mmm.fit(X, y, random_seed=1)
+
+    with pytest.raises(ValueError, match="wrapped likelihood"):
+        mmm.incrementality.contribution_over_spend(
+            frequency="all_time", central_tendency="mean"
+        )
+    loglik = pm.compute_log_likelihood(
+        mmm.idata.copy(),
+        var_names=["roas_calibration"],
+        model=mmm.model,
+        progressbar=False,
+    )["log_likelihood"]["roas_calibration"]
+    roas = mmm.incrementality.contribution_over_spend(
+        frequency="all_time", central_tendency="median"
+    )
+    centre = roas.sel(
+        channel=xr.DataArray(rows["channel"].to_numpy(), dims="row"),
+        geo=xr.DataArray(rows["geo"].to_numpy(), dims="row"),
+    ).transpose("chain", "draw", "row")
+    expected = stats.norm.logpdf(
+        rows["roas"].to_numpy(), loc=centre.values, scale=rows["sigma"].to_numpy()
+    )
+    np.testing.assert_allclose(loglik.values, expected, rtol=1e-8)
+
+
+@pytest.mark.parametrize(
+    ("link", "name_prefix", "match"),
+    [
+        pytest.param(
+            "log", "channel_incremental_contribution", "reserved", id="log-increment"
+        ),
+        pytest.param(
+            "identity",
+            "channel_contribution_original_scale",
+            "reserved",
+            id="identity-increment",
+        ),
+        pytest.param("log", "mu", "name of a model variable", id="deterministic"),
+        pytest.param("log", "y", "name of a model variable", id="observed-target"),
+    ],
+)
+def test_add_cost_per_target_calibration_taken_name_prefix_fails_before_graph_changes(
+    link, name_prefix, match
+) -> None:
+    """A ``name_prefix`` that is, or will be, a model variable is refused.
+
+    The increment node's name is reserved under both links before it is
+    registered; any other existing variable is a collision, not a calibration
+    to skip.  Either way the graph and coords are untouched.
+    """
+    mmm, X, _ = _mmm_for_calibration(link=link)
+    initial = set(mmm.model.named_vars), set(mmm.model.coords)
+    with pytest.raises(ValueError, match=match):
+        mmm.add_cost_per_target_calibration(
+            data=X,
+            calibration_data=_roas_rows(),
+            name_prefix=name_prefix,
+            target_column="roas",
+            target_per_cost=True,
+        )
+    assert (set(mmm.model.named_vars), set(mmm.model.coords)) == initial
 
 
 def test_add_lift_test_measurements_no_model() -> None:
@@ -3770,10 +4086,17 @@ def test_add_cost_per_target_calibration_requires_model(multi_dim_data) -> None:
         )
 
 
-def test_add_cost_per_target_calibration_requires_original_scale(
-    multi_dim_data,
+def test_add_cost_per_target_calibration_registers_original_scale_contribution(
+    multi_dim_data, mock_pymc_sample, tmp_path
 ) -> None:
-    """Test that add_cost_per_target_calibration raises error when original scale variable doesn't exist."""
+    """Under the identity link the calibration registers its own target.
+
+    Without a prior ``add_original_scale_contribution_variable`` call it adds
+    ``channel_contribution_original_scale`` and centres the row on
+    ``mean(spend) / mean(channel_contribution_original_scale)``.  Because that
+    is the same node the explicit call builds, ``save`` lists it and ``load``
+    rebuilds it.
+    """
     X, y = multi_dim_data
 
     mmm = MMM(
@@ -3787,27 +4110,50 @@ def test_add_cost_per_target_calibration_requires_original_scale(
 
     mmm.build_model(X, y)
 
-    # Don't add original scale variable - should cause error
     spend_df = X.copy()
-    countries = mmm.model.coords["country"]
+    country = mmm.model.coords["country"][0]
     calibration_df = pd.DataFrame(
         {
-            "country": [countries[0]],
+            "country": [country],
             "channel": ["channel_1"],
             "cost_per_target": [30.0],
             "sigma": [2.0],
         }
     )
 
-    with pytest.raises(
-        ValueError,
-        match=r"`channel_contribution_original_scale` is not in the model.",
-    ):
-        mmm.add_cost_per_target_calibration(
-            data=spend_df,
-            calibration_data=calibration_df,
-            name_prefix="cpt_calibration",
-        )
+    mmm.add_cost_per_target_calibration(
+        data=spend_df,
+        calibration_data=calibration_df,
+        name_prefix="cpt_calibration",
+    )
+    mmm.fit(X, y, random_seed=1)
+
+    contribution = mmm.idata.posterior["channel_contribution_original_scale"].sel(
+        country=country, channel="channel_1"
+    )
+    spend = spend_df.loc[spend_df["country"] == country, "channel_1"].mean()
+    centre = (spend / contribution.mean("date")).transpose("chain", "draw")
+    expected = stats.norm.logpdf(30.0, loc=centre.values, scale=2.0)
+    loglik = pm.compute_log_likelihood(
+        mmm.idata.copy(),
+        var_names=["cpt_calibration"],
+        model=mmm.model,
+        progressbar=False,
+    )["log_likelihood"]["cpt_calibration"]
+
+    np.testing.assert_allclose(
+        loglik.isel(_cpt_calibration=0).transpose("chain", "draw").values,
+        expected,
+        rtol=1e-8,
+    )
+
+    path = tmp_path / "identity_calibrated.nc"
+    mmm.save(str(path))
+    loaded = MMM.load(str(path))
+    assert "channel_contribution" in json.loads(
+        loaded.idata.attrs["original_scale_vars"]
+    )
+    assert "channel_contribution_original_scale" in loaded.model.named_vars
 
 
 def test_add_cost_per_target_calibration_missing_dim_column(multi_dim_data) -> None:

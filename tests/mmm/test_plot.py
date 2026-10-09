@@ -2180,6 +2180,68 @@ class TestWaterfallPlot:
         assert isinstance(ax, Axes)
         plt.close(fig)
 
+    def test_waterfall_auto_detect_excludes_channel_increment(self):
+        """The log-link calibration node is not an additive component.
+
+        A calibrated log-link posterior carries ``channel_incremental_contribution``
+        next to ``channel_contribution`` and no per-component
+        ``*_contribution_original_scale``, so auto-detection falls back to the
+        ``*_contribution`` variables.  Both are expanded over ``channel`` into the
+        same ``channel__<label>`` columns and the first one wins, so the
+        increment is listed first here: if it were picked up, the channel bars
+        would silently carry the increment's values.
+        """
+        rng = np.random.default_rng(3128)
+        dates = pd.date_range("2025-01-01", periods=10, freq="W-MON")
+        channels = ["C1", "C2"]
+        coords = {"chain": [0, 1], "draw": np.arange(50), "date": dates}
+        channel_coords = {**coords, "channel": channels}
+        channel_contribution = xr.DataArray(
+            rng.normal(0.3, 0.1, size=(2, 50, 10, 2)),
+            dims=("chain", "draw", "date", "channel"),
+            coords=channel_coords,
+        )
+        idata = xr.DataTree.from_dict(
+            {
+                "/posterior": xr.Dataset(
+                    {
+                        "channel_incremental_contribution": xr.DataArray(
+                            rng.normal(30, 10, size=(2, 50, 10, 2)),
+                            dims=("chain", "draw", "date", "channel"),
+                            coords=channel_coords,
+                        ),
+                        "intercept_contribution": xr.DataArray(
+                            rng.normal(5, 0.5, size=(2, 50, 10)),
+                            dims=("chain", "draw", "date"),
+                            coords=coords,
+                        ),
+                        "channel_contribution": channel_contribution,
+                        "total_media_contribution_original_scale": xr.DataArray(
+                            rng.normal(60, 15, size=(2, 50, 10)),
+                            dims=("chain", "draw", "date"),
+                            coords=coords,
+                        ),
+                    }
+                )
+            }
+        )
+
+        suite = MMMPlotSuite(idata=idata)
+        dataframe, _, _ = suite._prepare_waterfall_data()
+
+        assert set(dataframe.columns) == {
+            "date",
+            "intercept",
+            "channel__C1",
+            "channel__C2",
+        }
+        expected = channel_contribution.mean(("chain", "draw"))
+        for channel in channels:
+            np.testing.assert_allclose(
+                dataframe[f"channel__{channel}"].to_numpy(),
+                expected.sel(channel=channel).to_numpy(),
+            )
+
     def test_prepare_waterfall_data_basic(self, mock_suite_for_waterfall):
         """Test the _prepare_waterfall_data method."""
         dataframe, split_dims, dim_combinations = (
