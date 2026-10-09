@@ -3720,8 +3720,9 @@ def test_log_link_cost_per_target_calibration_registers_increment_once(
 def test_log_link_mean_scale_calibration_needs_a_sampled_sigma() -> None:
     """A fixed LogNormal sigma has no model variable to build the mean factor from.
 
-    The default ``central_tendency="mean"`` refuses before touching the graph,
-    and ``"median"`` still calibrates.
+    The default ``central_tendency="mean"`` refuses before touching the graph
+    and leads with the safe remedy (give sigma a prior); ``"median"`` still
+    calibrates.
     """
     mmm, X, _ = _mmm_for_calibration(
         model_config={
@@ -3737,7 +3738,7 @@ def test_log_link_mean_scale_calibration_needs_a_sampled_sigma() -> None:
         target_per_cost=True,
     )
     initial_vars = set(mmm.model.named_vars)
-    with pytest.raises(ValueError, match="central_tendency='median'"):
+    with pytest.raises(ValueError, match="Give sigma a prior"):
         mmm.add_cost_per_target_calibration(**kwargs)
     assert set(mmm.model.named_vars) == initial_vars
 
@@ -3796,9 +3797,12 @@ def test_log_link_censored_likelihood_refuses_mean_scale_calibration(
 ) -> None:
     """Censoring moves the observed mean off ``exp(mu + sigma**2 / 2)``.
 
-    ``"mean"`` is refused before any graph change, with the message
-    ``contribution_over_spend(central_tendency="mean")`` raises on the same
-    model; ``"median"`` still calibrates the latent-median lift and matches
+    ``"mean"`` is refused before any graph change.  The message says that
+    observed-outcome calibration is unsupported and that ``"median"`` pairs
+    the values with the latent-median lift, so a caller cannot turn the
+    refusal into a silent miscalibration by following it;
+    ``contribution_over_spend(central_tendency="mean")`` refuses the same
+    model.  ``"median"`` still calibrates the latent-median lift and matches
     that method draw for draw.  The cap sits inside the scaled target range
     (the likelihood observes ``y / target_scale``), so the censoring binds.
     """
@@ -3823,7 +3827,10 @@ def test_log_link_censored_likelihood_refuses_mean_scale_calibration(
         target_per_cost=True,
     )
     initial_vars = set(mmm.model.named_vars)
-    with pytest.raises(ValueError, match="wrapped likelihood"):
+    with pytest.raises(
+        ValueError,
+        match=r"not supported for a wrapped likelihood.*appropriate only when",
+    ):
         mmm.add_cost_per_target_calibration(**kwargs)
     assert set(mmm.model.named_vars) == initial_vars
 

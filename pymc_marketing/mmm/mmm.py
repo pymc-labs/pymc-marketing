@@ -4134,14 +4134,17 @@ class MMM(RegressionModelBuilder):
             under ``TruncatedNormal`` it leaves out the change in the
             truncation offset, as :meth:`compute_counterfactual_contributions_dataset`
             does.
-            A wrapped likelihood (``Censored`` on either link, ``Scaled`` on
-            the identity link) is refused under ``"mean"``, as
-            :meth:`compute_counterfactual_contributions_dataset` and
-            ``contribution_over_spend`` refuse it: the wrapper moves the
+            A wrapped likelihood (``Censored``, or any other prior wrapper
+            that hides the distribution it holds) is refused under ``"mean"``
+            on either link, as :meth:`compute_counterfactual_contributions_dataset`
+            and ``contribution_over_spend`` refuse it: the wrapper moves the
             observed mean off any ``mu``-based quantity, so the increment
-            would be the latent (pre-censoring) lift labelled as the observed
-            one.  ``"median"`` still calibrates the latent-median lift there,
-            like every other original-scale node of such a model.
+            would be the latent (pre-wrapper) lift labelled as the observed
+            one.  ``"median"`` is not a substitute for an experiment there: it
+            calibrates the median-scale lift of the latent response, which is
+            appropriate only when the calibration values are themselves such
+            latent-median quantities.  An observed experiment readout cannot
+            be calibrated on such a model with this method.
 
         Raises
         ------

@@ -192,7 +192,7 @@ def _distribution_name(likelihood: Prior) -> str:
     return dist if dist is not None else type(likelihood).__name__
 
 
-def _reject_wrapped_likelihood(likelihood: Prior) -> None:
+def _reject_wrapped_likelihood(likelihood: Prior, *, calibration: bool = False) -> None:
     """Raise for a wrapper likelihood, whose mean is not a function of ``mu`` alone.
 
     Wrappers such as ``Censored`` and ``Scaled`` resolve to the name of the
@@ -201,12 +201,29 @@ def _reject_wrapped_likelihood(likelihood: Prior) -> None:
     any mean correction is dispatched on the held name, rather than silently
     returning median-scale numbers labelled as means.
 
+    The remedy depends on the caller.  When *reporting* the model
+    (:meth:`LinkSpec.to_mean_scale`, :meth:`LinkSpec.mean_scale_factor`) the
+    median-scale number is a well-defined summary the user may read instead.
+    When *calibrating* (:meth:`LinkSpec.mean_ratio_tensor`) the value being
+    matched is an observed readout whose scale is fixed by how it was
+    measured, so ``"median"`` is only right when that value is itself a
+    latent-median quantity; the message says so rather than sending the
+    caller from a safe refusal into a silent miscalibration.
+
     Named types first, so that the day pymc-extras gives a wrapper its own
     ``parameters`` the hard error stays a hard error instead of turning into
     wrong numbers.  The duck-typed arm stays as the catch-all for a wrapper
     this module has not been told about.  It is narrower than the check in
     :meth:`LinkSpec.validate_likelihood_support` on purpose: a ``SpecialPrior``
     such as ``LogNormalPrior`` has parameters and passes.
+
+    Parameters
+    ----------
+    likelihood : Prior
+        The likelihood prior to check.
+    calibration : bool, default ``False``
+        Whether the caller is building a calibration target rather than
+        reporting the model; selects the message.
 
     Raises
     ------
@@ -224,6 +241,17 @@ def _reject_wrapped_likelihood(likelihood: Prior) -> None:
     # Censored resolves to the name it holds, Scaled to its own, so naming
     # both would read as "Scaled holding 'Scaled'".
     held = "" if dist_name == wrapper else f" holding '{dist_name}'"
+    if calibration:
+        raise ValueError(
+            f"Observed-outcome (mean-scale) calibration is not supported for a "
+            f"wrapped likelihood ({wrapper}{held}): the wrapper moves the "
+            f"observed mean off any 'mu'-based quantity, so the increment would "
+            f"be the latent, not the observed, lift. central_tendency='median' "
+            f"calibrates the median-scale lift of the latent response (before "
+            f"censoring or any other wrapper) and is appropriate only when the "
+            f"calibration values are themselves such latent-median quantities, "
+            f"not an observed experiment readout."
+        )
     raise ValueError(
         f"No mean correction is defined for a wrapped likelihood "
         f"({wrapper}{held}). The "
@@ -552,7 +580,7 @@ class LinkSpec(ABC):
         ValueError
             If *likelihood* is a wrapper.
         """
-        _reject_wrapped_likelihood(likelihood)
+        _reject_wrapped_likelihood(likelihood, calibration=True)
         return None
 
     def create_total_response_deterministic(
@@ -1514,14 +1542,19 @@ class LogLinkSpec(LinkSpec):
             If *likelihood* is a wrapper, or if ``f"{output_var}_sigma"`` is
             not a variable of *model* (e.g. a fixed-sigma likelihood).
         """
-        _reject_wrapped_likelihood(likelihood)
+        _reject_wrapped_likelihood(likelihood, calibration=True)
         sigma_name = f"{output_var}_sigma"
         if sigma_name not in model.named_vars:
             raise ValueError(
                 f"A mean-scale increment requires the likelihood scale "
                 f"'{sigma_name}' as a model variable, which was not found. This "
                 f"happens when the LogNormal sigma is fixed rather than given a "
-                f"prior. Use central_tendency='median' or give sigma a prior."
+                f"prior. Give sigma a prior. central_tendency='median' "
+                f"calibrates the median-scale increment, a factor of "
+                f"exp(sigma**2 / 2) below the mean increment an experiment "
+                f"measures (per cell of the likelihood scale), so it is "
+                f"appropriate only when the calibration values were derived "
+                f"from median-scale quantities."
             )
         return ptxm.exp(model[sigma_name] ** 2 / 2)
 

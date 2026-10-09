@@ -381,9 +381,10 @@ class TestLinkSpec:
         )
 
     def test_log_mean_ratio_tensor_needs_sigma_variable(self):
+        """A fixed sigma is refused with the safe remedy first: give sigma a prior."""
         with pm.Model() as model:
             pmd.Normal("other", dims=())
-        with pytest.raises(ValueError, match="central_tendency='median'"):
+        with pytest.raises(ValueError, match="Give sigma a prior"):
             LogLinkSpec().mean_ratio_tensor(model, Prior("LogNormal", sigma=0.2))
 
     @pytest.mark.parametrize("spec", [IdentityLinkSpec, LogLinkSpec])
@@ -392,14 +393,20 @@ class TestLinkSpec:
 
         The log link looks through ``Censored`` at build time and the model
         still carries ``y_sigma``, so the wrapper has to be refused here, before
-        the factor is built, with the message the posterior entry points use.
+        the factor is built.  Unlike the reporting entry points, the message
+        must not send the caller to ``"median"`` unqualified: on this path the
+        value being matched is an observed readout, and ``"median"`` would
+        pair it with the latent-median lift.
         """
         with pm.Model(coords={"geo": ["a", "b"]}) as model:
             pmd.HalfNormal("y_sigma", sigma=0.5, dims=("geo",))
         likelihood = Censored(
             Prior("LogNormal", sigma=Prior("HalfNormal", sigma=0.5)), upper=1.0
         )
-        with pytest.raises(ValueError, match="wrapped likelihood"):
+        with pytest.raises(
+            ValueError,
+            match=r"not supported for a wrapped likelihood.*appropriate only when",
+        ):
             spec().mean_ratio_tensor(model, likelihood)
 
 
@@ -1626,7 +1633,9 @@ class TestMeanScaleFactor:
     def test_censored_wrapper_refuses(self):
         # The value here is the second entry point, not the inner prior: the
         # wrapper is rejected before the distribution it holds is consulted.
-        with pytest.raises(ValueError, match="wrapped likelihood"):
+        # A reporting entry point gets the reporting message, whose remedy
+        # (read the median) is right for a caller reporting the model.
+        with pytest.raises(ValueError, match="No mean correction is defined"):
             IdentityLinkSpec().mean_scale_factor(
                 self._posterior(),
                 Censored(Prior("TruncatedNormal", lower=0, sigma=1), lower=0),
@@ -1635,8 +1644,10 @@ class TestMeanScaleFactor:
     def test_log_censored_wrapper_refuses(self):
         """``validate_likelihood_compatibility`` looks through ``Censored`` under
         the log link, so the factor entry point is where a censored LogNormal
-        has to be refused rather than rescaled by ``exp(sigma**2 / 2)``."""
-        with pytest.raises(ValueError, match="wrapped likelihood"):
+        has to be refused rather than rescaled by ``exp(sigma**2 / 2)``.  As a
+        reporting entry point it gets the reporting message, not the
+        calibration one."""
+        with pytest.raises(ValueError, match="No mean correction is defined"):
             LogLinkSpec().mean_scale_factor(
                 self._posterior(),
                 Censored(Prior("LogNormal", sigma=1), upper=1.0),
