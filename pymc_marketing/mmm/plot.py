@@ -3814,10 +3814,15 @@ class MMMPlotSuite:
         if var is None:
             posterior_vars = list(self.idata.posterior.dataset.data_vars)
             # Variables to exclude - total_media_contribution is a sum of channels
-            # and would double-count if included
+            # and would double-count if included. channel_incremental_contribution
+            # (registered by a log-link cost-per-target calibration) is a
+            # per-channel counterfactual, not an additive component; it expands
+            # into the same channel__<label> columns as channel_contribution and
+            # whichever comes first would silently win.
             excluded_vars = {
                 "total_media_contribution_original_scale",
                 "total_media_contribution",
+                "channel_incremental_contribution",
             }
             if original_scale:
                 # Prefer original scale variables

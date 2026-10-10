@@ -312,6 +312,7 @@ __all__ = [
     "collect_coords",
     "collect_terms",
     "data_vars",
+    "frozen_deterministics",
     "get_coords",
     "register_data",
     "set_data",
@@ -528,6 +529,17 @@ class ModelTerm(_TermOps):
         data (e.g. :class:`Dot`) overrides this, and
         :func:`data_vars` collects the names from a whole recipe so a model
         builder knows which variables to register.
+        """
+        return ()
+
+    @property
+    def frozen_deterministics(self) -> tuple[str, ...]:
+        """Deterministics this term freezes for out-of-sample evaluation.
+
+        Empty by default. A term with a deterministic that reduces over a
+        dimension (e.g. a mean over the time dimension) overrides this, and
+        :func:`frozen_deterministics` collects the names from a whole recipe
+        so a caller can replace them with :func:`deterministics_to_flat`.
         """
         return ()
 
@@ -1370,6 +1382,54 @@ def data_vars(param: Any) -> list[str]:
 
     def walk(node: Any) -> None:
         for name in getattr(node, "data_vars", ()):
+            if name not in found:
+                found.append(name)
+        if isinstance(node, Sum):
+            for term in node.terms:
+                walk(term)
+        elif isinstance(node, Product):
+            walk(node.left)
+            walk(node.right)
+        elif isinstance(node, ModelTerm):
+            # wrappers (Named.expr, Transform.inner) hold the real recipe
+            for inner in _inner_specs(node):
+                walk(inner)
+
+    walk(param)
+    return found
+
+
+def frozen_deterministics(param: Any) -> list[str]:
+    """Collect the frozen-deterministic names a term tree declares, at any depth.
+
+    A term whose deterministic reduces over a dimension declares it through
+    :attr:`ModelTerm.frozen_deterministics` (``SoftPlusHSGPTerm`` declares
+    ``{name}_f_mean``). This walks compositions and term wrappers such as
+    ``Named`` and ``Transform``, so the names are found in a whole recipe.
+    Order is first-seen and names are unique.
+
+    Parameters
+    ----------
+    param : ModelTerm, Sum, Product, int, or float
+        The term tree to inspect.
+
+    Returns
+    -------
+    list[str]
+        Deterministic names to replace with :func:`deterministics_to_flat`.
+
+    Examples
+    --------
+    .. code-block:: python
+
+        recipe = SoftPlusHSGPTerm(name="tvp") * media_term
+        frozen_deterministics(recipe)
+        # ['tvp_f_mean']
+    """
+    found: list[str] = []
+
+    def walk(node: Any) -> None:
+        for name in getattr(node, "frozen_deterministics", ()):
             if name not in found:
                 found.append(name)
         if isinstance(node, Sum):
