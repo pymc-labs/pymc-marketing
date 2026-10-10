@@ -360,7 +360,13 @@ def _validate_metrics(
     data: pd.DataFrame,
     metric_list: list[str],
 ) -> list[str]:
-    return [m for m in metric_list if m in data.columns]
+    missing = [m for m in metric_list if m not in data.columns]
+    if missing:
+        raise KeyError(
+            f"Columns {missing} are declared but absent from the data. "
+            f"Present: {sorted(map(str, data.columns))}."
+        )
+    return list(metric_list)
 
 
 def _process_dataframe(

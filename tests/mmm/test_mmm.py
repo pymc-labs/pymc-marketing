@@ -1584,8 +1584,8 @@ def test_single_channel():
         {
             "date_week": range(7),
             "x1": rng.uniform(size=7),
-            "event1": rng.binomial(n=1, p=0.5, size=7),
-            "event2": rng.binomial(n=1, p=0.5, size=7),
+            "event_1": rng.binomial(n=1, p=0.5, size=7),
+            "event_2": rng.binomial(n=1, p=0.5, size=7),
             "t": rng.uniform(size=7),
         }
     )
@@ -5773,7 +5773,6 @@ def test_specify_time_varying_configuration(
         date_column="date",
         target_column="target",
         channel_columns=["channel_1", "channel_2"],
-        control_columns=["control_1", "control_2"],
         adstock=GeometricAdstock(l_max=2),
         saturation=LogisticSaturation(),
         model_config=model_config,
