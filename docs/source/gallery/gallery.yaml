@@ -117,7 +117,8 @@ sections:
       - title: Case Studies
         cards:
           - title: MMM End-to-End Case Study
-            notebook: notebooks/mmm/mmm_case_study
+            notebook: gallery/notebooks/mmm/mmm_case_study
+            part: case
           - title: "MMM Case Study II: Funnel-Aware Modeling, ROAS Calibration, and Budget Planning"
             notebook: notebooks/mmm/mmm_case_study2
           - title: Integrating Foundational Time Series Models with PyMC-Marketing MMM

@@ -1,3 +1,4 @@
 # One entry per moved notebook. Add it in the PR that removes the old file.
 # Do not edit the Read the Docs dashboard. `to` is a docname, never a URL.
-[]
+- from: notebooks/mmm/mmm_case_study
+  to: gallery/notebooks/mmm/mmm_case_study

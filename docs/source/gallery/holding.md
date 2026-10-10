@@ -55,7 +55,6 @@ A notebook stays here, at its current URL, until its card sets `part`.
 /notebooks/mmm/mmm_funnel_from_yml
 /notebooks/mmm/mmm_brand_metrics_long_term
 /notebooks/mmm/mmm_causal_reasoning_and_discovery
-/notebooks/mmm/mmm_case_study
 /notebooks/mmm/mmm_case_study2
 /notebooks/mmm/mmm_chronos
 /notebooks/clv/clv_quickstart
