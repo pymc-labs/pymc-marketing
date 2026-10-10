@@ -544,10 +544,20 @@ class DataVarMuEffect(MuEffect, ABC):
         as PyMC data variables.  At least one variable is required.
     prefix : str
         Prefix for effect variable names.
+    data_node_names : dict[str, str], optional
+        Map from dataset column name to the ``pm.Data`` node name to
+        register it under.  Defaults to the dataset column name itself.
+        Used when a compat graph name is required (e.g. MMM registers
+        ``_control`` under ``control_data``).
     """
 
     data_vars: Annotated[list[str], Field(min_length=1)]
     prefix: str
+    data_node_names: dict[str, str] = Field(default_factory=dict)
+
+    def _node_name(self, var_name: str) -> str:
+        """Return the ``pm.Data`` node name for a dataset column."""
+        return self.data_node_names.get(var_name, var_name)
 
     def create_data(self, mmm: Model) -> None:
         """Register each data variable as ``pm.Data``.
@@ -563,12 +573,13 @@ class DataVarMuEffect(MuEffect, ABC):
         """
         model = mmm.model
         for var_name in self.data_vars:
+            node_name = self._node_name(var_name)
             da = mmm.xarray_dataset[var_name]
-            existing = model.named_vars.get(var_name)
+            existing = model.named_vars.get(node_name)
             if existing is None:
-                pmd.Data(var_name, da.values, dims=da.dims, model=model)
+                pmd.Data(node_name, da.values, dims=da.dims, model=model)
                 continue
-            if var_name in getattr(mmm, "_library_data_names", frozenset()):
+            if node_name in getattr(mmm, "_library_data_names", frozenset()):
                 raise ValueError(
                     f"Cannot register dataset column {var_name!r} as pm.Data: "
                     "that name is registered by MMM itself; rename the dataset column."
@@ -604,8 +615,9 @@ class DataVarMuEffect(MuEffect, ABC):
             The new prediction dataset.
         """
         for var_name in self.data_vars:
-            if var_name in X.data_vars:
-                pm.set_data({var_name: X[var_name].values}, model=model)
+            node_name = self._node_name(var_name)
+            if var_name in X.data_vars and node_name in model.named_vars:
+                pm.set_data({node_name: X[var_name].values}, model=model)
 
 
 class MediaMuEffect(DataVarMuEffect):
@@ -710,9 +722,32 @@ class ControlMuEffect(DataVarMuEffect):
     prior : Prior, optional
         Prior distribution for the control coefficients.
         Default is ``Prior("Normal", mu=0, sigma=2)``.
+    control_dim : str, optional
+        Name of a stacked dimension of the data variables that receives
+        per-element coefficients. When set, the contribution keeps that
+        dimension and the term returned for the linear predictor sums
+        it out. When ``None`` (default), the prior's own ``dims`` own
+        the coefficient structure and any dim not in ``{date, *mmm.dims}``
+        is summed out of the returned term.
+    contribution_name : str, optional
+        Name of the registered contribution Deterministic. Defaults to
+        ``{prefix}_effect_contribution``.
+    coefficient_name : str, optional
+        Name of the coefficient variable. Defaults to
+        ``{prefix}_{var_name}_coef`` per data variable.
+
+    Notes
+    -----
+    With ``control_dim`` set, data updates are expected to flow through
+    ``MMM._set_xarray_data`` (which owns dtype conversion and coord
+    swaps for the compat node), so ``set_data`` is a no-op.
     """
 
     prior: VariableFactory = Prior("Normal", mu=0, sigma=2)
+
+    control_dim: str | None = None
+    contribution_name: str | None = None
+    coefficient_name: str | None = None
 
     model_config = {"arbitrary_types_allowed": True}
 
@@ -732,27 +767,72 @@ class ControlMuEffect(DataVarMuEffect):
         model = mmm.model
         contributions = []
         for var_name in self.data_vars:
-            data = model[var_name]
+            data = model[self._node_name(var_name)]
             coef = self.prior.create_variable(
-                f"{self.prefix}_{var_name}_coef",
+                self.coefficient_name or f"{self.prefix}_{var_name}_coef",
                 xdist=True,
             )
             contributions.append(data * coef)
         total = sum(contributions)
+
+        if self.control_dim is not None:
+            # Stacked mode: keep the consumed dim in the registered
+            # contribution (per-control values for decomposition), and
+            # sum it out of the term added to the linear predictor.
+            contribution = pmd.Deterministic(
+                self.contribution_name or f"{self.prefix}_effect_contribution",
+                total,
+            )
+            return contribution.sum(dim=self.control_dim)
+
         # Sum over any dims not in {"date", *mmm.dims} (e.g. "control")
         extra_dims = [d for d in set(total.dims) if d not in {"date", *mmm.dims}]
         if extra_dims:
             total = total.sum(dim=extra_dims)
         return pmd.Deterministic(
-            f"{self.prefix}_effect_contribution",
+            self.contribution_name or f"{self.prefix}_effect_contribution",
             total,
         )
+
+    def set_data(self, mmm: Model, model: pm.Model, X: xr.Dataset) -> None:
+        """Update ``pm.Data`` variables from a new prediction dataset.
+
+        No-op when ``control_dim`` is set: the stacked data node is
+        updated by ``MMM._set_xarray_data`` (dtype conversion, coord
+        swaps), so re-setting here would be redundant.
+
+        Parameters
+        ----------
+        mmm : Model
+            The MMM model instance.
+        model : pm.Model
+            The PyMC model.
+        X : xr.Dataset
+            The new prediction dataset.
+        """
+        if self.control_dim is not None:
+            return
+        super().set_data(mmm, model, X)
+
+    @property
+    def contribution_var_name(self) -> str:
+        """Name this effect registers its contribution under.
+
+        The default assumes ``{prefix}_effect_contribution``; MMM wires its
+        legacy effect with ``contribution_name="control_contribution"``,
+        and response-reachability checks must consult the real name.
+        """
+        return self.contribution_name or f"{self.prefix}_effect_contribution"
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize to a dict."""
         return {
             "data_vars": self.data_vars,
             "prefix": self.prefix,
+            "control_dim": self.control_dim,
+            "contribution_name": self.contribution_name,
+            "coefficient_name": self.coefficient_name,
+            "data_node_names": self.data_node_names,
             "prior": self.prior.to_dict(),
         }
 
@@ -770,6 +850,10 @@ class ControlMuEffect(DataVarMuEffect):
         return cls(
             data_vars=work["data_vars"],
             prefix=work["prefix"],
+            control_dim=work.get("control_dim"),
+            contribution_name=work.get("contribution_name"),
+            coefficient_name=work.get("coefficient_name"),
+            data_node_names=work.get("data_node_names", {}),
             prior=prior,
         )
 

@@ -1018,3 +1018,82 @@ class TestControlMuEffect:
         assert restored.data_vars == ["ctrl_national"]
         assert restored.prefix == "test_ctrl"
         assert restored == original
+
+    def test_stacked_create_effect(self, dates):
+        """With control_dim, the contribution keeps the dim and mu consumes it."""
+        var_name = "control_data"
+        rng = np.random.default_rng(0)
+        ds = xr.Dataset(
+            {var_name: (("date", "control"), rng.normal(size=(len(dates), 2)))},
+            coords={"date": dates, "control": ["c1", "c2"]},
+        )
+        model = pm.Model(coords={"date": dates, "control": ["c1", "c2"]})
+        mmm = type("MockMMM", (), {"dims": (), "model": model, "xarray_dataset": ds})()
+
+        effect = ControlMuEffect(
+            data_vars=[var_name],
+            prefix="control",
+            control_dim="control",
+            prior=Prior("Normal", mu=0, sigma=2, dims="control"),
+            contribution_name="control_contribution",
+            coefficient_name="gamma_control",
+        )
+
+        with model:
+            effect.create_data(mmm)
+            term = effect.create_effect(mmm)
+
+        assert "gamma_control" in model.named_vars
+        assert "control_contribution" in model.named_vars
+        assert set(model.named_vars_to_dims["control_contribution"]) == {
+            "date",
+            "control",
+        }
+        # The term added to the linear predictor sums the consumed dim out
+        assert "control" not in term.dims
+        assert effect.contribution_var_name == "control_contribution"
+
+    def test_data_node_name_override(self, dates):
+        """A dataset column can register under a compat ``pm.Data`` name."""
+        rng = np.random.default_rng(0)
+        ds = xr.Dataset(
+            {"_control": (("date", "control"), rng.normal(size=(len(dates), 2)))},
+            coords={"date": dates, "control": ["c1", "c2"]},
+        )
+        model = pm.Model(coords={"date": dates, "control": ["c1", "c2"]})
+        mmm = type("MockMMM", (), {"dims": (), "model": model, "xarray_dataset": ds})()
+
+        effect = ControlMuEffect(
+            data_vars=["_control"],
+            prefix="control",
+            control_dim="control",
+            data_node_names={"_control": "control_data"},
+        )
+
+        with model:
+            effect.create_data(mmm)
+            effect.create_effect(mmm)
+
+        assert "control_data" in model.named_vars
+        assert "_control" not in model.named_vars
+        assert "control_effect_contribution" in model.named_vars
+
+    def test_serialization_roundtrip_stacked(self):
+        original = ControlMuEffect(
+            data_vars=["_control"],
+            prefix="control",
+            control_dim="control",
+            prior=Prior("Normal", mu=0, sigma=2, dims="control"),
+            contribution_name="control_contribution",
+            coefficient_name="gamma_control",
+            data_node_names={"_control": "control_data"},
+        )
+        data = serialization.serialize(original)
+        restored = serialization.deserialize(data)
+
+        assert type(restored) is ControlMuEffect
+        assert restored.control_dim == "control"
+        assert restored.contribution_name == "control_contribution"
+        assert restored.coefficient_name == "gamma_control"
+        assert restored.data_node_names == {"_control": "control_data"}
+        assert restored == original
