@@ -123,6 +123,9 @@ sections:
             notebook: mmm/mmm_case_study
           - title: "MMM Case Study II: Funnel-Aware Modeling, ROAS Calibration, and Budget Planning"
             notebook: mmm/mmm_case_study2
+          - title: Pareto Optimization Across Products with a Shared Media Budget
+            notebook: mmm/mmm_pareto_optimization
+            thumb: mmm_pareto_optimization_frontier.png
           - title: Integrating Foundational Time Series Models with PyMC-Marketing MMM
             notebook: mmm/mmm_chronos
   - title: Customer Lifetime Value (CLV) Models
