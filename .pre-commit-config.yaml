@@ -63,7 +63,7 @@ repos:
         files: \.ipynb$
         exclude: ^docs/source/notebooks/(mmm/mmm_components|mmm/mmm_dims_migration_guide|mmm/mmm_quickstart)\.ipynb$
       - id: gallery-in-sync
-        name: gallery pages, redirects, and Spanish catalogs are in sync
+        name: gallery pages, redirects, catalogs, and nav shells are in sync
         entry: python3 scripts/generate_gallery.py --check --no-thumbnails
         language: python
         additional_dependencies: [pyyaml, matplotlib]

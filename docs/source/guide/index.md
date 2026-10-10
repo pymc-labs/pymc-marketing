@@ -38,9 +38,11 @@ customer_choice/incrementality_intro
 customer_choice/mv_its_intro
 :::
 
-:::{toctree}
-:caption: Technical guides
+::::{toctree}
+:caption: Technical Guides
 :maxdepth: 1
 
-technical_guides
-:::
+Technical Guides <technical_guides>
+::::
+
+The library fills in as notebooks are tagged. An empty page is expected until then.
