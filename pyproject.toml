@@ -170,6 +170,18 @@ ignore = [
     "B018", # Checks for "useless" expressions. Not useful for notebooks.
     "D103", # Missing docstring in public function.
 ]
+"docs/source/getting_started/notebooks/*" = [
+    "B018",
+    "D103",
+]
+"docs/source/guide/notebooks/*" = [
+    "B018",
+    "D103",
+]
+"docs/source/gallery/notebooks/*" = [
+    "B018",
+    "D103",
+]
 "tests/*" = [
     "B018", # Checks for "useless" expressions. This is useful for tests.
     "D",

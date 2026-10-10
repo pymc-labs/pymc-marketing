@@ -64,11 +64,14 @@ def _tree(tmp_path: Path, mapping: str, *, target_exists: bool = True) -> Path:
     return source
 
 
-def test_repository_map_is_empty() -> None:
-    """This issue lands the mechanism, not the first moved notebook."""
+def test_repository_map_is_the_pilot() -> None:
+    """The only redirect is the case-study move."""
     entries, errors = load_redirects(SOURCE)
     assert errors == []
-    assert entries == []
+    assert [(entry.source, entry.target) for entry in entries] == [
+        ("notebooks/mmm/mmm_case_study", "gallery/notebooks/mmm/mmm_case_study")
+    ]
+    assert validate_redirect_map(SOURCE) == []
     code, messages = check_gallery(SOURCE)
     assert code == 0, messages
 
@@ -301,7 +304,8 @@ def test_docs_build_emits_relative_redirect_for_en_and_es(tmp_path: Path) -> Non
         assert new_loc in sitemap
 
 
-def test_repo_conf_registers_the_empty_map() -> None:
+def test_repo_conf_registers_the_pilot_redirect() -> None:
+    """The only redirect is the case-study move, and its target is relative."""
     pytest.importorskip("sphinx_reredirects")
     pytest.importorskip("labs_sphinx_theme")
     pytest.importorskip("pymc_marketing")
@@ -311,7 +315,15 @@ def test_repo_conf_registers_the_empty_map() -> None:
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
-    assert module.redirects == {}
+    source = "notebooks/mmm/mmm_case_study"
+    target = "gallery/notebooks/mmm/mmm_case_study"
+    expected = relative_target(source, target)
+    assert module.redirects == {source: expected}
+    assert expected.startswith("../")
+    assert "/en/" not in expected
+    assert "/es/" not in expected
+    assert "https://www.pymc-marketing.io" not in expected
+    assert f"{source}.html" in module.sitemap_excludes
     assert "sphinx_reredirects" in module.extensions
     assert module.redirect_html_template_file == "_templates/redirect.html"
     assert module.sitemap_excludes[:5] == [

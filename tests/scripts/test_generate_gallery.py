@@ -379,6 +379,43 @@ def test_real_source_checks_clean():
     assert code == 0, messages
 
 
+def test_pilot_tags_only_the_case_study():
+    """The example gallery shows the moved case study and no other notebook."""
+    data, errors = load_gallery(SOURCE / "gallery" / "gallery.yaml")
+    assert errors == []
+    assert data is not None
+    cards, structural = collect_cards(data)
+    assert structural == []
+    tagged = [(card.docname, card.part) for card in cards if card.part is not None]
+    assert tagged == [("gallery/notebooks/mmm/mmm_case_study", "case")]
+    assert sum(card.part is None for card in cards) == 67
+    pages = render_pages(cards)
+    gallery = pages["gallery/gallery"]
+    assert ":link: /gallery/notebooks/mmm/mmm_case_study" in gallery
+    assert ":img-top: images/mmm_case_study.png" in gallery
+    assert ":link-type: doc" in gallery
+    assert "mmm_case_study2" not in gallery
+    assert "mmm_chronos" not in gallery
+    assert "No notebooks are tagged for this page yet." not in gallery
+    assert "```{toctree}" in gallery
+    assert "/gallery/notebooks/mmm/mmm_case_study" in gallery
+    assert (
+        "No notebooks are tagged for this page yet."
+        in pages["getting_started/intro_guides"]
+    )
+    assert (
+        "No notebooks are tagged for this page yet." in pages["guide/technical_guides"]
+    )
+    assert "```{toctree}" not in pages["getting_started/intro_guides"]
+    assert "```{toctree}" not in pages["guide/technical_guides"]
+    holding = pages["gallery/holding"]
+    assert "gallery/notebooks/mmm/mmm_case_study" not in holding
+    assert "/notebooks/mmm/mmm_case_study\n" not in holding
+    assert "/notebooks/mmm/mmm_case_study2" in holding
+    assert (SOURCE / "gallery" / "gallery.md").read_text() == gallery
+    assert (SOURCE / "gallery" / "holding.md").read_text() == holding
+
+
 @pytest.mark.parametrize(
     ("part", "needle"),
     [

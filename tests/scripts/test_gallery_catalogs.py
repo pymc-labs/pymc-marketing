@@ -279,20 +279,32 @@ def test_language_switcher_on_the_three_new_pages(tmp_path: Path) -> None:
                 assert "//" not in href.removeprefix("https://")
 
 
-def test_spanish_build_shows_the_existing_case_study_title(tmp_path: Path) -> None:
-    """The case-study catalog still translates its title. The notebook is unmoved."""
+MOVED_CASE_STUDY = "gallery/notebooks/mmm/mmm_case_study"
+
+
+def test_spanish_build_shows_the_moved_case_study_title(tmp_path: Path) -> None:
+    """The moved catalog still translates the case-study title."""
     pytest.importorskip("myst_parser")
-    notebook = SOURCE / f"{CASE_STUDY}.ipynb"
-    catalog = MESSAGES / f"{CASE_STUDY}.po"
+    notebook = SOURCE / f"{MOVED_CASE_STUDY}.ipynb"
+    catalog = MESSAGES / f"{MOVED_CASE_STUDY}.po"
     assert notebook.is_file()
-    assert CASE_TITLE in catalog.read_text()
+    assert not (SOURCE / f"{CASE_STUDY}.ipynb").exists()
+    assert not (MESSAGES / f"{CASE_STUDY}.po").exists()
+    text = catalog.read_text()
+    assert (
+        'msgid "MMM End-to-End Case Study"\nmsgstr "Caso de Estudio Completo de MMM"'
+    ) in text
+    title_at = text.index('msgid "MMM End-to-End Case Study"')
+    assert "#, fuzzy" not in text[max(0, title_at - 120) : title_at]
+    assert "../source/gallery/notebooks/mmm/mmm_case_study.ipynb:" in text
+    assert "../source/notebooks/mmm/mmm_case_study.ipynb:" not in text
 
     src = tmp_path / "source"
-    page = src / f"{CASE_STUDY}.md"
+    page = src / f"{MOVED_CASE_STUDY}.md"
     page.parent.mkdir(parents=True)
     page.write_text("# MMM End-to-End Case Study\n")
     (src / "index.md").write_text(
-        "```{toctree}\n:hidden:\n\nnotebooks/mmm/mmm_case_study\n```\n"
+        "```{toctree}\n:hidden:\n\ngallery/notebooks/mmm/mmm_case_study\n```\n"
     )
     (src / "conf.py").write_text(
         "extensions = ['myst_parser']\n"
@@ -301,7 +313,7 @@ def test_spanish_build_shows_the_existing_case_study_title(tmp_path: Path) -> No
         "language = 'es'\n"
         "master_doc = 'index'\n"
     )
-    dest = tmp_path / "locales" / "es" / "LC_MESSAGES" / "notebooks" / "mmm"
+    dest = tmp_path / "locales" / "es" / "LC_MESSAGES" / "gallery" / "notebooks" / "mmm"
     dest.mkdir(parents=True)
     shutil.copy(catalog, dest / "mmm_case_study.po")
     out = tmp_path / "build"
@@ -323,7 +335,7 @@ def test_spanish_build_shows_the_existing_case_study_title(tmp_path: Path) -> No
         text=True,
     )
     assert completed.returncode == 0, completed.stdout + completed.stderr
-    html = (out / f"{CASE_STUDY}.html").read_text()
+    html = (out / f"{MOVED_CASE_STUDY}.html").read_text()
     assert CASE_TITLE in html
     assert "MMM End-to-End Case Study" not in html
 

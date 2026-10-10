@@ -181,12 +181,14 @@ A move is one PR. English stays the source. Do not add `locales/en/`, and do not
 
 1. Move the source to the new docname.
 2. If `locales/es/LC_MESSAGES/<old docname>.po` exists, `git mv` it to `locales/es/LC_MESSAGES/<new docname>.po` in the same PR. Do not regenerate it from scratch.
-3. Run `sphinx-intl update` so the `#:` locations follow the new path. Confirm a pre-existing `msgstr` is still present. Do not mark the catalog fuzzy as a way to skip the check. Point the update at a clean pot directory that contains only the moved docname, so it does not create catalogs for notebooks that never had one.
+3. Run `sphinx-intl update` so the `#:` locations follow the new path. Confirm a pre-existing `msgstr` is still present. Do not mark the catalog fuzzy as a way to skip the check. The gettext filename is the path from the repository root and needs the `.ipynb` suffix. Sphinx looks that argument up from the working directory, not from `docs/source`. A bare docname, and a filename without the `docs/source/` prefix, are not files, and Sphinx skips them. Write the pots to `docs/gettext`, the sibling of `docs/source`, so locations stay `../source/<docname>.ipynb`. An output directory outside the repository records an absolute location. `docs/gettext` is gitignored. Delete every pot except the moved docname before `sphinx-intl update`, or the update creates catalogs for notebooks that never had one.
 
    ```bash
-   pot=$(mktemp -d)
-   sphinx-build docs/source "$pot" -b gettext "docs/source/<new-docname>"
-   sphinx-intl update -p "$pot" -l es --locale-dir locales
+   rm -rf docs/gettext
+   sphinx-build docs/source docs/gettext -b gettext "docs/source/<new-docname>.ipynb"
+   find docs/gettext -name '*.pot' ! -path "docs/gettext/<new-docname>.pot" -delete
+   sphinx-intl update -p docs/gettext -l es --locale-dir locales
+   rm -rf docs/gettext
    ```
 4. If no `.po` exists, do not create one in the migration PR.
 5. Do not edit unrelated `msgstr` URLs.
