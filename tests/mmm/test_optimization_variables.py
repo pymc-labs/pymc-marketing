@@ -12,13 +12,19 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 import numpy as np
+import pandas as pd
 import pymc as pm
 import pymc.dims as pmd
+import pytensor
 import pytensor.tensor as pt
 import pytensor.xtensor as ptx
 import pytest
 import xarray as xr
+from pytensor import function
+from pytensor.compile.mode import Mode
+from pytensor.xtensor import as_xtensor
 
+from pymc_marketing.mmm import PowerPriceResponse
 from pymc_marketing.mmm.optimization_variables import (
     FLAT_DIM,
     LeverVariable,
@@ -834,3 +840,276 @@ def test_the_scale_divides_the_substituted_spend():
 
     np.testing.assert_allclose(plain, scaled * 1000.0, rtol=1e-6)
     assert float(plain.max()) > 0.0
+
+
+CHANNELS = ["channel_0", "channel_1", "channel_2"]
+CONCENTRATED = np.array(
+    [[0.7, 0.7, 0.7], [0.1, 0.1, 0.1], [0.1, 0.1, 0.1], [0.1, 0.1, 0.1]]
+)
+
+
+def _priced_variable(
+    *,
+    elasticity,
+    scales=1.0,
+    distribution=None,
+    cost_per_unit=None,
+    mask_values=None,
+    compile_kwargs=None,
+    num_periods=4,
+):
+    mask = xr.DataArray(
+        np.ones(3, dtype=bool)
+        if mask_values is None
+        else np.asarray(mask_values, dtype=bool),
+        dims=("channel",),
+        coords={"channel": CHANNELS},
+    )
+    response = PowerPriceResponse(
+        elasticity=elasticity,
+        reference_spend=xr.DataArray(
+            [100.0, 100.0, 100.0], dims=("channel",), coords={"channel": CHANNELS}
+        ),
+        assume_delivery_units=True,
+    )
+    return MediaVariable(
+        name="channel_data",
+        mask=mask,
+        num_periods=num_periods,
+        adstock_periods=2,
+        channel_scales=scales,
+        dtype="float64",
+        budget_distribution_over_period_tensor=(
+            None
+            if distribution is None
+            else as_xtensor(distribution, dims=("date", FLAT_DIM))
+        ),
+        cost_per_unit_tensor=(
+            None
+            if cost_per_unit is None
+            else as_xtensor(cost_per_unit, dims=("date", "channel"))
+        ),
+        price_response=response,
+        compile_kwargs=compile_kwargs,
+    )
+
+
+def _decision_block(variable: MediaVariable, x: np.ndarray) -> np.ndarray:
+    opt_vars = OptimizationVariables([variable])
+    z = opt_vars.variable_slice("channel_data")
+    return function([opt_vars.flat], variable.to_model(z))(x)[: variable.num_periods]
+
+
+@pytest.mark.parametrize(
+    "distribution", [None, CONCENTRATED], ids=["uniform", "concentrated"]
+)
+def test_price_response_is_applied_to_unscaled_money(distribution):
+    """(s / c) ** (1 - gamma) is not s ** (1 - gamma) / c: the map must see raw money.
+
+    Posed here, where it is well-posed, rather than as an allocation-invariance
+    test on a fitted model -- rescaling channel_scales alone does not describe
+    the same model unless the saturation parameters move too.
+    """
+    scales = np.array([1.0, 10.0, 1000.0])
+    variable = _priced_variable(
+        elasticity=0.3, scales=scales, distribution=distribution
+    )
+    opt_vars = OptimizationVariables([variable])
+    z = opt_vars.variable_slice("channel_data")
+    money = variable._per_period_money(z)
+    scales_x = as_xtensor(scales, dims=("channel",))
+    x = np.array([50.0, 120.0, 300.0])
+
+    block = function([opt_vars.flat], variable.to_model(z))(x)[:4]
+    right = function(
+        [opt_vars.flat], variable.price_response.to_delivery(money) / scales_x
+    )(x)
+    wrong = function(
+        [opt_vars.flat], variable.price_response.to_delivery(money / scales_x)
+    )(x)
+
+    np.testing.assert_allclose(block, right, rtol=1e-12)
+    np.testing.assert_allclose(block[:, 0], wrong[:, 0], rtol=1e-12)  # scale 1: same
+    assert not np.allclose(block[:, 1:], wrong[:, 1:])
+
+
+def test_identity_price_response_builds_the_constant_price_graph_bitwise():
+    """elasticity = 0 must leave the pre-feature path untouched, operation for operation,
+    while still being held so a baseline run can report implied_price == p0."""
+    cpu = np.full((4, 3), 2.5)
+    scales = np.array([1.0, 10.0, 1000.0])
+    x = np.random.default_rng(31).uniform(10.0, 500.0, size=3)
+    plain = MediaVariable(
+        name="channel_data",
+        mask=xr.DataArray(
+            np.ones(3, dtype=bool), dims=("channel",), coords={"channel": CHANNELS}
+        ),
+        num_periods=4,
+        adstock_periods=2,
+        channel_scales=scales,
+        dtype="float64",
+        cost_per_unit_tensor=as_xtensor(cpu, dims=("date", "channel")),
+    )
+    identity = _priced_variable(elasticity=0.0, scales=scales, cost_per_unit=cpu)
+    assert identity.price_response is not None and identity.price_response.is_identity
+    np.testing.assert_array_equal(
+        _decision_block(plain, x), _decision_block(identity, x)
+    )
+
+
+def test_concentrated_distribution_buys_less_delivery_than_uniform():
+    """Jensen: at one base price for every period, a strictly concave map delivers less for
+    the same total when spend is concentrated. This is the behavior change gamma > 0
+    introduces for existing users of budget_distribution_over_period, and it vanishes at
+    gamma = 0."""
+    x = np.array([80.0, 80.0, 80.0])
+    for gamma, comparison in ((0.3, np.less), (0.0, np.isclose)):
+        uniform = (
+            _priced_variable(elasticity=gamma)
+            .delivery_report(x)["implied_delivery"]
+            .sum("date")
+        )
+        concentrated = (
+            _priced_variable(elasticity=gamma, distribution=CONCENTRATED)
+            .delivery_report(x)["implied_delivery"]
+            .sum("date")
+        )
+        assert np.all(comparison(concentrated.values, uniform.values)), gamma
+
+
+def test_a_date_varying_base_price_can_reward_concentrated_spend():
+    """The comparison above needs one base price for every period. When the first period
+    is four times cheaper, concentrating the money there buys more delivery, and so clears
+    lower on average, with or without curvature."""
+    x = np.array([80.0, 80.0, 80.0])
+    cpu = np.array([[1.0] * 3, [4.0] * 3, [4.0] * 3, [4.0] * 3])
+
+    for gamma in (0.3, 0.0):
+        uniform = (
+            _priced_variable(elasticity=gamma, cost_per_unit=cpu)
+            .delivery_report(x)["implied_delivery"]
+            .sum("date")
+        )
+        concentrated = (
+            _priced_variable(
+                elasticity=gamma, cost_per_unit=cpu, distribution=CONCENTRATED
+            )
+            .delivery_report(x)["implied_delivery"]
+            .sum("date")
+        )
+        assert np.all(concentrated.values > uniform.values), gamma
+
+
+def test_window_length_moves_the_price_only_through_the_per_period_rate():
+    """total_budget and result.budgets are per-period money, so at a constant base price
+    the same per-period plan clears at the same price over any window. Holding the
+    *window* total fixed instead, a shorter window spends more per period, and a strictly
+    concave map makes it clear higher and buy less in total; at gamma = 0 the window
+    length changes nothing."""
+    per_period = np.array([150.0, 150.0, 150.0])
+    prices = [
+        _priced_variable(elasticity=0.3, num_periods=periods)
+        .delivery_report(per_period)["implied_price"]
+        .values
+        for periods in (4, 12)
+    ]
+    np.testing.assert_allclose(prices[0][0], prices[1][0], rtol=1e-12)
+
+    window_total = np.array([2400.0, 2400.0, 2400.0])
+    for gamma, comparison in ((0.3, np.less), (0.0, np.isclose)):
+        delivered, mean_price = {}, {}
+        for periods in (4, 12):
+            report = _priced_variable(
+                elasticity=gamma, num_periods=periods
+            ).delivery_report(window_total / periods)
+            delivered[periods] = report["implied_delivery"].sum("date").values
+            mean_price[periods] = report["implied_price"].mean("date").values
+        assert np.all(comparison(delivered[4], delivered[12])), gamma
+        assert np.all(comparison(mean_price[12], mean_price[4])), gamma
+
+
+def test_delivery_report_is_labelled_and_nan_where_no_money_is_spent():
+    """Masked cells and any decision at zero report no delivery and no price, because
+    their price would otherwise be read off a reference they never spent against.
+    Where money is spent, (delivery * price).sum(date) == budgets * num_periods exactly."""
+    variable = _priced_variable(elasticity=0.4, mask_values=[True, False, True])
+    dates = pd.date_range("2025-01-05", periods=4, freq="7D")
+    x = np.array([90.0, 0.0])
+    report = variable.delivery_report(x, date_coords=dates)
+
+    assert set(report) == {
+        "implied_delivery",
+        "implied_price",
+        "implied_marginal_price",
+    }
+    for value in report.values():
+        assert value.dims == ("date", "channel") and value.shape == (4, 3)
+        np.testing.assert_array_equal(value["date"].values, dates.values)
+    delivery, price = report["implied_delivery"], report["implied_price"]
+    assert np.all(delivery.sel(channel=["channel_1", "channel_2"]) == 0.0)
+    assert np.all(np.isnan(price.sel(channel=["channel_1", "channel_2"])))
+    assert np.all(np.isfinite(price.sel(channel="channel_0")))
+    money = xr.where(np.isnan(price), 0.0, delivery * price).sum("date")
+    np.testing.assert_allclose(money.values, variable.unpack(x).values * 4, rtol=1e-12)
+
+    tiny = variable.delivery_report(np.array([90.0, 1e-15]))["implied_price"]
+    assert np.all(np.isnan(tiny.sel(channel="channel_2")))
+    assert np.all(np.isfinite(tiny.sel(channel="channel_0")))
+
+
+def test_delivery_report_is_empty_without_a_price_response():
+    rng = np.random.default_rng(32)
+    assert make_media_variable(rng).delivery_report(np.ones(3)) == {}
+
+
+def test_delivery_report_compiles_with_the_optimizer_compile_kwargs():
+    """Everything else in the optimizer compiles through compile_kwargs; the report must
+    not silently land on the default backend when the user asked for another."""
+    variable = _priced_variable(
+        elasticity=0.3, compile_kwargs={"mode": Mode(linker="py")}
+    )
+    variable.delivery_report(np.array([50.0, 60.0, 70.0]))
+    assert (
+        type(variable._delivery_report_fn.maker.mode.linker).__name__ == "PerformLinker"
+    )
+
+    default = _priced_variable(elasticity=0.3)
+    default.delivery_report(np.array([50.0, 60.0, 70.0]))
+    assert (
+        type(default._delivery_report_fn.maker.mode.linker).__name__ != "PerformLinker"
+    )
+
+
+def test_delivery_report_input_follows_floatx():
+    """The report's input follows floatX, like the solver's decision vector, while a
+    solution comes back from scipy in float64; under float32 the slice was cast to float64
+    and refused. The report compiles on its first call, so that call runs under float32."""
+    x = np.array([50.0, 60.0, 70.0])
+    expected = _priced_variable(elasticity=0.3).delivery_report(x)
+
+    with pytensor.config.change_flags(floatX="float32"):
+        variable = _priced_variable(elasticity=0.3)
+        reports = [
+            variable.delivery_report(x),
+            variable.delivery_report(x.astype("float32")),
+        ]
+
+    report_input = variable._delivery_report_fn.maker.fgraph.inputs[0]
+    assert report_input.type.dtype == "float32"
+    for report in reports:
+        for name, values in report.items():
+            np.testing.assert_allclose(values, expected[name], rtol=1e-5)
+
+
+def test_the_node_receives_implied_delivery_over_channel_scales():
+    """implied_delivery is what the money buys, before channel_scales; the model node
+    receives it divided by the scales. Reported pre-scale on purpose: it is the number
+    a planner reads (impressions, not scaled impressions) and the money identity
+    u(s) * p(s) = s depends on it -- but the docstring has to say which one it is."""
+    scales = np.array([1.0, 10.0, 1000.0])
+    variable = _priced_variable(elasticity=0.3, scales=scales)
+    x = np.array([50.0, 120.0, 300.0])
+    node_input = _decision_block(variable, x)
+    delivery = variable.delivery_report(x)["implied_delivery"].values
+    np.testing.assert_allclose(delivery / scales, node_input, rtol=1e-12)
+    assert not np.allclose(delivery[:, 1:], node_input[:, 1:])
