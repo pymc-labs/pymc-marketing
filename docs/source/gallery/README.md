@@ -20,6 +20,12 @@ Each notebook has one toctree home. The pre-commit hook `gallery-in-sync` fails 
 After it is tagged, the docname becomes `getting_started/notebooks/<category>/<stem>`, `guide/notebooks/<category>/<stem>`, or `gallery/notebooks/<category>/<stem>`.
 Do not put the same notebook in two cards.
 
+## Nav shells
+
+Getting Started links `Intro Guides <intro_guides>`. Guide links `Technical Guides <technical_guides>`. The homepage quick links are Getting Started, Technical Guides, Example Gallery, and API Reference.
+
+Those entries stay while the card grids are empty. The Example Gallery card says business cases, not every notebook. The Technical Guides card, and the two section indexes, say the library fills in as notebooks are tagged. An empty page is expected. Do not put the Bass notebook back in a toctree. Cross-links between the three parts use `{ref}`intro_guides``, `{ref}`technical_guides``, and `{ref}`gallery`` only. Heading fragments do not resolve.
+
 ## Adding a new example
 
 1. Add the notebook under `docs/source/notebooks/<category>/`. `dev/` drafts are ignored.
@@ -42,8 +48,8 @@ python scripts/generate_gallery.py --check --no-thumbnails
 ```
 
 This does not write pages or thumbnails, and it does not require thumbnail files to exist.
-It fails when a generated page is out of sync, when a published notebook is missing from the yaml, when the yaml lists a missing file, when a notebook has two toctree homes, when `gallery/redirects.yaml` is invalid, or when a redirect's old Spanish catalog is still at the old path.
-A missing `part` is not a failure. An empty redirect map is valid. A notebook that never had a Spanish catalog is not a failure.
+It fails when a generated page is out of sync, when a published notebook is missing from the yaml, when the yaml lists a missing file, when a notebook has two toctree homes, when `gallery/redirects.yaml` is invalid, when a redirect's old Spanish catalog is still at the old path, or when those nav shells no longer match this contract.
+A missing `part` is not a failure. An empty redirect map is valid. A notebook that never had a Spanish catalog is not a failure. An empty card grid is not a failure.
 
 ## Moving a notebook
 

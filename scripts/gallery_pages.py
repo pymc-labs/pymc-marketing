@@ -476,6 +476,278 @@ def _is_orphan(text: str) -> bool:
     return bool(re.search(r"^orphan:\s*true\s*$", text[:end], re.MULTILINE))
 
 
+_PART_CROSS_LINKS = {
+    "intro": ("technical_guides", "gallery"),
+    "guide": ("intro_guides", "gallery"),
+    "case": ("intro_guides", "technical_guides"),
+}
+_FILLS_IN = "The library fills in as notebooks are tagged."
+_EMPTY_EXPECTED = "An empty page is expected until then."
+_QUICK_LINK_CARDS = (
+    ("Getting Started", "getting_started/index", "To the getting started guide"),
+    ("Technical Guides", "guide/technical_guides", "To the technical guides"),
+    ("Example Gallery", "gallery/gallery", "To the example gallery"),
+    ("API Reference", "api/index", "To the reference guide"),
+)
+_API_PROSE = (
+    "Documentation of functions, modules, objects, methods and parameters. "
+    "Assumes familiarity with the key concepts."
+)
+_LIBRARY_CLAIMS = (
+    "worked example",
+    "how the library works",
+    "full notebook library",
+    "all the notebooks",
+)
+_GUIDE_CAPTIONS = (
+    "Benefits of PyMC-Marketing",
+    "Media Mix Models",
+    "Customer Lifetime Value",
+    "Customer Choice",
+    "Technical Guides",
+)
+_GUIDE_PROSE = (
+    "guide/benefits/why_pymc_marketing",
+    "guide/benefits/why_bayesian",
+    "guide/benefits/why_open_source",
+    "guide/benefits/model_deployment",
+    "guide/mmm/mmm_learning_path",
+    "guide/mmm/mmm_intro",
+    "guide/mmm/data_export",
+    "guide/mmm/resources",
+    "guide/clv/clv_intro",
+    "guide/customer_choice/incrementality_intro",
+    "guide/customer_choice/mv_its_intro",
+)
+_HOME_TOCTREE = (
+    "getting_started/index",
+    "guide/index",
+    "gallery/gallery",
+    "api/index",
+)
+_CARD_BLOCK = re.compile(
+    r"^:::::{grid-item-card} (?P<title>[^\n]+)\n(?P<body>.*?)^:::::$",
+    re.MULTILINE | re.DOTALL,
+)
+_BUTTON_REF = re.compile(
+    r"^::::\{button-ref\} (?P<target>\S+)\n(?::[^\n]*\n)+\n(?P<label>[^\n]+)\n::::$",
+    re.MULTILINE,
+)
+_CARD_PROSE = re.compile(r"\^{3,}\n\n(?P<prose>.*?)\n\n\+\+\+", re.DOTALL)
+_REF_ROLE = re.compile(r"\{ref\}`([^`]+)`")
+_DOC_ROLE = re.compile(r"\{doc\}`([^`]+)`")
+_HEADING_FRAGMENT = re.compile(r"\{ref\}`[^`]*#[^`]*`|\]\(#[^)]+\)")
+_QUICK_LINKS = re.compile(
+    r"^## Quick links\n(.*?)(?=^## |\Z)", re.MULTILINE | re.DOTALL
+)
+
+
+def part_cross_link_errors() -> list[str]:
+    """Return errors when part-page cross-links are not bare anchors.
+
+    ``myst_heading_anchors`` is 0, so a heading fragment does not resolve.
+    The only stable targets are ``intro_guides``, ``technical_guides``, and
+    ``gallery``.
+    """
+    errors: list[str] = []
+    for part, anchors in _PART_CROSS_LINKS.items():
+        line = _PAGE_COPY[part]["links"]
+        bodies = _REF_ROLE.findall(line)
+        bare = tuple(bodies) == anchors and all(
+            "#" not in body and "<" not in body for body in bodies
+        )
+        if not bare or "#" in line:
+            joined = " and ".join(f"{{ref}}`{anchor}`" for anchor in anchors)
+            errors.append(
+                f"{part} cross-links must be bare part anchors only: {joined}"
+            )
+    return errors
+
+
+def validate_nav_shells(source_dir: Path) -> list[str]:
+    """Return nav-shell errors for a published homepage.
+
+    Fixture trees have no Quick links section, so they are skipped. An empty
+    card grid is valid. The nav must say that, instead of looking deleted.
+    """
+    index_path = source_dir / "index.md"
+    if not index_path.is_file():
+        return []
+    index_text = index_path.read_text()
+    if "## Quick links" not in index_text:
+        return []
+    errors = _fragment_errors(index_text, "index.md")
+    errors.extend(_homepage_errors(index_text))
+    getting_started = _read_nav(source_dir / "getting_started" / "index.md")
+    guide = _read_nav(source_dir / "guide" / "index.md")
+    errors.extend(_getting_started_errors(getting_started))
+    errors.extend(_guide_errors(guide))
+    return errors
+
+
+def _read_nav(path: Path) -> str:
+    return path.read_text() if path.is_file() else ""
+
+
+def _fragment_errors(text: str, label: str) -> list[str]:
+    if _HEADING_FRAGMENT.search(text):
+        return [f"{label} uses a heading fragment"]
+    return []
+
+
+def _captions(text: str) -> list[str]:
+    return [
+        line.split(":", 2)[-1].strip()
+        for line in text.splitlines()
+        if line.strip().startswith(":caption:")
+    ]
+
+
+def _doc_targets(text: str) -> list[str]:
+    targets: list[str] = []
+    for body in _DOC_ROLE.findall(text):
+        match = re.search(r"<([^>]+)>", body)
+        target = match.group(1) if match else body
+        targets.append(target.strip().strip("/"))
+    return targets
+
+
+def _titled_entries(text: str, page_docname: str) -> list[tuple[str, str]]:
+    found: list[tuple[str, str]] = []
+    for pattern in _FENCES:
+        for match in pattern.finditer(text):
+            for line in match.group("body").splitlines():
+                title_match = re.match(
+                    r"^(?P<title>.+?)\s*<(?P<target>[^>]+)>\s*$", line.strip()
+                )
+                if title_match is None:
+                    continue
+                target = _resolve_entry(
+                    page_docname, title_match.group("target").strip()
+                )
+                found.append((title_match.group("title").strip(), target))
+    return found
+
+
+def _toctree_names(text: str, page_docname: str) -> set[str]:
+    return {target for target, _glob in toctree_targets(text, page_docname)}
+
+
+def _cards(section: str) -> list[tuple[str, str, str, str]]:
+    cards: list[tuple[str, str, str, str]] = []
+    for match in _CARD_BLOCK.finditer(section):
+        body = match.group("body")
+        button = _BUTTON_REF.search(body)
+        prose_match = _CARD_PROSE.search(body)
+        prose = " ".join(prose_match.group("prose").split()) if prose_match else ""
+        if button is None:
+            cards.append((match.group("title").strip(), "", "", prose))
+            continue
+        cards.append(
+            (
+                match.group("title").strip(),
+                button.group("target"),
+                button.group("label").strip(),
+                prose,
+            )
+        )
+    return cards
+
+
+def _homepage_errors(text: str) -> list[str]:
+    errors: list[str] = []
+    section_match = _QUICK_LINKS.search(text)
+    section = section_match.group(1) if section_match else ""
+    cards = _cards(section)
+    actual = [(title, target, label) for title, target, label, _prose in cards]
+    if actual != list(_QUICK_LINK_CARDS):
+        errors.append(
+            "homepage quick links must be Getting Started, Technical Guides, "
+            "Example Gallery, API Reference"
+        )
+    by_title = {title: (target, label, prose) for title, target, label, prose in cards}
+    technical = by_title.get("Technical Guides")
+    if (
+        technical is None
+        or _FILLS_IN not in technical[2]
+        or _EMPTY_EXPECTED not in technical[2]
+    ):
+        errors.append(
+            "Technical Guides card must say the library fills in as notebooks "
+            "are tagged and that an empty page is expected"
+        )
+    gallery = by_title.get("Example Gallery")
+    if gallery is None or _gallery_card_claims_full_library(gallery[2]):
+        errors.append(
+            "Example Gallery card must say business cases, not the full notebook library"
+        )
+    api = by_title.get("API Reference")
+    if api is None or api[0] != "api/index" or api[2] != _API_PROSE:
+        errors.append("API Reference card changed")
+    home_targets = _toctree_names(text, "index")
+    for docname in _HOME_TOCTREE:
+        if docname not in home_targets:
+            errors.append(f"homepage toctree dropped {docname}")
+    return errors
+
+
+def _gallery_card_claims_full_library(prose: str) -> bool:
+    lowered = prose.lower()
+    return (
+        "Business cases" not in prose
+        or "not a list of every notebook" not in prose
+        or any(phrase in lowered for phrase in _LIBRARY_CLAIMS)
+    )
+
+
+def _getting_started_errors(text: str) -> list[str]:
+    if not text:
+        return ["getting_started/index.md is missing"]
+    errors = _fragment_errors(text, "getting_started/index.md")
+    titled = _titled_entries(text, "getting_started/index")
+    if ("Intro Guides", "getting_started/intro_guides") not in titled:
+        errors.append("getting_started/index.md must link Intro Guides <intro_guides>")
+    if "Intro Guides" not in _captions(text):
+        errors.append("getting_started/index.md caption must be Intro Guides")
+    for caption in ("Installation", "Quickstart"):
+        if caption not in _captions(text):
+            errors.append(f"getting_started/index.md dropped caption {caption}")
+    if "notebooks/bass/bass_example" in _toctree_names(text, "getting_started/index"):
+        errors.append(
+            "getting_started/index.md toctree-includes notebooks/bass/bass_example"
+        )
+    if "notebooks/bass/bass_example" not in _doc_targets(text):
+        errors.append("getting_started/index.md plain Bass link is missing")
+    if _FILLS_IN not in text or _EMPTY_EXPECTED not in text:
+        errors.append(
+            "getting_started/index.md must say the library fills in as notebooks "
+            "are tagged"
+        )
+    return errors
+
+
+def _guide_errors(text: str) -> list[str]:
+    if not text:
+        return ["guide/index.md is missing"]
+    errors = _fragment_errors(text, "guide/index.md")
+    titled = _titled_entries(text, "guide/index")
+    if ("Technical Guides", "guide/technical_guides") not in titled:
+        errors.append("guide/index.md must link Technical Guides <technical_guides>")
+    captions = _captions(text)
+    for caption in _GUIDE_CAPTIONS:
+        if caption not in captions:
+            errors.append(f"guide/index.md dropped caption {caption}")
+    targets = _toctree_names(text, "guide/index")
+    for docname in (*_GUIDE_PROSE, "guide/technical_guides"):
+        if docname not in targets:
+            errors.append(f"guide/index.md dropped toctree entry {docname}")
+    if _FILLS_IN not in text or _EMPTY_EXPECTED not in text:
+        errors.append(
+            "guide/index.md must say the library fills in as notebooks are tagged"
+        )
+    return errors
+
+
 def validate_gallery(
     source_dir: Path, cards: list[Card], pages: dict[str, str]
 ) -> list[str]:
@@ -552,6 +824,8 @@ def check_gallery(source_dir: Path, *, write: bool = False) -> tuple[int, list[s
     messages.extend(structural)
     pages = render_pages(cards)
     messages.extend(validate_gallery(source_dir, cards, pages))
+    messages.extend(part_cross_link_errors())
+    messages.extend(validate_nav_shells(source_dir))
     if messages:
         return 1, messages
     stale = [

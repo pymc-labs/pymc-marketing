@@ -19,9 +19,11 @@ quickstart/customer_choice/index
 <!-- Link, not a toctree entry: one notebook has one home, and this one is still untagged. -->
 See the {doc}`Bass diffusion model quickstart </notebooks/bass/bass_example>`.
 
-:::{toctree}
-:caption: Introductory notebooks
+::::{toctree}
+:caption: Intro Guides
 :maxdepth: 1
 
-intro_guides
-:::
+Intro Guides <intro_guides>
+::::
+
+The library fills in as notebooks are tagged. An empty page is expected until then.

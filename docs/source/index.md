@@ -115,10 +115,10 @@ See how PyMC-Marketing compares to [Google Meridian, Meta Robyn, and other MMM f
 
 ## Quick links
 
-:::::{grid} 1 1 2 3
+::::::{grid} 1 1 2 4
 :gutter: 2
 
-::::{grid-item-card} Getting Started
+:::::{grid-item-card} Getting Started
 :class-header: no-border
 :class-footer: no-border
 
@@ -129,37 +129,59 @@ Installation, setup and first steps with PyMC-Marketing.
 
 +++
 
-:::{button-ref} getting_started/index
+::::{button-ref} getting_started/index
 :expand:
 :color: secondary
 :click-parent:
 :ref-type: doc
 
 To the getting started guide
-:::
 ::::
+:::::
 
-::::{grid-item-card} Example notebooks
+:::::{grid-item-card} Technical Guides
 :class-header: no-border
 :class-footer: no-border
 
 {material-outlined}`menu_book;1.75em`
 ^^^^^^^^^^^^^^^
 
-Worked examples with real and synthetic data, showing how the library works and what it can do.
+The library fills in as notebooks are tagged. An empty page is expected until then.
 
 +++
 
-:::{button-ref} gallery/gallery
+::::{button-ref} guide/technical_guides
 :expand:
 :color: secondary
 :click-parent:
 :ref-type: doc
 
-To the example notebooks
-:::
+To the technical guides
 ::::
-::::{grid-item-card} API Reference
+:::::
+
+:::::{grid-item-card} Example Gallery
+:class-header: no-border
+:class-footer: no-border
+
+{material-outlined}`collections;1.75em`
+^^^^^^^^^^^^^^^
+
+Business cases only. This page is not a list of every notebook.
+
++++
+
+::::{button-ref} gallery/gallery
+:expand:
+:color: secondary
+:click-parent:
+:ref-type: doc
+
+To the example gallery
+::::
+:::::
+
+:::::{grid-item-card} API Reference
 :class-header: no-border
 :class-footer: no-border
 
@@ -170,16 +192,16 @@ Documentation of functions, modules, objects, methods and parameters. Assumes fa
 
 +++
 
-:::{button-ref} api/index
+::::{button-ref} api/index
 :expand:
 :color: secondary
 :click-parent:
 :ref-type: doc
 
 To the reference guide
-:::
 ::::
 :::::
+::::::
 
 ## Bayesian Marketing Mix Modeling (MMM) in PyMC
 
