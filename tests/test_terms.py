@@ -33,7 +33,7 @@ from pymc_marketing.r2d2 import R2D2
 from pymc_marketing.serialization import (
     DeferredFactory,
     SerializationError,
-    _merge_shared_decompositions,
+    merge_shared_decompositions,
     serialization,
 )
 from pymc_marketing.terms import (
@@ -1107,6 +1107,29 @@ def test_model_builder_attrs_roundtrip_with_term():
     assert loaded["mu"] == term
 
 
+def test_model_builder_attrs_roundtrip_shares_r2d2_decomposition():
+    """Generic model attrs restore terms with one shared R2D2 decomposition."""
+    r2d2 = R2D2(
+        r2=Prior("Beta", alpha=2, beta=2),
+        total_sigma=Prior("HalfNormal"),
+        dims={"control": "control", "fourier": "fourier"},
+    )
+    mu = Parameter("a", prior=r2d2.split("control")) + Parameter(
+        "b", prior=r2d2.split("fourier")
+    )
+    model = _TermAttrsModel(model_config={"mu": mu})
+
+    attrs = model.create_idata_attrs()
+    loaded = _TermAttrsModel.attrs_to_init_kwargs(attrs)["model_config"]
+    a, b = loaded["mu"].terms
+
+    with pm.Model(coords={"control": ["c1", "c2"], "fourier": ["f1", "f2"]}):
+        a.prior.create_variable("a_coef")
+        b.prior.create_variable("b_coef")
+
+    assert a.prior.decomposition is b.prior.decomposition
+
+
 def test_frozen_term_dataclass_walk_shares_decomposition():
     """Frozen custom terms do not bypass decomposition sharing (serialization walk)."""
     from dataclasses import dataclass
@@ -1230,7 +1253,7 @@ def test_merge_walk_preserves_unchanged_list_identity():
     holder = ListHolder(columns=list("abc"))
     cols = holder.columns
 
-    out = _merge_shared_decompositions({"m": holder})
+    out = merge_shared_decompositions({"m": holder})
 
     assert out["m"] is holder
     assert out["m"].columns is cols
@@ -1317,7 +1340,7 @@ def test_ref_resolves_built_variable():
     assert "a" in model.named_vars
     assert model.named_vars_to_dims["a"] == ("product",)
 
-    # the contract is the dependency edge, not just name existence
+    # the contract is the dependency edge, not just name existence.
     assert model["a_scale"] in set(ancestors([model["a"]]))
 
 
