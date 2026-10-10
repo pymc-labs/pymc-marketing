@@ -20,6 +20,7 @@ from dataclasses import dataclass
 import numpy as np
 import pymc as pm
 import pymc.dims as pmd
+import pytensor
 import pytensor.tensor as pt
 import pytensor.xtensor as ptx
 import pytest
@@ -238,6 +239,47 @@ def test_transform_set_data(simple_ds):
         )
         transformed.set_data(ds=ds2, model=model)
         assert np.allclose(model["x"].get_value(), ds2["x"].values)
+
+
+def test_named_sum_records_reduced_product():
+    weights = Parameter("weights", prior=Prior("Normal", dims=("geo", "feature")))
+    scaled = (weights * 2.0).named("scaled", dims=("feature", "geo"))
+    total = scaled.sum("feature").named("total")
+    with pm.Model(coords={"geo": ["a", "b"], "feature": list("xyz")}) as model:
+        build_param(total)
+        evaluate = pytensor.function(
+            [model["weights"]], [model["scaled"], model["total"]]
+        )
+    assert model.named_vars_to_dims["scaled"] == ("feature", "geo")
+    assert model.named_vars_to_dims["total"] == ("geo",)
+    draw = np.arange(6.0).reshape(2, 3)
+    scaled_value, total_value = evaluate(draw)
+    np.testing.assert_allclose(scaled_value, 2.0 * draw.T)
+    np.testing.assert_allclose(total_value, 2.0 * draw.sum(axis=1))
+
+
+def test_sum_over_missing_dimension_raises():
+    term = Parameter("w", prior=Prior("Normal", dims="feature")).sum("geo")
+    with pm.Model(coords={"feature": list("xyz")}):
+        with pytest.raises(ValueError, match="Cannot sum over 'geo'"):
+            build_param(term)
+
+
+def test_serialize_named_sum_roundtrip():
+    term = (
+        Parameter("w", prior=Prior("Normal", dims=("geo", "feature")))
+        .sum("feature")
+        .named("total", dims="geo")
+    )
+    restored = serialization.deserialize(
+        json.loads(json.dumps(serialization.serialize(term)))
+    )
+    with pm.Model(coords={"geo": ["a", "b"], "feature": list("xyz")}) as model:
+        build_param(restored)
+        evaluate = pytensor.function([model["w"]], model["total"])
+    assert model.named_vars_to_dims["total"] == ("geo",)
+    draw = np.arange(6.0).reshape(2, 3)
+    np.testing.assert_allclose(evaluate(draw), draw.sum(axis=1))
 
 
 def test_build_param_int():
