@@ -14,6 +14,7 @@ import pymc_marketing  # isort:skip
 _REPO_SCRIPTS = str(Path(__file__).resolve().parents[2] / "scripts")
 if _REPO_SCRIPTS not in sys.path:
     sys.path.insert(0, _REPO_SCRIPTS)
+from gallery_catalogs import validate_catalogs  # noqa: E402
 from gallery_redirects import REDIRECT_TEMPLATE, sphinx_redirects  # noqa: E402
 
 # -- General configuration ------------------------------------------------
@@ -300,6 +301,12 @@ _redirects, _redirect_excludes, _redirect_errors = sphinx_redirects(
 )
 if _redirect_errors:
     raise RuntimeError("invalid gallery redirect map:\n" + "\n".join(_redirect_errors))
+_catalog_errors = validate_catalogs(Path(__file__).resolve().parent)
+if _catalog_errors:
+    raise RuntimeError(
+        "Spanish catalogs are out of sync with the notebook split:\n"
+        + "\n".join(_catalog_errors)
+    )
 redirects = _redirects
 redirect_html_template_file = REDIRECT_TEMPLATE
 # Keep thin auto-generated pages out of the sitemap so crawl budget goes to
