@@ -108,22 +108,12 @@ reusing it keeps your graph identical to the one you validated::
 
 **Call it once at startup, not on the request path.** The first call is much
 more expensive than the ones after it, and by how much depends on your backend
-and whether its on-disk cache is warm. Two measurements of the same model and
-code, one env with a cold numba cache and one with a warm one:
-
-======================================== ============ ============
-step                                     cold cache   warm cache
-======================================== ============ ============
-``from_parts`` + unpickle                0.2 ms       0.2 ms
-``compile_forward_sampling_function``    13 ms        13 ms
-first predict call                       532 ms       7 ms
-steady-state predict call                0.03 ms      0.02 ms
-======================================== ============ ============
-
-The steady-state cost is stable; the startup cost is not, and it shrinks as the
-backend caches fill. Treat the top three rows as a budget to measure for your own
-model and backend rather than numbers to rely on. The one that does not vary is
-the last: every request after the first is a fraction of a millisecond.
+and whether its on-disk cache is warm. Unpickling and compiling are cheap next
+to that first predict: it is the call that fills the cache, and it is seconds
+cold against milliseconds warm, while every request after it is a fraction of a
+millisecond. The startup cost moves with the backend; the steady-state cost does
+not. Measure the startup cost for your own model rather than trusting anyone's
+numbers, including these.
 
 What does *not* vary is that the cost is paid once, not per bundle. A second
 model compiled in the same process reuses the warm caches, so a service holding
@@ -206,7 +196,7 @@ the way back.  Not lowered to a ``pytensor.FunctionGraph`` and rebuilt with
 but rebuilding re-derives ``named_vars_to_dims`` and lands a list where the Model
 holds a tuple, so dims do not survive on a pymc that has not fixed it
 (pymc-devs/pymc#8465).  ``Model.copy()`` and ``copy.deepcopy`` go through the same
-pair and have the same defect, so the Module is pickled rather than rebuilt.
+pair and have the same defect, so the Model is pickled rather than rebuilt.
 
 That also means a **subclass** of ``pm.Model`` comes back as its own type, with
 its state, and a class defined only in a notebook comes back by value without
@@ -652,9 +642,9 @@ def _coord_digest(value: Any) -> str:
 
     Going through ``pytensor.tensor.as_tensor_variable`` looks tidier, but it
     rejects the dtypes that matter most here: ``["a", "b"]`` raises
-    ``TypeError: Unsupported dtype for TensorType: <U1``. An earlier version
-    swallowed that, which meant every model with a string coord, a datetime
-    coord, or a pandas index fingerprinted the same however its coord changed.
+    ``TypeError: Unsupported dtype for TensorType: <U1``. Swallowing that would
+    fingerprint every model with a string coord, a datetime coord, or a pandas
+    index the same however its coord changed, so the value is hashed directly.
 
     Hashing dtype, shape and bytes covers every dtype numpy can hold, and unlike
     ``repr`` it does not abbreviate long arrays to ``...``.
@@ -725,22 +715,24 @@ class AuditReport:
         return "\n".join(lines)
 
 
-def _fgraph_or_blocker(model: pm.Model) -> tuple[Any, Blocker | None]:
-    """Build the model's graph, or report why it cannot be built.
+def _fgraph_or_reason(model: pm.Model) -> tuple[Any, str | None]:
+    """Build the model's graph, or say why it cannot be built.
 
     Shared so that auditing and describing a model agree on its size, since
     ``fgraph_from_model`` is not free and two builds could differ. The graph is
     informational: the Model is what gets written, so failing to build one costs
-    ``n_nodes`` and ``depth`` rather than the bundle.
+    ``n_nodes`` and ``depth`` rather than the bundle, and the caller records the
+    reason as a note. A whole ``Blocker`` was built here before, with a remedy
+    that no one could ever be shown, because this is never a refusal.
     """
     from pymc.model.fgraph import fgraph_from_model
 
     try:
         fgraph, _ = fgraph_from_model(model)
     except NotImplementedError as exc:
-        return None, Blocker("fgraph", str(exc), "check for a model that sets initval")
+        return None, f"fgraph: {exc}"
     except ValueError as exc:
-        return None, Blocker("fgraph", str(exc), "export the top-level model")
+        return None, f"fgraph: {exc}"
     return fgraph, None
 
 
@@ -818,11 +810,11 @@ def audit(model: pm.Model, *, fgraph: Any = None) -> AuditReport:
         )
 
     if fgraph is None:
-        fgraph, blocker = _fgraph_or_blocker(model)
-        if blocker is not None:
+        fgraph, reason = _fgraph_or_reason(model)
+        if reason is not None:
             # The graph is no longer what gets written, so failing to build one
             # costs n_nodes and depth rather than the bundle. Note it and carry on.
-            report.notes.append(f"{blocker.kind}: {blocker.detail}")
+            report.notes.append(reason)
 
     report.fgraph = fgraph
     if fgraph is not None:
@@ -925,7 +917,7 @@ def serialize_model(model: pm.Model) -> bytes:
     tuple, so dims do not survive. That is pymc#8465, and it costs a caller on a
     released pymc a Model whose declared dims disagree with its own.
     ``Model.copy()`` and ``copy.deepcopy`` go through the same pair and have the
-    same defect, so picking the Model avoids inheriting it.
+    same defect, so pickling the Model avoids inheriting it.
 
     Examples
     --------
@@ -1097,7 +1089,7 @@ def build_manifest(
         JSON-serializable manifest.
     """
     if fgraph is None:
-        fgraph, _ = _fgraph_or_blocker(model)
+        fgraph, _ = _fgraph_or_reason(model)
     # A graph we could not build costs n_nodes and depth, not the bundle: the
     # Model is what gets written, and it pickles either way.
     n_nodes, depth = _stats(fgraph) if fgraph is not None else (0, 0)
@@ -1184,7 +1176,7 @@ def save_model(
         Which groups to embed. Omit to keep all of them. Only used when
         embedding.
     data_format : {"zarr", "netcdf"}
-        Format the data will be embedded as. Ignored when ``data`` is a pointer.
+        Format the data will be embedded as. Ignored when ``idata`` is a pointer.
     strict : bool
         When True (default) refuse to save a model that :func:`audit` flags.
 

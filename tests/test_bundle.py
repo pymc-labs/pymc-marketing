@@ -46,7 +46,7 @@ COORDS = {"obs": np.arange(12), "feature": ["alpha", "beta", "gamma"]}
 #: from a bare environment. Skip rather than fail there.
 needs_zarr = pytest.mark.skipif(
     importlib.util.find_spec("zarr") is None,
-    reason="needs zarr; install pymc-extras[deploy]",
+    reason="needs zarr; install it with 'pip install zarr'",
 )
 
 
