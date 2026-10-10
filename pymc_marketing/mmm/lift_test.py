@@ -850,6 +850,67 @@ def add_lift_measurements_to_likelihood_from_saturation(
     )
 
 
+def validate_cost_per_target_rows(
+    calibration_df: pd.DataFrame,
+    model: pm.Model,
+    *,
+    target_column: str = "cost_per_target",
+    get_indices: Callable[[pd.DataFrame, pm.Model], Indices] = exact_row_indices,
+) -> tuple[Indices, np.ndarray, np.ndarray]:
+    """Check a cost-per-target table against *model* without touching the graph.
+
+    Shared by :func:`add_cost_per_target_observations` and
+    ``MMM.add_cost_per_target_calibration`` so that a table is refused by one
+    set of checks, before either of them changes the model.
+
+    Parameters
+    ----------
+    calibration_df : pd.DataFrame
+        One row per calibration value, with a ``channel`` column, one column
+        per non-date dim of ``channel_data``, *target_column* and ``sigma``.
+    model : pm.Model
+        The model whose coordinates the rows are mapped to.
+    target_column : str, default ``"cost_per_target"``
+        Column holding the calibration values.
+    get_indices : callable, default :func:`exact_row_indices`
+        Maps the dim columns of *calibration_df* to model coordinate indices.
+
+    Returns
+    -------
+    tuple[Indices, np.ndarray, np.ndarray]
+        The row indices per dim, the calibration values and their ``sigma``
+        as float arrays.
+
+    Raises
+    ------
+    KeyError
+        If a required column or dim column is missing.
+    UnalignedValuesError
+        If a ``channel`` or dim label is not a model coordinate (with the
+        default *get_indices*).
+    ValueError
+        If *target_column* or ``sigma`` holds non-numeric values.
+    """
+    required_cols = {"channel", target_column, "sigma"}
+    missing = required_cols - set(calibration_df.columns)
+    if missing:
+        raise KeyError(f"Missing required columns in calibration_df: {sorted(missing)}")
+
+    cpt_dims = tuple(model.named_vars_to_dims["channel_data"])
+    non_date_dims = [d for d in cpt_dims if d != "date"]
+
+    missing_dims = [d for d in non_date_dims if d not in calibration_df.columns]
+    if missing_dims:
+        raise KeyError(
+            f"Calibration data missing dimension columns: {missing_dims}. Required dims: {non_date_dims}"
+        )
+
+    indices = get_indices(calibration_df[non_date_dims], model)
+    targets = calibration_df[target_column].to_numpy(dtype=float)
+    sigmas = calibration_df["sigma"].to_numpy(dtype=float)
+    return indices, targets, sigmas
+
+
 def add_cost_per_target_observations(
     calibration_df: pd.DataFrame,
     *,
@@ -927,31 +988,17 @@ def add_cost_per_target_observations(
     cost_per_target_dim = f"_{name_prefix}"
     current_model: pm.Model = modelcontext(model)
 
-    required_cols = {"channel", target_column, "sigma"}
-    missing = required_cols - set(calibration_df.columns)
-    if missing:
-        raise KeyError(f"Missing required columns in calibration_df: {sorted(missing)}")
-
-    cpt_dims = tuple(current_model.named_vars_to_dims["channel_data"])
-    non_date_dims = [d for d in cpt_dims if d != "date"]
-
-    missing_dims = [d for d in non_date_dims if d not in calibration_df.columns]
-    if missing_dims:
-        raise KeyError(
-            f"Calibration data missing dimension columns: {missing_dims}. Required dims: {non_date_dims}"
-        )
-
-    indices = get_indices(calibration_df[non_date_dims], current_model)
+    indices, target_values, sigma_values = validate_cost_per_target_rows(
+        calibration_df,
+        current_model,
+        target_column=target_column,
+        get_indices=get_indices,
+    )
     indices_xr = {
         k: as_xtensor(v, dims=(cost_per_target_dim,)) for k, v in indices.items()
     }
-
-    targets = as_xtensor(
-        calibration_df[target_column].to_numpy(dtype=float), dims=(cost_per_target_dim,)
-    )
-    sigmas = as_xtensor(
-        calibration_df["sigma"].to_numpy(dtype=float), dims=(cost_per_target_dim,)
-    )
+    targets = as_xtensor(target_values, dims=(cost_per_target_dim,))
+    sigmas = as_xtensor(sigma_values, dims=(cost_per_target_dim,))
 
     with current_model:
         cost_mean = cost_value.mean(dim="date")

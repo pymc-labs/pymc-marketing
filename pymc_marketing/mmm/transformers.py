@@ -1093,7 +1093,7 @@ def hill_function(
         The independent variable, typically representing the concentration of a
         substrate or the intensity of a stimulus.
     slope : XTensorLike
-        The slope of the hill. Must be non-positive.
+        The slope of the hill. Must be non-negative.
     kappa : XTensorLike
         The half-saturation point as :math:`f(\kappa) = 0.5` for any value of :math:`s`.
 
