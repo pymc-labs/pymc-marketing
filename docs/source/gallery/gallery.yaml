@@ -1,10 +1,7 @@
-# Source of truth for the example gallery (#1617). Schema and workflow:
-# docs/source/gallery/README.md.
-
-anchor: gallery
-title: Example Gallery
-intro: |
-  Welcome to the PyMC-Marketing example gallery! This gallery provides visual navigation to all of our example notebooks to help you quickly find the techniques and models relevant to your marketing analytics needs.
+# Source of truth for notebook cards (#1617, #3119). Workflow: docs/source/gallery/README.md.
+# notebook is a docname relative to docs/source with no suffix, for example notebooks/mmm/mmm_quickstart.
+# part is optional: intro, guide, or case. Omit it to leave the notebook untagged.
+# An untagged notebook stays on the holding page at its current URL. An empty part page is expected until cards are tagged.
 
 sections:
   - title: Marketing Mix Models (MMM)
@@ -12,166 +9,166 @@ sections:
       - title: Fundamentals
         cards:
           - title: MMM Quickstart Guide
-            notebook: mmm/mmm_quickstart
+            notebook: notebooks/mmm/mmm_quickstart
           - title: "MMM Example: Extensive Introduction Notebook"
-            notebook: mmm/mmm_example
+            notebook: notebooks/mmm/mmm_example
           - title: MMM Multidimensional Example Notebook (e.g. Geo-MMM)
-            notebook: mmm/mmm_multidimensional_example
+            notebook: notebooks/mmm/mmm_multidimensional_example
           - title: Understanding Media Saturation
-            notebook: mmm/mmm_media_saturation
+            notebook: notebooks/mmm/mmm_media_saturation
           - title: Guide to Adstock Transformations
-            notebook: mmm/adstock_functions_guide
+            notebook: notebooks/mmm/adstock_functions_guide
           - title: Build MMM from YAML Configuration
-            notebook: mmm/mmm_build_from_yml_example
+            notebook: notebooks/mmm/mmm_build_from_yml_example
           - title: Sensitivity Analysis and Marginal Effects
-            notebook: mmm/mmm_sensitivity_analysis
+            notebook: notebooks/mmm/mmm_sensitivity_analysis
           - title: Additive vs Log vs Log-Log MMMs
-            notebook: mmm/mmm_multiplicative
+            notebook: notebooks/mmm/mmm_multiplicative
           - title: Interactive MMM Visualizations
-            notebook: mmm/plot_interactive
+            notebook: notebooks/mmm/plot_interactive
           - title: "Cost-per-Unit: Model What Drives Revenue, Report What You Spend"
-            notebook: mmm/mmm_cost_per_unit
+            notebook: notebooks/mmm/mmm_cost_per_unit
           - title: "Why and how to account for media inflation in your media mix model (MMM)"
-            notebook: mmm/mmm_media_inflation
+            notebook: notebooks/mmm/mmm_media_inflation
           - title: Parameter Recovery
-            notebook: mmm/mmm_data_generator
+            notebook: notebooks/mmm/mmm_data_generator
           - title: MMM API Migration Guide
-            notebook: mmm/mmm_migration_guide
+            notebook: notebooks/mmm/mmm_migration_guide
           - title: MMM Dims Migration Guide
-            notebook: mmm/mmm_dims_migration_guide
+            notebook: notebooks/mmm/mmm_dims_migration_guide
           - title: MMM Plot Suite Migration Guide
-            notebook: mmm/mmm_plot_suite_migration_guide
+            notebook: notebooks/mmm/mmm_plot_suite_migration_guide
       - title: Custom Models
         cards:
           - title: Custom Models with MMM components
-            notebook: mmm/mmm_components
+            notebook: notebooks/mmm/mmm_components
           - title: Custom Geo-Hierarchical MMM with Splines
-            notebook: mmm/mmm_custom_splines
+            notebook: notebooks/mmm/mmm_custom_splines
           - title: "Beyond MMMs: adding GAMs or anything else to your model."
-            notebook: mmm/mmm_gam_options
+            notebook: notebooks/mmm/mmm_gam_options
             thumb: mmm_example.png
           - title: Custom MMM with ROAS Parameterization
-            notebook: mmm/mmm_roas_parametrization
+            notebook: notebooks/mmm/mmm_roas_parametrization
           - title: "Halo and Cannibalisation Effects in Multi-Dimensional MMMs"
-            notebook: mmm/mmm_halo
+            notebook: notebooks/mmm/mmm_halo
           - title: "Splitting MMM Channel Impact Across Campaigns"
-            notebook: mmm/mmm_credibility_disaggregation
+            notebook: notebooks/mmm/mmm_credibility_disaggregation
       - title: Data Connectors
         cards:
           - title: MMM Fivetran Connectors
-            notebook: mmm/mmm_fivetran_connectors
+            notebook: notebooks/mmm/mmm_fivetran_connectors
       - title: Budget Allocation
         cards:
           - title: Budget Allocation Example
-            notebook: mmm/mmm_budget_allocation_example
+            notebook: notebooks/mmm/mmm_budget_allocation_example
           - title: Budget Allocation and Risk Assessment
-            notebook: mmm/mmm_allocation_assessment
+            notebook: notebooks/mmm/mmm_allocation_assessment
           - title: Multi-Objective Optimization
-            notebook: mmm/mmm_multi_objective_optimization
+            notebook: notebooks/mmm/mmm_multi_objective_optimization
           - title: Combining an MMM and a Bayesian VAR in One Budget Decision
-            notebook: mmm/mmm_var_budget_optimization
+            notebook: notebooks/mmm/mmm_var_budget_optimization
       - title: Lift Test Calibration
         cards:
           - title: Introduction to Lift Test Calibration
-            notebook: mmm/mmm_lift_test
+            notebook: notebooks/mmm/mmm_lift_test
           - title: MMM Calibration with Geo-Level Lift Tests
-            notebook: mmm/mmm_geolift_calibration
+            notebook: notebooks/mmm/mmm_geolift_calibration
           - title: Mitigating Unobserved Confounders in MMMs with Lift Test Likelihoods
-            notebook: mmm/mmm_roas
+            notebook: notebooks/mmm/mmm_roas
           - title: Calibrating an MMM with ROAS Estimates
-            notebook: mmm/mmm_roas_calibration
+            notebook: notebooks/mmm/mmm_roas_calibration
           - title: How Much Would One Lift Test Reduce ROAS Uncertainty?
-            notebook: mmm/mmm_roas_experimentation
+            notebook: notebooks/mmm/mmm_roas_experimentation
       - title: Time-Varying Parameters
         cards:
           - title: MMM with time-varying media baseline
-            notebook: mmm/mmm_tvp_example
+            notebook: notebooks/mmm/mmm_tvp_example
           - title: MMM with time-varying parameters
-            notebook: mmm/mmm_time_varying_media_example
+            notebook: notebooks/mmm/mmm_time_varying_media_example
       - title: Model Evaluation
         cards:
           - title: Cross-Validation
-            notebook: mmm/mmm_time_slice_cross_validation
+            notebook: notebooks/mmm/mmm_time_slice_cross_validation
           - title: Metrics and Model Evaluation
-            notebook: mmm/mmm_evaluation
+            notebook: notebooks/mmm/mmm_evaluation
           - title: Prior Sensitivity in the MMM Workflow
-            notebook: mmm/mmm_prior_sensitivity
+            notebook: notebooks/mmm/mmm_prior_sensitivity
             thumb: mmm_prior_sensitivity_psense.png
       - title: Causal Inference
         cards:
           - title: Causal Identification
-            notebook: mmm/mmm_causal_identification
+            notebook: notebooks/mmm/mmm_causal_identification
           - title: MMMs and Pearl's ladder of causal inference
-            notebook: mmm/mmm_counterfactuals
+            notebook: notebooks/mmm/mmm_counterfactuals
           - title: "Introduction: Upper-Funnel Impact with PyMC‑Marketing"
-            notebook: mmm/mmm_intro_upper_funnel
+            notebook: notebooks/mmm/mmm_intro_upper_funnel
           - title: "Advanced: Upper-Funnel Impact with PyMC‑Marketing"
-            notebook: mmm/mmm_upper_funnel_causal_approach
+            notebook: notebooks/mmm/mmm_upper_funnel_causal_approach
           - title: "Funnel-Aware MMM: Upper to Lower-Funnel Mediation via a custom `MuEffect`"
-            notebook: mmm/mmm_funnel_mueffect
+            notebook: notebooks/mmm/mmm_funnel_mueffect
           - title: "Advanced Funnel-Aware MMM: Geo-Level Mediation Through Lower-Funnel Spend"
-            notebook: mmm/mmm_funnel_mueffect_advanced
+            notebook: notebooks/mmm/mmm_funnel_mueffect_advanced
           - title: "Funnel MMMs from YAML"
-            notebook: mmm/mmm_funnel_from_yml
+            notebook: notebooks/mmm/mmm_funnel_from_yml
           - title: Long-Term Brand Effects in MMMs with Brand Metrics and a Bayesian VARX
-            notebook: mmm/mmm_brand_metrics_long_term
+            notebook: notebooks/mmm/mmm_brand_metrics_long_term
           - title: Causal Reasoning and Discovery
-            notebook: mmm/mmm_causal_reasoning_and_discovery
+            notebook: notebooks/mmm/mmm_causal_reasoning_and_discovery
       - title: Case Studies
         cards:
           - title: MMM End-to-End Case Study
-            notebook: mmm/mmm_case_study
+            notebook: notebooks/mmm/mmm_case_study
           - title: "MMM Case Study II: Funnel-Aware Modeling, ROAS Calibration, and Budget Planning"
-            notebook: mmm/mmm_case_study2
+            notebook: notebooks/mmm/mmm_case_study2
           - title: Integrating Foundational Time Series Models with PyMC-Marketing MMM
-            notebook: mmm/mmm_chronos
+            notebook: notebooks/mmm/mmm_chronos
   - title: Customer Lifetime Value (CLV) Models
     cards:
       - title: CLV Quickstart
-        notebook: clv/clv_quickstart
+        notebook: notebooks/clv/clv_quickstart
       - title: BG/NBD Model
-        notebook: clv/bg_nbd
+        notebook: notebooks/clv/bg_nbd
       - title: MBG/NBD Model
-        notebook: clv/mbg_nbd
+        notebook: notebooks/clv/mbg_nbd
       - title: Pareto/NBD Model
-        notebook: clv/pareto_nbd
+        notebook: notebooks/clv/pareto_nbd
       - title: Gamma-Gamma Model
-        notebook: clv/gamma_gamma
+        notebook: notebooks/clv/gamma_gamma
       - title: Shifted BG Model for Cohorts
-        notebook: clv/sbg
+        notebook: notebooks/clv/sbg
   - title: Customer Choice Models
     cards:
       - title: MV-ITS Saturated
-        notebook: customer_choice/mv_its_saturated
+        notebook: notebooks/customer_choice/mv_its_saturated
       - title: MV-ITS Unsaturated
-        notebook: customer_choice/mv_its_unsaturated
+        notebook: notebooks/customer_choice/mv_its_unsaturated
       - title: Multinomial Logit Discrete Choice
-        notebook: customer_choice/mnl_logit
+        notebook: notebooks/customer_choice/mnl_logit
       - title: Nested Logit Discrete Choice
-        notebook: customer_choice/nested_logit
+        notebook: notebooks/customer_choice/nested_logit
       - title: Mixed Logit Discrete Choice
-        notebook: customer_choice/mixed_logit
+        notebook: notebooks/customer_choice/mixed_logit
       - title: Consideration Set Mixed Logit
-        notebook: customer_choice/consideration_set_logit
+        notebook: notebooks/customer_choice/consideration_set_logit
       - title: MaxDiff (Best-Worst Scaling)
-        notebook: customer_choice/maxdiff
+        notebook: notebooks/customer_choice/maxdiff
       - title: "Bayesian BLP: Structural Demand on Aggregate Shares"
-        notebook: customer_choice/bayesian_blp
+        notebook: notebooks/customer_choice/bayesian_blp
       - title: Bayesian BLP on the Nevo Cereal Panel
-        notebook: customer_choice/bayesian_blp_nevo
+        notebook: notebooks/customer_choice/bayesian_blp_nevo
   - title: Bass Diffusion Model
     cards:
       - title: Bass Diffusion Model Example
-        notebook: bass/bass_example
+        notebook: notebooks/bass/bass_example
   - title: Predicted Incrementality by Experimentation (PIE)
     cards:
       - title: Predicting Campaign Incrementality with PIE
-        notebook: pie/pie_example
+        notebook: notebooks/pie/pie_example
   - title: General Tutorials
     cards:
       - title: Model Configuration
-        notebook: general/model_configuration
+        notebook: notebooks/general/model_configuration
       - title: Prior Predictive Checks
-        notebook: general/prior_predictive
+        notebook: notebooks/general/prior_predictive
       - title: NUTS Samplers
-        notebook: general/other_nuts_samplers
+        notebook: notebooks/general/other_nuts_samplers

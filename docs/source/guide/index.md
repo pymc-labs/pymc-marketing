@@ -37,3 +37,10 @@ clv/clv_intro
 customer_choice/incrementality_intro
 customer_choice/mv_its_intro
 :::
+
+:::{toctree}
+:caption: Technical guides
+:maxdepth: 1
+
+technical_guides
+:::
