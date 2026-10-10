@@ -848,7 +848,10 @@ class Incrementality:
             is nonlinear in ``mu``, so it neither cancels in the difference
             nor folds into the reducer's scale.  Use ``"median"`` there, or
             :meth:`~pymc_marketing.mmm.mmm.MMM.compute_counterfactual_contributions_dataset`,
-            which corrects a level rather than a difference.
+            which corrects a level rather than a difference.  A wrapped
+            likelihood (``Censored``, ``Scaled``) is refused under ``"mean"``
+            on either link and by both methods, because the wrapper moves the
+            observed mean off any ``mu``-based quantity; use ``"median"``.
 
         Returns
         -------
