@@ -431,6 +431,32 @@ class TestToMmmDatasetValidation:
         with pytest.raises(ValueError, match="date_column"):
             to_mmm_dataset(X, date_column="date", channel_columns=["channel_1"])
 
+    @pytest.mark.parametrize(
+        "channel_columns, control_columns, missing",
+        [
+            (["channel_1", "channel_2"], ["control_1"], "channel_2"),
+            (["channel_1"], ["control_1", "control_2"], "control_2"),
+        ],
+        ids=["channel", "control"],
+    )
+    def test_dataframe_missing_declared_column_raises(
+        self, channel_columns, control_columns, missing
+    ):
+        X = pd.DataFrame(
+            {
+                "date": pd.date_range("2023-01-01", periods=3, freq="W"),
+                "channel_1": [1.0, 2.0, 3.0],
+                "control_1": [1.0, 1.0, 1.0],
+            }
+        )
+        with pytest.raises(KeyError, match=missing):
+            to_mmm_dataset(
+                X,
+                date_column="date",
+                channel_columns=channel_columns,
+                control_columns=control_columns,
+            )
+
 
 class TestToMmmDatasetUnsupportedTypes:
     """to_mmm_dataset raises TypeError for completely unsupported inputs."""
