@@ -669,6 +669,35 @@ class TestBudgetOptimizerCostPerUnitIntegration:
         assert allocation is not None
         assert set(allocation.dims) == set((*mmm.dims, "channel"))
 
+    def test_mmm_budget_optimizer_cost_per_unit_dataframe_input(
+        self, simple_fitted_mmm
+    ):
+        """MMM.budget_optimizer() parses a DataFrame over the window's dates."""
+        mmm = simple_fitted_mmm
+        start_date = "2025-01-06"
+        end_date = "2025-02-03"
+
+        pymc_model = mmm.create_optimization_model(start_date, end_date)
+        layout = mmm._window_layout(pymc_model, start_date)
+        model_dates = pd.DatetimeIndex(list(pymc_model.coords["date"]))
+        plan_dates = model_dates[layout.carry_in : layout.carry_in + layout.decisions]
+
+        cpu_df = pd.DataFrame({"date": plan_dates, "channel_1": 2.0})
+
+        optimizer = mmm.budget_optimizer(
+            start_date,
+            end_date,
+            cost_per_unit=cpu_df,
+            response_variable=self.RESPONSE_VAR,
+        )
+
+        cpu = optimizer.cost_per_unit
+        assert isinstance(cpu, xr.DataArray)
+        assert cpu.dims == ("date", "channel")
+        assert cpu.sizes["date"] == layout.decisions
+        np.testing.assert_array_equal(cpu.sel(channel="channel_1"), 2.0)
+        np.testing.assert_array_equal(cpu.sel(channel=["channel_2", "channel_3"]), 1.0)
+
     def test_budget_optimizer_cost_per_unit_with_distribution(self, budget_mmm_setup):
         """Combined budget_distribution_over_period + cost_per_unit."""
         wrapper, channel_columns = budget_mmm_setup

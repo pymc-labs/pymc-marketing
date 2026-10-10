@@ -3075,7 +3075,10 @@ class MMM(RegressionModelBuilder):
             when ``None`` the optimizer optimizes every cell with a non-zero mean
             ``channel_contribution`` in the posterior.
         cost_per_unit : pd.DataFrame or xr.DataArray or None, optional
-            Cost-per-unit conversion factors for non-monetary channels.
+            Cost-per-unit conversion factors for non-monetary channels.  A
+            DataFrame must have a ``"date"`` column covering every date of the
+            optimization window, one column per custom dimension and one column
+            per channel; channels left out default to 1.0.
         compile_kwargs : dict or None, optional
             Extra keyword arguments for PyTensor's ``function()``.
         **kwargs
@@ -3108,6 +3111,21 @@ class MMM(RegressionModelBuilder):
         kwargs["response_variable"] = self._resolve_response_variable(
             kwargs.get("response_variable")
         )
+
+        if isinstance(cost_per_unit, pd.DataFrame):
+            # BudgetOptimizer only takes a DataArray, so parse the frame against
+            # the decision dates of this window.
+            model_dates = pd.DatetimeIndex(list(pymc_model.coords[date_dim]))
+            cost_per_unit = self._parse_cost_per_unit_df(
+                df=cost_per_unit,
+                channels=self.channel_columns,
+                dates=model_dates[layout.carry_in : layout.carry_in + layout.decisions],
+                custom_dims=tuple(self.dims),
+                custom_dim_coords={
+                    dim: np.asarray(pymc_model.coords[dim]) for dim in self.dims
+                }
+                or None,
+            )
 
         return BudgetOptimizer(
             model=pymc_model,
