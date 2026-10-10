@@ -537,7 +537,18 @@ def test_format_is_inferred_from_the_suffix():
     assert DataRef("runs/churn.zarr").format == "zarr"
     assert DataRef("runs/churn.nc").format == "netcdf"
     assert DataRef("s3://bucket/run.nc4").format == "netcdf"
-    assert DataRef("gs://bucket/run").format == "zarr"
+
+
+@pytest.mark.parametrize(
+    "location",
+    ["run.h5", "run.parquet", "run.zip", "s3://b/run.nc.gz", "gs://bucket/run"],
+)
+def test_an_unknown_suffix_is_not_silently_named_zarr(location):
+    """Defaulting to zarr meant the reader opened the wrong library much later."""
+    from pymc_marketing.bundle import DataRef
+
+    with pytest.raises(ValueError, match="cannot tell the format"):
+        DataRef(location)
 
 
 def test_format_can_be_stated_explicitly():
@@ -1060,46 +1071,23 @@ def test_external_pointer_still_works_alongside_embedding(tmp_path):
     assert load(external).resolve() == "s3://b/run.zarr"
 
 
-@needs_zarr
-def test_build_manifest_describes_embedded_data_identically(tmp_path):
-    """The compose route gets the same manifest; save_model just also writes the files."""
+def test_build_manifest_refuses_a_dataset_it_cannot_write():
+    """A manifest must not claim data that nobody wrote.
+
+    It used to accept a Dataset, record ``embedded=True`` and write nothing, so
+    the bundle pointed at a data.zarr that did not exist and failed when read.
+    """
     from pymc_marketing.bundle import build_manifest
 
-    idata = build_sampled_idata()
-    saved = json.loads(
-        (
-            save_model(build_model(), tmp_path / "b", idata=idata) / "manifest.json"
-        ).read_text()
-    )
-    built = build_manifest(build_model(), idata=idata)
-
-    assert built["data"] == saved["data"]
-    assert built["fingerprint"] == saved["fingerprint"]
-
-
-@needs_zarr
-def test_build_manifest_cannot_embed_bytes(tmp_path):
-    """It describes the data but writes nothing, so the caller must do that."""
-    from pymc_marketing.bundle import build_manifest
-
-    idata = build_sampled_idata()
-    manifest = build_manifest(build_model(), idata=idata)
-    root = tmp_path / "by-hand"
-    root.mkdir()
-    (root / "manifest.json").write_text(json.dumps(manifest))
-    (root / "model.cloudpickle").write_bytes(serialize_model(build_model()))
-
-    # the manifest points at data.zarr, which this route never wrote
-    assert not (root / "data.zarr").exists()
-    with pytest.raises(FileNotFoundError):
-        load(root).open_data("posterior")
+    with pytest.raises(TypeError, match="save_model"):
+        build_manifest(build_model(), idata=build_sampled_idata())
 
 
 def test_embedding_rejects_a_non_xarray_object(tmp_path):
     """A bad data argument fails before anything is written."""
     for bad in (3, 3.5, object(), ["a"]):
         with pytest.raises(
-            TypeError, match="data must be a DataRef, a path, or an xarray object"
+            TypeError, match="idata must be a DataRef, a path, a Dataset, or a DataTree"
         ):
             save_model(build_model(), tmp_path / "b", idata=bad)
 
@@ -1323,9 +1311,14 @@ def test_the_bundle_travels_through_an_object_store(route, tmp_path, monkeypatch
     from pymc_marketing.bundle import ModelBundle, build_manifest
 
     if route == "pointer":
-        manifest = build_manifest(build_model(), idata="s3://bucket/run.zarr")
+        idata = "s3://bucket/run.zarr"
     else:
-        manifest = build_manifest(build_model(), idata=build_sampled_idata())
+        # The compose route writes the data file itself, so it records an
+        # embedded ref directly rather than handing over a Dataset, which only
+        # save_model can put anywhere.
+        idata = DataRef("data.zarr", format="zarr", embedded=True)
+
+    manifest = build_manifest(build_model(), idata=idata)
 
     store = {"manifest": manifest, "graph": serialize_model(build_model())}
 

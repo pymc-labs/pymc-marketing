@@ -172,11 +172,12 @@ create and that *you* would have to add to your own dependencies::
     bundle.validate()
 
 Any object with the methods you need will do, not just fsspec: a database
-cursor, an HTTP client, a ``tarfile``. ``save_model`` is exactly the compose
-route plus two local writes, so a bundle written either way is
-indistinguishable. What stays fixed is the contract: the manifest keys, and the
-two files. What you choose is the pickler, the destination, and any extra files
-you want alongside.
+cursor, an HTTP client, a ``tarfile``. ``save_model`` is that compose route
+plus the writes: the two files, and the data file when you hand it a Dataset or
+a DataTree. The two routes agree on the manifest provided the compose route,
+which writes nothing, is handed a pointer and not an object. What stays fixed
+is the contract: the manifest keys, and the two files. What you choose is the
+pickler, the destination, and any extra files you want alongside.
 
 What a bundle is
 ----------------
@@ -284,6 +285,7 @@ MODEL_FILE = "model.cloudpickle"
 
 #: Suffixes we recognise when inferring a data format from a location.
 _NETCDF_SUFFIXES = (".nc", ".nc4", ".cdf", ".netcdf")
+_ZARR_SUFFIXES = (".zarr",)
 
 #: A Windows drive-letter path, e.g. ``C:\\data``. ``Path("C:\\data").drive`` is
 #: empty on POSIX, because pathlib does not treat backslash as a separator, so the
@@ -350,7 +352,22 @@ class DataRef:
 
     @staticmethod
     def _infer_format(location: str) -> str:
-        return "netcdf" if location.lower().endswith(_NETCDF_SUFFIXES) else "zarr"
+        """Read the format off the suffix, or refuse instead of guessing.
+
+        This used to default everything unrecognised to zarr, so ``run.h5`` and
+        ``run.parquet`` were recorded as zarr. The reader then reached for the
+        wrong library and failed somewhere later, in a traceback that named
+        neither this line nor the real mistake.
+        """
+        lowered = location.lower()
+        if lowered.endswith(_NETCDF_SUFFIXES):
+            return "netcdf"
+        if lowered.endswith(_ZARR_SUFFIXES):
+            return "zarr"
+        raise ValueError(
+            f"cannot tell the format of {location!r} from its name. Pass "
+            "format='zarr' or format='netcdf' to say which it is."
+        )
 
     def __post_init__(self):
         """Normalize location, infer format, and freeze groups to a tuple."""
@@ -368,14 +385,18 @@ class DataRef:
         ------
         TypeError
             For anything else, rather than quietly turning it into a location.
+            An xarray object arrives here too, with a note, because the one
+            place that can embed one is :func:`save_model`, which writes it.
         """
         if isinstance(value, DataRef):
             return value
-        if not isinstance(value, str | Path):
-            raise TypeError(
-                f"data must be a DataRef, a path, or an xarray object, got {type(value).__name__}"
-            )
-        return cls(str(value))
+        if isinstance(value, str | Path):
+            return cls(str(value))
+        raise TypeError(
+            f"data must be a DataRef or a path, got {type(value).__name__}. A "
+            "Dataset or DataTree is embedded by save_model, which is what "
+            "writes it; this records where data already is."
+        )
 
     def as_dict(self) -> dict:
         """JSON-serializable form, with a fixed set of keys."""
@@ -1045,9 +1066,7 @@ def build_manifest(
     model: pm.Model,
     *,
     metadata: dict | None = None,
-    idata: DataRef | str | Path | xr.Dataset | xr.DataTree | None = None,
-    data_groups: tuple[str, ...] | None = None,
-    data_format: str = "zarr",
+    idata: DataRef | str | Path | None = None,
     fgraph: Any = None,
 ) -> dict:
     """Describe the model as a plain dict, without deciding where it goes.
@@ -1063,13 +1082,12 @@ def build_manifest(
     metadata : dict, optional
         Free-form, must be JSON-serializable. Anything else raises, naming the
         key, rather than being stringified behind your back.
-    idata : DataRef, path, Dataset or DataTree, optional
-        Either a pointer to inference data stored elsewhere, or a Dataset or
-        DataTree to embed. When embedding, the location is written by
-        :func:`save_model`, not here.
-    data_groups : tuple of str, optional
-        Which groups to embed. Empty or omitted keeps all of them, so a whole
-        ``pm.sample`` result can be stored. Only meaningful when embedding.
+    idata : DataRef or path, optional
+        Where inference data lives. This records the location and writes
+        nothing. A Dataset or DataTree is refused rather than accepted, because
+        a manifest claiming embedded data that nobody wrote is a bundle that
+        fails when it is read. Use :func:`save_model` for that; it writes the
+        file.
     fgraph : pytensor.graph.fg.FunctionGraph, optional
         An already built graph, to avoid a second build.
 
@@ -1102,30 +1120,8 @@ def build_manifest(
         "metadata": dict(metadata or {}),
     }
     if idata is not None:
-        manifest["data"] = _data_ref(
-            idata, data_groups, embedded=True, data_format=data_format
-        ).as_dict()
+        manifest["data"] = DataRef.coerce(idata).as_dict()
     return manifest
-
-
-def _data_ref(idata, groups, *, embedded: bool, data_format: str = "zarr") -> DataRef:
-    """Describe ``idata`` for the manifest, whether embedded or pointed at."""
-    import xarray as xr
-
-    if isinstance(idata, xr.Dataset | xr.DataTree):
-        if not embedded:
-            raise TypeError(
-                "a DataTree or Dataset can only be embedded by save_model; "
-                "use build_manifest with a DataRef or path if you are writing the files yourself"
-            )
-        kept = tuple(groups) if groups else _groups_of(idata)
-        return DataRef(
-            EMBEDDED_NAMES[data_format],
-            format=data_format,
-            groups=kept,
-            embedded=True,
-        )
-    return DataRef.coerce(idata)
 
 
 def save_model(
@@ -1236,14 +1232,30 @@ def save_model(
 
     if data_format not in _FORMATS:
         raise ValueError(f"data_format must be one of {_FORMATS}, got {data_format!r}")
-    embedding = isinstance(idata, xr.Dataset | xr.DataTree)
+
+    # Writing the file is this function's job, so embedding is decided here and
+    # the manifest is handed a finished DataRef rather than the object itself.
+    if isinstance(idata, xr.Dataset | xr.DataTree):
+        ref = DataRef(
+            EMBEDDED_NAMES[data_format],
+            format=data_format,
+            groups=tuple(data_groups) if data_groups else _groups_of(idata),
+            embedded=True,
+        )
+    elif idata is None:
+        ref = None
+    elif isinstance(idata, DataRef | str | Path):
+        ref = DataRef.coerce(idata)
+    else:
+        raise TypeError(
+            "idata must be a DataRef, a path, a Dataset, or a DataTree, got "
+            f"{type(idata).__name__}"
+        )
 
     manifest = build_manifest(
         model,
         metadata=metadata,
-        idata=idata,
-        data_groups=data_groups,
-        data_format=data_format,
+        idata=ref,
         fgraph=report.fgraph,
     )
     blob = serialize_model(model)
@@ -1279,7 +1291,7 @@ def save_model(
         staging.mkdir(parents=True)
         (staging / MANIFEST_FILE).write_text(text)
         (staging / MODEL_FILE).write_bytes(blob)
-        if embedding:
+        if ref is not None and ref.embedded:
             _write_embedded(
                 idata,
                 staging / EMBEDDED_NAMES[data_format],
