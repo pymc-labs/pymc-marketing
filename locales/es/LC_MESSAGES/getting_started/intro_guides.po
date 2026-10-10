@@ -1,0 +1,41 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2026, PyMC Labs
+# This file is distributed under the same license as the PyMC-Marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2026.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: PyMC-Marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-10-10 16:43+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.18.0\n"
+
+#: ../source/getting_started/intro_guides.md:3 cffb5a504dc24278b4ea4c6969fb1a2f
+msgid "Introductory guides"
+msgstr ""
+
+#: ../source/getting_started/intro_guides.md:5 6f9f5b00ea904823988ce55c8d5ec283
+msgid ""
+"A notebook appears here only after its card sets `part: intro`. Untagged "
+"notebooks stay at their current URL."
+msgstr ""
+
+#: ../source/getting_started/intro_guides.md:8 90d3c1e7f1a64fad81b92bfd1e81ebc3
+#, python-brace-format
+msgid "The other parts are {ref}`technical_guides` and {ref}`gallery`."
+msgstr ""
+
+#: ../source/getting_started/intro_guides.md:10
+#: b080f022044f49d0b58d010107a1f117
+msgid "No notebooks are tagged for this page yet."
+msgstr ""

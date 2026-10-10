@@ -63,9 +63,9 @@ repos:
         files: \.ipynb$
         exclude: ^docs/source/notebooks/(mmm/mmm_components|mmm/mmm_dims_migration_guide|mmm/mmm_quickstart)\.ipynb$
       - id: gallery-in-sync
-        name: generated part pages are in sync with gallery.yaml
+        name: gallery pages, redirects, and Spanish catalogs are in sync
         entry: python3 scripts/generate_gallery.py --check --no-thumbnails
         language: python
         additional_dependencies: [pyyaml, matplotlib]
         pass_filenames: false
-        files: ^(scripts/(generate_gallery|gallery_pages|gallery_redirects)\.py|docs/source/gallery/(gallery\.(md|yaml)|holding\.md|redirects\.yaml)|docs/source/_templates/redirect\.html|docs/source/getting_started/(intro_guides\.md|index\.md)|docs/source/guide/(technical_guides\.md|index\.md)|docs/source/index\.md|docs/source/notebooks/.+\.ipynb|docs/source/(getting_started|guide|gallery)/notebooks/.+\.ipynb)$
+        files: ^(scripts/(generate_gallery|gallery_pages|gallery_redirects|gallery_catalogs)\.py|docs/source/gallery/(gallery\.(md|yaml)|holding\.md|redirects\.yaml)|docs/source/_templates/redirect\.html|docs/source/getting_started/(intro_guides\.md|index\.md)|docs/source/guide/(technical_guides\.md|index\.md)|docs/source/index\.md|docs/source/notebooks/.+\.ipynb|docs/source/(getting_started|guide|gallery)/notebooks/.+\.ipynb|locales/es/LC_MESSAGES/.+\.po)$

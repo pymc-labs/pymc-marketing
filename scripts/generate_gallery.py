@@ -358,7 +358,8 @@ def main() -> None:
         help="Do not write generated pages or thumbnails. Exit non-zero if "
         "the pages are out of sync with gallery.yaml, if a notebook is "
         "missing, duplicated, tagged with an unknown part, or listed in "
-        "more than one toctree, or if gallery/redirects.yaml is invalid.",
+        "more than one toctree, if gallery/redirects.yaml is invalid, or if "
+        "a moved notebook left its Spanish catalog at the old path.",
     )
     parser.add_argument(
         "--no-thumbnails",

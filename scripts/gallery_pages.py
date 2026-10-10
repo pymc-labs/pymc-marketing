@@ -13,6 +13,7 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
+import gallery_catalogs
 import gallery_redirects
 import yaml
 
@@ -544,6 +545,7 @@ def check_gallery(source_dir: Path, *, write: bool = False) -> tuple[int, list[s
     """
     data, messages = load_gallery(source_dir / "gallery" / "gallery.yaml")
     messages.extend(gallery_redirects.validate_redirect_map(source_dir))
+    messages.extend(gallery_catalogs.validate_catalogs(source_dir))
     if data is None:
         return 1, messages
     cards, structural = collect_cards(data)

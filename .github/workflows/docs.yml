@@ -38,6 +38,8 @@ jobs:
               - "scripts/generate_gallery.py"
               - "scripts/gallery_pages.py"
               - "scripts/gallery_redirects.py"
+              - "scripts/gallery_catalogs.py"
+              - "locales/**"
 
   build:
     needs: changes

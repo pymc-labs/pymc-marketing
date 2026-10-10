@@ -173,6 +173,28 @@ The steps to follow to update the translatable sources are:
    sphinx-intl update -p docs/gettext -l es --locale-dir locales
    ```
 
+   A full gettext build followed by `sphinx-intl update` creates a catalog for every document that does not have one. Do not commit those new notebook catalogs. Notebooks that have never had a Spanish catalog are existing debt, not something a release update should backfill.
+
+### When a notebook docname changes
+
+A move is one PR. English stays the source. Do not add `locales/en/`, and do not add a third language. The path under `locales/es/LC_MESSAGES/` is the docname, because `gettext_compact = False`.
+
+1. Move the source to the new docname.
+2. If `locales/es/LC_MESSAGES/<old docname>.po` exists, `git mv` it to `locales/es/LC_MESSAGES/<new docname>.po` in the same PR. Do not regenerate it from scratch.
+3. Run `sphinx-intl update` so the `#:` locations follow the new path. Confirm a pre-existing `msgstr` is still present. Do not mark the catalog fuzzy as a way to skip the check. Point the update at a clean pot directory that contains only the moved docname, so it does not create catalogs for notebooks that never had one.
+
+   ```bash
+   pot=$(mktemp -d)
+   sphinx-build docs/source "$pot" -b gettext "docs/source/<new-docname>"
+   sphinx-intl update -p "$pot" -l es --locale-dir locales
+   ```
+4. If no `.po` exists, do not create one in the migration PR.
+5. Do not edit unrelated `msgstr` URLs.
+
+Do not backfill catalogs for notebooks that never had one. Do not delete stale catalogs. Do not retarget `/en/stable/` URLs inside `msgstr`. Redirects cover those 404s.
+
+`gallery-in-sync` fails if a redirect's old `.po` is still at the old path. It does not fail when that notebook never had a `.po`.
+
 ### Translated build preview
 
 To build the docs in a different language:
