@@ -268,11 +268,6 @@ _IN_MEMORY = "<memory>"
 MANIFEST_FILE = "manifest.json"
 MODEL_FILE = "model.cloudpickle"
 
-# Zarr is not involved, but pymc declares cloudpickle (requirements.txt) and uses
-# it for its own idata hashing, so serializing the graph adds no new dependency.
-# stdlib pickle cannot resolve pymc's dynamically-created Op classes (CustomDist
-# and friends), which is why this is not the default pickler.
-
 #: Suffixes we recognise when inferring a data format from a location.
 _NETCDF_SUFFIXES = (".nc", ".nc4", ".cdf", ".netcdf")
 _ZARR_SUFFIXES = (".zarr",)
@@ -928,6 +923,9 @@ def serialize_model(model: pm.Model) -> bytes:
 
     ``write_somewhere`` is yours; this function only produces bytes.
     """
+    # Not stdlib pickle: it cannot resolve pymc's dynamically-created Op classes
+    # (CustomDist and friends), which is why this is the pickler. Declared in
+    # pyproject because this module imports it directly.
     import cloudpickle
 
     return cloudpickle.dumps(model, protocol=-1)

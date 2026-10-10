@@ -30,6 +30,9 @@ dependencies = [
     # the arviz meta-package to pull it in.
     "arviz-stats>=1.2.0,<2.0",
     "arviz>=1.2.0,<2.0",
+    # bundle.py imports cloudpickle directly, to serialize a Model; declare it
+    # rather than relying on pymc to pull it in.
+    "cloudpickle",
     "matplotlib>=3.5.1",
     "narwhals",
     # numba<=0.66 (a hard requirement of pytensor 3.x) does not support numpy 2.5,

@@ -793,23 +793,24 @@ def test_the_pickler_is_not_baked_into_the_contract():
         assert ModelBundle.from_parts(build_manifest(model), blob).validate().ok
 
 
-@pytest.mark.parametrize("module", ["fsspec", "zarr", "s3fs", "netCDF4", "h5netcdf"])
-def test_importing_the_package_does_not_pull_in_filesystem_libraries(module):
+def test_importing_the_package_does_not_pull_in_filesystem_libraries():
     """The bundle is a dict and bytes; no storage library may be dragged in.
 
     Run in a subprocess so an already-imported module elsewhere in the session
-    cannot mask a regression. Two modules are deliberately absent from this list
-    because importing anything under ``pymc_marketing`` runs the package
-    ``__init__``, which pulls them in regardless of us: xarray, via pymc, and
-    pydantic, via the package's own model config. What matters is that
-    ``bundle`` does not *rely* on either, which the next test pins directly.
+    cannot mask a regression, and once for all five rather than once each, since
+    every start is a full interpreter. xarray and pydantic are deliberately not
+    checked: importing anything under ``pymc_marketing`` runs the package
+    ``__init__``, which pulls them in regardless of us. The next test covers our
+    own globals instead.
     """
     import subprocess
     import sys
 
+    forbidden = ("fsspec", "zarr", "s3fs", "netCDF4", "h5netcdf")
     code = (
         "import sys; import pymc_marketing.bundle; "
-        f"assert {module!r} not in sys.modules, {module!r} + ' was imported'"
+        f"present = [m for m in {forbidden!r} if m in sys.modules]; "
+        "assert not present, present"
     )
     result = subprocess.run(  # noqa: S603 - fixed argv, no shell
         [sys.executable, "-c", code], capture_output=True, text=True
@@ -826,18 +827,6 @@ def test_bundle_module_namespace_has_no_storage_names():
         for n in ("zarr", "fsspec", "xarray", "pydantic", "netCDF4")
         if hasattr(core, n)
     ]
-
-
-def test_xarray_comes_from_pymc_not_from_us():
-    """Documents why xarray is allowed to be present but never used here."""
-    import subprocess
-    import sys
-
-    code = "import sys; import pymc; assert 'xarray' in sys.modules, 'expected pymc to import xarray'"
-    result = subprocess.run(  # noqa: S603 - fixed argv, no shell
-        [sys.executable, "-c", code], capture_output=True, text=True
-    )
-    assert result.returncode == 0, result.stderr.strip().splitlines()[-1]
 
 
 def test_a_bare_path_needs_no_filesystem_library(tmp_path):
