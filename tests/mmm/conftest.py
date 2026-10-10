@@ -1201,6 +1201,27 @@ class SharedDenominatorSaturation(SaturationTransformation):
     default_priors = {"beta": Prior("HalfNormal", sigma=1.0)}
 
 
+@serialization.register
+class DateNormalizedSaturation(SaturationTransformation):
+    r"""A media transform that is *not* a causal filter in time.
+
+    Each channel is scaled by its own average spend over the fitted dates,
+
+    .. math::
+
+        v_{t,c} = \beta \frac{x_{t,c}}{1 + \bar{x}_c},
+
+    so a change of spend on one date moves every date, earlier ones included.
+    Separable across channels, so only the reach probe can catch it.
+    """
+
+    def function(self, x, beta, *, dim: str | None = None):
+        """Scale each channel by one plus its mean over ``date``."""
+        return beta * x / (1.0 + x.mean("date"))
+
+    default_priors = {"beta": Prior("HalfNormal", sigma=1.0)}
+
+
 @pytest.fixture(scope="module")
 def mixing_identity_fitted_mmm(funnel_mmm_data):
     """Additive MMM whose media transform mixes channels, with no ``mu_effects``.
