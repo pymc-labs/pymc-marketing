@@ -15,10 +15,10 @@
 
 These tests exercise only the surface the two classes inherit from
 ``ChoiceDataMixin``: supplying choice data to ``fit`` and
-``sample_prior_predictive``, missing constructor settings, the constructor
-deprecation warning, the refit guard against mismatched or in-place edited
-data, and the save/load round trip. Model-specific behaviour stays in the
-per-class test modules.
+``sample_prior_predictive``, missing constructor settings, the first-slot type
+check, the constructor deprecation warning, the refit guard against mismatched
+or in-place edited data, and the save/load round trip. Model-specific
+behaviour stays in the per-class test modules.
 """
 
 import json
@@ -26,6 +26,7 @@ import re
 import warnings
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 import pytest
 import xarray as xr
@@ -140,6 +141,33 @@ def test_missing_setting_raises(model_case):
             ValueError, match=re.escape(f"Missing required argument(s): {name}.")
         ):
             model_case.cls(**kwargs)
+
+
+def test_positional_settings_without_data_raise_keyword_error(model_case):
+    # New-style call written positionally: the utility equations land in the
+    # deprecated data slot, so the error must point at the keyword arguments
+    # (and fire before the missing-argument check would report ``covariates``).
+    # ``model_case.required`` preserves the constructor's positional order.
+    positional = tuple(model_case.required.values())
+
+    with pytest.raises(TypeError) as excinfo:
+        model_case.cls(*positional)
+
+    message = str(excinfo.value)
+    for name in model_case.required:
+        assert name in message
+
+
+@pytest.mark.parametrize(
+    "bad_choice_df",
+    [
+        pytest.param({}, id="dict"),
+        pytest.param(np.array([1, 2, 3]), id="array"),
+    ],
+)
+def test_non_dataframe_first_positional_raises(model_case, bad_choice_df):
+    with pytest.raises(TypeError, match="keyword arguments"):
+        model_case.cls(bad_choice_df, **model_case.required, **model_case.extras)
 
 
 def test_deprecated_choice_df_warns(model_case, sample_df):

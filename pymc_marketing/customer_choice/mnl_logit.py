@@ -129,9 +129,15 @@ class MNLogit(ChoiceDataMixin, ModelBuilder):
 
         Raises
         ------
+        TypeError
+            If the deprecated first positional argument is neither ``None``
+            nor a :class:`pandas.DataFrame`.
         ValueError
             If any of ``utility_equations``, ``depvar`` or ``covariates`` is None.
         """
+        self._raise_if_choice_df_not_dataframe(
+            choice_df, ("utility_equations", "depvar", "covariates")
+        )
         if utility_equations is None or depvar is None or covariates is None:
             self._raise_missing_settings(
                 utility_equations=utility_equations,

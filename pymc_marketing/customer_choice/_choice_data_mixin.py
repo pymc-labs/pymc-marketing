@@ -15,7 +15,7 @@
 
 import json
 import warnings
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from typing import TYPE_CHECKING, Any, NoReturn
 
 import pandas as pd
@@ -73,6 +73,44 @@ class ChoiceDataMixin:
         raise ValueError(
             f"Missing required argument(s): {', '.join(missing)}. "
             f"Provide {provided} when constructing {cls.__name__}."
+        )
+
+    @classmethod
+    def _raise_if_choice_df_not_dataframe(
+        cls, choice_df: Any, settings: Sequence[str]
+    ) -> None:
+        """Reject a non-DataFrame value in the first constructor slot.
+
+        The new-style call has no positional data slot, so
+        ``Model(utility_equations, depvar, covariates)`` would otherwise bind
+        the utility equations to ``choice_df`` and report a misleading missing
+        argument further down. Only ``None`` (no data) and a
+        :class:`pandas.DataFrame` (the deprecated positional data) are valid.
+
+        Parameters
+        ----------
+        choice_df : Any
+            The value bound to the first constructor slot.
+        settings : Sequence of str
+            Keyword settings to name in the error message, in the order they
+            should appear.
+
+        Raises
+        ------
+        TypeError
+            If ``choice_df`` is neither ``None`` nor a :class:`pandas.DataFrame`.
+        """
+        if choice_df is None or isinstance(choice_df, pd.DataFrame):
+            return
+        names = [f"`{name}`" for name in settings]
+        provided = (
+            names[0] if len(names) == 1 else f"{', '.join(names[:-1])} and {names[-1]}"
+        )
+        kwargs = ", ".join(f"{name}=..." for name in settings)
+        raise TypeError(
+            f"{cls.__name__} received a non-DataFrame value in the choice data "
+            f"slot. Pass {provided} as keyword arguments, e.g. "
+            f"{cls.__name__}({kwargs})."
         )
 
     def _warn_if_choice_df_at_init(self, choice_df: pd.DataFrame | None) -> None:
