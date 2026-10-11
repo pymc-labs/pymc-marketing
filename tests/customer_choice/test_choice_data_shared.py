@@ -30,6 +30,7 @@ import numpy as np
 import pandas as pd
 import pytest
 import xarray as xr
+from pymc_extras.prior import Prior
 
 from pymc_marketing.customer_choice.mnl_logit import MNLogit
 from pymc_marketing.customer_choice.nested_logit import NestedLogit
@@ -368,3 +369,86 @@ def test_save_load_roundtrip(model_case, sample_df, tmp_path, mock_pymc_sample):
         expected_alphas_nests = model_case.extras.get("alphas_nests", False)
         assert loaded.alphas_nests == expected_alphas_nests
         assert ("alphas_nests" in loaded.model.named_vars) == expected_alphas_nests
+
+
+@pytest.fixture(params=["appearance-order", "reordered-with-unused"])
+def categorical_df(request, sample_df):
+    if request.param == "appearance-order":
+        return sample_df.assign(choice=pd.Categorical(sample_df["choice"]))
+    # Category order differs from the utility equations and "unused" has no rows.
+    return sample_df.assign(
+        choice=pd.Categorical(
+            sample_df["choice"],
+            categories=["unused", "another", "option", "other", "alt"],
+        )
+    )
+
+
+@pytest.fixture
+def ordered_int_df(sample_df):
+    values = [1 + (i % 4) for i in range(len(sample_df))]
+    values[1] = None
+    return sample_df.assign(
+        rating=pd.Categorical(values, categories=[1, 2, 3, 4], ordered=True)
+    )
+
+
+def test_save_load_categorical_depvar(
+    model_case, categorical_df, tmp_path, mock_pymc_sample
+):
+    model = model_case.build()
+    model.fit(categorical_df, random_seed=42)
+
+    path = tmp_path / "model.nc"
+    model.save(str(path))
+    loaded = model_case.cls.load(str(path))
+
+    # The model build inside load() is the real guard.
+    # The `alts` coords alone are weak: they come from the utility equations, not the data.
+    assert isinstance(loaded.choice_df["choice"].dtype, pd.CategoricalDtype)
+    pd.testing.assert_frame_equal(
+        loaded.choice_df, model.choice_df, check_index_type=False
+    )
+
+    assert list(loaded.model.coords["alts"]) == list(model.model.coords["alts"])
+    assert loaded.alternatives == model.alternatives
+
+    # The loaded model accepts the original categorical data without raising.
+    loaded.fit(categorical_df, random_seed=42)
+
+
+def test_save_load_ordered_non_string_categorical(
+    model_case, ordered_int_df, tmp_path, mock_pymc_sample
+):
+    model = model_case.build()
+    model.fit(ordered_int_df, random_seed=42)
+
+    path = tmp_path / "model.nc"
+    model.save(str(path))
+    loaded = model_case.cls.load(str(path))
+
+    restored = loaded.choice_df["rating"]
+    assert isinstance(restored.dtype, pd.CategoricalDtype)
+    assert restored.cat.ordered
+    assert list(restored.cat.categories) == [1, 2, 3, 4]
+    # The NaN stays NaN while the non-missing codes round-trip (no all-NaN bug).
+    assert restored.isna().tolist() == ordered_int_df["rating"].isna().tolist()
+    assert restored.notna().any()
+    pd.testing.assert_series_equal(restored, model.choice_df["rating"])
+
+
+def test_custom_betas_fixed_prior_survives_save_load(
+    model_case, sample_df, tmp_path, mock_pymc_sample
+):
+    custom_prior = Prior("Normal", mu=1.0, sigma=2.0, dims=("alts", "fixed_covariates"))
+    model = model_case.build(model_config={"betas_fixed_": custom_prior})
+    model.fit(sample_df, random_seed=42)
+
+    path = tmp_path / "model.nc"
+    model.save(str(path))
+    loaded = model_case.cls.load(str(path))
+
+    # Invariant: the custom `betas_fixed_` prior survives save/load and the id check passes.
+    # The prior comparison is the real guard; id equality is a sanity check.
+    assert loaded.model_config["betas_fixed_"].to_dict() == custom_prior.to_dict()
+    assert loaded.id == model.id

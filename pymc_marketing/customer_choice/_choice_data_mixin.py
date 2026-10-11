@@ -237,22 +237,59 @@ class ChoiceDataMixin:
     def create_fit_data_group(self) -> xr.Dataset:
         """Build the ``fit_data`` group storing the choice data.
 
+        Categorical columns are stored as their integer codes, with the
+        categories and ``ordered`` flag kept as variable metadata. NetCDF
+        cannot represent a pandas ``CategoricalDtype`` directly, and storing
+        the labels as strings would turn non-string categories into ``NaN``.
+
         Returns
         -------
         xr.Dataset
             Choice data as an xarray Dataset with an ``obs`` dimension.
         """
         choice_df = self._require_choice_df()
-        return choice_df.rename_axis("obs").to_xarray()
+        categorical_dtypes = {
+            name: dtype
+            for name, dtype in choice_df.dtypes.items()
+            if isinstance(dtype, pd.CategoricalDtype)
+        }
+        if not categorical_dtypes:
+            return choice_df.rename_axis("obs").to_xarray()
+
+        encoded_df = choice_df.copy()
+        for name in categorical_dtypes:
+            encoded_df[name] = choice_df[name].cat.codes
+
+        dataset = encoded_df.rename_axis("obs").to_xarray()
+        for name, dtype in categorical_dtypes.items():
+            dataset[name].attrs = {
+                "categories": json.dumps(dtype.categories.tolist()),
+                "ordered": int(bool(dtype.ordered)),
+            }
+        return dataset
 
     def build_from_idata(self, idata: xr.DataTree) -> None:
         """Build the model from a loaded DataTree.
+
+        Categorical columns stored as integer codes are rebuilt with
+        :func:`pandas.Categorical.from_codes` from their metadata.
 
         Parameters
         ----------
         idata : xr.DataTree
             Loaded inference data.
         """
-        self.choice_df = idata["fit_data"].dataset.to_dataframe().rename_axis(None)
+        dataset = idata["fit_data"].dataset
+        choice_df = dataset.to_dataframe().rename_axis(None)
+        for name, variable in dataset.data_vars.items():
+            categories = variable.attrs.get("categories")
+            if categories is None:
+                continue
+            choice_df[name] = pd.Categorical.from_codes(
+                choice_df[name].to_numpy(),
+                categories=json.loads(categories),
+                ordered=bool(variable.attrs["ordered"]),
+            )
+        self.choice_df = choice_df
         if not hasattr(self, "model"):
             self.build_model()
