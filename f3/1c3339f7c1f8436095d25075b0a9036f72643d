@@ -1,0 +1,19 @@
+docs/source/notebooks/mmm/mmm_yoy_target_transform.ipynb
+  s_0afd696aa4e505::t_3c392f5ada324e 314-315,317-318,328-330,335-339
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "f31c3339f7c1f8436095d25075b0a9036f72643d",
+  "prompts": {},
+  "sessions": {
+    "s_0afd696aa4e505": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e676a9d9-008e-42de-9b9a-813472edb769",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "daimon-pymclabs <daimon@pymc-labs.com>"
+    }
+  }
+}
