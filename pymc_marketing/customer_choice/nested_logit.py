@@ -14,7 +14,7 @@
 """Nested Logit for Product Preference Analysis."""
 
 import json
-import warnings
+from collections.abc import Mapping
 from typing import Any, Self
 
 import matplotlib.pyplot as plt
@@ -27,6 +27,7 @@ import xarray as xr
 from pymc.util import RandomState
 from pymc_extras.prior import Prior
 
+from pymc_marketing.customer_choice._choice_data_mixin import ChoiceDataMixin
 from pymc_marketing.model_builder import (
     ModelBuilder,
     SamplingMethod,
@@ -37,7 +38,7 @@ from pymc_marketing.version import __version__
 HDI_ALPHA = 0.5
 
 
-class NestedLogit(ModelBuilder):
+class NestedLogit(ChoiceDataMixin, ModelBuilder):
     """
     Nested Logit class.
 
@@ -159,29 +160,13 @@ class NestedLogit(ModelBuilder):
             or covariates is None
             or nesting_structure is None
         ):
-            missing = [
-                name
-                for name, value in (
-                    ("utility_equations", utility_equations),
-                    ("depvar", depvar),
-                    ("covariates", covariates),
-                    ("nesting_structure", nesting_structure),
-                )
-                if value is None
-            ]
-            raise ValueError(
-                f"Missing required argument(s): {', '.join(missing)}. "
-                "Provide utility_equations, depvar, covariates and nesting_structure when constructing NestedLogit."
+            self._raise_missing_settings(
+                utility_equations=utility_equations,
+                depvar=depvar,
+                covariates=covariates,
+                nesting_structure=nesting_structure,
             )
-
-        if choice_df is not None:
-            warnings.warn(
-                "Passing the choice data as the first argument to NestedLogit is "
-                "deprecated and will be removed in a future release. "
-                "Pass it to `fit(choice_df)` instead.",
-                DeprecationWarning,
-                stacklevel=2,
-            )
+        self._warn_if_choice_df_at_init(choice_df)
 
         self.choice_df: pd.DataFrame | None = choice_df
         self.utility_equations: list[str] = utility_equations
@@ -194,29 +179,6 @@ class NestedLogit(ModelBuilder):
         model_config = parse_model_config(model_config)
 
         super().__init__(model_config=model_config, sampler_config=sampler_config)
-
-    def _require_choice_df(self, hint: str | None = None) -> pd.DataFrame:
-        """Return the stored choice data, raising if none has been provided.
-
-        Parameters
-        ----------
-        hint : str, optional
-            Extra guidance appended to the error message.
-
-        Returns
-        -------
-        pd.DataFrame
-            The choice data set at construction or fit time.
-
-        Raises
-        ------
-        ValueError
-            If no choice data has been provided to the constructor or :meth:`fit`.
-        """
-        if self.choice_df is None:
-            hint = hint or "Pass it to `fit(choice_df)` first."
-            raise ValueError(f"Choice data is required to build the model. {hint}")
-        return self.choice_df
 
     @property
     def default_model_config(self) -> dict:
@@ -875,22 +837,17 @@ class NestedLogit(ModelBuilder):
         return attrs
 
     @classmethod
-    def attrs_to_init_kwargs(cls, attrs) -> dict[str, Any]:
-        """Rehydrate the ``__init__`` kwargs from the serialised DataTree attrs.
+    def attrs_to_init_kwargs(cls, attrs: Mapping[str, Any]) -> dict[str, Any]:
+        """Rehydrate the ``__init__`` kwargs from the serialised attrs.
 
-        The choice data itself lives in the ``fit_data`` group and is restored by :meth:`build_from_idata`.
+        Extends the shared kwargs with the nesting settings. The choice data
+        itself lives in the ``fit_data`` group and is restored by
+        :meth:`build_from_idata`.
         """
-        return {
-            "utility_equations": json.loads(attrs["utility_equations"]),
-            "depvar": json.loads(attrs["depvar"]),
-            "covariates": json.loads(attrs["covariates"]),
-            "nesting_structure": json.loads(attrs["nesting_structure"]),
-            "alphas_nests": json.loads(attrs["alphas_nests"]),
-            "model_config": cls._model_config_formatting(
-                json.loads(attrs["model_config"])
-            ),
-            "sampler_config": json.loads(attrs["sampler_config"]),
-        }
+        kwargs = super().attrs_to_init_kwargs(attrs)
+        kwargs["nesting_structure"] = json.loads(attrs["nesting_structure"])
+        kwargs["alphas_nests"] = json.loads(attrs["alphas_nests"])
+        return kwargs
 
     def sample_prior_predictive(  # type: ignore[override]
         self,
@@ -948,21 +905,6 @@ class NestedLogit(ModelBuilder):
 
         return prior_pred
 
-    def create_fit_data_group(self) -> xr.Dataset:
-        """
-        Create xarray Dataset for storing choice_df in DataTree.
-
-        This allows the model to be reconstructed when loading from file.
-
-        Returns
-        -------
-        xr.Dataset
-            Choice data as xarray Dataset with 'obs' dimension
-        """
-        choice_df = self._require_choice_df()
-        df_xr = choice_df.rename_axis("obs").to_xarray()
-        return df_xr
-
     def fit(  # type: ignore[override]
         self,
         choice_df: pd.DataFrame | None = None,
@@ -1003,9 +945,8 @@ class NestedLogit(ModelBuilder):
         Raises
         ------
         ValueError
-            If no choice data has been provided.
-        ValueError
-            If the model was already built with different choice data or utility equations.
+            If no choice data has been provided, or if the model was already
+            built with different choice data or utility equations.
         """
         if (
             hasattr(self, "model")
@@ -1024,7 +965,7 @@ class NestedLogit(ModelBuilder):
         ):
             raise ValueError(
                 "The model was built with different utility equations. "
-                "Create a new model instance to fit new data."
+                "Create a new model instance to use different utility equations."
             )
 
         # Allow updating data at fit time
@@ -1040,21 +981,6 @@ class NestedLogit(ModelBuilder):
             sample_kwargs=sample_kwargs,
             **kwargs,
         )
-
-    def build_from_idata(self, idata: xr.DataTree) -> None:
-        """
-        Build model from loaded DataTree.
-
-        This is called by load() after the model is initialized.
-
-        Parameters
-        ----------
-        idata : xr.DataTree
-            Loaded inference data
-        """
-        self.choice_df = idata["fit_data"].dataset.to_dataframe().rename_axis(None)
-        if not hasattr(self, "model"):
-            self.build_model()
 
     def sample_posterior_predictive(  # type: ignore[override]
         self,
@@ -1149,9 +1075,10 @@ class NestedLogit(ModelBuilder):
             self.choice_df is None
             and sample_prior_predictive_kwargs.get("choice_df") is None
         ):
-            self._require_choice_df(
-                hint="Pass it to `fit(choice_df)` first, or to "
-                "`sample_prior_predictive_kwargs` when calling `sample`."
+            raise ValueError(
+                "Choice data is required to build the model. Pass it to "
+                "`fit(choice_df)` first, or to `sample_prior_predictive_kwargs` "
+                "when calling `sample`."
             )
 
         self.sample_prior_predictive(

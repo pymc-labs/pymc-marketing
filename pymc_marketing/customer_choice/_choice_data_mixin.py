@@ -1,0 +1,146 @@
+#   Copyright 2022 - 2026 The PyMC Labs Developers
+#
+#   Licensed under the Apache License, Version 2.0 (the "License");
+#   you may not use this file except in compliance with the License.
+#   You may obtain a copy of the License at
+#
+#       http://www.apache.org/licenses/LICENSE-2.0
+#
+#   Unless required by applicable law or agreed to in writing, software
+#   distributed under the License is distributed on an "AS IS" BASIS,
+#   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#   See the License for the specific language governing permissions and
+#   limitations under the License.
+"""Shared choice-data handling for the discrete-choice logit models."""
+
+import json
+import warnings
+from collections.abc import Mapping
+from typing import TYPE_CHECKING, Any, NoReturn
+
+import pandas as pd
+import xarray as xr
+
+
+class ChoiceDataMixin:
+    """Choice-data and settings lifecycle shared by the logit models.
+
+    This mixin keeps the pieces that :class:`MNLogit` and :class:`NestedLogit`
+    must not drift apart: validation of the required constructor settings, the
+    "choice data is required" guard, the serialisation of constructor
+    arguments to and from the ``DataTree`` attributes, and the ``fit_data``
+    group used to restore the choice data on load.
+
+    It deliberately does not define ``__init__``. Each class keeps its own
+    constructor signature, so the ``super().__init__(...)`` chain still
+    reaches the model-builder base.
+
+    Attributes
+    ----------
+    choice_df : pd.DataFrame or None
+        The choice data set at construction or :meth:`fit` time.
+    """
+
+    choice_df: pd.DataFrame | None
+
+    if TYPE_CHECKING:
+        # Provided by the model-builder base that these classes are mixed with.
+        def build_model(self, **kwargs: Any) -> None: ...
+
+        @classmethod
+        def _model_config_formatting(cls, model_config: dict) -> dict: ...
+
+    @classmethod
+    def _raise_missing_settings(cls, **settings: Any) -> NoReturn:
+        """Raise listing the passed settings that are ``None``.
+
+        The settings are passed in the order they should appear in the error
+        message.
+
+        Raises
+        ------
+        ValueError
+            If any of the passed settings is ``None``.
+        """
+        missing = [name for name, value in settings.items() if value is None]
+        names = list(settings)
+        provided = (
+            names[0] if len(names) == 1 else f"{', '.join(names[:-1])} and {names[-1]}"
+        )
+        raise ValueError(
+            f"Missing required argument(s): {', '.join(missing)}. "
+            f"Provide {provided} when constructing {cls.__name__}."
+        )
+
+    def _warn_if_choice_df_at_init(self, choice_df: pd.DataFrame | None) -> None:
+        """Warn that passing ``choice_df`` to the constructor is deprecated."""
+        if choice_df is None:
+            return
+        warnings.warn(
+            "Passing the choice data as the first argument to "
+            f"{type(self).__name__} is deprecated and will be removed in a "
+            "future release. Pass it to `fit(choice_df)` instead.",
+            DeprecationWarning,
+            stacklevel=3,
+        )
+
+    def _require_choice_df(self) -> pd.DataFrame:
+        """Return the stored choice data, raising if none has been provided.
+
+        Returns
+        -------
+        pd.DataFrame
+            The choice data set at construction or fit time.
+
+        Raises
+        ------
+        ValueError
+            If no choice data has been provided to the constructor or
+            :meth:`fit`.
+        """
+        if self.choice_df is None:
+            raise ValueError(
+                "Choice data is required to build the model. "
+                "Pass it to `fit(choice_df)` first."
+            )
+        return self.choice_df
+
+    @classmethod
+    def attrs_to_init_kwargs(cls, attrs: Mapping[str, Any]) -> dict[str, Any]:
+        """Rehydrate the ``__init__`` kwargs from the serialised attrs.
+
+        The choice data itself lives in the ``fit_data`` group and is restored
+        by :meth:`build_from_idata`.
+        """
+        return {
+            "utility_equations": json.loads(attrs["utility_equations"]),
+            "depvar": json.loads(attrs["depvar"]),
+            "covariates": json.loads(attrs["covariates"]),
+            "model_config": cls._model_config_formatting(
+                json.loads(attrs["model_config"])
+            ),
+            "sampler_config": json.loads(attrs["sampler_config"]),
+        }
+
+    def create_fit_data_group(self) -> xr.Dataset:
+        """Build the ``fit_data`` group storing the choice data.
+
+        Returns
+        -------
+        xr.Dataset
+            Choice data as an xarray Dataset with an ``obs`` dimension.
+        """
+        choice_df = self._require_choice_df()
+        return choice_df.rename_axis("obs").to_xarray()
+
+    def build_from_idata(self, idata: xr.DataTree) -> None:
+        """Build the model from a loaded DataTree.
+
+        Parameters
+        ----------
+        idata : xr.DataTree
+            Loaded inference data.
+        """
+        self.choice_df = idata["fit_data"].dataset.to_dataframe().rename_axis(None)
+        if not hasattr(self, "model"):
+            self.build_model()

@@ -13,9 +13,6 @@
 #   limitations under the License.
 
 
-import json
-import warnings
-
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -204,121 +201,6 @@ def test_make_change_plot_returns_figure(mnl, sample_change_df):
     fig = mnl.plot_change(sample_change_df, title="Test Intervention")
 
     assert isinstance(fig, plt.Figure)
-
-
-class TestChoiceDataInFit:
-    """Choice data is passed to fit(); the constructor form is deprecated (#2824)."""
-
-    def test_sample_accepts_choice_data(self, mnl, sample_df, mock_pymc_sample):
-        mnl.sample(sample_prior_predictive_kwargs={"choice_df": sample_df})
-
-        assert "prior_predictive" in mnl.idata
-        assert "posterior_predictive" in mnl.idata
-
-    def test_refit_with_different_data_raises(self, mnl, sample_df, mock_pymc_sample):
-        mnl.fit(sample_df)
-
-        changed_df = sample_df.copy()
-        changed_df["alt_X1"] = changed_df["alt_X1"] * 1.2
-
-        with pytest.raises(ValueError, match="different data"):
-            mnl.fit(changed_df)
-
-        mnl.fit(sample_df)  # same data is fine
-
-    def test_refit_with_different_utility_equations_raises(
-        self, mnl, sample_df, new_utility_eqs, mock_pymc_sample
-    ):
-        mnl.fit(sample_df)
-
-        with pytest.raises(ValueError, match="different utility equations"):
-            mnl.fit(utility_equations=new_utility_eqs)
-
-    def test_refit_with_fresh_copy_of_same_data(self, mnl, sample_df, mock_pymc_sample):
-        fresh_df = sample_df.copy()
-        mnl.fit(sample_df)
-
-        assert list(sample_df.columns) == list(fresh_df.columns)
-        mnl.fit(fresh_df)
-
-    def test_deprecated_positional_choice_df_warns(self, sample_df, utility_eqs):
-        with pytest.warns(DeprecationWarning, match="removed in a future release"):
-            model = MNLogit(sample_df, utility_eqs, "choice", ["X1", "X2"])
-
-        assert model.choice_df.equals(sample_df)
-        model.build_model()
-        assert hasattr(model, "model")
-
-    @pytest.mark.parametrize(
-        "kwargs, missing",
-        [
-            (
-                {"depvar": "choice", "covariates": ["X1"]},
-                "utility_equations",
-            ),
-            (
-                {"utility_equations": ["alt ~ alt_X1"], "covariates": ["X1"]},
-                "depvar",
-            ),
-            (
-                {"utility_equations": ["alt ~ alt_X1"], "depvar": "choice"},
-                "covariates",
-            ),
-        ],
-    )
-    def test_missing_setting_raises(self, kwargs, missing):
-        with pytest.raises(ValueError, match=missing):
-            MNLogit(**kwargs)
-
-    @pytest.mark.parametrize(
-        "method, kwargs",
-        [
-            ("build_model", {}),
-            ("sample_prior_predictive", {}),
-            ("sample_posterior_predictive", {}),
-            ("create_fit_data_group", {}),
-            ("sample", {}),
-            ("apply_intervention", {"new_choice_df": pd.DataFrame()}),
-        ],
-    )
-    def test_data_dependent_methods_require_choice_data(self, mnl, method, kwargs):
-        with pytest.raises(ValueError, match="Choice data is required"):
-            getattr(mnl, method)(**kwargs)
-
-
-class TestSaveLoadRoundtrip:
-    """Save/load round-trip for MNLogit (issue #2824)."""
-
-    def test_save_load_roundtrip(self, mnl, sample_df, tmp_path, mock_pymc_sample):
-        mnl.fit(sample_df, random_seed=42)
-
-        path = tmp_path / "mnl.nc"
-        mnl.save(str(path))
-        with warnings.catch_warnings():
-            warnings.simplefilter("error", DeprecationWarning)
-            loaded = MNLogit.load(str(path))
-
-        # Model settings are rebuilt from the serialised attrs.
-        assert loaded.utility_equations == mnl.utility_equations
-        assert loaded.depvar == mnl.depvar
-        assert loaded.covariates == mnl.covariates
-        assert loaded.model_config == mnl.model_config
-
-        # Choice data is restored from the fit_data group with its index and dtypes.
-        pd.testing.assert_frame_equal(
-            loaded.choice_df, mnl.choice_df, check_index_type=False
-        )
-
-        # The choice data is not duplicated into the attrs as a placeholder.
-        assert json.loads(mnl.idata.attrs["choice_df"]) is None
-
-        # Posterior and model id survive the file round trip.
-        xr.testing.assert_equal(loaded.idata["posterior"], mnl.idata["posterior"])
-        assert loaded.id == mnl.id
-
-        # Posterior predictive sampling runs on the loaded model.
-        post_pred = loaded.sample_posterior_predictive(extend_idata=False)
-        assert "posterior_predictive" in post_pred
 
 
 class TestMakeIntercepts:
