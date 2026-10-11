@@ -25,7 +25,7 @@ import numbers
 import warnings
 from abc import ABC, abstractmethod
 from enum import StrEnum
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import pymc.dims as pmd
@@ -35,6 +35,9 @@ from pytensor.xtensor import math as ptxm
 from pytensor.xtensor.type import XTensorVariable
 from scipy.special import erfcx
 from scipy.stats import truncnorm
+
+if TYPE_CHECKING:
+    import pymc as pm
 
 
 class LinkFunction(StrEnum):
@@ -189,6 +192,74 @@ def _distribution_name(likelihood: Prior) -> str:
     return dist if dist is not None else type(likelihood).__name__
 
 
+def _reject_wrapped_likelihood(likelihood: Prior, *, calibration: bool = False) -> None:
+    """Raise for a wrapper likelihood, whose mean is not a function of ``mu`` alone.
+
+    Wrappers such as ``Censored`` and ``Scaled`` resolve to the name of the
+    distribution they hold but move its mean, so ``E[y]`` is not the
+    ``mu``-based mean of that distribution under either link.  Rejected before
+    any mean correction is dispatched on the held name, rather than silently
+    returning median-scale numbers labelled as means.
+
+    The remedy depends on the caller.  When *reporting* the model
+    (:meth:`LinkSpec.to_mean_scale`, :meth:`LinkSpec.mean_scale_factor`) the
+    median-scale number is a well-defined summary the user may read instead.
+    When *calibrating* (:meth:`LinkSpec.mean_ratio_tensor`) the value being
+    matched is an observed readout whose scale is fixed by how it was
+    measured, so ``"median"`` is only right when that value is itself a
+    latent-median quantity; the message says so rather than sending the
+    caller from a safe refusal into a silent miscalibration.
+
+    Named types first, so that the day pymc-extras gives a wrapper its own
+    ``parameters`` the hard error stays a hard error instead of turning into
+    wrong numbers.  The duck-typed arm stays as the catch-all for a wrapper
+    this module has not been told about.  It is narrower than the check in
+    :meth:`LinkSpec.validate_likelihood_support` on purpose: a ``SpecialPrior``
+    such as ``LogNormalPrior`` has parameters and passes.
+
+    Parameters
+    ----------
+    likelihood : Prior
+        The likelihood prior to check.
+    calibration : bool, default ``False``
+        Whether the caller is building a calibration target rather than
+        reporting the model; selects the message.
+
+    Raises
+    ------
+    ValueError
+        If *likelihood* is one of ``WRAPPER_LIKELIHOODS`` or has no
+        ``parameters`` attribute.
+    """
+    if not (
+        isinstance(likelihood, WRAPPER_LIKELIHOODS)
+        or getattr(likelihood, "parameters", None) is None
+    ):
+        return
+    dist_name = _distribution_name(likelihood)
+    wrapper = type(likelihood).__name__
+    # Censored resolves to the name it holds, Scaled to its own, so naming
+    # both would read as "Scaled holding 'Scaled'".
+    held = "" if dist_name == wrapper else f" holding '{dist_name}'"
+    if calibration:
+        raise ValueError(
+            f"Observed-outcome (mean-scale) calibration is not supported for a "
+            f"wrapped likelihood ({wrapper}{held}): the wrapper moves the "
+            f"observed mean off any 'mu'-based quantity, so the increment would "
+            f"be the latent, not the observed, lift. central_tendency='median' "
+            f"calibrates the median-scale lift of the latent response (before "
+            f"censoring or any other wrapper) and is appropriate only when the "
+            f"calibration values are themselves such latent-median quantities, "
+            f"not an observed experiment readout."
+        )
+    raise ValueError(
+        f"No mean correction is defined for a wrapped likelihood "
+        f"({wrapper}{held}). The "
+        f"wrapper moves the mean off 'mu', so the contributions cannot "
+        f"be read as means. Use central_tendency='median'."
+    )
+
+
 def _label_parameter(
     value: Any,
     likelihood: Prior,
@@ -329,7 +400,7 @@ _SUPPORT_CHECKS = {
 class LinkSpec(ABC):
     """Strategy object that centralises all link-dependent behaviour.
 
-    Subclasses implement the five link-specific decisions:
+    Subclasses implement the six link-specific decisions:
 
     * :meth:`inverse_link` -- map the linear predictor to the response scale.
     * :meth:`default_likelihood` -- default likelihood prior.
@@ -337,14 +408,24 @@ class LinkSpec(ABC):
     * :meth:`validate_target` -- fit-time target checks.
     * :meth:`create_media_contribution_deterministic` -- graph for
       ``total_media_contribution_original_scale``.
+    * :meth:`channel_incremental_contribution` -- the per-channel level change
+      a cost-per-target calibration constrains, registered under
+      :attr:`channel_increment_var`.
 
     One concrete helper is shared by all links:
     :meth:`create_total_response_deterministic` (the mu-effect objective
     ``total_response_original_scale``, registered by ``MMM.build_model`` only
-    when the model has mu effects).
+    when the model has mu effects).  :meth:`mean_ratio_tensor` is concrete too:
+    it returns ``None`` unless the link overrides it.
     """
 
     link: LinkFunction
+
+    #: Name of the Deterministic holding :meth:`channel_incremental_contribution`.
+    #: A name ending in ``_original_scale`` is rebuilt on load with
+    #: ``MMM.add_original_scale_contribution_variable``, so only a link whose
+    #: increment *is* that transform of a model variable may use one.
+    channel_increment_var: str
 
     @abstractmethod
     def inverse_link(self, mu: XTensorVariable) -> XTensorVariable:
@@ -403,6 +484,104 @@ class LinkSpec(ABC):
         link, ``{output_var}_original_scale``) as :func:`pmd.Deterministic`
         nodes.
         """
+
+    @abstractmethod
+    def channel_incremental_contribution(
+        self,
+        mu_var: XTensorVariable,
+        channel_contribution: XTensorVariable,
+        target_scale: XTensorVariable,
+    ) -> XTensorVariable:
+        r"""Per-channel, per-date level change from removing that channel's term.
+
+        The change in the response (original scale) at date :math:`t` when
+        channel :math:`c`'s term :math:`m_{t,c}` is dropped from the linear
+        predictor, every other term held fixed:
+
+        .. math::
+
+            \Delta_{t,c} = \text{inv}(\mu_t) - \text{inv}(\mu_t - m_{t,c})
+
+        on the ``target_scale``.  For a channel whose spend reaches the
+        response only through ``channel_contribution`` -- no ``mu_effect``
+        reads its spend -- dropping its term is the same as setting its spend
+        to zero over the fitted window, so :math:`\sum_t \Delta_{t,c}` is the
+        all-time spend counterfactual of
+        :class:`~pymc_marketing.mmm.incrementality.Incrementality`, and it is
+        what :meth:`~pymc_marketing.mmm.mmm.MMM.add_cost_per_target_calibration`
+        constrains.
+
+        :math:`\text{inv}(\mu)` is the conditional **median** of the response
+        (the mean too, under the identity link with a ``Normal`` likelihood);
+        :meth:`mean_ratio_tensor` is the factor to the conditional mean.
+
+        Parameters
+        ----------
+        mu_var : XTensorVariable
+            The finalized linear predictor, carrying ``date`` and ``dims`` in
+            any order (``MMM.build_model`` transposes it to ``("date", *dims)``
+            under the log link only).
+        channel_contribution : XTensorVariable
+            The per-channel term of the linear predictor, dims
+            ``("date", *dims, "channel")``.
+        target_scale : XTensorVariable
+            The target scaling factor.
+
+        Returns
+        -------
+        XTensorVariable
+            The increment, dims ``("date", *dims, "channel")``, on the
+            original scale of the target.
+        """
+
+    def mean_ratio_tensor(
+        self,
+        model: pm.Model,
+        likelihood: Prior,
+        output_var: str = "y",
+    ) -> XTensorVariable | None:
+        """Graph counterpart of :meth:`_mean_ratio` for a channel increment.
+
+        The factor taking :meth:`channel_incremental_contribution` from the
+        median to the conditional-mean scale, built from *model*'s own
+        likelihood parameters so that it can enter a likelihood term (a
+        cost-per-target calibration) rather than post-process a posterior.
+
+        ``None`` by default, meaning the increment is the same on both scales.
+        That holds for the identity link with every likelihood whose mean is
+        ``mu``.  Under ``TruncatedNormal`` the mean also moves through the
+        truncation offset, which is not a factor; like
+        ``MMM.compute_counterfactual_contributions_dataset``, the increment
+        leaves that offset out.  A wrapper likelihood (``Censored``,
+        ``Scaled``) is refused on every link, as :meth:`to_mean_scale` and
+        :meth:`mean_scale_factor` refuse it: the wrapper moves the observed
+        mean off any ``mu``-based quantity, so no increment on the mean scale
+        can be built from the graph.
+
+        Parameters
+        ----------
+        model : pm.Model
+            The model whose likelihood parameters the factor is built from.
+        likelihood : Prior
+            The likelihood prior the model was built with.  The refusal
+            dispatches on it, not on the model's variables.
+        output_var : str, default ``"y"``
+            Name of the observed variable, used to locate the likelihood
+            parameters in *model*.
+
+        Returns
+        -------
+        XTensorVariable or None
+            The factor, with the dims of the likelihood parameters it is built
+            from, or ``None`` when the link needs none.
+
+        Raises
+        ------
+        ValueError
+            If *likelihood* is a wrapper.
+        """
+        _reject_wrapped_likelihood(likelihood, calibration=True)
+        return None
 
     def create_total_response_deterministic(
         self,
@@ -608,9 +787,10 @@ class LinkSpec(ABC):
     ) -> None:
         """Raise or warn where ``E[y]`` is undefined or unknown for *likelihood*.
 
-        No-op by default: :meth:`validate_likelihood_compatibility` pins each
-        non-identity link to one likelihood, so there is nothing left to
-        dispatch on.  ``IdentityLinkSpec`` overrides it.
+        No-op by default, for a link whose :meth:`validate_likelihood_compatibility`
+        leaves nothing to check at this point.  Both built-in links override
+        it: the identity link dispatches on the likelihood, and the log link
+        refuses the wrappers its validator looks through.
 
         Parameters
         ----------
@@ -811,6 +991,10 @@ class IdentityLinkSpec(LinkSpec):
     """Identity link: ``E[y] = mu * target_scale``."""
 
     link = LinkFunction.IDENTITY
+    # The increment is channel_contribution * target_scale, exactly what
+    # add_original_scale_contribution_variable registers under this name, so
+    # the two share one node and the name is rebuilt on load.
+    channel_increment_var = "channel_contribution_original_scale"
 
     def inverse_link(self, mu: XTensorVariable) -> XTensorVariable:
         """Return *mu* unchanged (identity transform)."""
@@ -851,6 +1035,21 @@ class IdentityLinkSpec(LinkSpec):
             "total_media_contribution_original_scale",
             (channel_contribution.sum(dim="date") * target_scale).sum(),
         )
+
+    def channel_incremental_contribution(
+        self,
+        mu_var: XTensorVariable,
+        channel_contribution: XTensorVariable,
+        target_scale: XTensorVariable,
+    ) -> XTensorVariable:
+        """Return ``channel_contribution * target_scale``.
+
+        Under the identity link the base term cancels in the difference, so the
+        increment is the contribution itself -- the same tensor
+        ``add_original_scale_contribution_variable(["channel_contribution"])``
+        registers as ``channel_contribution_original_scale``.
+        """
+        return channel_contribution * target_scale
 
     def to_mean_scale(
         self,
@@ -939,31 +1138,7 @@ class IdentityLinkSpec(LinkSpec):
         """
         dist_name = _distribution_name(likelihood)
 
-        # Wrappers such as Censored and Scaled resolve to the name of the
-        # distribution they hold, but move its mean, so E[y] != mu even for the
-        # response-scale names. Reject them before dispatching, rather than
-        # silently returning median-scale numbers labelled as means.
-        #
-        # Named types first, so that the day pymc-extras gives a wrapper its
-        # own 'parameters' the hard error stays a hard error instead of turning
-        # into wrong numbers. The duck-typed arm stays as the catch-all for a
-        # wrapper this module has not been told about. It is narrower than the
-        # check in validate_likelihood_support on purpose: a SpecialPrior such
-        # as LogNormalPrior has parameters and passes.
-        if (
-            isinstance(likelihood, WRAPPER_LIKELIHOODS)
-            or getattr(likelihood, "parameters", None) is None
-        ):
-            wrapper = type(likelihood).__name__
-            # Censored resolves to the name it holds, Scaled to its own, so
-            # naming both would read as "Scaled holding 'Scaled'".
-            held = "" if dist_name == wrapper else f" holding '{dist_name}'"
-            raise ValueError(
-                f"No mean correction is defined for a wrapped likelihood "
-                f"({wrapper}{held}). The "
-                f"wrapper moves the mean off 'mu', so the contributions cannot "
-                f"be read as means. Use central_tendency='median'."
-            )
+        _reject_wrapped_likelihood(likelihood)
 
         # validate_likelihood_compatibility rejects these at build time, so a
         # model cannot reach here with one. Rejected again rather than warned
@@ -1149,6 +1324,10 @@ class LogLinkSpec(LinkSpec):
     """
 
     link = LinkFunction.LOG
+    # No _original_scale suffix: under this link that suffix means
+    # exp(variable) * target_scale, and there is no variable whose transform
+    # the increment is, so build_from_idata could not rebuild it.
+    channel_increment_var = "channel_incremental_contribution"
 
     def inverse_link(self, mu: XTensorVariable) -> XTensorVariable:
         """Return ``exp(mu)`` (the conditional median of the LogNormal response)."""
@@ -1225,6 +1404,29 @@ class LogLinkSpec(LinkSpec):
             y_hat.transpose("date", ...),
         )
 
+    def channel_incremental_contribution(
+        self,
+        mu_var: XTensorVariable,
+        channel_contribution: XTensorVariable,
+        target_scale: XTensorVariable,
+    ) -> XTensorVariable:
+        r"""Return ``target_scale * exp(mu) * (1 - exp(-channel_contribution))``.
+
+        This is :math:`s\,(e^{\mu_t} - e^{\mu_t - m_{t,c}})`, the median-scale
+        response with channel *c*'s factor removed, written with ``expm1`` so a
+        small :math:`m_{t,c}` does not cancel.  The baseline :math:`s\,e^{\mu_t}`
+        enters as a weight: a dollar in a strong week moves more of the
+        response than a dollar in a weak one, which is a property of the
+        multiplicative model, not of this formula.
+
+        It is on the **median** scale, like every other original-scale node
+        the log link registers.  The conditional-mean increment is this times
+        :meth:`mean_ratio_tensor`, :math:`\exp(\sigma^2 / 2)`, which carries the
+        dims of the likelihood scale (``dims`` by default), so it moves each
+        cell's ratio by that cell's factor rather than every ratio by one.
+        """
+        return -ptxm.expm1(-channel_contribution) * ptxm.exp(mu_var) * target_scale
+
     def to_mean_scale(
         self,
         dataset: xr.Dataset,
@@ -1236,15 +1438,45 @@ class LogLinkSpec(LinkSpec):
         """Multiply by the LogNormal mean/median ratio.
 
         The log-link model is multiplicative in the components, so the
-        proportional form is the right one here, and the base
-        :meth:`_validate_mean_defined` is a no-op because
-        :meth:`validate_likelihood_compatibility` already pins the log link to
-        ``LogNormal``.  It is still called, so that both entry points reject
-        the same likelihoods on every link rather than only on the one that
-        currently overrides the check.
+        proportional form is the right one here.  :meth:`_validate_mean_defined`
+        is called first, so that both entry points reject the same likelihoods
+        on every link.
         """
         self._validate_mean_defined(posterior, likelihood, output_var)
         return dataset * self._mean_ratio(posterior, output_var)
+
+    def _validate_mean_defined(
+        self,
+        posterior: xr.Dataset,
+        likelihood: Prior,
+        output_var: str,
+        as_factor: bool = False,
+    ) -> None:
+        """Refuse a wrapper likelihood; every other log-link likelihood is LogNormal.
+
+        :meth:`validate_likelihood_compatibility` pins the log link to
+        ``LogNormal`` but looks through ``Censored``, so a censored model
+        reaches here with an observed mean that is not
+        ``exp(mu + sigma**2 / 2)``.  The factor would then be the latent mean
+        correction, labelled as the observed one.
+
+        Parameters
+        ----------
+        posterior : xr.Dataset
+            Posterior group of the fitted model's ``DataTree``; unused.
+        likelihood : Prior
+            The likelihood prior to check.
+        output_var : str
+            Name of the observed variable; unused.
+        as_factor : bool, default ``False``
+            Unused: the LogNormal correction is always a factor.
+
+        Raises
+        ------
+        ValueError
+            If *likelihood* is a wrapper.
+        """
+        _reject_wrapped_likelihood(likelihood)
 
     def _mean_ratio(
         self,
@@ -1274,6 +1506,57 @@ class LogLinkSpec(LinkSpec):
                 f"prior. Use central_tendency='median' or give sigma a prior."
             )
         return np.exp(posterior[sigma_name] ** 2 / 2)
+
+    def mean_ratio_tensor(
+        self,
+        model: pm.Model,
+        likelihood: Prior,
+        output_var: str = "y",
+    ) -> XTensorVariable | None:
+        r"""Return ``exp(sigma**2 / 2)`` built from *model*'s likelihood scale.
+
+        The graph counterpart of :meth:`_mean_ratio`, with the same
+        requirements: the likelihood has to be a plain ``LogNormal`` (a
+        ``Censored`` one is refused first, before the scale is looked up,
+        because the model still carries ``y_sigma`` and the factor would be
+        the latent, not the observed, mean correction), and the scale has to
+        be a model variable, ``f"{output_var}_sigma"``.
+
+        Parameters
+        ----------
+        model : pm.Model
+            The model holding the likelihood scale.
+        likelihood : Prior
+            The likelihood prior the model was built with.
+        output_var : str, default ``"y"``
+            Name of the observed variable.
+
+        Returns
+        -------
+        XTensorVariable
+            The factor, with the dims of the likelihood scale.
+
+        Raises
+        ------
+        ValueError
+            If *likelihood* is a wrapper, or if ``f"{output_var}_sigma"`` is
+            not a variable of *model* (e.g. a fixed-sigma likelihood).
+        """
+        _reject_wrapped_likelihood(likelihood, calibration=True)
+        sigma_name = f"{output_var}_sigma"
+        if sigma_name not in model.named_vars:
+            raise ValueError(
+                f"A mean-scale increment requires the likelihood scale "
+                f"'{sigma_name}' as a model variable, which was not found. This "
+                f"happens when the LogNormal sigma is fixed rather than given a "
+                f"prior. Give sigma a prior. central_tendency='median' "
+                f"calibrates the median-scale increment, a factor of "
+                f"exp(sigma**2 / 2) below the mean increment an experiment "
+                f"measures (per cell of the likelihood scale), so it is "
+                f"appropriate only when the calibration values were derived "
+                f"from median-scale quantities."
+            )
+        return ptxm.exp(model[sigma_name] ** 2 / 2)
 
 
 LINK_SPECS: dict[LinkFunction, type[LinkSpec]] = {

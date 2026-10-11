@@ -634,6 +634,12 @@ class WeibullCDFAdstock(AdstockTransformation):
     ``type=WeibullType.CDF`` and the wrapper's ``l_max``, ``normalize`` and ``mode``
     settings.
 
+    .. note::
+        ``l_max`` is the total number of kernel weights: the current period plus
+        ``l_max - 1`` lags. Releases up to and including 1.2.0 applied one extra
+        CDF weight (``l_max + 1`` in total), so models saved with those releases
+        can produce different predictions when reloaded.
+
     Parameters
     ----------
     lam : tensor

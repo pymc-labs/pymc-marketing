@@ -30,7 +30,15 @@ import pymc_marketing.r2d2  # noqa: E402
 
 # Register SpecialPrior deserializers (LogNormalPrior, LaplacePrior, etc.)
 import pymc_marketing.special_priors  # noqa: E402, F401
-from pymc_marketing import bass, clv, customer_choice, mmm, pie, terms  # noqa: E402
+from pymc_marketing import (  # noqa: E402
+    bass,
+    clv,
+    customer_choice,
+    mmm,
+    pie,
+    terms,
+    terms_gp,
+)
 from pymc_marketing.version import __version__  # noqa: E402
 
 __all__ = [
@@ -42,4 +50,5 @@ __all__ = [
     "pie",
     "r2d2",
     "terms",
+    "terms_gp",
 ]

@@ -325,6 +325,90 @@ class TestLinkSpec:
                 LinkFunction.LOG, Prior("Normal", sigma=1)
             )
 
+    @staticmethod
+    def _increment_inputs():
+        from pytensor.xtensor import as_xtensor
+
+        rng = np.random.default_rng(7)
+        mu = rng.normal(0, 0.5, size=(5, 2))
+        contribution = rng.uniform(0.01, 0.3, size=(5, 2, 3))
+        contribution[0, 0, 0] = 1e-12
+        scale = np.array([100.0, 250.0])
+        return (
+            (mu, contribution, scale),
+            (
+                as_xtensor(mu, dims=("date", "geo")),
+                as_xtensor(contribution, dims=("date", "geo", "channel")),
+                as_xtensor(scale, dims=("geo",)),
+            ),
+        )
+
+    def test_identity_channel_increment_is_scaled_contribution(self):
+        (_, contribution, scale), tensors = self._increment_inputs()
+        out = IdentityLinkSpec().channel_incremental_contribution(*tensors)
+        assert out.dims == ("date", "geo", "channel")
+        np.testing.assert_allclose(out.eval(), contribution * scale[None, :, None])
+
+    def test_log_channel_increment_is_counterfactual_level_change(self):
+        """s(exp(mu) - exp(mu - m_c)), accurate where m_c is tiny."""
+        (mu, contribution, scale), tensors = self._increment_inputs()
+        out = LogLinkSpec().channel_incremental_contribution(*tensors)
+        assert out.dims == ("date", "geo", "channel")
+        expected = scale[None, :, None] * (
+            np.exp(mu)[:, :, None] - np.exp(mu[:, :, None] - contribution)
+        )
+        values = out.eval()
+        np.testing.assert_allclose(values[1:], expected[1:], rtol=1e-12)
+        # First-order limit s * exp(mu) * m_c, which the literal difference
+        # exp(mu) - exp(mu - m_c) only reproduces to ~1e-4 at m_c = 1e-12.
+        np.testing.assert_allclose(
+            values[0, 0, 0], scale[0] * np.exp(mu[0, 0]) * 1e-12, rtol=1e-9
+        )
+
+    def test_mean_ratio_tensor_is_lognormal_factor_with_sigma_dims(self):
+        """Identity: no factor. Log: exp(sigma**2 / 2) carrying y_sigma's dims."""
+        with pm.Model(coords={"geo": ["a", "b"]}) as model:
+            sigma = pmd.HalfNormal("y_sigma", sigma=0.5, dims=("geo",))
+        likelihood = Prior("LogNormal", sigma=Prior("HalfNormal", sigma=0.5))
+
+        assert IdentityLinkSpec().mean_ratio_tensor(model, likelihood) is None
+
+        factor = LogLinkSpec().mean_ratio_tensor(model, likelihood)
+        assert factor.dims == ("geo",)
+        values = np.array([0.25, 0.5])
+        np.testing.assert_allclose(
+            factor.eval({sigma: values}), np.exp(values**2 / 2), rtol=1e-12
+        )
+
+    def test_log_mean_ratio_tensor_needs_sigma_variable(self):
+        """A fixed sigma is refused with the safe remedy first: give sigma a prior."""
+        with pm.Model() as model:
+            pmd.Normal("other", dims=())
+        with pytest.raises(ValueError, match="Give sigma a prior"):
+            LogLinkSpec().mean_ratio_tensor(model, Prior("LogNormal", sigma=0.2))
+
+    @pytest.mark.parametrize("spec", [IdentityLinkSpec, LogLinkSpec])
+    def test_mean_ratio_tensor_refuses_wrapped_likelihood(self, spec):
+        """Censoring moves E[y] off the mu-based mean on either link.
+
+        The log link looks through ``Censored`` at build time and the model
+        still carries ``y_sigma``, so the wrapper has to be refused here, before
+        the factor is built.  Unlike the reporting entry points, the message
+        must not send the caller to ``"median"`` unqualified: on this path the
+        value being matched is an observed readout, and ``"median"`` would
+        pair it with the latent-median lift.
+        """
+        with pm.Model(coords={"geo": ["a", "b"]}) as model:
+            pmd.HalfNormal("y_sigma", sigma=0.5, dims=("geo",))
+        likelihood = Censored(
+            Prior("LogNormal", sigma=Prior("HalfNormal", sigma=0.5)), upper=1.0
+        )
+        with pytest.raises(
+            ValueError,
+            match=r"not supported for a wrapped likelihood.*appropriate only when",
+        ):
+            spec().mean_ratio_tensor(model, likelihood)
+
 
 class TestLogSaturation:
     """Targeted tests for LogSaturation beyond the auto-discovered parametrized suite."""
@@ -1281,6 +1365,23 @@ class TestTruncatedNormalMeanCorrection:
                 xr.DataArray(1.0),
             )
 
+    def test_log_censored_wrapper_raises_rather_than_using_the_wrong_mean(self):
+        """The log link reaches here with a censored LogNormal and must refuse it."""
+        posterior = xr.Dataset(
+            {
+                "mu": xr.DataArray([[1.0]], dims=("chain", "date")),
+                "y_sigma": xr.DataArray([[1.0]], dims=("chain", "date")),
+            }
+        )
+        dataset = xr.Dataset({"intercept": posterior["mu"]})
+        with pytest.raises(ValueError, match="wrapped likelihood"):
+            LogLinkSpec().to_mean_scale(
+                dataset,
+                posterior,
+                Censored(Prior("LogNormal", sigma=1), upper=1.0),
+                xr.DataArray(1.0),
+            )
+
     def test_scaled_wrapper_is_refused_and_named(self):
         """A Scaled likelihood moves the mean off ``mu`` like any other wrapper.
 
@@ -1532,10 +1633,24 @@ class TestMeanScaleFactor:
     def test_censored_wrapper_refuses(self):
         # The value here is the second entry point, not the inner prior: the
         # wrapper is rejected before the distribution it holds is consulted.
-        with pytest.raises(ValueError, match="wrapped likelihood"):
+        # A reporting entry point gets the reporting message, whose remedy
+        # (read the median) is right for a caller reporting the model.
+        with pytest.raises(ValueError, match="No mean correction is defined"):
             IdentityLinkSpec().mean_scale_factor(
                 self._posterior(),
                 Censored(Prior("TruncatedNormal", lower=0, sigma=1), lower=0),
+            )
+
+    def test_log_censored_wrapper_refuses(self):
+        """``validate_likelihood_compatibility`` looks through ``Censored`` under
+        the log link, so the factor entry point is where a censored LogNormal
+        has to be refused rather than rescaled by ``exp(sigma**2 / 2)``.  As a
+        reporting entry point it gets the reporting message, not the
+        calibration one."""
+        with pytest.raises(ValueError, match="No mean correction is defined"):
+            LogLinkSpec().mean_scale_factor(
+                self._posterior(),
+                Censored(Prior("LogNormal", sigma=1), upper=1.0),
             )
 
     def test_studentt_at_or_below_one_refuses(self):

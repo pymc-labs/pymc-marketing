@@ -74,6 +74,16 @@ class MMMCVPlotSuite:
     cv_data : xr.DataTree
         Combined DataTree produced by ``TimeSliceCrossValidator.run()``.
         Must contain a ``cv_metadata`` group with per-fold metadata.
+
+    Notes
+    -----
+    :meth:`predictions` and :meth:`crps` draw
+    ``posterior_predictive["y_original_scale"]``, the predictive draws of the
+    target on the original scale, which ``TimeSliceCrossValidator.run()``
+    provides for every fold fitted with the library's ``MMM``, under both
+    link functions. See
+    :class:`~pymc_marketing.mmm.summary.cv.MMMCVSummaryFactory` for how this
+    differs from the log link's median ``posterior["y_original_scale"]``.
     """
 
     def __init__(self, cv_data: xr.DataTree) -> None:
