@@ -496,7 +496,7 @@ class TestPredictChoices:
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.slow
+@pytest.mark.recovery
 class TestParametricRecovery:
     def test_rank_correlation_recovered(self):
         """Posterior-mean item utilities should rank-correlate with truth."""
@@ -906,7 +906,7 @@ class TestPartWorthsSaveLoad:
         )
 
 
-@pytest.mark.slow
+@pytest.mark.recovery
 class TestPartWorthsRecovery:
     def test_partworths_rank_correlation_recovered(self):
         """Population part-worths should be rank-recovered from synthetic data."""
@@ -1461,7 +1461,7 @@ class TestFullCovariance:
         model.build_model()
         assert "items_bis" not in model.coords
 
-    @pytest.mark.slow
+    @pytest.mark.recovery
     def test_correlation_matrix_recovered(self):
         """Posterior mean of corr_matrix should be close to the ground truth."""
         corr_true = np.array(

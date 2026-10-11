@@ -1,0 +1,41 @@
+name: Parameter-recovery tests
+
+# Statistical recovery / simulation studies (NUTS fits inside each test).
+# Too slow and too seed-sensitive to gate pull requests, so these run on a
+# schedule with a `--only-recovery` selection instead of per-PR.
+on:
+  schedule:
+    # nightly at 06:00 UTC
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test_recovery:
+    runs-on: ubuntu-latest-8-cores
+    strategy:
+      fail-fast: false
+      matrix:
+        group: [1, 2]
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install uv
+        uses: astral-sh/setup-uv@v8.3.2
+      - name: Set up Python
+        run: uv python install 3.13
+      - name: Set up environment
+        run: uv venv --python 3.13
+      - name: Install package and dependencies
+        run: |
+          sudo apt-get install graphviz graphviz-dev
+          uv pip install -e .[test]
+      - name: Run recovery tests
+        run: |
+          uv run --no-sync --frozen pytest --only-recovery \
+                 --splits 2 \
+                 --group ${{ matrix.group }} \
+                 --splitting-algorithm least_duration \
+                 --durations-path .test_durations

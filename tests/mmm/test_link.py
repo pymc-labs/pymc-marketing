@@ -498,7 +498,7 @@ class TestLogSaturation:
         elasticity = beta * x / (1.0 + x)  # d/dlog x of beta*log(1+x)
         np.testing.assert_allclose(elasticity, beta, rtol=1e-4)
 
-    @pytest.mark.slow
+    @pytest.mark.recovery
     def test_log_saturation_elasticity_recovery(self):
         """A real (small) fit recovers a known elasticity within tolerance."""
         rng = np.random.default_rng(42)

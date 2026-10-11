@@ -3089,7 +3089,7 @@ def _posterior_roas(mmm):
     return roas.stack(sample=("chain", "draw"))
 
 
-@pytest.mark.slow
+@pytest.mark.recovery
 class TestRoasRecovery:
     """The three notebook variants recover the DGP's ROAS, and agree."""
 

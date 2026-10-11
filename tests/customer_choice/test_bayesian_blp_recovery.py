@@ -20,8 +20,8 @@ pooling, and Monte-Carlo simulation stability.
 
 Each test runs a small but realistic NUTS fit (a few hundred draws on a
 T~40 panel via ``numpyro``); the wave together takes ~10-15 min on a
-laptop CPU. Mark all tests with ``pytest.mark.slow`` so they are opt-in
-via ``pytest -m slow``.
+laptop CPU. Mark all tests with ``pytest.mark.recovery`` so they run
+only via ``pytest --only-recovery`` or ``--run-slow``.
 """
 
 import warnings
@@ -32,7 +32,7 @@ import pytest
 
 from pymc_marketing.customer_choice import BayesianBLP, generate_blp_panel
 
-pytestmark = pytest.mark.slow
+pytestmark = pytest.mark.recovery
 
 
 _FIT_KWARGS = dict(
