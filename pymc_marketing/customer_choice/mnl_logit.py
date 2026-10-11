@@ -140,10 +140,10 @@ class MNLogit(ChoiceDataMixin, ModelBuilder):
             )
         self._warn_if_choice_df_at_init(choice_df)
 
-        self.choice_df: pd.DataFrame | None = choice_df
-        self.utility_equations: list[str] = utility_equations
+        self.choice_df: pd.DataFrame | None = None
         self.depvar: str = depvar
         self.covariates: list[str] = covariates
+        self._set_choice_inputs(choice_df, utility_equations)
 
         model_config = model_config or {}
         model_config = parse_model_config(model_config)
@@ -549,12 +549,11 @@ class MNLogit(ChoiceDataMixin, ModelBuilder):
         Raises
         ------
         ValueError
-            If no choice data has been provided.
+            If no choice data has been provided, or if the model was already
+            built and the passed choice data or utility equations differ from
+            the ones it was built with.
         """
-        if choice_df is not None:
-            self.choice_df = choice_df
-        if utility_equations is not None:
-            self.utility_equations = utility_equations
+        self._set_choice_inputs(choice_df, utility_equations)
 
         if not hasattr(self, "model"):
             self.build_model()
@@ -616,31 +615,7 @@ class MNLogit(ChoiceDataMixin, ModelBuilder):
             If no choice data has been provided, or if the model was already
             built with different choice data or utility equations.
         """
-        if (
-            hasattr(self, "model")
-            and choice_df is not None
-            and self.choice_df is not None
-            and not self.choice_df.equals(choice_df)
-        ):
-            raise ValueError(
-                "The model was built with different data. "
-                "Create a new model instance to fit new data."
-            )
-        if (
-            hasattr(self, "model")
-            and utility_equations is not None
-            and utility_equations != self.utility_equations
-        ):
-            raise ValueError(
-                "The model was built with different utility equations. "
-                "Create a new model instance to use different utility equations."
-            )
-
-        # Allow updating data at fit time
-        if choice_df is not None:
-            self.choice_df = choice_df
-        if utility_equations is not None:
-            self.utility_equations = utility_equations
+        self._set_choice_inputs(choice_df, utility_equations)
 
         return super().fit(
             method=method,

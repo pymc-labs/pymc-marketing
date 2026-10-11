@@ -39,9 +39,12 @@ class ChoiceDataMixin:
     ----------
     choice_df : pd.DataFrame or None
         The choice data set at construction or :meth:`fit` time.
+    utility_equations : list of str
+        The utility equations set at construction or :meth:`fit` time.
     """
 
     choice_df: pd.DataFrame | None
+    utility_equations: list[str]
 
     if TYPE_CHECKING:
         # Provided by the model-builder base that these classes are mixed with.
@@ -104,6 +107,77 @@ class ChoiceDataMixin:
                 "Pass it to `fit(choice_df)` first."
             )
         return self.choice_df
+
+    def _same_choice_data(self, choice_df: pd.DataFrame) -> bool:
+        """Whether ``choice_df`` holds the same values as the stored data.
+
+        Values are compared exactly (no tolerance) while ignoring dtype, index
+        type, column type and names. A frame restored from NetCDF can change
+        dtype (datetime resolution, object to string) and the index name, so
+        those are ignored, but any change to the values is caught.
+
+        Returns
+        -------
+        bool
+            ``True`` if the stored data is not ``None`` and matches by value.
+        """
+        if self.choice_df is None:
+            return False
+        try:
+            pd.testing.assert_frame_equal(
+                self.choice_df,
+                choice_df,
+                check_dtype=False,
+                check_index_type=False,
+                check_column_type=False,
+                check_names=False,
+                check_exact=True,
+            )
+        except AssertionError:
+            return False
+        return True
+
+    def _set_choice_inputs(
+        self,
+        choice_df: pd.DataFrame | None = None,
+        utility_equations: list[str] | None = None,
+    ) -> None:
+        """Store choice data and utility equations, guarding a built model.
+
+        ``None`` leaves the stored value untouched and runs no check. Non-``None``
+        values are checked against the already-built model before either is
+        stored, so a failing check never leaves a half-updated model behind. Both
+        are then stored as copies, so later in-place edits to the caller's frame
+        or list do not change what the fitted model was built on.
+
+        Raises
+        ------
+        ValueError
+            If the model was already built with different choice data or
+            different utility equations.
+        """
+        if (
+            choice_df is not None
+            and hasattr(self, "model")
+            and not self._same_choice_data(choice_df)
+        ):
+            raise ValueError(
+                "The model was built with different choice data. "
+                "Create a new model instance to fit new data."
+            )
+        if (
+            utility_equations is not None
+            and hasattr(self, "model")
+            and utility_equations != self.utility_equations
+        ):
+            raise ValueError(
+                "The model was built with different utility equations. "
+                "Create a new model instance to use different utility equations."
+            )
+        if choice_df is not None:
+            self.choice_df = choice_df.copy()
+        if utility_equations is not None:
+            self.utility_equations = list(utility_equations)
 
     @classmethod
     def attrs_to_init_kwargs(cls, attrs: Mapping[str, Any]) -> dict[str, Any]:

@@ -14,9 +14,11 @@
 """Shared choice-data behaviour for ``MNLogit`` and ``NestedLogit``.
 
 These tests exercise only the surface the two classes inherit from
-``ChoiceDataMixin``: supplying choice data to ``fit``, missing constructor
-settings, the constructor deprecation warning and the save/load round trip.
-Model-specific behaviour stays in the per-class test modules.
+``ChoiceDataMixin``: supplying choice data to ``fit`` and
+``sample_prior_predictive``, missing constructor settings, the constructor
+deprecation warning, the refit guard against mismatched or in-place edited
+data, and the save/load round trip. Model-specific behaviour stays in the
+per-class test modules.
 """
 
 import json
@@ -183,7 +185,7 @@ def test_refit_with_different_data_raises(model_case, sample_df, mock_pymc_sampl
     changed_df = sample_df.copy()
     changed_df["alt_X1"] = changed_df["alt_X1"] * 1.2
 
-    with pytest.raises(ValueError, match="different data"):
+    with pytest.raises(ValueError, match="built with different choice data"):
         model.fit(changed_df)
 
     model.fit(sample_df)  # same data is fine
@@ -206,6 +208,101 @@ def test_refit_with_fresh_copy_of_same_data(model_case, sample_df, mock_pymc_sam
 
     assert list(sample_df.columns) == list(fresh_df.columns)
     model.fit(fresh_df)
+
+
+def test_in_place_edit_then_refit_raises(model_case, sample_df, mock_pymc_sample):
+    # The model stores a copy, so mutating the caller's frame after fitting must
+    # make the refit reject the now-mismatched data.
+    model = model_case.build()
+    model.fit(sample_df)
+
+    sample_df.loc[0, "alt_X1"] = sample_df.loc[0, "alt_X1"] + 1
+
+    with pytest.raises(ValueError, match="built with different choice data"):
+        model.fit(sample_df)
+
+
+def test_prior_predictive_different_data_raises(
+    model_case, sample_df, mock_pymc_sample
+):
+    model = model_case.build()
+    model.sample_prior_predictive(choice_df=sample_df)
+
+    changed_df = sample_df.copy()
+    changed_df["alt_X1"] = changed_df["alt_X1"] * 1.2
+
+    with pytest.raises(ValueError, match="built with different choice data"):
+        model.sample_prior_predictive(choice_df=changed_df)
+
+
+def test_prior_predictive_different_equations_raises(
+    model_case, sample_df, other_utility_eqs, mock_pymc_sample
+):
+    model = model_case.build()
+    model.sample_prior_predictive(choice_df=sample_df)
+
+    with pytest.raises(ValueError, match="different utility equations"):
+        model.sample_prior_predictive(utility_equations=other_utility_eqs)
+
+
+def test_fit_prior_predictive_then_fit_keeps_stored_data(
+    model_case, sample_df, mock_pymc_sample
+):
+    model = model_case.build()
+
+    model.fit(sample_df)
+    model.sample_prior_predictive()
+    model.fit()
+
+    pd.testing.assert_frame_equal(model.choice_df, sample_df)
+
+
+def test_loaded_model_refit_guards_on_data(
+    model_case, sample_df, tmp_path, mock_pymc_sample
+):
+    model = model_case.build()
+    model.fit(sample_df, random_seed=42)
+
+    path = tmp_path / "model.nc"
+    model.save(str(path))
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", DeprecationWarning)
+        loaded = model_case.cls.load(str(path))
+
+    # The raises checks run against the frame restored from NetCDF. Exact
+    # comparison means an edit below the default relative tolerance is still
+    # treated as different data.
+    tiny_edit_df = sample_df.copy()
+    tiny_edit_df["alt_X1"] = tiny_edit_df["alt_X1"] + 1e-9
+    with pytest.raises(ValueError, match="built with different choice data"):
+        loaded.fit(tiny_edit_df)
+
+    changed_df = sample_df.copy()
+    changed_df["alt_X1"] = changed_df["alt_X1"] * 1.2
+    with pytest.raises(ValueError, match="built with different choice data"):
+        loaded.fit(changed_df)
+
+    # A refit on the original data survives the NetCDF dtype round trip.
+    loaded.fit(sample_df)
+
+    # The save/load round trip drops the index name, so a frame that names its
+    # index must still be accepted.
+    named_df = sample_df.copy()
+    named_df.index.name = "obs"
+    loaded.fit(named_df)
+
+
+def test_refit_with_in_place_edited_utility_equations_raises(
+    model_case, sample_df, utility_eqs, mock_pymc_sample
+):
+    model = model_case.build()
+    eqs = list(utility_eqs)
+    model.fit(sample_df, utility_equations=eqs)
+
+    eqs[0] = eqs[0] + " + alt_X1"
+
+    with pytest.raises(ValueError, match="different utility equations"):
+        model.fit(utility_equations=eqs)
 
 
 def test_save_load_roundtrip(model_case, sample_df, tmp_path, mock_pymc_sample):
