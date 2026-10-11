@@ -453,7 +453,7 @@ class TestShiftedBetaGeoModel:
             model.build_model(data=self.data)
             assert model.__repr__().replace(" ", "") == repr[1]
 
-    @pytest.mark.slow
+    @pytest.mark.recovery
     @pytest.mark.parametrize(
         "method, rtol",
         [

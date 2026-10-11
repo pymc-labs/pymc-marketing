@@ -341,7 +341,7 @@ class TestBetaGeoModel:
         np.testing.assert_allclose(customer_freq.mean(), ref_freq.mean(), rtol=0.5)
         np.testing.assert_allclose(customer_freq.std(), ref_freq.std(), rtol=0.5)
 
-    @pytest.mark.slow
+    @pytest.mark.recovery
     @pytest.mark.parametrize(
         "method, rtol",
         [

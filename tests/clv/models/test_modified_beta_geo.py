@@ -242,7 +242,7 @@ class TestModifiedBetaGeoModel:
             decimal=5,
         )
 
-    @pytest.mark.slow
+    @pytest.mark.recovery
     @pytest.mark.parametrize(
         "method, rtol",
         [

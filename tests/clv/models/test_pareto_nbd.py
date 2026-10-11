@@ -218,7 +218,7 @@ class TestParetoNBDModel:
             model = ParetoNBDModel()
             model.build_model(data=test_data)
 
-    @pytest.mark.slow
+    @pytest.mark.recovery
     @pytest.mark.parametrize(
         "method, rtol",
         [("mcmc", 0.1), ("map", 0.2), ("demz", 0.2)],

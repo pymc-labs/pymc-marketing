@@ -265,7 +265,7 @@ class TestBetaGeoBetaBinomModel:
         "see https://github.com/pymc-labs/pymc-marketing/pull/2902 and "
         "https://github.com/pymc-labs/pymc-marketing/issues/3058"
     )
-    @pytest.mark.slow
+    @pytest.mark.recovery
     @pytest.mark.parametrize(
         "method, rtol",
         [
