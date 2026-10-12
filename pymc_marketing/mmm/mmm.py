@@ -2181,9 +2181,8 @@ class MMM(RegressionModelBuilder):
         """Return scaled spend for a single channel by name.
 
         Indexes ``channel_data_scaled`` by the model's ``channel`` coordinate,
-        which is the axis of the tensor.  For DataFrame input that matches
-        ``channel_columns``; for ``xr.Dataset`` input it follows the dataset
-        coordinate, which may be ordered differently.
+        which is the axis of the tensor and follows ``channel_columns`` for
+        every input type.
 
         Parameters
         ----------
@@ -2381,7 +2380,10 @@ class MMM(RegressionModelBuilder):
             Fourier components (if applicable). When an :class:`xr.Dataset` or
             :class:`xr.DataArray` is provided, variables should be named ``"channel"``,
             ``"target"``, and optionally ``"control"`` (or the underscore-prefixed
-            internal names ``"_channel"``, ``"_target"``, ``"_control"``).
+            internal names ``"_channel"``, ``"_target"``, ``"_control"``). Its
+            ``channel`` coordinate is put in ``channel_columns`` order, and its
+            ``control`` coordinate in ``control_columns`` order when that is set;
+            labels not listed there are dropped.
 
         y : pd.Series, np.ndarray, xr.DataArray, or None
             The target/response variable for the modeling. If omitted, ``X`` must
