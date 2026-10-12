@@ -28,6 +28,7 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+import pymc as pm
 import pytest
 import xarray as xr
 from pymc_extras.prior import Prior
@@ -452,3 +453,252 @@ def test_custom_betas_fixed_prior_survives_save_load(
     # The prior comparison is the real guard; id equality is a sanity check.
     assert loaded.model_config["betas_fixed_"].to_dict() == custom_prior.to_dict()
     assert loaded.id == model.id
+
+
+def _expected_preprocessed(model_case, df, utility_equations=None):
+    """The arrays a freshly built instance preprocesses ``df`` into."""
+    reference = model_case.build()
+    equations = (
+        reference.utility_equations if utility_equations is None else utility_equations
+    )
+    return reference.preprocess_model_data(df, equations)
+
+
+def _fixed_data_name(model):
+    return "W" if isinstance(model, NestedLogit) else "F"
+
+
+def _assert_model_data(model, X, F, y):
+    """Assert the fitted model's data containers hold the given arrays."""
+    np.testing.assert_array_equal(model.model["X"].get_value(), X)
+    np.testing.assert_array_equal(model.model["y"].get_value(), y)
+    if F is not None and len(F) > 0:
+        np.testing.assert_array_equal(
+            model.model[_fixed_data_name(model)].get_value(), F
+        )
+
+
+def _instance_snapshot(model):
+    """Copy the instance state a restore must put back."""
+    snapshot = {
+        "X": (model.X_data if hasattr(model, "X_data") else model.X).copy(),
+        "y": model.y.copy(),
+        "alternatives": list(model.alternatives),
+        "coords": {name: list(values) for name, values in model.coords.items()},
+    }
+    if isinstance(model, NestedLogit):
+        snapshot["nest_indices"] = {
+            name: list(indices) for name, indices in model.nest_indices["top"].items()
+        }
+        snapshot["all_nests"] = list(model.all_nests)
+        snapshot["lambda_lkup"] = dict(model.lambda_lkup)
+    return snapshot
+
+
+def _assert_instance_state(model, snapshot):
+    """Assert the instance state still matches a snapshot taken earlier."""
+    x = model.X_data if hasattr(model, "X_data") else model.X
+    np.testing.assert_array_equal(x, snapshot["X"])
+    np.testing.assert_array_equal(model.y, snapshot["y"])
+    assert list(model.alternatives) == snapshot["alternatives"]
+    assert {name: list(values) for name, values in model.coords.items()} == snapshot[
+        "coords"
+    ]
+    if isinstance(model, NestedLogit):
+        assert {
+            name: list(indices) for name, indices in model.nest_indices["top"].items()
+        } == snapshot["nest_indices"]
+        assert list(model.all_nests) == snapshot["all_nests"]
+        assert dict(model.lambda_lkup) == snapshot["lambda_lkup"]
+
+
+def test_refit_after_intervention_uses_training_data(
+    model_case, sample_df, mock_pymc_sample
+):
+    model = model_case.build()
+    model.fit(sample_df)
+    expected_X, expected_F, expected_y = _expected_preprocessed(model_case, sample_df)
+
+    intervened = sample_df.copy()
+    intervened["alt_X1"] = intervened["alt_X1"] + 100.0
+    model.apply_intervention(intervened)
+
+    model.fit(sample_df)
+
+    _assert_model_data(model, expected_X, expected_F, expected_y)
+
+
+def test_refit_after_posterior_predictive_uses_training_data(
+    model_case, sample_df, mock_pymc_sample
+):
+    model = model_case.build()
+    model.fit(sample_df)
+    expected_X, expected_F, expected_y = _expected_preprocessed(model_case, sample_df)
+
+    intervened = sample_df.copy()
+    intervened["alt_X1"] = intervened["alt_X1"] + 100.0
+    model.sample_posterior_predictive(choice_df=intervened)
+
+    model.fit(sample_df)
+
+    _assert_model_data(model, expected_X, expected_F, expected_y)
+
+
+def test_sample_posterior_predictive_after_intervention_uses_stored_data(
+    model_case, sample_df, mock_pymc_sample
+):
+    model = model_case.build()
+    model.fit(sample_df)
+    expected_X, expected_F, expected_y = _expected_preprocessed(model_case, sample_df)
+    snapshot = _instance_snapshot(model)
+
+    intervened = pd.concat([sample_df, sample_df], ignore_index=True)
+    intervened["alt_X1"] = intervened["alt_X1"] + 100.0
+    model.apply_intervention(intervened)
+
+    post_pred = model.sample_posterior_predictive()
+
+    assert post_pred["posterior_predictive"]["p"].sizes["obs"] == len(sample_df)
+    _assert_model_data(model, expected_X, expected_F, expected_y)
+    _assert_instance_state(model, snapshot)
+
+
+def test_intervention_with_different_row_count_restores_model(
+    model_case, sample_df, mock_pymc_sample
+):
+    model = model_case.build()
+    model.fit(sample_df)
+    expected_X, expected_F, expected_y = _expected_preprocessed(model_case, sample_df)
+
+    intervened = pd.concat([sample_df, sample_df], ignore_index=True)
+    model.apply_intervention(intervened)
+
+    assert model.model["X"].get_value().shape[0] == len(sample_df)
+    _assert_model_data(model, expected_X, expected_F, expected_y)
+    assert len(model.model.coords["obs"]) == len(sample_df)
+
+
+def test_posterior_predictive_with_different_row_count_restores_model(
+    model_case, sample_df, mock_pymc_sample
+):
+    model = model_case.build()
+    model.fit(sample_df)
+    expected_X, expected_F, expected_y = _expected_preprocessed(model_case, sample_df)
+
+    intervened = pd.concat([sample_df, sample_df], ignore_index=True)
+    model.sample_posterior_predictive(choice_df=intervened)
+
+    _assert_model_data(model, expected_X, expected_F, expected_y)
+    assert len(model.model.coords["obs"]) == len(sample_df)
+
+
+def test_failed_posterior_predictive_restores_model(
+    model_case, sample_df, monkeypatch, mock_pymc_sample
+):
+    model = model_case.build()
+    model.fit(sample_df)
+    expected_X, expected_F, expected_y = _expected_preprocessed(model_case, sample_df)
+    snapshot = _instance_snapshot(model)
+
+    intervened = pd.concat([sample_df, sample_df], ignore_index=True)
+
+    def boom(*args, **kwargs):
+        raise RuntimeError("sampling blew up")
+
+    monkeypatch.setattr(pm, "sample_posterior_predictive", boom)
+
+    with pytest.raises(RuntimeError, match="sampling blew up"):
+        model.sample_posterior_predictive(choice_df=intervened)
+
+    _assert_model_data(model, expected_X, expected_F, expected_y)
+    _assert_instance_state(model, snapshot)
+    assert len(model.model.coords["obs"]) == len(sample_df)
+
+
+def test_failed_restore_keeps_original_error(
+    model_case, sample_df, monkeypatch, mock_pymc_sample
+):
+    model = model_case.build()
+    model.fit(sample_df)
+
+    intervened = pd.concat([sample_df, sample_df], ignore_index=True)
+
+    def sample_boom(*args, **kwargs):
+        raise RuntimeError("sampling blew up")
+
+    def restore_boom():
+        raise RuntimeError("restore failed")
+
+    monkeypatch.setattr(pm, "sample_posterior_predictive", sample_boom)
+    monkeypatch.setattr(model, "_restore_model_data", restore_boom)
+
+    with pytest.raises(RuntimeError, match="sampling blew up") as excinfo:
+        model.sample_posterior_predictive(choice_df=intervened)
+
+    assert isinstance(excinfo.value.__cause__, RuntimeError)
+    assert "restore failed" in str(excinfo.value.__cause__)
+
+
+@pytest.mark.parametrize(
+    "method",
+    [
+        pytest.param("apply_intervention", id="apply-intervention"),
+        pytest.param("sample_posterior_predictive", id="sample-posterior-predictive"),
+    ],
+)
+def test_no_fixed_covariates_different_row_count(
+    model_case, sample_df, utility_eqs, mock_pymc_sample, method
+):
+    no_fixed = [equation.split(" | ")[0] for equation in utility_eqs]
+    model = model_case.build(utility_equations=no_fixed)
+    model.fit(sample_df)
+    expected_X, expected_F, expected_y = _expected_preprocessed(
+        model_case, sample_df, no_fixed
+    )
+    assert "F" not in model.model.named_vars
+    assert "W" not in model.model.named_vars
+
+    intervened = pd.concat([sample_df, sample_df], ignore_index=True)
+    if method == "apply_intervention":
+        model.apply_intervention(intervened)
+    else:
+        model.sample_posterior_predictive(choice_df=intervened)
+
+    assert model.model["X"].get_value().shape[0] == len(sample_df)
+    _assert_model_data(model, expected_X, expected_F, expected_y)
+    assert len(model.model.coords["obs"]) == len(sample_df)
+
+
+def test_new_equations_intervention_keeps_fitted_model(
+    model_case, sample_df, utility_eqs, mock_pymc_sample
+):
+    model = model_case.build()
+    model.fit(sample_df)
+    fitted_model = model.model
+    snapshot = _instance_snapshot(model)
+
+    # New equations reorder the alternatives and the new data has more rows.
+    new_equations = list(reversed(utility_eqs))
+    intervened = pd.concat([sample_df, sample_df], ignore_index=True)
+    model.apply_intervention(intervened, new_equations)
+
+    assert model.model is fitted_model
+    _assert_instance_state(model, snapshot)
+
+
+def test_predictive_methods_return_types_unchanged(
+    model_case, sample_df, mock_pymc_sample
+):
+    model = model_case.build()
+    model.fit(sample_df)
+
+    post_pred = model.sample_posterior_predictive(
+        choice_df=sample_df, extend_idata=False
+    )
+    assert isinstance(post_pred, xr.DataTree)
+    assert "posterior_predictive" in post_pred
+
+    intervention = model.apply_intervention(sample_df.copy())
+    assert isinstance(intervention, xr.DataTree)
+    assert "posterior_predictive" in intervention
+    assert model.intervention_idata is intervention

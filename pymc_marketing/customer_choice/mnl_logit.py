@@ -116,6 +116,9 @@ class MNLogit(ChoiceDataMixin, ModelBuilder):
     _model_type = "Multinomial Logit Model"
     version = "0.2.0"
 
+    #: Name of the ``pm.Data`` container holding the fixed covariates.
+    _fixed_data_name = "F"
+
     def __init__(
         self,
         choice_df: pd.DataFrame | None = None,
@@ -390,7 +393,7 @@ class MNLogit(ChoiceDataMixin, ModelBuilder):
         return betas
 
     def make_fixed_coefs(
-        self, X_fixed: np.ndarray | None, n_obs: int, n_alts: int
+        self, X_fixed: np.ndarray | None, n_obs: int | pt.TensorVariable, n_alts: int
     ) -> pt.TensorVariable:
         """Create alternative-varying coefficients for fixed (non-varying) covariates.
 
@@ -398,8 +401,9 @@ class MNLogit(ChoiceDataMixin, ModelBuilder):
         ----------
         X_fixed : np.ndarray or None
             Fixed covariates matrix of shape (n_obs, n_fixed_covariates)
-        n_obs : int
-            Number of observations
+        n_obs : int or TensorVariable
+            Number of observations, as a Python int or a graph value that tracks
+            a mutable data container.
         n_alts : int
             Number of alternatives
 
@@ -489,7 +493,7 @@ class MNLogit(ChoiceDataMixin, ModelBuilder):
         model : pm.Model
             PyMC model
         """
-        n_obs, n_alts = X.shape[0], X.shape[1]
+        n_alts = X.shape[1]
 
         with pm.Model(coords=self.coords) as model:
             # Create parameters
@@ -500,8 +504,10 @@ class MNLogit(ChoiceDataMixin, ModelBuilder):
             X_data = pm.Data("X", X, dims=("obs", "alts", "alt_covariates"))
             observed = pm.Data("y", y, dims="obs")
 
-            # Handle fixed covariates
-            F_contrib = self.make_fixed_coefs(F, n_obs, n_alts)
+            # Handle fixed covariates. The row count is taken from the data
+            # container so a swapped data set with a different number of rows
+            # keeps a compatible shape.
+            F_contrib = self.make_fixed_coefs(F, X_data.shape[0], n_alts)
 
             # Compute utility and probabilities
             U = self.make_utility(X_data, alphas, betas, F_contrib)
@@ -661,23 +667,14 @@ class MNLogit(ChoiceDataMixin, ModelBuilder):
         """
         self._require_choice_df()
 
-        if choice_df is not None:
-            # Update data in existing model
-            new_X, new_F, new_y = self.preprocess_model_data(
-                choice_df, self.utility_equations
-            )
-            with self.model:
-                data_dict = {"X": new_X, "y": new_y}
-                if new_F is not None and len(new_F) > 0:
-                    data_dict["F"] = new_F
-                pm.set_data(data_dict)
-
         if self.idata is None:
             raise RuntimeError("self.idata must be initialized before extending")
-        with self.model:
-            post_pred = pm.sample_posterior_predictive(
-                self.idata, var_names=["likelihood", "p"], **kwargs
-            )
+
+        with self._temporary_model_data(choice_df, self.utility_equations):
+            with self.model:
+                post_pred = pm.sample_posterior_predictive(
+                    self.idata, var_names=["likelihood", "p"], **kwargs
+                )
 
         if extend_idata:
             self.idata.update(post_pred)
@@ -757,41 +754,41 @@ class MNLogit(ChoiceDataMixin, ModelBuilder):
         if not hasattr(self, "model"):
             self.sample()
         if new_utility_equations is None:
-            new_X, new_F, new_y = self.preprocess_model_data(
-                new_choice_df, self.utility_equations
-            )
-            with self.model:
-                pm.set_data({"X": new_X, "F": new_F, "y": new_y})
-                # use the updated values and predict outcomes and probabilities:
-                idata_new_policy = pm.sample_posterior_predictive(
-                    self.idata,
-                    var_names=["p", "likelihood"],
-                    return_inferencedata=True,
-                    extend_inferencedata=False,
-                    random_seed=100,
-                )
+            with self._temporary_model_data(new_choice_df, self.utility_equations):
+                with self.model:
+                    # use the updated values and predict outcomes and probabilities:
+                    idata_new_policy = pm.sample_posterior_predictive(
+                        self.idata,
+                        var_names=["p", "likelihood"],
+                        return_inferencedata=True,
+                        extend_inferencedata=False,
+                        random_seed=100,
+                    )
 
             self.intervention_idata = idata_new_policy
         else:
-            new_X, new_F, new_y = self.preprocess_model_data(
-                new_choice_df, new_utility_equations
-            )
-            new_model = self.make_model(new_X, new_F, new_y)
-            with new_model:
-                idata_new_policy = pm.sample_prior_predictive()
-                idata_new_policy.update(
-                    pm.sample(
-                        target_accept=0.99,
-                        tune=2000,
-                        idata_kwargs={"log_likelihood": True},
-                        random_seed=101,
-                    ),
+            try:
+                new_X, new_F, new_y = self.preprocess_model_data(
+                    new_choice_df, new_utility_equations
                 )
-                idata_new_policy.update(
-                    pm.sample_posterior_predictive(
-                        idata_new_policy, var_names=["p", "likelihood"]
-                    ),
-                )
+                new_model = self.make_model(new_X, new_F, new_y)
+                with new_model:
+                    idata_new_policy = pm.sample_prior_predictive()
+                    idata_new_policy.update(
+                        pm.sample(
+                            target_accept=0.99,
+                            tune=2000,
+                            idata_kwargs={"log_likelihood": True},
+                            random_seed=101,
+                        ),
+                    )
+                    idata_new_policy.update(
+                        pm.sample_posterior_predictive(
+                            idata_new_policy, var_names=["p", "likelihood"]
+                        ),
+                    )
+            finally:
+                self._restore_model_data()
 
             self.intervention_idata = idata_new_policy
 

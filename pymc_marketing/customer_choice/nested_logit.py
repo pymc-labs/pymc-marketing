@@ -136,6 +136,9 @@ class NestedLogit(ChoiceDataMixin, ModelBuilder):
     _model_type = "Nested Logit Model"
     version = "0.2.0"
 
+    #: Name of the ``pm.Data`` container holding the fixed covariates.
+    _fixed_data_name = "W"
+
     def __init__(
         self,
         choice_df: pd.DataFrame | None = None,
@@ -580,7 +583,7 @@ class NestedLogit(ChoiceDataMixin, ModelBuilder):
         return betas
 
     def make_fixed_coefs(
-        self, X_fixed: np.ndarray | None, n_obs: int, n_alts: int
+        self, X_fixed: np.ndarray | None, n_obs: int | pt.TensorVariable, n_alts: int
     ) -> pt.TensorVariable:
         """Create alternative-varying coefficients for fixed (non-varying) covariates.
 
@@ -593,8 +596,9 @@ class NestedLogit(ChoiceDataMixin, ModelBuilder):
         ----------
         X_fixed : np.ndarray or None
             Fixed covariates matrix of shape (n_obs, n_fixed_covariates)
-        n_obs : int
-            Number of observations
+        n_obs : int or TensorVariable
+            Number of observations, as a Python int or a graph value that tracks
+            a mutable data container.
         n_alts : int
             Number of alternatives
 
@@ -773,7 +777,7 @@ class NestedLogit(ChoiceDataMixin, ModelBuilder):
         model : pm.Model
             PyMC model
         """
-        n_obs, n_alts = X.shape[0], X.shape[1]
+        n_alts = X.shape[1]
         nest_indices = self.nest_indices["top"]  # Only single-layer nesting
 
         with pm.Model(coords=self.coords) as model:
@@ -792,8 +796,10 @@ class NestedLogit(ChoiceDataMixin, ModelBuilder):
             X_data = pm.Data("X", X, dims=("obs", "alts", "alt_covariates"))
             y_data = pm.Data("y", y, dims="obs")
 
-            # Fixed covariate contribution
-            W_contrib = self.make_fixed_coefs(W, n_obs, n_alts)
+            # Fixed covariate contribution. The row count is taken from the data
+            # container so a swapped data set with a different number of rows
+            # keeps a compatible shape.
+            W_contrib = self.make_fixed_coefs(W, X_data.shape[0], n_alts)
 
             # Systematic utility
             U = pm.Deterministic(
@@ -807,9 +813,10 @@ class NestedLogit(ChoiceDataMixin, ModelBuilder):
                 U, lambdas, nest_indices, alphas_nest=alphas_nests_
             )
 
-            # Combine to get final choice probabilities
-            # P(y) = P(y|nest) * P(nest)
-            p = pt.zeros((n_obs, n_alts))
+            # Combine to get final choice probabilities: P(y) = P(y|nest) * P(nest).
+            # Derive the shape from U instead of the training row count.
+            # That keeps a data swap with a different row count compatible.
+            p = pt.zeros_like(U)
 
             for nest_name, indices in nest_indices.items():
                 p = pt.set_subtensor(
@@ -820,7 +827,6 @@ class NestedLogit(ChoiceDataMixin, ModelBuilder):
             # Likelihood
             _ = pm.Categorical("likelihood", p=p, observed=y_data, dims="obs")
 
-        self.model = model
         return model
 
     def create_idata_attrs(self) -> dict[str, str]:
@@ -995,23 +1001,14 @@ class NestedLogit(ChoiceDataMixin, ModelBuilder):
         """
         self._require_choice_df()
 
-        if choice_df is not None:
-            # Update data in existing model
-            new_X, new_F, new_y = self.preprocess_model_data(
-                choice_df, self.utility_equations
-            )
-            with self.model:
-                data_dict = {"X": new_X, "y": new_y}
-                if new_F is not None and len(new_F) > 0:
-                    data_dict["W"] = new_F
-                pm.set_data(data_dict)
-
         if self.idata is None:
             raise RuntimeError("self.idata must be initialized before extending")
-        with self.model:
-            post_pred = pm.sample_posterior_predictive(
-                self.idata, var_names=["likelihood", "p"], **kwargs
-            )
+
+        with self._temporary_model_data(choice_df, self.utility_equations):
+            with self.model:
+                post_pred = pm.sample_posterior_predictive(
+                    self.idata, var_names=["likelihood", "p"], **kwargs
+                )
 
         if extend_idata:
             self.idata.update(post_pred)
@@ -1127,37 +1124,34 @@ class NestedLogit(ChoiceDataMixin, ModelBuilder):
         if not hasattr(self, "model"):
             self.sample()
         if new_utility_equations is None:
-            new_X, new_F, new_y = self.preprocess_model_data(
-                new_choice_df, self.utility_equations
-            )
-            with self.model:
-                if new_F is None:
-                    pm.set_data({"X": new_X, "y": new_y})
-                else:
-                    pm.set_data({"X": new_X, "W": new_F, "y": new_y})
-                # use the updated values and predict outcomes and probabilities:
-                idata_new_policy = pm.sample_posterior_predictive(
-                    self.idata,
-                    var_names=["p", "likelihood"],
-                    return_inferencedata=True,
-                    extend_inferencedata=False,
-                    random_seed=100,
-                )
+            with self._temporary_model_data(new_choice_df, self.utility_equations):
+                with self.model:
+                    # use the updated values and predict outcomes and probabilities:
+                    idata_new_policy = pm.sample_posterior_predictive(
+                        self.idata,
+                        var_names=["p", "likelihood"],
+                        return_inferencedata=True,
+                        extend_inferencedata=False,
+                        random_seed=100,
+                    )
 
             self.intervention_idata = idata_new_policy
         else:
-            new_X, new_F, new_y = self.preprocess_model_data(
-                new_choice_df, new_utility_equations
-            )
-            new_model = self.make_model(new_X, new_F, new_y)
-            with new_model:
-                idata_new_policy = pm.sample_prior_predictive()
-                idata_new_policy.update(pm.sample(**fit_kwargs))
-                idata_new_policy.update(
-                    pm.sample_posterior_predictive(
-                        idata_new_policy, var_names=["p", "likelihood"]
-                    ),
+            try:
+                new_X, new_F, new_y = self.preprocess_model_data(
+                    new_choice_df, new_utility_equations
                 )
+                new_model = self.make_model(new_X, new_F, new_y)
+                with new_model:
+                    idata_new_policy = pm.sample_prior_predictive()
+                    idata_new_policy.update(pm.sample(**fit_kwargs))
+                    idata_new_policy.update(
+                        pm.sample_posterior_predictive(
+                            idata_new_policy, var_names=["p", "likelihood"]
+                        ),
+                    )
+            finally:
+                self._restore_model_data()
 
             self.intervention_idata = idata_new_policy
 

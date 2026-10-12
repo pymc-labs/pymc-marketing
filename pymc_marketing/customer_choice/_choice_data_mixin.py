@@ -15,10 +15,13 @@
 
 import json
 import warnings
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterator, Mapping, Sequence
+from contextlib import contextmanager
 from typing import TYPE_CHECKING, Any, NoReturn
 
+import numpy as np
 import pandas as pd
+import pymc as pm
 import xarray as xr
 
 
@@ -46,12 +49,96 @@ class ChoiceDataMixin:
     choice_df: pd.DataFrame | None
     utility_equations: list[str]
 
+    #: Name of the model's fixed-covariate data container.
+    #: It is ``"F"`` on :class:`MNLogit` and ``"W"`` on :class:`NestedLogit`.
+    _fixed_data_name: str
+
     if TYPE_CHECKING:
         # Provided by the model-builder base that these classes are mixed with.
+        model: pm.Model
+        coords: dict[str, Any]
+
         def build_model(self, **kwargs: Any) -> None: ...
+
+        def preprocess_model_data(
+            self, choice_df: pd.DataFrame, utility_equations: list[str]
+        ) -> tuple[np.ndarray, np.ndarray | None, np.ndarray]: ...
 
         @classmethod
         def _model_config_formatting(cls, model_config: dict) -> dict: ...
+
+    def _set_model_data(
+        self, X: np.ndarray, F: np.ndarray | None, y: np.ndarray
+    ) -> None:
+        """Point the fitted model's data containers at preprocessed arrays.
+
+        The ``obs`` coordinates are refreshed whenever the arrays hold a
+        different number of rows than the model currently declares, which is
+        what lets a prediction run on a data set with a changed row count.
+
+        Parameters
+        ----------
+        X : np.ndarray
+            Alternative-specific covariates, shape ``(n_obs, n_alts, n_cov)``.
+        F : np.ndarray or None
+            Fixed covariates, or ``None`` when the model has none.
+        y : np.ndarray
+            Encoded observed choices, shape ``(n_obs,)``.
+        """
+        data: dict[str, Any] = {"X": X, "y": y}
+        if F is not None and len(F) > 0:
+            data[self._fixed_data_name] = F
+
+        n_obs = len(X)
+        coords = None
+        if len(self.model.coords["obs"]) != n_obs:
+            coords = {"obs": range(n_obs)}
+
+        with self.model:
+            pm.set_data(data, coords=coords)
+
+    def _restore_model_data(self) -> None:
+        """Restore the fitted model and instance state to the stored choice data.
+
+        Re-runs the same preprocessing :meth:`build_model` applies to the stored
+        choice data, which resets the instance state (design matrices, outcome,
+        alternatives, coordinates and, for :class:`NestedLogit`, the nest
+        lookups), then points the model's data containers back at those training
+        arrays. Call this from a ``finally`` block after a prediction so the
+        fitted model is unchanged even when sampling fails.
+        """
+        choice_df = self._require_choice_df()
+        X, F, y = self.preprocess_model_data(choice_df, self.utility_equations)
+        self._set_model_data(X, F, y)
+
+    @contextmanager
+    def _temporary_model_data(
+        self, choice_df: pd.DataFrame | None, utility_equations: list[str]
+    ) -> Iterator[None]:
+        """Swap in a data set, restoring the stored data on exit.
+
+        The forward preprocessing overwrites the instance state built from the
+        stored choice data, so the stored data is preprocessed again on exit. If
+        the body or the swap fails, the stored data is still restored and the
+        original error is re-raised; a failed restore is chained onto it rather
+        than replacing it. Passing ``None`` leaves the model untouched.
+        """
+        if choice_df is None:
+            yield
+            return
+
+        try:
+            X, F, y = self.preprocess_model_data(choice_df, utility_equations)
+            self._set_model_data(X, F, y)
+            yield
+        except BaseException as body_error:
+            try:
+                self._restore_model_data()
+            except Exception as restore_error:
+                raise body_error from restore_error
+            raise
+        else:
+            self._restore_model_data()
 
     @classmethod
     def _raise_missing_settings(cls, **settings: Any) -> NoReturn:
