@@ -11,8 +11,9 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
+import pymc as pm
 import pytest
-from pymc.testing import mock_sample_setup_and_teardown
+from pymc.testing import mock_sample, mock_sample_setup_and_teardown
 
 
 def pytest_addoption(parser):
@@ -84,3 +85,47 @@ def pytest_collection_modifyitems(config, items):
 
 
 mock_pymc_sample = pytest.fixture(scope="module")(mock_sample_setup_and_teardown)
+
+
+@pytest.fixture
+def mock_pymc_fit(mocker):
+    """Replace `pm.fit` (the variational fit seam) with prior draws.
+
+    The returned object stands in for the `Approximation` the wrapper gets
+    back, and ``.sample()`` draws from the sampling model's own priors via
+    `pymc.testing.mock_sample`, so no graph optimization or gradient
+    compilation ever runs. Call the factory to pick the draw counts::
+
+        def test_something(mock_pymc_fit):
+            mock_pymc_fit(draws=10)
+            idata = model.fit(data, method="advi")
+    """
+
+    def factory(draws: int = 10, chains: int = 1):
+        def fake_fit(*args, **kwargs):
+            fake_approx = mocker.Mock(name="pm.fit")
+            fake_approx.sample.return_value = mock_sample(
+                draws=draws, chains=chains, model=pm.modelcontext(None)
+            )
+            return fake_approx
+
+        return mocker.patch("pymc.fit", side_effect=fake_fit)
+
+    return factory
+
+
+@pytest.fixture
+def mock_pymc_find_map(mocker):
+    """Replace `pm.find_MAP` (the MAP fit seam) with the initial point.
+
+    Lets tests assert wiring — which model reaches the optimizer — without
+    paying for the real minimization (`initial_point` shares find_MAP's
+    return contract: value-var names -> arrays). The returned ``Mock``
+    records ``call_args`` for such assertions.
+    """
+    return mocker.patch.object(
+        pm,
+        "find_MAP",
+        side_effect=lambda *, model, **kwargs: model.initial_point(),
+        name="find_MAP",
+    )

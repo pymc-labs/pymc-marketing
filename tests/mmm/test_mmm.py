@@ -131,7 +131,7 @@ def fit_mmm(df, mmm, target_column, mock_pymc_sample):
 
 @pytest.mark.parametrize("method", ["map", "demz"])
 def test_fit_non_nuts_methods_use_sampling_model(
-    df, mmm, target_column, method, mocker
+    df, mmm, target_column, method, mocker, mock_pymc_find_map
 ):
     """Every fit path must run against the model from `_get_sampling_model`.
 
@@ -151,16 +151,7 @@ def test_fit_non_nuts_methods_use_sampling_model(
     mocker.patch.object(mmm, "_get_sampling_model", side_effect=record)
 
     if method == "map":
-        # The asserted property is wiring (the model handed to the optimizer),
-        # so stub the optimizer instead of running it (a real MAP minimization
-        # costs ~30s of logp evaluations). `initial_point` shares find_MAP's
-        # return contract: value-var names -> arrays.
-        find_map = mocker.patch.object(
-            pm,
-            "find_MAP",
-            side_effect=lambda *, model, **kwargs: model.initial_point(),
-            name="find_MAP",
-        )
+        find_map = mock_pymc_find_map
         extra: dict = {}
     else:
         # `pm.sample` takes its model from the context, so the assertion has to happen
