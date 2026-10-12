@@ -569,7 +569,7 @@ def test_partial_model_config_override(small_corpus):
     model.build_model(X, y)
 
 
-@pytest.mark.slow
+@pytest.mark.recovery
 def test_fit_recovers_known_effects():
     """Predictions correlate with held-out incrementality and match its scale."""
     df = generate_synthetic_rct_corpus(n_campaigns=200, seed=0)

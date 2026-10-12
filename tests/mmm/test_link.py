@@ -21,6 +21,7 @@ import pymc.dims as pmd
 import pytest
 import xarray as xr
 from pydantic import ValidationError
+from pymc.testing import mock_sample
 from pymc_extras.prior import Censored, Prior, Scaled
 from scipy import stats
 
@@ -498,7 +499,7 @@ class TestLogSaturation:
         elasticity = beta * x / (1.0 + x)  # d/dlog x of beta*log(1+x)
         np.testing.assert_allclose(elasticity, beta, rtol=1e-4)
 
-    @pytest.mark.slow
+    @pytest.mark.recovery
     def test_log_saturation_elasticity_recovery(self):
         """A real (small) fit recovers a known elasticity within tolerance."""
         rng = np.random.default_rng(42)
@@ -1001,15 +1002,17 @@ class TestSerialization:
 class TestBudgetOptimizerLogLog:
     """Budget optimization must keep working under the log link (channel_scale == 1)."""
 
-    @pytest.mark.slow
-    def test_optimize_budget_log_log_runs_and_conserves_budget(self):
+    def test_optimize_budget_log_log_runs_and_conserves_budget(self, mocker):
         """A log-log model optimizes without double-scaling and conserves the budget.
 
-        Uses a real (small) fit rather than ``mock_pymc_sample`` because a
-        mocked posterior draws coefficients from the (wide) prior, which sends
-        ``exp(mu)`` to extreme values and makes the optimization landscape
-        ill-conditioned.  A genuine fit anchors the coefficients to the data
-        and exercises the realistic ``channel_scale == 1`` path.
+        The posterior is a *tight* mock: wide mock or real posterior draws sent
+        ``exp(mu)`` to extreme values, making the optimization landscape
+        ill-conditioned. Anchoring the sampling prior near the DGP constants
+        (`exp(mu)` stays moderate) and drawing via ``pymc.testing.mock_sample``
+        keeps the discovered coefficients deterministic across platforms and
+        leaves the optimization well-conditioned. Earlier CI runs of this test
+        revealed a 3.12/3.14-only numerical issue in a real sampler — per the
+        #3061 doctrine, plumbing-by-nature tests stay robust and mock-driven.
         """
         rng = np.random.default_rng(7)
         n = 80
@@ -1028,16 +1031,20 @@ class TestBudgetOptimizerLogLog:
             adstock=GeometricAdstock(l_max=1),
             saturation=LogSaturation(),
             link="log",
+            model_config={
+                "intercept": Prior("Normal", mu=1.0, sigma=0.05),
+                "saturation_beta": Prior("Gamma", mu=1.0, sigma=0.1, dims="channel"),
+                "likelihood": Prior("LogNormal", sigma=Prior("HalfNormal", sigma=0.05)),
+            },
         )
+        mocker.patch("pymc.sample", mock_sample)
         mmm.fit(
             X,
             y_series,
-            draws=200,
-            tune=200,
-            chains=2,
-            cores=2,
-            random_seed=0,
+            draws=50,
+            chains=1,
             progressbar=False,
+            random_seed=0,
         )
 
         optimizable = BudgetOptimizerWrapper(

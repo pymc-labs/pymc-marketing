@@ -2976,7 +2976,8 @@ class TestIncrementalitySpecValidation:
 # The data is additive, so the linear model is well-specified; the log and
 # log-log models are misspecified in the way real models always are, and only
 # have to land close.  Slow by construction (three NUTS fits), hence the
-# marker; run with ``pytest --run-slow``.
+# ``recovery`` marker (which also implies ``slow``); run with
+# ``pytest --only-recovery`` or ``--run-slow``.
 
 SEED = sum(map(ord, "incrementality_recovery"))
 N_DATES = 120
@@ -3089,7 +3090,7 @@ def _posterior_roas(mmm):
     return roas.stack(sample=("chain", "draw"))
 
 
-@pytest.mark.slow
+@pytest.mark.recovery
 class TestRoasRecovery:
     """The three notebook variants recover the DGP's ROAS, and agree."""
 

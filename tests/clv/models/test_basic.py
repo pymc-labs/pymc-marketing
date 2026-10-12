@@ -165,9 +165,11 @@ class TestCLVModel:
         assert model.fit_result.equals(idata["/posterior"].to_dataset())
         assert isinstance(model.fit_result, xr.Dataset)
 
-    def test_fit_advi(self, mocker):
+    def test_fit_advi(self, mock_pymc_fit):
         model = CLVModelTest()
-        # mocker.patch("pymc.sample", mock_sample)
+
+        # The fixture honors draws/chains by drawing from the model via
+        # `pymc.testing.mock_sample` instead of running the ADVI optimizer.
         idata = model.fit(
             data=model.data,
             method="advi",
