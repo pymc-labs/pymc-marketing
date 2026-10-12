@@ -129,6 +129,11 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :img-top: ../gallery/images/mmm_credibility_disaggregation.png
 :link: ../notebooks/mmm/mmm_credibility_disaggregation.html
 :::
+
+:::{grid-item-card} Year-over-Year Target Transform for Highly Seasonal KPIs
+:img-top: ../gallery/images/mmm_yoy_target_transform.png
+:link: ../notebooks/mmm/mmm_yoy_target_transform.html
+:::
 ::::
 
 ### Data Connectors
