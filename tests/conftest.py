@@ -49,7 +49,9 @@ def pytest_configure(config):
 def pytest_collection_modifyitems(config, items):
     # Recovery tests are a subset of slow tests
     for item in items:
-        if "recovery" in item.keywords and "slow" not in item.keywords:
+        has_recovery = item.get_closest_marker("recovery") is not None
+        has_slow = item.get_closest_marker("slow") is not None
+        if has_recovery and not has_slow:
             item.add_marker(pytest.mark.slow)
 
     if config.getoption("--run-slow"):
@@ -60,7 +62,7 @@ def pytest_collection_modifyitems(config, items):
         # --only-recovery given in cli: need to skip non-recovery tests
         skip_not_recovery = pytest.mark.skip(reason="Not a recovery test")
         for item in items:
-            if "recovery" not in item.keywords:
+            if item.get_closest_marker("recovery") is None:
                 item.add_marker(skip_not_recovery)
 
     elif config.getoption("--only-slow"):
@@ -71,16 +73,16 @@ def pytest_collection_modifyitems(config, items):
             reason="Recovery test, use --only-recovery option to run"
         )
         for item in items:
-            if "recovery" in item.keywords:
+            if item.get_closest_marker("recovery") is not None:
                 item.add_marker(skip_recovery)
-            elif "slow" not in item.keywords:
+            elif item.get_closest_marker("slow") is None:
                 item.add_marker(skip_fast)
 
     else:
         # Default: skip slow tests
         skip_slow = pytest.mark.skip(reason="Slow test, use --run-slow option to run")
         for item in items:
-            if "slow" in item.keywords:
+            if item.get_closest_marker("slow") is not None:
                 item.add_marker(skip_slow)
 
 

@@ -11,7 +11,11 @@ on:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  # A scheduled run may be long; don't cancel it behind a manual dispatch.
+  cancel-in-progress: false
+
+permissions:
+  contents: read
 
 jobs:
   # Standard public-repo runners are free and already 4-core; parallelism
@@ -34,15 +38,41 @@ jobs:
       - name: Install package and dependencies
         run: |
           sudo apt-get install graphviz graphviz-dev
-          uv pip install -e .[test]
+          uv pip install -e ".[test]"
       - name: Run recovery tests
+        # cvm linker: the default `auto` routes to numba with PyTensor 3,
+        # which is measurably slower for these sampling-heavy tests; and
+        # linker parity is PyMC/PyTensor's concern, not ours.
         env:
-          # No PYTENSOR_FLAGS override: default FAST_RUN mode (C linker) is
-          # the fastest backend for these sampling-heavy tests, and linker
-          # parity is PyMC/PyTensor's concern, not ours.
+          PYTENSOR_FLAGS: linker=cvm
         run: |
           uv run --no-sync --frozen pytest --only-recovery \
                  --splits 4 \
                  --group ${{ matrix.group }} \
                  --splitting-algorithm least_duration \
                  --durations-path .test_durations
+
+  notify:
+    needs: [test_recovery]
+    if: failure()
+    runs-on: ubuntu-slim
+    permissions:
+      issues: write
+    steps:
+      - name: Create or update the failure tracking issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TITLE: "Parameter-recovery tests failed"
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          comment=$(printf "Recovery run failed: %s (ref %s, trigger %s - scroll to the failed shard for the pytest tail)." \
+            "$RUN_URL" "${{ github.ref_name }}" "${{ github.event_name }}")
+          issue_number=$(gh issue list --repo "$GITHUB_REPOSITORY" \
+            --search "$TITLE in:title state:open" --json number --jq '.[0].number')
+          if [ -z "$issue_number" ]; then
+            printf 'Created %s\n' "$(gh issue create --repo "$GITHUB_REPOSITORY" \
+              --title "$TITLE" --body "$comment")"
+          else
+            gh issue comment "$issue_number" --repo "$GITHUB_REPOSITORY" --body "$comment"
+            printf 'Updated %s\n' "$issue_number"
+          fi
