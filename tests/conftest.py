@@ -34,10 +34,16 @@ def pytest_addoption(parser):
 def pytest_configure(config):
     config.addinivalue_line(
         "markers",
-        "recovery: parameter-recovery / simulation study, runs only with "
-        "--only-recovery or --run-slow",
+        "recovery: parameter-recovery / simulation study (real fits against a "
+        "known ground truth). Runs nightly with --only-recovery; select with "
+        "'-m recovery'. Implies slow, so plain pytest runs skip it",
     )
-    config.addinivalue_line("markers", "slow: mark test as slow to run")
+    config.addinivalue_line(
+        "markers",
+        "slow: too slow for the PR fast tier; deselected with '-m "
+        '"not slow"\'. Run everything with --run-slow, or the per-PR slow '
+        "tier with --only-slow ('-m \"slow and not recovery\"')",
+    )
     config.addinivalue_line(
         "markers", "requires_polars: mark test as requiring polars library"
     )
@@ -47,6 +53,11 @@ def pytest_configure(config):
 
 
 def pytest_collection_modifyitems(config, items):
+    # Tier logic, with the marker-expression equivalents of each flag:
+    #   plain pytest          == pytest -m "not slow"
+    #   --run-slow            == no selection at all
+    #   --only-slow           == pytest -m "slow and not recovery"
+    #   --only-recovery       == pytest -m recovery
     # Recovery tests are a subset of slow tests
     for item in items:
         has_recovery = item.get_closest_marker("recovery") is not None
