@@ -66,6 +66,7 @@ from pymc_marketing.mmm.transformers import (
     logistic_saturation,
 )
 from pymc_marketing.model_graph import deterministics_to_flat
+from pymc_marketing.serialization import serialization
 from tests.mmm.test_spend_reach import (
     effective_l_max,
     measure_reach,
@@ -4186,8 +4187,12 @@ class TestAllocationEstimand:
         assert "spend_date" in matrix.coords
         assert "period_start" in matrix.coords
 
-    def test_the_same_draws_feed_both_computations(self, simple_fitted_mmm):
-        """A subsample is drawn once, so columns still match the contribution."""
+    def test_a_seeded_subsample_is_reproducible(self, simple_fitted_mmm):
+        """The same seed gives the same draws, as an int or as a Generator.
+
+        That the weights come from the draws the contribution was computed at
+        is pinned by the ratio test below on a subsample, not here.
+        """
         matrix = self._allocation(
             simple_fitted_mmm, frequency="monthly", num_samples=7, random_state=3
         )
@@ -4202,19 +4207,8 @@ class TestAllocationEstimand:
         )
 
         assert matrix.sizes["draw"] == 7
+        assert generator.sizes["draw"] == 7
         xr.testing.assert_identical(matrix, again)
-        # Each draw's column is that draw's contribution, whichever draws they are.
-        stored = self._channel_contribution(simple_fitted_mmm)
-        flat = stored.stack(sample=("chain", "draw")).transpose(
-            "sample", "realization_date", "channel"
-        )
-        by_date = generator.sum("spend_date").stack(sample=("chain", "draw"))
-        by_date = by_date.transpose("sample", "realization_date", "channel")
-        for sample in by_date.values:
-            assert any(
-                np.allclose(sample, candidate, rtol=1e-8, atol=1e-8)
-                for candidate in flat.values
-            )
 
     @pytest.mark.parametrize(
         "subsample",
@@ -4276,6 +4270,39 @@ class TestAllocationEstimand:
             ).values,
             a_first.values,
             rtol=1e-3,
+        )
+
+    def test_shares_follow_a_kernel_that_peaks_after_the_spend(self, simple_mmm_data):
+        """A delayed kernel pins the lag index, which a geometric ratio cannot.
+
+        The geometric ratio of two cohorts is the same however the lags are
+        numbered, so a shift by one lag would go unseen there.  The delayed
+        weight of lag ``l`` is ``alpha ** ((l - theta) ** 2)``, and a shift
+        changes the ratio.
+        """
+        X = simple_mmm_data["X"].copy()
+        X["channel_1"] = 0.0
+        first, second, landing = 1, 3, 4
+        X.loc[X.index[first], "channel_1"] = 300.0
+        X.loc[X.index[second], "channel_1"] = 900.0
+        mmm = _fit_with_saturation(
+            {"X": X, "y": simple_mmm_data["y"]},
+            LogisticSaturation(),
+            adstock=DelayedAdstock(l_max=6, normalize=False),
+        )
+
+        matrix = self._allocation(mmm).sel(channel="channel_1")
+        dates = pd.DatetimeIndex(matrix.spend_date.values)
+        a_first = matrix.sel(spend_date=dates[first], realization_date=dates[landing])
+        a_second = matrix.sel(spend_date=dates[second], realization_date=dates[landing])
+
+        posterior = mmm.idata.posterior.dataset.sel(channel="channel_1")
+        alpha, theta = posterior["adstock_alpha"], posterior["adstock_theta"]
+        expected = (alpha ** ((landing - first - theta) ** 2) * 300.0) / (
+            alpha ** ((landing - second - theta) ** 2) * 900.0
+        )
+        np.testing.assert_allclose(
+            (a_first / a_second).values, expected.values, rtol=1e-8
         )
 
     @pytest.mark.parametrize(
@@ -4403,7 +4430,7 @@ class TestAllocationEstimand:
         )
         TestSplitIncrementalContribution._evaluation_forbidden(monkeypatch)
 
-        with pytest.raises(NotImplementedError, match="could not verify"):
+        with pytest.raises(NotImplementedError, match="dies out within the fitted"):
             self._allocation(mmm, frequency="monthly")
 
     def test_a_mu_effect_is_refused_before_the_baseline(
@@ -4420,15 +4447,142 @@ class TestAllocationEstimand:
             self._allocation(funnel_identity_fitted_mmm, frequency="monthly")
 
     def test_sampling_the_kernel_logs_nothing(self, simple_fitted_mmm, caplog):
-        """pymc's ``Sampling: []`` line is held back, and its level restored."""
+        """pymc's ``Sampling: []`` line is held back, and the logger left as it was."""
         logger = logging.getLogger("pymc.sampling.forward")
-        level = logger.level
+        level, filters = logger.level, list(logger.filters)
 
         with caplog.at_level(logging.INFO):
             self._allocation(simple_fitted_mmm, frequency="monthly")
 
         assert not any(r.getMessage().startswith("Sampling") for r in caplog.records)
         assert logger.level == level
+        assert logger.filters == filters
+
+    def test_other_records_of_the_logger_still_get_through(self, caplog):
+        """Only the ``Sampling:`` line is dropped, not whatever else is logged."""
+        logger = logging.getLogger("pymc.sampling.forward")
+
+        with caplog.at_level(logging.INFO, logger=logger.name):
+            with incrementality_module._quiet_posterior_predictive_log():
+                logger.info("Sampling: [x]")
+                logger.info("something else")
+
+        assert [r.getMessage() for r in caplog.records] == ["something else"]
+
+
+@serialization.register
+class SquaredGeometric(GeometricAdstock):
+    """A custom adstock that is not linear: the impulse is squared first."""
+
+    def function(self, x, alpha=None, halflife=None, *, dim):
+        return super().function(x**2, alpha, halflife, dim=dim)
+
+
+@serialization.register
+class DoubledGeometric(GeometricAdstock):
+    """A custom adstock that is linear, but not one of the library's own."""
+
+    def function(self, x, alpha=None, halflife=None, *, dim):
+        return 2 * super().function(x, alpha, halflife, dim=dim)
+
+
+class TestAllocationInputGuards:
+    """What ``estimand="allocation"`` refuses or flags about its inputs."""
+
+    @staticmethod
+    def _allocation(mmm, **kwargs):
+        return mmm.incrementality.split_incremental_contribution_over_time(
+            frequency="monthly", estimand="allocation", **kwargs
+        )
+
+    @staticmethod
+    def _signed(simple_mmm_data):
+        X = simple_mmm_data["X"].copy()
+        X.loc[X.index[5:8], "channel_1"] *= -1.0
+        return {"X": X, "y": simple_mmm_data["y"]}
+
+    def test_negative_spend_is_refused_before_evaluating(
+        self, simple_mmm_data, monkeypatch
+    ):
+        mmm = _fit_with_saturation(
+            self._signed(simple_mmm_data),
+            LogisticSaturation(),
+            adstock=GeometricAdstock(l_max=4),
+        )
+        TestSplitIncrementalContribution._evaluation_forbidden(monkeypatch)
+
+        with pytest.raises(NotImplementedError, match="negative channel data"):
+            self._allocation(mmm)
+
+    def test_negative_spend_is_allowed_with_adstock_last(self, simple_mmm_data):
+        """Saturation runs first there, so the cohorts separate whatever the sign."""
+        mmm = _fit_with_saturation(
+            self._signed(simple_mmm_data),
+            LogisticSaturation(),
+            adstock=GeometricAdstock(l_max=4),
+            adstock_first=False,
+        )
+
+        matrix = self._allocation(mmm)
+
+        assert not matrix.isnull().any()
+
+    def test_a_pruned_posterior_is_refused(self, simple_fitted_mmm, monkeypatch):
+        """A kernel parameter missing from the posterior would be drawn from its prior."""
+        mmm = simple_fitted_mmm
+        pruned = mmm.idata.posterior.dataset.drop_vars("adstock_alpha")
+        monkeypatch.setattr(mmm.idata.posterior, "dataset", pruned, raising=False)
+        TestSplitIncrementalContribution._evaluation_forbidden(monkeypatch)
+
+        with pytest.raises(ValueError, match=r"adstock_alpha.*posterior"):
+            self._allocation(mmm)
+
+    def test_a_fixed_adstock_parameter_is_not_missing(self, simple_mmm_data):
+        """A fixed ``alpha`` is never in the posterior, and needs not be."""
+        mmm = _fit_with_saturation(
+            simple_mmm_data,
+            LogisticSaturation(),
+            adstock=GeometricAdstock(l_max=4, priors={"alpha": 0.5}),
+        )
+
+        assert "adstock_alpha" not in mmm.idata.posterior.dataset
+
+        assert not self._allocation(mmm).isnull().any()
+
+    def test_a_nonlinear_custom_adstock_is_refused(self, simple_mmm_data):
+        mmm = _fit_with_saturation(
+            simple_mmm_data,
+            LogisticSaturation(),
+            adstock=SquaredGeometric(l_max=4, normalize=False),
+        )
+
+        with pytest.raises(NotImplementedError, match="linear convolution"):
+            self._allocation(mmm)
+
+    def test_a_linear_custom_adstock_runs_with_a_warning(self, simple_mmm_data):
+        mmm = _fit_with_saturation(
+            simple_mmm_data,
+            LogisticSaturation(),
+            adstock=DoubledGeometric(l_max=4, normalize=False),
+        )
+
+        with pytest.warns(UserWarning, match="homogeneity check"):
+            matrix = self._allocation(mmm)
+
+        assert any(
+            "homogeneity" in note for note in json.loads(matrix.attrs["warnings"])
+        )
+
+    def test_the_built_in_adstocks_are_not_warned_about(self, simple_fitted_mmm):
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", UserWarning)
+            matrix = self._allocation(simple_fitted_mmm)
+
+        assert not any("homogeneity" in n for n in json.loads(matrix.attrs["warnings"]))
+
+    def test_a_subclass_of_a_built_in_adstock_is_not_built_in(self):
+        assert incrementality_module._is_builtin_adstock(GeometricAdstock(l_max=2))
+        assert not incrementality_module._is_builtin_adstock(DoubledGeometric(l_max=2))
 
 
 class TestAllocationHelpers:
