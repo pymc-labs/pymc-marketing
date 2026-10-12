@@ -14,12 +14,15 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Standard public-repo runners are free and already 4-core; parallelism
+  # (shards) is the wall-clock lever for this job, not larger runners,
+  # which are billed per-minute even for public repositories.
   test_recovery:
-    runs-on: ubuntu-latest-8-cores
+    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        group: [1, 2]
+        group: [1, 2, 3, 4]
     steps:
       - uses: actions/checkout@v7
       - name: Install uv
@@ -35,7 +38,7 @@ jobs:
       - name: Run recovery tests
         run: |
           uv run --no-sync --frozen pytest --only-recovery \
-                 --splits 2 \
+                 --splits 4 \
                  --group ${{ matrix.group }} \
                  --splitting-algorithm least_duration \
                  --durations-path .test_durations
