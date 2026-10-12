@@ -91,27 +91,30 @@ mock_pymc_sample = pytest.fixture(scope="module")(mock_sample_setup_and_teardown
 def mock_pymc_fit(mocker):
     """Replace `pm.fit` (the variational fit seam) with prior draws.
 
-    The returned object stands in for the `Approximation` the wrapper gets
-    back, and ``.sample()`` draws from the sampling model's own priors via
+    Stands in for the `pm.fit` + `Approximation.sample` chain the wrapper
+    performs: whatever `draws` and `chains` the test passes to ``fit`` are
+    honored by drawing from the sampling model's own priors via
     `pymc.testing.mock_sample`, so no graph optimization or gradient
-    compilation ever runs. Call the factory to pick the draw counts::
+    compilation ever runs::
 
         def test_something(mock_pymc_fit):
-            mock_pymc_fit(draws=10)
-            idata = model.fit(data, method="advi")
+            idata = model.fit(data, method="advi", draws=10)
     """
 
-    def factory(draws: int = 10, chains: int = 1):
-        def fake_fit(*args, **kwargs):
-            fake_approx = mocker.Mock(name="pm.fit")
-            fake_approx.sample.return_value = mock_sample(
-                draws=draws, chains=chains, model=pm.modelcontext(None)
+    def fake_fit(*args, **kwargs):
+        fake_approx = mocker.Mock(name="pm.fit")
+
+        def fake_sample(**sample_kwargs):
+            return mock_sample(
+                draws=sample_kwargs.get("draws", 10),
+                chains=sample_kwargs.get("chains", 1),
+                model=pm.modelcontext(None),
             )
-            return fake_approx
 
-        return mocker.patch("pymc.fit", side_effect=fake_fit)
+        fake_approx.sample.side_effect = fake_sample
+        return fake_approx
 
-    return factory
+    return mocker.patch("pymc.fit", side_effect=fake_fit)
 
 
 @pytest.fixture

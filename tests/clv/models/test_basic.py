@@ -168,10 +168,8 @@ class TestCLVModel:
     def test_fit_advi(self, mock_pymc_fit):
         model = CLVModelTest()
 
-        # The wrapper returns whatever `Approximation.sample` builds, so the
-        # fixture draws from the model via `pymc.testing.mock_sample` instead
-        # of running the ADVI optimization.
-        mock_pymc_fit(draws=10)
+        # The fixture honors draws/chains by drawing from the model via
+        # `pymc.testing.mock_sample` instead of running the ADVI optimizer.
         idata = model.fit(
             data=model.data,
             method="advi",
