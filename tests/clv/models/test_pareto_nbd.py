@@ -218,10 +218,15 @@ class TestParetoNBDModel:
             model = ParetoNBDModel()
             model.build_model(data=test_data)
 
-    @pytest.mark.recovery
+    # Only the NUTS case is a real-fit recovery study; map/demz (19s/8s)
+    # are cheap enough to keep on the per-PR fast tier.
     @pytest.mark.parametrize(
         "method, rtol",
-        [("mcmc", 0.1), ("map", 0.2), ("demz", 0.2)],
+        [
+            pytest.param("mcmc", 0.1, marks=pytest.mark.recovery),
+            pytest.param("map", 0.2),
+            pytest.param("demz", 0.2),
+        ],
     )
     def test_model_convergence(self, method, rtol):
         model = ParetoNBDModel()

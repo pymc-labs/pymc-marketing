@@ -1001,7 +1001,9 @@ class TestSerialization:
 class TestBudgetOptimizerLogLog:
     """Budget optimization must keep working under the log link (channel_scale == 1)."""
 
-    @pytest.mark.slow
+    # Budget: real small fit (~7s) but behavioural in kind — it asserts
+    # plumbing (no double scaling, budget conservation), not recovered
+    # values, so it stays on the fast tier.
     def test_optimize_budget_log_log_runs_and_conserves_budget(self):
         """A log-log model optimizes without double-scaling and conserves the budget.
 

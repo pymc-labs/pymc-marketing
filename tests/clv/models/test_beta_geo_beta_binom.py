@@ -265,15 +265,18 @@ class TestBetaGeoBetaBinomModel:
         "see https://github.com/pymc-labs/pymc-marketing/pull/2902 and "
         "https://github.com/pymc-labs/pymc-marketing/issues/3058"
     )
-    @pytest.mark.recovery
+    # Only the NUTS case is a real-fit recovery study; map (10s) is cheap
+    # enough to keep on the per-PR fast tier.
     @pytest.mark.parametrize(
         "method, rtol",
         [
-            (
+            pytest.param(
                 "mcmc",
                 0.3,
-            ),  # higher rtol required for sample_data; within .1 tolerance for full dataset;
-            ("map", 0.2),
+                marks=pytest.mark.recovery,
+            ),  # higher rtol required for sample_data; within .1
+            # tolerance for full dataset;
+            pytest.param("map", 0.2),
         ],
     )
     def test_model_convergence(self, method, rtol, model_config):

@@ -242,13 +242,14 @@ class TestModifiedBetaGeoModel:
             decimal=5,
         )
 
-    @pytest.mark.recovery
+    # Only the NUTS case is a real-fit recovery study; map/advi are cheap
+    # enough to keep on the per-PR fast tier.
     @pytest.mark.parametrize(
         "method, rtol",
         [
-            ("mcmc", 0.075),
-            ("map", 0.15),
-            ("advi", 0.175),
+            pytest.param("mcmc", 0.075, marks=pytest.mark.recovery),
+            pytest.param("map", 0.15),
+            pytest.param("advi", 0.175),
         ],
     )
     def test_model_convergence(self, method, rtol, model_config):
