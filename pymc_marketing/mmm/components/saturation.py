@@ -460,8 +460,9 @@ class HillSaturation(SaturationTransformation):
     Parameters
     ----------
     slope : tensor
-        Slope of the Hill curve, controlling its steepness. Default prior:
-        ``Prior("HalfNormal", sigma=1.5)``.
+        Steepness of the curve as it passes the half-saturation point: the gradient
+        at ``x = kappa`` is ``beta * slope / (4 * kappa)``. Values above 1 give an
+        S-shaped curve. Default prior: ``Prior("HalfNormal", sigma=1.5)``.
     kappa : tensor
         Half-saturation point where the response equals half its asymptote. Default
         prior: ``Prior("HalfNormal", sigma=1.5)``.
