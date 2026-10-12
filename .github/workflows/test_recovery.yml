@@ -36,6 +36,10 @@ jobs:
           sudo apt-get install graphviz graphviz-dev
           uv pip install -e .[test]
       - name: Run recovery tests
+        env:
+          # No PYTENSOR_FLAGS override: default FAST_RUN mode (C linker) is
+          # the fastest backend for these sampling-heavy tests, and linker
+          # parity is PyMC/PyTensor's concern, not ours.
         run: |
           uv run --no-sync --frozen pytest --only-recovery \
                  --splits 4 \
