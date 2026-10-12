@@ -1803,7 +1803,10 @@ def test_save_overwrites_an_empty_directory(tmp_path):
 
     save_model(build_model(), path)
 
-    assert [p.name for p in path.iterdir()] == ["manifest.json", "model.cloudpickle"]
+    assert sorted(p.name for p in path.iterdir()) == [
+        "manifest.json",
+        "model.cloudpickle",
+    ]
 
 
 def test_dot_as_a_path_is_resolved_before_use(tmp_path, monkeypatch):
@@ -1829,7 +1832,7 @@ def test_dot_as_a_path_is_resolved_before_use(tmp_path, monkeypatch):
     assert path.name == "empty"
     assert (empty / "manifest.json").exists()
     assert (empty / "model.cloudpickle").exists()
-    assert [p.name for p in tmp_path.iterdir()] == ["empty", "pyproject.toml"]
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["empty", "pyproject.toml"]
 
 
 def test_the_reference_logp_does_not_move_between_runs():
