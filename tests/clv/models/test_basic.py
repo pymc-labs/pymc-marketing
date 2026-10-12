@@ -167,7 +167,21 @@ class TestCLVModel:
 
     def test_fit_advi(self, mocker):
         model = CLVModelTest()
-        # mocker.patch("pymc.sample", mock_sample)
+
+        # The wrapper only has to return the idata that `Approximation.sample`
+        # builds, so stub `pm.fit` and draw from the model's own priors via
+        # `pymc.testing.mock_sample` instead of running the ADVI optimization
+        # (compiling the graph's gradients is most of the runtime).
+        # Like the `demz` variant of `test_fit_non_nuts_methods_use_sampling_model`,
+        # the stub reads the model from the still-open sampling-model context.
+        def mock_pymc_fit(*args, **kwargs):
+            fake_approx = mocker.Mock()
+            fake_approx.sample.return_value = mock_sample(
+                draws=10, chains=1, model=pm.modelcontext(None)
+            )
+            return fake_approx
+
+        mocker.patch("pymc.fit", side_effect=mock_pymc_fit)
         idata = model.fit(
             data=model.data,
             method="advi",
