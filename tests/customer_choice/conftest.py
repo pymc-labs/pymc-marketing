@@ -16,8 +16,11 @@
 import warnings
 
 import pytest
+from pymc.testing import mock_sample_setup_and_teardown
 
 from pymc_marketing.customer_choice import BayesianBLP, generate_blp_panel
+
+mock_pymc_sample = pytest.fixture(scope="session")(mock_sample_setup_and_teardown)
 
 
 @pytest.fixture(scope="session")
