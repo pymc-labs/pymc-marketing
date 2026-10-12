@@ -730,6 +730,7 @@ class TestParetoNBDModelWithCovariates:
             < res_high["recency_frequency"].sel(obs_var="recency")
         ).all()
 
+    @pytest.mark.recovery
     def test_covariate_model_convergence(self):
         """Test that we can recover the true parameters with MAP fitting"""
         rng = np.random.default_rng(627)

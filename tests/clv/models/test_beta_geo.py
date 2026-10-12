@@ -1008,6 +1008,7 @@ class TestBetaGeoModelWithCovariates:
             "customer_id"
         )
 
+    @pytest.mark.recovery
     def test_covariate_model_convergence_a_b(self):
         """Test that we can recover the true parameters with MAP fitting"""
         rng = np.random.default_rng(627)
@@ -1048,6 +1049,7 @@ class TestBetaGeoModelWithCovariates:
                 rtol=0.25,
             )
 
+    @pytest.mark.recovery
     def test_covariate_model_convergence_phi_kappa(self):
         """Test that we can recover the true parameters with MAP fitting"""
         rng = np.random.default_rng(627)
