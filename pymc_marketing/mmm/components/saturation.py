@@ -484,6 +484,90 @@ class HillSaturation(SaturationTransformation):
         adstock.plot_curve(curve, random_seed=rng)
         plt.show()
 
+    Notes
+    -----
+    The response is concave everywhere when ``slope <= 1``
+    (Michaelis-Menten shape exactly at ``slope = 1``). For ``slope > 1``
+    the curve is S-shaped, with a single inflection point at
+
+        x_inf = kappa * ((slope - 1) / (slope + 1)) ** (1 / slope)
+
+    which sits in ``[0, kappa]`` and moves toward ``kappa`` as the slope
+    grows. On max-scaled media the convex segment is observable whenever
+    ``x_inf < 1``, which is guaranteed for ``kappa <= 1``.
+
+    Prior choice interacts with these regimes: a ``kappa`` prior whose
+    support is bounded at 1 (e.g. ``Beta(1, 2)`` through the example
+    below) forces half-saturation inside the observed spend range, which
+    bends near-linear channels that may in fact saturate beyond it. For
+    such channels use a factory-composed ``kappa`` whose support extends
+    beyond 1 (e.g. ``x50 = c * u`` with ``c`` two to three times the max
+    spend). A different ``u`` prior per channel group encodes per-channel
+    saturation-shape beliefs (S-shaped for some, concave for others).
+
+    Custom ``VariableFactory`` priors must be importable when a pickled
+    model is loaded (stdlib pickle), so keep the factory class at module
+    level.
+
+    A ``VariableFactory`` can express the parameters in "half-signal"
+    coordinates: ``kappa`` is the half-saturation spend (`f(kappa) = beta
+    / 2`) and the slope is derived from a bounded dynamic range
+    ``w = 1 / u`` (the multiple of the half-signal spend needed to reach
+    90% of the asymptote). This keeps the curve identical, anchors the
+    half-saturation point where the data can inform it, and keeps the
+    slope away from its degenerate region near zero (Reeve & Turner,
+    2013). The dims of the ``u`` prior are reused for the derived slope.
+
+    .. code-block:: python
+
+        import numpy as np
+        import pymc as pm
+        import pytensor.tensor as pt
+        import pytensor.xtensor as ptx
+        from pymc_extras.prior import Prior, VariableFactory
+        from pymc_marketing.mmm import HillSaturation
+
+
+        class DynamicRangeSlope(VariableFactory):
+            '''slope = ln(9) / log(1 / u), with u drawn from ``u``.
+
+            w = 1 / u is the ratio of the 90% to the 50% spend point,
+            so larger w means gentler saturation. The dims of ``u``
+            are reused for the derived slope.
+            '''
+
+            def __init__(self, u):
+                self.u = u
+
+            @property
+            def dims(self):
+                return self.u.dims
+
+            def create_variable(self, name, xdist=False):
+                u = self.u.create_variable(f"u_{name}", xdist=False)
+                det = pm.Deterministic(
+                    name,
+                    np.log(9.0) / pt.math.log(1.0 / u),
+                    dims=self.dims,
+                )
+                return ptx.as_xtensor(det, dims=self.dims) if xdist else det
+
+
+        hill = HillSaturation(
+            priors={
+                "slope": DynamicRangeSlope(
+                    u=Prior("Beta", alpha=1.0, beta=8.0, dims=("channel",))
+                ),
+                # kappa is the half-signal spend (EC50): passed directly
+                "kappa": Prior("Beta", alpha=1.0, beta=2.0, dims=("channel",)),
+                "beta": Prior("HalfNormal", sigma=1.5, dims=("channel",)),
+            }
+        )
+
+        # Then, inside a model context, use ``hill.apply(...)`` as usual:
+        #     ptx.as_xtensor(x, dims=("date", "channel"))
+        #     contribution = hill.apply(...).sum("channel")
+
     """
 
     def function(self, x, slope, kappa, beta, *, dim: str | None = None):
