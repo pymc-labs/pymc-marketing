@@ -1537,7 +1537,7 @@ def test_run_provides_original_scale_predictive_draws(
         if link == "log":
             # The fold posterior holds the LogNormal median exp(mu) * target_scale,
             # which carries no observation noise; the predictive variable must not be it.
-            median = fold["posterior"].dataset["y_original_scale"]
+            median = fold["posterior"].dataset["mu_original_scale"]
             train_dates = median.coords["date"].values
             assert not np.allclose(
                 got.sel(date=train_dates).transpose(*median.dims).values,
