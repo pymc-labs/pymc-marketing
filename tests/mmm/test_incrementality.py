@@ -4505,6 +4505,14 @@ class SquaredGeometric(GeometricAdstock):
 
 
 @serialization.register
+class SquaredOutputGeometric(GeometricAdstock):
+    """A custom adstock that is not linear: its output is squared."""
+
+    def function(self, x, alpha=None, halflife=None, *, dim):
+        return super().function(x, alpha, halflife, dim=dim) ** 2
+
+
+@serialization.register
 class DoubledGeometric(GeometricAdstock):
     """A custom adstock that is linear, but not one of the library's own."""
 
@@ -4686,11 +4694,15 @@ class TestAllocationInputGuards:
         assert "Columns sum to channel_contribution" not in subset
 
     @pytest.mark.filterwarnings("ignore:.*implicitly frozen:UserWarning")
-    def test_a_pruned_hyperparameter_changes_nothing(self, simple_mmm_data):
-        """Only the parameters the kernel is built from are read.
+    def test_a_hierarchical_kernel_is_read_from_the_adstock_variables(
+        self, simple_mmm_data
+    ):
+        """The kernel is built from ``adstock_alpha`` and its hyperparameter.
 
-        The adstock's own ``alpha`` is in the posterior, so a hyperparameter
-        pruned from it is not drawn again to change the weights.
+        ``_adstock_parameters`` keeps both, and the other variables of the
+        posterior are not needed to sample it.  Pruning the hyperparameter
+        leaves the weights where they were, because pymc holds ``adstock_alpha``
+        at its posterior value instead of drawing it again.
         """
         hierarchical = GeometricAdstock(
             l_max=4,
@@ -4706,11 +4718,22 @@ class TestAllocationInputGuards:
         mmm = _fit_with_saturation(
             simple_mmm_data, LogisticSaturation(), adstock=hierarchical
         )
-        whole = self._allocation(mmm)
-        pruned = mmm.idata.posterior.dataset.drop_vars("adstock_alpha_alpha")
-        mmm.idata["posterior"] = xr.DataTree(pruned)
+        posterior = mmm.idata.posterior.dataset
+        incrementality = mmm.incrementality
 
-        xr.testing.assert_identical(self._allocation(mmm), whole)
+        kept = incrementality._adstock_parameters(posterior)
+        pruned = incrementality._adstock_parameters(
+            posterior.drop_vars("adstock_alpha_alpha")
+        )
+
+        assert set(kept.data_vars) == {"adstock_alpha", "adstock_alpha_alpha"}
+        assert set(pruned.data_vars) == {"adstock_alpha"}
+        xr.testing.assert_allclose(
+            incrementality._adstock_kernel(posterior, divides=True),
+            incrementality._adstock_kernel(
+                posterior.drop_vars("adstock_alpha_alpha"), divides=True
+            ),
+        )
 
     def test_the_kernel_is_sampled_from_the_adstock_variables_alone(
         self, simple_fitted_mmm
@@ -4759,6 +4782,134 @@ class TestAllocationInputGuards:
         }
 
         assert defined == set(incrementality_module.BUILTIN_ADSTOCKS)
+
+    def test_a_nonlinear_custom_adstock_is_refused_with_adstock_last(
+        self, simple_mmm_data, monkeypatch
+    ):
+        """The cohorts separate only if the adstock is a linear convolution.
+
+        With ``adstock_first=False``, ``c_t = sum_l w_l h(x_{t-l})`` is one
+        cohort's per lag only when the adstock is linear.  A squared kernel has
+        the same reach as the geometric one, so the probe cannot tell, and its
+        columns miss ``channel_contribution`` with no warning.
+        """
+        mmm = _fit_with_saturation(
+            simple_mmm_data,
+            LogisticSaturation(),
+            adstock=SquaredOutputGeometric(l_max=4, normalize=False),
+            adstock_first=False,
+        )
+        TestSplitIncrementalContribution._evaluation_forbidden(monkeypatch)
+
+        with pytest.raises(NotImplementedError, match="linear convolution"):
+            self._allocation(mmm)
+
+    def test_a_linear_custom_adstock_with_adstock_last_runs_with_a_warning(
+        self, simple_mmm_data
+    ):
+        mmm = _fit_with_saturation(
+            simple_mmm_data,
+            LogisticSaturation(),
+            adstock=DoubledGeometric(l_max=4, normalize=False),
+            adstock_first=False,
+        )
+
+        with pytest.warns(UserWarning, match="homogeneity check"):
+            matrix = self._allocation(mmm)
+
+        TestAllocationEstimand._assert_columns_reconcile(mmm, matrix)
+        assert any(
+            "homogeneity" in note for note in json.loads(matrix.attrs["warnings"])
+        )
+        assert (
+            json.loads(matrix.attrs["assumptions"])["allocation_rule"]
+            == "separable_cohorts"
+        )
+
+    def test_negative_kernel_weights_are_allowed_with_adstock_last(
+        self, simple_mmm_data
+    ):
+        """Nothing divides by the adstocked spend there, so the sign is free."""
+        mmm = _fit_with_saturation(
+            simple_mmm_data,
+            LogisticSaturation(),
+            adstock=FastMinusSlowGeometric(
+                l_max=4, normalize=False, priors={"alpha": 0.3}
+            ),
+            adstock_first=False,
+        )
+
+        with pytest.warns(UserWarning, match="homogeneity check"):
+            matrix = self._allocation(mmm)
+
+        assert not matrix.isnull().any()
+
+    def test_a_pruned_posterior_is_refused_for_a_custom_adstock_last(
+        self, simple_mmm_data, monkeypatch
+    ):
+        mmm = _fit_with_saturation(
+            simple_mmm_data,
+            LogisticSaturation(),
+            adstock=DoubledGeometric(l_max=4, normalize=False),
+            adstock_first=False,
+        )
+        pruned = mmm.idata.posterior.dataset.drop_vars("adstock_alpha")
+        monkeypatch.setattr(mmm.idata.posterior, "dataset", pruned, raising=False)
+        TestSplitIncrementalContribution._evaluation_forbidden(monkeypatch)
+
+        with pytest.raises(ValueError, match=r"adstock_alpha.*posterior"):
+            self._allocation(mmm)
+
+    def test_the_built_in_adstock_is_not_warned_about_with_adstock_last(
+        self, adstock_last_fitted_mmm
+    ):
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", UserWarning)
+            matrix = self._allocation(adstock_last_fitted_mmm)
+
+        assert not any("homogeneity" in n for n in json.loads(matrix.attrs["warnings"]))
+
+    @pytest.mark.parametrize("adstock_first", [True, False])
+    def test_periods_without_a_fitted_date_are_complete(
+        self, monthly_mmm_data, adstock_first
+    ):
+        """A week with no data has no spend, so nothing of it lands past the data.
+
+        On monthly data most weekly periods hold no fitted date.  Both routes
+        and the counterfactual then give them the same ``complete``, and the
+        note about carryover running past the data is left out unless a period
+        with spend really does.
+        """
+        mmm = _fit_custom_mmm(
+            monthly_mmm_data,
+            adstock=GeometricAdstock(l_max=4),
+            adstock_first=adstock_first,
+        )
+        dates = mmm.incrementality.data.dates
+
+        matrix = mmm.incrementality.split_incremental_contribution_over_time(
+            frequency="weekly", estimand="allocation"
+        )
+        counterfactual = mmm.incrementality.split_incremental_contribution_over_time(
+            frequency="weekly"
+        )
+
+        spend = np.array(
+            [
+                bool(((dates >= start) & (dates <= end)).any())
+                for start, end in zip(
+                    matrix.period_start.values, matrix.spend_date.values, strict=True
+                )
+            ]
+        )
+        assert not spend.all()
+        np.testing.assert_array_equal(
+            matrix.complete.values,
+            counterfactual.observed.all("realization_date").values,
+        )
+        assert matrix.complete.values[~spend].all()
+        notes = " ".join(json.loads(matrix.attrs["warnings"]))
+        assert ("complete=False" in notes) == (not matrix.complete.all())
 
     def test_a_linear_custom_adstock_runs_with_a_warning(self, simple_mmm_data):
         mmm = _fit_with_saturation(

@@ -308,10 +308,11 @@ BUILTIN_ADSTOCKS = (
 )
 
 CUSTOM_ADSTOCK_NOTE = (
-    "This model's adstock is not one of the built-in ones.  The shares read it "
-    "as a linear convolution, and it passed a homogeneity check (doubling the "
-    "spend doubles the kernel), which does not prove linearity.  If it is not "
-    "a linear convolution, the shares are wrong even if the columns add up."
+    "This model's adstock is not one of the built-in ones.  The allocation reads "
+    "it as a linear convolution, and it passed a homogeneity check (doubling "
+    "the spend doubles the kernel), which does not prove linearity.  If it is "
+    "not a linear convolution, the allocation is wrong even if the columns add "
+    "up."
 )
 
 
@@ -603,8 +604,9 @@ def _require_homogeneous_adstock(
     """Refuse a custom adstock whose response to a unit impulse does not scale.
 
     The allocation reads the response to a unit impulse as a convolution kernel.
-    That holds only if the adstock is linear, and a nonlinear one gives shares
-    that are wrong while the columns still reconcile.  Doubling the impulse
+    That holds only if the adstock is linear, and a nonlinear one gives an
+    allocation that is wrong, with the columns still reconciling under
+    ``adstock_first=True``.  Doubling the impulse
     must double the response; this catches an adstock with a power or a
     saturation inside, but a pass is necessary, not sufficient, for linearity.
 
@@ -630,8 +632,8 @@ def _require_homogeneous_adstock(
         raise NotImplementedError(
             "estimand='allocation' needs the adstock to be a linear convolution "
             f"(spend x kernel), but {type(adstock).__name__} does not scale: "
-            "doubling the spend does not double its response, so the shares "
-            "would be wrong."
+            "doubling the spend does not double its response, so the "
+            "allocation would be wrong."
         )
     warnings.warn(CUSTOM_ADSTOCK_NOTE, UserWarning, skip_file_prefixes=(_PKG_PREFIX,))
 
@@ -1429,10 +1431,10 @@ class Incrementality:
             an identity link, a forward-looking adstock (``ConvMode.After``) and
             ``counterfactual_spend_factor=0``, and it covers the fitted dates
             only.
-            With ``adstock_first=True`` it also needs non-negative channel data
-            and, for a custom adstock, a linear convolution: the built-in ones
+            It also needs a linear convolution for an adstock: the built-in ones
             are, a custom one is checked for homogeneity, warned about if it
-            passes and refused if it fails.
+            passes and refused if it fails.  With ``adstock_first=True`` it
+            needs non-negative channel data and kernel weights too.
         method : {"pipeline", "closed_form"}, default="pipeline"
             ``"pipeline"`` evaluates the model graph and is exact for every
             supported model.  ``"closed_form"`` (cumulative adstock weights) is
@@ -1533,14 +1535,15 @@ class Incrementality:
             have.  Also for ``estimand="allocation"`` when the probe finds that
             spend moves the response further than the adstock's kernel reaches
             (a saturation that carries spend over a window), and, with
-            ``adstock_first=True``, for negative channel data, for a negative
+            ``adstock_first=True``, for negative channel data and for a negative
             kernel weight, and for a custom adstock that is not homogeneous
             (doubling the spend does not double the kernel).
         ValueError
             For an unknown ``estimand`` or ``method``, for
             ``estimand="allocation"`` with a ``counterfactual_spend_factor``
-            other than ``0`` or, with ``adstock_first=True``, an adstock
-            parameter that is missing from the posterior, and for everything
+            other than ``0`` or, with ``adstock_first=True`` or a custom
+            adstock, an adstock parameter that is missing from the posterior,
+            and for everything
             :meth:`compute_incremental_contribution` raises on.
 
         Warns
@@ -1776,8 +1779,9 @@ class Incrementality:
             parameter is missing from the posterior.
         NotImplementedError
             Under a log link, a non-``After`` adstock or a channel-dependent
-            ``mu_effect``; for negative channel data, or a kernel the shares
-            cannot split by, with ``adstock_first=True``; when the probe could
+            ``mu_effect``; for a custom adstock that is not linear; for negative
+            channel data or kernel weights with ``adstock_first=True``; when the
+            probe could
             not verify that the effect of a change in spend dies out within the
             fitted dates, or finds that it outlasts the kernel; and when it
             could not establish that each channel's column depends on that
@@ -1800,7 +1804,13 @@ class Incrementality:
         # whole axis whatever rows were asked for.
         whole_axis = self.model.adstock_first
         # What the kernel alone can refuse is refused before the evaluation.
-        weights = self._adstock_kernel(posterior_sub) if whole_axis else None
+        weights = None
+        if whole_axis:
+            weights = self._adstock_kernel(posterior_sub, divides=True)
+        elif not _is_builtin_adstock(self.model.adstock):
+            # Nothing divides by the adstocked spend here, but the cohorts only
+            # separate if the adstock is a linear convolution.
+            self._adstock_kernel(posterior_sub, divides=False)
         increments = self._allocation_increments(
             frequency="all_time" if whole_axis else frequency,
             start_date=None if whole_axis else start_date,
@@ -1861,7 +1871,7 @@ class Incrementality:
                 "value at zero spend) that those periods produced, not to all "
                 "of it."
             )
-        if whole_axis and not _is_builtin_adstock(self.model.adstock):
+        if not _is_builtin_adstock(self.model.adstock):
             notes.append(CUSTOM_ADSTOCK_NOTE)
         if not all(complete):
             notes.append(
@@ -1948,6 +1958,10 @@ class Incrementality:
 
         if self.model.adstock_first:
             self._refuse_signed_spend()
+
+        # The kernel is sampled whenever the shares need it or a custom adstock
+        # has to be checked for linearity.
+        if self.model.adstock_first or not _is_builtin_adstock(self.model.adstock):
             self._refuse_missing_adstock_parameters()
 
     def _refuse_signed_spend(self) -> None:
@@ -2072,13 +2086,15 @@ class Incrementality:
         -------
         list of bool
             ``True`` where the period's last fitted spend date plus *tail_lags*
-            is still a fitted date; a period with no fitted date is ``False``.
+            is still a fitted date.  A period with no fitted date has no spend,
+            so nothing of it lands past the data and it is ``True``, as the
+            counterfactual's ``observed`` coordinate has it.
         """
         complete = []
         for start, end in periods:
             spent = np.flatnonzero((dates >= start) & (dates <= end))
             complete.append(
-                bool(len(spent) and spent[-1] + tail_lags <= len(dates) - 1)
+                not len(spent) or bool(spent[-1] + tail_lags <= len(dates) - 1)
             )
         return complete
 
@@ -2271,17 +2287,21 @@ class Incrementality:
             [name for name in posterior.data_vars if name not in needed]
         )
 
-    def _adstock_kernel(self, posterior: xr.Dataset) -> xr.DataArray:
+    def _adstock_kernel(self, posterior: xr.Dataset, *, divides: bool) -> xr.DataArray:
         """Sample the adstock's kernel at each posterior draw, and vet it.
 
         Everything the allocation needs to know about the kernel is checked
-        here, from the posterior alone, so a kernel it cannot split by is refused
+        here, from the posterior alone, so a kernel it cannot use is refused
         before any period is evaluated.
 
         Parameters
         ----------
         posterior : xr.Dataset
             The draws to evaluate the kernel at.
+        divides : bool
+            Whether the allocation divides by the adstocked spend, as the
+            adstock-first shares do.  Only then must the weights be
+            non-negative.
 
         Returns
         -------
@@ -2294,14 +2314,14 @@ class Incrementality:
         Raises
         ------
         NotImplementedError
-            If a kernel weight is negative, or the adstock is a custom one that
-            fails the homogeneity check.
+            If *divides* and a kernel weight is negative, or the adstock is a
+            custom one that fails the homogeneity check.
         """
         adstock = self.model.adstock
         parameters = self._adstock_parameters(posterior)
         with _quiet_posterior_predictive_log():
             weights = adstock.sample_curve(parameters=parameters, progressbar=False)
-        if bool((weights < 0).any()):
+        if divides and bool((weights < 0).any()):
             raise NotImplementedError(
                 "estimand='allocation' needs the adstock's kernel weights to be "
                 "non-negative: with a negative weight the adstocked spend can "
