@@ -46,6 +46,7 @@ from pymc_marketing.mmm.additive_effect import (
     DataVarMuEffect,
     EventAdditiveEffect,
     LinearTrendEffect,
+    MediaMuEffect,
     MuEffect,
 )
 from pymc_marketing.mmm.events import EventEffect, GaussianBasis, HalfGaussianBasis
@@ -54,6 +55,7 @@ from pymc_marketing.mmm.lift_test import (
     _swap_columns_and_last_index_level,
 )
 from pymc_marketing.mmm.linear_trend import LinearTrend
+from pymc_marketing.mmm.media_transformation import MediaTransformation
 from pymc_marketing.mmm.mmm import (
     MMM,
     BudgetOptimizerWrapper,
@@ -562,6 +564,59 @@ class TestMultidimMMMEdgeCases:
         shared = mmm.model["shared_aux"]
         assert shared in mmm.model.data_vars
         assert [v for v in mmm.model.data_vars if v.name == "shared_aux"] == [shared]
+
+    def test_media_mu_effect_priors_take_transformation_dims(self, simple_mmm_data):
+        """MMM.build_model gives a MediaMuEffect one parameter per channel of its dim."""
+        X_df = simple_mmm_data["X"]
+        y = simple_mmm_data["y"]
+        dates = pd.DatetimeIndex(X_df["date"])
+        channels = ["channel_1", "channel_2", "channel_3"]
+        extra_channels = ["extra_1", "extra_2"]
+        X = xr.Dataset(
+            {
+                "media": (["date", "channel"], X_df[channels].values),
+                "extra_media": (
+                    ["date", "extra_channel"],
+                    np.ones((len(dates), len(extra_channels))),
+                ),
+            },
+            coords={
+                "date": dates,
+                "channel": channels,
+                "extra_channel": extra_channels,
+            },
+        )
+        mmm = MMM(
+            date_column="date",
+            channel_columns=channels,
+            target_column="target",
+            adstock=GeometricAdstock(l_max=4),
+            saturation=LogisticSaturation(),
+        ).add_mu_effect(
+            MediaMuEffect(
+                data_vars=["extra_media"],
+                media_transformation=MediaTransformation(
+                    adstock=GeometricAdstock(l_max=4, prefix="extra_adstock"),
+                    saturation=LogisticSaturation(prefix="extra_saturation"),
+                    adstock_first=True,
+                    dims=("extra_channel",),
+                ),
+                channel_dim="extra_channel",
+                prefix="extra",
+            )
+        )
+
+        mmm.build_model(X, y)
+
+        parameters = (
+            "extra_adstock_alpha",
+            "extra_saturation_lam",
+            "extra_saturation_beta",
+        )
+        dims = mmm.model.named_vars_to_dims
+        assert {name: dims[name] for name in parameters} == dict.fromkeys(
+            parameters, ("extra_channel",)
+        )
 
     def test_mu_effect_column_named_like_mmm_data_raises(self, simple_mmm_data):
         """An effect cannot reuse a data node registered by MMM itself."""
