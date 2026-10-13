@@ -422,7 +422,8 @@ class MMMIDataWrapper:
         :meth:`aggregate_dims` stores this product before aggregating, so it
         stays exact over a dimension that ``target_scale`` varies along. The
         other scaled-to-original conversions (:meth:`get_target` with
-        ``original_scale=False``, :meth:`to_original_scale`) use the summed
+        ``original_scale=False``, :meth:`to_original_scale` of a variable
+        without a stored ``{var}_original_scale``) use the summed
         ``target_scale`` after such an aggregation.
         """
         if group not in _STORED_PREDICTIVE_GROUP:
@@ -1338,10 +1339,17 @@ class MMMIDataWrapper:
         (``y_original_scale = y * target_scale`` in ``posterior_predictive``
         and ``prior``, see :meth:`get_predictive_target`), so they aggregate
         as draws: ``sum_g(y_g * s_g)`` rather than ``sum_g(y_g) * sum_g(s_g)``.
-        The copy is new; this wrapper's ``idata`` is not changed. Other
+        The copy is new; this wrapper's ``idata`` is not changed. A stored
+        ``{var}_original_scale`` aggregates as is, and
+        :meth:`to_original_scale` returns it. Under ``link="log"`` the
+        aggregated ``mu_original_scale`` is therefore the per-draw sum (or
+        mean) of the per-group medians, not the median of the aggregate: the
+        median of a sum is not the sum of the medians. The predictive
+        distribution of the aggregate is ``y_original_scale``. The other
         scaled-to-original conversions on the result (:meth:`get_target` with
-        ``original_scale=False``, :meth:`to_original_scale`) still use the
-        summed ``target_scale``.
+        ``original_scale=False``, :meth:`to_original_scale` of a variable
+        without a stored ``{var}_original_scale``) use the summed
+        ``target_scale``.
 
         Parameters
         ----------
