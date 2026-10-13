@@ -129,6 +129,11 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :img-top: ../gallery/images/mmm_credibility_disaggregation.png
 :link: ../notebooks/mmm/mmm_credibility_disaggregation.html
 :::
+
+:::{grid-item-card} Year-over-Year Target Transform for Highly Seasonal KPIs
+:img-top: ../gallery/images/mmm_yoy_target_transform.png
+:link: ../notebooks/mmm/mmm_yoy_target_transform.html
+:::
 ::::
 
 ### Data Connectors
@@ -300,6 +305,11 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :::{grid-item-card} MMM Case Study II: Funnel-Aware Modeling, ROAS Calibration, and Budget Planning
 :img-top: ../gallery/images/mmm_case_study2.png
 :link: ../notebooks/mmm/mmm_case_study2.html
+:::
+
+:::{grid-item-card} Pareto Optimization Across Products with a Shared Media Budget
+:img-top: ../gallery/images/mmm_pareto_optimization_frontier.png
+:link: ../notebooks/mmm/mmm_pareto_optimization.html
 :::
 
 :::{grid-item-card} Integrating Foundational Time Series Models with PyMC-Marketing MMM

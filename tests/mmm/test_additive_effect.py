@@ -920,6 +920,103 @@ class TestMediaMuEffect:
         assert restored.media_transformation.adstock_first is True
         assert restored == original
 
+    PARAMETERS = ("adstock_alpha", "saturation_lam", "saturation_beta")
+
+    @staticmethod
+    def _build(effect, dates, extra_coords) -> pm.Model:
+        """Register the effect's data and build it in a fresh model."""
+        channels = ["tv", "digital"]
+        coords = {"date": dates, **extra_coords, "channel": channels}
+        shape = [len(values) for values in coords.values()]
+        ds = xr.Dataset(
+            {"media_data": (tuple(coords), np.ones(shape))},
+            coords=coords,
+        )
+        model = pm.Model(coords=coords)
+        mmm = type(
+            "MockMMM",
+            (),
+            {"dims": tuple(extra_coords), "model": model, "xarray_dataset": ds},
+        )()
+        with model:
+            effect.create_data(mmm)
+            effect.create_effect(mmm)
+        return model
+
+    @classmethod
+    def _parameter_dims(cls, model: pm.Model) -> dict[str, tuple[str, ...]]:
+        """Dims of the transformation parameters; ``KeyError`` if one is missing."""
+        return {name: model.named_vars_to_dims[name] for name in cls.PARAMETERS}
+
+    @pytest.mark.parametrize(
+        "extra_coords",
+        [
+            pytest.param({}, id="no_dims"),
+            pytest.param({"product": ["A", "B"]}, id="single_dim"),
+        ],
+    )
+    def test_default_priors_take_media_transformation_dims(self, dates, extra_coords):
+        """Priors without dims get one parameter per ``media_transformation.dims`` cell."""
+        transformation_dims = (*extra_coords, "channel")
+        effect = MediaMuEffect(
+            data_vars=["media_data"],
+            media_transformation=MediaTransformation(
+                adstock=GeometricAdstock(l_max=4),
+                saturation=LogisticSaturation(),
+                adstock_first=True,
+                dims=transformation_dims,
+            ),
+            prefix="media",
+        )
+
+        model = self._build(effect, dates, extra_coords)
+
+        assert self._parameter_dims(model) == dict.fromkeys(
+            self.PARAMETERS, transformation_dims
+        )
+
+    def test_explicit_prior_dims_are_kept(self, dates):
+        """Only priors without dims take ``media_transformation.dims``."""
+        effect = MediaMuEffect(
+            data_vars=["media_data"],
+            media_transformation=MediaTransformation(
+                adstock=GeometricAdstock(
+                    l_max=4, priors={"alpha": Prior("Beta", alpha=1, beta=3, dims=())}
+                ),
+                saturation=LogisticSaturation(),
+                adstock_first=False,
+                dims=("channel",),
+            ),
+            prefix="media",
+        )
+
+        model = self._build(effect, dates, {})
+
+        assert self._parameter_dims(model) == {
+            "adstock_alpha": (),
+            "saturation_lam": ("channel",),
+            "saturation_beta": ("channel",),
+        }
+
+    def test_serialized_effect_builds_the_same_parameters(self, dates):
+        """An effect restored from its serialization builds the parameters it built."""
+        effect = MediaMuEffect(
+            data_vars=["media_data"],
+            media_transformation=MediaTransformation(
+                adstock=GeometricAdstock(l_max=4),
+                saturation=LogisticSaturation(),
+                adstock_first=True,
+                dims=("channel",),
+            ),
+            prefix="media",
+        )
+        model = self._build(effect, dates, {})
+        restored = serialization.deserialize(serialization.serialize(effect))
+
+        restored_model = self._build(restored, dates, {})
+
+        assert self._parameter_dims(restored_model) == self._parameter_dims(model)
+
 
 class TestControlMuEffect:
     """Tests for ControlMuEffect."""

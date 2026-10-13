@@ -2,7 +2,7 @@ name: Test Notebooks
 
 on:
   pull_request:
-    branches: [main, v1.0.0]
+    branches: [main]
     paths:
      - "pyproject.toml"
      - "tests/**.py"
@@ -13,7 +13,7 @@ on:
      - "!docs/source/notebooks/*/dev/**.ipynb"
      - "docs/source/guide/**.ipynb"
   push:
-    branches: [main, v1.0.0]
+    branches: [main]
     paths:
      - "pyproject.toml"
      - "tests/**.py"

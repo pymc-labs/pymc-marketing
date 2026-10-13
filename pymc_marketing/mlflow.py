@@ -1103,7 +1103,10 @@ def log_versions() -> None:
 def log_mmm_configuration(mmm: MMM) -> None:
     """Log the configuration of the MMM model to MLflow."""
     attrs = mmm.create_idata_attrs()
+    lift_test_calibrations = attrs.pop("lift_test_calibrations", None)
     mlflow.log_params(attrs)
+    if lift_test_calibrations not in (None, "[]"):
+        mlflow.log_text(lift_test_calibrations, "lift_test_calibrations.json")
 
     adstock_name = type(mmm.adstock).__name__.removesuffix("Adstock")
     saturation_name = type(mmm.saturation).__name__.removesuffix("Saturation")
