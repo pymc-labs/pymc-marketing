@@ -249,7 +249,8 @@ def compute_log_link_ground_truth_by_period(
     read off a single all-channels counterfactual the way it can under an
     identity link.  Each ``(period, channel)`` pair therefore gets its own
     counterfactual, evaluated on the model's response-scale prediction
-    ``{output_var}_original_scale`` through ``sample_posterior_predictive``.
+    ``mu_original_scale`` (the LogNormal median) through
+    ``sample_posterior_predictive``.
 
     Shares no code with the incrementality module -- in particular it never
     forms a linear-predictor difference -- so it is an independent check of
@@ -296,7 +297,7 @@ def compute_log_link_ground_truth_by_period(
     actual_data = mmm.model["channel_data"].get_value()
     dates = pd.to_datetime(mmm.idata.fit_data.date.values)
     channels = list(mmm.channel_columns)
-    response_var = f"{mmm.output_var}_original_scale"
+    response_var = "mu_original_scale"
 
     # Do not assume channel sits on axis 1: panel models lay channel_data out as
     # (date, *custom_dims, channel), so the axis has to be looked up.
@@ -1155,7 +1156,7 @@ class TestStackSamples:
     def test_preserves_custom_dims_and_their_coords(self):
         """Panel quantities keep every non-sample dimension, labels included.
 
-        ``y_sigma`` and ``y_original_scale`` both carry the model's custom
+        ``y_sigma`` and ``mu_original_scale`` both carry the model's custom
         dims, and the reduction broadcasts them against a ``(date, channel,
         *custom_dims)`` perturbation by name, so the labels have to survive.
         """
@@ -1359,7 +1360,7 @@ class TestLogLinkIncrementality:
         """Validate against brute-force per-channel response-scale counterfactuals.
 
         The ground truth runs one ``sample_posterior_predictive`` per
-        ``(period, channel)`` on ``y_original_scale``.  Matching it confirms
+        ``(period, channel)`` on ``mu_original_scale``.  Matching it confirms
         that reading per-channel increments off a single all-channels
         perturbation stays valid under a log link, provided the baseline
         response is used as the weight.
@@ -1817,9 +1818,9 @@ class TestLinkDispatch:
     def test_missing_baseline_response_raises(self, log_link_fitted_mmm):
         """A posterior stripped of the response-scale prediction fails clearly."""
         incr = log_link_fitted_mmm.incrementality
-        posterior = incr.idata.posterior.dataset.drop_vars("y_original_scale")
+        posterior = incr.idata.posterior.dataset.drop_vars("mu_original_scale")
 
-        with pytest.raises(ValueError, match="y_original_scale"):
+        with pytest.raises(ValueError, match="mu_original_scale"):
             incr._build_reducer(posterior, "median")
 
     def test_fixed_sigma_lognormal_refuses_mean_central_tendency(

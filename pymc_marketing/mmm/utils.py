@@ -519,15 +519,6 @@ def create_zero_dataset(
         ctrl_coords["control"] = control_cols
 
         if preserve_observed and "_control" in xa:
-            # Only the date axis is reindexed, deliberately. `build_model` calls
-            # `pmd.Data("control_data", xarray_dataset._control)`, so the model's
-            # `control` coord order *is* the training variable's, and inheriting
-            # it here is what keeps `pm.set_data` -- which writes positionally --
-            # aligned. Reordering to `model.control_columns` looks tidier and
-            # silently misaligns every control coefficient. (The zero-filled
-            # branch below does order by `control_columns`; that disagrees with
-            # the model whenever the two differ, and is harmless only because
-            # zeros are order-invariant.)
             data_vars["_control"] = xa["_control"].reindex(date=new_dates, fill_value=0)
         else:
             data_vars["_control"] = xr.DataArray(

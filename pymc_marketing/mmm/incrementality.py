@@ -253,7 +253,7 @@ from pymc_marketing.mmm.counterfactual import (
     Estimand,
     EvaluationWindows,
 )
-from pymc_marketing.mmm.link import LinkFunction
+from pymc_marketing.mmm.link import MU_ORIGINAL_SCALE, LinkFunction
 from pymc_marketing.mmm.spend_reach import (
     _PKG_PREFIX,
     CHANNEL_CONTRIBUTION,
@@ -449,7 +449,8 @@ class LogLinkReducer(IncrementalReducer):
     ----------
     baseline_response : xr.DataArray
         Baseline prediction on the response scale -- the model's
-        ``{output_var}_original_scale`` deterministic -- with dimensions
+        ``mu_original_scale`` deterministic (the LogNormal median
+        ``exp(mu) * target_scale``) -- with dimensions
         ``("sample", "date", *custom_dims)`` and ``date`` coordinates spanning
         the fitted data.  It already carries ``target_scale``, so the
         increment needs no further rescaling.
@@ -940,7 +941,7 @@ class Incrementality:
         Returns
         -------
         xr.DataArray
-            ``{output_var}_original_scale`` with dimensions
+            ``mu_original_scale`` with dimensions
             ``("sample", "date", *custom_dims)``.
 
         Raises
@@ -948,16 +949,16 @@ class Incrementality:
         ValueError
             If the deterministic is absent from the posterior.
         """
-        name = f"{self.model.output_var}_original_scale"
-        if name not in posterior:
+        if MU_ORIGINAL_SCALE not in posterior:
             raise ValueError(
                 f"Incrementality under link='{self.model.link}' needs the baseline "
-                f"response-scale prediction '{name}', which is not in the posterior. "
-                "It is registered automatically when a log-link model is built, so "
-                "this posterior was most likely sampled with a restricted "
-                "'var_names'. Refit without filtering it out."
+                f"response-scale prediction '{MU_ORIGINAL_SCALE}', which is not in "
+                "the posterior. It is registered automatically when a log-link "
+                "model is built, so this posterior was most likely sampled with a "
+                "restricted 'var_names'. Refit without filtering it out."
             )
-        return self._stack_samples(posterior[name])
+
+        return self._stack_samples(posterior[MU_ORIGINAL_SCALE])
 
     def _build_reducer(
         self,
@@ -1082,7 +1083,10 @@ class Incrementality:
             is nonlinear in ``mu``, so it neither cancels in the difference
             nor folds into the reducer's scale.  Use ``"median"`` there, or
             :meth:`~pymc_marketing.mmm.mmm.MMM.compute_counterfactual_contributions_dataset`,
-            which corrects a level rather than a difference.
+            which corrects a level rather than a difference.  A wrapped
+            likelihood (``Censored``, ``Scaled``) is refused under ``"mean"``
+            on either link and by both methods, because the wrapper moves the
+            observed mean off any ``mu``-based quantity; use ``"median"``.
 
         Returns
         -------
