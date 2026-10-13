@@ -208,14 +208,14 @@ class TestSummarySensitivityEdgeCases:
 
 
 class TestMMMSummaryEdgeCases:
-    def test_prior_predictive_missing_variable(self, mock_mmm_idata_with_prior):
-        factory = MMMSummaryFactory(mock_mmm_idata_with_prior)
-        with patch(
-            "pymc_marketing.mmm.summary.factory.get_prior_for_plot",
-            return_value=xr.Dataset({"y": xr.DataArray([1.0])}),
-        ):
-            with pytest.raises(AttributeError, match="y_original_scale"):
-                factory.prior_predictive(original_scale=True)
+    def test_prior_predictive_missing_draws(self, mock_mmm_idata_with_prior):
+        """Without a stored ``prior["y_original_scale"]`` and no ``prior_predictive["y"]``."""
+        idata = mock_mmm_idata_with_prior.idata.copy()
+        idata["prior"] = idata["prior"].dataset.drop_vars("y_original_scale")
+        idata["prior_predictive"] = idata["prior_predictive"].dataset.drop_vars("y")
+        factory = MMMSummaryFactory(MMMIDataWrapper(idata, validate_on_init=False))
+        with pytest.raises(ValueError, match="'y' not found in prior_predictive"):
+            factory.prior_predictive(original_scale=True)
 
     def test_residuals_distribution_invalid_quantile(self, mock_mmm_idata_with_prior):
         factory = MMMSummaryFactory(mock_mmm_idata_with_prior)
