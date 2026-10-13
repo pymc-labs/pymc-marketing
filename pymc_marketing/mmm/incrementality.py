@@ -1808,10 +1808,12 @@ class Incrementality:
             )
 
         dim_order = ["chain", "draw", "spend_date", "realization_date", "channel"]
+
         if frequency == "all_time":
             dim_order.remove("spend_date")
 
         matrix = matrix.transpose(*dim_order, *self.model.dims)
+
         matrix.attrs = self._carryover_attrs(
             increments,
             estimand="allocation",
