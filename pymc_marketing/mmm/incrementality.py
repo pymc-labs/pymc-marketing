@@ -247,6 +247,14 @@ from pydantic import ConfigDict, validate_call
 from pymc_marketing.data.idata.mmm_wrapper import MMMIDataWrapper
 from pymc_marketing.data.idata.schema import Frequency
 from pymc_marketing.data.idata.utils import subsample_draws
+from pymc_marketing.mmm.components.adstock import (
+    BinomialAdstock,
+    DelayedAdstock,
+    GeometricAdstock,
+    NoAdstock,
+    WeibullCDFAdstock,
+    WeibullPDFAdstock,
+)
 from pymc_marketing.mmm.counterfactual import (
     CounterfactualEvaluator,
     CounterfactualScenarios,
@@ -290,14 +298,20 @@ CentralTendency = Literal["median", "mean"]
 
 LAG_DIM = "time since exposure"
 
-BUILTIN_ADSTOCK_MODULE = "pymc_marketing.mmm.components.adstock"
+BUILTIN_ADSTOCKS = (
+    BinomialAdstock,
+    DelayedAdstock,
+    GeometricAdstock,
+    NoAdstock,
+    WeibullCDFAdstock,
+    WeibullPDFAdstock,
+)
 
 CUSTOM_ADSTOCK_NOTE = (
     "This model's adstock is not one of the built-in ones.  The shares read it "
     "as a linear convolution, and it passed a homogeneity check (doubling the "
     "spend doubles the kernel), which does not prove linearity.  If it is not "
-    "a linear convolution, the shares are wrong even though the columns still "
-    "add up."
+    "a linear convolution, the shares are wrong even if the columns add up."
 )
 
 
@@ -520,20 +534,26 @@ def kernel_trailing_lags(l_max: int, mode: ConvMode) -> int:
     raise ValueError(f"Wrong Mode: {mode}, expected one of {', '.join(ConvMode)}")
 
 
-def _refuse_unbounded_reach(reach: SpendReach) -> None:
-    """Refuse an allocation whose reach the spend probe could not bound.
+def _refuse_unbounded_reach(reach: SpendReach, *, kernel_lags: int) -> None:
+    """Refuse an allocation whose effect the probe could not tie to the kernel.
 
-    Passed as ``validate_reach`` to :meth:`Incrementality._compute_increments`.
+    Passed as ``validate_reach`` to :meth:`Incrementality._compute_increments`,
+    with *kernel_lags* bound.  Both routes read each date's response as the sum
+    of one cohort's kernel weights, so the probe has to find that a change in
+    spend moves the response no further than the kernel does.
 
     Parameters
     ----------
     reach : SpendReach
         What the probe measured.
+    kernel_lags : int
+        The last lag the adstock's own kernel reaches, from
+        :func:`kernel_trailing_lags`.
 
     Raises
     ------
     NotImplementedError
-        If the reach requires the full date axis.
+        If the reach requires the full date axis, or runs past the kernel.
     """
     if reach.requires_full_axis:
         raise NotImplementedError(
@@ -545,12 +565,24 @@ def _refuse_unbounded_reach(reach: SpendReach) -> None:
             "first or last date) each leave that unverified."
         )
 
+    if reach.max_lag is not None and reach.max_lag > kernel_lags:
+        raise NotImplementedError(
+            "estimand='allocation' reads each date's response as the adstock "
+            f"kernel's, which reaches {kernel_lags} periods after the spend, "
+            f"but the spend probe found that spend moves the response up to "
+            f"{reach.max_lag} periods later.  Something else in the media "
+            "transform, such as a saturation that carries spend over a window, "
+            "spreads it across dates, and the shares would be wrong."
+        )
+
 
 def _is_builtin_adstock(adstock: object) -> bool:
     """Whether *adstock* is exactly one of the library's own adstocks.
 
     The type is compared, not its ancestry: a subclass of a built-in adstock can
-    override ``function`` with anything, so it is not known to be linear.
+    override ``function`` with anything, so it is not known to be linear.  The
+    classes are listed in :data:`BUILTIN_ADSTOCKS`, not told apart by where
+    they are defined, so moving one between modules cannot demote it.
 
     Parameters
     ----------
@@ -560,9 +592,9 @@ def _is_builtin_adstock(adstock: object) -> bool:
     Returns
     -------
     bool
-        ``True`` if its class is defined in the library's adstock module.
+        ``True`` if its class is one of :data:`BUILTIN_ADSTOCKS`.
     """
-    return type(adstock).__module__ == BUILTIN_ADSTOCK_MODULE
+    return type(adstock) in BUILTIN_ADSTOCKS
 
 
 def _require_homogeneous_adstock(
@@ -1498,11 +1530,17 @@ class Incrementality:
             transform that reduces over ``date`` or mixes channels, but also on
             carryover that outlasts the fitted dates and on a channel that
             spends only on the first or last date, which a plain adstock can
-            have.
+            have.  Also for ``estimand="allocation"`` when the probe finds that
+            spend moves the response further than the adstock's kernel reaches
+            (a saturation that carries spend over a window), and, with
+            ``adstock_first=True``, for negative channel data, for a negative
+            kernel weight, and for a custom adstock that is not homogeneous
+            (doubling the spend does not double the kernel).
         ValueError
             For an unknown ``estimand`` or ``method``, for
             ``estimand="allocation"`` with a ``counterfactual_spend_factor``
-            other than ``0``, and for everything
+            other than ``0`` or, with ``adstock_first=True``, an adstock
+            parameter that is missing from the posterior, and for everything
             :meth:`compute_incremental_contribution` raises on.
 
         Warns
@@ -1734,11 +1772,14 @@ class Incrementality:
         Raises
         ------
         ValueError
-            If ``counterfactual_spend_factor`` is not ``0``.
+            If ``counterfactual_spend_factor`` is not ``0``, or a random adstock
+            parameter is missing from the posterior.
         NotImplementedError
             Under a log link, a non-``After`` adstock or a channel-dependent
-            ``mu_effect``; when the probe could not verify that the effect of a
-            change in spend dies out within the fitted dates; and when it
+            ``mu_effect``; for negative channel data, or a kernel the shares
+            cannot split by, with ``adstock_first=True``; when the probe could
+            not verify that the effect of a change in spend dies out within the
+            fitted dates, or finds that it outlasts the kernel; and when it
             could not establish that each channel's column depends on that
             channel's spend alone.
         """
@@ -1758,6 +1799,8 @@ class Incrementality:
         # The shares need c - c0 on every date, so adstock-first evaluates the
         # whole axis whatever rows were asked for.
         whole_axis = self.model.adstock_first
+        # What the kernel alone can refuse is refused before the evaluation.
+        weights = self._adstock_kernel(posterior_sub) if whole_axis else None
         increments = self._allocation_increments(
             frequency="all_time" if whole_axis else frequency,
             start_date=None if whole_axis else start_date,
@@ -1765,27 +1808,34 @@ class Incrementality:
             posterior=posterior_sub,
             central_tendency=central_tendency,
         )
-        if whole_axis:
+        max_lag = increments.reach.max_lag
+        if max_lag is None:  # pragma: no cover - _refuse_unbounded_reach ran
+            raise ValueError("An unbounded reach reached the allocation.")
+
+        if weights is not None:
             rule = "aumann_shapley_share"
             matrix = self._allocate_by_shares(
                 increments.periods[0],
-                posterior=posterior_sub,
+                weights=weights,
                 periods=periods,
                 frequency=frequency,
             )
+            complete = self._rows_complete(periods, self.data.dates, max_lag)
         else:
             rule = "separable_cohorts"
             # Saturation runs before the adstock, so each cohort's response is
             # its own and the counterfactual already adds up by column.
             matrix = self._carryover_band_to_matrix(increments, frequency=frequency)
-            fitted = matrix.realization_date.values <= self.data.dates[-1]
-            matrix = matrix.isel(realization_date=fitted)
+            # A row is complete when no part of its carryover was left past the
+            # fitted dates, which is what the band's unobserved tail records.
+            complete = [
+                bool(done)
+                for done in np.atleast_1d(
+                    matrix.coords["observed"].all("realization_date").values
+                )
+            ]
+            matrix = self._on_fitted_dates(matrix)
 
-        max_lag = increments.reach.max_lag
-        if max_lag is None:  # pragma: no cover - _refuse_unbounded_reach ran
-            raise ValueError("An unbounded reach reached the allocation.")
-
-        complete = self._rows_complete(periods, self.data.dates, max_lag)
         matrix = matrix.assign_coords(
             complete=complete[0]
             if frequency == "all_time"
@@ -1797,9 +1847,20 @@ class Incrementality:
             "past the data would need spend that has not happened, so there is "
             "no observed=False tail and each row is the part of the period's "
             "effect the data can show.",
-            "Columns sum to channel_contribution less its value at zero "
-            "spend, which is nil for a saturation through the origin.",
         ]
+        dates = self.data.dates
+        if start_ts <= dates[0] and end_ts >= dates[-1]:
+            notes.append(
+                "Columns sum to channel_contribution less its value at zero "
+                "spend, which is nil for a saturation through the origin."
+            )
+        else:
+            notes.append(
+                "start_date and end_date keep only some spend periods, so each "
+                "column sums to the part of channel_contribution (less its "
+                "value at zero spend) that those periods produced, not to all "
+                "of it."
+            )
         if whole_axis and not _is_builtin_adstock(self.model.adstock):
             notes.append(CUSTOM_ADSTOCK_NOTE)
         if not all(complete):
@@ -1979,7 +2040,12 @@ class Incrementality:
             counterfactual_spend_factor=0.0,
             central_tendency=central_tendency,
             keep_date_axis=True,
-            validate_reach=_refuse_unbounded_reach,
+            validate_reach=partial(
+                _refuse_unbounded_reach,
+                kernel_lags=kernel_trailing_lags(
+                    self.model.adstock.l_max, self.model.adstock.mode
+                ),
+            ),
             posterior=posterior,
             validate_dedicated_rows=_refuse_dedicated_rows,
         )
@@ -2016,11 +2082,41 @@ class Incrementality:
             )
         return complete
 
+    def _on_fitted_dates(self, matrix: xr.DataArray) -> xr.DataArray:
+        """Give a matrix of per-period bands the fitted dates as its columns.
+
+        The bands only cover the dates the requested periods move, and any past
+        the last fitted date are not data.  Every other fitted date is a cell no
+        requested period reaches, so it is ``0``, and an observed zero.
+
+        Parameters
+        ----------
+        matrix : xr.DataArray
+            As :meth:`_carryover_band_to_matrix` returns it.
+
+        Returns
+        -------
+        xr.DataArray
+            *matrix* with ``realization_date`` equal to the fitted dates.
+        """
+        dates = self.data.dates
+        within = matrix.realization_date.values <= dates[-1]
+        matrix = matrix.isel(realization_date=within)
+        # reindex would fill the non-index ``observed`` coordinate with NaN.
+        observed = matrix.coords["observed"].reindex(
+            realization_date=dates, fill_value=True
+        )
+        return (
+            matrix.drop_vars("observed")
+            .reindex(realization_date=dates, fill_value=0.0)
+            .assign_coords(observed=observed)
+        )
+
     def _allocate_by_shares(
         self,
         contribution: xr.DataArray,
         *,
-        posterior: xr.Dataset,
+        weights: xr.DataArray,
         periods: list[tuple[pd.Timestamp, pd.Timestamp]],
         frequency: Frequency,
     ) -> xr.DataArray:
@@ -2049,8 +2145,9 @@ class Incrementality:
             :math:`c_t - c_t^0` in original scale, as the per-date band of the
             all-time counterfactual.  Dims ``(chain, draw, realization_date,
             channel, *custom_dims)`` with an ``observed`` coordinate.
-        posterior : xr.Dataset
-            The draws *contribution* was computed at.
+        weights : xr.DataArray
+            The adstock's kernel at the draws *contribution* was computed at,
+            from :meth:`_adstock_kernel`.
         periods : list of tuple
             ``(start, end)`` of each spend period, the rows of the result.
         frequency : Frequency
@@ -2076,7 +2173,14 @@ class Incrementality:
             .rename(realization_date="date")
         )
         dates = pd.DatetimeIndex(total["date"].values)
-        weights = self._adstock_kernel(posterior, like=total)
+        # sample_curve returns the draws in the posterior's order, but not
+        # under its labels.  Relabeling by position is right only while that
+        # order holds; the share tests pin the allocation's columns to the
+        # contribution draw by draw, on a subsample too, so a change there
+        # fails them.
+        weights = weights.assign_coords(
+            chain=total["chain"].values, draw=total["draw"].values
+        )
         spend = self.data.get_channel_data()
 
         adstocked = sum(_adstock_terms(weights, spend))
@@ -2131,42 +2235,82 @@ class Incrementality:
 
         return matrix
 
-    def _adstock_kernel(
-        self, posterior: xr.Dataset, *, like: xr.DataArray
-    ) -> xr.DataArray:
-        """Sample the adstock's kernel at each posterior draw.
+    def _adstock_parameters(self, posterior: xr.Dataset) -> xr.Dataset:
+        """Keep the posterior's draws, and only the adstock's own variables.
+
+        ``sample_curve`` turns every variable it is given into per-draw
+        dictionaries, and the kernel is ``l_max`` long, so handing it
+        ``channel_contribution``, ``mu`` and the rest is memory spent for
+        nothing.  The variables of the adstock's own priors are kept, the
+        hyperparameters of a hierarchical one among them.  A fixed-parameter
+        adstock has no variable in the posterior, so it keeps the smallest one
+        there is, which is where its draws come from.
+
+        Parameters
+        ----------
+        posterior : xr.Dataset
+            The draws the kernel is sampled at.
+
+        Returns
+        -------
+        xr.Dataset
+            *posterior* without the variables the adstock does not read.
+        """
+        roots = tuple(self.model.adstock.variable_mapping.values())
+        # A prior with parameters that are priors names them ``<name>_<parameter>``.
+        needed = {
+            name
+            for name in posterior.data_vars
+            if any(name == root or name.startswith(f"{root}_") for root in roots)
+        }
+        if not needed:
+            # pymc takes the number of draws from a variable, so an adstock with
+            # fixed parameters keeps the smallest one the posterior has.
+            needed = {min(posterior.data_vars, key=lambda name: posterior[name].size)}
+        return posterior.drop_vars(
+            [name for name in posterior.data_vars if name not in needed]
+        )
+
+    def _adstock_kernel(self, posterior: xr.Dataset) -> xr.DataArray:
+        """Sample the adstock's kernel at each posterior draw, and vet it.
+
+        Everything the allocation needs to know about the kernel is checked
+        here, from the posterior alone, so a kernel it cannot split by is refused
+        before any period is evaluated.
 
         Parameters
         ----------
         posterior : xr.Dataset
             The draws to evaluate the kernel at.
-        like : xr.DataArray
-            An array computed at the same draws, whose ``chain`` and ``draw``
-            labels the kernel takes.
 
         Returns
         -------
         xr.DataArray
             The adstock of a unit impulse, with a ``"time since exposure"`` lag
             dimension of length ``l_max`` and the parameters' other dimensions.
+            The draws are in the posterior's order, but ``sample_curve`` does not
+            keep their labels.
 
         Raises
         ------
         NotImplementedError
-            If the adstock is a custom one that fails the homogeneity check.
+            If a kernel weight is negative, or the adstock is a custom one that
+            fails the homogeneity check.
         """
         adstock = self.model.adstock
+        parameters = self._adstock_parameters(posterior)
         with _quiet_posterior_predictive_log():
-            weights = adstock.sample_curve(parameters=posterior, progressbar=False)
+            weights = adstock.sample_curve(parameters=parameters, progressbar=False)
+        if bool((weights < 0).any()):
+            raise NotImplementedError(
+                "estimand='allocation' needs the adstock's kernel weights to be "
+                "non-negative: with a negative weight the adstocked spend can "
+                "be zero or negative on a date where the contribution is not, "
+                "and that date would be left out of the matrix."
+            )
         if not _is_builtin_adstock(adstock):
-            _require_homogeneous_adstock(adstock, weights, posterior)
-        # sample_curve returns the draws in the posterior's order, but not
-        # under its labels.  Relabelling by position is right only while that
-        # order holds; the share tests pin the weights draw by draw, including
-        # on a subsample, so a change there fails them.
-        return weights.assign_coords(
-            chain=like["chain"].values, draw=like["draw"].values
-        )
+            _require_homogeneous_adstock(adstock, weights, parameters)
+        return weights
 
     def split_incremental_contribution_current_future(
         self,

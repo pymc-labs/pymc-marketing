@@ -38,6 +38,7 @@ from pymc_marketing.mmm.components.saturation import SaturationTransformation
 from pymc_marketing.mmm.linear_trend import LinearTrend
 from pymc_marketing.mmm.media_transformation import MediaTransformation
 from pymc_marketing.mmm.mmm import MMM
+from pymc_marketing.mmm.transformers import geometric_adstock, logistic_saturation
 from pymc_marketing.serialization import serialization
 from pymc_marketing.special_priors import LogNormalPrior
 
@@ -1218,6 +1219,29 @@ class DateNormalizedSaturation(SaturationTransformation):
     def function(self, x, beta, *, dim: str | None = None):
         """Scale each channel by one plus its mean over ``date``."""
         return beta * x / (1.0 + x.mean("date"))
+
+    default_priors = {"beta": Prior("HalfNormal", sigma=1.0)}
+
+
+@serialization.register
+class CarryoverSaturation(SaturationTransformation):
+    r"""A media transform that carries spend over a window of dates of its own.
+
+    A geometric carryover runs *inside* the saturation,
+
+    .. math::
+
+        v_{t,c} = \beta \, h\Big(\sum_{l<4} 0.7^l x_{t-l,c}\Big),
+
+    so it reaches further than the model's adstock kernel, and the response on
+    a date is no longer one cohort's.  Separable across channels, bounded in
+    time: only a comparison of the probe's reach with the kernel catches it.
+    """
+
+    def function(self, x, beta, *, dim: str | None = None):
+        """Saturate a four-lag geometric carryover of the spend."""
+        carried = geometric_adstock(x, 0.7, l_max=4, dim="date")
+        return beta * logistic_saturation(carried, 1.0)
 
     default_priors = {"beta": Prior("HalfNormal", sigma=1.0)}
 

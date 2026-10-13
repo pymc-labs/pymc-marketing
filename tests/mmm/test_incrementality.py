@@ -26,6 +26,7 @@ import pytensor.xtensor as ptx
 import pytest
 import xarray as xr
 from pydantic import ValidationError
+from pymc_extras.prior import Prior
 
 import pymc_marketing
 from pymc_marketing.data.idata.utils import subsample_draws
@@ -4208,14 +4209,20 @@ class TestAllocationEstimand:
         )
 
         assert matrix.sizes["draw"] == 7
-        assert generator.sizes["draw"] == 7
         xr.testing.assert_identical(matrix, again)
+        xr.testing.assert_identical(matrix, generator)
 
     @pytest.mark.parametrize(
         "subsample",
         [
-            pytest.param({"num_samples": None}, id="every-draw"),
-            pytest.param({"num_samples": 7, "random_state": 3}, id="subsample"),
+            pytest.param(lambda: {"num_samples": None}, id="every-draw"),
+            # A Generator is spent by the draw it makes, so each use gets a new
+            # one at the same seed; an int would give any second draw the same
+            # rows, and a pipeline that drew twice would go unseen.
+            pytest.param(
+                lambda: {"num_samples": 7, "random_state": np.random.default_rng(3)},
+                id="subsample",
+            ),
         ],
     )
     @pytest.mark.parametrize("normalize", [True, False])
@@ -4243,12 +4250,13 @@ class TestAllocationEstimand:
             adstock=GeometricAdstock(l_max=6, normalize=normalize),
         )
 
-        matrix = self._allocation(mmm, **subsample).sel(channel="channel_1")
+        full = self._allocation(mmm, **subsample())
+        matrix = full.sel(channel="channel_1")
         dates = pd.DatetimeIndex(matrix.spend_date.values)
         a_first = matrix.sel(spend_date=dates[first], realization_date=dates[landing])
         a_second = matrix.sel(spend_date=dates[second], realization_date=dates[landing])
 
-        posterior = subsample_draws(mmm.idata.posterior.dataset, **subsample)
+        posterior = subsample_draws(mmm.idata.posterior.dataset, **subsample())
         alpha = posterior["adstock_alpha"].sel(channel="channel_1")
         expected = (alpha ** (landing - first) * 300.0) / (
             alpha ** (landing - second) * 900.0
@@ -4261,9 +4269,26 @@ class TestAllocationEstimand:
         np.testing.assert_allclose(
             (a_first + a_second).values, column.values, rtol=1e-10
         )
+        # The ratio and the split hold whatever draws the contribution was
+        # computed at.  This is what ties it to the draws the weights come from:
+        # each column is the contribution of the very draw the subsample picked.
+        stored = subsample_draws(
+            mmm.idata.posterior.dataset[["channel_contribution_original_scale"]],
+            **subsample(),
+        )["channel_contribution_original_scale"]
+        expected = stored.rename(date="realization_date").transpose(*full.dims[:2], ...)
+        np.testing.assert_allclose(
+            full.sum("spend_date")
+            .drop_vars("realization_date")
+            .transpose(*expected.dims)
+            .values,
+            expected.drop_vars("realization_date").values,
+            rtol=1e-8,
+            atol=1e-8,
+        )
         # And with concave saturation this is not what zeroing a cohort gives.
         counterfactual = mmm.incrementality.split_incremental_contribution_over_time(
-            frequency="original", **subsample
+            frequency="original", **subsample()
         ).sel(channel="channel_1")
         assert not np.allclose(
             counterfactual.sel(
@@ -4487,6 +4512,16 @@ class DoubledGeometric(GeometricAdstock):
         return 2 * super().function(x, alpha, halflife, dim=dim)
 
 
+@serialization.register
+class FastMinusSlowGeometric(GeometricAdstock):
+    """A linear custom adstock whose kernel goes negative after the first lag."""
+
+    def function(self, x, alpha=None, halflife=None, *, dim):
+        fast = super().function(x, alpha, halflife, dim=dim)
+        slow = super().function(x, alpha**0.5, halflife, dim=dim)
+        return fast - 0.9 * slow
+
+
 class TestAllocationInputGuards:
     """What ``estimand="allocation"`` refuses or flags about its inputs."""
 
@@ -4550,15 +4585,180 @@ class TestAllocationInputGuards:
 
         assert not self._allocation(mmm).isnull().any()
 
-    def test_a_nonlinear_custom_adstock_is_refused(self, simple_mmm_data):
+    def test_a_nonlinear_custom_adstock_is_refused_before_evaluating(
+        self, simple_mmm_data, monkeypatch
+    ):
         mmm = _fit_with_saturation(
             simple_mmm_data,
             LogisticSaturation(),
             adstock=SquaredGeometric(l_max=4, normalize=False),
         )
+        TestSplitIncrementalContribution._evaluation_forbidden(monkeypatch)
 
         with pytest.raises(NotImplementedError, match="linear convolution"):
             self._allocation(mmm)
+
+    def test_a_negative_kernel_weight_is_refused_before_evaluating(
+        self, simple_mmm_data, monkeypatch
+    ):
+        """A linear kernel can still send adstocked spend to zero or below."""
+        mmm = _fit_with_saturation(
+            simple_mmm_data,
+            LogisticSaturation(),
+            adstock=FastMinusSlowGeometric(
+                l_max=4, normalize=False, priors={"alpha": 0.3}
+            ),
+        )
+        TestSplitIncrementalContribution._evaluation_forbidden(monkeypatch)
+
+        with pytest.raises(NotImplementedError, match="non-negative"):
+            self._allocation(mmm)
+
+    @pytest.mark.parametrize("adstock_first", [True, False])
+    def test_a_saturation_that_carries_spend_past_the_kernel_is_refused(
+        self, simple_mmm_data, monkeypatch, adstock_first
+    ):
+        """The probe sees spend move the response further than the kernel does.
+
+        A window of carryover inside the saturation is bounded, so the probe
+        raises no flag of its own, and the response on a date is not one
+        cohort's: the columns miss ``channel_contribution`` (adstock last) or the
+        shares split a date between the wrong cohorts (adstock first).
+        """
+        from tests.mmm.conftest import CarryoverSaturation
+
+        mmm = _fit_with_saturation(
+            simple_mmm_data,
+            CarryoverSaturation(),
+            adstock=GeometricAdstock(l_max=3),
+            adstock_first=adstock_first,
+        )
+        TestSplitIncrementalContribution._evaluation_forbidden(monkeypatch)
+
+        with pytest.raises(NotImplementedError, match="moves the response up to"):
+            self._allocation(mmm)
+
+    @pytest.mark.parametrize("adstock_first", [True, False])
+    def test_rows_in_a_subset_keep_the_fitted_dates_as_columns(
+        self, simple_mmm_data, adstock_first
+    ):
+        """``realization_date`` is the fitted dates whichever order and rows."""
+        mmm = _fit_with_saturation(
+            simple_mmm_data,
+            LogisticSaturation(),
+            adstock=GeometricAdstock(l_max=4),
+            adstock_first=adstock_first,
+        )
+        dates = mmm.incrementality.data.dates
+
+        matrix = mmm.incrementality.split_incremental_contribution_over_time(
+            frequency="original",
+            estimand="allocation",
+            start_date=dates[5],
+            end_date=dates[8],
+        )
+
+        pd.testing.assert_index_equal(
+            pd.DatetimeIndex(matrix.realization_date.values), dates, check_names=False
+        )
+        assert matrix.sizes["spend_date"] == 4
+        assert matrix.coords["observed"].dtype == bool
+        assert bool(matrix.coords["observed"].all())
+        assert not matrix.isnull().any()
+
+    @pytest.mark.parametrize("adstock_first", [True, False])
+    def test_the_columns_note_says_when_rows_are_a_subset(
+        self, simple_fitted_mmm, adstock_last_fitted_mmm, adstock_first
+    ):
+        mmm = simple_fitted_mmm if adstock_first else adstock_last_fitted_mmm
+        dates = mmm.incrementality.data.dates
+
+        def notes(**kwargs):
+            matrix = mmm.incrementality.split_incremental_contribution_over_time(
+                frequency="original", estimand="allocation", **kwargs
+            )
+            return " ".join(json.loads(matrix.attrs["warnings"]))
+
+        assert "Columns sum to channel_contribution" in notes()
+        assert "keep only some spend periods" not in notes()
+        subset = notes(start_date=dates[5], end_date=dates[8])
+        assert "keep only some spend periods" in subset
+        assert "Columns sum to channel_contribution" not in subset
+
+    @pytest.mark.filterwarnings("ignore:.*implicitly frozen:UserWarning")
+    def test_a_pruned_hyperparameter_changes_nothing(self, simple_mmm_data):
+        """Only the parameters the kernel is built from are read.
+
+        The adstock's own ``alpha`` is in the posterior, so a hyperparameter
+        pruned from it is not drawn again to change the weights.
+        """
+        hierarchical = GeometricAdstock(
+            l_max=4,
+            priors={
+                "alpha": Prior(
+                    "Beta",
+                    alpha=Prior("Gamma", alpha=2, beta=1, dims="channel"),
+                    beta=3,
+                    dims="channel",
+                )
+            },
+        )
+        mmm = _fit_with_saturation(
+            simple_mmm_data, LogisticSaturation(), adstock=hierarchical
+        )
+        whole = self._allocation(mmm)
+        pruned = mmm.idata.posterior.dataset.drop_vars("adstock_alpha_alpha")
+        mmm.idata["posterior"] = xr.DataTree(pruned)
+
+        xr.testing.assert_identical(self._allocation(mmm), whole)
+
+    def test_the_kernel_is_sampled_from_the_adstock_variables_alone(
+        self, simple_fitted_mmm
+    ):
+        mmm = simple_fitted_mmm
+
+        kept = mmm.incrementality._adstock_parameters(mmm.idata.posterior.dataset)
+
+        assert set(kept.data_vars) == {"adstock_alpha"}
+        assert kept.sizes["draw"] == mmm.idata.posterior.dataset.sizes["draw"]
+
+    def test_a_hierarchical_adstock_keeps_its_hyperparameters(self):
+        """So pymc has nothing upstream to resample, and warns about nothing."""
+        posterior = xr.Dataset(
+            {
+                name: (("chain", "draw"), np.zeros((1, 3)))
+                for name in (
+                    "adstock_alpha",
+                    "adstock_alpha_alpha",
+                    "channel_contribution",
+                )
+            }
+        )
+        mmm = SimpleNamespace(
+            model=SimpleNamespace(
+                adstock=SimpleNamespace(variable_mapping={"alpha": "adstock_alpha"})
+            )
+        )
+
+        kept = Incrementality._adstock_parameters(mmm, posterior)
+
+        assert set(kept.data_vars) == {"adstock_alpha", "adstock_alpha_alpha"}
+
+    def test_the_built_in_adstocks_are_all_listed(self):
+        """A new adstock in the library must not be taken for a custom one."""
+        import inspect
+
+        from pymc_marketing.mmm.components import adstock as adstock_module
+
+        defined = {
+            cls
+            for _, cls in inspect.getmembers(adstock_module, inspect.isclass)
+            if issubclass(cls, adstock_module.AdstockTransformation)
+            and cls is not adstock_module.AdstockTransformation
+            and cls.__module__ == adstock_module.__name__
+        }
+
+        assert defined == set(incrementality_module.BUILTIN_ADSTOCKS)
 
     def test_a_linear_custom_adstock_runs_with_a_warning(self, simple_mmm_data):
         mmm = _fit_with_saturation(
