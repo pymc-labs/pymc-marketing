@@ -789,9 +789,9 @@ def _relabel_draws(sampled: xr.DataArray, labels: Mapping[str, Any]) -> xr.DataA
     ``pm.sample_posterior_predictive`` returns the draws in the order of the
     posterior it is given, under labels of its own.  Relabeling by position is
     right only while that order holds: nothing between the subsample and the
-    sampling may reorder or drop draws.  The sizes are checked here, so a draw
-    lost or added on the way fails loudly instead of pairing draw *i* of one
-    array with draw *j* of another; the parity tests pin the order itself.
+    sampling may reorder or drop draws.  The sizes are checked here: a draw lost
+    or added on the way would pair draw *i* of one array with draw *j* of
+    another, so it raises.  The parity tests pin the order itself.
 
     Parameters
     ----------
@@ -952,7 +952,7 @@ class PeriodIncrements:
 
 @dataclass(frozen=True)
 class ProbedReach:
-    """What is known about the model before any period is evaluated.
+    """Compiled evaluator, factual baseline and measured reach of one evaluation.
 
     Parameters
     ----------
@@ -1669,25 +1669,19 @@ class Incrementality:
             passes and refused if it fails.  With ``adstock_first=True`` it
             needs non-negative channel data and kernel weights too.
         method : {"pipeline", "closed_form"}, default="pipeline"
-            ``"pipeline"`` evaluates the model graph and is exact for every
-            supported model.  ``"closed_form"`` reads the matrix off the
-            posterior instead of zeroing each period's spend: with saturation
-            first a cohort's entry on lag ``l`` is the adstock's weight
-            ``w_l`` times the spend's saturated value, and the saturation stage
-            is evaluated once for all dates.  It returns the pipeline's matrix
-            entry for entry, in both estimands, which coincide for a model
-            that is additively separable across cohorts.  No period is
-            evaluated, so it costs less the more periods there are: about
-            twice as fast at weekly rows over a few years of data, and no
-            faster at coarse frequencies, where the spend probe both routes
-            run dominates.  It is valid only for that model class and raises
-            rather than approximate on the others:
-            ``adstock_first=True``, a non-identity link, a custom adstock, an
-            adstock that is not ``ConvMode.After``, a channel-dependent
-            ``mu_effect``, ``time_varying_media``, and a media transform the
-            spend probe finds to carry spend over a window of dates or to mix
-            channels.  Any ``counterfactual_spend_factor`` works, except with
-            ``estimand="allocation"``, which is defined against zero spend.
+            ``"pipeline"`` evaluates the model once per spend period and is
+            exact for every supported model.  ``"closed_form"`` computes the
+            same matrix from the adstock kernel and the saturated spend, with
+            no evaluation per period, for models where saturation runs first;
+            see the Notes.  It raises on any other model:
+
+            - ``adstock_first=True``, or a link other than identity;
+            - a custom adstock, or one that is not ``ConvMode.After``;
+            - a channel-dependent ``mu_effect``, or ``time_varying_media``;
+            - a media transform the spend probe finds to carry spend over a
+              window of dates or to mix channels;
+            - ``estimand="allocation"`` with a ``counterfactual_spend_factor``
+              other than ``0``.
         num_samples : int or None, optional
             Number of posterior samples to use; all of them when None.
         random_state : RandomState or Generator or None, optional
@@ -1874,6 +1868,20 @@ class Incrementality:
         :meth:`split_incremental_contribution_current_future` works on each
         period's band instead and never builds this matrix.
 
+        ``method="closed_form"`` applies when saturation runs before the
+        adstock.  The model is then additively separable across spend dates:
+        spend on date :math:`s` puts :math:`w_l V_s` on date :math:`s + l`,
+        with :math:`w_l` the adstock's kernel and
+        :math:`V_s = \beta g(x_s) - \beta g(f x_s)` the change in the saturated
+        spend when the spend is scaled by the counterfactual factor :math:`f`.
+        Both are read off the posterior, the second in one evaluation of the
+        saturation for all dates, and the matrix is the pipeline's entry for
+        entry.  The counterfactual and the allocation coincide on such a
+        model, so either estimand can use it.  Its cost does not grow with the
+        number of periods; the spend probe, which both methods run, does not
+        depend on them either, so at coarse frequencies the two cost about the
+        same.
+
         See Also
         --------
         split_incremental_contribution_current_future : The matrix reduced to
@@ -1984,8 +1992,9 @@ class Incrementality:
     ) -> xr.DataArray:
         """Order the dims of a counterfactual matrix and describe it.
 
-        The part of :meth:`split_incremental_contribution_over_time` after the
-        matrix has been laid out, shared by the routes that lay it out.
+        The pipeline and the closed form both call this once their matrix is
+        laid out, so the two return the same dimension order, notes and
+        attributes.
 
         Parameters
         ----------
@@ -2177,8 +2186,8 @@ class Incrementality:
     ) -> xr.DataArray:
         """Mark each row's completeness, order the dims and describe the allocation.
 
-        The part of :meth:`_split_allocation` after the matrix is on the fitted
-        dates, shared by the routes that build it.
+        Called by the pipeline's and the closed form's allocation once the
+        matrix holds the fitted dates only.
 
         Parameters
         ----------
@@ -2291,10 +2300,9 @@ class Incrementality:
     ) -> ClosedFormInputs:
         r"""Probe the model and evaluate the saturation stage, for the closed form.
 
-        The part every closed-form method shares: what the spend probe finds out
-        about the media transform is refused here when it rules the closed form
-        out, and the saturated spend :math:`V_t` is evaluated once, with no
-        period's spend zeroed.
+        Runs :meth:`_prepare_evaluation`, refuses a media transform the spend
+        probe finds to mix channels, and evaluates the change in saturated
+        spend :math:`V_t` once for all dates.
 
         Parameters
         ----------
@@ -2407,11 +2415,11 @@ class Incrementality:
     ) -> xr.DataArray:
         r"""Build the matrix of ``method="closed_form"`` without evaluating any period.
 
-        With saturation first, a cohort's response on lag :math:`l` is
-        :math:`w_l V_s`, the adstock's kernel times :math:`V_s = \beta g(x_s)`,
-        the spend's saturated value.  Both are read off the posterior directly,
-        the second by evaluating the saturation stage alone, so no period's spend
-        is zeroed and nothing is evaluated per period.  What only the spend probe
+        With saturation first, a cohort's increment on lag :math:`l` is
+        :math:`w_l V_s`: the adstock's kernel times
+        :math:`V_s = \beta g(x_s) - \beta g(f x_s)`, the change in the
+        saturated spend.  Both are read off the posterior, the second by
+        evaluating the saturation stage alone, and no period is evaluated.  What only the spend probe
         can establish (a saturation that carries spend over a window or mixes
         channels) is refused after the probe, with the checks the allocation
         makes.  The layout is that of the pipeline route, entry for entry, and
@@ -2572,8 +2580,8 @@ class Incrementality:
     ) -> xr.DataArray:
         r"""Lay out :math:`A[s, u] = w_{u-s} V_s` as the pipeline route would.
 
-        One pass over the kernel's lags rather than one evaluation per period:
-        what lag :math:`l` lands on each date is :math:`w_l V_{t-l}`, and it
+        One pass over the kernel's lags: what lag :math:`l` lands on each date
+        is :math:`w_l V_{t-l}`, and it
         goes to the period its spend date belongs to, so an aggregated period's
         row is the sum of its dates' cohorts.  The columns are those of the
         pipeline route, the evaluated dates of every period plus the dates past
@@ -2664,13 +2672,13 @@ class Incrementality:
         r"""Refuse what the closed form is not exact for, from the model alone.
 
         ``method="closed_form"`` reads each cohort's response as
-        :math:`w_l\,\beta g(x_s)` on lag :math:`l`: the adstock's kernel
-        times a saturated spend that never meets another date's.  That holds
+        :math:`w_l V_s` on lag :math:`l`: the adstock's kernel times a change in
+        saturated spend that depends on that date's spend alone.  That holds
         only when saturation runs first, the kernel is a known linear
         convolution that places its first weight on the spend period, and
         ``channel_contribution`` is the only route from spend to the response.
-        Outside it the error is unbounded and silent, so each case raises
-        instead of returning a number; ``method="pipeline"`` is exact for them.
+        Outside that class the closed form is not exact, so it raises;
+        ``method="pipeline"`` handles those models.
 
         Every check reads the model's structure or its posterior, so none of
         them needs an evaluation.  What only the spend probe can establish (a
@@ -3247,23 +3255,12 @@ class Incrementality:
             longer current window than spend late in it, which is neither
             definition of current.  Must lie in ``0 .. effective_horizon``.
         method : {"pipeline", "closed_form"}, default="pipeline"
-            ``"pipeline"`` evaluates the model graph and is exact for every
-            supported model.  ``"closed_form"`` reads the split off the
-            posterior, as :meth:`split_incremental_contribution_over_time` does
-            for the matrix, and returns the same numbers, ``NaN`` for ``NaN``:
-            date :math:`s` puts :math:`V_s W\,C(m)` into current, with
-            :math:`V_s` its saturated spend, :math:`W` the kernel's total weight
-            and :math:`C(m)` the share of the kernel within the :math:`m` lags
-            that count (:meth:`AdstockTransformation.cumulative_weights`).  At
-            ``frequency="original"`` :math:`m` is ``horizon`` for every date;
-            at an aggregated frequency it is the number of data periods left in
-            the reporting period.  No period is evaluated and no matrix is
-            built, so it costs less the more periods there are: two to four
-            times as fast at weekly rows over a few years of data, and no
-            faster at coarse frequencies, where the spend probe both routes
-            run dominates.  It is valid only for the models
-            :meth:`split_incremental_contribution_over_time` documents under
-            ``method`` and raises on the others.
+            ``"pipeline"`` evaluates the model once per spend period and is
+            exact for every supported model.  ``"closed_form"`` computes the
+            same split, ``NaN`` for ``NaN``, from the adstock kernel and the
+            saturated spend, with no evaluation per period and no matrix; see
+            the Notes.  It raises on the models listed under ``method`` in
+            :meth:`split_incremental_contribution_over_time`.
         num_samples : int or None, optional
             Number of posterior samples to use; all of them when None.
         random_state : RandomState or Generator or None, optional
@@ -3335,6 +3332,17 @@ class Incrementality:
         whose carryover the data cannot show.  Pass an ``end_date`` at least
         ``effective_horizon`` periods before the last fitted date to get a
         complete all-time split.
+
+        With ``method="closed_form"``, spend on date :math:`s` puts
+        :math:`V_s W\,C(m)` into current and the rest of :math:`V_s W` into
+        future.  :math:`V_s` is the change in the saturated spend,
+        :math:`W` the kernel's total weight and :math:`C(m)` the share of the
+        kernel within the :math:`m` lags that count, as
+        :meth:`~pymc_marketing.mmm.components.adstock.AdstockTransformation.cumulative_weights`
+        returns it.  At ``frequency="original"`` :math:`m` is ``horizon`` for
+        every date; at an aggregated frequency it is the number of data periods
+        left in the reporting period.  A period's value is the sum over its
+        dates.
 
         See Also
         --------
@@ -3460,10 +3468,12 @@ class Incrementality:
         kernel within :math:`m` lags, that is :math:`V_s W\,C(m)`, and the rest
         of :math:`V_s W` is future.  A period's value is the sum over its dates.
         At ``frequency="original"`` :math:`m` is the one constant ``horizon`` and
-        :math:`C` is :meth:`AdstockTransformation.cumulative_weights`; at an
-        aggregated frequency it is the number of data periods left in the
-        reporting period, which depends on the date, so the whole curve is read
-        at once.  No period-by-date matrix is built.
+        :math:`C` is the share
+        :meth:`~pymc_marketing.mmm.components.adstock.AdstockTransformation.cumulative_weights`
+        returns; at an aggregated frequency :math:`m` is the number of data
+        periods left in the reporting period, which depends on the date.  Both
+        read the cumulative kernel from one sampling, and no period-by-date
+        matrix is built.
 
         ``NaN`` follows the pipeline: ``future`` where a period's carryover runs
         past the data, ``current`` too when that carryover falls inside the
@@ -3941,10 +3951,10 @@ class Incrementality:
         frequency: Frequency,
         custom_dims: Sequence[str],
     ) -> xr.Dataset:
-        """Label stacked current and future values, however they were computed.
+        """Assemble current, future and future share into the split's dataset.
 
-        The layout shared by the pipeline, which stacks one array per period, and
-        the closed form, which computes every period at once.
+        The pipeline stacks one array per period into it, the closed form passes
+        every period at once.
 
         Parameters
         ----------
@@ -4187,10 +4197,9 @@ class Incrementality:
     ) -> ProbedReach:
         """Compile the batched evaluator, evaluate the baseline and probe the reach.
 
-        The part of :meth:`_compute_increments` that comes before any period is
-        evaluated, so that a method which does not evaluate periods (the closed
-        form) can still ask the spend probe what the model's media transform does
-        to spend.
+        Called from :meth:`_prepare_evaluation` for every route.  The closed
+        form evaluates no period, but it still needs the reach and the channel
+        mixing that the probe measures on the evaluator.
 
         Parameters
         ----------
@@ -5074,11 +5083,11 @@ class Incrementality:
         out_dims: Sequence[str],
         frequency: Frequency,
     ) -> xr.DataArray:
-        """Label a spend x realization array, however its entries were computed.
+        """Wrap a spend x realization array in the carryover matrix's coordinates.
 
-        The layout shared by every route to the matrix, so that they cannot
-        drift apart: the pipeline fills it from per-period bands and the closed
-        form from the adstock kernel.
+        Both routes build the matrix through this, so their layouts match: the
+        pipeline fills the array from per-period bands, the closed form from the
+        adstock kernel.
 
         Parameters
         ----------

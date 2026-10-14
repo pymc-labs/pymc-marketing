@@ -209,7 +209,7 @@ class AdstockTransformation(Transformation):
 
         A draw whose kernel is not finite has no share and gives ``NaN``.  The
         Weibull kernels can underflow to ``0 / 0`` for extreme parameters, and
-        the ``NaN`` is passed on rather than hidden behind a number.
+        the ``NaN`` is passed on.
 
         Parameters
         ----------
@@ -274,9 +274,9 @@ class AdstockTransformation(Transformation):
         weights = self.sample_curve(parameters, **sample_posterior_predictive_kwargs)
         lag = "time since exposure"
 
-        # Dividing by the cumulative sum's own last entry, rather than by a sum
-        # taken in another order, makes the whole kernel exactly one, so the
-        # share beyond it is exactly zero instead of rounding noise.
+        # Dividing by the cumulative sum's own last entry makes the whole kernel
+        # exactly one, so the share beyond it is exactly zero; a sum taken in
+        # another order can differ from it in the last bit.
         cumulative = weights.cumsum(lag)
         curve = cumulative / cumulative.isel({lag: -1})
 
