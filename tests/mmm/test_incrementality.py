@@ -5815,6 +5815,25 @@ class TestClosedFormGuards:
 class TestAllocationHelpers:
     """The pure pieces of the ``estimand="allocation"`` share split."""
 
+    def test_relabel_draws_takes_the_posterior_labels(self):
+        sampled = xr.DataArray(np.zeros((2, 3)), dims=("chain", "draw"))
+
+        relabeled = incrementality_module._relabel_draws(
+            sampled, {"chain": np.array([5, 6]), "draw": np.array([10, 11, 12])}
+        )
+
+        np.testing.assert_array_equal(relabeled["chain"], [5, 6])
+        np.testing.assert_array_equal(relabeled["draw"], [10, 11, 12])
+
+    def test_relabel_draws_refuses_a_sample_of_another_size(self):
+        """A draw lost on the way would pair draw i of one array with draw j."""
+        sampled = xr.DataArray(np.zeros((1, 3)), dims=("chain", "draw"))
+
+        with pytest.raises(ValueError, match="3 draws where the posterior"):
+            incrementality_module._relabel_draws(
+                sampled, {"chain": np.array([0]), "draw": np.arange(4)}
+            )
+
     def test_row_of_dates_maps_dates_to_periods(self):
         dates = pd.date_range("2024-01-01", periods=5, freq="W-MON")
         periods = [(dates[1], dates[2]), (dates[3], dates[3])]

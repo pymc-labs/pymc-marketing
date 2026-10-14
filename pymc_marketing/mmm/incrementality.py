@@ -233,11 +233,11 @@ import json
 import logging
 import warnings
 from abc import ABC, abstractmethod
-from collections.abc import Callable, Iterator, Sequence
+from collections.abc import Callable, Iterator, Mapping, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass, fields
 from functools import partial
-from typing import TYPE_CHECKING, Literal, cast
+from typing import TYPE_CHECKING, Any, Literal, cast
 
 import numpy as np
 import pandas as pd
@@ -781,6 +781,42 @@ def _missing_variables(
         if hasattr(transformation.function_priors[parameter], "create_variable")
         and name not in posterior
     ]
+
+
+def _relabel_draws(sampled: xr.DataArray, labels: Mapping[str, Any]) -> xr.DataArray:
+    """Label a posterior-predictive sample with the draws it was computed at.
+
+    ``pm.sample_posterior_predictive`` returns the draws in the order of the
+    posterior it is given, under labels of its own.  Relabeling by position is
+    right only while that order holds: nothing between the subsample and the
+    sampling may reorder or drop draws.  The sizes are checked here, so a draw
+    lost or added on the way fails loudly instead of pairing draw *i* of one
+    array with draw *j* of another; the parity tests pin the order itself.
+
+    Parameters
+    ----------
+    sampled : xr.DataArray
+        The sample, with ``chain`` and ``draw`` dimensions.
+    labels : mapping
+        The ``chain`` and ``draw`` coordinates to give it.
+
+    Returns
+    -------
+    xr.DataArray
+        *sampled* under *labels*.
+
+    Raises
+    ------
+    ValueError
+        If the sample does not have as many chains and draws as *labels*.
+    """
+    for dim in ("chain", "draw"):
+        if sampled.sizes[dim] != len(labels[dim]):
+            raise ValueError(
+                f"The sample has {sampled.sizes[dim]} {dim}s where the posterior "
+                f"it was computed at has {len(labels[dim])}."
+            )
+    return sampled.assign_coords(chain=labels["chain"], draw=labels["draw"])
 
 
 def _adstock_terms(
@@ -2317,10 +2353,11 @@ class Incrementality:
             "chain": np.arange(posterior.sizes["chain"]),
             "draw": np.arange(posterior.sizes["draw"]),
         }
-        saturated = (
+        saturated = _relabel_draws(
             self._saturated_media(posterior, counterfactual_spend_factor)
-            * reducer.scale
-        ).assign_coords(labels)
+            * reducer.scale,
+            labels,
+        )
         return ClosedFormInputs(
             **{field.name: getattr(prepared, field.name) for field in fields(prepared)},
             saturated=saturated,
@@ -2421,7 +2458,7 @@ class Incrementality:
         weights = self._adstock_kernel(inputs.posterior, divides=False)
         matrix = self._closed_form_matrix(
             inputs.saturated,
-            weights.assign_coords(inputs.labels),
+            _relabel_draws(weights, inputs.labels),
             periods=inputs.periods,
             windows=windows,
             tail_lags=probed.reach.max_lag,
@@ -3046,13 +3083,10 @@ class Incrementality:
             .rename(realization_date="date")
         )
         dates = pd.DatetimeIndex(total["date"].values)
-        # sample_curve returns the draws in the posterior's order, but not
-        # under its labels.  Relabeling by position is right only while that
-        # order holds; the share tests pin the allocation's columns to the
-        # contribution draw by draw, on a subsample too, so a change there
-        # fails them.
-        weights = weights.assign_coords(
-            chain=total["chain"].values, draw=total["draw"].values
+        # The share tests pin the allocation's columns to the contribution draw
+        # by draw, on a subsample too, so a change in the order fails them.
+        weights = _relabel_draws(
+            weights, {"chain": total["chain"].values, "draw": total["draw"].values}
         )
         spend = self.data.get_channel_data()
 
@@ -3468,11 +3502,9 @@ class Incrementality:
         # The kernel's weight within each lag, W C(m), read off one sampling of
         # the kernel.  Its last entry is the whole kernel, so the future part is
         # exactly zero for a date whose window covers it.
-        cumulative = (
-            self._adstock_kernel(inputs.posterior, divides=False)
-            .assign_coords(inputs.labels)
-            .cumsum(LAG_DIM)
-        )
+        cumulative = _relabel_draws(
+            self._adstock_kernel(inputs.posterior, divides=False), inputs.labels
+        ).cumsum(LAG_DIM)
 
         dates = self.data.dates
         offset = inputs.freq_offset
