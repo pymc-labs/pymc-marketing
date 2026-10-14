@@ -3427,9 +3427,10 @@ class Incrementality:
 
         # The share of the kernel within each horizon, and the kernel's total,
         # both per draw and from the same posterior.
-        shares = adstock.cumulative_weights(
-            self._adstock_parameters(inputs.posterior), None, progressbar=False
-        ).assign_coords(inputs.labels)
+        with _quiet_posterior_predictive_log():
+            shares = adstock.cumulative_weights(
+                self._adstock_parameters(inputs.posterior), None, progressbar=False
+            ).assign_coords(inputs.labels)
         total = (
             self._adstock_kernel(inputs.posterior, divides=False)
             .sum(LAG_DIM)

@@ -5441,6 +5441,15 @@ class TestClosedFormCurrentFuture:
         np.testing.assert_allclose(float(row.current.mean()), per_draw, rtol=1e-9)
         assert abs(per_draw - of_means) > 1e-3 * abs(per_draw)
 
+    def test_sampling_the_kernel_logs_nothing(self, adstock_last_fitted_mmm, caplog):
+        """No ``Sampling: []`` line from the kernel or the saturation."""
+        with caplog.at_level(logging.INFO):
+            adstock_last_fitted_mmm.incrementality.split_incremental_contribution_current_future(
+                frequency="monthly", method="closed_form"
+            )
+
+        assert not any(r.getMessage().startswith("Sampling") for r in caplog.records)
+
     def test_no_period_is_evaluated(self, simple_mmm_data, monkeypatch):
         mmm = _fit_custom_mmm(
             simple_mmm_data, adstock=GeometricAdstock(l_max=4), adstock_first=False
