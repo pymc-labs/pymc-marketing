@@ -1,0 +1,21 @@
+pymc_marketing/mmm/components/saturation.py
+  s_0278895e8ae02c::t_802f9aa54f71d3 463-465
+pymc_marketing/mmm/transformers.py
+  s_0278895e8ae02c::t_57739afd4912af 1047-1048,1054-1080,1089-1094,1096-1122,1131-1133
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "8c40ac5758f2d5a2dd458ea5c1dfd76678d94d2c",
+  "prompts": {},
+  "sessions": {
+    "s_0278895e8ae02c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5696ec97-558b-4c0f-bc23-51705f8a5012",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "root <root@e2b.local>"
+    }
+  }
+}
