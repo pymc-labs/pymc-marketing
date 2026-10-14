@@ -60,6 +60,7 @@ dependencies = [
 dag = ["dowhy", "networkx", "osqp<1.0.0,>=0.6.2", "pygraphviz"]
 pie = ["pymc-bart>=0.13.0"]
 docs = [
+    "causalpy>=1.0.0rc1,<2",
     "blackjax<1.6",
     "fastprogress",
     "graphviz",
@@ -71,7 +72,7 @@ docs = [
     "numba",
     "numpydoc",
     "numpyro",
-    "nutpie>=0.16.7",
+    "nutpie>=0.16.11",
     "pylint",
     "sphinx-autodoc-typehints",
     "sphinx-copybutton",

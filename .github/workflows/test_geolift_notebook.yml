@@ -41,8 +41,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y graphviz graphviz-dev
-          uv sync --frozen --python 3.12 --extra docs --extra test --extra dag
-          uv pip install "causalpy>=1.0.0rc1,<2" "nutpie>=0.16.11"
+          uv sync --locked --python 3.12 --extra docs --extra test --extra dag
           uv pip list
           uv run --no-sync python -m ipykernel install --prefix .venv --name python3
       - name: Execute with real sampling and default notebook settings
