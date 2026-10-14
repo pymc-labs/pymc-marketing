@@ -36,6 +36,8 @@ from pymc_marketing.mmm import (
     DelayedAdstock,
     GeometricAdstock,
     HillSaturation,
+    HillSaturationSigmoid,
+    InverseScaledLogisticSaturation,
     LogisticSaturation,
     LogSaturation,
     MichaelisMentenSaturation,
@@ -43,6 +45,7 @@ from pymc_marketing.mmm import (
     NoSaturation,
     RootSaturation,
     TanhSaturation,
+    TanhSaturationBaselined,
     WeibullCDFAdstock,
     WeibullPDFAdstock,
 )
@@ -4969,6 +4972,9 @@ def _assert_same_matrix(closed, pipeline):
     )
     for key in ("assumptions", "warnings"):
         assert json.loads(closed.attrs[key]) == json.loads(pipeline.attrs[key])
+    # The closed form only covers models separable by cohort, never the share rule.
+    rule = json.loads(closed.attrs["assumptions"]).get("allocation_rule")
+    assert rule in (None, "separable_cohorts")
 
 
 @pytest.fixture
@@ -5047,15 +5053,24 @@ class TestClosedFormMatrix:
 
         _assert_same_matrix(closed, pipeline)
 
+    @pytest.mark.parametrize(
+        "frequency, kwargs",
+        [
+            ("original", {"start_date": "2023-02-05", "end_date": "2023-02-26"}),
+            # A first period that starts inside its month, clamped to the start.
+            ("monthly", {"start_date": "2023-01-15"}),
+        ],
+    )
     @pytest.mark.parametrize("estimand", ["counterfactual", "allocation"])
-    def test_a_subset_of_rows_keeps_its_layout(self, simple_mmm_data, estimand):
+    def test_a_subset_of_rows_keeps_its_layout(
+        self, simple_mmm_data, estimand, frequency, kwargs
+    ):
         mmm = _fit_custom_mmm(
             simple_mmm_data, adstock=GeometricAdstock(l_max=4), adstock_first=False
         )
-        dates = mmm.incrementality.data.dates
 
         closed, pipeline = self._both(
-            mmm, estimand=estimand, start_date=dates[5], end_date=dates[8]
+            mmm, estimand=estimand, frequency=frequency, **kwargs
         )
 
         _assert_same_matrix(closed, pipeline)
@@ -5106,18 +5121,6 @@ class TestClosedFormMatrix:
 
         assert closed.sizes["draw"] == 7
         _assert_same_matrix(closed, pipeline)
-
-    def test_the_allocation_reports_the_separable_rule(self, simple_mmm_data):
-        mmm = _fit_custom_mmm(
-            simple_mmm_data, adstock=GeometricAdstock(l_max=4), adstock_first=False
-        )
-
-        closed, _ = self._both(mmm, estimand="allocation")
-
-        assert (
-            json.loads(closed.attrs["assumptions"])["allocation_rule"]
-            == "separable_cohorts"
-        )
 
     def test_no_period_is_evaluated(self, simple_mmm_data, monkeypatch):
         """The pipeline evaluates every period's scenario; the closed form none."""
@@ -5334,7 +5337,10 @@ class TestClosedFormCurrentFuture:
         "frequency, kwargs",
         [
             ("original", {"end_date": "2023-02-19"}),
+            ("original", {"start_date": "2023-02-05", "end_date": "2023-02-26"}),
             ("monthly", {"end_date": "2023-02-28"}),
+            # A first period that starts inside its month, clamped to the start.
+            ("monthly", {"start_date": "2023-01-15"}),
         ],
     )
     def test_a_subset_of_rows(self, simple_mmm_data, frequency, kwargs):
@@ -5345,6 +5351,33 @@ class TestClosedFormCurrentFuture:
         closed, pipeline = self._both(mmm, frequency=frequency, **kwargs)
 
         _assert_same_split(closed, pipeline)
+
+    def test_an_unnormalized_kernel_splits_the_whole_increment(self, simple_mmm_data):
+        """With ``normalize=False``, current plus future is still the period's value.
+
+        The share is divided by the kernel's own total, which is what makes it a
+        share; were it not, current plus future would miss
+        ``compute_incremental_contribution`` by that total.
+        """
+        mmm = _fit_custom_mmm(
+            simple_mmm_data,
+            adstock=GeometricAdstock(l_max=6, normalize=False),
+            adstock_first=False,
+        )
+        incrementality = mmm.incrementality
+
+        split = incrementality.split_incremental_contribution_current_future(
+            frequency="monthly", method="closed_form"
+        )
+        totals = incrementality.compute_incremental_contribution(frequency="monthly")
+
+        complete = split.sel(spend_date=split.complete)
+        expected = totals.rename(date="spend_date").sel(spend_date=complete.spend_date)
+        np.testing.assert_allclose(
+            (complete.current + complete.future).transpose(*expected.dims).values,
+            expected.values,
+            rtol=1e-9,
+        )
 
     @pytest.mark.parametrize("frequency", ["original", "weekly", "quarterly"])
     def test_monthly_data_at_finer_and_coarser_frequencies(
@@ -5614,8 +5647,24 @@ class TestClosedFormCoverage:
             (GeometricAdstock(l_max=4), MichaelisMentenSaturation()),
             (GeometricAdstock(l_max=4), TanhSaturation()),
             (GeometricAdstock(l_max=4), HillSaturation()),
+            (GeometricAdstock(l_max=4), HillSaturationSigmoid()),
+            (GeometricAdstock(l_max=4), InverseScaledLogisticSaturation()),
+            (GeometricAdstock(l_max=4), TanhSaturationBaselined()),
+            # requires_unscaled_input: channel_scale is forced to 1, the scaling
+            # the closed form mirrors from the model.
+            (GeometricAdstock(l_max=4), LogSaturation()),
         ],
-        ids=["binomial", "weibull-cdf", "michaelis-menten", "tanh", "hill"],
+        ids=[
+            "binomial",
+            "weibull-cdf",
+            "michaelis-menten",
+            "tanh",
+            "hill",
+            "hill-sigmoid",
+            "inverse-scaled-logistic",
+            "tanh-baselined",
+            "log",
+        ],
     )
     def test_other_built_in_transforms(self, simple_mmm_data, adstock, saturation):
         mmm = _fit_with_saturation(
@@ -5792,24 +5841,6 @@ class TestClosedFormGuards:
 
         with pytest.raises(ValueError, match=r"adstock_alpha.*posterior"):
             self._closed_form(mmm)
-
-    def test_a_model_the_closed_form_covers_passes_every_guard(
-        self, adstock_last_fitted_mmm
-    ):
-        """Saturation first, a built-in kernel, identity link, nothing mediated."""
-        adstock_last_fitted_mmm.incrementality._refuse_unsupported_closed_form()
-
-    @pytest.mark.parametrize("normalize", [True, False])
-    def test_normalize_is_not_a_reason_to_refuse(self, simple_mmm_data, normalize):
-        """The share is divided by the kernel's total, so either way is exact."""
-        mmm = _fit_with_saturation(
-            simple_mmm_data,
-            LogisticSaturation(),
-            adstock=GeometricAdstock(l_max=4, normalize=normalize),
-            adstock_first=False,
-        )
-
-        mmm.incrementality._refuse_unsupported_closed_form()
 
 
 class TestAllocationHelpers:

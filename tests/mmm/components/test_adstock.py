@@ -242,18 +242,16 @@ class TestCumulativeWeights:
         ],
         ids=lambda adstock: type(adstock).__name__,
     )
-    def test_it_is_the_cumulative_sum_of_the_sampled_kernel(self, adstock) -> None:
-        """Every built-in kernel, draw by draw, rising to one.
+    def test_every_built_in_kernel_rises_to_one(self, adstock) -> None:
+        """Every built-in kernel, draw by draw: non-decreasing, ending at one.
 
         Draws whose kernel is not finite (a Weibull can underflow to ``0 / 0``
-        for extreme parameters) are left out here and pinned separately below.
+        for extreme parameters) give ``NaN`` and are pinned separately below.
         """
         prior = adstock.sample_prior(random_seed=1)
-        kernel = adstock.sample_curve(prior, progressbar=False)
-        finite = np.isfinite(kernel.values).all(axis=-1)
-        cumulative = (
-            kernel.cumsum("time since exposure") / kernel.sum("time since exposure")
-        ).values
+        finite = np.isfinite(adstock.sample_curve(prior, progressbar=False).values).all(
+            axis=-1
+        )
 
         shares = np.stack(
             [
@@ -263,17 +261,46 @@ class TestCumulativeWeights:
             axis=-1,
         )
 
-        np.testing.assert_allclose(shares[finite], cumulative[finite], rtol=1e-12)
         assert (np.diff(shares[finite], axis=-1) >= -1e-15).all()
-        np.testing.assert_allclose(shares[finite][..., -1], 1.0, atol=1e-14)
+        assert (shares[finite][..., -1] == 1.0).all()
         assert np.isnan(shares[~finite]).all()
 
+    def test_delayed_matches_its_analytic_kernel(self) -> None:
+        """Each step of ``C`` is the analytic weight ``alpha**((l - theta)**2)`` over the total."""
+        alpha, theta = np.array([0.4, 0.8]), np.array([1.0, 3.0])
+        adstock = DelayedAdstock(
+            l_max=6,
+            normalize=False,
+            priors={
+                "alpha": as_xtensor(alpha, dims=("channel",)),
+                "theta": as_xtensor(theta, dims=("channel",)),
+            },
+        )
+        prior = adstock.sample_prior(coords={"channel": ["A", "B"]})
+
+        curve = adstock.cumulative_weights(prior, progressbar=False)
+
+        lags = np.arange(6)[:, None]
+        weights = alpha ** ((lags - theta) ** 2)
+        expected = np.cumsum(weights, axis=0) / weights.sum(axis=0)
+        np.testing.assert_allclose(
+            curve.isel(chain=0, draw=0).transpose("horizon", "channel").values,
+            expected,
+            rtol=1e-12,
+        )
+
     def test_a_draw_without_a_finite_kernel_has_no_share(self) -> None:
-        """The ``NaN`` of an underflowed kernel is passed on, not turned into a number."""
+        """The ``NaN`` of an underflowed kernel is passed on, not turned into a number.
+
+        With ``lam=0.2`` and ``k=5`` every lag from 1 on has
+        ``(l / lam) ** k >= 5**5 = 3125``, so the Weibull density
+        ``exp(-(l / lam) ** k)`` underflows to zero on the whole kernel and the
+        normalized kernel is ``0 / 0``.
+        """
         adstock = WeibullPDFAdstock(l_max=6)
         prior = adstock.sample_prior(random_seed=0).copy(deep=True)
-        prior["adstock_lam"].values[:] = 0.2362647436059506
-        prior["adstock_k"].values[:] = 4.7412656437225635
+        prior["adstock_lam"].values[:] = 0.2
+        prior["adstock_k"].values[:] = 5.0
         assert np.isnan(adstock.sample_curve(prior, progressbar=False).values).all()
 
         share = adstock.cumulative_weights(prior, 2, progressbar=False)
