@@ -957,8 +957,8 @@ class ConditionedModel:
         self._posterior = posterior
 
         def restore_draws() -> None:
-            self._posterior = previous_posterior
             shared.set_posterior(previous_posterior)
+            self._posterior = previous_posterior
 
         return restore_draws
 
