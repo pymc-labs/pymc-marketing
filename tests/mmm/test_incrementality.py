@@ -4977,6 +4977,28 @@ def _assert_same_matrix(closed, pipeline):
     assert rule in (None, "separable_cohorts")
 
 
+@pytest.fixture(scope="module")
+def separable_fit():
+    """Fit each saturation-first model once per module, for read-only parity tests.
+
+    The parity tests parametrize over frequencies and estimands on the same few
+    models, and only read from them, so refitting per case only costs time.
+    The data are those of ``simple_mmm_data``.
+    """
+    from tests.mmm.conftest import _make_mmm_data
+
+    data = _make_mmm_data(periods=14, freq="W", n_channels=3, seed=42)
+    fitted: dict[str, MMM] = {}
+
+    def fit(adstock):
+        key = repr(adstock)
+        if key not in fitted:
+            fitted[key] = _fit_custom_mmm(data, adstock=adstock, adstock_first=False)
+        return fitted[key]
+
+    return fit
+
+
 @pytest.fixture
 def panel_adstock_last_fitted_mmm(panel_mmm_data):
     """A panel model, hierarchical priors, with saturation before the adstock."""
@@ -5045,9 +5067,9 @@ class TestClosedFormMatrix:
         ids=["geometric", "geometric-unnormalized", "delayed", "weibull-pdf"],
     )
     def test_it_is_the_pipeline_matrix(
-        self, simple_mmm_data, adstock, frequency, estimand
+        self, separable_fit, adstock, frequency, estimand
     ):
-        mmm = _fit_custom_mmm(simple_mmm_data, adstock=adstock, adstock_first=False)
+        mmm = separable_fit(adstock)
 
         closed, pipeline = self._both(mmm, frequency=frequency, estimand=estimand)
 
@@ -5333,12 +5355,10 @@ class TestClosedFormCurrentFuture:
         ],
         ids=["geometric", "geometric-unnormalized", "delayed", "weibull-pdf"],
     )
-    def test_it_is_the_pipeline_split(
-        self, simple_mmm_data, adstock, frequency, horizon
-    ):
+    def test_it_is_the_pipeline_split(self, separable_fit, adstock, frequency, horizon):
         if horizon is not None and horizon > adstock.l_max - 1:
             pytest.skip("past this kernel")
-        mmm = _fit_custom_mmm(simple_mmm_data, adstock=adstock, adstock_first=False)
+        mmm = separable_fit(adstock)
 
         closed, pipeline = self._both(mmm, frequency=frequency, horizon=horizon)
 
