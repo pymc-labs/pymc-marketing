@@ -4300,12 +4300,21 @@ def test_reusable_budget_and_weekly_ties_preserve_positive_fixed_price_tail(
         )
 
 
+@pytest.mark.parametrize("scalar", [False, True], ids=["dated", "scalar"])
 def test_declared_parameter_overrides_align_labels_and_own_their_state(
-    fitted: FittedProblem,
+    fitted: FittedProblem, scalar: bool
 ) -> None:
     initial = fitted.future[["price"]]
-    target = initial["price"].copy(data=[0.6, 1.2, 0.9])
-    default = target.copy(deep=True)
+    target = (
+        xr.DataArray(0.9, name="price")
+        if scalar
+        else initial["price"].copy(data=[0.6, 1.2, 0.9]).isel(date=[2, 0, 1])
+    )
+    default = (
+        target.broadcast_like(initial["price"])
+        .sel(date=initial["date"])
+        .copy(deep=True)
+    )
     problem = Problem(
         **_arguments(
             fitted,
@@ -4314,18 +4323,26 @@ def test_declared_parameter_overrides_align_labels_and_own_their_state(
                 -((e(u)["term"] - e.parameter("target")) ** 2).sum("date")
             ),
             bounds={"price": (0.0, 2.0)},
-            parameters={"target": target.isel(date=[2, 0, 1])},
+            parameters={"target": target},
         )
     )
-    target.values[:] = 99
-    override = default.copy(data=[1.3, 0.4, 1.1]).isel(date=[1, 2, 0])
-    expected = override.sel(date=initial["date"]).copy(deep=True)
+    target.values[...] = 99
+    override = (
+        xr.DataArray(1.1, name="price")
+        if scalar
+        else default.copy(data=[1.3, 0.4, 1.1]).isel(date=[1, 2, 0])
+    )
+    expected = (
+        override.broadcast_like(initial["price"])
+        .sel(date=initial["date"])
+        .copy(deep=True)
+    )
     changed = problem.solve(
         initial, parameters={"target": override}, options={"ftol": 1e-12}
     )
     allocation = changed.allocation.copy(deep=True)
     objective = changed.objective
-    override.values[:] = -99
+    override.values[...] = -99
     restored = problem.solve(initial, options={"ftol": 1e-12})
     assert changed.scipy.success and changed.feasible
     assert restored.scipy.success and restored.feasible
