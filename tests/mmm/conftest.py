@@ -1246,6 +1246,27 @@ class CarryoverSaturation(SaturationTransformation):
     default_priors = {"beta": Prior("HalfNormal", sigma=1.0)}
 
 
+@serialization.register
+class OffsetSaturation(SaturationTransformation):
+    r"""A saturation that does not pass through the origin.
+
+    .. math::
+
+        v_{t,c} = \beta \big(h(x_{t,c}) + 0.5\big),
+
+    so zero spend still contributes :math:`0.5 \beta`.  Every built-in
+    saturation is zero at zero spend, which hides whether a closed form
+    subtracts the zero-spend value.  Pointwise in time and separable across
+    channels, so the spend probe has nothing to refuse.
+    """
+
+    def function(self, x, beta, *, dim: str | None = None):
+        """Shift a logistic saturation up by half its scale."""
+        return beta * (logistic_saturation(x, 1.0) + 0.5)
+
+    default_priors = {"beta": Prior("HalfNormal", sigma=1.0)}
+
+
 @pytest.fixture(scope="module")
 def mixing_identity_fitted_mmm(funnel_mmm_data):
     """Additive MMM whose media transform mixes channels, with no ``mu_effects``.

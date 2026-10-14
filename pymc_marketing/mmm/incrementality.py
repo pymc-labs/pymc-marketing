@@ -1614,9 +1614,10 @@ class Incrementality:
             rather than approximate on the others:
             ``adstock_first=True``, a non-identity link, a custom adstock, an
             adstock that is not ``ConvMode.After``, a channel-dependent
-            ``mu_effect``, ``time_varying_media``, a ``counterfactual_spend_factor``
-            other than ``0``, and a media transform the spend probe finds to
-            carry spend over a window of dates or to mix channels.
+            ``mu_effect``, ``time_varying_media``, and a media transform the
+            spend probe finds to carry spend over a window of dates or to mix
+            channels.  Any ``counterfactual_spend_factor`` works, except with
+            ``estimand="allocation"``, which is defined against zero spend.
         num_samples : int or None, optional
             Number of posterior samples to use; all of them when None.
         random_state : RandomState or Generator or None, optional
@@ -1834,7 +1835,9 @@ class Incrementality:
             )
 
         if method == "closed_form":
-            self._refuse_unsupported_closed_form(counterfactual_spend_factor)
+            if estimand == "allocation":
+                self._refuse_allocation_spend_factor(counterfactual_spend_factor)
+            self._refuse_unsupported_closed_form()
 
             return self._split_closed_form(
                 frequency=frequency,
@@ -1844,6 +1847,7 @@ class Incrementality:
                 method=method,
                 num_samples=num_samples,
                 random_state=random_state,
+                counterfactual_spend_factor=counterfactual_spend_factor,
                 central_tendency=central_tendency,
             )
 
@@ -2212,6 +2216,7 @@ class Incrementality:
         num_samples: int | None,
         random_state: RandomState | Generator | None,
         central_tendency: CentralTendency,
+        counterfactual_spend_factor: float = 0.0,
         lags: int | None = None,
     ) -> ClosedFormInputs:
         r"""Probe the model and evaluate the saturation stage, for the closed form.
@@ -2225,6 +2230,8 @@ class Incrementality:
         ----------
         frequency, start_date, end_date, num_samples, random_state, central_tendency
             As in :meth:`split_incremental_contribution_over_time`.
+        counterfactual_spend_factor : float, default=0.0
+            Multiplicative factor applied to spend in the counterfactual.
         lags : int, optional
             For a current/future split, the lags after each spend date that count
             as current, checked against the measured reach.
@@ -2237,14 +2244,19 @@ class Incrementality:
         Raises
         ------
         ValueError
-            If ``central_tendency`` is unknown, the date range is out of range, or
-            *lags* is past the measured reach.
+            If ``central_tendency`` is unknown, ``counterfactual_spend_factor`` is
+            negative, the date range is out of range, or *lags* is past the
+            measured reach.
         NotImplementedError
             When the spend probe cannot verify that the effect of a change in
             spend dies out within the fitted dates and no further than the
             kernel reaches, or cannot establish that each channel's column
             depends on that channel's spend alone.
         """
+        if counterfactual_spend_factor < 0:
+            raise ValueError(
+                f"counterfactual_spend_factor must be >= 0, got {counterfactual_spend_factor}"
+            )
         if central_tendency not in ("median", "mean"):
             raise ValueError(
                 f"central_tendency must be 'median' or 'mean', got {central_tendency!r}"
@@ -2263,7 +2275,7 @@ class Incrementality:
         probed = self._probe_reach(
             posterior=posterior_sub,
             effects=resolve_channel_dependent_effects(self.model),
-            counterfactual_spend_factor=0.0,
+            counterfactual_spend_factor=counterfactual_spend_factor,
             validate_reach=partial(
                 self._validate_closed_form_reach,
                 kernel_lags=kernel_trailing_lags(adstock.l_max, adstock.mode),
@@ -2293,7 +2305,8 @@ class Incrementality:
             "draw": np.arange(posterior_sub.sizes["draw"]),
         }
         saturated = (
-            self._saturated_media(posterior_sub) * reducer.scale
+            self._saturated_media(posterior_sub, counterfactual_spend_factor)
+            * reducer.scale
         ).assign_coords(labels)
         return ClosedFormInputs(
             start_ts=start_ts,
@@ -2343,6 +2356,7 @@ class Incrementality:
         method: str,
         num_samples: int | None,
         random_state: RandomState | Generator | None,
+        counterfactual_spend_factor: float,
         central_tendency: CentralTendency,
     ) -> xr.DataArray:
         r"""Build the matrix of ``method="closed_form"`` without evaluating any period.
@@ -2361,7 +2375,9 @@ class Incrementality:
 
         Parameters
         ----------
-        frequency, start_date, end_date, num_samples, random_state, central_tendency
+        frequency, start_date, end_date, num_samples, random_state
+            As in :meth:`split_incremental_contribution_over_time`.
+        counterfactual_spend_factor, central_tendency
             As in :meth:`split_incremental_contribution_over_time`.
         estimand : {"counterfactual", "allocation"}
             Which layout to return.
@@ -2390,6 +2406,7 @@ class Incrementality:
             num_samples=num_samples,
             random_state=random_state,
             central_tendency=central_tendency,
+            counterfactual_spend_factor=counterfactual_spend_factor,
         )
         probed, windows, freq_offset = inputs.probed, inputs.windows, inputs.freq_offset
         weights = self._adstock_kernel(inputs.posterior, divides=False)
@@ -2418,7 +2435,7 @@ class Incrementality:
                 estimand=estimand,
                 method=method,
                 frequency=frequency,
-                counterfactual_spend_factor=0.0,
+                counterfactual_spend_factor=counterfactual_spend_factor,
             )
 
         complete = [
@@ -2438,24 +2455,35 @@ class Incrementality:
             end_ts=end_ts,
         )
 
-    def _saturated_media(self, posterior: xr.Dataset) -> xr.DataArray:
-        r"""Evaluate the saturation stage alone, :math:`\beta g(x_t)` per date and draw.
+    def _saturated_media(
+        self, posterior: xr.Dataset, counterfactual_spend_factor: float
+    ) -> xr.DataArray:
+        r"""Evaluate how much the saturation stage moves when spend is scaled.
 
-        What ``channel_contribution`` is made of when saturation runs before the
-        adstock.  The spend goes in as the model sees it, divided by
-        ``channel_scale`` with a non-finite ratio taken as zero, and one
-        vectorized evaluation over the posterior replaces a counterfactual per
-        period.
+        Per date and draw, :math:`\beta g(x_t) - \beta g(f x_t)` with
+        :math:`f` the counterfactual spend factor, signed as the pipeline signs
+        its increments: actual minus counterfactual for :math:`f \le 1`, the
+        other way round above.  With :math:`f = 0` this is the saturated spend
+        less its value at zero spend, so a saturation that does not pass
+        through the origin is handled too.  When saturation runs before the
+        adstock, ``channel_contribution`` is the adstock of these values.
+
+        The spend goes in as the model sees it, divided by ``channel_scale``
+        with a non-finite ratio taken as zero, mirroring the input scaling in
+        :meth:`~pymc_marketing.mmm.mmm.MMM.build_model`.  Both spend levels are
+        evaluated in one posterior-predictive run.
 
         Parameters
         ----------
         posterior : xr.Dataset
             The already subsampled posterior.
+        counterfactual_spend_factor : float
+            Multiplicative factor applied to spend in the counterfactual.
 
         Returns
         -------
         xr.DataArray
-            The saturated spend in the model's own units (the target scaled),
+            The increment in the model's own units (the target scaled),
             ``(chain, draw, ...)`` with ``date`` among the other dimensions.
         """
         saturation = self.model.saturation
@@ -2472,13 +2500,16 @@ class Incrementality:
             if dim not in ("chain", "draw"):
                 coords.setdefault(dim, np.asarray(coord))
 
+        # Both spend levels go through one application of the saturation: a
+        # second application would create its parameters a second time.
+        levels = ["actual", "counterfactual"]
+        coords["spend_level"] = np.asarray(levels)
+        stacked = np.stack([spend.values, counterfactual_spend_factor * spend.values])
+        dims = ("spend_level", *map(str, spend.dims))
         with pm.Model(coords=coords):
             pmd.Deterministic(
                 "saturated_media",
-                saturation.apply(
-                    as_xtensor(spend.values, dims=tuple(map(str, spend.dims))),
-                    core_dim="date",
-                ),
+                saturation.apply(as_xtensor(stacked, dims=dims), core_dim="date"),
             )
             draws = getattr(xr, "DataTree", None)
             idata = (
@@ -2487,9 +2518,14 @@ class Incrementality:
                 else parameters
             )
             with _quiet_posterior_predictive_log():
-                return pm.sample_posterior_predictive(
+                sampled = pm.sample_posterior_predictive(
                     idata, var_names=["saturated_media"], progressbar=False
                 ).posterior_predictive["saturated_media"]
+
+        increment = sampled.sel(spend_level="actual", drop=True) - sampled.sel(
+            spend_level="counterfactual", drop=True
+        )
+        return increment if counterfactual_spend_factor <= 1.0 else -increment
 
     def _closed_form_matrix(
         self,
@@ -2592,9 +2628,7 @@ class Incrementality:
             frequency=frequency,
         )
 
-    def _refuse_unsupported_closed_form(
-        self, counterfactual_spend_factor: float
-    ) -> None:
+    def _refuse_unsupported_closed_form(self) -> None:
         r"""Refuse what the closed form is not exact for, from the model alone.
 
         ``method="closed_form"`` reads each cohort's response as
@@ -2611,29 +2645,16 @@ class Incrementality:
         saturation that carries spend over a window or mixes channels) is
         refused after the probe, with the same checks as the allocation.
 
-        Parameters
-        ----------
-        counterfactual_spend_factor : float
-            Must be ``0``: the closed form splits the contribution against zero
-            spend, and a saturation does not scale.
-
         Raises
         ------
         ValueError
-            If ``counterfactual_spend_factor`` is not ``0``, or a random adstock
-            parameter is missing from the posterior.
+            If a random adstock or saturation parameter is missing from the
+            posterior.
         NotImplementedError
             For ``adstock_first=True``, a non-identity link, a custom adstock, a
             channel-dependent ``mu_effect``, an adstock that is not
             ``ConvMode.After`` or ``time_varying_media``.
         """
-        if counterfactual_spend_factor != 0.0:
-            raise ValueError(
-                "method='closed_form' splits the contribution against zero "
-                "spend, so counterfactual_spend_factor must be 0, got "
-                f"{counterfactual_spend_factor}."
-            )
-
         if self.model.adstock_first:
             raise NotImplementedError(
                 "method='closed_form' needs adstock_first=False.  With "
@@ -2692,6 +2713,28 @@ class Incrementality:
         self._refuse_missing_adstock_parameters("method='closed_form'")
         self._refuse_missing_saturation_parameters("method='closed_form'")
 
+    @staticmethod
+    def _refuse_allocation_spend_factor(counterfactual_spend_factor: float) -> None:
+        """Refuse an allocation against anything but zero spend.
+
+        Parameters
+        ----------
+        counterfactual_spend_factor : float
+            Must be ``0``: the allocation splits each date's contribution less
+            its value at zero spend.
+
+        Raises
+        ------
+        ValueError
+            If ``counterfactual_spend_factor`` is not ``0``.
+        """
+        if counterfactual_spend_factor != 0.0:
+            raise ValueError(
+                "estimand='allocation' splits the contribution against zero "
+                "spend, so counterfactual_spend_factor must be 0, got "
+                f"{counterfactual_spend_factor}."
+            )
+
     def _refuse_unsupported_allocation(
         self, counterfactual_spend_factor: float
     ) -> None:
@@ -2717,12 +2760,7 @@ class Incrementality:
             ``mu_effect``; and, with ``adstock_first=True``, for negative
             channel data.
         """
-        if counterfactual_spend_factor != 0.0:
-            raise ValueError(
-                "estimand='allocation' splits the contribution against zero "
-                "spend, so counterfactual_spend_factor must be 0, got "
-                f"{counterfactual_spend_factor}."
-            )
+        self._refuse_allocation_spend_factor(counterfactual_spend_factor)
 
         if self.model.link != LinkFunction.IDENTITY:
             raise NotImplementedError(
@@ -3298,7 +3336,7 @@ class Incrementality:
         lags = self._validate_horizon(horizon, frequency)
 
         if method == "closed_form":
-            self._refuse_unsupported_closed_form(counterfactual_spend_factor)
+            self._refuse_unsupported_closed_form()
 
             return self._current_future_closed_form(
                 frequency=frequency,
@@ -3307,6 +3345,7 @@ class Incrementality:
                 lags=lags,
                 num_samples=num_samples,
                 random_state=random_state,
+                counterfactual_spend_factor=counterfactual_spend_factor,
                 central_tendency=central_tendency,
             )
 
@@ -3379,6 +3418,7 @@ class Incrementality:
         lags: int,
         num_samples: int | None,
         random_state: RandomState | Generator | None,
+        counterfactual_spend_factor: float,
         central_tendency: CentralTendency,
     ) -> xr.Dataset:
         r"""Build the current/future split of ``method="closed_form"`` without a matrix.
@@ -3400,7 +3440,9 @@ class Incrementality:
 
         Parameters
         ----------
-        frequency, start_date, end_date, num_samples, random_state, central_tendency
+        frequency, start_date, end_date, num_samples, random_state
+            As in :meth:`split_incremental_contribution_current_future`.
+        counterfactual_spend_factor, central_tendency
             As in :meth:`split_incremental_contribution_current_future`.
         lags : int
             Lags after each spend date that count as current, already validated.
@@ -3417,6 +3459,7 @@ class Incrementality:
             num_samples=num_samples,
             random_state=random_state,
             central_tendency=central_tendency,
+            counterfactual_spend_factor=counterfactual_spend_factor,
             lags=lags,
         )
         adstock = self.model.adstock
@@ -3521,7 +3564,7 @@ class Incrementality:
             estimand="counterfactual",
             method="closed_form",
             frequency=frequency,
-            counterfactual_spend_factor=0.0,
+            counterfactual_spend_factor=counterfactual_spend_factor,
             notes=notes,
         )
         result.attrs["horizon"] = lags

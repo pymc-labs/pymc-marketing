@@ -5152,7 +5152,9 @@ class TestClosedFormMatrix:
             "draw": np.arange(posterior.sizes["draw"]),
         }
 
-        saturated = incrementality._saturated_media(posterior).assign_coords(labels)
+        saturated = incrementality._saturated_media(posterior, 0.0).assign_coords(
+            labels
+        )
         saturated = saturated * float(mmm.data.get_target_scale())
         weights = incrementality._adstock_kernel(
             posterior, divides=False
@@ -5516,23 +5518,54 @@ class TestClosedFormCoverage:
     """Built-in transforms and edge cases the parity classes above leave out."""
 
     @staticmethod
-    def _assert_both_routes_agree(mmm, frequency):
+    def _assert_both_routes_agree(mmm, frequency, **kwargs):
         incrementality = mmm.incrementality
         _assert_same_matrix(
             incrementality.split_incremental_contribution_over_time(
-                frequency=frequency, method="closed_form"
+                frequency=frequency, method="closed_form", **kwargs
             ),
             incrementality.split_incremental_contribution_over_time(
-                frequency=frequency
+                frequency=frequency, **kwargs
             ),
         )
         _assert_same_split(
             incrementality.split_incremental_contribution_current_future(
-                frequency=frequency, method="closed_form"
+                frequency=frequency, method="closed_form", **kwargs
             ),
             incrementality.split_incremental_contribution_current_future(
-                frequency=frequency
+                frequency=frequency, **kwargs
             ),
+        )
+
+    @pytest.mark.parametrize("frequency", ["original", "monthly"])
+    def test_a_saturation_with_a_value_at_zero_spend(self, simple_mmm_data, frequency):
+        """The increment is ``g(x) - g(0)``, not ``g(x)``, as zeroing the spend gives."""
+        from tests.mmm.conftest import OffsetSaturation
+
+        mmm = _fit_with_saturation(
+            simple_mmm_data,
+            OffsetSaturation(),
+            adstock=GeometricAdstock(l_max=4),
+            adstock_first=False,
+        )
+
+        self._assert_both_routes_agree(mmm, frequency)
+
+    @pytest.mark.parametrize("factor", [0.5, 1.5])
+    @pytest.mark.parametrize("offset", [False, True], ids=["logistic", "offset"])
+    def test_a_spend_factor_other_than_zero(self, simple_mmm_data, offset, factor):
+        """``g(x) - g(f x)``, signed as the pipeline signs it on either side of 1."""
+        from tests.mmm.conftest import OffsetSaturation
+
+        mmm = _fit_with_saturation(
+            simple_mmm_data,
+            OffsetSaturation() if offset else LogisticSaturation(),
+            adstock=GeometricAdstock(l_max=4),
+            adstock_first=False,
+        )
+
+        self._assert_both_routes_agree(
+            mmm, "monthly", counterfactual_spend_factor=factor
         )
 
     @pytest.mark.parametrize(
@@ -5702,9 +5735,16 @@ class TestClosedFormGuards:
         with pytest.raises(NotImplementedError, match="time_varying_media"):
             self._closed_form(time_varying_media_fitted_mmm)
 
-    def test_a_spend_factor_other_than_zero_is_refused(self, adstock_last_fitted_mmm):
-        with pytest.raises(ValueError, match="must be 0"):
-            self._closed_form(adstock_last_fitted_mmm, counterfactual_spend_factor=1.01)
+    def test_an_allocation_against_scaled_spend_is_refused(
+        self, adstock_last_fitted_mmm
+    ):
+        """The allocation is defined against zero spend, whichever the method."""
+        with pytest.raises(ValueError, match=r"^estimand='allocation'.*must be 0"):
+            self._closed_form(
+                adstock_last_fitted_mmm,
+                estimand="allocation",
+                counterfactual_spend_factor=1.01,
+            )
 
     def test_a_pruned_posterior_is_refused(self, adstock_last_fitted_mmm, monkeypatch):
         """A kernel parameter missing from the posterior would be drawn from its prior."""
@@ -5719,7 +5759,7 @@ class TestClosedFormGuards:
         self, adstock_last_fitted_mmm
     ):
         """Saturation first, a built-in kernel, identity link, nothing mediated."""
-        adstock_last_fitted_mmm.incrementality._refuse_unsupported_closed_form(0.0)
+        adstock_last_fitted_mmm.incrementality._refuse_unsupported_closed_form()
 
     @pytest.mark.parametrize("normalize", [True, False])
     def test_normalize_is_not_a_reason_to_refuse(self, simple_mmm_data, normalize):
@@ -5731,7 +5771,7 @@ class TestClosedFormGuards:
             adstock_first=False,
         )
 
-        mmm.incrementality._refuse_unsupported_closed_form(0.0)
+        mmm.incrementality._refuse_unsupported_closed_form()
 
 
 class TestAllocationHelpers:
