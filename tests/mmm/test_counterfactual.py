@@ -31,6 +31,7 @@ from pymc_marketing.mmm.counterfactual import (
 )
 from pymc_marketing.mmm.spend_reach import linear_predictor
 from pymc_marketing.mmm.transformers import ConvMode, batched_convolution
+from pymc_marketing.pytensor_utils import ConditionedModel
 
 
 def build_aux_dims_model(aux_dims, n_dates, n_country):
@@ -82,6 +83,47 @@ def build_aux_dims_model(aux_dims, n_dates, n_country):
     return model, posterior, aux_values
 
 
+def draws_posterior(draws: int, seed: int) -> xr.Dataset:
+    """A ``beta``/``alpha`` posterior for the aux model with a chosen draw count.
+
+    A different draw count across rebinds is the whole point of the sample-axis
+    work, so a test can hand the evaluator a posterior whose length it did not
+    compile against.
+    """
+    rng = np.random.default_rng(seed)
+    return xr.Dataset(
+        {
+            "beta": (("chain", "draw"), rng.normal(size=(1, draws))),
+            "alpha": (("chain", "draw"), rng.normal(size=(1, draws))),
+        },
+        coords={"chain": [0], "draw": list(range(draws))},
+    )
+
+
+REBIND_INTERVENTIONS = [
+    ("channel_data", "replace"),
+    ("channel_contribution", "replace"),
+    ("channel_contribution", "scale"),
+]
+"""Interventions the rebinding tests exercise: sample-bearing and sample-less."""
+
+
+def evaluator_kwargs(
+    dates: pd.DatetimeIndex,
+    *,
+    intervention_target: str = "channel_data",
+    intervention_mode: str = "replace",
+) -> dict:
+    """The keyword arguments shared by the evaluators the rebinding tests build."""
+    return {
+        "response_vars": ["channel_contribution"],
+        "frozen_deterministics": [],
+        "dates": dates,
+        "intervention_target": intervention_target,
+        "intervention_mode": intervention_mode,
+    }
+
+
 class TestDateIndexedInputs:
     """Auxiliary inputs are cut along the axis they call ``date``.
 
@@ -94,7 +136,7 @@ class TestDateIndexedInputs:
 
     dates = pd.date_range("2023-01-02", freq="W-MON", periods=6)
 
-    def _windows(self, *slices, max_window):
+    def _windows(self, *slices: slice, max_window: int) -> EvaluationWindows:
         """Build windows over ``self.dates`` directly, one per given slice."""
         windows = []
         for window_slice in slices:
@@ -400,6 +442,36 @@ class TestPostFitMutationGuard:
             checked.evaluate_baseline(values)["channel_contribution"],
             unchecked.evaluate_baseline(values)["channel_contribution"],
         )
+
+    def test_a_mutation_after_construction_is_caught_on_reuse(self):
+        """A reused evaluator re-reads the live input and refuses the mutation.
+
+        The evaluator snapshots the aux input it evaluates with at construction,
+        so a later ``pm.set_data`` on the model the caller holds would otherwise
+        go unnoticed.  Because the check runs on every evaluation, the reuse
+        still catches it instead of silently evaluating on the fitted snapshot.
+        """
+        model, posterior, aux_values = build_aux_dims_model(
+            ("date", "country"), n_dates=len(self.dates), n_country=2
+        )
+        evaluator = CounterfactualEvaluator(
+            pymc_model=model,
+            posterior=posterior,
+            response_vars=["channel_contribution"],
+            frozen_deterministics=[],
+            dates=self.dates,
+            expected_aux_values={
+                "aux_input": xr.DataArray(aux_values, dims=("date", "country"))
+            },
+        )
+        values = np.ones((len(self.dates), 2, 1))
+        evaluator.evaluate_baseline(values)  # Fine while nothing moved.
+
+        with model:
+            pm.set_data({"aux_input": aux_values + 1.0})
+
+        with pytest.raises(ValueError, match=r"'aux_input'.*changed since"):
+            evaluator.evaluate_baseline(values)
 
 
 class TestPeriodEdgeCases:
@@ -837,6 +909,274 @@ class TestEndogenousIntervention:
         )
         # And the gap is aux + alpha: nonzero in every element for this posterior.
         assert (np.abs(mask_increment - spend_increment) > 0).all()
+
+
+class TestConditionedModelRebinding:
+    """The evaluator follows its conditioned model's posterior, draw count included.
+
+    The sample axis is derived from the bound posterior rather than fixed at
+    construction, so a rebind to a different draw count stays correct.  The
+    first rebind swaps the constant graphs for shared-posterior ones and
+    recompiles; every later rebind only swaps draws, so the compiled function
+    is reused.  A sample-bearing response (the default spend intervention) and a
+    sample-less one (intervening on the response itself under ``"replace"``) are
+    both covered.
+    """
+
+    dates = pd.date_range("2023-01-02", freq="W-MON", periods=6)
+
+    @pytest.fixture
+    def model_and_posteriors(self):
+        model, _, _ = build_aux_dims_model(
+            ("date", "country"), n_dates=len(self.dates), n_country=2
+        )
+        return (
+            model,
+            draws_posterior(2, 1),
+            draws_posterior(4, 2),
+            draws_posterior(5, 3),
+        )
+
+    def _windows(self) -> EvaluationWindows:
+        window = PeriodWindow.build(
+            start=self.dates[0],
+            end=self.dates[-1],
+            dates=self.dates,
+            in_window=np.ones(len(self.dates), dtype=bool),
+            eval_start=self.dates[0],
+            eval_end=self.dates[-1],
+        )
+        return EvaluationWindows(
+            windows=[window], max_window=len(self.dates), dates=self.dates
+        )
+
+    def _scenarios(self) -> CounterfactualScenarios:
+        return CounterfactualScenarios(
+            spend=np.full((1, len(self.dates), 2, 1), 0.5),
+            period_index=np.array([0]),
+            rows={(0, None): 0},
+        )
+
+    @pytest.mark.parametrize(
+        "intervention_target, intervention_mode", REBIND_INTERVENTIONS
+    )
+    def test_an_evaluator_built_from_a_conditioned_model_matches_the_constructor_path(
+        self, model_and_posteriors, intervention_target, intervention_mode
+    ):
+        """The thin ``pymc_model``/``posterior`` path and the conditioned one agree."""
+        model, posterior, _, _ = model_and_posteriors
+        common = evaluator_kwargs(
+            self.dates,
+            intervention_target=intervention_target,
+            intervention_mode=intervention_mode,
+        )
+        built = CounterfactualEvaluator(pymc_model=model, posterior=posterior, **common)
+        # A second, independent conditioned model: the comparison must not wrap
+        # the object the first evaluator already owns.
+        independent = CounterfactualEvaluator(
+            pymc_model=model, posterior=posterior, **common
+        )
+        from_conditioned = CounterfactualEvaluator(
+            conditioned_model=independent.conditioned_model, **common
+        )
+
+        np.testing.assert_array_equal(
+            from_conditioned.evaluate_baseline(np.ones((len(self.dates), 2, 1)))[
+                "channel_contribution"
+            ],
+            built.evaluate_baseline(np.ones((len(self.dates), 2, 1)))[
+                "channel_contribution"
+            ],
+        )
+
+    @pytest.mark.parametrize(
+        "intervention_target, intervention_mode", REBIND_INTERVENTIONS
+    )
+    def test_a_rebind_to_a_new_draw_count_matches_a_fresh_evaluator(
+        self, model_and_posteriors, intervention_target, intervention_mode
+    ):
+        """Every later rebind is correct and reuses the compiled function."""
+        model, first, second, third = model_and_posteriors
+        common = evaluator_kwargs(
+            self.dates,
+            intervention_target=intervention_target,
+            intervention_mode=intervention_mode,
+        )
+        reused = CounterfactualEvaluator(pymc_model=model, posterior=first, **common)
+        spend = np.ones((len(self.dates), 2, 1))
+
+        reused.set_posterior(second)
+        compiled = reused._evaluator
+        self._assert_same_as_fresh(
+            reused,
+            CounterfactualEvaluator(pymc_model=model, posterior=second, **common),
+            spend,
+        )
+
+        # A second rebind, to yet another draw count, needs no new compile: the
+        # compiled function is the contract, only the first rebind recompiles.
+        reused.set_posterior(third)
+        assert reused._evaluator is compiled
+        fresh = CounterfactualEvaluator(pymc_model=model, posterior=third, **common)
+        self._assert_same_as_fresh(reused, fresh, spend)
+        assert (
+            reused.evaluate_baseline(spend)["channel_contribution"].shape[0]
+            == third.sizes["draw"]
+        )
+
+    @pytest.mark.parametrize("sample_bearing", [True, False])
+    @pytest.mark.parametrize("first_rebind", [True, False])
+    def test_a_failed_rebind_leaves_the_old_binding_evaluable(
+        self, model_and_posteriors, sample_bearing, first_rebind
+    ):
+        """A rollback still evaluates the draws that were bound before it.
+
+        ``ConditionedModel`` restores its binding when a callback raises, but
+        rolls back only its own state.  The evaluator must re-derive its sample
+        markers and rebuild if the graphs moved back, or a sample-less response
+        would keep the failed rebind's draw count next to the restored draws.
+        """
+        model, first, second, third = model_and_posteriors
+        common = evaluator_kwargs(
+            self.dates,
+            intervention_target=(
+                "channel_data" if sample_bearing else "channel_contribution"
+            ),
+        )
+        reused = CounterfactualEvaluator(pymc_model=model, posterior=first, **common)
+        spend = np.ones((len(self.dates), 2, 1))
+
+        def boom():
+            raise RuntimeError("callback failed")
+
+        if first_rebind:
+            expected = first
+            reused.conditioned_model.register(boom)
+            with pytest.raises(RuntimeError, match="callback failed"):
+                reused.set_posterior(second)
+        else:
+            reused.set_posterior(second)
+            expected = second
+            reused.conditioned_model.register(boom)
+            with pytest.raises(RuntimeError, match="callback failed"):
+                reused.set_posterior(third)
+
+        self._assert_same_as_fresh(
+            reused,
+            CounterfactualEvaluator(pymc_model=model, posterior=expected, **common),
+            spend,
+        )
+        assert (
+            reused.evaluate_baseline(spend)["channel_contribution"].shape[0]
+            == expected.sizes["draw"]
+        )
+
+    def test_a_failed_constructor_leaves_a_shared_conditioned_model_rebindable(
+        self, model_and_posteriors
+    ):
+        """A raising construction must not register a callback on the shared model.
+
+        The evaluator registers its recompile on the caller-owned
+        ``ConditionedModel``; registering before construction has finished would
+        leave a zombie callback, so every later rebind of that model would raise
+        for its other consumers.
+        """
+        model, first, second, _ = model_and_posteriors
+        owner = CounterfactualEvaluator(
+            pymc_model=model, posterior=first, **evaluator_kwargs(self.dates)
+        )
+        shared = owner.conditioned_model
+
+        with pytest.raises(ValueError, match="not found in the intervened"):
+            CounterfactualEvaluator(
+                conditioned_model=shared,
+                response_vars=["not_a_response"],
+                frozen_deterministics=[],
+                dates=self.dates,
+            )
+
+        # The shared model still rebinds, and its owner follows the new draws.
+        shared.set_posterior(second)
+        spend = np.ones((len(self.dates), 2, 1))
+        np.testing.assert_allclose(
+            owner.evaluate_baseline(spend)["channel_contribution"],
+            CounterfactualEvaluator(
+                pymc_model=model, posterior=second, **evaluator_kwargs(self.dates)
+            ).evaluate_baseline(spend)["channel_contribution"],
+            rtol=1e-10,
+            atol=1e-12,
+        )
+
+    def test_frozen_deterministics_must_match_the_conditioned_model(
+        self, model_and_posteriors
+    ):
+        """Extraction uses the conditioned model's frozen deterministics, so a mismatch is refused."""
+        model, first, _, _ = model_and_posteriors
+        owner = CounterfactualEvaluator(
+            pymc_model=model, posterior=first, **evaluator_kwargs(self.dates)
+        )
+
+        with pytest.raises(ValueError, match="frozen_deterministics"):
+            CounterfactualEvaluator(
+                conditioned_model=owner.conditioned_model,
+                response_vars=["channel_contribution"],
+                frozen_deterministics=["channel_contribution"],
+                dates=self.dates,
+            )
+
+        # An empty argument is accepted and the conditioned model's set is used.
+        CounterfactualEvaluator(
+            conditioned_model=owner.conditioned_model,
+            response_vars=["channel_contribution"],
+            frozen_deterministics=[],
+            dates=self.dates,
+        )
+
+    @pytest.mark.parametrize(
+        "intervention_target, message",
+        [("y", "remove the likelihood"), ("beta", "is a random variable")],
+    )
+    def test_a_conditioned_model_without_an_intervention_refuses_an_rv_target(
+        self, intervention_target, message
+    ):
+        """An un-intervened conditioned model is refused with the targeted message.
+
+        Recovery of the "intervention input" returns the target's own node when
+        the conditioned model was built with no intervention; if it is an
+        observed or free RV the evaluator must say so, not fail downstream with
+        an opaque "RVs found in the extracted graph".
+        """
+        model, posterior = build_observed_model(n_dates=len(self.dates))
+        conditioned = ConditionedModel(model, posterior)
+
+        with pytest.raises(ValueError, match=message):
+            CounterfactualEvaluator(
+                conditioned_model=conditioned,
+                response_vars=["channel_contribution"],
+                frozen_deterministics=[],
+                dates=self.dates,
+                intervention_target=intervention_target,
+                intervention_mode="replace",
+            )
+
+    def _assert_same_as_fresh(self, reused, fresh, spend) -> None:
+        windows, scenarios = self._windows(), self._scenarios()
+        np.testing.assert_allclose(
+            reused.evaluate_baseline(spend)["channel_contribution"],
+            fresh.evaluate_baseline(spend)["channel_contribution"],
+            rtol=1e-10,
+            atol=1e-12,
+        )
+        np.testing.assert_allclose(
+            reused.evaluate_counterfactual(scenarios, windows=windows)[
+                "channel_contribution"
+            ],
+            fresh.evaluate_counterfactual(scenarios, windows=windows)[
+                "channel_contribution"
+            ],
+            rtol=1e-10,
+            atol=1e-12,
+        )
 
 
 class TestSpendMaskEquivalence:
