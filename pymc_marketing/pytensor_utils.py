@@ -796,11 +796,25 @@ class ConditionedModel:
         """The draws the graphs are currently conditioned on."""
         return self._posterior
 
+    @property
+    def shared_posterior(self) -> SharedPosterior | None:
+        """The shared posterior binding the graphs, or ``None`` before the first rebind.
+
+        Returns
+        -------
+        SharedPosterior or None
+            ``None`` while the draws are still baked into the graphs as
+            constants; after the first :meth:`set_posterior`, the one
+            :class:`SharedPosterior` every later rebind swaps draws in.
+        """
+        return self._shared_posterior
+
     def extract(
         self,
         response_vars: str | Variable | Sequence[str | Variable],
         *,
         n_dates: int | None = None,
+        cache: bool = True,
     ) -> Variable | list[Variable]:
         """Return response graphs conditioned on the current posterior.
 
@@ -816,6 +830,16 @@ class ConditionedModel:
             entries, so callers evaluating different windows do not share one
             slot; extraction does not size the graph by it, and any
             horizon-dependent graph shape is the consumer's to build.
+        cache : bool, default True
+            Whether to keep the extraction for :meth:`set_posterior` to
+            re-extract through the shared posterior.  A cached graph is the
+            long-lived kind: after the first rebind it reads shared variables
+            and so follows every later one, and its variables must therefore
+            be present in every posterior handed to :meth:`set_posterior`.  A
+            caller that only compiles and uses the graph once, immediately,
+            passes ``cache=False`` so its variables are not pinned on later
+            rebinds; it gets a new graph on every call, whereas cached calls
+            return the same object until the first rebind replaces it.
 
         Returns
         -------
@@ -837,6 +861,9 @@ class ConditionedModel:
             raise ValueError("'response_vars' must name at least one variable.")
 
         resolved = [self._resolve(var) for var in requested]
+        if not cache:
+            graphs = self._extract(resolved, self._shared_posterior, self._posterior)
+            return graphs[0] if single else graphs
         cache_key = _ExtractKey(
             self._names(resolved), self.frozen_deterministics, n_dates
         )

@@ -21,10 +21,12 @@ import pandas as pd
 import pymc as pm
 import pymc.dims as pmd
 import pytensor
+import pytensor.tensor as pt
 import pytest
 import xarray as xr
 from pydantic import ValidationError
 from pytensor.compile import UnusedInputError
+from pytensor.graph import rewrite_graph
 from pytensor.graph.traversal import ancestors
 from scipy.optimize import OptimizeResult
 from xarray import DataArray
@@ -46,6 +48,10 @@ from pymc_marketing.mmm.optimization_variables import FLAT_DIM
 from pymc_marketing.mmm.utility import (
     _check_samples_dimensionality,
     diversification_ratio,
+)
+from pymc_marketing.pytensor_utils import (
+    SharedPosterior,
+    extract_response_distribution,
 )
 
 
@@ -1101,6 +1107,39 @@ class TestEvaluateResponseDistribution:
         optimizer.set_posterior(doubled)
 
         after = optimizer.evaluate_response_distribution(plan)
+        assert not np.allclose(after.to_numpy(), before.to_numpy())
+
+    def test_a_cached_response_function_follows_a_later_rebind(
+        self, mmm_wrapper, dummy_idata
+    ):
+        """A function compiled after the first rebind tracks later draw swaps.
+
+        The first ``set_posterior`` compiles the response cache against the new
+        shared graphs; a later ``set_posterior`` swaps the draws under those
+        same variables and recompiles nothing, so the cached function must be
+        reused and must report the newer posterior rather than a stale one.
+        """
+        optimizer = BudgetOptimizer(
+            model=mmm_wrapper,
+            num_periods=30,
+            response_variable="total_media_contribution_original_scale",
+        )
+        plan = self._plan()
+        posterior = dummy_idata["posterior"].to_dataset()
+
+        optimizer.set_posterior(_scaled(posterior, 2.0))
+        before = optimizer.evaluate_response_distribution(plan)
+        compiled = optimizer._response_functions[
+            "total_media_contribution_original_scale"
+        ][0]
+
+        optimizer.set_posterior(_scaled(posterior, 4.0))
+        after = optimizer.evaluate_response_distribution(plan)
+
+        reused = optimizer._response_functions[
+            "total_media_contribution_original_scale"
+        ][0]
+        assert reused is compiled
         assert not np.allclose(after.to_numpy(), before.to_numpy())
 
     def test_a_raw_array_is_refused_here_too(self, mmm_wrapper):
@@ -2203,6 +2242,35 @@ def test_inference_data_root_attrs_reach_the_price_gate():
     assert "no usable historical cost_per_unit table" not in str(info.value)
 
 
+def test_an_inference_data_built_optimizer_conditions_on_its_posterior():
+    """An ``arviz.InferenceData`` stand-in is accepted at construction.
+
+    The ``idata`` field is documented as accepting inference data, but the
+    ``ConditionedModel`` the optimizer hands it to takes only a
+    ``Dataset``/``DataTree``, so the optimizer normalises before handing it
+    over.  The stand-in is the duck type the conversion branch exists for
+    (arviz >= 1.2's inference data is itself a tree).
+    """
+
+    class LegacyInferenceData:
+        def __init__(self, posterior):
+            self.posterior = posterior
+
+        def groups(self):
+            return ["posterior"]
+
+    model, posterior = _channel_model(["a", "b"])
+    optimizer = BudgetOptimizer(
+        model=model,
+        idata=LegacyInferenceData(posterior),
+        num_periods=6,
+    )
+
+    assert isinstance(optimizer.idata, xr.DataTree)
+    assert optimizer._shared_posterior is None
+    optimizer.extract_response_distribution("total_media_contribution_original_scale")
+
+
 def test_price_gate_matches_non_string_channel_labels_against_the_table():
     """The table's JSON columns, the model's channel coords and a dict elasticity's keys are
     compared as strings, so integer labels priced by the table get a derived reference and
@@ -2460,6 +2528,64 @@ def test_set_posterior_rebinds_without_recompile(mmm_wrapper, dummy_idata):
     assert rebound_res.fun == pytest.approx(expected_res.fun, rel=1e-6)
 
 
+def _constant_baked_objective_apply_nodes(optimizer, shared_posterior):
+    """Apply nodes of the objective compiled straight from the module-level extractor.
+
+    The optimizer now compiles through its ``ConditionedModel``.  This rebuilds
+    the same objective from the extractor directly, with the given (or no)
+    shared posterior, so the two node counts can be compared.
+    """
+    graph = extract_response_distribution(
+        optimizer._pymc_model,
+        optimizer.idata,
+        optimizer.response_variable,
+        frozen_deterministics=optimizer.frozen_deterministics,
+        shared_posterior=shared_posterior,
+    )
+    objective = -optimizer.utility_function(samples=graph, budgets=optimizer._budgets)
+    objective_tensor = rewrite_graph(
+        objective.values, include=("lower_xtensor", "canonicalize", "stabilize")
+    )
+    objective_grad = pt.grad(objective_tensor, optimizer._budgets_flat)
+    compiled = pytensor.function(
+        [optimizer._budgets_flat],
+        [objective, objective_grad],
+        **(optimizer.compile_kwargs or {}),
+    )
+    return len(compiled.maker.fgraph.apply_nodes)
+
+
+def test_objective_apply_node_counts_match_the_pre_refactor_compile(
+    mmm_wrapper, dummy_idata
+):
+    """The delegated objective compiles to the graph the direct path produced.
+
+    Before the first rebind the draws are constants and the objective keeps
+    constant folding; the first rebind re-extracts through shared variables,
+    which the objective must compile from exactly as a direct
+    ``extract_response_distribution(..., shared_posterior=...)`` call would;
+    later rebinds swap draws without recompiling.  Equal apply-node counts pin
+    the refactor to the behaviour it replaced.
+    """
+    optimizer = BudgetOptimizer(
+        model=mmm_wrapper,
+        num_periods=30,
+        response_variable="total_media_contribution_original_scale",
+    )
+    posterior = dummy_idata["posterior"].to_dataset()
+
+    constant = len(optimizer._objective_and_grad.maker.fgraph.apply_nodes)
+    assert constant == _constant_baked_objective_apply_nodes(optimizer, None)
+
+    optimizer.set_posterior(_scaled(posterior, 2.0))
+    shared = len(optimizer._objective_and_grad.maker.fgraph.apply_nodes)
+    assert shared == _constant_baked_objective_apply_nodes(optimizer, SharedPosterior())
+    assert shared != constant  # the shared graph is a different shape
+
+    optimizer.set_posterior(_scaled(posterior, 3.0))
+    assert len(optimizer._objective_and_grad.maker.fgraph.apply_nodes) == shared
+
+
 def test_set_posterior_custom_constraint_follows_rebind(mmm_wrapper, dummy_idata):
     """A constraint built from ``extract_response_distribution`` reads the new draws."""
 
@@ -2609,6 +2735,65 @@ def test_set_posterior_requires_every_bound_variable(mmm_wrapper, dummy_idata):
     assert not np.allclose(rebound.values, baseline.values)
 
 
+def test_a_failing_recompile_rolls_back_the_whole_rebind(
+    mmm_wrapper, dummy_idata, monkeypatch
+):
+    """A first rebind whose recompile callback raises leaves nothing behind.
+
+    The conditioned model accepts the new draws, then the optimizer's
+    recompile callback raises.  The binding, the compiled objective and
+    constraints, the response cache and the recorded graph must all return to
+    their construction state, and a retry must take the first-rebind path again.
+    """
+    total_budget = 60.0
+    optimizer = BudgetOptimizer(
+        model=mmm_wrapper,
+        num_periods=30,
+        response_variable="total_media_contribution_original_scale",
+    )
+    construction_idata = optimizer.idata
+    constant_objective = optimizer._objective_and_grad
+    constraints = optimizer._constraints
+    compiled_constraints = optimizer._compiled_constraints
+    response_functions = optimizer._response_functions
+    compiled_graph = optimizer._compiled_response_graph
+
+    posterior = dummy_idata["posterior"].to_dataset()
+    new = _scaled(posterior, 2.0)
+
+    def boom(self):
+        raise RuntimeError("recompile failed")
+
+    monkeypatch.setattr(BudgetOptimizer, "_compile_objective_and_grad", boom)
+    with pytest.raises(RuntimeError, match="recompile failed"):
+        optimizer.set_posterior(new)
+    monkeypatch.undo()
+
+    assert optimizer._shared_posterior is None
+    assert optimizer.idata is construction_idata
+    assert optimizer._objective_and_grad is constant_objective
+    assert optimizer._constraints is constraints
+    assert optimizer._compiled_constraints is compiled_constraints
+    assert optimizer._response_functions is response_functions
+    assert optimizer._compiled_response_graph is compiled_graph
+
+    optimizer.set_posterior(new)
+    assert optimizer._shared_posterior is not None
+    assert optimizer._objective_and_grad is not constant_objective
+    rebound, rebound_res = optimizer.allocate_budget(total_budget=total_budget)
+    expected, expected_res = BudgetOptimizer(
+        model=CustomModelWrapper(
+            base_model=mmm_wrapper.base_model,
+            idata=new,
+            channels=mmm_wrapper.channel_columns,
+        ),
+        num_periods=30,
+        response_variable="total_media_contribution_original_scale",
+    ).allocate_budget(total_budget=total_budget)
+    np.testing.assert_allclose(rebound.values, expected.values, rtol=1e-6)
+    assert rebound_res.fun == pytest.approx(expected_res.fun, rel=1e-6)
+
+
 def test_set_posterior_accepts_a_posterior_without_channel_contribution(
     mmm_wrapper, dummy_idata
 ):
@@ -2641,6 +2826,53 @@ def test_set_posterior_accepts_a_posterior_without_channel_contribution(
     optimizer.set_posterior(thinned)
     assert optimizer.idata is thinned
     assert optimizer.budgets_to_optimize.values.tolist() == [True, False]  # kept
+
+
+def test_a_one_shot_evaluation_does_not_pin_the_first_rebind():
+    """An ad-hoc evaluation before the first rebind must not force its free RVs on it.
+
+    ``evaluate_response_distribution(plan, "noise_thing")`` reads ``gamma``,
+    which the objective does not.  A posterior thinned to the variables the
+    objective reads is still accepted, exactly as it is without the ad-hoc call:
+    the one-shot graph must not be pinned on the conditioned model's cache.
+    """
+    n_dates = 4
+    channels = ["a", "b"]
+    with pm.Model(coords={"channel": channels}) as model:
+        model.add_coord("date", length=n_dates)
+        channel_data = pmd.Data(
+            "channel_data", np.ones((n_dates, 2)), dims=("date", "channel")
+        )
+        beta = pmd.Normal("beta", 1.0, 0.1, dims="channel")
+        gamma = pmd.Normal("gamma", 0.0, 1.0)
+        pmd.Deterministic(
+            "total_media_contribution_original_scale", (channel_data * beta).sum()
+        )
+        pmd.Deterministic("noise_thing", gamma + (channel_data * beta).sum())
+
+    posterior = xr.Dataset(
+        {
+            "beta": (("chain", "draw", "channel"), np.ones((2, 2, 2))),
+            "gamma": (("chain", "draw"), np.ones((2, 2))),
+        },
+        coords={"channel": channels},
+    )
+    optimizer = BudgetOptimizer(
+        model=CustomModelWrapper(
+            base_model=model,
+            idata=xr.DataTree.from_dict({"/posterior": posterior}),
+            channels=channels,
+        ),
+        num_periods=n_dates,
+        response_variable="total_media_contribution_original_scale",
+    )
+    plan = xr.DataArray([30.0, 70.0], dims=["channel"], coords={"channel": channels})
+    optimizer.evaluate_response_distribution(plan, "noise_thing")
+
+    thinned = xr.DataTree.from_dict({"/posterior": posterior.drop_vars("gamma")})
+    optimizer.set_posterior(thinned)
+    assert optimizer.idata is thinned
+    assert optimizer._shared_posterior is not None
 
 
 def test_set_posterior_fallback_mask_is_not_compared(mmm_wrapper, dummy_idata):

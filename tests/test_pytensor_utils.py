@@ -1246,6 +1246,43 @@ def test_conditioned_model_extract_is_cached_by_key(conditioned_slope):
     assert conditioned_slope.extract("doubled", n_dates=3) is horizon_graph
 
 
+def test_conditioned_model_uncached_extract_is_not_pinned_on_first_rebind():
+    """A ``cache=False`` graph is never re-extracted, so its variables are not required.
+
+    The long-lived graph reads ``beta``; the one-shot graph also reads ``gamma``.
+    A posterior without ``gamma`` still satisfies the first, so the first rebind
+    must succeed -- the one-shot graph must not have been pinned on the shared
+    posterior.
+    """
+    spend = np.array([10.0, 20.0])
+    with pm.Model(coords={"channel": ["a", "b"]}) as model:
+        spend_var = pmd.Data("spend", spend, dims="channel")
+        beta = pmd.Normal("beta", dims="channel")
+        gamma = pmd.Normal("gamma")
+        pmd.Deterministic("resp", beta * spend_var)
+        pmd.Deterministic("extra", gamma + (beta * spend_var).sum())
+
+    posterior = xr.Dataset(
+        {
+            "beta": (("chain", "draw", "channel"), np.ones((1, 1, 2))),
+            "gamma": (("chain", "draw"), np.ones((1, 1))),
+        },
+        coords={"channel": ["a", "b"]},
+    )
+    conditioned = ConditionedModel(model, posterior, intervention={"spend": spend})
+
+    conditioned.extract("resp")  # long-lived, needs beta
+    adhoc = conditioned.extract("extra", cache=False)  # one-shot, also reads gamma
+    assert conditioned.extract("extra", cache=False) is not adhoc  # never cached
+
+    conditioned.set_posterior(posterior.drop_vars("gamma"))
+
+    assert conditioned.shared_posterior is not None
+    np.testing.assert_allclose(
+        function([], conditioned.extract("resp"))(), [[10.0, 20.0]]
+    )
+
+
 def test_conditioned_model_first_rebind_reextracts_and_fires_callbacks_once(
     conditioned_slope, slope_posteriors
 ):
@@ -1270,7 +1307,10 @@ def test_conditioned_model_later_rebind_reuses_graph_and_follows_new_draws(
     conditioned_slope, slope_posteriors
 ):
     _, data_values, _, second, third = slope_posteriors
+    assert conditioned_slope.shared_posterior is None  # constants until asked
     conditioned_slope.set_posterior(second)
+    shared = conditioned_slope.shared_posterior
+    assert isinstance(shared, SharedPosterior)
     shared_graph = conditioned_slope.extract("doubled")
     fn = function([], shared_graph)
 
@@ -1279,6 +1319,7 @@ def test_conditioned_model_later_rebind_reuses_graph_and_follows_new_draws(
     conditioned_slope.set_posterior(third)
 
     assert fired == ["again"]
+    assert conditioned_slope.shared_posterior is shared  # same binding, new draws
     # No re-extraction: the same compiled function follows the new draw count.
     assert conditioned_slope.extract("doubled") is shared_graph
     np.testing.assert_allclose(fn(), _expected_doubled(third, data_values))
