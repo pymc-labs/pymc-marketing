@@ -356,6 +356,36 @@ def test_empty_mask_raises_at_construction():
         )
 
 
+def test_pre_price_response_positional_call_still_binds_flat_dim():
+    """The twelve-argument positional form that predates price_response binds its
+    last argument to flat_dim; the price-response parameters are keyword-only."""
+    mask = xr.DataArray(
+        np.ones(3, dtype=bool), dims=("channel",), coords={"channel": ["a", "b", "c"]}
+    )
+    variable = MediaVariable(
+        "channel_data",
+        mask,
+        4,
+        2,
+        1.0,
+        "float64",
+        ("channel",),
+        "date",
+        None,
+        None,
+        None,
+        "custom_flat",
+    )
+
+    assert variable.flat_dim == "custom_flat"
+    assert variable.price_response is None
+    assert OptimizationVariables([variable], flat_dim="custom_flat").flat.dims == (
+        "custom_flat",
+    )
+    with pytest.raises(ValueError, match="does not match the container's"):
+        OptimizationVariables([variable])
+
+
 @pytest.mark.parametrize(
     "with_distribution", [False, True], ids=["uniform", "temporal"]
 )

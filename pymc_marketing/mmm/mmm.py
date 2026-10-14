@@ -4823,8 +4823,9 @@ class BudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
         budgets_to_optimize: xr.DataArray | None = None,
         budget_distribution_over_period: xr.DataArray | None = None,
         cost_per_unit: pd.DataFrame | xr.DataArray | None = None,
-        price_response: PriceResponse | dict[str, PriceResponse] | None = None,
         callback: bool = False,
+        *,
+        price_response: PriceResponse | dict[str, PriceResponse] | None = None,
         **allocate_budget_kwargs,
     ) -> BudgetOptimizationResult:
         """Optimize the budget allocation for the model.
@@ -4879,13 +4880,13 @@ class BudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
             the model's native units).
 
             **This is independent of the historical cost_per_unit.**
+        callback : bool
+            Whether to track optimization progress; when True the returned
+            result's ``callback_info`` attribute holds per-iteration information.
         price_response : PriceResponse or dict[str, PriceResponse] or None, optional
             Spend-dependent price of a delivered unit; see
             :class:`~pymc_marketing.mmm.price_response.PowerPriceResponse`. Forwarded to
             :class:`~pymc_marketing.mmm.budget_optimizer.BudgetOptimizer`.
-        callback : bool
-            Whether to track optimization progress; when True the returned
-            result's ``callback_info`` attribute holds per-iteration information.
         **allocate_budget_kwargs
             Additional arguments for :meth:`~pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.allocate_budget`.
 

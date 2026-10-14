@@ -35,6 +35,7 @@ from pymc_marketing.mmm.mmm import (
     MMM,
     BudgetOptimizerWrapper,
 )
+from pymc_marketing.mmm.utility import average_response
 from pymc_marketing.version import __version__
 
 
@@ -1551,6 +1552,25 @@ def test_multidimensional_optimize_budget_callback_parametrized(
     assert hasattr(opt_result, "success")
     assert hasattr(opt_result, "x")
     assert hasattr(opt_result, "fun")
+
+
+def test_pre_price_response_positional_call_still_binds_callback(dummy_df, fitted_mmm):
+    """The nine-argument positional form that predates price_response binds its
+    last argument to callback; price_response is keyword-only."""
+    _df_kwargs, X_dummy, _y_dummy = dummy_df
+    wrapper = BudgetOptimizerWrapper(
+        model=fitted_mmm,
+        start_date=X_dummy["date_week"].max() + pd.Timedelta(weeks=1),
+        end_date=X_dummy["date_week"].max() + pd.Timedelta(weeks=4),
+    )
+
+    result = wrapper.optimize_budget(
+        100.0, None, None, average_response, (), None, None, None, True
+    )
+
+    assert isinstance(result.callback_info, list)
+    assert len(result.callback_info) > 0
+    assert result.implied_delivery is None
 
 
 def test_float_channel_data_optimized(simple_fitted_mmm):

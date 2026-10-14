@@ -312,6 +312,8 @@ class MediaVariable(OptimizationVariable):
     cost_per_unit_tensor : XTensorVariable or None
         Pre-processed cost-per-unit tensor with dims
         ``(date_dim, *mask.dims)``, or None for no conversion.
+    flat_dim : str
+        Name of the flat dimension of the decision vector.
     price_response : PriceResponse or None
         Spend-dependent price of a delivered unit, resolved here against this
         variable's dims, coords and mask. ``None`` or an identity response
@@ -327,8 +329,6 @@ class MediaVariable(OptimizationVariable):
         Keyword arguments for ``pytensor.function`` when compiling
         :meth:`delivery_report`, the same ones the optimizer compiles its
         objective with, so the report does not land on a different backend.
-    flat_dim : str
-        Name of the flat dimension of the decision vector.
 
     Attributes
     ----------
@@ -352,10 +352,11 @@ class MediaVariable(OptimizationVariable):
         budget_distribution_over_period_tensor: XTensorVariable | None = None,
         cost_per_unit_tensor: XTensorVariable | None = None,
         carry_in_values: np.ndarray | None = None,
+        flat_dim: str = FLAT_DIM,
+        *,
         price_response: PriceResponse | None = None,
         price_reference: DataArray | None = None,
         compile_kwargs: dict | None = None,
-        flat_dim: str = FLAT_DIM,
     ) -> None:
         if np.dtype(dtype).kind != "f":
             raise ValueError(
