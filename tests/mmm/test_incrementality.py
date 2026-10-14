@@ -5233,6 +5233,30 @@ class TestClosedFormProbeGuards:
         with pytest.raises(NotImplementedError, match=r"^method='closed_form'.*mixes"):
             self._closed_form(mmm)
 
+    def test_carryover_longer_than_the_data_is_refused(
+        self, simple_mmm_data, monkeypatch
+    ):
+        """The probe cannot bound a reach longer than the data, so nothing is read.
+
+        The pipeline still evaluates this model, on the full date axis.
+        """
+        mmm = _fit_custom_mmm(
+            simple_mmm_data, adstock=GeometricAdstock(l_max=20), adstock_first=False
+        )
+        assert mmm.incrementality.data.dates.size < 20
+
+        with pytest.raises(
+            NotImplementedError,
+            match=r"^method='closed_form'.*dies out within the fitted",
+        ):
+            self._closed_form(mmm)
+
+        monkeypatch.undo()
+        pipeline = mmm.incrementality.split_incremental_contribution_over_time(
+            frequency="monthly"
+        )
+        assert json.loads(pipeline.attrs["assumptions"])["evaluation"] == "full_axis"
+
     def test_a_pruned_saturation_posterior_is_refused(
         self, adstock_last_fitted_mmm, monkeypatch
     ):

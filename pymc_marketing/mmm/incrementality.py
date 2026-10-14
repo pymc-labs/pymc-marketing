@@ -588,7 +588,7 @@ def _refuse_unbounded_reach(
             f"but the spend probe found that spend moves the response up to "
             f"{reach.max_lag} periods later.  Something else in the media "
             "transform, such as a saturation that carries spend over a window, "
-            "spreads it across dates, and the shares would be wrong."
+            "spreads it across dates, which the kernel does not describe."
         )
 
 
@@ -1680,6 +1680,9 @@ class Incrementality:
             - a channel-dependent ``mu_effect``, or ``time_varying_media``;
             - a media transform the spend probe finds to carry spend over a
               window of dates or to mix channels;
+            - an effect the spend probe cannot bound within the fitted dates,
+              such as carryover longer than the data, which the pipeline still
+              evaluates on the full date axis;
             - ``estimand="allocation"`` with a ``counterfactual_spend_factor``
               other than ``0``.
         num_samples : int or None, optional
