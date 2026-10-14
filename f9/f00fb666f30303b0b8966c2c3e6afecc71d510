@@ -1,0 +1,19 @@
+docs/source/notebooks/mmm/mmm_multiplicative.ipynb
+  s_0bc512e2d64494::t_d0a28a1efd554e 235-236
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f9f00fb666f30303b0b8966c2c3e6afecc71d510",
+  "prompts": {},
+  "sessions": {
+    "s_0bc512e2d64494": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a13990-9ce3-7f43-a90a-85c70a7530b7",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Benjamin T. Vincent <inferencelab@gmail.com>"
+    }
+  }
+}
