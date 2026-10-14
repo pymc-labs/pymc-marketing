@@ -70,17 +70,20 @@ families or observation layouts are separate equations sharing terms by identity
 
 Prediction is forward simulation with fitted parameters, not a causal-identification procedure.
 
-``optimize`` maximizes a scalar callback over selected fitted deterministic terms.
-It requires exactly their ``Data`` dependencies.
+``Problem`` binds selected fitted deterministic terms and infers their decision inputs.
+Construct it once with decided dates and explicit bounds, fill its labeled ``decisions``
+template, score plans with ``evaluate``, and reuse ``solve`` across initial plans and
+declared-parameter overrides without rebinding or recompiling.
 Callbacks write every reduction, trade-off, and unit conversion.
 Inputs, bounds, objectives, residuals, and allocations remain in original units.
-``OptimizationResult`` reports fixed internal solver scaling and the untouched SciPy diagnostics.
-Measured history is explicit and fixed; the user chooses scoring windows and carryover.
+``OptimizationResult`` reports fixed per-solve scaling and untouched SciPy diagnostics.
+Measured history and carryover rows are explicit and fixed; outputs exclude history,
+while allocations contain only decided rows.
 """
 
 from pymc_marketing.mmm.experimental._gam import GAM
 from pymc_marketing.mmm.experimental._graph import Data, Equation
-from pymc_marketing.mmm.experimental._optimizer import OptimizationResult, optimize
+from pymc_marketing.mmm.experimental._optimizer import OptimizationResult, Problem
 from pymc_marketing.mmm.experimental._terms import MediaTransform
 
 __all__ = [
@@ -89,5 +92,5 @@ __all__ = [
     "Equation",
     "MediaTransform",
     "OptimizationResult",
-    "optimize",
+    "Problem",
 ]
