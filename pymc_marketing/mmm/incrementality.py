@@ -314,6 +314,12 @@ BUILTIN_ADSTOCKS = (
     WeibullPDFAdstock,
 )
 
+INCOMPLETE_SPLIT_NOTE = (
+    "Some periods' carryover runs past the end of the fitted data; future is "
+    "NaN there, and so is current where that carryover falls inside the "
+    "current window."
+)
+
 CUSTOM_ADSTOCK_NOTE = (
     "This model's adstock is not one of the built-in ones.  The allocation reads "
     "it as a linear convolution, and it passed a homogeneity check (doubling "
@@ -2678,13 +2684,9 @@ class Incrementality:
                 "estimand='allocation', which splits that sum by shares."
             )
 
-        if self.model.link != LinkFunction.IDENTITY:
-            raise NotImplementedError(
-                "method='closed_form' needs link='identity'.  Under "
-                f"link='{self.model.link}' the response-scale increment is not "
-                "the kernel times the linear-predictor one, so the kernel's "
-                "shares do not carry over.  Use method='pipeline'."
-            )
+        self._refuse_non_separable_route(
+            CLOSED_FORM_REQUIREMENT, hint="  Use method='pipeline'."
+        )
 
         if not _is_builtin_adstock(self.model.adstock):
             raise NotImplementedError(
@@ -2694,38 +2696,68 @@ class Incrementality:
                 "which evaluates any adstock."
             )
 
-        mode = self.model.adstock.mode
-        if mode != ConvMode.After:
-            raise NotImplementedError(
-                "method='closed_form' needs a forward-looking adstock "
-                f"(ConvMode.After), got {mode!s}.  A leading kernel puts its "
-                "weights on dates before the spend, so the kernel's lags are "
-                "not the dates a cohort lands on.  Use method='pipeline'."
-            )
-
-        if resolve_channel_dependent_effects(self.model):
-            raise NotImplementedError(
-                "method='closed_form' needs channel_contribution to be the only "
-                "route from spend to the response.  This model has a "
-                "channel-dependent mu_effect, which carries spend over a "
-                "timeline of its own.  Use method='pipeline'."
-            )
-
         # TODO: support time_varying_media.  The pipeline already does, by
-        # scaling the contribution on each realization date; here the cohort's
-        # row is beta * m_{s+l} * w_l * g(x_s), so the multiplier would have to
-        # be applied per realization date, and the share of a cohort that lands
-        # within a horizon is no longer one constant.
+        # scaling the contribution on each realization date.  Here a cohort's
+        # entry on lag l would be beta * m_{s+l} * w_l * g(x_s): the multiplier
+        # has to enter the scatter per lag, and the split can no longer use one
+        # cumulative weight per draw.
         if self.model.time_varying_media:
             raise NotImplementedError(
-                "method='closed_form' does not support time_varying_media: the "
-                "temporal multiplier scales each realization date, so a "
-                "cohort's share within a horizon is not constant.  Use "
-                "method='pipeline'."
+                "method='closed_form' does not support time_varying_media.  The "
+                "temporal multiplier acts on each realization date, so a "
+                "cohort's entries are no longer the kernel's weights times one "
+                "number.  Use method='pipeline'."
             )
 
         self._refuse_missing_adstock_parameters(CLOSED_FORM_REQUIREMENT)
         self._refuse_missing_saturation_parameters(CLOSED_FORM_REQUIREMENT)
+
+    def _refuse_non_separable_route(self, requirement: str, hint: str = "") -> None:
+        """Refuse the model structures that neither the allocation nor the closed form reads.
+
+        Both read a date's contribution as cohorts of one channel's own spend,
+        each spread over the dates after it by the adstock kernel.  That needs
+        an identity link, a kernel placed on and after the spend date, and
+        ``channel_contribution`` as the only route from spend to the response.
+
+        Parameters
+        ----------
+        requirement : str
+            Who refuses, for the message: :data:`ALLOCATION_REQUIREMENT` or
+            :data:`CLOSED_FORM_REQUIREMENT`.
+        hint : str, optional
+            A sentence appended to each message, such as where to go instead.
+
+        Raises
+        ------
+        NotImplementedError
+            Under a non-identity link, an adstock that is not
+            ``ConvMode.After`` or a channel-dependent ``mu_effect``.
+        """
+        if self.model.link != LinkFunction.IDENTITY:
+            raise NotImplementedError(
+                f"{requirement} needs link='identity'.  Under "
+                f"link='{self.model.link}' channel_contribution lives in the "
+                "linear predictor, so a response-scale increment is not a sum "
+                f"of the cohorts' contributions.{hint}"
+            )
+
+        mode = self.model.adstock.mode
+        if mode != ConvMode.After:
+            raise NotImplementedError(
+                f"{requirement} needs a forward-looking adstock "
+                f"(ConvMode.After), got {mode!s}.  A leading kernel puts weight "
+                "on dates before the spend, which the kernel's lags do not "
+                f"describe.{hint}"
+            )
+
+        if resolve_channel_dependent_effects(self.model):
+            raise NotImplementedError(
+                f"{requirement} needs channel_contribution to be the only route "
+                "from spend to the response.  This model has a "
+                "channel-dependent mu_effect, whose contribution would be left "
+                f"out.{hint}"
+            )
 
     @staticmethod
     def _refuse_allocation_spend_factor(counterfactual_spend_factor: float) -> None:
@@ -2775,30 +2807,7 @@ class Incrementality:
             channel data.
         """
         self._refuse_allocation_spend_factor(counterfactual_spend_factor)
-
-        if self.model.link != LinkFunction.IDENTITY:
-            raise NotImplementedError(
-                "estimand='allocation' needs link='identity'.  Under "
-                f"link='{self.model.link}' channel_contribution lives in the "
-                "linear predictor and the response-scale increments do not add "
-                "up to it, so there is nothing for the shares to reconcile with."
-            )
-
-        mode = self.model.adstock.mode
-        if mode != ConvMode.After:
-            raise NotImplementedError(
-                "estimand='allocation' needs a forward-looking adstock "
-                f"(ConvMode.After), got {mode!s}.  A leading kernel puts mass on "
-                "dates before the spend that the lag shares do not describe."
-            )
-
-        if resolve_channel_dependent_effects(self.model):
-            raise NotImplementedError(
-                "estimand='allocation' needs channel_contribution to be the only "
-                "route from spend to the response.  This model has a "
-                "channel-dependent mu_effect, whose contribution the shares "
-                "would leave out."
-            )
+        self._refuse_non_separable_route(ALLOCATION_REQUIREMENT)
 
         if self.model.adstock_first:
             self._refuse_signed_spend()
@@ -3408,11 +3417,7 @@ class Incrementality:
 
         notes: list[str] = []
         if not all(complete):
-            notes.append(
-                "Some periods' carryover runs past the end of the fitted data; "
-                "future is NaN there, and so is current where that carryover "
-                "falls inside the current window."
-            )
+            notes.append(INCOMPLETE_SPLIT_NOTE)
 
         result.attrs = self._carryover_attrs(
             increments,
@@ -3567,11 +3572,7 @@ class Incrementality:
 
         notes: list[str] = []
         if cut.any():
-            notes.append(
-                "Some periods' carryover runs past the end of the fitted data; "
-                "future is NaN there, and so is current where that carryover "
-                "falls inside the current window."
-            )
+            notes.append(INCOMPLETE_SPLIT_NOTE)
         result.attrs = self._carryover_attrs(
             PeriodIncrements(
                 periods=[], windows=inputs.windows, reach=reach, freq_offset=offset
