@@ -180,7 +180,7 @@ class AdstockTransformation(Transformation):
     def cumulative_weights(
         self,
         parameters: xr.Dataset,
-        horizon: int | None,
+        horizon: int | None = None,
         **sample_posterior_predictive_kwargs: Any,
     ) -> xr.DataArray:
         r"""Share of the kernel's weight that lands within *horizon* periods.
@@ -216,12 +216,11 @@ class AdstockTransformation(Transformation):
         parameters : xr.Dataset
             Dataset with the adstock's parameters, with ``chain`` and ``draw``
             dimensions, as :meth:`sample_curve` takes it.
-        horizon : int or None
+        horizon : int or None, default=None
             Periods after the spend period that count, in ``0 .. l_max - 1``.
             ``0`` is the spend period alone and ``l_max - 1`` the whole kernel,
             for which :math:`C` is exactly one.  ``None`` returns every horizon
-            at once, on a ``"horizon"`` dimension, from the one sampling of the
-            kernel that a single horizon would also cost.
+            on a ``"horizon"`` dimension, from one sampling of the kernel.
         sample_posterior_predictive_kwargs : Any
             Passed to :meth:`sample_curve`, for example ``progressbar=False``.
 
@@ -252,6 +251,14 @@ class AdstockTransformation(Transformation):
             parameters = adstock.sample_prior()
             share = adstock.cumulative_weights(parameters, horizon=2)
         """
+        if self.mode != ConvMode.After:
+            raise ValueError(
+                "cumulative_weights needs mode=ConvMode.After, got "
+                f"{self.mode!s}.  Under a leading kernel the first entries are "
+                "not the spend period, so their cumulative sum is not the share "
+                "that lands within a horizon."
+            )
+
         if horizon is not None and (
             isinstance(horizon, bool) or not isinstance(horizon, int | np.integer)
         ):
@@ -262,14 +269,6 @@ class AdstockTransformation(Transformation):
                 f"horizon must be in 0..{self.l_max - 1} (the periods after the "
                 f"spend period that the kernel of l_max={self.l_max} covers), "
                 f"got {horizon}."
-            )
-
-        if self.mode != ConvMode.After:
-            raise ValueError(
-                "cumulative_weights needs mode=ConvMode.After, got "
-                f"{self.mode!s}.  Under a leading kernel the first entries are "
-                "not the spend period, so their cumulative sum is not the share "
-                "that lands within a horizon."
             )
 
         weights = self.sample_curve(parameters, **sample_posterior_predictive_kwargs)

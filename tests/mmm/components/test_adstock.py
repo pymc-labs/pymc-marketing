@@ -285,7 +285,7 @@ class TestCumulativeWeights:
         adstock = DelayedAdstock(l_max=6)
         prior = adstock.sample_prior(random_seed=2)
 
-        curve = adstock.cumulative_weights(prior, None, progressbar=False)
+        curve = adstock.cumulative_weights(prior, progressbar=False)
 
         assert curve.sizes["horizon"] == 6
         np.testing.assert_array_equal(curve.horizon.values, np.arange(6))
@@ -325,11 +325,13 @@ class TestCumulativeWeights:
             adstock.cumulative_weights(adstock.sample_prior(), horizon)
 
     @pytest.mark.parametrize("mode", [ConvMode.Before, ConvMode.Overlap])
-    def test_a_leading_kernel_raises(self, mode) -> None:
+    @pytest.mark.parametrize("horizon", [2, 100])
+    def test_a_leading_kernel_raises(self, mode, horizon) -> None:
+        """The mode is checked first, so it is what an invalid call reports."""
         adstock = GeometricAdstock(l_max=6, mode=mode)
 
         with pytest.raises(ValueError, match=r"ConvMode\.After"):
-            adstock.cumulative_weights(adstock.sample_prior(), 2)
+            adstock.cumulative_weights(adstock.sample_prior(), horizon)
 
 
 class TestAdstockRoundtrips:
