@@ -3481,52 +3481,40 @@ class Incrementality:
             str(dim) for dim in saturated.dims if dim not in ("chain", "draw", "date")
         )
         row_of = _row_of_dates(dates, inputs.periods)
-        n_rows, n_dates = len(inputs.periods), len(dates)
-        spent = np.flatnonzero(row_of >= 0)
-        rows = row_of[spent]
-
-        # Where each period's current window ends, and how many data periods
-        # that is after each of its dates: the lags of the kernel that count.
-        extended = dates.append(
-            pd.date_range(dates[-1], periods=max_lag + 1, freq=offset)[1:]
-        )
         current_end = pd.DatetimeIndex(
-            [window.end + lags * offset if lags else window.end for window in windows]
+            [
+                self._current_window_end(window.end, lags=lags, freq_offset=offset)
+                for window in windows
+            ]
         )
-        position = np.searchsorted(extended.values, current_end.values[rows], "right")
-        counted = np.clip(position - 1 - spent, 0, adstock.l_max - 1)
+        spent, counted = self._lags_within_window(
+            dates,
+            row_of,
+            current_end,
+            l_max=adstock.l_max,
+            max_lag=max_lag,
+            freq_offset=offset,
+        )
 
         cohorts = saturated.isel(date=spent)
         within = cumulative.isel({LAG_DIM: xr.DataArray(counted, dims="date")})
         within = within.assign_coords(date=cohorts["date"].values)
         whole = cumulative.isel({LAG_DIM: -1}, drop=True)
         order = ("chain", "draw", "date", *out_dims)
+        rows = row_of[spent]
 
-        # Each period's value is the sum over its own dates: a one-hot matrix of
-        # which date belongs to which period, applied along the date axis.
-        member = np.zeros((n_rows, len(spent)))
-        member[rows, np.arange(len(spent))] = 1.0
+        current = self._sum_by_period(
+            (cohorts * within).transpose(*order).values, rows, len(windows)
+        )
+        future = self._sum_by_period(
+            (cohorts * (whole - within)).transpose(*order).values, rows, len(windows)
+        )
 
-        def by_period(values: xr.DataArray) -> np.ndarray:
-            summed = np.tensordot(member, values.transpose(*order).values, (1, 2))
-            return np.moveaxis(summed, 0, 2)
-
-        current = by_period(cohorts * within)
-        future = by_period(cohorts * (whole - within))
-
-        # A period's carryover is cut by the data when its last spend date plus
-        # the reach lies past the last fitted date.  Its current window then
-        # holds an unobserved date if it reaches the first of them, and its future
-        # does if the carryover reaches past the window.
-        last_spent = np.full(n_rows, -1)
-        np.maximum.at(last_spent, rows, spent)
-        cut = (last_spent >= 0) & (last_spent + max_lag > n_dates - 1)
-        reached = extended.values[np.where(cut, last_spent + max_lag, 0)]
-        # Built from the last fitted date, not read off the extended axis, which
-        # a one-weight kernel (no reach past the spend date) does not extend.
-        first_unobserved = dates[-1] + offset
-        current[:, :, cut & (first_unobserved <= current_end)] = np.nan
-        future[:, :, cut & (reached > current_end.values)] = np.nan
+        cut, current_unobserved, future_unobserved = self._cut_periods(
+            dates, row_of, current_end, max_lag=max_lag, freq_offset=offset
+        )
+        current[:, :, current_unobserved] = np.nan
+        future[:, :, future_unobserved] = np.nan
 
         coords = {
             **inputs.labels,
@@ -3559,6 +3547,181 @@ class Incrementality:
         result.attrs["horizon"] = lags
 
         return result
+
+    @staticmethod
+    def _current_window_end(
+        end: pd.Timestamp, *, lags: int, freq_offset: BaseOffset
+    ) -> pd.Timestamp:
+        """Return the last date a period's current window covers.
+
+        Parameters
+        ----------
+        end : pd.Timestamp
+            The period's end.
+        lags : int
+            Data periods after *end* that still count as current.
+        freq_offset : BaseOffset
+            The data's date frequency, which *lags* is counted in.
+
+        Returns
+        -------
+        pd.Timestamp
+            *end* plus *lags* data periods.
+        """
+        # Adding zero periods of an anchored offset rolls an off-anchor date
+        # forward (a month end plus 0 weeks is the next Sunday), so a zero lag
+        # leaves the period end where it is.
+        return end + lags * freq_offset if lags else end
+
+    @staticmethod
+    def _dates_past_the_data(
+        dates: pd.DatetimeIndex, *, periods: int, freq_offset: BaseOffset
+    ) -> pd.DatetimeIndex:
+        """Extend the fitted dates by *periods* data periods.
+
+        Parameters
+        ----------
+        dates : pd.DatetimeIndex
+            The fitted date axis.
+        periods : int
+            How many dates to add after the last one.
+        freq_offset : BaseOffset
+            The data's date frequency.
+
+        Returns
+        -------
+        pd.DatetimeIndex
+            *dates* followed by the *periods* dates after them.
+        """
+        return pd.DatetimeIndex(
+            dates.append(
+                pd.date_range(dates[-1], periods=periods + 1, freq=freq_offset)[1:]
+            )
+        )
+
+    @staticmethod
+    def _lags_within_window(
+        dates: pd.DatetimeIndex,
+        row_of: np.ndarray,
+        current_end: pd.DatetimeIndex,
+        *,
+        l_max: int,
+        max_lag: int,
+        freq_offset: BaseOffset,
+    ) -> tuple[np.ndarray, np.ndarray]:
+        """Count, for each spend date, the kernel lags inside its current window.
+
+        Lag :math:`l` of spend on date :math:`s` lands :math:`l` data periods
+        later, and it is current if that date is on or before the window's end.
+        Lags past the kernel carry no weight, so the count stops at
+        ``l_max - 1``.
+
+        Parameters
+        ----------
+        dates : pd.DatetimeIndex
+            The fitted date axis.
+        row_of : np.ndarray
+            Per date, its period, or ``-1``; see :func:`_row_of_dates`.
+        current_end : pd.DatetimeIndex
+            Per period, the last date of its current window.
+        l_max : int
+            The adstock's number of kernel weights.
+        max_lag : int
+            The measured reach, how far past the data a window can need dates.
+        freq_offset : BaseOffset
+            The data's date frequency.
+
+        Returns
+        -------
+        spent : np.ndarray
+            Indices of the dates that belong to a period.
+        counted : np.ndarray
+            For each of them, the last lag that is current, ``0 .. l_max - 1``.
+        """
+        spent = np.flatnonzero(row_of >= 0)
+        extended = Incrementality._dates_past_the_data(
+            dates, periods=max_lag, freq_offset=freq_offset
+        )
+        position = np.searchsorted(
+            extended.values, current_end.values[row_of[spent]], "right"
+        )
+        return spent, np.clip(position - 1 - spent, 0, l_max - 1)
+
+    @staticmethod
+    def _cut_periods(
+        dates: pd.DatetimeIndex,
+        row_of: np.ndarray,
+        current_end: pd.DatetimeIndex,
+        *,
+        max_lag: int,
+        freq_offset: BaseOffset,
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+        """Find the periods whose carryover the data cuts, and where that shows.
+
+        A period is cut when its last spend date plus the reach lies past the
+        last fitted date.  Its current value is then unobserved if the current
+        window reaches the first date after the data, and its future value if
+        the carryover runs past the window.
+
+        Parameters
+        ----------
+        dates : pd.DatetimeIndex
+            The fitted date axis.
+        row_of : np.ndarray
+            Per date, its period, or ``-1``; see :func:`_row_of_dates`.
+        current_end : pd.DatetimeIndex
+            Per period, the last date of its current window.
+        max_lag : int
+            The measured reach, in data periods.
+        freq_offset : BaseOffset
+            The data's date frequency.
+
+        Returns
+        -------
+        cut, current_unobserved, future_unobserved : np.ndarray
+            Booleans per period.
+        """
+        n_dates = len(dates)
+        last_spent = np.full(len(current_end), -1)
+        spent = np.flatnonzero(row_of >= 0)
+        np.maximum.at(last_spent, row_of[spent], spent)
+        cut = (last_spent >= 0) & (last_spent + max_lag > n_dates - 1)
+
+        extended = Incrementality._dates_past_the_data(
+            dates, periods=max_lag, freq_offset=freq_offset
+        )
+        reached = extended.values[np.where(cut, last_spent + max_lag, 0)]
+        # The first unobserved date comes from the last fitted one, since the
+        # extended axis is empty past the data when the reach is zero.
+        first_unobserved = dates[-1] + freq_offset
+        current_unobserved = cut & np.asarray(first_unobserved <= current_end)
+        future_unobserved = cut & (reached > current_end.values)
+        return cut, current_unobserved, future_unobserved
+
+    @staticmethod
+    def _sum_by_period(values: np.ndarray, rows: np.ndarray, n_rows: int) -> np.ndarray:
+        """Sum per-date values into their periods.
+
+        Parameters
+        ----------
+        values : np.ndarray
+            ``(chain, draw, date, *rest)`` on the dates that belong to a period.
+        rows : np.ndarray
+            Each of those dates' period, non-decreasing.
+        n_rows : int
+            The number of periods; a period without dates sums to ``0``.
+
+        Returns
+        -------
+        np.ndarray
+            ``(chain, draw, period, *rest)``.
+        """
+        summed = np.zeros((*values.shape[:2], n_rows, *values.shape[3:]))
+        if len(rows):
+            # Each period's dates are contiguous, so reduceat sums each run.
+            starts = np.flatnonzero(np.r_[True, rows[1:] != rows[:-1]])
+            summed[:, :, rows[starts]] = np.add.reduceat(values, starts, axis=2)
+        return summed
 
     @staticmethod
     def _validate_horizon(horizon: int | None, frequency: Frequency) -> int:
@@ -3674,10 +3837,9 @@ class Incrementality:
         complete : bool
             Whether every date in the band is observed.
         """
-        # Adding zero periods of an anchored offset rolls an off-anchor date
-        # forward (a month end plus 0 weeks is the next Sunday), so a zero lag
-        # leaves the period end where it is.
-        current_end = end + lags * freq_offset if lags else end
+        current_end = Incrementality._current_window_end(
+            end, lags=lags, freq_offset=freq_offset
+        )
         realization = band.indexes["realization_date"]
         in_current = (realization >= start) & (realization <= current_end)
 

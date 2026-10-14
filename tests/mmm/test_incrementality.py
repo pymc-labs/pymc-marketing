@@ -5928,6 +5928,120 @@ class TestSplitIncrementalContributionHelpers:
     WEEKS = pd.date_range("2023-01-01", periods=6, freq="W-SUN")
     WEEKLY = pd.tseries.frequencies.to_offset("W-SUN")
 
+    # Jan 1, 8, 15, 22, 29 and Feb 5: five January Sundays, then one in February.
+    MONTHS = [
+        (pd.Timestamp("2023-01-01"), pd.Timestamp("2023-01-31")),
+        (pd.Timestamp("2023-02-01"), pd.Timestamp("2023-02-28")),
+        (pd.Timestamp("2023-03-01"), pd.Timestamp("2023-03-31")),
+    ]
+
+    def _month_rows(self):
+        return incrementality_module._row_of_dates(self.WEEKS, self.MONTHS)
+
+    @pytest.mark.parametrize(
+        "lags, expected",
+        [(0, "2023-01-31"), (2, "2023-02-12")],
+    )
+    def test_current_window_end(self, lags, expected):
+        """A zero lag leaves an off-anchor period end where it is."""
+        end = Incrementality._current_window_end(
+            pd.Timestamp("2023-01-31"), lags=lags, freq_offset=self.WEEKLY
+        )
+
+        assert end == pd.Timestamp(expected)
+
+    @pytest.mark.parametrize(
+        "l_max, expected",
+        [(8, [4, 3, 2, 1, 0, 3]), (3, [2, 2, 2, 1, 0, 2])],
+    )
+    def test_lags_within_a_monthly_window(self, l_max, expected):
+        """Week 1 of January has four more January Sundays to land on, week 5 none.
+
+        The February date runs past the data: its window reaches Feb 26, three
+        Sundays later.  The count stops at the kernel's last lag.
+        """
+        current_end = pd.DatetimeIndex([end for _, end in self.MONTHS])
+
+        spent, counted = Incrementality._lags_within_window(
+            self.WEEKS,
+            self._month_rows(),
+            current_end,
+            l_max=l_max,
+            max_lag=3,
+            freq_offset=self.WEEKLY,
+        )
+
+        np.testing.assert_array_equal(spent, np.arange(6))
+        np.testing.assert_array_equal(counted, expected)
+
+    def test_lags_within_a_fixed_horizon(self):
+        """At the data's own frequency with ``horizon=1`` every date counts lag 1."""
+        periods = [(date, date) for date in self.WEEKS]
+        current_end = pd.DatetimeIndex(
+            [
+                Incrementality._current_window_end(end, lags=1, freq_offset=self.WEEKLY)
+                for _, end in periods
+            ]
+        )
+
+        _, counted = Incrementality._lags_within_window(
+            self.WEEKS,
+            incrementality_module._row_of_dates(self.WEEKS, periods),
+            current_end,
+            l_max=4,
+            max_lag=3,
+            freq_offset=self.WEEKLY,
+        )
+
+        np.testing.assert_array_equal(counted, [1] * 6)
+
+    def test_cut_periods(self):
+        """Where the data's end cuts each month's carryover, with a reach of 3.
+
+        January's last spend (Jan 29) reaches Feb 19, past the data but after
+        January, so only its future is unobserved.  February's (Feb 5) reaches
+        Feb 26, and its window covers Feb 12, so its current is unobserved and its
+        future is not.  March has no spend.
+        """
+        current_end = pd.DatetimeIndex([end for _, end in self.MONTHS])
+
+        cut, current_unobserved, future_unobserved = Incrementality._cut_periods(
+            self.WEEKS,
+            self._month_rows(),
+            current_end,
+            max_lag=3,
+            freq_offset=self.WEEKLY,
+        )
+
+        np.testing.assert_array_equal(cut, [True, True, False])
+        np.testing.assert_array_equal(current_unobserved, [False, True, False])
+        np.testing.assert_array_equal(future_unobserved, [True, False, False])
+
+    def test_no_reach_cuts_nothing(self):
+        """A one-weight kernel lands on its spend date, inside the data."""
+        current_end = pd.DatetimeIndex([end for _, end in self.MONTHS])
+
+        cut, current_unobserved, future_unobserved = Incrementality._cut_periods(
+            self.WEEKS,
+            self._month_rows(),
+            current_end,
+            max_lag=0,
+            freq_offset=self.WEEKLY,
+        )
+
+        assert not (cut.any() or current_unobserved.any() or future_unobserved.any())
+
+    def test_sum_by_period(self):
+        """Contiguous dates add up per period; a period without dates is zero."""
+        values = np.array([1.0, 2.0, 3.0, 4.0]).reshape(1, 1, 4)
+
+        summed = Incrementality._sum_by_period(values, np.array([0, 0, 2, 2]), 3)
+
+        np.testing.assert_array_equal(summed, [[[3.0, 0.0, 7.0]]])
+        assert Incrementality._sum_by_period(
+            values[:, :, :0], np.array([], int), 2
+        ).shape == (1, 1, 2)
+
     @pytest.mark.parametrize(
         "horizon, frequency, error, match",
         [
