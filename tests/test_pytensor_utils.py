@@ -15,6 +15,7 @@
 """Tests for pytensor_utils module."""
 
 import builtins as _builtins
+import inspect
 import sys
 
 import numpy as np
@@ -23,6 +24,7 @@ import pymc as pm
 import pymc.dims as pmd
 import pytest
 import xarray as xr
+from pymc import do
 from pymc.model.fgraph import fgraph_from_model
 from pytensor import function
 from pytensor.graph.traversal import ancestors
@@ -34,6 +36,7 @@ from pymc_marketing.mmm.mmm import (
     BudgetOptimizerWrapper,
 )
 from pymc_marketing.pytensor_utils import (
+    ConditionedModel,
     ModelSamplerEstimator,
     SharedPosterior,
     _prefix_model,
@@ -1188,3 +1191,302 @@ def test_extract_response_distribution_one_variable_posterior():
         model, xr.DataTree.from_dict({"/posterior": posterior}), "resp"
     )
     np.testing.assert_allclose(function([], graph)(), [[2.0, 6.0]])
+
+
+def _compiled_apply_nodes(graph) -> int:
+    return len(function([], graph).maker.fgraph.apply_nodes)
+
+
+def _expected_doubled(idata, data_values) -> np.ndarray:
+    drawn = idata["posterior"]["slope"].values.reshape(-1)
+    return np.outer(drawn, 2.0 * data_values)
+
+
+def _channel_conditioned_model():
+    """A channel-dimensioned ``resp = beta * spend`` model and its spend values."""
+    spend = np.array([10.0, 20.0])
+    with pm.Model(coords={"channel": ["a", "b"]}) as model:
+        spend_var = pmd.Data("spend", spend, dims="channel")
+        beta = pmd.Normal("beta", dims="channel")
+        pmd.Deterministic("resp", beta * spend_var)
+    return model, spend
+
+
+def _channel_posterior(beta, channel=("a", "b")):
+    return xr.Dataset(
+        {"beta": (("chain", "draw", "channel"), np.asarray(beta, float)[None, None])},
+        coords={"channel": list(channel)},
+    )
+
+
+@pytest.fixture
+def slope_posteriors():
+    """A ``doubled = 2 * data * slope`` model, its data, and three posteriors."""
+    model, first, data_values = _slope_model_and_draws(draws=4, seed=1)
+    _, second, _ = _slope_model_and_draws(draws=6, seed=2)
+    _, third, _ = _slope_model_and_draws(draws=2, seed=3)
+    return model, data_values, first, second, third
+
+
+@pytest.fixture
+def conditioned_slope(slope_posteriors):
+    """The conditioned model, intervening on ``data``, not yet rebound."""
+    model, data_values, first, _, _ = slope_posteriors
+    return ConditionedModel(model, first, intervention={"data": data_values})
+
+
+def test_conditioned_model_extract_is_cached_by_key(conditioned_slope):
+    graph = conditioned_slope.extract("doubled")
+    assert conditioned_slope.extract("doubled") is graph
+    # A one-element sequence shares the extraction but keeps the list form.
+    assert conditioned_slope.extract(["doubled"])[0] is graph
+    # The horizon is part of the cache key.
+    horizon_graph = conditioned_slope.extract("doubled", n_dates=3)
+    assert horizon_graph is not graph
+    assert conditioned_slope.extract("doubled", n_dates=3) is horizon_graph
+
+
+def test_conditioned_model_first_rebind_reextracts_and_fires_callbacks_once(
+    conditioned_slope, slope_posteriors
+):
+    _, data_values, _, second, _ = slope_posteriors
+    fired = []
+    conditioned_slope.register(lambda: fired.append("first"))
+    conditioned_slope.register(lambda: fired.append("second"))
+
+    constant_graph = conditioned_slope.extract("doubled")
+    conditioned_slope.set_posterior(second)
+
+    assert fired == ["first", "second"]
+    shared_graph = conditioned_slope.extract("doubled")
+    assert shared_graph is not constant_graph
+    # The re-extracted graph reads the new draws.
+    np.testing.assert_allclose(
+        function([], shared_graph)(), _expected_doubled(second, data_values)
+    )
+
+
+def test_conditioned_model_later_rebind_reuses_graph_and_follows_new_draws(
+    conditioned_slope, slope_posteriors
+):
+    _, data_values, _, second, third = slope_posteriors
+    conditioned_slope.set_posterior(second)
+    shared_graph = conditioned_slope.extract("doubled")
+    fn = function([], shared_graph)
+
+    fired = []
+    conditioned_slope.register(lambda: fired.append("again"))
+    conditioned_slope.set_posterior(third)
+
+    assert fired == ["again"]
+    # No re-extraction: the same compiled function follows the new draw count.
+    assert conditioned_slope.extract("doubled") is shared_graph
+    np.testing.assert_allclose(fn(), _expected_doubled(third, data_values))
+
+
+@pytest.mark.parametrize("failing_first_rebind", [True, False])
+def test_conditioned_model_failing_callback_rolls_back_binding(
+    conditioned_slope, slope_posteriors, failing_first_rebind
+):
+    def boom():
+        raise RuntimeError("callback failed")
+
+    _, data_values, first, second, third = slope_posteriors
+    if failing_first_rebind:
+        # A failed first rebind leaves the constant binding in place.
+        constant_graph = conditioned_slope.extract("doubled")
+        conditioned_slope.register(boom)
+        with pytest.raises(RuntimeError, match="callback failed"):
+            conditioned_slope.set_posterior(second)
+        assert conditioned_slope.extract("doubled") is constant_graph
+        np.testing.assert_allclose(
+            function([], constant_graph)(), _expected_doubled(first, data_values)
+        )
+    else:
+        # A failed later rebind restores the previous draws.
+        conditioned_slope.set_posterior(second)
+        fn = function([], conditioned_slope.extract("doubled"))
+        conditioned_slope.register(boom)
+        with pytest.raises(RuntimeError, match="callback failed"):
+            conditioned_slope.set_posterior(third)
+        np.testing.assert_allclose(fn(), _expected_doubled(second, data_values))
+
+
+def test_conditioned_model_failed_rebind_keeps_binding_and_skips_callbacks(
+    conditioned_slope, slope_posteriors
+):
+    _, data_values, _, second, _ = slope_posteriors
+    conditioned_slope.set_posterior(second)
+    fn = function([], conditioned_slope.extract("doubled"))
+    fired = []
+    conditioned_slope.register(lambda: fired.append("fired"))
+
+    # A posterior the shared variables cannot be rebound to fails before any
+    # callback runs, and leaves the previous draws in place.
+    without_slope = second["posterior"].to_dataset().drop_vars("slope")
+    with pytest.raises(KeyError, match="missing variables"):
+        conditioned_slope.set_posterior(without_slope)
+
+    assert fired == []
+    np.testing.assert_allclose(fn(), _expected_doubled(second, data_values))
+
+
+def test_conditioned_model_refuses_pre_intervention_variable(
+    conditioned_slope, slope_posteriors
+):
+    model, *_ = slope_posteriors
+    with pytest.raises(ValueError, match="not a node of the intervened model"):
+        conditioned_slope.extract(model["doubled"])
+
+
+def test_conditioned_model_refuses_unchanged_callable_intervention(slope_posteriors):
+    model, _, first, _, _ = slope_posteriors
+    with pytest.raises(ValueError, match="returned the model unchanged"):
+        ConditionedModel(model, first, intervention=lambda model: model)
+
+
+def test_conditioned_model_default_graph_keeps_constant_folding(
+    conditioned_slope, slope_posteriors
+):
+    _, _, first, _, _ = slope_posteriors
+    default_nodes = _compiled_apply_nodes(conditioned_slope.extract("doubled"))
+    plain = extract_response_distribution(conditioned_slope.model, first, ["doubled"])
+    plain_nodes = _compiled_apply_nodes(plain)
+    conditioned_slope.set_posterior(first)
+    rebind_nodes = _compiled_apply_nodes(conditioned_slope.extract("doubled"))
+
+    # The default path compiles to the plain constant-conditioned graph; the
+    # rebind is what gives up constant folding.
+    assert default_nodes == plain_nodes
+    assert default_nodes < rebind_nodes
+
+
+def test_conditioned_model_first_rebind_validates_like_later_calls():
+    model, spend = _channel_conditioned_model()
+
+    # Reordered labels on the first call are realigned against the layout the
+    # constant graph was extracted under, not bound by position.
+    reordered = ConditionedModel(
+        model, _channel_posterior([1.0, 2.0]), intervention={"spend": spend}
+    )
+    reordered.extract("resp")
+    reordered.set_posterior(_channel_posterior([2.0, 1.0], channel=("b", "a")))
+    np.testing.assert_allclose(
+        function([], reordered.extract("resp"))(), [[10.0, 40.0]]
+    )
+
+    # A resized axis on the first call is refused; the constant graph and the
+    # binding are kept.
+    conditioned = ConditionedModel(
+        model, _channel_posterior([1.0, 2.0]), intervention={"spend": spend}
+    )
+    constant_graph = conditioned.extract("resp")
+    resized = xr.Dataset(
+        {"beta": (("chain", "draw", "channel"), np.ones((1, 1, 3)))},
+        coords={"channel": ["a", "b", "c"]},
+    )
+    with pytest.raises(ValueError, match="different channel labels"):
+        conditioned.set_posterior(resized)
+    assert conditioned.extract("resp") is constant_graph
+    np.testing.assert_allclose(function([], constant_graph)(), [[10.0, 40.0]])
+
+
+def test_conditioned_model_first_rebind_retries_after_failed_callback(
+    conditioned_slope, slope_posteriors
+):
+    _, data_values, _, second, third = slope_posteriors
+    fired = []
+    flaky_calls = []
+
+    def flaky():
+        flaky_calls.append(1)
+        if len(flaky_calls) == 1:
+            raise RuntimeError("callback failed")
+
+    conditioned_slope.register(lambda: fired.append("fired"))
+    conditioned_slope.register(flaky)
+
+    with pytest.raises(RuntimeError, match="callback failed"):
+        conditioned_slope.set_posterior(second)
+    assert len(fired) == 1 and len(flaky_calls) == 1
+
+    # The rollback left the object able to take the first-rebind path again.
+    conditioned_slope.set_posterior(third)
+    assert len(fired) == 2 and len(flaky_calls) == 2
+    np.testing.assert_allclose(
+        function([], conditioned_slope.extract("doubled"))(),
+        _expected_doubled(third, data_values),
+    )
+
+
+def test_conditioned_model_callback_can_extract_a_new_key(
+    conditioned_slope, slope_posteriors
+):
+    _, data_values, _, second, _ = slope_posteriors
+    extracted = []
+
+    def extract_new_key():
+        extracted.append(conditioned_slope.extract("doubled", n_dates=3))
+
+    conditioned_slope.register(extract_new_key)
+    conditioned_slope.set_posterior(second)
+
+    # The callback extracted a key that was never handed out; it was cached
+    # through the shared posterior, so it follows the rebind.
+    assert conditioned_slope.extract("doubled", n_dates=3) is extracted[0]
+    np.testing.assert_allclose(
+        function([], extracted[0])(), _expected_doubled(second, data_values)
+    )
+
+
+def test_conditioned_model_first_rebind_reextracts_every_handed_out_key(
+    conditioned_slope, slope_posteriors
+):
+    _, data_values, _, second, _ = slope_posteriors
+    default_graph = conditioned_slope.extract("doubled")
+    horizon_graph = conditioned_slope.extract("doubled", n_dates=3)
+
+    conditioned_slope.set_posterior(second)
+
+    # Every handed-out key, not just the default one, moved to the shared
+    # posterior.
+    assert conditioned_slope.extract("doubled") is not default_graph
+    assert conditioned_slope.extract("doubled", n_dates=3) is not horizon_graph
+    for graph in (
+        conditioned_slope.extract("doubled"),
+        conditioned_slope.extract("doubled", n_dates=3),
+    ):
+        np.testing.assert_allclose(
+            function([], graph)(), _expected_doubled(second, data_values)
+        )
+
+
+def test_conditioned_model_callable_intervention_matches_mapping(slope_posteriors):
+    model, data_values, first, _, _ = slope_posteriors
+    from_mapping = ConditionedModel(model, first, intervention={"data": data_values})
+    from_callable = ConditionedModel(
+        model, first, intervention=lambda model: do(model, {"data": data_values})
+    )
+
+    np.testing.assert_allclose(
+        function([], from_mapping.extract("doubled"))(),
+        function([], from_callable.extract("doubled"))(),
+    )
+
+
+def test_pytensor_utils_does_not_import_counterfactual():
+    import ast
+
+    import pymc_marketing.pytensor_utils as pytensor_utils
+
+    with open(inspect.getfile(pytensor_utils), encoding="utf-8") as source_file:
+        tree = ast.parse(source_file.read())
+
+    modules: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            modules.update(alias.name for alias in node.names)
+        elif isinstance(node, ast.ImportFrom):
+            modules.add(node.module or "")
+            modules.update(alias.name for alias in node.names)
+    assert not any("counterfactual" in module for module in modules)

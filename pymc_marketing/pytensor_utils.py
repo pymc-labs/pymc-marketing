@@ -14,14 +14,16 @@
 
 """PyTensor utility functions."""
 
+import contextlib
 from collections import Counter
-from collections.abc import Sequence
-from typing import cast, overload
+from collections.abc import Callable, Mapping, Sequence
+from typing import NamedTuple, cast, overload
 
 import arviz as az
 import numpy as np
 import pandas as pd
 import xarray as xr
+from pymc import do
 from pymc.model.core import Model
 from pymc.model.fgraph import (
     ModelValuedVar,
@@ -614,6 +616,410 @@ def extract_response_distribution(
     )
 
     return response_distribution[0] if single else response_distribution
+
+
+def _posterior_dataset(idata: xr.DataTree | xr.Dataset) -> xr.Dataset:
+    """Return the ``posterior`` group of ``idata`` as a plain dataset.
+
+    A tree may carry other groups (``constant_data``, ``observed_data``,
+    ``prior``); conditioning only reads the posterior, so it is taken out once
+    here and the rest of the object works with the dataset alone.  An
+    ``arviz.InferenceData`` is not accepted; pass its ``posterior`` dataset or
+    a tree holding it.
+
+    Parameters
+    ----------
+    idata : xr.DataTree or xr.Dataset
+        The posterior dataset itself, or a tree carrying it under
+        ``posterior``.
+
+    Returns
+    -------
+    xr.Dataset
+        The posterior draws.
+
+    Raises
+    ------
+    TypeError
+        If ``idata`` is neither an ``xarray.Dataset`` nor an
+        ``xarray.DataTree``.
+    """
+    if isinstance(idata, xr.Dataset):
+        return idata
+    if isinstance(idata, xr.DataTree):
+        return idata["/posterior"].to_dataset()
+    raise TypeError(
+        "Expected the posterior as an xarray.Dataset or xarray.DataTree, "
+        f"got {type(idata).__name__}."
+    )
+
+
+def _apply_intervention(
+    model: Model,
+    intervention: Mapping[str, Variable | np.ndarray | float]
+    | Callable[[Model], Model]
+    | None,
+) -> Model:
+    """Return ``model`` with ``intervention`` applied, or ``model`` unchanged.
+
+    Parameters
+    ----------
+    model : pm.Model
+        The model to transform.  Never modified: ``do`` clones it.
+    intervention : mapping, callable or None
+        A mapping of :func:`pymc.do` arguments -- variable name to intervention
+        value -- or a ``Model -> Model`` callable for callers that build the
+        ``do`` spec themselves.  ``None`` leaves the model as it is.
+
+    Returns
+    -------
+    pm.Model
+        The intervened model.
+
+    Raises
+    ------
+    ValueError
+        If the callable returns the model unchanged, so no clone carries the
+        intervention and pre-intervention nodes could not be told apart from
+        intervened ones.
+    """
+    if intervention is None:
+        return model
+    if callable(intervention):
+        intervened = intervention(model)
+        if intervened is model:
+            raise ValueError(
+                "The intervention callable returned the model unchanged; "
+                "ConditionedModel requires an intervened clone.  Build one with "
+                "pymc.do, or pass the intervention as a mapping."
+            )
+        return intervened
+    return do(model, dict(intervention))
+
+
+class _ExtractKey(NamedTuple):
+    """Cache key of a conditioned extraction."""
+
+    names: tuple[str | Variable, ...]
+    frozen_deterministics: tuple[str, ...]
+    n_dates: int | None
+
+
+class _CachedGraphs(NamedTuple):
+    """A cached extraction: the resolved inputs and the graphs handed out."""
+
+    resolved: list[Variable]
+    graphs: list[Variable]
+
+
+class ConditionedModel:
+    """A model after an intervention, and the one owner of its posterior binding.
+
+    A caller hands over a model, a posterior and, optionally, an intervention --
+    a mapping of :func:`pymc.do` arguments or a ``Model -> Model`` callable,
+    which this object applies itself.  It then hands out response graphs
+    conditioned on the posterior and keeps rebinding them as the posterior
+    moves, so the "intervene, condition, extract, compile" dance is owned here
+    instead of by each consumer.
+
+    Extraction is cached by ``(response names, frozen deterministics, horizon)``.
+    Repeated :meth:`extract` of the same key returns the identical graph.  Until
+    the first :meth:`set_posterior` the draws enter as constants, so the default
+    path keeps constant folding.
+
+    The first :meth:`set_posterior` drops the constant-baked cache, re-extracts
+    every handed-out key through a :class:`SharedPosterior` built on the draws
+    already in place, rebinds it to the new draws -- so the first rebind is
+    validated and realigned like every later one -- and fires the registered
+    callbacks so consumers recompile from the new graphs.  Later calls only
+    swap the draws in place, which is atomic and free in the number of draws,
+    so a compiled function follows the newer posterior without being
+    recompiled.
+
+    A response is resolved against the intervened clone.  A :class:`~pytensor.graph.basic.Variable`
+    that is not a node of that clone -- a node of the pre-intervention model --
+    is refused: it would silently carry no intervention into the graph.
+
+    Parameters
+    ----------
+    model : pm.Model
+        The model to intervene on.
+    idata : xr.DataTree or xr.Dataset
+        Posterior draws to condition on.  A tree's ``posterior`` group is used.
+    intervention : mapping or callable, optional
+        A mapping of ``pm.do`` arguments, or a ``Model -> Model`` callable.
+        ``None`` uses the model unchanged.
+    frozen_deterministics : list of str, optional
+        Names of Deterministic variables to freeze at their posterior values
+        instead of recomputing from the graph.
+
+    Examples
+    --------
+    .. code-block:: python
+
+        conditioned = ConditionedModel(
+            model, idata, intervention={"channel_data": new_spend}
+        )
+        graph = conditioned.extract("channel_contribution")
+        conditioned.register(lambda: recompile(graph))
+        conditioned.set_posterior(updated_idata)  # recompiles once
+        conditioned.set_posterior(another_idata)  # no recompile
+    """
+
+    def __init__(
+        self,
+        model: Model,
+        idata: xr.DataTree | xr.Dataset,
+        *,
+        intervention: Mapping[str, Variable | np.ndarray | float]
+        | Callable[[Model], Model]
+        | None = None,
+        frozen_deterministics: list[str] | None = None,
+    ) -> None:
+        self.frozen_deterministics: tuple[str, ...] = tuple(frozen_deterministics or ())
+        self._model = _apply_intervention(model, intervention)
+        # The clone's nodes, so a pre-intervention Variable can be told from a
+        # node of the intervened graph by identity.
+        self._clone_nodes = frozenset(ancestors(list(self._model.named_vars.values())))
+        self._posterior = _posterior_dataset(idata)
+        self._shared_posterior: SharedPosterior | None = None
+        self._cache: dict[_ExtractKey, _CachedGraphs] = {}
+        self._callbacks: list[Callable[[], None]] = []
+
+    @property
+    def model(self) -> Model:
+        """The intervened clone every response is resolved against."""
+        return self._model
+
+    @property
+    def posterior(self) -> xr.Dataset:
+        """The draws the graphs are currently conditioned on."""
+        return self._posterior
+
+    def extract(
+        self,
+        response_vars: str | Variable | Sequence[str | Variable],
+        *,
+        n_dates: int | None = None,
+    ) -> Variable | list[Variable]:
+        """Return response graphs conditioned on the current posterior.
+
+        Parameters
+        ----------
+        response_vars : str, Variable, or sequence of either
+            The response variable(s) to extract.  A name resolves against the
+            intervened model; a ``Variable`` must be a node of that clone.  A
+            sequence extracts every variable in one pass, so a subgraph they
+            share stays shared in the result.
+        n_dates : int, optional
+            The horizon to cache the extraction under.  It only separates cache
+            entries, so callers evaluating different windows do not share one
+            slot; extraction does not size the graph by it, and any
+            horizon-dependent graph shape is the consumer's to build.
+
+        Returns
+        -------
+        pt.TensorVariable or list of pt.TensorVariable
+            A single graph when one variable was requested, a list otherwise,
+            matching ``extract_response_distribution``.
+
+        Raises
+        ------
+        KeyError
+            If a requested name is not a variable of the intervened model.
+        ValueError
+            If a requested ``Variable`` is not a node of the intervened clone,
+            or if no response variable is given.
+        """
+        single = isinstance(response_vars, str | Variable)
+        requested = [response_vars] if single else list(response_vars)
+        if not requested:
+            raise ValueError("'response_vars' must name at least one variable.")
+
+        resolved = [self._resolve(var) for var in requested]
+        cache_key = _ExtractKey(
+            self._names(resolved), self.frozen_deterministics, n_dates
+        )
+        if cache_key not in self._cache:
+            graphs = self._extract(resolved, self._shared_posterior, self._posterior)
+            self._cache[cache_key] = _CachedGraphs(resolved, graphs)
+        graphs = self._cache[cache_key].graphs
+        return graphs[0] if single else graphs
+
+    def set_posterior(self, idata: xr.DataTree | xr.Dataset) -> None:
+        """Point the handed-out graphs at the draws in ``idata``.
+
+        The first call re-extracts every handed-out key through a shared
+        posterior built on the draws already in place, then rebinds it to the
+        new draws, so the first call is validated, label realigned and length
+        checked exactly like every later one.  Firing the registered callbacks
+        lets consumers recompile from the new graphs; later calls only swap the
+        draws, which needs no recompile and accepts a different number of draws.
+
+        Parameters
+        ----------
+        idata : xr.DataTree or xr.Dataset
+            A tree with a ``posterior`` group, or the posterior dataset itself;
+            an ``arviz.InferenceData`` is not accepted.  It must hold every
+            variable the graphs read, with the same non-sample dimensions and
+            coordinate labels; a reordered axis is realigned and the number of
+            draws is free.
+
+        Raises
+        ------
+        KeyError
+            If the posterior lacks a variable the graphs read.
+        ValueError
+            If a variable's non-sample dimensions, lengths or labels differ
+            from the ones it was bound with.  The previous binding is left in
+            place, including when a registered callback raises.
+
+        Notes
+        -----
+        A callback that extracts a new key during a rebind adds it to the
+        cache.  If a first rebind then fails and is rolled back, the cache
+        returns to its previous state, so those new-key entries are discarded
+        together with the shared binding.
+
+        A callback's exception is the one the caller sees: restoring the
+        binding afterwards is best-effort and never masks it, even when the
+        rollback itself fails because a callback extracted a key that only the
+        new posterior satisfies.
+        """
+        posterior = _posterior_dataset(idata)
+        rollback = self._apply_posterior(posterior)
+        try:
+            self._fire_callbacks()
+        except BaseException:
+            # Restoring must not hide the callback's exception, which is the
+            # failure the caller has to see.  A rollback can itself fail when a
+            # callback extracted a key that only the new posterior satisfies,
+            # so it is best-effort here.
+            with contextlib.suppress(Exception):
+                rollback()
+            raise
+
+    def _apply_posterior(self, posterior: xr.Dataset) -> Callable[[], None]:
+        """Bind the graphs to ``posterior`` and return a rollback of the binding.
+
+        The first call re-extracts every handed-out key through a shared
+        posterior built on the draws already in place, then rebinds that shared
+        posterior to ``posterior`` -- so the first rebind is validated, label
+        realigned and length checked exactly like every later one.  Later calls
+        swap the draws in place.  The rollback restores whatever binding was in
+        place, which a caller runs when a registered callback raises.
+        """
+        previous_posterior = self._posterior
+        if self._shared_posterior is None:
+            previous_cache = self._cache
+            shared, cache = self._extract_through_shared(previous_posterior)
+            shared.set_posterior(posterior)
+            self._shared_posterior = shared
+            self._posterior = posterior
+            self._cache = cache
+
+            def rollback() -> None:
+                self._shared_posterior = None
+                self._posterior = previous_posterior
+                self._cache = previous_cache
+
+            return rollback
+
+        shared = self._shared_posterior
+        shared.set_posterior(posterior)
+        self._posterior = posterior
+
+        def restore_draws() -> None:
+            self._posterior = previous_posterior
+            shared.set_posterior(previous_posterior)
+
+        return restore_draws
+
+    def register(self, callback: Callable[[], None]) -> None:
+        """Register ``callback`` to run after every :meth:`set_posterior`.
+
+        A consumer recompiles what it compiled from the graphs here; the
+        callback takes no arguments and calls :meth:`extract` to read the
+        refreshed graphs.  Callbacks run in registration order, and one that
+        raises stops the rest.  This object rolls back only its own binding;
+        each consumer is responsible for rolling back its own state.
+
+        Parameters
+        ----------
+        callback : callable
+            A no-argument callable run after every rebind, in registration
+            order.
+        """
+        self._callbacks.append(callback)
+
+    def _extract(
+        self,
+        resolved: list[Variable],
+        shared_posterior: SharedPosterior | None,
+        posterior: xr.Dataset,
+    ) -> list[Variable]:
+        """Extract ``resolved`` conditioned on ``posterior``, in a single pass."""
+        return extract_response_distribution(
+            pymc_model=self._model,
+            idata=posterior,
+            response_variable=resolved,
+            frozen_deterministics=list(self.frozen_deterministics),
+            shared_posterior=shared_posterior,
+        )
+
+    def _extract_through_shared(
+        self, posterior: xr.Dataset
+    ) -> tuple[SharedPosterior, dict[_ExtractKey, _CachedGraphs]]:
+        """Re-extract every handed-out key through one shared posterior.
+
+        Returns the shared posterior and a fresh cache, committing nothing
+        until the caller installs them, so a failure part-way leaves the
+        constant graphs in place.
+        """
+        shared = SharedPosterior()
+        cache = {
+            key: _CachedGraphs(resolved, self._extract(resolved, shared, posterior))
+            for key, (resolved, _) in self._cache.items()
+        }
+        return shared, cache
+
+    def _resolve(self, var: str | Variable) -> Variable:
+        """Resolve a response against the intervened clone, refusing an outsider."""
+        if isinstance(var, str):
+            if var not in self._model.named_vars:
+                raise KeyError(
+                    f"Response variable {var!r} is not a variable of the "
+                    f"intervened model, which has {sorted(self._model.named_vars)}."
+                )
+            return self._model[var]
+        if var not in self._clone_nodes:
+            raise ValueError(
+                f"Variable {getattr(var, 'name', var)!r} is not a node of the "
+                "intervened model. Pass a name or a node of the model this "
+                "object holds (its .model); a node of the pre-intervention "
+                "model is refused because it would carry no intervention into "
+                "the graph."
+            )
+        return var
+
+    def _names(self, resolved: list[Variable]) -> tuple[str | Variable, ...]:
+        """Return the cache-key names of resolved responses.
+
+        A variable keys by its name only when that name is the one the
+        intervened model registers for it; any other node keys by the node
+        itself, so a name two nodes happen to share cannot collide in the cache.
+        """
+        return tuple(
+            var.name
+            if var.name is not None and self._model.named_vars.get(var.name) is var
+            else var
+            for var in resolved
+        )
+
+    def _fire_callbacks(self) -> None:
+        """Run every registered callback in order."""
+        for callback in self._callbacks:
+            callback()
 
 
 class ModelSamplerEstimator:
