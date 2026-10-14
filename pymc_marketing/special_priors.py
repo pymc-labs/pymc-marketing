@@ -21,7 +21,6 @@ of the same methods.
 """
 
 import copy
-import warnings
 from abc import ABC, abstractmethod
 from typing import Any
 
@@ -684,9 +683,6 @@ register_deserialization(
 class MaskedPrior:
     """Create variables from a prior over only the active entries of a boolean mask.
 
-    .. warning::
-        This class is experimental and its API may change in future versions.
-
     Parameters
     ----------
     prior : Prior
@@ -861,11 +857,6 @@ class MaskedPrior:
         self.dims = prior.dims
         self.active_dim = active_dim or f"non_null_dims:{'_'.join(self.dims)}"
         self._validate_mask()
-
-        warnings.warn(
-            "This class is experimental and its API may change in future versions.",
-            stacklevel=2,
-        )
 
     def _validate_mask(self) -> None:
         if tuple(self.mask.dims) != tuple(self.dims):
