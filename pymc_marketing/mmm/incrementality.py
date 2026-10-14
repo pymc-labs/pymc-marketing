@@ -235,9 +235,9 @@ import warnings
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Iterator, Sequence
 from contextlib import contextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 from functools import partial
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Literal, cast
 
 import numpy as np
 import pandas as pd
@@ -953,8 +953,8 @@ class ProbedReach:
 
 
 @dataclass(frozen=True)
-class ClosedFormInputs:
-    r"""What the closed form reads off the model before laying anything out.
+class PreparedEvaluation:
+    """Validated request, posterior, reducer, probe and windows of one evaluation.
 
     Parameters
     ----------
@@ -963,27 +963,47 @@ class ClosedFormInputs:
     periods : list of tuple
         ``(start, end)`` of each spend period.
     posterior : xr.Dataset
-        The already subsampled posterior every quantity below is read at.
+        The subsampled posterior everything is evaluated at.
+    reducer : IncrementalReducer
+        Maps a linear-predictor change to a response-scale increment.
+    effects : tuple of ChannelDependentEffect
+        The channel-dependent effects evaluated with ``channel_contribution``.
     probed : ProbedReach
-        What the spend probe measured; ``probed.reach`` is the reach.
+        The evaluator, the baseline and the measured reach.
     freq_offset : BaseOffset
         The data's date frequency.
     windows : EvaluationWindows
-        The periods' evaluation windows, for the rows' bounds and labels.
-    saturated : xr.DataArray
-        :math:`V_t = \beta g(x_t)` in original scale, with the chain and draw
-        labels of the pipeline's results.
-    labels : dict
-        ``chain`` and ``draw`` coordinates of the pipeline's results.
+        Each period's evaluation window.
     """
 
     start_ts: pd.Timestamp
     end_ts: pd.Timestamp
     periods: list[tuple[pd.Timestamp, pd.Timestamp]]
     posterior: xr.Dataset
+    reducer: IncrementalReducer
+    effects: tuple[ChannelDependentEffect, ...]
     probed: ProbedReach
     freq_offset: BaseOffset
     windows: EvaluationWindows
+
+
+@dataclass(frozen=True)
+class ClosedFormInputs(PreparedEvaluation):
+    r"""A prepared evaluation plus the saturated spend the closed form reads.
+
+    Parameters
+    ----------
+    saturated : xr.DataArray
+        :math:`\beta g(x_t) - \beta g(f x_t)` in original scale, per date and
+        draw, signed like the pipeline's increments.
+    labels : dict
+        ``chain`` and ``draw`` coordinates of the pipeline's results.
+
+    See Also
+    --------
+    PreparedEvaluation : the other fields.
+    """
+
     saturated: xr.DataArray
     labels: dict
 
@@ -2270,70 +2290,42 @@ class Incrementality:
             kernel reaches, or cannot establish that each channel's column
             depends on that channel's spend alone.
         """
-        if counterfactual_spend_factor < 0:
-            raise ValueError(
-                f"counterfactual_spend_factor must be >= 0, got {counterfactual_spend_factor}"
-            )
-        if central_tendency not in ("median", "mean"):
-            raise ValueError(
-                f"central_tendency must be 'median' or 'mean', got {central_tendency!r}"
-            )
-
-        start_ts, end_ts = self._validate_input(start_date, end_date)
-        periods = self._create_period_groups(start_ts, end_ts, frequency)
-        posterior_sub = subsample_draws(
-            self.idata.posterior.dataset,
+        adstock = self.model.adstock
+        prepared = self._prepare_evaluation(
+            frequency=frequency,
+            start_date=start_date,
+            end_date=end_date,
             num_samples=num_samples,
             random_state=random_state,
-        )
-        reducer = self._build_reducer(posterior_sub, central_tendency)
-        adstock = self.model.adstock
-
-        probed = self._probe_reach(
-            posterior=posterior_sub,
-            effects=resolve_channel_dependent_effects(self.model),
+            central_tendency=central_tendency,
             counterfactual_spend_factor=counterfactual_spend_factor,
+            include_carryover=True,
             validate_reach=partial(
                 self._validate_closed_form_reach,
                 kernel_lags=kernel_trailing_lags(adstock.l_max, adstock.mode),
                 lags=lags,
             ),
         )
+        # No channel-dependent effects reach this point: the guards refused them.
+        probed = prepared.probed
         _refuse_dedicated_rows(
             probed.probe.mixes_channels(non_date_dims=probed.evaluator.non_date_dims),
             requirement=CLOSED_FORM_REQUIREMENT,
         )
 
-        freq_offset = self._data_freq_offset()
-        windows = EvaluationWindows.build(
-            periods=periods,
-            dates=self.data.dates,
-            l_max=probed.reach.effective_l_max,
-            freq_offset=freq_offset,
-            full_axis=probed.reach.requires_full_axis,
-            include_carryover=True,
-            mode=adstock.mode,
-        )
-
-        # The identity link is a guard, so the reducer is a plain rescaling.
-        if not isinstance(reducer, IdentityLinkReducer):  # pragma: no cover
-            raise NotImplementedError("method='closed_form' needs link='identity'.")
+        # The identity link is one of the guards, so the reducer only rescales.
+        reducer = cast(IdentityLinkReducer, prepared.reducer)
+        posterior = prepared.posterior
         labels = {
-            "chain": np.arange(posterior_sub.sizes["chain"]),
-            "draw": np.arange(posterior_sub.sizes["draw"]),
+            "chain": np.arange(posterior.sizes["chain"]),
+            "draw": np.arange(posterior.sizes["draw"]),
         }
         saturated = (
-            self._saturated_media(posterior_sub, counterfactual_spend_factor)
+            self._saturated_media(posterior, counterfactual_spend_factor)
             * reducer.scale
         ).assign_coords(labels)
         return ClosedFormInputs(
-            start_ts=start_ts,
-            end_ts=end_ts,
-            periods=periods,
-            posterior=posterior_sub,
-            probed=probed,
-            freq_offset=freq_offset,
-            windows=windows,
+            **{field.name: getattr(prepared, field.name) for field in fields(prepared)},
             saturated=saturated,
             labels=labels,
         )
@@ -3902,6 +3894,115 @@ class Incrementality:
         attrs["warnings"] = json.dumps(notes)
         return attrs
 
+    def _prepare_evaluation(
+        self,
+        *,
+        frequency: Frequency,
+        start_date: str | pd.Timestamp | None,
+        end_date: str | pd.Timestamp | None,
+        num_samples: int | None,
+        random_state: RandomState | Generator | None,
+        central_tendency: CentralTendency,
+        counterfactual_spend_factor: float,
+        include_carryover: bool,
+        validate_reach: Callable[[SpendReach], None] | None,
+        posterior: xr.Dataset | None = None,
+    ) -> PreparedEvaluation:
+        """Validate a request, subsample the posterior, probe the reach and build the windows.
+
+        Everything that comes before a period is evaluated or a closed form is
+        read, in one order for every route, so that the pipeline and the closed
+        form validate, subsample and window a request the same way.
+
+        Parameters
+        ----------
+        frequency, start_date, end_date, num_samples, random_state, central_tendency
+            As in :meth:`_compute_increments`.
+        counterfactual_spend_factor : float
+            Multiplicative factor applied to spend in the counterfactual.
+        include_carryover : bool
+            Whether to extend the evaluation window by the carryover length.
+        validate_reach : callable, optional
+            Called with the measured reach before the windows are built.
+        posterior : xr.Dataset, optional
+            An already subsampled posterior, used as is.
+
+        Returns
+        -------
+        PreparedEvaluation
+            The periods, the posterior, the reducer, the effects, the probe, the
+            date frequency and the windows.
+
+        Raises
+        ------
+        ValueError
+            If an input is out of range, or the date frequency cannot be inferred.
+        NotImplementedError
+            If the link has no reducer, or a channel-dependent ``mu_effect`` has
+            not opted in.
+        """
+        if counterfactual_spend_factor < 0:
+            raise ValueError(
+                f"counterfactual_spend_factor must be >= 0, got {counterfactual_spend_factor}"
+            )
+        if central_tendency not in ("median", "mean"):
+            raise ValueError(
+                f"central_tendency must be 'median' or 'mean', got {central_tendency!r}"
+            )
+
+        start_ts, end_ts = self._validate_input(start_date, end_date)
+
+        # Subsample the posterior across chain x draw, unless the caller did.
+        posterior_sub = (
+            posterior
+            if posterior is not None
+            else subsample_draws(
+                self.idata.posterior.dataset,
+                num_samples=num_samples,
+                random_state=random_state,
+            )
+        )
+
+        # Resolve the link-specific reduction and the effects to include before
+        # compiling anything, so an unsupported link or an effect that has not
+        # opted in fails fast rather than after the expensive work.
+        reducer = self._build_reducer(posterior_sub, central_tendency)
+        effects = resolve_channel_dependent_effects(self.model)
+
+        periods = self._create_period_groups(start_ts, end_ts, frequency)
+        freq_offset = self._data_freq_offset()
+
+        probed = self._probe_reach(
+            posterior=posterior_sub,
+            effects=effects,
+            counterfactual_spend_factor=counterfactual_spend_factor,
+            validate_reach=validate_reach,
+        )
+
+        # The stretch of dates each period is evaluated over, which of them enter
+        # the sum, and the length they all stack to.
+        windows = EvaluationWindows.build(
+            periods=periods,
+            dates=self.data.dates,
+            l_max=probed.reach.effective_l_max,
+            freq_offset=freq_offset,
+            full_axis=probed.reach.requires_full_axis,
+            include_carryover=include_carryover,
+            mode=self.model.adstock.mode,
+        )
+
+        return PreparedEvaluation(
+            start_ts=start_ts,
+            end_ts=end_ts,
+            periods=periods,
+            posterior=posterior_sub,
+            reducer=reducer,
+            effects=tuple(effects),
+            probed=probed,
+            freq_offset=freq_offset,
+            windows=windows,
+        )
+
     def _probe_reach(
         self,
         *,
@@ -4135,50 +4236,26 @@ class Incrementality:
             If the link has no reducer, or a channel-dependent ``mu_effect`` has
             not opted in.
         """
-        # Validate inputs
-        if counterfactual_spend_factor < 0:
-            raise ValueError(
-                f"counterfactual_spend_factor must be >= 0, got {counterfactual_spend_factor}"
-            )
-        if central_tendency not in ("median", "mean"):
-            raise ValueError(
-                f"central_tendency must be 'median' or 'mean', got {central_tendency!r}"
-            )
-
-        # Validate and parse dates
-        start_date_ts, end_date_ts = self._validate_input(start_date, end_date)
-
-        # Subsample posterior if needed (correctly across chain x draw)
-        posterior_sub = (
-            posterior
-            if posterior is not None
-            else subsample_draws(
-                self.idata.posterior.dataset,
-                num_samples=num_samples,
-                random_state=random_state,
-            )
+        prepared = self._prepare_evaluation(
+            frequency=frequency,
+            start_date=start_date,
+            end_date=end_date,
+            num_samples=num_samples,
+            random_state=random_state,
+            central_tendency=central_tendency,
+            counterfactual_spend_factor=counterfactual_spend_factor,
+            include_carryover=include_carryover,
+            validate_reach=validate_reach,
+            posterior=posterior,
         )
+        posterior_sub = prepared.posterior
         n_chains = posterior_sub.sizes["chain"]
         n_draws = posterior_sub.sizes["draw"]
-
-        # Resolve the link-specific reduction and the effects to include before
-        # compiling anything, so an unsupported link or an effect that has not
-        # opted in fails fast rather than after the expensive work.
-        reducer = self._build_reducer(posterior_sub, central_tendency)
-        effects = resolve_channel_dependent_effects(self.model)
-
-        # Create period groups based on frequency
-        dates = self.data.dates
-        periods = self._create_period_groups(start_date_ts, end_date_ts, frequency)
-
-        freq_offset = self._data_freq_offset()
-
-        probed = self._probe_reach(
-            posterior=posterior_sub,
-            effects=effects,
-            counterfactual_spend_factor=counterfactual_spend_factor,
-            validate_reach=validate_reach,
-        )
+        reducer = prepared.reducer
+        effects = prepared.effects
+        freq_offset = prepared.freq_offset
+        windows = prepared.windows
+        probed = prepared.probed
         evaluator = probed.evaluator
         baseline = probed.baseline
         baseline_array = probed.baseline_array
@@ -4187,19 +4264,6 @@ class Incrementality:
         effect_names = probed.effect_names
         trailing_lags = probed.trailing_lags
         channel_data_dims = probed.channel_data_dims
-        l_max = reach.effective_l_max
-
-        # The stretch of dates each period is evaluated over, which of them enter
-        # the sum, and the length they all stack to.
-        windows = EvaluationWindows.build(
-            periods=periods,
-            dates=dates,
-            l_max=l_max,
-            freq_offset=freq_offset,
-            full_axis=reach.requires_full_axis,
-            include_carryover=include_carryover,
-            mode=self.model.adstock.mode,
-        )
 
         # Two ways a per-channel column can stop being channel m's unilateral
         # counterfactual.  An effect can mix channels before reaching the
