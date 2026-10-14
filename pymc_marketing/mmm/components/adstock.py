@@ -275,16 +275,19 @@ class AdstockTransformation(Transformation):
         weights = self.sample_curve(parameters, **sample_posterior_predictive_kwargs)
         lag = "time since exposure"
 
+        # Dividing by the cumulative sum's own last entry, rather than by a sum
+        # taken in another order, makes the whole kernel exactly one, so the
+        # share beyond it is exactly zero instead of rounding noise.
+        cumulative = weights.cumsum(lag)
+        curve = cumulative / cumulative.isel({lag: -1})
+
         if horizon is None:
-            curve = weights.cumsum(lag) / weights.sum(lag)
             curve = curve.rename({lag: "horizon"}).assign_coords(
                 horizon=np.arange(self.l_max)
             )
             return curve.rename("cumulative_weights")
 
-        within = weights.isel({lag: slice(0, horizon + 1)}).sum(lag)
-
-        return (within / weights.sum(lag)).rename("cumulative_weights")
+        return curve.isel({lag: horizon}, drop=True).rename("cumulative_weights")
 
 
 # Only a base for type checkers: at runtime the mixin derives from object, so it

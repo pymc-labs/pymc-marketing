@@ -219,8 +219,10 @@ class TestCumulativeWeights:
         )
 
         share = adstock.cumulative_weights(prior, 6, progressbar=False)
+        curve = adstock.cumulative_weights(prior, None, progressbar=False)
 
-        np.testing.assert_allclose(share.values, 1.0, rtol=0, atol=1e-15)
+        assert (share.values == 1.0).all()
+        assert (curve.sel(horizon=6).values == 1.0).all()
 
     def test_a_single_weight_kernel_is_all_current(self) -> None:
         adstock = GeometricAdstock(l_max=1)

@@ -32,12 +32,18 @@ import pymc_marketing
 from pymc_marketing.data.idata.utils import subsample_draws
 from pymc_marketing.mmm import (
     MMM,
+    BinomialAdstock,
     DelayedAdstock,
     GeometricAdstock,
+    HillSaturation,
     LogisticSaturation,
     LogSaturation,
+    MichaelisMentenSaturation,
+    NoAdstock,
     NoSaturation,
     RootSaturation,
+    TanhSaturation,
+    WeibullCDFAdstock,
     WeibullPDFAdstock,
 )
 from pymc_marketing.mmm import incrementality as incrementality_module
@@ -5495,6 +5501,133 @@ class TestClosedFormCurrentFuture:
             mmm.incrementality.split_incremental_contribution_current_future(
                 frequency="monthly", method="closed_form"
             )
+
+
+class TestClosedFormCoverage:
+    """Built-in transforms and edge cases the parity classes above leave out."""
+
+    @staticmethod
+    def _assert_both_routes_agree(mmm, frequency):
+        incrementality = mmm.incrementality
+        _assert_same_matrix(
+            incrementality.split_incremental_contribution_over_time(
+                frequency=frequency, method="closed_form"
+            ),
+            incrementality.split_incremental_contribution_over_time(
+                frequency=frequency
+            ),
+        )
+        _assert_same_split(
+            incrementality.split_incremental_contribution_current_future(
+                frequency=frequency, method="closed_form"
+            ),
+            incrementality.split_incremental_contribution_current_future(
+                frequency=frequency
+            ),
+        )
+
+    @pytest.mark.parametrize(
+        "adstock, saturation",
+        [
+            (BinomialAdstock(l_max=4), LogisticSaturation()),
+            (WeibullCDFAdstock(l_max=5), LogisticSaturation()),
+            (GeometricAdstock(l_max=4), MichaelisMentenSaturation()),
+            (GeometricAdstock(l_max=4), TanhSaturation()),
+            (GeometricAdstock(l_max=4), HillSaturation()),
+        ],
+        ids=["binomial", "weibull-cdf", "michaelis-menten", "tanh", "hill"],
+    )
+    def test_other_built_in_transforms(self, simple_mmm_data, adstock, saturation):
+        mmm = _fit_with_saturation(
+            simple_mmm_data, saturation, adstock=adstock, adstock_first=False
+        )
+
+        self._assert_both_routes_agree(mmm, "monthly")
+
+    @pytest.mark.parametrize(
+        "adstock",
+        [GeometricAdstock(l_max=1), NoAdstock(l_max=1)],
+        ids=["geometric-l_max-1", "no-adstock"],
+    )
+    def test_a_single_weight_kernel_is_all_current(self, simple_mmm_data, adstock):
+        """No reach past the spend date: a diagonal matrix and no future."""
+        mmm = _fit_with_saturation(
+            simple_mmm_data, LogisticSaturation(), adstock=adstock, adstock_first=False
+        )
+
+        self._assert_both_routes_agree(mmm, "original")
+        split = mmm.incrementality.split_incremental_contribution_current_future(
+            frequency="original", method="closed_form"
+        )
+        assert float(abs(split.future).max()) == 0.0
+        assert bool(split.complete.all())
+
+    @pytest.mark.parametrize(
+        "saturation",
+        [NoSaturation(), RootSaturation(priors={"alpha": 1.0})],
+        ids=["no-saturation", "root-alpha-1"],
+    )
+    def test_a_linear_response_makes_the_estimands_one(
+        self, simple_mmm_data, saturation
+    ):
+        """Linear in spend, zeroing a cohort and splitting by shares agree."""
+        mmm = _fit_with_saturation(
+            simple_mmm_data,
+            saturation,
+            adstock=GeometricAdstock(l_max=4),
+            adstock_first=False,
+        )
+        incrementality = mmm.incrementality
+
+        self._assert_both_routes_agree(mmm, "original")
+        allocation = incrementality.split_incremental_contribution_over_time(
+            frequency="original", estimand="allocation", method="closed_form"
+        )
+        counterfactual = incrementality.split_incremental_contribution_over_time(
+            frequency="original", method="closed_form"
+        ).sel(realization_date=allocation.realization_date)
+        np.testing.assert_allclose(
+            counterfactual.values, allocation.values, rtol=1e-12, atol=1e-12
+        )
+
+    def test_a_channel_without_spend(self, simple_mmm_data):
+        """A zero channel_scale gives a non-finite ratio, taken as no spend."""
+        X = simple_mmm_data["X"].copy()
+        X["channel_3"] = 0.0
+        mmm = _fit_with_saturation(
+            {"X": X, "y": simple_mmm_data["y"]},
+            LogisticSaturation(),
+            adstock=GeometricAdstock(l_max=4),
+            adstock_first=False,
+        )
+
+        self._assert_both_routes_agree(mmm, "monthly")
+
+    def test_a_target_scale_per_country(self, panel_mmm_data):
+        """The original-scale factor is a DataArray over ``country``."""
+        from tests.mmm.conftest import mock_fit
+
+        X = panel_mmm_data["X"].copy()
+        for column in ("channel_1", "channel_2"):
+            X[column] = X[column].astype(float)
+        mmm = MMM(
+            channel_columns=["channel_1", "channel_2"],
+            date_column="date",
+            target_column="target",
+            dims=("country",),
+            control_columns=None,
+            adstock=GeometricAdstock(l_max=4),
+            saturation=LogisticSaturation(),
+            adstock_first=False,
+            scaling={
+                "target": {"method": "max", "dims": ()},
+                "channel": {"method": "max", "dims": ()},
+            },
+        )
+        mock_fit(mmm, X, panel_mmm_data["y"], random_seed=1)
+        assert mmm.data.get_target_scale().sizes == {"country": 2}
+
+        self._assert_both_routes_agree(mmm, "original")
 
 
 class TestClosedFormGuards:

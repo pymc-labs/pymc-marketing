@@ -3483,7 +3483,10 @@ class Incrementality:
         np.maximum.at(last_spent, rows, spent)
         cut = (last_spent >= 0) & (last_spent + max_lag > n_dates - 1)
         reached = extended.values[np.where(cut, last_spent + max_lag, 0)]
-        current[:, :, cut & (extended[n_dates] <= current_end)] = np.nan
+        # Built from the last fitted date, not read off the extended axis, which
+        # a one-weight kernel (no reach past the spend date) does not extend.
+        first_unobserved = dates[-1] + offset
+        current[:, :, cut & (first_unobserved <= current_end)] = np.nan
         future[:, :, cut & (reached > current_end.values)] = np.nan
 
         coords = {
