@@ -207,6 +207,10 @@ class AdstockTransformation(Transformation):
         The share is of *modelled* value.  The kernel stops at ``l_max``, so
         nothing past it is attributed, however long the real carryover.
 
+        A draw whose kernel is not finite has no share and gives ``NaN``.  The
+        Weibull kernels can underflow to ``0 / 0`` for extreme parameters, and
+        the ``NaN`` is passed on rather than hidden behind a number.
+
         Parameters
         ----------
         parameters : xr.Dataset

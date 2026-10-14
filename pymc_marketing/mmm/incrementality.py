@@ -1656,9 +1656,11 @@ class Incrementality:
             )
 
         if method == "closed_form":
+            self._refuse_unsupported_closed_form(counterfactual_spend_factor)
+
             raise NotImplementedError(
-                "method='closed_form' is not implemented yet; use "
-                "method='pipeline', which is exact for every supported model. See "
+                "method='closed_form' passed its checks, but the matrix is not "
+                "built yet; use method='pipeline'.  See "
                 "https://github.com/pymc-labs/pymc-marketing/issues/2941."
             )
 
@@ -1899,6 +1901,105 @@ class Incrementality:
             extra_assumptions={"allocation_rule": rule},
         )
         return matrix
+
+    def _refuse_unsupported_closed_form(
+        self, counterfactual_spend_factor: float
+    ) -> None:
+        r"""Refuse what the closed form is not exact for, from the model alone.
+
+        ``method="closed_form"`` reads each cohort's response as
+        :math:`w_l\,\beta g(x_s)` on lag :math:`l`: the adstock's kernel
+        times a saturated spend that never meets another date's.  That holds
+        only when saturation runs first, the kernel is a known linear
+        convolution that places its first weight on the spend period, and
+        ``channel_contribution`` is the only route from spend to the response.
+        Outside it the error is unbounded and silent, so each case raises
+        instead of returning a number; ``method="pipeline"`` is exact for them.
+
+        Every check reads the model's structure or its posterior, so none of
+        them needs an evaluation.  What only the spend probe can establish (a
+        saturation that carries spend over a window or mixes channels) is
+        refused after the probe, with the same checks as the allocation.
+
+        Parameters
+        ----------
+        counterfactual_spend_factor : float
+            Must be ``0``: the closed form splits the contribution against zero
+            spend, and a saturation does not scale.
+
+        Raises
+        ------
+        ValueError
+            If ``counterfactual_spend_factor`` is not ``0``, or a random adstock
+            parameter is missing from the posterior.
+        NotImplementedError
+            For ``adstock_first=True``, a non-identity link, a custom adstock, a
+            channel-dependent ``mu_effect``, an adstock that is not
+            ``ConvMode.After`` or ``time_varying_media``.
+        """
+        if counterfactual_spend_factor != 0.0:
+            raise ValueError(
+                "method='closed_form' splits the contribution against zero "
+                "spend, so counterfactual_spend_factor must be 0, got "
+                f"{counterfactual_spend_factor}."
+            )
+
+        if self.model.adstock_first:
+            raise NotImplementedError(
+                "method='closed_form' needs adstock_first=False.  With "
+                "saturation after the adstock it acts on the sum of every "
+                "cohort's carryover, so a cohort's response is not its kernel "
+                "times its own spend.  Use method='pipeline', or "
+                "estimand='allocation', which splits that sum by shares."
+            )
+
+        if self.model.link != LinkFunction.IDENTITY:
+            raise NotImplementedError(
+                "method='closed_form' needs link='identity'.  Under "
+                f"link='{self.model.link}' the response-scale increment is not "
+                "the kernel times the linear-predictor one, so the kernel's "
+                "shares do not carry over.  Use method='pipeline'."
+            )
+
+        if not _is_builtin_adstock(self.model.adstock):
+            raise NotImplementedError(
+                "method='closed_form' needs one of the library's adstocks, whose "
+                "kernels are known to be linear convolutions, got "
+                f"{type(self.model.adstock).__name__}.  Use method='pipeline', "
+                "which evaluates any adstock."
+            )
+
+        mode = self.model.adstock.mode
+        if mode != ConvMode.After:
+            raise NotImplementedError(
+                "method='closed_form' needs a forward-looking adstock "
+                f"(ConvMode.After), got {mode!s}.  A leading kernel puts its "
+                "weights on dates before the spend, so the kernel's lags are "
+                "not the dates a cohort lands on.  Use method='pipeline'."
+            )
+
+        if resolve_channel_dependent_effects(self.model):
+            raise NotImplementedError(
+                "method='closed_form' needs channel_contribution to be the only "
+                "route from spend to the response.  This model has a "
+                "channel-dependent mu_effect, which carries spend over a "
+                "timeline of its own.  Use method='pipeline'."
+            )
+
+        # TODO: support time_varying_media.  The pipeline already does, by
+        # scaling the contribution on each realization date; here the cohort's
+        # row is beta * m_{s+l} * w_l * g(x_s), so the multiplier would have to
+        # be applied per realization date, and the share of a cohort that lands
+        # within a horizon is no longer one constant.
+        if self.model.time_varying_media:
+            raise NotImplementedError(
+                "method='closed_form' does not support time_varying_media: the "
+                "temporal multiplier scales each realization date, so a "
+                "cohort's share within a horizon is not constant.  Use "
+                "method='pipeline'."
+            )
+
+        self._refuse_missing_adstock_parameters()
 
     def _refuse_unsupported_allocation(
         self, counterfactual_spend_factor: float
