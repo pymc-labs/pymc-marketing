@@ -4937,6 +4937,294 @@ class TestAllocationInputGuards:
         assert not incrementality_module._is_builtin_adstock(DoubledGeometric(l_max=2))
 
 
+def _assert_same_matrix(closed, pipeline):
+    """The closed form is the pipeline's matrix: entries, layout, labels, attributes."""
+    assert closed.dims == pipeline.dims
+    xr.testing.assert_allclose(closed, pipeline, rtol=1e-9, atol=1e-9)
+    for name in (
+        "spend_date",
+        "realization_date",
+        "period_start",
+        "observed",
+        "complete",
+    ):
+        assert (name in closed.coords) == (name in pipeline.coords)
+        if name in closed.coords:
+            np.testing.assert_array_equal(
+                closed.coords[name].values, pipeline.coords[name].values
+            )
+    assert closed.attrs["method"] == "closed_form"
+    assert pipeline.attrs["method"] == "pipeline"
+    assert closed.attrs.get("effective_horizon") == pipeline.attrs.get(
+        "effective_horizon"
+    )
+    for key in ("assumptions", "warnings"):
+        assert json.loads(closed.attrs[key]) == json.loads(pipeline.attrs[key])
+
+
+@pytest.fixture
+def panel_adstock_last_fitted_mmm(panel_mmm_data):
+    """A panel model, hierarchical priors, with saturation before the adstock."""
+    from pymc_marketing.special_priors import LogNormalPrior
+    from tests.mmm.conftest import mock_fit
+
+    X = panel_mmm_data["X"].copy()
+    for column in ("channel_1", "channel_2"):
+        X[column] = X[column].astype(float)
+    mmm = MMM(
+        channel_columns=["channel_1", "channel_2"],
+        date_column="date",
+        target_column="target",
+        dims=("country",),
+        control_columns=None,
+        adstock=GeometricAdstock(
+            priors={
+                "alpha": Prior("Beta", alpha=2, beta=5, dims=("country", "channel"))
+            },
+            l_max=5,
+        ),
+        saturation=LogisticSaturation(
+            priors={
+                "beta": LogNormalPrior(
+                    mean=Prior("Gamma", mu=0.25, sigma=0.10, dims="channel"),
+                    std=Prior("Exponential", scale=0.10, dims="channel"),
+                    dims=("channel", "country"),
+                    centered=False,
+                ),
+                "lam": Prior("Gamma", mu=0.5, sigma=0.25, dims="channel"),
+            }
+        ),
+        adstock_first=False,
+    )
+    mock_fit(mmm, X, panel_mmm_data["y"], random_seed=1)
+    return mmm
+
+
+class TestClosedFormMatrix:
+    """``method="closed_form"`` builds the pipeline's matrix without evaluating a period.
+
+    With saturation first a cohort's entry on lag ``l`` is ``w_l * beta * g(x_s)``,
+    so the pipeline's zero-out per period and the kernel times the saturated
+    spend must agree entry for entry, in both estimands.
+    """
+
+    @staticmethod
+    def _both(mmm, **kwargs):
+        kwargs.setdefault("frequency", "original")
+        pipeline = mmm.incrementality.split_incremental_contribution_over_time(**kwargs)
+        closed = mmm.incrementality.split_incremental_contribution_over_time(
+            method="closed_form", **kwargs
+        )
+        return closed, pipeline
+
+    @pytest.mark.parametrize("estimand", ["counterfactual", "allocation"])
+    @pytest.mark.parametrize("frequency", ["original", "monthly", "all_time"])
+    @pytest.mark.parametrize(
+        "adstock",
+        [
+            GeometricAdstock(l_max=4),
+            GeometricAdstock(l_max=6, normalize=False),
+            DelayedAdstock(l_max=5),
+            WeibullPDFAdstock(l_max=5),
+        ],
+        ids=["geometric", "geometric-unnormalized", "delayed", "weibull-pdf"],
+    )
+    def test_it_is_the_pipeline_matrix(
+        self, simple_mmm_data, adstock, frequency, estimand
+    ):
+        mmm = _fit_custom_mmm(simple_mmm_data, adstock=adstock, adstock_first=False)
+
+        closed, pipeline = self._both(mmm, frequency=frequency, estimand=estimand)
+
+        _assert_same_matrix(closed, pipeline)
+
+    @pytest.mark.parametrize("estimand", ["counterfactual", "allocation"])
+    def test_a_subset_of_rows_keeps_its_layout(self, simple_mmm_data, estimand):
+        mmm = _fit_custom_mmm(
+            simple_mmm_data, adstock=GeometricAdstock(l_max=4), adstock_first=False
+        )
+        dates = mmm.incrementality.data.dates
+
+        closed, pipeline = self._both(
+            mmm, estimand=estimand, start_date=dates[5], end_date=dates[8]
+        )
+
+        _assert_same_matrix(closed, pipeline)
+
+    @pytest.mark.parametrize("estimand", ["counterfactual", "allocation"])
+    def test_weekly_rows_on_monthly_data(self, monthly_mmm_data, estimand):
+        """Most periods hold no fitted date: their rows are zero, and complete."""
+        mmm = _fit_custom_mmm(
+            monthly_mmm_data, adstock=GeometricAdstock(l_max=4), adstock_first=False
+        )
+
+        closed, pipeline = self._both(mmm, frequency="weekly", estimand=estimand)
+
+        _assert_same_matrix(closed, pipeline)
+
+    @pytest.mark.parametrize("estimand", ["counterfactual", "allocation"])
+    @pytest.mark.parametrize("frequency", ["original", "monthly"])
+    def test_a_panel_with_hierarchical_priors(
+        self, panel_adstock_last_fitted_mmm, frequency, estimand
+    ):
+        closed, pipeline = self._both(
+            panel_adstock_last_fitted_mmm, frequency=frequency, estimand=estimand
+        )
+
+        _assert_same_matrix(closed, pipeline)
+        assert "country" in closed.dims
+
+    @pytest.mark.parametrize("estimand", ["counterfactual", "allocation"])
+    def test_a_subsample_takes_the_same_draws(self, simple_mmm_data, estimand):
+        """A fresh ``Generator`` at one seed per route gives each the same rows."""
+        mmm = _fit_custom_mmm(
+            simple_mmm_data, adstock=GeometricAdstock(l_max=4), adstock_first=False
+        )
+
+        pipeline = mmm.incrementality.split_incremental_contribution_over_time(
+            frequency="monthly",
+            estimand=estimand,
+            num_samples=7,
+            random_state=np.random.default_rng(3),
+        )
+        closed = mmm.incrementality.split_incremental_contribution_over_time(
+            frequency="monthly",
+            estimand=estimand,
+            method="closed_form",
+            num_samples=7,
+            random_state=np.random.default_rng(3),
+        )
+
+        assert closed.sizes["draw"] == 7
+        _assert_same_matrix(closed, pipeline)
+
+    def test_the_allocation_reports_the_separable_rule(self, simple_mmm_data):
+        mmm = _fit_custom_mmm(
+            simple_mmm_data, adstock=GeometricAdstock(l_max=4), adstock_first=False
+        )
+
+        closed, _ = self._both(mmm, estimand="allocation")
+
+        assert (
+            json.loads(closed.attrs["assumptions"])["allocation_rule"]
+            == "separable_cohorts"
+        )
+
+    def test_no_period_is_evaluated(self, simple_mmm_data, monkeypatch):
+        """The pipeline evaluates every period's scenario; the closed form none."""
+        mmm = _fit_custom_mmm(
+            simple_mmm_data, adstock=GeometricAdstock(l_max=4), adstock_first=False
+        )
+        calls = {"n": 0}
+        original = CounterfactualEvaluator.evaluate_counterfactual
+
+        def counted(self, *args, **kwargs):
+            calls["n"] += 1
+            return original(self, *args, **kwargs)
+
+        monkeypatch.setattr(CounterfactualEvaluator, "evaluate_counterfactual", counted)
+
+        mmm.incrementality.split_incremental_contribution_over_time(
+            frequency="monthly", method="closed_form"
+        )
+        assert calls["n"] == 0
+
+        mmm.incrementality.split_incremental_contribution_over_time(frequency="monthly")
+        assert calls["n"] == 1
+
+    def test_the_kernel_and_the_saturated_spend_rebuild_the_contribution(
+        self, simple_mmm_data
+    ):
+        """``channel_contribution = sum_l w_l V_{t-l}``: what the closed form rests on."""
+        mmm = _fit_custom_mmm(
+            simple_mmm_data, adstock=GeometricAdstock(l_max=4), adstock_first=False
+        )
+        incrementality = mmm.incrementality
+        posterior = mmm.idata.posterior.dataset
+        labels = {
+            "chain": np.arange(posterior.sizes["chain"]),
+            "draw": np.arange(posterior.sizes["draw"]),
+        }
+
+        saturated = incrementality._saturated_media(posterior).assign_coords(labels)
+        saturated = saturated * float(mmm.data.get_target_scale())
+        weights = incrementality._adstock_kernel(
+            posterior, divides=False
+        ).assign_coords(labels)
+        rebuilt = sum(incrementality_module._adstock_terms(weights, saturated))
+
+        stored = posterior["channel_contribution_original_scale"].assign_coords(labels)
+        np.testing.assert_allclose(
+            rebuilt.transpose(*stored.dims).values, stored.values, rtol=1e-9, atol=1e-9
+        )
+
+
+class TestClosedFormProbeGuards:
+    """What only the spend probe can see is refused after it, before any period."""
+
+    @staticmethod
+    def _closed_form(mmm):
+        return mmm.incrementality.split_incremental_contribution_over_time(
+            frequency="monthly", method="closed_form"
+        )
+
+    @pytest.fixture(autouse=True)
+    def _nothing_is_evaluated(self, monkeypatch):
+        TestSplitIncrementalContribution._evaluation_forbidden(monkeypatch)
+
+    def test_a_saturation_that_carries_spend_past_the_kernel_is_refused(
+        self, simple_mmm_data
+    ):
+        from tests.mmm.conftest import CarryoverSaturation
+
+        mmm = _fit_with_saturation(
+            simple_mmm_data,
+            CarryoverSaturation(),
+            adstock=GeometricAdstock(l_max=3),
+            adstock_first=False,
+        )
+
+        with pytest.raises(NotImplementedError, match="moves the response up to"):
+            self._closed_form(mmm)
+
+    def test_a_saturation_that_reduces_over_date_is_refused(self, simple_mmm_data):
+        from tests.mmm.conftest import DateNormalizedSaturation
+
+        mmm = _fit_with_saturation(
+            simple_mmm_data,
+            DateNormalizedSaturation(),
+            adstock=GeometricAdstock(l_max=4),
+            adstock_first=False,
+        )
+
+        with pytest.raises(NotImplementedError, match="dies out within the fitted"):
+            self._closed_form(mmm)
+
+    def test_a_saturation_that_mixes_channels_is_refused(self, simple_mmm_data):
+        from tests.mmm.conftest import SharedDenominatorSaturation
+
+        mmm = _fit_with_saturation(
+            simple_mmm_data,
+            SharedDenominatorSaturation(),
+            adstock=GeometricAdstock(l_max=4),
+            adstock_first=False,
+        )
+
+        with pytest.raises(NotImplementedError, match="mixes"):
+            self._closed_form(mmm)
+
+    def test_a_pruned_saturation_posterior_is_refused(
+        self, adstock_last_fitted_mmm, monkeypatch
+    ):
+        """A saturation parameter missing from the posterior would be drawn from its prior."""
+        mmm = adstock_last_fitted_mmm
+        pruned = mmm.idata.posterior.dataset.drop_vars("saturation_lam")
+        monkeypatch.setattr(mmm.idata.posterior, "dataset", pruned, raising=False)
+
+        with pytest.raises(ValueError, match=r"saturation_lam.*posterior"):
+            self._closed_form(mmm)
+
+
 class TestClosedFormGuards:
     """``method="closed_form"`` refuses what its closed form is not exact for.
 
