@@ -4937,6 +4937,101 @@ class TestAllocationInputGuards:
         assert not incrementality_module._is_builtin_adstock(DoubledGeometric(l_max=2))
 
 
+class TestClosedFormGuards:
+    """``method="closed_form"`` refuses what its closed form is not exact for.
+
+    Each guard reads the model alone, so it fires before anything is evaluated.
+    The fixtures are reused as they are; where one would trip an earlier guard
+    first, ``adstock_first`` is set to ``False`` on it, which is all the guards
+    read.
+    """
+
+    @staticmethod
+    def _closed_form(mmm, **kwargs):
+        return mmm.incrementality.split_incremental_contribution_over_time(
+            frequency="monthly", method="closed_form", **kwargs
+        )
+
+    @pytest.fixture(autouse=True)
+    def _nothing_is_evaluated(self, monkeypatch):
+        TestSplitIncrementalContribution._evaluation_forbidden(monkeypatch)
+
+    @pytest.mark.parametrize("estimand", ["counterfactual", "allocation"])
+    def test_adstock_first_is_refused(self, simple_fitted_mmm, estimand):
+        with pytest.raises(NotImplementedError, match="adstock_first=False"):
+            self._closed_form(simple_fitted_mmm, estimand=estimand)
+
+    def test_a_log_link_is_refused(self, log_link_fitted_mmm, monkeypatch):
+        monkeypatch.setattr(log_link_fitted_mmm, "adstock_first", False)
+
+        with pytest.raises(NotImplementedError, match="link='identity'"):
+            self._closed_form(log_link_fitted_mmm)
+
+    def test_a_custom_adstock_is_refused(self, simple_mmm_data):
+        mmm = _fit_with_saturation(
+            simple_mmm_data,
+            LogisticSaturation(),
+            adstock=DoubledGeometric(l_max=4, normalize=False),
+            adstock_first=False,
+        )
+
+        with pytest.raises(NotImplementedError, match="DoubledGeometric"):
+            self._closed_form(mmm)
+
+    def test_a_leading_kernel_is_refused(self, non_after_fitted_mmm, monkeypatch):
+        monkeypatch.setattr(non_after_fitted_mmm, "adstock_first", False)
+
+        with pytest.raises(NotImplementedError, match=r"ConvMode\.After"):
+            self._closed_form(non_after_fitted_mmm)
+
+    def test_a_mediated_effect_is_refused(
+        self, funnel_identity_fitted_mmm, monkeypatch
+    ):
+        monkeypatch.setattr(funnel_identity_fitted_mmm, "adstock_first", False)
+
+        with pytest.raises(NotImplementedError, match="mu_effect"):
+            self._closed_form(funnel_identity_fitted_mmm)
+
+    def test_time_varying_media_is_refused(
+        self, time_varying_media_fitted_mmm, monkeypatch
+    ):
+        monkeypatch.setattr(time_varying_media_fitted_mmm, "adstock_first", False)
+
+        with pytest.raises(NotImplementedError, match="time_varying_media"):
+            self._closed_form(time_varying_media_fitted_mmm)
+
+    def test_a_spend_factor_other_than_zero_is_refused(self, adstock_last_fitted_mmm):
+        with pytest.raises(ValueError, match="must be 0"):
+            self._closed_form(adstock_last_fitted_mmm, counterfactual_spend_factor=1.01)
+
+    def test_a_pruned_posterior_is_refused(self, adstock_last_fitted_mmm, monkeypatch):
+        """A kernel parameter missing from the posterior would be drawn from its prior."""
+        mmm = adstock_last_fitted_mmm
+        pruned = mmm.idata.posterior.dataset.drop_vars("adstock_alpha")
+        monkeypatch.setattr(mmm.idata.posterior, "dataset", pruned, raising=False)
+
+        with pytest.raises(ValueError, match=r"adstock_alpha.*posterior"):
+            self._closed_form(mmm)
+
+    def test_a_model_the_closed_form_covers_passes_every_guard(
+        self, adstock_last_fitted_mmm
+    ):
+        """Saturation first, a built-in kernel, identity link, nothing mediated."""
+        adstock_last_fitted_mmm.incrementality._refuse_unsupported_closed_form(0.0)
+
+    @pytest.mark.parametrize("normalize", [True, False])
+    def test_normalize_is_not_a_reason_to_refuse(self, simple_mmm_data, normalize):
+        """The share is divided by the kernel's total, so either way is exact."""
+        mmm = _fit_with_saturation(
+            simple_mmm_data,
+            LogisticSaturation(),
+            adstock=GeometricAdstock(l_max=4, normalize=normalize),
+            adstock_first=False,
+        )
+
+        mmm.incrementality._refuse_unsupported_closed_form(0.0)
+
+
 class TestAllocationHelpers:
     """The pure pieces of the ``estimand="allocation"`` share split."""
 

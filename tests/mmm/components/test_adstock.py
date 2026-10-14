@@ -241,9 +241,14 @@ class TestCumulativeWeights:
         ids=lambda adstock: type(adstock).__name__,
     )
     def test_it_is_the_cumulative_sum_of_the_sampled_kernel(self, adstock) -> None:
-        """Every built-in kernel, draw by draw, rising to one."""
-        prior = adstock.sample_prior()
+        """Every built-in kernel, draw by draw, rising to one.
+
+        Draws whose kernel is not finite (a Weibull can underflow to ``0 / 0``
+        for extreme parameters) are left out here and pinned separately below.
+        """
+        prior = adstock.sample_prior(random_seed=1)
         kernel = adstock.sample_curve(prior, progressbar=False)
+        finite = np.isfinite(kernel.values).all(axis=-1)
         cumulative = (
             kernel.cumsum("time since exposure") / kernel.sum("time since exposure")
         ).values
@@ -256,9 +261,22 @@ class TestCumulativeWeights:
             axis=-1,
         )
 
-        np.testing.assert_allclose(shares, cumulative, rtol=1e-12)
-        assert (np.diff(shares, axis=-1) >= -1e-15).all()
-        np.testing.assert_allclose(shares[..., -1], 1.0, atol=1e-14)
+        np.testing.assert_allclose(shares[finite], cumulative[finite], rtol=1e-12)
+        assert (np.diff(shares[finite], axis=-1) >= -1e-15).all()
+        np.testing.assert_allclose(shares[finite][..., -1], 1.0, atol=1e-14)
+        assert np.isnan(shares[~finite]).all()
+
+    def test_a_draw_without_a_finite_kernel_has_no_share(self) -> None:
+        """The ``NaN`` of an underflowed kernel is passed on, not turned into a number."""
+        adstock = WeibullPDFAdstock(l_max=6)
+        prior = adstock.sample_prior(random_seed=0).copy(deep=True)
+        prior["adstock_lam"].values[:] = 0.2362647436059506
+        prior["adstock_k"].values[:] = 4.7412656437225635
+        assert np.isnan(adstock.sample_curve(prior, progressbar=False).values).all()
+
+        share = adstock.cumulative_weights(prior, 2, progressbar=False)
+
+        assert share.isnull().all()
 
     def test_it_keeps_the_draws(self) -> None:
         """Nothing is reduced over draws, so a product can be formed per draw."""
