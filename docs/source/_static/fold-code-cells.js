@@ -6,6 +6,11 @@
 // collapsed, so readers see the narrative and the outputs first and can
 // expand the code they care about. A per-page "Show all code" toggle is
 // added above the first folded cell.
+//
+// A notebook can keep a cell unfolded by tagging it "show-input": myst-nb
+// renders cell tags as classes on the cell container (tag_show-input), and
+// the selector below skips those cells. Use it for the few cells that carry
+// the main workflow of a notebook.
 
 (function () {
   "use strict";
@@ -59,7 +64,7 @@
 
   document.addEventListener("DOMContentLoaded", function () {
     var t = labels();
-    var inputs = document.querySelectorAll("div.cell > div.cell_input");
+    var inputs = document.querySelectorAll("div.cell:not(.tag_show-input) > div.cell_input");
     if (inputs.length === 0) {
       return;
     }
