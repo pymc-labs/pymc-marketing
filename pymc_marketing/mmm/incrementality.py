@@ -1930,7 +1930,7 @@ class Incrementality:
 
         return self._finish_counterfactual_matrix(
             matrix,
-            increments,
+            increments.reach,
             notes=notes,
             estimand=estimand,
             method=method,
@@ -1941,7 +1941,7 @@ class Incrementality:
     def _finish_counterfactual_matrix(
         self,
         matrix: xr.DataArray,
-        increments: PeriodIncrements,
+        reach: SpendReach,
         *,
         notes: list[str],
         estimand: str,
@@ -1958,8 +1958,8 @@ class Incrementality:
         ----------
         matrix : xr.DataArray
             As :meth:`_carryover_band_to_matrix` returns it.
-        increments : PeriodIncrements
-            What the matrix was built from; only its ``reach`` is read.
+        reach : SpendReach
+            What the spend probe measured for the evaluation behind *matrix*.
         notes : list of str
             Notes already collected on how to read the result.
         estimand, method : str
@@ -1984,7 +1984,7 @@ class Incrementality:
             # Only a forward-only kernel on a measured window keeps the observed
             # cells independent of what comes after the data, so that the
             # skipped tail is all a row sum misses.
-            if mode == ConvMode.After and not increments.reach.requires_full_axis:
+            if mode == ConvMode.After and not reach.requires_full_axis:
                 note += (
                     ", a lower bound on those periods' effect whenever more "
                     "spend never lowers the response on a later date"
@@ -1998,7 +1998,7 @@ class Incrementality:
         matrix = matrix.transpose(*dim_order, *self.model.dims)
 
         matrix.attrs = self._carryover_attrs(
-            increments,
+            reach,
             estimand=estimand,
             method=method,
             frequency=frequency,
@@ -2122,7 +2122,7 @@ class Incrementality:
         return self._finish_allocation_matrix(
             matrix,
             complete,
-            increments,
+            increments.reach,
             rule=rule,
             method=method,
             frequency=frequency,
@@ -2134,7 +2134,7 @@ class Incrementality:
         self,
         matrix: xr.DataArray,
         complete: list[bool],
-        increments: PeriodIncrements,
+        reach: SpendReach,
         *,
         rule: str,
         method: str,
@@ -2153,8 +2153,8 @@ class Incrementality:
             The allocation on the fitted dates.
         complete : list of bool
             Per row, whether its carryover lands within the fitted dates.
-        increments : PeriodIncrements
-            What the matrix was built from; only its ``reach`` is read.
+        reach : SpendReach
+            What the spend probe measured for the evaluation behind *matrix*.
         rule : str
             The allocation rule, echoed into ``assumptions``.
         method : str
@@ -2213,7 +2213,7 @@ class Incrementality:
         matrix = matrix.transpose(*dim_order, *self.model.dims)
 
         matrix.attrs = self._carryover_attrs(
-            increments,
+            reach,
             estimand="allocation",
             method=method,
             frequency=frequency,
@@ -2431,18 +2431,12 @@ class Incrementality:
             freq_offset=freq_offset,
             frequency=frequency,
         )
-        increments = PeriodIncrements(
-            periods=[],
-            windows=windows,
-            reach=probed.reach,
-            freq_offset=freq_offset,
-        )
         start_ts, end_ts = inputs.start_ts, inputs.end_ts
 
         if estimand == "counterfactual":
             return self._finish_counterfactual_matrix(
                 matrix,
-                increments,
+                probed.reach,
                 notes=[],
                 estimand=estimand,
                 method=method,
@@ -2459,7 +2453,7 @@ class Incrementality:
         return self._finish_allocation_matrix(
             self._on_fitted_dates(matrix),
             complete,
-            increments,
+            probed.reach,
             rule="separable_cohorts",
             method=method,
             frequency=frequency,
@@ -3412,7 +3406,7 @@ class Incrementality:
             notes.append(INCOMPLETE_SPLIT_NOTE)
 
         result.attrs = self._carryover_attrs(
-            increments,
+            increments.reach,
             estimand="counterfactual",
             method="pipeline",
             frequency=frequency,
@@ -3566,9 +3560,7 @@ class Incrementality:
         if cut.any():
             notes.append(INCOMPLETE_SPLIT_NOTE)
         result.attrs = self._carryover_attrs(
-            PeriodIncrements(
-                periods=[], windows=inputs.windows, reach=reach, freq_offset=offset
-            ),
+            reach,
             estimand="counterfactual",
             method="closed_form",
             frequency=frequency,
@@ -3814,7 +3806,7 @@ class Incrementality:
 
     def _carryover_attrs(
         self,
-        increments: PeriodIncrements,
+        reach: SpendReach,
         *,
         estimand: str,
         method: str,
@@ -3827,8 +3819,8 @@ class Incrementality:
 
         Parameters
         ----------
-        increments : PeriodIncrements
-            The evaluation the result was reduced from.
+        reach : SpendReach
+            What the spend probe measured for the evaluation behind the result.
         estimand, method : str
             As passed to :meth:`split_incremental_contribution_over_time`.
         frequency : Frequency
@@ -3851,7 +3843,6 @@ class Incrementality:
             reads an empty list back as a float array and a single note as a
             bare string.
         """
-        reach = increments.reach
         notes = list(notes)
         if reach.requires_full_axis:
             note = (
