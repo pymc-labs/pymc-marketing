@@ -241,11 +241,8 @@ from typing import TYPE_CHECKING, Literal, cast
 
 import numpy as np
 import pandas as pd
-import pymc as pm
-import pymc.dims as pmd
 import xarray as xr
 from pydantic import ConfigDict, validate_call
-from pytensor.xtensor import as_xtensor
 
 from pymc_marketing.data.idata.mmm_wrapper import MMMIDataWrapper
 from pymc_marketing.data.idata.schema import Frequency
@@ -2493,40 +2490,32 @@ class Incrementality:
             ``(chain, draw, ...)`` with ``date`` among the other dimensions.
         """
         saturation = self.model.saturation
+        # The model scales its input the same way when it builds the graph
+        # (``channel_data / channel_scale`` with NaN and inf switched to 0, in
+        # MMM.build_model).  That one is symbolic, so the two cannot share code;
+        # keep them in step.
         spend = self.data.get_channel_data() / self.data.get_channel_scale()
         spend = spend.where(np.isfinite(spend), 0.0)
         parameters = _transformation_parameters(posterior, saturation)
 
+        # Both spend levels go through one application of the saturation: a
+        # second application would create its parameters a second time.
         coords = {
             dim: np.asarray(coord)
             for dim, coord in spend.coords.items()
             if dim in spend.dims
         }
-        for dim, coord in parameters.coords.items():
-            if dim not in ("chain", "draw"):
-                coords.setdefault(dim, np.asarray(coord))
-
-        # Both spend levels go through one application of the saturation: a
-        # second application would create its parameters a second time.
-        levels = ["actual", "counterfactual"]
-        coords["spend_level"] = np.asarray(levels)
-        stacked = np.stack([spend.values, counterfactual_spend_factor * spend.values])
-        dims = ("spend_level", *map(str, spend.dims))
-        with pm.Model(coords=coords):
-            pmd.Deterministic(
+        coords["spend_level"] = np.asarray(["actual", "counterfactual"])
+        with _quiet_posterior_predictive_log():
+            sampled = saturation._sample_response(
                 "saturated_media",
-                saturation.apply(as_xtensor(stacked, dims=dims), core_dim="date"),
+                parameters,
+                np.stack([spend.values, counterfactual_spend_factor * spend.values]),
+                dims=("spend_level", *map(str, spend.dims)),
+                coords=coords,
+                core_dim="date",
+                progressbar=False,
             )
-            draws = getattr(xr, "DataTree", None)
-            idata = (
-                draws.from_dict({"/posterior": parameters})
-                if draws is not None
-                else parameters
-            )
-            with _quiet_posterior_predictive_log():
-                sampled = pm.sample_posterior_predictive(
-                    idata, var_names=["saturated_media"], progressbar=False
-                ).posterior_predictive["saturated_media"]
 
         increment = sampled.sel(spend_level="actual", drop=True) - sampled.sel(
             spend_level="counterfactual", drop=True
