@@ -5225,6 +5225,278 @@ class TestClosedFormProbeGuards:
             self._closed_form(mmm)
 
 
+def _assert_same_split(closed, pipeline):
+    """The closed form's current/future split is the pipeline's, ``NaN`` for ``NaN``."""
+    assert closed.current.dims == pipeline.current.dims
+    assert set(closed.data_vars) == set(pipeline.data_vars)
+    for name in pipeline.data_vars:
+        np.testing.assert_array_equal(
+            closed[name].isnull().values, pipeline[name].isnull().values
+        )
+        xr.testing.assert_allclose(closed[name], pipeline[name], rtol=1e-9, atol=1e-9)
+    for name in ("spend_date", "period_start", "complete"):
+        assert (name in closed.coords) == (name in pipeline.coords)
+        if name in closed.coords:
+            np.testing.assert_array_equal(
+                closed.coords[name].values, pipeline.coords[name].values
+            )
+    assert closed.attrs["method"] == "closed_form"
+    assert pipeline.attrs["method"] == "pipeline"
+    assert closed.attrs["horizon"] == pipeline.attrs["horizon"]
+    assert closed.attrs.get("effective_horizon") == pipeline.attrs.get(
+        "effective_horizon"
+    )
+    for key in ("assumptions", "warnings"):
+        assert json.loads(closed.attrs[key]) == json.loads(pipeline.attrs[key])
+
+
+class TestClosedFormCurrentFuture:
+    """``split_incremental_contribution_current_future(method="closed_form")``.
+
+    The split without a period-by-date matrix: each date puts ``V_s * W * C(m)``
+    into current, where ``C`` is the share of the kernel within the ``m`` lags
+    left in the period, and the rest into future.
+    """
+
+    @staticmethod
+    def _both(mmm, **kwargs):
+        pipeline = mmm.incrementality.split_incremental_contribution_current_future(
+            **kwargs
+        )
+        closed = mmm.incrementality.split_incremental_contribution_current_future(
+            method="closed_form", **kwargs
+        )
+        return closed, pipeline
+
+    @pytest.mark.parametrize(
+        "frequency, horizon",
+        [
+            ("original", None),
+            ("original", 1),
+            ("original", 3),
+            ("monthly", None),
+            ("quarterly", None),
+            ("all_time", None),
+        ],
+    )
+    @pytest.mark.parametrize(
+        "adstock",
+        [
+            GeometricAdstock(l_max=4),
+            GeometricAdstock(l_max=6, normalize=False),
+            DelayedAdstock(l_max=5),
+            WeibullPDFAdstock(l_max=5),
+        ],
+        ids=["geometric", "geometric-unnormalized", "delayed", "weibull-pdf"],
+    )
+    def test_it_is_the_pipeline_split(
+        self, simple_mmm_data, adstock, frequency, horizon
+    ):
+        if horizon is not None and horizon > adstock.l_max - 1:
+            pytest.skip("past this kernel")
+        mmm = _fit_custom_mmm(simple_mmm_data, adstock=adstock, adstock_first=False)
+
+        closed, pipeline = self._both(mmm, frequency=frequency, horizon=horizon)
+
+        _assert_same_split(closed, pipeline)
+
+    def test_the_last_periods_are_cut_by_the_data(self, simple_mmm_data):
+        """``complete`` and the ``NaN`` of the cut periods are the pipeline's."""
+        mmm = _fit_custom_mmm(
+            simple_mmm_data, adstock=GeometricAdstock(l_max=4), adstock_first=False
+        )
+
+        closed, pipeline = self._both(mmm, frequency="original", horizon=2)
+
+        assert not closed.complete.all()
+        assert closed.future.isnull().any()
+        assert closed.current.isnull().any()
+        _assert_same_split(closed, pipeline)
+
+    @pytest.mark.parametrize(
+        "frequency, kwargs",
+        [
+            ("original", {"end_date": "2023-02-19"}),
+            ("monthly", {"end_date": "2023-02-28"}),
+        ],
+    )
+    def test_a_subset_of_rows(self, simple_mmm_data, frequency, kwargs):
+        mmm = _fit_custom_mmm(
+            simple_mmm_data, adstock=GeometricAdstock(l_max=4), adstock_first=False
+        )
+
+        closed, pipeline = self._both(mmm, frequency=frequency, **kwargs)
+
+        _assert_same_split(closed, pipeline)
+
+    @pytest.mark.parametrize("frequency", ["original", "weekly", "quarterly"])
+    def test_monthly_data_at_finer_and_coarser_frequencies(
+        self, monthly_mmm_data, frequency
+    ):
+        """Most weekly periods hold no fitted date: zero, and complete."""
+        mmm = _fit_custom_mmm(
+            monthly_mmm_data, adstock=GeometricAdstock(l_max=4), adstock_first=False
+        )
+
+        closed, pipeline = self._both(mmm, frequency=frequency)
+
+        _assert_same_split(closed, pipeline)
+
+    @pytest.mark.parametrize("frequency", ["original", "monthly"])
+    def test_a_panel_with_hierarchical_priors(
+        self, panel_adstock_last_fitted_mmm, frequency
+    ):
+        closed, pipeline = self._both(
+            panel_adstock_last_fitted_mmm, frequency=frequency
+        )
+
+        _assert_same_split(closed, pipeline)
+        assert "country" in closed.current.dims
+
+    def test_a_subsample_takes_the_same_draws(self, simple_mmm_data):
+        mmm = _fit_custom_mmm(
+            simple_mmm_data, adstock=GeometricAdstock(l_max=4), adstock_first=False
+        )
+        incrementality = mmm.incrementality
+
+        pipeline = incrementality.split_incremental_contribution_current_future(
+            frequency="monthly", num_samples=7, random_state=np.random.default_rng(3)
+        )
+        closed = incrementality.split_incremental_contribution_current_future(
+            frequency="monthly",
+            method="closed_form",
+            num_samples=7,
+            random_state=np.random.default_rng(3),
+        )
+
+        assert closed.sizes["draw"] == 7
+        _assert_same_split(closed, pipeline)
+
+    @pytest.mark.parametrize("horizon", [0, 1, 2])
+    def test_a_fixed_window_is_the_cumulative_weight_of_the_row_total(
+        self, simple_mmm_data, horizon
+    ):
+        """``current = C(horizon) * (current + future)`` on a complete row.
+
+        Shortcut B: at the original frequency the share that lands within the
+        window is one constant per draw and channel, the adstock's
+        ``cumulative_weights``, whatever the spend.
+        """
+        mmm = _fit_custom_mmm(
+            simple_mmm_data, adstock=GeometricAdstock(l_max=6), adstock_first=False
+        )
+
+        closed = mmm.incrementality.split_incremental_contribution_current_future(
+            frequency="original", horizon=horizon, method="closed_form"
+        )
+        complete = closed.sel(spend_date=closed.complete)
+        share = mmm.adstock.cumulative_weights(
+            mmm.incrementality._adstock_parameters(mmm.idata.posterior.dataset),
+            horizon,
+            progressbar=False,
+        ).assign_coords(chain=closed.chain, draw=closed.draw)
+
+        assert complete.sizes["spend_date"] > 0
+        np.testing.assert_allclose(
+            complete.current.values,
+            (share * (complete.current + complete.future))
+            .transpose(*complete.current.dims)
+            .values,
+            rtol=1e-9,
+        )
+
+    def test_the_product_is_formed_draw_by_draw(self, simple_mmm_data):
+        """``E[C] E[total] != E[C * total]``, and the split follows the second.
+
+        The share and the row total are both functions of the same draws, so
+        multiplying their summaries would give a different, wrong number.
+        """
+        adstock = GeometricAdstock(
+            l_max=8, priors={"alpha": Prior("Beta", alpha=1, beta=1, dims="channel")}
+        )
+        mmm = _fit_custom_mmm(simple_mmm_data, adstock=adstock, adstock_first=False)
+
+        closed = mmm.incrementality.split_incremental_contribution_current_future(
+            frequency="original", method="closed_form"
+        )
+        row = closed.sel(spend_date=closed.complete).isel(spend_date=3, channel=0)
+        share = (
+            adstock.cumulative_weights(
+                mmm.idata.posterior.dataset, 0, progressbar=False
+            )
+            .assign_coords(chain=closed.chain, draw=closed.draw)
+            .isel(channel=0)
+        )
+        total = row.current + row.future
+
+        per_draw = float((share * total).mean())
+        of_means = float(share.mean() * total.mean())
+
+        np.testing.assert_allclose(float(row.current.mean()), per_draw, rtol=1e-9)
+        assert abs(per_draw - of_means) > 1e-3 * abs(per_draw)
+
+    def test_no_period_is_evaluated(self, simple_mmm_data, monkeypatch):
+        mmm = _fit_custom_mmm(
+            simple_mmm_data, adstock=GeometricAdstock(l_max=4), adstock_first=False
+        )
+        TestSplitIncrementalContribution._evaluation_forbidden(monkeypatch)
+
+        split = mmm.incrementality.split_incremental_contribution_current_future(
+            frequency="monthly", method="closed_form"
+        )
+
+        assert split.attrs["method"] == "closed_form"
+
+    def test_an_unknown_method_raises(self, adstock_last_fitted_mmm):
+        with pytest.raises(ValueError, match="method must be"):
+            adstock_last_fitted_mmm.incrementality.split_incremental_contribution_current_future(
+                frequency="monthly", method="exact"
+            )
+
+    @pytest.mark.parametrize(
+        "kwargs, match",
+        [
+            ({"horizon": 4}, r"horizon must be in 0\.\.3"),
+            ({"horizon": 1, "frequency": "monthly"}, "frequency='original'"),
+        ],
+    )
+    def test_a_horizon_the_split_cannot_use_raises_before_evaluating(
+        self, adstock_last_fitted_mmm, monkeypatch, kwargs, match
+    ):
+        TestSplitIncrementalContribution._evaluation_forbidden(monkeypatch)
+
+        with pytest.raises(ValueError, match=match):
+            adstock_last_fitted_mmm.incrementality.split_incremental_contribution_current_future(
+                **{"frequency": "original", **kwargs}, method="closed_form"
+            )
+
+    def test_adstock_first_is_refused(self, simple_fitted_mmm, monkeypatch):
+        TestSplitIncrementalContribution._evaluation_forbidden(monkeypatch)
+
+        with pytest.raises(NotImplementedError, match="adstock_first=False"):
+            simple_fitted_mmm.incrementality.split_incremental_contribution_current_future(
+                frequency="monthly", method="closed_form"
+            )
+
+    def test_a_saturation_that_carries_spend_past_the_kernel_is_refused(
+        self, simple_mmm_data, monkeypatch
+    ):
+        from tests.mmm.conftest import CarryoverSaturation
+
+        mmm = _fit_with_saturation(
+            simple_mmm_data,
+            CarryoverSaturation(),
+            adstock=GeometricAdstock(l_max=3),
+            adstock_first=False,
+        )
+        TestSplitIncrementalContribution._evaluation_forbidden(monkeypatch)
+
+        with pytest.raises(NotImplementedError, match="moves the response up to"):
+            mmm.incrementality.split_incremental_contribution_current_future(
+                frequency="monthly", method="closed_form"
+            )
+
+
 class TestClosedFormGuards:
     """``method="closed_form"`` refuses what its closed form is not exact for.
 

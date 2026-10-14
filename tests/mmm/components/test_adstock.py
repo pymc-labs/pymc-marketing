@@ -278,6 +278,22 @@ class TestCumulativeWeights:
 
         assert share.isnull().all()
 
+    def test_no_horizon_gives_every_horizon_at_once(self) -> None:
+        """One sampling returns the curve, equal to asking horizon by horizon."""
+        adstock = DelayedAdstock(l_max=6)
+        prior = adstock.sample_prior(random_seed=2)
+
+        curve = adstock.cumulative_weights(prior, None, progressbar=False)
+
+        assert curve.sizes["horizon"] == 6
+        np.testing.assert_array_equal(curve.horizon.values, np.arange(6))
+        assert "time since exposure" not in curve.dims
+        for horizon in range(6):
+            single = adstock.cumulative_weights(prior, horizon, progressbar=False)
+            np.testing.assert_allclose(
+                curve.sel(horizon=horizon).values, single.values, rtol=1e-12
+            )
+
     def test_it_keeps_the_draws(self) -> None:
         """Nothing is reduced over draws, so a product can be formed per draw."""
         adstock = GeometricAdstock(
@@ -299,7 +315,7 @@ class TestCumulativeWeights:
         with pytest.raises(ValueError, match=r"horizon must be in 0\.\.5"):
             adstock.cumulative_weights(adstock.sample_prior(), horizon)
 
-    @pytest.mark.parametrize("horizon", [1.5, "2", None, True])
+    @pytest.mark.parametrize("horizon", [1.5, "2", True])
     def test_a_horizon_that_is_not_an_integer_raises(self, horizon) -> None:
         adstock = GeometricAdstock(l_max=6)
 

@@ -180,7 +180,7 @@ class AdstockTransformation(Transformation):
     def cumulative_weights(
         self,
         parameters: xr.Dataset,
-        horizon: int,
+        horizon: int | None,
         **sample_posterior_predictive_kwargs: Any,
     ) -> xr.DataArray:
         r"""Share of the kernel's weight that lands within *horizon* periods.
@@ -216,10 +216,12 @@ class AdstockTransformation(Transformation):
         parameters : xr.Dataset
             Dataset with the adstock's parameters, with ``chain`` and ``draw``
             dimensions, as :meth:`sample_curve` takes it.
-        horizon : int
+        horizon : int or None
             Periods after the spend period that count, in ``0 .. l_max - 1``.
             ``0`` is the spend period alone and ``l_max - 1`` the whole kernel,
-            for which :math:`C` is exactly one.
+            for which :math:`C` is exactly one.  ``None`` returns every horizon
+            at once, on a ``"horizon"`` dimension, from the one sampling of the
+            kernel that a single horizon would also cost.
         sample_posterior_predictive_kwargs : Any
             Passed to :meth:`sample_curve`, for example ``progressbar=False``.
 
@@ -227,7 +229,8 @@ class AdstockTransformation(Transformation):
         -------
         xr.DataArray
             :math:`C(\text{horizon})`, the shape of the sampled kernel without
-            its ``"time since exposure"`` dimension.
+            its ``"time since exposure"`` dimension; for ``horizon=None``, with a
+            ``"horizon"`` dimension of length ``l_max`` in its place.
 
         Raises
         ------
@@ -249,10 +252,12 @@ class AdstockTransformation(Transformation):
             parameters = adstock.sample_prior()
             share = adstock.cumulative_weights(parameters, horizon=2)
         """
-        if isinstance(horizon, bool) or not isinstance(horizon, int | np.integer):
-            raise TypeError(f"horizon must be an integer, got {horizon!r}.")
+        if horizon is not None and (
+            isinstance(horizon, bool) or not isinstance(horizon, int | np.integer)
+        ):
+            raise TypeError(f"horizon must be an integer or None, got {horizon!r}.")
 
-        if not 0 <= horizon <= self.l_max - 1:
+        if horizon is not None and not 0 <= horizon <= self.l_max - 1:
             raise ValueError(
                 f"horizon must be in 0..{self.l_max - 1} (the periods after the "
                 f"spend period that the kernel of l_max={self.l_max} covers), "
@@ -269,6 +274,14 @@ class AdstockTransformation(Transformation):
 
         weights = self.sample_curve(parameters, **sample_posterior_predictive_kwargs)
         lag = "time since exposure"
+
+        if horizon is None:
+            curve = weights.cumsum(lag) / weights.sum(lag)
+            curve = curve.rename({lag: "horizon"}).assign_coords(
+                horizon=np.arange(self.l_max)
+            )
+            return curve.rename("cumulative_weights")
+
         within = weights.isel({lag: slice(0, horizon + 1)}).sum(lag)
 
         return (within / weights.sum(lag)).rename("cumulative_weights")
