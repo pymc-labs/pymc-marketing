@@ -302,6 +302,9 @@ CentralTendency = Literal["median", "mean"]
 
 LAG_DIM = "time since exposure"
 
+ALLOCATION_REQUIREMENT = "estimand='allocation'"
+CLOSED_FORM_REQUIREMENT = "method='closed_form'"
+
 BUILTIN_ADSTOCKS = (
     BinomialAdstock,
     DelayedAdstock,
@@ -539,13 +542,15 @@ def kernel_trailing_lags(l_max: int, mode: ConvMode) -> int:
     raise ValueError(f"Wrong Mode: {mode}, expected one of {', '.join(ConvMode)}")
 
 
-def _refuse_unbounded_reach(reach: SpendReach, *, kernel_lags: int) -> None:
-    """Refuse an allocation whose effect the probe could not tie to the kernel.
+def _refuse_unbounded_reach(
+    reach: SpendReach, *, kernel_lags: int, requirement: str
+) -> None:
+    """Refuse a reach that runs further than the adstock kernel.
 
-    Passed as ``validate_reach`` to :meth:`Incrementality._compute_increments`,
-    with *kernel_lags* bound.  Both routes read each date's response as the sum
-    of one cohort's kernel weights, so the probe has to find that a change in
-    spend moves the response no further than the kernel does.
+    Passed as ``validate_reach`` with *kernel_lags* and *requirement* bound.
+    The allocation and the closed form both read each date's response as the
+    sum of one cohort's kernel weights, so the probe has to find that a change
+    in spend moves the response no further than the kernel does.
 
     Parameters
     ----------
@@ -554,6 +559,9 @@ def _refuse_unbounded_reach(reach: SpendReach, *, kernel_lags: int) -> None:
     kernel_lags : int
         The last lag the adstock's own kernel reaches, from
         :func:`kernel_trailing_lags`.
+    requirement : str
+        What reads the kernel, for the message: :data:`ALLOCATION_REQUIREMENT`
+        or :data:`CLOSED_FORM_REQUIREMENT`.
 
     Raises
     ------
@@ -562,7 +570,7 @@ def _refuse_unbounded_reach(reach: SpendReach, *, kernel_lags: int) -> None:
     """
     if reach.requires_full_axis:
         raise NotImplementedError(
-            "estimand='allocation' reads the adstock as a fixed causal kernel, "
+            f"{requirement} reads the adstock as a fixed causal kernel, "
             "and the spend probe could not verify that the effect of a change "
             "in spend dies out within the fitted dates.  A transform that "
             "reduces over date, carryover that outlasts the fitted dates, or a "
@@ -572,7 +580,7 @@ def _refuse_unbounded_reach(reach: SpendReach, *, kernel_lags: int) -> None:
 
     if reach.max_lag is not None and reach.max_lag > kernel_lags:
         raise NotImplementedError(
-            "estimand='allocation' reads each date's response as the adstock "
+            f"{requirement} reads each date's response as the adstock "
             f"kernel's, which reaches {kernel_lags} periods after the spend, "
             f"but the spend probe found that spend moves the response up to "
             f"{reach.max_lag} periods later.  Something else in the media "
@@ -642,18 +650,21 @@ def _require_homogeneous_adstock(
     warnings.warn(CUSTOM_ADSTOCK_NOTE, UserWarning, skip_file_prefixes=(_PKG_PREFIX,))
 
 
-def _refuse_dedicated_rows(needs_dedicated_rows: bool) -> None:
-    """Refuse an allocation unless each channel's column is its own.
+def _refuse_dedicated_rows(needs_dedicated_rows: bool, *, requirement: str) -> None:
+    """Refuse a result whose per-channel columns are not each channel's own.
 
-    Passed as ``validate_dedicated_rows`` to
-    :meth:`Incrementality._compute_increments`.  A channel-dependent
-    ``mu_effect`` is refused before this, from the model alone, so what is left
-    is what the probe measured about the media transform.
+    Passed as ``validate_dedicated_rows`` with *requirement* bound.  A
+    channel-dependent ``mu_effect`` is refused before this, from the model
+    alone, so what is left is what the probe measured about the media
+    transform.
 
     Parameters
     ----------
     needs_dedicated_rows : bool
         Whether the channels have to be perturbed one at a time.
+    requirement : str
+        What needs the columns, for the message: :data:`ALLOCATION_REQUIREMENT`
+        or :data:`CLOSED_FORM_REQUIREMENT`.
 
     Raises
     ------
@@ -662,7 +673,7 @@ def _refuse_dedicated_rows(needs_dedicated_rows: bool) -> None:
     """
     if needs_dedicated_rows:
         raise NotImplementedError(
-            "estimand='allocation' needs each channel's column to depend on "
+            f"{requirement} needs each channel's column to depend on "
             "that channel's spend alone, and the spend probe could not "
             "establish that: either the media transform mixes channels, or some "
             "channel spends only where the probe cannot perturb it."
@@ -2283,7 +2294,8 @@ class Incrementality:
             ),
         )
         _refuse_dedicated_rows(
-            probed.probe.mixes_channels(non_date_dims=probed.evaluator.non_date_dims)
+            probed.probe.mixes_channels(non_date_dims=probed.evaluator.non_date_dims),
+            requirement=CLOSED_FORM_REQUIREMENT,
         )
 
         freq_offset = self._data_freq_offset()
@@ -2342,7 +2354,9 @@ class Incrementality:
         ValueError
             If *lags* is past the measured reach.
         """
-        _refuse_unbounded_reach(reach, kernel_lags=kernel_lags)
+        _refuse_unbounded_reach(
+            reach, kernel_lags=kernel_lags, requirement=CLOSED_FORM_REQUIREMENT
+        )
         if lags is not None:
             Incrementality._check_reach_supports_split(reach, lags=lags)
 
@@ -2710,8 +2724,8 @@ class Incrementality:
                 "method='pipeline'."
             )
 
-        self._refuse_missing_adstock_parameters("method='closed_form'")
-        self._refuse_missing_saturation_parameters("method='closed_form'")
+        self._refuse_missing_adstock_parameters(CLOSED_FORM_REQUIREMENT)
+        self._refuse_missing_saturation_parameters(CLOSED_FORM_REQUIREMENT)
 
     @staticmethod
     def _refuse_allocation_spend_factor(counterfactual_spend_factor: float) -> None:
@@ -2816,7 +2830,7 @@ class Incrementality:
             )
 
     def _refuse_missing_adstock_parameters(
-        self, requirement: str = "estimand='allocation'"
+        self, requirement: str = ALLOCATION_REQUIREMENT
     ) -> None:
         """Refuse a posterior that lacks a parameter the kernel is drawn from.
 
@@ -2827,7 +2841,7 @@ class Incrementality:
 
         Parameters
         ----------
-        requirement : str, default="estimand='allocation'"
+        requirement : str, default=ALLOCATION_REQUIREMENT
             What needs the kernel, for the message.
 
         Raises
@@ -2912,12 +2926,15 @@ class Incrementality:
             keep_date_axis=True,
             validate_reach=partial(
                 _refuse_unbounded_reach,
+                requirement=ALLOCATION_REQUIREMENT,
                 kernel_lags=kernel_trailing_lags(
                     self.model.adstock.l_max, self.model.adstock.mode
                 ),
             ),
             posterior=posterior,
-            validate_dedicated_rows=_refuse_dedicated_rows,
+            validate_dedicated_rows=partial(
+                _refuse_dedicated_rows, requirement=ALLOCATION_REQUIREMENT
+            ),
         )
 
     @staticmethod

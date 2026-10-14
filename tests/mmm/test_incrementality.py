@@ -4649,7 +4649,10 @@ class TestAllocationInputGuards:
         )
         TestSplitIncrementalContribution._evaluation_forbidden(monkeypatch)
 
-        with pytest.raises(NotImplementedError, match="moves the response up to"):
+        with pytest.raises(
+            NotImplementedError,
+            match=r"^estimand='allocation'.*moves the response up to",
+        ):
             self._allocation(mmm)
 
     @pytest.mark.parametrize("adstock_first", [True, False])
@@ -5192,7 +5195,10 @@ class TestClosedFormProbeGuards:
             adstock_first=False,
         )
 
-        with pytest.raises(NotImplementedError, match="moves the response up to"):
+        with pytest.raises(
+            NotImplementedError,
+            match=r"^method='closed_form'.*moves the response up to",
+        ):
             self._closed_form(mmm)
 
     def test_a_saturation_that_reduces_over_date_is_refused(self, simple_mmm_data):
@@ -5205,7 +5211,10 @@ class TestClosedFormProbeGuards:
             adstock_first=False,
         )
 
-        with pytest.raises(NotImplementedError, match="dies out within the fitted"):
+        with pytest.raises(
+            NotImplementedError,
+            match=r"^method='closed_form'.*dies out within the fitted",
+        ):
             self._closed_form(mmm)
 
     def test_a_saturation_that_mixes_channels_is_refused(self, simple_mmm_data):
@@ -5218,7 +5227,7 @@ class TestClosedFormProbeGuards:
             adstock_first=False,
         )
 
-        with pytest.raises(NotImplementedError, match="mixes"):
+        with pytest.raises(NotImplementedError, match=r"^method='closed_form'.*mixes"):
             self._closed_form(mmm)
 
     def test_a_pruned_saturation_posterior_is_refused(
@@ -5534,7 +5543,10 @@ class TestClosedFormCurrentFuture:
         )
         TestSplitIncrementalContribution._evaluation_forbidden(monkeypatch)
 
-        with pytest.raises(NotImplementedError, match="moves the response up to"):
+        with pytest.raises(
+            NotImplementedError,
+            match=r"^method='closed_form'.*moves the response up to",
+        ):
             mmm.incrementality.split_incremental_contribution_current_future(
                 frequency="monthly", method="closed_form"
             )
