@@ -29,7 +29,7 @@ from pymc_marketing.mmm.experimental import (
     Data,
     Equation,
     OptimizationResult,
-    optimize,
+    Problem,
 )
 from pymc_marketing.terms import Parameter, Transform
 
@@ -230,11 +230,10 @@ def _solve(
     def dollars(evaluate: Any, u: dict[str, XTensorVariable]) -> XTensorVariable:
         return u["spend"] / evaluate.constant(units.spend())
 
-    return optimize(
+    problem = Problem(
         model=fitted.model,
         terms=terms,
-        inputs=[fitted.spend],
-        data=xr.Dataset({"spend": reference.initial * units.spend()}),
+        dates=reference.initial.indexes["date"],
         objective=objective,
         bounds={"spend": (0.0, reference.caps * units.spend())},
         constraints=[
@@ -260,6 +259,9 @@ def _solve(
                 ),
             },
         ],
+    )
+    return problem.solve(
+        xr.Dataset({"spend": reference.initial * units.spend()}),
         options={"ftol": 1e-12, "maxiter": 200},
         feasibility_tol=1e-7,
     )

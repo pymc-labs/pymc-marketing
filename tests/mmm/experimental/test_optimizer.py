@@ -22,6 +22,7 @@ import pandas as pd
 import pymc as pm
 import pymc.dims as pmd
 import pytensor.tensor as pt
+import pytensor.xtensor as ptx
 import pytest
 import xarray as xr
 from pymc_extras.prior import CUSTOM_TRANSFORMS, Prior
@@ -34,10 +35,10 @@ from pymc_marketing.mmm.experimental import (
     Data,
     Equation,
     MediaTransform,
-    optimize,
+    Problem,
 )
 from pymc_marketing.mmm.experimental._graph import walk
-from pymc_marketing.mmm.experimental._optimizer import _build_problem
+from pymc_marketing.mmm.transformers import ConvMode
 from pymc_marketing.terms import (
     ModelTerm,
     Named,
@@ -148,6 +149,7 @@ def fitted() -> FittedProblem:
                 + rng.normal(0, 0.05, spend_values.shape),
             ),
             "unrelated": ("date", unrelated),
+            "_experimental_data_1": ("date", unrelated),
             "auxiliary": (
                 "date",
                 0.6 * unrelated + 0.2 + rng.normal(0, 0.1, len(dates)),
@@ -290,8 +292,7 @@ def _arguments(fitted: FittedProblem, **changes: Any) -> dict[str, Any]:
     return {
         "model": fitted.model,
         "terms": fitted.media,
-        "inputs": [fitted.spend],
-        "data": fitted.future[["spend"]],
+        "dates": fitted.future.indexes["date"],
         "objective": _media_objective,
         "bounds": {"spend": (0.0, 2.5)},
         **changes,
@@ -313,14 +314,13 @@ def test_shared_input_terms_obey_user_tradeoff_and_known_optimum(
             .mean("sample")
         )
 
-    result = optimize(
+    result = Problem(
         **_arguments(
             fitted,
             terms={"left": fitted.left, "right": fitted.right},
             objective=objective,
-            options={"ftol": 1e-12},
         )
-    )
+    ).solve(fitted.future[["spend"]], options={"ftol": 1e-12})
     target = weight * LEFT + (1 - weight) * RIGHT
     expected = target.broadcast_like(fitted.future["spend"])
     preference = _posterior(fitted)["preference"].mean(("chain", "draw"))
@@ -338,48 +338,29 @@ def test_shared_input_terms_obey_user_tradeoff_and_known_optimum(
     np.testing.assert_allclose(result.objective, expected_objective, atol=1e-10)
 
 
-@pytest.mark.parametrize(
-    "declarations",
-    ["missing", "extra", "duplicate-object", "duplicate-name"],
-)
-def test_inputs_are_exactly_the_selected_terms_dependencies(
+@pytest.mark.parametrize("declarations", ["missing", "extra"])
+def test_bounds_must_cover_exactly_the_inferred_decisions(
     fitted: FittedProblem, declarations: str
 ) -> None:
-    inputs = {
-        "missing": [fitted.spend],
-        "extra": [
-            fitted.spend,
-            fitted.price,
-            fitted.weights,
-            fitted.level,
-            Data("unrelated"),
-        ],
-        "duplicate-object": [
-            fitted.spend,
-            fitted.price,
-            fitted.weights,
-            fitted.level,
-            fitted.spend,
-        ],
-        "duplicate-name": [
-            fitted.spend,
-            fitted.price,
-            fitted.weights,
-            fitted.level,
-            Data("spend"),
-        ],
-    }[declarations]
+    bounds = {
+        "spend": (0.0, 2.5),
+        "price": (-np.inf, np.inf),
+        "channel_weight": (0.1, 2.0),
+        "level": (0.0, 5.0),
+    }
+    if declarations == "missing":
+        del bounds["price"]
+    else:
+        bounds["unrelated"] = (-np.inf, np.inf)
     with pytest.raises(ValueError):
-        optimize(
-            **_arguments(fitted, terms=fitted.mean, inputs=inputs, data=fitted.train)
-        )
+        Problem(**_arguments(fitted, terms=fitted.mean, bounds=bounds))
 
 
 def test_missing_scenario_input_is_not_held_at_training_values(
     fitted: FittedProblem,
 ) -> None:
     with pytest.raises(ValueError):
-        optimize(**_arguments(fitted, data=fitted.future[["price"]]))
+        Problem(**_arguments(fitted)).solve(fitted.future[["price"]])
 
 
 def test_mixed_outputs_preserve_paired_joint_posterior_and_implicit_dimensions(
@@ -394,7 +375,7 @@ def test_mixed_outputs_preserve_paired_joint_posterior_and_implicit_dimensions(
             .mean("sample")
         )
 
-    problem = _build_problem(
+    problem = Problem(
         **_arguments(
             fitted,
             terms={
@@ -403,11 +384,11 @@ def test_mixed_outputs_preserve_paired_joint_posterior_and_implicit_dimensions(
                 "right": fitted.right,
                 "raw": fitted.spend,
             },
-            data=fitted.train[["spend"]],
+            dates=fitted.train.indexes["date"],
             objective=objective,
         )
     )
-    evaluated = problem.evaluator.evaluate(fitted.train[["spend"]])
+    evaluated = problem.evaluate(fitted.train[["spend"]])
     posterior = _posterior(fitted)
     for name, stored in [
         ("media", "media"),
@@ -432,18 +413,19 @@ def test_mixed_outputs_preserve_paired_joint_posterior_and_implicit_dimensions(
         .sum(("date", "channel"))
         .mean(("chain", "draw"))
     )
+    state = problem._prepare(fitted.train[["spend"]])
     np.testing.assert_allclose(
-        problem.raw(problem.to_z(problem.initial))[0], expected_objective
+        state.raw(state.to_z(state.initial))[0], expected_objective
     )
 
-    reduced = _build_problem(
+    reduced = Problem(
         **_arguments(
             fitted,
             terms=fitted.media.sum("channel"),
-            data=fitted.train[["spend"]],
+            dates=fitted.train.indexes["date"],
             objective=lambda e, u: e(u)["term"].sum("date").mean("sample"),
         )
-    ).evaluator.evaluate(fitted.train[["spend"]])
+    ).evaluate(fitted.train[["spend"]])
     np.testing.assert_allclose(
         reduced["term"].transpose("sample", "date").values,
         posterior["media"]
@@ -501,14 +483,10 @@ def test_label_and_dimension_permutations_preserve_original_unit_solution(
             if reverse
             else fitted.future
         )
-        return _build_problem(
+        return Problem(
             **_arguments(
                 fitted,
                 terms={"spend": fitted.spend, "price": fitted.price},
-                inputs=[fitted.spend, fitted.price]
-                if reverse
-                else [fitted.price, fitted.spend],
-                data=data,
                 objective=objective,
                 bounds={
                     "spend": (
@@ -536,7 +514,7 @@ def test_label_and_dimension_permutations_preserve_original_unit_solution(
                     "objective": 1.7,
                 },
             )
-        )
+        )._prepare(data)
 
     baseline, reordered = problem(False), problem(True)
     np.testing.assert_allclose(
@@ -583,12 +561,10 @@ def test_objective_gradient_and_every_constraint_jacobian_match_finite_differenc
             .mean("sample")
         )
 
-    problem = _build_problem(
+    problem = Problem(
         **_arguments(
             fitted,
             terms={"media": fitted.media, "left": fitted.left, "unused": fitted.level},
-            inputs=[fitted.spend, fitted.level],
-            data=data,
             objective=objective,
             bounds={"spend": (lower, upper), "level": (-2.0, 4.0)},
             constraints=[
@@ -615,7 +591,7 @@ def test_objective_gradient_and_every_constraint_jacobian_match_finite_differenc
                 },
             ],
         )
-    )
+    )._prepare(data)
     point_data = data.assign(spend=data["spend"] + 0.07)
     z = problem.to_z({name: point_data[name] for name in problem.initial})
     current = problem.raw(z)
@@ -664,7 +640,7 @@ def test_equality_vector_and_model_constraints_are_reported_in_original_units(
         .sum(axis=(2, 3))
         .mean()
     )
-    result = optimize(
+    result = Problem(
         **_arguments(
             fitted,
             constraints=[
@@ -685,9 +661,8 @@ def test_equality_vector_and_model_constraints_are_reported_in_original_units(
                     ),
                 },
             ],
-            options={"ftol": 1e-11},
         )
-    )
+    ).solve(fitted.future[["spend"]], options={"ftol": 1e-11})
     allocation = result.allocation["spend"]
     response = _media(_posterior(fitted), allocation.values)
     expected_residuals = [
@@ -736,7 +711,7 @@ def test_posterior_model_inequality_changes_the_analytic_optimum(
         fitted.future.sizes["date"] * (preference * (LEFT - RIGHT) ** 2).sum()
     )
     floor = -distance / 4
-    result = optimize(
+    result = Problem(
         **_arguments(
             fitted,
             terms={"left": fitted.left, "right": fitted.right},
@@ -751,9 +726,8 @@ def test_posterior_model_inequality_changes_the_analytic_optimum(
                     ),
                 }
             ],
-            options={"ftol": 1e-12},
         )
-    )
+    ).solve(fitted.future[["spend"]], options={"ftol": 1e-12})
     expected = ((LEFT + RIGHT) / 2).broadcast_like(result.allocation["spend"])
     assert result.scipy.success and result.feasible
     xr.testing.assert_allclose(result.allocation["spend"], expected, atol=1e-6)
@@ -772,22 +746,25 @@ def test_history_is_fixed_and_only_scenario_dates_and_explicit_tail_are_scored(
     history = fitted.train[["spend"]].isel(date=slice(-2, None))
     history_before = history.copy(deep=True)
     dates = pd.date_range(fitted.future["date"].values[0], periods=5, freq="W-MON")
-    spend = xr.DataArray(
-        np.concatenate([fitted.future["spend"].values, np.zeros((2, 2))]),
-        dims=("date", "channel"),
-        coords={"date": dates, "channel": CHANNELS},
+    data = fitted.future[["spend"]].assign(
+        channel_weight=fitted.train["channel_weight"]
     )
-    data = xr.Dataset(
-        {"spend": spend, "channel_weight": fitted.train["channel_weight"]}
+    spend = xr.concat(
+        [
+            data["spend"],
+            xr.DataArray(
+                np.zeros((2, 2)),
+                dims=("date", "channel"),
+                coords={"date": dates[-2:], "channel": CHANNELS},
+            ),
+        ],
+        dim="date",
     )
-    upper = xr.full_like(spend, 2.5)
-    upper.loc[{"date": dates[-2:]}] = 0.0
     budget = float(spend.sum())
     kwargs = _arguments(
         fitted,
         terms=fitted.weighted,
-        inputs=[fitted.weights, fitted.spend],
-        data=data,
+        carryover=2,
         history=history,
         objective=lambda e, u: (
             e(u)["term"]
@@ -797,23 +774,22 @@ def test_history_is_fixed_and_only_scenario_dates_and_explicit_tail_are_scored(
             .mean("sample")
         ),
         bounds={
-            "spend": (0.0, upper),
+            "spend": (0.0, 2.5),
             "channel_weight": (data["channel_weight"], data["channel_weight"]),
         },
         constraints=[
             {
                 "type": "eq",
-                "fun": lambda e, u: (
-                    u["spend"].isel(date=slice(0, 3)).sum("date").sum("channel")
-                    - budget
-                ),
+                "fun": lambda e, u: u["spend"].sum("date").sum("channel") - budget,
             }
         ],
     )
-    problem = _build_problem(**kwargs)
+    problem = Problem(**kwargs)
     for scenario in (data, data.assign(spend=data["spend"] * 0.7)):
-        evaluated = problem.evaluator.evaluate(scenario)["term"]
-        combined = np.concatenate([history["spend"].values, scenario["spend"].values])
+        evaluated = problem.evaluate(scenario)["term"]
+        combined = np.concatenate(
+            [history["spend"].values, scenario["spend"].values, np.zeros((2, 2))]
+        )
         expected = (
             _media(_posterior(fitted), combined)[:, :, 2:]
             * data["channel_weight"].values
@@ -824,9 +800,7 @@ def test_history_is_fixed_and_only_scenario_dates_and_explicit_tail_are_scored(
             atol=1e-10,
         )
         np.testing.assert_array_equal(evaluated["date"].values, dates.values)
-    no_history = _build_problem(**{**kwargs, "history": None}).evaluator.evaluate(data)[
-        "term"
-    ]
+    no_history = Problem(**{**kwargs, "history": None}).evaluate(data)["term"]
     no_history_expected = (
         _media(_posterior(fitted), spend.values) * data["channel_weight"].values
     )
@@ -842,12 +816,16 @@ def test_history_is_fixed_and_only_scenario_dates_and_explicit_tail_are_scored(
         )[:, :, 2:4]
         * data["channel_weight"].values,
     )
-    result = problem.solve(options={"ftol": 1e-11})
+    result = problem.solve(data, options={"ftol": 1e-11})
     final_response = (
         _media(
             _posterior(fitted),
             np.concatenate(
-                [history["spend"].values, result.allocation["spend"].values]
+                [
+                    history["spend"].values,
+                    result.allocation["spend"].values,
+                    np.zeros((2, 2)),
+                ]
             ),
         )[:, :, 2:]
         * data["channel_weight"].values
@@ -858,17 +836,14 @@ def test_history_is_fixed_and_only_scenario_dates_and_explicit_tail_are_scored(
     xr.testing.assert_allclose(
         result.allocation["channel_weight"], data["channel_weight"]
     )
-    np.testing.assert_array_equal(result.allocation["date"].values, dates.values)
-    np.testing.assert_array_equal(
-        result.allocation["spend"].isel(date=slice(-2, None)), 0.0
-    )
+    np.testing.assert_array_equal(result.allocation["date"].values, data["date"].values)
     assert np.all(final_response[:, :, -2:].sum(axis=-1) > 0)
     np.testing.assert_allclose(
         result.objective, final_response[:, :, 1:].sum(axis=(2, 3)).mean(), atol=1e-10
     )
     xr.testing.assert_identical(history, history_before)
     with pytest.raises(ValueError):
-        _build_problem(**{**kwargs, "terms": fitted.weighted.sum("date")})
+        Problem(**{**kwargs, "terms": fitted.weighted.sum("date")})
 
 
 def test_optimization_and_rejection_do_not_mutate_fitted_state(
@@ -886,10 +861,10 @@ def test_optimization_and_rejection_do_not_mutate_fitted_state(
     stored_training = fitted.model._training_data.copy(deep=True)
     saturation = fitted.media.expr.transformation
     prior = saturation.function_priors["beta"].to_dict()
-    optimize(**_arguments(fitted))
+    Problem(**_arguments(fitted)).solve(fitted.future[["spend"]])
     xr.testing.assert_identical(fitted.model._training_data, stored_training)
     with pytest.raises(ValueError):
-        optimize(**_arguments(fitted, inputs=[]))
+        Problem(**_arguments(fitted, bounds={}))
     assert fitted.model.model is model
     assert model.coords == coords
     xr.testing.assert_identical(_posterior(fitted), posterior)
@@ -938,8 +913,7 @@ def test_optimizer_inputs_reject_inexact_or_nonreal_values_without_mutation(
         kwargs = _arguments(
             fitted,
             terms=fitted.price,
-            inputs=[fitted.price],
-            data=data,
+            dates=data.indexes["date"],
             history=history,
             objective=lambda e, u: e(u)["term"].sum("date"),
             bounds={"price": (data["price"], data["price"])},
@@ -949,29 +923,26 @@ def test_optimizer_inputs_reject_inexact_or_nonreal_values_without_mutation(
         kwargs = _arguments(
             fitted,
             terms=fitted.level,
-            inputs=[fitted.level],
-            data=data,
             objective=lambda e, u: e(u)["term"],
-            bounds={"level": (value, value)},
+            bounds={"level": (-np.inf, np.inf)},
         )
     data_before = data.copy(deep=True)
     history_before = None if history is None else history.copy(deep=True)
     problem = None
     if source == "numeric-evaluator":
-        problem = _build_problem(
+        problem = Problem(
             **{
                 **kwargs,
-                "data": xr.Dataset({"level": 1.0}),
                 "bounds": {"level": (1.0, 1.0)},
             }
         )
     with pytest.raises(ValueError, match=message):
         if problem is None:
-            optimize(**kwargs)
+            Problem(**kwargs).solve(data)
         else:
-            problem.evaluator.evaluate(data)
+            problem.evaluate(data)
     if problem is not None:
-        accepted = problem.evaluator.evaluate(xr.Dataset({"level": 1.0}))
+        accepted = problem.evaluate(xr.Dataset({"level": 1.0}))
         assert float(accepted["term"]) == 1.0
     xr.testing.assert_identical(data, data_before)
     for name in data.data_vars:
@@ -997,14 +968,12 @@ def test_optimizer_integer_precision_endpoints_preserve_original_units(
     kwargs = _arguments(
         fitted,
         terms=fitted.level,
-        inputs=[fitted.level],
-        data=data,
         objective=lambda e, u: e(u)["term"],
         bounds={"level": (value, value)},
     )
-    evaluated = _build_problem(**kwargs).evaluator.evaluate(data)["term"]
+    evaluated = Problem(**kwargs).evaluate(data)["term"]
     assert float(evaluated) == value
-    result = optimize(**kwargs)
+    result = Problem(**kwargs).solve(data)
     assert result.scipy.success and result.feasible
     assert float(result.allocation["level"]) == value
     assert result.objective == value
@@ -1038,23 +1007,22 @@ def test_history_precision_endpoints_are_owned_and_preserve_carryover(
     kwargs = _arguments(
         fitted,
         terms=term,
-        inputs=[fitted.price],
-        data=data,
+        dates=data.indexes["date"],
         history=history,
         objective=lambda e, u: e(u)["term"].sum("date"),
         bounds={"price": (0.0, 0.0)},
     )
     # With lag weights [1, 1/2, 1/4], both signed endpoints contribute to the scored carryover.
     expected = data["price"].copy(data=np.asarray([2**51, 2**51], dtype="float64"))
-    result = optimize(**kwargs)
+    result = Problem(**kwargs).solve(data)
     assert result.scipy.success and result.feasible
     assert result.objective == 2**52
     np.testing.assert_array_equal(result.allocation["price"], 0.0)
-    problem = _build_problem(**kwargs)
+    problem = Problem(**kwargs)
     xr.testing.assert_identical(history, before)
     assert history["price"].dtype == np.dtype(dtype)
     history["price"].values[:] = 0
-    evaluated = problem.evaluator.evaluate(data)["term"]
+    evaluated = problem.evaluate(data)["term"]
     xr.testing.assert_allclose(evaluated, expected, atol=0.0, rtol=0.0)
 
 
@@ -1065,12 +1033,11 @@ def test_stochastic_equations_cannot_be_targets_or_dependencies(
     equation = fitted.model.equations[0]
     term = Transform(equation, pmd.math.square) if nested else equation
     with pytest.raises(ValueError):
-        optimize(
+        Problem(
             **_arguments(
                 fitted,
                 terms=term,
-                inputs=[fitted.spend, fitted.price, fitted.weights, fitted.level],
-                data=fitted.train,
+                dates=fitted.train.indexes["date"],
             )
         )
 
@@ -1080,7 +1047,7 @@ def test_same_name_foreign_parameter_does_not_borrow_a_fitted_posterior(
 ) -> None:
     foreign = Parameter("preference", Prior("HalfNormal", sigma=2, dims="channel"))
     with pytest.raises(ValueError):
-        optimize(**_arguments(fitted, terms=foreign * fitted.spend))
+        Problem(**_arguments(fitted, terms=foreign * fitted.spend))
 
 
 def test_fitted_reference_exposes_complete_data_dependencies(
@@ -1088,26 +1055,23 @@ def test_fitted_reference_exposes_complete_data_dependencies(
 ) -> None:
     term = Ref("media") * fitted.level
     with pytest.raises(ValueError):
-        _build_problem(
+        Problem(
             **_arguments(
                 fitted,
                 terms=term,
-                inputs=[fitted.level],
-                data=fitted.future.assign(level=2.0),
+                bounds={"level": (1.0, 3.0)},
             )
         )
-    problem = _build_problem(
+    problem = Problem(
         **_arguments(
             fitted,
             terms=term,
-            inputs=[fitted.level, fitted.spend],
-            data=fitted.future[["spend"]].assign(level=2.0),
             bounds={"spend": (0.0, 2.5), "level": (1.0, 3.0)},
         )
     )
     expected = 2 * _media(_posterior(fitted), fitted.future["spend"].values)
     np.testing.assert_allclose(
-        problem.evaluator.evaluate(fitted.future[["spend"]].assign(level=2.0))["term"]
+        problem.evaluate(fitted.future[["spend"]].assign(level=2.0))["term"]
         .transpose("sample", "date", "channel")
         .values,
         expected.reshape((-1, fitted.future.sizes["date"], 2)),
@@ -1127,7 +1091,7 @@ def test_objective_requires_every_reduction_to_be_explicit(
         return value
 
     with pytest.raises(ValueError):
-        optimize(**_arguments(fitted, objective=objective))
+        Problem(**_arguments(fitted, objective=objective))
 
 
 @pytest.mark.parametrize("kind", ["unknown-dimension", "sliced-date"])
@@ -1143,9 +1107,7 @@ def test_constraints_must_have_complete_labeled_dimensions(
         )
 
     with pytest.raises(ValueError):
-        optimize(
-            **_arguments(fitted, constraints=[{"type": "ineq", "fun": constraint}])
-        )
+        Problem(**_arguments(fitted, constraints=[{"type": "ineq", "fun": constraint}]))
 
 
 @pytest.mark.parametrize("kind", ["scenario", "bound", "unlabeled-bound", "constant"])
@@ -1153,10 +1115,9 @@ def test_mismatched_or_unlabeled_coordinate_values_are_rejected(
     fitted: FittedProblem, kind: str
 ) -> None:
     changes: dict[str, Any] = {}
+    data = fitted.future[["spend"]]
     if kind == "scenario":
-        changes["data"] = fitted.future[["spend"]].assign_coords(
-            channel=["other", "radio"]
-        )
+        data = data.assign_coords(channel=["other", "radio"])
     elif kind in {"bound", "unlabeled-bound"}:
         cap = xr.DataArray(
             [1.0, 2.0],
@@ -1170,26 +1131,24 @@ def test_mismatched_or_unlabeled_coordinate_values_are_rejected(
             (u["spend"] * e.constant(constant)).sum("date").sum("channel")
         )
     with pytest.raises(ValueError):
-        optimize(**_arguments(fitted, **changes))
+        Problem(**_arguments(fitted, **changes)).solve(data)
 
 
 @pytest.mark.parametrize("required", [0.0, 1.0])
 def test_all_fixed_scalar_bounds_report_feasible_and_infeasible_problems(
     fitted: FittedProblem, required: float
 ) -> None:
-    result = optimize(
+    result = Problem(
         **_arguments(
             fitted,
             terms=fitted.level,
-            inputs=[fitted.level],
-            data=xr.Dataset({"level": 0.0}),
             objective=lambda e, u: -((e(u)["term"] - 3.0) ** 2),
             bounds={"level": (0.0, 0.0)},
             constraints=[
                 {"type": "eq", "fun": lambda e, u: u["level"] - required, "scale": 2.0}
             ],
         )
-    )
+    ).solve(xr.Dataset({"level": 0.0}))
     assert result.allocation["level"].dims == ()
     assert float(result.allocation["level"]) == 0.0
     assert result.objective == -9.0
@@ -1205,20 +1164,17 @@ def test_unbounded_zero_start_needs_an_explicit_scale(fitted: FittedProblem) -> 
     kwargs = _arguments(
         fitted,
         terms=fitted.level,
-        inputs=[fitted.level],
-        data=xr.Dataset({"level": 0.0}),
-        bounds=None,
+        bounds={"level": (-np.inf, np.inf)},
         objective=lambda e, u: -((e(u)["term"] - 7.0) ** 2),
     )
     with pytest.raises(ValueError):
-        optimize(**kwargs)
-    result = optimize(
+        Problem(**kwargs).solve(xr.Dataset({"level": 0.0}))
+    result = Problem(
         **{
             **kwargs,
             "scaling": {"decisions": {"level": 2.0}, "objective": 10.0},
-            "options": {"ftol": 1e-12},
         }
-    )
+    ).solve(xr.Dataset({"level": 0.0}), options={"ftol": 1e-12})
     assert result.scipy.success
     assert result.feasible
     np.testing.assert_allclose(float(result.allocation["level"]), 7.0, atol=1e-9)
@@ -1238,12 +1194,10 @@ def test_every_explicit_scale_is_positive_and_finite(
     }
     constraint_scale = invalid if category == "constraint" else 1.0
     with pytest.raises(ValueError):
-        optimize(
+        Problem(
             **_arguments(
                 fitted,
                 terms=fitted.level,
-                inputs=[fitted.level],
-                data=xr.Dataset({"level": 1.0}),
                 objective=lambda e, u: -((u["level"] - 0.5) ** 2),
                 bounds={"level": (0.0, 2.0)},
                 scaling=scaling,
@@ -1255,26 +1209,26 @@ def test_every_explicit_scale_is_positive_and_finite(
                     }
                 ],
             )
-        )
+        ).solve(xr.Dataset({"level": 1.0}))
 
 
 def test_initial_values_outside_bounds_are_not_silently_clipped(
     fitted: FittedProblem,
 ) -> None:
     with pytest.raises(ValueError):
-        optimize(**_arguments(fitted, bounds={"spend": (0.0, 0.5)}))
+        Problem(**_arguments(fitted, bounds={"spend": (0.0, 0.5)})).solve(
+            fitted.future[["spend"]]
+        )
 
 
 @pytest.mark.parametrize("tolerance", [0.001, 0.01])
 def test_feasibility_uses_scaled_residuals_not_absolute_original_units(
     fitted: FittedProblem, tolerance: float
 ) -> None:
-    result = optimize(
+    result = Problem(
         **_arguments(
             fitted,
             terms=fitted.level,
-            inputs=[fitted.level],
-            data=xr.Dataset({"level": 0.0}),
             objective=lambda e, u: u["level"],
             bounds={"level": (0.0, 0.0)},
             constraints=[
@@ -1285,9 +1239,8 @@ def test_feasibility_uses_scaled_residuals_not_absolute_original_units(
                     "scale": 10.0,
                 },
             ],
-            feasibility_tol=tolerance,
         )
-    )
+    ).solve(xr.Dataset({"level": 0.0}), feasibility_tol=tolerance)
     np.testing.assert_allclose(
         [float(value) for value in result.constraints], [0.01, -0.02]
     )
@@ -1304,7 +1257,9 @@ def test_feasibility_tolerance_requires_one_positive_finite_scalar(
     fitted: FittedProblem, invalid: Any
 ) -> None:
     with pytest.raises(ValueError, match="feasibility_tol"):
-        optimize(**_arguments(fitted, feasibility_tol=invalid))
+        Problem(**_arguments(fitted)).solve(
+            fitted.future[["spend"]], feasibility_tol=invalid
+        )
 
 
 def test_solver_success_does_not_override_decoded_infeasibility(
@@ -1313,12 +1268,10 @@ def test_solver_success_does_not_override_decoded_infeasibility(
     required = 1e-8
     tolerance = 1e-12
     with pytest.warns(RuntimeWarning):
-        result = optimize(
+        result = Problem(
             **_arguments(
                 fitted,
                 terms=fitted.level,
-                inputs=[fitted.level],
-                data=xr.Dataset({"level": 0.0}),
                 objective=lambda e, u: -(u["level"] ** 2),
                 bounds={"level": (-1.0, 1.0)},
                 scaling={"objective": 1.0},
@@ -1329,9 +1282,11 @@ def test_solver_success_does_not_override_decoded_infeasibility(
                         "scale": 1.0,
                     }
                 ],
-                options={"ftol": 1e-3},
-                feasibility_tol=tolerance,
             )
+        ).solve(
+            xr.Dataset({"level": 0.0}),
+            options={"ftol": 1e-3},
+            feasibility_tol=tolerance,
         )
     residual = float(result.allocation["level"]) - required
     assert result.scipy.success
@@ -1345,17 +1300,14 @@ def test_solver_success_does_not_override_decoded_infeasibility(
 def test_solver_iteration_limit_does_not_mean_allocation_is_infeasible(
     fitted: FittedProblem,
 ) -> None:
-    result = optimize(
+    result = Problem(
         **_arguments(
             fitted,
             terms=fitted.level,
-            inputs=[fitted.level],
-            data=xr.Dataset({"level": 0.5}),
             objective=lambda e, u: -((u["level"] - 1.2) ** 2),
             bounds={"level": (0.0, 2.0)},
-            options={"maxiter": 1},
         )
-    )
+    ).solve(xr.Dataset({"level": 0.5}), options={"maxiter": 1})
     assert not result.scipy.success
     assert result.feasible
     assert 0 <= float(result.allocation["level"]) <= 2
@@ -1369,29 +1321,27 @@ def test_fixed_variables_cannot_dilute_movable_objective_or_constraint_scales(
     literal_kwargs = _arguments(
         fitted,
         terms=fitted.level,
-        inputs=[fitted.level],
-        data=xr.Dataset({"level": 0.5}),
         objective=lambda e, u: e(u)["term"],
         bounds={"level": (0.0, 1.0)},
         constraints=[{"type": "eq", "fun": lambda e, u: e(u)["term"] - 1.0}],
     )
-    literal = optimize(**literal_kwargs)
+    literal = Problem(**literal_kwargs).solve(xr.Dataset({"level": 0.5}))
     assert literal.scipy.success and literal.feasible
     for coefficient in (1.0, 1e9):
         term = fitted.level + coefficient * fitted.weights.sum("channel")
-        problem = _build_problem(
+        problem = Problem(
             **{
                 **literal_kwargs,
                 "terms": term,
-                "inputs": [fitted.weights, fitted.level],
-                "data": xr.Dataset(
-                    {
-                        "level": 0.5,
-                        "channel_weight": xr.zeros_like(fitted.train["channel_weight"]),
-                    }
-                ),
                 "bounds": {"level": (0.0, 1.0), "channel_weight": (0.0, 0.0)},
             }
+        )._prepare(
+            xr.Dataset(
+                {
+                    "level": 0.5,
+                    "channel_weight": xr.zeros_like(fitted.train["channel_weight"]),
+                }
+            )
         )
         values = problem.raw(problem.to_z(problem.initial))
         np.testing.assert_array_equal(values[1], [0.0, 0.0, 1.0])
@@ -1412,7 +1362,7 @@ def test_fixed_variables_cannot_dilute_movable_objective_or_constraint_scales(
         np.testing.assert_array_equal(result.allocation["channel_weight"], 0.0)
 
 
-def test_public_fit_save_load_and_optimize_preserves_posterior_behavior(
+def test_public_fit_save_load_and_solve_preserves_posterior_behavior(
     fitted: FittedProblem, tmp_path: Path
 ) -> None:
     path = tmp_path / "optimizer.zarr"
@@ -1434,11 +1384,12 @@ def test_public_fit_save_load_and_optimize_preserves_posterior_behavior(
                 ),
             }
         ],
-        options={"ftol": 1e-11},
     )
-    original = optimize(**kwargs)
-    restored = optimize(
-        **{**kwargs, "model": loaded, "terms": media, "inputs": [Data("spend")]}
+    original = Problem(**kwargs).solve(
+        fitted.future[["spend"]], options={"ftol": 1e-11}
+    )
+    restored = Problem(**{**kwargs, "model": loaded, "terms": media}).solve(
+        fitted.future[["spend"]], options={"ftol": 1e-11}
     )
     assert original.scipy.success and restored.scipy.success
     assert original.feasible and restored.feasible
@@ -1458,7 +1409,7 @@ def test_decision_dimension_sets_cannot_change_after_fitting(
         else fitted.future[["spend"]].rename(channel="route")
     )
     with pytest.raises(ValueError):
-        optimize(**_arguments(fitted, data=data))
+        Problem(**_arguments(fitted)).solve(data)
 
 
 def test_dated_posterior_parameters_are_selected_by_date_labels(
@@ -1468,23 +1419,22 @@ def test_dated_posterior_parameters_are_selected_by_date_labels(
     kwargs = _arguments(
         fitted,
         terms=fitted.dated + fitted.price,
-        inputs=[fitted.price],
-        data=data,
+        dates=data.indexes["date"],
         objective=lambda e, u: e(u)["term"].sum("date").mean("sample"),
         bounds={"price": (0.0, 2.0)},
     )
-    problem = _build_problem(**kwargs)
+    problem = Problem(**kwargs)
     expected = (
         (_posterior(fitted)["dated_beta"].isel(date=[2, 4, 7]) + data["price"])
         .stack(sample=("chain", "draw"))
         .transpose("sample", "date")
     )
-    evaluated = problem.evaluator.evaluate(data)["term"].transpose("sample", "date")
+    evaluated = problem.evaluate(data)["term"].transpose("sample", "date")
     np.testing.assert_array_equal(evaluated["date"].values, data["date"].values)
     np.testing.assert_allclose(evaluated.values, expected.values, atol=1e-10)
     wrong_dates = data.assign_coords(date=data["date"] + pd.Timedelta(days=1))
     with pytest.raises(ValueError):
-        _build_problem(**{**kwargs, "data": wrong_dates})
+        Problem(**{**kwargs, "dates": wrong_dates.indexes["date"]})
 
 
 def test_static_decisions_upstream_of_temporal_history_are_rejected(
@@ -1495,14 +1445,10 @@ def test_static_decisions_upstream_of_temporal_history_are_rejected(
         GeometricAdstock(l_max=L_MAX, priors={"alpha": ALPHA}, prefix="upstream"),
     )
     with pytest.raises(ValueError):
-        _build_problem(
+        Problem(
             **_arguments(
                 fitted,
                 terms=term,
-                inputs=[fitted.spend, fitted.weights],
-                data=fitted.future[["spend"]].assign(
-                    channel_weight=fitted.train["channel_weight"]
-                ),
                 history=fitted.train[["spend"]].isel(date=slice(-2, None)),
                 objective=lambda e, u: e(u)["term"].sum("date").sum("channel"),
                 bounds={"spend": (0.0, 2.5), "channel_weight": (0.1, 2.0)},
@@ -1516,24 +1462,21 @@ def test_temporal_history_cannot_skip_a_measurement_period(
     history = fitted.train[["spend"]].isel(date=slice(-2, None))
     history = history.assign_coords(date=history["date"] - pd.Timedelta(weeks=1))
     with pytest.raises(ValueError):
-        _build_problem(**_arguments(fitted, history=history))
+        Problem(**_arguments(fitted, history=history))
 
 
 def test_satisfied_constant_equalities_do_not_block_a_nonconstant_objective(
     fitted: FittedProblem,
 ) -> None:
-    result = optimize(
+    result = Problem(
         **_arguments(
             fitted,
             terms=fitted.level,
-            inputs=[fitted.level],
-            data=xr.Dataset({"level": 0.3}),
             objective=lambda e, u: -((u["level"] - 1.3) ** 2),
             bounds={"level": (0.0, 2.0)},
             constraints=[{"type": "eq", "fun": lambda e, u: 0.0 * u["level"]}],
-            options={"ftol": 1e-12},
         )
-    )
+    ).solve(xr.Dataset({"level": 0.3}), options={"ftol": 1e-12})
     assert result.scipy.success and result.feasible
     np.testing.assert_allclose(float(result.allocation["level"]), 1.3, atol=1e-9)
     np.testing.assert_allclose(result.objective, 0.0, atol=1e-15)
@@ -1547,12 +1490,10 @@ def test_mixed_constant_and_dependent_equality_rows_preserve_labels_and_scales(
     mask = target.copy(data=[0.0, 1.0])
     required = target.copy(data=[0.0, 0.8])
     scales = target.copy(data=[17.0, 0.03])
-    result = optimize(
+    result = Problem(
         **_arguments(
             fitted,
             terms=fitted.weights,
-            inputs=[fitted.weights],
-            data=xr.Dataset({"channel_weight": target.copy(data=[0.2, 0.5])}),
             objective=lambda e, u: (
                 -((u["channel_weight"] - e.constant(target)) ** 2).sum("channel")
             ),
@@ -1566,8 +1507,10 @@ def test_mixed_constant_and_dependent_equality_rows_preserve_labels_and_scales(
                     "scale": scales,
                 }
             ],
-            options={"ftol": 1e-12},
         )
+    ).solve(
+        xr.Dataset({"channel_weight": target.copy(data=[0.2, 0.5])}),
+        options={"ftol": 1e-12},
     )
     assert result.scipy.success and result.feasible
     expected = target.copy(data=[1.3, 0.8])
@@ -1586,8 +1529,6 @@ def test_connected_stationary_zero_expressions_require_explicit_scales(
     kwargs = _arguments(
         fitted,
         terms=fitted.level,
-        inputs=[fitted.level],
-        data=xr.Dataset({"level": 2.0}),
         bounds={"level": (0.0, 4.0)},
         objective=(
             (lambda e, u: -((u["level"] - 2.0) ** 2))
@@ -1601,12 +1542,12 @@ def test_connected_stationary_zero_expressions_require_explicit_scales(
         ),
     )
     with pytest.raises(ValueError):
-        _build_problem(**kwargs)
+        Problem(**kwargs)._prepare(xr.Dataset({"level": 2.0}))
     if category == "objective":
         kwargs["scaling"] = {"objective": 4.0}
     else:
         kwargs["constraints"][0]["scale"] = 4.0
-    problem = _build_problem(**kwargs)
+    problem = Problem(**kwargs)._prepare(xr.Dataset({"level": 2.0}))
     values = problem.raw(problem.to_z({"level": xr.DataArray(3.0)}))
     if category == "objective":
         np.testing.assert_allclose(values[0], -1.0)
@@ -1626,12 +1567,10 @@ def test_fixed_zero_equality_rows_do_not_block_movable_coordinates(
 ) -> None:
     required = xr.DataArray([0.0, 0.8], dims="channel", coords={"channel": CHANNELS})
     unconstrained = required.copy(data=[1.3, 1.4])
-    result = optimize(
+    result = Problem(
         **_arguments(
             fitted,
             terms=fitted.weights,
-            inputs=[fitted.weights],
-            data=xr.Dataset({"channel_weight": required.copy(data=[0.0, 0.5])}),
             objective=lambda e, u: (
                 -((e(u)["term"] - e.constant(unconstrained)) ** 2).sum("channel")
             ),
@@ -1642,8 +1581,10 @@ def test_fixed_zero_equality_rows_do_not_block_movable_coordinates(
                     "fun": lambda e, u: u["channel_weight"] - e.constant(required),
                 }
             ],
-            options={"ftol": 1e-12},
         )
+    ).solve(
+        xr.Dataset({"channel_weight": required.copy(data=[0.0, 0.5])}),
+        options={"ftol": 1e-12},
     )
     assert result.scipy.success and result.feasible
     xr.testing.assert_allclose(result.allocation["channel_weight"], required, atol=1e-9)
@@ -1670,12 +1611,10 @@ def test_decoded_rounding_is_reported_in_original_objective_and_residual_units(
     offset = 0.3
     tolerance = 1e-9
     with pytest.warns(RuntimeWarning):
-        result = optimize(
+        result = Problem(
             **_arguments(
                 fitted,
                 terms=fitted.level,
-                inputs=[fitted.level],
-                data=xr.Dataset({"level": origin}),
                 objective=lambda e, u: -((e(u)["term"] - origin) ** 2),
                 bounds={"level": (origin, origin + 1.0)},
                 scaling={"objective": 1.0},
@@ -1686,9 +1625,11 @@ def test_decoded_rounding_is_reported_in_original_objective_and_residual_units(
                         "scale": 1.0,
                     }
                 ],
-                options={"ftol": 1e-12},
-                feasibility_tol=tolerance,
             )
+        ).solve(
+            xr.Dataset({"level": origin}),
+            options={"ftol": 1e-12},
+            feasibility_tol=tolerance,
         )
     allocation = float(result.allocation["level"])
     residual = np.float64(allocation) - np.float64(origin) - offset
@@ -1722,13 +1663,12 @@ def test_constraint_axis_lengths_cannot_be_reshaped_to_fit_equal_total_size(
 
     data = fitted.future[["spend"]].assign(spend=xr.ones_like(fitted.future["spend"]))
     with pytest.raises(ValueError):
-        optimize(
+        Problem(
             **_arguments(
                 fitted,
-                data=data,
                 constraints=[{"type": "ineq", "fun": constraint}],
             )
-        )
+        ).solve(data)
 
 
 @pytest.mark.parametrize(
@@ -1747,7 +1687,7 @@ def test_history_targets_cannot_slice_or_permute_dates_before_callback_scoring(
     before = history.copy(deep=True)
     term = Transform(fitted.media, lambda value: value.isel(date=indexer))
     with pytest.raises(ValueError):
-        optimize(**_arguments(fitted, terms=term, history=history))
+        Problem(**_arguments(fitted, terms=term, history=history))
     xr.testing.assert_identical(history, before)
 
 
@@ -1761,7 +1701,7 @@ def test_date_reduced_decision_factors_cannot_rewrite_adstock_history(
         ),
     )
     with pytest.raises(ValueError):
-        optimize(
+        Problem(
             **_arguments(
                 fitted,
                 terms=term,
@@ -1778,8 +1718,8 @@ def test_new_wrappers_align_channel_factors_to_fitted_posterior_identities(
     term = (fitted.left * factors.isel(channel=[1, 0]) + fitted.right).named(
         "weighted_preference"
     )
-    problem = _build_problem(**_arguments(fitted, terms=term))
-    evaluated = problem.evaluator.evaluate(fitted.future[["spend"]])["term"].transpose(
+    problem = Problem(**_arguments(fitted, terms=term))
+    evaluated = problem.evaluate(fitted.future[["spend"]])["term"].transpose(
         "sample", "date", "channel"
     )
     posterior = _posterior(fitted)
@@ -1796,7 +1736,7 @@ def test_new_wrappers_align_channel_factors_to_fitted_posterior_identities(
     )
     xr.testing.assert_allclose(evaluated, expected, atol=1e-10)
 
-    result = problem.solve(options={"ftol": 1e-12})
+    result = problem.solve(fitted.future[["spend"]], options={"ftol": 1e-12})
     target = ((factors * LEFT + RIGHT) / (factors + 1.0)).broadcast_like(
         fitted.future["spend"]
     )
@@ -1821,7 +1761,7 @@ def test_new_wrapper_factors_cannot_introduce_mismatched_channel_labels(
         [0.5, 2.0], dims="channel", coords={"channel": ["other", "radio"]}
     )
     with pytest.raises(ValueError):
-        optimize(**_arguments(fitted, terms=fitted.left * factors + fitted.right))
+        Problem(**_arguments(fitted, terms=fitted.left * factors + fitted.right))
 
 
 def test_scalar_decisions_preserve_independent_dates_for_paired_posterior_terms(
@@ -1830,12 +1770,11 @@ def test_scalar_decisions_preserve_independent_dates_for_paired_posterior_terms(
     dated = _posterior(fitted)["dated_beta"].isel(date=[2, 4, 7])
     data = xr.Dataset({"level": 1.0}, coords={"date": dated["date"]})
     total = 6.0
-    problem = _build_problem(
+    problem = Problem(
         **_arguments(
             fitted,
             terms=fitted.dated + fitted.level,
-            inputs=[fitted.level],
-            data=data,
+            dates=data.indexes["date"],
             objective=lambda e, u: (
                 -((e(u)["term"].sum("date") - total) ** 2).mean("sample")
             ),
@@ -1847,10 +1786,10 @@ def test_scalar_decisions_preserve_independent_dates_for_paired_posterior_terms(
         .stack(sample=("chain", "draw"))
         .transpose("sample", "date")
     )
-    evaluated = problem.evaluator.evaluate(data)["term"].transpose("sample", "date")
+    evaluated = problem.evaluate(data)["term"].transpose("sample", "date")
     xr.testing.assert_allclose(evaluated, expected, atol=1e-10)
 
-    result = problem.solve(options={"ftol": 1e-12})
+    result = problem.solve(data, options={"ftol": 1e-12})
     target = (total - float(dated.mean(("chain", "draw")).sum("date"))) / len(
         dated["date"]
     )
@@ -1876,8 +1815,6 @@ def test_string_dates_align_caller_bounds_scales_and_callback_constants(
         return _arguments(
             fitted,
             terms=fitted.price,
-            inputs=[fitted.price],
-            data=data,
             objective=lambda e, u: (
                 -((e(u)["term"] - e.constant(target)) ** 2).sum("date")
             ),
@@ -1888,11 +1825,10 @@ def test_string_dates_align_caller_bounds_scales_and_callback_constants(
                 )
             },
             scaling={"decisions": {"price": data["price"].copy(data=[0.3, 2.0, 0.7])}},
-            options={"ftol": 1e-12},
         )
 
-    original = optimize(**arguments(canonical))
-    normalized = optimize(**arguments(strings))
+    original = Problem(**arguments(canonical)).solve(canonical, options={"ftol": 1e-12})
+    normalized = Problem(**arguments(strings)).solve(strings, options={"ftol": 1e-12})
     expected = canonical["price"].copy(data=[0.6, 1.0, 0.9])
     for result in (original, normalized):
         assert result.scipy.success and result.feasible
@@ -1919,7 +1855,7 @@ def test_string_dates_align_caller_bounds_scales_and_callback_constants(
         -((e(u)["term"] - e.constant(mismatched)) ** 2).sum("date")
     )
     with pytest.raises(ValueError):
-        optimize(**kwargs)
+        Problem(**kwargs)
 
 
 @pytest.mark.parametrize(
@@ -1939,7 +1875,6 @@ def test_matrix_fixed_zero_tail_equalities_preserve_every_reported_row(
     kwargs = _arguments(
         fitted,
         terms=fitted.spend,
-        data=xr.Dataset({"spend": initial}),
         objective=lambda e, u: -((e(u)["term"] - 1.0) ** 2).sum("date").sum("channel"),
         bounds={"spend": (0.0, upper)},
         constraints=[
@@ -1948,13 +1883,14 @@ def test_matrix_fixed_zero_tail_equalities_preserve_every_reported_row(
                 "fun": lambda e, u: u["spend"] - e.constant(required),
             }
         ],
-        options={"ftol": 1e-12},
     )
     if explicit_rows:
         kwargs["constraints"][0]["scale"] = row_scales.transpose(
             "channel", "date"
         ).isel(channel=[1, 0], date=[2, 0, 1])
-    result = optimize(**kwargs)
+    result = Problem(**kwargs).solve(
+        xr.Dataset({"spend": initial}), options={"ftol": 1e-12}
+    )
     allocation = result.allocation["spend"]
     assert result.scipy.success and result.feasible
     xr.testing.assert_allclose(allocation, required, atol=1e-9)
@@ -1980,13 +1916,11 @@ def test_all_fixed_objective_rejects_overflowing_solver_normalization(
     kwargs = _arguments(
         fitted,
         terms=fitted.level,
-        inputs=[fitted.level],
-        data=xr.Dataset({"level": 0.0}),
         objective=lambda e, u: 1.0 + e(u)["term"],
         bounds={"level": (0.0, 0.0)},
         scaling={"objective": 1e-300},
     )
-    result = optimize(**kwargs)
+    result = Problem(**kwargs).solve(xr.Dataset({"level": 0.0}))
     assert result.scipy.success and result.feasible
     assert float(result.allocation["level"]) == 0.0
     assert result.objective == 1.0
@@ -1994,7 +1928,9 @@ def test_all_fixed_objective_rejects_overflowing_solver_normalization(
     assert np.isfinite(result.scipy.fun)
     np.testing.assert_allclose(result.scipy.fun, -1e300)
     with pytest.raises(ValueError):
-        optimize(**{**kwargs, "scaling": {"objective": 1e-320}})
+        Problem(**{**kwargs, "scaling": {"objective": 1e-320}}).solve(
+            xr.Dataset({"level": 0.0})
+        )
 
 
 def test_all_fixed_constraint_rejects_overflowing_normalized_residual(
@@ -2003,8 +1939,6 @@ def test_all_fixed_constraint_rejects_overflowing_normalized_residual(
     kwargs = _arguments(
         fitted,
         terms=fitted.level,
-        inputs=[fitted.level],
-        data=xr.Dataset({"level": 0.0}),
         objective=lambda e, u: 1.0 + e(u)["term"],
         bounds={"level": (0.0, 0.0)},
         constraints=[
@@ -2015,7 +1949,7 @@ def test_all_fixed_constraint_rejects_overflowing_normalized_residual(
             }
         ],
     )
-    result = optimize(**kwargs)
+    result = Problem(**kwargs).solve(xr.Dataset({"level": 0.0}))
     assert not result.scipy.success and not result.feasible
     assert result.objective == 1.0
     assert float(result.constraints[0]) == -1.0
@@ -2023,7 +1957,7 @@ def test_all_fixed_constraint_rejects_overflowing_normalized_residual(
     assert result.max_constraint_violation == pytest.approx(1e300)
     kwargs["constraints"][0]["scale"] = 1e-320
     with pytest.raises(ValueError):
-        optimize(**kwargs)
+        Problem(**kwargs).solve(xr.Dataset({"level": 0.0}))
 
 
 @pytest.mark.parametrize("category", ["objective-gradient", "constraint-jacobian"])
@@ -2033,8 +1967,6 @@ def test_solver_normalized_derivatives_must_be_finite_when_values_are_zero(
     kwargs = _arguments(
         fitted,
         terms=fitted.level,
-        inputs=[fitted.level],
-        data=xr.Dataset({"level": 0.0}),
         objective=(
             (lambda e, u: e(u)["term"])
             if category == "objective-gradient"
@@ -2047,9 +1979,10 @@ def test_solver_normalized_derivatives_must_be_finite_when_values_are_zero(
             if category == "objective-gradient"
             else [{"type": "eq", "fun": lambda e, u: u["level"], "scale": 1.0}]
         ),
-        options={"ftol": 1e-12},
     )
-    result = optimize(**kwargs)
+    result = Problem(**kwargs).solve(
+        xr.Dataset({"level": 0.0}), options={"ftol": 1e-12}
+    )
     assert result.scipy.success and result.feasible
     assert np.isfinite(result.scipy.jac).all()
     np.testing.assert_allclose(
@@ -2068,7 +2001,7 @@ def test_solver_normalized_derivatives_must_be_finite_when_values_are_zero(
         np.testing.assert_allclose(result.constraints[0], 0.0, atol=1e-12)
         kwargs["constraints"][0]["scale"] = 1e-320
     with pytest.raises(ValueError):
-        optimize(**kwargs)
+        Problem(**kwargs).solve(xr.Dataset({"level": 0.0}))
 
 
 @pytest.mark.parametrize("reduction", ["channel-sum", "scalar-channel-selection"])
@@ -2083,7 +2016,7 @@ def test_channel_reductions_preserve_fixed_history_and_scenario_dates(
         if reduction == "channel-sum"
         else Transform(fitted.media, lambda value: value.isel(channel=0))
     )
-    problem = _build_problem(
+    problem = Problem(
         **_arguments(
             fitted,
             terms=term,
@@ -2098,14 +2031,12 @@ def test_channel_reductions_preserve_fixed_history_and_scenario_dates(
         expected = (
             response.sum(axis=-1) if reduction == "channel-sum" else response[..., 0]
         )
-        evaluated = problem.evaluator.evaluate(scenario)["term"].transpose(
-            "sample", "date"
-        )
+        evaluated = problem.evaluate(scenario)["term"].transpose("sample", "date")
         np.testing.assert_array_equal(evaluated["date"], scenario["date"])
         np.testing.assert_allclose(
             evaluated.values, expected.reshape((-1, data.sizes["date"])), atol=1e-10
         )
-    result = problem.solve(options={"ftol": 1e-11})
+    result = problem.solve(data, options={"ftol": 1e-11})
     combined = np.concatenate(
         [history["spend"].values, result.allocation["spend"].values]
     )
@@ -2142,7 +2073,7 @@ def test_actual_fitted_posterior_factors_can_precede_adstock_with_history(
     history = fitted.train[["spend"]].isel(date=slice(-2, None))
     before = history.copy(deep=True)
     data = fitted.future[["spend"]]
-    problem = _build_problem(**_arguments(fitted, terms=term, history=history))
+    problem = Problem(**_arguments(fitted, terms=term, history=history))
     factors = _posterior(fitted)["preference"].transpose("chain", "draw", "channel")
     for scenario in (data, data.assign(spend=0.7 * data["spend"])):
         combined = np.concatenate([history["spend"].values, scenario["spend"].values])
@@ -2150,7 +2081,7 @@ def test_actual_fitted_posterior_factors_can_precede_adstock_with_history(
             factors.values[:, :, None, :]
             * _adstock(combined)[None, None, history.sizes["date"] :, :]
         )
-        evaluated = problem.evaluator.evaluate(scenario)["term"].transpose(
+        evaluated = problem.evaluate(scenario)["term"].transpose(
             "sample", "date", "channel"
         )
         np.testing.assert_array_equal(evaluated["date"], scenario["date"])
@@ -2159,7 +2090,7 @@ def test_actual_fitted_posterior_factors_can_precede_adstock_with_history(
             expected.reshape((-1, data.sizes["date"], len(CHANNELS))),
             atol=1e-10,
         )
-    result = problem.solve(options={"ftol": 1e-11})
+    result = problem.solve(data, options={"ftol": 1e-11})
     combined = np.concatenate(
         [history["spend"].values, result.allocation["spend"].values]
     )
@@ -2182,21 +2113,17 @@ def test_decision_factors_after_adstock_do_not_rewrite_measured_history(
     history = fitted.train[["spend"]].isel(date=slice(-2, None))
     before = history.copy(deep=True)
     data = fitted.future[["spend"]]
-    inputs = [fitted.spend]
     bounds: dict[str, Any] = {"spend": (0.0, 2.5)}
     if factor_kind == "date-decision":
         term = fitted.media * fitted.spend.sum("channel")
     else:
         term = fitted.media * fitted.weights
         data = data.assign(channel_weight=fitted.train["channel_weight"])
-        inputs.append(fitted.weights)
         bounds["channel_weight"] = (0.1, 2.0)
-    problem = _build_problem(
+    problem = Problem(
         **_arguments(
             fitted,
             terms=term,
-            inputs=inputs,
-            data=data,
             bounds=bounds,
             history=history,
         )
@@ -2213,7 +2140,7 @@ def test_decision_factors_after_adstock_do_not_rewrite_measured_history(
             if factor_kind == "date-decision"
             else scenario["channel_weight"].values
         )
-        evaluated = problem.evaluator.evaluate(scenario)["term"].transpose(
+        evaluated = problem.evaluate(scenario)["term"].transpose(
             "sample", "date", "channel"
         )
         np.testing.assert_array_equal(evaluated["date"], scenario["date"])
@@ -2222,7 +2149,7 @@ def test_decision_factors_after_adstock_do_not_rewrite_measured_history(
             expected.reshape((-1, data.sizes["date"], len(CHANNELS))),
             atol=1e-10,
         )
-    result = problem.solve(options={"ftol": 1e-11})
+    result = problem.solve(data, options={"ftol": 1e-11})
     allocation = result.allocation
     combined = np.concatenate([history["spend"].values, allocation["spend"].values])
     response = _media(posterior, combined)[:, :, history.sizes["date"] :]
@@ -2251,7 +2178,7 @@ def test_channel_mean_before_adstock_uses_shape_not_historical_decision_values(
     history = fitted.train[["spend"]].isel(date=slice(-2, None))
     before = history.copy(deep=True)
     data = fitted.future[["spend"]]
-    problem = _build_problem(
+    problem = Problem(
         **_arguments(
             fitted,
             terms=term,
@@ -2266,11 +2193,11 @@ def test_channel_mean_before_adstock_uses_shape_not_historical_decision_values(
         expected = np.convolve(combined.mean(axis=1), weights)[: len(combined)][
             history.sizes["date"] :
         ]
-        evaluated = problem.evaluator.evaluate(scenario)["term"]
+        evaluated = problem.evaluate(scenario)["term"]
         assert evaluated.dims == ("date",)
         np.testing.assert_array_equal(evaluated["date"], scenario["date"])
         np.testing.assert_allclose(evaluated.values, expected, atol=1e-10)
-    result = problem.solve(options={"ftol": 1e-11})
+    result = problem.solve(data, options={"ftol": 1e-11})
     combined = np.concatenate(
         [history["spend"].values, result.allocation["spend"].values]
     )
@@ -2293,7 +2220,11 @@ def test_named_boolean_date_mask_cannot_discard_history_before_scenario_cropping
         fitted.media, lambda value: value.isel(date=("date", np.array([False, True])))
     )
     with pytest.raises(ValueError):
-        optimize(**_arguments(fitted, terms=term, history=history, data=data))
+        Problem(
+            **_arguments(
+                fitted, terms=term, history=history, dates=data.indexes["date"]
+            )
+        )
     xr.testing.assert_identical(history, before)
 
 
@@ -2311,14 +2242,14 @@ def test_complete_named_date_identity_indices_preserve_history_outputs(
         else np.arange(-length, 0)
     )
     term = Transform(fitted.media, lambda value: value.isel(date=("date", index)))
-    problem = _build_problem(
-        **_arguments(fitted, terms=term, history=history, data=data)
+    problem = Problem(
+        **_arguments(fitted, terms=term, history=history, dates=data.indexes["date"])
     )
     posterior = _posterior(fitted)
     for scenario in (data, data.assign(spend=0.7 * data["spend"])):
         combined = np.concatenate([history["spend"].values, scenario["spend"].values])
         expected = _media(posterior, combined)[:, :, history.sizes["date"] :]
-        evaluated = problem.evaluator.evaluate(scenario)["term"].transpose(
+        evaluated = problem.evaluate(scenario)["term"].transpose(
             "sample", "date", "channel"
         )
         np.testing.assert_array_equal(evaluated["date"], scenario["date"])
@@ -2327,7 +2258,7 @@ def test_complete_named_date_identity_indices_preserve_history_outputs(
             expected.reshape((-1, data.sizes["date"], len(CHANNELS))),
             atol=1e-10,
         )
-    result = problem.solve(options={"ftol": 1e-11})
+    result = problem.solve(data, options={"ftol": 1e-11})
     combined = np.concatenate(
         [history["spend"].values, result.allocation["spend"].values]
     )
@@ -2355,9 +2286,8 @@ def test_fitted_date_constants_select_training_labels_without_positional_relabel
             for node in walk(model.equations)
             if isinstance(node, Named) and node.name == "dated_level"
         )
-        level = Data("level")
     else:
-        model, term, level = fitted.model, fitted.term, fitted.level
+        model, term = fitted.model, fitted.term
     assert model.idata is not None
     posterior_before = model.idata["posterior"].to_dataset().copy(deep=True)
     fitted_model = model.model
@@ -2367,19 +2297,18 @@ def test_fitted_date_constants_select_training_labels_without_positional_relabel
     kwargs = {
         "model": model,
         "terms": term,
-        "inputs": [level],
-        "data": data,
+        "dates": data.indexes["date"],
         "objective": lambda e, u: -((e(u)["term"].sum("date") - 30.0) ** 2),
         "bounds": {"level": (0.0, 20.0)},
     }
-    problem = _build_problem(**kwargs)
+    problem = Problem(**kwargs)
     selected = fitted.constant.sel(date=data["date"])
     for value in (1.0, 4.0, 10.0):
-        evaluated = problem.evaluator.evaluate(data.assign(level=value))["term"]
+        evaluated = problem.evaluate(data.assign(level=value))["term"]
         assert evaluated.dims == ("date",)
         np.testing.assert_array_equal(evaluated["date"], data["date"])
         xr.testing.assert_allclose(evaluated, value * selected, atol=1e-12)
-    result = problem.solve(options={"ftol": 1e-12})
+    result = problem.solve(data, options={"ftol": 1e-12})
     allocation = float(result.allocation["level"])
     assert result.scipy.success and result.feasible
     assert result.allocation["level"].dims == ()
@@ -2391,7 +2320,7 @@ def test_fitted_date_constants_select_training_labels_without_positional_relabel
     )
     wrong_dates = data.assign_coords(date=data["date"] + pd.Timedelta(days=1))
     with pytest.raises(ValueError):
-        optimize(**{**kwargs, "data": wrong_dates})
+        Problem(**{**kwargs, "dates": wrong_dates.indexes["date"]})
     assert model.model is fitted_model
     xr.testing.assert_identical(model.idata["posterior"].to_dataset(), posterior_before)
 
@@ -2409,7 +2338,7 @@ def test_new_date_constant_wrappers_align_the_full_history_and_scenario_axis(
     ).isel(date=[4, 2, 0, 3, 1])
     term = (fitted.media * constant).named("dated_media")
     kwargs = _arguments(fitted, terms=term, history=history)
-    problem = _build_problem(**kwargs)
+    problem = Problem(**kwargs)
     posterior = _posterior(fitted)
     factors = constant.sel(date=data["date"]).values
     for scenario in (data, data.assign(spend=0.7 * data["spend"])):
@@ -2418,7 +2347,7 @@ def test_new_date_constant_wrappers_align_the_full_history_and_scenario_axis(
             _media(posterior, combined)[:, :, history.sizes["date"] :]
             * factors[None, None, :, None]
         )
-        evaluated = problem.evaluator.evaluate(scenario)["term"].transpose(
+        evaluated = problem.evaluate(scenario)["term"].transpose(
             "sample", "date", "channel"
         )
         np.testing.assert_array_equal(evaluated["date"], scenario["date"])
@@ -2427,7 +2356,7 @@ def test_new_date_constant_wrappers_align_the_full_history_and_scenario_axis(
             expected.reshape((-1, data.sizes["date"], len(CHANNELS))),
             atol=1e-10,
         )
-    result = problem.solve(options={"ftol": 1e-11})
+    result = problem.solve(data, options={"ftol": 1e-11})
     combined = np.concatenate(
         [history["spend"].values, result.allocation["spend"].values]
     )
@@ -2444,7 +2373,7 @@ def test_new_date_constant_wrappers_align_the_full_history_and_scenario_axis(
         date=constant["date"] + pd.Timedelta(days=1)
     )
     with pytest.raises(ValueError):
-        optimize(**{**kwargs, "terms": fitted.media * wrong_constant})
+        Problem(**{**kwargs, "terms": fitted.media * wrong_constant})
     xr.testing.assert_identical(history, before)
 
 
@@ -2459,11 +2388,10 @@ def test_selected_deterministic_constant_dimensions_require_labels(
         else fitted.labeled * xr.DataArray([0.5, 2.0], dims="channel")
     )
     with pytest.raises(ValueError, match="constant dimension 'channel' must label"):
-        optimize(
+        Problem(
             model=fitted.model,
             terms=term,
-            inputs=[fitted.spend],
-            data=fitted.train[["spend"]].isel(date=slice(-3, None)),
+            dates=fitted.train.isel(date=slice(-3, None)).indexes["date"],
             objective=_media_objective,
             bounds={"spend": (0.0, 2.5)},
         )
@@ -2477,12 +2405,11 @@ def test_unlabeled_prior_only_constants_do_not_restrict_fitted_parameter_outputs
     kwargs = {
         "model": fitted.model,
         "terms": fitted.labeled,
-        "inputs": [fitted.spend],
-        "data": data,
+        "dates": data.indexes["date"],
         "objective": _media_objective,
         "bounds": {"spend": (0.0, 2.5)},
     }
-    problem = _build_problem(**kwargs)
+    problem = Problem(**kwargs)
     assert fitted.model.idata is not None
     posterior = fitted.model.idata["posterior"].to_dataset()
     expected = (
@@ -2490,11 +2417,9 @@ def test_unlabeled_prior_only_constants_do_not_restrict_fitted_parameter_outputs
         .stack(sample=("chain", "draw"))
         .transpose("sample", "date", "channel")
     )
-    evaluated = problem.evaluator.evaluate(data)["term"].transpose(
-        "sample", "date", "channel"
-    )
+    evaluated = problem.evaluate(data)["term"].transpose("sample", "date", "channel")
     xr.testing.assert_allclose(evaluated, expected, atol=1e-10)
-    result = optimize(**kwargs, options={"ftol": 1e-12})
+    result = problem.solve(data, options={"ftol": 1e-12})
     assert result.scipy.success and result.feasible
     xr.testing.assert_allclose(
         result.allocation["spend"], LEFT.broadcast_like(data["spend"]), atol=1e-7
@@ -2515,12 +2440,11 @@ def test_new_dated_wrapper_selects_permuted_training_constants_for_paired_draws(
     kwargs = _arguments(
         fitted,
         terms=(fitted.dated + fitted.price) * constant,
-        inputs=[fitted.price],
-        data=data,
+        dates=data.indexes["date"],
         objective=lambda e, u: e(u)["term"].sum("date").mean("sample"),
         bounds={"price": (0.0, 2.0)},
     )
-    problem = _build_problem(**kwargs)
+    problem = Problem(**kwargs)
     posterior = _posterior(fitted)["dated_beta"].sel(date=data["date"])
     selected = constant.sel(date=data["date"])
     for scenario in (data, data.assign(price=0.7 * data["price"])):
@@ -2529,11 +2453,9 @@ def test_new_dated_wrapper_selects_permuted_training_constants_for_paired_draws(
             .stack(sample=("chain", "draw"))
             .transpose("sample", "date")
         )
-        evaluated = problem.evaluator.evaluate(scenario)["term"].transpose(
-            "sample", "date"
-        )
+        evaluated = problem.evaluate(scenario)["term"].transpose("sample", "date")
         xr.testing.assert_allclose(evaluated, expected, atol=1e-10)
-    result = optimize(**kwargs)
+    result = problem.solve(data)
     assert result.scipy.success and result.feasible
     np.testing.assert_allclose(result.allocation["price"], 2.0, atol=1e-7)
     independent = float(
@@ -2546,7 +2468,7 @@ def test_new_dated_wrapper_selects_permuted_training_constants_for_paired_draws(
         date=constant["date"] + pd.Timedelta(days=1)
     )
     with pytest.raises(ValueError, match="does not cover the requested 'date' labels"):
-        optimize(**{**kwargs, "terms": (fitted.dated + fitted.price) * wrong_constant})
+        Problem(**{**kwargs, "terms": (fitted.dated + fitted.price) * wrong_constant})
     xr.testing.assert_identical(constant, before)
 
 
@@ -2568,14 +2490,11 @@ def test_dated_wrapper_selection_keeps_nondate_constant_labels_strict(
         coords=coords,
     ).isel(date=slice(None, None, -1))
     with pytest.raises(ValueError):
-        optimize(
+        Problem(
             **_arguments(
                 fitted,
                 terms=(fitted.dated + fitted.price) * constant,
-                inputs=[fitted.price],
-                data=fitted.train[["price"]]
-                .isel(date=[2, 4, 7])
-                .assign_coords(channel=CHANNELS),
+                dates=fitted.train.isel(date=[2, 4, 7]).indexes["date"],
                 objective=lambda e, u: (
                     e(u)["term"].sum("date").sum("channel").mean("sample")
                 ),
@@ -2600,17 +2519,15 @@ def test_static_shape_factors_before_adstock_do_not_rewrite_history_values(
     kwargs = _arguments(
         fitted,
         terms=term,
-        inputs=[fitted.spend, fitted.weights],
-        data=data,
         objective=lambda e, u: e(u)["term"].sum("date").sum("channel"),
         bounds={"spend": (0.0, 2.5), "channel_weight": (0.1, 2.0)},
         history=history,
     )
-    problem = _build_problem(**kwargs)
+    problem = Problem(**kwargs)
     changed_weights = data.assign(channel_weight=("channel", [0.2, 1.9]))
-    original = problem.evaluator.evaluate(data)["term"]
+    original = problem.evaluate(data)["term"]
     xr.testing.assert_allclose(
-        problem.evaluator.evaluate(changed_weights)["term"], original, atol=1e-12
+        problem.evaluate(changed_weights)["term"], original, atol=1e-12
     )
     for scenario in (
         data,
@@ -2619,12 +2536,10 @@ def test_static_shape_factors_before_adstock_do_not_rewrite_history_values(
     ):
         combined = np.concatenate([history["spend"].values, scenario["spend"].values])
         expected = _adstock(combined)[history.sizes["date"] :] * len(CHANNELS)
-        evaluated = problem.evaluator.evaluate(scenario)["term"].transpose(
-            "date", "channel"
-        )
+        evaluated = problem.evaluate(scenario)["term"].transpose("date", "channel")
         np.testing.assert_array_equal(evaluated["date"], scenario["date"])
         np.testing.assert_allclose(evaluated.values, expected, atol=1e-10)
-    result = optimize(**kwargs, options={"ftol": 1e-11})
+    result = problem.solve(data, options={"ftol": 1e-11})
     combined = np.concatenate(
         [history["spend"].values, result.allocation["spend"].values]
     )
@@ -2648,17 +2563,15 @@ def test_decision_scales_reject_underflowing_bounds_or_initial_values(
     fitted: FittedProblem, bounds: tuple[float, float]
 ) -> None:
     with pytest.raises(ValueError, match=r"underflow.*zero"):
-        optimize(
+        Problem(
             **_arguments(
                 fitted,
                 terms=fitted.level,
-                inputs=[fitted.level],
-                data=xr.Dataset({"level": 1.5e-300}),
                 objective=lambda e, u: u["level"],
                 bounds={"level": bounds},
                 scaling={"decisions": {"level": 1e300}, "objective": 1e300},
             )
-        )
+        ).solve(xr.Dataset({"level": 1.5e-300}))
 
 
 def test_decision_scales_reject_nonzero_encoded_bound_collisions(
@@ -2667,17 +2580,15 @@ def test_decision_scales_reject_nonzero_encoded_bound_collisions(
     lower = float(np.nextafter(1.5, np.inf))
     upper = float(np.nextafter(lower, np.inf))
     with pytest.raises(ValueError, match="collapses a nondegenerate bound interval"):
-        optimize(
+        Problem(
             **_arguments(
                 fitted,
                 terms=fitted.level,
-                inputs=[fitted.level],
-                data=xr.Dataset({"level": lower}),
                 objective=lambda e, u: u["level"],
                 bounds={"level": (lower, upper)},
                 scaling={"decisions": {"level": 3.0}},
             )
-        )
+        ).solve(xr.Dataset({"level": lower}))
 
 
 @pytest.mark.parametrize("unit", [1e-300, 1e-320], ids=["tiny-normal", "subnormal"])
@@ -2686,17 +2597,15 @@ def test_representable_tiny_decision_intervals_reach_the_physical_upper_bound(
     fitted: FittedProblem, unit: float, explicit_scale: bool
 ) -> None:
     upper = 2.0 * unit
-    result = optimize(
+    result = Problem(
         **_arguments(
             fitted,
             terms=fitted.level,
-            inputs=[fitted.level],
-            data=xr.Dataset({"level": 1.5 * unit}),
             objective=lambda e, u: u["level"],
             bounds={"level": (unit, upper)},
             scaling={"decisions": {"level": unit}} if explicit_scale else "auto",
         )
-    )
+    ).solve(xr.Dataset({"level": 1.5 * unit}))
     assert result.scipy.success and result.feasible
     # Absolute allclose tolerances cannot distinguish these values from an invalid zero allocation.
     assert float(result.allocation["level"]) == upper
@@ -2710,17 +2619,15 @@ def test_physically_equal_tiny_bounds_remain_fixed_with_large_decision_scales(
     fitted: FittedProblem,
 ) -> None:
     fixed = 1.5e-300
-    result = optimize(
+    result = Problem(
         **_arguments(
             fitted,
             terms=fitted.level,
-            inputs=[fitted.level],
-            data=xr.Dataset({"level": fixed}),
             objective=lambda e, u: u["level"],
             bounds={"level": (fixed, fixed)},
             scaling={"decisions": {"level": 1e300}},
         )
-    )
+    ).solve(xr.Dataset({"level": fixed}))
     assert result.scipy.success and result.feasible
     assert result.scipy.nit == 0
     assert float(result.allocation["level"]) == fixed
@@ -2745,17 +2652,17 @@ def test_identity_matrix_fixed_zero_equalities_preserve_every_reported_row(
     }
     if explicit_rows:
         constraint["scale"] = row_scales.isel(channel=[1, 0])
-    result = optimize(
+    result = Problem(
         **_arguments(
             fitted,
             terms=fitted.weights,
-            inputs=[fitted.weights],
-            data=xr.Dataset({"channel_weight": required.copy(data=[0.0, 0.5])}),
             objective=lambda e, u: -((u["channel_weight"] - 0.8) ** 2).sum("channel"),
             bounds={"channel_weight": (0.0, required.copy(data=[0.0, 2.0]))},
             constraints=[constraint],
-            options={"ftol": 1e-12},
         )
+    ).solve(
+        xr.Dataset({"channel_weight": required.copy(data=[0.0, 0.5])}),
+        options={"ftol": 1e-12},
     )
     assert result.scipy.success and result.feasible
     xr.testing.assert_allclose(result.allocation["channel_weight"], required, atol=1e-9)
@@ -2776,12 +2683,10 @@ def test_nonzero_constant_matrix_equalities_are_not_omitted_from_the_solver(
 ) -> None:
     required = xr.DataArray([0.25, 0.8], dims="channel", coords={"channel": CHANNELS})
     row_scales = required.copy(data=[17.0, 0.03])
-    result = optimize(
+    result = Problem(
         **_arguments(
             fitted,
             terms=fitted.weights,
-            inputs=[fitted.weights],
-            data=xr.Dataset({"channel_weight": required.copy(data=[0.0, 0.5])}),
             objective=lambda e, u: -((u["channel_weight"] - 0.8) ** 2).sum("channel"),
             bounds={"channel_weight": (0.0, required.copy(data=[0.0, 2.0]))},
             constraints=[
@@ -2795,7 +2700,7 @@ def test_nonzero_constant_matrix_equalities_are_not_omitted_from_the_solver(
                 }
             ],
         )
-    )
+    ).solve(xr.Dataset({"channel_weight": required.copy(data=[0.0, 0.5])}))
     # Dropping a nonzero constant row would falsely permit a successful solve.
     assert not result.scipy.success
     assert not result.feasible
@@ -2814,8 +2719,6 @@ def test_discrete_matrix_constraint_remains_connected_despite_an_identically_zer
     kwargs = _arguments(
         fitted,
         terms=fitted.weights,
-        inputs=[fitted.weights],
-        data=xr.Dataset({"channel_weight": initial}),
         objective=lambda e, u: -((u["channel_weight"] - 0.8) ** 2).sum("channel"),
         bounds={"channel_weight": (0.0, initial.copy(data=[0.0, 2.0]))},
         constraints=[
@@ -2832,9 +2735,9 @@ def test_discrete_matrix_constraint_remains_connected_despite_an_identically_zer
         ],
     )
     with pytest.raises(ValueError, match="connected constraint"):
-        _build_problem(**kwargs)
+        Problem(**kwargs)._prepare(xr.Dataset({"channel_weight": initial}))
     kwargs["constraints"][0]["scale"] = 1.0
-    problem = _build_problem(**kwargs)
+    problem = Problem(**kwargs)._prepare(xr.Dataset({"channel_weight": initial}))
     at_start = problem.raw(problem.to_z({"channel_weight": initial}))
     changed = initial.copy(data=[0.0, 1.0])
     after_threshold = problem.raw(problem.to_z({"channel_weight": changed}))
@@ -2855,8 +2758,6 @@ def test_solver_normalization_rejects_nonzero_underflow(
     kwargs = _arguments(
         fitted,
         terms=fitted.level,
-        inputs=[fitted.level],
-        data=xr.Dataset({"level": 0.5}),
         objective=lambda e, u: -((u["level"] - 1.0) ** 2),
         bounds={"level": (0.0, 1.0)},
         scaling={"decisions": {"level": 1.0}, "objective": 1.0},
@@ -2881,7 +2782,7 @@ def test_solver_normalization_rejects_nonzero_underflow(
             }
         ]
     with pytest.raises(ValueError, match=r"underflow.*zero"):
-        optimize(**kwargs)
+        Problem(**kwargs).solve(xr.Dataset({"level": 0.5}))
 
 
 @pytest.mark.parametrize("explicit_scale", [False, True], ids=["auto", "explicit"])
@@ -2904,17 +2805,15 @@ def test_integer_constraint_residuals_do_not_overflow_feasibility(
     constraint = {"type": kind, "fun": lambda e, u: as_xtensor(value)}
     if explicit_scale:
         constraint["scale"] = 1.0
-    result = optimize(
+    result = Problem(
         **_arguments(
             fitted,
             terms=fitted.level,
-            inputs=[fitted.level],
-            data=xr.Dataset({"level": 0.0}),
             objective=lambda e, u: 0.0 * u["level"],
             bounds={"level": (0.0, 0.0)},
             constraints=[constraint],
         )
-    )
+    ).solve(xr.Dataset({"level": 0.0}))
     assert result.scipy.success == feasible
     assert result.feasible == feasible
     assert result.constraints[0].item() == value
@@ -2929,12 +2828,10 @@ def test_mixed_dtype_increment_constraints_are_not_proven_constant(
     fitted: FittedProblem,
 ) -> None:
     initial = xr.DataArray([0.5, 0.5], dims="channel", coords={"channel": CHANNELS})
-    problem = _build_problem(
+    problem = Problem(
         **_arguments(
             fitted,
             terms=fitted.weights,
-            inputs=[fitted.weights],
-            data=xr.Dataset({"channel_weight": initial}),
             objective=lambda e, u: -((u["channel_weight"] - 0.8) ** 2).sum("channel"),
             bounds={"channel_weight": (0.0, 1.0)},
             constraints=[
@@ -2954,7 +2851,7 @@ def test_mixed_dtype_increment_constraints_are_not_proven_constant(
                 }
             ],
         )
-    )
+    )._prepare(xr.Dataset({"channel_weight": initial}))
     changed = initial.copy(data=[0.8, 0.8])
     np.testing.assert_array_equal(
         problem.raw(problem.to_z({"channel_weight": initial}))[2], [0.0, 0.0]
@@ -2989,19 +2886,15 @@ def test_data_dependent_cardinality_cannot_change_measured_history(
         GeometricAdstock(l_max=L_MAX, priors={"alpha": ALPHA}, prefix="cardinality"),
     )
     data = fitted.future[["spend"]]
-    inputs = [fitted.spend]
     bounds = {"spend": (0.0, 2.5)}
     if source == "static":
         data = data.assign(channel_weight=fitted.train["channel_weight"])
-        inputs.append(fitted.weights)
         bounds["channel_weight"] = (-2.0, 2.0)
     with pytest.raises(ValueError, match=r"Static inputs|reduces date"):
-        optimize(
+        Problem(
             **_arguments(
                 fitted,
                 terms=term,
-                inputs=inputs,
-                data=data,
                 objective=lambda e, u: e(u)["term"].sum("date").sum("channel"),
                 history=fitted.train[["spend"]].isel(date=slice(-2, None)),
                 bounds=bounds,
@@ -3024,8 +2917,6 @@ def test_separate_output_sample_constants_preserve_joint_posterior_labels(
     kwargs = _arguments(
         fitted,
         terms={"left": fitted.left, "weights": fitted.level * weights},
-        inputs=[fitted.spend, fitted.level],
-        data=data,
         bounds={"spend": (0.0, 2.5), "level": (1.0, 1.0)},
         objective=lambda e, u: (
             (e(u)["left"] * e(u)["weights"]).sum("date").sum("channel").mean("sample")
@@ -3033,17 +2924,18 @@ def test_separate_output_sample_constants_preserve_joint_posterior_labels(
     )
     if not paired_labels:
         with pytest.raises(ValueError, match="sample labels"):
-            optimize(**kwargs)
+            Problem(**kwargs)
         return
-    problem = _build_problem(**kwargs)
-    evaluated = problem.evaluator.evaluate(data)
+    problem = Problem(**kwargs)
+    evaluated = problem.evaluate(data)
     xr.testing.assert_allclose(evaluated["weights"], weights, atol=0.0)
     independent = (
         (-posterior["preference"] * (data["spend"] - LEFT) ** 2 * weights)
         .sum(("date", "channel"))
         .mean("sample")
     )
-    objective, _ = problem.report(problem.initial)
+    state = problem._prepare(data)
+    objective, _ = state.report(state.initial)
     np.testing.assert_allclose(objective, float(independent), atol=1e-10)
 
 
@@ -3074,14 +2966,13 @@ def test_atomic_tuple_labels_preserve_fitted_order_and_decision_values() -> None
         idata_kwargs={"coords": {"geo": labels}},
     )
     scenario = train[["x"]].isel(geo=[1, 0])
-    result = optimize(
+    result = Problem(
         model=model,
         terms=x,
-        inputs=[x],
-        data=scenario,
+        dates=pd.date_range("2025-01-01", periods=1),
         objective=lambda e, u: u["x"].sum("geo"),
         bounds={"x": (0.0, 1.0)},
-    )
+    ).solve(scenario)
     assert result.scipy.success and result.feasible
     assert result.allocation.get_index("geo").equals(labels)
     np.testing.assert_allclose(result.allocation["x"], [1.0, 1.0], atol=1e-8)
@@ -3114,18 +3005,17 @@ def test_unused_training_columns_cannot_override_fitted_input_identity(
     )
     assert model.idata is not None
     posterior = model.idata["posterior"].to_dataset().copy(deep=True)
-    result = optimize(
+    result = Problem(
         model=model,
         terms=Ref("signal") if reference else spend,
-        inputs=[spend],
-        data=train[["spend"]],
+        dates=train.indexes["date"],
         objective=lambda e, u: (
             e(u)["term"].sum("date").mean("sample")
             if reference
             else e(u)["term"].sum("date")
         ),
         bounds={"spend": (0.0, 2.0)},
-    )
+    ).solve(train[["spend"]])
     assert result.scipy.success and result.feasible
     assert set(result.allocation.data_vars) == {"spend"}
     np.testing.assert_allclose(result.allocation["spend"], 2.0, atol=1e-8)
@@ -3134,7 +3024,7 @@ def test_unused_training_columns_cannot_override_fitted_input_identity(
     xr.testing.assert_identical(model.idata["posterior"].to_dataset(), posterior)
 
 
-def test_fresh_input_aliases_cannot_replace_another_declared_decision(
+def test_fresh_input_aliases_cannot_replace_another_inferred_decision(
     fitted: FittedProblem,
 ) -> None:
     spend, other = Data("spend"), Data("_experimental_data_1")
@@ -3148,15 +3038,14 @@ def test_fresh_input_aliases_cannot_replace_another_declared_decision(
     # Match the fitted spend dimension set while preserving distinct input values.
     data["spend"] = data["spend"].expand_dims(channel=CHANNELS, axis=-1)
     before = data.copy(deep=True)
-    result = optimize(
+    result = Problem(
         model=fitted.model,
         terms=spend.sum("channel") + other,
-        inputs=[spend, other],
-        data=data,
+        dates=data.indexes["date"],
         objective=lambda e, u: e(u)["term"].sum("date"),
         bounds={name: (array, array) for name, array in data.data_vars.items()},
         scaling=None,
-    )
+    ).solve(data)
     assert result.scipy.success and result.feasible
     independent = float((data["spend"].sum("channel") + data[other.var_name]).sum())
     np.testing.assert_allclose(result.objective, independent, atol=0.0)
@@ -3175,27 +3064,24 @@ def test_reduced_dated_posterior_does_not_absorb_other_output_history(
             "raw": fitted.spend,
             "posterior": fitted.level * fitted.dated.sum("date"),
         },
-        inputs=[fitted.spend, fitted.level],
-        data=data,
+        dates=data.indexes["date"],
         history=history,
         objective=lambda e, u: e(u)["posterior"].mean("sample"),
         bounds={"spend": (data["spend"], data["spend"]), "level": (0.0, 2.0)},
     )
     with pytest.raises(ValueError, match="reduces date before history"):
-        optimize(**kwargs)
+        Problem(**kwargs)
     kwargs["terms"]["posterior"] = fitted.level * fitted.dated
     kwargs["objective"] = lambda e, u: e(u)["posterior"].sum("date").mean("sample")
-    problem = _build_problem(**kwargs)
+    problem = Problem(**kwargs)
     expected = (
         (_posterior(fitted)["dated_beta"].isel(date=slice(3, 5)) * data["level"])
         .stack(sample=("chain", "draw"))
         .transpose("sample", "date")
     )
-    evaluated = problem.evaluator.evaluate(data)["posterior"].transpose(
-        "sample", "date"
-    )
+    evaluated = problem.evaluate(data)["posterior"].transpose("sample", "date")
     xr.testing.assert_allclose(evaluated, expected, atol=1e-12)
-    result = problem.solve(options={"ftol": 1e-12})
+    result = problem.solve(data, options={"ftol": 1e-12})
     assert result.scipy.success and result.feasible
     np.testing.assert_allclose(float(result.allocation["level"]), 2.0, atol=1e-8)
     np.testing.assert_allclose(
@@ -3233,15 +3119,14 @@ def test_custom_shared_term_alias_keeps_its_own_decision_values(
         },
         coords={"date": fitted.future["date"]},
     )
-    result = optimize(
+    result = Problem(
         model=fitted.model,
         terms=price + other,
-        inputs=[price, Data(other.name)],
-        data=data,
+        dates=data.indexes["date"],
         objective=lambda e, u: e(u)["term"].sum("date"),
         bounds={name: (array, array) for name, array in data.data_vars.items()},
         scaling=None,
-    )
+    ).solve(data)
     assert result.scipy.success and result.feasible
     np.testing.assert_allclose(result.objective, 66.0, atol=0.0)
     xr.testing.assert_allclose(result.allocation, data, atol=0.0)
@@ -3271,12 +3156,11 @@ def test_history_rejects_date_reduced_factors_rebroadcast_over_dates(
         return value.mean("sample") if "sample" in value.dims else value
 
     with pytest.raises(ValueError, match="reduces date before history"):
-        optimize(
+        Problem(
             **_arguments(
                 fitted,
                 terms=fitted.price * fitted.level * factor,
-                inputs=[fitted.price, fitted.level],
-                data=data,
+                dates=data.indexes["date"],
                 history=history,
                 objective=score,
                 bounds={"price": (data["price"], data["price"]), "level": (0.0, 2.0)},
@@ -3291,18 +3175,16 @@ def test_history_preserves_dated_factors_for_callback_only_reduction(
     history = fitted.train[["price"]].isel(date=slice(2, 3))
     data = fitted.train[["price"]].isel(date=slice(3, 5)).assign(level=1.0)
     posterior = _posterior(fitted).copy(deep=True)
-    result = optimize(
+    result = Problem(
         **_arguments(
             fitted,
             terms=fitted.price * fitted.level * fitted.dated,
-            inputs=[fitted.price, fitted.level],
-            data=data,
+            dates=data.indexes["date"],
             history=history,
             objective=lambda e, u: e(u)["term"].sum("date").mean("sample"),
             bounds={"price": (data["price"], data["price"]), "level": (0.0, 2.0)},
-            options={"ftol": 1e-12},
         )
-    )
+    ).solve(data, options={"ftol": 1e-12})
     coefficient = float(
         (posterior["dated_beta"].sel(date=data["date"]) * data["price"])
         .sum("date")
@@ -3331,17 +3213,16 @@ def test_dated_shape_metadata_remains_value_independent(
         value = evaluate(u)["term"]
         return value.sum("date") if "date" in value.dims else value
 
-    result = optimize(
+    result = Problem(
         **_arguments(
             fitted,
             terms=term,
-            inputs=[fitted.price, fitted.level],
-            data=data,
+            dates=data.indexes["date"],
             history=history,
             objective=score,
             bounds={"price": (data["price"], data["price"]), "level": (0.0, 2.0)},
         )
-    )
+    ).solve(data)
     count_value = history.sizes["date"] + data.sizes["date"]
     expected = (
         2.0 * count_value * (float(data["price"].sum()) if output == "factor" else 1.0)
@@ -3361,12 +3242,11 @@ def test_dynamic_nonzero_count_cannot_hide_in_a_rebroadcast_factor(
         lambda value: as_xtensor(pt.nonzero(value.values > 0)[0].shape[0]),
     )
     with pytest.raises(ValueError, match="reduces date before history"):
-        optimize(
+        Problem(
             **_arguments(
                 fitted,
                 terms=fitted.price * fitted.level * count,
-                inputs=[fitted.price, fitted.level],
-                data=data,
+                dates=data.indexes["date"],
                 history=history,
                 objective=lambda e, u: e(u)["term"].sum("date"),
                 bounds={"price": (0.0, 2.0), "level": (0.0, 2.0)},
@@ -3461,12 +3341,11 @@ def test_discrete_fitted_terms_rebind_fractional_inputs_without_new_draws(
             "explicit": explicit,
             "factory": factory,
         },
-        "inputs": [fitted.x],
-        "data": data,
+        "dates": pd.date_range("2025-01-01", periods=1),
         "objective": lambda e, u: e(u)["paired"].mean("sample"),
         "bounds": {"x": (data["x"], data["x"])},
     }
-    evaluated = _build_problem(**kwargs).evaluator.evaluate(data)
+    evaluated = Problem(**kwargs).evaluate(data)
     paired = (posterior["discrete_beta"] * posterior["discrete_gamma"]).stack(
         sample=("chain", "draw")
     )
@@ -3495,20 +3374,19 @@ def test_discrete_fitted_terms_rebind_fractional_inputs_without_new_draws(
     xr.testing.assert_allclose(
         evaluated["factory"].transpose("sample", "geo"), expected_factory, atol=1e-12
     )
-    result = optimize(**kwargs)
+    result = Problem(**kwargs).solve(data)
     assert result.scipy.success and result.feasible
     np.testing.assert_allclose(
         result.objective, float(paired.mean("sample")), atol=1e-12
     )
     xr.testing.assert_allclose(result.allocation, data, atol=0.0)
-    moving = optimize(
+    moving = Problem(
         model=fitted.model,
         terms=total,
-        inputs=[fitted.x],
-        data=data,
+        dates=pd.date_range("2025-01-01", periods=1),
         objective=lambda e, u: e(u)["term"],
         bounds={"x": (0.0, 0.9)},
-    )
+    ).solve(data)
     assert moving.scipy.success and moving.feasible
     np.testing.assert_allclose(moving.allocation["x"], 0.9, atol=1e-8)
     np.testing.assert_allclose(moving.objective, 1.8, atol=1e-8)
@@ -3594,7 +3472,7 @@ def custom_continuous_fitted(request: pytest.FixtureRequest) -> dict[str, Any]:
         "explicit": HiddenCastSum(x).named("custom_explicit"),
     }
     train = xr.Dataset(
-        {"x": ("geo", np.asarray([1, 3], dtype="int32")), "y": 4.0},
+        {"x": ("geo", np.asarray([1, 3], dtype="int32")), "y": 4.0, "level": 1.0},
         coords={"geo": ["a", "b"]},
     )
     model = GAM(
@@ -3627,12 +3505,11 @@ def test_custom_integer_training_inputs_remain_continuous_and_fitted(
     kwargs = {
         "model": model,
         "terms": terms,
-        "inputs": [Data("x")],
-        "data": data,
+        "dates": pd.date_range("2025-01-01", periods=1),
         "objective": lambda e, u: e(u)["owned"].mean("sample"),
         "bounds": {"x": (data["x"], data["x"])},
     }
-    evaluated = _build_problem(**kwargs).evaluator.evaluate(data)
+    evaluated = Problem(**kwargs).evaluate(data)
     np.testing.assert_allclose(evaluated["pure"], 1.0, atol=0.0)
     np.testing.assert_allclose(evaluated["normalized"], 1.0 / float(train["x"].max()))
     np.testing.assert_allclose(evaluated["explicit"], 0.0, atol=0.0)
@@ -3642,18 +3519,17 @@ def test_custom_integer_training_inputs_remain_continuous_and_fitted(
     xr.testing.assert_allclose(
         evaluated["prior"], before["data_prior_beta"].stack(sample=("chain", "draw"))
     )
-    result = optimize(**kwargs)
+    result = Problem(**kwargs).solve(data)
     assert result.scipy.success and result.feasible
     np.testing.assert_allclose(result.objective, float(before["hidden_beta"].mean()))
     xr.testing.assert_allclose(result.allocation, data, atol=0.0)
-    moving = optimize(
+    moving = Problem(
         model=model,
         terms=terms["pure"],
-        inputs=[Data("x")],
-        data=data,
+        dates=pd.date_range("2025-01-01", periods=1),
         objective=lambda e, u: e(u)["term"],
         bounds={"x": (0.0, 0.9)},
-    )
+    ).solve(data)
     assert moving.scipy.success and moving.feasible
     np.testing.assert_allclose(moving.objective, 1.8, atol=1e-8)
     np.testing.assert_allclose(moving.allocation["x"], 0.9, atol=1e-8)
@@ -3700,7 +3576,7 @@ def retained_input_fitted() -> dict[str, Any]:
 
 
 @pytest.mark.parametrize("reference", [False, True], ids=["direct", "ref"])
-def test_retained_registered_inputs_remain_declared_and_continuous(
+def test_retained_registered_inputs_remain_inferred_and_continuous(
     retained_input_fitted: dict[str, Any], reference: bool
 ) -> None:
     fitted = retained_input_fitted
@@ -3724,12 +3600,11 @@ def test_retained_registered_inputs_remain_declared_and_continuous(
     kwargs = {
         "model": model,
         "terms": {"raw": total, "posterior": total * fitted["beta"]},
-        "inputs": [Data("x")],
-        "data": data,
+        "dates": pd.date_range("2025-01-01", periods=1),
         "objective": lambda e, u: e(u)["raw"],
         "bounds": {"x": (data["x"], data["x"])},
     }
-    evaluated = _build_problem(**kwargs).evaluator.evaluate(data)
+    evaluated = Problem(**kwargs).evaluate(data)
     assert_data_unchanged()
     assert float(evaluated["raw"]) == 1.0
     xr.testing.assert_allclose(
@@ -3737,12 +3612,12 @@ def test_retained_registered_inputs_remain_declared_and_continuous(
         posterior["registered_beta"].stack(sample=("chain", "draw")),
         atol=1e-12,
     )
-    fixed = optimize(**kwargs)
+    fixed = Problem(**kwargs).solve(data)
     assert_data_unchanged()
     assert fixed.scipy.success and fixed.feasible
     assert fixed.objective == 1.0
     xr.testing.assert_allclose(fixed.allocation, data, atol=0.0, rtol=0.0)
-    moving = optimize(**{**kwargs, "bounds": {"x": (0.0, 0.9)}})
+    moving = Problem(**{**kwargs, "bounds": {"x": (0.0, 0.9)}}).solve(data)
     assert_data_unchanged()
     assert moving.scipy.success and moving.feasible
     np.testing.assert_allclose(moving.allocation["x"], 0.9, atol=1e-8)
@@ -3753,10 +3628,10 @@ def test_retained_registered_inputs_remain_declared_and_continuous(
         "objective": lambda e, u: e(u)["combined"],
         "bounds": {"x": (0.0, 0.9)},
     }
-    evaluated_combined = _build_problem(**combined_kwargs).evaluator.evaluate(data)
+    evaluated_combined = Problem(**combined_kwargs).evaluate(data)
     assert_data_unchanged()
     assert float(evaluated_combined["combined"]) == 2.0
-    combined = optimize(**combined_kwargs)
+    combined = Problem(**combined_kwargs).solve(data)
     assert_data_unchanged()
     assert combined.scipy.success and combined.feasible
     np.testing.assert_allclose(combined.allocation["x"], 0.9, atol=1e-8)
@@ -3830,21 +3705,20 @@ def test_fitted_fourier_history_retains_scenario_values_and_rejects_reductions(
     kwargs = {
         "model": model,
         "terms": {"raw": fitted["spend"], "seasonal": seasonal},
-        "inputs": [fitted["level"], fitted["spend"]],
-        "data": data,
+        "dates": data.indexes["date"],
         "history": history,
         "objective": score,
         "bounds": {name: (array, array) for name, array in data.data_vars.items()},
     }
-    values = _build_problem(**kwargs).evaluator.evaluate(data)["seasonal"]
+    values = Problem(**kwargs).evaluate(data)["seasonal"]
     np.testing.assert_allclose(values.transpose("sample", "date"), expected, atol=1e-12)
-    result = optimize(**kwargs)
+    result = Problem(**kwargs).solve(data)
     assert result.scipy.success and result.feasible
     np.testing.assert_allclose(
         result.objective, expected.sum(axis=-1).mean(), atol=1e-12
     )
     with pytest.raises(ValueError):
-        optimize(
+        Problem(
             **{
                 **kwargs,
                 "terms": {"raw": fitted["spend"], "seasonal": seasonal.sum("date")},
@@ -3886,14 +3760,13 @@ def test_fourier_date_count_is_fixed_metadata_not_historical_values(
     kwargs = {
         "model": model,
         "terms": terms,
-        "inputs": [fitted["spend"]],
-        "data": data,
+        "dates": data.indexes["date"],
         "history": history,
         "objective": score,
         "bounds": {"spend": (data["spend"], data["spend"])},
     }
     count_value = len(history["date"]) + len(data["date"])
-    evaluated = _build_problem(**kwargs).evaluator.evaluate(data)
+    evaluated = Problem(**kwargs).evaluate(data)
     xr.testing.assert_allclose(
         evaluated["count"], data["spend"] * count_value, atol=0.0, rtol=0.0
     )
@@ -3914,7 +3787,7 @@ def test_fourier_date_count_is_fixed_metadata_not_historical_values(
         xr.testing.assert_allclose(
             evaluated["extra"], data["spend"], atol=0.0, rtol=0.0
         )
-    result = optimize(**kwargs)
+    result = Problem(**kwargs).solve(data)
     assert result.scipy.success and result.feasible
     np.testing.assert_allclose(
         result.objective, float(data["spend"].sum()) * count_value, atol=1e-12
@@ -3937,15 +3810,14 @@ def test_indexed_channel_means_keep_measured_history_fixed(
     history = fitted.train[["spend"]].isel(date=slice(-2, None))
     before = history.copy(deep=True)
     data = fitted.future[["spend"]]
-    result = optimize(
+    result = Problem(
         model=fitted.model,
         terms=term,
-        inputs=[fitted.spend],
-        data=data,
+        dates=data.indexes["date"],
         history=history,
         objective=lambda e, u: e(u)["term"].sum("date"),
         bounds={"spend": (0.0, 2.5)},
-    )
+    ).solve(data)
     values = np.concatenate(
         [
             history["spend"].isel(channel=0).values,
@@ -3976,15 +3848,14 @@ def test_frozen_custom_prior_does_not_require_its_training_inputs(
     kwargs = {
         "model": model,
         "terms": term * level,
-        "inputs": [level],
-        "data": data,
+        "dates": pd.date_range("2025-01-01", periods=1),
         "objective": lambda e, u: e(u)["term"].mean("sample"),
         "bounds": {"level": (0.0, 2.0)},
     }
-    values = _build_problem(**kwargs).evaluator.evaluate(data)["term"]
+    values = Problem(**kwargs).evaluate(data)["term"]
     expected = posterior["data_prior_beta"].stack(sample=("chain", "draw"))
     xr.testing.assert_allclose(values, expected, atol=1e-12)
-    result = optimize(**kwargs)
+    result = Problem(**kwargs).solve(data)
     assert result.scipy.success and result.feasible
     np.testing.assert_allclose(
         result.objective, 2.0 * float(expected.mean("sample")), atol=1e-12
@@ -4004,8 +3875,6 @@ def test_posterior_channel_mean_uses_channel_count_not_sample_count(
     kwargs = _arguments(
         fitted,
         terms=term,
-        inputs=[level],
-        data=data,
         objective=lambda e, u: e(u)["term"].mean("sample"),
         bounds={"level": (1.0, 1.0)},
     )
@@ -4014,9 +3883,9 @@ def test_posterior_channel_mean_uses_channel_count_not_sample_count(
         .mean("channel")
         .stack(sample=("chain", "draw"))
     )
-    evaluated = _build_problem(**kwargs).evaluator.evaluate(data)["term"]
+    evaluated = Problem(**kwargs).evaluate(data)["term"]
     xr.testing.assert_allclose(evaluated, expected, atol=1e-12)
-    result = optimize(**kwargs)
+    result = Problem(**kwargs).solve(data)
     assert result.scipy.success and result.feasible
     np.testing.assert_allclose(
         result.objective, float(expected.mean("sample")), atol=1e-12
@@ -4045,42 +3914,41 @@ def test_noncanonical_fitted_inputs_reject_only_reachable_value_paths(
             return value.sum("geo") * beta
 
     term = TypedShared().named("typed_signal")
-    train = xr.Dataset({"x": ("geo", [1.0, 3.0]), "y": 4.0}, coords={"geo": ["a", "b"]})
+    train = xr.Dataset(
+        {"x": ("geo", [1.0, 3.0]), "y": 4.0, "level": 1.0}, coords={"geo": ["a", "b"]}
+    )
     model = GAM(Equation(observed="y", mu=term, likelihood=Prior("Normal", sigma=0.1)))
     model.fit(train, **{**SAMPLE_KWARGS, "random_seed": 9201})
     posterior = model.idata["posterior"].to_dataset().copy(deep=True)
     data = xr.Dataset({"x": ("geo", [0.25, 0.75])}, coords={"geo": train["geo"]})
     for selected in (term, Ref("typed_signal")):
         with pytest.raises(ValueError):
-            optimize(
+            Problem(
                 model=model,
                 terms=selected,
-                inputs=[Data("x")],
-                data=data,
+                dates=pd.date_range("2025-01-01", periods=1),
                 objective=lambda e, u: e(u)["term"].mean("sample"),
                 bounds={"x": (data["x"], data["x"])},
             )
     fresh = Data("x")
-    result = optimize(
+    result = Problem(
         model=model,
         terms=fresh.sum("geo"),
-        inputs=[fresh],
-        data=data,
+        dates=pd.date_range("2025-01-01", periods=1),
         objective=lambda e, u: e(u)["term"],
         bounds={"x": (data["x"], data["x"])},
-    )
+    ).solve(data)
     assert result.scipy.success and result.feasible
     np.testing.assert_allclose(result.objective, 1.0, atol=0.0)
     # Its prior reads typed x, but selected fitted draws do not read or update x.
     level = Data("level")
-    result = optimize(
+    result = Problem(
         model=model,
         terms=Ref("typed_beta") * level,
-        inputs=[level],
-        data=xr.Dataset({"level": 1.0}, coords={"geo": train["geo"]}),
+        dates=pd.date_range("2025-01-01", periods=1),
         objective=lambda e, u: e(u)["term"].mean("sample"),
         bounds={"level": (1.0, 1.0)},
-    )
+    ).solve(xr.Dataset({"level": 1.0}))
     assert result.scipy.success and result.feasible
     np.testing.assert_allclose(result.objective, float(posterior["typed_beta"].mean()))
     xr.testing.assert_identical(model.idata["posterior"].to_dataset(), posterior)
@@ -4104,14 +3972,13 @@ def test_canonical_integer_input_graph_survives_verified_save_load(
     )
     xr.testing.assert_identical(loaded._training_data, fitted.train)
     data = xr.Dataset({"x": ("geo", [0.25, 0.75])}, coords={"geo": fitted.train["geo"]})
-    result = optimize(
+    result = Problem(
         model=loaded,
         terms=Ref("discrete_total"),
-        inputs=[Data("x")],
-        data=data,
+        dates=pd.date_range("2025-01-01", periods=1),
         objective=lambda e, u: e(u)["term"],
         bounds={"x": (0.0, 0.9)},
-    )
+    ).solve(data)
     assert result.scipy.success and result.feasible
     np.testing.assert_allclose(result.objective, 1.8, atol=1e-8)
     np.testing.assert_allclose(result.allocation["x"], 0.9, atol=1e-8)
@@ -4129,11 +3996,10 @@ def test_dynamic_channel_index_mean_cannot_rewrite_measured_history(
         GeometricAdstock(l_max=L_MAX, priors={"alpha": ALPHA}, prefix="dynamic_mean"),
     )
     with pytest.raises(ValueError):
-        optimize(
+        Problem(
             model=fitted.model,
             terms=term,
-            inputs=[fitted.spend],
-            data=fitted.future[["spend"]],
+            dates=fitted.future.indexes["date"],
             history=fitted.train[["spend"]].isel(date=slice(-2, None)),
             objective=lambda e, u: e(u)["term"].sum("date"),
             bounds={"spend": (0.0, 2.5)},
@@ -4153,11 +4019,10 @@ def test_integer_bounds_cannot_round_the_original_feasible_set(
     data = xr.Dataset({"level": initial})
     before = data.copy(deep=True)
     with pytest.raises(ValueError, match="exactly representable as float64"):
-        optimize(
+        Problem(
             model=fitted.model,
             terms=level,
-            inputs=[level],
-            data=data,
+            dates=fitted.future.indexes["date"],
             objective=lambda e, u: e(u)["term"],
             bounds={"level": (bound, bound)},
         )
@@ -4172,14 +4037,13 @@ def test_exact_large_integer_bounds_preserve_the_original_value(
     level = Data("level")
     raw = np.int64(2**power) if power == 54 else 2**power
     bound = xr.DataArray(raw) if labeled else raw
-    result = optimize(
+    result = Problem(
         model=fitted.model,
         terms=level,
-        inputs=[level],
-        data=xr.Dataset({"level": float(raw)}),
+        dates=fitted.future.indexes["date"],
         objective=lambda e, u: e(u)["term"],
         bounds={"level": (bound, bound)},
-    )
+    ).solve(xr.Dataset({"level": float(raw)}))
     assert result.scipy.success and result.feasible
     assert int(result.allocation["level"]) == int(raw)
     assert result.objective == float(raw)
@@ -4194,11 +4058,10 @@ def test_complex_labeled_bounds_cannot_discard_their_imaginary_component(
         np.array(np.complex128(1.0 + 1.0j), dtype=object if object_dtype else complex)
     )
     with pytest.raises(ValueError, match="real numeric values"):
-        optimize(
+        Problem(
             model=fitted.model,
             terms=level,
-            inputs=[level],
-            data=xr.Dataset({"level": 1.0}),
+            dates=fitted.future.indexes["date"],
             objective=lambda e, u: e(u)["term"],
             bounds={"level": (bound, bound)},
         )
@@ -4246,24 +4109,1201 @@ def test_frozen_hierarchical_coefficients_do_not_read_prior_only_equations(
     kwargs = {
         "model": model,
         "terms": coefficient * level,
-        "inputs": [level],
-        "data": data,
+        "dates": pd.date_range("2025-01-01", periods=1),
         "objective": lambda e, u: e(u)["term"].mean("sample"),
         "bounds": {"level": (1.0, 1.0)},
     }
-    evaluated = _build_problem(**kwargs).evaluator.evaluate(data)
+    evaluated = Problem(**kwargs).evaluate(data)
     xr.testing.assert_allclose(
         evaluated["term"],
         posterior["hier_beta"].stack(sample=("chain", "draw")),
         atol=1e-12,
     )
-    result = optimize(**kwargs)
+    result = Problem(**kwargs).solve(data)
     assert result.scipy.success and result.feasible
     np.testing.assert_allclose(
         result.objective, float(posterior["hier_beta"].mean()), atol=1e-12
     )
     prior_mu = Ref("hier_mu") if reference else fitted["prior_mu"]
     with pytest.raises(ValueError, match="stochastic Equation"):
-        optimize(**{**kwargs, "terms": prior_mu * level})
+        Problem(**{**kwargs, "terms": prior_mu * level})
     xr.testing.assert_identical(model.idata["posterior"].to_dataset(), posterior)
     xr.testing.assert_identical(model._training_data, fitted["train"])
+
+
+def test_reusable_problem_budget_sweep_and_multistart_recompute_original_unit_scales(
+    fitted: FittedProblem,
+) -> None:
+    problem = Problem(
+        **_arguments(
+            fitted,
+            terms=fitted.left,
+            bounds={"spend": (0.0, np.inf)},
+            parameters={"budget": 4.2},
+            constraints=[
+                {
+                    "type": "eq",
+                    "fun": lambda e, u: (
+                        u["spend"].sum("date").sum("channel") - e.parameter("budget")
+                    ),
+                }
+            ],
+        )
+    )
+    starts = [
+        fitted.future[["spend"]] * 0.5,
+        fitted.future[["spend"]] * 1.5,
+    ]
+    before = [start.copy(deep=True) for start in starts]
+    preference = _posterior(fitted)["preference"].mean(("chain", "draw"))
+    saved = []
+    for budget, start in zip(
+        (4.2, 5.4, 6.0), (starts[0], starts[1], starts[0]), strict=True
+    ):
+        result = problem.solve(
+            start, parameters={"budget": budget}, options={"ftol": 1e-12}
+        )
+        shift = (budget / start.sizes["date"] - float(LEFT.sum())) / float(
+            (1 / preference).sum()
+        )
+        expected = (LEFT + shift / preference).broadcast_like(start["spend"])
+        assert result.scipy.success and result.feasible
+        xr.testing.assert_allclose(result.allocation["spend"], expected, atol=1e-6)
+        xr.testing.assert_allclose(result.decision_scales["spend"], start["spend"])
+        np.testing.assert_allclose(result.allocation["spend"].sum(), budget, atol=1e-9)
+        evaluated = problem.evaluate(result.allocation)["term"]
+        np.testing.assert_allclose(
+            result.objective, float(evaluated.sum(("date", "channel")).mean("sample"))
+        )
+        saved.append(
+            (
+                result,
+                result.allocation.copy(deep=True),
+                result.decision_scales.copy(deep=True),
+                result.objective_scale,
+                [scale.copy(deep=True) for scale in result.constraint_scales],
+            )
+        )
+    repeated = problem.solve(starts[1], options={"ftol": 1e-12})
+    xr.testing.assert_allclose(repeated.allocation, saved[0][1], atol=1e-6)
+    assert saved[0][3] != saved[1][3]
+    for result, allocation, scales, objective_scale, constraint_scales in saved:
+        xr.testing.assert_identical(result.allocation, allocation)
+        xr.testing.assert_identical(result.decision_scales, scales)
+        assert result.objective_scale == objective_scale
+        for actual, expected_scale in zip(
+            result.constraint_scales, constraint_scales, strict=True
+        ):
+            xr.testing.assert_identical(actual, expected_scale)
+    for start, original in zip(starts, before, strict=True):
+        xr.testing.assert_identical(start, original)
+
+
+@pytest.mark.parametrize(
+    "spend_dims",
+    [("date", "channel"), ("channel", "date")],
+    ids=["date-channel", "channel-date"],
+)
+def test_reusable_budget_and_weekly_ties_preserve_positive_fixed_price_tail(
+    fitted: FittedProblem, spend_dims: tuple[str, str]
+) -> None:
+    initial = fitted.future.assign(
+        spend=xr.ones_like(fitted.future["spend"]),
+        price=xr.ones_like(fitted.future["price"]),
+    )
+    tail_dates = pd.date_range(
+        initial.indexes["date"][-1] + pd.Timedelta(weeks=1),
+        periods=L_MAX - 1,
+        freq="W-MON",
+    )
+    tail = xr.Dataset(
+        {
+            "spend": (
+                ("date", "channel"),
+                np.zeros((len(tail_dates), len(CHANNELS))),
+            ),
+            "price": ("date", np.ones(len(tail_dates))),
+        },
+        coords={"date": tail_dates, "channel": CHANNELS},
+    )
+
+    def weekly_spend(evaluate: Any, u: dict[str, XTensorVariable]) -> XTensorVariable:
+        return (u["spend"] - u["spend"].isel(date=0)).transpose(*spend_dims)
+
+    problem = Problem(
+        **_arguments(
+            fitted,
+            terms=fitted.media * Transform(fitted.price, func=ptx.math.reciprocal),
+            carryover=tail,
+            bounds={"spend": (0.0, 2.5), "price": (0.5, 1.5)},
+            parameters={"budget": 6.0},
+            constraints=[
+                {
+                    "type": "eq",
+                    "fun": lambda e, u: (
+                        u["spend"].sum("date").sum("channel") - e.parameter("budget")
+                    ),
+                },
+                {"type": "eq", "fun": weekly_spend},
+                {
+                    "type": "eq",
+                    "fun": lambda e, u: u["price"] - u["price"].isel(date=0),
+                },
+            ],
+        )
+    )
+    posterior = _posterior(fitted)
+    for budget in (6.0, 8.0):
+        result = problem.solve(
+            initial, parameters={"budget": budget}, options={"ftol": 1e-11}
+        )
+        allocation = result.allocation
+        spend, price = allocation["spend"], allocation["price"]
+        assert result.scipy.success and result.feasible
+        assert set(allocation.data_vars) == {"spend", "price"}
+        np.testing.assert_array_equal(allocation["date"], initial["date"])
+        np.testing.assert_array_equal(allocation["channel"], CHANNELS)
+        np.testing.assert_allclose(float(spend.sum()), budget, atol=1e-7, rtol=0.0)
+        xr.testing.assert_allclose(
+            spend, spend.isel(date=0, drop=True).broadcast_like(spend), atol=1e-7
+        )
+        np.testing.assert_allclose(price, 0.5, atol=1e-7, rtol=0.0)
+        expected_residuals = [
+            xr.DataArray(float(spend.sum()) - budget),
+            (spend - spend.isel(date=0, drop=True)).transpose(*spend_dims),
+            price - price.isel(date=0, drop=True),
+        ]
+        for actual, expected in zip(
+            result.constraints, expected_residuals, strict=True
+        ):
+            xr.testing.assert_allclose(actual, expected, atol=1e-10)
+            np.testing.assert_allclose(actual, 0.0, atol=1e-7, rtol=0.0)
+        combined = np.concatenate([spend.values, tail["spend"].values])
+        prices = np.concatenate([price.values, tail["price"].values])
+        expected_response = _media(posterior, combined) / prices[None, None, :, None]
+        evaluated = problem.evaluate(allocation)["term"]
+        np.testing.assert_array_equal(
+            evaluated["date"],
+            np.concatenate([initial["date"].values, tail_dates.values]),
+        )
+        np.testing.assert_allclose(
+            evaluated.transpose("sample", "date", "channel"),
+            expected_response.reshape((-1, len(prices), len(CHANNELS))),
+            atol=1e-10,
+        )
+        tail_response = evaluated.isel(date=slice(-len(tail_dates), None))
+        assert bool((tail_response.sum("channel") > 0).all())
+        np.testing.assert_allclose(
+            result.objective,
+            expected_response.sum(axis=(2, 3)).mean(),
+            atol=1e-10,
+        )
+
+
+def test_declared_parameter_overrides_align_labels_and_own_their_state(
+    fitted: FittedProblem,
+) -> None:
+    initial = fitted.future[["price"]]
+    target = initial["price"].copy(data=[0.6, 1.2, 0.9])
+    default = target.copy(deep=True)
+    problem = Problem(
+        **_arguments(
+            fitted,
+            terms=fitted.price,
+            objective=lambda e, u: (
+                -((e(u)["term"] - e.parameter("target")) ** 2).sum("date")
+            ),
+            bounds={"price": (0.0, 2.0)},
+            parameters={"target": target.isel(date=[2, 0, 1])},
+        )
+    )
+    target.values[:] = 99
+    override = default.copy(data=[1.3, 0.4, 1.1]).isel(date=[1, 2, 0])
+    expected = override.sel(date=initial["date"]).copy(deep=True)
+    changed = problem.solve(
+        initial, parameters={"target": override}, options={"ftol": 1e-12}
+    )
+    allocation = changed.allocation.copy(deep=True)
+    objective = changed.objective
+    override.values[:] = -99
+    restored = problem.solve(initial, options={"ftol": 1e-12})
+    assert changed.scipy.success and changed.feasible
+    assert restored.scipy.success and restored.feasible
+    xr.testing.assert_allclose(changed.allocation["price"], expected, atol=1e-7)
+    xr.testing.assert_allclose(restored.allocation["price"], default, atol=1e-7)
+    xr.testing.assert_identical(changed.allocation, allocation)
+    assert changed.objective == objective
+    np.testing.assert_allclose([changed.objective, restored.objective], 0.0, atol=1e-12)
+
+
+def test_posterior_sample_parameters_keep_joint_draw_labels_and_weighted_scores(
+    fitted: FittedProblem,
+) -> None:
+    posterior = _posterior(fitted)
+    samples = posterior.stack(sample=("chain", "draw"))["sample"]
+    weights = xr.DataArray(
+        np.linspace(0.5, 1.5, samples.size),
+        dims="sample",
+        coords={"sample": samples},
+    )
+    order = np.roll(np.arange(samples.size), samples.size // 2)
+
+    def weighted_effect(
+        evaluate: Any, u: dict[str, XTensorVariable]
+    ) -> XTensorVariable:
+        totals = evaluate(u)["term"].sum("date").sum("channel")
+        preference = evaluate.parameter("weights")
+        return (totals * preference).sum("sample") / preference.sum("sample")
+
+    problem = Problem(
+        **_arguments(
+            fitted,
+            objective=weighted_effect,
+            parameters={"weights": weights.isel(sample=order)},
+        )
+    )
+    initial = fitted.future[["spend"]]
+    cap_values = np.full(initial["spend"].shape, 2.5)
+    expected_totals = _media(posterior, cap_values).sum(axis=(2, 3)).reshape(-1)
+    default = problem.solve(initial)
+    assert default.scipy.success and default.feasible
+    np.testing.assert_allclose(default.allocation["spend"], cap_values, atol=1e-7)
+    np.testing.assert_allclose(
+        default.objective,
+        np.average(expected_totals, weights=weights.values),
+        rtol=1e-10,
+    )
+    override = weights.copy(data=weights.values[::-1]).isel(sample=order[::-1])
+    changed = problem.solve(initial, parameters={"weights": override})
+    assert changed.scipy.success and changed.feasible
+    np.testing.assert_allclose(
+        changed.objective,
+        np.average(expected_totals, weights=weights.values[::-1]),
+        rtol=1e-10,
+    )
+    with pytest.raises(ValueError):
+        problem.solve(
+            initial,
+            parameters={
+                "weights": xr.DataArray(
+                    weights.values,
+                    dims="sample",
+                    coords={"sample": np.arange(samples.size)},
+                )
+            },
+        )
+
+
+@pytest.mark.parametrize(
+    "kind",
+    [
+        "unknown",
+        "missing-label",
+        "foreign-label",
+        "extra-dimension",
+        "scalar",
+        "nan",
+        "infinite",
+    ],
+)
+def test_parameter_overrides_reject_unknown_names_shapes_labels_and_nonfinite_values(
+    fitted: FittedProblem, kind: str
+) -> None:
+    initial = fitted.future[["price"]]
+    target = initial["price"].copy(data=[0.6, 1.2, 0.9])
+    problem = Problem(
+        **_arguments(
+            fitted,
+            terms=fitted.price,
+            objective=lambda e, u: (
+                -((u["price"] - e.parameter("target")) ** 2).sum("date")
+            ),
+            bounds={"price": (0.0, 2.0)},
+            parameters={"target": target},
+        )
+    )
+    invalid = {
+        "unknown": {"other": target},
+        "missing-label": {"target": target.isel(date=slice(1, None))},
+        "foreign-label": {
+            "target": target.assign_coords(date=target["date"] + pd.Timedelta(days=1))
+        },
+        "extra-dimension": {"target": target.expand_dims(channel=CHANNELS)},
+        "scalar": {"target": 1.0},
+        "nan": {"target": target.copy(data=[0.6, np.nan, 0.9])},
+        "infinite": {"target": target.copy(data=[0.6, np.inf, 0.9])},
+    }[kind]
+    with pytest.raises((TypeError, ValueError)):
+        problem.solve(initial, parameters=invalid)
+    result = problem.solve(initial, options={"ftol": 1e-12})
+    assert result.scipy.success and result.feasible
+    xr.testing.assert_allclose(result.allocation["price"], target, atol=1e-7)
+
+
+def test_scalar_parameters_do_not_broadcast_array_overrides(
+    fitted: FittedProblem,
+) -> None:
+    problem = Problem(
+        **_arguments(
+            fitted,
+            terms=fitted.level,
+            objective=lambda e, u: -((u["level"] - e.parameter("target")) ** 2),
+            bounds={"level": (0.0, 3.0)},
+            parameters={"target": 2.0},
+        )
+    )
+    with pytest.raises(ValueError):
+        problem.solve(
+            xr.Dataset({"level": 1.0}),
+            parameters={"target": fitted.future["price"]},
+        )
+    result = problem.solve(xr.Dataset({"level": 1.0}), options={"ftol": 1e-12})
+    np.testing.assert_allclose(result.allocation["level"], 2.0, atol=1e-8)
+    with pytest.raises(ValueError):
+        Problem(
+            **_arguments(
+                fitted,
+                terms=fitted.level,
+                objective=lambda e, u: -((u["level"] - e.parameter("undeclared")) ** 2),
+                bounds={"level": (0.0, 3.0)},
+                parameters={"target": 2.0},
+            )
+        )
+
+
+def test_inferred_decisions_template_preserves_static_and_fitted_dimension_labels(
+    fitted: FittedProblem,
+) -> None:
+    problem = Problem(
+        **_arguments(
+            fitted,
+            terms={
+                "raw": fitted.spend,
+                "weighted": fitted.media * fitted.weights + fitted.level,
+            },
+            carryover=2,
+            objective=lambda e, u: (
+                e(u)["weighted"].sum("date").sum("channel").mean("sample")
+            ),
+            bounds={
+                "spend": (0.0, 2.5),
+                "channel_weight": (-np.inf, np.inf),
+                "level": (-np.inf, np.inf),
+            },
+        )
+    )
+    decisions = problem.decisions
+    assert set(decisions.data_vars) == {"spend", "channel_weight", "level"}
+    assert decisions["spend"].dims == ("date", "channel")
+    assert decisions["channel_weight"].dims == ("channel",)
+    assert decisions["level"].dims == ()
+    assert "sample" not in decisions.dims
+    np.testing.assert_array_equal(decisions["date"], fitted.future["date"])
+    np.testing.assert_array_equal(decisions["channel"], CHANNELS)
+    assert all(bool(value.isnull().all()) for value in decisions.data_vars.values())
+    plan = fitted.future[["spend"]].assign(
+        level=1.0, channel_weight=fitted.train["channel_weight"]
+    )
+    evaluated = problem.evaluate(plan)
+    assert evaluated.sizes["date"] == fitted.future.sizes["date"] + 2
+    np.testing.assert_array_equal(evaluated["raw"].isel(date=slice(-2, None)), 0.0)
+
+
+@pytest.mark.parametrize("operation", ["evaluate", "solve"])
+@pytest.mark.parametrize(
+    "kind",
+    [
+        "missing-input",
+        "extra-input",
+        "missing-date",
+        "foreign-date",
+        "foreign-label",
+        "broadcast",
+        "sample",
+    ],
+)
+def test_plans_require_exact_inputs_dimensions_and_labels_without_broadcasting(
+    fitted: FittedProblem, operation: str, kind: str
+) -> None:
+    problem = Problem(**_arguments(fitted))
+    plan = fitted.future[["spend"]]
+    invalid = {
+        "missing-input": fitted.future[["price"]],
+        "extra-input": fitted.future,
+        "missing-date": plan.isel(date=slice(1, None)),
+        "foreign-date": plan.assign_coords(date=plan["date"] + pd.Timedelta(days=1)),
+        "foreign-label": plan.assign_coords(channel=["other", "radio"]),
+        "broadcast": plan.sum("date"),
+        "sample": plan.expand_dims(sample=[0]),
+    }[kind]
+    with pytest.raises(ValueError):
+        getattr(problem, operation)(invalid)
+    np.testing.assert_allclose(
+        problem.evaluate(plan)["term"].transpose("sample", "date", "channel"),
+        _media(_posterior(fitted), plan["spend"].values).reshape(
+            (-1, plan.sizes["date"], len(CHANNELS))
+        ),
+        atol=1e-10,
+    )
+
+
+def test_plan_reordering_is_canonical_for_evaluation_and_solve(
+    fitted: FittedProblem,
+) -> None:
+    problem = Problem(**_arguments(fitted, terms=fitted.left))
+    plan = fitted.future[["spend"]]
+    reordered = plan.isel(date=[2, 0, 1], channel=[1, 0]).transpose("channel", "date")
+    xr.testing.assert_identical(problem.evaluate(reordered), problem.evaluate(plan))
+    original = problem.solve(plan, options={"ftol": 1e-12})
+    changed = problem.solve({"spend": reordered["spend"]}, options={"ftol": 1e-12})
+    assert original.scipy.success and original.feasible
+    assert changed.scipy.success and changed.feasible
+    xr.testing.assert_allclose(original.allocation, changed.allocation, atol=1e-7)
+    xr.testing.assert_allclose(
+        changed.allocation["spend"], LEFT.broadcast_like(plan["spend"]), atol=1e-7
+    )
+
+
+@pytest.mark.parametrize("kind", ["gap", "phase"])
+def test_temporal_scenarios_require_fitted_cadence_without_history_or_tail(
+    fitted: FittedProblem, kind: str
+) -> None:
+    dates = fitted.future.indexes["date"]
+    invalid = dates[[0, 2]] if kind == "gap" else dates + pd.Timedelta(days=1)
+    with pytest.raises(ValueError):
+        Problem(**_arguments(fitted, dates=invalid))
+    static = Problem(
+        **_arguments(
+            fitted,
+            terms=fitted.spend,
+            dates=invalid,
+            objective=lambda e, u: e(u)["term"].sum("date").sum("channel"),
+        )
+    )
+    plan = fitted.future[["spend"]].isel(date=[0, 2] if kind == "gap" else [0, 1, 2])
+    plan = plan.assign_coords(date=invalid)
+    xr.testing.assert_allclose(static.evaluate(plan)["term"], plan["spend"])
+
+
+def test_explicit_positive_control_tail_and_history_are_frozen_outside_decisions(
+    fitted: FittedProblem,
+) -> None:
+    history = (
+        fitted.train[["spend", "price"]].isel(date=slice(-2, None)).copy(deep=True)
+    )
+    tail_dates = pd.date_range(
+        fitted.future.indexes["date"][-1] + pd.Timedelta(weeks=1),
+        periods=2,
+        freq="W-MON",
+    )
+    tail = xr.Dataset(
+        {
+            "spend": (("date", "channel"), np.zeros((2, len(CHANNELS)))),
+            "price": ("date", [10.0, 10.0]),
+        },
+        coords={"date": tail_dates, "channel": CHANNELS},
+    )
+    tail = tail.isel(channel=[1, 0])
+    initial = fitted.future.copy(deep=True)
+    history_before, tail_before = history.copy(deep=True), tail.copy(deep=True)
+    problem = Problem(
+        **_arguments(
+            fitted,
+            terms={
+                "response": fitted.media
+                * Transform(fitted.price, func=ptx.math.reciprocal),
+                "price": fitted.price,
+            },
+            objective=lambda e, u: (
+                e(u)["response"].sum("date").sum("channel").mean("sample")
+            ),
+            history=history,
+            carryover=tail,
+            bounds={"spend": (0.0, 2.5), "price": (initial["price"], initial["price"])},
+        )
+    )
+    history["spend"].values[:] = 999
+    history["price"].values[:] = 999
+    tail["price"].values[:] = 0
+    tail["spend"].values[:] = 999
+    for plan in (initial, initial.assign(spend=0.7 * initial["spend"])):
+        combined = np.concatenate(
+            [
+                history_before["spend"].values,
+                plan["spend"].values,
+                tail_before["spend"].values,
+            ]
+        )
+        prices = np.concatenate([plan["price"].values, tail_before["price"].values])
+        expected = _media(_posterior(fitted), combined)[
+            :, :, history_before.sizes["date"] :
+        ]
+        expected = expected / prices[None, None, :, None]
+        out = problem.evaluate(plan)
+        np.testing.assert_array_equal(
+            out["date"], np.concatenate([initial["date"].values, tail_dates.values])
+        )
+        np.testing.assert_allclose(
+            out["response"].transpose("sample", "date", "channel"),
+            expected.reshape((-1, len(prices), len(CHANNELS))),
+            atol=1e-10,
+        )
+        np.testing.assert_array_equal(out["price"].isel(date=slice(-2, None)), 10.0)
+        assert bool(np.isfinite(out["response"]).all())
+        assert bool((out["response"].isel(date=slice(-2, None)) > 0).all())
+    result = problem.solve(initial, options={"ftol": 1e-11})
+    assert result.scipy.success and result.feasible
+    np.testing.assert_array_equal(result.allocation["date"], initial["date"])
+    np.testing.assert_allclose(result.allocation["spend"], 2.5, atol=1e-7)
+    xr.testing.assert_allclose(result.allocation["price"], initial["price"])
+    evaluated = problem.evaluate(result.allocation)["response"]
+    np.testing.assert_allclose(
+        result.objective,
+        float(evaluated.sum(("date", "channel")).mean("sample")),
+        atol=1e-10,
+    )
+
+
+def test_decided_output_slice_aligns_weekly_values_without_scoring_fixed_tail(
+    fitted: FittedProblem,
+) -> None:
+    initial = fitted.future[["spend"]]
+    problem = Problem(
+        **_arguments(
+            fitted,
+            carryover=2,
+            objective=lambda e, u: (
+                (u["spend"] * e.decided(e(u)["term"]))
+                .sum("date")
+                .sum("channel")
+                .mean("sample")
+            ),
+        )
+    )
+    state = problem._prepare(initial)
+    expected = (
+        (initial["spend"] * problem.evaluate(initial)["term"].sel(date=initial["date"]))
+        .sum(("date", "channel"))
+        .mean("sample")
+    )
+    np.testing.assert_allclose(
+        state.raw(state.to_z(state.initial))[0], float(expected), atol=1e-10
+    )
+
+
+def test_decided_helper_leaves_scalar_and_nondate_outputs_unchanged(
+    fitted: FittedProblem,
+) -> None:
+    initial = xr.Dataset(
+        {"level": 1.0, "channel_weight": fitted.train["channel_weight"]}
+    )
+    problem = Problem(
+        **_arguments(
+            fitted,
+            terms={"scalar": fitted.level, "channels": fitted.weights},
+            objective=lambda e, u: (
+                e.decided(e(u)["scalar"]) + e.decided(e(u)["channels"]).sum("channel")
+            ),
+            carryover=2,
+            bounds={
+                "level": (1.0, 1.0),
+                "channel_weight": (
+                    initial["channel_weight"],
+                    initial["channel_weight"],
+                ),
+            },
+        )
+    )
+    result = problem.solve(initial)
+    assert result.scipy.success and result.feasible
+    np.testing.assert_allclose(
+        result.objective, 1.0 + float(initial["channel_weight"].sum())
+    )
+
+
+def test_mixed_decided_and_output_date_windows_explain_required_slice(
+    fitted: FittedProblem,
+) -> None:
+    with pytest.raises(ValueError, match=r"evaluate\.decided"):
+        Problem(
+            **_arguments(
+                fitted,
+                carryover=2,
+                objective=lambda e, u: (
+                    (u["spend"] * e(u)["term"])
+                    .sum("date")
+                    .sum("channel")
+                    .mean("sample")
+                ),
+            )
+        )
+
+
+def test_evaluate_does_not_require_numerical_solve_scaling(
+    fitted: FittedProblem,
+) -> None:
+    problem = Problem(
+        **_arguments(
+            fitted,
+            terms={"raw": fitted.level, "shifted": fitted.level + 2.0},
+            objective=lambda e, u: -((e(u)["raw"] - 3.0) ** 2),
+            bounds={"level": (-np.inf, np.inf)},
+        )
+    )
+    plan = xr.Dataset({"level": 0.0})
+    expected = xr.Dataset({"raw": 0.0, "shifted": 2.0})
+    xr.testing.assert_allclose(problem.evaluate(plan), expected)
+    with pytest.raises(ValueError):
+        problem.solve(plan)
+    xr.testing.assert_allclose(problem.evaluate({"level": xr.DataArray(0.0)}), expected)
+
+
+@pytest.mark.parametrize(
+    "kind", ["missing-dated", "extra-static", "gap", "foreign-label"]
+)
+def test_explicit_carryover_requires_exact_dated_inputs_labels_and_consecutive_dates(
+    fitted: FittedProblem, kind: str
+) -> None:
+    dates = pd.date_range(
+        fitted.future.indexes["date"][-1] + pd.Timedelta(weeks=1),
+        periods=2,
+        freq="W-MON",
+    )
+    tail = xr.Dataset(
+        {
+            "spend": (("date", "channel"), np.zeros((2, len(CHANNELS)))),
+            "price": ("date", [10.0, 10.0]),
+        },
+        coords={"date": dates, "channel": CHANNELS},
+    )
+    if kind == "missing-dated":
+        tail = tail.drop_vars("price")
+    elif kind == "extra-static":
+        tail = tail.assign(level=1.0)
+    elif kind == "gap":
+        tail = tail.assign_coords(date=dates + pd.Timedelta(weeks=1))
+    else:
+        tail = tail.assign_coords(channel=["other", "radio"])
+    before = tail.copy(deep=True)
+    with pytest.raises(ValueError):
+        Problem(
+            **_arguments(
+                fitted,
+                terms=fitted.media * Transform(fitted.price, func=ptx.math.reciprocal),
+                bounds={"spend": (0.0, 2.5), "price": (0.5, 1.5)},
+                carryover=tail,
+            )
+        )
+    xr.testing.assert_identical(tail, before)
+
+
+def test_integer_carryover_zeros_every_dated_input_without_padding_static_inputs(
+    fitted: FittedProblem,
+) -> None:
+    problem = Problem(
+        **_arguments(
+            fitted,
+            terms={"media": fitted.media, "price": fitted.price, "level": fitted.level},
+            carryover=2,
+            objective=lambda e, u: (
+                e(u)["media"].sum("date").sum("channel").mean("sample") + e(u)["level"]
+            ),
+            bounds={"spend": (0.0, 2.5), "price": (0.0, 2.0), "level": (1.0, 1.0)},
+        )
+    )
+    plan = fitted.future.assign(level=1.0)
+    out = problem.evaluate(plan)
+    combined = np.concatenate([plan["spend"].values, np.zeros((2, len(CHANNELS)))])
+    expected = _media(_posterior(fitted), combined).reshape(
+        (-1, plan.sizes["date"] + 2, len(CHANNELS))
+    )
+    np.testing.assert_allclose(
+        out["media"].transpose("sample", "date", "channel"), expected, atol=1e-10
+    )
+    np.testing.assert_array_equal(out["price"].isel(date=slice(-2, None)), 0.0)
+    assert out["level"].dims == ()
+    assert float(out["level"]) == 1.0
+    np.testing.assert_array_equal(problem.decisions["date"], plan["date"])
+    assert problem.decisions["level"].dims == ()
+
+
+def test_callback_constants_align_both_decided_and_output_windows(
+    fitted: FittedProblem,
+) -> None:
+    initial = fitted.future[["spend"]]
+    dates = pd.date_range(initial.indexes["date"][0], periods=5, freq="W-MON")
+    decided_weights = xr.DataArray(
+        [0.7, 1.2, 0.9], dims="date", coords={"date": initial["date"]}
+    )
+    output_weights = xr.DataArray(
+        [0.7, 1.2, 0.9, 2.0, 3.0], dims="date", coords={"date": dates}
+    )
+    problem = Problem(
+        **_arguments(
+            fitted,
+            carryover=2,
+            objective=lambda e, u: (
+                (e(u)["term"] * e.constant(output_weights.isel(date=[4, 2, 0, 3, 1])))
+                .sum("date")
+                .sum("channel")
+                .mean("sample")
+            ),
+            constraints=[
+                {
+                    "type": "ineq",
+                    "fun": lambda e, u: (
+                        e.constant(decided_weights.isel(date=[2, 0, 1]))
+                        * e.decided(e(u)["term"]).sum("channel").mean("sample")
+                    ),
+                }
+            ],
+        )
+    )
+    out = problem.evaluate(initial)["term"]
+    state = problem._prepare(initial)
+    raw = state.raw(state.to_z(state.initial))
+    expected = float((out * output_weights).sum(("date", "channel")).mean("sample"))
+    np.testing.assert_allclose(raw[0], expected, atol=1e-10)
+    residuals = state.labeled_constraints(raw)
+    xr.testing.assert_allclose(
+        residuals[0],
+        decided_weights * out.sel(date=initial["date"]).sum("channel").mean("sample"),
+        atol=1e-10,
+    )
+
+
+@pytest.mark.parametrize("kind", ["empty", "duplicate", "unsorted"])
+def test_problem_dates_are_nonempty_unique_and_increasing(
+    fitted: FittedProblem, kind: str
+) -> None:
+    dates = fitted.future.indexes["date"]
+    invalid = {
+        "empty": dates[:0],
+        "duplicate": dates[[0, 0, 1]],
+        "unsorted": dates[[2, 0, 1]],
+    }[kind]
+    with pytest.raises(ValueError):
+        Problem(**_arguments(fitted, dates=invalid))
+
+
+def test_problem_requires_an_explicit_initial_plan_for_each_solve(
+    fitted: FittedProblem,
+) -> None:
+    problem = Problem(**_arguments(fitted))
+    with pytest.raises(TypeError):
+        problem.solve()
+
+
+@pytest.mark.parametrize(
+    "indexer",
+    [slice(None, None, -1), slice(1, None)],
+    ids=["reversed", "subset"],
+)
+@pytest.mark.parametrize("representation", ["named", "tensor"])
+def test_decided_requires_full_ordered_outputs_before_callback_date_selection(
+    fitted: FittedProblem, indexer: slice, representation: str
+) -> None:
+    initial = fitted.future[["price"]].assign(price=("date", [1.0, 2.0, 3.0]))
+    kwargs = _arguments(
+        fitted,
+        terms=fitted.price,
+        carryover=2,
+        bounds={"price": (initial["price"], initial["price"])},
+        scaling=None,
+    )
+
+    def select_dates(value: XTensorVariable) -> XTensorVariable:
+        if representation == "tensor":
+            return as_xtensor(value.values[indexer], dims=value.dims)
+        return value.isel(date=indexer)
+
+    with pytest.raises(ValueError, match=r"full output date axis.*original order"):
+        Problem(
+            **{
+                **kwargs,
+                "objective": lambda e, u: e.decided(select_dates(e(u)["term"])).sum(
+                    "date"
+                ),
+            }
+        )
+
+    def score(evaluate: Any, u: dict[str, XTensorVariable]) -> XTensorVariable:
+        value = evaluate(u)["term"]
+        if representation == "tensor":
+            value = as_xtensor(pt.square(value.values), dims=value.dims)
+        selected = evaluate.decided(value).isel(date=indexer)
+        return selected.isel(date=0) + selected.sum("date")
+
+    problem = Problem(**{**kwargs, "objective": score})
+    evaluated = problem.evaluate(initial)["term"]
+    dates = pd.date_range(initial.indexes["date"][0], periods=5, freq="W-MON")
+    np.testing.assert_array_equal(evaluated["date"], dates)
+    np.testing.assert_array_equal(evaluated, [1.0, 2.0, 3.0, 0.0, 0.0])
+    expected_values = (
+        initial["price"] ** 2 if representation == "tensor" else initial["price"]
+    )
+    selected = expected_values.isel(date=indexer)
+    expected = float(selected.isel(date=0) + selected.sum("date"))
+    result = problem.solve(initial)
+    assert result.scipy.success and result.feasible
+    xr.testing.assert_identical(result.allocation, initial)
+    np.testing.assert_allclose(result.objective, expected, atol=0.0, rtol=0.0)
+
+
+@pytest.mark.parametrize(
+    "indexer",
+    [slice(None, None, -1), slice(1, None)],
+    ids=["reversed", "subset"],
+)
+@pytest.mark.parametrize("representation", ["named", "tensor"])
+def test_no_history_selected_outputs_cannot_relabel_sliced_or_reversed_dates(
+    fitted: FittedProblem, indexer: slice, representation: str
+) -> None:
+    initial = fitted.future[["price"]].assign(price=("date", [1.0, 2.0, 3.0]))
+
+    def select_dates(value: XTensorVariable) -> XTensorVariable:
+        if representation == "tensor":
+            return as_xtensor(value.values[indexer], dims=value.dims)
+        return value.isel(date=indexer)
+
+    kwargs = _arguments(
+        fitted,
+        terms=Transform(fitted.price, select_dates),
+        objective=lambda e, u: e(u)["term"].sum("date"),
+        bounds={"price": (initial["price"], initial["price"])},
+        scaling=None,
+    )
+    with pytest.raises(ValueError, match=r"full date axis.*original order"):
+        Problem(**kwargs)
+
+    def score(evaluate: Any, u: dict[str, XTensorVariable]) -> XTensorVariable:
+        selected = evaluate(u)["term"].isel(date=indexer)
+        return selected.isel(date=0) + selected.sum("date")
+
+    def ordered_values(value: XTensorVariable) -> XTensorVariable:
+        if representation == "tensor":
+            return as_xtensor(pt.square(value.values), dims=value.dims)
+        return value.isel(date=slice(None))
+
+    problem = Problem(
+        **{
+            **kwargs,
+            "terms": Transform(fitted.price, ordered_values),
+            "objective": score,
+        }
+    )
+    expected = initial["price"] ** 2 if representation == "tensor" else initial["price"]
+    xr.testing.assert_allclose(
+        problem.evaluate(initial)["term"], expected, atol=0.0, rtol=0.0
+    )
+    selected = expected.isel(date=indexer)
+    result = problem.solve(initial)
+    assert result.scipy.success and result.feasible
+    xr.testing.assert_identical(result.allocation, initial)
+    np.testing.assert_allclose(
+        result.objective,
+        float(selected.isel(date=0) + selected.sum("date")),
+        atol=0.0,
+        rtol=0.0,
+    )
+
+
+@pytest.mark.parametrize("output", ["selected-scalar", "scalar-factor"])
+@pytest.mark.parametrize("source", ["raw", "posterior", "recorded-constant"])
+def test_no_history_date_reductions_preserve_scalar_and_ordered_dated_values(
+    fitted: FittedProblem, source: str, output: str
+) -> None:
+    initial = (
+        fitted.train[["price"]]
+        .isel(date=slice(3, 6))
+        .assign(price=("date", [1.0, 2.0, 3.0]), level=1.0)
+    )
+    if source == "raw":
+        factor = fitted.price.sum("date")
+        factor_values = xr.DataArray(float(initial["price"].sum("date")))
+    elif source == "posterior":
+        factor = fitted.dated.sum("date")
+        factor_values = (
+            _posterior(fitted)["dated_beta"]
+            .sel(date=initial["date"])
+            .sum("date")
+            .stack(sample=("chain", "draw"))
+        )
+    else:
+        constant = xr.DataArray(
+            [1.0, 2.0, 4.0], dims="date", coords={"date": initial["date"]}
+        ).isel(date=[2, 0, 1])
+        factor = Transform(constant, lambda value: value.sum("date"))
+        factor_values = xr.DataArray(float(constant.sum("date")))
+    term = fitted.level * factor
+    expected = initial["level"] * factor_values
+    if output == "scalar-factor":
+        term = fitted.price * term
+        expected = initial["price"] * expected
+
+    def score(evaluate: Any, u: dict[str, XTensorVariable]) -> XTensorVariable:
+        value = evaluate.decided(evaluate(u)["value"])
+        if "date" in value.dims:
+            value = value.sum("date")
+        return value.mean("sample") if "sample" in value.dims else value
+
+    problem = Problem(
+        **_arguments(
+            fitted,
+            terms={"raw": fitted.price, "value": term},
+            dates=initial.indexes["date"],
+            objective=score,
+            bounds={"price": (initial["price"], initial["price"]), "level": (0.0, 2.0)},
+        )
+    )
+    evaluated = problem.evaluate(initial)
+    xr.testing.assert_allclose(evaluated["raw"], initial["price"], atol=0.0, rtol=0.0)
+    xr.testing.assert_allclose(
+        evaluated["value"].transpose(*expected.dims), expected, atol=1e-12
+    )
+    if output == "selected-scalar":
+        assert "date" not in evaluated["value"].dims
+    else:
+        np.testing.assert_array_equal(evaluated["value"]["date"], initial["date"])
+    result = problem.solve(initial, options={"ftol": 1e-12})
+    assert result.scipy.success and result.feasible
+    np.testing.assert_allclose(result.allocation["level"], 2.0, atol=1e-8)
+    xr.testing.assert_allclose(result.allocation["price"], initial["price"], atol=0.0)
+    scored = 2.0 * expected
+    if "date" in scored.dims:
+        scored = scored.sum("date")
+    if "sample" in scored.dims:
+        scored = scored.mean("sample")
+    np.testing.assert_allclose(result.objective, float(scored), atol=1e-10)
+
+
+@pytest.mark.parametrize(
+    "mode, padding, message",
+    [
+        (ConvMode.After, (L_MAX - 1, 0), r"Static inputs.*history-dependent"),
+        (ConvMode.Before, (0, L_MAX - 1), "causal"),
+        (ConvMode.Overlap, (L_MAX // 2, (L_MAX - 1) // 2), "causal"),
+    ],
+    ids=["causal", "leading", "overlap"],
+)
+def test_explicit_history_cannot_be_ignored_for_static_only_temporal_inputs(
+    fitted: FittedProblem,
+    mode: ConvMode,
+    padding: tuple[int, int],
+    message: str,
+) -> None:
+    history = xr.Dataset(
+        coords={"date": fitted.train["date"].isel(date=slice(-2, None))}
+    )
+    constant = xr.DataArray(
+        [10.0, 20.0, 1.0, 2.0, 4.0],
+        dims="date",
+        coords={"date": np.concatenate([history["date"], fitted.future["date"]])},
+    )
+    term = MediaTransform(
+        fitted.level * constant,
+        GeometricAdstock(
+            l_max=L_MAX,
+            priors={"alpha": ALPHA},
+            mode=mode,
+            prefix="static_only_temporal",
+        ),
+    )
+    before = history.copy(deep=True)
+    initial = xr.Dataset({"level": 1.0})
+    kwargs = _arguments(
+        fitted,
+        terms=term,
+        objective=lambda e, u: e(u)["term"].sum("date"),
+        bounds={"level": (0.0, 2.0)},
+    )
+    with pytest.raises(ValueError, match=message):
+        Problem(**{**kwargs, "history": history})
+    xr.testing.assert_identical(history, before)
+
+    problem = Problem(**kwargs)
+    weights = ALPHA ** np.arange(L_MAX)
+    weights /= weights.sum()
+    scenario_constant = constant.sel(date=fitted.future["date"])
+    for level in (1.0, 1.5):
+        scenario = initial.assign(level=level)
+        expected = np.convolve(
+            np.pad(level * scenario_constant.values, padding), weights, mode="valid"
+        )
+        evaluated = problem.evaluate(scenario)["term"]
+        assert evaluated.dims == ("date",)
+        np.testing.assert_array_equal(evaluated["date"], scenario_constant["date"])
+        np.testing.assert_allclose(evaluated, expected, atol=1e-12)
+    result = problem.solve(initial, options={"ftol": 1e-12})
+    assert result.scipy.success and result.feasible
+    np.testing.assert_allclose(result.allocation["level"], 2.0, atol=1e-8)
+    expected = np.convolve(
+        np.pad(2.0 * scenario_constant.values, padding), weights, mode="valid"
+    )
+    np.testing.assert_allclose(result.objective, expected.sum(), atol=1e-10)
+    xr.testing.assert_identical(history, before)
+
+
+def test_constant_driven_temporal_history_is_honored_with_static_downstream_input(
+    fitted: FittedProblem,
+) -> None:
+    dates = fitted.future.indexes["date"][:2]
+    history = xr.Dataset(
+        coords={"date": fitted.train["date"].isel(date=slice(-2, None))}
+    )
+    before = history.copy(deep=True)
+    combined_dates = np.concatenate([history["date"].values, dates.values])
+    constant = xr.DataArray(
+        [10.0, 20.0, 30.0, 40.0], dims="date", coords={"date": combined_dates}
+    ).isel(date=[3, 1, 0, 2])
+    term = (
+        MediaTransform(
+            constant,
+            GeometricAdstock(
+                l_max=2,
+                priors={"alpha": 0.5},
+                prefix="constant_driven_history",
+            ),
+        )
+        * fitted.level
+    )
+    initial = xr.Dataset({"level": 2.0})
+    kwargs = _arguments(
+        fitted,
+        terms=term,
+        dates=dates,
+        history=history,
+        objective=lambda e, u: e(u)["term"].sum("date"),
+        bounds={"level": (2.0, 2.0)},
+        scaling=None,
+    )
+    problem = Problem(**kwargs)
+    weights = np.array([1.0, 0.5])
+    weights /= weights.sum()
+    combined = constant.sel(date=combined_dates).values
+    expected = (
+        2.0 * np.convolve(combined, weights)[: len(combined)][history.sizes["date"] :]
+    )
+    evaluated = problem.evaluate(initial)["term"]
+    assert evaluated.dims == ("date",)
+    np.testing.assert_array_equal(evaluated["date"], dates)
+    np.testing.assert_allclose(evaluated, expected, atol=1e-12)
+    cold_start = Problem(**{**kwargs, "history": None}).evaluate(initial)["term"]
+    cold_values = constant.sel(date=dates).values
+    cold_expected = 2.0 * np.convolve(cold_values, weights)[: len(cold_values)]
+    np.testing.assert_array_equal(cold_start["date"], dates)
+    np.testing.assert_allclose(cold_start, cold_expected, atol=1e-12)
+    assert not np.allclose(evaluated, cold_start)
+    result = problem.solve(initial)
+    assert result.scipy.success and result.feasible
+    xr.testing.assert_identical(result.allocation, initial)
+    np.testing.assert_allclose(result.objective, expected.sum(), atol=1e-12)
+    xr.testing.assert_identical(history, before)
+
+
+@pytest.mark.parametrize("callback", ["objective", "constraint"])
+@pytest.mark.parametrize("representation", ["named", "tensor"])
+def test_singleton_decided_dates_cannot_broadcast_over_full_output_dates(
+    fitted: FittedProblem, callback: str, representation: str
+) -> None:
+    initial = (
+        fitted.future[["price"]].isel(date=slice(0, 1)).assign(price=("date", [2.0]))
+    )
+
+    def mixed_score(evaluate: Any, u: dict[str, XTensorVariable]) -> XTensorVariable:
+        decided = u["price"]
+        scored = evaluate(u)["term"]
+        if representation == "tensor":
+            return as_xtensor((decided.values * scored.values).sum(), dims=())
+        return (decided * scored).sum("date")
+
+    def decided_score(evaluate: Any, u: dict[str, XTensorVariable]) -> XTensorVariable:
+        decided = u["price"]
+        scored = evaluate.decided(evaluate(u)["term"])
+        if representation == "tensor":
+            return as_xtensor((decided.values * scored.values).sum(), dims=())
+        return (decided * scored).sum("date")
+
+    kwargs = _arguments(
+        fitted,
+        terms=fitted.price + 1.0,
+        dates=initial.indexes["date"],
+        carryover=1,
+        objective=mixed_score
+        if callback == "objective"
+        else lambda e, u: u["price"].sum("date"),
+        bounds={"price": (0.0, 4.0)},
+        constraints=[]
+        if callback == "objective"
+        else [{"type": "eq", "fun": lambda e, u: mixed_score(e, u) - 6.0}],
+    )
+    with pytest.raises(ValueError, match=r"evaluate\.decided"):
+        Problem(**kwargs)
+    if callback == "objective":
+        kwargs["objective"] = decided_score
+    else:
+        kwargs["constraints"] = [
+            {"type": "eq", "fun": lambda e, u: decided_score(e, u) - 6.0}
+        ]
+    problem = Problem(**kwargs)
+    dates = pd.date_range(initial.indexes["date"][0], periods=2, freq="W-MON")
+    evaluated = problem.evaluate(initial)["term"]
+    np.testing.assert_array_equal(evaluated["date"], dates)
+    np.testing.assert_array_equal(evaluated, [3.0, 1.0])
+    state = problem._prepare(initial)
+    raw = state.raw(state.to_z(state.initial))
+    np.testing.assert_allclose(
+        raw[0], 6.0 if callback == "objective" else 2.0, atol=1e-12
+    )
+    if callback == "constraint":
+        np.testing.assert_allclose(state.labeled_constraints(raw)[0], 0.0, atol=1e-12)
+    result = problem.solve(initial, options={"ftol": 1e-12})
+    assert result.scipy.success and result.feasible
+    optimum = 4.0 if callback == "objective" else 2.0
+    np.testing.assert_allclose(result.allocation["price"], optimum, atol=1e-8)
+    np.testing.assert_array_equal(result.allocation["date"], initial["date"])
+    np.testing.assert_allclose(
+        result.objective, 20.0 if callback == "objective" else 2.0, atol=1e-10
+    )
+    evaluated = problem.evaluate(result.allocation)["term"]
+    np.testing.assert_array_equal(evaluated["date"], dates)
+    np.testing.assert_allclose(evaluated, [optimum + 1.0, 1.0], atol=1e-10)
+    if callback == "constraint":
+        np.testing.assert_allclose(result.constraints[0], 0.0, atol=1e-10)
+
+
+@pytest.mark.parametrize("transpose", [False, True])
+def test_plain_tensor_date_reductions_preserve_nondate_score_equivalence(
+    fitted: FittedProblem, transpose: bool
+) -> None:
+    initial = fitted.future[["spend"]]
+
+    def named_objective(
+        evaluate: Any, u: dict[str, XTensorVariable]
+    ) -> XTensorVariable:
+        decided = u["spend"].sum("date")
+        scored = evaluate(u)["term"].sum("date")
+        return (decided * scored).sum("channel")
+
+    def tensor_objective(evaluate: Any, u: dict[str, XTensorVariable]) -> Any:
+        decided = u["spend"].values
+        scored = evaluate(u)["term"].values
+        if transpose:
+            decided, scored = decided.T, scored.T
+        axis = 1 if transpose else 0
+        return (decided.sum(axis=axis) * scored.sum(axis=axis)).sum()
+
+    named = Problem(
+        **_arguments(fitted, terms=fitted.spend, carryover=2, objective=named_objective)
+    ).solve(initial)
+    tensor = Problem(
+        **_arguments(
+            fitted, terms=fitted.spend, carryover=2, objective=tensor_objective
+        )
+    ).solve(initial)
+    expected_objective = initial.sizes["channel"] * (initial.sizes["date"] * 2.5) ** 2
+    for result in (named, tensor):
+        assert result.scipy.success and result.feasible
+        np.testing.assert_allclose(result.allocation["spend"], 2.5, atol=1e-7)
+        np.testing.assert_allclose(result.objective, expected_objective, rtol=1e-10)
+    xr.testing.assert_allclose(named.allocation, tensor.allocation, atol=1e-7)

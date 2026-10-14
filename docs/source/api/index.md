@@ -31,3 +31,17 @@
   terms_gp
   utils
 ```
+
+## Experimental term-first optimization
+
+These APIs are under active development and do not replace the stable `MMM` optimizer.
+See the [term-first optimization guide](../guide/mmm/experimental_optimizer.md) for the `Problem` → `evaluate` → `solve` workflow.
+
+```{eval-rst}
+.. currentmodule:: pymc_marketing.mmm.experimental
+.. autosummary::
+  :toctree: generated/
+
+  Problem
+  OptimizationResult
+```
