@@ -3468,16 +3468,13 @@ class Incrementality:
         if max_lag is None:  # pragma: no cover - _refuse_unbounded_reach ran
             raise ValueError("An unbounded reach reached the closed form.")
 
-        # The share of the kernel within each horizon, and the kernel's total,
-        # both per draw and from the same posterior.
-        with _quiet_posterior_predictive_log():
-            shares = adstock.cumulative_weights(
-                self._adstock_parameters(inputs.posterior), None, progressbar=False
-            ).assign_coords(inputs.labels)
-        total = (
+        # The kernel's weight within each lag, W C(m), read off one sampling of
+        # the kernel.  Its last entry is the whole kernel, so the future part is
+        # exactly zero for a date whose window covers it.
+        cumulative = (
             self._adstock_kernel(inputs.posterior, divides=False)
-            .sum(LAG_DIM)
             .assign_coords(inputs.labels)
+            .cumsum(LAG_DIM)
         )
 
         dates = self.data.dates
@@ -3502,9 +3499,10 @@ class Incrementality:
         position = np.searchsorted(extended.values, current_end.values[rows], "right")
         counted = np.clip(position - 1 - spent, 0, adstock.l_max - 1)
 
-        within = shares.isel(horizon=xr.DataArray(counted, dims="date"))
-        cohorts = saturated.isel(date=spent) * total
+        cohorts = saturated.isel(date=spent)
+        within = cumulative.isel({LAG_DIM: xr.DataArray(counted, dims="date")})
         within = within.assign_coords(date=cohorts["date"].values)
+        whole = cumulative.isel({LAG_DIM: -1}, drop=True)
         order = ("chain", "draw", "date", *out_dims)
 
         # Each period's value is the sum over its own dates: a one-hot matrix of
@@ -3517,7 +3515,7 @@ class Incrementality:
             return np.moveaxis(summed, 0, 2)
 
         current = by_period(cohorts * within)
-        future = by_period(cohorts * (1 - within))
+        future = by_period(cohorts * (whole - within))
 
         # A period's carryover is cut by the data when its last spend date plus
         # the reach lies past the last fitted date.  Its current window then

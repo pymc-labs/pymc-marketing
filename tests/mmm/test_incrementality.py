@@ -5443,6 +5443,32 @@ class TestClosedFormCurrentFuture:
         np.testing.assert_allclose(float(row.current.mean()), per_draw, rtol=1e-9)
         assert abs(per_draw - of_means) > 1e-3 * abs(per_draw)
 
+    @pytest.mark.parametrize(
+        "method_name",
+        [
+            "split_incremental_contribution_over_time",
+            "split_incremental_contribution_current_future",
+        ],
+    )
+    def test_the_posterior_is_sampled_once_per_transformation(
+        self, adstock_last_fitted_mmm, monkeypatch, method_name
+    ):
+        """One run for the saturation, one for the kernel, on either route."""
+        calls = {"n": 0}
+        original = pm.sample_posterior_predictive
+
+        def counted(*args, **kwargs):
+            calls["n"] += 1
+            return original(*args, **kwargs)
+
+        monkeypatch.setattr(pm, "sample_posterior_predictive", counted)
+
+        getattr(adstock_last_fitted_mmm.incrementality, method_name)(
+            frequency="monthly", method="closed_form"
+        )
+
+        assert calls["n"] == 2
+
     def test_sampling_the_kernel_logs_nothing(self, adstock_last_fitted_mmm, caplog):
         """No ``Sampling: []`` line from the kernel or the saturation."""
         with caplog.at_level(logging.INFO):
