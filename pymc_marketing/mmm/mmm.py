@@ -231,7 +231,7 @@ from pymc_marketing.mmm.dims import XTensorLike
 from pymc_marketing.mmm.events import EventEffect
 from pymc_marketing.mmm.fourier import YearlyFourier
 from pymc_marketing.mmm.hsgp import HSGPBase
-from pymc_marketing.mmm.incrementality import Incrementality
+from pymc_marketing.mmm.incrementality import Incrementality, _EvaluatorCache
 from pymc_marketing.mmm.lift_test import (
     _resolve_likelihood,
     add_cost_per_target_observations,
@@ -2356,6 +2356,8 @@ class MMM(RegressionModelBuilder):
         xr.DataTree
             Inference data of the fitted model.
         """
+        # Compiled evaluators hold the fit-time posterior, so a refit makes them stale even when the graph is unchanged.
+        self._clear_incrementality_evaluator_cache()
         if hasattr(self, "model") and self._target_is_placeholder:
             warnings.warn(
                 "The model was built by `sample_prior_predictive` with a "
@@ -2454,6 +2456,8 @@ class MMM(RegressionModelBuilder):
             )
 
         """
+        # A rebuild replaces the graph every compiled incrementality evaluator was built from, so none is reusable.
+        self._clear_incrementality_evaluator_cache()
         # Calibration rows belong to a particular graph. A rebuild creates a
         # fresh graph, so callers must re-add any lift tests they want to use.
         self._lift_test_calibrations = []
@@ -3718,6 +3722,34 @@ class MMM(RegressionModelBuilder):
         """
         self._validate_idata_exists()
         return Incrementality(model=self, idata=self.idata)
+
+    def _get_incrementality_evaluator_cache(self) -> _EvaluatorCache:
+        """Return this model's cache of compiled incrementality evaluators.
+
+        The cache is created on first use and stored on the instance.
+        Every :class:`~pymc_marketing.mmm.incrementality.Incrementality` object this model creates shares it.
+        That covers direct calls and the summary factory.
+        It is a process-local performance aid holding compiled PyTensor functions.
+        It is never serialized and is dropped whenever the model graph or its fit changes.
+
+        Returns
+        -------
+        _EvaluatorCache
+            The cache, created empty if the model does not have one yet.
+        """
+        cache = getattr(self, "_incrementality_evaluator_cache", None)
+        if cache is None:
+            cache = _EvaluatorCache()
+            self._incrementality_evaluator_cache = cache
+        return cache
+
+    def _clear_incrementality_evaluator_cache(self) -> None:
+        """Drop every compiled incrementality evaluator.
+
+        A rebuild or refit invalidates the compiled graphs and the fit-time values they were built against.
+        A later incrementality call then compiles a fresh evaluator.
+        """
+        self.__dict__.pop("_incrementality_evaluator_cache", None)
 
     def _make_channel_transform(
         self, df_lift_test: pd.DataFrame

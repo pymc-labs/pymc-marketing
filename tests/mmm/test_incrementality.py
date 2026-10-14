@@ -15,6 +15,7 @@
 
 import json
 import logging
+import pickle
 import warnings
 from pathlib import Path
 from types import SimpleNamespace
@@ -66,6 +67,7 @@ from pymc_marketing.mmm.transformers import (
     geometric_adstock,
     logistic_saturation,
 )
+from pymc_marketing.model_builder import RegressionModelBuilder
 from pymc_marketing.model_graph import deterministics_to_flat
 from pymc_marketing.serialization import serialization
 from tests.mmm.test_spend_reach import (
@@ -5230,3 +5232,220 @@ class TestSplitIncrementalContributionHelpers:
         assert result.coords["spend_date"].values == np.datetime64("2023-04-02")
         assert result.coords["period_start"].values == np.datetime64("2023-01-01")
         assert bool(result.coords["complete"])
+
+
+class TestEvaluatorCache:
+    """The MMM-level cache that lets Incrementality reuse compiled evaluators.
+
+    One compiled ``CounterfactualEvaluator`` is shared per graph shape and dataset.
+    Every ``Incrementality`` object a fitted MMM creates reuses those evaluators.
+    That covers direct calls and the summary factory.
+    """
+
+    @pytest.fixture
+    def constructed(self, monkeypatch):
+        """Patch the evaluator global so each construction is recorded."""
+        calls = []
+        real = incrementality_module.CounterfactualEvaluator
+
+        class CountingEvaluator(real):
+            def __init__(self, *args, **kwargs):
+                calls.append(1)
+                super().__init__(*args, **kwargs)
+
+        monkeypatch.setattr(
+            incrementality_module, "CounterfactualEvaluator", CountingEvaluator
+        )
+        return calls
+
+    @staticmethod
+    def _idata_with_offset(mmm, offset):
+        """A copy of the model's idata whose channel_data is shifted by ``offset``."""
+        original = mmm.idata.constant_data["channel_data"].values.copy()
+        idata = mmm.idata.copy()
+        node = idata["constant_data"]
+        node.dataset = node.dataset.assign(
+            channel_data=node.dataset["channel_data"] + offset
+        )
+        # The copy must not alias the original: shifting it leaves the source channel_data unchanged.
+        np.testing.assert_array_equal(
+            mmm.idata.constant_data["channel_data"].values, original
+        )
+        return idata
+
+    def test_same_shape_reuses_and_compiles_once(self, simple_fitted_mmm, monkeypatch):
+        """A miss compiles once, and a second same-shape call never recompiles."""
+        builds = []
+        real_build = CounterfactualEvaluator._build
+
+        def counting_build(self):
+            builds.append(1)
+            return real_build(self)
+
+        monkeypatch.setattr(CounterfactualEvaluator, "_build", counting_build)
+
+        incr = simple_fitted_mmm.incrementality
+        incr.compute_incremental_contribution(
+            frequency="all_time", num_samples=50, random_state=np.random.default_rng(7)
+        )
+        assert len(builds) == 1
+
+        incr.compute_incremental_contribution(
+            frequency="all_time", num_samples=20, random_state=np.random.default_rng(8)
+        )
+        incr.compute_incremental_contribution(frequency="all_time")
+
+        assert len(builds) == 1
+
+    @pytest.mark.parametrize("entry_point", ["incremental", "roas"])
+    def test_reused_result_matches_a_fresh_build(
+        self, simple_fitted_mmm, constructed, entry_point
+    ):
+        """A reused evaluator matches a cleared-cache build for the call's own seed and draws."""
+        mmm = simple_fitted_mmm
+        incr = mmm.incrementality
+
+        def call(num_samples, seed):
+            kwargs = {
+                "frequency": "all_time",
+                "num_samples": num_samples,
+                "random_state": np.random.default_rng(seed),
+            }
+            if entry_point == "roas":
+                return incr.contribution_over_spend(**kwargs)
+            return incr.compute_incremental_contribution(**kwargs)
+
+        call(num_samples=50, seed=7)
+        assert len(constructed) == 1
+
+        reused = call(num_samples=20, seed=8)
+        assert len(constructed) == 1
+        assert reused.sizes["draw"] == 20
+
+        mmm._clear_incrementality_evaluator_cache()
+        fresh = call(num_samples=20, seed=8)
+
+        xr.testing.assert_allclose(reused, fresh)
+
+    def test_summary_factory_shares_the_cache(self, simple_fitted_mmm, constructed):
+        """The summary factory reuses the evaluator mmm.incrementality built."""
+        mmm = simple_fitted_mmm
+        mmm.incrementality.compute_incremental_contribution(frequency="original")
+        assert len(constructed) == 1
+
+        mmm.summary.roas(method="incremental", frequency="original", num_samples=10)
+
+        assert len(constructed) == 1
+
+    def test_rebuild_clears_the_cache(self, simple_fitted_mmm, simple_mmm_data):
+        """build_model drops the compiled evaluators."""
+        mmm = simple_fitted_mmm
+        mmm.incrementality.compute_incremental_contribution(frequency="all_time")
+        assert len(mmm._get_incrementality_evaluator_cache()) == 1
+
+        mmm.build_model(simple_mmm_data["X"], simple_mmm_data["y"])
+
+        assert len(mmm._get_incrementality_evaluator_cache()) == 0
+
+    def test_fit_clears_the_cache(
+        self, simple_fitted_mmm, simple_mmm_data, monkeypatch
+    ):
+        """fit drops the compiled evaluators before it samples."""
+        mmm = simple_fitted_mmm
+        mmm.incrementality.compute_incremental_contribution(frequency="all_time")
+        assert len(mmm._get_incrementality_evaluator_cache()) == 1
+
+        cleared = []
+        original = mmm._clear_incrementality_evaluator_cache
+
+        def spy():
+            cleared.append(1)
+            original()
+
+        monkeypatch.setattr(mmm, "_clear_incrementality_evaluator_cache", spy)
+        # Skip the sampler: the clear under test runs first, and a real refit is far too slow here.
+        monkeypatch.setattr(
+            RegressionModelBuilder, "fit", lambda self, *args, **kwargs: None
+        )
+
+        mmm.fit(simple_mmm_data["X"], simple_mmm_data["y"])
+
+        assert cleared == [1]
+        assert len(mmm._get_incrementality_evaluator_cache()) == 0
+
+    def test_build_from_idata_clears_the_cache(self, simple_fitted_mmm):
+        """build_from_idata drops the compiled evaluators."""
+        mmm = simple_fitted_mmm
+        mmm.incrementality.compute_incremental_contribution(frequency="all_time")
+        assert len(mmm._get_incrementality_evaluator_cache()) == 1
+
+        mmm.build_from_idata(mmm.idata)
+
+        assert len(mmm._get_incrementality_evaluator_cache()) == 0
+
+    def test_cache_is_not_in_idata_attrs(self, simple_fitted_mmm):
+        """The compiled-evaluator cache never reaches the serialized attrs."""
+        mmm = simple_fitted_mmm
+        mmm.incrementality.compute_incremental_contribution(frequency="all_time")
+
+        attrs = mmm.create_idata_attrs()
+
+        assert all("incrementality" not in key for key in attrs)
+
+    def test_pickled_cache_carries_no_evaluators(self, simple_fitted_mmm):
+        """Pickling the cache skips the process-local compiled functions."""
+        mmm = simple_fitted_mmm
+        mmm.incrementality.compute_incremental_contribution(frequency="all_time")
+        cache = mmm._get_incrementality_evaluator_cache()
+        assert len(cache) == 1
+
+        restored = pickle.loads(pickle.dumps(cache))  # noqa: S301
+
+        assert len(restored) == 0
+
+    def test_different_data_build_two_evaluators(self, simple_fitted_mmm, constructed):
+        """Two Incrementality objects over different data key apart and each build their own evaluator."""
+        mmm = simple_fitted_mmm
+        response = ["channel_contribution"]
+        original_key = mmm.incrementality._evaluator_cache_key(response)
+
+        mmm.incrementality.compute_incremental_contribution(frequency="all_time")
+        assert len(constructed) == 1
+
+        other = Incrementality(model=mmm, idata=self._idata_with_offset(mmm, 1))
+        assert other._evaluator_cache_key(response) != original_key
+
+        other.compute_incremental_contribution(frequency="all_time")
+
+        assert len(constructed) == 2
+
+    def test_the_cache_stays_bounded(self, simple_fitted_mmm):
+        """More distinct datasets than the bound leave the cache at its size."""
+        mmm = simple_fitted_mmm
+        for offset in range(6):
+            other = Incrementality(
+                model=mmm, idata=self._idata_with_offset(mmm, offset)
+            )
+            other.compute_incremental_contribution(frequency="all_time")
+
+        assert len(mmm._get_incrementality_evaluator_cache()) == 4
+
+    def test_a_mutation_after_the_first_call_is_still_refused(
+        self, funnel_identity_fitted_mmm
+    ):
+        """A pm.set_data mutation after a cached call makes the next call raise."""
+        mmm = funnel_identity_fitted_mmm
+        mmm.incrementality.compute_incremental_contribution(frequency="all_time")
+
+        model = mmm.model
+        original = model["lf_budget"].get_value(borrow=False).copy()
+        try:
+            with model:
+                pm.set_data({"lf_budget": original + 5.0})
+            with pytest.raises(ValueError, match=r"'lf_budget'.*changed since"):
+                mmm.incrementality.compute_incremental_contribution(
+                    frequency="all_time"
+                )
+        finally:
+            with model:
+                pm.set_data({"lf_budget": original})

@@ -806,6 +806,11 @@ class CounterfactualEvaluator:
         ``pm.set_data`` mutates the source model, which an evaluator built from
         a *conditioned_model* does not hold -- its intervened clone keeps the
         values it was built with -- so there is no live value to compare.
+    bind_shared_posterior : bool, default False
+        Compile the evaluator so a later :meth:`set_posterior` only swaps draws, with no recompile.
+        A caller that will rebind then pays one compile instead of two.
+        This option applies only to the *pymc_model* and *posterior* path.
+        Combined with *conditioned_model* it raises ``ValueError``.
 
     Attributes
     ----------
@@ -869,6 +874,7 @@ class CounterfactualEvaluator:
         intervention_target: str = CHANNEL_DATA,
         intervention_mode: InterventionMode = "replace",
         expected_aux_values: Mapping[str, xr.DataArray] | None = None,
+        bind_shared_posterior: bool = False,
     ) -> None:
         # Results are keyed by name whether the caller asked by name or handed
         # over the node: the linear predictor is only a registered variable
@@ -900,6 +906,12 @@ class CounterfactualEvaluator:
                 raise ValueError(
                     "Pass either a conditioned_model or pymc_model with "
                     "posterior, not both."
+                )
+            if bind_shared_posterior:
+                raise ValueError(
+                    "bind_shared_posterior applies only when the evaluator "
+                    "builds its own ConditionedModel from pymc_model and "
+                    "posterior; a caller-owned conditioned_model is left as is."
                 )
             if frozen_deterministics and (
                 set(frozen_deterministics)
@@ -954,6 +966,9 @@ class CounterfactualEvaluator:
                 frozen_deterministics=frozen_deterministics,
             )
             self._do_model = conditioned_model.model
+            if bind_shared_posterior:
+                # Bind the draws first, so the compile below already produces the graphs a later rebind reuses.
+                conditioned_model.set_posterior(conditioned_model.posterior)
 
         self._conditioned = conditioned_model
         # Register last: a constructor that raises must not leave a callback on

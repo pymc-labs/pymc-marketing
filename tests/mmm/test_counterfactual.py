@@ -1132,6 +1132,24 @@ class TestConditionedModelRebinding:
             dates=self.dates,
         )
 
+    def test_bind_shared_posterior_is_refused_with_a_conditioned_model(
+        self, model_and_posteriors
+    ):
+        """The option only applies when the evaluator builds its own conditioned model."""
+        model, first, _, _ = model_and_posteriors
+        owner = CounterfactualEvaluator(
+            pymc_model=model, posterior=first, **evaluator_kwargs(self.dates)
+        )
+
+        with pytest.raises(ValueError, match="bind_shared_posterior"):
+            CounterfactualEvaluator(
+                conditioned_model=owner.conditioned_model,
+                response_vars=["channel_contribution"],
+                frozen_deterministics=[],
+                dates=self.dates,
+                bind_shared_posterior=True,
+            )
+
     @pytest.mark.parametrize(
         "intervention_target, message",
         [("y", "remove the likelihood"), ("beta", "is a random variable")],

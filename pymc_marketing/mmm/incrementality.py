@@ -229,15 +229,17 @@ Google MMM Paper: https://storage.googleapis.com/gweb-research2023-media/pubtool
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import warnings
 from abc import ABC, abstractmethod
+from collections import OrderedDict
 from collections.abc import Callable, Iterator, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass
 from functools import partial
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Literal, NamedTuple
 
 import numpy as np
 import pandas as pd
@@ -274,6 +276,7 @@ from pymc_marketing.mmm.transformers import ConvMode
 if TYPE_CHECKING:
     from numpy.random import Generator, RandomState
     from pandas.tseries.offsets import BaseOffset
+    from pytensor.graph.basic import Variable
 
     from pymc_marketing.mmm.components.adstock import AdstockTransformation
     from pymc_marketing.mmm.counterfactual import PeriodWindow
@@ -808,6 +811,166 @@ class PeriodIncrements:
     freq_offset: BaseOffset
 
 
+_EVALUATOR_CACHE_SIZE = 4
+"""Number of compiled evaluators a fitted MMM keeps before evicting the least recent."""
+
+
+class _EvaluatorCacheKey(NamedTuple):
+    """Identity of a compiled counterfactual evaluator.
+
+    Two calls share one evaluator only when every field matches.
+    The structural fields decide the graph that gets compiled.
+    ``dates`` and ``data_fingerprint`` decide the data it is compiled and checked against.
+    Two :class:`Incrementality` objects over different data therefore never collide.
+    Wrappers built over one fit-time dataset do share an entry.
+    """
+
+    response_vars: tuple[str, ...]
+    intervention_target: str
+    intervention_mode: str
+    frozen_deterministics: tuple[str, ...]
+    n_dates: int
+    dates: tuple
+    data_fingerprint: tuple | None
+
+
+def _constant_data_fingerprint(idata: xr.DataTree) -> tuple | None:
+    """Return a content fingerprint of a DataTree's fit-time ``constant_data``.
+
+    The evaluator bakes none of the data values into its graph, since they are function inputs.
+    It does hold the ``constant_data`` it was built with for its mutation check.
+    It also reads date-indexed auxiliary inputs off the model at compile time.
+    Fingerprinting that group keeps evaluators over different data apart.
+    The summary factory and ``MMM.incrementality`` build wrappers over one fit-time dataset and share an entry.
+
+    Parameters
+    ----------
+    idata : xr.DataTree
+        Fitted inference data whose ``constant_data`` group is fingerprinted when present.
+
+    Returns
+    -------
+    tuple or None
+        One ``(name, shape, dtype, digest)`` entry per data variable.
+        ``None`` when ``idata`` has no ``constant_data`` group.
+    """
+    constant_data = getattr(idata, "constant_data", None)
+    if constant_data is None:
+        return None
+    entries = []
+    for name in sorted(constant_data.data_vars):
+        values = np.asarray(constant_data[name].values)
+        # A label array's buffer is a pointer rather than its content, so hash its text instead.
+        # The numeric arrays the group holds hash directly.
+        payload = (
+            repr(values.tolist()).encode()
+            if values.dtype.hasobject
+            else np.ascontiguousarray(values).tobytes()
+        )
+        entries.append(
+            (
+                name,
+                values.shape,
+                values.dtype.str,
+                hashlib.blake2b(payload, digest_size=16).digest(),
+            )
+        )
+    return tuple(entries)
+
+
+class _EvaluatorCache:
+    """Bounded LRU cache of compiled counterfactual evaluators.
+
+    A fitted MMM keeps one of these so its :class:`Incrementality` objects reuse compiled evaluators.
+    An entry is keyed by graph shape and dataset, so repeated questions pay one compile.
+    The cache is bounded, so a model cannot pin an unbounded number of compiled functions.
+    It is never serialized, because the compiled functions it holds are only meaningful in-process.
+
+    Calls on one MMM share the cached evaluator, so concurrent calls from several threads are not supported.
+
+    Parameters
+    ----------
+    max_entries : int, default 4
+        Number of evaluators kept before the least recently used is evicted.
+    """
+
+    def __init__(self, max_entries: int = _EVALUATOR_CACHE_SIZE) -> None:
+        self._max_entries = max_entries
+        self._entries: OrderedDict[_EvaluatorCacheKey, CounterfactualEvaluator] = (
+            OrderedDict()
+        )
+
+    def get(self, key: _EvaluatorCacheKey) -> CounterfactualEvaluator | None:
+        """Return the evaluator cached under ``key``, marking it most recent.
+
+        Parameters
+        ----------
+        key : _EvaluatorCacheKey
+            Identity of the evaluator to look up.
+
+        Returns
+        -------
+        CounterfactualEvaluator or None
+            The cached evaluator, or ``None`` on a miss.
+        """
+        evaluator = self._entries.get(key)
+        if evaluator is not None:
+            self._entries.move_to_end(key)
+        return evaluator
+
+    def put(self, key: _EvaluatorCacheKey, evaluator: CounterfactualEvaluator) -> None:
+        """Store ``evaluator`` under ``key``, evicting the least recent entry.
+
+        Parameters
+        ----------
+        key : _EvaluatorCacheKey
+            Identity to store the evaluator under.
+        evaluator : CounterfactualEvaluator
+            The compiled evaluator to cache.
+        """
+        self._entries[key] = evaluator
+        self._entries.move_to_end(key)
+        while len(self._entries) > self._max_entries:
+            self._entries.popitem(last=False)
+
+    def get_or_build(
+        self,
+        key: _EvaluatorCacheKey,
+        factory: Callable[[], CounterfactualEvaluator],
+    ) -> CounterfactualEvaluator:
+        """Return the evaluator cached under ``key``, building and caching it on a miss.
+
+        Parameters
+        ----------
+        key : _EvaluatorCacheKey
+            Identity of the evaluator to look up.
+        factory : callable
+            Builds the evaluator when ``key`` is absent.
+
+        Returns
+        -------
+        CounterfactualEvaluator
+            The cached evaluator, or the freshly built and cached one.
+        """
+        evaluator = self.get(key)
+        if evaluator is None:
+            evaluator = factory()
+            self.put(key, evaluator)
+        return evaluator
+
+    def __len__(self) -> int:
+        return len(self._entries)
+
+    def __getstate__(self) -> dict[str, int]:
+        """Skip the compiled evaluators when the owning model is pickled."""
+        return {"_max_entries": self._max_entries}
+
+    def __setstate__(self, state: dict[str, int]) -> None:
+        """Restore the bound, empty, so a pickled model keeps no stale graphs."""
+        self._max_entries = state.get("_max_entries", _EVALUATOR_CACHE_SIZE)
+        self._entries = OrderedDict()
+
+
 class Incrementality:
     """Incrementality and counterfactual analysis for MMM models.
 
@@ -843,6 +1006,11 @@ class Incrementality:
     ValueError
         If both ``idata`` and ``data`` are provided, or neither is; or if the
         idata coordinates do not match the fitted model's.
+
+    Notes
+    -----
+    Computation reuses compiled evaluators cached on the fitted model, so repeated calls do not recompile.
+    Calls on one model therefore share that cache, and concurrent calls from several threads are not supported.
 
     Examples
     --------
@@ -2799,6 +2967,39 @@ class Incrementality:
         attrs["warnings"] = json.dumps(notes)
         return attrs
 
+    def _evaluator_cache_key(
+        self, response_vars: Sequence[str | Variable]
+    ) -> _EvaluatorCacheKey:
+        """Return the cache identity of the evaluator :meth:`_compute_increments` needs.
+
+        The key mirrors what the evaluator bakes into its compiled graph.
+        That is the response variables, the target, the mode, the frozen deterministics and the date count.
+        It identifies the data by the dates and by a ``constant_data`` fingerprint.
+        Two ``Incrementality`` objects over different data therefore never share an entry.
+
+        Parameters
+        ----------
+        response_vars : sequence of str or Variable
+            Responses the evaluator would be asked for, in order; a node is keyed by its name.
+
+        Returns
+        -------
+        _EvaluatorCacheKey
+            The identity the evaluator for these responses is cached under.
+        """
+        dates = self.data.dates
+        return _EvaluatorCacheKey(
+            response_vars=tuple(
+                var if isinstance(var, str) else var.name for var in response_vars
+            ),
+            intervention_target=CounterfactualEvaluator.CHANNEL_DATA,
+            intervention_mode="replace",
+            frozen_deterministics=tuple(self.model.frozen_deterministics),
+            n_dates=len(dates),
+            dates=tuple(dates),
+            data_fingerprint=_constant_data_fingerprint(self.idata),
+        )
+
     def _compute_increments(
         self,
         *,
@@ -2960,14 +3161,20 @@ class Incrementality:
         # silently evaluating on whatever the live model happens to hold.
         # constant_data is missing only for idata built before this group was
         # recorded, and the evaluator falls back to the live snapshot then.
-        evaluator = CounterfactualEvaluator(
+        response_vars: list[str | Variable] = [
+            CHANNEL_CONTRIBUTION,
+            *effect_names,
+            *([predictor] if predictor is not None else []),
+        ]
+        # One compiled evaluator is reused per graph shape and dataset.
+        # The cache lives on the fitted model, so the summary factory hits the same entries.
+        # On a hit only the posterior is rebound.
+        # The graph, its batched inputs and the fit-time mutation check still describe this model.
+        build_evaluator = partial(
+            CounterfactualEvaluator,
             pymc_model=posterior_predictive_model,
             posterior=posterior_sub,
-            response_vars=[
-                CHANNEL_CONTRIBUTION,
-                *effect_names,
-                *([predictor] if predictor is not None else []),
-            ],
+            response_vars=response_vars,
             frozen_deterministics=self.model.frozen_deterministics,
             dates=dates,
             expected_aux_values=(
@@ -2975,7 +3182,17 @@ class Incrementality:
                 if hasattr(self.idata, "constant_data")
                 else None
             ),
+            # Compile against the shared posterior, so a miss pays one compile rather than two.
+            bind_shared_posterior=True,
         )
+        cache = self.model._get_incrementality_evaluator_cache()
+        evaluator = cache.get_or_build(
+            self._evaluator_cache_key(response_vars), build_evaluator
+        )
+        # Rebinding on every call keeps a reused evaluator on the current posterior.
+        # On a miss this is a pure rebind of the draws the evaluator was just built on.
+        # It recompiles nothing, and it is kept so every call takes the same path.
+        evaluator.set_posterior(posterior_sub)
 
         # channel_data's declared axis order, which the baseline array below and
         # the per-channel scenarios further down are both read against.  Taken
