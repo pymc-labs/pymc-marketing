@@ -1,0 +1,33 @@
+.github/workflows/test_geolift_notebook.yml
+  s_6ac51f36b65cd4::t_9846413160c707 1-60
+docs/source/gallery/gallery.md
+  s_6ac51f36b65cd4::t_cf9144f9cba541 191-195
+docs/source/gallery/gallery.yaml
+  s_6ac51f36b65cd4::t_d7c22bc48ec9c3 81-82
+docs/source/notebooks/mmm/mmm_geolift_calibration.ipynb
+  s_6ac51f36b65cd4::t_70c8c58e8b9520 3805-3809
+docs/source/notebooks/mmm/mmm_multi_arm_geolift_calibration.ipynb
+  s_6ac51f36b65cd4::t_621943db8d8024 1-2519
+pyproject.toml
+  s_6ac51f36b65cd4::t_4ea23eee5ce872 63,75
+scripts/run_notebooks/runner.py
+  s_6ac51f36b65cd4::t_a1ad223ade025f 91-93
+uv.lock
+  s_6ac51f36b65cd4::t_1dff6836716e5d 617-618,626-657,1247-1248,1618,1620,1628,1630,1638,1640,1648,1650,1657,1659,1667,1669,1681,2534-2549,3402,3502-3520,4106,4187,4220,4835,4884,5294-5311,5316-5327,5329-5334
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "dd2753cdc525faab69d02f35c9184f5508662e21",
+  "prompts": {},
+  "sessions": {
+    "s_6ac51f36b65cd4": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a13ab5-5ceb-78c3-be00-34ae3ef1404b",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Benjamin T. Vincent <inferencelab@gmail.com>"
+    }
+  }
+}
