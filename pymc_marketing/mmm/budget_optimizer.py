@@ -2892,10 +2892,11 @@ class BudgetOptimizer(BaseModel):
         ``cache=True`` is the long-lived path -- the objective and the
         constraints -- whose graphs the conditioned model re-extracts through
         the shared posterior on the first rebind so they follow every later
-        one.  ``cache=False`` is for a graph compiled and used once,
-        immediately (an ad-hoc evaluation): it must not pin its variables on
-        the conditioned model, or a thinned posterior that still satisfies the
-        objective would be refused by a variable only that graph reads.
+        one.  ``cache=False`` conditions the graph on the current draws as
+        constants, so it registers nothing on the shared posterior and a
+        thinned posterior that still satisfies the objective is not refused by
+        a variable only this graph reads.  Nothing tracks it across a rebind,
+        so the compiled function is dropped whenever the draws move.
         """
         return cast(
             XTensorVariable,
@@ -3122,6 +3123,11 @@ class BudgetOptimizer(BaseModel):
         )
         try:
             self._conditioned.set_posterior(idata)
+            # An ad-hoc response function is compiled from a graph with the draws
+            # baked in as constants, so any rebind -- the first or a later draw
+            # swap -- makes it stale. Drop every one; the next evaluation
+            # recompiles it against the new draws.
+            self._response_functions = {}
             self.idata = idata
         except BaseException:
             (
@@ -3141,9 +3147,10 @@ class BudgetOptimizer(BaseModel):
         into shared variables.  Everything compiled from the response graph --
         the objective and the constraints -- is rebuilt from the new one.  A
         later rebind swaps draws under the same shared variables, which the
-        compiled functions read directly, so it fires nothing.
+        compiled functions read directly, so it fires nothing.  The ad-hoc
+        response functions are dropped by :meth:`set_posterior` on every
+        rebind, not here.
         """
-        self._response_functions = {}
         self._compile_objective_and_grad()
         self.set_constraints(constraints=list(self._constraints.values()))
 

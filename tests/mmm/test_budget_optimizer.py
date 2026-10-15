@@ -1109,15 +1109,16 @@ class TestEvaluateResponseDistribution:
         after = optimizer.evaluate_response_distribution(plan)
         assert not np.allclose(after.to_numpy(), before.to_numpy())
 
-    def test_a_cached_response_function_follows_a_later_rebind(
+    def test_an_adhoc_response_function_is_rebuilt_on_rebind(
         self, mmm_wrapper, dummy_idata
     ):
-        """A function compiled after the first rebind tracks later draw swaps.
+        """An ad-hoc response function is rebuilt on a rebind and reports the new draws.
 
-        The first ``set_posterior`` compiles the response cache against the new
-        shared graphs; a later ``set_posterior`` swaps the draws under those
-        same variables and recompiles nothing, so the cached function must be
-        reused and must report the newer posterior rather than a stale one.
+        An ad-hoc graph bakes the draws in as constants, so any
+        ``set_posterior`` -- the first or a later draw swap -- leaves its
+        compiled function holding the old posterior.  ``set_posterior`` drops
+        the cache, so the next evaluation recompiles against the newer draws
+        rather than reusing a stale function.
         """
         optimizer = BudgetOptimizer(
             model=mmm_wrapper,
@@ -1134,12 +1135,13 @@ class TestEvaluateResponseDistribution:
         ][0]
 
         optimizer.set_posterior(_scaled(posterior, 4.0))
+        # The rebind dropped the ad-hoc function rather than let it go stale.
         after = optimizer.evaluate_response_distribution(plan)
 
-        reused = optimizer._response_functions[
+        rebuilt = optimizer._response_functions[
             "total_media_contribution_original_scale"
         ][0]
-        assert reused is compiled
+        assert rebuilt is not compiled
         assert not np.allclose(after.to_numpy(), before.to_numpy())
 
     def test_a_raw_array_is_refused_here_too(self, mmm_wrapper):
@@ -1214,6 +1216,15 @@ class TestEvaluateResponseDistribution:
             )
 
         assert np.isfinite(response.to_numpy()).all()
+
+        # The compiled function is cached per variable, so a second call against
+        # the same posterior is answered without warning again.
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            again = optimizer.evaluate_response_distribution(
+                self._plan(), "target_scale"
+            )
+        np.testing.assert_allclose(again.to_numpy(), response.to_numpy())
 
     def test_a_reachable_response_does_not_warn(self, mmm_wrapper):
         """The warning has to stay quiet on the path everyone takes."""
@@ -2823,13 +2834,15 @@ def test_set_posterior_accepts_a_posterior_without_channel_contribution(
     assert optimizer.budgets_to_optimize.values.tolist() == [True, False]  # kept
 
 
-def test_a_one_shot_evaluation_does_not_pin_the_first_rebind():
-    """An ad-hoc evaluation before the first rebind must not force its free RVs on it.
+@pytest.mark.parametrize("rebind_first", [False, True])
+def test_a_one_shot_evaluation_does_not_pin_the_rebinds(rebind_first):
+    """An ad-hoc evaluation must not force its free RVs on a rebind.
 
     ``evaluate_response_distribution(plan, "noise_thing")`` reads ``gamma``,
     which the objective does not.  A posterior thinned to the variables the
-    objective reads is still accepted, exactly as it is without the ad-hoc call:
-    the one-shot graph must not be pinned on the conditioned model's cache.
+    objective reads is still accepted whether the ad-hoc call comes before the
+    first rebind or after it: the one-shot graph is conditioned on constants,
+    so it is never registered on the conditioned model's shared posterior.
     """
     n_dates = 4
     channels = ["a", "b"]
@@ -2862,6 +2875,8 @@ def test_a_one_shot_evaluation_does_not_pin_the_first_rebind():
         response_variable="total_media_contribution_original_scale",
     )
     plan = xr.DataArray([30.0, 70.0], dims=["channel"], coords={"channel": channels})
+    if rebind_first:
+        optimizer.set_posterior(xr.DataTree.from_dict({"/posterior": posterior}))
     optimizer.evaluate_response_distribution(plan, "noise_thing")
 
     thinned = xr.DataTree.from_dict({"/posterior": posterior.drop_vars("gamma")})

@@ -1265,13 +1265,15 @@ def test_conditioned_model_extract_returns_a_fresh_list(conditioned_slope):
     assert intact[0] is graph
 
 
-def test_conditioned_model_uncached_extract_is_not_pinned_on_first_rebind():
-    """A ``cache=False`` graph is never re-extracted, so its variables are not required.
+@pytest.mark.parametrize("rebind_first", [False, True])
+def test_conditioned_model_uncached_extract_is_not_pinned(rebind_first):
+    """A ``cache=False`` graph is never registered, on either side of a rebind.
 
     The long-lived graph reads ``beta``; the one-shot graph also reads ``gamma``.
-    A posterior without ``gamma`` still satisfies the first, so the first rebind
-    must succeed -- the one-shot graph must not have been pinned on the shared
-    posterior.
+    A posterior without ``gamma`` still satisfies the long-lived graph, so the
+    rebind to it must succeed whether the one-shot extraction happened before
+    the first rebind or after it -- the one-shot graph must not be pinned on the
+    shared posterior either way.
     """
     spend = np.array([10.0, 20.0])
     with pm.Model(coords={"channel": ["a", "b"]}) as model:
@@ -1291,6 +1293,8 @@ def test_conditioned_model_uncached_extract_is_not_pinned_on_first_rebind():
     conditioned = ConditionedModel(model, posterior, intervention={"spend": spend})
 
     conditioned.extract("resp")  # long-lived, needs beta
+    if rebind_first:
+        conditioned.set_posterior(posterior)  # first rebind -> shared path
     adhoc = conditioned.extract("extra", cache=False)  # one-shot, also reads gamma
     assert conditioned.extract("extra", cache=False) is not adhoc  # never cached
 

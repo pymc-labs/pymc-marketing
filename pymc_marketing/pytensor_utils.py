@@ -841,10 +841,11 @@ class ConditionedModel:
             long-lived kind: after the first rebind it reads shared variables
             and so follows every later one, and its variables must therefore
             be present in every posterior handed to :meth:`set_posterior`.  A
-            caller that only compiles and uses the graph once, immediately,
-            passes ``cache=False`` so its variables are not pinned on later
-            rebinds; it gets a new graph on every call, whereas cached calls
-            return the same object until the first rebind replaces it.
+            caller that passes ``cache=False`` gets a graph conditioned on the
+            current draws as constants instead: it registers nothing on the
+            shared posterior, so a later rebind to a posterior without those
+            variables still succeeds.  Nothing tracks that graph across a
+            rebind, so a consumer re-extracts it after a rebind.
 
         Returns
         -------
@@ -867,7 +868,9 @@ class ConditionedModel:
 
         resolved = [self._resolve(var) for var in requested]
         if not cache:
-            graphs = self._extract(resolved, self._shared_posterior, self._posterior)
+            # A one-shot graph is conditioned on constants, never on the shared
+            # posterior, so it registers no variable a later rebind would need.
+            graphs = self._extract(resolved, None, self._posterior)
             return graphs[0] if single else list(graphs)
         cache_key = _ExtractKey(
             self._names(resolved), self.frozen_deterministics, n_dates
