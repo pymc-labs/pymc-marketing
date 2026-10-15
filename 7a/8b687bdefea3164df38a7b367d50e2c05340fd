@@ -1,0 +1,27 @@
+docs/source/gallery/gallery.md
+  s_34de95dc6393da::t_ec257e79d2dfcb 77-81
+docs/source/gallery/gallery.yaml
+  s_34de95dc6393da::t_2c0708cd2aa3e5 36-37
+docs/source/notebooks/mmm/mmm_contribution_priors.ipynb
+  s_34de95dc6393da::t_b29a1f74470989 1-1404
+pymc_marketing/mmm/mmm.py
+  s_34de95dc6393da::t_3c364ace91b524 184,201-202,686-687,1114-1115,1935-1941,2372,2471-2472,2728-2967,3439-3446,4786-4787,4790-4823
+tests/mmm/test_contribution_prior.py
+  s_34de95dc6393da::t_6d94eb3ed1fc76 1-333
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "7a8b687bdefea3164df38a7b367d50e2c05340fd",
+  "prompts": {},
+  "sessions": {
+    "s_34de95dc6393da": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a13f0e-959c-7ff2-b12e-4b30d90826b7",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Benjamin T. Vincent <inferencelab@gmail.com>"
+    }
+  }
+}
