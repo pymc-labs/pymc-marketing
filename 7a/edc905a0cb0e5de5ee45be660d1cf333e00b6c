@@ -1,0 +1,19 @@
+docs/source/notebooks/mmm/mmm_contribution_priors.ipynb
+  s_34de95dc6393da::t_263dcdff77fe5d 1337,1341-1344,1359,1361,1370
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "7aedc905a0cb0e5de5ee45be660d1cf333e00b6c",
+  "prompts": {},
+  "sessions": {
+    "s_34de95dc6393da": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a13f0e-959c-7ff2-b12e-4b30d90826b7",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Benjamin T. Vincent <inferencelab@gmail.com>"
+    }
+  }
+}
