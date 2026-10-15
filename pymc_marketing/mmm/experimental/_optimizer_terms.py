@@ -86,7 +86,7 @@ def _input_provenance(
 ) -> dict[Variable, str]:
     """Keep authoritative container ownership before inferring declared shared aliases."""
     model = context.model
-    result = {model[internal]: raw for raw, internal in context.data_variables.items()}
+    result = {model[raw]: raw for raw in context.data_variables}
     for variable, raw in context._registered_inputs.items():
         result.setdefault(variable, raw)
     for raw in declared:
@@ -854,7 +854,7 @@ def _freeze_posterior_shapes(
         return built
     shape_nodes = set(ancestors(shapes, blockers=blockers))
     replacements: dict[Variable, Variable] = {
-        original: context.model[context.data_variables[raw]]
+        original: context.model[raw]
         for original, raw in inputs.items()
         if raw in context.data_variables
     }

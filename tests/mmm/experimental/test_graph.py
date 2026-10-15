@@ -384,23 +384,24 @@ def test_specification_key_preserves_core_dims_but_ignores_prior_runtime_state()
 
 
 @pytest.mark.parametrize("dot_first", [False, True])
-def test_raw_shared_aliases_keep_their_values_independent_of_equation_order(dot_first):
+def test_data_and_dot_share_the_container_named_after_their_column(dot_first):
     ds = xr.Dataset(
         {
-            "spend": ("date", [1.0, 2.0, 3.0]),
-            "_experimental_data_0": (("date", "feature"), [[10.0], [20.0], [30.0]]),
+            "features": (("date", "feature"), [[1.0], [2.0], [3.0]]),
             "sales": ("date", [1.0, 2.0, 3.0]),
             "aux": ("date", [10.0, 20.0, 30.0]),
         },
         coords={"date": np.arange(3), "feature": ["a"]},
     )
     raw = Equation(
-        observed="sales", mu=Data("spend"), likelihood=Prior("Normal", sigma=0.1)
+        observed="sales",
+        mu=Data("features").sum("feature"),
+        likelihood=Prior("Normal", sigma=0.1),
     )
     dot = Equation(
         observed="aux",
         mu=Dot(
-            var_name="_experimental_data_0",
+            var_name="features",
             prior=Prior("Normal", mu=1.0, sigma=0.2, dims="feature"),
         ),
         likelihood=Prior("Normal", sigma=0.1),
@@ -409,17 +410,41 @@ def test_raw_shared_aliases_keep_their_values_independent_of_equation_order(dot_
         context = BuildContext(ds)
         for equation in (dot, raw) if dot_first else (raw, dot):
             context.build(equation)
+    assert [variable.name for variable in model.data_vars] == ["features"]
+    updated = np.array([[2.0], [4.0], [6.0]])
+    pm.set_data({"features": updated}, model=model)
     coefficient = np.array([0.7])
     expected = (
         _normal_logp(coefficient, 1.0, 0.2).sum()
-        + _normal_logp(ds["sales"], ds["spend"], 0.1).sum()
-        + _normal_logp(
-            ds["aux"], ds["_experimental_data_0"].sum("feature") * coefficient[0], 0.1
-        ).sum()
+        + _normal_logp(ds["sales"], updated.sum(axis=1), 0.1).sum()
+        + _normal_logp(ds["aux"], updated.sum(axis=1) * coefficient[0], 0.1).sum()
     )
     assert_allclose(
         model.compile_logp()({model.free_RVs[0].name: coefficient}), float(expected)
     )
+
+
+@pytest.mark.parametrize("data_first", [False, True])
+def test_data_name_collisions_ask_for_a_distinct_model_variable_name(data_first):
+    ds = xr.Dataset(
+        {"search": ("date", [1.0, 2.0, 3.0]), "sales": ("date", [2.0, 3.0, 4.0])},
+        coords={"date": np.arange(3)},
+    )
+    search = Equation(
+        observed="search",
+        mu=Parameter("search_level", Prior("Normal")),
+        likelihood=Prior("Normal", sigma=1.0),
+    )
+    sales = Equation(
+        observed="sales", mu=Data("search"), likelihood=Prior("Normal", sigma=1.0)
+    )
+    with (
+        pm.Model(),
+        pytest.raises(ValueError, match=r"Data\('search'\).*Equation\(name="),
+    ):
+        context = BuildContext(ds)
+        for equation in (sales, search) if data_first else (search, sales):
+            context.build(equation)
 
 
 def test_discrete_observations_keep_their_joint_likelihood_with_continuous_inputs():
@@ -434,7 +459,8 @@ def test_discrete_observations_keep_their_joint_likelihood_with_continuous_input
     before = ds.copy(deep=True)
     likelihood = Prior("Poisson", mu=2.0)
     expected_y = ds["y"].values * np.log(2.0) - 2.0 - gammaln(ds["y"].values + 1)
-    outcome = Equation(observed="y", likelihood=likelihood)
+    # The input container takes the column name "y", so the outcome needs its own name.
+    outcome = Equation(name="count", observed="y", likelihood=likelihood)
     slope = Parameter("slope", Prior("Normal"))
     downstream = Equation(
         observed="aux",
