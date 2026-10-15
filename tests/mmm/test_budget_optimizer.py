@@ -2740,10 +2740,9 @@ def test_a_failing_recompile_rolls_back_the_whole_rebind(
 ):
     """A first rebind whose recompile callback raises leaves nothing behind.
 
-    The conditioned model accepts the new draws, then the optimizer's
-    recompile callback raises.  The binding, the compiled objective and
-    constraints, the response cache and the recorded graph must all return to
-    their construction state, and a retry must take the first-rebind path again.
+    The conditioned model accepts the new draws, then the optimizer's recompile callback raises.
+    The binding, the objective, the constraints and the response cache must all return to their construction state.
+    A retry must then take the first-rebind path again.
     """
     total_budget = 60.0
     optimizer = BudgetOptimizer(
@@ -2755,8 +2754,6 @@ def test_a_failing_recompile_rolls_back_the_whole_rebind(
     constant_objective = optimizer._objective_and_grad
     constraints = optimizer._constraints
     compiled_constraints = optimizer._compiled_constraints
-    response_functions = optimizer._response_functions
-    compiled_graph = optimizer._compiled_response_graph
 
     posterior = dummy_idata["posterior"].to_dataset()
     new = _scaled(posterior, 2.0)
@@ -2774,8 +2771,6 @@ def test_a_failing_recompile_rolls_back_the_whole_rebind(
     assert optimizer._objective_and_grad is constant_objective
     assert optimizer._constraints is constraints
     assert optimizer._compiled_constraints is compiled_constraints
-    assert optimizer._response_functions is response_functions
-    assert optimizer._compiled_response_graph is compiled_graph
 
     optimizer.set_posterior(new)
     assert optimizer._shared_posterior is not None

@@ -886,8 +886,8 @@ class ConditionedModel:
 
         Without ``share_posterior`` the first call rebuilds the handed-out keys on a shared posterior.
         That first call is validated, label realigned and length checked exactly like every later one.
-        Firing the registered callbacks lets consumers recompile from the new graphs.
-        Every call only swaps the draws, which needs no recompile and accepts a different number of draws.
+        The first call re-extracted the graphs, so it fires the registered callbacks and consumers recompile from them.
+        Every later call only swaps the draws, which needs no recompile and accepts a different number of draws.
 
         Parameters
         ----------
@@ -921,65 +921,64 @@ class ConditionedModel:
         """
         posterior = _posterior_dataset(idata)
         rollback = self._apply_posterior(posterior)
+        if rollback is None:
+            # A later rebind only swaps the draws.
+            # That is atomic and leaves nothing for a consumer to rebuild, so no callback fires.
+            return
         try:
             self._fire_callbacks()
         except BaseException:
-            # Restoring must not hide the callback's exception, which is the
-            # failure the caller has to see.  A rollback can itself fail when a
-            # callback extracted a key that only the new posterior satisfies,
-            # so it is best-effort here.
+            # Restoring must not hide the callback's exception, which is the failure the caller has to see.
+            # A rollback can itself fail when a callback extracted a key that only the new posterior satisfies.
+            # It is best-effort here for that reason.
             with contextlib.suppress(Exception):
                 rollback()
             raise
 
-    def _apply_posterior(self, posterior: xr.Dataset) -> Callable[[], None]:
-        """Bind the graphs to ``posterior`` and return a rollback of the binding.
+    def _apply_posterior(self, posterior: xr.Dataset) -> Callable[[], None] | None:
+        """Bind the graphs to ``posterior``, returning a rollback when that re-extracted the graphs.
 
         Without ``share_posterior`` the first call rebuilds the keys on a shared posterior, then rebinds it.
+        That is the one call that re-extracts, so it returns a rollback of the binding.
         Every call, that one included, is validated, label realigned and length checked like every later one.
-        A later call simply swaps the draws in place.
-        The rollback restores whatever binding was in place, which a caller runs when a registered callback raises.
+        A later call simply swaps the draws in place, atomically, so it returns ``None`` and needs no rollback.
         """
-        previous_posterior = self._posterior
-        if self._shared_posterior is None:
-            previous_cache = self._cache
-            shared, cache = self._extract_through_shared(previous_posterior)
-            shared.set_posterior(posterior)
-            self._shared_posterior = shared
+        if self._shared_posterior is not None:
+            # ``SharedPosterior.set_posterior`` validates every variable before writing any.
+            # A failure therefore leaves the previous draws bound, with nothing to roll back.
+            self._shared_posterior.set_posterior(posterior)
             self._posterior = posterior
-            self._cache = cache
+            return None
 
-            def rollback() -> None:
-                self._shared_posterior = None
-                self._posterior = previous_posterior
-                self._cache = previous_cache
-
-            return rollback
-
-        shared = self._shared_posterior
+        previous_cache = self._cache
+        previous_posterior = self._posterior
+        shared, cache = self._extract_through_shared(previous_posterior)
         shared.set_posterior(posterior)
+        self._shared_posterior = shared
         self._posterior = posterior
+        self._cache = cache
 
-        def restore_draws() -> None:
-            shared.set_posterior(previous_posterior)
+        def rollback() -> None:
+            self._shared_posterior = None
             self._posterior = previous_posterior
+            self._cache = previous_cache
 
-        return restore_draws
+        return rollback
 
     def register(self, callback: Callable[[], None]) -> None:
-        """Register ``callback`` to run after every :meth:`set_posterior`.
+        """Register ``callback`` to run after a rebind that re-extracted the graphs.
 
-        A consumer recompiles what it compiled from the graphs here; the
-        callback takes no arguments and calls :meth:`extract` to read the
-        refreshed graphs.  Callbacks run in registration order, and one that
-        raises stops the rest.  This object rolls back only its own binding;
-        each consumer is responsible for rolling back its own state.
+        That is the first :meth:`set_posterior` of a model built without ``share_posterior``.
+        Later rebinds only swap the draws, so they fire nothing.
+        A consumer recompiles what it compiled from the graphs here.
+        The callback takes no arguments and calls :meth:`extract` to read the refreshed graphs.
+        Callbacks run in registration order, and one that raises stops the rest.
+        This object rolls back only its own binding; each consumer is responsible for rolling back its own state.
 
         Parameters
         ----------
         callback : callable
-            A no-argument callable run after every rebind, in registration
-            order.
+            A no-argument callable run after a rebind that re-extracted the graphs, in registration order.
         """
         self._callbacks.append(callback)
 

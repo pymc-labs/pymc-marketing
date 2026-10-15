@@ -1687,10 +1687,6 @@ class BudgetOptimizer(BaseModel):
     _response_functions: dict[str, tuple[Callable, tuple[str, ...]]] = PrivateAttr(
         default_factory=dict
     )
-    # The response graph the objective and constraints were last compiled from,
-    # so a rebind can tell a first rebind (new graphs, recompile) from a later
-    # one (same graphs, draws swapped in place, nothing to do).
-    _compiled_response_graph: XTensorVariable = PrivateAttr()
 
     @model_validator(mode="before")
     @classmethod
@@ -3123,7 +3119,6 @@ class BudgetOptimizer(BaseModel):
             self._constraints,
             self._compiled_constraints,
             self._response_functions,
-            self._compiled_response_graph,
         )
         try:
             self._conditioned.set_posterior(idata)
@@ -3135,24 +3130,19 @@ class BudgetOptimizer(BaseModel):
                 self._constraints,
                 self._compiled_constraints,
                 self._response_functions,
-                self._compiled_response_graph,
             ) = previous
             raise
 
     def _recompile_after_rebind(self) -> None:
         """Recompile the objective and constraints when a rebind swaps the graphs.
 
-        The conditioned model fires this after every rebind.  The first one
-        moves the draws out of the graphs and into shared variables, so the
-        response graph changes identity and everything compiled from it -- the
-        objective and the constraints -- must be rebuilt.  Every later rebind
-        swaps draws under the same shared variables, which the compiled
-        functions read directly, so the identity is unchanged and there is
-        nothing to do.
+        The conditioned model fires this only when a rebind re-extracted the
+        graphs -- the first one, which moves the draws out of the graphs and
+        into shared variables.  Everything compiled from the response graph --
+        the objective and the constraints -- is rebuilt from the new one.  A
+        later rebind swaps draws under the same shared variables, which the
+        compiled functions read directly, so it fires nothing.
         """
-        graph = self.extract_response_distribution(self.response_variable)
-        if graph is self._compiled_response_graph:
-            return
         self._response_functions = {}
         self._compile_objective_and_grad()
         self.set_constraints(constraints=list(self._constraints.values()))
@@ -3164,7 +3154,6 @@ class BudgetOptimizer(BaseModel):
         response_distribution = self.extract_response_distribution(
             self.response_variable
         )
-        self._compiled_response_graph = response_distribution
 
         objective = -self.utility_function(
             samples=response_distribution, budgets=budgets

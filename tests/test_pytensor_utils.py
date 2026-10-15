@@ -1337,7 +1337,8 @@ def test_conditioned_model_later_rebind_reuses_graph_and_follows_new_draws(
     conditioned_slope.register(lambda: fired.append("again"))
     conditioned_slope.set_posterior(third)
 
-    assert fired == ["again"]
+    # A later rebind only swaps the draws, so it fires no callback.
+    assert fired == []
     assert conditioned_slope.shared_posterior is shared  # same binding, new draws
     # No re-extraction: the same compiled function follows the new draw count.
     assert conditioned_slope.extract("doubled") is shared_graph
@@ -1362,95 +1363,43 @@ def test_conditioned_model_share_posterior_binds_from_the_first_extract(
     np.testing.assert_allclose(fn(), _expected_doubled(third, data_values))
 
 
-@pytest.mark.parametrize("failing_first_rebind", [True, False])
 def test_conditioned_model_failing_callback_rolls_back_binding(
-    conditioned_slope, slope_posteriors, failing_first_rebind
+    conditioned_slope, slope_posteriors
 ):
+    """A callback that raises on the first rebind rolls the constant binding back.
+
+    The first rebind is the only one that re-extracts, so it is the only one whose failure has a binding to restore.
+    A later rebind fires no callback.
+    """
+
     def boom():
         raise RuntimeError("callback failed")
 
-    _, data_values, first, second, third = slope_posteriors
-    if failing_first_rebind:
-        # A failed first rebind leaves the constant binding in place.
-        constant_graph = conditioned_slope.extract("doubled")
-        conditioned_slope.register(boom)
-        with pytest.raises(RuntimeError, match="callback failed"):
-            conditioned_slope.set_posterior(second)
-        assert conditioned_slope.extract("doubled") is constant_graph
-        np.testing.assert_allclose(
-            function([], constant_graph)(), _expected_doubled(first, data_values)
-        )
-    else:
-        # A failed later rebind restores the previous draws.
+    _, data_values, first, second, _ = slope_posteriors
+    constant_graph = conditioned_slope.extract("doubled")
+    conditioned_slope.register(boom)
+    with pytest.raises(RuntimeError, match="callback failed"):
         conditioned_slope.set_posterior(second)
-        fn = function([], conditioned_slope.extract("doubled"))
-        conditioned_slope.register(boom)
-        with pytest.raises(RuntimeError, match="callback failed"):
-            conditioned_slope.set_posterior(third)
-        np.testing.assert_allclose(fn(), _expected_doubled(second, data_values))
+    assert conditioned_slope.extract("doubled") is constant_graph
+    np.testing.assert_allclose(
+        function([], constant_graph)(), _expected_doubled(first, data_values)
+    )
 
 
-def test_conditioned_model_failed_rebind_keeps_binding_and_skips_callbacks(
+def test_conditioned_model_failed_rebind_keeps_the_previous_binding(
     conditioned_slope, slope_posteriors
 ):
     _, data_values, _, second, _ = slope_posteriors
     conditioned_slope.set_posterior(second)
     fn = function([], conditioned_slope.extract("doubled"))
-    fired = []
-    conditioned_slope.register(lambda: fired.append("fired"))
 
-    # A posterior the shared variables cannot be rebound to fails before any
-    # callback runs, and leaves the previous draws in place.
+    # A posterior the shared variables cannot be rebound to is refused atomically.
+    # The previous draws therefore stay in place.
     without_slope = second["posterior"].to_dataset().drop_vars("slope")
     with pytest.raises(KeyError, match="missing variables"):
         conditioned_slope.set_posterior(without_slope)
 
-    assert fired == []
     np.testing.assert_allclose(fn(), _expected_doubled(second, data_values))
-
-
-def test_conditioned_model_posterior_matches_binding_when_restore_fails(
-    conditioned_slope, slope_posteriors, monkeypatch
-):
-    """A failed rollback leaves ``posterior`` reporting the draws actually bound.
-
-    ``restore_draws`` rebinds the shared variables before recording the restored
-    posterior.  If that rebind itself fails the new draws stay bound, so
-    ``posterior`` has to keep reporting them instead of claiming the old ones
-    were restored.
-    """
-    _, data_values, _, second, third = slope_posteriors
-    conditioned_slope.extract("doubled")
-    conditioned_slope.set_posterior(second)  # move onto the shared path
-
-    def boom():
-        raise RuntimeError("callback failed")
-
-    conditioned_slope.register(boom)
-
-    real_set_posterior = SharedPosterior.set_posterior
-    calls = []
-
-    def failing_restore(self, idata):
-        calls.append(idata)
-        if len(calls) == 2:  # the rollback, after the rebind to ``third``
-            raise ValueError("shared restore failed")
-        return real_set_posterior(self, idata)
-
-    monkeypatch.setattr(SharedPosterior, "set_posterior", failing_restore)
-
-    with pytest.raises(RuntimeError, match="callback failed"):
-        conditioned_slope.set_posterior(third)
-
-    assert len(calls) == 2
-    xr.testing.assert_identical(
-        conditioned_slope.posterior, third["posterior"].to_dataset()
-    )
-    # What ``posterior`` claims and what the graph evaluates agree.
-    np.testing.assert_allclose(
-        function([], conditioned_slope.extract("doubled"))(),
-        _expected_doubled(third, data_values),
-    )
 
 
 def test_conditioned_model_refuses_pre_intervention_variable(

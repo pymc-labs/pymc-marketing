@@ -987,36 +987,58 @@ class TestConditionedModelRebinding:
             reused.evaluate_baseline(spend)["channel_contribution"].shape[0]
             == third.sizes["draw"]
         )
-
-    @pytest.mark.parametrize("sample_bearing", [True, False])
-    def test_a_failed_rebind_leaves_the_old_binding_evaluable(
-        self, model_and_posteriors, sample_bearing
-    ):
-        """A rollback still evaluates the draws that were bound before it.
-
-        ``ConditionedModel`` restores its binding when a callback raises, but rolls back only its own state.
-        The evaluator must re-sync its sample markers.
-        Otherwise a sample-less response would keep the failed rebind's draw count next to the restored draws.
-        """
-        model, first, second, third = model_and_posteriors
-        common = evaluator_kwargs(
-            self.dates,
-            intervention_target=(
-                "channel_data" if sample_bearing else "channel_contribution"
-            ),
+        # A sample-less response is broadcast over a marker, which a rebind can stale and evaluation resyncs.
+        # A sample-bearing response has a sample axis of its own and needs no marker.
+        markers = reused._sample_markers
+        sample_less = "sample" not in reused._extract_graphs()[0].type.dims
+        assert bool(markers) == sample_less
+        assert all(
+            marker.get_value(borrow=True).shape[0] == third.sizes["draw"]
+            for marker in markers.values()
         )
+
+    @pytest.mark.parametrize("first_rebind", [True, False])
+    def test_a_failed_rebind_leaves_the_old_binding_evaluable(
+        self, model_and_posteriors, first_rebind, monkeypatch
+    ):
+        """A rebind the shared binding refuses leaves the previous draws evaluable.
+
+        The graphs are bound through a shared posterior from construction, so no rebind rebuilds them.
+        The evaluator's ``_build`` is therefore not a failure point on a rebind.
+        Neither is a second registered callback, since callbacks fire only on re-extraction.
+        Injecting a failure into ``_build`` proves that: the rebinds below never reach it.
+        A rebind fails only when the posterior cannot be laid out over the bound variables.
+        That refusal writes nothing, so the previous draws stay bound.
+        """
+        model, first, second, _ = model_and_posteriors
+        common = evaluator_kwargs(self.dates)
+        real_build = CounterfactualEvaluator._build
+        rebuilds = []
+
+        def failing_rebuild(self):
+            rebuilds.append(1)
+            if len(rebuilds) > 1:
+                raise RuntimeError("rebuild failed")
+            return real_build(self)
+
+        monkeypatch.setattr(CounterfactualEvaluator, "_build", failing_rebuild)
         reused = CounterfactualEvaluator(pymc_model=model, posterior=first, **common)
+        # The construction built once; a later call would be a rebind rebuilding.
+        assert len(rebuilds) == 1
         spend = np.ones((len(self.dates), 2, 1))
 
-        reused.set_posterior(second)
-        expected = second
+        if first_rebind:
+            expected = first
+        else:
+            reused.set_posterior(second)
+            expected = second
 
-        def boom():
-            raise RuntimeError("callback failed")
-
-        reused._conditioned.register(boom)
-        with pytest.raises(RuntimeError, match="callback failed"):
-            reused.set_posterior(third)
+        refused = xr.DataTree.from_dict({"/posterior": expected.drop_vars("beta")})
+        with pytest.raises(KeyError, match="missing variables"):
+            reused.set_posterior(refused)
+        # No rebind rebuilt, so the injected ``_build`` failure was never reached.
+        assert len(rebuilds) == 1
+        monkeypatch.undo()
 
         self._assert_same_as_fresh(
             reused,

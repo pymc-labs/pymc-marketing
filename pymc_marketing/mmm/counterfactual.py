@@ -852,7 +852,6 @@ class CounterfactualEvaluator:
         self.non_date_dims: dict[str, tuple[str, ...]] = {}
         self._elements_per_date = 0
         self.time_dtype: str | None = None
-        self._extracted_graphs: list[Variable] = []
         self._sample_markers: dict[np.dtype, SharedVariable] = {}
         self._aux: list[DateIndexedInput] = []
         self._aux_live: dict[str, Variable] = {}
@@ -885,7 +884,9 @@ class CounterfactualEvaluator:
         self._do_model = self._conditioned.model
         self._build()
         self._check_expected_aux_values()
-        self._conditioned.register(self._ensure_current)
+        # The graphs are shared from construction, so a rebind never re-extracts and the rebuild stays dormant.
+        # It is registered anyway, so the evaluator recompiles from it if a rebind ever does re-extract.
+        self._conditioned.register(self._build)
 
     def _extract_graphs(self) -> list[Variable]:
         """Resolve the requested responses and extract their conditioned graphs.
@@ -1020,7 +1021,6 @@ class CounterfactualEvaluator:
         evaluator = function(func_inputs, outputs)
 
         # Commit only once every step above has succeeded.
-        self._extracted_graphs = extracted
         self._sample_markers = sample_markers
         self.non_date_dims = non_date_dims
         self._elements_per_date = elements_per_date
@@ -1031,23 +1031,12 @@ class CounterfactualEvaluator:
         self._aux_dims = aux_dims
         self._evaluator = evaluator
 
-    def _ensure_current(self) -> None:
-        """Re-sync the sample markers to the bound posterior.
-
-        The draws live in shared variables, so a rebind needs no compile and the graphs never change.
-        Only the marker draw count, which follows the bound posterior, can go stale.
-        ``ConditionedModel`` restores the old draws when a callback raises, but rolls back only its own binding.
-        The markers are therefore re-synced here before every evaluation.
-        """
-        self._sync_sample_markers()
-
     def _sync_sample_markers(self) -> None:
         """Point every sample marker at the draw count of the bound posterior.
 
-        The markers are what a sample-less response is broadcast over; their
-        shared shape is symbolic, so resizing one needs no recompile.  Syncing
-        here rather than only in the rebind callback keeps the markers from
-        going stale when a later registered callback makes a rebind roll back.
+        The markers are what a sample-less response is broadcast over, and their shared shape is symbolic.
+        Resizing one therefore needs no recompile.
+        A rebind only swaps the draws, so syncing here before every evaluation keeps a marker from going stale.
         """
         if not self._sample_markers:
             return
@@ -1110,8 +1099,8 @@ class CounterfactualEvaluator:
         """Re-point the evaluator at a new posterior.
 
         Delegates to :meth:`~pymc_marketing.pytensor_utils.ConditionedModel.set_posterior`.
-        That call fires this evaluator's recompile callback.
         The draws live in shared variables, so the number of draws is free and no rebind recompiles.
+        The sample-axis markers are re-synced on the next evaluation rather than here.
 
         Parameters
         ----------
@@ -1496,7 +1485,7 @@ class CounterfactualEvaluator:
             the source model's current state, so a ``pm.set_data`` after
             construction fails here rather than being evaluated silently.
         """
-        self._ensure_current()
+        self._sync_sample_markers()
         self._check_expected_aux_values()
         args: list[np.ndarray] = [target_values[np.newaxis].astype(self.target_dtype)]
         if self.time_dtype is not None:
@@ -1556,7 +1545,7 @@ class CounterfactualEvaluator:
             the source model's current state, so a ``pm.set_data`` after
             construction fails here rather than being evaluated silently.
         """
-        self._ensure_current()
+        self._sync_sample_markers()
         self._check_expected_aux_values()
         args: list[np.ndarray] = [scenarios.spend]
         if self.time_dtype is not None:
