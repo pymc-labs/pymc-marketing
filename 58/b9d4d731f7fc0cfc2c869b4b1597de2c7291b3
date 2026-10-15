@@ -2,6 +2,10 @@ docs/source/notebooks/mmm/mmm_multiplicative.ipynb
   s_c6ae6a0b07b5ed::t_e711b3c7b39ead 17-19,27,30,33,41,45-50,52,55-60,130-132,140-149,153-161,163,165-166,173-195,198-214,220-221,227-229,240-242,273,398,440,460,528,563,712,839,904,1006,1137,1210,2130,2201,2274,2277-2279,2290,2420,2538,2576,2651,2818,2862,2920,3037,3165,3300,3425,3459,3503,3644,3688,3748,3770,3822,3893,3972,4028,4065,4142,4285,4323,4359,4473,4507,4604,4649,4681,4717,4751,4801,4836,4868,4899,4967,5010,5054,5161,5200,5255,5365,5393,5423,5473,5555,5654,5707,5741,5795,5903,5956,6016,6046,6100,6156,6235,6356,6388,6420,6506
   s_0bc512e2d64494::t_e9ade73fcdb2b9 63,162,164,167-172,196-197,215-219,222-226,230-234,237-239,2282,3965
   s_0bc512e2d64494::t_d0a28a1efd554e 235-236
+docs/source/notebooks/mmm/mmm_geolift_calibration.ipynb
+  s_324b93cca97336::t_7f46b23e55c531 24
+docs/source/notebooks/mmm/mmm_lift_test.ipynb
+  s_324b93cca97336::t_782c47ba768ae0 28
 ---
 {
   "schema_version": "authorship/3.0.0",
@@ -14,6 +18,14 @@ docs/source/notebooks/mmm/mmm_multiplicative.ipynb
         "tool": "codex",
         "id": "01a13990-9ce3-7f43-a90a-85c70a7530b7",
         "model": "gpt-6.1-sol"
+      },
+      "human_author": "Benjamin T. Vincent <inferencelab@gmail.com>"
+    },
+    "s_324b93cca97336": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a12206-e1b7-76d2-997f-08c6162e626a",
+        "model": "gpt-6-sol"
       },
       "human_author": "Benjamin T. Vincent <inferencelab@gmail.com>"
     },
