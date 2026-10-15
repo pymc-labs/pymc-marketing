@@ -271,6 +271,11 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :link: ../notebooks/mmm/mmm_funnel_mueffect_advanced.html
 :::
 
+:::{grid-item-card} Joint or Two-Stage? Estimating a Brand Funnel Through Branded Search
+:img-top: ../gallery/images/mmm_funnel_joint_vs_two_stage.png
+:link: ../notebooks/mmm/mmm_funnel_joint_vs_two_stage.html
+:::
+
 :::{grid-item-card} Funnel MMMs from YAML
 :img-top: ../gallery/images/mmm_funnel_from_yml.png
 :link: ../notebooks/mmm/mmm_funnel_from_yml.html

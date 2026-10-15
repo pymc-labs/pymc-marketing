@@ -111,6 +111,8 @@ sections:
             notebook: mmm/mmm_funnel_mueffect
           - title: "Advanced Funnel-Aware MMM: Geo-Level Mediation Through Lower-Funnel Spend"
             notebook: mmm/mmm_funnel_mueffect_advanced
+          - title: "Joint or Two-Stage? Estimating a Brand Funnel Through Branded Search"
+            notebook: mmm/mmm_funnel_joint_vs_two_stage
           - title: "Funnel MMMs from YAML"
             notebook: mmm/mmm_funnel_from_yml
           - title: Long-Term Brand Effects in MMMs with Brand Metrics and a Bayesian VARX
