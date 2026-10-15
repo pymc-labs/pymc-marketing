@@ -602,18 +602,27 @@ class TestBuildModelDeterministics:
         mmm.build_model(X, y)
         assert "y_original_scale" not in mmm.model.named_vars
 
-    def test_build_model_log_has_y_original_scale(self, mock_pymc_sample):
-        mmm = _make_mmm(link="log")
-        X, y = _make_positive_panel()
-        mmm.build_model(X, y)
-        assert "y_original_scale" in mmm.model.named_vars
+    def test_build_model_log_registers_mu_original_scale(self, mock_pymc_sample):
+        """The log link's LogNormal median is ``mu_original_scale = exp(mu) * target_scale``.
 
-    def test_build_model_log_y_original_scale_uses_output_var(self, mock_pymc_sample):
+        ``y_original_scale`` stays free for the ``y`` opt-in, which means
+        ``y * target_scale`` under every link (#3132).
+        """
         mmm = _make_mmm(link="log")
         X, y = _make_positive_panel()
         mmm.build_model(X, y)
-        expected_name = f"{mmm.output_var}_original_scale"
-        assert expected_name in mmm.model.named_vars
+        assert "mu_original_scale" in mmm.model.named_vars
+        assert "y_original_scale" not in mmm.model.named_vars
+        with mmm.model:
+            mu, median, scale = pm.draw(
+                [
+                    mmm.model["mu"],
+                    mmm.model["mu_original_scale"],
+                    mmm.model["target_scale"],
+                ],
+                random_seed=0,
+            )
+        np.testing.assert_allclose(median, np.exp(mu) * scale, rtol=1e-10)
 
     @pytest.mark.parametrize("link", ["identity", "log"])
     def test_build_model_has_channel_contribution(self, link, mock_pymc_sample):
@@ -1950,13 +1959,13 @@ class TestTotalResponseDeterministic:
         assert "total_response_original_scale" in mmm.model.named_vars
 
     def test_log_matches_summed_response(self, mock_pymc_sample):
-        """Cross-check against the independently built ``y_original_scale``."""
+        """Cross-check against the independently built ``mu_original_scale``."""
         mmm = self._built("log", with_effect=True)
         with mmm.model:
             total, per_date = pm.draw(
                 [
                     mmm.model["total_response_original_scale"],
-                    mmm.model["y_original_scale"],
+                    mmm.model["mu_original_scale"],
                 ],
                 random_seed=0,
             )
@@ -2246,3 +2255,137 @@ class TestLikelihoodSupport:
         assert "'Gamma'" in message
         assert "strictly positive" in message
         assert "2 of 4 values" in message
+
+
+class TestOutputVarOriginalScale:
+    """``y_original_scale`` means ``y * target_scale`` under every link (#3132).
+
+    The likelihood observes ``target / target_scale`` whatever the link, so the
+    output variable is already on the response scale and its original-scale
+    version is a plain product: no inverse link, no median.
+    """
+
+    @staticmethod
+    def _fitted(link: str, opt_in: bool) -> MMM:
+        mmm = _make_mmm(
+            link=link, scaling={"target": DataDerivedScaling(method="max", dims=())}
+        )
+        X, y = _make_positive_panel()
+        mmm.build_model(X, y)
+
+        if opt_in:
+            with warnings.catch_warnings():
+                warnings.simplefilter("error", UserWarning)
+                mmm.add_original_scale_contribution_variable(["y"])
+
+        mmm.fit(X, y)
+        mmm.sample_posterior_predictive(X, extend_idata=True, combined=False)
+        mmm.sample_prior_predictive(X, y, extend_idata=True)
+        return mmm
+
+    @pytest.mark.parametrize("link", ["identity", "log"])
+    def test_opt_in_registers_response_scale_draws(self, link, mock_pymc_sample):
+        """After the opt-in, the predictive groups hold ``y * target_scale``, per country."""
+        mmm = self._fitted(link, opt_in=True)
+        scale = mmm.data.get_target_scale()
+        assert set(scale.dims) == {"country"}
+        pp = mmm.idata.posterior_predictive
+        xr.testing.assert_allclose(
+            pp["y_original_scale"],
+            (pp["y"] * scale).transpose(*pp["y_original_scale"].dims),
+        )
+        prior = mmm.idata.prior["y_original_scale"]
+        xr.testing.assert_allclose(
+            prior,
+            (mmm.idata.prior_predictive["y"] * scale).transpose(*prior.dims),
+        )
+
+    @pytest.mark.parametrize("link", ["identity", "log"])
+    @pytest.mark.parametrize("opt_in", [False, True])
+    def test_predictive_target_accessor_derives_or_reads(
+        self, link, opt_in, mock_pymc_sample
+    ):
+        """``get_predictive_target`` gives ``y * target_scale`` with or without the opt-in."""
+        mmm = self._fitted(link, opt_in=opt_in)
+        scale = mmm.data.get_target_scale()
+
+        for group, predictive in [
+            ("posterior", mmm.idata.posterior_predictive),
+            ("prior", mmm.idata.prior_predictive),
+        ]:
+            draws = predictive["y"]
+            got = mmm.data.get_predictive_target(group, original_scale=True)
+            assert got.dims == draws.dims
+            xr.testing.assert_allclose(got, draws * scale)
+            xr.testing.assert_identical(
+                mmm.data.get_predictive_target(group, original_scale=False), draws
+            )
+
+    @pytest.mark.parametrize("link", ["identity", "log"])
+    def test_diagnostics_work_without_the_opt_in(self, link, mock_pymc_sample):
+        """The single-model gap from #3132: every original-scale consumer runs."""
+        import matplotlib
+
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+
+        mmm = self._fitted(link, opt_in=False)
+        assert "y_original_scale" not in mmm.idata.posterior_predictive
+
+        try:
+            mmm.plot_suite = "new"
+            mmm.plot.diagnostics.posterior_predictive(original_scale=True)
+            mmm.plot.diagnostics.prior_predictive(original_scale=True)
+            mmm.plot.diagnostics.residuals_over_time()
+            mmm.plot_suite = "legacy"
+            mmm.plot.residuals_over_time()
+            mmm.plot.residuals_posterior_distribution()
+        finally:
+            plt.close("all")
+
+        residuals = mmm.summary.residuals_over_time()
+        assert len(residuals) == mmm.idata.posterior_predictive.sizes["date"] * 2
+        prior = mmm.summary.prior_predictive(original_scale=True)
+        expected_mean = (
+            (mmm.idata.prior_predictive["y"] * mmm.data.get_target_scale())
+            .mean(("chain", "draw"))
+            .transpose("date", "country")
+            .values.ravel()
+        )
+        np.testing.assert_allclose(prior["mean"].to_numpy(), expected_mean)
+
+    def test_log_median_is_mu_original_scale(self, mock_pymc_sample):
+        """``to_original_scale("mu")`` is the median; ``to_original_scale("y")`` is not."""
+        mmm = self._fitted("log", opt_in=False)
+        posterior = mmm.idata.posterior
+        median = mmm.data.to_original_scale("mu")
+        xr.testing.assert_allclose(
+            median,
+            (np.exp(posterior["mu"]) * mmm.data.get_target_scale()).transpose(
+                *median.dims
+            ),
+        )
+        with pytest.raises(ValueError, match="'y' not found in posterior"):
+            mmm.data.to_original_scale("y")
+
+    def test_save_load_keeps_the_opt_in_without_warning(
+        self, mock_pymc_sample, tmp_path
+    ):
+        """A log model with the ``y`` opt-in round-trips: both names, no 'already in the model'."""
+        mmm = self._fitted("log", opt_in=True)
+        path = tmp_path / "mmm_log.nc"
+        mmm.save(str(path))
+        tree = xr.open_datatree(str(path)).load()
+        assert {"mu_original_scale", "y_original_scale"} <= set(tree.posterior)
+
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            loaded = MMM.load_from_idata(tree)
+
+        assert not [w for w in caught if "already in the model" in str(w.message)]
+        assert "mu_original_scale" in loaded.model.named_vars
+        assert "y_original_scale" in loaded.model.named_vars
+        xr.testing.assert_allclose(
+            loaded.data.get_predictive_target("posterior"),
+            tree.posterior_predictive["y_original_scale"],
+        )

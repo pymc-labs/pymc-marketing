@@ -73,6 +73,13 @@ def _name(value: Any, field: str, *, optional: bool = False) -> None:
         raise ValueError(f"{field} must be a nonempty string.")
 
 
+def _data_name_conflict(name: str) -> ValueError:
+    return ValueError(
+        f"Data({name!r}) registers a model data container named {name!r}, which another model variable also claims. "
+        "Rename that equation, parameter or term, for example with Equation(name=...)."
+    )
+
+
 def _copy_recipe_value(value: Any) -> Any:
     if isinstance(value, Prior):
         return copy_prior(value)
@@ -175,6 +182,8 @@ class Data(GraphTerm):
 
     Notes
     -----
+    The model data container is named ``var_name`` and is shared with ``Dot`` terms that read the same variable.
+    An equation observing the same variable therefore needs its own ``name``.
     Inputs are registered as ``float64`` in original units; the source dataset's values and dtype are unchanged.
     Integer inputs must lie in ``[-2**53, 2**53]`` to convert exactly; explicit casts remain part of the graph.
     """
@@ -507,8 +516,8 @@ class BuildContext:
         Built equation identities to original equation specifications.
     equation_names : dict
         Equation identities to actual named PyMC outputs, not anonymous downstream history expressions.
-    data_variables : dict
-        Raw input names to uniquely named, mutable ``float64`` model data containers.
+    data_variables : set of str
+        Dataset variables registered as mutable ``float64`` model data containers of the same name.
 
     Notes
     -----
@@ -558,7 +567,7 @@ class BuildContext:
         self.variables: dict[int, Any] = {}
         self.equations: dict[int, Equation] = {}
         self.equation_names: dict[int, str] = {}
-        self.data_variables: dict[str, str] = {}
+        self.data_variables: set[str] = set()
         self._registered_inputs: dict[Variable, str] = {}
         self._input_arrays: dict[str, xr.DataArray] = {}
         self._registration_datasets: dict[int, xr.Dataset] = {}
@@ -614,6 +623,8 @@ class BuildContext:
                 f"Model variable name {name!r} is owned by two different graph nodes."
             )
         if previous is None and name in self.model.named_vars:
+            if name in self.data_variables:
+                raise _data_name_conflict(name)
             raise ValueError(
                 f"Model variable name {name!r} already exists in the model."
             )
@@ -708,18 +719,23 @@ class BuildContext:
         return self._registration_datasets[key]
 
     def data(self, var_name: str) -> Any:
-        """Register and return an unscaled, finite, mutable ``float64`` input."""
+        """Register and return an unscaled, finite, mutable ``float64`` input named ``var_name``.
+
+        A shared term that already registered the same dataset variable (``Dot``) shares its container.
+        """
         if var_name in self.data_variables:
-            return self.model[self.data_variables[var_name]]
+            return self.model[var_name]
         array = self._input_array(var_name)
         self._ensure_dims(array.dims)
-        index = len(self.data_variables)
-        name = f"_experimental_data_{index}"
-        while name in self.model.named_vars or name in self._names or name in self.ds:
-            index += 1
-            name = f"_experimental_data_{index}"
-        variable = pmd.Data(name, array)
-        self.data_variables[var_name] = name
+        if var_name in self._names:
+            raise _data_name_conflict(var_name)
+        if var_name in self.model.named_vars:
+            variable = self.model[var_name]
+            if self._registered_inputs.get(variable) != var_name:
+                raise _data_name_conflict(var_name)
+        else:
+            variable = pmd.Data(var_name, array)
+        self.data_variables.add(var_name)
         return variable
 
     def _observation_array(self, binding: Binding) -> xr.DataArray:
@@ -903,6 +919,7 @@ class BuildContext:
                     if term.var_name in self._names or (
                         term.var_name in self.model.named_vars
                         and term.var_name not in self._shared_data_aliases
+                        and term.var_name not in self.data_variables
                     ):
                         raise ValueError(
                             f"Data variable name {term.var_name!r} is already owned by another model variable."
@@ -919,7 +936,7 @@ class BuildContext:
                 if isinstance(term, ModelTerm):
                     declared = set(term.data_vars)
                     known = set(self._registered_inputs) | {
-                        self.model[name] for name in self.data_variables.values()
+                        self.model[name] for name in self.data_variables
                     }
                     added = set(self.model.data_vars).difference(before, known)
                     unbound = []

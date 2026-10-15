@@ -619,7 +619,8 @@ class MediaMuEffect(DataVarMuEffect):
     media_transformation : MediaTransformation
         Transformation combining adstock and saturation with configurable order.
         Its ``dims`` must include the channel dimension plus any extra dims
-        (e.g. ``("product", "channel")``).
+        (e.g. ``("product", "channel")``). Adstock and saturation priors
+        without explicit ``dims`` get these dims, i.e. one parameter per cell.
     channel_dim : str, optional
         Name of the channel dimension to aggregate over.
         Default is ``"channel"``.

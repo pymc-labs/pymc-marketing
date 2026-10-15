@@ -149,7 +149,7 @@ def fitted() -> FittedProblem:
                 + rng.normal(0, 0.05, spend_values.shape),
             ),
             "unrelated": ("date", unrelated),
-            "_experimental_data_1": ("date", unrelated),
+            "extra_input": ("date", unrelated),
             "auxiliary": (
                 "date",
                 0.6 * unrelated + 0.2 + rng.normal(0, 0.1, len(dates)),
@@ -852,7 +852,7 @@ def test_optimization_and_rejection_do_not_mutate_fitted_state(
     model = fitted.model.model
     assert model is not None
     assert fitted.model._context is not None
-    names = tuple(fitted.model._context.data_variables.values())
+    names = tuple(fitted.model._context.data_variables)
     containers = {name: model[name].eval().copy() for name in names}
     coords = dict(model.coords)
     posterior = _posterior(fitted).copy(deep=True)
@@ -897,7 +897,7 @@ def test_optimizer_inputs_reject_inexact_or_nonreal_values_without_mutation(
     assert fitted.model._training_data is not None
     containers = {
         name: model[name].get_value().copy()
-        for name in fitted.model._context.data_variables.values()
+        for name in fitted.model._context.data_variables
     }
     coords = dict(model.coords)
     posterior = _posterior(fitted).copy(deep=True)
@@ -2992,7 +2992,7 @@ def test_unused_training_columns_cannot_override_fitted_input_identity(
         {
             "spend": ("date", [0.2, 0.8, 1.0]),
             "sales": ("date", [0.25, 0.85, 1.05]),
-            "_experimental_data_0": ("date", [100.0, 200.0, 300.0]),
+            "unused": ("date", [100.0, 200.0, 300.0]),
         },
         coords={"date": pd.date_range("2025-01-01", periods=3)},
     )
@@ -3024,14 +3024,14 @@ def test_unused_training_columns_cannot_override_fitted_input_identity(
     xr.testing.assert_identical(model.idata["posterior"].to_dataset(), posterior)
 
 
-def test_fresh_input_aliases_cannot_replace_another_inferred_decision(
+def test_two_inferred_inputs_keep_their_own_decision_values(
     fitted: FittedProblem,
 ) -> None:
-    spend, other = Data("spend"), Data("_experimental_data_1")
+    spend, other = Data("spend"), Data("extra_input")
     data = xr.Dataset(
         {
             "spend": ("date", [1.0, 2.0, 3.0]),
-            "_experimental_data_1": ("date", [10.0, 20.0, 30.0]),
+            "extra_input": ("date", [10.0, 20.0, 30.0]),
         },
         coords={"date": fitted.future["date"]},
     )
@@ -3089,7 +3089,7 @@ def test_reduced_dated_posterior_does_not_absorb_other_output_history(
     )
 
 
-def test_custom_shared_term_alias_keeps_its_own_decision_values(
+def test_custom_shared_term_keeps_its_own_decision_values(
     fitted: FittedProblem,
 ) -> None:
     class RawAlias(ModelTerm):
@@ -3111,7 +3111,7 @@ def test_custom_shared_term_alias_keeps_its_own_decision_values(
         def create_variable(self) -> XTensorVariable:
             return pm.modelcontext(None)[self.name]
 
-    price, other = Data("price"), RawAlias("_experimental_data_1")
+    price, other = Data("price"), RawAlias("extra_input")
     data = xr.Dataset(
         {
             "price": ("date", [1.0, 2.0, 3.0]),
@@ -3324,7 +3324,7 @@ def test_discrete_fitted_terms_rebind_fractional_inputs_without_new_draws(
     stored_training = fitted.model._training_data.copy(deep=True)
     containers = {
         name: fitted.model._context.model[name].get_value().copy()
-        for name in fitted.model._context.data_variables.values()
+        for name in fitted.model._context.data_variables
     }
     data = xr.Dataset({"x": ("geo", [0.25, 0.75])}, coords={"geo": fitted.train["geo"]})
     total = Ref("discrete_total") if reference else fitted.total
