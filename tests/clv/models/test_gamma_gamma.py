@@ -159,7 +159,7 @@ class TestGammaGammaModel(BaseTestGammaGammaModel):
             "customer_id": tuple(range(self.N)),
         }
 
-    @pytest.mark.slow
+    @pytest.mark.recovery
     def test_model_convergence(self):
         rng = np.random.default_rng(13)
         model_config = {
@@ -413,7 +413,7 @@ class TestGammaGammaModelIndividual(BaseTestGammaGammaModel):
             "obs": tuple(range(len(self.z))),
         }
 
-    @pytest.mark.slow
+    @pytest.mark.recovery
     def test_model_convergence(self):
         rng = np.random.default_rng(13)
         model = GammaGammaModelIndividual()

@@ -453,13 +453,14 @@ class TestShiftedBetaGeoModel:
             model.build_model(data=self.data)
             assert model.__repr__().replace(" ", "") == repr[1]
 
-    @pytest.mark.slow
+    # Only the NUTS case is a real-fit recovery study; map/advi are cheap
+    # enough to keep on the per-PR fast tier.
     @pytest.mark.parametrize(
         "method, rtol",
         [
-            ("mcmc", 0.1),
-            ("map", 0.1),
-            ("advi", 0.6),
+            pytest.param("mcmc", 0.1, marks=pytest.mark.recovery),
+            pytest.param("map", 0.1),
+            pytest.param("advi", 0.6),
         ],
     )
     def test_model_convergence(self, method, rtol):

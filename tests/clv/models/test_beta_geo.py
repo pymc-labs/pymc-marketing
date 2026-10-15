@@ -341,13 +341,14 @@ class TestBetaGeoModel:
         np.testing.assert_allclose(customer_freq.mean(), ref_freq.mean(), rtol=0.5)
         np.testing.assert_allclose(customer_freq.std(), ref_freq.std(), rtol=0.5)
 
-    @pytest.mark.slow
+    # Only the NUTS case is a real-fit recovery study; map/advi (19s/18s)
+    # are cheap enough to keep on the per-PR fast tier.
     @pytest.mark.parametrize(
         "method, rtol",
         [
-            ("mcmc", 0.1),
-            ("map", 0.2),
-            ("advi", 0.25),
+            pytest.param("mcmc", 0.1, marks=pytest.mark.recovery),
+            pytest.param("map", 0.2),
+            pytest.param("advi", 0.25),
         ],
     )
     def test_model_convergence(self, method, rtol, model_config):
@@ -1008,6 +1009,7 @@ class TestBetaGeoModelWithCovariates:
             "customer_id"
         )
 
+    @pytest.mark.recovery
     def test_covariate_model_convergence_a_b(self):
         """Test that we can recover the true parameters with MAP fitting"""
         rng = np.random.default_rng(627)
@@ -1048,6 +1050,7 @@ class TestBetaGeoModelWithCovariates:
                 rtol=0.25,
             )
 
+    @pytest.mark.recovery
     def test_covariate_model_convergence_phi_kappa(self):
         """Test that we can recover the true parameters with MAP fitting"""
         rng = np.random.default_rng(627)

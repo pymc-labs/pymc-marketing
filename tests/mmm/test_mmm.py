@@ -133,7 +133,7 @@ def fit_mmm(df, mmm, target_column, mock_pymc_sample):
 
 @pytest.mark.parametrize("method", ["map", "demz"])
 def test_fit_non_nuts_methods_use_sampling_model(
-    df, mmm, target_column, method, mocker
+    df, mmm, target_column, method, mocker, mock_pymc_find_map
 ):
     """Every fit path must run against the model from `_get_sampling_model`.
 
@@ -153,7 +153,7 @@ def test_fit_non_nuts_methods_use_sampling_model(
     mocker.patch.object(mmm, "_get_sampling_model", side_effect=record)
 
     if method == "map":
-        find_map = mocker.spy(pm, "find_MAP")
+        find_map = mock_pymc_find_map
         extra: dict = {}
     else:
         # `pm.sample` takes its model from the context, so the assertion has to happen
