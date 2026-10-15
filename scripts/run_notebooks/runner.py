@@ -97,6 +97,11 @@ BLACKLIST: set[str] = {
     # `all_trees`), so those cells fail under the mock. Validated via real
     # execution instead; docs render the committed outputs.
     "docs/source/notebooks/pie/pie_example.ipynb",
+    # Under the C backend (linker=cvm) the optimizer objective runs the adstock as
+    # a Python-mode Blockwise(Convolve1d) over all 4000 mocked draws, so this
+    # notebook alone takes ~35 min and the MMM job hits the 60 min CI timeout.
+    # Docs render the committed outputs. See issue #3179.
+    "docs/source/notebooks/mmm/mmm_pareto_optimization.ipynb",
 }
 
 
