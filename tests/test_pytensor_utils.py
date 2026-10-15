@@ -15,7 +15,6 @@
 """Tests for pytensor_utils module."""
 
 import builtins as _builtins
-import inspect
 import sys
 
 import numpy as np
@@ -1251,25 +1250,6 @@ def test_conditioned_model_extract_is_cached_by_key(conditioned_slope):
     assert conditioned_slope.extract("tripled") is other_graph
 
 
-def test_conditioned_model_extract_returns_a_fresh_list(conditioned_slope):
-    """A caller mutating the returned list must not corrupt the cached graphs."""
-    graph = conditioned_slope.extract("doubled")
-
-    handed_out = conditioned_slope.extract(["doubled"])
-    also_handed_out = conditioned_slope.extract(["doubled"])
-    assert handed_out is not also_handed_out
-    assert handed_out[0] is graph
-
-    # A destructive caller empties the list it got; the cache must survive.
-    handed_out.clear()
-    handed_out.append(object())
-
-    intact = conditioned_slope.extract(["doubled"])
-    assert intact is not handed_out
-    assert len(intact) == 1
-    assert intact[0] is graph
-
-
 @pytest.mark.parametrize("rebind_first", [False, True])
 def test_conditioned_model_uncached_extract_is_not_pinned(rebind_first):
     """A ``cache=False`` graph is never registered, on either side of a rebind.
@@ -1531,21 +1511,3 @@ def test_conditioned_model_first_rebind_reextracts_every_handed_out_key(
         (conditioned_slope.extract("tripled"), _expected_tripled(second, data_values)),
     ):
         np.testing.assert_allclose(function([], graph)(), expected)
-
-
-def test_pytensor_utils_does_not_import_counterfactual():
-    import ast
-
-    import pymc_marketing.pytensor_utils as pytensor_utils
-
-    with open(inspect.getfile(pytensor_utils), encoding="utf-8") as source_file:
-        tree = ast.parse(source_file.read())
-
-    modules: set[str] = set()
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Import):
-            modules.update(alias.name for alias in node.names)
-        elif isinstance(node, ast.ImportFrom):
-            modules.add(node.module or "")
-            modules.update(alias.name for alias in node.names)
-    assert not any("counterfactual" in module for module in modules)

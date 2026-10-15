@@ -3106,7 +3106,7 @@ class BudgetOptimizer(BaseModel):
                 cast(DataArray, self.budgets_to_optimize), idata
             )
 
-        # The conditional model owns the binding: it moves the draws into (or
+        # The conditioned model owns the binding: it moves the draws into (or
         # swaps them under) shared variables, re-extracts every handed-out key
         # on the first rebind, and fires the recompile callback.  This
         # optimizer keeps the rollback of everything it compiled from those
