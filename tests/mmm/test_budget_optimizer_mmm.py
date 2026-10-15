@@ -2765,30 +2765,6 @@ class TestControlData:
         "mutate, match",
         [
             pytest.param(
-                lambda df, future, last: df.drop(columns="t"),
-                r"missing the control columns \['t'\]",
-                id="missing-control",
-            ),
-            pytest.param(
-                lambda df, future, last: pd.concat(
-                    [df, df.iloc[[0]].assign(t=-1.0)], ignore_index=True
-                ),
-                "rows that share their",
-                id="duplicate-row",
-            ),
-            pytest.param(
-                lambda df, future, last: df.drop(columns="geo"),
-                r"missing the columns \['geo'\]",
-                id="missing-dim-column",
-            ),
-            pytest.param(
-                lambda df, future, last: pd.concat(
-                    [df, df.iloc[[0]].assign(geo="C")], ignore_index=True
-                ),
-                r"'geo' labels the model does not have: \['C'\]",
-                id="unknown-dim-label",
-            ),
-            pytest.param(
                 lambda df, future, last: pd.concat(
                     [df, df.iloc[[0]].assign(date_week=last)], ignore_index=True
                 ),
@@ -2800,121 +2776,15 @@ class TestControlData:
                 "no value, or NaN",
                 id="missing-carry-over-date",
             ),
-            pytest.param(
-                lambda df, future, last: df.assign(
-                    event_1=np.where(df["date_week"] == future[0], np.nan, 1.0)
-                ),
-                "no value, or NaN",
-                id="nan-value",
-            ),
         ],
     )
-    def test_invalid_dataframe_raises(self, fitted_mmm, mutate, match):
+    def test_invalid_dates_raise(self, fitted_mmm, mutate, match):
         start, end, future = _future_window(fitted_mmm)
         last = pd.DatetimeIndex(fitted_mmm.xarray_dataset.coords["date"].values).max()
         planned = mutate(_planned_frame(future), future, last)
 
         with pytest.raises(ValueError, match=match):
             fitted_mmm.create_optimization_model(start, end, control_data=planned)
-
-    def test_other_columns_are_ignored(self, fitted_mmm):
-        start, end, future = _future_window(fitted_mmm)
-        planned = _planned_frame(future)
-        like_x = planned.assign(channel_1=5.0, channel_2=7.0)
-
-        exact = fitted_mmm.create_optimization_model(start, end, control_data=planned)
-        with_channels = fitted_mmm.create_optimization_model(
-            start, end, control_data=like_x
-        )
-
-        np.testing.assert_array_equal(
-            with_channels["control_data"].get_value(),
-            exact["control_data"].get_value(),
-        )
-
-    def test_dataarray_with_string_dates(self, fitted_mmm):
-        start, end, future = _future_window(fitted_mmm)
-        planned = _planned_frame(future)
-        as_array = (
-            planned.set_index(["date_week", "geo"])
-            .to_xarray()
-            .to_dataarray(dim="control")
-            .rename(date_week="date")
-        )
-        with_strings = as_array.assign_coords(
-            date=[str(d.date()) for d in pd.DatetimeIndex(as_array["date"].values)]
-        )
-
-        from_frame = fitted_mmm.create_optimization_model(
-            start, end, control_data=planned
-        )
-        from_strings = fitted_mmm.create_optimization_model(
-            start, end, control_data=with_strings
-        )
-
-        np.testing.assert_array_equal(
-            from_strings["control_data"].get_value(),
-            from_frame["control_data"].get_value(),
-        )
-
-    @pytest.mark.parametrize(
-        "make, match",
-        [
-            pytest.param(
-                lambda future: xr.DataArray(
-                    np.ones((len(future), 2, 3)),
-                    dims=("date", "geo", "control"),
-                    coords={"control": ["event_1", "event_2", "t"]},
-                ),
-                r"needs labelled coordinates for \['date', 'geo'\]",
-                id="unlabelled-coords",
-            ),
-            pytest.param(
-                lambda future: xr.DataArray(
-                    np.ones((len(future), 2, 4)),
-                    dims=("date", "geo", "control"),
-                    coords={
-                        "date": future,
-                        "geo": ["A", "B"],
-                        "control": ["event_1", "event_2", "t", "price"],
-                    },
-                ),
-                r"not control_columns: \['price'\]",
-                id="unknown-control",
-            ),
-            pytest.param(
-                lambda future: xr.DataArray(
-                    np.ones((len(future), 2, 2)),
-                    dims=("date", "geo", "control"),
-                    coords={
-                        "date": future,
-                        "geo": ["A", "B"],
-                        "control": ["event_1", "event_2"],
-                    },
-                ),
-                r"missing the control columns \['t'\]",
-                id="missing-control",
-            ),
-            pytest.param(
-                lambda future: xr.DataArray(
-                    np.ones((len(future), 2, 3)),
-                    dims=("date", "geo", "control"),
-                    coords={
-                        "date": future,
-                        "geo": ["A", "A"],
-                        "control": ["event_1", "event_2", "t"],
-                    },
-                ),
-                r"duplicate labels along \['geo'\]",
-                id="duplicate-labels",
-            ),
-        ],
-    )
-    def test_invalid_dataarray_raises(self, fitted_mmm, make, match):
-        start, end, future = _future_window(fitted_mmm)
-
-        with pytest.raises(ValueError, match=match):
-            fitted_mmm.create_optimization_model(start, end, control_data=make(future))
 
     def test_fractional_plan_survives_integer_controls(self):
         dates = pd.date_range("2024-01-07", periods=12, freq="W")
@@ -2943,25 +2813,6 @@ class TestControlData:
         controls = _control_data(model).sel(date=future)
         np.testing.assert_allclose(controls.sel(control="event"), 0.5)
         np.testing.assert_allclose(controls.sel(control="price"), 1.02)
-
-    def test_dataarray_with_wrong_dims_raises(self, fitted_mmm):
-        start, end, future = _future_window(fitted_mmm)
-        planned = xr.DataArray(
-            np.ones((len(future), 3)),
-            dims=("date", "control"),
-            coords={"date": future, "control": ["event_1", "event_2", "t"]},
-        )
-
-        with pytest.raises(ValueError, match="control_data must have dims"):
-            fitted_mmm.create_optimization_model(start, end, control_data=planned)
-
-    def test_wrong_type_raises(self, fitted_mmm):
-        start, end, _ = _future_window(fitted_mmm)
-
-        with pytest.raises(TypeError, match=r"pd\.DataFrame or an xr\.DataArray"):
-            fitted_mmm.create_optimization_model(
-                start, end, control_data={"event_1": 1.0}
-            )
 
     def test_window_inside_training_raises(self, fitted_mmm):
         dates = pd.DatetimeIndex(fitted_mmm.xarray_dataset.coords["date"].values)

@@ -262,7 +262,10 @@ from pymc_marketing.mmm.tvp import create_hsgp_from_config, infer_time_index
 from pymc_marketing.mmm.utility import UtilityFunctionType, average_response
 from pymc_marketing.mmm.utils import (
     add_noise_to_channel_allocation,
+    align_planned_controls,
     create_zero_dataset,
+    planned_controls_to_dataarray,
+    validate_planned_control_dates,
 )
 from pymc_marketing.model_builder import RegressionModelBuilder, SamplingMethod
 from pymc_marketing.model_config import parse_model_config
@@ -3013,133 +3016,19 @@ class MMM(RegressionModelBuilder):
         TypeError
             If *control_data* is neither a DataFrame nor a DataArray.
         """
-        control_columns = list(self.control_columns or [])
-        dims = list(self.dims)
-        missing_controls = (
-            "control_data is missing the control columns {}. Give planned "
-            "values for every control, including any you expect to stay at zero."
+        planned = planned_controls_to_dataarray(
+            control_data,
+            date_column=self.date_column,
+            dims=self.dims,
+            control_columns=list(self.control_columns or []),
         )
-
-        if isinstance(control_data, pd.DataFrame):
-            index_cols = [self.date_column, *dims]
-            missing_index = [c for c in index_cols if c not in control_data.columns]
-            if missing_index:
-                raise ValueError(
-                    f"control_data is missing the columns {missing_index}."
-                )
-            missing = [c for c in control_columns if c not in control_data.columns]
-            if missing:
-                raise ValueError(missing_controls.format(missing))
-            # Only the index and control columns are read, so future rows of
-            # ``X`` can be passed as they are, channel columns and all.
-            frame = control_data[[*index_cols, *control_columns]].assign(
-                **{self.date_column: pd.to_datetime(control_data[self.date_column])}
-            )
-            duplicated = frame.duplicated(subset=index_cols, keep=False)
-            if duplicated.any():
-                example = frame.loc[duplicated, index_cols].iloc[0].to_dict()
-                raise ValueError(
-                    f"control_data has {int(duplicated.sum())} rows that share "
-                    f"their {index_cols} values with another row, for example "
-                    f"{example}. Give one row per date"
-                    + (" and dim label." if dims else ".")
-                )
-            planned = (
-                frame.set_index(index_cols)[control_columns]
-                .to_xarray()
-                .to_dataarray(dim="control")
-            )
-            if self.date_column != "date":
-                planned = planned.rename({self.date_column: "date"})
-        elif isinstance(control_data, xr.DataArray):
-            expected_dims = {"date", *dims, "control"}
-            if set(control_data.dims) != expected_dims:
-                raise ValueError(
-                    f"control_data must have dims {sorted(expected_dims)}, "
-                    f"got {sorted(map(str, control_data.dims))}."
-                )
-            # Without labels xarray falls back to positions, which would be
-            # read as dates in 1970 or as the wrong dim labels.
-            unlabelled = [
-                d for d in ("date", *dims, "control") if d not in control_data.indexes
-            ]
-            if unlabelled:
-                raise ValueError(
-                    f"control_data needs labelled coordinates for {unlabelled}."
-                )
-            duplicated_dims = [
-                d
-                for d in ("date", *dims, "control")
-                if not control_data.indexes[d].is_unique
-            ]
-            if duplicated_dims:
-                raise ValueError(
-                    f"control_data has duplicate labels along {duplicated_dims}."
-                )
-            planned = control_data.assign_coords(
-                date=pd.to_datetime(control_data.indexes["date"])
-            )
-            labels = list(planned.coords["control"].values)
-            unknown = [c for c in labels if c not in control_columns]
-            if unknown:
-                raise ValueError(
-                    f"control_data has controls that are not control_columns: "
-                    f"{[str(c) for c in unknown]}."
-                )
-            missing = [c for c in control_columns if c not in labels]
-            if missing:
-                raise ValueError(missing_controls.format(missing))
-        else:
-            raise TypeError(
-                "control_data must be a pd.DataFrame or an xr.DataArray, "
-                f"got {type(control_data).__name__}."
-            )
-
-        for dim in dims:
-            extra = set(planned.coords[dim].values) - set(
-                window_controls.coords[dim].values
-            )
-            if extra:
-                raise ValueError(
-                    f"control_data has {dim!r} labels the model does not have: "
-                    f"{sorted(map(str, extra))}."
-                )
-
         # The window keeps the observed controls wherever the training data
         # reaches (`preserve_observed`), so planned values apply only after it.
         training_end, future = self._window_dates_after_training(window_controls)
-        planned_dates = pd.DatetimeIndex(planned.coords["date"].values)
-        observed = planned_dates[planned_dates <= training_end]
-        if len(observed):
-            raise ValueError(
-                f"control_data covers {len(observed)} date(s) up to "
-                f"{observed.max().date()}, which the training data covers (it "
-                f"ends {training_end.date()}). Those dates keep their observed "
-                "control values; give control_data only for later dates."
-            )
-        if future.empty:
-            raise ValueError(
-                "The optimization window, including its carry-over, ends by "
-                f"{training_end.date()}, when the training data ends, so its "
-                "controls take their observed values and control_data does "
-                "not apply."
-            )
-
-        aligned = planned.reindex(
-            date=future,
-            **{dim: window_controls.coords[dim].values for dim in [*dims, "control"]},
+        validate_planned_control_dates(
+            pd.DatetimeIndex(planned.indexes["date"]), training_end, future
         )
-        gaps = aligned.isnull().any([dim for dim in aligned.dims if dim != "date"])
-        if bool(gaps.any()):
-            gap_dates = future[gaps.values]
-            raise ValueError(
-                f"control_data has no value, or NaN, on {len(gap_dates)} of the "
-                f"window's dates after the training data ends, starting "
-                f"{gap_dates[0].date()}. Every date from {future[0].date()} to "
-                f"{future[-1].date()}, the end of the carry-over, needs a value "
-                "for every control."
-            )
-        return aligned.transpose(*window_controls.dims)
+        return align_planned_controls(planned, window_controls, future)
 
     def _warn_zero_filled_future_controls(self, window_controls: xr.DataArray) -> None:
         """Warn when a log-link window has controls zero-filled after training ends.
