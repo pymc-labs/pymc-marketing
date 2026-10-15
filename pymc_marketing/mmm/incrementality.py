@@ -818,9 +818,8 @@ _EVALUATOR_CACHE_SIZE = 4
 class _EvaluatorCacheKey(NamedTuple):
     """Identity of a compiled counterfactual evaluator.
 
-    Its structural fields pick the compiled graph.
-    Its ``dates`` and ``data_fingerprint`` fields pick the data it was built and checked against.
-    Two wrappers over different data never share an entry.
+    Structural fields pick the compiled graph; ``dates`` and ``data_fingerprint`` pick the data it was built and
+    checked against, so two wrappers over different data never share an entry.
     """
 
     response_vars: tuple[str, ...]
@@ -835,9 +834,9 @@ class _EvaluatorCacheKey(NamedTuple):
 def _constant_data_fingerprint(idata: xr.DataTree) -> tuple | None:
     """Return a content fingerprint of a DataTree's fit-time ``constant_data``.
 
-    It compares each ``constant_data`` variable by name, shape, dtype and a 16-byte BLAKE2b digest of its values.
-    It covers all of ``constant_data``, ``channel_data`` included, so wrappers differing only in it compile separately.
-    The summary factory and ``MMM.incrementality`` build wrappers over one fit-time dataset and share an entry.
+    Each ``constant_data`` variable is compared by name, shape, dtype and a 16-byte BLAKE2b digest of its values.
+    Since ``channel_data`` is included, wrappers differing only in it compile separately, while the summary factory
+    and ``MMM.incrementality`` share an entry because they wrap one fit-time dataset.
 
     Parameters
     ----------
@@ -856,8 +855,8 @@ def _constant_data_fingerprint(idata: xr.DataTree) -> tuple | None:
     entries = []
     for name in sorted(constant_data.data_vars):
         values = np.asarray(constant_data[name].values)
-        # A label array's buffer is a pointer rather than its content, so hash its text instead.
-        # The numeric arrays the group holds hash directly.
+        # A label array's buffer holds pointers rather than content, so hash its text; numeric arrays hash
+        # directly.
         payload = (
             repr(values.tolist()).encode()
             if values.dtype.hasobject
@@ -877,10 +876,10 @@ def _constant_data_fingerprint(idata: xr.DataTree) -> tuple | None:
 class _EvaluatorCache:
     """Bounded LRU cache of compiled counterfactual evaluators.
 
-    A fitted MMM keeps one so its :class:`Incrementality` objects reuse compiled evaluators.
-    An entry is keyed by graph shape and dataset, so repeated questions pay one compile.
-    The cache is bounded, so a model cannot pin an unbounded number of compiled functions.
-    It is never serialized, because its compiled functions are only meaningful in-process.
+    A fitted MMM keeps one so its :class:`Incrementality` objects reuse compiled evaluators, keyed by graph shape and
+    dataset, so repeated questions pay one compile.
+    The cache is bounded so a model cannot pin an unbounded number of compiled functions, and it is never serialized
+    because compiled functions only make sense in-process.
     Calls on one MMM share the cached evaluator, so concurrent calls from several threads are not supported.
 
     Parameters
@@ -972,8 +971,8 @@ class Incrementality:
 
     Notes
     -----
-    Computation reuses compiled evaluators cached on the fitted model, so repeated calls do not recompile.
-    Calls on one model therefore share that cache, and concurrent calls from several threads are not supported.
+    Computation reuses compiled evaluators cached on the fitted model, so repeated calls do not recompile; calls on
+    one model share that cache, so concurrent calls from several threads are not supported.
 
     Examples
     --------
@@ -2935,19 +2934,18 @@ class Incrementality:
     ) -> _EvaluatorCacheKey:
         """Return the cache identity of the evaluator :meth:`_compute_increments` needs.
 
-        It mirrors what the evaluator bakes into its compiled graph.
-        That is the response variables, the target, the mode, the frozen deterministics and the date count.
-        It identifies the data by the dates and by a ``constant_data`` fingerprint.
+        The key mirrors what the evaluator bakes into its compiled graph (responses, target, mode, frozen
+        deterministics and date count) and identifies the data by its dates and a ``constant_data`` fingerprint.
 
         Parameters
         ----------
         response_vars : sequence of str or Variable
-            Responses the evaluator would be asked for, in order; a node is keyed by its name.
+            Responses in order; a node is keyed by its name.
 
         Returns
         -------
         _EvaluatorCacheKey
-            The identity the evaluator for these responses is cached under.
+            Identity the evaluator is cached under.
         """
         dates = self.data.dates
         return _EvaluatorCacheKey(
