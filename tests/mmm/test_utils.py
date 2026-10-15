@@ -27,11 +27,11 @@ from pymc_marketing.mmm.additive_effect import IncrementalitySpec
 from pymc_marketing.mmm.utils import (
     _convert_frequency_to_timedelta,
     add_noise_to_channel_allocation,
+    align_planned_controls,
     apply_sklearn_transformer_across_dim,
     build_contributions,
     create_index,
     create_new_spend_data,
-    align_planned_controls,
     create_zero_dataset,
     planned_controls_to_dataarray,
     transform_1d_array,
@@ -1643,4 +1643,3 @@ class TestAlignPlannedControls:
     def test_gap_raises(self, planned):
         with pytest.raises(ValueError, match="no value, or NaN"):
             align_planned_controls(planned, self.window(), PLAN_DATES)
-

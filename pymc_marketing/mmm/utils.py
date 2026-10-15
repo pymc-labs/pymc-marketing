@@ -669,9 +669,7 @@ def _planned_controls_from_array(
     if missing:
         raise ValueError(_MISSING_CONTROLS.format(missing))
 
-    return control_data.assign_coords(
-        date=pd.to_datetime(control_data.indexes["date"])
-    )
+    return control_data.assign_coords(date=pd.to_datetime(control_data.indexes["date"]))
 
 
 def planned_controls_to_dataarray(
@@ -795,7 +793,9 @@ def align_planned_controls(
     """
     label_dims = [d for d in window_controls.dims if d != "date"]
     for dim in label_dims:
-        extra = set(planned.coords[dim].values) - set(window_controls.coords[dim].values)
+        extra = set(planned.coords[dim].values) - set(
+            window_controls.coords[dim].values
+        )
         if extra:
             raise ValueError(
                 f"control_data has {dim!r} labels the model does not have: "
