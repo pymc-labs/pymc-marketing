@@ -317,9 +317,12 @@ def create_zero_dataset(
     is a leading block of real spend before the window; that is
     ``include_last_observations``.
 
-    For a scenario that is neither -- a planned promotional calendar, a
-    committed lower-funnel budget -- build the model with
-    :meth:`~pymc_marketing.mmm.mmm.MMM.create_optimization_model`,
+    For a scenario that is neither, planned controls go through the
+    ``control_data`` argument of
+    :meth:`~pymc_marketing.mmm.mmm.MMM.create_optimization_model` and
+    :meth:`~pymc_marketing.mmm.mmm.MMM.budget_optimizer`.  For the variables
+    the effects read -- a committed lower-funnel budget, say -- build the model
+    with :meth:`~pymc_marketing.mmm.mmm.MMM.create_optimization_model`,
     ``pm.set_data`` those variables on it, and hand that model to
     ``BudgetOptimizer`` directly.  That model's date axis is three blocks,
     ``carry_in + decisions + carry_over``, each flank

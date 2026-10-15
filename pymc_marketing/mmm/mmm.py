@@ -257,6 +257,7 @@ from pymc_marketing.mmm.scaling import (
     validate_fixed_scaling_keys,
 )
 from pymc_marketing.mmm.sensitivity_analysis import SensitivityAnalysis
+from pymc_marketing.mmm.spend_reach import _PKG_PREFIX
 from pymc_marketing.mmm.tvp import create_hsgp_from_config, infer_time_index
 from pymc_marketing.mmm.utility import UtilityFunctionType, average_response
 from pymc_marketing.mmm.utils import (
@@ -2956,10 +2957,175 @@ class MMM(RegressionModelBuilder):
             carry_in=carry_in, decisions=decisions, carry_over=carry_over
         )
 
+    def _future_control_values(
+        self,
+        control_data: pd.DataFrame | xr.DataArray,
+        window_controls: xr.DataArray,
+    ) -> xr.DataArray:
+        """Align planned control values to the window dates after training ends.
+
+        Only those dates are taken from *control_data*: every earlier date of
+        the window keeps its observed value, so *control_data* may not cover
+        any date the training data covers.  Every control column is required on
+        every one of those dates, because a gap would otherwise fall back to the
+        zero fill this argument exists to replace.
+
+        Parameters
+        ----------
+        control_data : pd.DataFrame or xr.DataArray
+            Planned control values, as passed to
+            :meth:`create_optimization_model`.
+        window_controls : xr.DataArray
+            The window's ``_control`` variable, from
+            :func:`~pymc_marketing.mmm.utils.create_zero_dataset`.
+
+        Returns
+        -------
+        xr.DataArray
+            The planned values on the window dates after training ends, in the
+            dims and coordinate order of *window_controls*.
+
+        Raises
+        ------
+        ValueError
+            If *control_data* is malformed, names unknown or misses known
+            controls or dim labels, covers training dates, or leaves a needed
+            date without a value.
+        TypeError
+            If *control_data* is neither a DataFrame nor a DataArray.
+        """
+        control_columns = list(self.control_columns or [])
+        dims = list(self.dims)
+
+        if isinstance(control_data, pd.DataFrame):
+            index_cols = [self.date_column, *dims]
+            missing_index = [c for c in index_cols if c not in control_data.columns]
+            if missing_index:
+                raise ValueError(
+                    f"control_data is missing the columns {missing_index}."
+                )
+            value_cols = [c for c in control_data.columns if c not in index_cols]
+            frame = control_data.assign(
+                **{self.date_column: pd.to_datetime(control_data[self.date_column])}
+            )
+            planned = (
+                frame.set_index(index_cols)[value_cols]
+                .to_xarray()
+                .to_dataarray(dim="control")
+            )
+            if self.date_column != "date":
+                planned = planned.rename({self.date_column: "date"})
+        elif isinstance(control_data, xr.DataArray):
+            expected_dims = {"date", *dims, "control"}
+            if set(control_data.dims) != expected_dims:
+                raise ValueError(
+                    f"control_data must have dims {sorted(expected_dims)}, "
+                    f"got {sorted(map(str, control_data.dims))}."
+                )
+            if "control" not in control_data.indexes:
+                raise ValueError(
+                    "control_data needs a 'control' coordinate labelled with "
+                    "the control_columns."
+                )
+            planned = control_data
+        else:
+            raise TypeError(
+                "control_data must be a pd.DataFrame or an xr.DataArray, "
+                f"got {type(control_data).__name__}."
+            )
+
+        labels = list(planned.coords["control"].values)
+        unknown = [c for c in labels if c not in control_columns]
+        if unknown:
+            raise ValueError(
+                f"control_data has columns that are not control_columns: {unknown}."
+            )
+        missing = [c for c in control_columns if c not in labels]
+        if missing:
+            raise ValueError(
+                f"control_data is missing the control columns {missing}. Give "
+                "planned values for every control, including any you expect "
+                "to stay at zero."
+            )
+        for dim in dims:
+            extra = set(planned.coords[dim].values) - set(
+                window_controls.coords[dim].values
+            )
+            if extra:
+                raise ValueError(
+                    f"control_data has {dim!r} labels the model does not have: "
+                    f"{sorted(map(str, extra))}."
+                )
+
+        # The window keeps the observed controls wherever the training data
+        # reaches (`preserve_observed`), so planned values apply only after it.
+        training_end = pd.DatetimeIndex(self.xarray_dataset.coords["date"].values).max()
+        planned_dates = pd.DatetimeIndex(planned.coords["date"].values)
+        observed = planned_dates[planned_dates <= training_end]
+        if len(observed):
+            raise ValueError(
+                f"control_data covers {len(observed)} date(s) up to "
+                f"{observed.max().date()}, which the training data covers (it "
+                f"ends {training_end.date()}). Those dates keep their observed "
+                "control values; give control_data only for later dates."
+            )
+        window_dates = pd.DatetimeIndex(window_controls.coords["date"].values)
+        future = window_dates[window_dates > training_end]
+        if future.empty:
+            raise ValueError(
+                "The optimization window, including its carry-over, ends by "
+                f"{training_end.date()}, when the training data ends, so its "
+                "controls take their observed values and control_data does "
+                "not apply."
+            )
+
+        aligned = planned.reindex(
+            date=future,
+            **{dim: window_controls.coords[dim].values for dim in [*dims, "control"]},
+        )
+        gaps = aligned.isnull().any([dim for dim in aligned.dims if dim != "date"])
+        if bool(gaps.any()):
+            gap_dates = future[gaps.values]
+            raise ValueError(
+                f"control_data has no value, or NaN, on {len(gap_dates)} of the "
+                f"window's dates after the training data ends, starting "
+                f"{gap_dates[0].date()}. Every date from {future[0].date()} to "
+                f"{future[-1].date()}, the end of the carry-over, needs a value "
+                "for every control."
+            )
+        return aligned.transpose(*window_controls.dims)
+
+    def _warn_zero_filled_future_controls(self, window_controls: xr.DataArray) -> None:
+        """Warn when a log-link window has controls zero-filled after training ends.
+
+        Under ``link="log"`` the media response is
+        ``exp(baseline + media) - exp(baseline)``, so the controls inside the
+        baseline scale the forecast lift, and with a non-flat spend pattern
+        they also change which weeks are worth spending in.  An identity-link
+        model is unaffected: its controls cancel out of the default objective.
+        """
+        if self.link != LinkFunction.LOG or not self.control_columns:
+            return
+        training_end = pd.DatetimeIndex(self.xarray_dataset.coords["date"].values).max()
+        window_dates = pd.DatetimeIndex(window_controls.coords["date"].values)
+        future = window_dates[window_dates > training_end]
+        if future.empty:
+            return
+        warnings.warn(
+            f"The controls are 0 on the {len(future)} window dates after the "
+            f"training data ends ({future[0].date()} to {future[-1].date()}). "
+            "Under link='log' the controls scale the forecast media response, "
+            "so this changes the forecast lift and can change the allocation. "
+            "Pass control_data with the values you expect the controls to take.",
+            UserWarning,
+            skip_file_prefixes=(_PKG_PREFIX,),
+        )
+
     def create_optimization_model(
         self,
         start_date: str | pd.Timestamp,
         end_date: str | pd.Timestamp,
+        control_data: pd.DataFrame | xr.DataArray | None = None,
     ) -> pm.Model:
         """Return a PyMC model configured for the given optimization window.
 
@@ -2969,17 +3135,50 @@ class MMM(RegressionModelBuilder):
         resulting model has ``channel_data`` set to zeros of the correct shape
         and can be passed directly to :class:`~pymc_marketing.mmm.budget_optimizer.BudgetOptimizer`.
 
+        The date axis is the carry-in dates before ``start_date``, the plan
+        dates, and the carry-over dates after ``end_date``.  On every date the
+        training data covers, the controls take their observed values.  On the
+        dates after it they are 0 unless *control_data* gives their planned
+        values.
+
         Parameters
         ----------
         start_date : str or pd.Timestamp
             First date of the optimization window (inclusive).
         end_date : str or pd.Timestamp
             Last date of the optimization window (inclusive).
+        control_data : pd.DataFrame or xr.DataArray or None, optional
+            Planned values of the controls on the window dates after the
+            training data ends, through the end of the carry-over.  Either a
+            DataFrame with the date column, one column per dim and one column
+            per control (like ``X``), or a DataArray with dims
+            ``("date", *dims, "control")``.  Every control column and every
+            one of those dates is required; other dates after the training
+            data are ignored, and dates the training data covers raise, since
+            they keep their observed values.  Under ``link="log"``, leaving it out
+            when the window extends past the training data issues a warning,
+            because the zero-filled controls then shape the forecast.
 
         Returns
         -------
         pymc.Model
             A cloned PyMC model ready for budget optimization.
+
+        Raises
+        ------
+        ValueError
+            If *control_data* does not match the model's controls and dims, or
+            does not cover exactly the dates described above.
+
+        Examples
+        --------
+        .. code-block:: python
+
+            dates = pd.date_range("2025-01-05", "2025-04-27", freq="W-SUN")
+            planned = pd.DataFrame({"date": dates, "event_1": 0.0, "price": 1.02})
+            model = mmm.create_optimization_model(
+                "2025-01-05", "2025-03-30", control_data=planned
+            )
         """
         carryover_lags = self.effective_carryover_lags()
         zero_data = create_zero_dataset(
@@ -2991,6 +3190,18 @@ class MMM(RegressionModelBuilder):
             carry_in_periods=carryover_lags,
             carryover_periods=carryover_lags,
         )
+
+        if control_data is not None:
+            if "_control" not in zero_data:
+                raise ValueError(
+                    "control_data was passed, but this model has no control_columns."
+                )
+            planned = self._future_control_values(control_data, zero_data["_control"])
+            zero_data["_control"].loc[{"date": planned.coords["date"].values}] = (
+                planned.values
+            )
+        elif "_control" in zero_data:
+            self._warn_zero_filled_future_controls(zero_data["_control"])
 
         dataset_xarray = self._posterior_predictive_data_transformation(
             X=zero_data,
@@ -3072,6 +3283,7 @@ class MMM(RegressionModelBuilder):
         *,
         budgets_to_optimize: xr.DataArray | None = None,
         cost_per_unit: pd.DataFrame | xr.DataArray | None = None,
+        control_data: pd.DataFrame | xr.DataArray | None = None,
         compile_kwargs: dict | None = None,
         **kwargs: Any,
     ) -> BudgetOptimizer:
@@ -3097,6 +3309,9 @@ class MMM(RegressionModelBuilder):
             ``channel_contribution`` in the posterior.
         cost_per_unit : pd.DataFrame or xr.DataArray or None, optional
             Cost-per-unit conversion factors for non-monetary channels.
+        control_data : pd.DataFrame or xr.DataArray or None, optional
+            Planned values of the controls on the window dates after the
+            training data ends.  See :meth:`create_optimization_model`.
         compile_kwargs : dict or None, optional
             Extra keyword arguments for PyTensor's ``function()``.
         **kwargs
@@ -3112,7 +3327,9 @@ class MMM(RegressionModelBuilder):
         """
         from pymc_marketing.mmm.budget_optimizer import BudgetOptimizer
 
-        pymc_model = self.create_optimization_model(start_date, end_date)
+        pymc_model = self.create_optimization_model(
+            start_date, end_date, control_data=control_data
+        )
 
         # Honour a caller-supplied date_dim rather than assuming "date": this is
         # the method that feeds BudgetOptimizer's configurable date_dim field.

@@ -2645,3 +2645,264 @@ def test_mmm_budget_optimizer_set_posterior_is_local_to_the_optimizer(
         fitted_mmm.idata["posterior"].to_dataset()["saturation_beta"],
         posterior["saturation_beta"],
     )
+
+
+def _future_window(mmm, n_plan: int = 4):
+    """Return a window right after training and its dates after training ends."""
+    dates = pd.DatetimeIndex(mmm.xarray_dataset.coords["date"].values)
+    start = dates.max() + pd.Timedelta(weeks=1)
+    end = start + pd.Timedelta(weeks=n_plan - 1)
+    future = pd.date_range(
+        start, periods=n_plan + mmm.effective_carryover_lags(), freq="W"
+    )
+    return start, end, future
+
+
+def _planned_frame(future, geos=("A", "B")) -> pd.DataFrame:
+    """Planned controls for ``fitted_mmm``, distinct per row so misalignment shows."""
+    df = pd.DataFrame(
+        [(date, geo) for date in future for geo in geos], columns=["date_week", "geo"]
+    )
+    df["event_1"] = 1.0
+    df["event_2"] = 2.0
+    df["t"] = 100.0 + np.arange(len(df))
+    return df
+
+
+def _control_data(model: pm.Model) -> xr.DataArray:
+    dims = model.named_vars_to_dims["control_data"]
+    return xr.DataArray(
+        model["control_data"].get_value(),
+        dims=dims,
+        coords={dim: list(model.coords[dim]) for dim in dims},
+    )
+
+
+ZERO_FILL_WARNING = "Pass control_data with the values you expect"
+
+
+class TestControlData:
+    """Planned control values for the optimization window (#3125)."""
+
+    def test_dataframe_sets_controls_after_training_only(self, fitted_mmm):
+        start, end, future = _future_window(fitted_mmm)
+        planned = _planned_frame(future)
+
+        baseline = _control_data(fitted_mmm.create_optimization_model(start, end))
+        actual = _control_data(
+            fitted_mmm.create_optimization_model(start, end, control_data=planned)
+        )
+
+        expected = (
+            planned.set_index(["date_week", "geo"])
+            .to_xarray()
+            .to_dataarray(dim="control")
+            .sel(
+                geo=actual.coords["geo"].values, control=actual.coords["control"].values
+            )
+        )
+        np.testing.assert_array_equal(
+            actual.sel(date=future).transpose("date", "geo", "control").values,
+            expected.transpose("date_week", "geo", "control").values,
+        )
+        carry_in = actual.coords["date"] < future[0]
+        assert int(carry_in.sum()) > 0
+        xr.testing.assert_equal(actual.sel(date=carry_in), baseline.sel(date=carry_in))
+
+    def test_dataarray_matches_dataframe(self, fitted_mmm):
+        start, end, future = _future_window(fitted_mmm)
+        planned = _planned_frame(future)
+        as_array = (
+            planned.set_index(["date_week", "geo"])
+            .to_xarray()
+            .to_dataarray(dim="control")
+            .rename(date_week="date")
+            .transpose("control", "geo", "date")
+        )
+
+        from_frame = fitted_mmm.create_optimization_model(
+            start, end, control_data=planned
+        )
+        from_array = fitted_mmm.create_optimization_model(
+            start, end, control_data=as_array
+        )
+
+        np.testing.assert_array_equal(
+            from_array["control_data"].get_value(),
+            from_frame["control_data"].get_value(),
+        )
+
+    def test_budget_optimizer_forwards_control_data(self, fitted_mmm):
+        start, end, future = _future_window(fitted_mmm)
+        planned = _planned_frame(future)
+
+        optimizer = fitted_mmm.budget_optimizer(start, end, control_data=planned)
+        model = fitted_mmm.create_optimization_model(start, end, control_data=planned)
+
+        np.testing.assert_array_equal(
+            optimizer.model["control_data"].get_value(),
+            model["control_data"].get_value(),
+        )
+
+    def test_dates_after_the_window_are_ignored(self, fitted_mmm):
+        start, end, future = _future_window(fitted_mmm)
+        longer = future.append(
+            pd.date_range(future[-1] + pd.Timedelta(weeks=1), periods=3, freq="W")
+        )
+
+        exact = fitted_mmm.create_optimization_model(
+            start, end, control_data=_planned_frame(future)
+        )
+        extended = fitted_mmm.create_optimization_model(
+            start, end, control_data=_planned_frame(longer)
+        )
+
+        np.testing.assert_array_equal(
+            extended["control_data"].get_value(), exact["control_data"].get_value()
+        )
+
+    @pytest.mark.parametrize(
+        "mutate, match",
+        [
+            pytest.param(
+                lambda df, future, last: df.drop(columns="t"),
+                r"missing the control columns \['t'\]",
+                id="missing-control",
+            ),
+            pytest.param(
+                lambda df, future, last: df.assign(price=1.0),
+                r"not control_columns: \['price'\]",
+                id="unknown-control",
+            ),
+            pytest.param(
+                lambda df, future, last: df.drop(columns="geo"),
+                r"missing the columns \['geo'\]",
+                id="missing-dim-column",
+            ),
+            pytest.param(
+                lambda df, future, last: pd.concat(
+                    [df, df.iloc[[0]].assign(geo="C")], ignore_index=True
+                ),
+                r"'geo' labels the model does not have: \['C'\]",
+                id="unknown-dim-label",
+            ),
+            pytest.param(
+                lambda df, future, last: pd.concat(
+                    [df, df.iloc[[0]].assign(date_week=last)], ignore_index=True
+                ),
+                "which the training data covers",
+                id="covers-training-dates",
+            ),
+            pytest.param(
+                lambda df, future, last: df[df["date_week"] != future[-1]],
+                "no value, or NaN",
+                id="missing-carry-over-date",
+            ),
+            pytest.param(
+                lambda df, future, last: df.assign(
+                    event_1=np.where(df["date_week"] == future[0], np.nan, 1.0)
+                ),
+                "no value, or NaN",
+                id="nan-value",
+            ),
+        ],
+    )
+    def test_invalid_dataframe_raises(self, fitted_mmm, mutate, match):
+        start, end, future = _future_window(fitted_mmm)
+        last = pd.DatetimeIndex(fitted_mmm.xarray_dataset.coords["date"].values).max()
+        planned = mutate(_planned_frame(future), future, last)
+
+        with pytest.raises(ValueError, match=match):
+            fitted_mmm.create_optimization_model(start, end, control_data=planned)
+
+    def test_dataarray_with_wrong_dims_raises(self, fitted_mmm):
+        start, end, future = _future_window(fitted_mmm)
+        planned = xr.DataArray(
+            np.ones((len(future), 3)),
+            dims=("date", "control"),
+            coords={"date": future, "control": ["event_1", "event_2", "t"]},
+        )
+
+        with pytest.raises(ValueError, match="control_data must have dims"):
+            fitted_mmm.create_optimization_model(start, end, control_data=planned)
+
+    def test_wrong_type_raises(self, fitted_mmm):
+        start, end, _ = _future_window(fitted_mmm)
+
+        with pytest.raises(TypeError, match=r"pd\.DataFrame or an xr\.DataArray"):
+            fitted_mmm.create_optimization_model(
+                start, end, control_data={"event_1": 1.0}
+            )
+
+    def test_window_inside_training_raises(self, fitted_mmm):
+        dates = pd.DatetimeIndex(fitted_mmm.xarray_dataset.coords["date"].values)
+        _, _, future = _future_window(fitted_mmm)
+
+        with pytest.raises(ValueError, match="control_data does not apply"):
+            fitted_mmm.create_optimization_model(
+                dates[2], dates[4], control_data=_planned_frame(future)
+            )
+
+    def test_model_without_controls_raises(self, log_link_fitted_mmm):
+        start, end, future = _future_window(log_link_fitted_mmm)
+
+        with pytest.raises(ValueError, match="has no control_columns"):
+            log_link_fitted_mmm.create_optimization_model(
+                start, end, control_data=pd.DataFrame({"date": future, "x": 0.0})
+            )
+
+    def test_log_link_warns_when_future_controls_are_zero_filled(
+        self, log_link_control_fitted_mmm
+    ):
+        start, end, _ = _future_window(log_link_control_fitted_mmm)
+
+        with pytest.warns(UserWarning, match=ZERO_FILL_WARNING):
+            log_link_control_fitted_mmm.create_optimization_model(start, end)
+
+    @pytest.mark.parametrize(
+        "fixture, window, with_control_data",
+        [
+            ("log_link_control_fitted_mmm", "future", True),
+            ("log_link_control_fitted_mmm", "in_sample", False),
+            ("fitted_mmm", "future", False),
+        ],
+    )
+    def test_no_zero_fill_warning(self, request, fixture, window, with_control_data):
+        mmm = request.getfixturevalue(fixture)
+        start, end, future = _future_window(mmm)
+        if window == "in_sample":
+            dates = pd.DatetimeIndex(mmm.xarray_dataset.coords["date"].values)
+            start, end = dates[4], dates[6]
+        control_data = (
+            pd.DataFrame({"date": future, "control_1": 0.5})
+            if with_control_data
+            else None
+        )
+
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            mmm.create_optimization_model(start, end, control_data=control_data)
+
+        assert not [w for w in caught if ZERO_FILL_WARNING in str(w.message)]
+
+    def test_log_link_objective_follows_planned_controls(
+        self, log_link_control_fitted_mmm
+    ):
+        mmm = log_link_control_fitted_mmm
+        start, end, future = _future_window(mmm)
+        plan = xr.DataArray(
+            [1.0, 1.0], dims="channel", coords={"channel": ["channel_1", "channel_2"]}
+        )
+
+        def response(control_data):
+            optimizer = mmm.budget_optimizer(start, end, control_data=control_data)
+            return optimizer.evaluate_response_distribution(plan)
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", UserWarning)
+            default = response(None)
+        zeros = response(pd.DataFrame({"date": future, "control_1": 0.0}))
+        raised = response(pd.DataFrame({"date": future, "control_1": 0.5}))
+
+        xr.testing.assert_allclose(zeros, default)
+        assert not np.allclose(raised.values, zeros.values)
