@@ -2770,6 +2770,9 @@ class MMM(RegressionModelBuilder):
     @staticmethod
     def _contribution_dataset_reference(dataset, mask) -> dict[str, Any]:
         """JSON-compatible training identity, including pre-fill missingness."""
+        # Named axes identify cells; their physical storage order is incidental.
+        dataset = dataset.transpose(*sorted(dataset.dims))
+        mask = mask.transpose(*sorted(mask.dims))
         return {
             "coords": {
                 d: [pd.Timestamp(v).isoformat() for v in dataset.coords[d].values]
@@ -2941,7 +2944,13 @@ class MMM(RegressionModelBuilder):
                     self.xarray_dataset, mask
                 ),
                 "data": {
-                    k: v.tolist() for k, v in self._contribution_training_data.items()
+                    k: {
+                        "dims": sorted(self.model[k].dims),
+                        "values": xr.DataArray(v, dims=self.model[k].dims)
+                        .transpose(*sorted(self.model[k].dims))
+                        .values.tolist(),
+                    }
+                    for k, v in self._contribution_training_data.items()
                 },
             }
         indices = [self.channel_columns.index(c) for c in channels]
@@ -4808,7 +4817,9 @@ class MMM(RegressionModelBuilder):
                     "Saved contribution prior training reference differs from fit_data"
                 )
             self._contribution_training_data = {
-                k: np.asarray(v, dtype=self.model[k].dtype)
+                k: xr.DataArray(v["values"], dims=v["dims"])
+                .transpose(*self.model[k].dims)
+                .values.astype(self.model[k].dtype)
                 for k, v in reference["data"].items()
             }
             for component in components:

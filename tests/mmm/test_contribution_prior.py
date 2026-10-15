@@ -293,8 +293,8 @@ def test_effective_prior_removes_sales_likelihood_retains_factors(data):
         m.sample_prior_predictive(*data, samples=2, random_seed=123)
 
 
-def test_xarray_two_dimensions_and_missing_cells():
-    """Label alignment, rather than axis position, defines pooled training cells."""
+@pytest.fixture
+def labeled_panel():
     dates = pd.date_range("2025-01-01", periods=5)
     coords = {
         "date": dates,
@@ -317,6 +317,15 @@ def test_xarray_two_dimensions_and_missing_cells():
         }
     )
     ds["_target"].loc[{"region": "B", "product": "q", "date": dates[2]}] = np.nan
+    channels = ds["_channel"].to_series().unstack("channel").reset_index()
+    targets = ds["_target"].to_series().rename("y").reset_index()
+    frame = channels.merge(targets, on=["date", "region", "product"])
+    return ds, frame.drop(columns="y"), frame["y"]
+
+
+def test_xarray_two_dimensions_and_missing_cells(labeled_panel):
+    """Label alignment, rather than axis position, defines pooled training cells."""
+    ds, _, _ = labeled_panel
     m = make_model(dims=("region", "product"))
     m.build_model(ds)
     m.add_contribution_prior("pooled", ["search"], "share", Prior("Normal"))
@@ -331,3 +340,61 @@ def test_xarray_two_dimensions_and_missing_cells():
         / ds["_target"].sum()
     )
     np.testing.assert_allclose(evaluate(m.model, [m.model["pooled"]])[0], expected)
+
+
+@pytest.mark.parametrize(
+    "layout",
+    [
+        ("date", "region", "product", "channel"),
+        ("region", "channel", "date", "product"),
+        ("channel", "product", "date", "region"),
+    ],
+)
+def test_equivalent_named_axes_rebuild_fit_and_persist(
+    labeled_panel,
+    layout,
+    tmp_path,
+    mock_pymc_sample,
+):
+    """Both reference identity and frozen input values respect dimension names."""
+    ds, X, y = labeled_panel
+    original = ds.transpose(*layout)
+    m = make_model(dims=("region", "product"))
+    m.build_model(original)
+    m.add_contribution_prior(
+        "belief", ["search"], "share", Prior("Normal", mu=0.3, sigma=0.1)
+    )
+    reference = copy.deepcopy(m._contribution_reference)
+    expected = evaluate(
+        m.model, [m.model["belief"], m.model.logp(vars=m.model.potentials)]
+    )
+    m.build_model(original.transpose("product", "date", "region", "channel"))
+    assert m._contribution_reference == reference
+    np.testing.assert_allclose(
+        evaluate(m.model, [m.model["belief"], m.model.logp(vars=m.model.potentials)]),
+        expected,
+    )
+    # Sample generation is mocked; the valid wide fit_data, graph round-trip,
+    # missing-cell mask and named frozen inputs are persisted and restored for real.
+    m.fit(X, y)
+    path = tmp_path / "named-axes.nc"
+    m.save(path)
+    loaded = MMM.load(path)
+    assert loaded._contribution_reference == reference
+    assert len(loaded.model.potentials) == 1
+    np.testing.assert_allclose(
+        evaluate(
+            loaded.model,
+            [loaded.model["belief"], loaded.model.logp(vars=loaded.model.potentials)],
+        ),
+        expected,
+    )
+    loaded.build_model(original)
+    assert loaded._contribution_reference == reference
+    assert len(loaded.model.potentials) == 1
+    np.testing.assert_allclose(
+        evaluate(loaded.model, [loaded.model["belief"]])[0], expected[0]
+    )
+    assert np.isfinite(loaded.model.compile_dlogp()(loaded.model.initial_point())).all()
+    with pytest.raises(ValueError, match="original training"):
+        loaded.build_model(original.assign(_channel=original._channel + 1))
