@@ -15,6 +15,7 @@
 """PyTensor utility functions."""
 
 import contextlib
+import warnings
 from collections import Counter
 from collections.abc import Callable, Mapping, Sequence
 from typing import NamedTuple, cast, overload
@@ -656,9 +657,7 @@ def _posterior_dataset(idata: xr.DataTree | xr.Dataset) -> xr.Dataset:
 
 def _apply_intervention(
     model: Model,
-    intervention: Mapping[str, Variable | np.ndarray | float]
-    | Callable[[Model], Model]
-    | None,
+    intervention: Mapping[str, Variable | np.ndarray | float] | None,
 ) -> Model:
     """Return ``model`` with ``intervention`` applied, or ``model`` unchanged.
 
@@ -666,35 +665,28 @@ def _apply_intervention(
     ----------
     model : pm.Model
         The model to transform.  Never modified: ``do`` clones it.
-    intervention : mapping, callable or None
+    intervention : mapping or None
         A mapping of :func:`pymc.do` arguments -- variable name to intervention
-        value -- or a ``Model -> Model`` callable for callers that build the
-        ``do`` spec themselves.  ``None`` leaves the model as it is.
+        value.  ``None`` leaves the model as it is.
 
     Returns
     -------
     pm.Model
         The intervened model.
-
-    Raises
-    ------
-    ValueError
-        If the callable returns the model unchanged, so no clone carries the
-        intervention and pre-intervention nodes could not be told apart from
-        intervened ones.
     """
     if intervention is None:
         return model
-    if callable(intervention):
-        intervened = intervention(model)
-        if intervened is model:
-            raise ValueError(
-                "The intervention callable returned the model unchanged; "
-                "ConditionedModel requires an intervened clone.  Build one with "
-                "pymc.do, or pass the intervention as a mapping."
-            )
-        return intervened
-    return do(model, dict(intervention))
+    with warnings.catch_warnings():
+        # The ``scale`` intervention references the target on purpose:
+        # ``target * mask`` is what holds the factual value in the graph.
+        # pymc warns about the self-reference and registers the intervened node
+        # under a ``do_`` name.
+        warnings.filterwarnings(
+            "ignore",
+            message="Intervention expression references the variable "
+            "that is being intervened",
+        )
+        return do(model, dict(intervention))
 
 
 class _ExtractKey(NamedTuple):
@@ -702,7 +694,6 @@ class _ExtractKey(NamedTuple):
 
     names: tuple[str | Variable, ...]
     frozen_deterministics: tuple[str, ...]
-    n_dates: int | None
 
 
 class _CachedGraphs(NamedTuple):
@@ -716,13 +707,12 @@ class ConditionedModel:
     """A model after an intervention, and the one owner of its posterior binding.
 
     A caller hands over a model, a posterior and, optionally, an intervention --
-    a mapping of :func:`pymc.do` arguments or a ``Model -> Model`` callable,
-    which this object applies itself.  It then hands out response graphs
-    conditioned on the posterior and keeps rebinding them as the posterior
-    moves, so the "intervene, condition, extract, compile" dance is owned here
-    instead of by each consumer.
+    a mapping of :func:`pymc.do` arguments, which this object applies itself.
+    It then hands out response graphs conditioned on the posterior and keeps
+    rebinding them as the posterior moves, so the "intervene, condition, extract,
+    compile" dance is owned here instead of by each consumer.
 
-    Extraction is cached by ``(response names, frozen deterministics, horizon)``.
+    Extraction is cached by ``(response names, frozen deterministics)``.
     Repeated :meth:`extract` of the same key returns the identical graph.
     By default the draws enter as constants until the first :meth:`set_posterior`, keeping constant folding.
     With ``share_posterior=True`` they enter through a :class:`SharedPosterior` from the first :meth:`extract`.
@@ -730,7 +720,6 @@ class ConditionedModel:
 
     A model built without ``share_posterior`` starts with the draws baked in as constants.
     Its first :meth:`set_posterior` drops the cache and re-extracts each key through a new :class:`SharedPosterior`.
-    It is validated, label realigned and length checked exactly like every later one.
     It also fires the registered callbacks so consumers recompile.
     Every later rebind only swaps the draws in place, which is atomic and free in the number of draws.
     A compiled function therefore follows the newer posterior without being recompiled.
@@ -745,9 +734,8 @@ class ConditionedModel:
         The model to intervene on.
     idata : xr.DataTree or xr.Dataset
         Posterior draws to condition on.  A tree's ``posterior`` group is used.
-    intervention : mapping or callable, optional
-        A mapping of ``pm.do`` arguments, or a ``Model -> Model`` callable.
-        ``None`` uses the model unchanged.
+    intervention : mapping, optional
+        A mapping of ``pm.do`` arguments.  ``None`` uses the model unchanged.
     frozen_deterministics : list of str, optional
         Names of Deterministic variables to freeze at their posterior values
         instead of recomputing from the graph.
@@ -773,9 +761,7 @@ class ConditionedModel:
         model: Model,
         idata: xr.DataTree | xr.Dataset,
         *,
-        intervention: Mapping[str, Variable | np.ndarray | float]
-        | Callable[[Model], Model]
-        | None = None,
+        intervention: Mapping[str, Variable | np.ndarray | float] | None = None,
         frozen_deterministics: list[str] | None = None,
         share_posterior: bool = False,
     ) -> None:
@@ -818,7 +804,6 @@ class ConditionedModel:
         self,
         response_vars: str | Variable | Sequence[str | Variable],
         *,
-        n_dates: int | None = None,
         cache: bool = True,
     ) -> Variable | list[Variable]:
         """Return response graphs conditioned on the current posterior.
@@ -830,11 +815,6 @@ class ConditionedModel:
             intervened model; a ``Variable`` must be a node of that clone.  A
             sequence extracts every variable in one pass, so a subgraph they
             share stays shared in the result.
-        n_dates : int, optional
-            The horizon to cache the extraction under.  It only separates cache
-            entries, so callers evaluating different windows do not share one
-            slot; extraction does not size the graph by it, and any
-            horizon-dependent graph shape is the consumer's to build.
         cache : bool, default True
             Whether to keep the extraction for :meth:`set_posterior` to
             re-extract through the shared posterior.  A cached graph is the
@@ -872,9 +852,7 @@ class ConditionedModel:
             # posterior, so it registers no variable a later rebind would need.
             graphs = self._extract(resolved, None, self._posterior)
             return graphs[0] if single else list(graphs)
-        cache_key = _ExtractKey(
-            self._names(resolved), self.frozen_deterministics, n_dates
-        )
+        cache_key = _ExtractKey(self._names(resolved), self.frozen_deterministics)
         if cache_key not in self._cache:
             graphs = self._extract(resolved, self._shared_posterior, self._posterior)
             self._cache[cache_key] = _CachedGraphs(resolved, graphs)
@@ -907,8 +885,11 @@ class ConditionedModel:
             If the posterior lacks a variable the graphs read.
         ValueError
             If a variable's non-sample dimensions, lengths or labels differ
-            from the ones it was bound with.  The previous binding is left in
-            place, including when a registered callback raises.
+            from the ones it was bound with.
+
+        Notes
+        -----
+        After either error, and when a registered callback raises, the previous binding is left in place.
 
         Notes
         -----
@@ -931,9 +912,7 @@ class ConditionedModel:
         try:
             self._fire_callbacks()
         except BaseException:
-            # Restoring must not hide the callback's exception, which is the failure the caller has to see.
-            # A rollback can itself fail when a callback extracted a key that only the new posterior satisfies.
-            # It is best-effort here for that reason.
+            # Best-effort restore; the rollback contract is in the docstring above.
             with contextlib.suppress(Exception):
                 rollback()
             raise
@@ -941,10 +920,7 @@ class ConditionedModel:
     def _apply_posterior(self, posterior: xr.Dataset) -> Callable[[], None] | None:
         """Bind the graphs to ``posterior``, returning a rollback when that re-extracted the graphs.
 
-        Without ``share_posterior`` the first call rebuilds the keys on a shared posterior, then rebinds it.
-        That is the one call that re-extracts, so it returns a rollback of the binding.
-        Every call, that one included, is validated, label realigned and length checked like every later one.
-        A later call simply swaps the draws in place, atomically, so it returns ``None`` and needs no rollback.
+        See :meth:`set_posterior` for the rebind and rollback contract.
         """
         if self._shared_posterior is not None:
             # ``SharedPosterior.set_posterior`` validates every variable before writing any.

@@ -60,8 +60,7 @@ in spend while the mask is linear in contribution.
 
 from __future__ import annotations
 
-import warnings
-from collections.abc import Callable, Iterable, Mapping, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Literal, NamedTuple, cast
 
@@ -70,7 +69,6 @@ import pandas as pd
 import pytensor.xtensor as ptx
 import xarray as xr
 from pandas.tseries.offsets import BaseOffset
-from pymc import do
 from pymc.model.core import Model
 from pytensor import function
 from pytensor.compile.sharedvalue import SharedVariable, shared
@@ -872,12 +870,15 @@ class CounterfactualEvaluator:
         # The evaluator owns its ConditionedModel 1:1 and asks for the shared
         # posterior from the start, so the compile below already produces the
         # graphs every later rebind reuses.
+        intervention_value = (
+            self._placeholder
+            if intervention_mode == "replace"
+            else target_var * self._placeholder
+        )
         self._conditioned = ConditionedModel(
             pymc_model,
             posterior,
-            intervention=self._intervention_value(
-                self._placeholder, target_var, intervention_mode
-            ),
+            intervention={target_var.name: intervention_value},
             frozen_deterministics=frozen_deterministics,
             share_posterior=True,
         )
@@ -1249,36 +1250,6 @@ class CounterfactualEvaluator:
             shape=target_var.type.shape,
             dims=target_var.type.dims,
         )
-
-    @staticmethod
-    def _intervention_value(
-        placeholder: XTensorVariable,
-        target_var: Variable,
-        mode: InterventionMode,
-    ) -> Callable[[Model], Model]:
-        """Return a ``Model -> Model`` callable that grafts the placeholder on.
-
-        Handed to :class:`~pymc_marketing.pytensor_utils.ConditionedModel`,
-        which applies it to a fresh clone.  ``do`` renames a replace-mode
-        placeholder to the target's own name, in place, so nothing may key on
-        ``placeholder.name`` afterwards.
-        """
-        value = placeholder if mode == "replace" else target_var * placeholder
-
-        def intervene(pymc_model: Model) -> Model:
-            with warnings.catch_warnings():
-                # The scale-mode intervention references the target on purpose:
-                # ``target * mask`` is what holds the factual value in the
-                # graph.  pymc warns about the self-reference and registers the
-                # intervened node as ``do_<target>``.
-                warnings.filterwarnings(
-                    "ignore",
-                    message="Intervention expression references the variable "
-                    "that is being intervened",
-                )
-                return do(pymc_model, {target_var.name: value})
-
-        return intervene
 
     @staticmethod
     def _validate_mode(mode: InterventionMode) -> None:

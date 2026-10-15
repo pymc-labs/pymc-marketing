@@ -24,7 +24,6 @@ import pymc as pm
 import pymc.dims as pmd
 import pytest
 import xarray as xr
-from pymc import do
 from pymc.model.fgraph import fgraph_from_model
 from pytensor import function
 from pytensor.graph.traversal import ancestors
@@ -725,6 +724,7 @@ def _slope_model_and_draws(draws: int, seed: int):
         data = pmd.Data("data", data_values, dims="d")
         slope = pmd.Normal("slope", mu=0.0, sigma=1.0)
         pmd.Deterministic("doubled", 2.0 * data * slope)
+        pmd.Deterministic("tripled", 3.0 * data * slope)
     with model:
         prior = pm.sample_prior_predictive(draws=draws, random_seed=seed)
     idata = xr.DataTree.from_dict({"/posterior": prior["/prior"].to_dataset()})
@@ -1202,6 +1202,11 @@ def _expected_doubled(idata, data_values) -> np.ndarray:
     return np.outer(drawn, 2.0 * data_values)
 
 
+def _expected_tripled(idata, data_values) -> np.ndarray:
+    drawn = idata["posterior"]["slope"].values.reshape(-1)
+    return np.outer(drawn, 3.0 * data_values)
+
+
 def _channel_conditioned_model():
     """A channel-dimensioned ``resp = beta * spend`` model and its spend values."""
     spend = np.array([10.0, 20.0])
@@ -1240,10 +1245,10 @@ def test_conditioned_model_extract_is_cached_by_key(conditioned_slope):
     assert conditioned_slope.extract("doubled") is graph
     # A one-element sequence shares the extraction but keeps the list form.
     assert conditioned_slope.extract(["doubled"])[0] is graph
-    # The horizon is part of the cache key.
-    horizon_graph = conditioned_slope.extract("doubled", n_dates=3)
-    assert horizon_graph is not graph
-    assert conditioned_slope.extract("doubled", n_dates=3) is horizon_graph
+    # A second response name keys a separate extraction.
+    other_graph = conditioned_slope.extract("tripled")
+    assert other_graph is not graph
+    assert conditioned_slope.extract("tripled") is other_graph
 
 
 def test_conditioned_model_extract_returns_a_fresh_list(conditioned_slope):
@@ -1414,12 +1419,6 @@ def test_conditioned_model_refuses_pre_intervention_variable(
         conditioned_slope.extract(model["doubled"])
 
 
-def test_conditioned_model_refuses_unchanged_callable_intervention(slope_posteriors):
-    model, _, first, _, _ = slope_posteriors
-    with pytest.raises(ValueError, match="returned the model unchanged"):
-        ConditionedModel(model, first, intervention=lambda model: model)
-
-
 def test_conditioned_model_default_graph_keeps_constant_folding(
     conditioned_slope, slope_posteriors
 ):
@@ -1501,16 +1500,16 @@ def test_conditioned_model_callback_can_extract_a_new_key(
     extracted = []
 
     def extract_new_key():
-        extracted.append(conditioned_slope.extract("doubled", n_dates=3))
+        extracted.append(conditioned_slope.extract("tripled"))
 
     conditioned_slope.register(extract_new_key)
     conditioned_slope.set_posterior(second)
 
     # The callback extracted a key that was never handed out; it was cached
     # through the shared posterior, so it follows the rebind.
-    assert conditioned_slope.extract("doubled", n_dates=3) is extracted[0]
+    assert conditioned_slope.extract("tripled") is extracted[0]
     np.testing.assert_allclose(
-        function([], extracted[0])(), _expected_doubled(second, data_values)
+        function([], extracted[0])(), _expected_tripled(second, data_values)
     )
 
 
@@ -1519,34 +1518,19 @@ def test_conditioned_model_first_rebind_reextracts_every_handed_out_key(
 ):
     _, data_values, _, second, _ = slope_posteriors
     default_graph = conditioned_slope.extract("doubled")
-    horizon_graph = conditioned_slope.extract("doubled", n_dates=3)
+    other_graph = conditioned_slope.extract("tripled")
 
     conditioned_slope.set_posterior(second)
 
     # Every handed-out key, not just the default one, moved to the shared
     # posterior.
     assert conditioned_slope.extract("doubled") is not default_graph
-    assert conditioned_slope.extract("doubled", n_dates=3) is not horizon_graph
-    for graph in (
-        conditioned_slope.extract("doubled"),
-        conditioned_slope.extract("doubled", n_dates=3),
+    assert conditioned_slope.extract("tripled") is not other_graph
+    for graph, expected in (
+        (conditioned_slope.extract("doubled"), _expected_doubled(second, data_values)),
+        (conditioned_slope.extract("tripled"), _expected_tripled(second, data_values)),
     ):
-        np.testing.assert_allclose(
-            function([], graph)(), _expected_doubled(second, data_values)
-        )
-
-
-def test_conditioned_model_callable_intervention_matches_mapping(slope_posteriors):
-    model, data_values, first, _, _ = slope_posteriors
-    from_mapping = ConditionedModel(model, first, intervention={"data": data_values})
-    from_callable = ConditionedModel(
-        model, first, intervention=lambda model: do(model, {"data": data_values})
-    )
-
-    np.testing.assert_allclose(
-        function([], from_mapping.extract("doubled"))(),
-        function([], from_callable.extract("doubled"))(),
-    )
+        np.testing.assert_allclose(function([], graph)(), expected)
 
 
 def test_pytensor_utils_does_not_import_counterfactual():
