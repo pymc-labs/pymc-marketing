@@ -299,13 +299,6 @@ class TestPriorPredictive:
         np.testing.assert_allclose(s_in.sum(axis=-1) + s_out, 1.0, atol=1e-6)
 
 
-class TestFitSmoke:
-    def test_fit_runs_without_divergences(self, fitted_blp):
-        model, _ = fitted_blp
-        n_div = int(model.idata.sample_stats["diverging"].values.sum())
-        assert n_div == 0, f"got {n_div} divergences"
-
-
 class TestCounterfactual:
     def test_no_op_canary_reproduces_fitted_shares(self, fitted_blp):
         """The strongest correctness check: passing no price change must

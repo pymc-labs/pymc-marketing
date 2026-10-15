@@ -301,7 +301,9 @@ class TestConsiderationSetMixedLogitConfig:
 class TestConsiderationSetMixedLogitInference:
     """Tests for sample_posterior_predictive and apply_intervention."""
 
-    def test_sample_posterior_predictive(self, hiring_df, Z_tilde, utility_equations):
+    def test_sample_posterior_predictive(
+        self, hiring_df, Z_tilde, utility_equations, mock_pymc_sample
+    ):
         """Fit model then sample posterior predictive."""
         model = ConsiderationSetMixedLogit(
             choice_df=hiring_df,
@@ -327,7 +329,7 @@ class TestConsiderationSetMixedLogitInference:
         assert "likelihood" in post_pred["posterior_predictive"]
 
     def test_sample_posterior_predictive_with_new_instruments(
-        self, hiring_df, Z_tilde, utility_equations
+        self, hiring_df, Z_tilde, utility_equations, mock_pymc_sample
     ):
         """Posterior predictive with new consideration instruments."""
         model = ConsiderationSetMixedLogit(
@@ -359,7 +361,9 @@ class TestConsiderationSetMixedLogitInference:
         assert "/posterior_predictive" in post_pred.groups
         assert "p" in post_pred["posterior_predictive"]
 
-    def test_apply_intervention(self, hiring_df, Z_tilde, utility_equations):
+    def test_apply_intervention(
+        self, hiring_df, Z_tilde, utility_equations, mock_pymc_sample
+    ):
         """Apply intervention with new consideration instruments."""
         model = ConsiderationSetMixedLogit(
             choice_df=hiring_df,
@@ -391,7 +395,7 @@ class TestConsiderationSetMixedLogitInference:
         assert hasattr(model, "intervention_idata")
 
     def test_sample_posterior_predictive_with_new_choice_df(
-        self, hiring_df, Z_tilde, utility_equations
+        self, hiring_df, Z_tilde, utility_equations, mock_pymc_sample
     ):
         """Posterior predictive with a new choice_df and matching instruments."""
         model = ConsiderationSetMixedLogit(
@@ -426,7 +430,9 @@ class TestConsiderationSetMixedLogitInference:
         assert "/posterior_predictive" in post_pred.groups
         assert "p" in post_pred["posterior_predictive"]
 
-    def test_apply_intervention_multi_instrument(self, hiring_df, utility_equations):
+    def test_apply_intervention_multi_instrument(
+        self, hiring_df, utility_equations, mock_pymc_sample
+    ):
         """Apply intervention with multi-instrument Z_tilde."""
         n = len(hiring_df)
         local_rng = np.random.default_rng(0)
@@ -468,7 +474,7 @@ class TestConsiderationSetMixedLogitInference:
         assert "p" in idata_cf["posterior_predictive"]
 
     def test_apply_intervention_with_new_equations(
-        self, hiring_df, Z_tilde, utility_equations
+        self, hiring_df, Z_tilde, utility_equations, mock_pymc_sample
     ):
         """Apply intervention with new utility equations (triggers refit).
 
