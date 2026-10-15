@@ -20,6 +20,14 @@ docs/source/notebooks/mmm/mmm_current_vs_future_value.ipynb
   "base_commit_sha": "4e276fbb094447fe990af702cddb663a45816836",
   "prompts": {},
   "sessions": {
+    "s_b8b7743133d8e3": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a13b21-ffb7-72c2-ad5e-e5ee22b19c3f",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Benjamin T. Vincent <inferencelab@gmail.com>"
+    },
     "s_dd0c086a397625": {
       "agent_id": {
         "tool": "claude",
