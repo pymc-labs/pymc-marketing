@@ -1344,6 +1344,24 @@ def test_conditioned_model_later_rebind_reuses_graph_and_follows_new_draws(
     np.testing.assert_allclose(fn(), _expected_doubled(third, data_values))
 
 
+def test_conditioned_model_share_posterior_binds_from_the_first_extract(
+    slope_posteriors,
+):
+    """``share_posterior=True`` starts shared, so the first rebind never re-extracts."""
+    model, data_values, _, second, third = slope_posteriors
+    conditioned = ConditionedModel(
+        model, second, intervention={"data": data_values}, share_posterior=True
+    )
+
+    assert isinstance(conditioned.shared_posterior, SharedPosterior)
+    shared_graph = conditioned.extract("doubled")
+    fn = function([], shared_graph)
+
+    conditioned.set_posterior(third)
+    assert conditioned.extract("doubled") is shared_graph
+    np.testing.assert_allclose(fn(), _expected_doubled(third, data_values))
+
+
 @pytest.mark.parametrize("failing_first_rebind", [True, False])
 def test_conditioned_model_failing_callback_rolls_back_binding(
     conditioned_slope, slope_posteriors, failing_first_rebind

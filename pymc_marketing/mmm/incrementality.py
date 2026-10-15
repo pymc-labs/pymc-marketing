@@ -3182,8 +3182,6 @@ class Incrementality:
                 if hasattr(self.idata, "constant_data")
                 else None
             ),
-            # Compile against the shared posterior, so a miss pays one compile rather than two.
-            bind_shared_posterior=True,
         )
         cache = self.model._get_incrementality_evaluator_cache()
         evaluator = cache.get_or_build(

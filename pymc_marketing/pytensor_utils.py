@@ -723,18 +723,17 @@ class ConditionedModel:
     instead of by each consumer.
 
     Extraction is cached by ``(response names, frozen deterministics, horizon)``.
-    Repeated :meth:`extract` of the same key returns the identical graph.  Until
-    the first :meth:`set_posterior` the draws enter as constants, so the default
-    path keeps constant folding.
+    Repeated :meth:`extract` of the same key returns the identical graph.
+    By default the draws enter as constants until the first :meth:`set_posterior`, keeping constant folding.
+    With ``share_posterior=True`` they enter through a :class:`SharedPosterior` from the first :meth:`extract`.
+    No rebind then re-extracts; even the first only swaps draws.
 
-    The first :meth:`set_posterior` drops the constant-baked cache, re-extracts
-    every handed-out key through a :class:`SharedPosterior` built on the draws
-    already in place, rebinds it to the new draws -- so the first rebind is
-    validated and realigned like every later one -- and fires the registered
-    callbacks so consumers recompile from the new graphs.  Later calls only
-    swap the draws in place, which is atomic and free in the number of draws,
-    so a compiled function follows the newer posterior without being
-    recompiled.
+    A model built without ``share_posterior`` starts with the draws baked in as constants.
+    Its first :meth:`set_posterior` drops the cache and re-extracts each key through a new :class:`SharedPosterior`.
+    It is validated, label realigned and length checked exactly like every later one.
+    It also fires the registered callbacks so consumers recompile.
+    Every later rebind only swaps the draws in place, which is atomic and free in the number of draws.
+    A compiled function therefore follows the newer posterior without being recompiled.
 
     A response is resolved against the intervened clone.  A :class:`~pytensor.graph.basic.Variable`
     that is not a node of that clone -- a node of the pre-intervention model --
@@ -752,6 +751,9 @@ class ConditionedModel:
     frozen_deterministics : list of str, optional
         Names of Deterministic variables to freeze at their posterior values
         instead of recomputing from the graph.
+    share_posterior : bool, default False
+        Start on the shared path: bind the draws through a :class:`SharedPosterior` from the first extraction.
+        No rebind then re-extracts, and the first :meth:`set_posterior` only swaps draws.
 
     Examples
     --------
@@ -775,6 +777,7 @@ class ConditionedModel:
         | Callable[[Model], Model]
         | None = None,
         frozen_deterministics: list[str] | None = None,
+        share_posterior: bool = False,
     ) -> None:
         self.frozen_deterministics: tuple[str, ...] = tuple(frozen_deterministics or ())
         self._model = _apply_intervention(model, intervention)
@@ -782,7 +785,9 @@ class ConditionedModel:
         # node of the intervened graph by identity.
         self._clone_nodes = frozenset(ancestors(list(self._model.named_vars.values())))
         self._posterior = _posterior_dataset(idata)
-        self._shared_posterior: SharedPosterior | None = None
+        self._shared_posterior: SharedPosterior | None = (
+            SharedPosterior() if share_posterior else None
+        )
         self._cache: dict[_ExtractKey, _CachedGraphs] = {}
         self._callbacks: list[Callable[[], None]] = []
 
@@ -798,14 +803,14 @@ class ConditionedModel:
 
     @property
     def shared_posterior(self) -> SharedPosterior | None:
-        """The shared posterior binding the graphs, or ``None`` before the first rebind.
+        """The shared posterior binding the graphs, or ``None`` while the draws are constant.
 
         Returns
         -------
         SharedPosterior or None
-            ``None`` while the draws are still baked into the graphs as
-            constants; after the first :meth:`set_posterior`, the one
-            :class:`SharedPosterior` every later rebind swaps draws in.
+            ``None`` while the draws are baked into the graphs as constants.
+            Once it exists, it is the :class:`SharedPosterior` every rebind swaps draws in.
+            A model built with ``share_posterior=True`` has it from construction.
         """
         return self._shared_posterior
 
@@ -879,12 +884,10 @@ class ConditionedModel:
     def set_posterior(self, idata: xr.DataTree | xr.Dataset) -> None:
         """Point the handed-out graphs at the draws in ``idata``.
 
-        The first call re-extracts every handed-out key through a shared
-        posterior built on the draws already in place, then rebinds it to the
-        new draws, so the first call is validated, label realigned and length
-        checked exactly like every later one.  Firing the registered callbacks
-        lets consumers recompile from the new graphs; later calls only swap the
-        draws, which needs no recompile and accepts a different number of draws.
+        Without ``share_posterior`` the first call rebuilds the handed-out keys on a shared posterior.
+        That first call is validated, label realigned and length checked exactly like every later one.
+        Firing the registered callbacks lets consumers recompile from the new graphs.
+        Every call only swaps the draws, which needs no recompile and accepts a different number of draws.
 
         Parameters
         ----------
@@ -932,12 +935,10 @@ class ConditionedModel:
     def _apply_posterior(self, posterior: xr.Dataset) -> Callable[[], None]:
         """Bind the graphs to ``posterior`` and return a rollback of the binding.
 
-        The first call re-extracts every handed-out key through a shared
-        posterior built on the draws already in place, then rebinds that shared
-        posterior to ``posterior`` -- so the first rebind is validated, label
-        realigned and length checked exactly like every later one.  Later calls
-        swap the draws in place.  The rollback restores whatever binding was in
-        place, which a caller runs when a registered callback raises.
+        Without ``share_posterior`` the first call rebuilds the keys on a shared posterior, then rebinds it.
+        Every call, that one included, is validated, label realigned and length checked like every later one.
+        A later call simply swaps the draws in place.
+        The rollback restores whatever binding was in place, which a caller runs when a registered callback raises.
         """
         previous_posterior = self._posterior
         if self._shared_posterior is None:
