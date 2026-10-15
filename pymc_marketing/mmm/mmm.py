@@ -1929,6 +1929,12 @@ class MMM(RegressionModelBuilder):
         ).fillna(0)
 
         self.xarray_dataset["_channel"] = self.xarray_dataset["_channel"].astype(float)
+        # Integer control columns (0/1 flags) would otherwise make `control_data`
+        # an int node, and later values written into it would be truncated.
+        if "_control" in self.xarray_dataset:
+            self.xarray_dataset["_control"] = self.xarray_dataset["_control"].astype(
+                float
+            )
 
         self.model_coords = {
             dim: self.xarray_dataset.coords[dim].values
@@ -2957,6 +2963,18 @@ class MMM(RegressionModelBuilder):
             carry_in=carry_in, decisions=decisions, carry_over=carry_over
         )
 
+    def _window_dates_after_training(
+        self, window_controls: xr.DataArray
+    ) -> tuple[pd.Timestamp, pd.DatetimeIndex]:
+        """Return the last training date and the window dates after it.
+
+        Those are the dates :func:`~pymc_marketing.mmm.utils.create_zero_dataset`
+        zero-fills, because the training data has no observed value there.
+        """
+        training_end = pd.DatetimeIndex(self.xarray_dataset.coords["date"].values).max()
+        window_dates = pd.DatetimeIndex(window_controls.coords["date"].values)
+        return training_end, window_dates[window_dates > training_end]
+
     def _future_control_values(
         self,
         control_data: pd.DataFrame | xr.DataArray,
@@ -2988,14 +3006,19 @@ class MMM(RegressionModelBuilder):
         Raises
         ------
         ValueError
-            If *control_data* is malformed, names unknown or misses known
-            controls or dim labels, covers training dates, or leaves a needed
-            date without a value.
+            If *control_data* is malformed (missing or unlabelled index
+            columns or coordinates, duplicate rows or labels), names unknown
+            or misses known controls or dim labels, covers training dates, or
+            leaves a needed date without a value.
         TypeError
             If *control_data* is neither a DataFrame nor a DataArray.
         """
         control_columns = list(self.control_columns or [])
         dims = list(self.dims)
+        missing_controls = (
+            "control_data is missing the control columns {}. Give planned "
+            "values for every control, including any you expect to stay at zero."
+        )
 
         if isinstance(control_data, pd.DataFrame):
             index_cols = [self.date_column, *dims]
@@ -3004,12 +3027,25 @@ class MMM(RegressionModelBuilder):
                 raise ValueError(
                     f"control_data is missing the columns {missing_index}."
                 )
-            value_cols = [c for c in control_data.columns if c not in index_cols]
-            frame = control_data.assign(
+            missing = [c for c in control_columns if c not in control_data.columns]
+            if missing:
+                raise ValueError(missing_controls.format(missing))
+            # Only the index and control columns are read, so future rows of
+            # ``X`` can be passed as they are, channel columns and all.
+            frame = control_data[[*index_cols, *control_columns]].assign(
                 **{self.date_column: pd.to_datetime(control_data[self.date_column])}
             )
+            duplicated = frame.duplicated(subset=index_cols, keep=False)
+            if duplicated.any():
+                example = frame.loc[duplicated, index_cols].iloc[0].to_dict()
+                raise ValueError(
+                    f"control_data has {int(duplicated.sum())} rows that share "
+                    f"their {index_cols} values with another row, for example "
+                    f"{example}. Give one row per date"
+                    + (" and dim label." if dims else ".")
+                )
             planned = (
-                frame.set_index(index_cols)[value_cols]
+                frame.set_index(index_cols)[control_columns]
                 .to_xarray()
                 .to_dataarray(dim="control")
             )
@@ -3022,31 +3058,43 @@ class MMM(RegressionModelBuilder):
                     f"control_data must have dims {sorted(expected_dims)}, "
                     f"got {sorted(map(str, control_data.dims))}."
                 )
-            if "control" not in control_data.indexes:
+            # Without labels xarray falls back to positions, which would be
+            # read as dates in 1970 or as the wrong dim labels.
+            unlabelled = [
+                d for d in ("date", *dims, "control") if d not in control_data.indexes
+            ]
+            if unlabelled:
                 raise ValueError(
-                    "control_data needs a 'control' coordinate labelled with "
-                    "the control_columns."
+                    f"control_data needs labelled coordinates for {unlabelled}."
                 )
-            planned = control_data
+            duplicated_dims = [
+                d
+                for d in ("date", *dims, "control")
+                if not control_data.indexes[d].is_unique
+            ]
+            if duplicated_dims:
+                raise ValueError(
+                    f"control_data has duplicate labels along {duplicated_dims}."
+                )
+            planned = control_data.assign_coords(
+                date=pd.to_datetime(control_data.indexes["date"])
+            )
+            labels = list(planned.coords["control"].values)
+            unknown = [c for c in labels if c not in control_columns]
+            if unknown:
+                raise ValueError(
+                    f"control_data has controls that are not control_columns: "
+                    f"{[str(c) for c in unknown]}."
+                )
+            missing = [c for c in control_columns if c not in labels]
+            if missing:
+                raise ValueError(missing_controls.format(missing))
         else:
             raise TypeError(
                 "control_data must be a pd.DataFrame or an xr.DataArray, "
                 f"got {type(control_data).__name__}."
             )
 
-        labels = list(planned.coords["control"].values)
-        unknown = [c for c in labels if c not in control_columns]
-        if unknown:
-            raise ValueError(
-                f"control_data has columns that are not control_columns: {unknown}."
-            )
-        missing = [c for c in control_columns if c not in labels]
-        if missing:
-            raise ValueError(
-                f"control_data is missing the control columns {missing}. Give "
-                "planned values for every control, including any you expect "
-                "to stay at zero."
-            )
         for dim in dims:
             extra = set(planned.coords[dim].values) - set(
                 window_controls.coords[dim].values
@@ -3059,7 +3107,7 @@ class MMM(RegressionModelBuilder):
 
         # The window keeps the observed controls wherever the training data
         # reaches (`preserve_observed`), so planned values apply only after it.
-        training_end = pd.DatetimeIndex(self.xarray_dataset.coords["date"].values).max()
+        training_end, future = self._window_dates_after_training(window_controls)
         planned_dates = pd.DatetimeIndex(planned.coords["date"].values)
         observed = planned_dates[planned_dates <= training_end]
         if len(observed):
@@ -3069,8 +3117,6 @@ class MMM(RegressionModelBuilder):
                 f"ends {training_end.date()}). Those dates keep their observed "
                 "control values; give control_data only for later dates."
             )
-        window_dates = pd.DatetimeIndex(window_controls.coords["date"].values)
-        future = window_dates[window_dates > training_end]
         if future.empty:
             raise ValueError(
                 "The optimization window, including its carry-over, ends by "
@@ -3106,9 +3152,7 @@ class MMM(RegressionModelBuilder):
         """
         if self.link != LinkFunction.LOG or not self.control_columns:
             return
-        training_end = pd.DatetimeIndex(self.xarray_dataset.coords["date"].values).max()
-        window_dates = pd.DatetimeIndex(window_controls.coords["date"].values)
-        future = window_dates[window_dates > training_end]
+        _, future = self._window_dates_after_training(window_controls)
         if future.empty:
             return
         warnings.warn(
@@ -3151,8 +3195,9 @@ class MMM(RegressionModelBuilder):
             Planned values of the controls on the window dates after the
             training data ends, through the end of the carry-over.  Either a
             DataFrame with the date column, one column per dim and one column
-            per control (like ``X``), or a DataArray with dims
-            ``("date", *dims, "control")``.  Every control column and every
+            per control (like ``X``; other columns such as the channels are
+            ignored), or a DataArray with dims ``("date", *dims, "control")``
+            and a labelled coordinate for each.  Every control column and every
             one of those dates is required; other dates after the training
             data are ignored, and dates the training data covers raise, since
             they keep their observed values.  Under ``link="log"``, leaving it out

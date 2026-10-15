@@ -2770,9 +2770,11 @@ class TestControlData:
                 id="missing-control",
             ),
             pytest.param(
-                lambda df, future, last: df.assign(price=1.0),
-                r"not control_columns: \['price'\]",
-                id="unknown-control",
+                lambda df, future, last: pd.concat(
+                    [df, df.iloc[[0]].assign(t=-1.0)], ignore_index=True
+                ),
+                "rows that share their",
+                id="duplicate-row",
             ),
             pytest.param(
                 lambda df, future, last: df.drop(columns="geo"),
@@ -2814,6 +2816,133 @@ class TestControlData:
 
         with pytest.raises(ValueError, match=match):
             fitted_mmm.create_optimization_model(start, end, control_data=planned)
+
+    def test_other_columns_are_ignored(self, fitted_mmm):
+        start, end, future = _future_window(fitted_mmm)
+        planned = _planned_frame(future)
+        like_x = planned.assign(channel_1=5.0, channel_2=7.0)
+
+        exact = fitted_mmm.create_optimization_model(start, end, control_data=planned)
+        with_channels = fitted_mmm.create_optimization_model(
+            start, end, control_data=like_x
+        )
+
+        np.testing.assert_array_equal(
+            with_channels["control_data"].get_value(),
+            exact["control_data"].get_value(),
+        )
+
+    def test_dataarray_with_string_dates(self, fitted_mmm):
+        start, end, future = _future_window(fitted_mmm)
+        planned = _planned_frame(future)
+        as_array = (
+            planned.set_index(["date_week", "geo"])
+            .to_xarray()
+            .to_dataarray(dim="control")
+            .rename(date_week="date")
+        )
+        with_strings = as_array.assign_coords(
+            date=[str(d.date()) for d in pd.DatetimeIndex(as_array["date"].values)]
+        )
+
+        from_frame = fitted_mmm.create_optimization_model(
+            start, end, control_data=planned
+        )
+        from_strings = fitted_mmm.create_optimization_model(
+            start, end, control_data=with_strings
+        )
+
+        np.testing.assert_array_equal(
+            from_strings["control_data"].get_value(),
+            from_frame["control_data"].get_value(),
+        )
+
+    @pytest.mark.parametrize(
+        "make, match",
+        [
+            pytest.param(
+                lambda future: xr.DataArray(
+                    np.ones((len(future), 2, 3)),
+                    dims=("date", "geo", "control"),
+                    coords={"control": ["event_1", "event_2", "t"]},
+                ),
+                r"needs labelled coordinates for \['date', 'geo'\]",
+                id="unlabelled-coords",
+            ),
+            pytest.param(
+                lambda future: xr.DataArray(
+                    np.ones((len(future), 2, 4)),
+                    dims=("date", "geo", "control"),
+                    coords={
+                        "date": future,
+                        "geo": ["A", "B"],
+                        "control": ["event_1", "event_2", "t", "price"],
+                    },
+                ),
+                r"not control_columns: \['price'\]",
+                id="unknown-control",
+            ),
+            pytest.param(
+                lambda future: xr.DataArray(
+                    np.ones((len(future), 2, 2)),
+                    dims=("date", "geo", "control"),
+                    coords={
+                        "date": future,
+                        "geo": ["A", "B"],
+                        "control": ["event_1", "event_2"],
+                    },
+                ),
+                r"missing the control columns \['t'\]",
+                id="missing-control",
+            ),
+            pytest.param(
+                lambda future: xr.DataArray(
+                    np.ones((len(future), 2, 3)),
+                    dims=("date", "geo", "control"),
+                    coords={
+                        "date": future,
+                        "geo": ["A", "A"],
+                        "control": ["event_1", "event_2", "t"],
+                    },
+                ),
+                r"duplicate labels along \['geo'\]",
+                id="duplicate-labels",
+            ),
+        ],
+    )
+    def test_invalid_dataarray_raises(self, fitted_mmm, make, match):
+        start, end, future = _future_window(fitted_mmm)
+
+        with pytest.raises(ValueError, match=match):
+            fitted_mmm.create_optimization_model(start, end, control_data=make(future))
+
+    def test_fractional_plan_survives_integer_controls(self):
+        dates = pd.date_range("2024-01-07", periods=12, freq="W")
+        X = pd.DataFrame(
+            {
+                "date": dates,
+                "channel_1": 1.0,
+                "event": np.arange(12) % 2,
+                "price": np.ones(12, dtype=int),
+            }
+        )
+        mmm = MMM(
+            date_column="date",
+            target_column="y",
+            channel_columns=["channel_1"],
+            control_columns=["event", "price"],
+            adstock=GeometricAdstock(l_max=2),
+            saturation=LogisticSaturation(),
+        )
+        mmm.build_model(X, pd.Series(np.linspace(5, 10, 12)))
+        start, end, future = _future_window(mmm, n_plan=2)
+        planned = pd.DataFrame({"date": future, "event": 0.5, "price": 1.02})
+
+        model = mmm.create_optimization_model(start, end, control_data=planned)
+
+        controls = _control_data(model).sel(date=future)
+        np.testing.assert_allclose(controls.sel(control="event"), 0.5)
+        np.testing.assert_allclose(controls.sel(control="price"), 1.02)
 
     def test_dataarray_with_wrong_dims_raises(self, fitted_mmm):
         start, end, future = _future_window(fitted_mmm)
