@@ -818,11 +818,9 @@ _EVALUATOR_CACHE_SIZE = 4
 class _EvaluatorCacheKey(NamedTuple):
     """Identity of a compiled counterfactual evaluator.
 
-    Two calls share one evaluator only when every field matches.
-    The structural fields decide the graph that gets compiled.
-    ``dates`` and ``data_fingerprint`` decide the data it is compiled and checked against.
-    Two :class:`Incrementality` objects over different data therefore never collide.
-    Wrappers built over one fit-time dataset do share an entry.
+    Its structural fields pick the compiled graph.
+    Its ``dates`` and ``data_fingerprint`` fields pick the data it was built and checked against.
+    Two wrappers over different data never share an entry.
     """
 
     response_vars: tuple[str, ...]
@@ -837,10 +835,7 @@ class _EvaluatorCacheKey(NamedTuple):
 def _constant_data_fingerprint(idata: xr.DataTree) -> tuple | None:
     """Return a content fingerprint of a DataTree's fit-time ``constant_data``.
 
-    The evaluator bakes none of the data values into its graph, since they are function inputs.
-    It does hold the ``constant_data`` it was built with for its mutation check.
-    It also reads date-indexed auxiliary inputs off the model at compile time.
-    Fingerprinting that group keeps evaluators over different data apart.
+    It compares each ``constant_data`` variable by name, shape, dtype and a 16-byte BLAKE2b digest of its values.
     It covers all of ``constant_data``, ``channel_data`` included, so wrappers differing only in it compile separately.
     The summary factory and ``MMM.incrementality`` build wrappers over one fit-time dataset and share an entry.
 
@@ -882,11 +877,10 @@ def _constant_data_fingerprint(idata: xr.DataTree) -> tuple | None:
 class _EvaluatorCache:
     """Bounded LRU cache of compiled counterfactual evaluators.
 
-    A fitted MMM keeps one of these so its :class:`Incrementality` objects reuse compiled evaluators.
+    A fitted MMM keeps one so its :class:`Incrementality` objects reuse compiled evaluators.
     An entry is keyed by graph shape and dataset, so repeated questions pay one compile.
     The cache is bounded, so a model cannot pin an unbounded number of compiled functions.
-    It is never serialized, because the compiled functions it holds are only meaningful in-process.
-
+    It is never serialized, because its compiled functions are only meaningful in-process.
     Calls on one MMM share the cached evaluator, so concurrent calls from several threads are not supported.
 
     Parameters
@@ -902,33 +896,14 @@ class _EvaluatorCache:
         )
 
     def get(self, key: _EvaluatorCacheKey) -> CounterfactualEvaluator | None:
-        """Return the evaluator cached under ``key``, marking it most recent.
-
-        Parameters
-        ----------
-        key : _EvaluatorCacheKey
-            Identity of the evaluator to look up.
-
-        Returns
-        -------
-        CounterfactualEvaluator or None
-            The cached evaluator, or ``None`` on a miss.
-        """
+        """Return the evaluator cached under ``key``, marking it most recent."""
         evaluator = self._entries.get(key)
         if evaluator is not None:
             self._entries.move_to_end(key)
         return evaluator
 
     def put(self, key: _EvaluatorCacheKey, evaluator: CounterfactualEvaluator) -> None:
-        """Store ``evaluator`` under ``key``, evicting the least recent entry.
-
-        Parameters
-        ----------
-        key : _EvaluatorCacheKey
-            Identity to store the evaluator under.
-        evaluator : CounterfactualEvaluator
-            The compiled evaluator to cache.
-        """
+        """Store ``evaluator`` under ``key``, evicting the least recent entry."""
         self._entries[key] = evaluator
         self._entries.move_to_end(key)
         while len(self._entries) > self._max_entries:
@@ -939,20 +914,7 @@ class _EvaluatorCache:
         key: _EvaluatorCacheKey,
         factory: Callable[[], CounterfactualEvaluator],
     ) -> CounterfactualEvaluator:
-        """Return the evaluator cached under ``key``, building and caching it on a miss.
-
-        Parameters
-        ----------
-        key : _EvaluatorCacheKey
-            Identity of the evaluator to look up.
-        factory : callable
-            Builds the evaluator when ``key`` is absent.
-
-        Returns
-        -------
-        CounterfactualEvaluator
-            The cached evaluator, or the freshly built and cached one.
-        """
+        """Return the evaluator cached under ``key``, building and caching it on a miss."""
         evaluator = self.get(key)
         if evaluator is None:
             evaluator = factory()
@@ -2973,10 +2935,9 @@ class Incrementality:
     ) -> _EvaluatorCacheKey:
         """Return the cache identity of the evaluator :meth:`_compute_increments` needs.
 
-        The key mirrors what the evaluator bakes into its compiled graph.
+        It mirrors what the evaluator bakes into its compiled graph.
         That is the response variables, the target, the mode, the frozen deterministics and the date count.
         It identifies the data by the dates and by a ``constant_data`` fingerprint.
-        Two ``Incrementality`` objects over different data therefore never share an entry.
 
         Parameters
         ----------
@@ -3167,10 +3128,7 @@ class Incrementality:
             *effect_names,
             *([predictor] if predictor is not None else []),
         ]
-        # One compiled evaluator is reused per graph shape and dataset.
-        # The cache lives on the fitted model, so the summary factory hits the same entries.
-        # On a hit only the posterior is rebound.
-        # The graph, its batched inputs and the fit-time mutation check still describe this model.
+        # Reuse the compiled evaluator for this graph shape and dataset; a hit only rebinds the posterior.
         build_evaluator = partial(
             CounterfactualEvaluator,
             pymc_model=posterior_predictive_model,
@@ -3190,9 +3148,7 @@ class Incrementality:
         evaluator = cache.get_or_build(
             self._evaluator_cache_key(response_vars), build_evaluator
         )
-        # Rebinding on every call keeps a reused evaluator on the current posterior.
-        # On a miss this is a pure rebind of the draws the evaluator was just built on.
-        # It recompiles nothing, and it is kept so every call takes the same path.
+        # A rebind right after a miss is a no-op (same draws it was built on); it keeps every call on one path.
         evaluator.set_posterior(posterior_sub)
 
         # channel_data's declared axis order, which the baseline array below and
