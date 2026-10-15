@@ -1246,6 +1246,25 @@ def test_conditioned_model_extract_is_cached_by_key(conditioned_slope):
     assert conditioned_slope.extract("doubled", n_dates=3) is horizon_graph
 
 
+def test_conditioned_model_extract_returns_a_fresh_list(conditioned_slope):
+    """A caller mutating the returned list must not corrupt the cached graphs."""
+    graph = conditioned_slope.extract("doubled")
+
+    handed_out = conditioned_slope.extract(["doubled"])
+    also_handed_out = conditioned_slope.extract(["doubled"])
+    assert handed_out is not also_handed_out
+    assert handed_out[0] is graph
+
+    # A destructive caller empties the list it got; the cache must survive.
+    handed_out.clear()
+    handed_out.append(object())
+
+    intact = conditioned_slope.extract(["doubled"])
+    assert intact is not handed_out
+    assert len(intact) == 1
+    assert intact[0] is graph
+
+
 def test_conditioned_model_uncached_extract_is_not_pinned_on_first_rebind():
     """A ``cache=False`` graph is never re-extracted, so its variables are not required.
 

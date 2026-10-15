@@ -5297,7 +5297,10 @@ class TestEvaluatorCache:
 
         assert len(builds) == 1
 
-    @pytest.mark.parametrize("entry_point", ["incremental", "roas"])
+    @pytest.mark.parametrize(
+        "entry_point",
+        ["incremental", "roas", "marginal", "split_over_time", "current_future"],
+    )
     def test_reused_result_matches_a_fresh_build(
         self, simple_fitted_mmm, constructed, entry_point
     ):
@@ -5313,6 +5316,12 @@ class TestEvaluatorCache:
             }
             if entry_point == "roas":
                 return incr.contribution_over_spend(**kwargs)
+            if entry_point == "marginal":
+                return incr.marginal_contribution_over_spend(**kwargs)
+            if entry_point == "split_over_time":
+                return incr.split_incremental_contribution_over_time(**kwargs)
+            if entry_point == "current_future":
+                return incr.split_incremental_contribution_current_future(**kwargs)
             return incr.compute_incremental_contribution(**kwargs)
 
         call(num_samples=50, seed=7)

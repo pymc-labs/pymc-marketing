@@ -863,7 +863,7 @@ class ConditionedModel:
         resolved = [self._resolve(var) for var in requested]
         if not cache:
             graphs = self._extract(resolved, self._shared_posterior, self._posterior)
-            return graphs[0] if single else graphs
+            return graphs[0] if single else list(graphs)
         cache_key = _ExtractKey(
             self._names(resolved), self.frozen_deterministics, n_dates
         )
@@ -871,7 +871,10 @@ class ConditionedModel:
             graphs = self._extract(resolved, self._shared_posterior, self._posterior)
             self._cache[cache_key] = _CachedGraphs(resolved, graphs)
         graphs = self._cache[cache_key].graphs
-        return graphs[0] if single else graphs
+        # Hand out a fresh list every call: the cached one is shared by every
+        # consumer, so a caller mutating what it got back must not corrupt it.
+        # The graph elements themselves stay identical.
+        return graphs[0] if single else list(graphs)
 
     def set_posterior(self, idata: xr.DataTree | xr.Dataset) -> None:
         """Point the handed-out graphs at the draws in ``idata``.
