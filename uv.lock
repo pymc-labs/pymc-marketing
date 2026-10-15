@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 5
 requires-python = ">=3.12"
 resolution-markers = [
     "python_full_version >= '3.15' and sys_platform == 'win32'",
@@ -4086,6 +4086,11 @@ test = [
     { name = "pytest-mock" },
     { name = "pytest-split" },
     { name = "watermark" },
+    { name = "zarr" },
+]
+zarr = [
+    { name = "xarray" },
+    { name = "zarr" },
 ]
 
 [package.dev-dependencies]
@@ -4179,10 +4184,13 @@ requires-dist = [
     { name = "tqdm" },
     { name = "watermark", marker = "extra == 'docs'" },
     { name = "watermark", marker = "extra == 'test'" },
-    { name = "xarray", specifier = ">=2024.1.0" },
+    { name = "xarray", specifier = ">=2024.11.0" },
+    { name = "xarray", marker = "extra == 'zarr'", specifier = ">=2025.6.0" },
     { name = "xarray-einstats", specifier = ">=0.5.1" },
+    { name = "zarr", marker = "extra == 'test'", specifier = ">=3.0.8" },
+    { name = "zarr", marker = "extra == 'zarr'", specifier = ">=3.0.8" },
 ]
-provides-extras = ["dag", "docs", "lint", "pie", "test"]
+provides-extras = ["dag", "docs", "lint", "pie", "test", "zarr"]
 
 [package.metadata.requires-dev]
 dev = [
