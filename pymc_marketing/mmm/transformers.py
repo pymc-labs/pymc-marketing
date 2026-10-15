@@ -1110,8 +1110,16 @@ def hill_function(
     x = as_xtensor(x)
     slope = as_xtensor(slope)
     kappa = as_xtensor(kappa)
-    return 1 - ptx.math.power(kappa, slope) / (
-        ptx.math.power(kappa, slope) + ptx.math.power(x, slope)
+    # f(x) = sigmoid(slope * (log(x) - log(kappa))), defined as 0.0 at x == 0.
+    # Equivalent to 1 - kappa**slope / (kappa**slope + x**slope) but evaluated
+    # in log space, so large slope * log(kappa) products cannot overflow:
+    # the response (and its gradients) stay finite for any positive
+    # (slope, kappa), including zero-spend weeks.
+    safe_x = ptx.math.maximum(x, np.asanyarray(np.finfo(np.float64).tiny))
+    return ptx.math.where(
+        x > 0,
+        ptx.math.sigmoid(slope * (ptx.math.log(safe_x) - ptx.math.log(kappa))),
+        np.asanyarray(0.0),
     )
 
 

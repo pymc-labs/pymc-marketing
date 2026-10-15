@@ -83,7 +83,7 @@ class MMMCVPlotSuite:
     provides for every fold fitted with the library's ``MMM``, under both
     link functions. See
     :class:`~pymc_marketing.mmm.summary.cv.MMMCVSummaryFactory` for how this
-    differs from the log link's median ``posterior["y_original_scale"]``.
+    differs from the noise-free ``posterior["mu_original_scale"]``.
     """
 
     def __init__(self, cv_data: xr.DataTree) -> None:

@@ -73,10 +73,12 @@ def _add_original_scale_predictions(idata: xr.DataTree, output_var: str) -> None
     """Add ``{output_var}_original_scale = {output_var} * target_scale`` to ``posterior_predictive``.
 
     The CV summaries and plots need these original-scale predictive draws under
-    every link. An existing variable is kept; otherwise it is derived from the
-    fold's ``posterior_predictive_constant_data["target_scale"]``. Under
-    ``link="log"``, ``posterior["y_original_scale"]`` is the LogNormal median,
-    a different quantity. Warns when the draws or ``target_scale`` are missing.
+    every link. A fold that registered ``y`` with
+    ``add_original_scale_contribution_variable`` already carries them and is
+    left alone; otherwise they are derived from the fold's
+    ``posterior_predictive_constant_data["target_scale"]``. (The log link's
+    noise-free median is a different quantity, ``posterior["mu_original_scale"]``.)
+    Warns when the draws or ``target_scale`` are missing.
 
     Parameters
     ----------
@@ -824,7 +826,8 @@ class TimeSliceCrossValidator:
             fold-local model after build and before fit. ``"y"`` is not
             needed for the CV summaries and plots: for every fold fitted with
             the library's ``MMM`` the runner provides
-            ``posterior_predictive["y_original_scale"]`` itself (see Returns).
+            ``posterior_predictive["y_original_scale"]`` itself (see Returns),
+            under either link.
         df_lift_test : pd.DataFrame, optional
             Lift-test measurements to apply on each fold-local model.
             Rows are filtered leakage-safely per fold using

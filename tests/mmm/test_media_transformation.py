@@ -268,6 +268,34 @@ def test_incompatible_dims_raise(adstock_dims, saturation_dims) -> None:
         )
 
 
+@pytest.mark.parametrize(
+    "adstock_first, first_name, second_name",
+    [(True, "adstock", "saturation"), (False, "saturation", "adstock")],
+)
+def test_reassigned_transformations_are_applied(
+    adstock_first, first_name, second_name
+) -> None:
+    """Assigning ``adstock`` / ``saturation`` after construction changes what is applied, in order."""
+    media_transformation = MediaTransformation(
+        adstock=GeometricAdstock(l_max=2, prefix="old_adstock"),
+        saturation=LogisticSaturation(prefix="old_saturation"),
+        adstock_first=adstock_first,
+    )
+    media_transformation.adstock = GeometricAdstock(l_max=2, prefix="new_adstock")
+    media_transformation.saturation = LogisticSaturation(prefix="new_saturation")
+
+    with pm.Model(coords={"date": range(5)}) as model:
+        media_transformation(pmd.Data("x", np.ones(5), dims="date"), dim="date")
+
+    assert {rv.name for rv in model.free_RVs} == {
+        "new_adstock_alpha",
+        "new_saturation_lam",
+        "new_saturation_beta",
+    }
+    assert media_transformation.first is getattr(media_transformation, first_name)
+    assert media_transformation.second is getattr(media_transformation, second_name)
+
+
 class TestMediaTransformationRoundtrips:
     def test_full_media_config_list_all_parameters(self):
         from pymc_marketing.mmm.components.adstock import (

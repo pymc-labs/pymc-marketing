@@ -222,11 +222,11 @@ class MMMCVSummaryFactory:
     ``posterior_predictive["y_original_scale"]``, the posterior predictive
     draws of the target on the original scale (``y * target_scale``), which
     ``TimeSliceCrossValidator.run()`` provides for every fold fitted with the
-    library's ``MMM``, under both link functions. Under ``link="log"`` the
-    fold's ``posterior["y_original_scale"]`` is a different quantity: the
-    LogNormal median ``exp(mu) * target_scale``, without observation noise.
-    The summaries never use it, so CRPS and the predictive intervals are
-    scored against the full predictive distribution under both links.
+    library's ``MMM``, under both link functions. The noise-free prediction
+    (under ``link="log"`` the LogNormal median
+    ``posterior["mu_original_scale"] = exp(mu) * target_scale``) is never
+    used, so CRPS and the predictive intervals are scored against the full
+    predictive distribution under both links.
 
     Examples
     --------

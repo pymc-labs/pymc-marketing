@@ -105,9 +105,12 @@ def to_mmm_dataset(
     dims
         Extra dimension names (e.g. ``("geo",)``).
     channel_columns
-        Names of the media-channel columns.
+        Names of the media-channel columns.  For ``xr.Dataset`` and
+        ``xr.DataArray`` input, the labels of the ``channel`` coordinate: the
+        result follows this order, and labels not listed are dropped.
     control_columns
-        Names of control-variable columns.
+        Names of control-variable columns.  For ``xr.Dataset`` input, the
+        labels of the ``control`` coordinate, ordered and filtered the same way.
     extra_vars
         Column names to carry as additional data variables (for custom
         ``DataVarMuEffect`` effects). Each becomes a variable indexed by
@@ -123,6 +126,17 @@ def to_mmm_dataset(
         Dataset with variables ``_channel``, (optional) ``_target``,
         (optional) ``_control``, any ``extra_vars``, and coordinates for
         each dimension.
+
+    Raises
+    ------
+    KeyError
+        If a label in *channel_columns* or *control_columns* is absent from the
+        ``channel`` or ``control`` coordinate of an ``xr.Dataset`` input, or a
+        name in *extra_vars* is absent from the data.
+    ValueError
+        If an ``xr.Dataset`` input lacks a required variable or coordinate:
+        ``_channel``, ``date`` and ``channel`` always, and ``_control`` with a
+        labelled ``control`` coordinate when *control_columns* is set.
     """
     # 1. Coerce date column to datetime for DataFrame inputs.
     if isinstance(X, pd.DataFrame) and date_column in X.columns:
@@ -204,7 +218,16 @@ def _(X, /, **params) -> xr.Dataset:
 
     _validate_mmm_structure(X, **params)
     _validate_extra_vars(X, params.get("extra_vars"))
-    return X
+
+    # The model takes its coordinate order from this dataset, while prediction
+    # writes new data positionally in channel_columns / control_columns order,
+    # so the two have to agree (#3139). The DataFrame branch does the same.
+    channel_columns = params["channel_columns"]
+    control_columns = params.get("control_columns") or None
+    _validate_coord_labels(X, "channel", channel_columns)
+    if control_columns is not None:
+        _validate_coord_labels(X, "control", control_columns)
+    return _reindex_to_user_order(X, channel_columns, control_columns)
 
 
 @_to_mmm_xarray.register(xr.DataArray)
@@ -330,7 +353,7 @@ def _validate_mmm_structure(X: xr.Dataset, **params) -> None:
     if "date" not in X.coords:
         raise ValueError("Dataset missing required coordinate 'date'.")
 
-    if "channel" not in X.coords:
+    if "channel" not in X.indexes:
         raise ValueError(
             "Dataset missing required coordinate 'channel'. "
             "Ensure your media variable has a 'channel' dimension."
@@ -343,6 +366,26 @@ def _validate_mmm_structure(X: xr.Dataset, **params) -> None:
             f"'_control' data variable. Note: 'control' cannot be used as a "
             f"data variable name because xarray promotes it to a dimension "
             f"coordinate. Use '_control' instead."
+        )
+
+    if control_columns and "control" not in X.indexes:
+        raise ValueError(
+            "Dataset missing required coordinate 'control'. Ensure your "
+            "'_control' variable has a 'control' dimension labelled with the "
+            "control_columns."
+        )
+
+
+def _validate_coord_labels(X: xr.Dataset, dim: str, labels: list[str]) -> None:
+    # `reindex` fills a missing label with NaN, which `build_model` then
+    # zero-fills, so an absent channel or control would be fit as all zeros.
+    present = X.indexes[dim]
+    missing = [label for label in labels if label not in present]
+    if missing:
+        raise KeyError(
+            f"{missing} are declared in {dim}_columns but absent from the "
+            f"dataset's {dim!r} coordinate. "
+            f"Present: {sorted(present.tolist(), key=str)}."
         )
 
 
