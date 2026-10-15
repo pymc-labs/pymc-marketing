@@ -33,6 +33,8 @@ sections:
             notebook: mmm/mmm_cost_per_unit
           - title: "Why and how to account for media inflation in your media mix model (MMM)"
             notebook: mmm/mmm_media_inflation
+          - title: Expressing Domain Knowledge about Media Contributions
+            notebook: mmm/mmm_contribution_priors
           - title: Parameter Recovery
             notebook: mmm/mmm_data_generator
           - title: MMM API Migration Guide
