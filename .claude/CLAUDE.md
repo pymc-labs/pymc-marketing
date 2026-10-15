@@ -10,11 +10,11 @@
 ## Skills (shared with Cursor)
 
 Read the relevant skill entry listed below **before** starting work in that domain.
-The documentation visibility skill lives in `.agents/skills/` and is exposed to Claude Code through a symlink in `.claude/skills/`; Codex and Cursor discover it directly in `.agents/skills/`.
+The docs skill lives in `.agents/skills/` and is exposed to Claude Code through a symlink in `.claude/skills/`; Codex and Cursor discover it directly in `.agents/skills/`.
 
 | Skill | When to read | Entry file |
 |---|---|---|
-| **docs-notebook-visibility** | Creating or editing any documentation notebook, including small edits | `.agents/skills/docs-notebook-visibility/SKILL.md` |
+| **docs** | Creating or editing documentation, including small notebook edits | `.agents/skills/docs/SKILL.md` |
 | **mmm-modeling** | Building, fitting, diagnosing, or optimizing Media Mix Models with PyMC-Marketing | `.cursor/skills/mmm-modeling/SKILL.md` (references in `references/` subdirectory) |
 | **code-best-practice** | Writing or reviewing PyMC-Marketing code (style, typing, docstrings, PyTensor, testing) | `.cursor/skills/code-best-practice/SKILL.md` |
 | **research** | Structuring a research task before implementation | `.cursor/skills/research/SKILL.md` |
