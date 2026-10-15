@@ -1,0 +1,19 @@
+docs/AGENTS.md
+  s_b8b7743133d8e3::t_3a69a589022de4 1-19
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "1d18d75229949a2ba45b1cae9a3f59a017826c69",
+  "prompts": {},
+  "sessions": {
+    "s_b8b7743133d8e3": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a13b21-ffb7-72c2-ad5e-e5ee22b19c3f",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Benjamin T. Vincent <inferencelab@gmail.com>"
+    }
+  }
+}
