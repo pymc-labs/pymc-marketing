@@ -1,0 +1,32 @@
+pymc_marketing/mmm/components/base.py
+  s_dd0c086a397625::t_5320194a565dfe 603-604
+tests/mmm/test_incrementality.py
+  s_dd0c086a397625::t_b6b9856b48a782 4988,4990
+tests/mmm/conftest.py
+  s_dd0c086a397625::t_b6b9856b48a782 98-101,110
+pymc_marketing/mmm/incrementality.py
+  s_dd0c086a397625::t_5320194a565dfe 3194-3195
+  s_dd0c086a397625::t_1c77ea95e3b59f 3267-3269
+  s_dd0c086a397625::t_6d0af502a6374d 238
+  s_dd0c086a397625::t_e86619f131c358 790-795,2304,2317
+  s_dd0c086a397625::t_4795bd23505118 1028,1033-1034,1042,2375,2467-2470,2474,2480,3512,3514,3523,3527,3532
+  s_dd0c086a397625::t_08aa14d442ed44 796-798
+docs/source/notebooks/mmm/mmm_current_vs_future_value.ipynb
+  s_dd0c086a397625::t_fb3cf3d021380e 3466,3549,3794-3796,3847,4160,4350
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "bfe5126905a3206187e041add733e227b049073f",
+  "prompts": {},
+  "sessions": {
+    "s_dd0c086a397625": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "78f5b79c-352f-47bf-8f8e-845bbcb9d933",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "root <root@e2b.local>"
+    }
+  }
+}
