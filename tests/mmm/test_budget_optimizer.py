@@ -1103,16 +1103,23 @@ class TestEvaluateResponseDistribution:
         after = optimizer.evaluate_response_distribution(plan)
         assert not np.allclose(after.to_numpy(), before.to_numpy())
 
-    def test_an_adhoc_response_function_is_rebuilt_on_rebind(
-        self, mmm_wrapper, dummy_idata
+    @pytest.mark.parametrize(
+        ("variable", "reused"),
+        [
+            ("total_media_contribution_original_scale", True),
+            ("channel_contribution", False),
+        ],
+        ids=["objective-response", "ad-hoc"],
+    )
+    def test_a_later_rebind_keeps_the_objective_function_and_rebuilds_ad_hoc_ones(
+        self, mmm_wrapper, dummy_idata, variable, reused
     ):
-        """An ad-hoc response function is rebuilt on a rebind and reports the new draws.
+        """After the first rebind, a draw swap reuses the objective's response function.
 
-        An ad-hoc graph bakes the draws in as constants, so any
-        ``set_posterior`` -- the first or a later draw swap -- leaves its
-        compiled function holding the old posterior.  ``set_posterior`` drops
-        the cache, so the next evaluation recompiles against the newer draws
-        rather than reusing a stale function.
+        The objective's own response reads the shared draws, so its compiled
+        function follows a later ``set_posterior`` without recompiling.  An
+        ad-hoc variable bakes the draws in as constants, so the rebind drops it
+        and the next evaluation recompiles.  Both report the newer draws.
         """
         optimizer = BudgetOptimizer(
             model=mmm_wrapper,
@@ -1123,19 +1130,13 @@ class TestEvaluateResponseDistribution:
         posterior = dummy_idata["posterior"].to_dataset()
 
         optimizer.set_posterior(_scaled(posterior, 2.0))
-        before = optimizer.evaluate_response_distribution(plan)
-        compiled = optimizer._response_functions[
-            "total_media_contribution_original_scale"
-        ][0]
+        before = optimizer.evaluate_response_distribution(plan, variable)
+        compiled = optimizer._response_functions[variable][0]
 
         optimizer.set_posterior(_scaled(posterior, 4.0))
-        # The rebind dropped the ad-hoc function rather than let it go stale.
-        after = optimizer.evaluate_response_distribution(plan)
+        after = optimizer.evaluate_response_distribution(plan, variable)
 
-        rebuilt = optimizer._response_functions[
-            "total_media_contribution_original_scale"
-        ][0]
-        assert rebuilt is not compiled
+        assert (optimizer._response_functions[variable][0] is compiled) is reused
         assert not np.allclose(after.to_numpy(), before.to_numpy())
 
     def test_a_raw_array_is_refused_here_too(self, mmm_wrapper):

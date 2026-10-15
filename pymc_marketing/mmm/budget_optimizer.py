@@ -2979,7 +2979,11 @@ class BudgetOptimizer(BaseModel):
 
         name = response_variable or self.response_variable
         if name not in self._response_functions:
-            graph = self._extract_response_distribution(name, cache=False)
+            # The objective's own response shares its cached graph, so the compiled
+            # function follows every later draw swap; any other variable is ad hoc.
+            graph = self._extract_response_distribution(
+                name, cache=name == self.response_variable
+            )
             if self._budgets_flat not in set(ancestors([graph.values])):
                 warnings.warn(
                     f"response_variable={name!r} does not depend on the decision "
@@ -3125,9 +3129,13 @@ class BudgetOptimizer(BaseModel):
             self._conditioned.set_posterior(idata)
             # An ad-hoc response function is compiled from a graph with the draws
             # baked in as constants, so any rebind -- the first or a later draw
-            # swap -- makes it stale. Drop every one; the next evaluation
-            # recompiles it against the new draws.
-            self._response_functions = {}
+            # swap -- makes it stale. Drop those; the objective's own response
+            # reads the shared draws and is dropped only by the recompile.
+            self._response_functions = {
+                name: entry
+                for name, entry in self._response_functions.items()
+                if name == self.response_variable
+            }
             self.idata = idata
         except BaseException:
             (
@@ -3147,10 +3155,12 @@ class BudgetOptimizer(BaseModel):
         into shared variables.  Everything compiled from the response graph --
         the objective and the constraints -- is rebuilt from the new one.  A
         later rebind swaps draws under the same shared variables, which the
-        compiled functions read directly, so it fires nothing.  The ad-hoc
-        response functions are dropped by :meth:`set_posterior` on every
-        rebind, not here.
+        compiled functions read directly, so it fires nothing.  The objective's
+        own response function was compiled from the pre-rebind graph and is
+        dropped here; the ad-hoc ones are dropped by :meth:`set_posterior` on
+        every rebind.
         """
+        self._response_functions = {}
         self._compile_objective_and_grad()
         self.set_constraints(constraints=list(self._constraints.values()))
 
