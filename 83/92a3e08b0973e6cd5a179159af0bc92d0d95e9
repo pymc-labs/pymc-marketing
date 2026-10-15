@@ -1,0 +1,25 @@
+.claude/CLAUDE.md
+  s_b8b7743133d8e3::t_a598cb06fcc1ea 13,17
+.agents/skills/docs/SKILL.md
+  s_b8b7743133d8e3::t_a598cb06fcc1ea 1-21
+CONTRIBUTING.md
+  s_b8b7743133d8e3::t_a598cb06fcc1ea 147-148
+.claude/skills/docs
+  s_b8b7743133d8e3::t_2175d3eb10cd19 1
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "8392a3e08b0973e6cd5a179159af0bc92d0d95e9",
+  "prompts": {},
+  "sessions": {
+    "s_b8b7743133d8e3": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a13b21-ffb7-72c2-ad5e-e5ee22b19c3f",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Benjamin T. Vincent <inferencelab@gmail.com>"
+    }
+  }
+}
