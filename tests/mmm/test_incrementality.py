@@ -4985,9 +4985,9 @@ def separable_fit():
     models, and only read from them, so refitting per case only costs time.
     The data are those of ``simple_mmm_data``.
     """
-    from tests.mmm.conftest import _make_mmm_data
+    from tests.mmm.conftest import SIMPLE_MMM_DATA_KWARGS, _make_mmm_data
 
-    data = _make_mmm_data(periods=14, freq="W", n_channels=3, seed=42)
+    data = _make_mmm_data(**SIMPLE_MMM_DATA_KWARGS)
     fitted: dict[str, MMM] = {}
 
     def fit(adstock):

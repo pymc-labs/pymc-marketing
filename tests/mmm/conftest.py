@@ -95,6 +95,10 @@ def _make_mmm_data(
     return {"X": X, "y": y}
 
 
+# The data of ``simple_mmm_data``, for module-scoped fixtures that build their own.
+SIMPLE_MMM_DATA_KWARGS: dict = {"periods": 14, "freq": "W", "n_channels": 3, "seed": 42}
+
+
 @pytest.fixture
 def simple_mmm_data():
     """Create simple single-dimension MMM data.
@@ -103,7 +107,7 @@ def simple_mmm_data():
     - X: DataFrame with date and 3 channels (14 weekly periods)
     - y: Series with target values
     """
-    return _make_mmm_data(periods=14, freq="W", n_channels=3, seed=42)
+    return _make_mmm_data(**SIMPLE_MMM_DATA_KWARGS)
 
 
 @pytest.fixture

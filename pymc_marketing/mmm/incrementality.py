@@ -235,7 +235,7 @@ import warnings
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Iterator, Mapping, Sequence
 from contextlib import contextmanager
-from dataclasses import dataclass, fields
+from dataclasses import dataclass
 from functools import partial
 from typing import TYPE_CHECKING, Any, Literal, cast
 
@@ -787,11 +787,15 @@ def _relabel_draws(sampled: xr.DataArray, labels: Mapping[str, Any]) -> xr.DataA
     """Label a posterior-predictive sample with the draws it was computed at.
 
     ``pm.sample_posterior_predictive`` returns the draws in the order of the
-    posterior it is given, under labels of its own.  Relabeling by position is
-    right only while that order holds: nothing between the subsample and the
-    sampling may reorder or drop draws.  The sizes are checked here: a draw lost
-    or added on the way would pair draw *i* of one array with draw *j* of
-    another, so it raises.  The parity tests pin the order itself.
+    posterior it is given, under that posterior's ``chain`` and ``draw``
+    labels.  Those are not the pipeline's: the pipeline labels its results
+    with ``np.arange``, while :func:`~pymc_marketing.data.idata.utils.subsample_draws`
+    drops the coordinates of a subsample and a full posterior keeps whatever
+    labels it was given.  Relabeling by position is right only while the order
+    holds: nothing between the subsample and the sampling may reorder or drop
+    draws.  The sizes are checked here: a draw lost or added on the way would
+    pair draw *i* of one array with draw *j* of another, so it raises.  The
+    parity tests pin the order itself.
 
     Parameters
     ----------
@@ -1021,22 +1025,21 @@ class PreparedEvaluation:
 
 
 @dataclass(frozen=True)
-class ClosedFormInputs(PreparedEvaluation):
+class ClosedFormInputs:
     r"""A prepared evaluation plus the saturated spend the closed form reads.
 
     Parameters
     ----------
+    prepared : PreparedEvaluation
+        The validated request, posterior, probe and windows.
     saturated : xr.DataArray
         :math:`\beta g(x_t) - \beta g(f x_t)` in original scale, per date and
         draw, signed like the pipeline's increments.
     labels : dict
         ``chain`` and ``draw`` coordinates of the pipeline's results.
-
-    See Also
-    --------
-    PreparedEvaluation : the other fields.
     """
 
+    prepared: PreparedEvaluation
     saturated: xr.DataArray
     labels: dict
 
@@ -2298,7 +2301,7 @@ class Incrementality:
         num_samples: int | None,
         random_state: RandomState | Generator | None,
         central_tendency: CentralTendency,
-        counterfactual_spend_factor: float = 0.0,
+        counterfactual_spend_factor: float,
         lags: int | None = None,
     ) -> ClosedFormInputs:
         r"""Probe the model and evaluate the saturation stage, for the closed form.
@@ -2311,7 +2314,7 @@ class Incrementality:
         ----------
         frequency, start_date, end_date, num_samples, random_state, central_tendency
             As in :meth:`split_incremental_contribution_over_time`.
-        counterfactual_spend_factor : float, default=0.0
+        counterfactual_spend_factor : float
             Multiplicative factor applied to spend in the counterfactual.
         lags : int, optional
             For a current/future split, the lags after each spend date that count
@@ -2369,11 +2372,7 @@ class Incrementality:
             * reducer.scale,
             labels,
         )
-        return ClosedFormInputs(
-            **{field.name: getattr(prepared, field.name) for field in fields(prepared)},
-            saturated=saturated,
-            labels=labels,
-        )
+        return ClosedFormInputs(prepared=prepared, saturated=saturated, labels=labels)
 
     @staticmethod
     def _validate_closed_form_reach(
@@ -2465,18 +2464,20 @@ class Incrementality:
             central_tendency=central_tendency,
             counterfactual_spend_factor=counterfactual_spend_factor,
         )
-        probed, windows, freq_offset = inputs.probed, inputs.windows, inputs.freq_offset
-        weights = self._adstock_kernel(inputs.posterior, divides=False)
+        prepared = inputs.prepared
+        probed, windows = prepared.probed, prepared.windows
+        freq_offset = prepared.freq_offset
+        weights = self._adstock_kernel(prepared.posterior, divides=False)
         matrix = self._closed_form_matrix(
             inputs.saturated,
             _relabel_draws(weights, inputs.labels),
-            periods=inputs.periods,
+            periods=prepared.periods,
             windows=windows,
             tail_lags=probed.reach.max_lag,
             freq_offset=freq_offset,
             frequency=frequency,
         )
-        start_ts, end_ts = inputs.start_ts, inputs.end_ts
+        start_ts, end_ts = prepared.start_ts, prepared.end_ts
 
         if estimand == "counterfactual":
             return self._finish_counterfactual_matrix(
@@ -3190,8 +3191,8 @@ class Incrementality:
         xr.DataArray
             The adstock of a unit impulse, with a ``"time since exposure"`` lag
             dimension of length ``l_max`` and the parameters' other dimensions.
-            The draws are in the posterior's order, but ``sample_curve`` does not
-            keep their labels.
+            The draws are in the posterior's order and under its labels, which
+            need not be the pipeline's; see :func:`_relabel_draws`.
 
         Raises
         ------
@@ -3263,7 +3264,9 @@ class Incrementality:
             same split, ``NaN`` for ``NaN``, from the adstock kernel and the
             saturated spend, with no evaluation per period and no matrix; see
             the Notes.  It raises on the models listed under ``method`` in
-            :meth:`split_incremental_contribution_over_time`.
+            :meth:`split_incremental_contribution_over_time`, except the last:
+            the split has no estimand, so a ``counterfactual_spend_factor``
+            other than ``0`` works here.
         num_samples : int or None, optional
             Number of posterior samples to use; all of them when None.
         random_state : RandomState or Generator or None, optional
@@ -3506,8 +3509,9 @@ class Incrementality:
             counterfactual_spend_factor=counterfactual_spend_factor,
             lags=lags,
         )
+        prepared = inputs.prepared
         adstock = self.model.adstock
-        reach, windows = inputs.probed.reach, inputs.windows.windows
+        reach, windows = prepared.probed.reach, prepared.windows.windows
         max_lag = reach.max_lag
         if max_lag is None:  # pragma: no cover - _refuse_unbounded_reach ran
             raise ValueError("An unbounded reach reached the closed form.")
@@ -3516,16 +3520,16 @@ class Incrementality:
         # the kernel.  Its last entry is the whole kernel, so the future part is
         # exactly zero for a date whose window covers it.
         cumulative = _relabel_draws(
-            self._adstock_kernel(inputs.posterior, divides=False), inputs.labels
+            self._adstock_kernel(prepared.posterior, divides=False), inputs.labels
         ).cumsum(LAG_DIM)
 
         dates = self.data.dates
-        offset = inputs.freq_offset
+        offset = prepared.freq_offset
         saturated = inputs.saturated
         out_dims = tuple(
             str(dim) for dim in saturated.dims if dim not in ("chain", "draw", "date")
         )
-        row_of = _row_of_dates(dates, inputs.periods)
+        row_of = _row_of_dates(dates, prepared.periods)
         current_end = pd.DatetimeIndex(
             [
                 self._current_window_end(window.end, lags=lags, freq_offset=offset)

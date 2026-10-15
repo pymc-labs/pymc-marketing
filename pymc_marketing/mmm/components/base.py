@@ -600,8 +600,8 @@ class Transformation:
         -------
         xr.DataArray
             The transformed input per draw, ``(chain, draw, *dims)`` and the
-            parameters' other dimensions.  The draws are in the posterior's order;
-            their labels are those ``pm.sample_posterior_predictive`` assigns.
+            parameters' other dimensions.  The draws are in the posterior's order
+            and under its ``chain`` and ``draw`` labels.
         """
         coords = coords | {
             dim: np.asarray(coord)
