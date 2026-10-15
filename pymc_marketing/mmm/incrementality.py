@@ -841,6 +841,7 @@ def _constant_data_fingerprint(idata: xr.DataTree) -> tuple | None:
     It does hold the ``constant_data`` it was built with for its mutation check.
     It also reads date-indexed auxiliary inputs off the model at compile time.
     Fingerprinting that group keeps evaluators over different data apart.
+    It covers all of ``constant_data``, ``channel_data`` included, so wrappers differing only in it compile separately.
     The summary factory and ``MMM.incrementality`` build wrappers over one fit-time dataset and share an entry.
 
     Parameters
@@ -966,7 +967,7 @@ class _EvaluatorCache:
         return {"_max_entries": self._max_entries}
 
     def __setstate__(self, state: dict[str, int]) -> None:
-        """Restore the bound, empty, so a pickled model keeps no stale graphs."""
+        """Restore `max_entries` with an empty cache."""
         self._max_entries = state.get("_max_entries", _EVALUATOR_CACHE_SIZE)
         self._entries = OrderedDict()
 
@@ -3183,7 +3184,9 @@ class Incrementality:
                 else None
             ),
         )
-        cache = self.model._get_incrementality_evaluator_cache()
+        cache = self.model.__dict__.setdefault(
+            "_incrementality_evaluator_cache", _EvaluatorCache()
+        )
         evaluator = cache.get_or_build(
             self._evaluator_cache_key(response_vars), build_evaluator
         )

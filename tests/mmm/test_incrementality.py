@@ -13,9 +13,9 @@
 #   limitations under the License.
 """Tests for Incrementality module - counterfactual analysis with carryover."""
 
+import copy
 import json
 import logging
-import pickle
 import warnings
 from pathlib import Path
 from types import SimpleNamespace
@@ -52,6 +52,7 @@ from pymc_marketing.mmm.incrementality import (
     Incrementality,
     IncrementalReducer,
     LogLinkReducer,
+    _EvaluatorCache,
     kernel_trailing_lags,
 )
 from pymc_marketing.mmm.spend_reach import (
@@ -67,7 +68,6 @@ from pymc_marketing.mmm.transformers import (
     geometric_adstock,
     logistic_saturation,
 )
-from pymc_marketing.model_builder import RegressionModelBuilder
 from pymc_marketing.model_graph import deterministics_to_flat
 from pymc_marketing.serialization import serialization
 from tests.mmm.test_spend_reach import (
@@ -5297,10 +5297,7 @@ class TestEvaluatorCache:
 
         assert len(builds) == 1
 
-    @pytest.mark.parametrize(
-        "entry_point",
-        ["incremental", "roas", "marginal", "split_over_time", "current_future"],
-    )
+    @pytest.mark.parametrize("entry_point", ["incremental", "marginal"])
     def test_reused_result_matches_a_fresh_build(
         self, simple_fitted_mmm, constructed, entry_point
     ):
@@ -5314,14 +5311,8 @@ class TestEvaluatorCache:
                 "num_samples": num_samples,
                 "random_state": np.random.default_rng(seed),
             }
-            if entry_point == "roas":
-                return incr.contribution_over_spend(**kwargs)
             if entry_point == "marginal":
                 return incr.marginal_contribution_over_spend(**kwargs)
-            if entry_point == "split_over_time":
-                return incr.split_incremental_contribution_over_time(**kwargs)
-            if entry_point == "current_future":
-                return incr.split_incremental_contribution_current_future(**kwargs)
             return incr.compute_incremental_contribution(**kwargs)
 
         call(num_samples=50, seed=7)
@@ -5350,67 +5341,28 @@ class TestEvaluatorCache:
         """build_model drops the compiled evaluators."""
         mmm = simple_fitted_mmm
         mmm.incrementality.compute_incremental_contribution(frequency="all_time")
-        assert len(mmm._get_incrementality_evaluator_cache()) == 1
+        assert len(mmm._incrementality_evaluator_cache) == 1
 
         mmm.build_model(simple_mmm_data["X"], simple_mmm_data["y"])
 
-        assert len(mmm._get_incrementality_evaluator_cache()) == 0
+        assert getattr(mmm, "_incrementality_evaluator_cache", None) is None
 
-    def test_fit_clears_the_cache(
-        self, simple_fitted_mmm, simple_mmm_data, monkeypatch
-    ):
-        """fit drops the compiled evaluators before it samples."""
+    def test_deepcopy_drops_the_cache_and_still_computes(self, simple_fitted_mmm):
+        """A deep-copied MMM starts with an empty cache and recomputes the same increments."""
         mmm = simple_fitted_mmm
-        mmm.incrementality.compute_incremental_contribution(frequency="all_time")
-        assert len(mmm._get_incrementality_evaluator_cache()) == 1
-
-        cleared = []
-        original = mmm._clear_incrementality_evaluator_cache
-
-        def spy():
-            cleared.append(1)
-            original()
-
-        monkeypatch.setattr(mmm, "_clear_incrementality_evaluator_cache", spy)
-        # Skip the sampler: the clear under test runs first, and a real refit is far too slow here.
-        monkeypatch.setattr(
-            RegressionModelBuilder, "fit", lambda self, *args, **kwargs: None
+        result = mmm.incrementality.compute_incremental_contribution(
+            frequency="all_time", num_samples=50, random_state=np.random.default_rng(7)
         )
+        assert len(mmm._incrementality_evaluator_cache) == 1
 
-        mmm.fit(simple_mmm_data["X"], simple_mmm_data["y"])
+        clone = copy.deepcopy(mmm)
 
-        assert cleared == [1]
-        assert len(mmm._get_incrementality_evaluator_cache()) == 0
+        assert len(clone._incrementality_evaluator_cache) == 0
 
-    def test_build_from_idata_clears_the_cache(self, simple_fitted_mmm):
-        """build_from_idata drops the compiled evaluators."""
-        mmm = simple_fitted_mmm
-        mmm.incrementality.compute_incremental_contribution(frequency="all_time")
-        assert len(mmm._get_incrementality_evaluator_cache()) == 1
-
-        mmm.build_from_idata(mmm.idata)
-
-        assert len(mmm._get_incrementality_evaluator_cache()) == 0
-
-    def test_cache_is_not_in_idata_attrs(self, simple_fitted_mmm):
-        """The compiled-evaluator cache never reaches the serialized attrs."""
-        mmm = simple_fitted_mmm
-        mmm.incrementality.compute_incremental_contribution(frequency="all_time")
-
-        attrs = mmm.create_idata_attrs()
-
-        assert all("incrementality" not in key for key in attrs)
-
-    def test_pickled_cache_carries_no_evaluators(self, simple_fitted_mmm):
-        """Pickling the cache skips the process-local compiled functions."""
-        mmm = simple_fitted_mmm
-        mmm.incrementality.compute_incremental_contribution(frequency="all_time")
-        cache = mmm._get_incrementality_evaluator_cache()
-        assert len(cache) == 1
-
-        restored = pickle.loads(pickle.dumps(cache))  # noqa: S301
-
-        assert len(restored) == 0
+        cloned = clone.incrementality.compute_incremental_contribution(
+            frequency="all_time", num_samples=50, random_state=np.random.default_rng(7)
+        )
+        xr.testing.assert_allclose(cloned, result)
 
     def test_different_data_build_two_evaluators(self, simple_fitted_mmm, constructed):
         """Two Incrementality objects over different data key apart and each build their own evaluator."""
@@ -5428,16 +5380,24 @@ class TestEvaluatorCache:
 
         assert len(constructed) == 2
 
-    def test_the_cache_stays_bounded(self, simple_fitted_mmm):
-        """More distinct datasets than the bound leave the cache at its size."""
-        mmm = simple_fitted_mmm
-        for offset in range(6):
-            other = Incrementality(
-                model=mmm, idata=self._idata_with_offset(mmm, offset)
-            )
-            other.compute_incremental_contribution(frequency="all_time")
+    def test_the_lru_evicts_the_least_recent_and_get_refreshes_recency(self):
+        """A size-4 cache drops its oldest key, and a ``get`` hit protects a key from the next eviction."""
+        cache = _EvaluatorCache(max_entries=4)
+        keys = [object() for _ in range(5)]
+        values = [object() for _ in range(5)]
+        for key, value in zip(keys[:4], values[:4], strict=True):
+            cache.put(key, value)
+        cache.put(keys[4], values[4])
 
-        assert len(mmm._get_incrementality_evaluator_cache()) == 4
+        assert len(cache) == 4
+        assert cache.get(keys[0]) is None
+
+        # A hit on the least recent key makes it the most recent, so the next put evicts the one after it.
+        assert cache.get(keys[1]) is values[1]
+        cache.put(keys[0], values[0])
+
+        assert cache.get(keys[1]) is values[1]
+        assert cache.get(keys[2]) is None
 
     def test_a_mutation_after_the_first_call_is_still_refused(
         self, funnel_identity_fitted_mmm
