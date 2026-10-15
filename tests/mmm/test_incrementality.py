@@ -6420,6 +6420,26 @@ class TestEvaluatorCache:
 
         assert len(constructed) == 1
 
+    def test_closed_form_and_pipeline_share_one_evaluator(
+        self, simple_mmm_data, constructed
+    ):
+        """The closed-form path builds its evaluator through the same cache as the pipeline."""
+        mmm = _fit_custom_mmm(
+            simple_mmm_data, adstock=GeometricAdstock(l_max=4), adstock_first=False
+        )
+        kwargs = {"frequency": "monthly"}
+
+        closed = mmm.incrementality.split_incremental_contribution_over_time(
+            method="closed_form", **kwargs
+        )
+        pipeline = mmm.incrementality.split_incremental_contribution_over_time(**kwargs)
+
+        assert len(constructed) == 1
+        mmm._clear_incrementality_evaluator_cache()
+        fresh = mmm.incrementality.split_incremental_contribution_over_time(**kwargs)
+        xr.testing.assert_allclose(pipeline, fresh)
+        xr.testing.assert_allclose(closed, pipeline)
+
     def test_rebuild_clears_the_cache(self, simple_fitted_mmm, simple_mmm_data):
         """build_model drops the compiled evaluators."""
         mmm = simple_fitted_mmm
