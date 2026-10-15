@@ -732,8 +732,13 @@ class TestTimeCol:
 
 
 @pytest.fixture(scope="session")
-def fitted_blp_time(blp_panel_multi_region):
-    """A multi-region BayesianBLP with time_col set, for period/region tests."""
+def fitted_blp_time(blp_panel_multi_region, mock_pymc_sample):
+    """A multi-region BayesianBLP with time_col set, for period/region tests.
+
+    Consumers of this fixture assert shapes, coords and masking only
+    (#3061 behaviour tests), so the posterior comes straight from
+    ``pymc.testing.mock_sample`` (prior draws) instead of a real fit.
+    """
     df, truth = blp_panel_multi_region
     model = BayesianBLP(
         market_data=df,
@@ -745,16 +750,7 @@ def fitted_blp_time(blp_panel_multi_region):
         n_mc_draws=50,
         random_seed=0,
     )
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore")
-        model.fit(
-            nuts_sampler="numpyro",
-            draws=100,
-            tune=100,
-            chains=2,
-            progressbar=False,
-            random_seed=0,
-        )
+    model.fit(draws=40, chains=1, progressbar=False, random_seed=0)
     return model, truth
 
 
