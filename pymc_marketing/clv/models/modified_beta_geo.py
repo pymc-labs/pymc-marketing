@@ -473,7 +473,7 @@ class ModifiedBetaGeoModel(BetaGeoModel):
             data = self.data
 
         if T is not None:
-            dataset = data.assign(T=T)
+            data = data.assign(T=T)
 
         dataset = self._extract_predictive_variables(data, customer_varnames=["T"])
         T = dataset["T"].values  # type: ignore
