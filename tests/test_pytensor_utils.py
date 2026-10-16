@@ -1255,9 +1255,8 @@ def test_conditioned_model_names_distinguish_shared_name(
 ):
     """Two nodes that share a name key apart in the cache.
 
-    A registered node and an anonymous intermediate of the same clone, both
-    renamed to the same name for the collision, return different graphs that
-    each evaluate to their own expected values and stay cached separately.
+    An anonymous intermediate of the clone is renamed to the registered node's name.
+    The two return different graphs that each evaluate to their own expected values and stay cached separately.
     """
     _first_model, data_values, first, _, _ = slope_posteriors
     registered = conditioned_slope.model["doubled"]
@@ -1481,10 +1480,9 @@ def test_conditioned_model_first_rebind_validates_like_later_calls():
 def test_conditioned_model_empty_cache_rebind_only_switches_mode(share_posterior):
     """A rebind before any extraction switches mode and fires no callback.
 
-    Nothing has been handed out, so there is no graph to rebuild and nothing to
-    validate: the next ``extract`` builds a graph from the new posterior.  A
-    model built with ``share_posterior=True`` keeps the instance it was built
-    with instead of replacing it.
+    Nothing has been handed out, so there is no graph to rebuild and nothing to validate.
+    The next ``extract`` builds a graph from the new posterior.
+    A model built with ``share_posterior=True`` keeps the instance it was built with instead of replacing it.
     """
     model, _ = _channel_conditioned_model()
     spend = np.array([10.0, 20.0, 30.0])

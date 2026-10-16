@@ -718,10 +718,11 @@ class ConditionedModel:
     No rebind then re-extracts; even the first only swaps draws.
 
     A model built without ``share_posterior`` starts with the draws baked in as constants.
-    Once a graph has been handed out, its first :meth:`set_posterior` drops the cache.
+    Once a graph has been cached, its first :meth:`set_posterior` drops the cache.
     It then re-extracts each key through a new :class:`SharedPosterior`.
     That rebind fires the registered callbacks so consumers recompile.
-    A :meth:`set_posterior` with nothing extracted yet only switches to the shared path and fires nothing.
+    A :meth:`set_posterior` with nothing cached yet only switches to the shared path and fires nothing.
+    An uncached ``cache=False`` graph is untouched by it.
     Every later rebind only swaps the draws in place, which is atomic and free in the number of draws.
     A compiled function therefore follows the newer posterior without being recompiled.
 
@@ -866,12 +867,13 @@ class ConditionedModel:
     def set_posterior(self, idata: xr.DataTree | xr.Dataset) -> None:
         """Point the handed-out graphs at the draws in ``idata``.
 
-        Without ``share_posterior``, the first call after a graph has been handed out rebuilds those keys.
+        Without ``share_posterior``, the first call after a graph has been cached rebuilds those keys.
         It rebuilds them on a shared posterior.
         That call is validated, label realigned and length checked exactly like every later one.
         It re-extracted the graphs, so it fires the registered callbacks and consumers recompile from them.
-        A call before anything was extracted only switches to the shared path.
-        There is no graph to rebuild and nothing to validate, so it fires no callback.
+        A call with nothing cached only switches to the shared path.
+        There is no cached graph to rebuild and nothing to validate, so it fires no callback.
+        An uncached ``cache=False`` graph is untouched by it.
         Every later call only swaps the draws, which needs no recompile and accepts a different number of draws.
 
         Parameters
@@ -893,20 +895,18 @@ class ConditionedModel:
 
         Notes
         -----
-        A call before anything was extracted reads no variable from ``idata``, so it validates nothing and cannot raise.
+        A call before anything was cached reads no variable from ``idata``, so it validates no variable.
         After either error, and when a registered callback raises, the previous binding is left in place.
 
-        A callback that extracts a new key during a rebind adds it to the
-        cache.  If a first rebind then fails and is rolled back, the cache
-        returns to its previous state, so those new-key entries are discarded
-        together with the shared binding.
+        A callback that extracts a new key during a rebind adds it to the cache.
+        If a first rebind fails and is rolled back, the cache returns to its previous state and drops those entries.
         """
         posterior = _posterior_dataset(idata)
         rollback = self._apply_posterior(posterior)
         if rollback is None:
-            # Either nothing has been extracted yet, so only the mode switched.
+            # Either nothing is cached yet, so only the mode switched.
             # Or this was a later rebind that only swapped the draws.
-            # Both leave nothing for a consumer to rebuild, so no callback fires.
+            # Both leave no cached graph for a consumer to rebuild, so no callback fires.
             return
         try:
             self._fire_callbacks()
@@ -920,7 +920,8 @@ class ConditionedModel:
         See :meth:`set_posterior` for the rebind and rollback contract.
         """
         if not self._cache:
-            # Nothing has been handed out yet, so there is no graph to re-extract and nothing to validate.
+            # Nothing is cached yet, so there is no cached graph to re-extract and nothing to validate.
+            # Uncached ``cache=False`` graphs are untouched by this.
             # Only switch to the shared path and record the new draws.
             # An instance built with ``share_posterior=True`` is kept, not replaced.
             if self._shared_posterior is None:
@@ -954,9 +955,9 @@ class ConditionedModel:
         """Register ``callback`` to run after a rebind that re-extracted the graphs.
 
         That is the first :meth:`set_posterior` of a model built without ``share_posterior``.
-        It only re-extracts once a graph has been handed out.
-        A rebind with nothing extracted only switches to the shared path, and later rebinds only swap the draws.
-        Neither fires a callback.
+        It only re-extracts once a graph has been cached.
+        A rebind with nothing cached only switches to the shared path, and later rebinds only swap the draws.
+        Neither fires a callback, and uncached ``cache=False`` graphs are untouched.
         A consumer recompiles what it compiled from the graphs here.
         The callback takes no arguments and calls :meth:`extract` to read the refreshed graphs.
         Callbacks run in registration order, and one that raises stops the rest.
