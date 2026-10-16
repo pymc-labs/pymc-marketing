@@ -1062,7 +1062,6 @@ class _EvaluatorCacheKey(NamedTuple):
     intervention_target: str
     intervention_mode: str
     frozen_deterministics: tuple[str, ...]
-    n_dates: int
     dates: tuple
     data_fingerprint: tuple | None
 
@@ -4267,7 +4266,7 @@ class Incrementality:
         """Return the cache identity of the evaluator :meth:`_compute_increments` needs.
 
         The key mirrors what the evaluator bakes into its compiled graph (responses, target, mode, frozen
-        deterministics and date count) and identifies the data by its dates and a ``constant_data`` fingerprint.
+        deterministics) and identifies the data by its dates and a ``constant_data`` fingerprint.
 
         Parameters
         ----------
@@ -4287,7 +4286,6 @@ class Incrementality:
             intervention_target=CounterfactualEvaluator.CHANNEL_DATA,
             intervention_mode="replace",
             frozen_deterministics=tuple(self.model.frozen_deterministics),
-            n_dates=len(dates),
             dates=tuple(dates),
             data_fingerprint=_constant_data_fingerprint(self.idata),
         )
