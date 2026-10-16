@@ -2704,8 +2704,7 @@ class Incrementality:
                 "method='closed_form' needs adstock_first=False.  With "
                 "saturation after the adstock it acts on the sum of every "
                 "cohort's carryover, so a cohort's response is not its kernel "
-                "times its own spend.  Use method='pipeline', or "
-                "estimand='allocation', which splits that sum by shares."
+                "times its own spend.  Use method='pipeline'."
             )
 
         self._refuse_non_separable_route(
