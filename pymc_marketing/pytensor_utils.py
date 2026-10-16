@@ -14,7 +14,6 @@
 
 """PyTensor utility functions."""
 
-import contextlib
 import warnings
 from collections import Counter
 from collections.abc import Callable, Mapping, Sequence
@@ -891,17 +890,10 @@ class ConditionedModel:
         -----
         After either error, and when a registered callback raises, the previous binding is left in place.
 
-        Notes
-        -----
         A callback that extracts a new key during a rebind adds it to the
         cache.  If a first rebind then fails and is rolled back, the cache
         returns to its previous state, so those new-key entries are discarded
         together with the shared binding.
-
-        A callback's exception is the one the caller sees: restoring the
-        binding afterwards is best-effort and never masks it, even when the
-        rollback itself fails because a callback extracted a key that only the
-        new posterior satisfies.
         """
         posterior = _posterior_dataset(idata)
         rollback = self._apply_posterior(posterior)
@@ -912,9 +904,7 @@ class ConditionedModel:
         try:
             self._fire_callbacks()
         except BaseException:
-            # Best-effort restore; the rollback contract is in the docstring above.
-            with contextlib.suppress(Exception):
-                rollback()
+            rollback()
             raise
 
     def _apply_posterior(self, posterior: xr.Dataset) -> Callable[[], None] | None:
