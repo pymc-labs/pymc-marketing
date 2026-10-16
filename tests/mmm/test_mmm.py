@@ -46,6 +46,7 @@ from pymc_marketing.mmm.additive_effect import (
     DataVarMuEffect,
     EventAdditiveEffect,
     LinearTrendEffect,
+    MediaMuEffect,
     MuEffect,
 )
 from pymc_marketing.mmm.events import EventEffect, GaussianBasis, HalfGaussianBasis
@@ -54,6 +55,7 @@ from pymc_marketing.mmm.lift_test import (
     _swap_columns_and_last_index_level,
 )
 from pymc_marketing.mmm.linear_trend import LinearTrend
+from pymc_marketing.mmm.media_transformation import MediaTransformation
 from pymc_marketing.mmm.mmm import (
     MMM,
     BudgetOptimizerWrapper,
@@ -481,8 +483,8 @@ class TestMultidimMMMEdgeCases:
         with pytest.raises(ValueError, match="Model was not built"):
             unbuilt.scaled_channel("channel_1")
 
-    def test_scaled_channel_follows_dataset_coord_order(self, simple_mmm_data):
-        """Dataset channel coord order, not channel_columns, indexes the tensor."""
+    def test_scaled_channel_for_reordered_dataset(self, simple_mmm_data):
+        """A Dataset in another channel order still yields the named channel."""
         X_df = simple_mmm_data["X"]
         y = simple_mmm_data["y"]
         dates = pd.DatetimeIndex(X_df["date"])
@@ -504,17 +506,13 @@ class TestMultidimMMMEdgeCases:
         mmm = self._build_basic_mmm()
         mmm.build_model(X, y)
 
-        assert list(mmm.model_coords["channel"]) == dataset_order
-        assert list(mmm.channel_columns) == channel_columns
+        assert list(mmm.model_coords["channel"]) == channel_columns
 
         got = fast_eval(mmm.scaled_channel("channel_1"))
-        coord_idx = list(mmm.model_coords["channel"]).index("channel_1")
-        expected = fast_eval(mmm.channel_data_scaled.isel(channel=coord_idx))
-        np.testing.assert_allclose(got, expected)
-
-        columns_idx = mmm.channel_columns.index("channel_1")
-        wrong = fast_eval(mmm.channel_data_scaled.isel(channel=columns_idx))
-        assert not np.allclose(got, wrong)
+        expected = X["media"].sel(channel="channel_1") / mmm.scalers["_channel"].sel(
+            channel="channel_1"
+        )
+        np.testing.assert_allclose(got, expected.values)
 
     def test_mu_effects_share_one_pm_data_node(self, simple_mmm_data):
         """MMM.build_model registers shared DataVarMuEffect inputs once."""
@@ -566,6 +564,59 @@ class TestMultidimMMMEdgeCases:
         shared = mmm.model["shared_aux"]
         assert shared in mmm.model.data_vars
         assert [v for v in mmm.model.data_vars if v.name == "shared_aux"] == [shared]
+
+    def test_media_mu_effect_priors_take_transformation_dims(self, simple_mmm_data):
+        """MMM.build_model gives a MediaMuEffect one parameter per channel of its dim."""
+        X_df = simple_mmm_data["X"]
+        y = simple_mmm_data["y"]
+        dates = pd.DatetimeIndex(X_df["date"])
+        channels = ["channel_1", "channel_2", "channel_3"]
+        extra_channels = ["extra_1", "extra_2"]
+        X = xr.Dataset(
+            {
+                "media": (["date", "channel"], X_df[channels].values),
+                "extra_media": (
+                    ["date", "extra_channel"],
+                    np.ones((len(dates), len(extra_channels))),
+                ),
+            },
+            coords={
+                "date": dates,
+                "channel": channels,
+                "extra_channel": extra_channels,
+            },
+        )
+        mmm = MMM(
+            date_column="date",
+            channel_columns=channels,
+            target_column="target",
+            adstock=GeometricAdstock(l_max=4),
+            saturation=LogisticSaturation(),
+        ).add_mu_effect(
+            MediaMuEffect(
+                data_vars=["extra_media"],
+                media_transformation=MediaTransformation(
+                    adstock=GeometricAdstock(l_max=4, prefix="extra_adstock"),
+                    saturation=LogisticSaturation(prefix="extra_saturation"),
+                    adstock_first=True,
+                    dims=("extra_channel",),
+                ),
+                channel_dim="extra_channel",
+                prefix="extra",
+            )
+        )
+
+        mmm.build_model(X, y)
+
+        parameters = (
+            "extra_adstock_alpha",
+            "extra_saturation_lam",
+            "extra_saturation_beta",
+        )
+        dims = mmm.model.named_vars_to_dims
+        assert {name: dims[name] for name in parameters} == dict.fromkeys(
+            parameters, ("extra_channel",)
+        )
 
     def test_mu_effect_column_named_like_mmm_data_raises(self, simple_mmm_data):
         """An effect cannot reuse a data node registered by MMM itself."""
@@ -6931,6 +6982,112 @@ class TestChannelCoordinateOrdering:
         assert sorted(controls) != controls, "precondition: controls not alphabetical"
         assert list(dataset.coords["channel"].values) == channels
         assert list(dataset.coords["control"].values) == controls
+
+
+class TestDatasetInputCoordinateOrder:
+    """Regression tests for #3139.
+
+    Prediction paths write new data into the model positionally, in
+    ``channel_columns`` / ``control_columns`` order. A model built from an
+    ``xr.Dataset`` whose ``channel`` and ``control`` coordinates run in another
+    order must still pair each fitted parameter with its own channel's or
+    control's data.
+    """
+
+    CHANNELS = ["x1", "x2"]
+    CONTROLS = ["a", "b"]
+
+    @staticmethod
+    def _dataset(dates: pd.DatetimeIndex) -> xr.Dataset:
+        """Distinct data per label, coordinates in the reverse of the constructor's."""
+        t = np.arange(len(dates), dtype=float)
+        return xr.Dataset(
+            {
+                "_channel": (
+                    ("date", "channel"),
+                    np.column_stack([t + 10.0, t + 1.0]),
+                ),
+                "_control": (("date", "control"), np.tile([2.0, 1.0], (len(dates), 1))),
+            },
+            coords={"date": dates, "channel": ["x2", "x1"], "control": ["b", "a"]},
+        )
+
+    @pytest.fixture
+    def dates(self) -> pd.DatetimeIndex:
+        return pd.date_range("2024-01-07", periods=30, freq="W-SUN")
+
+    @pytest.fixture
+    def fitted_mmm(self, dates) -> MMM:
+        ds = self._dataset(dates).assign(
+            _target=("date", np.linspace(5.0, 10.0, len(dates)))
+        )
+        mmm = MMM(
+            date_column="date",
+            target_column="y",
+            channel_columns=self.CHANNELS,
+            control_columns=self.CONTROLS,
+            adstock=GeometricAdstock(l_max=2),
+            saturation=LogisticSaturation(),
+        )
+        mmm.build_model(ds)
+        with mmm.model:
+            idata = pm.sample_prior_predictive(draws=5, random_seed=0)
+        idata["/posterior"] = idata["/prior"].to_dataset()
+        mmm.idata = idata
+        return mmm
+
+    @pytest.mark.parametrize("as_frame", [False, True], ids=["dataset", "dataframe"])
+    def test_sample_posterior_predictive_pairs_parameters_with_their_data(
+        self, fitted_mmm, dates, as_frame
+    ):
+        new_data = self._dataset(dates)
+        X = (
+            pd.concat(
+                [new_data["_channel"].to_pandas(), new_data["_control"].to_pandas()],
+                axis=1,
+            ).reset_index()
+            if as_frame
+            else new_data
+        )
+
+        fitted_mmm.sample_posterior_predictive(X, progressbar=False, random_seed=0)
+
+        written = fitted_mmm.idata["posterior_predictive_constant_data"]
+        for dim, var, source in [
+            ("channel", "channel_data", "_channel"),
+            ("control", "control_data", "_control"),
+        ]:
+            # Posterior draws are substituted by position, so position i of the
+            # data must hold the label the parameter at position i was fit to.
+            fit_labels = list(fitted_mmm.idata.posterior.coords[dim].values)
+            np.testing.assert_array_equal(
+                written[var].transpose("date", dim).values,
+                new_data[source].sel({dim: fit_labels}).values,
+                err_msg=dim,
+            )
+
+    def test_create_optimization_model_pairs_parameters_with_their_data(
+        self, fitted_mmm, dates
+    ):
+        fit_labels = {
+            dim: list(fitted_mmm.model.coords[dim]) for dim in ("channel", "control")
+        }
+
+        opt_model = fitted_mmm.create_optimization_model(dates[10], dates[15])
+
+        # Row 0 is a carry-in date, where both channels and controls hold their
+        # observed values. Before #3139 the channels lined up by accident (the
+        # carry-in spend was copied in the model's own order); the controls did
+        # not.
+        observed = self._dataset(dates).sel(date=dates[8])
+        np.testing.assert_array_equal(
+            opt_model["channel_data"].get_value()[0],
+            observed["_channel"].sel(channel=fit_labels["channel"]).values,
+        )
+        np.testing.assert_array_equal(
+            opt_model["control_data"].get_value()[0],
+            observed["_control"].sel(control=fit_labels["control"]).values,
+        )
 
 
 class TestComputeMeanContributionsOverTime:

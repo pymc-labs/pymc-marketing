@@ -31,6 +31,8 @@ from pymc_marketing.data.idata.utils import (
     broadcast_over_date,
     filter_idata_by_dates,
     filter_idata_by_dims,
+    get_posterior_predictive,
+    get_prior_predictive,
 )
 
 if TYPE_CHECKING:
@@ -107,6 +109,13 @@ def _broadcast_per_period_contributions(idata: xr.DataTree) -> xr.DataTree:
             }
         )
     return result
+
+
+#: Where PyMC stores the Deterministic of the output variable for each
+#: predictive pass: a posterior pass writes observed-dependent Deterministics
+#: to ``posterior_predictive``, a prior pass writes every Deterministic to
+#: ``prior``.
+_STORED_PREDICTIVE_GROUP = {"posterior": "posterior_predictive", "prior": "prior"}
 
 
 class MMMIDataWrapper:
@@ -367,6 +376,127 @@ class MMMIDataWrapper:
             # Scale down using target_scale
             target_scale = self.get_target_scale()
             return data / target_scale
+
+    def get_predictive_target(
+        self,
+        group: Literal["posterior", "prior"] = "posterior",
+        original_scale: bool = True,
+    ) -> xr.DataArray:
+        """Get predictive draws of the target from the posterior or prior pass.
+
+        With ``original_scale=True`` this is ``y * target_scale`` under every
+        link: the likelihood observes ``target / target_scale``, so no inverse
+        link applies to the output variable. A stored ``y_original_scale``,
+        registered by ``MMM.add_original_scale_contribution_variable(["y"])``,
+        is that same product and is returned as is; otherwise the product is
+        derived from the ``y`` draws and :meth:`get_target_scale`. The
+        noise-free prediction on the original scale is a different quantity,
+        ``to_original_scale("mu")``.
+
+        Parameters
+        ----------
+        group : {"posterior", "prior"}, default "posterior"
+            Which predictive pass to read: ``posterior_predictive`` or
+            ``prior_predictive``. PyMC stores the Deterministics of a prior
+            pass in ``prior``, so a stored ``y_original_scale`` is looked up
+            in ``posterior_predictive`` or ``prior`` respectively.
+        original_scale : bool, default True
+            Whether to return the draws in original units.
+
+        Returns
+        -------
+        xr.DataArray
+            Predictive draws of the target, with the dims of the ``y`` draws,
+            named ``y_original_scale`` or ``y``.
+
+        Raises
+        ------
+        ValueError
+            If ``group`` is not ``"posterior"`` or ``"prior"``, if the
+            predictive group or its ``y`` draws are missing, or if
+            ``original_scale=True`` and ``target_scale`` is not in
+            ``constant_data`` (when nothing is stored).
+
+        Notes
+        -----
+        :meth:`aggregate_dims` stores this product before aggregating, so it
+        stays exact over a dimension that ``target_scale`` varies along. The
+        other scaled-to-original conversions (:meth:`get_target` with
+        ``original_scale=False``, :meth:`to_original_scale` of a variable
+        without a stored ``{var}_original_scale``) use the summed
+        ``target_scale`` after such an aggregation.
+        """
+        if group not in _STORED_PREDICTIVE_GROUP:
+            raise ValueError(f"group must be 'posterior' or 'prior', got {group!r}.")
+
+        stored_group = _STORED_PREDICTIVE_GROUP[group]
+
+        if (
+            original_scale
+            and stored_group in self.idata.children
+            and "y_original_scale" in self.idata[stored_group].dataset
+        ):
+            return self.idata[stored_group].dataset["y_original_scale"]
+
+        get_predictive = (
+            get_posterior_predictive if group == "posterior" else get_prior_predictive
+        )
+        predictive = get_predictive(self.idata)
+
+        if "y" not in predictive:
+            raise ValueError(
+                f"Variable 'y' not found in {group}_predictive. "
+                f"Available: {list(predictive.data_vars)}"
+            )
+
+        draws = predictive["y"]
+
+        if not original_scale:
+            return draws
+
+        return (
+            (draws * self.get_target_scale())
+            .transpose(*draws.dims)
+            .rename("y_original_scale")
+        )
+
+    def _with_stored_predictive_target(self) -> xr.DataTree:
+        """Copy of the idata whose predictive passes store ``y * target_scale``.
+
+        Each pass with ``y`` draws gets ``y_original_scale`` from
+        :meth:`get_predictive_target` in the group where PyMC would have put
+        the Deterministic (``posterior_predictive`` or ``prior``; ``prior`` is
+        created if absent). Returns ``self.idata`` itself when no pass has
+        draws.
+        """
+        result = self.idata
+
+        for group in ("posterior", "prior"):
+            predictive = f"{group}_predictive"
+
+            if (
+                predictive not in self.idata.children
+                or "y" not in self.idata[predictive].dataset
+            ):
+                continue
+
+            draws = self.get_predictive_target(group, original_scale=True)
+
+            if result is self.idata:
+                result = self.idata.copy()
+
+            stored_group = _STORED_PREDICTIVE_GROUP[group]
+
+            if stored_group in result.children:
+                result[stored_group].dataset = (
+                    self.idata[stored_group]
+                    .to_dataset(inherit=False)
+                    .assign(y_original_scale=draws)
+                )
+            else:
+                result[f"/{stored_group}"] = xr.Dataset({"y_original_scale": draws})
+
+        return result
 
     def get_channel_spend(self) -> xr.DataArray:
         """Get channel spend data in monetary units.
@@ -1203,6 +1333,24 @@ class MMMIDataWrapper:
 
         Delegates to standalone `aggregate_idata_dims` utility function.
 
+        The utility sums every variable along ``dim``, ``target_scale``
+        included. When ``target_scale`` varies along ``dim``, the predictive
+        draws of the target on the original scale are therefore stored first
+        (``y_original_scale = y * target_scale`` in ``posterior_predictive``
+        and ``prior``, see :meth:`get_predictive_target`), so they aggregate
+        as draws: ``sum_g(y_g * s_g)`` rather than ``sum_g(y_g) * sum_g(s_g)``.
+        The copy is new; this wrapper's ``idata`` is not changed. A stored
+        ``{var}_original_scale`` aggregates as is, and
+        :meth:`to_original_scale` returns it. Under ``link="log"`` the
+        aggregated ``mu_original_scale`` is therefore the per-draw sum (or
+        mean) of the per-group medians, not the median of the aggregate: the
+        median of a sum is not the sum of the medians. The predictive
+        distribution of the aggregate is ``y_original_scale``. The other
+        scaled-to-original conversions on the result (:meth:`get_target` with
+        ``original_scale=False``, :meth:`to_original_scale` of a variable
+        without a stored ``{var}_original_scale``) use the summed
+        ``target_scale``.
+
         Parameters
         ----------
         dim : str
@@ -1219,9 +1367,16 @@ class MMMIDataWrapper:
         MMMIDataWrapper
             New wrapper with aggregated idata
         """
-        aggregated_idata = aggregate_idata_dims(
-            self.idata, dim, values, new_label, method
-        )
+        idata = self.idata
+
+        if (
+            "constant_data" in idata.children
+            and "target_scale" in idata.constant_data
+            and dim in self.get_target_scale().dims
+        ):
+            idata = self._with_stored_predictive_target()
+
+        aggregated_idata = aggregate_idata_dims(idata, dim, values, new_label, method)
 
         return MMMIDataWrapper(
             aggregated_idata, schema=self.schema, validate_on_init=False
