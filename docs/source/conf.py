@@ -324,7 +324,6 @@ html_theme_options = {
     "analytics": {"google_analytics_id": "G-DNPNG22HVY"},
     # navbar_persistent is the only header slot shown at every width. Setting
     # it replaces the theme default, so keep the search button first.
-    # navbar-contact-button.html renders on the homepage only.
     "navbar_persistent": ["search-button-field", "navbar-contact-button.html"],
 }
 html_context = {
