@@ -95,6 +95,10 @@ def _make_mmm_data(
     return {"X": X, "y": y}
 
 
+# The data of ``simple_mmm_data``, for module-scoped fixtures that build their own.
+SIMPLE_MMM_DATA_KWARGS: dict = {"periods": 14, "freq": "W", "n_channels": 3, "seed": 42}
+
+
 @pytest.fixture
 def simple_mmm_data():
     """Create simple single-dimension MMM data.
@@ -103,7 +107,7 @@ def simple_mmm_data():
     - X: DataFrame with date and 3 channels (14 weekly periods)
     - y: Series with target values
     """
-    return _make_mmm_data(periods=14, freq="W", n_channels=3, seed=42)
+    return _make_mmm_data(**SIMPLE_MMM_DATA_KWARGS)
 
 
 @pytest.fixture
@@ -1242,6 +1246,27 @@ class CarryoverSaturation(SaturationTransformation):
         """Saturate a four-lag geometric carryover of the spend."""
         carried = geometric_adstock(x, 0.7, l_max=4, dim="date")
         return beta * logistic_saturation(carried, 1.0)
+
+    default_priors = {"beta": Prior("HalfNormal", sigma=1.0)}
+
+
+@serialization.register
+class OffsetSaturation(SaturationTransformation):
+    r"""A saturation that does not pass through the origin.
+
+    .. math::
+
+        v_{t,c} = \beta \big(h(x_{t,c}) + 0.5\big),
+
+    so zero spend still contributes :math:`0.5 \beta`.  Every built-in
+    saturation is zero at zero spend, which hides whether a closed form
+    subtracts the zero-spend value.  Pointwise in time and separable across
+    channels, so the spend probe has nothing to refuse.
+    """
+
+    def function(self, x, beta, *, dim: str | None = None):
+        """Shift a logistic saturation up by half its scale."""
+        return beta * (logistic_saturation(x, 1.0) + 0.5)
 
     default_priors = {"beta": Prior("HalfNormal", sigma=1.0)}
 
