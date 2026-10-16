@@ -30,6 +30,10 @@ dependencies = [
     # the arviz meta-package to pull it in.
     "arviz-stats>=1.2.0,<2.0",
     "arviz>=1.2.0,<2.0",
+    # ModelIO.save() writes non-Zarr paths via DataTree.to_netcdf(). ArviZ 1.x
+    # made NetCDF backends optional, and h5netcdf does not depend on h5py.
+    "h5netcdf>=1.8.1",
+    "h5py>=3.16.0",
     "matplotlib>=3.5.1",
     "narwhals",
     # numba<=0.66 (a hard requirement of pytensor 3.x) does not support numpy 2.5,
@@ -90,8 +94,6 @@ lint = ["mypy", "pandas-stubs", "pre-commit>=2.19.0", "ruff>=0.1.4"]
 test = [
     "blackjax<1.6",
     "fastprogress",
-    "h5netcdf>=1.8.1",
-    "h5py>=3.16.0",
     "nutpie>=0.16.7",
     "numpyro",
     "ipykernel",
@@ -223,8 +225,6 @@ ignore_missing_imports = true
 
 [dependency-groups]
 dev = [
-    "h5netcdf>=1.8.1",
-    "h5py>=3.16.0",
     "mypy>=2.1.0",
     "pandas-stubs>=3.0.3.260530",
     "pyyaml>=6.0.3",

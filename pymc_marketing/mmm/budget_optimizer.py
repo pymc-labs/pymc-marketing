@@ -220,6 +220,7 @@ Notes
   diagnostics (objective, gradient, constraints) for monitoring.
 """
 
+import json
 import warnings
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
@@ -270,6 +271,7 @@ from pymc_marketing.mmm.optimization_variables import (
     OptimizationVariables,
     align_to_model_coords,
 )
+from pymc_marketing.mmm.price_response import PriceResponse
 from pymc_marketing.mmm.utility import UtilityFunctionType, average_response
 from pymc_marketing.pytensor_utils import SharedPosterior, merge_models
 from pymc_marketing.version import __version__
@@ -278,6 +280,10 @@ DEFAULT_RESPONSE_VARIABLE = "total_media_contribution_original_scale"
 """Objective used when no ``response_variable`` is given: the media contribution
 alone. A model whose response also travels through a ``MuEffect`` wants
 ``"total_response_original_scale"`` instead."""
+
+MMM_CHANNEL_DATA_VAR = "channel_data"
+"""The node ``MMM`` fits its channels on, and the only one its historical
+``cost_per_unit`` table (``idata.attrs["cost_per_unit"]``) describes."""
 
 # Delayed import inside methods to avoid circular dependency on pytensor_utils
 
@@ -358,6 +364,36 @@ class BudgetOptimizationResult:
         when ``allocate_budget(callback=True)``; ``None`` otherwise. See
         :attr:`constraint_history` for the same constraint diagnostics keyed
         by constraint.
+    implied_delivery : xarray.DataArray or None
+        Units the allocation buys per period and cell, over ``(date_dim, *budget_dims)``,
+        when a ``price_response`` was passed (identity included); ``None`` otherwise. In
+        the delivery units the money buys, per period, before ``channel_scales``. The
+        model node receives ``implied_delivery / channel_scales``, which coincides for an
+        ``MMM`` (its scales are 1). To score the plan's posterior response, use
+        :meth:`BudgetOptimizer.evaluate_response_distribution`, which runs the same
+        graph the solver used, price map included. The deprecated
+        ``sample_response_distribution`` repeats one date-less allocation over the
+        window, so ``implied_delivery.mean(date_dim)`` passed on its own matches the
+        solver's delivery only when delivery is constant over the window: the
+        optimizer's ``budget_distribution_over_period`` is uniform and
+        ``cost_per_unit`` does not vary by date. By default it also adds input noise
+        and starts from a cold adstock, so it approximates the response rather than
+        reproducing it. ``0.0`` at zero spend.
+    implied_price : xarray.DataArray or None
+        Average money paid per delivered unit, per period and cell. ``nan`` wherever no
+        money was spent -- a masked-out cell, a channel the bounds hold at zero, a cell
+        the solver drives to zero, and every period a ``budget_distribution_over_period``
+        zeroes out -- because no price was paid there. So a plain ``.mean()`` over a
+        channel with any dark period is ``nan``; use ``.mean(skipna=True)``, or the
+        delivery-weighted window average below. Masking those cells,
+        ``(implied_delivery * implied_price).sum(date_dim)`` equals ``budgets * num_periods``
+        to floating point (the map satisfies ``u(s) * p(s) = s`` algebraically),
+        so the window-average price is ``budgets * num_periods / implied_delivery.sum(date_dim)``.
+    implied_marginal_price : xarray.DataArray or None
+        Money the *next* delivered unit would cost, per period and cell; ``nan`` where
+        ``implied_price`` is. Above the floor it is ``implied_price / (1 - elasticity)``,
+        so their ratio is the whole content of a spend-dependent price: at elasticity
+        0.25 the increment costs 33% more than the average unit.
     """
 
     budgets: DataArray
@@ -365,6 +401,9 @@ class BudgetOptimizationResult:
     optimized_vars: dict[str, DataArray] = field(default_factory=dict)
     spend_var_names: list[str] = field(default_factory=list)
     callback_info: list[OptimizationIterationInfo] | None = None
+    implied_delivery: DataArray | None = None
+    implied_price: DataArray | None = None
+    implied_marginal_price: DataArray | None = None
 
     @property
     def spend_var_allocations(self) -> dict[str, DataArray]:
@@ -604,13 +643,15 @@ def _extract_dataset(node: Any, group: str) -> xr.Dataset:
 
 
 def _to_datatree(idata: Any) -> DataTree:
-    """Convert InferenceData to DataTree, returning DataTree as-is."""
+    """Convert InferenceData to DataTree, returning DataTree as-is; root attrs are carried."""
     if isinstance(idata, DataTree):
         return idata
     groups = {}
     for group in idata.groups():
         groups[group] = getattr(idata, group)
-    return DataTree.from_dict(groups)
+    tree = DataTree.from_dict(groups)
+    tree.attrs = dict(getattr(idata, "attrs", {}) or {})
+    return tree
 
 
 def merge_inference_data(
@@ -1369,7 +1410,20 @@ class BudgetOptimizer(BaseModel):
         Cost-per-unit conversion factors for translating monetary budgets into
         the model's native units. Must have dims ``("date", *budget_dims)``
         where ``"date"`` has length ``num_periods``. If ``None``, budgets are
-        assumed to already be in the model's native units.
+        assumed to already be in the model's native units. With
+        ``price_response`` set this is the *base* price, applying at
+        ``reference_spend``; the effective price then varies with the money
+        spent.
+    price_response : PriceResponse or dict[str, PriceResponse], optional
+        Spend-dependent price of a delivered unit, applied inside the graph to
+        unscaled per-period money before ``channel_scales``. See
+        :class:`~pymc_marketing.mmm.price_response.PowerPriceResponse` for the
+        precondition (the model must be fitted on delivery units), the
+        attestation it requires, and the three reporting fields it
+        adds to the result. With ``spend_vars`` declared, pass a dict keyed by
+        decision-variable name that names every monetary variable
+        (``channel_data_var`` and each spend variable); say constant with
+        ``PowerPriceResponse(elasticity=0.0)``.
     compile_kwargs : dict, optional
         Extra keyword arguments forwarded to PyTensor's ``function()`` during
         compilation. Useful for setting ``mode``.
@@ -1539,7 +1593,31 @@ class BudgetOptimizer(BaseModel):
             "monetary units (dollars) to original units (impressions, clicks). "
             "Must have dims (date, *budget_dims) where date has length "
             "num_periods. If None, budgets are assumed to already be in "
-            "the model's native units (no conversion applied)."
+            "the model's native units (no conversion applied). With "
+            "price_response set this is the base price, applying at "
+            "reference_spend; the effective price then varies with the money spent."
+        ),
+    )
+
+    price_response: (
+        InstanceOf[PriceResponse] | dict[str, InstanceOf[PriceResponse]] | None
+    ) = Field(
+        default=None,
+        description=(
+            "Spend-dependent price of a delivered unit, applied inside the graph to unscaled "
+            "per-period money before channel_scales, with cost_per_unit as the base price. A bare "
+            "PriceResponse applies to channel_data_var. With spend_vars declared, pass a dict keyed "
+            "by variable name that names every monetary variable (channel_data_var and each "
+            "spend_var); say constant with PowerPriceResponse(elasticity=0.0). A bare object or a "
+            "partial dict then raises, because a spend variable left at a constant price while media "
+            "is not competes for the same pot on different terms, silently. A curved response needs "
+            "assume_delivery_units=True on every node, because the fitted model cannot establish the "
+            "units of its data (see PowerPriceResponse for the precondition). The fitted model's "
+            "historical cost_per_unit table anchors reference_spend on the channels it prices on "
+            "MMM's channel_data node; a curved spend variable, custom channel_data_var or unpriced "
+            "channel needs an explicit reference_spend. Results carry implied_delivery, "
+            "implied_price and implied_marginal_price for the media variable; a spend variable's "
+            "report is available through optimization_variables.variables[i].delivery_report(x_slice)."
         ),
     )
 
@@ -1594,6 +1672,7 @@ class BudgetOptimizer(BaseModel):
     _budgets: XTensorVariable = PrivateAttr()
     _budget_distribution_over_period_tensor: XTensorVariable | None = PrivateAttr()
     _cost_per_unit_tensor: XTensorVariable | None = PrivateAttr()
+    _media_variable: MediaVariable = PrivateAttr()
     _pymc_model: Model = PrivateAttr()
     _shared_posterior: SharedPosterior | None = PrivateAttr(default=None)
     _mask_auto_detected: bool = PrivateAttr(default=False)
@@ -1784,6 +1863,14 @@ class BudgetOptimizer(BaseModel):
             date_dim=self.date_dim,
         )
 
+        # 6c. Key the price response(s) by decision variable, require the attestation
+        #     of every curved one and settle where its reference spend comes from:
+        #     the historical cost_per_unit table, the response's own reference_spend,
+        #     or nothing for a response that bends nothing.
+        #     Resolution against the cell layout happens inside MediaVariable,
+        #     which owns that layout.
+        price_responses = self._resolve_price_responses()
+
         # 7. Build the optimization variables and substitute them into the
         # model graph. One do() call over every variable keeps gradients joint.
         # Read from the model we were handed: it already carries the spend that
@@ -1795,6 +1882,9 @@ class BudgetOptimizer(BaseModel):
 
         carry_in_values = carry_in_for(self.channel_data_var)
 
+        media_response, media_reference = price_responses.get(
+            self.channel_data_var, (None, None)
+        )
         media_variable = MediaVariable(
             name=self.channel_data_var,
             mask=self.budgets_to_optimize,
@@ -1806,7 +1896,11 @@ class BudgetOptimizer(BaseModel):
             date_dim=self.date_dim,
             budget_distribution_over_period_tensor=self._budget_distribution_over_period_tensor,
             cost_per_unit_tensor=self._cost_per_unit_tensor,
+            price_response=media_response,
+            price_reference=media_reference,
+            compile_kwargs=self.compile_kwargs,
         )
+        self._media_variable = media_variable
         # Additional monetary variables are media-path variables over a
         # different node: same money, same window, so their spend joins the
         # budget-sum constraint through budget_contribution without
@@ -1836,6 +1930,8 @@ class BudgetOptimizer(BaseModel):
                 if name in self.spend_var_scales
                 else 1.0,
                 date_dim=self.date_dim,
+                price_response=price_responses.get(name, (None, None))[0],
+                compile_kwargs=self.compile_kwargs,
             )
             for name in self.spend_vars
         ]
@@ -2183,6 +2279,62 @@ class BudgetOptimizer(BaseModel):
                 "information."
             )
 
+    def _decision_date_coords(self) -> list | None:
+        """Labels of the decision block of the model's date axis; ``None`` for a length-only dim.
+
+        ``_validate_date_length`` has already checked that carry-in, decisions and
+        carry-over add up to the axis, so the slice is safe. ``None`` rather than
+        positions so the report carries no date labels the rest of the result
+        does not have.
+        """
+        dates = self.model.coords.get(self.date_dim)
+        if dates is None:
+            return None
+        return list(dates)[
+            self.carry_in_periods : self.carry_in_periods + self.num_periods
+        ]
+
+    def _warn_priced_cells_pinned_at_zero(
+        self, media_bounds: list[tuple[float | None, float | None]] | None
+    ) -> None:
+        """Name curved media cells whose bounds hold them at zero.
+
+        The price map is steepest at zero (``u'(0)`` is ``max_slope_ratio`` times
+        ``u'(reference)``), so a priced cell that cannot move hands SLSQP its largest
+        gradient on a dead variable, which it tolerates on some platforms and not on
+        others. Pricing a cell one is not buying is meaningless anyway.
+        """
+        resolved = self._media_variable.price_response
+        if media_bounds is None or resolved is None or resolved.is_identity:
+            return
+        on = np.asarray(self._media_variable.mask.values, dtype=bool)
+        curved = np.asarray(resolved.curved)[on]
+        pinned = [
+            i
+            for i, (_, high) in enumerate(media_bounds)
+            if high is not None and high <= 0.0 and curved[i]
+        ]
+        if not pinned:
+            return
+        variable = self._media_variable
+        labels = {
+            dim: variable.mask.coords[dim].values.tolist() for dim in variable.dims
+        }
+        cells = [
+            tuple(
+                labels[dim][int(i)] for dim, i in zip(variable.dims, index, strict=True)
+            )
+            for index in np.argwhere(on)[pinned]
+        ]
+        warnings.warn(
+            f"price_response: cells {cells} are held at zero by budget_bounds but carry a non-zero "
+            "elasticity. The map is steepest at zero, so the solver is handed its largest gradient on "
+            "cells that cannot move; SLSQP rejects that step on some platforms ('Positive directional "
+            "derivative for linesearch'). Set their elasticity to 0 or drop them from budgets_to_optimize.",
+            UserWarning,
+            stacklevel=3,
+        )
+
     def _validate_date_length(self) -> None:
         """Check that the three date blocks add up to the model's date axis.
 
@@ -2329,6 +2481,296 @@ class BudgetOptimizer(BaseModel):
             time_factors_masked,
             name="budget_distribution_over_period",
             dims=(date_dim, FLAT_DIM),
+        )
+
+    def _resolve_price_responses(
+        self,
+    ) -> dict[str, tuple[PriceResponse, DataArray | None]]:
+        """Key the price response(s) by decision variable and settle each reference source.
+
+        Returns ``{variable name: (response, derived reference or None)}``. Every
+        curved response needs the attestation; the media entry's derived reference
+        comes from :meth:`_media_price_reference`, which reads the historical table,
+        while a spend variable has no table and must supply its own
+        ``reference_spend``; a response that bends nothing needs neither.
+        """
+        responses = self._price_responses_by_name()
+        return {
+            name: (response, self._settle_price_reference(name, response))
+            for name, response in responses.items()
+        }
+
+    def _price_responses_by_name(self) -> dict[str, PriceResponse]:
+        """Normalise the declaration to one response per monetary variable."""
+        if self.price_response is None:
+            return {}
+        if isinstance(self.price_response, PriceResponse):
+            if self.spend_vars:
+                raise ValueError(
+                    f"price_response is a bare object but spend_vars {list(self.spend_vars)} are "
+                    f"declared. Pass a dict keyed by variable name and name every variable, including "
+                    f"the ones that stay at a constant price, e.g. {{{self.channel_data_var!r}: ...}}. "
+                    "Media and spend variables draw from the same pot through the same constraint, so "
+                    "pricing one on a curve and leaving the other constant must be explicit."
+                )
+            return {self.channel_data_var: self.price_response}
+        allowed = {self.channel_data_var, *self.spend_vars}
+        unknown = sorted(set(self.price_response) - allowed)
+        if unknown:
+            raise ValueError(
+                f"price_response names {unknown}, which are not {self.channel_data_var!r} or in "
+                f"spend_vars {list(self.spend_vars)}. A response on a name that is not optimized "
+                "has no effect, so it is more likely a typo than an intention."
+            )
+        # A partial dict would reproduce the bare-object hazard silently, so every
+        # monetary variable must appear; an identity response is how "constant" is said.
+        missing = sorted(allowed - set(self.price_response))
+        if missing:
+            raise ValueError(
+                f"price_response names {sorted(self.price_response)} but leaves {missing} "
+                "unpriced. Every monetary variable must appear once any does, so that one "
+                "priced on a curve next to one at a constant price is explicit; say constant "
+                "with PowerPriceResponse(elasticity=0.0)."
+            )
+        return dict(self.price_response)
+
+    def _settle_price_reference(
+        self, name: str, response: PriceResponse
+    ) -> DataArray | None:
+        """Return the derived reference for media, ``None`` for a flat or self-referenced spend variable.
+
+        A curved response on a spend variable needs the same attestation as one on
+        media, and then its own reference, since no historical ``cost_per_unit``
+        table describes a spend variable. A spend variable has no mask, so the
+        declaration's own :attr:`~PriceResponse.adds_curvature` is exact for it.
+        A custom ``channel_data_var`` is handled the same way in
+        :meth:`_media_price_reference`.
+        """
+        if name == self.channel_data_var:
+            return self._media_price_reference(response)
+        if not response.adds_curvature:
+            return None
+        self._require_units_attestation(
+            name, response, "a spend variable", anchored_by_table=False
+        )
+        self._require_explicit_reference(
+            name,
+            response,
+            "a spend variable",
+            "no historical cost_per_unit table describes a spend variable",
+        )
+        return None
+
+    @staticmethod
+    def _require_units_attestation(
+        name: str, response: PriceResponse, who: str, *, anchored_by_table: bool
+    ) -> None:
+        """Refuse a curved response without the user's attestation that the fit is in delivery units.
+
+        The fitted model carries no evidence of the units of its data. Its historical
+        ``cost_per_unit`` table is a declaration that ``MMM.fit`` and
+        ``MMM.set_cost_per_unit`` write the same way, after sampling and without
+        touching the model, so it cannot stand in for the attestation. It anchors the
+        reference on MMM's ``channel_data`` node only (``anchored_by_table``).
+        """
+        if response.attests_delivery_units:
+            return
+        then = (
+            "the historical table then anchors reference_spend on the channels it prices, and any "
+            "other curved cell needs a reference_spend"
+            if anchored_by_table
+            else "together with a reference_spend, since no historical table describes this node"
+        )
+        raise ValueError(
+            f"{name}: price_response bends the price of {who}. That is sound only if the model was "
+            "fitted on delivery units (impressions, clicks) or on spend deflated to constant prices; a "
+            "saturation curve fitted on nominal spend has already absorbed the price curvature, and a "
+            "curved map on top would bend it twice. The fitted model cannot establish its own units (a "
+            "historical cost_per_unit table is a declaration, not evidence, and can be set after the "
+            "fit). If the fit is in delivery units or constant-price spend, pass "
+            f"assume_delivery_units=True; {then} (per-period money, the units of result.budgets)."
+        )
+
+    @staticmethod
+    def _require_explicit_reference(
+        name: str, response: PriceResponse, who: str, reason: str, remedy: str = ""
+    ) -> None:
+        """Refuse an attested curved response whose reference was neither supplied nor derivable."""
+        if not response.needs_derived_reference:
+            return
+        raise ValueError(
+            f"{name}: price_response: reference_spend is required for {who}: {reason}, so nothing "
+            "can derive the per-period money at which the base price applies. Pass reference_spend "
+            f"(per-period money per cell, the units of result.budgets){remedy}."
+        )
+
+    def _priced_channels(self) -> set[str] | None:
+        """Channels the fitted model's historical cost_per_unit table prices, or ``None`` without a table.
+
+        Read from ``attrs["cost_per_unit"]``, the table as pandas' ``orient="split"`` JSON,
+        whose columns are the priced channels plus ``date`` and one column per custom dim
+        (``MMM`` writes JSON ``null`` for an unpriced model). ``constant_data["channel_spend"]``
+        is not usable for this: ``_parse_cost_per_unit_df`` fills absent channels with 1.0 and so
+        writes spend for every channel.
+        """
+        raw = self.idata.attrs.get("cost_per_unit")
+        try:
+            table = json.loads(raw) if isinstance(raw, str) else None
+            columns = {str(column) for column in table["columns"]} if table else None
+        except (ValueError, KeyError, TypeError):
+            # Garbage in the attr means no usable table, not an error.
+            columns = None
+        if columns is None:
+            return None
+        # "channel" is the axis itself, so a channel named "channel" stays priced.
+        return columns - {"date"} - (set(self._budget_dims) - {"channel"}) or None
+
+    def _media_price_reference(self, response: PriceResponse) -> DataArray | None:
+        """Require attestation for a curved media response and derive its reference spend.
+
+        A saturation curve fitted on nominal spend has already absorbed part of
+        the price curvature, so a concave price map on top bends it twice. The
+        fitted model cannot tell: its historical ``cost_per_unit`` table is a
+        declaration, written the same way at fit time and after it, so a curved
+        response needs :attr:`PriceResponse.attests_delivery_units` on every node.
+        The table's role is to anchor the reference: it prices channels of
+        ``MMM_CHANNEL_DATA_VAR`` only, and those keep their derived on-air reference
+        while any other curved cell needs a supplied one. Only the channels the
+        response bends are concerned: elsewhere money passes through unbent. The
+        check reads :meth:`PriceResponse.curved_cells` before anything is resolved,
+        so a refusal names its cause rather than the reference spend it implies is
+        missing.
+        """
+        curved = response.curved_cells(
+            dims=tuple(self._budget_dims),
+            coords=self._budget_coords,
+            mask=self.budgets_to_optimize,  # type: ignore[arg-type]
+            date_dim=self.date_dim,
+            label=f"{self.channel_data_var}: price_response",
+        )
+        if not curved.any():
+            return None
+        name = self.channel_data_var
+        has_channel_dim = "channel" in self._budget_dims
+        who = (
+            f"channels {self._curved_channels(curved)}"
+            if has_channel_dim
+            else "every optimized channel"
+        )
+        self._require_units_attestation(
+            name, response, who, anchored_by_table=name == MMM_CHANNEL_DATA_VAR
+        )
+        if name != MMM_CHANNEL_DATA_VAR:
+            # The table is written for MMM's own node; a custom node that shares its
+            # channel labels is not tied to it, so nothing anchors its reference.
+            self._require_explicit_reference(
+                name,
+                response,
+                "a custom channel_data_var node",
+                f"the historical cost_per_unit table describes MMM's {MMM_CHANNEL_DATA_VAR!r} node only",
+            )
+            return None
+        if not has_channel_dim:
+            self._require_explicit_reference(
+                name,
+                response,
+                who,
+                f"this optimization's budget dims are {list(self._budget_dims)}, with no 'channel' dim "
+                "to match the historical cost_per_unit table's columns against",
+            )
+            return None
+        priced = self._priced_channels()
+        unpriced = sorted(set(self._curved_channels(curved)) - (priced or set()))
+        if unpriced:
+            reason = (
+                "there is no usable historical cost_per_unit table on the fitted model"
+                if priced is None
+                else "the fitted model's historical cost_per_unit table does not price them"
+            )
+            self._require_explicit_reference(
+                name,
+                response,
+                f"channels {unpriced}",
+                reason,
+                remedy=", or price them on the fitted model with mmm.set_cost_per_unit(...) so "
+                "that it is derived from the fitted spend",
+            )
+        if priced is None:
+            return None
+        return self._reference_from_fitted_spend(response, priced)
+
+    def _curved_channels(self, curved: np.ndarray) -> list[str]:
+        """Channels holding a curved cell: the per-cell array projected onto the ``channel`` dim."""
+        axis = self._budget_dims.index("channel")
+        flags = curved.any(axis=tuple(i for i in range(curved.ndim) if i != axis))
+        channels = self._budget_coords["channel"]
+        return [
+            str(channel) for channel, flag in zip(channels, flags, strict=True) if flag
+        ]
+
+    def _reference_from_fitted_spend(
+        self, response: PriceResponse, priced: set[str]
+    ) -> DataArray | None:
+        """On-air mean of the fitted spend on the priced channels, ``nan`` elsewhere; ``None`` if unreadable.
+
+        An unpriced channel's ``channel_spend`` is its data at a price of 1.0, so units rather
+        than money, and is not a reference. The response is attested by the time this runs, so
+        a missing or malformed spend array asks for a reference, not for the attestation.
+        """
+        try:
+            spend = _extract_dataset(self.idata, "constant_data")["channel_spend"]
+        except KeyError:
+            problem = "is missing"
+            spend = None
+        else:
+            expected = {self.date_dim, *self._budget_dims}
+            if set(spend.dims) != expected:
+                problem = f"has dims {list(spend.dims)}, expected {sorted(expected)}"
+                spend = None
+        if spend is None:
+            if response.needs_derived_reference:
+                raise ValueError(
+                    "price_response: the fitted model's cost_per_unit table prices every channel this "
+                    f"response bends, but constant_data['channel_spend'] {problem}, so no reference spend "
+                    "can be derived from it. Re-run mmm.set_cost_per_unit(...) to rebuild it, or pass "
+                    "reference_spend explicitly (per-period money per cell, the units of "
+                    "result.budgets)."
+                )
+            return None
+        missing = {
+            dim: sorted(
+                set(np.asarray(self._budget_coords[dim]).tolist())
+                - set(np.asarray(spend.coords[dim].values).tolist())
+            )
+            for dim in self._budget_dims
+        }
+        missing = {dim: labels for dim, labels in missing.items() if labels}
+        if missing and response.needs_derived_reference:
+            raise ValueError(
+                f"price_response: constant_data['channel_spend'] does not cover the model coordinates "
+                f"{missing}, so no reference spend can be derived for them. The fitted spend and this "
+                "optimization's model disagree on the cell layout; re-run mmm.set_cost_per_unit(...) on the "
+                "fitted model, or pass reference_spend explicitly (per-period money per cell)."
+            )
+        if self.cost_per_unit is None:
+            warnings.warn(
+                "price_response: the fitted model prices its channels (channel_spend is money) "
+                "but there is no cost_per_unit for the window, so the base price is 1 and the "
+                "optimizer's money reaches the model as units. Pass cost_per_unit for the "
+                "optimization window.",
+                UserWarning,
+                stacklevel=2,
+            )
+        reference = spend.where(spend > 0).mean(self.date_dim)
+        priced_mask = DataArray(
+            [str(channel) in priced for channel in reference.coords["channel"].values],
+            dims=("channel",),
+            coords={"channel": reference.coords["channel"].values},
+        )
+        return (
+            reference.where(priced_mask)
+            .reindex(self._budget_coords)
+            .transpose(*self._budget_dims)
         )
 
     @staticmethod
@@ -2481,7 +2923,7 @@ class BudgetOptimizer(BaseModel):
         variable rather than answering silently.
 
         This evaluates the model's deterministic response under the plan. It is
-        not :meth:`~pymc_marketing.mmm.mmm.MMM.sample_response_distribution`,
+        not :meth:`~pymc_marketing.mmm.mmm.BudgetOptimizerWrapper.sample_response_distribution`,
         which draws fresh predictive noise on top.
 
         ``az.hdi`` expects ``chain``/``draw``, so summarising this needs the
@@ -2752,8 +3194,10 @@ class BudgetOptimizer(BaseModel):
             channels, monetary units), ``scipy_result`` (the raw scipy
             optimization result), ``optimized_vars`` (empty for now), and
             ``callback_info`` (per-iteration diagnostics when ``callback=True``, else
-            ``None``). Iterating the result yields ``(budgets, scipy_result)``,
-            so ``optimal, res = optimizer.allocate_budget(...)`` keeps working.
+            ``None``) and, when a ``price_response`` was passed, ``implied_delivery``,
+            ``implied_price`` and ``implied_marginal_price``. Iterating the result yields
+            ``(budgets, scipy_result)``, so ``optimal, res = optimizer.allocate_budget(...)``
+            keeps working.
 
         Raises
         ------
@@ -2769,6 +3213,13 @@ class BudgetOptimizer(BaseModel):
           ``budget_in_original_units[t] = budget_in_dollars[t] / cost_per_unit[t]``
         - Each time period uses its own cost_per_unit value (no averaging).
         - Output optimal_budgets are in monetary units for user convenience.
+
+        **Spend-dependent prices**:
+
+        - With ``price_response`` set, ``budget_in_original_units[t] = to_delivery(budget_in_dollars[t])``
+          on unscaled money with ``cost_per_unit[t]`` as the base price, then ``/ channel_scales``.
+        - ``total_budget`` and ``budgets`` are per-period money; so is
+          ``PowerPriceResponse.reference_spend``.
         """
         # set total budget
         self._total_budget.set_value(np.asarray(total_budget, dtype="float64"))
@@ -2831,6 +3282,9 @@ class BudgetOptimizer(BaseModel):
                 for (low, high) in budget_bounds_array[self.budgets_to_optimize.values]  # type: ignore
             ]
         bounds = self._variables.bounds(total_budget, overrides=bounds_overrides)
+        self._warn_priced_cells_pinned_at_zero(
+            bounds_overrides.get(self.channel_data_var)
+        )
 
         # 3. Construct the initial guess (x0) if not provided; labelled values
         # are packed into flat order by the optimization variables, cast and
@@ -2903,12 +3357,17 @@ class BudgetOptimizer(BaseModel):
             optimal_budgets = unpacked.pop(self.channel_data_var)
             optimal_budgets.attrs["pymc_marketing_version"] = __version__
 
+            report = self._media_variable.delivery_report(
+                result.x[self._variables.slices[self.channel_data_var]],
+                date_coords=self._decision_date_coords(),
+            )
             return BudgetOptimizationResult(
                 budgets=optimal_budgets,
                 scipy_result=result,
                 optimized_vars=unpacked,
                 spend_var_names=list(self.spend_vars),
                 callback_info=callback_info if callback else None,
+                **report,
             )
 
         else:

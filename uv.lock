@@ -3993,6 +3993,8 @@ dependencies = [
     { name = "arviz" },
     { name = "arviz-plots", extra = ["matplotlib"] },
     { name = "arviz-stats" },
+    { name = "h5netcdf" },
+    { name = "h5py" },
     { name = "matplotlib" },
     { name = "narwhals" },
     { name = "numpy" },
@@ -4064,8 +4066,6 @@ test = [
     { name = "dowhy" },
     { name = "fastprogress" },
     { name = "graphviz" },
-    { name = "h5netcdf" },
-    { name = "h5py" },
     { name = "ipykernel" },
     { name = "ipywidgets" },
     { name = "jax" },
@@ -4090,8 +4090,6 @@ test = [
 
 [package.dev-dependencies]
 dev = [
-    { name = "h5netcdf" },
-    { name = "h5py" },
     { name = "mypy" },
     { name = "pandas-stubs" },
     { name = "pyyaml" },
@@ -4112,8 +4110,8 @@ requires-dist = [
     { name = "fastprogress", marker = "extra == 'test'" },
     { name = "graphviz", marker = "extra == 'docs'" },
     { name = "graphviz", marker = "extra == 'test'", specifier = ">=0.20.1" },
-    { name = "h5netcdf", marker = "extra == 'test'", specifier = ">=1.8.1" },
-    { name = "h5py", marker = "extra == 'test'", specifier = ">=3.16.0" },
+    { name = "h5netcdf", specifier = ">=1.8.1" },
+    { name = "h5py", specifier = ">=3.16.0" },
     { name = "impulso", marker = "extra == 'docs'", specifier = ">=0.0.12" },
     { name = "ipykernel", marker = "extra == 'test'" },
     { name = "ipython", marker = "extra == 'docs'", specifier = "!=8.7.0" },
@@ -4188,8 +4186,6 @@ provides-extras = ["dag", "docs", "lint", "pie", "test"]
 
 [package.metadata.requires-dev]
 dev = [
-    { name = "h5netcdf", specifier = ">=1.8.1" },
-    { name = "h5py", specifier = ">=3.16.0" },
     { name = "mypy", specifier = ">=2.1.0" },
     { name = "pandas-stubs", specifier = ">=3.0.3.260530" },
     { name = "pyyaml", specifier = ">=6.0.3" },
