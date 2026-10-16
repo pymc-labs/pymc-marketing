@@ -1918,11 +1918,10 @@ class Incrementality:
                 f"method must be 'pipeline' or 'closed_form', got {method!r}"
             )
 
+        # One route per combination, each refusing what it does not cover before
+        # anything is evaluated.  The closed form takes both estimands, which
+        # coincide on the models it accepts.
         if method == "closed_form":
-            if estimand == "allocation":
-                self._refuse_allocation_spend_factor(counterfactual_spend_factor)
-            self._refuse_unsupported_closed_form()
-
             return self._split_closed_form(
                 frequency=frequency,
                 start_date=start_date,
@@ -1934,8 +1933,7 @@ class Incrementality:
                 counterfactual_spend_factor=counterfactual_spend_factor,
                 central_tendency=central_tendency,
             )
-
-        if estimand == "allocation":
+        elif estimand == "allocation":
             return self._split_allocation(
                 frequency=frequency,
                 start_date=start_date,
@@ -1946,7 +1944,67 @@ class Incrementality:
                 counterfactual_spend_factor=counterfactual_spend_factor,
                 central_tendency=central_tendency,
             )
+        elif estimand == "counterfactual":
+            return self._split_counterfactual(
+                frequency=frequency,
+                start_date=start_date,
+                end_date=end_date,
+                method=method,
+                num_samples=num_samples,
+                random_state=random_state,
+                counterfactual_spend_factor=counterfactual_spend_factor,
+                central_tendency=central_tendency,
+            )
+        else:  # pragma: no cover - estimand was validated above
+            raise ValueError(f"An unknown estimand {estimand!r} reached the dispatch.")
 
+    def _split_counterfactual(
+        self,
+        *,
+        frequency: Frequency,
+        start_date: str | pd.Timestamp | None,
+        end_date: str | pd.Timestamp | None,
+        method: str,
+        num_samples: int | None,
+        random_state: RandomState | Generator | None,
+        counterfactual_spend_factor: float,
+        central_tendency: CentralTendency,
+    ) -> xr.DataArray:
+        """Build the ``estimand="counterfactual"`` matrix with ``method="pipeline"``.
+
+        The body of :meth:`split_incremental_contribution_over_time` for that
+        combination; see there for the definition and the layout.  Each period
+        is evaluated with its spend scaled, so none of the structural guards of
+        the other routes apply: an adstock that is not ``ConvMode.After`` is
+        only warned about.
+
+        Parameters
+        ----------
+        frequency, start_date, end_date, num_samples, random_state
+            As in :meth:`split_incremental_contribution_over_time`.
+        counterfactual_spend_factor, central_tendency
+            As in :meth:`split_incremental_contribution_over_time`.
+        method : str
+            Echoed into the result's attributes.
+
+        Returns
+        -------
+        xr.DataArray
+            As :meth:`split_incremental_contribution_over_time`.
+
+        Raises
+        ------
+        ValueError
+            If an input is out of range, or the date frequency cannot be inferred.
+        NotImplementedError
+            If the link has no reducer, or a channel-dependent ``mu_effect`` has
+            not opted in.
+
+        Warns
+        -----
+        UserWarning
+            If ``adstock.mode`` is not ``ConvMode.After``.
+        """
         mode = self.model.adstock.mode
         notes: list[str] = []
 
@@ -1979,7 +2037,7 @@ class Incrementality:
             matrix,
             increments.reach,
             notes=notes,
-            estimand=estimand,
+            estimand="counterfactual",
             method=method,
             frequency=frequency,
             counterfactual_spend_factor=counterfactual_spend_factor,
@@ -2421,10 +2479,11 @@ class Incrementality:
         :math:`w_l V_s`: the adstock's kernel times
         :math:`V_s = \beta g(x_s) - \beta g(f x_s)`, the change in the
         saturated spend.  Both are read off the posterior, the second by
-        evaluating the saturation stage alone, and no period is evaluated.  What only the spend probe
-        can establish (a saturation that carries spend over a window or mixes
-        channels) is refused after the probe, with the checks the allocation
-        makes.  The layout is that of the pipeline route, entry for entry, and
+        evaluating the saturation stage alone, and no period is evaluated.  What
+        the model's structure rules out is refused first; what only the spend
+        probe can establish (a saturation that carries spend over a window or
+        mixes channels) is refused after the probe, with the checks the
+        allocation makes.  The layout is that of the pipeline route, entry for entry, and
         both estimands give the same numbers here: the model is additively
         separable across cohorts, where a counterfactual and an allocation
         coincide.
@@ -2448,13 +2507,22 @@ class Incrementality:
         Raises
         ------
         ValueError
-            If ``central_tendency`` is unknown, or the date range is out of range.
+            For ``estimand="allocation"`` with a ``counterfactual_spend_factor``
+            other than ``0``, for a random adstock or saturation parameter
+            missing from the posterior, if ``central_tendency`` is unknown, or
+            if the date range is out of range.
         NotImplementedError
-            When the spend probe cannot verify that the effect of a change in
-            spend dies out within the fitted dates and no further than the
-            kernel reaches, or cannot establish that each channel's column
-            depends on that channel's spend alone.
+            For a model outside the class the closed form is exact for (see
+            :meth:`_refuse_unsupported_closed_form`); when the spend probe
+            cannot verify that the effect of a change in spend dies out within
+            the fitted dates and no further than the kernel reaches, or cannot
+            establish that each channel's column depends on that channel's
+            spend alone.
         """
+        if estimand == "allocation":
+            self._refuse_allocation_spend_factor(counterfactual_spend_factor)
+        self._refuse_unsupported_closed_form()
+
         inputs = self._closed_form_inputs(
             frequency=frequency,
             start_date=start_date,
