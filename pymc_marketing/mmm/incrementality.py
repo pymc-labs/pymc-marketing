@@ -2732,8 +2732,8 @@ class Incrementality:
                 "number.  Use method='pipeline'."
             )
 
-        self._refuse_missing_adstock_parameters(CLOSED_FORM_REQUIREMENT)
-        self._refuse_missing_saturation_parameters(CLOSED_FORM_REQUIREMENT)
+        self._refuse_missing_parameters("adstock", CLOSED_FORM_REQUIREMENT)
+        self._refuse_missing_parameters("saturation", CLOSED_FORM_REQUIREMENT)
 
     def _refuse_non_separable_route(self, requirement: str, hint: str = "") -> None:
         """Refuse the model structures that neither the allocation nor the closed form reads.
@@ -2838,7 +2838,7 @@ class Incrementality:
         # The kernel is sampled whenever the shares need it or a custom adstock
         # has to be checked for linearity.
         if self.model.adstock_first or not _is_builtin_adstock(self.model.adstock):
-            self._refuse_missing_adstock_parameters()
+            self._refuse_missing_parameters("adstock")
 
     def _refuse_signed_spend(self) -> None:
         """Refuse negative spend, which the adstock-first shares cannot split.
@@ -2861,58 +2861,37 @@ class Incrementality:
                 "allocation does not divide by it."
             )
 
-    def _refuse_missing_adstock_parameters(
-        self, requirement: str = ALLOCATION_REQUIREMENT
+    def _refuse_missing_parameters(
+        self,
+        component: Literal["adstock", "saturation"],
+        requirement: str = ALLOCATION_REQUIREMENT,
     ) -> None:
-        """Refuse a posterior that lacks a parameter the kernel is drawn from.
+        """Refuse a posterior that lacks a parameter *component* is drawn from.
 
-        ``sample_curve`` draws a parameter that is missing from the posterior
-        from its prior, so the kernel would no longer be the one the
-        contribution was computed at.  Fixed parameters never appear in the
-        posterior and are skipped.
+        Evaluating the transformation draws a parameter that is missing from the
+        posterior from its prior, so the kernel or the saturated spend would no
+        longer be the one the contribution was computed at.  Fixed parameters
+        never appear in the posterior and are skipped.
 
         Parameters
         ----------
+        component : {"adstock", "saturation"}
+            Which of the model's transformations is evaluated.
         requirement : str, default=ALLOCATION_REQUIREMENT
-            What needs the kernel, for the message.
+            What needs it, for the message.
 
         Raises
         ------
         ValueError
-            If a random adstock parameter is not in the posterior.
-        """
-        missing = _missing_variables(self.model.adstock, self.idata.posterior.dataset)
-        if missing:
-            raise ValueError(
-                f"{requirement} needs the adstock parameters {missing} in the "
-                "posterior; without them the kernel would be drawn from the prior."
-            )
-
-    def _refuse_missing_saturation_parameters(self, requirement: str) -> None:
-        """Refuse a posterior that lacks a parameter the saturation is drawn from.
-
-        Evaluating the saturation draws a parameter that is missing from the
-        posterior from its prior, so the saturated spend would no longer be the
-        one ``channel_contribution`` was computed from.
-
-        Parameters
-        ----------
-        requirement : str
-            What needs the saturation, for the message.
-
-        Raises
-        ------
-        ValueError
-            If a random saturation parameter is not in the posterior.
+            If a random parameter of *component* is not in the posterior.
         """
         missing = _missing_variables(
-            self.model.saturation, self.idata.posterior.dataset
+            getattr(self.model, component), self.idata.posterior.dataset
         )
         if missing:
             raise ValueError(
-                f"{requirement} needs the saturation parameters {missing} in the "
-                "posterior; without them the saturated spend would be drawn from "
-                "the prior."
+                f"{requirement} needs the {component} parameters {missing} in the "
+                "posterior; without them they would be drawn from the prior."
             )
 
     def _allocation_increments(
