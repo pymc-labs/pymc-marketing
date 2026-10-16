@@ -1250,6 +1250,38 @@ def test_conditioned_model_extract_is_cached_by_key(conditioned_slope):
     assert conditioned_slope.extract("tripled") is other_graph
 
 
+def test_conditioned_model_names_distinguish_shared_name(
+    conditioned_slope, slope_posteriors
+):
+    """Two nodes that share a name key apart in the cache.
+
+    A registered node and an anonymous intermediate of the same clone, both
+    renamed to the same name for the collision, return different graphs that
+    each evaluate to their own expected values and stay cached separately.
+    """
+    _first_model, data_values, first, _, _ = slope_posteriors
+    registered = conditioned_slope.model["doubled"]
+    anonymous = next(
+        node
+        for node in ancestors([registered])
+        if getattr(node, "name", None) is None
+        and getattr(node, "owner", None) is not None
+    )
+    anonymous.name = "doubled"
+
+    registered_graph = conditioned_slope.extract(registered)
+    anonymous_graph = conditioned_slope.extract(anonymous)
+
+    assert registered_graph is not anonymous_graph
+    assert conditioned_slope.extract(registered) is registered_graph
+    assert conditioned_slope.extract(anonymous) is anonymous_graph
+
+    np.testing.assert_allclose(
+        function([], registered_graph)(), _expected_doubled(first, data_values)
+    )
+    np.testing.assert_allclose(function([], anonymous_graph)(), 2.0 * data_values)
+
+
 @pytest.mark.parametrize("rebind_first", [False, True])
 def test_conditioned_model_uncached_extract_is_not_pinned(rebind_first):
     """A ``cache=False`` graph is never registered, on either side of a rebind.
