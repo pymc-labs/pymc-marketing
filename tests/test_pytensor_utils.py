@@ -1477,6 +1477,41 @@ def test_conditioned_model_first_rebind_validates_like_later_calls():
     np.testing.assert_allclose(function([], constant_graph)(), [[10.0, 40.0]])
 
 
+@pytest.mark.parametrize("share_posterior", [False, True])
+def test_conditioned_model_empty_cache_rebind_only_switches_mode(share_posterior):
+    """A rebind before any extraction switches mode and fires no callback.
+
+    Nothing has been handed out, so there is no graph to rebuild and nothing to
+    validate: the next ``extract`` builds a graph from the new posterior.  A
+    model built with ``share_posterior=True`` keeps the instance it was built
+    with instead of replacing it.
+    """
+    model, _ = _channel_conditioned_model()
+    spend = np.array([10.0, 20.0, 30.0])
+    conditioned = ConditionedModel(
+        model,
+        _channel_posterior([1.0, 2.0]),
+        intervention={"spend": spend},
+        share_posterior=share_posterior,
+    )
+    fired = []
+    conditioned.register(lambda: fired.append(1))
+    shared_before = conditioned.shared_posterior
+
+    conditioned.set_posterior(
+        _channel_posterior([1.0, 2.0, 3.0], channel=("a", "b", "c"))
+    )
+
+    assert fired == []
+    if share_posterior:
+        assert conditioned.shared_posterior is shared_before
+    else:
+        assert isinstance(conditioned.shared_posterior, SharedPosterior)
+    # The graph is built on the next extract, over the intervention's three channels.
+    graph = conditioned.extract("resp")
+    np.testing.assert_allclose(function([], graph)(), [[10.0, 40.0, 90.0]])
+
+
 def test_conditioned_model_first_rebind_retries_after_failed_callback(
     conditioned_slope, slope_posteriors
 ):
@@ -1489,6 +1524,8 @@ def test_conditioned_model_first_rebind_retries_after_failed_callback(
         if len(flaky_calls) == 1:
             raise RuntimeError("callback failed")
 
+    # Hand out a key first: the retry only exists on the re-extracting path.
+    conditioned_slope.extract("doubled")
     conditioned_slope.register(lambda: fired.append("fired"))
     conditioned_slope.register(flaky)
 
@@ -1514,6 +1551,8 @@ def test_conditioned_model_callback_can_extract_a_new_key(
     def extract_new_key():
         extracted.append(conditioned_slope.extract("tripled"))
 
+    # The callback only runs on the re-extracting path, which needs a handed-out key.
+    conditioned_slope.extract("doubled")
     conditioned_slope.register(extract_new_key)
     conditioned_slope.set_posterior(second)
 
