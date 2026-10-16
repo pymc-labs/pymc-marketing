@@ -2048,11 +2048,10 @@ class Incrementality:
                 f"method must be 'pipeline' or 'closed_form', got {method!r}"
             )
 
+        # One route per combination, each refusing what it does not cover before
+        # anything is evaluated.  The closed form takes both estimands, which
+        # coincide on the models it accepts.
         if method == "closed_form":
-            if estimand == "allocation":
-                self._refuse_allocation_spend_factor(counterfactual_spend_factor)
-            self._refuse_unsupported_closed_form()
-
             return self._split_closed_form(
                 frequency=frequency,
                 start_date=start_date,
@@ -2064,8 +2063,7 @@ class Incrementality:
                 counterfactual_spend_factor=counterfactual_spend_factor,
                 central_tendency=central_tendency,
             )
-
-        if estimand == "allocation":
+        elif estimand == "allocation":
             return self._split_allocation(
                 frequency=frequency,
                 start_date=start_date,
@@ -2076,7 +2074,67 @@ class Incrementality:
                 counterfactual_spend_factor=counterfactual_spend_factor,
                 central_tendency=central_tendency,
             )
+        elif estimand == "counterfactual":
+            return self._split_counterfactual(
+                frequency=frequency,
+                start_date=start_date,
+                end_date=end_date,
+                method=method,
+                num_samples=num_samples,
+                random_state=random_state,
+                counterfactual_spend_factor=counterfactual_spend_factor,
+                central_tendency=central_tendency,
+            )
+        else:  # pragma: no cover - estimand was validated above
+            raise ValueError(f"An unknown estimand {estimand!r} reached the dispatch.")
 
+    def _split_counterfactual(
+        self,
+        *,
+        frequency: Frequency,
+        start_date: str | pd.Timestamp | None,
+        end_date: str | pd.Timestamp | None,
+        method: str,
+        num_samples: int | None,
+        random_state: RandomState | Generator | None,
+        counterfactual_spend_factor: float,
+        central_tendency: CentralTendency,
+    ) -> xr.DataArray:
+        """Build the ``estimand="counterfactual"`` matrix with ``method="pipeline"``.
+
+        The body of :meth:`split_incremental_contribution_over_time` for that
+        combination; see there for the definition and the layout.  Each period
+        is evaluated with its spend scaled, so none of the structural guards of
+        the other routes apply: an adstock that is not ``ConvMode.After`` is
+        only warned about.
+
+        Parameters
+        ----------
+        frequency, start_date, end_date, num_samples, random_state
+            As in :meth:`split_incremental_contribution_over_time`.
+        counterfactual_spend_factor, central_tendency
+            As in :meth:`split_incremental_contribution_over_time`.
+        method : str
+            Echoed into the result's attributes.
+
+        Returns
+        -------
+        xr.DataArray
+            As :meth:`split_incremental_contribution_over_time`.
+
+        Raises
+        ------
+        ValueError
+            If an input is out of range, or the date frequency cannot be inferred.
+        NotImplementedError
+            If the link has no reducer, or a channel-dependent ``mu_effect`` has
+            not opted in.
+
+        Warns
+        -----
+        UserWarning
+            If ``adstock.mode`` is not ``ConvMode.After``.
+        """
         mode = self.model.adstock.mode
         notes: list[str] = []
 
@@ -2109,7 +2167,7 @@ class Incrementality:
             matrix,
             increments.reach,
             notes=notes,
-            estimand=estimand,
+            estimand="counterfactual",
             method=method,
             frequency=frequency,
             counterfactual_spend_factor=counterfactual_spend_factor,
@@ -2551,10 +2609,11 @@ class Incrementality:
         :math:`w_l V_s`: the adstock's kernel times
         :math:`V_s = \beta g(x_s) - \beta g(f x_s)`, the change in the
         saturated spend.  Both are read off the posterior, the second by
-        evaluating the saturation stage alone, and no period is evaluated.  What only the spend probe
-        can establish (a saturation that carries spend over a window or mixes
-        channels) is refused after the probe, with the checks the allocation
-        makes.  The layout is that of the pipeline route, entry for entry, and
+        evaluating the saturation stage alone, and no period is evaluated.  What
+        the model's structure rules out is refused first; what only the spend
+        probe can establish (a saturation that carries spend over a window or
+        mixes channels) is refused after the probe, with the checks the
+        allocation makes.  The layout is that of the pipeline route, entry for entry, and
         both estimands give the same numbers here: the model is additively
         separable across cohorts, where a counterfactual and an allocation
         coincide.
@@ -2578,13 +2637,22 @@ class Incrementality:
         Raises
         ------
         ValueError
-            If ``central_tendency`` is unknown, or the date range is out of range.
+            For ``estimand="allocation"`` with a ``counterfactual_spend_factor``
+            other than ``0``, for a random adstock or saturation parameter
+            missing from the posterior, if ``central_tendency`` is unknown, or
+            if the date range is out of range.
         NotImplementedError
-            When the spend probe cannot verify that the effect of a change in
-            spend dies out within the fitted dates and no further than the
-            kernel reaches, or cannot establish that each channel's column
-            depends on that channel's spend alone.
+            For a model outside the class the closed form is exact for (see
+            :meth:`_refuse_unsupported_closed_form`); when the spend probe
+            cannot verify that the effect of a change in spend dies out within
+            the fitted dates and no further than the kernel reaches, or cannot
+            establish that each channel's column depends on that channel's
+            spend alone.
         """
+        if estimand == "allocation":
+            self._refuse_allocation_spend_factor(counterfactual_spend_factor)
+        self._refuse_unsupported_closed_form()
+
         inputs = self._closed_form_inputs(
             frequency=frequency,
             start_date=start_date,
@@ -2834,8 +2902,7 @@ class Incrementality:
                 "method='closed_form' needs adstock_first=False.  With "
                 "saturation after the adstock it acts on the sum of every "
                 "cohort's carryover, so a cohort's response is not its kernel "
-                "times its own spend.  Use method='pipeline', or "
-                "estimand='allocation', which splits that sum by shares."
+                "times its own spend.  Use method='pipeline'."
             )
 
         self._refuse_non_separable_route(
@@ -2863,8 +2930,8 @@ class Incrementality:
                 "number.  Use method='pipeline'."
             )
 
-        self._refuse_missing_adstock_parameters(CLOSED_FORM_REQUIREMENT)
-        self._refuse_missing_saturation_parameters(CLOSED_FORM_REQUIREMENT)
+        self._refuse_missing_parameters("adstock", CLOSED_FORM_REQUIREMENT)
+        self._refuse_missing_parameters("saturation", CLOSED_FORM_REQUIREMENT)
 
     def _refuse_non_separable_route(self, requirement: str, hint: str = "") -> None:
         """Refuse the model structures that neither the allocation nor the closed form reads.
@@ -2969,7 +3036,7 @@ class Incrementality:
         # The kernel is sampled whenever the shares need it or a custom adstock
         # has to be checked for linearity.
         if self.model.adstock_first or not _is_builtin_adstock(self.model.adstock):
-            self._refuse_missing_adstock_parameters()
+            self._refuse_missing_parameters("adstock")
 
     def _refuse_signed_spend(self) -> None:
         """Refuse negative spend, which the adstock-first shares cannot split.
@@ -2992,58 +3059,37 @@ class Incrementality:
                 "allocation does not divide by it."
             )
 
-    def _refuse_missing_adstock_parameters(
-        self, requirement: str = ALLOCATION_REQUIREMENT
+    def _refuse_missing_parameters(
+        self,
+        component: Literal["adstock", "saturation"],
+        requirement: str = ALLOCATION_REQUIREMENT,
     ) -> None:
-        """Refuse a posterior that lacks a parameter the kernel is drawn from.
+        """Refuse a posterior that lacks a parameter *component* is drawn from.
 
-        ``sample_curve`` draws a parameter that is missing from the posterior
-        from its prior, so the kernel would no longer be the one the
-        contribution was computed at.  Fixed parameters never appear in the
-        posterior and are skipped.
+        Evaluating the transformation draws a parameter that is missing from the
+        posterior from its prior, so the kernel or the saturated spend would no
+        longer be the one the contribution was computed at.  Fixed parameters
+        never appear in the posterior and are skipped.
 
         Parameters
         ----------
+        component : {"adstock", "saturation"}
+            Which of the model's transformations is evaluated.
         requirement : str, default=ALLOCATION_REQUIREMENT
-            What needs the kernel, for the message.
+            What needs it, for the message.
 
         Raises
         ------
         ValueError
-            If a random adstock parameter is not in the posterior.
-        """
-        missing = _missing_variables(self.model.adstock, self.idata.posterior.dataset)
-        if missing:
-            raise ValueError(
-                f"{requirement} needs the adstock parameters {missing} in the "
-                "posterior; without them the kernel would be drawn from the prior."
-            )
-
-    def _refuse_missing_saturation_parameters(self, requirement: str) -> None:
-        """Refuse a posterior that lacks a parameter the saturation is drawn from.
-
-        Evaluating the saturation draws a parameter that is missing from the
-        posterior from its prior, so the saturated spend would no longer be the
-        one ``channel_contribution`` was computed from.
-
-        Parameters
-        ----------
-        requirement : str
-            What needs the saturation, for the message.
-
-        Raises
-        ------
-        ValueError
-            If a random saturation parameter is not in the posterior.
+            If a random parameter of *component* is not in the posterior.
         """
         missing = _missing_variables(
-            self.model.saturation, self.idata.posterior.dataset
+            getattr(self.model, component), self.idata.posterior.dataset
         )
         if missing:
             raise ValueError(
-                f"{requirement} needs the saturation parameters {missing} in the "
-                "posterior; without them the saturated spend would be drawn from "
-                "the prior."
+                f"{requirement} needs the {component} parameters {missing} in the "
+                "posterior; without them they would be drawn from the prior."
             )
 
     def _allocation_increments(

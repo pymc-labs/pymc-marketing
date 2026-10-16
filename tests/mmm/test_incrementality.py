@@ -5604,7 +5604,10 @@ class TestClosedFormCurrentFuture:
     def test_adstock_first_is_refused(self, simple_fitted_mmm, monkeypatch):
         TestSplitIncrementalContribution._evaluation_forbidden(monkeypatch)
 
-        with pytest.raises(NotImplementedError, match="adstock_first=False"):
+        # The split has no estimand, so the message must not suggest one.
+        with pytest.raises(
+            NotImplementedError, match=r"adstock_first=False(?!.*estimand=)"
+        ):
             simple_fitted_mmm.incrementality.split_incremental_contribution_current_future(
                 frequency="monthly", method="closed_form"
             )
