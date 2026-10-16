@@ -878,7 +878,7 @@ class CounterfactualEvaluator:
         self._conditioned = ConditionedModel(
             pymc_model,
             posterior,
-            intervention={target_var.name: intervention_value},
+            intervention={self.intervention_target: intervention_value},
             frozen_deterministics=frozen_deterministics,
             share_posterior=True,
         )
@@ -886,7 +886,7 @@ class CounterfactualEvaluator:
         self._build()
         self._check_expected_aux_values()
 
-    def _extract_graphs(self) -> list[Variable]:
+    def _extract_graphs(self) -> list[XTensorVariable]:
         """Resolve the requested responses and extract their conditioned graphs.
 
         The single place the evaluator resolves its responses and extracts them.

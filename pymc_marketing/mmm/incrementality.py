@@ -1058,7 +1058,7 @@ class _EvaluatorCacheKey(NamedTuple):
     checked against, so two wrappers over different data never share an entry.
     """
 
-    response_vars: tuple[str, ...]
+    response_vars: tuple[str | Variable, ...]
     intervention_target: str
     intervention_mode: str
     frozen_deterministics: tuple[str, ...]
@@ -4271,7 +4271,8 @@ class Incrementality:
         Parameters
         ----------
         response_vars : sequence of str or Variable
-            Responses in order; a node is keyed by its name.
+            Responses in order.
+            A node is keyed by its name if it has one, otherwise by the node itself (hashed by identity).
 
         Returns
         -------
@@ -4281,7 +4282,8 @@ class Incrementality:
         dates = self.data.dates
         return _EvaluatorCacheKey(
             response_vars=tuple(
-                var if isinstance(var, str) else var.name for var in response_vars
+                var if isinstance(var, str) else (var.name or var)
+                for var in response_vars
             ),
             intervention_target=CounterfactualEvaluator.CHANNEL_DATA,
             intervention_mode="replace",

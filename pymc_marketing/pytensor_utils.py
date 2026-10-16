@@ -482,7 +482,7 @@ class SharedPosterior:
 @overload
 def extract_response_distribution(
     pymc_model: Model,
-    idata: xr.DataTree,
+    idata: xr.DataTree | xr.Dataset,
     response_variable: str | Variable,
     frozen_deterministics: list[str] | None = ...,
     *,
@@ -493,7 +493,7 @@ def extract_response_distribution(
 @overload
 def extract_response_distribution(
     pymc_model: Model,
-    idata: xr.DataTree,
+    idata: xr.DataTree | xr.Dataset,
     response_variable: Sequence[str | Variable],
     frozen_deterministics: list[str] | None = ...,
     *,
@@ -503,7 +503,7 @@ def extract_response_distribution(
 
 def extract_response_distribution(
     pymc_model: Model,
-    idata: xr.DataTree,
+    idata: xr.DataTree | xr.Dataset,
     response_variable: str | Variable | Sequence[str | Variable],
     frozen_deterministics: list[str] | None = None,
     *,
@@ -515,8 +515,9 @@ def extract_response_distribution(
     ----------
     pymc_model : Model
         The PyMC model to extract the response distribution from.
-    idata : xr.DataTree
+    idata : xr.DataTree or xr.Dataset
         The inference data containing posterior samples.
+        A tree's ``posterior`` group is used; a plain dataset is taken as the posterior itself.
     response_variable : str, Variable, or sequence of either
         The response variable to extract, by name or as the graph node itself.
         A node is accepted because not every interesting quantity is a named
@@ -730,7 +731,7 @@ class _CachedGraphs(NamedTuple):
     """A cached extraction: the resolved inputs and the graphs handed out."""
 
     resolved: list[Variable]
-    graphs: list[Variable]
+    graphs: list[XTensorVariable]
 
 
 class ConditionedModel:
@@ -850,14 +851,14 @@ class ConditionedModel:
         response_vars: Sequence[Variable],
         *,
         cache: bool = ...,
-    ) -> list[Variable]: ...
+    ) -> list[XTensorVariable]: ...
 
     def extract(
         self,
         response_vars: str | Variable | Sequence[str | Variable],
         *,
         cache: bool = True,
-    ) -> Variable | list[Variable]:
+    ) -> XTensorVariable | list[XTensorVariable]:
         """Return response graphs conditioned on the current posterior.
 
         A failure leaves the cache and the shared posterior as they were.
@@ -884,7 +885,7 @@ class ConditionedModel:
 
         Returns
         -------
-        XTensorVariable or list of Variable
+        XTensorVariable or list of XTensorVariable
             A single graph when one variable was requested, a list otherwise,
             matching ``extract_response_distribution``.
             The single-graph overload is typed ``XTensorVariable``.
@@ -897,8 +898,12 @@ class ConditionedModel:
         ValueError
             If a ``Variable`` reads an input from outside the intervened model, or if no response variable is given.
         """
-        single = isinstance(response_vars, str | Variable)
-        requested = [response_vars] if single else list(response_vars)
+        if isinstance(response_vars, str | Variable):
+            single = True
+            requested = [response_vars]
+        else:
+            single = False
+            requested = list(response_vars)
         if not requested:
             raise ValueError("'response_vars' must name at least one variable.")
 
@@ -1029,14 +1034,18 @@ class ConditionedModel:
         resolved: list[Variable],
         shared_posterior: SharedPosterior | None,
         posterior: xr.Dataset,
-    ) -> list[Variable]:
+    ) -> list[XTensorVariable]:
         """Extract ``resolved`` conditioned on ``posterior``, in a single pass."""
-        return extract_response_distribution(
-            pymc_model=self._model,
-            idata=posterior,
-            response_variable=resolved,
-            frozen_deterministics=list(self.frozen_deterministics),
-            shared_posterior=shared_posterior,
+        # Every conditioned graph is an xtensor expression, so the sequence is safely narrowed.
+        return cast(
+            list[XTensorVariable],
+            extract_response_distribution(
+                pymc_model=self._model,
+                idata=posterior,
+                response_variable=resolved,
+                frozen_deterministics=list(self.frozen_deterministics),
+                shared_posterior=shared_posterior,
+            ),
         )
 
     def _extract_through_shared(
