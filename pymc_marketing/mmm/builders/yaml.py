@@ -22,6 +22,7 @@ import pandas as pd
 import xarray as xr
 from pymc_extras.prior import Prior
 
+from pymc_marketing.data.idata.io import load_idata
 from pymc_marketing.mmm.builders.factories import build, naming, resolve
 from pymc_marketing.mmm.builders.schema import CalibrationStep, MMMYamlConfig
 from pymc_marketing.mmm.data_conversion import (
@@ -210,6 +211,6 @@ def build_mmm_from_yaml(
     if cfg.idata_path is not None:
         idata_path = Path(cfg.idata_path)
         if os.path.exists(idata_path):
-            model.idata = xr.open_datatree(str(idata_path))
+            model.idata = load_idata(idata_path)
 
     return model

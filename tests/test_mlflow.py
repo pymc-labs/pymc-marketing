@@ -11,9 +11,16 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
+import functools
 import json
 import logging
+import os
+import sys
+import tempfile
 from collections import namedtuple
+from collections.abc import Callable, Iterator
+from importlib import metadata
+from pathlib import Path
 from types import SimpleNamespace
 
 import mlflow
@@ -32,15 +39,22 @@ from pymc_extras.prior import Prior
 import pymc_marketing.mlflow as pmm_mlflow
 from pymc_marketing.bass import BassModel
 from pymc_marketing.clv import BetaGeoModel
+from pymc_marketing.clv.models.basic import CLVModel
+from pymc_marketing.data.idata.io import load_idata
 from pymc_marketing.mlflow import (
+    _idata_artifact_name,
     autolog,
     create_log_callback,
+    load_mmm,
+    load_mmm_from_run,
     log_error,
+    log_inference_data,
     log_likelihood_type,
     log_mmm,
     log_mmm_evaluation_metrics,
     log_model_graph,
     log_sample_diagnostics,
+    log_versions,
 )
 from pymc_marketing.mmm import MMM, GeometricAdstock, LogisticSaturation
 from pymc_marketing.version import __version__
@@ -49,21 +63,43 @@ seed = sum(map(ord, "mlflow-with-pymc"))
 rng = np.random.default_rng(seed)
 
 
+def _unwrap_autolog() -> None:
+    """Remove the wrappers ``autolog`` installed on every patched callable."""
+    pm.sample = pmm_mlflow._without_autolog_wrappers(pm.sample)
+    pm.find_MAP = pmm_mlflow._without_autolog_wrappers(pm.find_MAP)
+    MMM.fit = pmm_mlflow._without_autolog_wrappers(MMM.fit)
+    CLVModel.fit = pmm_mlflow._without_autolog_wrappers(CLVModel.fit)
+    BassModel.fit = pmm_mlflow._without_autolog_wrappers(BassModel.fit)
+
+
 @pytest.fixture(scope="function", autouse=True)
-def setup_module():
-    uri: str = "sqlite:///mlruns.db"
-    mlflow.set_tracking_uri(uri=uri)
-    autolog()
+def idata_format(request) -> Iterator[str]:
+    """Enable autologging for each test and yield the inference-data format in use."""
+    fmt = getattr(request, "param", "netcdf")
+    mlflow.set_tracking_uri(uri=f"sqlite:///{Path('mlruns.db').resolve()}")
+    autolog(idata_format=fmt)
 
-    yield
+    yield fmt
 
-    # Restore to original (unwrap any wrappers applied during this test)
-    while hasattr(pm.sample, "__wrapped__"):
-        pm.sample = pm.sample.__wrapped__
-    while hasattr(MMM.fit, "__wrapped__"):
-        MMM.fit = MMM.fit.__wrapped__
-    while hasattr(BassModel.fit, "__wrapped__"):
-        BassModel.fit = BassModel.fit.__wrapped__
+    _unwrap_autolog()
+
+
+def _filesystem_is_case_insensitive() -> bool:
+    """Probe the working directory: autolog writes its Zarr artifact there."""
+    with tempfile.TemporaryDirectory(dir=".") as tmp:
+        (Path(tmp) / "CaseProbe").touch()
+        return (Path(tmp) / "caseprobe").exists()
+
+
+CASE_INSENSITIVE_FS = _filesystem_is_case_insensitive()
+
+
+def _wrapper_depth(func: Callable) -> int:
+    depth = 0
+    while hasattr(func, "__wrapped__"):
+        func = func.__wrapped__
+        depth += 1
+    return depth
 
 
 @pytest.fixture(scope="module")
@@ -359,7 +395,7 @@ def param_checks(params, draws: int, chains: int, tune: int, nuts_sampler: str) 
 
     assert params["pymc_marketing_version"] == __version__
 
-    other_keys = ["pymc_version"]
+    other_keys = ["pymc_version", "xarray_version"]
     if nuts_sampler not in ["numpyro", "blackjax"]:
         other_keys.extend(["inference_library_version"])
 
@@ -520,7 +556,8 @@ def mmm() -> MMM:
     )
 
 
-def test_autolog_mmm(mmm, toy_X, toy_y) -> None:
+@pytest.mark.parametrize("idata_format", ["netcdf", "zarr"], indirect=True)
+def test_autolog_mmm(idata_format, mmm, toy_X, toy_y) -> None:
     mlflow.set_experiment("pymc-marketing-test-suite-mmm")
     with mlflow.start_run() as run:
         draws = 10
@@ -555,7 +592,7 @@ def test_autolog_mmm(mmm, toy_X, toy_y) -> None:
 
     assert set(artifacts) == {
         "coords.json",
-        "idata.nc",
+        _idata_artifact_name(idata_format),
         "model_graph.pdf",
         "model_repr.txt",
         "summary.html",
@@ -637,8 +674,9 @@ def toy_multidim_y(toy_multidim_X: pd.DataFrame) -> pd.Series:
     )
 
 
+@pytest.mark.parametrize("idata_format", ["netcdf", "zarr"], indirect=True)
 def test_autolog_multidimensional_mmm(
-    multidimensional_mmm, toy_multidim_X, toy_multidim_y
+    idata_format, multidimensional_mmm, toy_multidim_X, toy_multidim_y
 ) -> None:
     mlflow.set_experiment("pymc-marketing-test-suite-multidimensional-mmm")
     with mlflow.start_run() as run:
@@ -674,7 +712,7 @@ def test_autolog_multidimensional_mmm(
 
     assert set(artifacts) == {
         "coords.json",
-        "idata.nc",
+        _idata_artifact_name(idata_format),
         "model_graph.pdf",
         "model_repr.txt",
         "summary.html",
@@ -748,6 +786,439 @@ def test_force_load_idata_groups_visits_every_group(mock_idata, monkeypatch) -> 
 
 
 @pytest.fixture
+def small_idata() -> xr.DataTree:
+    posterior = xr.Dataset(
+        {"mu": (("chain", "draw"), rng.normal(size=(2, 5)))},
+        coords={"chain": [0, 1], "draw": np.arange(5)},
+    )
+    tree = xr.DataTree.from_dict({"/posterior": posterior})
+    tree.attrs["model_id"] = "abc123"
+    return tree
+
+
+@pytest.mark.parametrize("artifact", ["idata.nc", "idata.zarr"], ids=["netcdf", "zarr"])
+def test_log_inference_data_round_trips_through_mlflow(
+    small_idata, tmp_path, artifact
+) -> None:
+    # A stale store at the target path must not break the write.
+    (tmp_path / "idata.zarr").mkdir()
+
+    with mlflow.start_run() as run:
+        log_inference_data(small_idata, save_file=tmp_path / artifact)
+
+    # Only the stale store is left behind.
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["idata.zarr"]
+    downloaded = mlflow.artifacts.download_artifacts(
+        run_id=run.info.run_id,
+        artifact_path=artifact,
+        dst_path=str(tmp_path / "download"),
+    )
+    xr.testing.assert_identical(load_idata(downloaded).load(), small_idata)
+
+
+def test_log_inference_data_requires_existing_parent(small_idata, tmp_path) -> None:
+    with pytest.raises(FileNotFoundError, match="Parent directory"):
+        log_inference_data(small_idata, save_file=tmp_path / "missing" / "idata.nc")
+
+
+def test_log_inference_data_uses_file_name_as_artifact_name(
+    small_idata, tmp_path
+) -> None:
+    (tmp_path / "sub").mkdir()
+
+    with mlflow.start_run() as run:
+        log_inference_data(small_idata, save_file=tmp_path / "sub" / "idata.nc")
+
+    assert [f.path for f in MlflowClient().list_artifacts(run.info.run_id)] == [
+        "idata.nc"
+    ]
+    assert list((tmp_path / "sub").iterdir()) == []
+
+
+@pytest.mark.parametrize(
+    ("artifact", "locked"),
+    [("idata.nc", "idata.nc"), ("idata.zarr", "zarr.json")],
+    ids=["netcdf", "zarr"],
+)
+def test_log_inference_data_tolerates_an_undeletable_temp_file(
+    small_idata, tmp_path, monkeypatch, artifact, locked
+) -> None:
+    # Windows can keep a just-written file open past the upload; the fit must
+    # not fail over a leftover temp dir once the artifact is logged.
+    real_unlink = os.unlink
+
+    def unlink(path, *args, **kwargs):
+        if os.path.basename(str(path)) == locked:
+            raise PermissionError(f"simulated lock on {path}")
+        return real_unlink(path, *args, **kwargs)
+
+    monkeypatch.setattr(os, "unlink", unlink)
+
+    with mlflow.start_run() as run:
+        log_inference_data(small_idata, save_file=tmp_path / artifact)
+
+    assert [f.path for f in MlflowClient().list_artifacts(run.info.run_id)] == [
+        artifact
+    ]
+    (leftover,) = tmp_path.iterdir()
+    assert leftover.name.startswith(".pymc_marketing_idata_")
+
+
+def test_log_versions_logs_only_installed_idata_backends(monkeypatch) -> None:
+    real_version = metadata.version
+
+    def version_without_zarr(package: str) -> str:
+        if package == "zarr":
+            raise metadata.PackageNotFoundError(package)
+        if package == "netCDF4":
+            return "1.7.2"
+        return real_version(package)
+
+    monkeypatch.setattr(pmm_mlflow.metadata, "version", version_without_zarr)
+
+    with mlflow.start_run() as run:
+        log_versions()
+
+    params = get_run_data(run.info.run_id).params
+    assert params["xarray_version"] == xr.__version__
+    assert params["netcdf4_version"] == "1.7.2"
+    assert params["h5netcdf_version"] == real_version("h5netcdf")
+    assert "zarr_version" not in params
+
+
+@pytest.mark.parametrize(
+    ("logged", "expected"),
+    [
+        (["idata.nc"], "idata.nc"),
+        (["idata.zarr"], "idata.zarr"),
+        (["summary.html"], FileNotFoundError),
+        (["idata.nc", "idata.zarr"], ValueError),
+    ],
+    ids=["netcdf", "zarr", "none", "both"],
+)
+def test_find_idata_artifact(tmp_path, logged, expected) -> None:
+    with mlflow.start_run() as run:
+        for name in logged:
+            local = tmp_path / name
+            if name.endswith(".zarr"):
+                local.mkdir()
+                (local / "zarr.json").write_text("{}")
+            else:
+                local.write_text("x")
+            mlflow.log_artifact(str(local))
+
+    if isinstance(expected, str):
+        assert pmm_mlflow._find_idata_artifact(run.info.run_id) == expected
+    else:
+        with pytest.raises(expected, match=run.info.run_id):
+            pmm_mlflow._find_idata_artifact(run.info.run_id)
+
+
+def test_autolog_rejects_unknown_idata_format() -> None:
+    before = (pm.sample, pm.find_MAP, MMM.fit)
+
+    with pytest.raises(ValueError, match="idata_format"):
+        autolog(idata_format="parquet")
+
+    assert (pm.sample, pm.find_MAP, MMM.fit) == before
+
+
+def test_autolog_zarr_requires_zarr(monkeypatch) -> None:
+    monkeypatch.setitem(sys.modules, "zarr", None)
+    with pytest.raises(ImportError, match=r"pymc-marketing\[zarr\]"):
+        autolog(idata_format="zarr")
+
+
+def test_autolog_zarr_requires_a_writing_xarray(monkeypatch) -> None:
+    monkeypatch.setattr(xr, "__version__", "2025.4.0")
+    with pytest.raises(ImportError, match=r"xarray>=2025\.6\.0"):
+        autolog(idata_format="zarr")
+
+
+def test_autolog_disable_skips_the_zarr_preflight(monkeypatch) -> None:
+    monkeypatch.setitem(sys.modules, "zarr", None)
+    autolog(idata_format="zarr", disable=True)
+
+
+@pytest.mark.parametrize(
+    ("bad_call", "error"),
+    [
+        ({"idata_format": "bogus"}, ValueError),
+        ({"idata_format": "zarr"}, ImportError),
+    ],
+    ids=["unknown-format", "old-xarray"],
+)
+def test_rejected_autolog_call_keeps_autologging_disabled(
+    mmm, toy_X, toy_y, monkeypatch, bad_call, error
+) -> None:
+    monkeypatch.setattr(xr, "__version__", "2025.4.0")
+    autolog(disable=True)
+
+    with pytest.raises(error):
+        autolog(**bad_call)
+
+    with mlflow.start_run() as run:
+        mmm.fit(toy_X, toy_y, draws=2, chains=1, tune=1)
+    assert get_run_data(run.info.run_id).artifacts == []
+
+
+def test_autolog_called_twice_logs_the_last_format_once(mmm, toy_X, toy_y) -> None:
+    autolog(idata_format="zarr")  # on top of the fixture's netcdf call
+
+    with mlflow.start_run() as run:
+        mmm.fit(toy_X, toy_y, draws=2, chains=1, tune=1)
+
+    artifacts = get_run_data(run.info.run_id).artifacts
+    assert "idata.zarr" in artifacts
+    assert "idata.nc" not in artifacts
+
+
+def test_autolog_does_not_stack_wrappers() -> None:
+    patched = [pm.sample, pm.find_MAP, MMM.fit, CLVModel.fit, BassModel.fit]
+    depths = [_wrapper_depth(f) for f in patched]
+
+    autolog()
+    autolog(log_mmm=False, log_clv=False, log_bass=False)
+
+    assert [_wrapper_depth(f) for f in (pm.sample, pm.find_MAP)] == depths[:2]
+    assert [_wrapper_depth(f) for f in (MMM.fit, CLVModel.fit, BassModel.fit)] == [
+        0,
+        0,
+        0,
+    ]
+
+
+def test_autolog_keeps_wrappers_it_did_not_install() -> None:
+    original = pmm_mlflow._without_autolog_wrappers(pm.find_MAP)
+
+    @functools.wraps(original)
+    def foreign(*args, **kwargs):
+        return original(*args, **kwargs)
+
+    pm.find_MAP = foreign
+    try:
+        autolog()
+
+        assert pm.find_MAP.__wrapped__ is foreign
+        assert pmm_mlflow._without_autolog_wrappers(pm.find_MAP) is foreign
+    finally:
+        pm.find_MAP = original
+
+
+def test_autolog_disable_switches_the_patches_off(mmm, toy_X, toy_y) -> None:
+    autolog(disable=True)
+
+    with mlflow.start_run() as run:
+        mmm.fit(toy_X, toy_y, draws=2, chains=1, tune=1)
+
+    _, params, _, _, artifacts = get_run_data(run.info.run_id)
+    assert artifacts == []
+    assert params == {}
+
+
+@pytest.mark.parametrize(
+    ("owner", "name"),
+    [(pm, "find_MAP"), (CLVModel, "fit"), (BassModel, "fit")],
+    ids=["find_MAP", "clv-fit", "bass-fit"],
+)
+def test_autolog_disable_passes_straight_through(monkeypatch, owner, name) -> None:
+    calls = []
+
+    def original(*args, **kwargs):
+        calls.append((args, kwargs))
+        return "result"
+
+    monkeypatch.setattr(owner, name, original)
+    autolog()  # wraps `original`
+    autolog(disable=True)
+
+    with mlflow.start_run() as run:
+        assert getattr(owner, name)(object()) == "result"
+
+    assert len(calls) == 1
+    _, params, _, _, artifacts = get_run_data(run.info.run_id)
+    assert params == {}
+    assert artifacts == []
+
+
+def test_autolog_disable_skips_error_logging(bad_starting_point_model) -> None:
+    autolog(disable=True)
+
+    with mlflow.start_run() as run, pytest.raises(SamplingError):
+        pm.sample(
+            draws=5,
+            tune=5,
+            chains=1,
+            model=bad_starting_point_model,
+            nuts_sampler="pymc",
+        )
+
+    assert get_run_data(run.info.run_id).artifacts == []
+
+
+@pytest.fixture
+def fitted_mmm_run(idata_format, mmm, toy_X, toy_y) -> tuple[MMM, str]:
+    with mlflow.start_run() as run:
+        mmm.fit(toy_X, toy_y, draws=2, chains=1, tune=1)
+    return mmm, run.info.run_id
+
+
+@pytest.mark.parametrize("idata_format", ["netcdf", "zarr"], indirect=True)
+@pytest.mark.parametrize("keep_idata", [False, True], ids=["drop", "keep"])
+def test_load_mmm_round_trips_and_honours_keep_idata(
+    fitted_mmm_run, tmp_path, monkeypatch, keep_idata
+) -> None:
+    mmm, run_id = fitted_mmm_run
+    monkeypatch.chdir(tmp_path)
+
+    loaded = load_mmm(run_id, full_model=True, keep_idata=keep_idata)
+
+    assert (tmp_path / f"idata_{run_id}").exists() is keep_idata
+    assert loaded.idata.attrs["mlflow_run_id"] == run_id
+    xr.testing.assert_equal(
+        loaded.idata["posterior"].to_dataset(), mmm.idata["posterior"].to_dataset()
+    )
+
+
+@pytest.mark.parametrize("idata_format", ["netcdf", "zarr"], indirect=True)
+def test_load_mmm_keeps_other_files_in_user_dst_path(
+    fitted_mmm_run, tmp_path, recwarn
+) -> None:
+    _, run_id = fitted_mmm_run
+    dst = tmp_path / "downloads"
+    dst.mkdir()
+    (dst / "notes.txt").write_text("mine")
+
+    load_mmm(run_id, full_model=True, keep_idata=False, dst_path=str(dst))
+
+    assert [p.name for p in dst.iterdir()] == ["notes.txt"]
+    assert not [w for w in recwarn if "Could not remove" in str(w.message)]
+
+
+@pytest.mark.parametrize("idata_format", ["zarr"], indirect=True)
+def test_load_mmm_replaces_a_stale_zarr_download(fitted_mmm_run, tmp_path) -> None:
+    _, run_id = fitted_mmm_run
+    stale = tmp_path / "downloads" / "idata.zarr"
+    stale.mkdir(parents=True)
+    (stale / "leftover.txt").write_text("from an earlier download")
+
+    loaded = load_mmm(
+        run_id, full_model=True, keep_idata=True, dst_path=str(tmp_path / "downloads")
+    )
+
+    assert "posterior" in loaded.idata.children
+    assert not (stale / "leftover.txt").exists()
+
+
+@pytest.mark.parametrize("idata_format", ["netcdf", "zarr"], indirect=True)
+def test_load_mmm_from_run_accepts_a_custom_artifact_name(
+    idata_format, mmm, toy_X, toy_y, tmp_path
+) -> None:
+    autolog(disable=True)
+    artifact = _idata_artifact_name(idata_format).replace("idata", "custom")
+    with mlflow.start_run() as run:
+        mmm.fit(toy_X, toy_y, draws=2, chains=1, tune=1)
+        log_inference_data(mmm.idata, save_file=tmp_path / artifact)
+    dst = tmp_path / "downloads"
+    dst.mkdir()
+
+    loaded = load_mmm_from_run(
+        run.info.run_id, dst_path=str(dst), keep_idata=True, artifact=artifact
+    )
+
+    assert [p.name for p in dst.iterdir()] == [artifact]
+    xr.testing.assert_equal(
+        loaded.idata["posterior"].to_dataset(), mmm.idata["posterior"].to_dataset()
+    )
+
+
+@pytest.mark.parametrize(
+    "artifact",
+    ["{outside}", "../sibling.nc", "", ".", "..", "idata.nc/", "sub/idata.nc"],
+    ids=["absolute", "parent", "empty", "dot", "dotdot", "trailing-slash", "nested"],
+)
+def test_load_mmm_from_run_rejects_artifacts_that_are_not_plain_names(
+    tmp_path, artifact
+) -> None:
+    dst = tmp_path / "downloads"
+    dst.mkdir()
+    (dst / "mine.txt").write_text("keep")
+    outside = tmp_path / "sibling.nc"
+    outside.write_text("keep")
+    with mlflow.start_run() as run:
+        pass
+
+    with pytest.raises(ValueError, match="plain name at the root of the run"):
+        load_mmm_from_run(
+            run.info.run_id,
+            dst_path=str(dst),
+            artifact=artifact.format(outside=outside),
+        )
+
+    assert outside.read_text() == "keep"
+    assert (dst / "mine.txt").read_text() == "keep"
+
+
+def test_load_mmm_from_run_keeps_a_local_copy_when_the_run_lacks_the_artifact(
+    tmp_path,
+) -> None:
+    dst = tmp_path / "downloads"
+    dst.mkdir()
+    (dst / "my_model.nc").write_text("my own copy")
+    with mlflow.start_run() as run:
+        pass
+
+    with pytest.raises(FileNotFoundError, match=r"no artifact 'my_model\.nc'"):
+        load_mmm_from_run(
+            run.info.run_id, dst_path=str(dst), keep_idata=True, artifact="my_model.nc"
+        )
+
+    assert (dst / "my_model.nc").read_text() == "my own copy"
+
+
+def test_load_mmm_without_idata_artifact_raises() -> None:
+    with mlflow.start_run() as run:
+        pass
+
+    with pytest.raises(FileNotFoundError, match="no inference-data artifact"):
+        load_mmm(run.info.run_id, full_model=True)
+
+
+def test_load_mmm_default_cleanup_keeps_unrelated_files(
+    fitted_mmm_run, tmp_path, monkeypatch
+) -> None:
+    """A pre-existing ``idata_{run_id}`` directory belongs to the user, not to this call."""
+    _, run_id = fitted_mmm_run
+    monkeypatch.chdir(tmp_path)
+    user_dir = tmp_path / f"idata_{run_id}"
+    user_dir.mkdir()
+    (user_dir / "other.txt").write_text("mine")
+
+    load_mmm(run_id, full_model=True)
+
+    assert [p.name for p in user_dir.iterdir()] == ["other.txt"]
+    assert not [p for p in tmp_path.iterdir() if p.name.startswith(".idata_")]
+
+
+@pytest.mark.parametrize("idata_format", ["netcdf", "zarr"], indirect=True)
+def test_load_mmm_removes_download_when_load_fails(
+    fitted_mmm_run, tmp_path, monkeypatch
+) -> None:
+    _, run_id = fitted_mmm_run
+    dst = tmp_path / "downloads"
+    dst.mkdir()
+
+    def broken_load(cls, fname, check=True):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(MMM, "load", classmethod(broken_load))
+    with pytest.raises(RuntimeError, match="boom"):
+        load_mmm(run_id, full_model=True, keep_idata=False, dst_path=str(dst))
+
+    assert list(dst.iterdir()) == []
+
+
+@pytest.fixture
 def clv_data() -> pd.DataFrame:
     return pd.DataFrame(
         {
@@ -759,8 +1230,9 @@ def clv_data() -> pd.DataFrame:
     )
 
 
+@pytest.mark.parametrize("idata_format", ["netcdf", "zarr"], indirect=True)
 @pytest.mark.parametrize("model_cls", [BetaGeoModel])
-def test_clv_fit_mcmc(model_cls, clv_data) -> None:
+def test_clv_fit_mcmc(idata_format, model_cls, clv_data) -> None:
     mlflow.set_experiment("pymc-marketing-test-suite-clv")
 
     sampler_config = {
@@ -796,12 +1268,13 @@ def test_clv_fit_mcmc(model_cls, clv_data) -> None:
         "model_repr.txt",
         "model_graph.pdf",
         "summary.html",
-        "idata.nc",
+        _idata_artifact_name(idata_format),
     }
 
 
+@pytest.mark.parametrize("idata_format", ["netcdf", "zarr"], indirect=True)
 @pytest.mark.parametrize("model_cls", [BetaGeoModel])
-def test_clv_fit_map(model_cls, clv_data) -> None:
+def test_clv_fit_map(idata_format, model_cls, clv_data) -> None:
     mlflow.set_experiment("pymc-marketing-test-suite-clv")
 
     model = model_cls()
@@ -825,7 +1298,7 @@ def test_clv_fit_map(model_cls, clv_data) -> None:
         "coords.json",
         "model_repr.txt",
         "model_graph.pdf",
-        "idata.nc",
+        _idata_artifact_name(idata_format),
     }
 
 
@@ -834,7 +1307,22 @@ def bass_data() -> np.ndarray:
     return np.random.default_rng(42).poisson(lam=100, size=20)
 
 
-def test_autolog_bass(bass_data) -> None:
+@pytest.mark.parametrize(
+    "idata_format",
+    [
+        "netcdf",
+        pytest.param(
+            "zarr",
+            marks=pytest.mark.xfail(
+                CASE_INSENSITIVE_FS,
+                reason="BassModel constant_data holds both T and t (#3177)",
+                strict=True,
+            ),
+        ),
+    ],
+    indirect=True,
+)
+def test_autolog_bass(idata_format, bass_data) -> None:
     mlflow.set_experiment("pymc-marketing-test-suite-bass")
 
     sampler_config = {
@@ -890,7 +1378,7 @@ def test_autolog_bass(bass_data) -> None:
         "model_repr.txt",
         "model_graph.pdf",
         "summary.html",
-        "idata.nc",
+        _idata_artifact_name(idata_format),
     }
 
 
