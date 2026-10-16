@@ -29,6 +29,13 @@ Work with **PyMC Labs, the team behind PyMC-Marketing**, on marketing mix modeli
 Submit an RFP
 :::
 
+:::{button-link} https://calendly.com/niall-oulton
+:color: primary
+:class: pm-cta-button
+
+Book a call
+:::
+
 :::{button-link} https://www.pymc-labs.com/contact
 :color: primary
 :class: pm-cta-button
@@ -345,6 +352,13 @@ Talk to the team behind PyMC-Marketing about marketing mix modeling, customer li
 :class: pm-cta-button
 
 Submit an RFP
+:::
+
+:::{button-link} https://calendly.com/niall-oulton
+:color: primary
+:class: pm-cta-button
+
+Book a call
 :::
 
 :::{button-link} https://www.pymc-labs.com/contact
