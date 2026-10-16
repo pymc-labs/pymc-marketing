@@ -931,7 +931,9 @@ def log_inference_data(
     """Log the DataTree to MLflow as netCDF or Zarr.
 
     The data is written to a temporary directory inside the parent of
-    ``save_file`` and removed after upload.
+    ``save_file`` and removed after upload. If the removal fails, for example
+    because another process still holds a file open on Windows, the directory
+    is left behind rather than failing a fit whose artifact is already logged.
 
     Parameters
     ----------
@@ -952,7 +954,9 @@ def log_inference_data(
     if not save_file.parent.is_dir():
         raise FileNotFoundError(f"Parent directory of {save_file} does not exist.")
     with tempfile.TemporaryDirectory(
-        dir=save_file.parent, prefix=".pymc_marketing_idata_"
+        dir=save_file.parent,
+        prefix=".pymc_marketing_idata_",
+        ignore_cleanup_errors=True,
     ) as tmp:
         local = save_idata(idata, Path(tmp) / save_file.name)
         # log_artifact uploads a directory recursively (mlflow >= 2.0).

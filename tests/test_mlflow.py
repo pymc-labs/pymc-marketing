@@ -14,6 +14,7 @@
 import functools
 import json
 import logging
+import os
 import sys
 import tempfile
 from collections import namedtuple
@@ -832,6 +833,35 @@ def test_log_inference_data_uses_file_name_as_artifact_name(
         "idata.nc"
     ]
     assert list((tmp_path / "sub").iterdir()) == []
+
+
+@pytest.mark.parametrize(
+    ("artifact", "locked"),
+    [("idata.nc", "idata.nc"), ("idata.zarr", "zarr.json")],
+    ids=["netcdf", "zarr"],
+)
+def test_log_inference_data_tolerates_an_undeletable_temp_file(
+    small_idata, tmp_path, monkeypatch, artifact, locked
+) -> None:
+    # Windows can keep a just-written file open past the upload; the fit must
+    # not fail over a leftover temp dir once the artifact is logged.
+    real_unlink = os.unlink
+
+    def unlink(path, *args, **kwargs):
+        if os.path.basename(str(path)) == locked:
+            raise PermissionError(f"simulated lock on {path}")
+        return real_unlink(path, *args, **kwargs)
+
+    monkeypatch.setattr(os, "unlink", unlink)
+
+    with mlflow.start_run() as run:
+        log_inference_data(small_idata, save_file=tmp_path / artifact)
+
+    assert [f.path for f in MlflowClient().list_artifacts(run.info.run_id)] == [
+        artifact
+    ]
+    (leftover,) = tmp_path.iterdir()
+    assert leftover.name.startswith(".pymc_marketing_idata_")
 
 
 def test_log_versions_logs_only_installed_idata_backends(monkeypatch) -> None:
