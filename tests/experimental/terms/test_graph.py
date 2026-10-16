@@ -27,8 +27,7 @@ from numpy.testing import assert_allclose
 from pymc_extras.prior import Prior
 from scipy.special import gammaln
 
-from pymc_marketing.mmm.components.adstock import GeometricAdstock
-from pymc_marketing.mmm.experimental._graph import (
+from pymc_marketing.experimental.terms._graph import (
     BuildContext,
     Data,
     Equation,
@@ -36,6 +35,7 @@ from pymc_marketing.mmm.experimental._graph import (
     specification_key,
     walk,
 )
+from pymc_marketing.mmm.components.adstock import GeometricAdstock
 from pymc_marketing.terms import (
     Dot,
     ModelTerm,

@@ -33,8 +33,8 @@ import xarray as xr
 from pymc_extras.prior import Prior, VariableFactory
 from pytensor.graph.basic import Variable
 
+from pymc_marketing.experimental.terms._data import _align_labels, _dates
 from pymc_marketing.mmm.components.base import Transformation
-from pymc_marketing.mmm.experimental._data import _align_labels, _dates
 from pymc_marketing.mmm.fourier import FourierBase
 from pymc_marketing.mmm.link import LinkFunction, get_link_spec
 from pymc_marketing.terms import (
@@ -50,7 +50,7 @@ from pymc_marketing.terms import (
 )
 
 if TYPE_CHECKING:
-    from pymc_marketing.mmm.experimental._terms import MediaTransform
+    from pymc_marketing.experimental.terms._terms import MediaTransform
 
 _ACTIVE_CONTEXT: ContextVar[BuildContext | None] = ContextVar(
     "experimental_gam_build_context", default=None
@@ -167,7 +167,7 @@ class GraphTerm(ModelTerm):
         """
         if not isinstance(transformation, Transformation):
             return NotImplemented
-        from pymc_marketing.mmm.experimental import _terms
+        from pymc_marketing.experimental.terms import _terms
 
         return _terms.MediaTransform(self, transformation)
 
@@ -820,7 +820,7 @@ class BuildContext:
         """Return the one graph node that evaluates ``fourier`` on the data dates."""
         key = id(fourier)
         if key not in self._fourier_terms:
-            from pymc_marketing.mmm.experimental import _terms
+            from pymc_marketing.experimental.terms import _terms
 
             self._fourier_terms[key] = (fourier, _terms.FourierTerm(fourier))
         return self._fourier_terms[key][1]

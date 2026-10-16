@@ -1,10 +1,12 @@
 (experimental-term-optimizer)=
 # Experimental term-first optimization
 
-`pymc_marketing.mmm.experimental.Problem` defines an optimization over deterministic terms from a fitted `GAM`.
+`pymc_marketing.experimental.terms.Problem` defines an optimization over deterministic terms from a fitted `GAM`.
 Construct a problem once, use `problem.evaluate(plan)` to score a concrete plan, then call `problem.solve(x0=plan)` to run the optimizer.
 The fitted model supplies parameter identities and joint posterior draws; the caller supplies the objective, bounds, constraints and scoring policy.
 This API is experimental; the stable `MMM` budget optimizer is unchanged.
+
+Graph-first modeling and optimization live in `pymc_marketing.experimental.terms`; stable primitives such as `Parameter`, `Named`, and `Transform` remain in `pymc_marketing.terms`, while adstock, saturation, and Fourier components remain in `pymc_marketing.mmm`.
 
 The lifecycle follows the [optimizer API decisions in PR #2981](https://github.com/pymc-labs/pymc-marketing/pull/2981#issuecomment-6102274917).
 It replaces the earlier synchronous `optimize(...)` interface; the stable `MMM` optimizer is unchanged.
@@ -19,8 +21,8 @@ The following builds two responses sharing a spend input; `train` is a labeled `
 
 ```python
 from pymc_extras.prior import Prior
+from pymc_marketing.experimental.terms import GAM, Data, Equation, MediaTransform, Problem
 from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation
-from pymc_marketing.mmm.experimental import GAM, Data, Equation, MediaTransform, Problem
 
 spend = Data("spend")
 spend_scale = train["spend"].max("date")
@@ -338,6 +340,7 @@ A problem with all entries fixed is evaluated without running SLSQP and reports 
 
 ## Experimental API change record
 
+- Moved graph-first modeling and term-first optimization to `pymc_marketing.experimental.terms`, outside the MMM namespace. The serialized format marker remains `pymc_marketing.experimental.GAM/1`, but stores using former MMM graph-node identifiers must be recreated, refitted, and saved again; `check=False` does not migrate them.
 - Replaced the synchronous `optimize` function with public `Problem`, `evaluate` and `solve`; retained `OptimizationResult` and original-unit reporting.
 - Infer decisions from selected value graphs, require explicit bounds, separate construction from the required initial plan, and reuse compiled graphs across parameter updates and starting points.
 - Separate decided dates, fixed history and scored carryover; support explicit nonzero tail data and the `evaluate.decided` helper.

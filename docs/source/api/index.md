@@ -12,6 +12,7 @@
   clv
   customer_choice
   data
+  experimental
   hsgp_kwargs
   metrics
   mlflow
@@ -32,16 +33,22 @@
   utils
 ```
 
-## Experimental term-first optimization
+## Experimental graph-first terms
 
+`pymc_marketing.experimental.terms` provides graph-first generalized additive models and term-first optimization.
+Shared primitives remain in `pymc_marketing.terms`, and MMM components remain in `pymc_marketing.mmm`.
 These APIs are under active development and do not replace the stable `MMM` optimizer.
 See the [term-first optimization guide](../guide/mmm/experimental_optimizer.md) for the `Problem` → `evaluate` → `solve` workflow.
 
 ```{eval-rst}
-.. currentmodule:: pymc_marketing.mmm.experimental
+.. currentmodule:: pymc_marketing.experimental.terms
 .. autosummary::
   :toctree: generated/
 
-  Problem
+  GAM
+  Data
+  Equation
+  MediaTransform
   OptimizationResult
+  Problem
 ```

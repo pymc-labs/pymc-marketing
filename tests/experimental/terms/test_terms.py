@@ -22,6 +22,8 @@ import xarray as xr
 from numpy.testing import assert_allclose
 from pymc_extras.prior import Prior
 
+from pymc_marketing.experimental.terms import Data, MediaTransform
+from pymc_marketing.experimental.terms._graph import BuildContext, total_lookback
 from pymc_marketing.mmm import (
     GeometricAdstock,
     LogisticSaturation,
@@ -29,8 +31,6 @@ from pymc_marketing.mmm import (
     WeeklyFourier,
     YearlyFourier,
 )
-from pymc_marketing.mmm.experimental import Data, MediaTransform
-from pymc_marketing.mmm.experimental._graph import BuildContext, total_lookback
 from pymc_marketing.mmm.transformers import ConvMode
 from pymc_marketing.terms import Parameter
 
