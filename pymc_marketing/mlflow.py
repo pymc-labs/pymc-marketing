@@ -25,7 +25,7 @@ are patched:
 
 - `pymc.sample`:
 
-    - :func:`log_versions`: Log the versions of PyMC-Marketing, PyMC, and ArviZ to MLflow.
+    - :func:`log_versions`: Log the versions of PyMC-Marketing, PyMC, ArviZ, xarray and the idata backends to MLflow.
     - :func:`log_model_derived_info`: Log types of parameters, coords, model graph, etc.
     - :func:`log_sample_diagnostics`: Log information derived from the DataTree object.
     - :func:`log_arviz_summary`: Log table of summary statistics about estimated parameters
@@ -204,6 +204,7 @@ import warnings
 import weakref
 from collections.abc import Callable, Mapping
 from functools import wraps
+from importlib import metadata
 from pathlib import Path
 from typing import Any, Literal
 
@@ -1328,11 +1329,26 @@ def load_mmm(
     return load_mmm_from_run(run_id, keep_idata=keep_idata, dst_path=dst_path)
 
 
+_IDATA_BACKENDS = ("zarr", "netCDF4", "h5netcdf")
+
+
 def log_versions() -> None:
-    """Log the versions of PyMC-Marketing, PyMC, and ArviZ to MLflow."""
+    """Log the versions of PyMC-Marketing, PyMC, ArviZ, xarray and the idata backends to MLflow.
+
+    The backends are the packages xarray can write inference data with: ``zarr``, ``netCDF4`` and ``h5netcdf``.
+    A backend that is not installed is skipped, so ``zarr_version``, ``netcdf4_version`` and ``h5netcdf_version``
+    are logged only when present. Versions come from package metadata, so no backend is imported.
+    """
     mlflow.log_param("pymc_marketing_version", __version__)
     mlflow.log_param("pymc_version", pm.__version__)
     mlflow.log_param("arviz_version", az.__version__)
+    mlflow.log_param("xarray_version", xr.__version__)
+    for package in _IDATA_BACKENDS:
+        try:
+            package_version = metadata.version(package)
+        except metadata.PackageNotFoundError:
+            continue
+        mlflow.log_param(f"{package.lower()}_version", package_version)
 
 
 def log_mmm_configuration(mmm: MMM) -> None:

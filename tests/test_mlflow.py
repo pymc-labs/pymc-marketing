@@ -18,6 +18,7 @@ import sys
 import tempfile
 from collections import namedtuple
 from collections.abc import Callable, Iterator
+from importlib import metadata
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -52,6 +53,7 @@ from pymc_marketing.mlflow import (
     log_mmm_evaluation_metrics,
     log_model_graph,
     log_sample_diagnostics,
+    log_versions,
 )
 from pymc_marketing.mmm import MMM, GeometricAdstock, LogisticSaturation
 from pymc_marketing.version import __version__
@@ -392,7 +394,7 @@ def param_checks(params, draws: int, chains: int, tune: int, nuts_sampler: str) 
 
     assert params["pymc_marketing_version"] == __version__
 
-    other_keys = ["pymc_version"]
+    other_keys = ["pymc_version", "xarray_version"]
     if nuts_sampler not in ["numpyro", "blackjax"]:
         other_keys.extend(["inference_library_version"])
 
@@ -830,6 +832,28 @@ def test_log_inference_data_uses_file_name_as_artifact_name(
         "idata.nc"
     ]
     assert list((tmp_path / "sub").iterdir()) == []
+
+
+def test_log_versions_logs_only_installed_idata_backends(monkeypatch) -> None:
+    real_version = metadata.version
+
+    def version_without_zarr(package: str) -> str:
+        if package == "zarr":
+            raise metadata.PackageNotFoundError(package)
+        if package == "netCDF4":
+            return "1.7.2"
+        return real_version(package)
+
+    monkeypatch.setattr(pmm_mlflow.metadata, "version", version_without_zarr)
+
+    with mlflow.start_run() as run:
+        log_versions()
+
+    params = get_run_data(run.info.run_id).params
+    assert params["xarray_version"] == xr.__version__
+    assert params["netcdf4_version"] == "1.7.2"
+    assert params["h5netcdf_version"] == real_version("h5netcdf")
+    assert "zarr_version" not in params
 
 
 @pytest.mark.parametrize(
