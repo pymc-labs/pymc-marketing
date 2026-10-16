@@ -125,9 +125,11 @@ class MediaTransformation:
     Attributes
     ----------
     first : AdstockTransformation | SaturationTransformation
-        The first transformation to apply.
+        The first transformation to apply. Read-only; follows the current
+        ``adstock``, ``saturation`` and ``adstock_first``.
     second : AdstockTransformation | SaturationTransformation
-        The second transformation to apply.
+        The second transformation to apply. Read-only; follows the current
+        ``adstock``, ``saturation`` and ``adstock_first``.
 
     """
 
@@ -137,18 +139,23 @@ class MediaTransformation:
     dims: Dims | None = None
 
     def __post_init__(self):
-        """Set the first and second transformations based on the adstock_first flag."""
-        self.first, self.second = (
-            (self.adstock, self.saturation)
-            if self.adstock_first
-            else (self.saturation, self.adstock)
-        )
+        """Normalize the dims and check them against the transformations' prior dims."""
         if isinstance(self.dims, str):
             self.dims = (self.dims,)
 
         self.dims = self.dims or ()
 
         self._check_compatible_dims()
+
+    @property
+    def first(self) -> AdstockTransformation | SaturationTransformation:
+        """The transformation applied first: ``adstock`` if ``adstock_first`` else ``saturation``."""
+        return self.adstock if self.adstock_first else self.saturation
+
+    @property
+    def second(self) -> AdstockTransformation | SaturationTransformation:
+        """The transformation applied second: ``saturation`` if ``adstock_first`` else ``adstock``."""
+        return self.saturation if self.adstock_first else self.adstock
 
     def _check_compatible_dims(self):
         self.dims = cast(Dims, self.dims)

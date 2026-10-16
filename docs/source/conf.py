@@ -278,7 +278,9 @@ notfound_urls_prefix = "/en/latest/"
 # opengraph metadata settings
 ogp_site_url = "https://www.pymc-marketing.io/en/stable/"
 ogp_canonical_url = "https://www.pymc-marketing.io/en/stable/"
-ogp_image = "https://www.pymc-marketing.io/en/stable/_images/marketing-logo-light.jpg"
+# Point at the _static copy: html_static_path always ships it, whereas
+# _images/ only holds images that some page embeds.
+ogp_image = "https://www.pymc-marketing.io/en/stable/_static/marketing-logo-light.jpg"
 # Auto-generate <meta name="description"> from the first paragraph of each
 # page. Pages that declare their own description (e.g. index.md) are skipped.
 ogp_enable_meta_description = True
@@ -320,6 +322,10 @@ html_theme_options = {
         "image_dark": "flat_logo_darkmode.png",
     },
     "analytics": {"google_analytics_id": "G-DNPNG22HVY"},
+    # navbar_persistent is the only header slot shown at every width. Setting
+    # it replaces the theme default, so keep the search button first.
+    # navbar-contact-button.html renders on the homepage only.
+    "navbar_persistent": ["search-button-field", "navbar-contact-button.html"],
 }
 html_context = {
     "github_user": "pymc-labs",

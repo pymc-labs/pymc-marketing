@@ -295,13 +295,24 @@ class TestComputeResiduals:
         result = compute_residuals(simple_data)
         assert {"chain", "draw", "date"}.issubset(result.dims)
 
-    def test_raises_on_missing_pp_var(self, simple_idata):
+    def test_derives_predictions_from_y_when_pp_var_missing(self, simple_idata):
+        """Without a stored ``y_original_scale`` the residuals use ``y * target_scale``."""
         idata = simple_idata.copy()
         pp_ds = idata["posterior_predictive"].dataset
         pp_ds = pp_ds.drop_vars("y_original_scale")
         idata["posterior_predictive"] = pp_ds
         data = MMMIDataWrapper(idata, validate_on_init=False)
-        with pytest.raises(ValueError, match="y_original_scale"):
+        result = compute_residuals(data)
+        expected = idata.constant_data["target_data"] - pp_ds["y"] * 1000.0
+        xr.testing.assert_allclose(result, expected.transpose(*result.dims))
+
+    def test_raises_when_y_missing(self, simple_idata):
+        idata = simple_idata.copy()
+        idata["posterior_predictive"] = idata["posterior_predictive"].dataset.drop_vars(
+            ["y", "y_original_scale"]
+        )
+        data = MMMIDataWrapper(idata, validate_on_init=False)
+        with pytest.raises(ValueError, match="'y' not found in posterior_predictive"):
             compute_residuals(data)
 
 
@@ -325,8 +336,8 @@ class TestPosteriorPredictiveBasic:
         result = simple_plots.posterior_predictive(return_as_pc=True)
         assert isinstance(result, PlotCollection)
 
-    def test_raises_when_y_original_scale_missing(self):
-        """original_scale=True must raise clearly when y_original_scale is absent."""
+    def test_derives_original_scale_from_y_when_missing(self):
+        """Without a stored ``y_original_scale`` the plot derives ``y * target_scale``."""
         rng = np.random.default_rng(0)
         n_chain, n_draw, n_date = 2, 10, 5
         coords = {
@@ -350,16 +361,19 @@ class TestPosteriorPredictiveBasic:
                     dims=("date",),
                     coords={"date": np.arange(n_date)},
                 ),
-                "target_scale": xr.DataArray(1.0),
+                "target_scale": xr.DataArray(250.0),
             }
         )
         idata = xr.DataTree.from_dict(
             {"/posterior_predictive": pp, "/constant_data": const}
         )
         data = MMMIDataWrapper(idata, validate_on_init=False)
-        plots = DiagnosticsPlots(data)
-        with pytest.raises(ValueError, match="y_original_scale"):
-            plots.posterior_predictive(original_scale=True)
+        _, axes = DiagnosticsPlots(data).posterior_predictive(original_scale=True)
+        expected = (pp["y"] * 250.0).mean(dim=("chain", "draw")).values
+        line_y_arrays = [line.get_ydata() for line in axes.flat[0].lines]
+        assert any(np.allclose(y, expected) for y in line_y_arrays), (
+            "No line matches posterior_predictive['y'] * target_scale"
+        )
 
     def test_raises_when_y_missing(self):
         """original_scale=False must raise clearly when y is absent."""
@@ -573,8 +587,8 @@ class TestPriorPredictiveBasic:
         result = simple_plots.prior_predictive(return_as_pc=True)
         assert isinstance(result, PlotCollection)
 
-    def test_raises_when_y_original_scale_missing(self):
-        """original_scale=True must raise clearly when y_original_scale is absent from prior."""
+    def test_derives_original_scale_from_y_when_missing(self):
+        """Without a stored ``prior["y_original_scale"]`` the plot derives ``y * target_scale``."""
         rng = np.random.default_rng(0)
         n_chain, n_draw, n_date = 2, 10, 5
         coords = {
@@ -607,7 +621,7 @@ class TestPriorPredictiveBasic:
                     dims=("date",),
                     coords={"date": np.arange(n_date)},
                 ),
-                "target_scale": xr.DataArray(1.0),
+                "target_scale": xr.DataArray(250.0),
             }
         )
         idata = xr.DataTree.from_dict(
@@ -618,9 +632,24 @@ class TestPriorPredictiveBasic:
             }
         )
         data = MMMIDataWrapper(idata, validate_on_init=False)
-        plots = DiagnosticsPlots(data)
-        with pytest.raises(ValueError, match="y_original_scale"):
-            plots.prior_predictive(original_scale=True)
+        _, axes = DiagnosticsPlots(data).prior_predictive(original_scale=True)
+        expected = (prior_predictive["y"] * 250.0).mean(dim=("chain", "draw")).values
+        line_y_arrays = [line.get_ydata() for line in axes.flat[0].lines]
+        assert any(np.allclose(y, expected) for y in line_y_arrays), (
+            "No line matches prior_predictive['y'] * target_scale"
+        )
+
+    def test_raises_when_y_missing_from_prior_predictive(self):
+        """original_scale=True must raise clearly when no draws exist to derive from."""
+        idata = xr.DataTree.from_dict(
+            {
+                "/prior_predictive": xr.Dataset(),
+                "/constant_data": xr.Dataset({"target_scale": xr.DataArray(1.0)}),
+            }
+        )
+        data = MMMIDataWrapper(idata, validate_on_init=False)
+        with pytest.raises(ValueError, match="'y' not found in prior_predictive"):
+            DiagnosticsPlots(data).prior_predictive(original_scale=True)
 
     def test_original_scale_false_plots_y(self, simple_plots, simple_data):
         """original_scale=False must plot the 'y' (scaled) variable."""
