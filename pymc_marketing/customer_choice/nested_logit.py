@@ -14,6 +14,7 @@
 """Nested Logit for Product Preference Analysis."""
 
 import json
+from collections.abc import Mapping
 from typing import Any, Self
 
 import matplotlib.pyplot as plt
@@ -26,6 +27,7 @@ import xarray as xr
 from pymc.util import RandomState
 from pymc_extras.prior import Prior
 
+from pymc_marketing.customer_choice._choice_data_mixin import ChoiceDataMixin
 from pymc_marketing.model_builder import (
     ModelBuilder,
     SamplingMethod,
@@ -36,7 +38,7 @@ from pymc_marketing.version import __version__
 HDI_ALPHA = 0.5
 
 
-class NestedLogit(ModelBuilder):
+class NestedLogit(ChoiceDataMixin, ModelBuilder):
     """
     Nested Logit class.
 
@@ -51,17 +53,16 @@ class NestedLogit(ModelBuilder):
 
     Parameters
     ----------
-    choice_df : pd.DataFrame
-        A wide DataFrame where each row is a choice scenario. Product-specific
-        attributes are stored in columns, and the dependent variable identifies
-        the chosen product.
+    choice_df : pd.DataFrame, optional
+        Deprecated. Pass the choice data to :meth:`fit` instead.
+        A wide DataFrame where each row is a choice scenario.
+        Product-specific attributes are stored in columns, and the dependent variable identifies the chosen product.
 
     utility_equations : list of formula strings
-        A list of formulas specifying how to model the utility of
-        each product alternative. The formulas should be in Wilkinson
-        style notation and allow the target product to be specified as
-        as a function of the alternative specific attributes and the individual
-        specific attributes::
+        Formulas specifying how to model the utility of each product alternative.
+        The formulas use Wilkinson style notation.
+        The target product is specified as a function of the alternative-specific attributes.
+        Individual-specific attributes may be added after a ``|``::
 
             target_product ~ target_attribute1 + target_attribute2 | individual_attribute
 
@@ -69,9 +70,9 @@ class NestedLogit(ModelBuilder):
         The name of the dependent variable in the choice_df.
 
     covariates : list of str
-        Covariate names (e.g., ['X1', 'X2'])
+        Covariate names (e.g., ['X1', 'X2']).
 
-    nested_structure: dict
+    nesting_structure : dict
         Dictionary to specify how to nest the choices between products.
         Single-layer nesting only. For more complex substitution patterns,
         consider using MixedLogit instead.
@@ -113,6 +114,18 @@ class NestedLogit(ModelBuilder):
             "Air": ["alt_3"],
         }
 
+    Create the model with its settings and pass the choice data to ``fit``:
+
+    .. code-block:: python
+
+        nstL = NestedLogit(
+            utility_equations=utility_equations,
+            depvar="depvar",
+            covariates=["X1", "X2"],
+            nesting_structure=nesting_structure,
+        )
+        nstL.fit(choice_df)
+
     """
 
     #: Deterministics on these models span the full (obs, alts) panel, so the
@@ -123,23 +136,55 @@ class NestedLogit(ModelBuilder):
     _model_type = "Nested Logit Model"
     version = "0.2.0"
 
+    #: Name of the ``pm.Data`` container holding the fixed covariates.
+    _fixed_data_name = "W"
+
     def __init__(
         self,
-        choice_df: pd.DataFrame,
-        utility_equations: list[str],
-        depvar: str,
-        covariates: list[str],
-        nesting_structure: dict,
+        choice_df: pd.DataFrame | None = None,
+        utility_equations: list[str] | None = None,
+        depvar: str | None = None,
+        covariates: list[str] | None = None,
+        nesting_structure: dict | None = None,
         model_config: dict | None = None,
         sampler_config: dict | None = None,
         alphas_nests: bool = False,
     ):
-        self.choice_df = choice_df
-        self.utility_equations = utility_equations
-        self.depvar = depvar
-        self.covariates = covariates
-        self.nesting_structure = nesting_structure
+        """Initialize the model.
+
+        Raises
+        ------
+        TypeError
+            If the deprecated first positional argument is neither ``None``
+            nor a :class:`pandas.DataFrame`.
+        ValueError
+            If any of ``utility_equations``, ``depvar``, ``covariates`` or
+            ``nesting_structure`` is None.
+        """
+        self._raise_if_choice_df_not_dataframe(
+            choice_df,
+            ("utility_equations", "depvar", "covariates", "nesting_structure"),
+        )
+        if (
+            utility_equations is None
+            or depvar is None
+            or covariates is None
+            or nesting_structure is None
+        ):
+            self._raise_missing_settings(
+                utility_equations=utility_equations,
+                depvar=depvar,
+                covariates=covariates,
+                nesting_structure=nesting_structure,
+            )
+        self._warn_if_choice_df_at_init(choice_df)
+
+        self.choice_df: pd.DataFrame | None = None
+        self.depvar: str = depvar
+        self.covariates: list[str] = covariates
+        self.nesting_structure: dict = nesting_structure
         self.alphas_nests = alphas_nests  # whether to estimate nest-specific intercepts
+        self._set_choice_inputs(choice_df, utility_equations)
 
         model_config = model_config or {}
         model_config = parse_model_config(model_config)
@@ -326,8 +371,7 @@ class NestedLogit(ModelBuilder):
         utility formulas.
         """
         prod_mapping = dict(zip(alternatives, range(len(alternatives)), strict=False))
-        df["mode_encoded"] = df[depvar].map(prod_mapping)
-        y = np.asarray(df["mode_encoded"].values)
+        y = df[depvar].map(prod_mapping).to_numpy()
         return y, prod_mapping
 
     @staticmethod
@@ -499,12 +543,18 @@ class NestedLogit(ModelBuilder):
 
     def build_model(self, **kwargs) -> None:
         """
-        Build model using stored choice_df and utility_equations.
+        Build the model from the stored choice data and utility equations.
 
-        This is the abstract method from ModelBuilder. For discrete choice,
-        we don't pass data as arguments - we use the stored data from __init__.
+        This is the abstract method from ModelBuilder.
+        The choice data must have been provided to :meth:`fit`.
+
+        Raises
+        ------
+        ValueError
+            If no choice data has been provided.
         """
-        X, F, y = self.preprocess_model_data(self.choice_df, self.utility_equations)
+        choice_df = self._require_choice_df()
+        X, F, y = self.preprocess_model_data(choice_df, self.utility_equations)
         self.model = self.make_model(X, F, y)
 
     def make_intercepts(self) -> pt.TensorVariable:
@@ -533,7 +583,7 @@ class NestedLogit(ModelBuilder):
         return betas
 
     def make_fixed_coefs(
-        self, X_fixed: np.ndarray | None, n_obs: int, n_alts: int
+        self, X_fixed: np.ndarray | None, n_obs: int | pt.TensorVariable, n_alts: int
     ) -> pt.TensorVariable:
         """Create alternative-varying coefficients for fixed (non-varying) covariates.
 
@@ -546,8 +596,9 @@ class NestedLogit(ModelBuilder):
         ----------
         X_fixed : np.ndarray or None
             Fixed covariates matrix of shape (n_obs, n_fixed_covariates)
-        n_obs : int
-            Number of observations
+        n_obs : int or TensorVariable
+            Number of observations, as a Python int or a graph value that tracks
+            a mutable data container.
         n_alts : int
             Number of alternatives
 
@@ -726,7 +777,7 @@ class NestedLogit(ModelBuilder):
         model : pm.Model
             PyMC model
         """
-        n_obs, n_alts = X.shape[0], X.shape[1]
+        n_alts = X.shape[1]
         nest_indices = self.nest_indices["top"]  # Only single-layer nesting
 
         with pm.Model(coords=self.coords) as model:
@@ -745,8 +796,10 @@ class NestedLogit(ModelBuilder):
             X_data = pm.Data("X", X, dims=("obs", "alts", "alt_covariates"))
             y_data = pm.Data("y", y, dims="obs")
 
-            # Fixed covariate contribution
-            W_contrib = self.make_fixed_coefs(W, n_obs, n_alts)
+            # Fixed covariate contribution. The row count is taken from the data
+            # container so a swapped data set with a different number of rows
+            # keeps a compatible shape.
+            W_contrib = self.make_fixed_coefs(W, X_data.shape[0], n_alts)
 
             # Systematic utility
             U = pm.Deterministic(
@@ -760,9 +813,10 @@ class NestedLogit(ModelBuilder):
                 U, lambdas, nest_indices, alphas_nest=alphas_nests_
             )
 
-            # Combine to get final choice probabilities
-            # P(y) = P(y|nest) * P(nest)
-            p = pt.zeros((n_obs, n_alts))
+            # Combine to get final choice probabilities: P(y) = P(y|nest) * P(nest).
+            # Derive the shape from U instead of the training row count.
+            # That keeps a data swap with a different row count compatible.
+            p = pt.zeros_like(U)
 
             for nest_name, indices in nest_indices.items():
                 p = pt.set_subtensor(
@@ -773,7 +827,6 @@ class NestedLogit(ModelBuilder):
             # Likelihood
             _ = pm.Categorical("likelihood", p=p, observed=y_data, dims="obs")
 
-        self.model = model
         return model
 
     def create_idata_attrs(self) -> dict[str, str]:
@@ -788,12 +841,27 @@ class NestedLogit(ModelBuilder):
         attrs = super().create_idata_attrs()
         attrs["covariates"] = json.dumps(self.covariates)
         attrs["depvar"] = json.dumps(self.depvar)
-        attrs["choice_df"] = json.dumps("Placeholder for DF")
+        # The choice data is persisted in the fit_data group rather than duplicated here.
+        # The base class still requires one attr per __init__ argument, so keep the key.
+        attrs["choice_df"] = json.dumps(None)
         attrs["nesting_structure"] = json.dumps(self.nesting_structure)
         attrs["utility_equations"] = json.dumps(self.utility_equations)
         attrs["alphas_nests"] = json.dumps(self.alphas_nests)
 
         return attrs
+
+    @classmethod
+    def attrs_to_init_kwargs(cls, attrs: Mapping[str, Any]) -> dict[str, Any]:
+        """Rehydrate the ``__init__`` kwargs from the serialised attrs.
+
+        Extends the shared kwargs with the nesting settings. The choice data
+        itself lives in the ``fit_data`` group and is restored by
+        :meth:`build_from_idata`.
+        """
+        kwargs = super().attrs_to_init_kwargs(attrs)
+        kwargs["nesting_structure"] = json.loads(attrs["nesting_structure"])
+        kwargs["alphas_nests"] = json.loads(attrs["alphas_nests"])
+        return kwargs
 
     def sample_prior_predictive(  # type: ignore[override]
         self,
@@ -809,9 +877,9 @@ class NestedLogit(ModelBuilder):
         Parameters
         ----------
         choice_df : pd.DataFrame, optional
-            New choice data. If None, uses data from initialization.
+            New choice data. If None, uses the choice data already set on the model.
         utility_equations : list[str], optional
-            New utility equations. If None, uses from initialization.
+            New utility equations. If None, uses the equations already set on the model.
         samples : int, optional
             Number of prior samples
         extend_idata : bool, optional
@@ -823,11 +891,15 @@ class NestedLogit(ModelBuilder):
         -------
         xr.DataTree
             Prior predictive samples
+
+        Raises
+        ------
+        ValueError
+            If no choice data has been provided, or if the model was already
+            built and the passed choice data or utility equations differ from
+            the ones it was built with.
         """
-        if choice_df is not None:
-            self.choice_df = choice_df
-        if utility_equations is not None:
-            self.utility_equations = utility_equations
+        self._set_choice_inputs(choice_df, utility_equations)
 
         if not hasattr(self, "model"):
             self.build_model()
@@ -846,21 +918,6 @@ class NestedLogit(ModelBuilder):
 
         return prior_pred
 
-    def create_fit_data_group(self) -> xr.Dataset:
-        """
-        Create xarray Dataset for storing choice_df in DataTree.
-
-        This allows the model to be reconstructed when loading from file.
-
-        Returns
-        -------
-        xr.Dataset
-            Choice data as xarray Dataset with 'obs' dimension
-        """
-        df_xr = self.choice_df.to_xarray()
-        df_xr = df_xr.rename({"index": "obs"})
-        return df_xr
-
     def fit(  # type: ignore[override]
         self,
         choice_df: pd.DataFrame | None = None,
@@ -878,9 +935,9 @@ class NestedLogit(ModelBuilder):
         Parameters
         ----------
         choice_df : pd.DataFrame, optional
-            New choice data. If None, uses data from initialization.
+            New choice data. If None, uses the choice data already set on the model.
         utility_equations : list[str], optional
-            New utility equations. If None, uses equations from initialization.
+            New utility equations. If None, uses the equations already set on the model.
         method : str
             Method used to fit the model. One of ``"mcmc"``, ``"map"``, ``"demz"``,
             ``"advi"`` or ``"fullrank_advi"``.
@@ -897,12 +954,14 @@ class NestedLogit(ModelBuilder):
         -------
         xr.DataTree
             Fitted model with posterior samples
+
+        Raises
+        ------
+        ValueError
+            If no choice data has been provided, or if the model was already
+            built with different choice data or utility equations.
         """
-        # Allow updating data at fit time
-        if choice_df is not None:
-            self.choice_df = choice_df
-        if utility_equations is not None:
-            self.utility_equations = utility_equations
+        self._set_choice_inputs(choice_df, utility_equations)
 
         return super().fit(
             method=method,
@@ -911,21 +970,6 @@ class NestedLogit(ModelBuilder):
             sample_kwargs=sample_kwargs,
             **kwargs,
         )
-
-    def build_from_idata(self, idata: xr.DataTree) -> None:
-        """
-        Build model from loaded DataTree.
-
-        This is called by load() after the model is initialized.
-
-        Parameters
-        ----------
-        idata : xr.DataTree
-            Loaded inference data
-        """
-        self.choice_df = idata["fit_data"].dataset.to_dataframe()
-        if not hasattr(self, "model"):
-            self.build_model()
 
     def sample_posterior_predictive(  # type: ignore[override]
         self,
@@ -949,24 +993,22 @@ class NestedLogit(ModelBuilder):
         -------
         xr.DataTree
             Posterior predictive samples
+
+        Raises
+        ------
+        ValueError
+            If no choice data has been provided.
         """
-        if choice_df is not None:
-            # Update data in existing model
-            new_X, new_F, new_y = self.preprocess_model_data(
-                choice_df, self.utility_equations
-            )
-            with self.model:
-                data_dict = {"X": new_X, "y": new_y}
-                if new_F is not None and len(new_F) > 0:
-                    data_dict["W"] = new_F
-                pm.set_data(data_dict)
+        self._require_choice_df()
 
         if self.idata is None:
             raise RuntimeError("self.idata must be initialized before extending")
-        with self.model:
-            post_pred = pm.sample_posterior_predictive(
-                self.idata, var_names=["likelihood", "p"], **kwargs
-            )
+
+        with self._temporary_model_data(choice_df, self.utility_equations):
+            with self.model:
+                post_pred = pm.sample_posterior_predictive(
+                    self.idata, var_names=["likelihood", "p"], **kwargs
+                )
 
         if extend_idata:
             self.idata.update(post_pred)
@@ -1008,10 +1050,16 @@ class NestedLogit(ModelBuilder):
             "idata_kwargs": {"log_likelihood": True},
         }
         sample_posterior_predictive_kwargs = sample_posterior_predictive_kwargs or {}
-        if not hasattr(self, "model"):
-            X, F, y = self.preprocess_model_data(self.choice_df, self.utility_equations)  # type: ignore
-            model = self.make_model(X, F, y)
-            self.model = model
+
+        if (
+            self.choice_df is None
+            and sample_prior_predictive_kwargs.get("choice_df") is None
+        ):
+            raise ValueError(
+                "Choice data is required to build the model. Pass it to "
+                "`fit(choice_df)` first, or to `sample_prior_predictive_kwargs` "
+                "when calling `sample`."
+            )
 
         self.sample_prior_predictive(
             extend_idata=True, **sample_prior_predictive_kwargs
@@ -1059,7 +1107,13 @@ class NestedLogit(ModelBuilder):
             The posterior or full predictive distribution under the intervention, including
             predicted probabilities (`"p"`) and likelihood draws (`"likelihood"`).
 
+        Raises
+        ------
+        ValueError
+            If no choice data has been provided.
         """
+        self._require_choice_df()
+
         if fit_kwargs is None:
             fit_kwargs = {
                 "target_accept": 0.97,
@@ -1070,37 +1124,34 @@ class NestedLogit(ModelBuilder):
         if not hasattr(self, "model"):
             self.sample()
         if new_utility_equations is None:
-            new_X, new_F, new_y = self.preprocess_model_data(
-                new_choice_df, self.utility_equations
-            )
-            with self.model:
-                if new_F is None:
-                    pm.set_data({"X": new_X, "y": new_y})
-                else:
-                    pm.set_data({"X": new_X, "W": new_F, "y": new_y})
-                # use the updated values and predict outcomes and probabilities:
-                idata_new_policy = pm.sample_posterior_predictive(
-                    self.idata,
-                    var_names=["p", "likelihood"],
-                    return_inferencedata=True,
-                    extend_inferencedata=False,
-                    random_seed=100,
-                )
+            with self._temporary_model_data(new_choice_df, self.utility_equations):
+                with self.model:
+                    # use the updated values and predict outcomes and probabilities:
+                    idata_new_policy = pm.sample_posterior_predictive(
+                        self.idata,
+                        var_names=["p", "likelihood"],
+                        return_inferencedata=True,
+                        extend_inferencedata=False,
+                        random_seed=100,
+                    )
 
             self.intervention_idata = idata_new_policy
         else:
-            new_X, new_F, new_y = self.preprocess_model_data(
-                new_choice_df, new_utility_equations
-            )
-            new_model = self.make_model(new_X, new_F, new_y)
-            with new_model:
-                idata_new_policy = pm.sample_prior_predictive()
-                idata_new_policy.update(pm.sample(**fit_kwargs))
-                idata_new_policy.update(
-                    pm.sample_posterior_predictive(
-                        idata_new_policy, var_names=["p", "likelihood"]
-                    ),
+            try:
+                new_X, new_F, new_y = self.preprocess_model_data(
+                    new_choice_df, new_utility_equations
                 )
+                new_model = self.make_model(new_X, new_F, new_y)
+                with new_model:
+                    idata_new_policy = pm.sample_prior_predictive()
+                    idata_new_policy.update(pm.sample(**fit_kwargs))
+                    idata_new_policy.update(
+                        pm.sample_posterior_predictive(
+                            idata_new_policy, var_names=["p", "likelihood"]
+                        ),
+                    )
+            finally:
+                self._restore_model_data()
 
             self.intervention_idata = idata_new_policy
 

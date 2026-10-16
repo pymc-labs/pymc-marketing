@@ -89,21 +89,23 @@ def nesting_structure_invalid_two_layer():
 
 
 @pytest.fixture
-def nstL(sample_df, utility_eqs, nesting_structure_1):
+def nstL(utility_eqs, nesting_structure_1):
     return NestedLogit(
-        sample_df, utility_eqs, "choice", ["X1", "X2"], nesting_structure_1
+        utility_equations=utility_eqs,
+        depvar="choice",
+        covariates=["X1", "X2"],
+        nesting_structure=nesting_structure_1,
     )
 
 
 @pytest.fixture
-def nstL2_invalid(sample_df, utility_eqs, nesting_structure_invalid_two_layer):
+def nstL2_invalid(utility_eqs, nesting_structure_invalid_two_layer):
     """NestedLogit instance that will fail with two-layer nesting."""
     return NestedLogit(
-        sample_df,
-        utility_eqs,
-        "choice",
-        ["X1", "X2"],
-        nesting_structure_invalid_two_layer,
+        utility_equations=utility_eqs,
+        depvar="choice",
+        covariates=["X1", "X2"],
+        nesting_structure=nesting_structure_invalid_two_layer,
     )
 
 
@@ -212,8 +214,7 @@ def test_build_model_2layer_raises_error(nstL2_invalid, sample_df, utility_eqs):
 
 
 def test_sample(nstL, sample_df, utility_eqs, mock_pymc_sample):
-    X, F, y = nstL.preprocess_model_data(sample_df, utility_eqs)
-    _ = nstL.make_model(X, F, y)
+    nstL.fit(sample_df)
     nstL.sample_prior_predictive(
         samples=5,
         extend_idata=True,
@@ -242,11 +243,8 @@ def test_sample(nstL, sample_df, utility_eqs, mock_pymc_sample):
         )
 
 
-def test_counterfactual(
-    nstL, sample_df, utility_eqs, new_utility_eqs, mock_pymc_sample
-):
-    X, F, y = nstL.preprocess_model_data(sample_df, utility_eqs)
-    _ = nstL.make_model(X, F, y)
+def test_counterfactual(nstL, sample_df, new_utility_eqs, mock_pymc_sample):
+    nstL.fit(sample_df)
     nstL.sample()
     new = sample_df.copy()
     nstL.apply_intervention(new)
@@ -262,8 +260,7 @@ def test_counterfactual(
 def test_counterfactual_removal(
     nstL, sample_df, utility_eqs_non_fixed, new_utility_eqs, mock_pymc_sample
 ):
-    X, F, y = nstL.preprocess_model_data(sample_df, utility_eqs_non_fixed)
-    _ = nstL.make_model(X, F, y)
+    nstL.fit(sample_df, utility_equations=utility_eqs_non_fixed)
     nstL.sample()
     new = sample_df[sample_df["choice"] != "another"]
     nstL.nesting_structure = {"nest1": ["alt", "other"], "nest2": ["option"]}

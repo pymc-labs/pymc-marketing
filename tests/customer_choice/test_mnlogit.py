@@ -67,8 +67,10 @@ def utility_eqs():
 
 
 @pytest.fixture
-def mnl(sample_df, utility_eqs):
-    return MNLogit(sample_df, utility_eqs, "choice", ["X1", "X2"])
+def mnl(utility_eqs):
+    return MNLogit(
+        utility_equations=utility_eqs, depvar="choice", covariates=["X1", "X2"]
+    )
 
 
 @pytest.fixture
@@ -77,8 +79,10 @@ def utility_eqs_no_fixed():
 
 
 @pytest.fixture
-def mnl_no_fixed(sample_df, utility_eqs_no_fixed):
-    return MNLogit(sample_df, utility_eqs_no_fixed, "choice", ["X1", "X2"])
+def mnl_no_fixed(utility_eqs_no_fixed):
+    return MNLogit(
+        utility_equations=utility_eqs_no_fixed, depvar="choice", covariates=["X1", "X2"]
+    )
 
 
 def test_parse_formula_valid(mnl, sample_df):
@@ -153,9 +157,8 @@ def test_build_model_returns_pymc_model(mnl, sample_df, utility_eqs):
     assert mnl.covariates == ["X1", "X2"]
 
 
-def test_sample(mnl, mock_pymc_sample):
-    X, F, y = mnl.preprocess_model_data(mnl.choice_df, mnl.utility_equations)
-    _ = mnl.make_model(X, F, y)
+def test_sample(mnl, sample_df, mock_pymc_sample):
+    mnl.fit(sample_df)
     mnl.sample()
     assert "prior_predictive" in mnl.idata
     mnl.sample()
@@ -167,10 +170,10 @@ def test_sample(mnl, mock_pymc_sample):
     assert "posterior_predictive" in mnl.idata
     assert "fit_data" in mnl.idata
 
-    mnl.sample_posterior_predictive(choice_df=mnl.choice_df, extend_idata=True)
+    mnl.sample_posterior_predictive(choice_df=sample_df, extend_idata=True)
     assert isinstance(mnl.idata, xr.DataTree)
 
-    mnl.fit(choice_df=mnl.choice_df, utility_equations=mnl.utility_equations)
+    mnl.fit(choice_df=sample_df, utility_equations=mnl.utility_equations)
 
     with pytest.raises(
         RuntimeError, match=r"self.idata must be initialized before extending"
@@ -181,11 +184,10 @@ def test_sample(mnl, mock_pymc_sample):
         )
 
 
-def test_counterfactual(mnl, mock_pymc_sample):
-    X, F, y = mnl.preprocess_model_data(mnl.choice_df, mnl.utility_equations)
-    _ = mnl.make_model(X, F, y)
+def test_counterfactual(mnl, sample_df, mock_pymc_sample):
+    mnl.fit(sample_df)
     mnl.sample()
-    new = mnl.choice_df.copy()
+    new = sample_df.copy()
     new["alt_X1"] = new["alt_X1"] * 1.2
     mnl.apply_intervention(new)
     change_df = mnl.calculate_share_change(mnl.idata, mnl.intervention_idata)
@@ -435,12 +437,9 @@ class TestMakeModelIntegration:
 class TestBackwardCompatibility:
     """Tests to ensure refactored code maintains backward compatibility."""
 
-    def test_same_model_structure_as_original(
-        self, mnl, sample_df, utility_eqs, mock_pymc_sample
-    ):
+    def test_same_model_structure_as_original(self, mnl, sample_df, mock_pymc_sample):
         """Test that refactored model produces same structure as original."""
-        X, F, y = mnl.preprocess_model_data(sample_df, utility_eqs)
-        _ = mnl.make_model(X, F, y)
+        mnl.fit(sample_df)
 
         # Test sampling still works
         mnl.sample()
@@ -452,11 +451,10 @@ class TestBackwardCompatibility:
 
     def test_intervention_still_works(self, mnl, sample_df, mock_pymc_sample):
         """Test that interventions work with refactored model."""
-        X, F, y = mnl.preprocess_model_data(mnl.choice_df, mnl.utility_equations)
-        _ = mnl.make_model(X, F, y)
+        mnl.fit(sample_df)
         mnl.sample()
 
-        new = mnl.choice_df.copy()
+        new = sample_df.copy()
         new["alt_X1"] = new["alt_X1"] * 1.2
         idata_new = mnl.apply_intervention(new)
 
@@ -470,7 +468,9 @@ class TestEdgeCases:
     def test_single_covariate(self, sample_df):
         """Test model with single alternative-specific covariate."""
         utility_eqs_single = ["alt ~ alt_X1 | income", "other ~ other_X1 | income"]
-        mnl_single = MNLogit(sample_df, utility_eqs_single, "choice", ["X1"])
+        mnl_single = MNLogit(
+            utility_equations=utility_eqs_single, depvar="choice", covariates=["X1"]
+        )
 
         X, F, y = mnl_single.preprocess_model_data(sample_df, utility_eqs_single)
         model = mnl_single.make_model(X, F, y)
@@ -495,7 +495,9 @@ class TestEdgeCases:
             "alt3 ~ alt3_X1",
             "alt4 ~ alt4_X1",
         ]
-        mnl_many = MNLogit(df_many, utility_eqs_many, "choice", ["X1"])
+        mnl_many = MNLogit(
+            utility_equations=utility_eqs_many, depvar="choice", covariates=["X1"]
+        )
 
         X, F, y = mnl_many.preprocess_model_data(df_many, utility_eqs_many)
         model = mnl_many.make_model(X, F, y)
