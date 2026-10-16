@@ -64,6 +64,11 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :link: ../notebooks/mmm/mmm_multiplicative.html
 :::
 
+:::{grid-item-card} Introduction to Mu Effects: Channel Interactions
+:img-top: ../gallery/images/mmm_mu_effects_intro.png
+:link: ../notebooks/mmm/mmm_mu_effects_intro.html
+:::
+
 :::{grid-item-card} Interactive MMM Visualizations
 :img-top: ../gallery/images/plot_interactive.png
 :link: ../notebooks/mmm/plot_interactive.html
