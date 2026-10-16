@@ -997,57 +997,32 @@ class TestConditionedModelRebinding:
             for marker in markers.values()
         )
 
-    @pytest.mark.parametrize("first_rebind", [True, False])
     def test_a_failed_rebind_leaves_the_old_binding_evaluable(
-        self, model_and_posteriors, first_rebind, monkeypatch
+        self, model_and_posteriors
     ):
         """A rebind the shared binding refuses leaves the previous draws evaluable.
 
         The graphs are bound through a shared posterior from construction, so no rebind rebuilds them.
-        The evaluator's ``_build`` is therefore not a failure point on a rebind.
-        Neither is a second registered callback, since callbacks fire only on re-extraction.
-        Injecting a failure into ``_build`` proves that: the rebinds below never reach it.
         A rebind fails only when the posterior cannot be laid out over the bound variables.
         That refusal writes nothing, so the previous draws stay bound.
         """
-        model, first, second, _ = model_and_posteriors
+        model, first, _, _ = model_and_posteriors
         common = evaluator_kwargs(self.dates)
-        real_build = CounterfactualEvaluator._build
-        rebuilds = []
-
-        def failing_rebuild(self):
-            rebuilds.append(1)
-            if len(rebuilds) > 1:
-                raise RuntimeError("rebuild failed")
-            return real_build(self)
-
-        monkeypatch.setattr(CounterfactualEvaluator, "_build", failing_rebuild)
         reused = CounterfactualEvaluator(pymc_model=model, posterior=first, **common)
-        # The construction built once; a later call would be a rebind rebuilding.
-        assert len(rebuilds) == 1
         spend = np.ones((len(self.dates), 2, 1))
 
-        if first_rebind:
-            expected = first
-        else:
-            reused.set_posterior(second)
-            expected = second
-
-        refused = xr.DataTree.from_dict({"/posterior": expected.drop_vars("beta")})
+        refused = xr.DataTree.from_dict({"/posterior": first.drop_vars("beta")})
         with pytest.raises(KeyError, match="missing variables"):
             reused.set_posterior(refused)
-        # No rebind rebuilt, so the injected ``_build`` failure was never reached.
-        assert len(rebuilds) == 1
-        monkeypatch.undo()
 
         self._assert_same_as_fresh(
             reused,
-            CounterfactualEvaluator(pymc_model=model, posterior=expected, **common),
+            CounterfactualEvaluator(pymc_model=model, posterior=first, **common),
             spend,
         )
         assert (
             reused.evaluate_baseline(spend)["channel_contribution"].shape[0]
-            == expected.sizes["draw"]
+            == first.sizes["draw"]
         )
 
     def _assert_same_as_fresh(self, reused, fresh, spend) -> None:

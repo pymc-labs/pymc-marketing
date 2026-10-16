@@ -737,8 +737,8 @@ class CounterfactualEvaluator:
     ``(date, country, channel)`` -- and callers that add those two together
     cannot each rediscover that.
 
-    The evaluator owns a :class:`~pymc_marketing.pytensor_utils.ConditionedModel` and registers a recompile callback.
-    That object binds the draws through a shared posterior from its first extraction.
+    The evaluator owns a :class:`~pymc_marketing.pytensor_utils.ConditionedModel`.
+    That object binds the draws through a shared posterior from construction.
     :meth:`set_posterior` then re-points it at new draws without recompiling, whatever the draw count.
     The sample axis is derived from the bound posterior rather than fixed at construction.
     A response the intervention has cut every random variable out of is broadcast over the live draw count.
@@ -885,9 +885,6 @@ class CounterfactualEvaluator:
         self._do_model = self._conditioned.model
         self._build()
         self._check_expected_aux_values()
-        # The graphs are shared from construction, so a rebind never re-extracts and the rebuild stays dormant.
-        # It is registered anyway, so the evaluator recompiles from it if a rebind ever does re-extract.
-        self._conditioned.register(self._build)
 
     def _extract_graphs(self) -> list[Variable]:
         """Resolve the requested responses and extract their conditioned graphs.
