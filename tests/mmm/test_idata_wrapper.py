@@ -2422,6 +2422,239 @@ def test_get_target_scale_returns_scale_array(multidim_idata):
     xr.testing.assert_equal(target_scale, multidim_idata.constant_data.target_scale)
 
 
+def _predictive_tree(
+    *,
+    stored: dict[str, float] | None = None,
+    with_y: bool = True,
+) -> xr.DataTree:
+    """Predictive groups with a per-geo ``target_scale``.
+
+    ``stored`` maps a group (``"posterior_predictive"`` or ``"prior"``) to a
+    multiplier for a stored ``y_original_scale = y * multiplier`` there, so a
+    test can tell a stored variable from a derived one.
+    """
+    dates = pd.date_range("2024-01-01", periods=4, freq="W")
+    geos = ["A", "B", "C"]
+    coords = {"chain": [0], "draw": [0, 1, 2], "date": dates, "geo": geos}
+    y_post = xr.DataArray(
+        rng.normal(size=(1, 3, 4, 3)),
+        dims=("chain", "draw", "date", "geo"),
+        coords=coords,
+    )
+    y_prior = xr.DataArray(
+        rng.normal(size=(1, 3, 3, 4)),
+        dims=("chain", "draw", "geo", "date"),
+        coords=coords,
+    )
+    stored = stored or {}
+    groups: dict[str, xr.Dataset] = {
+        "/posterior_predictive": xr.Dataset({"y": y_post} if with_y else {}),
+        "/prior_predictive": xr.Dataset({"y": y_prior} if with_y else {}),
+        "/prior": xr.Dataset(),
+        "/constant_data": xr.Dataset(
+            {
+                "target_data": xr.DataArray(
+                    rng.normal(size=(4, 3)) * 100,
+                    dims=("date", "geo"),
+                    coords={"date": dates, "geo": geos},
+                ),
+                "target_scale": xr.DataArray(
+                    [10.0, 1000.0, 50.0], dims=("geo",), coords={"geo": geos}
+                ),
+            }
+        ),
+    }
+
+    if "posterior_predictive" in stored:
+        groups["/posterior_predictive"]["y_original_scale"] = (
+            y_post * stored["posterior_predictive"]
+        )
+
+    if "prior" in stored:
+        groups["/prior"]["y_original_scale"] = y_prior * stored["prior"]
+
+    return xr.DataTree.from_dict(groups)
+
+
+class TestGetPredictiveTarget:
+    """``get_predictive_target`` returns ``y * target_scale`` under every link.
+
+    A stored ``y_original_scale`` (the ``y`` opt-in) is the same product and is
+    returned as is; otherwise the product is derived from the ``y`` draws.
+    """
+
+    @pytest.mark.parametrize(
+        ("group", "predictive"),
+        [("posterior", "posterior_predictive"), ("prior", "prior_predictive")],
+    )
+    def test_derives_per_geo_product_when_nothing_is_stored(self, group, predictive):
+        idata = _predictive_tree()
+        wrapper = MMMIDataWrapper(idata, validate_on_init=False)
+        draws = idata[predictive].dataset["y"]
+
+        got = wrapper.get_predictive_target(group, original_scale=True)
+
+        assert got.dims == draws.dims
+        xr.testing.assert_allclose(got, draws * idata.constant_data["target_scale"])
+
+    @pytest.mark.parametrize(
+        ("group", "stored_group"),
+        [("posterior", "posterior_predictive"), ("prior", "prior")],
+    )
+    def test_returns_the_stored_variable_when_present(self, group, stored_group):
+        idata = _predictive_tree(stored={stored_group: 7.0})
+        wrapper = MMMIDataWrapper(idata, validate_on_init=False)
+
+        got = wrapper.get_predictive_target(group, original_scale=True)
+
+        xr.testing.assert_identical(
+            got, idata[stored_group].dataset["y_original_scale"]
+        )
+
+    @pytest.mark.parametrize("group", ["posterior", "prior"])
+    def test_scaled_returns_the_raw_draws(self, group):
+        idata = _predictive_tree(stored={"posterior_predictive": 7.0, "prior": 7.0})
+        wrapper = MMMIDataWrapper(idata, validate_on_init=False)
+        predictive = (
+            "posterior_predictive" if group == "posterior" else "prior_predictive"
+        )
+
+        got = wrapper.get_predictive_target(group, original_scale=False)
+
+        xr.testing.assert_identical(got, idata[predictive].dataset["y"])
+
+    @pytest.mark.parametrize("group", ["posterior", "prior"])
+    def test_raises_when_draws_are_missing(self, group):
+        wrapper = MMMIDataWrapper(
+            _predictive_tree(with_y=False), validate_on_init=False
+        )
+        with pytest.raises(ValueError, match="'y' not found"):
+            wrapper.get_predictive_target(group, original_scale=True)
+
+    def test_raises_when_the_predictive_group_is_missing(self):
+        idata = xr.DataTree.from_dict(
+            {"/constant_data": _predictive_tree().constant_data.to_dataset()}
+        )
+        wrapper = MMMIDataWrapper(idata, validate_on_init=False)
+        with pytest.raises(ValueError, match="No posterior_predictive data"):
+            wrapper.get_predictive_target("posterior")
+        with pytest.raises(ValueError, match="No prior_predictive data"):
+            wrapper.get_predictive_target("prior")
+
+    def test_rejects_unknown_group(self):
+        """Only the two predictive passes exist; anything else is an error, not the prior."""
+        wrapper = MMMIDataWrapper(_predictive_tree(), validate_on_init=False)
+
+        for group in ("posterior_predictive", "Posterior", "prior_predictive"):
+            with pytest.raises(ValueError, match="group"):
+                wrapper.get_predictive_target(group)
+
+
+class TestAggregateDimsPredictiveTarget:
+    """``aggregate_dims`` keeps ``y * target_scale`` exact over a per-geo scale.
+
+    ``aggregate_idata_dims`` sums ``target_scale`` along the aggregated dim, so
+    a product derived afterwards would be ``sum(y) * sum(s)``. The wrapper
+    stores the product before aggregating, so it aggregates as draws.
+    """
+
+    @pytest.mark.parametrize(
+        ("group", "predictive"),
+        [("posterior", "posterior_predictive"), ("prior", "prior_predictive")],
+    )
+    @pytest.mark.parametrize("method", ["sum", "mean"])
+    def test_aggregated_geo_is_the_aggregate_of_per_geo_products(
+        self, group, predictive, method
+    ):
+        idata = _predictive_tree()
+        wrapper = MMMIDataWrapper(idata, validate_on_init=False)
+        product = idata[predictive].dataset["y"] * idata.constant_data["target_scale"]
+        expected_ab = getattr(product.sel(geo=["A", "B"]), method)("geo")
+
+        got = wrapper.aggregate_dims("geo", ["A", "B"], "AB", method=method)
+        got = got.get_predictive_target(group, original_scale=True)
+
+        xr.testing.assert_allclose(got.sel(geo="AB", drop=True), expected_ab)
+        xr.testing.assert_allclose(got.sel(geo="C"), product.sel(geo="C"))
+
+    def test_residuals_match_the_per_geo_products(self):
+        from pymc_marketing.mmm.summary.helpers import compute_residuals
+
+        idata = _predictive_tree()
+        target = idata.constant_data["target_data"]
+        product = (
+            idata["posterior_predictive"].dataset["y"]
+            * idata.constant_data["target_scale"]
+        )
+
+        aggregated = MMMIDataWrapper(idata, validate_on_init=False).aggregate_dims(
+            "geo", ["A", "B"], "AB"
+        )
+        residuals = compute_residuals(aggregated).sel(geo="AB", drop=True)
+
+        expected = target.sel(geo=["A", "B"]).sum("geo") - product.sel(
+            geo=["A", "B"]
+        ).sum("geo")
+        xr.testing.assert_allclose(residuals, expected.transpose(*residuals.dims))
+
+    def test_does_not_touch_the_original_idata(self):
+        idata = _predictive_tree()
+        MMMIDataWrapper(idata, validate_on_init=False).aggregate_dims(
+            "geo", ["A", "B"], "AB"
+        )
+        assert "y_original_scale" not in idata["posterior_predictive"].dataset
+        assert "y_original_scale" not in idata["prior"].dataset
+
+    @pytest.mark.parametrize("prior", ["absent", "empty"])
+    def test_stores_the_prior_pass_when_prior_is_empty_or_absent(self, prior):
+        """A prior pass sampled with ``var_names=["y"]`` leaves ``prior`` empty or absent.
+
+        The aggregation copy still stores the product there, so the prior pass
+        aggregates exactly.
+        """
+        idata = _predictive_tree()
+
+        if prior == "absent":
+            del idata["prior"]
+
+        product = (
+            idata["prior_predictive"].dataset["y"] * idata.constant_data["target_scale"]
+        )
+
+        aggregated = MMMIDataWrapper(idata, validate_on_init=False).aggregate_dims(
+            "geo", ["A", "B"], "AB"
+        )
+        got = aggregated.get_predictive_target("prior", original_scale=True)
+
+        xr.testing.assert_allclose(
+            got.sel(geo="AB", drop=True), product.sel(geo=["A", "B"]).sum("geo")
+        )
+
+    def test_leaves_groups_untouched_when_target_scale_lacks_the_dim(self):
+        """Aggregating a dim the scale does not vary along stores nothing extra."""
+        idata = _predictive_tree()
+        idata["/posterior"] = xr.Dataset(
+            {
+                "beta": xr.DataArray(
+                    rng.normal(size=(1, 3, 2)),
+                    dims=("chain", "draw", "channel"),
+                    coords={
+                        "chain": [0],
+                        "draw": [0, 1, 2],
+                        "channel": ["TV", "Radio"],
+                    },
+                )
+            }
+        )
+        aggregated = MMMIDataWrapper(idata, validate_on_init=False).aggregate_dims(
+            "channel", ["TV", "Radio"], "Media"
+        )
+        assert (
+            "y_original_scale" not in aggregated.idata["posterior_predictive"].dataset
+        )
+        assert "y_original_scale" not in aggregated.idata["prior"].dataset
+
+
 def test_get_target_scale_drops_synthetic_singleton_dimension():
     """A scalar stored as a length-one array is returned as a scalar."""
     idata = xr.DataTree.from_dict(

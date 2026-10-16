@@ -38,6 +38,7 @@ from pymc_marketing.mmm.components.saturation import SaturationTransformation
 from pymc_marketing.mmm.linear_trend import LinearTrend
 from pymc_marketing.mmm.media_transformation import MediaTransformation
 from pymc_marketing.mmm.mmm import MMM
+from pymc_marketing.mmm.transformers import geometric_adstock, logistic_saturation
 from pymc_marketing.serialization import serialization
 from pymc_marketing.special_priors import LogNormalPrior
 
@@ -94,6 +95,10 @@ def _make_mmm_data(
     return {"X": X, "y": y}
 
 
+# The data of ``simple_mmm_data``, for module-scoped fixtures that build their own.
+SIMPLE_MMM_DATA_KWARGS: dict = {"periods": 14, "freq": "W", "n_channels": 3, "seed": 42}
+
+
 @pytest.fixture
 def simple_mmm_data():
     """Create simple single-dimension MMM data.
@@ -102,7 +107,7 @@ def simple_mmm_data():
     - X: DataFrame with date and 3 channels (14 weekly periods)
     - y: Series with target values
     """
-    return _make_mmm_data(periods=14, freq="W", n_channels=3, seed=42)
+    return _make_mmm_data(**SIMPLE_MMM_DATA_KWARGS)
 
 
 @pytest.fixture
@@ -1197,6 +1202,71 @@ class SharedDenominatorSaturation(SaturationTransformation):
     def function(self, x, beta, *, dim: str | None = None):
         """Saturate each channel against the total spend of all of them."""
         return beta * x / (1.0 + x.sum("channel"))
+
+    default_priors = {"beta": Prior("HalfNormal", sigma=1.0)}
+
+
+@serialization.register
+class DateNormalizedSaturation(SaturationTransformation):
+    r"""A media transform that is *not* a causal filter in time.
+
+    Each channel is scaled by its own average spend over the fitted dates,
+
+    .. math::
+
+        v_{t,c} = \beta \frac{x_{t,c}}{1 + \bar{x}_c},
+
+    so a change of spend on one date moves every date, earlier ones included.
+    Separable across channels, so only the reach probe can catch it.
+    """
+
+    def function(self, x, beta, *, dim: str | None = None):
+        """Scale each channel by one plus its mean over ``date``."""
+        return beta * x / (1.0 + x.mean("date"))
+
+    default_priors = {"beta": Prior("HalfNormal", sigma=1.0)}
+
+
+@serialization.register
+class CarryoverSaturation(SaturationTransformation):
+    r"""A media transform that carries spend over a window of dates of its own.
+
+    A geometric carryover runs *inside* the saturation,
+
+    .. math::
+
+        v_{t,c} = \beta \, h\Big(\sum_{l<4} 0.7^l x_{t-l,c}\Big),
+
+    so it reaches further than the model's adstock kernel, and the response on
+    a date is no longer one cohort's.  Separable across channels, bounded in
+    time: only a comparison of the probe's reach with the kernel catches it.
+    """
+
+    def function(self, x, beta, *, dim: str | None = None):
+        """Saturate a four-lag geometric carryover of the spend."""
+        carried = geometric_adstock(x, 0.7, l_max=4, dim="date")
+        return beta * logistic_saturation(carried, 1.0)
+
+    default_priors = {"beta": Prior("HalfNormal", sigma=1.0)}
+
+
+@serialization.register
+class OffsetSaturation(SaturationTransformation):
+    r"""A saturation that does not pass through the origin.
+
+    .. math::
+
+        v_{t,c} = \beta \big(h(x_{t,c}) + 0.5\big),
+
+    so zero spend still contributes :math:`0.5 \beta`.  Every built-in
+    saturation is zero at zero spend, which hides whether a closed form
+    subtracts the zero-spend value.  Pointwise in time and separable across
+    channels, so the spend probe has nothing to refuse.
+    """
+
+    def function(self, x, beta, *, dim: str | None = None):
+        """Shift a logistic saturation up by half its scale."""
+        return beta * (logistic_saturation(x, 1.0) + 0.5)
 
     default_priors = {"beta": Prior("HalfNormal", sigma=1.0)}
 

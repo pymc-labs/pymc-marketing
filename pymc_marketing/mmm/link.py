@@ -102,6 +102,14 @@ ADDITIVE_CORRECTION_LIKELIHOODS = frozenset({"TruncatedNormal"})
 #: added here rather than spread across the component contributions.
 BASELINE_PART = "intercept"
 
+#: Name of the Deterministic holding the inverse link of the linear predictor
+#: on the original scale, ``original_scale_transform(mu)``.  Under
+#: ``link="log"`` it is ``exp(mu) * target_scale``, the LogNormal median, and
+#: ``MMM.build_model`` registers it.  It is a prediction without observation
+#: noise; the predictive draws of the target on the original scale are
+#: ``y_original_scale = y * target_scale`` under every link (issue #3132).
+MU_ORIGINAL_SCALE = "mu_original_scale"
+
 #: Prior wrappers that hold another distribution and move its mean off ``mu``,
 #: so no identity-link mean correction is defined for them.  Matched by type
 #: rather than by the absence of a ``parameters`` attribute, so that a wrapper
@@ -407,7 +415,8 @@ class LinkSpec(ABC):
     * :meth:`default_intercept` -- default intercept prior.
     * :meth:`validate_target` -- fit-time target checks.
     * :meth:`create_media_contribution_deterministic` -- graph for
-      ``total_media_contribution_original_scale``.
+      ``total_media_contribution_original_scale`` (and, under the log link,
+      :data:`MU_ORIGINAL_SCALE`).
     * :meth:`channel_incremental_contribution` -- the per-channel level change
       a cost-per-target calibration constrains, registered under
       :attr:`channel_increment_var`.
@@ -476,13 +485,11 @@ class LinkSpec(ABC):
         mu_var: XTensorVariable,
         channel_contribution: XTensorVariable,
         target_scale: XTensorVariable,
-        output_var: str = "y",
     ) -> None:
         """Register total media contribution deterministic nodes.
 
         Creates ``total_media_contribution_original_scale`` (and, for the log
-        link, ``{output_var}_original_scale``) as :func:`pmd.Deterministic`
-        nodes.
+        link, :data:`MU_ORIGINAL_SCALE`) as :func:`pmd.Deterministic` nodes.
         """
 
     @abstractmethod
@@ -1028,7 +1035,6 @@ class IdentityLinkSpec(LinkSpec):
         mu_var: XTensorVariable,
         channel_contribution: XTensorVariable,
         target_scale: XTensorVariable,
-        output_var: str = "y",
     ) -> None:
         """Register additive ``total_media_contribution_original_scale``."""
         pmd.Deterministic(
@@ -1377,9 +1383,8 @@ class LogLinkSpec(LinkSpec):
         mu_var: XTensorVariable,
         channel_contribution: XTensorVariable,
         target_scale: XTensorVariable,
-        output_var: str = "y",
     ) -> None:
-        """Register counterfactual ``total_media_contribution_original_scale`` and ``{output_var}_original_scale``.
+        """Register counterfactual ``total_media_contribution_original_scale`` and :data:`MU_ORIGINAL_SCALE`.
 
         The counterfactual ``exp(mu) - exp(mu - media)`` is a median-scale
         delta for whatever variable the likelihood puts ``mu`` on.  Under a
@@ -1389,6 +1394,12 @@ class LogLinkSpec(LinkSpec):
         :meth:`LogLinkSpec.validate_target` rejects any non-positive target,
         so the zero-inflated data that left-censoring at zero is meant for
         cannot be fitted under this link at all.
+
+        :data:`MU_ORIGINAL_SCALE` is ``exp(mu) * target_scale``, the LogNormal
+        median per date: the same ``original_scale_transform`` applied to
+        ``mu`` that the ``*_original_scale`` opt-in applies to a component.
+        It is not the output variable: ``y_original_scale`` stays
+        ``y * target_scale``, the predictive draws with observation noise.
         """
         mu_media = channel_contribution.sum(dim="channel")
         y_hat = ptxm.exp(mu_var) * target_scale
@@ -1399,10 +1410,7 @@ class LogLinkSpec(LinkSpec):
             (y_hat - y_hat_no_media).sum(dim="date").sum(),
         )
 
-        pmd.Deterministic(
-            f"{output_var}_original_scale",
-            y_hat.transpose("date", ...),
-        )
+        pmd.Deterministic(MU_ORIGINAL_SCALE, y_hat.transpose("date", ...))
 
     def channel_incremental_contribution(
         self,

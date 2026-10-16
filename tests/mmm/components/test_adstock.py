@@ -28,9 +28,12 @@ from scipy import stats
 import pymc_marketing.mmm.components.adstock as adstock_module
 from pymc_marketing.mmm.components.adstock import (
     AdstockTransformation,
+    BinomialAdstock,
     DelayedAdstock,
     GeometricAdstock,
     NoAdstock,
+    WeibullCDFAdstock,
+    WeibullPDFAdstock,
 )
 from pymc_marketing.mmm.components.base import ParameterPriorException
 from pymc_marketing.mmm.transformers import ConvMode
@@ -182,6 +185,180 @@ def test_geometric_adstock_curve_constant_alpha_with_dims() -> None:
     curve = adstock.sample_curve(prior)
 
     assert curve.sizes["channel"] == 3
+
+
+class TestCumulativeWeights:
+    """``AdstockTransformation.cumulative_weights``: the share landing within a horizon."""
+
+    @staticmethod
+    def _fixed_alpha(alpha, **kwargs):
+        adstock = GeometricAdstock(priors={"alpha": alpha}, **kwargs)
+        return adstock, adstock.sample_prior(coords={"channel": ["A", "B", "C"]})
+
+    @pytest.mark.parametrize("normalize", [True, False])
+    @pytest.mark.parametrize("horizon", [0, 1, 3, 5])
+    def test_geometric_matches_the_closed_form(self, normalize, horizon) -> None:
+        """``(1 - a**(c+1)) / (1 - a**l_max)``, with or without normalization."""
+        alpha = np.array([0.5, 0.3, 0.8])
+        adstock, prior = self._fixed_alpha(
+            as_xtensor(alpha, dims=("channel",)), l_max=6, normalize=normalize
+        )
+
+        share = adstock.cumulative_weights(prior, horizon, progressbar=False)
+
+        expected = (1 - alpha ** (horizon + 1)) / (1 - alpha**6)
+        assert share.dims == ("chain", "draw", "channel")
+        np.testing.assert_allclose(share.values[0, 0], expected, rtol=1e-12)
+
+    @pytest.mark.parametrize("normalize", [True, False])
+    def test_the_whole_kernel_is_exactly_one(self, normalize) -> None:
+        adstock, prior = self._fixed_alpha(
+            as_xtensor(np.array([0.5, 0.3, 0.8]), dims=("channel",)),
+            l_max=7,
+            normalize=normalize,
+        )
+
+        share = adstock.cumulative_weights(prior, 6, progressbar=False)
+        curve = adstock.cumulative_weights(prior, None, progressbar=False)
+
+        assert (share.values == 1.0).all()
+        assert (curve.sel(horizon=6).values == 1.0).all()
+
+    def test_a_single_weight_kernel_is_all_current(self) -> None:
+        adstock = GeometricAdstock(l_max=1)
+
+        share = adstock.cumulative_weights(adstock.sample_prior(), 0, progressbar=False)
+
+        np.testing.assert_allclose(share.values, 1.0)
+
+    @pytest.mark.parametrize(
+        "adstock",
+        [
+            GeometricAdstock(l_max=6),
+            DelayedAdstock(l_max=6),
+            WeibullPDFAdstock(l_max=6),
+            WeibullCDFAdstock(l_max=6),
+            BinomialAdstock(l_max=6),
+        ],
+        ids=lambda adstock: type(adstock).__name__,
+    )
+    def test_every_built_in_kernel_rises_to_one(self, adstock) -> None:
+        """Every built-in kernel, draw by draw: non-decreasing, ending at one.
+
+        Draws whose kernel is not finite (a Weibull can underflow to ``0 / 0``
+        for extreme parameters) give ``NaN`` and are pinned separately below.
+        """
+        prior = adstock.sample_prior(random_seed=1)
+        finite = np.isfinite(adstock.sample_curve(prior, progressbar=False).values).all(
+            axis=-1
+        )
+
+        shares = np.stack(
+            [
+                adstock.cumulative_weights(prior, horizon, progressbar=False).values
+                for horizon in range(adstock.l_max)
+            ],
+            axis=-1,
+        )
+
+        assert (np.diff(shares[finite], axis=-1) >= -1e-15).all()
+        assert (shares[finite][..., -1] == 1.0).all()
+        assert np.isnan(shares[~finite]).all()
+
+    def test_delayed_matches_its_analytic_kernel(self) -> None:
+        """Each step of ``C`` is the analytic weight ``alpha**((l - theta)**2)`` over the total."""
+        alpha, theta = np.array([0.4, 0.8]), np.array([1.0, 3.0])
+        adstock = DelayedAdstock(
+            l_max=6,
+            normalize=False,
+            priors={
+                "alpha": as_xtensor(alpha, dims=("channel",)),
+                "theta": as_xtensor(theta, dims=("channel",)),
+            },
+        )
+        prior = adstock.sample_prior(coords={"channel": ["A", "B"]})
+
+        curve = adstock.cumulative_weights(prior, progressbar=False)
+
+        lags = np.arange(6)[:, None]
+        weights = alpha ** ((lags - theta) ** 2)
+        expected = np.cumsum(weights, axis=0) / weights.sum(axis=0)
+        np.testing.assert_allclose(
+            curve.isel(chain=0, draw=0).transpose("horizon", "channel").values,
+            expected,
+            rtol=1e-12,
+        )
+
+    def test_a_draw_without_a_finite_kernel_has_no_share(self) -> None:
+        """The ``NaN`` of an underflowed kernel is passed on, not turned into a number.
+
+        With ``lam=0.2`` and ``k=5`` every lag from 1 on has
+        ``(l / lam) ** k >= 5**5 = 3125``, so the Weibull density
+        ``exp(-(l / lam) ** k)`` underflows to zero on the whole kernel and the
+        normalized kernel is ``0 / 0``.
+        """
+        adstock = WeibullPDFAdstock(l_max=6)
+        prior = adstock.sample_prior(random_seed=0).copy(deep=True)
+        prior["adstock_lam"].values[:] = 0.2
+        prior["adstock_k"].values[:] = 5.0
+        assert np.isnan(adstock.sample_curve(prior, progressbar=False).values).all()
+
+        share = adstock.cumulative_weights(prior, 2, progressbar=False)
+
+        assert share.isnull().all()
+
+    def test_no_horizon_gives_every_horizon_at_once(self) -> None:
+        """One sampling returns the curve, equal to asking horizon by horizon."""
+        adstock = DelayedAdstock(l_max=6)
+        prior = adstock.sample_prior(random_seed=2)
+
+        curve = adstock.cumulative_weights(prior, progressbar=False)
+
+        assert curve.sizes["horizon"] == 6
+        np.testing.assert_array_equal(curve.horizon.values, np.arange(6))
+        assert "time since exposure" not in curve.dims
+        for horizon in range(6):
+            single = adstock.cumulative_weights(prior, horizon, progressbar=False)
+            np.testing.assert_allclose(
+                curve.sel(horizon=horizon).values, single.values, rtol=1e-12
+            )
+
+    def test_it_keeps_the_draws(self) -> None:
+        """Nothing is reduced over draws, so a product can be formed per draw."""
+        adstock = GeometricAdstock(
+            l_max=6, priors={"alpha": Prior("Beta", alpha=1, beta=1, dims="channel")}
+        )
+        prior = adstock.sample_prior(coords={"channel": ["A", "B"]})
+
+        share = adstock.cumulative_weights(prior, 2, progressbar=False)
+
+        assert share.sizes["chain"] == prior.sizes["chain"]
+        assert share.sizes["draw"] == prior.sizes["draw"]
+        assert share.sizes["channel"] == 2
+        assert float(share.std("draw").min()) > 0
+
+    @pytest.mark.parametrize("horizon", [-1, 6, 100])
+    def test_a_horizon_outside_the_kernel_raises(self, horizon) -> None:
+        adstock = GeometricAdstock(l_max=6)
+
+        with pytest.raises(ValueError, match=r"horizon must be in 0\.\.5"):
+            adstock.cumulative_weights(adstock.sample_prior(), horizon)
+
+    @pytest.mark.parametrize("horizon", [1.5, "2", True])
+    def test_a_horizon_that_is_not_an_integer_raises(self, horizon) -> None:
+        adstock = GeometricAdstock(l_max=6)
+
+        with pytest.raises(TypeError, match="horizon must be an integer"):
+            adstock.cumulative_weights(adstock.sample_prior(), horizon)
+
+    @pytest.mark.parametrize("mode", [ConvMode.Before, ConvMode.Overlap])
+    @pytest.mark.parametrize("horizon", [2, 100])
+    def test_a_leading_kernel_raises(self, mode, horizon) -> None:
+        """The mode is checked first, so it is what an invalid call reports."""
+        adstock = GeometricAdstock(l_max=6, mode=mode)
+
+        with pytest.raises(ValueError, match=r"ConvMode\.After"):
+            adstock.cumulative_weights(adstock.sample_prior(), horizon)
 
 
 class TestAdstockRoundtrips:
