@@ -34,7 +34,7 @@ from pymc.model.fgraph import (
 )
 from pymc.pytensorf import rvs_in_graph, toposort_replace
 from pytensor.compile.sharedvalue import SharedVariable, shared
-from pytensor.graph.basic import Variable
+from pytensor.graph.basic import Constant, Variable
 from pytensor.graph.fg import FunctionGraph
 from pytensor.graph.replace import clone_replace
 from pytensor.graph.rewriting import rewrite_graph
@@ -757,9 +757,12 @@ class ConditionedModel:
     Every later rebind only swaps the draws in place, which is atomic and free in the number of draws.
     A compiled function therefore follows the newer posterior without being recompiled.
 
-    A response is resolved against the intervened clone.  A :class:`~pytensor.graph.basic.Variable`
-    that is not a node of that clone -- a node of the pre-intervention model --
-    is refused: it would silently carry no intervention into the graph.
+    A response is resolved against the intervened clone.
+    A :class:`~pytensor.graph.basic.Variable` may be any graph built over that clone, including a derived expression.
+    A graph that reads an input from outside the intervened model is refused.
+    That covers a node of the pre-intervention model as well as one from an unrelated model.
+    Such a graph would silently carry no intervention into the result.
+    With ``intervention=None`` the clone is the model itself, so a node of the source model is accepted.
 
     Parameters
     ----------
@@ -800,8 +803,8 @@ class ConditionedModel:
     ) -> None:
         self.frozen_deterministics: tuple[str, ...] = tuple(frozen_deterministics or ())
         self._model = _apply_intervention(model, intervention)
-        # The clone's nodes, so a pre-intervention Variable can be told from a
-        # node of the intervened graph by identity.
+        # Every node of the clone, so an input read from outside it can be told
+        # from one of the clone's own inputs by identity.
         self._clone_nodes = frozenset(ancestors(list(self._model.named_vars.values())))
         self._posterior = _posterior_dataset(idata)
         self._shared_posterior: SharedPosterior | None = (
@@ -847,21 +850,21 @@ class ConditionedModel:
         Parameters
         ----------
         response_vars : str, Variable, or sequence of either
-            The response variable(s) to extract.  A name resolves against the
-            intervened model; a ``Variable`` must be a node of that clone.  A
-            sequence extracts every variable in one pass, so a subgraph they
-            share stays shared in the result.
+            The response variable(s) to extract.
+            A name resolves against the intervened model.
+            A ``Variable`` may be any graph built over that clone, including a derived expression over its nodes.
+            A graph that reads an input from outside the intervened model is refused.
+            A sequence extracts every variable in one pass, so a subgraph they share stays shared in the result.
         cache : bool, default True
-            Whether to keep the extraction for :meth:`set_posterior` to
-            re-extract through the shared posterior.  A cached graph is the
-            long-lived kind: after the first rebind it reads shared variables
-            and so follows every later one, and its variables must therefore
-            be present in every posterior handed to :meth:`set_posterior`.  A
-            caller that passes ``cache=False`` gets a graph conditioned on the
-            current draws as constants instead: it registers nothing on the
-            shared posterior, so a later rebind to a posterior without those
-            variables still succeeds.  Nothing tracks that graph across a
-            rebind, so a consumer re-extracts it after a rebind.
+            Whether to keep the extraction for :meth:`set_posterior` to re-extract through the shared posterior.
+            A cached graph is the long-lived kind: after the first rebind it reads shared variables.
+            It therefore follows every later rebind.
+            Its variables must be present in every posterior handed to :meth:`set_posterior`.
+            A caller that passes ``cache=False`` gets a graph conditioned on the current draws as constants instead.
+            It registers nothing on the shared posterior.
+            A later rebind to a posterior without those variables therefore still succeeds.
+            A caller that builds a fresh derived node per call should pass ``cache=False``.
+            Nothing tracks that graph across a rebind, so a consumer re-extracts it after a rebind.
 
         Returns
         -------
@@ -874,8 +877,7 @@ class ConditionedModel:
         KeyError
             If a requested name is not a variable of the intervened model.
         ValueError
-            If a requested ``Variable`` is not a node of the intervened clone,
-            or if no response variable is given.
+            If a ``Variable`` reads an input from outside the intervened model, or if no response variable is given.
         """
         single = isinstance(response_vars, str | Variable)
         requested = [response_vars] if single else list(response_vars)
@@ -1036,7 +1038,14 @@ class ConditionedModel:
         return shared, cache
 
     def _resolve(self, var: str | Variable) -> Variable:
-        """Resolve a response against the intervened clone, refusing an outsider."""
+        """Resolve a response against the intervened clone, refusing a graph that reads an outsider.
+
+        A node the clone registers, and any graph built over it, is accepted.
+        A graph whose leaves include an input from outside the clone is refused.
+        A node of the pre-intervention model, or of an unrelated one, is such an input.
+        With ``intervention=None`` the clone is the model itself, so a node of the source model is accepted.
+        Constants are never treated as an outside input.
+        """
         if isinstance(var, str):
             if var not in self._model.named_vars:
                 raise KeyError(
@@ -1044,13 +1053,17 @@ class ConditionedModel:
                     f"intervened model, which has {sorted(self._model.named_vars)}."
                 )
             return self._model[var]
-        if var not in self._clone_nodes:
+        if any(
+            node.owner is None
+            and not isinstance(node, Constant)
+            and node not in self._clone_nodes
+            for node in ancestors([var])
+        ):
             raise ValueError(
-                f"Variable {getattr(var, 'name', var)!r} is not a node of the "
-                "intervened model. Pass a name or a node of the model this "
-                "object holds (its .model); a node of the pre-intervention "
-                "model is refused because it would carry no intervention into "
-                "the graph."
+                f"{var!r} reads inputs outside the intervened model. Pass a "
+                "name or a node of the model this object holds (its .model); "
+                "a node of the pre-intervention model is refused because it "
+                "would carry no intervention into the graph."
             )
         return var
 

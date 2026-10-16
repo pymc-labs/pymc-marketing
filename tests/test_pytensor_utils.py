@@ -1570,8 +1570,68 @@ def test_conditioned_model_refuses_pre_intervention_variable(
     conditioned_slope, slope_posteriors
 ):
     model, *_ = slope_posteriors
-    with pytest.raises(ValueError, match="not a node of the intervened model"):
+    with pytest.raises(ValueError, match="reads inputs outside the intervened model"):
         conditioned_slope.extract(model["doubled"])
+
+
+@pytest.mark.parametrize(
+    "intervention, expected",
+    [
+        (None, 50.0),
+        ({"spend": np.array([30.0, 40.0])}, 110.0),
+    ],
+    ids=["no-intervention", "with-intervention"],
+)
+def test_conditioned_model_accepts_a_derived_expression_over_the_clone(
+    intervention, expected
+):
+    """A graph built on the clone resolves, with or without an intervention."""
+    model, _ = _channel_conditioned_model()
+    conditioned = ConditionedModel(
+        model, _channel_posterior([1.0, 2.0]), intervention=intervention
+    )
+
+    graph = conditioned.extract(conditioned.model["resp"].sum("channel"))
+
+    np.testing.assert_allclose(function([], graph)(), expected)
+
+
+@pytest.mark.parametrize(
+    "build_response",
+    [
+        pytest.param(lambda model: model["resp"], id="source-node"),
+        pytest.param(lambda model: model["resp"].sum("channel"), id="source-derived"),
+        pytest.param(
+            lambda model: _channel_conditioned_model()[0]["resp"], id="unrelated-node"
+        ),
+    ],
+)
+def test_conditioned_model_refuses_a_graph_outside_the_intervened_model(build_response):
+    """A source-model node, a graph derived over it, and an unrelated model's node are refused."""
+    model, spend = _channel_conditioned_model()
+    conditioned = ConditionedModel(
+        model, _channel_posterior([1.0, 2.0]), intervention={"spend": spend}
+    )
+
+    with pytest.raises(ValueError, match="reads inputs outside the intervened model"):
+        conditioned.extract(build_response(model))
+
+
+def test_conditioned_model_refusal_names_the_node_itself():
+    """The refusal prints the offending node, even when it is anonymous."""
+    model, spend = _channel_conditioned_model()
+    conditioned = ConditionedModel(
+        model, _channel_posterior([1.0, 2.0]), intervention={"spend": spend}
+    )
+    response = model["resp"].sum("channel")
+    assert response.name is None
+
+    with pytest.raises(ValueError) as excinfo:
+        conditioned.extract(response)
+
+    message = str(excinfo.value)
+    assert repr(response) in message
+    assert "None" not in message
 
 
 def test_conditioned_model_default_graph_keeps_constant_folding(
