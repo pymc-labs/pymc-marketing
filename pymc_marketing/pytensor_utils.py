@@ -14,9 +14,10 @@
 
 """PyTensor utility functions."""
 
+import contextlib
 import warnings
 from collections import Counter
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Iterator, Mapping, Sequence
 from typing import NamedTuple, cast, overload
 
 import arviz as az
@@ -291,6 +292,8 @@ class SharedPosterior:
     bound without labels must arrive without labels; the number of draws is
     free.  Anything else is refused, and a rebind is atomic: every variable
     is validated and laid out before any is written.
+    An extraction is atomic too, so a failure leaves the instance exactly as it was.
+    A later rebind that satisfies every graph already handed out is then accepted.
 
     Examples
     --------
@@ -386,12 +389,11 @@ class SharedPosterior:
 
         On reuse the draws handed in must be the ones already bound: the graph
         will read the shared variable, so a different posterior here would be
-        silently ignored.
+        silently ignored.  A new variable is validated before it is inserted,
+        so a refusal leaves the three registries untouched.
         """
         if name not in self._variables:
             dims = tuple(str(dim) for dim in posterior_da.dims)
-            self._variables[name] = shared(posterior_da.values.astype(dtype), name=name)
-            self._dims[name] = dims
             coords = {
                 dim: posterior_da.indexes[dim]
                 for dim in dims[1:]
@@ -405,6 +407,8 @@ class SharedPosterior:
                         f"Posterior variable {name!r} has duplicated {dim} labels: "
                         f"{index[index.duplicated()].unique().tolist()}."
                     )
+            self._variables[name] = shared(posterior_da.values.astype(dtype), name=name)
+            self._dims[name] = dims
             self._coords[name] = coords
         else:
             var = self._variables[name]
@@ -421,6 +425,23 @@ class SharedPosterior:
                     "set_posterior() to move all of them together."
                 )
         return as_xtensor(self._variables[name], dims=self._dims[name])
+
+    @contextlib.contextmanager
+    def _transaction(self) -> Iterator[None]:
+        """Undo every registry change if the wrapped extraction raises.
+
+        An extraction inserts variables as it walks the placeholders, so a
+        refusal part-way would otherwise leave the instance holding some of the
+        new graph's variables.  Restoring the copies makes the failure leave no
+        trace, which keeps a later rebind that satisfies every graph already
+        handed out acceptable.
+        """
+        snapshot = (self._variables.copy(), self._dims.copy(), self._coords.copy())
+        try:
+            yield
+        except BaseException:
+            self._variables, self._dims, self._coords = snapshot
+            raise
 
     def set_posterior(self, idata: xr.DataTree | xr.Dataset) -> None:
         """Rebind every variable to the draws in ``idata``.
@@ -515,7 +536,8 @@ def extract_response_distribution(
         :meth:`SharedPosterior.set_posterior` then swaps the draws under any
         function compiled from the result without recompiling.  Variables the
         object already holds are reused, so several graphs extracted with the
-        same instance are rebound together.
+        same instance are rebound together.  An extraction that raises leaves
+        the object exactly as it was.
 
     Returns
     -------
@@ -582,38 +604,47 @@ def extract_response_distribution(
     )
 
     # Replace placeholders with actual posterior samples: constants by default,
-    # shared variables when the caller wants to rebind them later.
-    replace_dict = {}
-    for placeholder in placeholder_replace_dict.values():
-        posterior_da = posterior[placeholder.name].astype(placeholder.dtype)
-        if shared_posterior is not None:
-            replace_dict[placeholder] = shared_posterior._get_or_create(
-                posterior_da, name=placeholder.name, dtype=placeholder.dtype
-            )
-        else:
-            replace_dict[placeholder] = xtensor_constant(
-                posterior_da.values,
-                name=placeholder.name,
-                dims=posterior_da.dims,
-            )
-
-    # Vectorize across samples
-    response_distribution = list(vectorize_graph(response_vars, replace=replace_dict))
-
-    # Final cleanup
-    response_distribution = list(
-        cast(
-            Sequence[Variable],
-            rewrite_graph(
-                response_distribution,
-                include=(
-                    "useless",
-                    "local_eager_useless_unbatched_blockwise",
-                    "local_useless_unbatched_blockwise",
-                ),
-            ),
-        )
+    # shared variables when the caller wants to rebind them later.  A shared
+    # extraction that raises leaves the SharedPosterior as it was.
+    transaction = (
+        shared_posterior._transaction()
+        if shared_posterior is not None
+        else contextlib.nullcontext()
     )
+    with transaction:
+        replace_dict = {}
+        for placeholder in placeholder_replace_dict.values():
+            posterior_da = posterior[placeholder.name].astype(placeholder.dtype)
+            if shared_posterior is not None:
+                replace_dict[placeholder] = shared_posterior._get_or_create(
+                    posterior_da, name=placeholder.name, dtype=placeholder.dtype
+                )
+            else:
+                replace_dict[placeholder] = xtensor_constant(
+                    posterior_da.values,
+                    name=placeholder.name,
+                    dims=posterior_da.dims,
+                )
+
+        # Vectorize across samples
+        response_distribution = list(
+            vectorize_graph(response_vars, replace=replace_dict)
+        )
+
+        # Final cleanup
+        response_distribution = list(
+            cast(
+                Sequence[Variable],
+                rewrite_graph(
+                    response_distribution,
+                    include=(
+                        "useless",
+                        "local_eager_useless_unbatched_blockwise",
+                        "local_useless_unbatched_blockwise",
+                    ),
+                ),
+            )
+        )
 
     return response_distribution[0] if single else response_distribution
 
@@ -809,6 +840,9 @@ class ConditionedModel:
         cache: bool = True,
     ) -> Variable | list[Variable]:
         """Return response graphs conditioned on the current posterior.
+
+        A failure leaves the cache and the shared posterior as they were.
+        A later rebind that satisfies every graph already handed out is therefore accepted.
 
         Parameters
         ----------

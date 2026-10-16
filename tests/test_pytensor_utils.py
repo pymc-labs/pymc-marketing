@@ -752,6 +752,31 @@ def _two_channel_posterior(beta, gamma, channel=("a", "b")):
     )
 
 
+def _gamma_model():
+    """``base`` reads ``beta`` alone; ``resp`` reads both gammas, so either can be the missing one."""
+    spend = np.array([10.0, 20.0])
+    with pm.Model(coords={"channel": ["a", "b"]}) as model:
+        spend_var = pmd.Data("spend", spend, dims="channel")
+        beta = pmd.Normal("beta", dims="channel")
+        gamma1 = pmd.Normal("gamma1", dims="channel")
+        gamma2 = pmd.Normal("gamma2", dims="channel")
+        pmd.Deterministic("base", beta * spend_var)
+        pmd.Deterministic("resp", gamma2 + gamma1)
+    return model, spend
+
+
+def _gamma_posterior(beta=(1.0, 1.0), gamma1=None, gamma2=None, channel=("a", "b")):
+    """A channel posterior holding ``beta`` and whichever gammas are asked for."""
+    data = {"beta": (("chain", "draw", "channel"), np.asarray(beta, float)[None, None])}
+    for name, values in (("gamma1", gamma1), ("gamma2", gamma2)):
+        if values is not None:
+            data[name] = (
+                ("chain", "draw", "channel"),
+                np.asarray(values, float)[None, None],
+            )
+    return xr.Dataset(data, coords={"channel": list(channel)})
+
+
 def test_shared_posterior_rebinds_compiled_graph_without_recompile():
     """Draws bound through ``SharedPosterior`` follow ``set_posterior``.
 
@@ -997,6 +1022,97 @@ def test_shared_posterior_refuses_duplicated_labels_at_bind_time():
     )
     with pytest.raises(ValueError, match=r"different k labels"):
         shared_posterior.set_posterior(duplicated)
+
+
+def test_shared_posterior_failed_extract_keeps_registries_consistent():
+    """A duplicated-label variable is refused before it is inserted.
+
+    The instance already binds a valid ``beta``; the extraction that adds a
+    ``gamma`` with duplicated labels must raise and leave ``_variables``,
+    ``_dims`` and ``_coords`` keyed alike, so the instance stays usable.
+    """
+    model = _two_channel_model()
+    shared_posterior = SharedPosterior()
+    extract_response_distribution(
+        model,
+        _two_channel_posterior([1.0, 2.0], [2.0, 2.0]),
+        "beta",
+        shared_posterior=shared_posterior,
+    )
+    assert set(shared_posterior.variables) == {"beta"}
+
+    duplicated_gamma = xr.Dataset(
+        {"gamma": (("chain", "draw", "channel"), np.ones((1, 1, 2)))},
+        coords={"channel": ["a", "a"]},
+    )
+    with pytest.raises(ValueError, match=r"duplicated channel labels: \['a'\]"):
+        extract_response_distribution(
+            model, duplicated_gamma, "gamma", shared_posterior=shared_posterior
+        )
+
+    registries = (
+        set(shared_posterior._variables),
+        set(shared_posterior._dims),
+        set(shared_posterior._coords),
+    )
+    assert registries == ({"beta"}, {"beta"}, {"beta"})
+    # The instance still rebinds every graph it handed out.
+    shared_posterior.set_posterior(_two_channel_posterior([3.0, 4.0], [5.0, 6.0]))
+
+
+def _raise_from_vectorize(*_args, **_kwargs):
+    """Stand-in for ``vectorize_graph`` that fails the extraction."""
+    raise RuntimeError("vectorize failed")
+
+
+def _missing_gamma2_posterior(_monkeypatch):
+    """A posterior that fails in the loop, after ``gamma1`` has been registered."""
+    return _gamma_posterior(gamma1=(2.0, 2.0))
+
+
+def _vectorize_failing_posterior(monkeypatch):
+    """A valid posterior with ``vectorize_graph`` patched to fail after both gammas bind."""
+    monkeypatch.setattr(
+        "pymc_marketing.pytensor_utils.vectorize_graph", _raise_from_vectorize
+    )
+    return _gamma_posterior(gamma1=(2.0, 2.0), gamma2=(3.0, 3.0))
+
+
+@pytest.mark.parametrize(
+    "posterior_for_call, expected_error",
+    [
+        pytest.param(
+            _missing_gamma2_posterior, (KeyError, "gamma2"), id="missing-variable"
+        ),
+        pytest.param(
+            _vectorize_failing_posterior,
+            (RuntimeError, "vectorize failed"),
+            id="vectorize-fails",
+        ),
+    ],
+)
+def test_extract_response_distribution_failure_registers_nothing(
+    posterior_for_call, expected_error, monkeypatch
+):
+    """A shared extraction that fails at any point registers no variable.
+
+    ``resp`` reads ``gamma1`` then ``gamma2``, so ``gamma1`` is registered before
+    either failure: a missing variable in the placeholder loop, or an error while
+    vectorizing the graph afterwards.  The instance must be left as it began.
+    """
+    model, _ = _gamma_model()
+    shared_posterior = SharedPosterior()
+    posterior = posterior_for_call(monkeypatch)
+    error, match = expected_error
+
+    with pytest.raises(error, match=match):
+        extract_response_distribution(
+            model, posterior, "resp", shared_posterior=shared_posterior
+        )
+
+    assert set(shared_posterior._variables) == set()
+    assert set(shared_posterior._dims) == set()
+    assert set(shared_posterior._coords) == set()
 
 
 def test_shared_posterior_coordinate_mismatch_message_stays_short():
@@ -1420,6 +1536,34 @@ def test_conditioned_model_failed_rebind_keeps_the_previous_binding(
         conditioned_slope.set_posterior(without_slope)
 
     np.testing.assert_allclose(fn(), _expected_doubled(second, data_values))
+
+
+def test_conditioned_model_failed_extract_leaves_the_binding_unchanged():
+    """The maintainer repro: an extract that fails on a missing variable leaves no trace.
+
+    After the first rebind the shared posterior binds ``beta`` only.  Extracting
+    ``resp``, which reads ``gamma2 + gamma1``, inserts ``gamma1`` and then fails
+    on the missing ``gamma2``; the instance must be exactly as it was, so a
+    rebind without either gamma still succeeds.
+    """
+    model, spend = _gamma_model()
+    conditioned = ConditionedModel(
+        model,
+        _gamma_posterior(gamma1=(2.0, 2.0), gamma2=(3.0, 3.0)),
+        intervention={"spend": spend},
+    )
+
+    conditioned.extract("base")
+    conditioned.set_posterior(_gamma_posterior(gamma1=(2.0, 2.0)))
+    bound_before = set(conditioned.shared_posterior.variables)
+    assert bound_before == {"beta"}
+
+    with pytest.raises(KeyError, match="gamma2"):
+        conditioned.extract("resp")
+
+    assert set(conditioned.shared_posterior.variables) == bound_before
+    # A rebind that satisfies every handed-out graph is accepted.
+    conditioned.set_posterior(_gamma_posterior())
 
 
 def test_conditioned_model_refuses_pre_intervention_variable(
