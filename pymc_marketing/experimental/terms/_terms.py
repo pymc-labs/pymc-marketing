@@ -24,14 +24,14 @@ import xarray as xr
 from pymc_extras.prior import VariableFactory
 from pytensor.xtensor.type import XTensorVariable
 
-from pymc_marketing.mmm.components.adstock import AdstockTransformation, NoAdstock
-from pymc_marketing.mmm.components.base import Transformation
-from pymc_marketing.mmm.experimental._data import _dates
-from pymc_marketing.mmm.experimental._graph import (
+from pymc_marketing.experimental.terms._data import _dates
+from pymc_marketing.experimental.terms._graph import (
     BuildContext,
     GraphTerm,
     _dimensions,
 )
+from pymc_marketing.mmm.components.adstock import AdstockTransformation, NoAdstock
+from pymc_marketing.mmm.components.base import Transformation
 from pymc_marketing.mmm.fourier import FourierBase
 from pymc_marketing.mmm.transformers import ConvMode
 
@@ -72,8 +72,8 @@ class MediaTransform(GraphTerm):
     .. code-block:: python
 
         from pymc_extras.prior import Prior
+        from pymc_marketing.experimental.terms import Data
         from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation
-        from pymc_marketing.mmm.experimental import Data
 
         contribution = (
             Data("spend")

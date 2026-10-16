@@ -45,6 +45,19 @@ from pytensor.xtensor.shape import Transpose
 from pytensor.xtensor.type import XTensorSharedVariable, XTensorVariable, as_xtensor
 from pytensor.xtensor.vectorization import XBlockwise, XElemwise
 
+from pymc_marketing.experimental.terms._data import (
+    _align_labels,
+    _dates,
+    validate_dataset,
+)
+from pymc_marketing.experimental.terms._gam import GAM
+from pymc_marketing.experimental.terms._graph import (
+    BuildContext,
+    Data,
+    Equation,
+    walk,
+)
+from pymc_marketing.experimental.terms._terms import MediaTransform
 from pymc_marketing.mmm.components.adstock import (
     AdstockTransformation,
     BinomialAdstock,
@@ -54,19 +67,6 @@ from pymc_marketing.mmm.components.adstock import (
     WeibullCDFAdstock,
     WeibullPDFAdstock,
 )
-from pymc_marketing.mmm.experimental._data import (
-    _align_labels,
-    _dates,
-    validate_dataset,
-)
-from pymc_marketing.mmm.experimental._gam import GAM
-from pymc_marketing.mmm.experimental._graph import (
-    BuildContext,
-    Data,
-    Equation,
-    walk,
-)
-from pymc_marketing.mmm.experimental._terms import MediaTransform
 from pymc_marketing.pytensor_utils import (
     _posterior_sample_major,
     extract_response_distribution,

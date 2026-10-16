@@ -28,7 +28,8 @@ a deterministic and ``expression.sum(dim)`` reduces a dimension.
 
 This namespace does not change the stable MMM. Its interfaces are experimental.
 ``expression.named(name)`` uses the shared ``Named(name, expr=expression)`` term.
-Older draft GAM stores containing ``Named`` terms with an ``inner`` field are incompatible with this revision.
+Older draft stores with ``Named.inner`` or former MMM graph identifiers are incompatible with this revision.
+The format marker remains ``pymc_marketing.experimental.GAM/1``.
 Recreate the model, refit it, and save a new store; ``check=False`` does not convert older specifications.
 
 Two targets sharing one likelihood family form one ``target`` dimension; different
@@ -38,8 +39,8 @@ families or observation layouts are separate equations sharing terms by identity
 
     import xarray as xr
     from pymc_extras.prior import Prior
+    from pymc_marketing.experimental.terms import GAM, Data, Equation
     from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation
-    from pymc_marketing.mmm.experimental import GAM, Data, Equation
     from pymc_marketing.terms import Intercept, Parameter
 
     response = (
@@ -81,10 +82,10 @@ Measured history and carryover rows are explicit and fixed; outputs exclude hist
 while allocations contain only decided rows.
 """
 
-from pymc_marketing.mmm.experimental._gam import GAM
-from pymc_marketing.mmm.experimental._graph import Data, Equation
-from pymc_marketing.mmm.experimental._optimizer import OptimizationResult, Problem
-from pymc_marketing.mmm.experimental._terms import MediaTransform
+from pymc_marketing.experimental.terms._gam import GAM
+from pymc_marketing.experimental.terms._graph import Data, Equation
+from pymc_marketing.experimental.terms._optimizer import OptimizationResult, Problem
+from pymc_marketing.experimental.terms._terms import MediaTransform
 
 __all__ = [
     "GAM",

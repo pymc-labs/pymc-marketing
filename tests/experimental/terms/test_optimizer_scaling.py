@@ -24,7 +24,7 @@ import xarray as xr
 from pymc_extras.prior import Prior
 from pytensor.xtensor.type import XTensorVariable
 
-from pymc_marketing.mmm.experimental import (
+from pymc_marketing.experimental.terms import (
     GAM,
     Data,
     Equation,

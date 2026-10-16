@@ -45,13 +45,13 @@ from pytensor.tensor.variable import TensorConstant
 from pytensor.xtensor.type import XTensorVariable, as_xtensor
 from scipy.optimize import Bounds, OptimizeResult, minimize
 
-from pymc_marketing.mmm.experimental._data import (
+from pymc_marketing.experimental.terms._data import (
     _align_labels,
     _dates,
 )
-from pymc_marketing.mmm.experimental._gam import GAM
-from pymc_marketing.mmm.experimental._graph import BuildContext
-from pymc_marketing.mmm.experimental._optimizer_terms import (
+from pymc_marketing.experimental.terms._gam import GAM
+from pymc_marketing.experimental.terms._graph import BuildContext
+from pymc_marketing.experimental.terms._optimizer_terms import (
     _bind_terms,
     _coordinates,
     _data_dependencies,

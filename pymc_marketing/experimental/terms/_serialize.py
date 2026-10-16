@@ -36,9 +36,9 @@ import pandas as pd
 import xarray as xr
 from pymc_extras.prior import Prior, VariableFactory
 
+from pymc_marketing.experimental.terms._graph import Data, Equation, GraphTerm
+from pymc_marketing.experimental.terms._terms import MediaTransform
 from pymc_marketing.mmm.components.base import Transformation
-from pymc_marketing.mmm.experimental._graph import Data, Equation, GraphTerm
-from pymc_marketing.mmm.experimental._terms import MediaTransform
 from pymc_marketing.mmm.fourier import FourierBase
 from pymc_marketing.serialization import (
     DeferredFactory,

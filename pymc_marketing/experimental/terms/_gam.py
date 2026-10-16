@@ -28,8 +28,8 @@ import pytensor
 import xarray as xr
 import zarr
 
-from pymc_marketing.mmm.experimental._data import validate_dataset
-from pymc_marketing.mmm.experimental._graph import (
+from pymc_marketing.experimental.terms._data import validate_dataset
+from pymc_marketing.experimental.terms._graph import (
     Binding,
     BuildContext,
     Equation,
@@ -37,7 +37,7 @@ from pymc_marketing.mmm.experimental._graph import (
     total_lookback,
     walk,
 )
-from pymc_marketing.mmm.experimental._serialize import spec_from_dict, spec_to_dict
+from pymc_marketing.experimental.terms._serialize import spec_from_dict, spec_to_dict
 from pymc_marketing.version import __version__
 
 _LOGP_DRAWS = 3
@@ -85,8 +85,8 @@ class GAM:
     .. code-block:: python
 
         from pymc_extras.prior import Prior
+        from pymc_marketing.experimental.terms import GAM, Data, Equation
         from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation
-        from pymc_marketing.mmm.experimental import GAM, Data, Equation
         from pymc_marketing.terms import Intercept
 
         response = (

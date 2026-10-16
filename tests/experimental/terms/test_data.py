@@ -18,7 +18,7 @@ import pandas as pd
 import pytest
 import xarray as xr
 
-from pymc_marketing.mmm.experimental._data import _align_labels, validate_dataset
+from pymc_marketing.experimental.terms._data import _align_labels, validate_dataset
 
 
 def test_non_dataset_inputs_are_rejected():

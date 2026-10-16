@@ -29,15 +29,15 @@ from pymc_extras.prior import CUSTOM_TRANSFORMS, Prior
 from pytensor.tensor.shape import Shape_i
 from pytensor.xtensor.type import XTensorVariable, as_xtensor
 
-from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation
-from pymc_marketing.mmm.experimental import (
+from pymc_marketing.experimental.terms import (
     GAM,
     Data,
     Equation,
     MediaTransform,
     Problem,
 )
-from pymc_marketing.mmm.experimental._graph import walk
+from pymc_marketing.experimental.terms._graph import walk
+from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation
 from pymc_marketing.mmm.transformers import ConvMode
 from pymc_marketing.terms import (
     ModelTerm,
