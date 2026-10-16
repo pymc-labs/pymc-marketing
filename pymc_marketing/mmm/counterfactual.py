@@ -62,7 +62,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
-from typing import Literal, NamedTuple, cast
+from typing import Literal, NamedTuple
 
 import numpy as np
 import pandas as pd
@@ -900,7 +900,7 @@ class CounterfactualEvaluator:
             )
             for var in self._response_requested
         ]
-        return cast(list[Variable], self._conditioned.extract(resolved))
+        return self._conditioned.extract(resolved)
 
     def _build(self) -> None:
         """Extract the graphs and compile the batched evaluator for the binding.

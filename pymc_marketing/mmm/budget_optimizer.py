@@ -2898,10 +2898,7 @@ class BudgetOptimizer(BaseModel):
         a variable only this graph reads.  Nothing tracks it across a rebind,
         so the compiled function is dropped whenever the draws move.
         """
-        return cast(
-            XTensorVariable,
-            self._conditioned.extract(response_variable, cache=cache),
-        )
+        return self._conditioned.extract(response_variable, cache=cache)
 
     def evaluate_response_distribution(
         self,

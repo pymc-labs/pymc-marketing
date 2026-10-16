@@ -40,7 +40,7 @@ from pytensor.graph.replace import clone_replace
 from pytensor.graph.rewriting import rewrite_graph
 from pytensor.graph.traversal import ancestors
 from pytensor.xtensor import xtensor_constant
-from pytensor.xtensor.type import as_xtensor
+from pytensor.xtensor.type import XTensorVariable, as_xtensor
 from pytensor.xtensor.vectorization import vectorize_graph
 
 
@@ -836,6 +836,22 @@ class ConditionedModel:
         """
         return self._shared_posterior
 
+    @overload
+    def extract(
+        self,
+        response_vars: str | Variable,
+        *,
+        cache: bool = ...,
+    ) -> XTensorVariable: ...
+
+    @overload
+    def extract(
+        self,
+        response_vars: Sequence[Variable],
+        *,
+        cache: bool = ...,
+    ) -> list[Variable]: ...
+
     def extract(
         self,
         response_vars: str | Variable | Sequence[str | Variable],
@@ -868,9 +884,11 @@ class ConditionedModel:
 
         Returns
         -------
-        pt.TensorVariable or list of pt.TensorVariable
+        XTensorVariable or list of Variable
             A single graph when one variable was requested, a list otherwise,
             matching ``extract_response_distribution``.
+            The single-graph overload is typed ``XTensorVariable``.
+            That holds for a name and for any xtensor expression.
 
         Raises
         ------
