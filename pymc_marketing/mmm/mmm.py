@@ -2366,6 +2366,9 @@ class MMM(RegressionModelBuilder):
         xr.DataTree
             Inference data of the fitted model.
         """
+        # A cached evaluator never holds the fit-time posterior, because _probe_reach rebinds it on every call.
+        # The clear is a safeguard: a refit can change coordinate labels, which the shared binding would refuse.
+        self._clear_incrementality_evaluator_cache()
         if hasattr(self, "model") and self._target_is_placeholder:
             warnings.warn(
                 "The model was built by `sample_prior_predictive` with a "
@@ -2464,6 +2467,8 @@ class MMM(RegressionModelBuilder):
             )
 
         """
+        # A rebuild replaces the graph every compiled incrementality evaluator was built from, so none is reusable.
+        self._clear_incrementality_evaluator_cache()
         # Calibration rows belong to a particular graph. A rebuild creates a
         # fresh graph, so callers must re-add any lift tests they want to use.
         self._lift_test_calibrations = []
@@ -3869,6 +3874,15 @@ class MMM(RegressionModelBuilder):
         """
         self._validate_idata_exists()
         return Incrementality(model=self, idata=self.idata)
+
+    def _clear_incrementality_evaluator_cache(self) -> None:
+        """Drop every compiled incrementality evaluator.
+
+        A rebuild or refit invalidates the compiled graphs and the fit-time values they were built against.
+        A later incrementality call then compiles a fresh evaluator.
+        The slot itself is created lazily by :class:`~pymc_marketing.mmm.incrementality.Incrementality`.
+        """
+        self.__dict__.pop("_incrementality_evaluator_cache", None)
 
     def _make_channel_transform(
         self, df_lift_test: pd.DataFrame

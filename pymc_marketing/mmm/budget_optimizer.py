@@ -273,7 +273,11 @@ from pymc_marketing.mmm.optimization_variables import (
 )
 from pymc_marketing.mmm.price_response import PriceResponse
 from pymc_marketing.mmm.utility import UtilityFunctionType, average_response
-from pymc_marketing.pytensor_utils import SharedPosterior, merge_models
+from pymc_marketing.pytensor_utils import (
+    ConditionedModel,
+    SharedPosterior,
+    merge_models,
+)
 from pymc_marketing.version import __version__
 
 DEFAULT_RESPONSE_VARIABLE = "total_media_contribution_original_scale"
@@ -1674,7 +1678,7 @@ class BudgetOptimizer(BaseModel):
     _cost_per_unit_tensor: XTensorVariable | None = PrivateAttr()
     _media_variable: MediaVariable = PrivateAttr()
     _pymc_model: Model = PrivateAttr()
-    _shared_posterior: SharedPosterior | None = PrivateAttr(default=None)
+    _conditioned: ConditionedModel = PrivateAttr()
     _mask_auto_detected: bool = PrivateAttr(default=False)
     _variables: OptimizationVariables = PrivateAttr()
     _objective_and_grad: Callable = PrivateAttr()
@@ -1957,6 +1961,19 @@ class BudgetOptimizer(BaseModel):
             self._variables.substitutions(),
         )
 
+        # 7b. Hand the intervened model to a ConditionedModel, which owns the
+        # posterior binding from here on: extraction, the first rebind's
+        # re-extraction and every later draw swap all go through it.  The model
+        # is already intervened, so none is applied here.  The registered
+        # callback recompiles the objective and constraints whenever a rebind
+        # hands out new graphs, and does nothing on later swaps.
+        self._conditioned = ConditionedModel(
+            self._pymc_model,
+            _to_datatree(self.idata),
+            frozen_deterministics=self.frozen_deterministics,
+        )
+        self._conditioned.register(self._recompile_after_rebind)
+
         # 8. Validate that the requested response variable actually exists in
         # the underlying PyMC model.
         if self.response_variable not in self._pymc_model.named_vars:
@@ -2024,6 +2041,16 @@ class BudgetOptimizer(BaseModel):
             )
         """
         return self._variables
+
+    @property
+    def _shared_posterior(self) -> SharedPosterior | None:
+        """The conditioned model's shared posterior, ``None`` while it bakes constants.
+
+        The conditioned model owns the binding, so this is a read-only view of
+        it: ``None`` until the first :meth:`set_posterior` moves the draws into
+        shared variables, and the one object every later rebind swaps draws in.
+        """
+        return self._conditioned.shared_posterior
 
     def _pack_decision_vector(
         self, values: np.ndarray | DataArray | Mapping[str, DataArray]
@@ -2844,10 +2871,10 @@ class BudgetOptimizer(BaseModel):
         """Extract the response distribution graph, conditioned on posterior parameters.
 
         Until the first :meth:`set_posterior` the draws enter the graph as
-        constants.  After it they enter through shared variables owned by
-        this optimizer, so every graph extracted here -- the objective,
-        custom constraints, anything a caller compiles from this method --
-        follows later rebinds.
+        constants.  After it they enter through shared variables owned by the
+        optimizer's :class:`~pymc_marketing.pytensor_utils.ConditionedModel`, so
+        every graph extracted here -- the objective, custom constraints,
+        anything a caller compiles from this method -- follows later rebinds.
 
         Examples
         --------
@@ -2855,16 +2882,23 @@ class BudgetOptimizer(BaseModel):
         returns a graph that computes ``"channel_contribution"`` as a function of both
         the newly introduced budgets and the posterior of model parameters.
         """
-        # Local import to avoid circular import at module load time
-        from pymc_marketing.pytensor_utils import extract_response_distribution
+        return self._extract_response_distribution(response_variable, cache=True)
 
-        return extract_response_distribution(
-            pymc_model=self._pymc_model,
-            idata=_extract_dataset(self.idata, "posterior"),
-            response_variable=response_variable,
-            frozen_deterministics=self.frozen_deterministics,
-            shared_posterior=self._shared_posterior,
-        )
+    def _extract_response_distribution(
+        self, response_variable: str, *, cache: bool
+    ) -> XTensorVariable:
+        """Extract a response graph, optionally keeping it for later rebinds.
+
+        ``cache=True`` is the long-lived path -- the objective and the
+        constraints -- whose graphs the conditioned model re-extracts through
+        the shared posterior on the first rebind so they follow every later
+        one.  ``cache=False`` conditions the graph on the current draws as
+        constants, so it registers nothing on the shared posterior and a
+        thinned posterior that still satisfies the objective is not refused by
+        a variable only this graph reads.  Nothing tracks it across a rebind,
+        so the compiled function is dropped whenever the draws move.
+        """
+        return self._conditioned.extract(response_variable, cache=cache)
 
     def evaluate_response_distribution(
         self,
@@ -2942,7 +2976,11 @@ class BudgetOptimizer(BaseModel):
 
         name = response_variable or self.response_variable
         if name not in self._response_functions:
-            graph = self.extract_response_distribution(name)
+            # The objective's own response shares its cached graph, so the compiled
+            # function follows every later draw swap; any other variable is ad hoc.
+            graph = self._extract_response_distribution(
+                name, cache=name == self.response_variable
+            )
             if self._budgets_flat not in set(ancestors([graph.values])):
                 warnings.warn(
                     f"response_variable={name!r} does not depend on the decision "
@@ -3069,43 +3107,35 @@ class BudgetOptimizer(BaseModel):
                 cast(DataArray, self.budgets_to_optimize), idata
             )
 
-        if self._shared_posterior is not None:
-            self._shared_posterior.set_posterior(_extract_dataset(idata, "posterior"))
-            self.idata = idata
-            return
-
-        # First rebind: bind the draws through shared variables and compile once
-        # against them; later calls are set_value only.  The compile runs on the
-        # posterior the optimizer was built with, and the new draws then arrive
-        # through the same validated rebind path as every later call -- so a
-        # reordered axis is realigned and a resized one refused here exactly as
-        # it would be on the second call.  Anything that raises rolls every
-        # piece back, so a failed first call leaves the constant-folded graphs
-        # and the previous idata in place, and the next call retries this path
-        # rather than rebinding variables the compiled objective never reads.
-        # The response cache holds functions compiled against the pre-rebind
-        # graph, whose draws are constants. They go with the recompile, and
-        # come back with a rollback. Later calls take the fast path above,
-        # where the cached functions read the same shared variables the
-        # objective does and so follow the new draws on their own.
+        # The conditioned model owns the binding: it moves the draws into (or
+        # swaps them under) shared variables, re-extracts every handed-out key
+        # on the first rebind, and fires the recompile callback.  This
+        # optimizer keeps the rollback of everything it compiled from those
+        # graphs, so a rebind that fails -- a posterior the shared variables
+        # cannot take, or a recompile that raises -- leaves it exactly as it
+        # was and the next call retries the first-rebind path rather than
+        # rebinding variables the compiled objective never reads.
         previous = (
-            self._shared_posterior,
             self.idata,
             self._objective_and_grad,
             self._constraints,
             self._compiled_constraints,
             self._response_functions,
         )
-        self._shared_posterior = SharedPosterior()
-        self._response_functions = {}
         try:
-            self._compile_objective_and_grad()
-            self.set_constraints(constraints=list(self._constraints.values()))
-            self._shared_posterior.set_posterior(_extract_dataset(idata, "posterior"))
+            self._conditioned.set_posterior(idata)
+            # An ad-hoc response function is compiled from a graph with the draws
+            # baked in as constants, so any rebind -- the first or a later draw
+            # swap -- makes it stale. Drop those; the objective's own response
+            # reads the shared draws and is dropped only by the recompile.
+            self._response_functions = {
+                name: entry
+                for name, entry in self._response_functions.items()
+                if name == self.response_variable
+            }
             self.idata = idata
         except BaseException:
             (
-                self._shared_posterior,
                 self.idata,
                 self._objective_and_grad,
                 self._constraints,
@@ -3113,6 +3143,23 @@ class BudgetOptimizer(BaseModel):
                 self._response_functions,
             ) = previous
             raise
+
+    def _recompile_after_rebind(self) -> None:
+        """Recompile the objective and constraints when a rebind swaps the graphs.
+
+        The conditioned model fires this only when a rebind re-extracted the
+        graphs -- the first one, which moves the draws out of the graphs and
+        into shared variables.  Everything compiled from the response graph --
+        the objective and the constraints -- is rebuilt from the new one.  A
+        later rebind swaps draws under the same shared variables, which the
+        compiled functions read directly, so it fires nothing.  The objective's
+        own response function was compiled from the pre-rebind graph and is
+        dropped here; the ad-hoc ones are dropped by :meth:`set_posterior` on
+        every rebind.
+        """
+        self._response_functions = {}
+        self._compile_objective_and_grad()
+        self.set_constraints(constraints=list(self._constraints.values()))
 
     def _compile_objective_and_grad(self):
         """Compile the objective function and its gradient, both referencing `self._budgets_flat`."""

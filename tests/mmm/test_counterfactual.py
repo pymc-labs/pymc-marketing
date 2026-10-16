@@ -82,6 +82,47 @@ def build_aux_dims_model(aux_dims, n_dates, n_country):
     return model, posterior, aux_values
 
 
+def draws_posterior(draws: int, seed: int) -> xr.Dataset:
+    """A ``beta``/``alpha`` posterior for the aux model with a chosen draw count.
+
+    A different draw count across rebinds is the whole point of the sample-axis
+    work, so a test can hand the evaluator a posterior whose length it did not
+    compile against.
+    """
+    rng = np.random.default_rng(seed)
+    return xr.Dataset(
+        {
+            "beta": (("chain", "draw"), rng.normal(size=(1, draws))),
+            "alpha": (("chain", "draw"), rng.normal(size=(1, draws))),
+        },
+        coords={"chain": [0], "draw": list(range(draws))},
+    )
+
+
+REBIND_INTERVENTIONS = [
+    ("channel_data", "replace"),
+    ("channel_contribution", "replace"),
+    ("channel_contribution", "scale"),
+]
+"""Interventions the rebinding tests exercise: sample-bearing and sample-less."""
+
+
+def evaluator_kwargs(
+    dates: pd.DatetimeIndex,
+    *,
+    intervention_target: str = "channel_data",
+    intervention_mode: str = "replace",
+) -> dict:
+    """The keyword arguments shared by the evaluators the rebinding tests build."""
+    return {
+        "response_vars": ["channel_contribution"],
+        "frozen_deterministics": [],
+        "dates": dates,
+        "intervention_target": intervention_target,
+        "intervention_mode": intervention_mode,
+    }
+
+
 class TestDateIndexedInputs:
     """Auxiliary inputs are cut along the axis they call ``date``.
 
@@ -94,7 +135,7 @@ class TestDateIndexedInputs:
 
     dates = pd.date_range("2023-01-02", freq="W-MON", periods=6)
 
-    def _windows(self, *slices, max_window):
+    def _windows(self, *slices: slice, max_window: int) -> EvaluationWindows:
         """Build windows over ``self.dates`` directly, one per given slice."""
         windows = []
         for window_slice in slices:
@@ -400,6 +441,36 @@ class TestPostFitMutationGuard:
             checked.evaluate_baseline(values)["channel_contribution"],
             unchecked.evaluate_baseline(values)["channel_contribution"],
         )
+
+    def test_a_mutation_after_construction_is_caught_on_reuse(self):
+        """A reused evaluator re-reads the live input and refuses the mutation.
+
+        The evaluator snapshots the aux input it evaluates with at construction,
+        so a later ``pm.set_data`` on the model the caller holds would otherwise
+        go unnoticed.  Because the check runs on every evaluation, the reuse
+        still catches it instead of silently evaluating on the fitted snapshot.
+        """
+        model, posterior, aux_values = build_aux_dims_model(
+            ("date", "country"), n_dates=len(self.dates), n_country=2
+        )
+        evaluator = CounterfactualEvaluator(
+            pymc_model=model,
+            posterior=posterior,
+            response_vars=["channel_contribution"],
+            frozen_deterministics=[],
+            dates=self.dates,
+            expected_aux_values={
+                "aux_input": xr.DataArray(aux_values, dims=("date", "country"))
+            },
+        )
+        values = np.ones((len(self.dates), 2, 1))
+        evaluator.evaluate_baseline(values)  # Fine while nothing moved.
+
+        with model:
+            pm.set_data({"aux_input": aux_values + 1.0})
+
+        with pytest.raises(ValueError, match=r"'aux_input'.*changed since"):
+            evaluator.evaluate_baseline(values)
 
 
 class TestPeriodEdgeCases:
@@ -837,6 +908,141 @@ class TestEndogenousIntervention:
         )
         # And the gap is aux + alpha: nonzero in every element for this posterior.
         assert (np.abs(mask_increment - spend_increment) > 0).all()
+
+
+class TestConditionedModelRebinding:
+    """The evaluator follows its conditioned model's posterior, draw count included.
+
+    The sample axis is derived from the bound posterior rather than fixed at construction.
+    A rebind to a different draw count therefore stays correct.
+    The evaluator compiles once against a shared posterior, so every rebind reuses the compiled function.
+    A sample-bearing response and a sample-less one are both covered.
+    """
+
+    dates = pd.date_range("2023-01-02", freq="W-MON", periods=6)
+
+    @pytest.fixture
+    def model_and_posteriors(self):
+        model, _, _ = build_aux_dims_model(
+            ("date", "country"), n_dates=len(self.dates), n_country=2
+        )
+        return (
+            model,
+            draws_posterior(2, 1),
+            draws_posterior(4, 2),
+            draws_posterior(5, 3),
+        )
+
+    def _windows(self) -> EvaluationWindows:
+        window = PeriodWindow.build(
+            start=self.dates[0],
+            end=self.dates[-1],
+            dates=self.dates,
+            in_window=np.ones(len(self.dates), dtype=bool),
+            eval_start=self.dates[0],
+            eval_end=self.dates[-1],
+        )
+        return EvaluationWindows(
+            windows=[window], max_window=len(self.dates), dates=self.dates
+        )
+
+    def _scenarios(self) -> CounterfactualScenarios:
+        return CounterfactualScenarios(
+            spend=np.full((1, len(self.dates), 2, 1), 0.5),
+            period_index=np.array([0]),
+            rows={(0, None): 0},
+        )
+
+    @pytest.mark.parametrize(
+        "intervention_target, intervention_mode", REBIND_INTERVENTIONS
+    )
+    def test_a_rebind_to_a_new_draw_count_matches_a_fresh_evaluator(
+        self, model_and_posteriors, intervention_target, intervention_mode
+    ):
+        """Every rebind is correct and reuses the compiled function."""
+        model, first, second, third = model_and_posteriors
+        common = evaluator_kwargs(
+            self.dates,
+            intervention_target=intervention_target,
+            intervention_mode=intervention_mode,
+        )
+        reused = CounterfactualEvaluator(pymc_model=model, posterior=first, **common)
+        spend = np.ones((len(self.dates), 2, 1))
+        compiled = reused._evaluator
+
+        reused.set_posterior(second)
+        assert reused._evaluator is compiled
+        self._assert_same_as_fresh(
+            reused,
+            CounterfactualEvaluator(pymc_model=model, posterior=second, **common),
+            spend,
+        )
+
+        # A second rebind, to yet another draw count, also needs no new compile.
+        reused.set_posterior(third)
+        assert reused._evaluator is compiled
+        fresh = CounterfactualEvaluator(pymc_model=model, posterior=third, **common)
+        self._assert_same_as_fresh(reused, fresh, spend)
+        assert (
+            reused.evaluate_baseline(spend)["channel_contribution"].shape[0]
+            == third.sizes["draw"]
+        )
+        # A sample-less response is broadcast over a marker, which a rebind can stale and evaluation resyncs.
+        # A sample-bearing response has a sample axis of its own and needs no marker.
+        markers = reused._sample_markers
+        sample_less = "sample" not in reused._extract_graphs()[0].type.dims
+        assert bool(markers) == sample_less
+        assert all(
+            marker.get_value(borrow=True).shape[0] == third.sizes["draw"]
+            for marker in markers.values()
+        )
+
+    def test_a_failed_rebind_leaves_the_old_binding_evaluable(
+        self, model_and_posteriors
+    ):
+        """A rebind the shared binding refuses leaves the previous draws evaluable.
+
+        The graphs are bound through a shared posterior from construction, so no rebind rebuilds them.
+        A rebind fails only when the posterior cannot be laid out over the bound variables.
+        That refusal writes nothing, so the previous draws stay bound.
+        """
+        model, first, _, _ = model_and_posteriors
+        common = evaluator_kwargs(self.dates)
+        reused = CounterfactualEvaluator(pymc_model=model, posterior=first, **common)
+        spend = np.ones((len(self.dates), 2, 1))
+
+        refused = xr.DataTree.from_dict({"/posterior": first.drop_vars("beta")})
+        with pytest.raises(KeyError, match="missing variables"):
+            reused.set_posterior(refused)
+
+        self._assert_same_as_fresh(
+            reused,
+            CounterfactualEvaluator(pymc_model=model, posterior=first, **common),
+            spend,
+        )
+        assert (
+            reused.evaluate_baseline(spend)["channel_contribution"].shape[0]
+            == first.sizes["draw"]
+        )
+
+    def _assert_same_as_fresh(self, reused, fresh, spend) -> None:
+        windows, scenarios = self._windows(), self._scenarios()
+        np.testing.assert_allclose(
+            reused.evaluate_baseline(spend)["channel_contribution"],
+            fresh.evaluate_baseline(spend)["channel_contribution"],
+            rtol=1e-10,
+            atol=1e-12,
+        )
+        np.testing.assert_allclose(
+            reused.evaluate_counterfactual(scenarios, windows=windows)[
+                "channel_contribution"
+            ],
+            fresh.evaluate_counterfactual(scenarios, windows=windows)[
+                "channel_contribution"
+            ],
+            rtol=1e-10,
+            atol=1e-12,
+        )
 
 
 class TestSpendMaskEquivalence:
