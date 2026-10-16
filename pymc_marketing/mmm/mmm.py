@@ -181,6 +181,7 @@ from __future__ import annotations
 
 import io
 import json
+import re
 import warnings
 from collections.abc import Callable, Sequence
 from copy import deepcopy
@@ -197,6 +198,8 @@ from pydantic import ConfigDict, Field, InstanceOf, StrictBool, validate_call
 from pymc.model.transform.optimization import freeze_dims_and_data
 from pymc.util import RandomState
 from pymc_extras.prior import Prior
+from pytensor.graph.replace import graph_replace
+from pytensor.graph.rewriting import rewrite_graph
 from pytensor.graph.traversal import ancestors
 from pytensor.xtensor import as_xtensor
 from pytensor.xtensor.type import XTensorVariable
@@ -684,6 +687,8 @@ class MMM(RegressionModelBuilder):
 
         self.mu_effects: list[MuEffect] = []
         self._lift_test_calibrations: list[dict[str, Any]] = []
+        self._contribution_priors: list[dict[str, Any]] = []
+        self._contribution_reference: dict[str, Any] | None = None
 
     def add_mu_effect(
         self: Self,
@@ -1110,6 +1115,8 @@ class MMM(RegressionModelBuilder):
         attrs["link"] = self.link.value
         attrs["scaling"] = json.dumps(serialization.serialize(self.scaling))
         attrs["lift_test_calibrations"] = json.dumps(self._lift_test_calibrations)
+        attrs["contribution_priors"] = json.dumps(self._contribution_priors)
+        attrs["contribution_reference"] = json.dumps(self._contribution_reference)
         attrs["dag"] = json.dumps(getattr(self, "dag", None))
         attrs["treatment_nodes"] = json.dumps(getattr(self, "treatment_nodes", None))
         attrs["outcome_node"] = json.dumps(getattr(self, "outcome_node", None))
@@ -1929,7 +1936,13 @@ class MMM(RegressionModelBuilder):
             channel_columns=self.channel_columns,
             control_columns=self.control_columns,
             target_column=self.target_column,
-        ).fillna(0)
+        )
+        # Keep the original observed-cell mask: the existing likelihood still
+        # uses the zero-filled target, but contribution beliefs exclude missing cells.
+        self._contribution_observed_mask = cast(
+            xr.DataArray, np.isfinite(self.xarray_dataset["_target"])
+        )
+        self.xarray_dataset = self.xarray_dataset.fillna(0)
 
         self.xarray_dataset["_channel"] = self.xarray_dataset["_channel"].astype(float)
         # Integer control columns (0/1 flags) would otherwise make `control_data`
@@ -2366,6 +2379,7 @@ class MMM(RegressionModelBuilder):
         xr.DataTree
             Inference data of the fitted model.
         """
+        self._validate_contribution_training_reference(X, y)
         if hasattr(self, "model") and self._target_is_placeholder:
             warnings.warn(
                 "The model was built by `sample_prior_predictive` with a "
@@ -2464,6 +2478,8 @@ class MMM(RegressionModelBuilder):
             )
 
         """
+        self._validate_contribution_training_reference(X, y)
+        contribution_priors = list(self._contribution_priors)
         # Calibration rows belong to a particular graph. A rebuild creates a
         # fresh graph, so callers must re-add any lift tests they want to use.
         self._lift_test_calibrations = []
@@ -2718,6 +2734,255 @@ class MMM(RegressionModelBuilder):
                 observed=target_data_scaled,
                 xdist=True,
             )
+
+        # Snapshot graph inputs before any prediction/optimization can update them.
+        # The clone below shares parameter RVs, but never mutable training inputs.
+        self._contribution_training_data = {
+            v.name: np.array(v.get_value(), copy=True) for v in self.model.data_vars
+        }
+        self._contribution_frozen_graph: Any = None
+        self._contribution_priors = []
+        self._contribution_reference = None
+        for component in contribution_priors:
+            self.add_contribution_prior(
+                name=component["name"],
+                channels=component["channels"],
+                scale=component["scale"],
+                prior=serialization.deserialize_model_config(
+                    {"prior": component["prior"]}
+                )["prior"],
+            )
+
+    def _validate_contribution_training_reference(self, X, y) -> None:
+        """Reject a changed fitting reference before mutating a built model."""
+        if self._contribution_priors:
+            candidate = to_mmm_dataset(
+                X,
+                y,
+                date_column=self.date_column,
+                dims=self.dims,
+                channel_columns=self.channel_columns,
+                control_columns=self.control_columns,
+                target_column=self.target_column,
+            )
+            candidate_mask = np.isfinite(candidate["_target"])
+            if (
+                self._contribution_dataset_reference(
+                    candidate.fillna(0), candidate_mask
+                )
+                != cast(dict[str, Any], self._contribution_reference)["training"]
+            ):
+                raise ValueError(
+                    "Contribution priors refer to the original training cells. "
+                    "Use a new MMM for different training data."
+                )
+
+    @staticmethod
+    def _contribution_dataset_reference(dataset, mask) -> dict[str, Any]:
+        """JSON-compatible training identity, including pre-fill missingness."""
+        # Named axes identify cells; their physical storage order is incidental.
+        dataset = dataset.transpose(*sorted(dataset.dims))
+        mask = mask.transpose(*sorted(mask.dims))
+        return {
+            "coords": {
+                d: [pd.Timestamp(v).isoformat() for v in dataset.coords[d].values]
+                if d == "date"
+                else dataset.coords[d].values.tolist()
+                for d in dataset.coords
+            },
+            "variables": {
+                name: {"dims": list(v.dims), "values": v.values.tolist()}
+                for name, v in dataset.data_vars.items()
+            },
+            "mask_dims": list(mask.dims),
+            "mask": mask.values.tolist(),
+        }
+
+    def add_contribution_prior(
+        self,
+        name: str,
+        channels: Sequence[str],
+        scale: Literal["total", "share"],
+        prior: Prior,
+    ) -> Self:
+        """Add a domain-knowledge factor on historical direct media contribution.
+
+        Parameters
+        ----------
+        name : str
+            Unique identifier. Registers an aggregate Deterministic with this
+            name and a Potential named ``{name}_prior``.
+        channels : sequence of str
+            Nonempty selection of distinct channel names. Groups may overlap.
+        scale : {"total", "share"}
+            Sum in original outcome units, or that sum divided by the finite
+            observed training outcomes' sum. Pools all other dimensions.
+        prior : pymc_extras.prior.Prior
+            Scalar continuous component with fixed scalar parameters and support
+            over the whole real line, e.g. ``Prior("Normal", mu=.3, sigma=.06)``.
+            Bounded components (including Beta) and hard caps are unsupported.
+
+        Returns
+        -------
+        Self
+            The instance for chaining.
+
+        Notes
+        -----
+        This multiplies the existing joint prior by the supplied density; it
+        does not replace a marginal prior or guarantee its elicited probability.
+        Parameter priors and the sales likelihood are unchanged. Shares use
+        observed sales, are not clipped, and may exceed one. Non-finite original
+        outcomes are excluded from both sums; the model's existing zero-filled
+        sales likelihood is unchanged.
+
+        The reference is the original training spend path, scales, coordinates
+        and observed-cell mask, even after prediction or budget optimization.
+        Same-data rebuilds and save/load restore each factor once; changing the
+        training reference requires a new MMM. ``sample_prior_predictive``
+        ignores these factors. Inspect the effective prior with prior-only MCMC,
+        removing the sales likelihood while retaining the training inputs and
+        Potentials (see the contribution-priors example notebook).
+
+        Examples
+        --------
+        Build with real training outcomes before adding a belief::
+
+            mmm.build_model(X, y)
+            mmm.add_contribution_prior(
+                name="paid_media_share",
+                channels=["search", "tiktok"],
+                scale="share",
+                prior=Prior("Normal", mu=0.3, sigma=0.06),
+            )
+            mmm.fit(X, y)
+        """
+        self._validate_model_was_built()
+        if self.link != LinkFunction.IDENTITY or self.mu_effects:
+            raise ValueError(
+                "Contribution priors support additive identity-link MMMs "
+                "without MuEffects only (direct channel contributions)."
+            )
+        if not isinstance(name, str) or not re.fullmatch(
+            r"[A-Za-z][A-Za-z0-9_]*", name
+        ):
+            raise ValueError("name must be an identifier starting with a letter")
+        if (
+            name == "channel_contribution_original_scale"
+            or name in self.model.named_vars
+            or f"{name}_prior" in self.model.named_vars
+        ):
+            raise ValueError(f"Contribution prior name {name!r} is already in use")
+        if (
+            isinstance(channels, str)
+            or not isinstance(channels, Sequence)
+            or not channels
+        ):
+            raise ValueError("channels must be a nonempty sequence of channel names")
+        if any(not isinstance(c, str) for c in channels) or len(set(channels)) != len(
+            channels
+        ):
+            raise ValueError("channels must contain distinct channel names")
+        if set(channels).difference(self.channel_columns):
+            raise ValueError("channels contains unknown channel names")
+        if scale not in ("total", "share"):
+            raise ValueError("scale must be 'total' or 'share'")
+        if (
+            not isinstance(prior, Prior)
+            or prior.dims
+            or prior.transform
+            or not prior.centered
+        ):
+            raise ValueError(
+                "prior must be a centered scalar Prior without a transform"
+            )
+        if any(
+            not isinstance(v, (int, float, np.number)) or not np.isfinite(v)
+            for v in prior.parameters.values()
+        ):
+            raise ValueError("prior parameters must be fixed finite scalars")
+        if prior.preliz.support != (-np.inf, np.inf):
+            raise ValueError(
+                "Only smooth components with support over the whole real line "
+                "are supported; bounded components (including Beta) and hard caps "
+                "are unsupported. Use an explicit smooth upper-tail belief."
+            )
+        distribution = prior.pymc_distribution.dist(**prior.parameters)
+        if distribution.ndim or not distribution.dtype.startswith("float"):
+            raise ValueError("prior must be a scalar continuous distribution")
+        # Force parameter validation before registering anything in the graph.
+        pm.logp(distribution, 0.0).eval()
+        if not np.all(np.isfinite(self._contribution_training_data["target_scale"])):
+            raise ValueError(
+                "Original-unit contributions require finite target scaling"
+            )
+        mask = self._contribution_observed_mask
+        target = self.xarray_dataset["_target"]
+        denominator = float(target.where(mask, 0).sum())
+        if not bool(mask.any()) or (
+            scale == "share" and (not np.isfinite(denominator) or denominator <= 0)
+        ):
+            raise ValueError(
+                "Shares require a finite positive sum of observed training outcomes"
+            )
+        definition = {
+            "name": name,
+            "channels": list(channels),
+            "scale": scale,
+            "prior": json.loads(json.dumps(prior.to_dict())),
+        }
+        if self._contribution_frozen_graph is None:
+            if "channel_contribution_original_scale" not in self.model.named_vars:
+                self.add_original_scale_contribution_variable(["channel_contribution"])
+            source = self.model["channel_contribution_original_scale"]
+            replacements = {
+                v: v.type.constant_type(
+                    type=v.type, data=self._contribution_training_data[v.name]
+                )
+                for v in self.model.data_vars
+            }
+            # Keep the exact same parameter variables; cloning those would add
+            # unregistered stochastic nodes and detach the factor from logp.
+            replacements.update({v: v for v in self.model.free_RVs})
+            self._contribution_frozen_graph = graph_replace(
+                [source],
+                replace=replacements,
+                strict=False,
+            )[0]
+            self._contribution_reference = {
+                "training": self._contribution_dataset_reference(
+                    self.xarray_dataset, mask
+                ),
+                "data": {
+                    k: {
+                        "dims": sorted(self.model[k].dims),
+                        "values": xr.DataArray(v, dims=self.model[k].dims)
+                        .transpose(*sorted(self.model[k].dims))
+                        .values.tolist(),
+                    }
+                    for k, v in self._contribution_training_data.items()
+                },
+            }
+        indices = [self.channel_columns.index(c) for c in channels]
+        total = (
+            self._contribution_frozen_graph.isel(channel=indices)
+            .where(as_xtensor(mask), 0)
+            .sum()
+        )
+        value = total / denominator if scale == "share" else total
+        with self.model:
+            aggregate = pmd.Deterministic(name, value)
+            # Potential graphs bypass conditional-logp's xtensor lowering.
+            # Substitute registered value variables first, then lower named
+            # operations so the factor is differentiable without cloned RVs.
+            value_aggregate = self.model.replace_rvs_by_values([aggregate])[0]
+            logp = rewrite_graph(
+                pm.logp(distribution, value_aggregate.values),
+                include=("lower_xtensor",),
+            )
+            pm.Potential(f"{name}_prior", logp)
+        self._contribution_priors.append(definition)
+        return self
 
     def _validate_date_overlap_with_include_last_observations(
         self, X: xr.Dataset, include_last_observations: bool
@@ -3331,6 +3596,14 @@ class MMM(RegressionModelBuilder):
         train on the placeholder rather than the real target, warns again
         (see issue #2956).
         """
+        if self._contribution_priors:
+            warnings.warn(
+                "Prior predictive sampling ignores contribution-prior Potentials; "
+                "these are base parameter-prior draws, not the effective prior. "
+                "Use prior-only MCMC retaining the fixed training reference.",
+                UserWarning,
+                stacklevel=2,
+            )
         placeholder_target = False
         if y is None and (
             (isinstance(X, xr.Dataset) and _dataset_has_target(X))
@@ -4670,7 +4943,45 @@ class MMM(RegressionModelBuilder):
         X = dataset.drop(columns=[self.target_column])
         y = dataset[self.target_column]
 
+        self._contribution_priors = []
+        self._contribution_reference = None
         self.build_model(X, y)  # type: ignore
+
+        components = json.loads(idata.attrs.get("contribution_priors", "[]"))
+        if components:
+            reference = json.loads(idata.attrs["contribution_reference"])
+            training = reference["training"]
+            self._contribution_observed_mask = xr.DataArray(
+                training["mask"],
+                dims=training["mask_dims"],
+                coords={
+                    d: self.xarray_dataset.coords[d] for d in training["mask_dims"]
+                },
+            )
+            if (
+                self._contribution_dataset_reference(
+                    self.xarray_dataset, self._contribution_observed_mask
+                )
+                != training
+            ):
+                raise ValueError(
+                    "Saved contribution prior training reference differs from fit_data"
+                )
+            self._contribution_training_data = {
+                k: xr.DataArray(v["values"], dims=v["dims"])
+                .transpose(*self.model[k].dims)
+                .values.astype(self.model[k].dtype)
+                for k, v in reference["data"].items()
+            }
+            for component in components:
+                self.add_contribution_prior(
+                    name=component["name"],
+                    channels=component["channels"],
+                    scale=component["scale"],
+                    prior=serialization.deserialize_model_config(
+                        {"prior": component["prior"]}
+                    )["prior"],
+                )
 
         # Lift-test rows are model inputs, rather than part of fit_data. Restore
         # them after rebuilding the base MMM so their likelihood and posterior

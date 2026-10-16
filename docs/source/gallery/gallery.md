@@ -84,6 +84,11 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :link: ../notebooks/mmm/mmm_media_inflation.html
 :::
 
+:::{grid-item-card} Expressing Domain Knowledge about Media Contributions
+:img-top: ../gallery/images/mmm_contribution_priors.png
+:link: ../notebooks/mmm/mmm_contribution_priors.html
+:::
+
 :::{grid-item-card} Parameter Recovery
 :img-top: ../gallery/images/mmm_data_generator.png
 :link: ../notebooks/mmm/mmm_data_generator.html
