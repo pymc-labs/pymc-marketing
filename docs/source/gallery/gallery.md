@@ -198,6 +198,11 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :link: ../notebooks/mmm/mmm_geolift_calibration.html
 :::
 
+:::{grid-item-card} MMM Calibration with Multi-Arm Geo Lift Tests
+:img-top: ../gallery/images/mmm_multi_arm_geolift_calibration.png
+:link: ../notebooks/mmm/mmm_multi_arm_geolift_calibration.html
+:::
+
 :::{grid-item-card} Mitigating Unobserved Confounders in MMMs with Lift Test Likelihoods
 :img-top: ../gallery/images/mmm_roas.png
 :link: ../notebooks/mmm/mmm_roas.html

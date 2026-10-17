@@ -88,6 +88,9 @@ _NOTEBOOKS.append(DOC_SOURCE / "guide" / "mmm" / "mmm_learning_path.ipynb")
 
 # Notebooks to exclude from testing (relative to repo root)
 BLACKLIST: set[str] = {
+    # The mocked posterior produces sign-discordant lifts rejected by the exporter.
+    # Real default-settings execution runs in test_geolift_notebook.yml instead.
+    "docs/source/notebooks/mmm/mmm_multi_arm_geolift_calibration.ipynb",
     "docs/source/notebooks/mmm/mmm_chronos.ipynb",
     # PIE relies on pymc-bart: variable importance and out-of-sample prediction
     # need the real posterior trees, which the mocked sampler never fits (empty
