@@ -275,3 +275,10 @@ def test_make_change_plot_returns_figure(nstL, sample_change_df):
     fig = nstL.plot_change(sample_change_df, title="Test Intervention")
 
     assert isinstance(fig, plt.Figure)
+
+
+def test_prior_predictive_var_names_without_observed_raises(nstL):
+    nstL.build_model()
+    with pytest.raises(ValueError, match="observed variable"):
+        nstL.sample_prior_predictive(samples=5, var_names=[nstL.model.free_RVs[0].name])
+    assert nstL.idata is None

@@ -1212,3 +1212,10 @@ class TestModelConfig:
         assert "depvar" in attrs
         assert "utility_equations" in attrs
         assert "group_id" in attrs
+
+
+def test_prior_predictive_var_names_without_observed_raises(mxl):
+    mxl.build_model()
+    with pytest.raises(ValueError, match="observed variable"):
+        mxl.sample_prior_predictive(samples=5, var_names=[mxl.model.free_RVs[0].name])
+    assert mxl.idata is None
