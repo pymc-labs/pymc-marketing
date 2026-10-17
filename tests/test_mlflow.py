@@ -16,6 +16,7 @@ import logging
 from collections import namedtuple
 from types import SimpleNamespace
 
+import graphviz
 import mlflow
 import mlflow.artifacts
 import numpy as np
@@ -300,17 +301,27 @@ def test_dims_censored_likelihood_type() -> None:
             ValueError("lam < 0 or lam contains NaNs"),
             "Unable to render the model graph. lam < 0 or lam contains NaNs",
         ),
+        # `graph.render` saves the DOT source before it invokes `dot`, so
+        # patching below `save` checks that a failed render leaves no file.
+        (
+            "graphviz.backend.rendering.render",
+            graphviz.ExecutableNotFound(["dot"]),
+            f"Unable to render the model graph. {graphviz.ExecutableNotFound(['dot'])}",
+        ),
     ],
-    ids=["no_graphviz", "render_error", "graph_creation_error"],
+    ids=["no_graphviz", "render_error", "graph_creation_error", "dot_missing"],
 )
 def test_log_model_graph_no_graphviz(
     caplog,
     mocker,
+    monkeypatch,
     model_with_likelihood,
+    tmp_path,
     to_patch,
     side_effect,
     expected_info_message,
 ) -> None:
+    monkeypatch.chdir(tmp_path)
     mocker.patch(
         to_patch,
         side_effect=side_effect,
@@ -318,6 +329,8 @@ def test_log_model_graph_no_graphviz(
     with mlflow.start_run() as run:
         with caplog.at_level(logging.INFO, logger="pymc_marketing.mlflow"):
             log_model_graph(model_with_likelihood, "model_graph")
+
+    assert not list(tmp_path.glob("model_graph*"))
 
     # Only inspect records emitted by pymc-marketing itself. caplog's handler is
     # attached to the root logger, so it also captures unrelated INFO logs from
