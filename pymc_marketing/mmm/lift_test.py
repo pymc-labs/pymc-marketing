@@ -61,10 +61,37 @@ _POSITIVE_SUPPORT_RV_OPS = {
 }
 
 
+def _validate_measurement_data(df: pd.DataFrame, columns: Sequence[str]) -> None:
+    """Reject undefined observations and invalid measurement uncertainties."""
+    for column in columns:
+        dtype = df[column].dtype
+        if (
+            not pd.api.types.is_numeric_dtype(dtype)
+            or pd.api.types.is_complex_dtype(dtype)
+            or pd.api.types.is_bool_dtype(dtype)
+        ):
+            raise ValueError(
+                f"Calibration column '{column}' must contain finite real numeric values."
+            )
+        try:
+            values = df[column].to_numpy(dtype=float, na_value=np.nan)
+        except (TypeError, ValueError) as error:
+            raise ValueError(
+                f"Calibration column '{column}' must contain finite real numeric values."
+            ) from error
+        if not np.isfinite(values).all():
+            raise ValueError(
+                f"Calibration column '{column}' must contain finite real numeric values."
+            )
+        if column == "sigma" and (values <= 0).any():
+            raise ValueError("Calibration column 'sigma' must be strictly positive.")
+
+
 def _validate_lift_likelihood_data(
     df_lift_test: pd.DataFrame, likelihood: Prior
 ) -> None:
     """Validate observations against known likelihood support constraints."""
+    _validate_measurement_data(df_lift_test, ["x", "delta_x", "delta_y", "sigma"])
     if "sigma" in likelihood.parameters:
         raise ValueError(
             "The lift-test `sigma` is taken from the `sigma` column. Do not pass "
@@ -895,6 +922,8 @@ def validate_cost_per_target_rows(
     missing = required_cols - set(calibration_df.columns)
     if missing:
         raise KeyError(f"Missing required columns in calibration_df: {sorted(missing)}")
+
+    _validate_measurement_data(calibration_df, [target_column, "sigma"])
 
     cpt_dims = tuple(model.named_vars_to_dims["channel_data"])
     non_date_dims = [d for d in cpt_dims if d != "date"]

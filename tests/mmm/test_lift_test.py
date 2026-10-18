@@ -1120,3 +1120,128 @@ def test_add_cost_per_target_potentials_emits_deprecation_warning(dummy_mmm_mode
 
     obs_names = [rv.name for rv in model.model.observed_RVs]
     assert "cpt_calibration" in obs_names
+
+
+@pytest.mark.parametrize("column", ["x", "delta_x", "delta_y", "sigma"])
+@pytest.mark.parametrize("bad_value", [np.nan, np.inf, -np.inf])
+def test_lift_rejects_nonfinite_measurements_before_model_mutation(column, bad_value):
+    with pm.Model(coords={"channel": ["one"]}) as model:
+        pmd.HalfNormal("beta", sigma=1.0, dims="channel")
+    frame = pd.DataFrame(
+        {
+            "channel": ["one"],
+            "x": [1.0],
+            "delta_x": [0.2],
+            "delta_y": [0.1],
+            "sigma": [0.05],
+        }
+    )
+    frame.loc[0, column] = bad_value
+    names = set(model.named_vars)
+    with pytest.raises(ValueError, match=rf"'{column}'.*finite real numeric"):
+        add_saturation_observations(
+            frame,
+            variable_mapping={"beta": "beta"},
+            saturation_function=lambda x, beta: beta * x,
+            model=model,
+        )
+    assert set(model.named_vars) == names
+    assert not model.observed_RVs
+
+
+@pytest.mark.parametrize("sigma", [0.0, -0.1])
+def test_lift_rejects_nonpositive_standard_errors(sigma):
+    frame = pd.DataFrame(
+        {"x": [1.0], "delta_x": [0.2], "delta_y": [-0.1], "sigma": [sigma]}
+    )
+    with pytest.raises(ValueError, match=r"'sigma'.*strictly positive"):
+        add_saturation_observations(
+            frame, variable_mapping={}, saturation_function=lambda x: x
+        )
+
+
+@pytest.mark.parametrize("column", ["cost_per_target", "sigma"])
+@pytest.mark.parametrize("bad_value", [np.nan, np.inf, -np.inf])
+def test_cost_per_target_rejects_nonfinite_measurements(
+    dummy_mmm_model, column, bad_value
+):
+    model = dummy_mmm_model.model
+    shape = (len(model.coords["date"]), len(model.coords["channel"]))
+    cost = as_xtensor(np.ones(shape), dims=("date", "channel"))
+    target = as_xtensor(np.ones(shape), dims=("date", "channel"))
+    frame = pd.DataFrame({"channel": ["x1"], "cost_per_target": [2.0], "sigma": [0.2]})
+    frame.loc[0, column] = bad_value
+    names = set(model.named_vars)
+    coords = set(model.coords)
+    with pytest.raises(ValueError, match=rf"'{column}'.*finite real numeric"):
+        add_cost_per_target_observations(
+            frame, model=model, cost_value=cost, target_value=target
+        )
+
+    assert set(model.named_vars) == names
+    assert set(model.coords) == coords
+
+
+@pytest.mark.parametrize("sigma", [0.0, -1.0])
+def test_cost_per_target_rejects_nonpositive_standard_errors(dummy_mmm_model, sigma):
+    model = dummy_mmm_model.model
+    shape = (len(model.coords["date"]), len(model.coords["channel"]))
+    cost = as_xtensor(np.ones(shape), dims=("date", "channel"))
+    target = as_xtensor(np.ones(shape), dims=("date", "channel"))
+    frame = pd.DataFrame(
+        {"channel": ["x1"], "cost_per_target": [2.0], "sigma": [sigma]}
+    )
+    with pytest.raises(ValueError, match=r"'sigma'.*strictly positive"):
+        add_cost_per_target_observations(
+            frame, model=model, cost_value=cost, target_value=target
+        )
+
+
+@pytest.mark.parametrize(
+    "value", ["not numeric", "0.1", 1 + 2j, pd.Timestamp("2026-01-01"), True]
+)
+@pytest.mark.parametrize("column", ["x", "delta_x", "delta_y", "sigma"])
+def test_lift_rejects_nonreal_measurement_dtypes(column, value):
+    values = {"x": [1.0], "delta_x": [0.2], "delta_y": [0.1], "sigma": [0.05]}
+    values[column] = [value]
+    with pytest.raises(ValueError, match=rf"'{column}'.*finite real numeric"):
+        add_saturation_observations(
+            pd.DataFrame(values), variable_mapping={}, saturation_function=lambda x: x
+        )
+
+
+def test_lift_rejects_nullable_missing_measurements():
+    frame = pd.DataFrame(
+        {
+            "x": [1.0],
+            "delta_x": [0.2],
+            "delta_y": pd.Series([pd.NA], dtype="Float64"),
+            "sigma": [0.05],
+        }
+    )
+    with pytest.raises(ValueError, match=r"'delta_y'.*finite real numeric"):
+        add_saturation_observations(
+            frame, variable_mapping={}, saturation_function=lambda x: x
+        )
+
+
+def test_cost_per_target_validates_custom_target_before_mutation(dummy_mmm_model):
+    model = dummy_mmm_model.model
+    names, coords = set(model.named_vars), set(model.coords)
+    frame = pd.DataFrame(
+        {
+            "channel": [model.coords["channel"][0]],
+            "custom_target": [np.nan],
+            "sigma": [0.2],
+        }
+    )
+    with pytest.raises(ValueError, match=r"'custom_target'.*finite real numeric"):
+        add_cost_per_target_observations(
+            frame,
+            model=model,
+            cost_value=None,
+            target_value=None,
+            target_column="custom_target",
+        )
+    assert set(model.named_vars) == names
+    assert set(model.coords) == coords
