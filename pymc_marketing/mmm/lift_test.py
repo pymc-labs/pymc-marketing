@@ -399,6 +399,9 @@ def add_saturation_observations(
         * ``delta_y``: change in y axis value of the lift test.
         * ``sigma``: standard deviation of the lift test.
 
+        Measurement columns must contain finite real numeric values, and
+        ``sigma`` must be strictly positive. Invalid measurements raise
+        ``ValueError`` before calibration variables are added.
         Any additional columns are assumed to be coordinates in the model.
     variable_mapping : dict[str, str]
         Dictionary of variable names to dimensions.
@@ -838,6 +841,10 @@ def add_lift_measurements_to_likelihood_from_saturation(
             * `delta_x`: change in x axis value of the lift test.
             * `delta_y`: change in y axis value of the lift test.
             * `sigma`: standard deviation of the lift test.
+
+        Measurement columns must contain finite real numeric values, and
+        ``sigma`` must be strictly positive. Invalid measurements raise
+        ``ValueError`` before calibration variables are added.
     saturation : SaturationTransformation
         Any SaturationTransformation instance.
     time_varying_var_name : str, optional
@@ -916,7 +923,8 @@ def validate_cost_per_target_rows(
         If a ``channel`` or dim label is not a model coordinate (with the
         default *get_indices*).
     ValueError
-        If *target_column* or ``sigma`` holds non-numeric values.
+        If *target_column* or ``sigma`` holds nonfinite or non-real-numeric
+        values, or if ``sigma`` is not strictly positive.
     """
     required_cols = {"channel", target_column, "sigma"}
     missing = required_cols - set(calibration_df.columns)
