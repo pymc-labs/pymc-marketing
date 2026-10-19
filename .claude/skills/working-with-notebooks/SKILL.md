@@ -229,7 +229,7 @@ azp.plot_dist(idata)  # just remove prob=
 The CI runs notebooks in batches on the `Test Notebooks` workflow:
 
 1. Go to the PR checks tab on GitHub
-2. Find entries like `notebooks (cvm, --notebooks clv)` with ❌
+2. Find entries like `notebooks (--notebooks clv)` with ❌
 3. Click through to the job log
 4. Search for `Error running notebook:` — this gives the notebook name
 5. Search for `Exception encountered at "In [X]":` — this gives the cell number
