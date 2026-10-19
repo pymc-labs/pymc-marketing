@@ -36,5 +36,4 @@ clv/clv_intro
 
 customer_choice/incrementality_intro
 customer_choice/mv_its_intro
-customer_choice/consideration_intercept_migration
 :::
