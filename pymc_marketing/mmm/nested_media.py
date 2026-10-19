@@ -97,6 +97,8 @@ from pymc_marketing.distributions import DimWeightedZeroSumNormal
 from pymc_marketing.mmm.additive_effect import DataVarMuEffect, Model
 from pymc_marketing.mmm.components.saturation import (
     MichaelisMentenSaturation,
+    NoSaturation,
+    RootSaturation,
     SaturationTransformation,
 )
 from pymc_marketing.mmm.lift_test import (
@@ -110,6 +112,19 @@ from pymc_marketing.serialization import serialization
 # relative to the channel scale, so it is float dust (a residue of a
 # subtraction or an allocation), far below any real spend.
 _SPEND_DUST = 1e-12
+
+
+def _is_power_law(saturation: SaturationTransformation) -> bool:
+    """Whether ``saturation`` is a power law in spend, ``S(k x) = k**a * S(x)``.
+
+    For such a curve, rescaling a campaign's spend only rescales its curve,
+    so the campaign's x-scale multiplier is confounded with its amplitude
+    multiplier and only the amplitude one is kept. ``NoSaturation``
+    (``a = 1``) and ``RootSaturation`` are the library's power laws, and
+    their subclasses are recognised too. A custom power-law saturation is
+    not: it keeps both multipliers, one of them unidentified.
+    """
+    return isinstance(saturation, NoSaturation | RootSaturation)
 
 
 def _channel_scale_and_campaign_cap(
@@ -250,7 +265,13 @@ class NestedMediaEffect(DataVarMuEffect):
         to campaigns; its amplitude parameter is the channel capacity in
         scaled-spend, scaled-target units.  The saturation is evaluated on
         size-normalized spend ``x / cap_c**rho``, of order one, so the
-        library's default priors are sensible for every campaign.
+        library's default priors are sensible for every campaign.  For a
+        power-law saturation (``NoSaturation``, ``RootSaturation``),
+        rescaling the spend only rescales the curve, so campaigns get an
+        amplitude multiplier only.  With ``NoSaturation`` each campaign is a
+        straight line: the budget optimizer has no diminishing returns to
+        balance and, without bounds, funds the campaign with the steepest
+        line.
     data_vars : list[str]
         Single data variable in ``mmm.xarray_dataset`` holding campaign
         spend with dims ``("date", *mmm.dims, child_dim)``.
@@ -275,6 +296,8 @@ class NestedMediaEffect(DataVarMuEffect):
         channel with a single campaign).  At ``rho=1`` the campaign
         curve is the channel curve scaled by campaign size on both axes:
         split-invariant, with equal marginal returns at proportional spend.
+        With ``NoSaturation`` the size cancels out of the curve, so ``rho``
+        has no effect.
     zero_sum_multipliers : bool
         When True (default), the campaign log-multipliers are constrained to
         a *spend-share-weighted* zero sum within each channel. This is a
@@ -720,16 +743,24 @@ class NestedMediaEffect(DataVarMuEffect):
     def _campaign_multipliers(
         self, model: pm.Model
     ) -> tuple[XTensorVariable, XTensorVariable]:
-        """Campaign amplitude and x-scale multipliers around the channel curve."""
+        """Campaign amplitude and x-scale multipliers around the channel curve.
+
+        For a power-law saturation the x-scale multiplier is confounded with
+        the amplitude one, so it is fixed at one and has no variables.
+        """
         p = self.prefix
+        power_law = _is_power_law(self._built)
         tau_beta = pmd.HalfNormal(f"{p}_tau_beta", sigma=self.tau_beta_sigma)
-        tau_lam = pmd.HalfNormal(f"{p}_tau_lam", sigma=self.tau_lam_sigma)
+        if not power_law:
+            tau_lam = pmd.HalfNormal(f"{p}_tau_lam", sigma=self.tau_lam_sigma)
         if self.zero_sum_multipliers:
             z_beta = self._zero_sum_multiplier(model, "z_beta")
-            z_lam = self._zero_sum_multiplier(model, "z_lam")
+            if not power_law:
+                z_lam = self._zero_sum_multiplier(model, "z_lam")
         else:
             z_beta = pmd.Normal(f"{p}_z_beta", 0.0, 1.0, dims=(self.child_dim,))
-            z_lam = pmd.Normal(f"{p}_z_lam", 0.0, 1.0, dims=(self.child_dim,))
+            if not power_law:
+                z_lam = pmd.Normal(f"{p}_z_lam", 0.0, 1.0, dims=(self.child_dim,))
 
         log_mult = tau_beta * z_beta
         if self.covariate_var is not None:
@@ -745,7 +776,10 @@ class NestedMediaEffect(DataVarMuEffect):
             f"{p}_beta_multiplier", pmd.math.exp(log_mult)
         )
         lam_multiplier = pmd.Deterministic(
-            f"{p}_lam_multiplier", pmd.math.exp(tau_lam * z_lam)
+            f"{p}_lam_multiplier",
+            pmd.ones_like(beta_multiplier)
+            if power_law
+            else pmd.math.exp(tau_lam * z_lam),
         )
         return beta_multiplier, lam_multiplier
 

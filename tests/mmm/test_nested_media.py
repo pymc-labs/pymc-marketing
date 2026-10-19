@@ -947,6 +947,88 @@ def test_split_invariance_away_from_unit_multipliers(saturation_cls):
     np.testing.assert_allclose(split, whole, rtol=1e-10)
 
 
+def _power_law_contribution(saturation, rho, z_beta):
+    """Campaign contribution and the parts of its closed form, at a fixed point."""
+    mmm, effect = _build(
+        NestedMediaEffect(
+            child_to_parent=MAPPING,
+            saturation=saturation,
+            rho=rho,
+            zero_sum_multipliers=False,
+        )
+    )
+    model = mmm.model
+    p = "nested_media"
+    point = model.initial_point()
+    point[f"{p}_tau_beta_log__"] = np.log(0.6)
+    point[f"{p}_z_beta"] = z_beta
+    names = [
+        f"{p}_campaign_contribution",
+        f"{p}_beta_multiplier",
+        f"{p}_lam_multiplier",
+        *effect._built.variable_mapping.values(),
+    ]
+    graphs = model.replace_rvs_by_values([model[n] for n in names])
+    values = model.compile_fn(
+        graphs, inputs=model.value_vars, on_unused_input="ignore"
+    )(point)
+    out = {
+        n: xr.DataArray(v, dims=model[n].type.dims)
+        for n, v in zip(names, values, strict=True)
+    }
+    parent = model[f"{p}_parent_idx"].get_value()
+    scale = model[f"{p}_channel_scale"].get_value()[parent]
+    x = mmm.xarray_dataset["campaign_data"].values / scale
+    cap = model[f"{p}_campaign_cap"].get_value()
+    params = {
+        name: out[var].values[parent]
+        for name, var in effect._built.variable_mapping.items()
+    }
+    return model, out, x, cap, params
+
+
+@pytest.mark.parametrize("saturation_cls", ["no", "root"])
+def test_power_law_saturation_keeps_only_the_amplitude_multiplier(saturation_cls):
+    # for a power law, rescaling the spend only rescales the curve, so the
+    # x-scale multiplier would be confounded with the amplitude one: it is
+    # fixed at one and has no variables
+    from pymc_marketing.mmm import NoSaturation, RootSaturation
+
+    saturation = NoSaturation() if saturation_cls == "no" else RootSaturation()
+    z_beta = np.linspace(-1.0, 1.0, len(CAMPAIGNS))
+    rho = 0.5
+    model, out, x, cap, params = _power_law_contribution(saturation, rho, z_beta)
+    p = "nested_media"
+    for name in [f"{p}_tau_lam", f"{p}_z_lam"]:
+        assert name not in model.named_vars
+    np.testing.assert_array_equal(out[f"{p}_lam_multiplier"].values, 1.0)
+
+    m = out[f"{p}_beta_multiplier"].values
+    size = cap**rho
+    if saturation_cls == "no":
+        expected = m * params["beta"] * x  # the size cancels
+    else:
+        expected = size * m * params["beta"] * (x / size) ** params["alpha"]
+    np.testing.assert_allclose(
+        out[f"{p}_campaign_contribution"].transpose("date", "campaign").values,
+        expected,
+        rtol=1e-10,
+    )
+
+
+def test_rho_has_no_effect_without_saturation():
+    from pymc_marketing.mmm import NoSaturation
+
+    z_beta = np.linspace(-1.0, 1.0, len(CAMPAIGNS))
+    contributions = [
+        _power_law_contribution(NoSaturation(), rho, z_beta)[1][
+            "nested_media_campaign_contribution"
+        ].values
+        for rho in (0.0, 1.0)
+    ]
+    np.testing.assert_allclose(contributions[0], contributions[1], rtol=1e-12)
+
+
 @pytest.mark.parametrize("rho", [0.0, 0.5, 1.0])
 def test_rho_ties_the_curve_to_size(rho):
     # contribution_c = cap**rho * m * S(x / (cap**rho * s)), checked against a
