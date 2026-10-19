@@ -2793,6 +2793,57 @@ def test_a_one_shot_evaluation_does_not_pin_the_rebinds(rebind_first):
     assert optimizer._shared_posterior is not None
 
 
+def test_a_one_shot_evaluation_follows_a_reordered_rebind():
+    """A reordered rebind is realigned before the one-shot graph reads it.
+
+    The ad-hoc graph is conditioned on constants from the stored posterior.
+    A posterior stored as ``(b, a)`` therefore used to read ``beta`` by position.
+    That gave 640 for ``noise_thing`` where the objective gave 960.
+    """
+    n_dates = 4
+    channels = ["a", "b"]
+    with pm.Model(coords={"channel": channels}) as model:
+        model.add_coord("date", length=n_dates)
+        channel_data = pmd.Data(
+            "channel_data", np.ones((n_dates, 2)), dims=("date", "channel")
+        )
+        beta = pmd.Normal("beta", 1.0, 0.1, dims="channel")
+        gamma = pmd.Normal("gamma", 0.0, 1.0)
+        pmd.Deterministic(
+            "total_media_contribution_original_scale", (channel_data * beta).sum()
+        )
+        pmd.Deterministic("noise_thing", gamma + (channel_data * beta).sum())
+
+    posterior = xr.Dataset(
+        {
+            "beta": (
+                ("chain", "draw", "channel"),
+                np.array([1.0, 3.0])[None, None],
+            ),
+            "gamma": (("chain", "draw"), np.zeros((1, 1))),
+        },
+        coords={"channel": channels},
+    )
+    optimizer = BudgetOptimizer(
+        model=CustomModelWrapper(
+            base_model=model,
+            idata=xr.DataTree.from_dict({"/posterior": posterior}),
+            channels=channels,
+        ),
+        num_periods=n_dates,
+        response_variable="total_media_contribution_original_scale",
+    )
+    optimizer.set_posterior(
+        xr.DataTree.from_dict({"/posterior": posterior.isel(channel=[1, 0])})
+    )
+    plan = xr.DataArray([30.0, 70.0], dims=["channel"], coords={"channel": channels})
+
+    np.testing.assert_allclose(
+        optimizer.evaluate_response_distribution(plan, "noise_thing").values,
+        optimizer.evaluate_response_distribution(plan).values,
+    )
+
+
 def test_set_posterior_fallback_mask_is_not_compared(mmm_wrapper, dummy_idata):
     """A mask that fell back to every cell at construction stays every cell.
 

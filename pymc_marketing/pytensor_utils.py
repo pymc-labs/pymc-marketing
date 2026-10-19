@@ -753,8 +753,10 @@ class ConditionedModel:
     Once a graph has been cached, its first :meth:`set_posterior` drops the cache.
     It then re-extracts each key through a new :class:`SharedPosterior`.
     That rebind fires the registered callbacks so consumers recompile.
-    A :meth:`set_posterior` with nothing cached yet only switches to the shared path and fires nothing.
+    A :meth:`set_posterior` with nothing cached yet still checks the labels.
+    It then only switches to the shared path and fires nothing.
     An uncached ``cache=False`` graph is untouched by it.
+    The posterior given at construction defines the label layout every rebind is realigned to.
     Every later rebind only swaps the draws in place, which is atomic and free in the number of draws.
     A compiled function therefore follows the newer posterior without being recompiled.
 
@@ -808,6 +810,13 @@ class ConditionedModel:
         # from one of the clone's own inputs by identity.
         self._clone_nodes = frozenset(ancestors(list(self._model.named_vars.values())))
         self._posterior = _posterior_dataset(idata)
+        # The label layout every rebind is realigned to, taken once here.
+        # A thinned posterior can drop a dimension, so it cannot be read from the last stored posterior.
+        self._label_layout: dict[str, pd.Index] = {
+            dim: index
+            for dim, index in self._posterior.indexes.items()
+            if dim not in ("chain", "draw")
+        }
         self._shared_posterior: SharedPosterior | None = (
             SharedPosterior() if share_posterior else None
         )
@@ -926,12 +935,14 @@ class ConditionedModel:
     def set_posterior(self, idata: xr.DataTree | xr.Dataset) -> None:
         """Point the handed-out graphs at the draws in ``idata``.
 
+        The posterior given at construction defines the label layout every rebind aligns to.
+        ``idata`` is realigned to it once, when it arrives, before any graph is bound.
         Without ``share_posterior``, the first call after a graph has been cached rebuilds those keys.
         It rebuilds them on a shared posterior.
         That call is validated, label realigned and length checked exactly like every later one.
         It re-extracted the graphs, so it fires the registered callbacks and consumers recompile from them.
-        A call with nothing cached only switches to the shared path.
-        There is no cached graph to rebuild and nothing to validate, so it fires no callback.
+        A call with nothing cached still checks the labels and switches to the shared path.
+        There is no cached graph to rebuild, so it fires no callback.
         An uncached ``cache=False`` graph is untouched by it.
         Every later call only swaps the draws, which needs no recompile and accepts a different number of draws.
 
@@ -949,19 +960,20 @@ class ConditionedModel:
         KeyError
             If the posterior lacks a variable the graphs read.
         ValueError
-            If a variable's non-sample dimensions, lengths or labels differ
-            from the ones it was bound with.
+            If a variable's non-sample dimensions, lengths or labels differ from the ones it was bound with.
+            Also if a dimension is labelled on one side only.
 
         Notes
         -----
-        A call before anything was cached reads no variable from ``idata``, so it validates no variable.
+        A call before anything was cached still checks ``idata``'s labels at the door.
+        It binds no variable in that case.
         After either error, and when a registered callback raises, the previous binding is left in place.
 
         A callback that extracts a new key during a rebind adds it to the cache.
         If a first rebind fails and is rolled back, the cache returns to its previous state and drops those entries.
         """
         posterior = _posterior_dataset(idata)
-        rollback = self._apply_posterior(posterior)
+        rollback = self._apply_posterior(self._realigned(posterior))
         if rollback is None:
             # Either nothing is cached yet, so only the mode switched.
             # Or this was a later rebind that only swapped the draws.
@@ -973,13 +985,53 @@ class ConditionedModel:
             rollback()
             raise
 
+    def _realigned(self, posterior: xr.Dataset) -> xr.Dataset:
+        """Return ``posterior`` laid out along the labels of the construction posterior.
+
+        A dimension absent from ``posterior`` is skipped, so a thinned posterior that drops a variable is accepted.
+        A dimension present without labels, while the reference draws have them, is refused.
+        Positions cannot be checked against labels, so both sides must agree or both go without.
+        Reordering needs unique reference labels; a duplicated one would make ``sel`` drop a column.
+        """
+        # The construction layout is the reference, even when a thinned posterior dropped a dimension.
+        # A dimension unlabelled at construction keeps the old fallback.
+        # It is checked against the replaced draws, so the one-sided check still fires after a rebind introduced labels.
+        references = {**self._posterior.indexes, **self._label_layout}
+        indexers: dict[str, pd.Index] = {}
+        for dim, bound in references.items():
+            if dim in ("chain", "draw"):
+                continue
+            if dim not in posterior.sizes:
+                continue
+            given = posterior.indexes.get(dim)
+            if given is None:
+                raise ValueError(
+                    f"Posterior dimension {dim!r} is labelled on one side only. "
+                    "Label both sides or neither; positions cannot be checked "
+                    "against labels."
+                )
+            if given.equals(bound):
+                continue
+            if not bound.is_unique:
+                raise ValueError(
+                    f"Posterior has duplicated {dim} labels in the construction "
+                    f"posterior: {bound[bound.duplicated()].unique().tolist()}."
+                )
+            if len(given) != len(bound) or not bound.difference(given).empty:
+                raise ValueError(
+                    f"Posterior has different {dim} labels from the construction posterior."
+                )
+            indexers[dim] = bound
+        return posterior.sel(indexers) if indexers else posterior
+
     def _apply_posterior(self, posterior: xr.Dataset) -> Callable[[], None] | None:
         """Bind the graphs to ``posterior``, returning a rollback when that re-extracted the graphs.
 
         See :meth:`set_posterior` for the rebind and rollback contract.
         """
         if not self._cache:
-            # Nothing is cached yet, so there is no cached graph to re-extract and nothing to validate.
+            # Nothing is cached yet, so there is no cached graph to re-extract.
+            # ``set_posterior`` already realigned and checked the labels at the door.
             # Uncached ``cache=False`` graphs are untouched by this.
             # Only switch to the shared path and record the new draws.
             # An instance built with ``share_posterior=True`` is kept, not replaced.
