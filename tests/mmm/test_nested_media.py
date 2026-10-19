@@ -837,7 +837,14 @@ def test_lift_test_calibrates_response_at_operating_point():
     assert float(posterior_lift.std()) < 0.25 * float(prior_lift.std())
 
 
-def _channel_contribution_at_initial_point(campaigns, mapping, spend, saturation=None):
+def _channel_contribution_at_initial_point(
+    campaigns, mapping, spend, saturation=None, point=None, **effect_kwargs
+):
+    """Channel contribution at the initial point, with ``point`` values overriding it.
+
+    ``point`` maps value-variable names to values, or to a callable taking the
+    campaign coordinate and returning the value.
+    """
     from pymc_marketing.mmm.nested_media import NestedMediaEffect as _Effect
 
     dates = pd.date_range("2025-01-01", periods=spend.shape[0], freq="W-MON")
@@ -848,7 +855,7 @@ def _channel_contribution_at_initial_point(campaigns, mapping, spend, saturation
     model = pm.Model(coords={"date": dates, "campaign": campaigns})
     mmm = type("MockMMM", (), {"dims": (), "model": model, "xarray_dataset": ds})()
     kwargs = {} if saturation is None else {"saturation": saturation}
-    effect = _Effect(child_to_parent=mapping, **kwargs)
+    effect = _Effect(child_to_parent=mapping, **kwargs, **effect_kwargs)
     with model:
         effect.create_data(mmm)
         effect.create_effect(mmm)
@@ -857,6 +864,8 @@ def _channel_contribution_at_initial_point(campaigns, mapping, spend, saturation
     (graph,) = model.replace_rvs_by_values([model["nested_media_channel_contribution"]])
     fn = pytensor.function(model.value_vars, graph, on_unused_input="ignore")
     ip = model.initial_point()
+    for name, value in (point or {}).items():
+        ip[name] = value(campaigns) if callable(value) else value
     return fn(*(ip[v.name] for v in model.value_vars))
 
 
@@ -886,6 +895,101 @@ def test_split_invariance(saturation_cls):
         saturation,
     )
     np.testing.assert_allclose(split, whole, rtol=1e-10)
+
+
+@pytest.mark.parametrize("saturation_cls", [None, "logistic"])
+def test_split_invariance_away_from_unit_multipliers(saturation_cls):
+    # the homogeneity argument holds for any common multipliers, not only at
+    # m = s = 1: parts of a split campaign that share its amplitude and
+    # x-scale multipliers add back to it exactly
+    from pymc_marketing.mmm import LogisticSaturation
+
+    saturation = None if saturation_cls is None else LogisticSaturation()
+    rng = np.random.default_rng(3)
+    spend_a = rng.gamma(2.0, 1.0, 30)
+    spend_b = rng.gamma(2.0, 1.0, 30)
+    z_by_parent = {"a": (0.8, -0.6), "b": (-0.3, 0.9)}  # (z_beta, z_lam)
+
+    def z(position):
+        return lambda campaigns: np.array(
+            [z_by_parent[c[0]][position] for c in campaigns]
+        )
+
+    point = {
+        "nested_media_tau_beta_log__": np.log(0.7),
+        "nested_media_tau_lam_log__": np.log(0.5),
+        "nested_media_z_beta": z(0),
+        "nested_media_z_lam": z(1),
+    }
+    whole = _channel_contribution_at_initial_point(
+        ["a", "b"],
+        {"a": "ch", "b": "ch"},
+        np.column_stack([spend_a, spend_b]),
+        saturation,
+        point=point,
+        zero_sum_multipliers=False,
+    )
+    split = _channel_contribution_at_initial_point(
+        ["a1", "a2", "b"],
+        {"a1": "ch", "a2": "ch", "b": "ch"},
+        np.column_stack([0.6 * spend_a, 0.4 * spend_a, spend_b]),
+        saturation,
+        point=point,
+        zero_sum_multipliers=False,
+    )
+    unit = _channel_contribution_at_initial_point(
+        ["a", "b"],
+        {"a": "ch", "b": "ch"},
+        np.column_stack([spend_a, spend_b]),
+        saturation,
+    )
+    assert not np.allclose(whole, unit)  # the multipliers are really away from 1
+    np.testing.assert_allclose(split, whole, rtol=1e-10)
+
+
+@pytest.mark.parametrize("rho", [0.0, 0.5, 1.0])
+def test_rho_ties_the_curve_to_size(rho):
+    # contribution_c = cap**rho * m * S(x / (cap**rho * s)), checked against a
+    # closed form at a point where the multipliers are away from 1
+    mmm, effect = _build(
+        NestedMediaEffect(child_to_parent=MAPPING, rho=rho, zero_sum_multipliers=False)
+    )
+    model = mmm.model
+    p = "nested_media"
+    point = model.initial_point()
+    point[f"{p}_tau_beta_log__"] = np.log(0.6)
+    point[f"{p}_tau_lam_log__"] = np.log(0.4)
+    point[f"{p}_z_beta"] = np.linspace(-1.0, 1.0, len(CAMPAIGNS))
+    point[f"{p}_z_lam"] = np.linspace(0.8, -0.8, len(CAMPAIGNS))
+    names = [
+        f"{p}_campaign_contribution",
+        f"{p}_beta_multiplier",
+        f"{p}_lam_multiplier",
+        effect._built.variable_mapping["alpha"],
+        effect._built.variable_mapping["lam"],
+    ]
+    graphs = model.replace_rvs_by_values([model[n] for n in names])
+    values = model.compile_fn(
+        graphs, inputs=model.value_vars, on_unused_input="ignore"
+    )(point)
+    contrib, m, s, alpha, lam = (
+        xr.DataArray(v, dims=model[n].type.dims)
+        for n, v in zip(names, values, strict=True)
+    )
+
+    parent = model[f"{p}_parent_idx"].get_value()
+    channel = f"{p}_channel"
+    scale = model[f"{p}_channel_scale"].get_value()[parent]
+    cap = xr.DataArray(model[f"{p}_campaign_cap"].get_value(), dims="campaign")
+    x = mmm.xarray_dataset["campaign_data"] / xr.DataArray(scale, dims="campaign")
+    alpha_c = alpha.isel({channel: xr.DataArray(parent, dims="campaign")})
+    lam_c = lam.isel({channel: xr.DataArray(parent, dims="campaign")})
+    size = cap**rho
+    x_rel = x.values / (size * s).values
+    expected = size.values * m.values * alpha_c.values * x_rel / (lam_c.values + x_rel)
+    np.testing.assert_allclose(
+        contrib.transpose("date", "campaign").values, expected, rtol=1e-10
+    )
 
 
 @pytest.mark.parametrize("saturation_cls", [None, "logistic"])
@@ -1228,6 +1332,85 @@ def test_double_count_warning(campaign_mmm_data):
         mmm.build_model(X=X, y=campaign_mmm_data["y"])
 
 
+def test_budget_optimizer_allocates_to_campaigns(campaign_mmm_data):
+    """Prior draws stand in for a posterior, as the funnel fixtures do."""
+    from pydantic import ValidationError
+
+    X = campaign_mmm_data["X"].copy(deep=True)
+    X["campaign_data"].loc[{"campaign": "social_c"}] = 0.0  # a dead campaign
+    mmm = _make_mmm()
+    with pytest.warns(UserWarning, match=r"\['social_c'\] have no spend"):
+        mmm.build_model(X=X, y=campaign_mmm_data["y"])
+    with mmm.model:
+        idata = pm.sample_prior_predictive(draws=20, random_seed=seed)
+    idata["/posterior"] = idata["/prior"].to_dataset()
+    idata["/fit_data"] = mmm.create_fit_data(
+        campaign_mmm_data["X_df"], campaign_mmm_data["y_series"]
+    )
+    mmm.idata = idata
+    mmm.set_idata_attrs(idata=idata)
+    dates = X.indexes["date"]
+    window = {
+        "start_date": dates[-1] + pd.Timedelta(weeks=1),
+        "end_date": dates[-1] + pd.Timedelta(weeks=4),
+        "spend_vars": ["campaign_data"],
+    }
+
+    # the default objective is the channel contribution, which cannot see the
+    # effect: refused at construction rather than starving the campaigns
+    with pytest.raises(ValidationError, match="does not depend on spend_vars"):
+        mmm.budget_optimizer(**window)
+
+    optimizer = mmm.budget_optimizer(
+        **window, response_variable="total_response_original_scale"
+    )
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", UserWarning)  # default budget bounds
+        result = optimizer.allocate_budget(total_budget=4.0)
+    campaigns = result.optimized_vars["campaign_data"]
+    assert list(campaigns["campaign"].values) == SOCIAL_CAMPAIGNS
+    total = float(result.budgets.sum()) + float(campaigns.sum())
+    np.testing.assert_allclose(total, 4.0, rtol=1e-6)
+    # cap 0: no money on a campaign the model cannot fund (up to solver
+    # round-off)
+    assert float(campaigns.sel(campaign="social_c")) < 1e-9 * 4.0
+    assert float(campaigns.sel(campaign=["social_a", "social_b"]).sum()) > 0.0
+
+
+@pytest.mark.parametrize("explicit_scaling", [True, False])
+def test_unscaled_saturation_warns_on_real_mmm(campaign_mmm_data, explicit_scaling):
+    """A configured channel scaling is overridden for unscaled saturations, loudly."""
+    from pymc_marketing.mmm import DataDerivedScaling, LogSaturation, Scaling
+
+    scaling = (
+        Scaling(
+            target=DataDerivedScaling(dims=(), method="max"),
+            channel=DataDerivedScaling(dims=(), method="mean"),
+        )
+        if explicit_scaling
+        else None
+    )
+    mmm = MMM(
+        channel_columns=["search"],
+        date_column="date",
+        target_column="y",
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+        scaling=scaling,
+    ).add_mu_effect(
+        NestedMediaEffect(child_to_parent=SOCIAL_MAPPING, saturation=LogSaturation())
+    )
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        mmm.build_model(X=campaign_mmm_data["X"], y=campaign_mmm_data["y"])
+    messages = [str(w.message) for w in caught]
+    fired = any("requires unscaled inputs" in m for m in messages)
+    assert fired == explicit_scaling
+    np.testing.assert_array_equal(
+        mmm.model["nested_media_channel_scale"].get_value(), 1.0
+    )
+
+
 @pytest.mark.xfail(
     reason=(
         "MMM.load rebuilds X via fit_data as a DataFrame, which cannot carry "
@@ -1257,49 +1440,49 @@ def test_save_load_roundtrip(campaign_mmm_data, tmp_path):
     assert isinstance(loaded.mu_effects[0], NestedMediaEffect)
 
 
+@pytest.fixture(scope="module")
+def geo_mmm():
+    """A real MMM with an extra ``geo`` model dim and the effect added."""
+    n_dates, geos = 16, ["north", "south"]
+    rng = np.random.default_rng(seed)
+    dates = pd.date_range("2025-01-06", freq="W-MON", periods=n_dates)
+    media = np.abs(rng.normal(1.0, 0.3, size=(n_dates, 2, 1))) + 0.2
+    camp = np.array([0.7, 0.2, 0.1])[None, None, :] * rng.lognormal(
+        0, 0.6, size=(n_dates, 2, 3)
+    )
+    target = np.abs(
+        1.0
+        + 0.4 * media[..., 0]
+        + 0.5 * camp.sum(-1)
+        + rng.normal(0, 0.1, size=(n_dates, 2))
+    )
+    X = xr.Dataset(
+        {
+            "media": xr.DataArray(media, dims=("date", "geo", "channel")),
+            "campaign_data": xr.DataArray(camp, dims=("date", "geo", "campaign")),
+        },
+        coords={
+            "date": dates,
+            "geo": geos,
+            "channel": ["search"],
+            "campaign": SOCIAL_CAMPAIGNS,
+        },
+    )
+    y = xr.DataArray(target, dims=("date", "geo"), coords={"date": dates, "geo": geos})
+    mmm = MMM(
+        channel_columns=["search"],
+        date_column="date",
+        target_column="y",
+        dims=("geo",),
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+    ).add_mu_effect(NestedMediaEffect(child_to_parent=SOCIAL_MAPPING))
+    mmm.build_model(X=X, y=y)
+    return mmm
+
+
 class TestGeoDims:
     """The effect with a real MMM carrying an extra model dim."""
-
-    @pytest.fixture(scope="class")
-    def geo_mmm(self):
-        n_dates, geos = 16, ["north", "south"]
-        rng = np.random.default_rng(seed)
-        dates = pd.date_range("2025-01-06", freq="W-MON", periods=n_dates)
-        media = np.abs(rng.normal(1.0, 0.3, size=(n_dates, 2, 1))) + 0.2
-        camp = np.array([0.7, 0.2, 0.1])[None, None, :] * rng.lognormal(
-            0, 0.6, size=(n_dates, 2, 3)
-        )
-        target = np.abs(
-            1.0
-            + 0.4 * media[..., 0]
-            + 0.5 * camp.sum(-1)
-            + rng.normal(0, 0.1, size=(n_dates, 2))
-        )
-        X = xr.Dataset(
-            {
-                "media": xr.DataArray(media, dims=("date", "geo", "channel")),
-                "campaign_data": xr.DataArray(camp, dims=("date", "geo", "campaign")),
-            },
-            coords={
-                "date": dates,
-                "geo": geos,
-                "channel": ["search"],
-                "campaign": SOCIAL_CAMPAIGNS,
-            },
-        )
-        y = xr.DataArray(
-            target, dims=("date", "geo"), coords={"date": dates, "geo": geos}
-        )
-        mmm = MMM(
-            channel_columns=["search"],
-            date_column="date",
-            target_column="y",
-            dims=("geo",),
-            adstock=GeometricAdstock(l_max=2),
-            saturation=LogisticSaturation(),
-        ).add_mu_effect(NestedMediaEffect(child_to_parent=SOCIAL_MAPPING))
-        mmm.build_model(X=X, y=y)
-        return mmm
 
     def test_contribution_dims(self, geo_mmm):
         named = geo_mmm.model.named_vars
@@ -1392,8 +1575,74 @@ def test_lift_test_with_per_geo_channel_scale_builds():
     effect.add_campaign_lift_test_measurements(df_lift, mmm)
     assert "nested_media_lift_measurements" in mmm.model.named_vars
     assert np.isfinite(mmm.model.compile_logp()(mmm.model.initial_point()))
+
+    # the estimated lift of each row uses that row's geo for both the channel
+    # scale and the campaign cap: check it by value, away from the initial
+    # point, so a swapped geo or campaign index cannot pass
+    model = mmm.model
+    p = effect.prefix
+    rng = np.random.default_rng(11)
+    point = {
+        k: v + rng.normal(0.0, 0.3, np.shape(v))
+        for k, v in model.initial_point().items()
+    }
+    names = [
+        f"{p}_lift_measurements_model_estimated_lift",
+        f"{p}_beta_multiplier",
+        f"{p}_lam_multiplier",
+        effect._built.variable_mapping["alpha"],
+        effect._built.variable_mapping["lam"],
+    ]
+    values = model.compile_fn(
+        model.replace_rvs_by_values([model[n] for n in names]),
+        inputs=model.value_vars,
+        on_unused_input="ignore",
+    )(point)
+    lift, m, s, alpha, lam = (
+        xr.DataArray(v, dims=model[n].type.dims, coords=_coords_of(model, n))
+        for n, v in zip(names, values, strict=True)
+    )
+    scale = _data_array(model, f"{p}_channel_scale")
+    cap = _data_array(model, f"{p}_campaign_cap")
+    assert "geo" in scale.dims and "geo" in cap.dims
+
+    expected = []
+    for row in df_lift.itertuples():
+        size = float(cap.sel(geo=row.geo, campaign=row.campaign)) ** effect.rho
+        x_scale = float(scale.sel(geo=row.geo, nested_media_channel="social"))
+        m_c = float(m.sel(campaign=row.campaign))
+        s_c = float(s.sel(campaign=row.campaign))
+        a = float(alpha.sel(nested_media_channel="social"))
+        k = float(lam.sel(nested_media_channel="social"))
+
+        def curve(spend, size=size, x_scale=x_scale, m_c=m_c, s_c=s_c, a=a, k=k):
+            x_rel = spend / x_scale / (size * s_c)
+            return size * m_c * a * x_rel / (k + x_rel)
+
+        expected.append(curve(row.x + row.delta_x) - curve(row.x))
+    np.testing.assert_allclose(lift.values, expected, rtol=1e-10)
+
     with pytest.raises(KeyError, match="geo"):
         effect.add_campaign_lift_test_measurements(df_lift.drop(columns="geo"), mmm)
+
+
+def _coords_of(model, name):
+    """Labelled coordinates of a model variable; length-only dims are skipped."""
+    return {
+        d: list(model.coords[d])
+        for d in model[name].type.dims
+        if model.coords.get(d) is not None
+    }
+
+
+def _data_array(model, name):
+    """A registered data variable as a labelled DataArray."""
+    dims = tuple(model.named_vars_to_dims[name])
+    return xr.DataArray(
+        model[name].get_value(),
+        dims=dims,
+        coords={d: list(model.coords[d]) for d in dims},
+    )
 
 
 @pytest.mark.parametrize("reduce_dims", [(), ("geo",)])

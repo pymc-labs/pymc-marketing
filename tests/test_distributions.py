@@ -65,8 +65,12 @@ class TestWeightedZeroSumNormal:
         assert np.abs(draws @ u).max() < 1e-12
         expected_cov = 4.0 * (np.eye(len(w)) - np.outer(u, u))
         np.testing.assert_allclose(np.cov(draws.T), expected_cov, atol=0.15)
-        # marginal variances are sigma**2 * (1 - u_i**2), documented in the docstring
-        np.testing.assert_allclose(draws.var(axis=0), 4.0 * (1 - u**2), atol=0.1)
+        # marginal variances are sigma**2 * (1 - u_i**2), documented in the
+        # docstring; a relative tolerance so the dominant component's small
+        # variance (about 0.019 here) is actually checked
+        variances = draws.var(axis=0)
+        np.testing.assert_allclose(variances, 4.0 * (1 - u**2), rtol=0.05)
+        assert variances.argmin() == w.argmax()
 
     @pytest.mark.parametrize("sigma", [1.0, 2.5, np.array([1.0, 2.0, 3.0])])
     def test_logp_matches_mvnormal_reference(self, sigma):
