@@ -1,0 +1,23 @@
+docs/source/conf.py
+  s_34de95dc6393da::t_05c4bf007f1239 165-170
+pymc_marketing/mmm/mmm.py
+  s_34de95dc6393da::t_508d6a4dd103c6 4457-4458
+tests/mmm/test_contribution_prior.py
+  s_34de95dc6393da::t_17ca1f8372bc25 545-552,556,568,572,748-749,757-767,774-821
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "ac5fe44a485728e2e3fe4a9236d7b06bb082c6f7",
+  "prompts": {},
+  "sessions": {
+    "s_34de95dc6393da": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a13f0e-959c-7ff2-b12e-4b30d90826b7",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Benjamin T. Vincent <inferencelab@gmail.com>"
+    }
+  }
+}
