@@ -262,22 +262,22 @@ class ContributionFactorState:
         # Only make a sign claim when this model's amplitude support establishes it.
         beta = mmm.model_config.get("saturation_beta")
         if isinstance(beta, Prior) and beta.preliz.support[0] >= 0:
-            if (
-                float(
-                    -np.expm1(
-                        pm.logcdf(
-                            prior.pymc_distribution.dist(**prior.parameters), 0
-                        ).eval()
+            try:
+                log_negative_mass = pm.logcdf(
+                    prior.pymc_distribution.dist(**prior.parameters), 0
+                ).eval()
+            except NotImplementedError:
+                # A CDF is optional for this advisory diagnostic. Some supported
+                # smooth densities (e.g. SkewNormal) only implement logp in PyMC.
+                pass
+            else:
+                if float(-np.expm1(log_negative_mass)) < 0.001:
+                    warnings.warn(
+                        "This component assigns less than 0.1% probability to nonnegative "
+                        "contributions; check the belief and its units.",
+                        UserWarning,
+                        stacklevel=3,
                     )
-                )
-                < 0.001
-            ):
-                warnings.warn(
-                    "This component assigns less than 0.1% probability to nonnegative "
-                    "contributions; check the belief and its units.",
-                    UserWarning,
-                    stacklevel=3,
-                )
         self._register_factor(mmm, spec)
 
     def _freeze_training_contribution_graph(self, mmm: MMM) -> Any:

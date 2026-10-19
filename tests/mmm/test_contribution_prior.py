@@ -444,6 +444,8 @@ def test_channel_collections(data, channels):
         Prior("Normal", mu=0.3, sigma=0.1),
         Prior("StudentT", nu=4, mu=0.3, sigma=0.1),
         Prior("Laplace", mu=0.3, b=0.1),
+        Prior("SkewNormal", mu=0.3, sigma=0.1, alpha=2),
+        Prior("AsymmetricLaplace", mu=0.3, b=10, kappa=1.5),
     ],
 )
 def test_density_gradient_matches_finite_differences(data, prior):
