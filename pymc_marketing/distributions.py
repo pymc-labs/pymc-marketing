@@ -24,9 +24,6 @@ with pymc's ``ZeroSumTransform``. It is provided for the tensor API
 (:class:`WeightedZeroSumNormal`) and the :mod:`pymc.dims` API
 (:class:`DimWeightedZeroSumNormal`), following the same split pymc uses for
 its own distributions.
-
-The distribution is incubating here before a proposed move to pymc-extras or
-pymc; its import path may change.
 """
 
 from collections.abc import Sequence
