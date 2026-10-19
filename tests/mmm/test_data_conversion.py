@@ -86,14 +86,44 @@ class TestToMmmDatasetXInputTypes:
                 "channel": ["tv"],
             },
         )
+        ds_out = to_mmm_dataset(ds_in, date_column="date", channel_columns=["tv"])
+        assert "_control" in ds_out.data_vars
+        assert "control" not in ds_out.data_vars
+
+    def test_x_as_dataset_reordered_to_user_order(self):
+        # Regression for #3139: the model's coordinate order is the fit data's,
+        # and prediction writes data positionally in channel_columns /
+        # control_columns order, so the two must agree. Undeclared labels are
+        # dropped, as undeclared DataFrame columns are.
+        dates = pd.date_range("2023-01-01", periods=2, freq="W")
+        ds_in = xr.Dataset(
+            {
+                "_channel": (
+                    ("date", "channel"),
+                    [[3.0, 1.0, 9.0], [4.0, 2.0, 9.0]],
+                ),
+                "_control": (("date", "control"), [[20.0, 10.0], [21.0, 11.0]]),
+            },
+            coords={
+                "date": dates,
+                "channel": ["x2", "x1", "x3"],
+                "control": ["b", "a"],
+            },
+        )
         ds_out = to_mmm_dataset(
             ds_in,
             date_column="date",
-            channel_columns=["tv"],
-            control_columns=["price"],
+            channel_columns=["x1", "x2"],
+            control_columns=["a", "b"],
         )
-        assert "_control" in ds_out.data_vars
-        assert "control" not in ds_out.data_vars
+        assert list(ds_out.coords["channel"].values) == ["x1", "x2"]
+        assert list(ds_out.coords["control"].values) == ["a", "b"]
+        np.testing.assert_array_equal(
+            ds_out["_channel"].values, [[1.0, 3.0], [2.0, 4.0]]
+        )
+        np.testing.assert_array_equal(
+            ds_out["_control"].values, [[10.0, 20.0], [11.0, 21.0]]
+        )
 
 
 class TestToMmmDatasetYInputTypes:
@@ -424,6 +454,65 @@ class TestToMmmDatasetValidation:
                 date_column="date",
                 channel_columns=["tv"],
                 control_columns=["price"],
+            )
+
+    @pytest.mark.parametrize(
+        "control",
+        [
+            xr.DataArray([1.0], dims=("date",)),
+            xr.DataArray([[1.0]], dims=("date", "control")),
+        ],
+        ids=["no_control_dim", "unlabelled_control_dim"],
+    )
+    def test_dataset_control_without_control_coord_raises(self, control):
+        ds = xr.Dataset(
+            {
+                "_channel": xr.DataArray([[1]], dims=("date", "channel")),
+                "_control": control,
+            },
+            coords={
+                "date": pd.date_range("2023-01-01", periods=1, freq="W"),
+                "channel": ["tv"],
+            },
+        )
+        with pytest.raises(ValueError, match="coordinate 'control'"):
+            to_mmm_dataset(
+                ds,
+                date_column="date",
+                channel_columns=["tv"],
+                control_columns=["price"],
+            )
+
+    @pytest.mark.parametrize(
+        "channel_columns, control_columns, missing",
+        [
+            (["tv", "radio"], ["price"], "radio"),
+            (["tv"], ["price", "promo"], "promo"),
+        ],
+        ids=["channel", "control"],
+    )
+    def test_dataset_missing_declared_label_raises(
+        self, channel_columns, control_columns, missing
+    ):
+        # Reindexing to the declared order would otherwise fill the absent
+        # label with NaN, which build_model then zero-fills silently.
+        ds = xr.Dataset(
+            {
+                "_channel": xr.DataArray([[1.0]], dims=("date", "channel")),
+                "_control": xr.DataArray([[1.0]], dims=("date", "control")),
+            },
+            coords={
+                "date": pd.date_range("2023-01-01", periods=1, freq="W"),
+                "channel": ["tv"],
+                "control": ["price"],
+            },
+        )
+        with pytest.raises(KeyError, match=missing):
+            to_mmm_dataset(
+                ds,
+                date_column="date",
+                channel_columns=channel_columns,
+                control_columns=control_columns,
             )
 
     def test_dataframe_missing_date_column_raises(self):

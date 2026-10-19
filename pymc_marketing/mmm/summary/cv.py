@@ -216,6 +216,18 @@ class MMMCVSummaryFactory:
     cv_data : xr.DataTree
         Combined DataTree produced by ``TimeSliceCrossValidator.run()``.
 
+    Notes
+    -----
+    :meth:`predictions` and :meth:`crps` read
+    ``posterior_predictive["y_original_scale"]``, the posterior predictive
+    draws of the target on the original scale (``y * target_scale``), which
+    ``TimeSliceCrossValidator.run()`` provides for every fold fitted with the
+    library's ``MMM``, under both link functions. The noise-free prediction
+    (under ``link="log"`` the LogNormal median
+    ``posterior["mu_original_scale"] = exp(mu) * target_scale``) is never
+    used, so CRPS and the predictive intervals are scored against the full
+    predictive distribution under both links.
+
     Examples
     --------
     >>> cv_idata = cv.run(X, y, mmm=mmm)

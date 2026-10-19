@@ -23,6 +23,7 @@ import pytest
 import xarray as xr
 import yaml
 from pydantic import ValidationError
+from pymc_extras.prior import Prior
 
 from pymc_marketing.mmm.builders.schema import CalibrationStep, MMMYamlConfig
 from pymc_marketing.mmm.builders.yaml import (
@@ -265,14 +266,45 @@ def test_apply_calibration_not_callable(dummy_mmm):
         _apply_and_validate_calibration_steps(dummy_mmm, steps)
 
 
-def test_apply_calibration_dist_disallowed(dummy_mmm):
+def test_apply_calibration_likelihood_supported_in_yaml(dummy_mmm):
+    steps = [
+        CalibrationStep.model_validate(
+            {
+                "add_lift_test_measurements": {
+                    "likelihood": {"dist": "StudentT", "kwargs": {"nu": 4}}
+                }
+            }
+        )
+    ]
+
+    _apply_and_validate_calibration_steps(dummy_mmm, steps)
+
+    assert isinstance(dummy_mmm.called_with["likelihood"], Prior)
+    assert dummy_mmm.called_with["likelihood"].distribution == "StudentT"
+    assert dummy_mmm.called_with["likelihood"].parameters["nu"] == 4
+
+
+def test_apply_calibration_string_likelihood_in_yaml(dummy_mmm):
+    steps = [
+        CalibrationStep.model_validate(
+            {"add_lift_test_measurements": {"likelihood": "Normal"}}
+        )
+    ]
+
+    _apply_and_validate_calibration_steps(dummy_mmm, steps)
+
+    assert isinstance(dummy_mmm.called_with["likelihood"], Prior)
+    assert dummy_mmm.called_with["likelihood"].distribution == "Normal"
+
+
+def test_apply_calibration_dist_yaml_rejected(dummy_mmm):
     steps = [
         CalibrationStep.model_validate(
             {"add_lift_test_measurements": {"dist": "Gamma"}}
         )
     ]
 
-    with pytest.raises(ValueError, match="`dist` parameter"):
+    with pytest.raises(ValueError, match="Use `likelihood` for YAML"):
         _apply_and_validate_calibration_steps(dummy_mmm, steps)
 
 

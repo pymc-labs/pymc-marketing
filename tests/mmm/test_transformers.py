@@ -14,6 +14,8 @@
 from contextlib import nullcontext as does_not_raise
 
 import numpy as np
+import pymc
+import pymc.dims as pmd
 import pytensor
 import pytensor.xtensor as ptx
 import pytest
@@ -36,6 +38,7 @@ from pymc_marketing.mmm.transformers import (
     inverse_scaled_logistic_saturation,
     logistic_saturation,
     michaelis_menten,
+    root_saturation,
     tanh_saturation,
     tanh_saturation_baselined,
     weibull_adstock,
@@ -334,7 +337,7 @@ class TestsAdstockTransformers:
         ).eval()
 
         assert np.all(np.isfinite(y))
-        w = 1 - sp.stats.weibull_min.cdf(np.arange(l_max) + 1, c=k, scale=lam)
+        w = 1 - sp.stats.weibull_min.cdf(np.arange(l_max - 1) + 1, c=k, scale=lam)
         w = np.cumprod(np.concatenate([[1], w]))
         sp_y = batched_convolution(
             as_xtensor(x, dims=("t",)),
@@ -343,6 +346,51 @@ class TestsAdstockTransformers:
             kernel_dim="k",
         ).eval()
         np.testing.assert_almost_equal(y, sp_y)
+
+    @pytest.mark.parametrize("normalize", [False, True])
+    def test_weibull_cdf_adstock_uses_exact_l_max(self, normalize):
+        l_max = 4
+        lam = 10.0
+        k = 1.0
+        impulse = np.zeros(6)
+        impulse[0] = 1.0
+
+        y = weibull_adstock(
+            x=as_xtensor(impulse, dims=("t",)),
+            lam=lam,
+            k=k,
+            l_max=l_max,
+            type=WeibullType.CDF,
+            normalize=normalize,
+            dim="t",
+        ).eval()
+
+        survival = 1 - sp.stats.weibull_min.cdf(
+            np.arange(l_max - 1) + 1, c=k, scale=lam
+        )
+        expected_weights = np.cumprod(np.concatenate([[1], survival]))
+        if normalize:
+            expected_weights = expected_weights / expected_weights.sum()
+            np.testing.assert_allclose(y.sum(), 1.0)
+
+        np.testing.assert_allclose(y[:l_max], expected_weights)
+        np.testing.assert_array_equal(y[l_max:], 0.0)
+
+    @pytest.mark.parametrize("normalize", [False, True])
+    def test_weibull_cdf_adstock_l_max_one(self, normalize):
+        impulse = np.array([1.0, 0.0, 0.0])
+
+        y = weibull_adstock(
+            x=as_xtensor(impulse, dims=("t",)),
+            lam=10.0,
+            k=1.0,
+            l_max=1,
+            type=WeibullType.CDF,
+            normalize=normalize,
+            dim="t",
+        ).eval()
+
+        np.testing.assert_array_equal(y, impulse)
 
     @pytest.mark.parametrize(
         "type",
@@ -761,6 +809,98 @@ class TestSaturationTransformers:
             expected,
             decimal=5,
             err_msg="The function does not approach sigma as x approaches infinity.",
+        )
+
+    @pytest.mark.parametrize(
+        argnames=["slope", "kappa"],
+        argvalues=[
+            (np.float64(60.0), np.float64(1e6)),
+            (np.float64(100.0), np.float64(1e8)),
+        ],
+        ids=["raw dollars: slope=60, kappa=1e6", "raw dollars: slope=100, kappa=1e8"],
+    )
+    def test_hill_ec50_value_finite_for_raw_spend(self, slope, kappa):
+        """Float-overflow robustness at raw-spend parameters.
+
+        At x = kappa the response is exactly 1/2 for any (slope, kappa):
+        the EC50 anchor. Large but ordinary raw-dollars parameters must
+        not overflow the evaluation into NaN.
+        """
+        y = hill_function(kappa, slope, kappa).eval()
+        assert np.isfinite(y), f"hill response is NaN at ({slope=}, {kappa=})"
+        np.testing.assert_allclose(y, 0.5, rtol=1e-12)
+
+    @pytest.fixture(scope="class")
+    def raw_spend_dlogp(self):
+        """dlogp evaluator for a one-row intercept-free hill model.
+
+        The observed value contributes a constant to logp; passing x via
+        pm.Data lets each test probe the gradient at its own spend row.
+        """
+        with pymc.Model(coords={"obs": np.arange(1)}) as m:
+            x = pymc.Data("x_data", [1.0])
+            slope = pmd.Flat("slope", dims=())
+            kappa = pmd.Flat("kappa", dims=())
+            mu = hill_function(pmd.as_xtensor(x, dims=("obs",)), slope, kappa)
+            pmd.Normal(
+                "resid",
+                mu=mu,
+                sigma=pmd.as_xtensor(0.1, dims=()),
+                observed=pmd.as_xtensor([0.0], dims=("obs",)),
+                dims=("obs",),
+            )
+            grad = m.compile_dlogp(jacobian=False)
+
+        def evaluate(x, slope, kappa):
+            with m:
+                pymc.set_data({"x_data": [x]})
+            return np.asarray(grad({"slope": slope, "kappa": kappa}))
+
+        return evaluate
+
+    @pytest.mark.parametrize(
+        argnames=["slope", "kappa"],
+        argvalues=[
+            (np.float64(30.0), np.float64(1e6)),
+            (np.float64(80.0), np.float64(1e8)),
+        ],
+        ids=["raw dollars: slope=30, kappa=1e6", "raw dollars: slope=80, kappa=1e8"],
+    )
+    def test_hill_dlogp_finite_for_raw_spend(self, raw_spend_dlogp, slope, kappa):
+        """dlogp stays finite in the half-threshold band.
+
+        The ratio form's logp gradient contains (kappa**slope + x**slope) ** 2,
+        which overflows float64 at s*ln(kappa) = 354 -- half the slope at
+        which the *response itself* overflows (709). In that band the
+        response is finite but dlogp is NaN for ordinary raw-spend
+        parameters.
+        """
+        # x = kappa: the EC50 anchor; the slope component of dlogp is
+        # (y - mu) * dmu/dslope, and dmu/dslope = 0 exactly at x = kappa.
+        grads = raw_spend_dlogp(kappa, slope, kappa)
+        assert np.isfinite(grads).all(), f"dlogp is NaN at ({slope=}, {kappa=})"
+        np.testing.assert_allclose(grads[0], 0.0, atol=1e-9)
+
+    @pytest.mark.parametrize(
+        "x_dims",
+        [("date", "channel"), ("channel", "date")],
+        ids=["date-first", "channel-first"],
+    )
+    def test_root_saturation_broadcasts_alpha_by_dim_name(self, x_dims):
+        # After adstock the input is ("channel", "date"); a per-channel alpha
+        # must still pair with the channel axis, not the last one (#3046).
+        x_date_channel = np.array([[0.0, 1.0], [4.0, 0.0], [9.0, 16.0]])
+        alpha = np.array([0.5, 0.25])
+        expected = np.where(x_date_channel > 0, x_date_channel**alpha, 0.0)
+        x = x_date_channel if x_dims[0] == "date" else x_date_channel.T
+
+        y = root_saturation(
+            as_xtensor(x, dims=x_dims), as_xtensor(alpha, dims=("channel",))
+        )
+
+        assert y.dims == x_dims
+        np.testing.assert_allclose(
+            y.transpose("date", "channel").eval(), expected, rtol=1e-12
         )
 
 

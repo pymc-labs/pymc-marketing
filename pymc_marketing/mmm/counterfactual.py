@@ -837,10 +837,9 @@ class CounterfactualEvaluator:
         # Results are keyed by name whether the caller asked by name or handed
         # over the node: the linear predictor is only a registered variable
         # under a log link, but it is named "mu" either way.
-        self.response_vars = tuple(
-            var if isinstance(var, str) else var.name for var in response_vars
+        self.response_vars = self._validated_response_names(
+            tuple(var if isinstance(var, str) else var.name for var in response_vars)
         )
-        self._validate_response_names(self.response_vars)
         self.intervention_target = intervention_target
         self.intervention_mode: InterventionMode = intervention_mode
         target_var = self._validate_target(
@@ -1005,8 +1004,10 @@ class CounterfactualEvaluator:
         return self.target_dtype
 
     @staticmethod
-    def _validate_response_names(response_names: tuple[str | None, ...]) -> None:
-        """Refuse response names that would resolve or key results wrongly.
+    def _validated_response_names(
+        response_names: tuple[str | None, ...],
+    ) -> tuple[str, ...]:
+        """Return the response names, refusing any that would resolve or key results wrongly.
 
         Runs on the materialized names, before any graph work: an unnamed node
         would otherwise fall through to the graph scan in
@@ -1020,6 +1021,11 @@ class CounterfactualEvaluator:
         response_names : tuple of str or None
             The materialized response names, one per requested response
             variable, in the order they were requested.
+
+        Returns
+        -------
+        tuple of str
+            The same names, in the same order, now known to be set and distinct.
 
         Raises
         ------
@@ -1042,6 +1048,7 @@ class CounterfactualEvaluator:
                     "give each response variable a distinct name."
                 )
             first_seen[name] = position
+        return tuple(first_seen)
 
     @staticmethod
     def _validate_target(
@@ -1142,7 +1149,7 @@ class CounterfactualEvaluator:
         """
         placeholder = ptx.xtensor(
             name=f"{target_var.name}_intervention",
-            dtype=target_var.dtype,
+            dtype=target_var.type.dtype,
             shape=target_var.type.shape,
             dims=target_var.type.dims,
         )
