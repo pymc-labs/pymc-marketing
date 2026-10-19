@@ -61,6 +61,16 @@ _POSITIVE_SUPPORT_RV_OPS = {
 }
 
 
+def _validate_measurement_values(values: npt.NDArray, column: str) -> None:
+    """Check normalized measurement values before adding calibration variables."""
+    if not np.isfinite(values).all():
+        raise ValueError(
+            f"Calibration column '{column}' must contain finite real numeric values."
+        )
+    if column == "sigma" and (values <= 0).any():
+        raise ValueError("Calibration column 'sigma' must be strictly positive.")
+
+
 def _validate_measurement_data(df: pd.DataFrame, columns: Sequence[str]) -> None:
     """Reject undefined observations and invalid measurement uncertainties."""
     for column in columns:
@@ -79,12 +89,7 @@ def _validate_measurement_data(df: pd.DataFrame, columns: Sequence[str]) -> None
             raise ValueError(
                 f"Calibration column '{column}' must contain finite real numeric values."
             ) from error
-        if not np.isfinite(values).all():
-            raise ValueError(
-                f"Calibration column '{column}' must contain finite real numeric values."
-            )
-        if column == "sigma" and (values <= 0).any():
-            raise ValueError("Calibration column 'sigma' must be strictly positive.")
+        _validate_measurement_values(values, column)
 
 
 def _validate_lift_likelihood_data(
@@ -923,15 +928,13 @@ def validate_cost_per_target_rows(
         If a ``channel`` or dim label is not a model coordinate (with the
         default *get_indices*).
     ValueError
-        If *target_column* or ``sigma`` holds nonfinite or non-real-numeric
+        If *target_column* or ``sigma`` cannot be converted to finite float
         values, or if ``sigma`` is not strictly positive.
     """
     required_cols = {"channel", target_column, "sigma"}
     missing = required_cols - set(calibration_df.columns)
     if missing:
         raise KeyError(f"Missing required columns in calibration_df: {sorted(missing)}")
-
-    _validate_measurement_data(calibration_df, [target_column, "sigma"])
 
     cpt_dims = tuple(model.named_vars_to_dims["channel_data"])
     non_date_dims = [d for d in cpt_dims if d != "date"]
@@ -945,6 +948,8 @@ def validate_cost_per_target_rows(
     indices = get_indices(calibration_df[non_date_dims], model)
     targets = calibration_df[target_column].to_numpy(dtype=float)
     sigmas = calibration_df["sigma"].to_numpy(dtype=float)
+    _validate_measurement_values(targets, target_column)
+    _validate_measurement_values(sigmas, "sigma")
     return indices, targets, sigmas
 
 

@@ -44,6 +44,7 @@ from pymc_marketing.mmm.lift_test import (
     scale_channel_lift_measurements,
     scale_lift_measurements,
     scale_target_for_lift_measurements,
+    validate_cost_per_target_rows,
 )
 from pymc_marketing.mmm.mmm import MMM
 
@@ -1138,6 +1139,7 @@ def test_lift_rejects_nonfinite_measurements_before_model_mutation(column, bad_v
     )
     frame.loc[0, column] = bad_value
     names = set(model.named_vars)
+    coords = dict(model.coords)
     with pytest.raises(ValueError, match=rf"'{column}'.*finite real numeric"):
         add_saturation_observations(
             frame,
@@ -1146,6 +1148,7 @@ def test_lift_rejects_nonfinite_measurements_before_model_mutation(column, bad_v
             model=model,
         )
     assert set(model.named_vars) == names
+    assert model.coords == coords
     assert not model.observed_RVs
 
 
@@ -1169,7 +1172,13 @@ def test_cost_per_target_rejects_nonfinite_measurements(
     shape = (len(model.coords["date"]), len(model.coords["channel"]))
     cost = as_xtensor(np.ones(shape), dims=("date", "channel"))
     target = as_xtensor(np.ones(shape), dims=("date", "channel"))
-    frame = pd.DataFrame({"channel": ["x1"], "cost_per_target": [2.0], "sigma": [0.2]})
+    frame = pd.DataFrame(
+        {
+            "channel": [model.coords["channel"][0]],
+            "cost_per_target": [2.0],
+            "sigma": [0.2],
+        }
+    )
     frame.loc[0, column] = bad_value
     names = set(model.named_vars)
     coords = set(model.coords)
@@ -1189,7 +1198,11 @@ def test_cost_per_target_rejects_nonpositive_standard_errors(dummy_mmm_model, si
     cost = as_xtensor(np.ones(shape), dims=("date", "channel"))
     target = as_xtensor(np.ones(shape), dims=("date", "channel"))
     frame = pd.DataFrame(
-        {"channel": ["x1"], "cost_per_target": [2.0], "sigma": [sigma]}
+        {
+            "channel": [model.coords["channel"][0]],
+            "cost_per_target": [2.0],
+            "sigma": [sigma],
+        }
     )
     with pytest.raises(ValueError, match=r"'sigma'.*strictly positive"):
         add_cost_per_target_observations(
@@ -1245,3 +1258,17 @@ def test_cost_per_target_validates_custom_target_before_mutation(dummy_mmm_model
         )
     assert set(model.named_vars) == names
     assert set(model.coords) == coords
+
+
+def test_cost_per_target_preserves_numeric_string_conversion(dummy_mmm_model):
+    model = dummy_mmm_model.model
+    frame = pd.DataFrame(
+        {
+            "channel": [model.coords["channel"][0]],
+            "cost_per_target": ["-2.0"],
+            "sigma": ["0.2"],
+        }
+    )
+    _, targets, sigmas = validate_cost_per_target_rows(frame, model)
+    np.testing.assert_allclose(targets, [-2.0])
+    np.testing.assert_allclose(sigmas, [0.2])
