@@ -1,0 +1,67 @@
+.agents/skills/docs/SKILL.md
+  s_34de95dc6393da::t_91e02e333581f4 1-21
+.claude/CLAUDE.md
+  s_34de95dc6393da::t_44af0f1761aaff 12-13,17
+.claude/skills/docs
+  s_34de95dc6393da::t_ce1dc8d42f1fd8 1
+.claude/skills/working-with-notebooks/SKILL.md
+  s_34de95dc6393da::t_8d3345323f6331 232
+.github/workflows/test_notebook.yml
+  s_34de95dc6393da::t_f80b426f4cbcb5 39,41-42
+CONTRIBUTING.md
+  s_34de95dc6393da::t_438878d15046e8 145-151
+docs/source/_static/custom.css
+  s_34de95dc6393da::t_fe6b758e360e2e 92-94,108,115-120,125-126,129-130,133,139,142,372-373,382,399,401,414-417,444-501
+docs/source/_static/fold-code-cells.js
+  s_34de95dc6393da::t_f234bb5ccc0b56 9-13,67
+docs/source/_templates/navbar-contact-button.html
+  s_34de95dc6393da::t_279c1114aa4db7 1-6
+docs/source/conf.py
+  s_34de95dc6393da::t_e3a2e456cfd20c 281-283,325-327
+docs/source/gallery/gallery.md
+  s_34de95dc6393da::t_2a0b5a9e3f6220 57-61,67-71
+docs/source/gallery/gallery.yaml
+  s_34de95dc6393da::t_dd4de3550ece6a 28-29,32-33
+docs/source/index.md
+  s_34de95dc6393da::t_170ce3d1f55b6f 25-27,29,32,34,36-43,346-370
+docs/source/notebooks/mmm/mmm_current_vs_future_value.ipynb
+  s_34de95dc6393da::t_a2faad58d16a13 1-4841
+pymc_marketing/mmm/components/adstock.py
+  s_34de95dc6393da::t_2c6d58ee29b030 180-290
+pymc_marketing/mmm/components/base.py
+  s_34de95dc6393da::t_eeadee80d973d9 564,567-570,572-573,575,577-579,581-605,615,627,630-652
+pymc_marketing/mmm/incrementality.py
+  s_34de95dc6393da::t_3b9e5198b5bc07 236,240,279,282,302-304,314-319,548-551,553-556,565-567,576,586,591,656-657,659-662,668-670,679,716-825,879-884,898,903-905,911-921,957-1046,1675-1690,1773-1774,1793-1795,1877-1890,1921-1923,1925-1934,1936,1947-2001,2003-2007,2036-2083,2093,2107,2228-2277,2322,2332-2333,2335-2338,2343,2345-2346,2348-2349,2351,2353-2365,2367-2369,2371-2379,2381-2912,2932-2942,2944-2949,2954,2956-2958,2961-2962,3008,3014-3016,3144-3147,3214-3215,3217,3240-3241,3270,3276,3307-3315,3353-3358,3388-3398,3415-3419,3433-3446,3489,3492,3503-3820,3935-3937,3988-4041,4055,4068-4069,4134,4142-4145,4147-4148,4150-4152,4156-4157,4160-4161,4163,4165,4169-4171,4190,4192,4209-4210,4212-4275,4317,4386-4482,4484-4485,4487-4502,4932-4968,5026-5028,5093,5118-5168
+pymc_marketing/mmm/mmm.py
+  s_34de95dc6393da::t_b83245812bdf41 261,266,268-269,1946-1951,3074-3161,3166,3176-3181,3188-3199,3205-3220,3233-3244,3325,3351-3353,3369-3371
+pymc_marketing/mmm/utils.py
+  s_34de95dc6393da::t_888620ceea46d3 320-325,598-821
+tests/mmm/components/test_adstock.py
+  s_34de95dc6393da::t_86764303c2c185 31,35-36,190-363
+tests/mmm/components/test_saturation.py
+  s_34de95dc6393da::t_6b86e9f01e51df 385-415
+tests/mmm/conftest.py
+  s_34de95dc6393da::t_4010eebc9f0856 98-101,110,1253-1273
+tests/mmm/test_budget_optimizer_mmm.py
+  s_34de95dc6393da::t_456ec78677372d 2648-2888
+tests/mmm/test_incrementality.py
+  s_34de95dc6393da::t_865d66cc715173 35,38-40,43-44,47-49,4655-4658,4952-5892,5896-5914,6028-6141
+tests/mmm/test_utils.py
+  s_34de95dc6393da::t_3d754cdc6e2c02 30,36,38,1476-1645
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "391e2e76aef2375a6116f6c22b2e44c34e39bd26",
+  "prompts": {},
+  "sessions": {
+    "s_34de95dc6393da": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a13f0e-959c-7ff2-b12e-4b30d90826b7",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Benjamin T. Vincent <inferencelab@gmail.com>"
+    }
+  }
+}
