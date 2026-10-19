@@ -175,19 +175,19 @@ def _channel_scale_and_campaign_cap(
 
 
 def _live_blocks(
-    campaigns: list[str], channel_of: xr.DataArray, share: xr.DataArray
+    campaigns: list[str], channel_of: xr.DataArray, live: xr.DataArray
 ) -> dict[str, list[str]]:
-    """Live campaigns (positive spend share) of each channel that has at least two.
+    """Live campaigns (``cap > 0``) of each channel that has at least two.
 
     Channels keep their first-seen order across all campaigns.
     """
     live_by_channel: dict[str, list[str]] = {
         channel: [] for channel in dict.fromkeys(channel_of.values)
     }
-    for campaign, channel, spend_share in zip(
-        campaigns, channel_of.values, share.values, strict=True
+    for campaign, channel, is_live in zip(
+        campaigns, channel_of.values, live.values, strict=True
     ):
-        if spend_share > 0:
+        if is_live:
             live_by_channel[channel].append(campaign)
     return {
         channel: names for channel, names in live_by_channel.items() if len(names) >= 2
@@ -207,19 +207,24 @@ def _spend_shares(
 
 
 def _centred_covariates(
-    cov: xr.DataArray, share: xr.DataArray, channel_of: xr.DataArray, child_dim: str
+    cov: xr.DataArray,
+    share: xr.DataArray,
+    live: xr.DataArray,
+    channel_of: xr.DataArray,
+    child_dim: str,
 ) -> xr.DataArray:
     """Centre campaign covariates on their channel's spend-share-weighted mean.
 
     The covariate term then reallocates efficiency between a channel's
-    campaigns but cannot move the channel total. Campaigns with no spend get
-    a zero row: their multiplier stays pinned at one whatever the platform
-    says about them.
+    campaigns but cannot move the channel total. Dead campaigns (``cap`` of
+    0, as in ``live``) take no part in the mean and get a zero row: their
+    multiplier stays pinned at one whatever the platform says about them.
     """
     parent_dim = str(channel_of.name)
-    channel_mean = (share * cov).groupby(channel_of).sum(child_dim)
+    live_share = share.where(live, 0.0)
+    channel_mean = (live_share * cov).groupby(channel_of).sum(child_dim)
     centred = cov - channel_mean.sel({parent_dim: channel_of}).drop_vars(parent_dim)
-    return centred.where(share > 0, 0.0)
+    return centred.where(live, 0.0)
 
 
 class NestedMediaEffect(DataVarMuEffect):
@@ -408,6 +413,10 @@ class NestedMediaEffect(DataVarMuEffect):
         scale, cap = self._scale_and_cap(mmm, spend, channel_of, channels)
         total_spend = spend.sum([d for d in spend.dims if d != self.child_dim])
         share = _spend_shares(total_spend, channel_of, self.child_dim)
+        # one notion of a live campaign everywhere: positive cap in some model
+        # dim, as create_effect uses; spend below float dust has cap 0 but a
+        # positive share, so the share must not decide it
+        live = cap.max([d for d in cap.dims if d != self.child_dim]) > 0
 
         pmd.Data(f"{p}_parent_idx", parent_idx, dims=(self.child_dim,))
         pmd.Data(
@@ -420,9 +429,9 @@ class NestedMediaEffect(DataVarMuEffect):
         pmd.Data(f"{p}_spend_share", share.values, dims=(self.child_dim,))
 
         if self.zero_sum_multipliers:
-            self._register_zero_sum_blocks(model, campaigns, channel_of, share)
+            self._register_zero_sum_blocks(model, campaigns, channel_of, live)
 
-        self._register_covariates(mmm, model, share, channel_of)
+        self._register_covariates(mmm, model, share, live, channel_of)
 
     def _prepare_saturation(
         self, model: pm.Model, channel_coord: str, channels: list[str]
@@ -480,6 +489,7 @@ class NestedMediaEffect(DataVarMuEffect):
         mmm: Model,
         model: pm.Model,
         share: xr.DataArray,
+        live: xr.DataArray,
         channel_of: xr.DataArray,
     ) -> None:
         """Register the campaign covariates, centred within each channel."""
@@ -493,7 +503,7 @@ class NestedMediaEffect(DataVarMuEffect):
                 f"({self.child_dim!r}, {self.covariate_dim!r}); got {cov.dims}"
             )
         cov = cov.transpose(self.child_dim, self.covariate_dim)
-        centred = _centred_covariates(cov, share, channel_of, self.child_dim)
+        centred = _centred_covariates(cov, share, live, channel_of, self.child_dim)
         if self.covariate_dim not in model.coords:
             model.add_coord(
                 self.covariate_dim,
@@ -539,11 +549,11 @@ class NestedMediaEffect(DataVarMuEffect):
         model: pm.Model,
         campaigns: list[str],
         channel_of: xr.DataArray,
-        share: xr.DataArray,
+        live: xr.DataArray,
     ) -> None:
         """Register one coordinate per constrained block and the scatter back to campaigns.
 
-        A block is a channel's live campaigns (positive spend). Dead campaigns
+        A block is a channel's live campaigns (``cap > 0``). Dead campaigns
         stay out so their multiplier is pinned at 1 instead of adding an
         unidentified free direction, and a channel needs two live campaigns
         to have any free direction at all. The blocks concatenate along one
@@ -551,7 +561,7 @@ class NestedMediaEffect(DataVarMuEffect):
         the campaign dimension, with dead campaigns pointing at a zero slot.
         """
         live_names: list[str] = []
-        for channel, names in _live_blocks(campaigns, channel_of, share).items():
+        for channel, names in _live_blocks(campaigns, channel_of, live).items():
             sub_dim = self._parent_child_dim(channel)
             if sub_dim not in model.coords:
                 model.add_coord(sub_dim, names)

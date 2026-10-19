@@ -121,16 +121,17 @@ def test_register_covariates():
     share = xr.DataArray(
         np.full(len(CAMPAIGNS), 0.5), dims="campaign", coords={"campaign": CAMPAIGNS}
     )
+    live = share > 0
 
     mmm = _make_mock_mmm_with_covariates()
     effect = NestedMediaEffect(child_to_parent=MAPPING)
     with mmm.model:
-        effect._register_covariates(mmm, mmm.model, share, _channel_of())
+        effect._register_covariates(mmm, mmm.model, share, live, _channel_of())
     assert "nested_media_covariates" not in mmm.model.named_vars
 
     effect = NestedMediaEffect(child_to_parent=MAPPING, covariate_var="covariates")
     with mmm.model:
-        effect._register_covariates(mmm, mmm.model, share, _channel_of())
+        effect._register_covariates(mmm, mmm.model, share, live, _channel_of())
     assert mmm.model.named_vars_to_dims["nested_media_covariates"] == (
         "campaign",
         "covariate",
@@ -141,18 +142,18 @@ def test_register_covariates():
 def test_live_blocks():
     # search_gen is dead, but it still makes search the first channel seen
     campaigns = ["search_gen", "tv_brand", "tv_promo", "search_brand", "search_promo"]
-    share = xr.DataArray(
-        [0.0, 0.6, 0.4, 0.5, 0.5], dims="campaign", coords={"campaign": campaigns}
+    live = xr.DataArray(
+        [False, True, True, True, True], dims="campaign", coords={"campaign": campaigns}
     )
-    blocks = _live_blocks(campaigns, _channel_of(campaigns), share)
+    blocks = _live_blocks(campaigns, _channel_of(campaigns), live)
     assert blocks == {
         "search": ["search_brand", "search_promo"],
         "tv": ["tv_brand", "tv_promo"],
     }
     assert list(blocks) == ["search", "tv"]
 
-    share[1] = 0.0  # tv drops to one live campaign: no free direction, no block
-    assert _live_blocks(campaigns, _channel_of(campaigns), share) == {
+    live[1] = False  # tv drops to one live campaign: no free direction, no block
+    assert _live_blocks(campaigns, _channel_of(campaigns), live) == {
         "search": ["search_brand", "search_promo"]
     }
 
@@ -992,6 +993,47 @@ def test_float_dust_spend_counts_as_no_spend():
         model.initial_point()
     )
     assert np.all(np.isfinite(total))
+
+
+def test_float_dust_campaign_is_dead_everywhere():
+    # spend below float dust gives cap 0 but a positive spend share; the
+    # zero-sum blocks and the covariates must follow the cap, not the share
+    campaigns = ["a", "b", "dust"]
+    rng = np.random.default_rng(1)
+    spend = np.column_stack(
+        [rng.gamma(2.0, 1.0, 52) * 1e5, rng.gamma(2.0, 1.0, 52) * 1e5, np.zeros(52)]
+    )
+    spend[7, 2] = 1e-12
+    dates = pd.date_range("2025-01-06", periods=52, freq="W-MON")
+    ds = xr.Dataset(
+        {
+            "campaign_data": (("date", "campaign"), spend),
+            "covariates": (("campaign", "covariate"), [[0.0], [1.0], [4.0]]),
+        },
+        coords={"date": dates, "campaign": campaigns, "covariate": ["log_ctr"]},
+    )
+    model = pm.Model(coords={"date": dates, "campaign": campaigns})
+    mmm = type("MockMMM", (), {"dims": (), "model": model, "xarray_dataset": ds})()
+    effect = NestedMediaEffect(
+        child_to_parent=dict.fromkeys(campaigns, "ch"), covariate_var="covariates"
+    )
+    with model, pytest.warns(UserWarning, match=r"\['dust'\] have no spend"):
+        effect.create_data(mmm)
+        effect.create_effect(mmm)
+        idata = pm.sample_prior_predictive(draws=20, random_seed=4)
+
+    assert model["nested_media_spend_share"].get_value()[2] > 0
+    assert list(model.coords["nested_media_ch_campaign"]) == ["a", "b"]
+    assert model["nested_media_covariates"].get_value()[2, 0] == 0.0
+    mult = idata.prior["nested_media_beta_multiplier"]
+    np.testing.assert_array_equal(mult.sel(campaign="dust"), 1.0)
+    # the live campaigns' weighted zero sum is exact, not off by the dust term
+    share = model["nested_media_spend_share"].get_value()[:2]
+    log_mult = np.log(mult.sel(campaign=["a", "b"]).values) - (
+        idata.prior["nested_media_gamma"].values
+        * model["nested_media_covariates"].get_value()[:2, 0]
+    )
+    np.testing.assert_allclose(log_mult @ share, 0.0, atol=1e-12)
 
 
 def test_zero_spend_campaign_pinned():
