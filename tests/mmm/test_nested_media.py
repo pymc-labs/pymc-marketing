@@ -241,7 +241,9 @@ def test_saturation_bounded_by_beta(saturation):
     assert ((contrib_max <= beta_c + 1e-12).all()).item()
 
 
-def test_campaign_multipliers_add_the_covariate_shift():
+def test_campaign_multiplier_normalises_the_covariate_shift():
+    # m_c = exp(tau z_c + gamma cov_c) / sum_k w_k exp(tau z_k + gamma cov_k)
+    # within each channel
     mmm = _make_mock_mmm_with_covariates()
     effect = NestedMediaEffect(
         child_to_parent=MAPPING,
@@ -251,21 +253,22 @@ def test_campaign_multipliers_add_the_covariate_shift():
     model = mmm.model
     with model:
         effect.create_data(mmm)
-        beta_mult, lam_mult = effect._campaign_multipliers(model)
-    assert beta_mult.type.dims == lam_mult.type.dims == ("campaign",)
+        mult = effect._campaign_multiplier(model)
+    assert mult.type.dims == ("campaign",)
 
-    names = ["tau_beta", "z_beta", "gamma", "tau_lam", "z_lam"]
-    draws = pm.draw(
-        [beta_mult, lam_mult, *(model[f"nested_media_{n}"] for n in names)],
-        draws=4,
-        random_seed=3,
+    names = ["tau_beta", "z_beta", "gamma"]
+    m, tau, z, gamma = pm.draw(
+        [mult, *(model[f"nested_media_{n}"] for n in names)], draws=4, random_seed=3
     )
-    beta, lam, tau_beta, z_beta, gamma, tau_lam, z_lam = draws
     cov = model["nested_media_covariates"].values.eval()
-    np.testing.assert_allclose(
-        np.log(beta), tau_beta[:, None] * z_beta + gamma @ cov.T, rtol=1e-6
-    )
-    np.testing.assert_allclose(np.log(lam), tau_lam[:, None] * z_lam, rtol=1e-6)
+    share = model["nested_media_spend_share"].get_value()
+    raw = np.exp(tau[:, None] * z + gamma @ cov.T)
+    expected = np.empty_like(raw)
+    for channel in ["tv", "search"]:
+        idx = [i for i, c in enumerate(CAMPAIGNS) if MAPPING[c] == channel]
+        mean = raw[:, idx] @ share[idx] / share[idx].sum()
+        expected[:, idx] = raw[:, idx] / mean[:, None]
+    np.testing.assert_allclose(m, expected, rtol=1e-6)
 
 
 def test_register_campaign_parameters():
@@ -279,9 +282,7 @@ def test_register_campaign_parameters():
     with model:
         effect.create_data(mmm)
         effect._built._create_distributions()
-        effect._register_campaign_parameters(
-            model, const(1.0), const(2.0), const(3.0), const(5.0)
-        )
+        effect._register_campaign_parameters(model, const(1.0), const(2.0), const(3.0))
 
     alpha, lam, beta_c, lam_c = pm.draw(
         [
@@ -294,7 +295,7 @@ def test_register_campaign_parameters():
     )
     parent = [["tv", "search"].index(MAPPING[c]) for c in CAMPAIGNS]
     np.testing.assert_allclose(beta_c, alpha[parent] * 2.0 * 3.0, rtol=1e-6)
-    np.testing.assert_allclose(lam_c, lam[parent] * 2.0 * 5.0, rtol=1e-6)
+    np.testing.assert_allclose(lam_c, lam[parent] * 2.0, rtol=1e-6)
 
 
 def test_no_amplitude_deterministic_without_amplitude_param():
@@ -305,23 +306,23 @@ def test_no_amplitude_deterministic_without_amplitude_param():
     assert "nested_media_campaign_contribution" in mmm.model.named_vars
 
 
-def test_multipliers_weighted_zero_sum_within_channel():
-    # log-multipliers satisfy the spend-share-weighted zero-sum constraint
-    # within each channel, so beta_channel is the spend-weighted channel mean
+def test_multipliers_have_spend_weighted_mean_one_within_channel():
+    # the multipliers' spend-weighted arithmetic mean is one in every channel,
+    # which is all the channel total can see; the standardised deviations keep
+    # their spend-share-weighted zero sum
     mmm, _ = _build()
     with mmm.model:
         idata = pm.sample_prior_predictive(draws=13, random_seed=4)
     prior = idata.prior
     spend = mmm.xarray_dataset["campaign_data"].values
     total = spend.sum(axis=0)
-    for name in ["nested_media_beta_multiplier", "nested_media_lam_multiplier"]:
-        log_mult = np.log(prior[name].values)  # (chain, draw, campaign)
-        for channel in ["tv", "search"]:
-            idx = [i for i, c in enumerate(CAMPAIGNS) if MAPPING[c] == channel]
-            w = total[idx] / total[idx].sum()
-            np.testing.assert_allclose(
-                (log_mult[..., idx] * w).sum(-1), 0.0, atol=1e-10
-            )
+    mult = prior["nested_media_beta_multiplier"].values  # (chain, draw, campaign)
+    z = prior["nested_media_z_beta"].values
+    for channel in ["tv", "search"]:
+        idx = [i for i, c in enumerate(CAMPAIGNS) if MAPPING[c] == channel]
+        w = total[idx] / total[idx].sum()
+        np.testing.assert_allclose((mult[..., idx] * w).sum(-1), 1.0, rtol=1e-10)
+        np.testing.assert_allclose((z[..., idx] * w).sum(-1), 0.0, atol=1e-10)
 
 
 def test_zero_sum_multipliers_opt_out():
@@ -354,9 +355,10 @@ def test_all_single_campaign_channels_stay_constrained():
         effect.create_data(mmm)
         effect.create_effect(mmm)
         idata = pm.sample_prior_predictive(draws=7, random_seed=5)
-    assert not any("z_beta" in rv.name or "z_lam" in rv.name for rv in model.free_RVs)
-    for name in ["nested_media_beta_multiplier", "nested_media_lam_multiplier"]:
-        np.testing.assert_allclose(idata.prior[name].values, 1.0, atol=1e-12)
+    assert not any("z_beta" in rv.name for rv in model.free_RVs)
+    np.testing.assert_allclose(
+        idata.prior["nested_media_beta_multiplier"].values, 1.0, atol=1e-12
+    )
 
 
 def test_campaign_dim_need_not_be_last():
@@ -489,9 +491,9 @@ def test_covariate_prior_predictive():
 
 
 def test_covariate_prior_mean_is_the_trust_dial():
-    # at the initial point (gamma = gamma_mu, z = 0) the amplitude multiplier is
-    # exp(gamma_mu * centred covariate): a coefficient of 1 follows the covariate
-    # one for one, 0 ignores it
+    # at the initial point (gamma = gamma_mu, z = 0) the multiplier is
+    # exp(gamma_mu * covariate), normalised within its channel: a coefficient
+    # of 1 follows the covariate one for one, 0 ignores it
     mmm = _make_mock_mmm_with_covariates()
     for gamma_mu in (0.0, 1.0):
         effect = NestedMediaEffect(
@@ -512,7 +514,13 @@ def test_covariate_prior_mean_is_the_trust_dial():
             mult_graph, inputs=model.value_vars, on_unused_input="ignore"
         )(point)
         cov = model["nested_media_covariates"].values.eval()
-        np.testing.assert_allclose(mult, np.exp(gamma_mu * cov.sum(axis=1)), rtol=1e-6)
+        share = model["nested_media_spend_share"].get_value()
+        raw = np.exp(gamma_mu * cov.sum(axis=1))
+        expected = raw.copy()
+        for channel in ["tv", "search"]:
+            idx = [i for i, c in enumerate(CAMPAIGNS) if MAPPING[c] == channel]
+            expected[idx] = raw[idx] / (raw[idx] @ share[idx] / share[idx].sum())
+        np.testing.assert_allclose(mult, expected, rtol=1e-6)
         mmm = _make_mock_mmm_with_covariates()
 
 
@@ -812,10 +820,9 @@ def _estimated_lift(model, effect, ds, campaign, channel, x, delta_x):
     alpha = ds[f"{p}_saturation_alpha"].sel({f"{p}_channel": channel})
     lam = ds[f"{p}_saturation_lam"].sel({f"{p}_channel": channel})
     beta_mult = ds[f"{p}_beta_multiplier"].sel(campaign=campaign)
-    lam_mult = ds[f"{p}_lam_multiplier"].sel(campaign=campaign)
 
     def curve(spend):
-        x_rel = (spend / scale) / (size * lam_mult)
+        x_rel = (spend / scale) / size
         return size * beta_mult * alpha * x_rel / (x_rel + lam)
 
     return curve(x + delta_x) - curve(x)
@@ -922,27 +929,22 @@ def test_split_invariance(saturation_cls):
 
 @pytest.mark.parametrize("saturation_cls", [None, "logistic"])
 def test_split_invariance_away_from_unit_multipliers(saturation_cls):
-    # the homogeneity argument holds for any common multipliers, not only at
-    # m = s = 1: parts of a split campaign that share its amplitude and
-    # x-scale multipliers add back to it exactly
+    # the homogeneity argument holds for any common multiplier, not only at
+    # m = 1: parts of a split campaign that share its multiplier add back to
+    # it exactly
     from pymc_marketing.mmm import LogisticSaturation
 
     saturation = None if saturation_cls is None else LogisticSaturation()
     rng = np.random.default_rng(3)
     spend_a = rng.gamma(2.0, 1.0, 30)
     spend_b = rng.gamma(2.0, 1.0, 30)
-    z_by_parent = {"a": (0.8, -0.6), "b": (-0.3, 0.9)}  # (z_beta, z_lam)
-
-    def z(position):
-        return lambda campaigns: np.array(
-            [z_by_parent[c[0]][position] for c in campaigns]
-        )
+    z_by_parent = {"a": 0.8, "b": -0.3}
 
     point = {
         "nested_media_tau_beta_log__": np.log(0.7),
-        "nested_media_tau_lam_log__": np.log(0.5),
-        "nested_media_z_beta": z(0),
-        "nested_media_z_lam": z(1),
+        "nested_media_z_beta": lambda campaigns: np.array(
+            [z_by_parent[c[0]] for c in campaigns]
+        ),
     }
     whole = _channel_contribution_at_initial_point(
         ["a", "b"],
@@ -988,7 +990,6 @@ def _power_law_contribution(saturation, rho, z_beta):
     names = [
         f"{p}_campaign_contribution",
         f"{p}_beta_multiplier",
-        f"{p}_lam_multiplier",
         *effect._built.variable_mapping.values(),
     ]
     graphs = model.replace_rvs_by_values([model[n] for n in names])
@@ -1011,21 +1012,14 @@ def _power_law_contribution(saturation, rho, z_beta):
 
 
 @pytest.mark.parametrize("saturation_cls", ["no", "root"])
-def test_power_law_saturation_keeps_only_the_amplitude_multiplier(saturation_cls):
-    # for a power law, rescaling the spend only rescales the curve, so the
-    # x-scale multiplier would be confounded with the amplitude one: it is
-    # fixed at one and has no variables
+def test_power_law_contribution(saturation_cls):
     from pymc_marketing.mmm import NoSaturation, RootSaturation
 
     saturation = NoSaturation() if saturation_cls == "no" else RootSaturation()
     z_beta = np.linspace(-1.0, 1.0, len(CAMPAIGNS))
     rho = 0.5
-    model, out, x, cap, params = _power_law_contribution(saturation, rho, z_beta)
+    _, out, x, cap, params = _power_law_contribution(saturation, rho, z_beta)
     p = "nested_media"
-    for name in [f"{p}_tau_lam", f"{p}_z_lam"]:
-        assert name not in model.named_vars
-    np.testing.assert_array_equal(out[f"{p}_lam_multiplier"].values, 1.0)
-
     m = out[f"{p}_beta_multiplier"].values
     size = cap**rho
     if saturation_cls == "no":
@@ -1037,6 +1031,28 @@ def test_power_law_saturation_keeps_only_the_amplitude_multiplier(saturation_cls
         expected,
         rtol=1e-10,
     )
+
+
+@pytest.mark.parametrize("saturation_cls", ["michaelis_menten", "logistic", "no"])
+def test_no_x_scale_multiplier(saturation_cls):
+    # campaigns differ from the size-tied channel curve by their height only:
+    # a second, x-scale multiplier ties the campaigns to the channel total
+    # through the nonlinear curve and samples with divergences
+    from pymc_marketing.mmm import (
+        LogisticSaturation,
+        MichaelisMentenSaturation,
+        NoSaturation,
+    )
+
+    saturation = {
+        "michaelis_menten": MichaelisMentenSaturation,
+        "logistic": LogisticSaturation,
+        "no": NoSaturation,
+    }[saturation_cls]()
+    mmm, _ = _build(NestedMediaEffect(child_to_parent=MAPPING, saturation=saturation))
+    names = set(mmm.model.named_vars)
+    assert not {n for n in names if "lam_multiplier" in n or "tau_lam" in n}
+    assert not {n for n in names if "z_lam" in n}
 
 
 def test_rho_has_no_effect_without_saturation():
@@ -1054,7 +1070,7 @@ def test_rho_has_no_effect_without_saturation():
 
 @pytest.mark.parametrize("rho", [0.0, 0.5, 1.0])
 def test_rho_ties_the_curve_to_size(rho):
-    # contribution_c = cap**rho * m * S(x / (cap**rho * s)), checked against a
+    # contribution_c = cap**rho * m * S(x / cap**rho), checked against a
     # closed form at a point where the multipliers are away from 1
     mmm, effect = _build(
         NestedMediaEffect(child_to_parent=MAPPING, rho=rho, zero_sum_multipliers=False)
@@ -1063,13 +1079,10 @@ def test_rho_ties_the_curve_to_size(rho):
     p = "nested_media"
     point = model.initial_point()
     point[f"{p}_tau_beta_log__"] = np.log(0.6)
-    point[f"{p}_tau_lam_log__"] = np.log(0.4)
     point[f"{p}_z_beta"] = np.linspace(-1.0, 1.0, len(CAMPAIGNS))
-    point[f"{p}_z_lam"] = np.linspace(0.8, -0.8, len(CAMPAIGNS))
     names = [
         f"{p}_campaign_contribution",
         f"{p}_beta_multiplier",
-        f"{p}_lam_multiplier",
         effect._built.variable_mapping["alpha"],
         effect._built.variable_mapping["lam"],
     ]
@@ -1077,7 +1090,7 @@ def test_rho_ties_the_curve_to_size(rho):
     values = model.compile_fn(
         graphs, inputs=model.value_vars, on_unused_input="ignore"
     )(point)
-    contrib, m, s, alpha, lam = (
+    contrib, m, alpha, lam = (
         xr.DataArray(v, dims=model[n].type.dims)
         for n, v in zip(names, values, strict=True)
     )
@@ -1090,7 +1103,7 @@ def test_rho_ties_the_curve_to_size(rho):
     alpha_c = alpha.isel({channel: xr.DataArray(parent, dims="campaign")})
     lam_c = lam.isel({channel: xr.DataArray(parent, dims="campaign")})
     size = cap**rho
-    x_rel = x.values / (size * s).values
+    x_rel = x.values / size.values
     expected = size.values * m.values * alpha_c.values * x_rel / (lam_c.values + x_rel)
     np.testing.assert_allclose(
         contrib.transpose("date", "campaign").values, expected, rtol=1e-10
@@ -1236,13 +1249,10 @@ def test_float_dust_campaign_is_dead_everywhere():
     assert model["nested_media_covariates"].get_value()[2, 0] == 0.0
     mult = idata.prior["nested_media_beta_multiplier"]
     np.testing.assert_array_equal(mult.sel(campaign="dust"), 1.0)
-    # the live campaigns' weighted zero sum is exact, not off by the dust term
+    # the live campaigns' weighted mean is exactly one, not off by the dust term
     share = model["nested_media_spend_share"].get_value()[:2]
-    log_mult = np.log(mult.sel(campaign=["a", "b"]).values) - (
-        idata.prior["nested_media_gamma"].values
-        * model["nested_media_covariates"].get_value()[:2, 0]
-    )
-    np.testing.assert_allclose(log_mult @ share, 0.0, atol=1e-12)
+    live_mean = mult.sel(campaign=["a", "b"]).values @ share / share.sum()
+    np.testing.assert_allclose(live_mean, 1.0, rtol=1e-12)
 
 
 def test_zero_spend_campaign_pinned():
@@ -1694,7 +1704,6 @@ def test_lift_test_with_per_geo_channel_scale_builds():
     names = [
         f"{p}_lift_measurements_model_estimated_lift",
         f"{p}_beta_multiplier",
-        f"{p}_lam_multiplier",
         effect._built.variable_mapping["alpha"],
         effect._built.variable_mapping["lam"],
     ]
@@ -1703,7 +1712,7 @@ def test_lift_test_with_per_geo_channel_scale_builds():
         inputs=model.value_vars,
         on_unused_input="ignore",
     )(point)
-    lift, m, s, alpha, lam = (
+    lift, m, alpha, lam = (
         xr.DataArray(v, dims=model[n].type.dims, coords=_coords_of(model, n))
         for n, v in zip(names, values, strict=True)
     )
@@ -1716,12 +1725,11 @@ def test_lift_test_with_per_geo_channel_scale_builds():
         size = float(cap.sel(geo=row.geo, campaign=row.campaign)) ** effect.rho
         x_scale = float(scale.sel(geo=row.geo, nested_media_channel="social"))
         m_c = float(m.sel(campaign=row.campaign))
-        s_c = float(s.sel(campaign=row.campaign))
         a = float(alpha.sel(nested_media_channel="social"))
         k = float(lam.sel(nested_media_channel="social"))
 
-        def curve(spend, size=size, x_scale=x_scale, m_c=m_c, s_c=s_c, a=a, k=k):
-            x_rel = spend / x_scale / (size * s_c)
+        def curve(spend, size=size, x_scale=x_scale, m_c=m_c, a=a, k=k):
+            x_rel = spend / x_scale / size
             return size * m_c * a * x_rel / (k + x_rel)
 
         expected.append(curve(row.x + row.delta_x) - curve(row.x))

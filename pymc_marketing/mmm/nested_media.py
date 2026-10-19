@@ -42,7 +42,7 @@ Design notes
 - The campaign curve is the channel curve scaled by campaign size on both
   axes::
 
-      contribution_c(x) = cap_c**rho * mult_c * S(x / (cap_c**rho * scale_mult_c))
+      contribution_c(x) = cap_c**rho * mult_c * S(x / cap_c**rho)
 
   where ``cap_c`` is the campaign's size, its mean channel-scaled spend over
   its active dates divided by its channel's, and ``S`` the shared channel
@@ -68,9 +68,14 @@ Design notes
   shape.  Deviations from that neutral point must be earned from data
   (flighting contrasts, covariates, lift tests), not from the
   parameterisation.
-- Campaign multipliers are non-centred under channel pooling scales and, by
-  default, constrained to a spend-share-weighted zero sum within each
-  channel.
+- Campaigns differ from their size-tied channel curve by one efficiency
+  multiplier, ``mult_c``, on the height of the curve. The multipliers are
+  non-centred under a channel pooling scale and normalised to a
+  spend-weighted arithmetic mean of one within each channel: the channel
+  total only informs that mean, so the rest of the campaign split is left to
+  the data on individual campaigns (mix variation, covariates, lift tests)
+  instead of tying the campaigns to a curved constraint, which samples with
+  divergences when the split is weakly identified.
 - ``incrementality_spec`` stays ``None``: ``channel_data`` is never an
   ancestor of this effect's contribution.  Point the budget optimizer at the
   effect via ``BudgetOptimizer(spend_vars=["campaign_data"],
@@ -98,8 +103,6 @@ from pymc_marketing.distributions import DimWeightedZeroSumNormal
 from pymc_marketing.mmm.additive_effect import DataVarMuEffect, Model
 from pymc_marketing.mmm.components.saturation import (
     MichaelisMentenSaturation,
-    NoSaturation,
-    RootSaturation,
     SaturationTransformation,
 )
 from pymc_marketing.mmm.lift_test import (
@@ -113,19 +116,6 @@ from pymc_marketing.serialization import serialization
 # relative to the channel scale, so it is float dust (a residue of a
 # subtraction or an allocation), far below any real spend.
 _SPEND_DUST = 1e-12
-
-
-def _is_power_law(saturation: SaturationTransformation) -> bool:
-    """Whether ``saturation`` is a power law in spend, ``S(k x) = k**a * S(x)``.
-
-    For such a curve, rescaling a campaign's spend only rescales its curve,
-    so the campaign's x-scale multiplier is confounded with its amplitude
-    multiplier and only the amplitude one is kept. ``NoSaturation``
-    (``a = 1``) and ``RootSaturation`` are the library's power laws, and
-    their subclasses are recognised too. A custom power-law saturation is
-    not: it keeps both multipliers, one of them unidentified.
-    """
-    return isinstance(saturation, NoSaturation | RootSaturation)
 
 
 def _channel_scale_and_campaign_cap(
@@ -267,13 +257,10 @@ class NestedMediaEffect(DataVarMuEffect):
         to campaigns; its amplitude parameter is the channel capacity in
         scaled-spend, scaled-target units.  The saturation is evaluated on
         size-normalized spend ``x / cap_c**rho``, of order one, so the
-        library's default priors are sensible for every campaign.  For a
-        power-law saturation (``NoSaturation``, ``RootSaturation``),
-        rescaling the spend only rescales the curve, so campaigns get an
-        amplitude multiplier only.  With ``NoSaturation`` each campaign is a
-        straight line: the budget optimizer has no diminishing returns to
-        balance and, without bounds, funds the campaign with the steepest
-        line.
+        library's default priors are sensible for every campaign.  With
+        ``NoSaturation`` each campaign is a straight line: the budget
+        optimizer has no diminishing returns to balance and, without bounds,
+        funds the campaign with the steepest line.
     data_vars : list[str]
         Single data variable in ``mmm.xarray_dataset`` holding campaign
         spend with dims ``("date", *mmm.dims, child_dim)``.
@@ -282,16 +269,16 @@ class NestedMediaEffect(DataVarMuEffect):
     child_dim, parent_dim : str
         Names of the child and parent dimensions.  Default ``"campaign"``
         and ``"channel"``.
-    tau_beta_sigma, tau_lam_sigma : float
-        Scales of the HalfNormal priors on the pooling strength of the
-        campaign-level amplitude and x-scale multipliers.  Smaller means
-        stronger pooling.  Under the spend-share-weighted zero sum the
-        prior sd of a campaign's log-multiplier is ``tau * sqrt(1 - u_c**2)``
-        with ``u = share / |share|``, so it is not uniform across campaigns:
-        the dominant campaign of a channel is pinned close to the channel
-        mean (for a 90/5/3/2 split about 15x tighter than its siblings).
-        This protects the channel total; ``tau_beta_sigma`` is therefore not
-        "the campaign multiplier scale" for every campaign.
+    tau_beta_sigma : float
+        Scale of the HalfNormal prior on the pooling strength of the campaign
+        efficiency multipliers.  Smaller means stronger pooling.  Under the
+        spend-share-weighted zero sum the prior sd of a campaign's
+        standardised deviation is ``sqrt(1 - u_c**2)`` with
+        ``u = share / |share|``, so it is not uniform across campaigns: the
+        dominant campaign of a channel is pinned close to the channel (for a
+        90/5/3/2 split about 15x tighter than its siblings), and
+        ``tau_beta_sigma`` is therefore not "the campaign multiplier scale"
+        for every campaign.
     rho : float
         Exponent tying each campaign's curve to its size (``cap_c``, the
         campaign's mean active spend relative to its channel's; 1 for a
@@ -301,17 +288,16 @@ class NestedMediaEffect(DataVarMuEffect):
         With ``NoSaturation`` the size cancels out of the curve, so ``rho``
         has no effect.
     zero_sum_multipliers : bool
-        When True (default), the campaign log-multipliers are constrained to
-        a *spend-share-weighted* zero sum within each channel. This is a
-        structural guarantee, not just a conditioning device: the campaign
-        layer then preserves the spend-weighted geometric channel mean
-        exactly, so the channel amplitude keeps its meaning and the campaign
-        layer cannot shift the channel level through the multipliers
-        (unweighted centring shifts it by double-digit percentages at
-        lopsided spend splits). It also decorrelates the channel-level
-        parameters from the dominant campaign's deviation. Channels with a single campaign get multiplier 1 (fully
-        pooled) automatically. Campaigns with zero historical spend get
-        cap 0: they contribute nothing at any spend.
+        When True (default), the campaigns' standardised log-deviations are
+        constrained to a *spend-share-weighted* zero sum within each channel,
+        so they have a unique position.  Whatever the setting, the
+        multipliers themselves are normalised to a spend-weighted arithmetic
+        mean of one within each channel: the channel amplitude is then the
+        channel's spend-weighted average efficiency and, at proportional
+        spend, the campaign layer cannot move the channel contribution.
+        Channels with a single campaign get multiplier 1 (fully pooled)
+        automatically. Campaigns with zero historical spend get cap 0 and
+        multiplier 1: they contribute nothing at any spend.
     covariate_var : str, optional
         Name of a variable in ``mmm.xarray_dataset`` with dims
         ``(child_dim, covariate_dim)`` holding per-campaign covariates
@@ -390,7 +376,6 @@ class NestedMediaEffect(DataVarMuEffect):
     child_dim: str = "campaign"
     parent_dim: str = "channel"
     tau_beta_sigma: float = Field(0.5, gt=0)
-    tau_lam_sigma: float = Field(0.5, gt=0)
     rho: float = Field(1.0, ge=0)
     zero_sum_multipliers: bool = True
     covariate_var: str | None = None
@@ -718,7 +703,7 @@ class NestedMediaEffect(DataVarMuEffect):
         live = (cap > 0).astype(cap.type.dtype)  # derived, so it cannot desync
 
         x_scaled = x / self._gather_to_campaigns(model, scale)
-        beta_multiplier, lam_multiplier = self._campaign_multipliers(model)
+        beta_multiplier = self._campaign_multiplier(model)
 
         # channel-level saturation parameters, gathered to campaigns
         shape_params = {
@@ -731,16 +716,14 @@ class NestedMediaEffect(DataVarMuEffect):
         # a dead campaign (cap 0) evaluates on size 1 and is then zeroed, so
         # nothing divides by zero and it contributes nothing at any spend
         size = (cap + (1 - live)) ** self.rho
-        x_rel = x_scaled / (size * lam_multiplier)
+        x_rel = x_scaled / size
         curve = self._built.function(x_rel, dim="date", **shape_params)
         campaign_contribution = pmd.Deterministic(
             f"{p}_{self.child_dim}_contribution",
             live * size * beta_multiplier * curve,
         )
 
-        self._register_campaign_parameters(
-            model, live, size, beta_multiplier, lam_multiplier
-        )
+        self._register_campaign_parameters(model, live, size, beta_multiplier)
 
         pmd.Deterministic(
             f"{p}_{self.parent_dim}_contribution",
@@ -758,27 +741,23 @@ class NestedMediaEffect(DataVarMuEffect):
         channel_coord = f"{self.prefix}_{self.parent_dim}"
         return var[{channel_coord: model[f"{self.prefix}_parent_idx"]}]
 
-    def _campaign_multipliers(
-        self, model: pm.Model
-    ) -> tuple[XTensorVariable, XTensorVariable]:
-        """Campaign amplitude and x-scale multipliers around the channel curve.
+    def _campaign_multiplier(self, model: pm.Model) -> XTensorVariable:
+        """Campaign efficiency multiplier, with spend-weighted mean one per channel.
 
-        For a power-law saturation the x-scale multiplier is confounded with
-        the amplitude one, so it is fixed at one and has no variables.
+        ``m_c = exp(l_c) / sum_k w_k exp(l_k)`` over the channel's live
+        campaigns, with ``l_c = tau_beta * z_c`` (plus the covariate term) and
+        ``w`` the spend shares.  Data on the channel total only see that
+        weighted arithmetic mean, so fixing it at one leaves the rest of the
+        split to the prior where the data are silent, instead of to a curved
+        constraint that samples with divergences.  Single-campaign channels
+        and dead campaigns (``cap`` of 0) get a multiplier of exactly one.
         """
         p = self.prefix
-        power_law = _is_power_law(self._built)
         tau_beta = pmd.HalfNormal(f"{p}_tau_beta", sigma=self.tau_beta_sigma)
-        if not power_law:
-            tau_lam = pmd.HalfNormal(f"{p}_tau_lam", sigma=self.tau_lam_sigma)
         if self.zero_sum_multipliers:
             z_beta = self._zero_sum_multiplier(model, "z_beta")
-            if not power_law:
-                z_lam = self._zero_sum_multiplier(model, "z_lam")
         else:
             z_beta = pmd.Normal(f"{p}_z_beta", 0.0, 1.0, dims=(self.child_dim,))
-            if not power_law:
-                z_lam = pmd.Normal(f"{p}_z_lam", 0.0, 1.0, dims=(self.child_dim,))
 
         log_mult = tau_beta * z_beta
         if self.covariate_var is not None:
@@ -790,16 +769,24 @@ class NestedMediaEffect(DataVarMuEffect):
                 dims=(self.covariate_dim,),
             )
             log_mult = log_mult + (cov * gamma).sum(dim=self.covariate_dim)
-        beta_multiplier = pmd.Deterministic(
-            f"{p}_beta_multiplier", pmd.math.exp(log_mult)
+        raw = pmd.math.exp(log_mult)
+
+        # live campaigns, as create_effect defines them, carry the weights
+        cap = model[f"{p}_{self.child_dim}_cap"]
+        live = (cap > 0).astype(cap.type.dtype)
+        extra_dims = [d for d in cap.type.dims if d != self.child_dim]
+        if extra_dims:
+            live = live.max(dim=extra_dims)
+        weight = model[f"{p}_spend_share"] * live
+        onehot = model[f"{p}_parent_onehot"]
+        weight_total = (weight * onehot).sum(dim=self.child_dim)
+        channel_mean = (raw * weight * onehot).sum(dim=self.child_dim) / pmd.math.where(
+            weight_total > 0, weight_total, 1.0
         )
-        lam_multiplier = pmd.Deterministic(
-            f"{p}_lam_multiplier",
-            pmd.ones_like(beta_multiplier)
-            if power_law
-            else pmd.math.exp(tau_lam * z_lam),
+        normalised = raw / self._gather_to_campaigns(model, channel_mean)
+        return pmd.Deterministic(
+            f"{p}_beta_multiplier", pmd.math.where(live > 0, normalised, 1.0)
         )
-        return beta_multiplier, lam_multiplier
 
     def _register_campaign_parameters(
         self,
@@ -807,7 +794,6 @@ class NestedMediaEffect(DataVarMuEffect):
         live: XTensorVariable,
         size: XTensorVariable,
         beta_multiplier: XTensorVariable,
-        lam_multiplier: XTensorVariable,
     ) -> None:
         """Per-campaign amplitude and half-saturation point, for reporting."""
         p = self.prefix
@@ -829,8 +815,7 @@ class NestedMediaEffect(DataVarMuEffect):
                 self._gather_to_campaigns(
                     model, model[self._built.variable_mapping["lam"]]
                 )
-                * size
-                * lam_multiplier,
+                * size,
             )
 
     def add_campaign_lift_test_measurements(
@@ -844,8 +829,8 @@ class NestedMediaEffect(DataVarMuEffect):
         """Calibrate campaign saturation curves with lift-test results.
 
         For each row, the model's estimated lift on the campaign's own curve,
-        ``cap**rho * mult * (S((x + delta_x) / (cap**rho * scale_mult)) -
-        S(x / (cap**rho * scale_mult)))``, is conditioned on the
+        ``cap**rho * mult * (S((x + delta_x) / cap**rho) - S(x / cap**rho))``,
+        is conditioned on the
         measured ``delta_y`` with ``likelihood``. Works for any saturation
         shape.
         This is the strongest campaign-level identification source: it does
@@ -913,20 +898,16 @@ class NestedMediaEffect(DataVarMuEffect):
         rho = self.rho
         saturation_function = self._built.function
 
-        def campaign_curve(x, cap, beta_mult, lam_mult, **shape_params):
+        def campaign_curve(x, cap, beta_mult, **shape_params):
             live = (cap > 0).astype(cap.type.dtype)
             size = (cap + (1 - live)) ** rho
             return (
-                live
-                * size
-                * beta_mult
-                * saturation_function(x / (size * lam_mult), **shape_params)
+                live * size * beta_mult * saturation_function(x / size, **shape_params)
             )
 
         variable_mapping = {
             "cap": f"{p}_{self.child_dim}_cap",
             "beta_mult": f"{p}_beta_multiplier",
-            "lam_mult": f"{p}_lam_multiplier",
             **self._built.variable_mapping,
         }
 
