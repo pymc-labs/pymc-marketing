@@ -4240,7 +4240,7 @@ requires-dist = [
     { name = "scikit-learn", specifier = ">=1.1.1" },
     { name = "seaborn", specifier = ">=0.12.2" },
     { name = "sphinx", marker = "extra == 'docs'" },
-    { name = "sphinx-autodoc-typehints", marker = "extra == 'docs'" },
+    { name = "sphinx-autodoc-typehints", marker = "extra == 'docs'", specifier = ">=3.12.1,<3.13" },
     { name = "sphinx-copybutton", marker = "extra == 'docs'" },
     { name = "sphinx-design", marker = "extra == 'docs'" },
     { name = "sphinx-notfound-page", marker = "extra == 'docs'" },
