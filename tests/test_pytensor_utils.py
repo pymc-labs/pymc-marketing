@@ -24,7 +24,7 @@ import pymc.dims as pmd
 import pytest
 import xarray as xr
 from pymc.model.fgraph import fgraph_from_model
-from pytensor import function
+from pytensor import function, shared
 from pytensor.graph.traversal import ancestors
 
 from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation
@@ -1639,6 +1639,71 @@ def test_conditioned_model_refusal_names_the_node_itself():
     message = str(excinfo.value)
     assert repr(response) in message
     assert "None" not in message
+    # The named inputs are listed; the source model's anonymous RNG is not.
+    assert "'spend'" in message
+    assert "<RandomGeneratorSharedVariable>" not in message
+
+
+def test_conditioned_model_refusal_names_the_outside_input():
+    """A named input from the source model is named, not just the response."""
+    model, spend = _channel_conditioned_model()
+    conditioned = ConditionedModel(
+        model, _channel_posterior([1.0, 2.0]), intervention={"spend": spend}
+    )
+
+    with pytest.raises(ValueError) as excinfo:
+        conditioned.extract(conditioned.model["beta"] * model["spend"])
+
+    assert "'spend'" in str(excinfo.value)
+
+
+def test_conditioned_model_refusal_names_an_anonymous_input_by_type():
+    """An anonymous input is named by its type, never by a repr with an address."""
+    model, spend = _channel_conditioned_model()
+    conditioned = ConditionedModel(
+        model, _channel_posterior([1.0, 2.0]), intervention={"spend": spend}
+    )
+    # This scalar source variable leaves the source model's anonymous RNG as
+    # the only outside root.
+    with pm.Model() as source:
+        pm.Normal("outside")
+
+    with pytest.raises(ValueError) as excinfo:
+        conditioned.extract(conditioned.model["beta"] * source["outside"])
+
+    message = str(excinfo.value)
+    assert "<RandomGeneratorSharedVariable>" in message
+    assert "0x" not in message
+
+
+def test_conditioned_model_refusal_deduplicates_named_inputs():
+    """The same name reached through two roots is listed once."""
+    model, spend = _channel_conditioned_model()
+    conditioned = ConditionedModel(
+        model, _channel_posterior([1.0, 2.0]), intervention={"spend": spend}
+    )
+    duplicate = shared(np.array(1.0), name="spend")
+
+    with pytest.raises(ValueError) as excinfo:
+        conditioned.extract(conditioned.model["beta"] * (model["spend"] + duplicate))
+
+    assert str(excinfo.value).count("'spend'") == 1
+
+
+def test_conditioned_model_refusal_caps_the_named_inputs():
+    """Only five names are shown, followed by the number left out."""
+    model, spend = _channel_conditioned_model()
+    conditioned = ConditionedModel(
+        model, _channel_posterior([1.0, 2.0]), intervention={"spend": spend}
+    )
+    outside = [shared(np.array(1.0), name=f"outside{index}") for index in range(6)]
+
+    with pytest.raises(ValueError) as excinfo:
+        conditioned.extract(conditioned.model["beta"] * sum(outside))
+
+    message = str(excinfo.value)
+    assert sum(f"'outside{index}'" in message for index in range(6)) == 5
+    assert "and 1 more" in message
 
 
 def test_conditioned_model_default_graph_keeps_constant_folding(

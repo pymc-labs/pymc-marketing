@@ -1122,6 +1122,7 @@ class ConditionedModel:
         A node the clone registers, and any graph built over it, is accepted.
         A graph whose leaves include an input from outside the clone is refused.
         A node of the pre-intervention model, or of an unrelated one, is such an input.
+        The refusal names those inputs, falling back to their type when they are anonymous.
         With ``intervention=None`` the clone is the model itself, so a node of the source model is accepted.
         Constants are never treated as an outside input.
         """
@@ -1132,19 +1133,36 @@ class ConditionedModel:
                     f"intervened model, which has {sorted(self._model.named_vars)}."
                 )
             return self._model[var]
-        if any(
-            node.owner is None
+        outside_inputs = [
+            node
+            for node in ancestors([var])
+            if node.owner is None
             and not isinstance(node, Constant)
             and node not in self._clone_nodes
-            for node in ancestors([var])
-        ):
+        ]
+        if outside_inputs:
             raise ValueError(
-                f"{var!r} reads inputs outside the intervened model. Pass a "
+                f"{var!r} reads inputs outside the intervened model: "
+                f"{self._describe_outside_inputs(outside_inputs)}. Pass a "
                 "name or a node of the model this object holds (its .model); "
                 "a node of the pre-intervention model is refused because it "
                 "would carry no intervention into the graph."
             )
         return var
+
+    @staticmethod
+    def _describe_outside_inputs(outside_inputs: list[Variable]) -> str:
+        """List outside inputs by name, or by type when anonymous, at most five."""
+        named = [repr(node.name) for node in outside_inputs if node.name is not None]
+        # An anonymous root is named by its type, never by a repr that
+        # may carry a memory address.
+        labels = list(dict.fromkeys(named)) or list(
+            dict.fromkeys(f"<{type(node).__name__}>" for node in outside_inputs)
+        )
+        listed = ", ".join(labels[:5])
+        if len(labels) > 5:
+            listed += f" and {len(labels) - 5} more"
+        return listed
 
     def _names(self, resolved: list[Variable]) -> tuple[str | Variable, ...]:
         """Return the cache-key names of resolved responses.
