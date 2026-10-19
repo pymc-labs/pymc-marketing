@@ -540,6 +540,33 @@ def test_trend_effect_supported_before_factors(data):
     np.testing.assert_allclose(evaluate(m.model, [m.model["belief"]])[0], value)
 
 
+def test_unregistered_custom_effect_rejected_without_mutation(data):
+    from pymc_marketing.mmm.additive_effect import MuEffect
+
+    class DirectSpendEffect(MuEffect):
+        prefix: str = "indirect"
+
+        def create_data(self, mmm):
+            pass
+
+        def create_effect(self, mmm):
+            return 0.2 * mmm.model["channel_data"].sum("channel")
+
+        def set_data(self, mmm, model, X):
+            pass
+
+    m = make_model()
+    m.add_mu_effect(DirectSpendEffect())
+    m.build_model(*data)
+    names = set(m.model.named_vars)
+    before = evaluate(m.model, [m.model.logp()])
+    with pytest.raises(ValueError, match=r"contribution node .* was not found"):
+        m.add_contribution_factor("belief", ["search"], "share", Prior("Normal"))
+    assert set(m.model.named_vars) == names
+    assert m._contribution_factors.specs == []
+    np.testing.assert_allclose(evaluate(m.model, [m.model.logp()]), before)
+
+
 def test_incompatible_belief_warning(data):
     m = make_model()
     m.build_model(*data)

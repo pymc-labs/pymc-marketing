@@ -215,11 +215,16 @@ class ContributionFactorState:
         # cannot promise direct attribution for an effect it cannot inspect.
         for effect in mmm.mu_effects:
             try:
-                _ = effect.contribution_var_name
+                name = effect.contribution_var_name
             except (AttributeError, NotImplementedError) as err:
                 raise ValueError(
                     "Contribution factors require inspectable MuEffects"
                 ) from err
+            if name not in mmm.model.named_vars:
+                raise ValueError(
+                    "Contribution factors require inspectable MuEffects; "
+                    f"contribution node {name!r} was not found"
+                )
 
     def add(
         self,
