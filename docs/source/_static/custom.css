@@ -442,9 +442,8 @@ body:has(.pm-home-intro) .bd-sidebar-secondary {
   font-size: .8rem;
 }
 
-/* Homepage "Contact us" button in the sticky header
-   (_templates/navbar-contact-button.html). The layout rules below are keyed to
-   the button's presence, so pages without it keep the theme's header. */
+/* "Contact us" button in the sticky header of every page
+   (_templates/navbar-contact-button.html). */
 .pm-navbar-contact {
   display: inline-flex;
   align-items: center;
@@ -470,14 +469,14 @@ body:has(.pm-home-intro) .bd-sidebar-secondary {
    ~1360px, so collapse the search field to its icon (the keyboard shortcut
    still works). */
 @media (min-width: 960px) and (max-width: 1359.98px) {
-  body:has(.pm-navbar-contact) .navbar-persistent--container :is(.search-button__default-text, .search-button__kbd-shortcut) {
+  .bd-header .navbar-persistent--container :is(.search-button__default-text, .search-button__kbd-shortcut) {
     display: none;
   }
 }
 
 /* Each persistent item gets margin-left: auto on mobile; keep them together. */
 @media (max-width: 959.98px) {
-  body:has(.pm-navbar-contact) .navbar-persistent--mobile + .navbar-persistent--mobile {
+  .bd-header .navbar-persistent--mobile + .navbar-persistent--mobile {
     margin-left: .5rem;
   }
 }
@@ -496,7 +495,7 @@ body:has(.pm-home-intro) .bd-sidebar-secondary {
 /* Phones: drop the version label so the logo, search, button and both
    sidebar toggles still fit on one row. */
 @media (max-width: 575.98px) {
-  body:has(.pm-navbar-contact) .navbar-header-items__start .navbar-item:not(:has(.navbar-brand)) {
+  .bd-header .navbar-header-items__start .navbar-item:not(:has(.navbar-brand)) {
     display: none;
   }
 }
