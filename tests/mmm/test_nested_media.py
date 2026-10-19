@@ -743,6 +743,23 @@ def test_row_target_scale():
         effect._row_target_scale(rows.drop(columns="geo"), mmm_with(per_geo))
 
 
+def test_lift_test_likelihood_prior():
+    from pymc_extras.prior import Prior
+
+    mmm, effect = _build()
+    df_lift = _lift_row(delta_y=[0.3])
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", DeprecationWarning)
+        effect.add_campaign_lift_test_measurements(
+            df_lift, mmm, likelihood=Prior("StudentT", nu=5)
+        )
+    from pytensor.tensor.random.basic import StudentTRV
+
+    observed = mmm.model["nested_media_lift_measurements"]
+    assert isinstance(observed.owner.op.core_op, StudentTRV)
+    assert np.isfinite(mmm.model.compile_logp()(mmm.model.initial_point()))
+
+
 def test_lift_test_rejects_rows_outside_contract():
     # the row contract itself is tested in test_lift_test.py
     mmm, effect = _build()

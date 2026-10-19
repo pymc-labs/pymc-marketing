@@ -91,6 +91,7 @@ import pymc.dims as pmd
 import pytensor.xtensor as ptx
 import xarray as xr
 from pydantic import Field, InstanceOf, PrivateAttr
+from pymc_extras.prior import Prior
 from pytensor.xtensor.type import XTensorVariable
 
 from pymc_marketing.distributions import DimWeightedZeroSumNormal
@@ -819,7 +820,7 @@ class NestedMediaEffect(DataVarMuEffect):
         self,
         df_lift_test: pd.DataFrame,
         mmm: Model,
-        dist: type[pmd.DimDistribution] = pmd.Normal,
+        likelihood: Prior | None = None,
         name: str | None = None,
         target_transform: Callable[[np.ndarray], np.ndarray] | None = None,
     ) -> "NestedMediaEffect":
@@ -828,7 +829,8 @@ class NestedMediaEffect(DataVarMuEffect):
         For each row, the model's estimated lift on the campaign's own curve,
         ``cap**rho * mult * (S((x + delta_x) / (cap**rho * scale_mult)) -
         S(x / (cap**rho * scale_mult)))``, is conditioned on the
-        measured ``delta_y`` with ``dist``. Works for any saturation shape.
+        measured ``delta_y`` with ``likelihood``. Works for any saturation
+        shape.
         This is the strongest campaign-level identification source: it does
         not rely on flighting contrasts in the historical spend.
 
@@ -841,15 +843,16 @@ class NestedMediaEffect(DataVarMuEffect):
             scale. ``delta_y`` and ``sigma`` are in target units.
         mmm : Model
             The MMM the effect was built into. The model must be built.
-        dist : type[pmd.DimDistribution], optional
-            Likelihood for the lift measurements, called with ``name``,
-            ``mu`` (the estimated lift), ``sigma`` and ``observed``. By
-            default ``pmd.Normal``: its spread is the table's ``sigma``, so a
-            null or negative measured lift is scored and an estimated lift
-            near zero is penalised. A moment-matched ``pmd.Gamma`` (the
-            default of the channel-level helpers) is not recommended here:
-            its spread shrinks with the estimate, which barely penalises a
-            collapsed lift and gives the posterior a degenerate mode.
+        likelihood : Prior, optional
+            Serializable likelihood for the lift measurements, as in
+            :meth:`pymc_marketing.mmm.mmm.MMM.add_lift_test_measurements`:
+            its ``mu`` is the estimated lift and its ``sigma`` the table's
+            ``sigma``. Supported distributions are ``Normal``, ``StudentT``
+            and ``Gamma``. By default ``Prior("Normal")``, so a null or
+            negative measured lift is scored and an estimated lift near zero
+            is penalised. ``Gamma`` is not recommended here: it needs a
+            positive measured lift, barely penalises a collapsed lift, and
+            gives the posterior a degenerate mode.
         name : str, optional
             Name of the likelihood, defaults to
             ``f"{prefix}_lift_measurements"``.
@@ -915,7 +918,7 @@ class NestedMediaEffect(DataVarMuEffect):
             variable_mapping=variable_mapping,
             saturation_function=campaign_curve,
             model=model,
-            dist=dist,
+            likelihood=likelihood,
             name=name or f"{p}_lift_measurements",
         )
         return self
