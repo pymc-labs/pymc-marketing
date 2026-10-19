@@ -1130,14 +1130,15 @@ def test_lift_rejects_nonfinite_measurements_before_model_mutation(column, bad_v
         pmd.HalfNormal("beta", sigma=1.0, dims="channel")
     frame = pd.DataFrame(
         {
-            "channel": ["one"],
-            "x": [1.0],
-            "delta_x": [0.2],
-            "delta_y": [0.1],
-            "sigma": [0.05],
+            "channel": ["one", "one"],
+            "x": [1.0, 1.0],
+            "delta_x": [0.2, 0.2],
+            "delta_y": [0.1, 0.1],
+            "sigma": [0.05, 0.05],
         }
     )
-    frame.loc[0, column] = bad_value
+    original_value = frame.loc[1, column]
+    frame.loc[1, column] = bad_value
     names = set(model.named_vars)
     coords = dict(model.coords)
     with pytest.raises(ValueError, match=rf"'{column}'.*finite real numeric"):
@@ -1150,6 +1151,48 @@ def test_lift_rejects_nonfinite_measurements_before_model_mutation(column, bad_v
     assert set(model.named_vars) == names
     assert model.coords == coords
     assert not model.observed_RVs
+
+    frame.loc[1, column] = original_value
+    add_saturation_observations(
+        frame,
+        variable_mapping={"beta": "beta"},
+        saturation_function=lambda x, beta: beta * x,
+        model=model,
+    )
+    assert len(model.observed_RVs) == 1
+    assert model.rvs_to_values[model["lift_measurements"]].eval().shape == (2,)
+
+
+@pytest.mark.parametrize("distribution", ["Normal", "StudentT"])
+@pytest.mark.parametrize("delta_y", [0.0, -0.1, 1e-12])
+@pytest.mark.parametrize("sigma", [0.5, 3.3e-11])
+def test_lift_accepts_null_signed_estimates_and_small_uncertainty(
+    distribution, delta_y, sigma
+):
+    with pm.Model(coords={"channel": ["one"]}) as model:
+        pmd.HalfNormal("beta", sigma=1.0, dims="channel")
+    frame = pd.DataFrame(
+        {
+            "channel": ["one"],
+            "x": [1.0],
+            "delta_x": [-0.2],
+            "delta_y": [delta_y],
+            "sigma": [sigma],
+        }
+    )
+    likelihood = (
+        Prior("StudentT", nu=4) if distribution == "StudentT" else Prior("Normal")
+    )
+    add_saturation_observations(
+        frame,
+        variable_mapping={"beta": "beta"},
+        saturation_function=lambda x, beta: beta * x,
+        model=model,
+        likelihood=likelihood,
+    )
+    observed = model["lift_measurements"]
+    assert model.rvs_to_values[observed].eval().item() == delta_y
+    assert np.isfinite(model.compile_logp(vars=[observed])(model.initial_point()))
 
 
 @pytest.mark.parametrize("sigma", [0.0, -0.1])
