@@ -273,7 +273,7 @@ class WeightedZeroSumNormal(Distribution):
     non-isotropic covariance. The marginal variances are
     :math:`\sigma^2 (1 - u_i^2)`: the component with the dominant weight has
     the smallest variance (with ``weights = [0.9, 0.05, 0.03, 0.02]`` the first
-    component has variance :math:`\approx 0.004\,\sigma^2`).
+    component has variance :math:`\approx 0.005\,\sigma^2`).
 
     With equal weights this is exactly ``ZeroSumNormal`` with one zero-sum
     axis. Only a single constrained axis, the last, is supported.
@@ -490,7 +490,6 @@ class DimWeightedZeroSumNormal(VectorDimDistribution):
         assert np.allclose(pm.draw(x, draws=100) @ share, 0.0)
     """
 
-    @classmethod
     def __new__(
         cls,
         *args,
@@ -519,6 +518,7 @@ class DimWeightedZeroSumNormal(VectorDimDistribution):
         if dims is None and core_dims is not None:
             dims = (..., *core_dims)  # forwarded to `dist` through `dim_lengths`
         return super().__new__(
+            cls,
             *args,
             core_dims=core_dims,
             dims=dims,

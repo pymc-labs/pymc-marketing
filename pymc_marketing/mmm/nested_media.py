@@ -46,7 +46,7 @@ Design notes
 
   where ``cap_c`` is the campaign's size, its mean channel-scaled spend over
   its active dates divided by its channel's, and ``S`` the shared channel
-  curve.  This degree-1 homogeneity makes the parameterisation
+  curve.  At ``rho=1`` this degree-1 homogeneity makes the parameterisation
   *split-invariant*: splitting a campaign into parts with proportional spend
   leaves the channel contribution exactly unchanged, and so, to within the
   variation of spend across dates, does a flighting split, because a part
@@ -261,7 +261,7 @@ class NestedMediaEffect(DataVarMuEffect):
         prior sd of a campaign's log-multiplier is ``tau * sqrt(1 - u_c**2)``
         with ``u = share / |share|``, so it is not uniform across campaigns:
         the dominant campaign of a channel is pinned close to the channel
-        mean (for a 90/5/3/2 split about 12x tighter than its siblings).
+        mean (for a 90/5/3/2 split about 15x tighter than its siblings).
         This protects the channel total; ``tau_beta_sigma`` is therefore not
         "the campaign multiplier scale" for every campaign.
     rho : float
@@ -275,12 +275,11 @@ class NestedMediaEffect(DataVarMuEffect):
         a *spend-share-weighted* zero sum within each channel. This is a
         structural guarantee, not just a conditioning device: the campaign
         layer then preserves the spend-weighted geometric channel mean
-        exactly, so introducing campaigns cannot move the channel-level
-        contribution the design exists to protect (unweighted centring
-        shifts it by double-digit percentages at lopsided spend splits). It
-        also decorrelates the channel-level parameters from the dominant
-        campaign's deviation, which is worth 6-9x ESS/sec at 90/5/3/2-style
-        splits. Channels with a single campaign get multiplier 1 (fully
+        exactly, so the channel amplitude keeps its meaning and the campaign
+        layer cannot shift the channel level through the multipliers
+        (unweighted centring shifts it by double-digit percentages at
+        lopsided spend splits). It also decorrelates the channel-level
+        parameters from the dominant campaign's deviation. Channels with a single campaign get multiplier 1 (fully
         pooled) automatically. Campaigns with zero historical spend get
         cap 0: they contribute nothing at any spend.
     covariate_var : str, optional
@@ -302,6 +301,54 @@ class NestedMediaEffect(DataVarMuEffect):
         Mean and scale of the Normal prior on the covariate coefficients.
         The default ``gamma_mu=0`` states no direction; a positive mean with
         a small scale states trust in the covariate.
+
+    Examples
+    --------
+    Decompose ``social`` into two campaigns while ``search`` stays a
+    channel-level media term. The campaign spend rides in the ``xr.Dataset``
+    with its own ``campaign`` dimension, and the decomposed channel is left
+    out of ``channel_columns``:
+
+    .. code-block:: python
+
+        import numpy as np
+        import pandas as pd
+        import xarray as xr
+
+        from pymc_marketing.mmm import (
+            MMM,
+            GeometricAdstock,
+            LogisticSaturation,
+            NestedMediaEffect,
+        )
+
+        rng = np.random.default_rng(0)
+        dates = pd.date_range("2025-01-06", periods=52, freq="W-MON")
+        X = xr.Dataset(
+            {
+                "media": (("date", "channel"), rng.gamma(2.0, 1.0, (52, 1))),
+                "campaign_data": (("date", "campaign"), rng.gamma(2.0, 1.0, (52, 2))),
+            },
+            coords={
+                "date": dates,
+                "channel": ["search"],
+                "campaign": ["social_a", "social_b"],
+            },
+        )
+        y = xr.DataArray(rng.gamma(5.0, 1.0, 52), dims="date", coords={"date": dates})
+
+        effect = NestedMediaEffect(
+            child_to_parent={"social_a": "social", "social_b": "social"}
+        )
+        mmm = MMM(
+            channel_columns=["search"],
+            date_column="date",
+            target_column="y",
+            adstock=GeometricAdstock(l_max=2),
+            saturation=LogisticSaturation(),
+        ).add_mu_effect(effect)
+        mmm.build_model(X=X, y=y)
+        assert "nested_media_campaign_contribution" in mmm.model.named_vars
     """
 
     child_to_parent: dict[str, str]
@@ -332,7 +379,14 @@ class NestedMediaEffect(DataVarMuEffect):
         return self._saturation
 
     def create_data(self, mmm: Model) -> None:
-        """Register campaign spend plus the static index, scale and share data."""
+        """Register campaign spend plus the static index, scale and share data.
+
+        Parameters
+        ----------
+        mmm : Model
+            The MMM model instance. Its ``xarray_dataset`` must carry the
+            campaign spend variable named in ``data_vars``.
+        """
         model = mmm.model
         p = self.prefix
         channel_coord = f"{p}_{self.parent_dim}"
@@ -558,6 +612,15 @@ class NestedMediaEffect(DataVarMuEffect):
         contribute nothing. To predict with campaign spend, pass an
         ``xr.Dataset`` ``X`` that carries the variable, as the budget
         optimizer's own dataset does.
+
+        Parameters
+        ----------
+        mmm : Model
+            The MMM model instance.
+        model : pm.Model
+            The PyMC model whose data are updated.
+        X : xr.Dataset
+            The new prediction dataset.
         """
         var_name = self.data_vars[0]
         if var_name in X.data_vars:
@@ -580,7 +643,20 @@ class NestedMediaEffect(DataVarMuEffect):
         pm.set_data({var_name: np.zeros(new_shape, dtype=current.dtype)}, model=model)
 
     def create_effect(self, mmm: Model) -> XTensorVariable:
-        """Build the nested campaign media contribution."""
+        """Build the nested campaign media contribution.
+
+        Parameters
+        ----------
+        mmm : Model
+            The MMM model instance, after :meth:`create_data`.
+
+        Returns
+        -------
+        XTensorVariable
+            The effect's total contribution over ``("date", *mmm.dims)``, the
+            ``f"{prefix}_effect_contribution"`` deterministic that enters
+            ``mu``.
+        """
         model = mmm.model
         p = self.prefix
 
@@ -706,7 +782,8 @@ class NestedMediaEffect(DataVarMuEffect):
         """Calibrate campaign saturation curves with lift-test results.
 
         For each row, the model's estimated lift on the campaign's own curve,
-        ``cap**rho * mult * (S(x + delta_x) - S(x))``, is conditioned on the
+        ``cap**rho * mult * (S((x + delta_x) / (cap**rho * scale_mult)) -
+        S(x / (cap**rho * scale_mult)))``, is conditioned on the
         measured ``delta_y`` with ``dist``. Works for any saturation shape.
         This is the strongest campaign-level identification source: it does
         not rely on flighting contrasts in the historical spend.
