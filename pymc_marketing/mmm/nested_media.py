@@ -90,7 +90,7 @@ import pymc as pm
 import pymc.dims as pmd
 import pytensor.xtensor as ptx
 import xarray as xr
-from pydantic import Field, InstanceOf, PrivateAttr
+from pydantic import Field, InstanceOf, PrivateAttr, field_validator
 from pymc_extras.prior import Prior
 from pytensor.xtensor.type import XTensorVariable
 
@@ -259,6 +259,7 @@ class NestedMediaEffect(DataVarMuEffect):
         Maps each child (campaign) name to its parent (channel) name.  Must
         cover exactly the children present in the data variable's child
         coordinate.  Ragged parents (different child counts) are fine.
+        ``"live"`` is reserved and cannot be a parent name.
     saturation : SaturationTransformation, optional
         Any saturation from :mod:`pymc_marketing.mmm.components.saturation`;
         Michaelis-Menten by default.  Its priors are created at *channel*
@@ -540,6 +541,22 @@ class NestedMediaEffect(DataVarMuEffect):
             centred.transpose(self.child_dim, self.covariate_dim).values,
             dims=(self.child_dim, self.covariate_dim),
         )
+
+    @field_validator("child_to_parent")
+    @classmethod
+    def _parent_names_not_reserved(cls, value: dict[str, str]) -> dict[str, str]:
+        """Reject ``"live"`` as a parent name.
+
+        A parent's live campaigns get the coordinate
+        ``f"{prefix}_{parent}_{child_dim}"``, and the effect reserves
+        ``f"{prefix}_live_{child_dim}"`` for all live campaigns together, so a
+        parent named ``"live"`` would silently share that coordinate.
+        """
+        if "live" in value.values():
+            raise ValueError(
+                '"live" is reserved and cannot be a parent name in child_to_parent'
+            )
+        return value
 
     def _validate_mapping(self, campaigns: list[str], model: pm.Model) -> list[str]:
         """Check the campaign-to-channel map and return the channels in first-seen order."""

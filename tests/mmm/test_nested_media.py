@@ -158,6 +158,12 @@ def test_live_blocks():
     }
 
 
+def test_parent_named_live_is_rejected():
+    # "live" would share the reserved coordinate of all live campaigns
+    with pytest.raises(ValueError, match='"live" is reserved'):
+        NestedMediaEffect(child_to_parent={"a": "paid", "b": "live"})
+
+
 def test_mapping_mismatch_raises():
     mmm = _make_mock_mmm()
     bad = {**MAPPING}
