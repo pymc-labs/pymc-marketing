@@ -181,7 +181,6 @@ from __future__ import annotations
 
 import io
 import json
-import re
 import warnings
 from collections.abc import Callable, Sequence
 from copy import deepcopy
@@ -198,8 +197,6 @@ from pydantic import ConfigDict, Field, InstanceOf, StrictBool, validate_call
 from pymc.model.transform.optimization import freeze_dims_and_data
 from pymc.util import RandomState
 from pymc_extras.prior import Prior
-from pytensor.graph.replace import graph_replace
-from pytensor.graph.rewriting import rewrite_graph
 from pytensor.graph.traversal import ancestors
 from pytensor.xtensor import as_xtensor
 from pytensor.xtensor.type import XTensorVariable
@@ -225,6 +222,7 @@ from pymc_marketing.mmm.causal import CausalGraphModel
 from pymc_marketing.mmm.components.adstock import AdstockTransformation
 from pymc_marketing.mmm.components.saturation import SaturationTransformation
 from pymc_marketing.mmm.constraints import Constraint
+from pymc_marketing.mmm.contribution_factors import ContributionFactorState
 from pymc_marketing.mmm.data_conversion import _dataset_has_target, to_mmm_dataset
 from pymc_marketing.mmm.decomposition import (
     identity_counterfactual_component,
@@ -683,8 +681,7 @@ class MMM(RegressionModelBuilder):
 
         self.mu_effects: list[MuEffect] = []
         self._lift_test_calibrations: list[dict[str, Any]] = []
-        self._contribution_priors: list[dict[str, Any]] = []
-        self._contribution_reference: dict[str, Any] | None = None
+        self._contribution_factors = ContributionFactorState()
 
     def add_mu_effect(
         self: Self,
@@ -718,6 +715,8 @@ class MMM(RegressionModelBuilder):
             )
 
         """
+        if self._contribution_factors.specs:
+            raise ValueError("Configure MuEffects before adding contribution factors")
         self.mu_effects.append(mu_effect)
         return self
 
@@ -1111,8 +1110,7 @@ class MMM(RegressionModelBuilder):
         attrs["link"] = self.link.value
         attrs["scaling"] = json.dumps(serialization.serialize(self.scaling))
         attrs["lift_test_calibrations"] = json.dumps(self._lift_test_calibrations)
-        attrs["contribution_priors"] = json.dumps(self._contribution_priors)
-        attrs["contribution_reference"] = json.dumps(self._contribution_reference)
+        attrs.update(self._contribution_factors.to_attrs())
         attrs["dag"] = json.dumps(getattr(self, "dag", None))
         attrs["treatment_nodes"] = json.dumps(getattr(self, "treatment_nodes", None))
         attrs["outcome_node"] = json.dumps(getattr(self, "outcome_node", None))
@@ -1935,7 +1933,7 @@ class MMM(RegressionModelBuilder):
         )
         # Keep the original observed-cell mask: the existing likelihood still
         # uses the zero-filled target, but contribution beliefs exclude missing cells.
-        self._contribution_observed_mask = cast(
+        self._contribution_factors.mask = cast(
             xr.DataArray, np.isfinite(self.xarray_dataset["_target"])
         )
         self.xarray_dataset = self.xarray_dataset.fillna(0)
@@ -2369,7 +2367,7 @@ class MMM(RegressionModelBuilder):
         xr.DataTree
             Inference data of the fitted model.
         """
-        self._validate_contribution_training_reference(X, y)
+        self._contribution_factors.validate_reference(self, X, y)
         if hasattr(self, "model") and self._target_is_placeholder:
             warnings.warn(
                 "The model was built by `sample_prior_predictive` with a "
@@ -2468,511 +2466,353 @@ class MMM(RegressionModelBuilder):
             )
 
         """
-        self._validate_contribution_training_reference(X, y)
-        contribution_priors = list(self._contribution_priors)
-        # Calibration rows belong to a particular graph. A rebuild creates a
-        # fresh graph, so callers must re-add any lift tests they want to use.
-        self._lift_test_calibrations = []
-        self._generate_and_preprocess_model_data(
-            X=X,
-            y=y,
-        )
-        self._target_is_placeholder = False
-
-        likelihood = self.model_config["likelihood"]
-        if "_target" in self.xarray_dataset.data_vars:
-            self._link_spec.validate_target(self.xarray_dataset["_target"].values)
-            # LogNormalPrior observes the raw target on the strictly positive
-            # support, which the link-level validate_target cannot know about.
-            if isinstance(likelihood, LogNormalPrior):
-                likelihood.validate_observed(self.xarray_dataset["_target"].values)
-        LinkSpec.validate_likelihood_compatibility(self.link, likelihood)
-
-        if self.link == LinkFunction.LOG and self.mu_effects:
-            warnings.warn(
-                "With link='log', MuEffect components that are additive on "
-                "the linear predictor become multiplicative factors on y "
-                "(via exp). Verify that your mu_effects are intended for "
-                "use in a multiplicative model.",
-                UserWarning,
-                stacklevel=2,
+        with self._contribution_factors.rebuilding(self, X, y):
+            # Calibration rows belong to a particular graph. A rebuild creates a
+            # fresh graph, so callers must re-add any lift tests they want to use.
+            self._lift_test_calibrations = []
+            self._generate_and_preprocess_model_data(
+                X=X,
+                y=y,
             )
+            self._target_is_placeholder = False
 
-        # Compute and save scales
-        self._compute_scales()
+            likelihood = self.model_config["likelihood"]
+            if "_target" in self.xarray_dataset.data_vars:
+                self._link_spec.validate_target(self.xarray_dataset["_target"].values)
+                # LogNormalPrior observes the raw target on the strictly positive
+                # support, which the link-level validate_target cannot know about.
+                if isinstance(likelihood, LogNormalPrior):
+                    likelihood.validate_observed(self.xarray_dataset["_target"].values)
+            LinkSpec.validate_likelihood_compatibility(self.link, likelihood)
 
-        with pm.Model(coords=self.model_coords) as self.model:
-            if self.yearly_seasonality:
-                self.model.add_coord(
-                    self.yearly_fourier.prefix, self.yearly_fourier.nodes
+            if self.link == LinkFunction.LOG and self.mu_effects:
+                warnings.warn(
+                    "With link='log', MuEffect components that are additive on "
+                    "the linear predictor become multiplicative factors on y "
+                    "(via exp). Verify that your mu_effects are intended for "
+                    "use in a multiplicative model.",
+                    UserWarning,
+                    stacklevel=2,
                 )
 
-            _channel_scale = pmd.Data("channel_scale", self.scalers._channel)
-            _target_scale = pmd.Data("target_scale", self.scalers._target)
+            # Compute and save scales
+            self._compute_scales()
 
-            _channel_data = pmd.Data("channel_data", self.xarray_dataset._channel)
+            with pm.Model(coords=self.model_coords) as self.model:
+                if self.yearly_seasonality:
+                    self.model.add_coord(
+                        self.yearly_fourier.prefix, self.yearly_fourier.nodes
+                    )
 
-            _target = pmd.Data("target_data", self.xarray_dataset._target)
+                _channel_scale = pmd.Data("channel_scale", self.scalers._channel)
+                _target_scale = pmd.Data("target_scale", self.scalers._target)
 
-            # Scale `channel_data` and `target`. The switches guard against
-            # NaN (0/0 when a channel/target is all-zero) and against +/-inf
-            # (non-zero numerator over a zero scale, which can arise under
-            # per-dim ``DataDerivedScaling`` with heterogeneous slices).
-            # Both are clamped to 0 so the likelihood receives finite inputs.
-            channel_data_ = _channel_data / _channel_scale
-            channel_data_ = pmd.math.switch(
-                pmd.math.logical_or(
-                    pmd.math.isnan(channel_data_), pmd.math.isinf(channel_data_)
-                ),
-                0.0,
-                channel_data_,
-            )
-            channel_data_.name = "channel_data_scaled"
-            ## TODO: Find a better way to save it or access it in the pytensor graph.
-            self.channel_data_scaled = channel_data_
+                _channel_data = pmd.Data("channel_data", self.xarray_dataset._channel)
 
-            target_data_scaled = _target / _target_scale
-            target_data_scaled = pmd.math.switch(
-                pmd.math.logical_or(
-                    pmd.math.isnan(target_data_scaled),
-                    pmd.math.isinf(target_data_scaled),
-                ),
-                0.0,
-                target_data_scaled,
-            )
-            target_data_scaled.name = "target_scaled"
-            ## TODO: Find a better way to save it or access it in the pytensor graph.
-            self.target_data_scaled = target_data_scaled
+                _target = pmd.Data("target_data", self.xarray_dataset._target)
 
-            # The likelihood observes this, not `_target`, so the support check
-            # has to run here rather than next to `validate_target` above: the
-            # scale can be negative and the switch above rewrites NaN/inf to
-            # zero, so the raw target's values are not the ones being fitted.
-            # `validate_likelihood_support` evaluates the variable only if the
-            # likelihood has a support to check, so the default `Normal` pays
-            # nothing.
-            #
-            # An all-zero target is the placeholder that `fit` and
-            # `sample_prior_predictive` substitute when no `y` is given
-            # (`model_builder.py:1546`, `:1772`). It has no support to respect,
-            # and failing it would break building a model in order to look at
-            # its prior, so skip the check rather than reject the placeholder.
-            if np.any(self.xarray_dataset["_target"].values != 0):
-                LinkSpec.validate_likelihood_support(
-                    self.model_config["likelihood"],
+                # Scale `channel_data` and `target`. The switches guard against
+                # NaN (0/0 when a channel/target is all-zero) and against +/-inf
+                # (non-zero numerator over a zero scale, which can arise under
+                # per-dim ``DataDerivedScaling`` with heterogeneous slices).
+                # Both are clamped to 0 so the likelihood receives finite inputs.
+                channel_data_ = _channel_data / _channel_scale
+                channel_data_ = pmd.math.switch(
+                    pmd.math.logical_or(
+                        pmd.math.isnan(channel_data_), pmd.math.isinf(channel_data_)
+                    ),
+                    0.0,
+                    channel_data_,
+                )
+                channel_data_.name = "channel_data_scaled"
+                ## TODO: Find a better way to save it or access it in the pytensor graph.
+                self.channel_data_scaled = channel_data_
+
+                target_data_scaled = _target / _target_scale
+                target_data_scaled = pmd.math.switch(
+                    pmd.math.logical_or(
+                        pmd.math.isnan(target_data_scaled),
+                        pmd.math.isinf(target_data_scaled),
+                    ),
+                    0.0,
                     target_data_scaled,
-                    target_scale=self.scalers["_target"].values,
                 )
+                target_data_scaled.name = "target_scaled"
+                ## TODO: Find a better way to save it or access it in the pytensor graph.
+                self.target_data_scaled = target_data_scaled
 
-            # DataVarMuEffect inputs may be shared by several effects, but must
-            # never reuse data nodes that MMM registered for its own internals.
-            # Snapshot before the effect loop so names registered by an earlier
-            # effect remain eligible for sharing with a later one.
-            self._library_data_names = frozenset(self.model.named_vars)
-            for mu_effect in self.mu_effects:
-                mu_effect.create_data(self)
-
-            if self.time_varying_intercept or self.time_varying_media:
-                time_index = pmd.Data("time_index", self._time_index)
-
-            # Add intercept logic
-            if self.time_varying_intercept:
-                intercept_baseline = self.model_config["intercept"].create_variable(
-                    "intercept_baseline", xdist=True
-                )
-
-                if isinstance(self.time_varying_intercept, HSGPBase):
-                    # Register internal time index and build latent process
-                    self.time_varying_intercept.register_data(time_index)
-                    intercept_latent_process = (
-                        self.time_varying_intercept.create_variable(
-                            "intercept_latent_process", xdist=True
-                        )
-                    )
-                else:
-                    intercept_latent_process = create_hsgp_from_config(
-                        X=time_index,
-                        dims=("date", *self.dims),
-                        config=self.model_config["intercept_tvp_config"],
-                    ).create_variable("intercept_latent_process", xdist=True)
-
-                intercept = pmd.Deterministic(
-                    "intercept_contribution",
-                    (intercept_baseline * intercept_latent_process).transpose(
-                        "date", ...
-                    ),
-                )
-
-            else:
-                intercept = self.model_config["intercept"].create_variable(
-                    name="intercept_contribution", xdist=True
-                )
-
-            # Add media logic
-            if self.time_varying_media:
-                baseline_channel_contribution = pmd.Deterministic(
-                    "baseline_channel_contribution",
-                    (
-                        self.forward_pass(x=channel_data_, dims=(*self.dims, "channel"))
-                    ).transpose("date", ...),
-                )
-
-                if isinstance(self.time_varying_media, HSGPBase):
-                    # Register internal time index and build latent process
-                    self.time_varying_media.register_data(time_index)
-                    media_latent_process = self.time_varying_media.create_variable(
-                        "media_temporal_latent_multiplier", xdist=True
-                    )
-                else:
-                    media_latent_process = create_hsgp_from_config(
-                        X=time_index,
-                        dims=("date", *self.dims),
-                        config=self.model_config["media_tvp_config"],
-                    ).create_variable("media_temporal_latent_multiplier", xdist=True)
-
-                channel_contribution = (
-                    baseline_channel_contribution * media_latent_process
-                )
-            else:
-                channel_contribution = self.forward_pass(
-                    x=channel_data_, dims=(*self.dims, "channel")
-                )
-
-            channel_contribution = pmd.Deterministic(
-                "channel_contribution",
-                channel_contribution.transpose("date", ...),
-            )
-
-            # Add other contributions and likelihood
-            mu_var = intercept + channel_contribution.sum(dim="channel")
-
-            if self.control_columns is not None and len(self.control_columns) > 0:
-                gamma_control = self.model_config["gamma_control"].create_variable(
-                    name="gamma_control", xdist=True
-                )
-
-                control_data_ = pmd.Data("control_data", self.xarray_dataset._control)
-
-                control_contribution = pmd.Deterministic(
-                    "control_contribution",
-                    control_data_ * gamma_control,
-                )
-
-                mu_var += control_contribution.sum(dim="control")
-
-            if self.yearly_seasonality is not None:
-                dayofyear = pmd.Data(
-                    "dayofyear",
-                    pd.to_datetime(self.model_coords["date"]).dayofyear.to_numpy(),
-                    dims="date",
-                )
-
-                # Fourier doesn't work with XTensorVariable / DataArray dayofyear yet
-                fourier_dim = self.yearly_fourier.prefix
-                fourier_contributions = pmd.Deterministic(
-                    "fourier_contribution",
-                    self.yearly_fourier.apply(dayofyear, sum=False).transpose(
-                        "date", ..., fourier_dim
-                    ),
-                )
-
-                yearly_seasonality_contribution = pmd.Deterministic(
-                    "yearly_seasonality_contribution",
-                    fourier_contributions.sum(dim=fourier_dim),
-                )
-
-                mu_var += yearly_seasonality_contribution
-
-            for mu_effect in self.mu_effects:
-                mu_var += mu_effect.create_effect(self)
-
-            if self.link == LinkFunction.LOG:
-                mu_var = pmd.Deterministic("mu", mu_var.transpose("date", ...))
-            else:
-                # Registered rather than merely named, because the identity-link
-                # mean correction is pointwise in mu and reconstructing it by
-                # summing the contribution Deterministics is not safe:
-                # MuEffect.create_effect is only required to return its term,
-                # not to register one.
+                # The likelihood observes this, not `_target`, so the support check
+                # has to run here rather than next to `validate_target` above: the
+                # scale can be negative and the switch above rewrites NaN/inf to
+                # zero, so the raw target's values are not the ones being fitted.
+                # `validate_likelihood_support` evaluates the variable only if the
+                # likelihood has a support to check, so the default `Normal` pays
+                # nothing.
                 #
-                # Not transposed, unlike the log branch, which would change the
-                # dims order the likelihood sees, so "date" stays wherever the
-                # linear predictor already put it rather than moving to front.
-                mu_var = pmd.Deterministic("mu", mu_var)
+                # An all-zero target is the placeholder that `fit` and
+                # `sample_prior_predictive` substitute when no `y` is given
+                # (`model_builder.py:1546`, `:1772`). It has no support to respect,
+                # and failing it would break building a model in order to look at
+                # its prior, so skip the check rather than reject the placeholder.
+                if np.any(self.xarray_dataset["_target"].values != 0):
+                    LinkSpec.validate_likelihood_support(
+                        self.model_config["likelihood"],
+                        target_data_scaled,
+                        target_scale=self.scalers["_target"].values,
+                    )
 
-            self._link_spec.create_media_contribution_deterministic(
-                mu_var=mu_var,
-                channel_contribution=channel_contribution,
-                target_scale=_target_scale,
-            )
+                # DataVarMuEffect inputs may be shared by several effects, but must
+                # never reuse data nodes that MMM registered for its own internals.
+                # Snapshot before the effect loop so names registered by an earlier
+                # effect remain eligible for sharing with a later one.
+                self._library_data_names = frozenset(self.model.named_vars)
+                for mu_effect in self.mu_effects:
+                    mu_effect.create_data(self)
 
-            # `total_media_contribution_original_scale` is built from the
-            # `channel_contribution` tensor alone, so any response routed
-            # through a mu effect -- a funnel mediator, a promotional lever --
-            # is invisible to it, and a budget optimized against it undervalues
-            # whatever drives that effect. Registered only when the model has
-            # effects, so plain media models keep their posterior unchanged.
-            if self.mu_effects:
-                self._link_spec.create_total_response_deterministic(
+                if self.time_varying_intercept or self.time_varying_media:
+                    time_index = pmd.Data("time_index", self._time_index)
+
+                # Add intercept logic
+                if self.time_varying_intercept:
+                    intercept_baseline = self.model_config["intercept"].create_variable(
+                        "intercept_baseline", xdist=True
+                    )
+
+                    if isinstance(self.time_varying_intercept, HSGPBase):
+                        # Register internal time index and build latent process
+                        self.time_varying_intercept.register_data(time_index)
+                        intercept_latent_process = (
+                            self.time_varying_intercept.create_variable(
+                                "intercept_latent_process", xdist=True
+                            )
+                        )
+                    else:
+                        intercept_latent_process = create_hsgp_from_config(
+                            X=time_index,
+                            dims=("date", *self.dims),
+                            config=self.model_config["intercept_tvp_config"],
+                        ).create_variable("intercept_latent_process", xdist=True)
+
+                    intercept = pmd.Deterministic(
+                        "intercept_contribution",
+                        (intercept_baseline * intercept_latent_process).transpose(
+                            "date", ...
+                        ),
+                    )
+
+                else:
+                    intercept = self.model_config["intercept"].create_variable(
+                        name="intercept_contribution", xdist=True
+                    )
+
+                # Add media logic
+                if self.time_varying_media:
+                    baseline_channel_contribution = pmd.Deterministic(
+                        "baseline_channel_contribution",
+                        (
+                            self.forward_pass(
+                                x=channel_data_, dims=(*self.dims, "channel")
+                            )
+                        ).transpose("date", ...),
+                    )
+
+                    if isinstance(self.time_varying_media, HSGPBase):
+                        # Register internal time index and build latent process
+                        self.time_varying_media.register_data(time_index)
+                        media_latent_process = self.time_varying_media.create_variable(
+                            "media_temporal_latent_multiplier", xdist=True
+                        )
+                    else:
+                        media_latent_process = create_hsgp_from_config(
+                            X=time_index,
+                            dims=("date", *self.dims),
+                            config=self.model_config["media_tvp_config"],
+                        ).create_variable(
+                            "media_temporal_latent_multiplier", xdist=True
+                        )
+
+                    channel_contribution = (
+                        baseline_channel_contribution * media_latent_process
+                    )
+                else:
+                    channel_contribution = self.forward_pass(
+                        x=channel_data_, dims=(*self.dims, "channel")
+                    )
+
+                channel_contribution = pmd.Deterministic(
+                    "channel_contribution",
+                    channel_contribution.transpose("date", ...),
+                )
+
+                # Add other contributions and likelihood
+                mu_var = intercept + channel_contribution.sum(dim="channel")
+
+                if self.control_columns is not None and len(self.control_columns) > 0:
+                    gamma_control = self.model_config["gamma_control"].create_variable(
+                        name="gamma_control", xdist=True
+                    )
+
+                    control_data_ = pmd.Data(
+                        "control_data", self.xarray_dataset._control
+                    )
+
+                    control_contribution = pmd.Deterministic(
+                        "control_contribution",
+                        control_data_ * gamma_control,
+                    )
+
+                    mu_var += control_contribution.sum(dim="control")
+
+                if self.yearly_seasonality is not None:
+                    dayofyear = pmd.Data(
+                        "dayofyear",
+                        pd.to_datetime(self.model_coords["date"]).dayofyear.to_numpy(),
+                        dims="date",
+                    )
+
+                    # Fourier doesn't work with XTensorVariable / DataArray dayofyear yet
+                    fourier_dim = self.yearly_fourier.prefix
+                    fourier_contributions = pmd.Deterministic(
+                        "fourier_contribution",
+                        self.yearly_fourier.apply(dayofyear, sum=False).transpose(
+                            "date", ..., fourier_dim
+                        ),
+                    )
+
+                    yearly_seasonality_contribution = pmd.Deterministic(
+                        "yearly_seasonality_contribution",
+                        fourier_contributions.sum(dim=fourier_dim),
+                    )
+
+                    mu_var += yearly_seasonality_contribution
+
+                for mu_effect in self.mu_effects:
+                    mu_var += mu_effect.create_effect(self)
+
+                if self.link == LinkFunction.LOG:
+                    mu_var = pmd.Deterministic("mu", mu_var.transpose("date", ...))
+                else:
+                    # Registered rather than merely named, because the identity-link
+                    # mean correction is pointwise in mu and reconstructing it by
+                    # summing the contribution Deterministics is not safe:
+                    # MuEffect.create_effect is only required to return its term,
+                    # not to register one.
+                    #
+                    # Not transposed, unlike the log branch, which would change the
+                    # dims order the likelihood sees, so "date" stays wherever the
+                    # linear predictor already put it rather than moving to front.
+                    mu_var = pmd.Deterministic("mu", mu_var)
+
+                self._link_spec.create_media_contribution_deterministic(
                     mu_var=mu_var,
+                    channel_contribution=channel_contribution,
                     target_scale=_target_scale,
                 )
 
-            self.model_config["likelihood"].create_likelihood_variable(
-                name=self.output_var,
-                mu=mu_var,
-                observed=target_data_scaled,
-                xdist=True,
-            )
+                # `total_media_contribution_original_scale` is built from the
+                # `channel_contribution` tensor alone, so any response routed
+                # through a mu effect -- a funnel mediator, a promotional lever --
+                # is invisible to it, and a budget optimized against it undervalues
+                # whatever drives that effect. Registered only when the model has
+                # effects, so plain media models keep their posterior unchanged.
+                if self.mu_effects:
+                    self._link_spec.create_total_response_deterministic(
+                        mu_var=mu_var,
+                        target_scale=_target_scale,
+                    )
 
-        # Snapshot graph inputs before any prediction/optimization can update them.
-        # The clone below shares parameter RVs, but never mutable training inputs.
-        self._contribution_training_data = {
-            v.name: np.array(v.get_value(), copy=True) for v in self.model.data_vars
-        }
-        self._contribution_frozen_graph: Any = None
-        self._contribution_priors = []
-        self._contribution_reference = None
-        for component in contribution_priors:
-            self.add_contribution_prior(
-                name=component["name"],
-                channels=component["channels"],
-                scale=component["scale"],
-                prior=serialization.deserialize_model_config(
-                    {"prior": component["prior"]}
-                )["prior"],
-            )
-
-    def _validate_contribution_training_reference(self, X, y) -> None:
-        """Reject a changed fitting reference before mutating a built model."""
-        if self._contribution_priors:
-            candidate = to_mmm_dataset(
-                X,
-                y,
-                date_column=self.date_column,
-                dims=self.dims,
-                channel_columns=self.channel_columns,
-                control_columns=self.control_columns,
-                target_column=self.target_column,
-            )
-            candidate_mask = np.isfinite(candidate["_target"])
-            if (
-                self._contribution_dataset_reference(
-                    candidate.fillna(0), candidate_mask
-                )
-                != cast(dict[str, Any], self._contribution_reference)["training"]
-            ):
-                raise ValueError(
-                    "Contribution priors refer to the original training cells. "
-                    "Use a new MMM for different training data."
+                self.model_config["likelihood"].create_likelihood_variable(
+                    name=self.output_var,
+                    mu=mu_var,
+                    observed=target_data_scaled,
+                    xdist=True,
                 )
 
-    @staticmethod
-    def _contribution_dataset_reference(dataset, mask) -> dict[str, Any]:
-        """JSON-compatible training identity, including pre-fill missingness."""
-        # Named axes identify cells; their physical storage order is incidental.
-        dataset = dataset.transpose(*sorted(dataset.dims))
-        mask = mask.transpose(*sorted(mask.dims))
-        return {
-            "coords": {
-                d: [pd.Timestamp(v).isoformat() for v in dataset.coords[d].values]
-                if d == "date"
-                else dataset.coords[d].values.tolist()
-                for d in dataset.coords
-            },
-            "variables": {
-                name: {"dims": list(v.dims), "values": v.values.tolist()}
-                for name, v in dataset.data_vars.items()
-            },
-            "mask_dims": list(mask.dims),
-            "mask": mask.values.tolist(),
-        }
-
-    def add_contribution_prior(
+    def add_contribution_factor(
         self,
         name: str,
         channels: Sequence[str],
-        scale: Literal["total", "share"],
+        quantity: Literal["total", "share"],
         prior: Prior,
     ) -> Self:
-        """Add a domain-knowledge factor on historical direct media contribution.
+        """Weight the joint prior by a density on historical media contribution.
 
         Parameters
         ----------
         name : str
-            Unique identifier. Registers an aggregate Deterministic with this
-            name and a Potential named ``{name}_prior``.
+            Unique aggregate Deterministic name. The Potential is ``{name}_factor``.
         channels : sequence of str
-            Nonempty selection of distinct channel names. Groups may overlap.
-        scale : {"total", "share"}
-            Sum in original outcome units, or that sum divided by the finite
-            observed training outcomes' sum. Pools all other dimensions.
-        prior : pymc_extras.prior.Prior
-            Scalar continuous component with fixed scalar parameters and support
-            over the whole real line, e.g. ``Prior("Normal", mu=.3, sigma=.06)``.
-            Bounded components (including Beta) and hard caps are unsupported.
+            Distinct selected channels. Groups may overlap or be nested.
+        quantity : {"total", "share"}
+            Original-unit total over observed training cells, or that total
+            divided by their fixed observed outcome sum. Extra dimensions pool.
+        prior : Prior
+            Scalar, centered, untransformed continuous density with fixed finite
+            scalar parameters and smooth full real-line support. Its density
+            multiplies existing priors; it does not replace the share marginal.
 
         Returns
         -------
         Self
-            The instance for chaining.
+            This MMM for chaining.
 
         Notes
         -----
-        This multiplies the existing joint prior by the supplied density; it
-        does not replace a marginal prior or guarantee its elicited probability.
-        Parameter priors and the sales likelihood are unchanged. Shares use
-        observed sales, are not clipped, and may exceed one. Non-finite original
-        outcomes are excluded from both sums; the model's existing zero-filled
-        sales likelihood is unchanged.
+        Call after building and before fitting. Configure MuEffects first;
+        spend-dependent effects and non-identity links are unsupported. Missing
+        original targets are excluded from both aggregates, independently of
+        the sales likelihood's existing zero-filling behavior. Shares require a
+        finite positive outcome sum. Bounded densities and hard caps are rejected.
 
-        The reference is the original training spend path, scales, coordinates
-        and observed-cell mask, even after prediction or budget optimization.
-        Same-data rebuilds and save/load restore each factor once; changing the
-        training reference requires a new MMM. ``sample_prior_predictive``
-        ignores these factors. Inspect the effective prior with prior-only MCMC,
-        removing the sales likelihood while retaining the training inputs and
-        Potentials (see the contribution-priors example notebook).
+        Factors retain their historical period through prediction and budget
+        allocation. Rebuilding with different training data, including time-slice
+        cross-validation, requires a fresh MMM and new period-specific factors.
+        Registering a factor adds only a scalar aggregate and Potential, not a
+        full original-scale contribution array to the trace.
 
-        Examples
-        --------
-        Build with real training outcomes before adding a belief::
-
-            mmm.build_model(X, y)
-            mmm.add_contribution_prior(
-                name="paid_media_share",
-                channels=["search", "tiktok"],
-                scale="share",
-                prior=Prior("Normal", mu=0.3, sigma=0.06),
-            )
-            mmm.fit(X, y)
+        Use :meth:`sample_effective_prior` to inspect the resulting prior.
+        Ordinary forward prior-predictive sampling ignores the factors.
         """
         self._validate_model_was_built()
-        if self.link != LinkFunction.IDENTITY or self.mu_effects:
-            raise ValueError(
-                "Contribution priors support additive identity-link MMMs "
-                "without MuEffects only (direct channel contributions)."
-            )
-        if not isinstance(name, str) or not re.fullmatch(
-            r"[A-Za-z][A-Za-z0-9_]*", name
-        ):
-            raise ValueError("name must be an identifier starting with a letter")
-        if (
-            name == "channel_contribution_original_scale"
-            or name in self.model.named_vars
-            or f"{name}_prior" in self.model.named_vars
-        ):
-            raise ValueError(f"Contribution prior name {name!r} is already in use")
-        if (
-            isinstance(channels, str)
-            or not isinstance(channels, Sequence)
-            or not channels
-        ):
-            raise ValueError("channels must be a nonempty sequence of channel names")
-        if any(not isinstance(c, str) for c in channels) or len(set(channels)) != len(
-            channels
-        ):
-            raise ValueError("channels must contain distinct channel names")
-        if set(channels).difference(self.channel_columns):
-            raise ValueError("channels contains unknown channel names")
-        if scale not in ("total", "share"):
-            raise ValueError("scale must be 'total' or 'share'")
-        if (
-            not isinstance(prior, Prior)
-            or prior.dims
-            or prior.transform
-            or not prior.centered
-        ):
-            raise ValueError(
-                "prior must be a centered scalar Prior without a transform"
-            )
-        if any(
-            not isinstance(v, (int, float, np.number)) or not np.isfinite(v)
-            for v in prior.parameters.values()
-        ):
-            raise ValueError("prior parameters must be fixed finite scalars")
-        if prior.preliz.support != (-np.inf, np.inf):
-            raise ValueError(
-                "Only smooth components with support over the whole real line "
-                "are supported; bounded components (including Beta) and hard caps "
-                "are unsupported. Use an explicit smooth upper-tail belief."
-            )
-        distribution = prior.pymc_distribution.dist(**prior.parameters)
-        if distribution.ndim or not distribution.dtype.startswith("float"):
-            raise ValueError("prior must be a scalar continuous distribution")
-        # Force parameter validation before registering anything in the graph.
-        pm.logp(distribution, 0.0).eval()
-        if not np.all(np.isfinite(self._contribution_training_data["target_scale"])):
-            raise ValueError(
-                "Original-unit contributions require finite target scaling"
-            )
-        mask = self._contribution_observed_mask
-        target = self.xarray_dataset["_target"]
-        denominator = float(target.where(mask, 0).sum())
-        if not bool(mask.any()) or (
-            scale == "share" and (not np.isfinite(denominator) or denominator <= 0)
-        ):
-            raise ValueError(
-                "Shares require a finite positive sum of observed training outcomes"
-            )
-        definition = {
-            "name": name,
-            "channels": list(channels),
-            "scale": scale,
-            "prior": json.loads(json.dumps(prior.to_dict())),
-        }
-        if self._contribution_frozen_graph is None:
-            if "channel_contribution_original_scale" not in self.model.named_vars:
-                self.add_original_scale_contribution_variable(["channel_contribution"])
-            source = self.model["channel_contribution_original_scale"]
-            replacements = {
-                v: v.type.constant_type(
-                    type=v.type, data=self._contribution_training_data[v.name]
-                )
-                for v in self.model.data_vars
-            }
-            # Keep the exact same parameter variables; cloning those would add
-            # unregistered stochastic nodes and detach the factor from logp.
-            replacements.update({v: v for v in self.model.free_RVs})
-            self._contribution_frozen_graph = graph_replace(
-                [source],
-                replace=replacements,
-                strict=False,
-            )[0]
-            self._contribution_reference = {
-                "training": self._contribution_dataset_reference(
-                    self.xarray_dataset, mask
-                ),
-                "data": {
-                    k: {
-                        "dims": sorted(self.model[k].dims),
-                        "values": xr.DataArray(v, dims=self.model[k].dims)
-                        .transpose(*sorted(self.model[k].dims))
-                        .values.tolist(),
-                    }
-                    for k, v in self._contribution_training_data.items()
-                },
-            }
-        indices = [self.channel_columns.index(c) for c in channels]
-        total = (
-            self._contribution_frozen_graph.isel(channel=indices)
-            .where(as_xtensor(mask), 0)
-            .sum()
-        )
-        value = total / denominator if scale == "share" else total
-        with self.model:
-            aggregate = pmd.Deterministic(name, value)
-            # Potential graphs bypass conditional-logp's xtensor lowering.
-            # Substitute registered value variables first, then lower named
-            # operations so the factor is differentiable without cloned RVs.
-            value_aggregate = self.model.replace_rvs_by_values([aggregate])[0]
-            logp = rewrite_graph(
-                pm.logp(distribution, value_aggregate.values),
-                include=("lower_xtensor",),
-            )
-            pm.Potential(f"{name}_prior", logp)
-        self._contribution_priors.append(definition)
+        self._contribution_factors.add(self, name, channels, quantity, prior)
         return self
+
+    def sample_effective_prior(self, **kwargs: Any) -> xr.DataTree:
+        """Sample parameter priors and contribution factors without the sales likelihood.
+
+        Requires a built model. Uses its original training inputs even after
+        prediction, and leaves this model and any fitted posterior unchanged.
+        Observed outcomes enter only through fixed scaling and historical share
+        denominators. This is not conditioning on the sales likelihood.
+
+        Parameters
+        ----------
+        **kwargs : Any
+            Passed to :func:`pymc.sample`, including draws, tune, chains,
+            random_seed and nuts_sampler. Sampling uses MCMC and requires the
+            usual convergence checks.
+
+        Returns
+        -------
+        xr.DataTree
+            Independent result with ``prior`` parameter/Deterministic draws and
+            ``sample_stats_prior`` diagnostics. No sales predictive draws are
+            generated. Use these parameter draws for a separate forward
+            predictive step; preserve the parameters when generating outcomes.
+
+        Notes
+        -----
+        Models containing additional likelihoods or unclassified Potentials
+        are rejected rather than accidentally conditioning on measurements.
+        """
+        self._validate_model_was_built()
+        return self._contribution_factors.sample(self, **kwargs)
+
+    def set_idata_attrs(self, idata: xr.DataTree | None = None) -> xr.DataTree:
+        """Attach model metadata and the labeled contribution-factor mask."""
+        result = super().set_idata_attrs(idata)
+        self._contribution_factors.attach_mask(result)
+        return result
 
     def _validate_date_overlap_with_include_last_observations(
         self, X: xr.Dataset, include_last_observations: bool
@@ -3445,11 +3285,11 @@ class MMM(RegressionModelBuilder):
         train on the placeholder rather than the real target, warns again
         (see issue #2956).
         """
-        if self._contribution_priors:
+        if self._contribution_factors.specs:
             warnings.warn(
-                "Prior predictive sampling ignores contribution-prior Potentials; "
+                "Prior predictive sampling ignores contribution-factor Potentials; "
                 "these are base parameter-prior draws, not the effective prior. "
-                "Use prior-only MCMC retaining the fixed training reference.",
+                "Use sample_effective_prior() for prior-only MCMC on the historical reference.",
                 UserWarning,
                 stacklevel=2,
             )
@@ -4773,131 +4613,95 @@ class MMM(RegressionModelBuilder):
             mmm.build_from_idata(idata)
 
         """
-        self.idata = idata
-        if "mu_effects" in idata.attrs:
-            mu_effects_data = json.loads(idata.attrs["mu_effects"])
-            ctx = DeserializationContext(idata=idata)
-            self.mu_effects = [
-                serialization.deserialize(effect_data, context=ctx)
-                for effect_data in mu_effects_data
-            ]
+        with self._contribution_factors.transaction(self):
+            self.idata = idata
+            if "mu_effects" in idata.attrs:
+                mu_effects_data = json.loads(idata.attrs["mu_effects"])
+                ctx = DeserializationContext(idata=idata)
+                self.mu_effects = [
+                    serialization.deserialize(effect_data, context=ctx)
+                    for effect_data in mu_effects_data
+                ]
 
-        dataset = idata.fit_data.dataset.to_dataframe()
+            dataset = idata.fit_data.dataset.to_dataframe()
 
-        if isinstance(dataset.index, pd.MultiIndex) or isinstance(
-            dataset.index, pd.DatetimeIndex
-        ):
-            dataset = dataset.reset_index()
-        # type: ignore
-        X = dataset.drop(columns=[self.target_column])
-        y = dataset[self.target_column]
-
-        self._contribution_priors = []
-        self._contribution_reference = None
-        self.build_model(X, y)  # type: ignore
-
-        components = json.loads(idata.attrs.get("contribution_priors", "[]"))
-        if components:
-            reference = json.loads(idata.attrs["contribution_reference"])
-            training = reference["training"]
-            self._contribution_observed_mask = xr.DataArray(
-                training["mask"],
-                dims=training["mask_dims"],
-                coords={
-                    d: self.xarray_dataset.coords[d] for d in training["mask_dims"]
-                },
-            )
-            if (
-                self._contribution_dataset_reference(
-                    self.xarray_dataset, self._contribution_observed_mask
-                )
-                != training
+            if isinstance(dataset.index, pd.MultiIndex) or isinstance(
+                dataset.index, pd.DatetimeIndex
             ):
-                raise ValueError(
-                    "Saved contribution prior training reference differs from fit_data"
-                )
-            self._contribution_training_data = {
-                k: xr.DataArray(v["values"], dims=v["dims"])
-                .transpose(*self.model[k].dims)
-                .values.astype(self.model[k].dtype)
-                for k, v in reference["data"].items()
-            }
-            for component in components:
-                self.add_contribution_prior(
-                    name=component["name"],
-                    channels=component["channels"],
-                    scale=component["scale"],
-                    prior=serialization.deserialize_model_config(
-                        {"prior": component["prior"]}
-                    )["prior"],
-                )
+                dataset = dataset.reset_index()
+            # type: ignore
+            X = dataset.drop(columns=[self.target_column])
+            y = dataset[self.target_column]
 
-        # Lift-test rows are model inputs, rather than part of fit_data. Restore
-        # them after rebuilding the base MMM so their likelihood and posterior
-        # model-implied-lift diagnostic are present again.
-        if "lift_test_calibrations" in idata.attrs:
-            for calibration in json.loads(idata.attrs["lift_test_calibrations"]):
-                df_lift_test = pd.read_json(
-                    io.StringIO(calibration["data"]),
-                    orient="split",
-                    dtype=False,
-                    convert_dates=False,
-                    precise_float=True,
-                )
-                for column, dtype in calibration["dtypes"].items():
-                    if dtype.startswith("datetime64"):
-                        if "," in dtype:
-                            timezone = dtype.split(",", maxsplit=1)[1].strip(" ]")
-                            df_lift_test[column] = pd.to_datetime(
-                                df_lift_test[column], utc=True
-                            ).dt.tz_convert(timezone)
+            self._contribution_factors = ContributionFactorState.from_idata(idata)
+            self.build_model(X, y)  # type: ignore
+
+            # Lift-test rows are model inputs, rather than part of fit_data. Restore
+            # them after rebuilding the base MMM so their likelihood and posterior
+            # model-implied-lift diagnostic are present again.
+            if "lift_test_calibrations" in idata.attrs:
+                for calibration in json.loads(idata.attrs["lift_test_calibrations"]):
+                    df_lift_test = pd.read_json(
+                        io.StringIO(calibration["data"]),
+                        orient="split",
+                        dtype=False,
+                        convert_dates=False,
+                        precise_float=True,
+                    )
+                    for column, dtype in calibration["dtypes"].items():
+                        if dtype.startswith("datetime64"):
+                            if "," in dtype:
+                                timezone = dtype.split(",", maxsplit=1)[1].strip(" ]")
+                                df_lift_test[column] = pd.to_datetime(
+                                    df_lift_test[column], utc=True
+                                ).dt.tz_convert(timezone)
+                            else:
+                                df_lift_test[column] = pd.to_datetime(
+                                    df_lift_test[column]
+                                ).astype(dtype)
                         else:
-                            df_lift_test[column] = pd.to_datetime(
-                                df_lift_test[column]
-                            ).astype(dtype)
-                    else:
-                        df_lift_test[column] = df_lift_test[column].astype(dtype)
-                likelihood = serialization.deserialize_model_config(
-                    {"likelihood": calibration["likelihood"]}
-                )["likelihood"]
-                self.add_lift_test_measurements(
-                    df_lift_test,
-                    likelihood=likelihood,
-                    name=calibration["name"],
-                )
+                            df_lift_test[column] = df_lift_test[column].astype(dtype)
+                    likelihood = serialization.deserialize_model_config(
+                        {"likelihood": calibration["likelihood"]}
+                    )["likelihood"]
+                    self.add_lift_test_measurements(
+                        df_lift_test,
+                        likelihood=likelihood,
+                        name=calibration["name"],
+                    )
 
-        # Re-add any *_original_scale Deterministics that were present when the
-        # model was saved.  These are added by add_original_scale_contribution_variable
-        # but the PyMC model graph is not serialized, so build_model does not know
-        # to recreate them.
-        #
-        # Primary path  : read the explicit list stored by save() in idata.attrs.
-        # Fallback path : infer from idata.posterior for models saved before this
-        #                 fix (original_scale_vars attr absent).
-        suffix = "_original_scale"
-        if "original_scale_vars" in idata.attrs:
-            vars_to_restore = [
-                v
-                for v in json.loads(idata.attrs["original_scale_vars"])
-                if v in self.model.named_vars
-                and (v.endswith("_contribution") or v == self.output_var)
-            ]
-        elif hasattr(idata, "posterior"):
-            vars_to_restore = [
-                v[: -len(suffix)]
-                for v in idata.posterior.data_vars
-                if v.endswith(suffix)
-                and (
-                    v[: -len(suffix)].endswith("_contribution")
-                    or v[: -len(suffix)] == self.output_var
-                )
-                and v[: -len(suffix)] in self.model.named_vars
-            ]
-        else:
-            vars_to_restore = []
+            # Re-add any *_original_scale Deterministics that were present when the
+            # model was saved.  These are added by add_original_scale_contribution_variable
+            # but the PyMC model graph is not serialized, so build_model does not know
+            # to recreate them.
+            #
+            # Primary path  : read the explicit list stored by save() in idata.attrs.
+            # Fallback path : infer from idata.posterior for models saved before this
+            #                 fix (original_scale_vars attr absent).
+            suffix = "_original_scale"
+            if "original_scale_vars" in idata.attrs:
+                vars_to_restore = [
+                    v
+                    for v in json.loads(idata.attrs["original_scale_vars"])
+                    if v in self.model.named_vars
+                    and (v.endswith("_contribution") or v == self.output_var)
+                ]
+            elif hasattr(idata, "posterior"):
+                vars_to_restore = [
+                    v[: -len(suffix)]
+                    for v in idata.posterior.data_vars
+                    if v.endswith(suffix)
+                    and (
+                        v[: -len(suffix)].endswith("_contribution")
+                        or v[: -len(suffix)] == self.output_var
+                    )
+                    and v[: -len(suffix)] in self.model.named_vars
+                ]
+            else:
+                vars_to_restore = []
 
-        if vars_to_restore:
-            self.add_original_scale_contribution_variable(var=vars_to_restore)
+            if vars_to_restore:
+                self.add_original_scale_contribution_variable(var=vars_to_restore)
 
     def set_cost_per_unit(
         self,

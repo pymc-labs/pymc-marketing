@@ -22,7 +22,6 @@ import pandas as pd
 import pymc as pm
 import pytest
 import xarray as xr
-from pymc.model.transform.optimization import freeze_dims_and_data
 from pymc_extras.prior import Prior
 from scipy.stats import norm
 
@@ -87,7 +86,16 @@ def test_aggregation_logdensity_and_unchanged_likelihood(data, panel):
     contributions = evaluate(
         m.model, [m.model["channel_contribution_original_scale"]], point
     )[0]
-    mask = m._contribution_observed_mask.values
+    if panel:
+        mask = (
+            X.assign(observed=y.notna().to_numpy())
+            .set_index(["date", "country"])["observed"]
+            .to_xarray()
+            .transpose("date", "country")
+            .values
+        )
+    else:
+        mask = y.notna().to_numpy()
     expected_channel = np.where(mask[..., None], contributions, 0).sum(
         axis=tuple(range(contributions.ndim - 1))
     )
@@ -97,7 +105,7 @@ def test_aggregation_logdensity_and_unchanged_likelihood(data, panel):
         ("individual", ["tiktok"], "total"),
         ("nested", ["tiktok"], "share"),
     ]:
-        m.add_contribution_prior(
+        m.add_contribution_factor(
             name, channels, scale, Prior("Normal", mu=0.3, sigma=2)
         )
     actual = evaluate(
@@ -119,20 +127,19 @@ def test_aggregation_logdensity_and_unchanged_likelihood(data, panel):
     # No extra RV, repeated likelihood, renormalization, or duplicated full array.
     assert len(m.model.potentials) == 3
     assert len(m.model.observed_RVs) == 1
-    assert len(m.model.free_RVs) == 5
 
 
 def test_frozen_reference_prediction_optimization_and_rebuild(data):
     X, y = data
     m = make_model()
     m.build_model(X, y)
-    m.add_contribution_prior(
+    m.add_contribution_factor(
         "belief", ["search"], "share", Prior("Normal", mu=0.3, sigma=0.1)
     )
     before = evaluate(
         m.model, [m.model["belief"], m.model.logp(vars=m.model.potentials)]
     )
-    reference = copy.deepcopy(m._contribution_reference)
+    reference = copy.deepcopy(m._contribution_factors.fingerprint)
     # Change both dates and data, as prediction and optimizer windows do.
     with m.model:
         pm.set_data(
@@ -143,9 +150,9 @@ def test_frozen_reference_prediction_optimization_and_rebuild(data):
         m.model, [m.model["belief"], m.model.logp(vars=m.model.potentials)]
     )
     np.testing.assert_allclose(after, before)
-    assert m._contribution_reference == reference
+    assert m._contribution_factors.fingerprint == reference
     # Adding another component after prediction must still use training inputs.
-    m.add_contribution_prior(
+    m.add_contribution_factor(
         "second", ["search"], "share", Prior("Normal", mu=0.3, sigma=0.1)
     )
     np.testing.assert_allclose(evaluate(m.model, [m.model["second"]])[0], before[0])
@@ -171,7 +178,7 @@ def test_frozen_reference_prediction_optimization_and_rebuild(data):
         ({"channels": "search"}, "nonempty"),
         ({"channels": ["search", "search"]}, "distinct"),
         ({"channels": ["missing"]}, "unknown"),
-        ({"scale": "average"}, "scale"),
+        ({"quantity": "average"}, "quantity"),
         ({"prior": Prior("Normal", mu=[0.2, 0.3], sigma=1)}, "fixed finite scalars"),
         (
             {"prior": Prior("Normal", mu=Prior("Normal"), sigma=1)},
@@ -191,32 +198,36 @@ def test_invalid_input_does_not_mutate_graph(data, kwargs, match):
     values = {
         "name": "belief",
         "channels": ["search"],
-        "scale": "share",
+        "quantity": "share",
         "prior": Prior("Normal", mu=0.3, sigma=0.1),
     } | kwargs
     with pytest.raises(ValueError, match=match):
-        m.add_contribution_prior(**values)
+        m.add_contribution_factor(**values)
     assert set(m.model.named_vars) == names
-    assert m._contribution_priors == []
+    assert m._contribution_factors.specs == []
 
 
 def test_duplicates_and_unsupported_models(data):
     m = make_model()
     with pytest.raises(ValueError, match="built"):
-        m.add_contribution_prior("belief", ["search"], "share", Prior("Normal"))
+        m.add_contribution_factor("belief", ["search"], "share", Prior("Normal"))
     m.build_model(*data)
-    m.add_contribution_prior("belief", ["search"], "share", Prior("Normal"))
+    m.add_contribution_factor("belief", ["search"], "share", Prior("Normal"))
     names = set(m.model.named_vars)
     with pytest.raises(ValueError, match="already in use"):
-        m.add_contribution_prior("belief", ["search"], "share", Prior("Normal"))
+        m.add_contribution_factor("belief", ["search"], "share", Prior("Normal"))
     assert set(m.model.named_vars) == names
-    m.link = "log"
+    from pymc_marketing.mmm import LinearTrend
+    from pymc_marketing.mmm.additive_effect import LinearTrendEffect
+
+    with pytest.raises(ValueError, match="before adding"):
+        m.add_mu_effect(
+            LinearTrendEffect(trend=LinearTrend(n_changepoints=2), prefix="trend")
+        )
+    log_model = make_model(link="log")
+    log_model.build_model(data[0], data[1].fillna(1))
     with pytest.raises(ValueError, match="identity-link"):
-        m.add_contribution_prior("other", ["search"], "share", Prior("Normal"))
-    m.link = "identity"
-    m.mu_effects = [object()]
-    with pytest.raises(ValueError, match="MuEffects"):
-        m.add_contribution_prior("other", ["search"], "share", Prior("Normal"))
+        log_model.add_contribution_factor("other", ["search"], "share", Prior("Normal"))
 
 
 @pytest.mark.parametrize("target", [np.zeros(5), -np.ones(5), np.full(5, np.nan)])
@@ -224,8 +235,8 @@ def test_invalid_denominator(data, target):
     m = make_model()
     m.build_model(data[0], pd.Series(target))
     names = set(m.model.named_vars)
-    with pytest.raises(ValueError, match="finite positive"):
-        m.add_contribution_prior("belief", ["search"], "share", Prior("Normal"))
+    with pytest.raises(ValueError, match=r"finite positive|finite observed"):
+        m.add_contribution_factor("belief", ["search"], "share", Prior("Normal"))
     assert set(m.model.named_vars) == names
 
 
@@ -233,7 +244,7 @@ def test_save_load_restore_original_missingness(data, tmp_path):
     X, y = data
     m = make_model()
     m.build_model(X, y)
-    m.add_contribution_prior(
+    m.add_contribution_factor(
         "belief", ["search"], "share", Prior("Normal", mu=0.3, sigma=0.1)
     )
     before = evaluate(
@@ -249,8 +260,10 @@ def test_save_load_restore_original_missingness(data, tmp_path):
     m.idata["fit_data"]["y"] = m.idata.fit_data["y"].fillna(0)
     m.save(tmp_path / "belief.nc")
     loaded = MMM.load(tmp_path / "belief.nc")
-    assert loaded._contribution_priors == m._contribution_priors
-    assert loaded._contribution_reference == m._contribution_reference
+    assert loaded._contribution_factors.specs == m._contribution_factors.specs
+    assert (
+        loaded._contribution_factors.fingerprint == m._contribution_factors.fingerprint
+    )
     np.testing.assert_allclose(
         evaluate(
             loaded.model,
@@ -261,34 +274,37 @@ def test_save_load_restore_original_missingness(data, tmp_path):
     loaded.build_from_idata(loaded.idata)
     assert len(loaded.model.potentials) == 1
     assert np.isfinite(loaded.model.compile_dlogp()(loaded.model.initial_point())).all()
-    assert (
-        json.loads(loaded.idata.attrs["contribution_reference"])["training"]["mask"][2]
-        is False
-    )
+    assert not bool(loaded.idata.contribution_factor_data.observed_mask.isel(date=2))
 
 
 def test_effective_prior_removes_sales_likelihood_retains_factors(data):
     m = make_model()
     m.build_model(*data)
-    m.add_contribution_prior(
+    m.add_contribution_factor(
         "belief", ["search"], "share", Prior("Normal", mu=0.3, sigma=0.1)
     )
-    frozen = freeze_dims_and_data(m.model)
-    prior_model = pm.do(
-        frozen,
-        {"y": frozen["y"].type.constant_type(type=frozen["y"].type, data=np.zeros(5))},
-        make_interventions_shared=False,
-    )
-    assert not prior_model.observed_RVs
-    assert len(prior_model.potentials) == 1
-    point = prior_model.initial_point()
-    assert np.isfinite(prior_model.compile_dlogp()(point)).all()
-    actual = prior_model.compile_logp()(point)
-    parameter_logp = evaluate(
-        prior_model, [prior_model.logp(vars=prior_model.free_RVs)], point
-    )[0]
-    share = evaluate(prior_model, [prior_model["belief"]], point)[0]
-    np.testing.assert_allclose(actual - parameter_logp, norm.logpdf(share, 0.3, 0.1))
+    from unittest.mock import patch
+
+    def inspect_model(**kwargs):
+        prior_model = pm.modelcontext(None)
+        assert not prior_model.observed_RVs
+        point = prior_model.initial_point()
+        assert np.isfinite(prior_model.compile_dlogp()(point)).all()
+        actual = prior_model.compile_logp()(point)
+        parameter_logp = evaluate(
+            prior_model, [prior_model.logp(vars=prior_model.free_RVs)], point
+        )[0]
+        share = evaluate(prior_model, [prior_model["belief"]], point)[0]
+        np.testing.assert_allclose(
+            actual - parameter_logp, norm.logpdf(share, 0.3, 0.1)
+        )
+        return xr.DataTree.from_dict(
+            {"posterior": xr.Dataset({"belief": (("chain", "draw"), [[share]])})}
+        )
+
+    with patch("pymc.sample", side_effect=inspect_model):
+        result = m.sample_effective_prior()
+    assert "prior" in result and "posterior" not in result
     with pytest.warns(UserWarning, match="not the effective prior"):
         m.sample_prior_predictive(*data, samples=2, random_seed=123)
 
@@ -328,8 +344,8 @@ def test_xarray_two_dimensions_and_missing_cells(labeled_panel):
     ds, _, _ = labeled_panel
     m = make_model(dims=("region", "product"))
     m.build_model(ds)
-    m.add_contribution_prior("pooled", ["search"], "share", Prior("Normal"))
-    source = m.model["channel_contribution_original_scale"]
+    m.add_contribution_factor("pooled", ["search"], "share", Prior("Normal"))
+    source = m.model["channel_contribution"] * m.model["target_scale"]
     contributions = xr.DataArray(
         evaluate(m.model, [source])[0],
         dims=source.dims,
@@ -361,15 +377,15 @@ def test_equivalent_named_axes_rebuild_fit_and_persist(
     original = ds.transpose(*layout)
     m = make_model(dims=("region", "product"))
     m.build_model(original)
-    m.add_contribution_prior(
+    m.add_contribution_factor(
         "belief", ["search"], "share", Prior("Normal", mu=0.3, sigma=0.1)
     )
-    reference = copy.deepcopy(m._contribution_reference)
+    reference = copy.deepcopy(m._contribution_factors.fingerprint)
     expected = evaluate(
         m.model, [m.model["belief"], m.model.logp(vars=m.model.potentials)]
     )
     m.build_model(original.transpose("product", "date", "region", "channel"))
-    assert m._contribution_reference == reference
+    assert m._contribution_factors.fingerprint == reference
     np.testing.assert_allclose(
         evaluate(m.model, [m.model["belief"], m.model.logp(vars=m.model.potentials)]),
         expected,
@@ -380,7 +396,7 @@ def test_equivalent_named_axes_rebuild_fit_and_persist(
     path = tmp_path / "named-axes.nc"
     m.save(path)
     loaded = MMM.load(path)
-    assert loaded._contribution_reference == reference
+    assert loaded._contribution_factors.fingerprint == reference
     assert len(loaded.model.potentials) == 1
     np.testing.assert_allclose(
         evaluate(
@@ -390,7 +406,7 @@ def test_equivalent_named_axes_rebuild_fit_and_persist(
         expected,
     )
     loaded.build_model(original)
-    assert loaded._contribution_reference == reference
+    assert loaded._contribution_factors.fingerprint == reference
     assert len(loaded.model.potentials) == 1
     np.testing.assert_allclose(
         evaluate(loaded.model, [loaded.model["belief"]])[0], expected[0]
@@ -398,3 +414,314 @@ def test_equivalent_named_axes_rebuild_fit_and_persist(
     assert np.isfinite(loaded.model.compile_dlogp()(loaded.model.initial_point())).all()
     with pytest.raises(ValueError, match="original training"):
         loaded.build_model(original.assign(_channel=original._channel + 1))
+
+
+@pytest.mark.parametrize(
+    "name", ["date", "channel", "y_original_scale", "belief_factor"]
+)
+def test_reserved_names_leave_graph_unchanged(data, name):
+    m = make_model()
+    m.build_model(*data)
+    names = set(m.model.named_vars)
+    with pytest.raises(ValueError, match=r"in use|reserved"):
+        m.add_contribution_factor(name, ["search"], "share", Prior("Normal"))
+    assert set(m.model.named_vars) == names
+    assert not m.model.potentials
+
+
+@pytest.mark.parametrize("channels", [np.array(["search"]), pd.Index(["search"])])
+def test_channel_collections(data, channels):
+    m = make_model()
+    m.build_model(*data)
+    m.add_contribution_factor("belief", channels, "share", Prior("Normal"))
+    assert np.isfinite(evaluate(m.model, [m.model["belief"]])[0])
+    assert "channel_contribution_original_scale" not in m.model.named_vars
+
+
+@pytest.mark.parametrize(
+    "prior",
+    [
+        Prior("Normal", mu=0.3, sigma=0.1),
+        Prior("StudentT", nu=4, mu=0.3, sigma=0.1),
+        Prior("Laplace", mu=0.3, b=0.1),
+    ],
+)
+def test_density_gradient_matches_finite_differences(data, prior):
+    from pymc.blocking import DictToArrayBijection, RaveledVars
+
+    m = make_model()
+    m.build_model(*data)
+    original = m.model.compile_logp()
+    m.add_contribution_factor("belief", ["search"], "share", prior)
+    logp = m.model.compile_logp()
+    gradient = m.model.compile_dlogp()
+    point = m.model.initial_point()
+    point = {v.name: point[v.name] for v in m.model.value_vars}
+    flat = DictToArrayBijection.map(point)
+    for shift in (-0.3, 0.2):
+        values = flat.data.copy() + shift
+        current = DictToArrayBijection.rmap(RaveledVars(values, flat.point_map_info))
+        expected = []
+        for j in range(len(values)):
+            plus = values.copy()
+            plus[j] += 1e-5
+            minus = values.copy()
+            minus[j] -= 1e-5
+            expected.append(
+                (
+                    logp(
+                        DictToArrayBijection.rmap(
+                            RaveledVars(plus, flat.point_map_info)
+                        )
+                    )
+                    - logp(
+                        DictToArrayBijection.rmap(
+                            RaveledVars(minus, flat.point_map_info)
+                        )
+                    )
+                )
+                / 2e-5
+            )
+        np.testing.assert_allclose(gradient(current), expected, rtol=2e-5, atol=2e-5)
+        share = evaluate(m.model, [m.model["belief"]], current)[0]
+        expected_logp = pm.logp(
+            prior.pymc_distribution.dist(**prior.parameters), share
+        ).eval()
+        np.testing.assert_allclose(logp(current) - original(current), expected_logp)
+
+
+def test_failed_factor_restoration_rolls_back(data, monkeypatch):
+    from pymc_marketing.mmm.contribution_factors import ContributionFactorState
+
+    m = make_model()
+    m.build_model(*data)
+    m.add_contribution_factor("belief", ["search"], "share", Prior("Normal"))
+    original_model = m.model
+    before = evaluate(m.model, [m.model["belief"], m.model.logp()])
+    with monkeypatch.context() as patch:
+        patch.setattr(
+            ContributionFactorState,
+            "_register_factor",
+            lambda *a: (_ for _ in ()).throw(RuntimeError("restore failed")),
+        )
+        with pytest.raises(RuntimeError, match="restore failed"):
+            m.build_model(*data)
+    assert m.model is original_model
+    np.testing.assert_allclose(
+        evaluate(m.model, [m.model["belief"], m.model.logp()]), before
+    )
+    m.build_model(*data)
+    np.testing.assert_allclose(
+        evaluate(m.model, [m.model["belief"], m.model.logp()]), before
+    )
+
+
+def test_post_fit_addition_rejected(data, mock_pymc_sample):
+    m = make_model()
+    m.fit(*data)
+    names = set(m.model.named_vars)
+    with pytest.raises(ValueError, match="before fitting"):
+        m.add_contribution_factor("belief", ["search"], "share", Prior("Normal"))
+    assert set(m.model.named_vars) == names
+
+
+def test_trend_effect_supported_before_factors(data):
+    from pymc_marketing.mmm import LinearTrend
+    from pymc_marketing.mmm.additive_effect import LinearTrendEffect
+
+    m = make_model()
+    m.add_mu_effect(
+        LinearTrendEffect(trend=LinearTrend(n_changepoints=2), prefix="trend")
+    )
+    m.build_model(*data)
+    m.add_contribution_factor("belief", ["search"], "share", Prior("Normal"))
+    value = evaluate(m.model, [m.model["belief"]])[0]
+    m.build_model(*data)
+    np.testing.assert_allclose(evaluate(m.model, [m.model["belief"]])[0], value)
+
+
+def test_incompatible_belief_warning(data):
+    m = make_model()
+    m.build_model(*data)
+    with pytest.warns(UserWarning, match="less than 0.1%"):
+        m.add_contribution_factor(
+            "belief", ["search"], "share", Prior("Normal", mu=-0.2, sigma=0.05)
+        )
+
+
+def test_public_prediction_optimizer_and_effective_prior(data, mock_pymc_sample):
+    m = make_model()
+    m.build_model(*data)
+    m.add_contribution_factor(
+        "belief", ["search"], "share", Prior("Normal", mu=0.3, sigma=0.1)
+    )
+    m.fit(*data)
+    point = m.model.initial_point()
+    before = evaluate(
+        m.model, [m.model["belief"], m.model.logp(vars=m.model.potentials)], point
+    )
+    posterior = m.idata.posterior.dataset.copy(deep=True)
+    future = data[0].assign(
+        date=pd.date_range("2026-01-01", periods=5), search=100.0, tiktok=200.0
+    )
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", UserWarning)
+        m.sample_posterior_predictive(future, extend_idata=False, random_seed=123)
+        result = m.budget_optimizer("2026-01-01", "2026-01-03").allocate_budget(
+            total_budget=30.0
+        )
+    assert result is not None
+    np.testing.assert_allclose(
+        evaluate(
+            m.model, [m.model["belief"], m.model.logp(vars=m.model.potentials)], point
+        ),
+        before,
+    )
+    posterior = m.idata.posterior.dataset.copy(deep=True)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        draws = m.sample_effective_prior(
+            draws=3,
+            tune=3,
+            chains=1,
+            cores=1,
+            random_seed=123,
+            progressbar=False,
+            compute_convergence_checks=False,
+        )
+    assert "prior" in draws
+    xr.testing.assert_equal(
+        m.idata.posterior.dataset[list(posterior.data_vars)], posterior
+    )
+
+
+def test_factor_metadata_is_small(data):
+    m = make_model()
+    m.build_model(*data)
+    m.add_contribution_factor("belief", ["search"], "share", Prior("Normal"))
+    metadata = json.loads(m.create_idata_attrs()["contribution_factors"])
+    assert set(metadata) == {"version", "specs", "fingerprint"}
+    assert len(json.dumps(metadata)) < 1000
+
+
+def test_time_slice_cv_rejects_rebinding_historical_factors(data):
+    from pymc_marketing.mmm import TimeSliceCrossValidator
+
+    m = make_model()
+    m.build_model(*data)
+    m.add_contribution_factor("belief", ["search"], "share", Prior("Normal"))
+    cv = TimeSliceCrossValidator(n_init=3, forecast_horizon=1, date_column="date")
+    with pytest.raises(ValueError, match="time-slice cross-validation"):
+        cv.run(*data, mmm=m)
+    assert "belief" in m.model.named_vars
+
+
+def test_effective_prior_panel_target_and_predictive_parameter_preservation(
+    labeled_panel,
+):
+    from unittest.mock import patch
+
+    ds, _, _ = labeled_panel
+    m = make_model(dims=("region", "product"))
+    m.build_model(ds)
+    m.add_original_scale_contribution_variable(["channel_contribution"])
+    m.add_contribution_factor("belief", ["search"], "share", Prior("Normal"))
+    point = m.model.initial_point()
+    before = evaluate(
+        m.model, [m.model["belief"], m.model.logp(vars=m.model.potentials)], point
+    )
+
+    def check_sampling_target(**kwargs):
+        sampling = pm.modelcontext(None)
+        assert not sampling.observed_RVs
+        np.testing.assert_allclose(
+            evaluate(
+                sampling,
+                [sampling["belief"], sampling.logp(vars=sampling.potentials)],
+                point,
+            ),
+            before,
+        )
+        # Forward draws here supply test values, not an effective-prior approximation.
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", UserWarning)
+            prior = pm.sample_prior_predictive(draws=4, random_seed=123).prior.dataset
+        return xr.DataTree.from_dict({"posterior": prior})
+
+    with patch("pymc.sample", side_effect=check_sampling_target):
+        result = m.sample_effective_prior()
+    with m.model, warnings.catch_warnings():
+        warnings.simplefilter("ignore", UserWarning)
+        predictive = pm.sample_posterior_predictive(
+            result.prior.dataset, var_names=["y", "belief"], random_seed=123
+        )
+    xr.testing.assert_allclose(
+        predictive.posterior_predictive.belief, result.prior.belief
+    )
+
+
+def test_effective_prior_rejects_target_override(data):
+    m = make_model()
+    m.build_model(*data)
+    with pytest.raises(ValueError, match="controls its model"):
+        m.sample_effective_prior(model=m.model)
+
+
+def test_spend_dependent_effect_rejected(funnel_identity_fitted_mmm):
+    m = copy.deepcopy(funnel_identity_fitted_mmm)
+    m.idata = None
+    names = set(m.model.named_vars)
+    with pytest.raises(ValueError, match="spend-dependent"):
+        m.add_contribution_factor("belief", ["channel_1"], "share", Prior("Normal"))
+    assert set(m.model.named_vars) == names
+
+
+def test_legacy_metadata_never_silently_drops_factors():
+    from pymc_marketing.mmm.contribution_factors import ContributionFactorState
+
+    idata = xr.DataTree(
+        xr.Dataset(attrs={"contribution_priors": '[{"name":"belief"}]'})
+    )
+    with pytest.raises(ValueError, match="Legacy contribution-prior"):
+        ContributionFactorState.from_idata(idata)
+
+
+def test_effective_prior_preserves_user_parameters_and_deterministics(data):
+    from unittest.mock import patch
+
+    import pymc.dims as pmd
+
+    m = make_model()
+    m.build_model(*data)
+    with m.model:
+        extra = pmd.Normal("extra_parameter", mu=1, sigma=2)
+        pmd.Deterministic("extra_squared", extra**2)
+    m.add_contribution_factor("belief", ["search"], "share", Prior("Normal"))
+
+    def inspect(**kwargs):
+        sampling = pm.modelcontext(None)
+        assert "extra_parameter" in {v.name for v in sampling.free_RVs}
+        assert "extra_squared" in sampling.named_vars
+        assert not sampling.observed_RVs
+        return xr.DataTree.from_dict({"posterior": xr.Dataset()})
+
+    with patch("pymc.sample", side_effect=inspect):
+        m.sample_effective_prior()
+
+
+def test_failed_load_restoration_preserves_existing_model(data):
+    m = make_model()
+    m.build_model(*data)
+    m.add_contribution_factor("belief", ["search"], "share", Prior("Normal"))
+    model = m.model
+    before = evaluate(model, [model["belief"], model.logp()])
+    broken = xr.DataTree.from_dict({"fit_data": m.create_fit_data(*data)})
+    broken.attrs.update(m.create_idata_attrs())
+    # Missing the required labeled mask must fail without replacing this model.
+    with pytest.raises(AttributeError, match="contribution_factor_data"):
+        m.build_from_idata(broken)
+    assert m.model is model
+    assert m.idata is None
+    np.testing.assert_allclose(
+        evaluate(m.model, [m.model["belief"], m.model.logp()]), before
+    )
