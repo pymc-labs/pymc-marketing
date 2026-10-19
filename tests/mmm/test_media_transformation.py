@@ -365,3 +365,65 @@ class TestMediaTransformationRoundtrips:
 )
 def test_media_type_registered(type_key):
     assert type_key in serialization._registry, f"{type_key} not registered"
+
+
+@pytest.mark.parametrize("adstock_first", [True, False])
+def test_media_config_list_preserves_config_across_models(adstock_first):
+    transformation = MediaTransformation(
+        adstock=GeometricAdstock(l_max=2).set_dims_for_all_priors("online"),
+        saturation=LogisticSaturation().set_dims_for_all_priors("online"),
+        adstock_first=adstock_first,
+        dims=("online",),
+    )
+    configs = MediaConfigList(
+        [
+            MediaConfig(
+                name="online", columns=["a", "b"], media_transformation=transformation
+            )
+        ]
+    )
+    before = configs.to_dict()
+    expected_names = {
+        "online_adstock_alpha",
+        "online_saturation_lam",
+        "online_saturation_beta",
+    }
+    outputs = []
+    for _ in range(2):
+        with pm.Model(coords={"date": range(5), "media": ["a", "b"]}) as model:
+            response = configs(
+                pmd.Data(
+                    "x", np.arange(10).reshape(5, 2) + 1.0, dims=("date", "media")
+                ),
+                core_dim="date",
+                media_dim="media",
+            )
+            pmd.Deterministic("response", response)
+        assert {rv.name for rv in model.free_RVs} == expected_names
+        fixed = pm.do(
+            model,
+            {
+                "online_adstock_alpha": np.array([0.2, 0.3]),
+                "online_saturation_lam": np.array([1.0, 2.0]),
+                "online_saturation_beta": np.array([2.0, 3.0]),
+            },
+        )
+        outputs.append(fixed["response"].eval())
+        assert configs.to_dict() == before
+        assert configs == MediaConfigList.from_dict(before)
+        assert configs[0].media_transformation is transformation
+    np.testing.assert_allclose(outputs[0], outputs[1])
+    spend = np.arange(10).reshape(5, 2) + 1.0
+
+    def adstock(values):
+        alpha = np.array([0.2, 0.3])
+        previous = np.vstack([np.zeros((1, 2)), values[:-1]])
+        return (values + previous * alpha) / (1 + alpha)
+
+    def saturation(values):
+        return np.array([2.0, 3.0]) * np.tanh(np.array([1.0, 2.0]) * values / 2)
+
+    expected = (
+        saturation(adstock(spend)) if adstock_first else adstock(saturation(spend))
+    )
+    np.testing.assert_allclose(outputs[0], expected)

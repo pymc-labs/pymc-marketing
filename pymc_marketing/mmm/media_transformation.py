@@ -93,7 +93,8 @@ Apply the media transformation to media data in PyMC model:
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from copy import deepcopy
+from dataclasses import dataclass, replace
 from typing import cast
 
 import pymc as pm
@@ -345,6 +346,7 @@ class MediaConfigList:
                 adstock=GeometricAdstock(l_max=10).set_dims_for_all_priors("online"),
                 saturation=LogisticSaturation().set_dims_for_all_priors("online"),
                 adstock_first=True,
+                dims=("online",),
             ),
         )
 
@@ -357,6 +359,7 @@ class MediaConfigList:
                 ).set_dims_for_all_priors("offline"),
                 saturation=LogisticSaturation().set_dims_for_all_priors("offline"),
                 adstock_first=False,
+                dims=("offline",),
             ),
         )
 
@@ -452,7 +455,8 @@ class MediaConfigList:
         """Apply media transformation to media data.
 
         Assumes that the columns in the data correspond to the media channels
-        in the media_configs.
+        in the media_configs. Per-group component prefixes are applied to
+        local copies; the supplied configurations remain unchanged.
 
         Parameters
         ----------
@@ -475,8 +479,6 @@ class MediaConfigList:
         transformed_data = []
         start_idx = 0
         for config in self.media_configs:
-            config.media_transformation.dims = config.name
-
             model.add_coord(config.name, config.columns)
             end_idx = start_idx + len(config.columns)
 
@@ -484,14 +486,17 @@ class MediaConfigList:
                 {media_dim: config.name}
             )
 
-            adstock = config.media_transformation.adstock
-            saturation = config.media_transformation.saturation
+            adstock = deepcopy(config.media_transformation.adstock)
+            saturation = deepcopy(config.media_transformation.saturation)
             adstock.prefix = f"{config.name}_{adstock.prefix}"
             saturation.prefix = f"{config.name}_{saturation.prefix}"
 
-            media_transformation_data = config.media_transformation(
-                media_data, dim=core_dim
-            ).rename({config.name: media_dim})
+            transformation = replace(
+                config.media_transformation, adstock=adstock, saturation=saturation
+            )
+            media_transformation_data = transformation(media_data, dim=core_dim).rename(
+                {config.name: media_dim}
+            )
             transformed_data.append(media_transformation_data)
 
             start_idx = end_idx
