@@ -162,7 +162,12 @@ numpydoc_xref_param_type = True
 # fmt: off
 numpydoc_xref_ignore = {
     "of", "or", "optional", "default", "numeric", "type", "scalar", "1D", "2D", "3D", "nD", "array",
-    "instance", "M", "N"
+    "instance", "M", "N",
+    # Keep exception names plain when sphinx-autodoc-typehints converts
+    # numpydoc's Raises sections to Sphinx fields. Nested :obj: roles make
+    # those field names invalid; Sphinx resolves plain exception names itself.
+    "KeyError", "MeanAlreadyExistsError", "NotImplementedError", "RuntimeError",
+    "TypeError", "UnalignedValuesError", "ValueError",
 }
 # fmt: on
 numpydoc_xref_aliases = {

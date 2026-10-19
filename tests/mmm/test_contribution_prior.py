@@ -542,11 +542,18 @@ def test_trend_effect_supported_before_factors(data):
     np.testing.assert_allclose(evaluate(m.model, [m.model["belief"]])[0], value)
 
 
-def test_unregistered_custom_effect_rejected_without_mutation(data):
+@pytest.mark.parametrize(
+    "prefix, match",
+    [
+        ("indirect", r"contribution node .* was not found"),
+        (None, "inspectable MuEffects"),
+    ],
+)
+def test_unregistered_custom_effect_rejected_without_mutation(data, prefix, match):
     from pymc_marketing.mmm.additive_effect import MuEffect
 
     class DirectSpendEffect(MuEffect):
-        prefix: str = "indirect"
+        prefix: str | None = "indirect"
 
         def create_data(self, mmm):
             pass
@@ -558,11 +565,11 @@ def test_unregistered_custom_effect_rejected_without_mutation(data):
             pass
 
     m = make_model()
-    m.add_mu_effect(DirectSpendEffect())
+    m.add_mu_effect(DirectSpendEffect(prefix=prefix))
     m.build_model(*data)
     names = set(m.model.named_vars)
     before = evaluate(m.model, [m.model.logp()])
-    with pytest.raises(ValueError, match=r"contribution node .* was not found"):
+    with pytest.raises(ValueError, match=match):
         m.add_contribution_factor("belief", ["search"], "share", Prior("Normal"))
     assert set(m.model.named_vars) == names
     assert m._contribution_factors.specs == []
@@ -738,7 +745,8 @@ def test_effective_prior_preserves_user_parameters_and_deterministics(data):
         m.sample_effective_prior()
 
 
-def test_failed_load_restoration_preserves_existing_model(data):
+@pytest.mark.parametrize("corruption", ["missing_mask", "unknown_version"])
+def test_failed_load_restoration_preserves_existing_model(data, corruption):
     m = make_model()
     m.build_model(*data)
     m.add_contribution_factor("belief", ["search"], "share", Prior("Normal"))
@@ -746,11 +754,68 @@ def test_failed_load_restoration_preserves_existing_model(data):
     before = evaluate(model, [model["belief"], model.logp()])
     broken = xr.DataTree.from_dict({"fit_data": m.create_fit_data(*data)})
     broken.attrs.update(m.create_idata_attrs())
-    # Missing the required labeled mask must fail without replacing this model.
-    with pytest.raises(AttributeError, match="contribution_factor_data"):
+    error: type[Exception] = AttributeError
+    match = "contribution_factor_data"
+    if corruption == "unknown_version":
+        metadata = json.loads(broken.attrs["contribution_factors"])
+        metadata["version"] = 2
+        broken.attrs["contribution_factors"] = json.dumps(metadata)
+        error, match = (
+            ValueError,
+            "Unsupported contribution-factor serialization version",
+        )
+    with pytest.raises(error, match=match):
         m.build_from_idata(broken)
     assert m.model is model
     assert m.idata is None
     np.testing.assert_allclose(
         evaluate(m.model, [m.model["belief"], m.model.logp()]), before
     )
+
+
+@pytest.mark.parametrize("extra_term", ["potential", "observation"])
+def test_effective_prior_rejects_additional_calibration_terms(data, extra_term):
+    m = make_model()
+    m.build_model(*data)
+    m.add_contribution_factor("belief", ["search"], "share", Prior("Normal"))
+    with m.model:
+        if extra_term == "potential":
+            pm.Potential("external_calibration", pm.math.constant(0.0))
+        else:
+            pm.Normal("external_observation", observed=0.0)
+    model = m.model
+    names = set(model.named_vars)
+    with pytest.raises(ValueError, match="additional likelihoods/Potentials"):
+        m.sample_effective_prior()
+    assert m.model is model
+    assert set(model.named_vars) == names
+    assert m.idata is None
+
+
+def test_effective_prior_returns_prior_sampling_diagnostics(
+    data, mock_pymc_sample, monkeypatch
+):
+    from pymc.sampling.mcmc import sample
+
+    # Other tests use a module-scoped mock; this contract needs actual MCMC stats.
+    monkeypatch.setattr(pm, "sample", sample)
+    m = make_model()
+    m.build_model(*data)
+    m.add_contribution_factor("belief", ["search"], "share", Prior("Normal"))
+    # A short real chain checks the sampling result contract, not convergence.
+    result = m.sample_effective_prior(
+        draws=8,
+        tune=8,
+        chains=1,
+        cores=1,
+        progressbar=False,
+        compute_convergence_checks=False,
+        random_seed=123,
+    )
+    assert "posterior" not in result
+    assert "sample_stats" not in result
+    assert result.prior.sizes["draw"] == 8
+    assert result.sample_stats_prior.sizes["draw"] == 8
+    assert "diverging" in result.sample_stats_prior
+    assert np.isfinite(result.prior.belief).all()
+    assert m.idata is None

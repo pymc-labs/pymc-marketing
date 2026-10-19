@@ -4454,6 +4454,8 @@ class MMM(RegressionModelBuilder):
             the log link with a likelihood scale that is fixed rather than a
             model variable.
 
+        Notes
+        -----
         Every error is raised before the increment node is registered, so a
         refused call leaves the model unchanged.
 
