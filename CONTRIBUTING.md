@@ -142,6 +142,13 @@ We recommend that your contribution complies with the following guidelines befor
     make format
     ```
 
+## AI-assisted documentation
+
+When creating or editing documentation, use the [docs skill](.agents/skills/docs/SKILL.md), including its code and output visibility policy for new and edited notebooks.
+The skill is stored once in `.agents/skills/`, which Codex and Cursor discover directly; `.claude/skills/docs` is a relative symlink to the same directory for Claude Code.
+Update the canonical skill when changing this policy so all three agents use the same instructions.
+Existing unrelated skills keep their current locations.
+
 ## Translations
 
 ### For translators
