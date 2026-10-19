@@ -31,9 +31,9 @@ concurrency:
 jobs:
   real-geolift:
     runs-on: ubuntu-latest
-    # Full local execution takes about 16.5 minutes; allow install/compilation
-    # and slower two-core CI sampling without reducing the scientific settings.
-    timeout-minutes: 45
+    # The confounded 48-market example uses high target acceptance. Allow
+    # installation, compilation, and slower two-core CI sampling at full settings.
+    timeout-minutes: 75
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v8.3.2
@@ -51,7 +51,7 @@ jobs:
           uv run --no-sync papermill \
             docs/source/notebooks/mmm/mmm_multi_arm_geolift_calibration.ipynb \
             notebook-artifacts/executed.ipynb \
-            --cwd docs/source/notebooks/mmm --execution-timeout 1800 \
+            --cwd docs/source/notebooks/mmm --execution-timeout 2400 \
             --log-output --no-progress-bar 2>&1 | tee notebook-artifacts/execution.log
       - uses: actions/upload-artifact@v7
         if: always()
