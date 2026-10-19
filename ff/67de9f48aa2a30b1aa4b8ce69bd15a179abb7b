@@ -1,0 +1,21 @@
+pymc_marketing/mmm/contribution_factors.py
+  s_34de95dc6393da::t_104e3194fce7f7 218,223-227
+tests/mmm/test_contribution_prior.py
+  s_34de95dc6393da::t_ce200e51418e89 543-569
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "ff67de9f48aa2a30b1aa4b8ce69bd15a179abb7b",
+  "prompts": {},
+  "sessions": {
+    "s_34de95dc6393da": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a13f0e-959c-7ff2-b12e-4b30d90826b7",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Benjamin T. Vincent <inferencelab@gmail.com>"
+    }
+  }
+}
