@@ -188,6 +188,10 @@ def test_frozen_reference_prediction_optimization_and_rebuild(data):
         ({"prior": Prior("Normal", transform="exp")}, "scalar Prior"),
         ({"prior": Prior("Uniform", lower=0, upper=0.05)}, "hard caps"),
         ({"prior": Prior("Beta", alpha=2, beta=5)}, "including Beta"),
+        ({"prior": Prior("Poisson", mu=2)}, "LogNormal/HalfNormal"),
+        ({"prior": Prior("Gamma", alpha=0.5, beta=1)}, "LogNormal/HalfNormal"),
+        ({"prior": Prior("Gamma", alpha=2, beta=1)}, "LogNormal/HalfNormal"),
+        ({"prior": Prior("Weibull", alpha=0.5, beta=1)}, "LogNormal/HalfNormal"),
         ({"prior": Prior("Normal", mu=0.2, sigma=-1)}, "sigma"),
     ],
 )
@@ -240,13 +244,14 @@ def test_invalid_denominator(data, target):
     assert set(m.model.named_vars) == names
 
 
-def test_save_load_restore_original_missingness(data, tmp_path):
+@pytest.mark.parametrize(
+    "prior", [Prior("Normal", mu=0.3, sigma=0.1), Prior("LogNormal", mu=-1, sigma=0.5)]
+)
+def test_save_load_restore_original_missingness(data, tmp_path, prior):
     X, y = data
     m = make_model()
     m.build_model(X, y)
-    m.add_contribution_factor(
-        "belief", ["search"], "share", Prior("Normal", mu=0.3, sigma=0.1)
-    )
+    m.add_contribution_factor("belief", ["search"], "share", prior)
     before = evaluate(
         m.model, [m.model["belief"], m.model.logp(vars=m.model.potentials)]
     )
@@ -446,6 +451,8 @@ def test_channel_collections(data, channels):
         Prior("Laplace", mu=0.3, b=0.1),
         Prior("SkewNormal", mu=0.3, sigma=0.1, alpha=2),
         Prior("AsymmetricLaplace", mu=0.3, b=10, kappa=1.5),
+        Prior("LogNormal", mu=-1, sigma=0.5),
+        Prior("HalfNormal", sigma=0.5),
     ],
 )
 def test_density_gradient_matches_finite_differences(data, prior):
@@ -490,6 +497,52 @@ def test_density_gradient_matches_finite_differences(data, prior):
             prior.pymc_distribution.dist(**prior.parameters), share
         ).eval()
         np.testing.assert_allclose(logp(current) - original(current), expected_logp)
+
+
+@pytest.mark.parametrize("existing_factor", [False, True])
+def test_nonnegative_factor_rejects_incompatible_zero_without_mutation(
+    data, existing_factor
+):
+    X, y = data
+    m = make_model()
+    m.build_model(X.assign(tiktok=0.0), y)
+    if existing_factor:
+        m.add_contribution_factor("search_belief", ["search"], "share", Prior("Normal"))
+    names = set(m.model.named_vars)
+    state = copy.deepcopy(m._contribution_factors.specs)
+    source = m._contribution_factors.frozen_graph
+    fingerprint = m._contribution_factors.fingerprint
+    with pytest.raises(ValueError, match="initial historical contribution"):
+        m.add_contribution_factor(
+            "zero_share", ["tiktok"], "share", Prior("LogNormal", mu=-1, sigma=0.5)
+        )
+    assert set(m.model.named_vars) == names
+    assert m._contribution_factors.specs == state
+    assert m._contribution_factors.frozen_graph is source
+    assert m._contribution_factors.fingerprint == fingerprint
+
+
+@pytest.mark.parametrize("quantity", ["share", "total"])
+def test_nonnegative_factor_uses_density_without_upper_clipping(data, quantity):
+    from scipy.stats import lognorm
+
+    m = make_model()
+    m.build_model(*data)
+    original = m.model.compile_logp()
+    point = m.model.initial_point()
+    # Shares relative to observed revenue can exceed one: retain that value.
+    point["saturation_beta_log__"] = np.full_like(
+        point["saturation_beta_log__"], np.log(10.0)
+    )
+    m.add_contribution_factor(
+        "belief", ["search", "tiktok"], quantity, Prior("LogNormal", mu=-1, sigma=0.5)
+    )
+    aggregate = evaluate(m.model, [m.model["belief"]], point)[0]
+    assert aggregate > 1
+    np.testing.assert_allclose(
+        m.model.compile_logp()(point) - original(point),
+        lognorm.logpdf(aggregate, s=0.5, scale=np.exp(-1)),
+    )
 
 
 def test_failed_factor_restoration_rolls_back(data, monkeypatch):
@@ -792,8 +845,16 @@ def test_effective_prior_rejects_additional_calibration_terms(data, extra_term):
     assert m.idata is None
 
 
+@pytest.mark.parametrize(
+    "prior",
+    [
+        Prior("Normal"),
+        Prior("LogNormal", mu=-1, sigma=0.5),
+        Prior("HalfNormal", sigma=0.5),
+    ],
+)
 def test_effective_prior_returns_prior_sampling_diagnostics(
-    data, mock_pymc_sample, monkeypatch
+    data, mock_pymc_sample, monkeypatch, prior
 ):
     from pymc.sampling.mcmc import sample
 
@@ -801,7 +862,7 @@ def test_effective_prior_returns_prior_sampling_diagnostics(
     monkeypatch.setattr(pm, "sample", sample)
     m = make_model()
     m.build_model(*data)
-    m.add_contribution_factor("belief", ["search"], "share", Prior("Normal"))
+    m.add_contribution_factor("belief", ["search"], "share", prior)
     # A short real chain checks the sampling result contract, not convergence.
     result = m.sample_effective_prior(
         draws=8,
@@ -813,6 +874,9 @@ def test_effective_prior_returns_prior_sampling_diagnostics(
         random_seed=123,
     )
     assert "posterior" not in result
+    # The positive channel-effect priors also exclude negative shares when
+    # the additional weighting density itself has real-line support.
+    assert bool((result.prior.belief >= 0).all())
     assert "sample_stats" not in result
     assert result.prior.sizes["draw"] == 8
     assert result.sample_stats_prior.sizes["draw"] == 8

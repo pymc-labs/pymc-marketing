@@ -92,15 +92,20 @@ def _validate_factor_spec(
         for v in prior.parameters.values()
     ):
         raise ValueError("prior parameters must be fixed finite scalars")
-    if prior.preliz.support != (-np.inf, np.inf):
+    # These nonnegative families have bounded densities. Other families can
+    # have poles at zero, making products of overlapping factors improper.
+    if prior.preliz.support != (-np.inf, np.inf) and prior.distribution not in (
+        "LogNormal",
+        "HalfNormal",
+    ):
         raise ValueError(
-            "Only smooth real-line components are supported; bounded components "
-            "(including Beta) and hard caps are unsupported"
+            "Supported components have full real-line support or are LogNormal/HalfNormal. "
+            "Finite-support components (including Beta) and hard caps are unsupported"
         )
     distribution = prior.pymc_distribution.dist(**prior.parameters)
     if distribution.ndim or not distribution.dtype.startswith("float"):
         raise ValueError("prior must be a scalar continuous distribution")
-    pm.logp(distribution, 0.0).eval()
+    pm.logp(distribution, 1.0).eval()
     return {
         "name": name,
         "channels": channels,
@@ -296,34 +301,43 @@ class ContributionFactorState:
 
     def _register_factor(self, mmm: MMM, spec: dict[str, Any]) -> None:
         """Register one scalar aggregate and differentiable log-density factor."""
-        if self.frozen_graph is None:
-            self.frozen_graph = self._freeze_training_contribution_graph(mmm)
-            self.fingerprint = _training_fingerprint(mmm.xarray_dataset, self.mask)
+        source = self.frozen_graph
+        if source is None:
+            source = self._freeze_training_contribution_graph(mmm)
         indices = [mmm.channel_columns.index(c) for c in spec["channels"]]
-        total = (
-            self.frozen_graph.isel(channel=indices)
-            .where(as_xtensor(self.mask), 0)
-            .sum()
-        )
+        total = source.isel(channel=indices).where(as_xtensor(self.mask), 0).sum()
         denominator = float(mmm.xarray_dataset["_target"].where(self.mask, 0).sum())
         value = total / denominator if spec["quantity"] == "share" else total
         prior = serialization.deserialize_model_config({"prior": spec["prior"]})[
             "prior"
         ]
+        value_aggregate = mmm.model.replace_rvs_by_values([value])[0]
+        # XTensor Potential logp is not lowered by conditional_logp. Keep
+        # this explicit lowering until upstream supports its pullbacks.
+        # https://github.com/pymc-devs/pymc/issues/8506
+        logp = rewrite_graph(
+            pm.logp(
+                prior.pymc_distribution.dist(**prior.parameters),
+                value_aggregate.values,
+            ),
+            include=("lower_xtensor",),
+        )
+        if prior.preliz.support == (0, np.inf):
+            initial_logp = mmm.model.compile_fn(
+                logp, inputs=mmm.model.value_vars, on_unused_input="ignore"
+            )(mmm.model.initial_point())
+            if not np.isfinite(initial_logp):
+                raise ValueError(
+                    "This nonnegative component requires a finite log density at "
+                    "the model's initial historical contribution. Check zero spend, "
+                    "signed effects, and the component's support."
+                )
         with mmm.model:
-            aggregate = pmd.Deterministic(spec["name"], value)
-            value_aggregate = mmm.model.replace_rvs_by_values([aggregate])[0]
-            # XTensor Potential logp is not lowered by conditional_logp. Keep
-            # this explicit lowering until upstream supports its pullbacks.
-            # https://github.com/pymc-devs/pymc/issues/8506
-            logp = rewrite_graph(
-                pm.logp(
-                    prior.pymc_distribution.dist(**prior.parameters),
-                    value_aggregate.values,
-                ),
-                include=("lower_xtensor",),
-            )
+            pmd.Deterministic(spec["name"], value)
             pm.Potential(f"{spec['name']}_factor", logp)
+        if self.frozen_graph is None:
+            self.frozen_graph = source
+            self.fingerprint = _training_fingerprint(mmm.xarray_dataset, self.mask)
         self.specs.append(copy.deepcopy(spec))
 
     def to_attrs(self) -> dict[str, str]:

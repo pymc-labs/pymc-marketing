@@ -2758,8 +2758,12 @@ class MMM(RegressionModelBuilder):
             divided by their fixed observed outcome sum. Extra dimensions pool.
         prior : Prior
             Scalar, centered, untransformed continuous density with fixed finite
-            scalar parameters and smooth full real-line support. Its density
-            multiplies existing priors; it does not replace the share marginal.
+            scalar parameters. Smooth real-line densities, LogNormal, and
+            HalfNormal are supported. The latter two have nonnegative support
+            and bounded densities, so overlapping factors do not introduce
+            density singularities at zero.
+            Its density multiplies existing priors; it does not replace the
+            share marginal. Choose support appropriate to the contribution.
 
         Returns
         -------
@@ -2772,7 +2776,12 @@ class MMM(RegressionModelBuilder):
         spend-dependent effects and non-identity links are unsupported. Missing
         original targets are excluded from both aggregates, independently of
         the sales likelihood's existing zero-filling behavior. Shares require a
-        finite positive outcome sum. Bounded densities and hard caps are rejected.
+        finite positive outcome sum. Finite-support densities and hard caps are
+        rejected. Nonnegative components require a finite factor log density at
+        the model's initial historical contribution; incompatible zero/signed
+        contributions fail before registration. Use positive channel-effect
+        parameter priors when contributions must be nonnegative. Shares are not
+        clipped: a contribution divided by observed outcomes can exceed one.
 
         Factors retain their historical period through prediction and budget
         allocation. Rebuilding with different training data, including time-slice
