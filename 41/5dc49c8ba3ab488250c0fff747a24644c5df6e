@@ -1,0 +1,21 @@
+.github/workflows/docs.yml
+  s_21f4a970d7eadd::t_1aa84455a4ea6b 55
+.readthedocs.yml
+  s_21f4a970d7eadd::t_cf82d7211df176 35
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "415dc49c8ba3ab488250c0fff747a24644c5df6e",
+  "prompts": {},
+  "sessions": {
+    "s_21f4a970d7eadd": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a154b0-62ef-77b1-b0a1-987be1cc3f61",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Benjamin T. Vincent <inferencelab@gmail.com>"
+    }
+  }
+}
