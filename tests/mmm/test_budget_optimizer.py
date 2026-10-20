@@ -2544,6 +2544,93 @@ def test_set_posterior_custom_constraint_follows_rebind(mmm_wrapper, dummy_idata
     assert float(floor["fun"](x)) != pytest.approx(after_first)
 
 
+def _two_response_optimizer(posterior, *, constraints=None):
+    """An optimizer whose objective reads ``beta`` and whose inspection reads ``gamma``."""
+    channels = ["a", "b"]
+    n_dates = 3
+    with pm.Model(coords={"channel": channels}) as base_model:
+        base_model.add_coord("date", length=n_dates)
+        channel_data = pmd.Data(
+            "channel_data", np.ones((n_dates, 2)), dims=("date", "channel")
+        )
+        beta = pmd.Normal("beta", dims="channel")
+        gamma = pmd.Normal("gamma", dims="channel")
+        pmd.Deterministic(
+            "total_media_contribution_original_scale",
+            (channel_data * beta).sum(),
+        )
+        pmd.Deterministic("inspection", (channel_data * gamma).sum())
+
+    return BudgetOptimizer(
+        model=CustomModelWrapper(
+            base_model=base_model,
+            idata=xr.DataTree.from_dict({"/posterior": posterior}),
+            channels=channels,
+        ),
+        num_periods=n_dates,
+        response_variable="total_media_contribution_original_scale",
+        constraints=constraints or [],
+    )
+
+
+def _two_response_posterior(*, gamma=None):
+    data_vars = {
+        "beta": (("chain", "draw", "channel"), np.ones((1, 1, 2))),
+    }
+    if gamma is not None:
+        data_vars["gamma"] = (
+            ("chain", "draw", "channel"),
+            np.asarray(gamma, float)[None, None],
+        )
+    return xr.Dataset(data_vars, coords={"channel": ["a", "b"]})
+
+
+def test_set_posterior_ignores_a_stale_public_inspection():
+    """A public inspection extraction must not pin its variables on the first rebind.
+
+    ``extract_response_distribution("inspection")`` caches a graph that reads
+    ``gamma``.  The first rebind drops the cache and the recompile callback
+    requests only the objective and the current constraints, so a posterior
+    without ``gamma`` is accepted.
+    """
+    optimizer = _two_response_optimizer(_two_response_posterior(gamma=(1.0, 1.0)))
+    optimizer.extract_response_distribution("inspection")
+    thinned = xr.DataTree.from_dict({"/posterior": _two_response_posterior()})
+
+    optimizer.set_posterior(thinned)
+
+    assert optimizer.idata is thinned
+
+
+def test_set_posterior_ignores_a_replaced_custom_constraint():
+    """A custom constraint replaced by ``set_constraints`` leaves no stale extraction.
+
+    The constraint extracts ``inspection``, which reads ``gamma``.  After
+    ``set_constraints`` replaces it, the first rebind must not rebuild the
+    dropped graph, so a posterior without ``gamma`` is accepted.
+    """
+
+    def inspection_floor(budgets_sym, total_budget_sym, optimizer):
+        return optimizer.extract_response_distribution("inspection").mean() - 1.0
+
+    optimizer = _two_response_optimizer(
+        _two_response_posterior(gamma=(1.0, 1.0)),
+        constraints=[
+            Constraint(
+                key="inspection_floor",
+                constraint_type="ineq",
+                constraint_fun=inspection_floor,
+            )
+        ],
+    )
+    optimizer.set_constraints([build_default_sum_constraint()])
+    thinned = xr.DataTree.from_dict({"/posterior": _two_response_posterior()})
+
+    optimizer.set_posterior(thinned)
+
+    assert optimizer.idata is thinned
+
+
 def test_set_posterior_accepts_bare_posterior_dataset(mmm_wrapper, dummy_idata):
     optimizer = BudgetOptimizer(
         model=mmm_wrapper,

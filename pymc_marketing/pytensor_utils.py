@@ -266,6 +266,98 @@ def _array_equal(a: np.ndarray, b: np.ndarray) -> bool:
     return bool(np.array_equal(a, b, equal_nan=equal_nan))
 
 
+class _VariableLayout(NamedTuple):
+    """The non-sample layout a posterior variable was constructed with."""
+
+    dims: tuple[str, ...]
+    coords: dict[str, pd.Index]
+    shape: tuple[int, ...]
+
+
+def _variable_layout(
+    posterior_da: xr.DataArray, *, sample_dims: tuple[str, ...]
+) -> _VariableLayout:
+    """Record the non-sample dims, labels and shape of ``posterior_da``."""
+    dims = tuple(str(dim) for dim in posterior_da.dims if str(dim) not in sample_dims)
+    return _VariableLayout(
+        dims=dims,
+        coords={
+            dim: posterior_da.indexes[dim]
+            for dim in dims
+            if dim in posterior_da.indexes
+        },
+        shape=tuple(posterior_da.sizes[dim] for dim in dims),
+    )
+
+
+def _aligned_posterior(
+    name: str,
+    posterior_da: xr.DataArray,
+    layout: _VariableLayout,
+    *,
+    sample_dims: tuple[str, ...],
+) -> xr.DataArray:
+    """Return ``posterior_da`` laid out and checked against ``layout``.
+
+    The layout comes from the posterior a graph was constructed with, so a
+    variable is validated against its own construction geometry, not against
+    the whole posterior.  The returned array has its non-sample dims in the
+    layout's order and the incoming labels reordered to the layout's.
+
+    Raises
+    ------
+    ValueError
+        If the dims differ, a dimension is labeled on one side only, a label
+        set differs (or the layout's labels are duplicated), or a non-sample
+        length differs.  The sample dimension may change length freely.
+    """
+    dims = tuple(str(dim) for dim in posterior_da.dims if str(dim) not in sample_dims)
+    if set(dims) != set(layout.dims):
+        raise ValueError(
+            f"Posterior variable {name!r} has dims {dims}, expected {layout.dims}."
+        )
+    for dim in layout.dims:
+        bound = layout.coords.get(dim)
+        given = posterior_da.indexes.get(dim)
+        if (bound is None) != (given is None):
+            raise ValueError(
+                f"Posterior variable {name!r}: dimension {dim!r} is labeled on "
+                "one side only. Label both sides or neither; positions cannot "
+                "be checked against labels."
+            )
+        if bound is None or given is None:
+            continue
+        # A duplicated layout label could not be realigned by ``sel``: it would
+        # silently pick one column twice, so the layout has to be a set.
+        if not bound.is_unique:
+            raise ValueError(
+                f"Posterior variable {name!r} has duplicated {dim} labels: "
+                f"{bound[bound.duplicated()].unique().tolist()}."
+            )
+        # pd.Index compares datetimes by value across storage units.  The
+        # bound index is unique, so equal lengths plus an empty difference
+        # means the same set of labels, with any duplicate on the given side
+        # surfacing as a missing label.  No sorting, so a mixed-type object
+        # axis is fine.
+        if len(bound) != len(given) or not bound.difference(given).empty:
+            extra, missing = given.difference(bound), bound.difference(given)
+            raise ValueError(
+                f"Posterior variable {name!r} has different {dim} labels: "
+                f"{len(extra)} not bound, {len(missing)} missing "
+                f"(e.g. {list(extra[:3])} / {list(missing[:3])})."
+            )
+        posterior_da = posterior_da.sel({dim: bound})
+    posterior_da = posterior_da.transpose(*sample_dims, *layout.dims)
+    shape = posterior_da.shape[len(sample_dims) :]
+    if shape != layout.shape:
+        raise ValueError(
+            f"Posterior variable {name!r} has shape {shape} over dims "
+            f"{layout.dims}, expected {layout.shape}. Only the sample "
+            "dimension may change length."
+        )
+    return posterior_da
+
+
 class SharedPosterior:
     """Posterior draws held in PyTensor shared variables.
 
@@ -292,6 +384,8 @@ class SharedPosterior:
     bound without labels must arrive without labels; the number of draws is
     free.  Anything else is refused, and a rebind is atomic: every variable
     is validated and laid out before any is written.
+    Only the variables bound to this instance are checked, which is why a
+    posterior variable no graph reads may change freely.
     An extraction is atomic too, so a failure leaves the instance exactly as it was.
     A later rebind that satisfies every graph already handed out is then accepted.
 
@@ -312,8 +406,7 @@ class SharedPosterior:
 
     def __init__(self) -> None:
         self._variables: dict[str, SharedVariable] = {}
-        self._dims: dict[str, tuple[str, ...]] = {}
-        self._coords: dict[str, dict[str, pd.Index]] = {}
+        self._layouts: dict[str, _VariableLayout] = {}
 
     def __repr__(self) -> str:
         """Show each bound variable with its current ``(sample, ...)`` shape."""
@@ -331,7 +424,9 @@ class SharedPosterior:
     @property
     def dims(self) -> dict[str, tuple[str, ...]]:
         """The dimension order each variable is stored in, ``sample`` first."""
-        return dict(self._dims)
+        return {
+            name: ("sample", *layout.dims) for name, layout in self._layouts.items()
+        }
 
     def _aligned_values(self, name: str, posterior_da: xr.DataArray) -> np.ndarray:
         """Return ``posterior_da`` laid out and typed like the bound variable ``name``.
@@ -341,48 +436,13 @@ class SharedPosterior:
         the shared variable can own outright, which keeps the write phase of
         :meth:`set_posterior` infallible.
         """
-        dims = self._dims[name]
-        if set(posterior_da.dims) != set(dims):
-            raise ValueError(
-                f"Posterior variable {name!r} has dims {tuple(posterior_da.dims)}, "
-                f"expected {dims}."
-            )
-        for dim in dims[1:]:
-            bound = self._coords[name].get(dim)
-            given = posterior_da.indexes.get(dim)
-            if (bound is None) != (given is None):
-                raise ValueError(
-                    f"Posterior variable {name!r}: dimension {dim!r} is labelled on "
-                    "one side only. Label both sides or neither; positions cannot "
-                    "be checked against labels."
-                )
-            if bound is None or given is None:
-                continue
-            # pd.Index compares datetimes by value across storage units.  The
-            # bound index is unique (checked at bind time), so equal lengths
-            # plus an empty difference means the same set of labels, with any
-            # duplicate on the given side surfacing as a missing label.  No
-            # sorting, so a mixed-type object axis is fine.
-            if len(bound) != len(given) or not bound.difference(given).empty:
-                extra, missing = given.difference(bound), bound.difference(given)
-                raise ValueError(
-                    f"Posterior variable {name!r} has different {dim} labels: "
-                    f"{len(extra)} not bound, {len(missing)} missing "
-                    f"(e.g. {list(extra[:3])} / {list(missing[:3])})."
-                )
-            posterior_da = posterior_da.sel({dim: bound})
+        aligned = _aligned_posterior(
+            name, posterior_da, self._layouts[name], sample_dims=("sample",)
+        )
         var = self._variables[name]
         # astype always allocates, so the shared variable owns the array and
         # borrow=True cannot alias the caller's data.
-        values = posterior_da.transpose(*dims).values.astype(var.type.dtype)
-        bound_shape = var.get_value(borrow=True).shape[1:]
-        if values.shape[1:] != bound_shape:
-            raise ValueError(
-                f"Posterior variable {name!r} has shape {values.shape[1:]} over "
-                f"dims {dims[1:]}, expected {bound_shape}. Only the sample "
-                "dimension may change length between rebinds."
-            )
-        return values
+        return aligned.values.astype(var.type.dtype)
 
     def _get_or_create(self, posterior_da: xr.DataArray, *, name: str, dtype: str):
         """Return the xtensor view of ``name``'s shared variable, creating it if needed.
@@ -390,26 +450,21 @@ class SharedPosterior:
         On reuse the draws handed in must be the ones already bound: the graph
         will read the shared variable, so a different posterior here would be
         silently ignored.  A new variable is validated before it is inserted,
-        so a refusal leaves the three registries untouched.
+        so a refusal leaves the registries untouched.
         """
         if name not in self._variables:
-            dims = tuple(str(dim) for dim in posterior_da.dims)
-            coords = {
-                dim: posterior_da.indexes[dim]
-                for dim in dims[1:]
-                if dim in posterior_da.indexes
-            }
+            layout = _variable_layout(posterior_da, sample_dims=("sample",))
             # Labels are a set: a duplicated label could not be realigned by
             # ``sel`` later, which would silently pick one column twice.
-            for dim, index in coords.items():
+            for dim, index in layout.coords.items():
                 if not index.is_unique:
                     raise ValueError(
                         f"Posterior variable {name!r} has duplicated {dim} labels: "
                         f"{index[index.duplicated()].unique().tolist()}."
                     )
             self._variables[name] = shared(posterior_da.values.astype(dtype), name=name)
-            self._dims[name] = dims
-            self._coords[name] = coords
+            self._layouts[name] = layout
+            dims = ("sample", *layout.dims)
         else:
             var = self._variables[name]
             if np.dtype(dtype) != np.dtype(var.type.dtype):
@@ -417,6 +472,7 @@ class SharedPosterior:
                     f"Posterior variable {name!r} is bound as {var.type.dtype}, "
                     f"but this graph wants {dtype}."
                 )
+            dims = ("sample", *self._layouts[name].dims)
             values = self._aligned_values(name, posterior_da)
             if not _array_equal(values, var.get_value(borrow=True)):
                 raise ValueError(
@@ -424,7 +480,7 @@ class SharedPosterior:
                     "Extract every graph from the same posterior, then call "
                     "set_posterior() to move all of them together."
                 )
-        return as_xtensor(self._variables[name], dims=self._dims[name])
+        return as_xtensor(self._variables[name], dims=dims)
 
     @contextlib.contextmanager
     def _transaction(self) -> Iterator[None]:
@@ -436,11 +492,11 @@ class SharedPosterior:
         trace, which keeps a later rebind that satisfies every graph already
         handed out acceptable.
         """
-        snapshot = (self._variables.copy(), self._dims.copy(), self._coords.copy())
+        snapshot = (self._variables.copy(), self._layouts.copy())
         try:
             yield
         except BaseException:
-            self._variables, self._dims, self._coords = snapshot
+            self._variables, self._layouts = snapshot
             raise
 
     def set_posterior(self, idata: xr.DataTree | xr.Dataset) -> None:
@@ -477,6 +533,31 @@ class SharedPosterior:
         }
         for name, values in prepared.items():
             self._variables[name].set_value(values, borrow=True)
+
+
+def _needed_posterior_names(
+    pymc_model: Model,
+    response_vars: Sequence[Variable],
+    frozen_deterministics: Sequence[str] = (),
+) -> list[str]:
+    """Return the posterior variables ``response_vars`` read.
+
+    The free RVs and the frozen deterministics are the blockers of the
+    traversal: an extraction substitutes their posterior draws instead of
+    traversing their subgraphs.  The order is the graph traversal's, so it is
+    stable for a given response but says nothing about the posterior layout.
+    """
+    blockers = set(pymc_model.free_RVs)
+    blockers.update(
+        pymc_model[name]
+        for name in frozen_deterministics
+        if name in pymc_model.named_vars
+    )
+    names: list[str] = []
+    for rv in ancestors(response_vars, blockers=blockers):
+        if rv in blockers and rv.name is not None:
+            names.append(rv.name)
+    return names
 
 
 @overload
@@ -572,18 +653,12 @@ def extract_response_distribution(
     # Frozen deterministics are treated as additional blockers so their
     # subgraphs are not traversed — their posterior values are substituted
     # directly, just like free RVs.
-    free_rvs = set(pymc_model.free_RVs)
-    frozen_vars: set = set()
-    if frozen_deterministics:
-        for name in frozen_deterministics:
-            if name in pymc_model.named_vars:
-                frozen_vars.add(pymc_model[name])
-
-    blockers = free_rvs | frozen_vars
-    needed_rvs = [
-        rv for rv in ancestors(response_vars, blockers=blockers) if rv in blockers
-    ]
-    placeholder_replace_dict = {pymc_model[rv.name]: rv.clone() for rv in needed_rvs}
+    needed_names = _needed_posterior_names(
+        pymc_model, response_vars, frozen_deterministics or ()
+    )
+    placeholder_replace_dict = {
+        pymc_model[name]: pymc_model[name].clone() for name in needed_names
+    }
 
     response_vars = list(
         clone_replace(
@@ -614,7 +689,14 @@ def extract_response_distribution(
     )
     with transaction:
         replace_dict = {}
-        for placeholder in placeholder_replace_dict.values():
+        # Bind in the order the posterior lists its variables.  A caller that
+        # passes a construction-ordered subset (ConditionedModel) therefore
+        # controls the order in which shared variables are created.
+        order = {name: index for index, name in enumerate(posterior.data_vars)}
+        for placeholder in sorted(
+            placeholder_replace_dict.values(),
+            key=lambda var: order.get(var.name, len(order)),
+        ):
             posterior_da = posterior[placeholder.name].astype(placeholder.dtype)
             if shared_posterior is not None:
                 replace_dict[placeholder] = shared_posterior._get_or_create(
@@ -749,14 +831,15 @@ class ConditionedModel:
     With ``share_posterior=True`` they enter through a :class:`SharedPosterior` from the first :meth:`extract`.
     No rebind then re-extracts; even the first only swaps draws.
 
+    A variable is validated when a graph reads it, against that variable's layout in the construction posterior.
+    A posterior variable no graph reads is never checked, so a refit posterior whose unread date axis moved is accepted.
     A model built without ``share_posterior`` starts with the draws baked in as constants.
-    Once a graph has been cached, its first :meth:`set_posterior` drops the cache.
-    It then re-extracts each key through a new :class:`SharedPosterior`.
-    That rebind fires the registered callbacks so consumers recompile.
-    A :meth:`set_posterior` with nothing cached yet still checks the labels.
-    It then only switches to the shared path and fires nothing.
+    Once a graph has been cached, its first :meth:`set_posterior` drops the cache, switches to a fresh
+    :class:`SharedPosterior` and fires the registered callbacks.
+    The callbacks re-extract what they use; a cached graph nobody re-requests is dropped.
+    A graph handed out before the first rebind does not follow it: re-extract it, or register a callback that does.
+    A :meth:`set_posterior` with nothing cached yet only switches to the shared path and fires nothing.
     An uncached ``cache=False`` graph is untouched by it.
-    The posterior given at construction defines the label layout every rebind is realigned to.
     Every later rebind only swaps the draws in place, which is atomic and free in the number of draws.
     A compiled function therefore follows the newer posterior without being recompiled.
 
@@ -790,8 +873,10 @@ class ConditionedModel:
             model, idata, intervention={"channel_data": new_spend}
         )
         graph = conditioned.extract("channel_contribution")
-        conditioned.register(lambda: recompile(graph))
-        conditioned.set_posterior(updated_idata)  # recompiles once
+        conditioned.register(
+            lambda: recompile(conditioned.extract("channel_contribution"))
+        )
+        conditioned.set_posterior(updated_idata)  # re-extracts, recompiles once
         conditioned.set_posterior(another_idata)  # no recompile
     """
 
@@ -810,8 +895,16 @@ class ConditionedModel:
         # from one of the clone's own inputs by identity.
         self._clone_nodes = frozenset(ancestors(list(self._model.named_vars.values())))
         self._posterior = _posterior_dataset(idata)
-        # The label layout every rebind is realigned to, taken once here.
-        # A thinned posterior can drop a dimension, so it cannot be read from the last stored posterior.
+        # The layout each variable is validated against when a graph reads it,
+        # taken once here.  It is metadata only; a variable no graph reads is
+        # never checked, so a refit over a new date window is accepted.
+        self._layouts: dict[str, _VariableLayout] = {
+            str(name): _variable_layout(var, sample_dims=("chain", "draw"))
+            for name, var in self._posterior.data_vars.items()
+        }
+        # The dataset-level label layout every rebind is leniently realigned
+        # to.  A thinned posterior can drop a dimension, so it cannot be read
+        # from the last stored posterior.
         self._label_layout: dict[str, pd.Index] = {
             dim: index
             for dim, index in self._posterior.indexes.items()
@@ -841,7 +934,8 @@ class ConditionedModel:
         -------
         SharedPosterior or None
             ``None`` while the draws are baked into the graphs as constants.
-            Once it exists, it is the :class:`SharedPosterior` every rebind swaps draws in.
+            Once it exists, it is the :class:`SharedPosterior` the current graphs read.
+            The first rebind of a cached model installs a fresh one.
             A model built with ``share_posterior=True`` has it from construction.
         """
         return self._shared_posterior
@@ -882,10 +976,11 @@ class ConditionedModel:
             A graph that reads an input from outside the intervened model is refused.
             A sequence extracts every variable in one pass, so a subgraph they share stays shared in the result.
         cache : bool, default True
-            Whether to keep the extraction for :meth:`set_posterior` to re-extract through the shared posterior.
-            A cached graph is the long-lived kind: after the first rebind it reads shared variables.
-            It therefore follows every later rebind.
-            Its variables must be present in every posterior handed to :meth:`set_posterior`.
+            Whether to keep the extraction for :meth:`set_posterior` to drop or rebind.
+            A cached graph is the long-lived kind.
+            Its variables are validated when a graph reads them, against the construction posterior.
+            After the first rebind a re-extraction reads shared variables, so it follows every later rebind.
+            A graph handed out before the first rebind does not: re-extract it, or register a callback that does.
             A caller that passes ``cache=False`` gets a graph conditioned on the current draws as constants instead.
             It registers nothing on the shared posterior.
             A later rebind to a posterior without those variables therefore still succeeds.
@@ -903,9 +998,13 @@ class ConditionedModel:
         Raises
         ------
         KeyError
-            If a requested name is not a variable of the intervened model.
+            If a requested name is not a variable of the intervened model, or
+            if the current posterior lacks a variable the graph reads.
         ValueError
-            If a ``Variable`` reads an input from outside the intervened model, or if no response variable is given.
+            If a ``Variable`` reads an input from outside the intervened model,
+            if no response variable is given, or if a variable the graph reads
+            has different non-sample dimensions, length or labels from its
+            construction layout (or is labeled on one side only).
         """
         if isinstance(response_vars, str | Variable):
             single = True
@@ -933,69 +1032,103 @@ class ConditionedModel:
         return graphs[0] if single else list(graphs)
 
     def set_posterior(self, idata: xr.DataTree | xr.Dataset) -> None:
-        """Point the handed-out graphs at the draws in ``idata``.
+        """Point the graphs at the draws in ``idata``.
 
-        The posterior given at construction defines the label layout every rebind aligns to.
-        ``idata`` is realigned to it once, when it arrives, before any graph is bound.
-        Without ``share_posterior``, the first call after a graph has been cached rebuilds those keys.
-        It rebuilds them on a shared posterior.
-        That call is validated, label realigned and length checked exactly like every later one.
-        It re-extracted the graphs, so it fires the registered callbacks and consumers recompile from them.
-        A call with nothing cached still checks the labels and switches to the shared path.
-        There is no cached graph to rebuild, so it fires no callback.
-        An uncached ``cache=False`` graph is untouched by it.
-        Every later call only swaps the draws, which needs no recompile and accepts a different number of draws.
+        Every posterior variable a graph reads is validated when that graph is
+        extracted, against that variable's layout in the construction
+        posterior.  The door itself refuses nothing for a variable no graph
+        reads: a refit posterior whose unread date-indexed deterministic has a
+        newer window is stored as given.
+        A dimension whose labels equal the construction ones is reordered, so
+        ``posterior`` keeps the construction order; any other dimension is
+        stored as given.
+
+        Without ``share_posterior``, the first call after a graph has been
+        cached drops the cache, switches to a fresh :class:`SharedPosterior`
+        and fires the registered callbacks.  The callbacks re-extract what they
+        use, which is what validates those variables.  A graph handed out
+        before that call does not follow it: re-extract it, or register a
+        callback that does.
+        A call with nothing cached only switches to the shared path and fires
+        no callback.  An uncached ``cache=False`` graph is untouched by it.
+        Every later call only swaps the draws, which validates the variables
+        bound to the shared posterior and needs no recompile.
 
         Parameters
         ----------
         idata : xr.DataTree or xr.Dataset
             A tree with a ``posterior`` group, or the posterior dataset itself;
-            an ``arviz.InferenceData`` is not accepted.  It must hold every
-            variable the graphs read, with the same non-sample dimensions and
-            coordinate labels; a reordered axis is realigned and the number of
-            draws is free.
+            an ``arviz.InferenceData`` is not accepted.
 
         Raises
         ------
         KeyError
-            If the posterior lacks a variable the graphs read.
+            If a callback re-extracts a graph whose variables ``idata`` lacks,
+            or, on a shared-mode call, if a variable bound to the shared
+            posterior is missing.
         ValueError
-            If a variable's non-sample dimensions, lengths or labels differ from the ones it was bound with.
-            Also if a dimension is labelled on one side only.
+            If a callback re-extracts a variable whose non-sample dimensions,
+            length or labels differ from the construction posterior, or if a
+            dimension is labeled on one side only; or, on a shared-mode
+            call, if a bound variable's layout differs.
 
         Notes
         -----
-        A call before anything was cached still checks ``idata``'s labels at the door.
-        It binds no variable in that case.
-        After either error, and when a registered callback raises, the previous binding is left in place.
+        After an error, and when a registered callback raises, the previous
+        cache, posterior and binding are restored.
 
         A callback that extracts a new key during a rebind adds it to the cache.
         If a first rebind fails and is rolled back, the cache returns to its previous state and drops those entries.
         """
-        posterior = _posterior_dataset(idata)
-        rollback = self._apply_posterior(self._realigned(posterior))
-        if rollback is None:
-            # Either nothing is cached yet, so only the mode switched.
-            # Or this was a later rebind that only swapped the draws.
-            # Both leave no cached graph for a consumer to rebuild, so no callback fires.
+        posterior = self._realigned(_posterior_dataset(idata))
+        previous_cache = self._cache
+        previous_posterior = self._posterior
+        previous_shared = self._shared_posterior
+
+        if not previous_cache:
+            # Nothing handed out is waiting to be rebuilt, so no variable is
+            # bound yet.  Switch to the shared path if needed and record the draws.
+            if previous_shared is None:
+                self._shared_posterior = SharedPosterior()
+            self._posterior = posterior
             return
+
+        if previous_shared is not None:
+            # Every handed-out graph already reads the shared variables, so
+            # ``SharedPosterior.set_posterior`` validates exactly those and
+            # writes nothing unless all of them pass.
+            previous_shared.set_posterior(posterior)
+            self._posterior = posterior
+            return
+
+        # First rebind with a cache: drop the constant graphs, install a fresh
+        # binding and let the callbacks re-request only what they use.  A stale
+        # inspection key or a replaced constraint therefore never binds.
+        self._cache = {}
+        self._shared_posterior = SharedPosterior()
+        self._posterior = posterior
         try:
             self._fire_callbacks()
         except BaseException:
-            rollback()
+            self._cache = previous_cache
+            self._shared_posterior = previous_shared
+            self._posterior = previous_posterior
             raise
 
     def _realigned(self, posterior: xr.Dataset) -> xr.Dataset:
-        """Return ``posterior`` laid out along the labels of the construction posterior.
+        """Return ``posterior`` reordered along dimensions that keep their labels.
 
-        A dimension absent from ``posterior`` is skipped, so a thinned posterior that drops a variable is accepted.
-        A dimension present without labels, while the reference draws have them, is refused.
-        Positions cannot be checked against labels, so both sides must agree or both go without.
-        Reordering needs unique reference labels; a duplicated one would make ``sel`` drop a column.
+        The construction records are the reference.  A dimension whose label
+        set equals the construction one is reordered to the construction order,
+        so ``conditioned.posterior`` keeps it.  Any other dimension -- a refit
+        date window, a new dimension, a one-sided labeling -- is stored as
+        given: no graph has read it yet, and each graph validates its own
+        variables when it does.
+
+        Reordering needs unique reference labels; a duplicated one would make
+        ``sel`` drop a column, so that dimension is stored as given and refused
+        later by whichever graph reads it.
         """
-        # The construction layout is the reference, even when a thinned posterior dropped a dimension.
-        # A dimension unlabelled at construction keeps the old fallback.
-        # It is checked against the replaced draws, so the one-sided check still fires after a rebind introduced labels.
         references = {**self._posterior.indexes, **self._label_layout}
         indexers: dict[str, pd.Index] = {}
         for dim, bound in references.items():
@@ -1004,80 +1137,34 @@ class ConditionedModel:
             if dim not in posterior.sizes:
                 continue
             given = posterior.indexes.get(dim)
-            if given is None:
-                raise ValueError(
-                    f"Posterior dimension {dim!r} is labelled on one side only. "
-                    "Label both sides or neither; positions cannot be checked "
-                    "against labels."
-                )
+            if given is None or not bound.is_unique:
+                continue
             if given.equals(bound):
                 continue
-            if not bound.is_unique:
-                raise ValueError(
-                    f"Posterior has duplicated {dim} labels in the construction "
-                    f"posterior: {bound[bound.duplicated()].unique().tolist()}."
-                )
-            if len(given) != len(bound) or not bound.difference(given).empty:
-                raise ValueError(
-                    f"Posterior has different {dim} labels from the construction posterior."
-                )
-            indexers[dim] = bound
+            if len(given) == len(bound) and bound.difference(given).empty:
+                indexers[dim] = bound
         return posterior.sel(indexers) if indexers else posterior
 
-    def _apply_posterior(self, posterior: xr.Dataset) -> Callable[[], None] | None:
-        """Bind the graphs to ``posterior``, returning a rollback when that re-extracted the graphs.
-
-        See :meth:`set_posterior` for the rebind and rollback contract.
-        """
-        if not self._cache:
-            # Nothing is cached yet, so there is no cached graph to re-extract.
-            # ``set_posterior`` already realigned and checked the labels at the door.
-            # Uncached ``cache=False`` graphs are untouched by this.
-            # Only switch to the shared path and record the new draws.
-            # An instance built with ``share_posterior=True`` is kept, not replaced.
-            if self._shared_posterior is None:
-                self._shared_posterior = SharedPosterior()
-            self._posterior = posterior
-            return None
-
-        if self._shared_posterior is not None:
-            # ``SharedPosterior.set_posterior`` validates every variable before writing any.
-            # A failure therefore leaves the previous draws bound, with nothing to roll back.
-            self._shared_posterior.set_posterior(posterior)
-            self._posterior = posterior
-            return None
-
-        previous_cache = self._cache
-        previous_posterior = self._posterior
-        shared, cache = self._extract_through_shared(previous_posterior)
-        shared.set_posterior(posterior)
-        self._shared_posterior = shared
-        self._posterior = posterior
-        self._cache = cache
-
-        def rollback() -> None:
-            self._shared_posterior = None
-            self._posterior = previous_posterior
-            self._cache = previous_cache
-
-        return rollback
-
     def register(self, callback: Callable[[], None]) -> None:
-        """Register ``callback`` to run after a rebind that re-extracted the graphs.
+        """Register ``callback`` to run after a rebind that dropped the graphs.
 
         That is the first :meth:`set_posterior` of a model built without ``share_posterior``.
-        It only re-extracts once a graph has been cached.
+        It fires once a graph has been cached.
+        That rebind drops the cache and installs a fresh :class:`SharedPosterior` before the callbacks run.
+        ``callback`` calls :meth:`extract` to request the graphs it needs, which re-extracts and caches them.
+        A graph nobody re-requests is dropped and does not follow later rebinds.
         A rebind with nothing cached only switches to the shared path, and later rebinds only swap the draws.
         Neither fires a callback, and uncached ``cache=False`` graphs are untouched.
         A consumer recompiles what it compiled from the graphs here.
         The callback takes no arguments and calls :meth:`extract` to read the refreshed graphs.
         Callbacks run in registration order, and one that raises stops the rest.
-        This object rolls back only its own binding; each consumer is responsible for rolling back its own state.
+        This object rolls back its own cache, posterior and binding; each consumer
+        is responsible for rolling back its own state.
 
         Parameters
         ----------
         callback : callable
-            A no-argument callable run after a rebind that re-extracted the graphs, in registration order.
+            A no-argument callable run after a rebind that dropped the graphs, in registration order.
         """
         self._callbacks.append(callback)
 
@@ -1087,34 +1174,60 @@ class ConditionedModel:
         shared_posterior: SharedPosterior | None,
         posterior: xr.Dataset,
     ) -> list[XTensorVariable]:
-        """Extract ``resolved`` conditioned on ``posterior``, in a single pass."""
+        """Extract ``resolved`` conditioned on the variables they read.
+
+        The posterior is narrowed to the read names, each validated and
+        realigned against its own construction layout.  Only the variables a
+        graph reads are therefore checked: unread data may change freely.
+        """
+        read_names = _needed_posterior_names(
+            self._model, resolved, self.frozen_deterministics
+        )
         # Every conditioned graph is an xtensor expression, so the sequence is safely narrowed.
         return cast(
             list[XTensorVariable],
             extract_response_distribution(
                 pymc_model=self._model,
-                idata=posterior,
+                idata=self._read_posterior(read_names, posterior),
                 response_variable=resolved,
                 frozen_deterministics=list(self.frozen_deterministics),
                 shared_posterior=shared_posterior,
             ),
         )
 
-    def _extract_through_shared(
-        self, posterior: xr.Dataset
-    ) -> tuple[SharedPosterior, dict[_ExtractKey, _CachedGraphs]]:
-        """Re-extract every handed-out key through one shared posterior.
+    def _read_posterior(
+        self, read_names: Sequence[str], posterior: xr.Dataset
+    ) -> xr.Dataset:
+        """Return the posterior subset the graphs read, in construction order.
 
-        Returns the shared posterior and a fresh cache, committing nothing
-        until the caller installs them, so a failure part-way leaves the
-        constant graphs in place.
+        Each variable is validated and realigned against its construction
+        layout here, at the read.  A variable absent from the construction
+        posterior was thinned away, so its layout is unknown and it is taken as
+        given.  The subset's order is the construction order, so a shared
+        variable first created after a rebind is still created in that order.
         """
-        shared = SharedPosterior()
-        cache = {
-            key: _CachedGraphs(resolved, self._extract(resolved, shared, posterior))
-            for key, (resolved, _) in self._cache.items()
-        }
-        return shared, cache
+        if not read_names:
+            return posterior
+        missing = sorted(set(read_names) - set(posterior.data_vars))
+        if missing:
+            raise KeyError(
+                f"Posterior is missing variables this graph reads: {missing}"
+            )
+        ordered = [name for name in self._layouts if name in read_names]
+        ordered += [name for name in read_names if name not in self._layouts]
+        selected: dict[str, xr.DataArray] = {}
+        for name in ordered:
+            posterior_da = posterior[name]
+            layout = self._layouts.get(name)
+            if layout is not None:
+                posterior_da = _aligned_posterior(
+                    name,
+                    posterior_da,
+                    layout,
+                    sample_dims=("chain", "draw"),
+                )
+            selected[name] = posterior_da
+        return xr.Dataset(selected)
 
     def _resolve(self, var: str | Variable) -> Variable:
         """Resolve a response against the intervened clone, refusing a graph that reads an outsider.
