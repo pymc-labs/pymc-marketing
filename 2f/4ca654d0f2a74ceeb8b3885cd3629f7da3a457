@@ -1,0 +1,21 @@
+docs/source/conf.py
+  s_02682dba865566::t_e60e8b2e15614a 347
+docs/source/notebooks/mmm/mmm_mu_effects_intro.ipynb
+  s_02682dba865566::t_44383332281b92 469,512,548,1086,1125,1240,1409,1438,1469,2147,2461,2614,2673,2713,2866
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "2f4ca654d0f2a74ceeb8b3885cd3629f7da3a457",
+  "prompts": {},
+  "sessions": {
+    "s_02682dba865566": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "896e1743-4aee-4df5-b63f-15e88a81fa47",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "root <root@e2b.local>"
+    }
+  }
+}
