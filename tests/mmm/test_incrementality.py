@@ -6383,6 +6383,47 @@ class TestEvaluatorCache:
 
         assert len(builds) == 1
 
+    def test_the_constant_data_fingerprint_is_computed_once_per_instance(
+        self, simple_fitted_mmm, monkeypatch
+    ):
+        """``idata`` is fixed for the instance, so two requests hash it once."""
+        calls = []
+        real = incrementality_module._constant_data_fingerprint
+
+        def counting(idata):
+            calls.append(1)
+            return real(idata)
+
+        monkeypatch.setattr(
+            incrementality_module, "_constant_data_fingerprint", counting
+        )
+
+        incr = simple_fitted_mmm.incrementality
+        incr.compute_incremental_contribution(frequency="all_time")
+        incr.compute_incremental_contribution(frequency="all_time")
+
+        assert len(calls) == 1
+
+    def test_a_miss_does_not_rebind_the_posterior_it_was_built_on(
+        self, simple_fitted_mmm, monkeypatch
+    ):
+        """Only a cache hit rebinds the draws; a miss is already conditioned on them."""
+        rebinds = []
+        real = CounterfactualEvaluator.set_posterior
+
+        def counting(self, idata):
+            rebinds.append(1)
+            return real(self, idata)
+
+        monkeypatch.setattr(CounterfactualEvaluator, "set_posterior", counting)
+
+        incr = simple_fitted_mmm.incrementality
+        incr.compute_incremental_contribution(frequency="all_time")
+        assert rebinds == []
+
+        incr.compute_incremental_contribution(frequency="all_time")
+        assert len(rebinds) == 1
+
     @pytest.mark.parametrize("entry_point", ["incremental", "marginal"])
     def test_reused_result_matches_a_fresh_build(
         self, simple_fitted_mmm, constructed, entry_point

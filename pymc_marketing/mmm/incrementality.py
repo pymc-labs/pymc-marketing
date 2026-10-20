@@ -238,7 +238,7 @@ from collections import OrderedDict
 from collections.abc import Callable, Iterator, Mapping, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass
-from functools import partial
+from functools import cached_property, partial
 from typing import TYPE_CHECKING, Any, Literal, NamedTuple, cast
 
 import numpy as np
@@ -1147,13 +1147,30 @@ class _EvaluatorCache:
         self,
         key: _EvaluatorCacheKey,
         factory: Callable[[], CounterfactualEvaluator],
-    ) -> CounterfactualEvaluator:
-        """Return the evaluator cached under ``key``, building and caching it on a miss."""
+    ) -> tuple[CounterfactualEvaluator, bool]:
+        """Return the evaluator cached under ``key``, building and caching it on a miss.
+
+        Parameters
+        ----------
+        key : _EvaluatorCacheKey
+            Identity to look up.
+        factory : callable
+            Builds the evaluator when the key is absent.
+
+        Returns
+        -------
+        tuple
+            The evaluator, and whether it came from the cache.  A caller that
+            rebinds a cached evaluator to new draws needs to know the
+            difference: a freshly built one is already conditioned on the draws
+            it was asked for.
+        """
         evaluator = self.get(key)
-        if evaluator is None:
-            evaluator = factory()
-            self.put(key, evaluator)
-        return evaluator
+        if evaluator is not None:
+            return evaluator, True
+        evaluator = factory()
+        self.put(key, evaluator)
+        return evaluator, False
 
     def __len__(self) -> int:
         return len(self._entries)
@@ -4260,6 +4277,15 @@ class Incrementality:
         attrs["warnings"] = json.dumps(notes)
         return attrs
 
+    @cached_property
+    def _data_fingerprint(self) -> tuple | None:
+        """Content fingerprint of :attr:`idata`'s ``constant_data``, computed once.
+
+        ``idata`` is fixed for the life of an ``Incrementality`` object.
+        Hashing every variable on every request would only repeat the same work.
+        """
+        return _constant_data_fingerprint(self.idata)
+
     def _evaluator_cache_key(
         self, response_vars: Sequence[str | Variable]
     ) -> _EvaluatorCacheKey:
@@ -4289,7 +4315,7 @@ class Incrementality:
             intervention_mode="replace",
             frozen_deterministics=tuple(self.model.frozen_deterministics),
             dates=tuple(dates),
-            data_fingerprint=_constant_data_fingerprint(self.idata),
+            data_fingerprint=self._data_fingerprint,
         )
 
     def _prepare_evaluation(
@@ -4495,11 +4521,14 @@ class Incrementality:
         cache = self.model.__dict__.setdefault(
             "_incrementality_evaluator_cache", _EvaluatorCache()
         )
-        evaluator = cache.get_or_build(
+        evaluator, cached = cache.get_or_build(
             self._evaluator_cache_key(response_vars), build_evaluator
         )
-        # A rebind right after a miss is a no-op (same draws it was built on); it keeps every call on one path.
-        evaluator.set_posterior(posterior)
+        # A hit carries the draws of the request that built it; a miss was just
+        # conditioned on this request's posterior, so rebinding it would copy the
+        # same draws a second time.
+        if cached:
+            evaluator.set_posterior(posterior)
 
         # channel_data's declared axis order, which the baseline array below and
         # the per-channel scenarios further down are both read against.  Taken

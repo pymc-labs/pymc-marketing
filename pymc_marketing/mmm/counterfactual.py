@@ -771,8 +771,11 @@ class CounterfactualEvaluator:
         with ``"replace"`` where the evaluator's input is that value.
     expected_aux_values : mapping of str to xr.DataArray, optional
         Fit-time values of date-indexed inputs, keyed by variable name -- typically ``idata.constant_data``.
-        Every evaluation compares each matching auxiliary input's live value against the one recorded here.
+        Every evaluation checks each matching auxiliary input against the one recorded here.
         ``time_index`` is compared against the fabricated ``np.arange(n_dates)`` instead of a live value.
+        An unchanged shared input is identified by the borrowed buffer seen at the last full check.
+        A repeated call therefore costs only an identity comparison.
+        An in-place mutation of the buffer itself is not detected.
         A name absent from the mapping is unchecked.
 
     Attributes
@@ -843,6 +846,11 @@ class CounterfactualEvaluator:
         self._response_requested = tuple(response_vars)
         self._dates = dates
         self._expected_aux_values = expected_aux_values
+        # Prepared once from the fit-time record; see
+        # ``_prepare_expected_aux_values``.  The second mapping remembers the
+        # borrowed source buffer each input held at its last full check.
+        self._expected_aux_arrays: dict[str, np.ndarray] = {}
+        self._source_values_at_last_check: dict[str, np.ndarray | None] = {}
 
         # State ``_build`` fills in.  Declared here so every attribute exists
         # before the first build and a build that raises part-way cannot leave
@@ -884,6 +892,7 @@ class CounterfactualEvaluator:
         )
         self._do_model = self._conditioned.model
         self._build()
+        self._prepare_expected_aux_values()
         self._check_expected_aux_values()
 
     def _extract_graphs(self) -> list[XTensorVariable]:
@@ -1061,15 +1070,13 @@ class CounterfactualEvaluator:
         posterior = self._conditioned.posterior
         return int(posterior.sizes["chain"]) * int(posterior.sizes["draw"])
 
-    def _check_expected_aux_values(self) -> None:
-        """Refuse a source-model state that disagrees with the fit-time record.
+    def _prepare_expected_aux_values(self) -> None:
+        """Hoist the fit-time record into the form the per-call check reads.
 
-        This guards the model the evaluator was built from, not just the values
-        handed to a call: a ``pm.set_data`` issued after construction is caught
-        by the next evaluation.  The check runs at construction and again on
-        every evaluation.  ``time_index`` is compared against the fabricated
-        ``np.arange(n_dates)`` rather than a live value, since the evaluator
-        never reads a live ``time_index``.
+        The stored arrays are transposed to the model's own dimension order here.
+        An evaluation therefore reads the prepared arrays rather than rebuilding them.
+        ``time_index`` is fabricated from the fitted date count rather than read off the model.
+        It cannot change between calls, so it is compared once, at construction.
         """
         expected = self._expected_aux_values
         if expected is None:
@@ -1080,18 +1087,46 @@ class CounterfactualEvaluator:
                 live=np.arange(len(self._dates)),
                 stored=np.asarray(expected[self.TIME_INDEX].values),
             )
+        for name, dims in self._aux_dims.items():
+            if name in expected:
+                self._expected_aux_arrays[name] = np.asarray(
+                    expected[name].transpose(*dims).values
+                )
+                self._source_values_at_last_check[name] = None
+
+    def _check_expected_aux_values(self) -> None:
+        """Refuse a source-model state that disagrees with the fit-time record.
+
+        This guards the model the evaluator was built from, not just the values
+        handed to a call: a ``pm.set_data`` issued after construction is caught
+        by the next evaluation.  The check runs at construction and again on
+        every evaluation.  After the first full comparison an unchanged shared
+        input costs only an identity comparison of its borrowed buffer, and the
+        values are compared again when ``pm.set_data`` has replaced that buffer.
+        ``time_index`` is not rechecked here: it is fabricated from the date
+        axis rather than read off the model, so
+        :meth:`_prepare_expected_aux_values` compares it once at construction.
+
+        In-place mutation of a borrowed buffer is not detected: ``pm.set_data``
+        replaces the array, and that change of identity is what this check sees.
+        """
         source = self._source_model
-        for name in self._aux_live:
-            if name not in expected:
-                continue
-            # Read the source model, which pm.set_data mutates in place; the
-            # clone's data variables keep their built values.
-            live = self._aux_live[name]
+        for name, stored in self._expected_aux_arrays.items():
+            live_var = self._aux_live[name]
             if name in source.named_vars:
-                live = source[name]
-            dims = self._aux_dims[name]
-            stored = np.asarray(expected[name].transpose(*dims).values)
-            self._check_not_mutated(name, live=np.asarray(live.eval()), stored=stored)
+                # Read the source model, which pm.set_data mutates in place; the
+                # clone's data variables keep their built values.
+                live_var = source[name]
+            if isinstance(live_var, SharedVariable):
+                live = live_var.get_value(borrow=True)
+                if live is self._source_values_at_last_check[name]:
+                    continue
+                self._check_not_mutated(name, live=live, stored=stored)
+                self._source_values_at_last_check[name] = live
+            else:
+                self._check_not_mutated(
+                    name, live=np.asarray(live_var.eval()), stored=stored
+                )
 
     def set_posterior(self, idata: xr.DataTree | xr.Dataset) -> None:
         """Re-point the evaluator at a new posterior.
@@ -1364,10 +1399,11 @@ class CounterfactualEvaluator:
     def _check_not_mutated(name: str, *, live: np.ndarray, stored: np.ndarray) -> None:
         """Refuse a live value that disagrees with what was recorded at fit time.
 
-        A same-length in-place mutation of a shared variable -- the case this
-        exists for -- passes every other check available here: the date axis
-        is still the right length, the dtype is unchanged, only the numbers
-        moved.  Without this comparison that mutation is invisible, and the
+        A same-length replacement of a shared variable's values -- the case this
+        exists for, as ``pm.set_data`` does -- passes every other check
+        available here: the date axis is still the right length, the dtype is
+        unchanged, only the numbers moved.  Without this comparison that
+        change is invisible, and the
         counterfactual would be evaluated on a hybrid of fitted spend and
         posterior draws with an out-of-sample covariate, silently.
 
@@ -1392,8 +1428,8 @@ class CounterfactualEvaluator:
                 "fit: its live value no longer matches the value recorded in "
                 "idata.constant_data at fit time.  This happens when "
                 "MMM.sample_posterior_predictive(..., clone_model=False) or a "
-                "direct pm.set_data(...) call mutates the model's shared "
-                "variables in place after fitting; evaluating on the result "
+                "direct pm.set_data(...) call replaces the values of the "
+                "model's shared variables after fitting; evaluating on the result "
                 "would silently mix fitted spend and posterior draws with "
                 "out-of-sample covariates.  Re-fit the model on the new data, "
                 "or rebuild it from a fresh clone, before computing a "
@@ -1452,6 +1488,7 @@ class CounterfactualEvaluator:
             On every call, if a value in *expected_aux_values* disagrees with
             the source model's current state, so a ``pm.set_data`` after
             construction fails here rather than being evaluated silently.
+            An in-place mutation of a borrowed buffer is not detected.
         """
         self._sync_sample_markers()
         self._check_expected_aux_values()
@@ -1512,6 +1549,7 @@ class CounterfactualEvaluator:
             On every call, if a value in *expected_aux_values* disagrees with
             the source model's current state, so a ``pm.set_data`` after
             construction fails here rather than being evaluated silently.
+            An in-place mutation of a borrowed buffer is not detected.
         """
         self._sync_sample_markers()
         self._check_expected_aux_values()

@@ -472,6 +472,63 @@ class TestPostFitMutationGuard:
         with pytest.raises(ValueError, match=r"'aux_input'.*changed since"):
             evaluator.evaluate_baseline(values)
 
+    def test_an_unchanged_source_is_checked_by_identity_only(self, monkeypatch):
+        """A second unchanged call compares no values and evaluates no source.
+
+        The per-call contract is kept, but a shared input is skipped when
+        ``get_value(borrow=True)`` returns the same buffer as the last full
+        check, so the steady state costs an identity comparison rather than a
+        full one.
+        """
+        model, posterior, aux_values = build_aux_dims_model(
+            ("date", "country"), n_dates=len(self.dates), n_country=2
+        )
+        evaluator = CounterfactualEvaluator(
+            pymc_model=model,
+            posterior=posterior,
+            response_vars=["channel_contribution"],
+            frozen_deterministics=[],
+            dates=self.dates,
+            expected_aux_values={
+                "aux_input": xr.DataArray(aux_values, dims=("date", "country"))
+            },
+        )
+        values = np.ones((len(self.dates), 2, 1))
+
+        comparisons = []
+        evaluations = []
+        real_check = CounterfactualEvaluator._check_not_mutated
+
+        def counting_check(*args, **kwargs):
+            comparisons.append(1)
+            return real_check(*args, **kwargs)
+
+        source = model["aux_input"]
+        real_eval = source.eval
+
+        def counting_eval(*args, **kwargs):
+            evaluations.append(1)
+            return real_eval(*args, **kwargs)
+
+        monkeypatch.setattr(
+            CounterfactualEvaluator, "_check_not_mutated", staticmethod(counting_check)
+        )
+        monkeypatch.setattr(source, "eval", counting_eval)
+
+        # A new buffer holding the same values is the case a content check has
+        # to run for, and the spy sees it...
+        with model:
+            pm.set_data({"aux_input": aux_values.copy()})
+        evaluator.evaluate_baseline(values)
+        assert comparisons == [1]
+        assert evaluations == []
+
+        # ...while the unchanged call after it compares nothing.
+        comparisons.clear()
+        evaluator.evaluate_baseline(values)
+        assert comparisons == []
+        assert evaluations == []
+
 
 class TestPeriodEdgeCases:
     """Periods that are degenerate, and the windows they produce.
