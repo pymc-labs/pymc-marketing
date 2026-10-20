@@ -73,7 +73,8 @@ docs = [
     "numpyro",
     "nutpie>=0.16.7",
     "pylint",
-    "sphinx-autodoc-typehints",
+    # Newer releases corrupt wrapped Raises descriptions with numpydoc xrefs.
+    "sphinx-autodoc-typehints==3.13.10",
     "sphinx-copybutton",
     "sphinx-design",
     "sphinx-notfound-page",
