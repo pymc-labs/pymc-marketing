@@ -2839,37 +2839,7 @@ def test_a_one_shot_evaluation_does_not_pin_the_rebinds(rebind_first):
     first rebind or after it: before it the graph is conditioned on constants,
     and after it the graph is optional, so the rebind drops it instead of failing.
     """
-    n_dates = 4
-    channels = ["a", "b"]
-    with pm.Model(coords={"channel": channels}) as model:
-        model.add_coord("date", length=n_dates)
-        channel_data = pmd.Data(
-            "channel_data", np.ones((n_dates, 2)), dims=("date", "channel")
-        )
-        beta = pmd.Normal("beta", 1.0, 0.1, dims="channel")
-        gamma = pmd.Normal("gamma", 0.0, 1.0)
-        pmd.Deterministic(
-            "total_media_contribution_original_scale", (channel_data * beta).sum()
-        )
-        pmd.Deterministic("noise_thing", gamma + (channel_data * beta).sum())
-
-    posterior = xr.Dataset(
-        {
-            "beta": (("chain", "draw", "channel"), np.ones((2, 2, 2))),
-            "gamma": (("chain", "draw"), np.ones((2, 2))),
-        },
-        coords={"channel": channels},
-    )
-    optimizer = BudgetOptimizer(
-        model=CustomModelWrapper(
-            base_model=model,
-            idata=xr.DataTree.from_dict({"/posterior": posterior}),
-            channels=channels,
-        ),
-        num_periods=n_dates,
-        response_variable="total_media_contribution_original_scale",
-    )
-    plan = xr.DataArray([30.0, 70.0], dims=["channel"], coords={"channel": channels})
+    optimizer, plan, posterior = _ad_hoc_response_optimizer()
     if rebind_first:
         optimizer.set_posterior(xr.DataTree.from_dict({"/posterior": posterior}))
     optimizer.evaluate_response_distribution(plan, "noise_thing")

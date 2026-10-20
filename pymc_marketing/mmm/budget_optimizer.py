@@ -1963,7 +1963,7 @@ class BudgetOptimizer(BaseModel):
 
         # 7b. Hand the intervened model to a ConditionedModel, which owns the
         # posterior binding from here on: extraction, the first rebind's
-        # re-extraction and every later draw swap all go through it.  The model
+        # cache drop and every later draw swap all go through it.  The model
         # is already intervened, so none is applied here.  The registered
         # callback recompiles the objective and constraints whenever a rebind
         # hands out new graphs, and does nothing on later swaps.
@@ -2885,29 +2885,20 @@ class BudgetOptimizer(BaseModel):
         returns a graph that computes ``"channel_contribution"`` as a function of both
         the newly introduced budgets and the posterior of model parameters.
         """
-        return self._extract_response_distribution(response_variable, cache=True)
+        return self._extract_response_distribution(response_variable)
 
     def _extract_response_distribution(
-        self, response_variable: str, *, cache: bool, required: bool = True
+        self, response_variable: str, *, required: bool = True
     ) -> XTensorVariable:
-        """Extract a response graph, optionally keeping it for later rebinds.
+        """Extract a response graph that the conditioned model rebinds on later draw swaps.
 
-        ``cache=True`` is the long-lived path -- the objective, the constraints
-        and an ad-hoc evaluation -- whose graphs the conditioned model rebinds on
-        later draw swaps once the optimizer has rebound.  ``required=True``
+        The objective, the constraints and an ad-hoc evaluation all use it.  ``required=True``
         means a rebind that cannot satisfy the graph must fail, which is the
         objective's and the constraints' contract.  An ad-hoc response passes
         ``required=False``: after the switch it gets a private binding and a
         rebind that cannot satisfy it drops it instead of failing.
-        ``cache=False`` conditions the graph on the current draws as constants,
-        so it registers nothing on the shared posterior and a thinned posterior
-        that still satisfies the objective is not refused by a variable only
-        this graph reads.  Nothing tracks it across a rebind, so the compiled
-        function is dropped whenever the draws move.
         """
-        return self._conditioned.extract(
-            response_variable, cache=cache, required=required
-        )
+        return self._conditioned.extract(response_variable, required=required)
 
     def evaluate_response_distribution(
         self,
@@ -3007,9 +2998,7 @@ class BudgetOptimizer(BaseModel):
             if graph is not cached[2]:
                 cached = None
         if cached is None:
-            graph = self._extract_response_distribution(
-                name, cache=True, required=required
-            )
+            graph = self._extract_response_distribution(name, required=required)
             if self._budgets_flat not in set(ancestors([graph.values])):
                 warnings.warn(
                     f"response_variable={name!r} does not depend on the decision "
@@ -3146,8 +3135,8 @@ class BudgetOptimizer(BaseModel):
             )
 
         # The conditioned model owns the binding: it moves the draws into (or
-        # swaps them under) shared variables, re-extracts every handed-out key
-        # on the first rebind, and fires the recompile callback.  This
+        # swaps them under) shared variables, drops the cache on the first rebind so
+        # the callbacks re-request only the keys they use, and fires the recompile callback.  This
         # optimizer keeps the rollback of everything it compiled from those
         # graphs, so a rebind that fails -- a posterior the shared variables
         # cannot take, a recompile that raises, or an interruption after the

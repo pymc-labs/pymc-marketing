@@ -771,8 +771,9 @@ class CounterfactualEvaluator:
         with ``"replace"`` where the evaluator's input is that value.
     expected_aux_values : mapping of str to xr.DataArray, optional
         Fit-time values of date-indexed inputs, keyed by variable name -- typically ``idata.constant_data``.
-        Every evaluation checks each matching auxiliary input against the one recorded here.
-        ``time_index`` is compared against the fabricated ``np.arange(n_dates)`` instead of a live value.
+        Every evaluation verifies each matching auxiliary input.
+        Values are compared only when the source model's buffer was replaced since the last check.
+        ``time_index`` is compared against the fabricated ``np.arange(n_dates)`` once, at construction.
         An unchanged shared input is identified by the borrowed buffer seen at the last full check.
         A repeated call therefore costs only an identity comparison.
         An in-place mutation of the buffer itself is not detected.
@@ -1139,8 +1140,8 @@ class CounterfactualEvaluator:
         ----------
         idata : xr.DataTree or xr.Dataset
             A tree with a ``posterior`` group, or the posterior dataset itself,
-            holding every variable the graphs read with the same non-sample
-            dimensions.
+            holding every variable the graphs read.
+            Each is validated against its construction layout when a graph reads it.
         """
         self._conditioned.set_posterior(idata)
 

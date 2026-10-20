@@ -1598,7 +1598,7 @@ def test_conditioned_model_uncached_extract_is_not_pinned(rebind_first):
     )
 
 
-def test_conditioned_model_first_rebind_reextracts_and_fires_callbacks_once(
+def test_conditioned_model_first_rebind_drops_the_cache_and_fires_callbacks_once(
     conditioned_slope, slope_posteriors
 ):
     _, data_values, _, second, _ = slope_posteriors
@@ -1664,8 +1664,8 @@ def test_conditioned_model_failing_callback_rolls_back_binding(
 ):
     """A callback that raises on the first rebind rolls the constant binding back.
 
-    The first rebind is the only one that re-extracts, so it is the only one whose failure has a binding to restore.
-    A later rebind fires no callback.
+    The first rebind is the only one that fires a callback, so it is the only one that a callback can fail.
+    A later rebind that fails rolls the shared binding back too.
     """
 
     def boom():

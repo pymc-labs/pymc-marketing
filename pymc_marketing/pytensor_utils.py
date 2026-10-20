@@ -807,7 +807,7 @@ _GRAPH_CACHE_SIZE = 32
 
 
 class _CachedGraphs(NamedTuple):
-    """A cached extraction: the resolved inputs, the graphs and their binding.
+    """A cached extraction: the graphs and their binding.
 
     ``optional_binding`` is the private :class:`SharedPosterior` of a
     non-required extraction, or ``None``.  A non-required graph extracted
@@ -815,7 +815,6 @@ class _CachedGraphs(NamedTuple):
     so a rebind that cannot satisfy it drops only this key instead of failing.
     """
 
-    resolved: list[Variable]
     graphs: list[XTensorVariable]
     optional_binding: SharedPosterior | None = None
 
@@ -1019,7 +1018,7 @@ class ConditionedModel:
         """Return response graphs conditioned on the current posterior.
 
         A failure leaves the cache and the shared posterior as they were.
-        A later rebind that satisfies every graph already handed out is therefore accepted.
+        The next rebind therefore takes the same path again.
 
         Parameters
         ----------
@@ -1089,7 +1088,7 @@ class ConditionedModel:
         if not cache:
             # A one-shot graph is conditioned on constants, never on the shared
             # posterior, so it registers no variable a later rebind would need.
-            graphs = self._extract(resolved, None, self._posterior)
+            graphs = self._extract(resolved, None)
             return graphs[0] if single else list(graphs)
         # The required flag is part of the key: the same response bound to the
         # model-wide binding and to an optional one are different graphs.
@@ -1107,8 +1106,8 @@ class ConditionedModel:
             binding = (
                 self._shared_posterior if optional_binding is None else optional_binding
             )
-            graphs = self._extract(resolved, binding, self._posterior)
-            cached = _CachedGraphs(resolved, graphs, optional_binding)
+            graphs = self._extract(resolved, binding)
+            cached = _CachedGraphs(graphs, optional_binding)
             self._cache[cache_key] = cached
             # Eviction only drops the entry.  A graph already handed out keeps
             # working, and a compiled function keeps reading its shared variables.
@@ -1370,7 +1369,6 @@ class ConditionedModel:
         self,
         resolved: list[Variable],
         shared_posterior: SharedPosterior | None,
-        posterior: xr.Dataset,
     ) -> list[XTensorVariable]:
         """Extract ``resolved`` conditioned on the variables they read.
 
@@ -1386,7 +1384,7 @@ class ConditionedModel:
             list[XTensorVariable],
             extract_response_distribution(
                 pymc_model=self._model,
-                idata=self._read_posterior(read_names, posterior),
+                idata=self._read_posterior(read_names, self._posterior),
                 response_variable=resolved,
                 frozen_deterministics=list(self.frozen_deterministics),
                 shared_posterior=shared_posterior,
