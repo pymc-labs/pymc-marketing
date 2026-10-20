@@ -31,9 +31,9 @@ concurrency:
 jobs:
   real-geolift:
     runs-on: ubuntu-latest
-    # The confounded 48-market example uses high target acceptance. Allow
-    # installation, compilation, and slower two-core CI sampling at full settings.
-    timeout-minutes: 75
+    # Both 48-market fits learn a shared weekly baseline and response hierarchies.
+    # Allow installation, compilation, and slower two-core sampling at full settings.
+    timeout-minutes: 120
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v8.3.2
@@ -51,7 +51,7 @@ jobs:
           uv run --no-sync papermill \
             docs/source/notebooks/mmm/mmm_multi_arm_geolift_calibration.ipynb \
             notebook-artifacts/executed.ipynb \
-            --cwd docs/source/notebooks/mmm --execution-timeout 2400 \
+            --cwd docs/source/notebooks/mmm --execution-timeout 3600 \
             --log-output --no-progress-bar 2>&1 | tee notebook-artifacts/execution.log
       - uses: actions/upload-artifact@v7
         if: always()
