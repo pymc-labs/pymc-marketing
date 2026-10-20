@@ -73,8 +73,9 @@ Requirements
 
 - posterior_predictive plots: an `xr.DataTree` with a `posterior_predictive` group
   containing the variable(s) you want to plot with a `date` coordinate.
-- residuals plots: a `posterior_predictive` group with `y_original_scale` variable (with `date`)
-  and a `constant_data` group with `target_data` variable.
+- residuals plots: a `posterior_predictive` group with the `y` draws (with `date`) and a
+  `constant_data` group with `target_data` and `target_scale`; a registered
+  `y_original_scale` (`y * target_scale`) in `posterior_predictive` is used when present.
 - contributions_over_time plots: a `posterior` group with time‑series variables (with `date`).
 - saturation plots: a `constant_data` dataset with variables:
   - `channel_data`: dims include `("date", "channel", ...)`
@@ -202,6 +203,7 @@ from numpy.typing import NDArray
 
 from pymc_marketing.data.idata.mmm_wrapper import MMMIDataWrapper
 from pymc_marketing.metrics import crps
+from pymc_marketing.mmm.summary.helpers import compute_residuals
 from pymc_marketing.mmm.utils import build_contributions
 
 __all__ = ["MMMPlotSuite"]
@@ -683,7 +685,11 @@ class MMMPlotSuite:
         return fig, axes
 
     def _compute_residuals(self) -> xr.DataArray:
-        """Compute residuals (errors) as target - predictions.
+        """Compute residuals (errors) as target - predictions, in original units.
+
+        Delegates to :func:`pymc_marketing.mmm.summary.helpers.compute_residuals`:
+        the predictions are the posterior predictive draws of the target on the
+        original scale, ``y * target_scale`` under every link.
 
         Returns
         -------
@@ -694,36 +700,16 @@ class MMMPlotSuite:
         Raises
         ------
         ValueError
-            If `y_original_scale` is not in posterior_predictive.
-            If `target_data` is not in constant_data.
+            If there is no idata, if `posterior_predictive` or its `y` draws are
+            missing, or if `target_data` or `target_scale` is not in constant_data.
         """
-        # Check for required data
-        pp_data = self._get_posterior_predictive_data(None)
-
-        if "y_original_scale" not in pp_data:
+        if self.data is None:
             raise ValueError(
-                "Variable 'y_original_scale' not found in posterior_predictive. "
-                "This plot requires predictions in the original scale. "
-                "Make sure to sample posterior_predictive after fitting the model."
+                "MMMPlotSuite holds no inference data. Construct it with "
+                "'idata=' or 'data=' (after 'MMM.sample_posterior_predictive()')."
             )
 
-        if (
-            not hasattr(self.idata, "constant_data")  # type: ignore
-            or self.idata.constant_data is None  # type: ignore
-            or "target_data" not in self.idata.constant_data  # type: ignore
-        ):
-            raise ValueError(
-                "Variable 'target_data' not found in constant_data. "
-                "This plot requires the target data to be stored in idata."
-            )
-
-        # Compute residuals
-        target_data = self.idata.constant_data["target_data"]  # type: ignore
-        predictions = pp_data["y_original_scale"]
-        residuals = target_data - predictions
-        residuals.name = "residuals"
-
-        return residuals
+        return compute_residuals(self.data)
 
     def residuals_over_time(
         self,
@@ -751,9 +737,8 @@ class MMMPlotSuite:
         Raises
         ------
         ValueError
-            If `y_original_scale` is not in posterior_predictive, instructing
-            the user that this plot requires the original scale predictions.
-            If `target_data` is not in constant_data.
+            If `posterior_predictive` or its `y` draws are missing, or if
+            `target_data` or `target_scale` is not in constant_data.
             If any HDI probability is not between 0 and 1.
 
         Examples
@@ -785,12 +770,11 @@ class MMMPlotSuite:
 
         # 2. Compute residuals
         residuals = self._compute_residuals()
-        pp_data = self._get_posterior_predictive_data(None)
 
         # 3. Identify additional dims & get all combos
         ignored_dims = {"chain", "draw", "date", "sample"}
         additional_dims, dim_combinations = self._get_additional_dim_combinations(
-            data=pp_data, variable="y_original_scale", ignored_dims=ignored_dims
+            data=residuals.to_dataset(), variable="residuals", ignored_dims=ignored_dims
         )
 
         # 4. Prepare subplots
@@ -898,8 +882,8 @@ class MMMPlotSuite:
         Raises
         ------
         ValueError
-            If `y_original_scale` is not in posterior_predictive.
-            If `target_data` is not in constant_data.
+            If `posterior_predictive` or its `y` draws are missing, or if
+            `target_data` or `target_scale` is not in constant_data.
             If any quantile is not between 0 and 1.
             If aggregation is not one of "mean", "sum", or None.
 
@@ -934,7 +918,6 @@ class MMMPlotSuite:
 
         # 2. Compute residuals
         residuals = self._compute_residuals()
-        pp_data = self._get_posterior_predictive_data(None)
 
         # 3. Handle aggregation
         if aggregation is not None:
@@ -974,7 +957,7 @@ class MMMPlotSuite:
         # 4. Without aggregation: plot for each dimension combination
         ignored_dims = {"chain", "draw", "date", "sample"}
         additional_dims, dim_combinations = self._get_additional_dim_combinations(
-            data=pp_data, variable="y_original_scale", ignored_dims=ignored_dims
+            data=residuals.to_dataset(), variable="residuals", ignored_dims=ignored_dims
         )
 
         # 5. Prepare subplots
@@ -3814,10 +3797,15 @@ class MMMPlotSuite:
         if var is None:
             posterior_vars = list(self.idata.posterior.dataset.data_vars)
             # Variables to exclude - total_media_contribution is a sum of channels
-            # and would double-count if included
+            # and would double-count if included. channel_incremental_contribution
+            # (registered by a log-link cost-per-target calibration) is a
+            # per-channel counterfactual, not an additive component; it expands
+            # into the same channel__<label> columns as channel_contribution and
+            # whichever comes first would silently win.
             excluded_vars = {
                 "total_media_contribution_original_scale",
                 "total_media_contribution",
+                "channel_incremental_contribution",
             }
             if original_scale:
                 # Prefer original scale variables
