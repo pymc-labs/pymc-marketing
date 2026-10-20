@@ -24,6 +24,7 @@ behaviour stays in the per-class test modules.
 import json
 import re
 import warnings
+from dataclasses import FrozenInstanceError, is_dataclass
 from pathlib import Path
 
 import numpy as np
@@ -464,29 +465,27 @@ def _expected_preprocessed(model_case, df, utility_equations=None):
     return reference.preprocess_model_data(df, equations)
 
 
-def _fixed_data_name(model):
-    return "W" if isinstance(model, NestedLogit) else "F"
-
-
 def _assert_model_data(model, X, F, y):
     """Assert the fitted model's data containers hold the given arrays."""
     np.testing.assert_array_equal(model.model["X"].get_value(), X)
     np.testing.assert_array_equal(model.model["y"].get_value(), y)
     if F is not None and len(F) > 0:
         np.testing.assert_array_equal(
-            model.model[_fixed_data_name(model)].get_value(), F
+            model.model[model._fixed_data_name].get_value(), F
         )
 
 
 def _instance_snapshot(model):
     """Copy the instance state a restore must put back."""
+    X, F, y = model._training_arrays()
     snapshot = {
-        "X": (model.X_data if hasattr(model, "X_data") else model.X).copy(),
-        "y": model.y.copy(),
+        "X": X.copy(),
+        "F": None if F is None else F.copy(),
+        "y": y.copy(),
         "alternatives": list(model.alternatives),
         "coords": {name: list(values) for name, values in model.coords.items()},
     }
-    if isinstance(model, NestedLogit):
+    if hasattr(model, "nest_indices"):
         snapshot["nest_indices"] = {
             name: list(indices) for name, indices in model.nest_indices["top"].items()
         }
@@ -497,19 +496,131 @@ def _instance_snapshot(model):
 
 def _assert_instance_state(model, snapshot):
     """Assert the instance state still matches a snapshot taken earlier."""
-    x = model.X_data if hasattr(model, "X_data") else model.X
-    np.testing.assert_array_equal(x, snapshot["X"])
-    np.testing.assert_array_equal(model.y, snapshot["y"])
+    X, F, y = model._training_arrays()
+    np.testing.assert_array_equal(X, snapshot["X"])
+    if snapshot["F"] is None:
+        assert F is None
+    else:
+        np.testing.assert_array_equal(F, snapshot["F"])
+    np.testing.assert_array_equal(y, snapshot["y"])
     assert list(model.alternatives) == snapshot["alternatives"]
     assert {name: list(values) for name, values in model.coords.items()} == snapshot[
         "coords"
     ]
-    if isinstance(model, NestedLogit):
+    if hasattr(model, "nest_indices"):
         assert {
             name: list(indices) for name, indices in model.nest_indices["top"].items()
         } == snapshot["nest_indices"]
         assert list(model.all_nests) == snapshot["all_nests"]
         assert dict(model.lambda_lkup) == snapshot["lambda_lkup"]
+
+
+def _copy_attribute(value):
+    if isinstance(value, np.ndarray):
+        return value.copy()
+    if isinstance(value, pd.DataFrame):
+        return value.copy()
+    if isinstance(value, dict):
+        return {key: _copy_attribute(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_copy_attribute(item) for item in value]
+    if isinstance(value, tuple):
+        return tuple(_copy_attribute(item) for item in value)
+    return value
+
+
+def _assert_attribute_equal(actual, expected):
+    if isinstance(expected, np.ndarray):
+        np.testing.assert_array_equal(actual, expected)
+    elif isinstance(expected, pd.DataFrame):
+        pd.testing.assert_frame_equal(actual, expected)
+    elif isinstance(expected, dict):
+        assert actual.keys() == expected.keys()
+        for key in expected:
+            _assert_attribute_equal(actual[key], expected[key])
+    elif isinstance(expected, (list, tuple)):
+        assert len(actual) == len(expected)
+        for actual_item, expected_item in zip(actual, expected, strict=True):
+            _assert_attribute_equal(actual_item, expected_item)
+    else:
+        assert actual is expected or actual == expected
+
+
+def _attribute_snapshot(instance):
+    """Snapshot every instance attribute, copying mutable state."""
+    return {name: _copy_attribute(value) for name, value in vars(instance).items()}
+
+
+def _assert_attributes_unchanged(instance, snapshot):
+    assert vars(instance).keys() == snapshot.keys()
+    for name, expected in snapshot.items():
+        _assert_attribute_equal(vars(instance)[name], expected)
+
+
+def test_private_preprocess_preserves_instance_state(
+    model_case, sample_df, other_utility_eqs
+):
+    model = model_case.build()
+    model._set_choice_inputs(sample_df)
+    model.build_model()
+    snapshot = _attribute_snapshot(model)
+
+    # Different rows and equations, so re-assigning any stored state would
+    # change its content and fail the snapshot comparison below.
+    other_df = pd.concat([sample_df, sample_df], ignore_index=True)
+    bundle = model._preprocess(other_df, other_utility_eqs)
+
+    assert is_dataclass(bundle)
+    assert bundle.__dataclass_params__.frozen
+    assert bundle.X.shape[0] == len(other_df)
+    assert bundle.y.shape == (len(other_df),)
+    with pytest.raises(FrozenInstanceError):
+        bundle.X = bundle.X
+    _assert_attributes_unchanged(model, snapshot)
+
+
+def test_build_model_stores_preprocessed_state(model_case, sample_df):
+    model = model_case.build()
+    stored_names = {"alternatives", "coords", "y", "F", model._X_data_name}
+    assert stored_names.isdisjoint(vars(model))
+
+    bundle = model._preprocess(sample_df, model.utility_equations)
+    assert stored_names.isdisjoint(vars(model))
+
+    model._set_choice_inputs(sample_df)
+    model.build_model()
+
+    assert stored_names <= set(vars(model))
+    X, F, y = model._training_arrays()
+    assert getattr(model, model._X_data_name) is X
+    np.testing.assert_array_equal(X, bundle.X)
+    np.testing.assert_array_equal(y, bundle.y)
+    if bundle.F is None:
+        assert F is None
+    else:
+        np.testing.assert_array_equal(F, bundle.F)
+    assert model.alternatives == bundle.alternatives
+    assert {name: list(values) for name, values in model.coords.items()} == {
+        name: list(values) for name, values in bundle.coords.items()
+    }
+
+
+def test_make_model_uses_coords_override(model_case, sample_df):
+    model = model_case.build()
+    model._set_choice_inputs(sample_df)
+    model.build_model()
+    bundle = model._preprocess(sample_df, model.utility_equations)
+    overridden_alts = list(reversed(bundle.coords["alts"]))
+    coords = {**bundle.coords, "alts": overridden_alts}
+    stored_coords = {name: list(values) for name, values in model.coords.items()}
+
+    built = model.make_model(bundle.X, bundle.F, bundle.y, coords=coords)
+
+    assert list(built.coords["alts"]) == overridden_alts
+    assert list(built.coords["alts"]) != list(bundle.coords["alts"])
+    assert {
+        name: list(values) for name, values in model.coords.items()
+    } == stored_coords
 
 
 def test_refit_after_intervention_uses_training_data(
@@ -670,12 +781,19 @@ def test_no_fixed_covariates_different_row_count(
 
 
 def test_new_equations_intervention_keeps_fitted_model(
-    model_case, sample_df, utility_eqs, mock_pymc_sample
+    model_case, sample_df, utility_eqs, mock_pymc_sample, monkeypatch
 ):
     model = model_case.build()
     model.fit(sample_df)
     fitted_model = model.model
     snapshot = _instance_snapshot(model)
+    fitted_X = fitted_model["X"].get_value().copy()
+    fitted_y = fitted_model["y"].get_value().copy()
+
+    def restore_boom():
+        raise AssertionError("new-equations intervention must not restore state")
+
+    monkeypatch.setattr(model, "_restore_model_data", restore_boom)
 
     # New equations reorder the alternatives and the new data has more rows.
     new_equations = list(reversed(utility_eqs))
@@ -683,6 +801,8 @@ def test_new_equations_intervention_keeps_fitted_model(
     model.apply_intervention(intervened, new_equations)
 
     assert model.model is fitted_model
+    np.testing.assert_array_equal(fitted_model["X"].get_value(), fitted_X)
+    np.testing.assert_array_equal(fitted_model["y"].get_value(), fitted_y)
     _assert_instance_state(model, snapshot)
 
 

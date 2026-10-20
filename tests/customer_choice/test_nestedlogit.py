@@ -207,6 +207,23 @@ def test_build_model_returns_pymc_model(nstL, sample_df, utility_eqs):
     assert nstL.covariates == ["X1", "X2"]
 
 
+def test_make_model_nest_indices_override(nstL, sample_df, utility_eqs):
+    bundle = nstL._preprocess(sample_df, utility_eqs)
+    coords = {**bundle.coords, "single_alts": bundle.alternatives}
+
+    model = nstL.make_model(
+        bundle.X,
+        bundle.F,
+        bundle.y,
+        coords=coords,
+        nest_indices={"single": np.arange(len(bundle.alternatives))},
+    )
+
+    assert "P_single" in model.named_vars
+    assert "P_nest1" not in model.named_vars
+    assert "P_nest2" not in model.named_vars
+
+
 def test_build_model_2layer_raises_error(nstL2_invalid, sample_df, utility_eqs):
     """Test that attempting two-layer nesting raises an informative error."""
     with pytest.raises(ValueError, match=r"must map to a list of alternatives"):

@@ -53,10 +53,16 @@ class ChoiceDataMixin:
     #: It is ``"F"`` on :class:`MNLogit` and ``"W"`` on :class:`NestedLogit`.
     _fixed_data_name: str
 
+    #: Name of the attribute holding the model's design matrix.
+    #: It is ``"X"`` on :class:`MNLogit` and ``"X_data"`` on :class:`NestedLogit`.
+    _X_data_name: str
+
     if TYPE_CHECKING:
         # Provided by the model-builder base that these classes are mixed with.
         model: pm.Model
         coords: dict[str, Any]
+        F: np.ndarray | None
+        y: np.ndarray
 
         def build_model(self, **kwargs: Any) -> None: ...
 
@@ -97,6 +103,18 @@ class ChoiceDataMixin:
         with self.model:
             pm.set_data(data, coords=coords)
 
+    def _training_arrays(self) -> tuple[np.ndarray, np.ndarray | None, np.ndarray]:
+        """Return the design matrix, fixed covariates and outcomes stored at build time.
+
+        Returns
+        -------
+        tuple
+            The arrays ``build_model`` stored from preprocessing, in the order
+            ``(X, F, y)``. ``F`` is ``None`` when the model has no fixed
+            covariates.
+        """
+        return getattr(self, self._X_data_name), self.F, self.y
+
     def _restore_model_data(self) -> None:
         """Restore the fitted model and instance state to the stored choice data.
 
@@ -108,8 +126,8 @@ class ChoiceDataMixin:
         fitted model is unchanged even when sampling fails.
         """
         choice_df = self._require_choice_df()
-        X, F, y = self.preprocess_model_data(choice_df, self.utility_equations)
-        self._set_model_data(X, F, y)
+        self.preprocess_model_data(choice_df, self.utility_equations)
+        self._set_model_data(*self._training_arrays())
 
     @contextmanager
     def _temporary_model_data(

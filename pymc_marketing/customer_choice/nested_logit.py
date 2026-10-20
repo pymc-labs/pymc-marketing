@@ -15,6 +15,7 @@
 
 import json
 from collections.abc import Mapping
+from dataclasses import dataclass
 from typing import Any, Self
 
 import matplotlib.pyplot as plt
@@ -36,6 +37,48 @@ from pymc_marketing.model_config import parse_model_config
 from pymc_marketing.version import __version__
 
 HDI_ALPHA = 0.5
+
+
+@dataclass(frozen=True)
+class NestedLogitPreprocessedData:
+    """Arrays and metadata built from choice data before a model is created.
+
+    Attributes
+    ----------
+    X : np.ndarray
+        Alternative-specific covariates of shape
+        ``(n_obs, n_alts, n_covariates)``.
+    F : np.ndarray or None
+        Fixed covariates of shape ``(n_obs, n_fixed_covariates)``, or ``None``
+        when the utility equations have no fixed covariates.
+    y : np.ndarray
+        Encoded choices of shape ``(n_obs,)``.
+    alternatives : list of str
+        Alternative names in utility-equation order.
+    fixed_covar : np.ndarray
+        Unique fixed-covariate names taken from the utility equations.
+    coords : dict
+        Coordinates for the PyMC model.
+    prod_indices : dict of str to int
+        Mapping from alternative name to its encoded index.
+    nest_indices : dict of str to np.ndarray
+        Flat mapping from nest name to sorted alternative indices.
+    all_nests : list of str
+        Nest names in the order they appear in the nesting structure.
+    lambda_lkup : dict of str to int
+        Mapping from nest name to its lambda index.
+    """
+
+    X: np.ndarray
+    F: np.ndarray | None
+    y: np.ndarray
+    alternatives: list[str]
+    fixed_covar: np.ndarray
+    coords: dict[str, list[str]]
+    prod_indices: dict[str, int]
+    nest_indices: dict[str, np.ndarray]
+    all_nests: list[str]
+    lambda_lkup: dict[str, int]
 
 
 class NestedLogit(ChoiceDataMixin, ModelBuilder):
@@ -138,6 +181,9 @@ class NestedLogit(ChoiceDataMixin, ModelBuilder):
 
     #: Name of the ``pm.Data`` container holding the fixed covariates.
     _fixed_data_name = "W"
+
+    #: Attribute holding the design matrix stored by :meth:`build_model`.
+    _X_data_name = "X_data"
 
     def __init__(
         self,
@@ -463,6 +509,66 @@ class NestedLogit(ChoiceDataMixin, ModelBuilder):
 
         return coords
 
+    def _preprocess(
+        self, choice_df: pd.DataFrame, utility_equations: list[str]
+    ) -> NestedLogitPreprocessedData:
+        """Build the model inputs from choice data without storing them.
+
+        Parameters
+        ----------
+        choice_df : pd.DataFrame
+            A pandas DataFrame containing the observed choices and covariates
+            for each alternative. Each row is one choice observation.
+        utility_equations : list of str
+            A list of model formulas, one per alternative. Each formula should
+            be of the form ``"alt_name ~ alt_covariates | fixed_covariates"``.
+
+        Returns
+        -------
+        NestedLogitPreprocessedData
+            The frozen preprocessing result. Handles single-layer nesting only.
+        """
+        X, F, alternatives, fixed_covar = self.prepare_X_matrix(
+            choice_df, utility_equations, self.depvar
+        )
+        y, prod_mapping = self._prepare_y_outcome(choice_df, alternatives, self.depvar)
+        nest_indices = self._parse_nesting(self.nesting_structure, prod_mapping)
+        all_nests = list(nest_indices.keys())
+        lambda_lkup = dict(zip(all_nests, range(len(all_nests)), strict=False))
+        coords: dict[str, list[str]] = self._prepare_coords(
+            choice_df,
+            alternatives,
+            self.covariates,
+            fixed_covar,
+            all_nests,
+            nest_indices,
+        )
+        return NestedLogitPreprocessedData(
+            X=X,
+            F=F,
+            y=y,
+            alternatives=alternatives,
+            fixed_covar=fixed_covar,
+            coords=coords,
+            prod_indices=prod_mapping,
+            nest_indices=nest_indices,
+            all_nests=all_nests,
+            lambda_lkup=lambda_lkup,
+        )
+
+    def _store_preprocessed(self, data: NestedLogitPreprocessedData) -> None:
+        """Store a preprocessing result under the model's public attributes."""
+        self.X_data = data.X
+        self.F = data.F
+        self.alternatives = data.alternatives
+        self.fixed_covar = data.fixed_covar
+        self.y = data.y
+        self.prod_indices = data.prod_indices
+        self.nest_indices = {"top": data.nest_indices}
+        self.all_nests = data.all_nests
+        self.lambda_lkup = data.lambda_lkup
+        self.coords: dict[str, list[str]] = data.coords
+
     def preprocess_model_data(
         self, choice_df, utility_equations
     ) -> tuple[np.ndarray, np.ndarray | None, np.ndarray]:
@@ -506,40 +612,9 @@ class NestedLogit(ChoiceDataMixin, ModelBuilder):
         - Assumes the existence of instance attributes ``depvar``, ``covariates``, and ``nesting_structure``.
 
         """
-        X, F, alternatives, fixed_covar = self.prepare_X_matrix(
-            choice_df, utility_equations, self.depvar
-        )
-        self.X_data = X
-        self.F = F
-        self.alternatives = alternatives
-        self.fixed_covar = fixed_covar
-
-        y, prod_mapping = self._prepare_y_outcome(
-            choice_df, self.alternatives, self.depvar
-        )
-        self.y = y
-        self.prod_indices = prod_mapping
-
-        # Parse nesting structure (single-layer only)
-        nest_indices = self._parse_nesting(self.nesting_structure, self.prod_indices)
-        self.nest_indices = {"top": nest_indices}
-        self.all_nests = list(nest_indices.keys())
-        self.lambda_lkup = dict(
-            zip(self.all_nests, range(len(self.all_nests)), strict=False)
-        )
-
-        # note: type hints for coords required for mypy to not get confused
-        # Pass nest_indices to _prepare_coords so it can create nest-specific dims
-        self.coords: dict[str, list[str]] = self._prepare_coords(
-            choice_df,
-            self.alternatives,
-            self.covariates,
-            self.fixed_covar,
-            self.all_nests,
-            nest_indices,  # Add this parameter
-        )
-
-        return X, F, y
+        data = self._preprocess(choice_df, utility_equations)
+        self._store_preprocessed(data)
+        return data.X, data.F, data.y
 
     def build_model(self, **kwargs) -> None:
         """
@@ -553,9 +628,9 @@ class NestedLogit(ChoiceDataMixin, ModelBuilder):
         ValueError
             If no choice data has been provided.
         """
-        choice_df = self._require_choice_df()
-        X, F, y = self.preprocess_model_data(choice_df, self.utility_equations)
-        self.model = self.make_model(X, F, y)
+        data = self._preprocess(self._require_choice_df(), self.utility_equations)
+        self._store_preprocessed(data)
+        self.model = self.make_model(data.X, data.F, data.y)
 
     def make_intercepts(self) -> pt.TensorVariable:
         """Create alternative-specific intercepts with reference alternative set to zero.
@@ -758,7 +833,7 @@ class NestedLogit(ChoiceDataMixin, ModelBuilder):
 
         return nest_probs, conditional_probs
 
-    def make_model(self, X, W, y) -> pm.Model:
+    def make_model(self, X, W, y, *, coords=None, nest_indices=None) -> pm.Model:
         """Build nested logit model.
 
         Parameters
@@ -771,6 +846,11 @@ class NestedLogit(ChoiceDataMixin, ModelBuilder):
             Observed choices, shape (n_obs,)
         alphas_nests : bool, optional
             Whether to include nest-specific intercepts (default is False)
+        coords : dict, optional
+            Coordinates for the PyMC model. Defaults to the stored coordinates.
+        nest_indices : dict, optional
+            Mapping of nest names to alternative indices. Defaults to the stored
+            single-layer nesting. Only single-layer nesting is supported.
 
         Returns
         -------
@@ -778,9 +858,12 @@ class NestedLogit(ChoiceDataMixin, ModelBuilder):
             PyMC model
         """
         n_alts = X.shape[1]
-        nest_indices = self.nest_indices["top"]  # Only single-layer nesting
+        if coords is None:
+            coords = self.coords
+        if nest_indices is None:
+            nest_indices = self.nest_indices["top"]
 
-        with pm.Model(coords=self.coords) as model:
+        with pm.Model(coords=coords) as model:
             # Create parameters
             alphas = self.make_intercepts()
             betas = self.make_alt_coefs()
@@ -1137,21 +1220,22 @@ class NestedLogit(ChoiceDataMixin, ModelBuilder):
 
             self.intervention_idata = idata_new_policy
         else:
-            try:
-                new_X, new_F, new_y = self.preprocess_model_data(
-                    new_choice_df, new_utility_equations
+            data = self._preprocess(new_choice_df, new_utility_equations)
+            new_model = self.make_model(
+                data.X,
+                data.F,
+                data.y,
+                coords=data.coords,
+                nest_indices=data.nest_indices,
+            )
+            with new_model:
+                idata_new_policy = pm.sample_prior_predictive()
+                idata_new_policy.update(pm.sample(**fit_kwargs))
+                idata_new_policy.update(
+                    pm.sample_posterior_predictive(
+                        idata_new_policy, var_names=["p", "likelihood"]
+                    ),
                 )
-                new_model = self.make_model(new_X, new_F, new_y)
-                with new_model:
-                    idata_new_policy = pm.sample_prior_predictive()
-                    idata_new_policy.update(pm.sample(**fit_kwargs))
-                    idata_new_policy.update(
-                        pm.sample_posterior_predictive(
-                            idata_new_policy, var_names=["p", "likelihood"]
-                        ),
-                    )
-            finally:
-                self._restore_model_data()
 
             self.intervention_idata = idata_new_policy
 

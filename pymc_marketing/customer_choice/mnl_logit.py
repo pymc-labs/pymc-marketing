@@ -15,6 +15,7 @@
 
 import json
 from collections.abc import Sequence
+from dataclasses import dataclass
 from typing import Any, Self
 
 import matplotlib.pyplot as plt
@@ -36,6 +37,36 @@ from pymc_marketing.model_config import parse_model_config
 from pymc_marketing.version import __version__
 
 HDI_ALPHA = 0.5
+
+
+@dataclass(frozen=True)
+class MNLogitPreprocessedData:
+    """Arrays and metadata built from choice data before a model is created.
+
+    Attributes
+    ----------
+    X : np.ndarray
+        Alternative-specific covariates of shape
+        ``(n_obs, n_alts, n_covariates)``.
+    F : np.ndarray or None
+        Fixed covariates of shape ``(n_obs, n_fixed_covariates)``, or ``None``
+        when the utility equations have no fixed covariates.
+    y : np.ndarray
+        Encoded choices of shape ``(n_obs,)``.
+    alternatives : list of str
+        Alternative names in utility-equation order.
+    fixed_covar : np.ndarray
+        Unique fixed-covariate names taken from the utility equations.
+    coords : dict
+        Coordinates for the PyMC model.
+    """
+
+    X: np.ndarray
+    F: np.ndarray | None
+    y: np.ndarray
+    alternatives: list[str]
+    fixed_covar: np.ndarray
+    coords: dict[str, Sequence[str] | Sequence[int]]
 
 
 class MNLogit(ChoiceDataMixin, ModelBuilder):
@@ -118,6 +149,9 @@ class MNLogit(ChoiceDataMixin, ModelBuilder):
 
     #: Name of the ``pm.Data`` container holding the fixed covariates.
     _fixed_data_name = "F"
+
+    #: Attribute holding the design matrix stored by :meth:`build_model`.
+    _X_data_name = "X"
 
     def __init__(
         self,
@@ -330,26 +364,55 @@ class MNLogit(ChoiceDataMixin, ModelBuilder):
         }
         return coords
 
+    def _preprocess(
+        self, choice_df: pd.DataFrame, utility_equations: list[str]
+    ) -> MNLogitPreprocessedData:
+        """Build the model inputs from choice data without storing them.
+
+        Parameters
+        ----------
+        choice_df : pd.DataFrame
+            The choice data to preprocess.
+        utility_equations : list of str
+            The utility equations to preprocess the data with.
+
+        Returns
+        -------
+        MNLogitPreprocessedData
+            The frozen preprocessing result.
+        """
+        X, F, alternatives, fixed_covar = self.prepare_X_matrix(
+            choice_df, utility_equations, self.depvar
+        )
+        y = self._prepare_y_outcome(choice_df, alternatives, self.depvar)
+        coords = self._prepare_coords(
+            choice_df, alternatives, self.covariates, fixed_covar
+        )
+        return MNLogitPreprocessedData(
+            X=X,
+            F=F,
+            y=y,
+            alternatives=alternatives,
+            fixed_covar=fixed_covar,
+            coords=coords,
+        )
+
+    def _store_preprocessed(self, data: MNLogitPreprocessedData) -> None:
+        """Store a preprocessing result under the model's public attributes."""
+        self.X = data.X
+        self.F: np.ndarray | None = data.F
+        self.alternatives = data.alternatives
+        self.fixed_covar = data.fixed_covar
+        self.y = data.y
+        self.coords: dict[str, Sequence[str] | Sequence[int]] = data.coords
+
     def preprocess_model_data(
         self, choice_df: pd.DataFrame, utility_equations: list[str]
     ) -> tuple[np.ndarray, np.ndarray | None, np.ndarray]:
         """Pre-process the model initiation inputs into a format that can be used by the PyMC model."""
-        X, F, alternatives, fixed_covar = self.prepare_X_matrix(
-            choice_df, utility_equations, self.depvar
-        )
-        self.X = X
-        self.F: np.ndarray | None = F
-        self.alternatives = alternatives
-        self.fixed_covar = fixed_covar
-        y = self._prepare_y_outcome(choice_df, self.alternatives, self.depvar)
-        self.y = y
-
-        # note: type hints for coords required for mypy to not get confused
-        self.coords: dict[str, Sequence[str] | Sequence[int]] = self._prepare_coords(
-            choice_df, self.alternatives, self.covariates, self.fixed_covar
-        )
-
-        return X, F, y
+        data = self._preprocess(choice_df, utility_equations)
+        self._store_preprocessed(data)
+        return data.X, data.F, data.y
 
     def build_model(self, **kwargs) -> None:
         """
@@ -363,9 +426,9 @@ class MNLogit(ChoiceDataMixin, ModelBuilder):
         ValueError
             If no choice data has been provided.
         """
-        choice_df = self._require_choice_df()
-        X, F, y = self.preprocess_model_data(choice_df, self.utility_equations)
-        self.model = self.make_model(X, F, y)
+        data = self._preprocess(self._require_choice_df(), self.utility_equations)
+        self._store_preprocessed(data)
+        self.model = self.make_model(data.X, data.F, data.y)
 
     def make_intercepts(self) -> pt.TensorVariable:
         """Create alternative-specific intercepts with reference alternative set to zero.
@@ -475,7 +538,12 @@ class MNLogit(ChoiceDataMixin, ModelBuilder):
         return p
 
     def make_model(
-        self, X: np.ndarray, F: np.ndarray | None, y: np.ndarray
+        self,
+        X: np.ndarray,
+        F: np.ndarray | None,
+        y: np.ndarray,
+        *,
+        coords: dict[str, Sequence[str] | Sequence[int]] | None = None,
     ) -> pm.Model:
         """Build Model.
 
@@ -487,6 +555,8 @@ class MNLogit(ChoiceDataMixin, ModelBuilder):
             Fixed covariates, shape (n_obs, n_fixed_covariates)
         y : np.ndarray
             Observed choices, shape (n_obs,)
+        coords : dict, optional
+            Coordinates for the PyMC model. Defaults to the stored coordinates.
 
         Returns
         -------
@@ -494,8 +564,10 @@ class MNLogit(ChoiceDataMixin, ModelBuilder):
             PyMC model
         """
         n_alts = X.shape[1]
+        if coords is None:
+            coords = self.coords
 
-        with pm.Model(coords=self.coords) as model:
+        with pm.Model(coords=coords) as model:
             # Create parameters
             alphas = self.make_intercepts()
             betas = self.make_alt_coefs()
@@ -767,28 +839,23 @@ class MNLogit(ChoiceDataMixin, ModelBuilder):
 
             self.intervention_idata = idata_new_policy
         else:
-            try:
-                new_X, new_F, new_y = self.preprocess_model_data(
-                    new_choice_df, new_utility_equations
+            data = self._preprocess(new_choice_df, new_utility_equations)
+            new_model = self.make_model(data.X, data.F, data.y, coords=data.coords)
+            with new_model:
+                idata_new_policy = pm.sample_prior_predictive()
+                idata_new_policy.update(
+                    pm.sample(
+                        target_accept=0.99,
+                        tune=2000,
+                        idata_kwargs={"log_likelihood": True},
+                        random_seed=101,
+                    ),
                 )
-                new_model = self.make_model(new_X, new_F, new_y)
-                with new_model:
-                    idata_new_policy = pm.sample_prior_predictive()
-                    idata_new_policy.update(
-                        pm.sample(
-                            target_accept=0.99,
-                            tune=2000,
-                            idata_kwargs={"log_likelihood": True},
-                            random_seed=101,
-                        ),
-                    )
-                    idata_new_policy.update(
-                        pm.sample_posterior_predictive(
-                            idata_new_policy, var_names=["p", "likelihood"]
-                        ),
-                    )
-            finally:
-                self._restore_model_data()
+                idata_new_policy.update(
+                    pm.sample_posterior_predictive(
+                        idata_new_policy, var_names=["p", "likelihood"]
+                    ),
+                )
 
             self.intervention_idata = idata_new_policy
 
