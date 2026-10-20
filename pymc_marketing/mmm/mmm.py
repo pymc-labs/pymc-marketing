@@ -181,7 +181,6 @@ from __future__ import annotations
 
 import io
 import json
-import logging
 import warnings
 from collections.abc import Callable, Sequence
 from copy import deepcopy
@@ -281,8 +280,6 @@ if TYPE_CHECKING:
         BudgetOptimizer,
     )
     from pymc_marketing.mmm.price_response import PriceResponse
-
-logger = logging.getLogger(__name__)
 
 
 def _deserialize_cost_per_unit(json_str: str) -> pd.DataFrame:
@@ -2451,7 +2448,6 @@ class MMM(RegressionModelBuilder):
                     "`build_model` with this data, add them again, and then "
                     "call `fit`."
                 )
-            logger.debug("X differs from the data the model was built on; rebuilding.")
             self.build_model(checked_X, checked_y)
             # Groups such as the prior were sampled from the old model.
             self.idata = None
