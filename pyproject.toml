@@ -57,7 +57,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dag = ["dowhy", "networkx", "osqp<1.0.0,>=0.6.2", "pygraphviz"]
+dag = ["dowhy", "networkx", "pygraphviz"]
 pie = ["pymc-bart>=0.13.0"]
 docs = [
     "blackjax<1.6",
@@ -85,7 +85,6 @@ docs = [
     "mlflow>=2.0.0",
     "networkx",
     "dowhy",
-    "osqp<1.0.0,>=0.6.2",
     "preliz>=0.20.0",
     "plotly>=6.3.0",
     "impulso>=0.0.12"
@@ -110,7 +109,6 @@ test = [
     "mlflow>=2.0.0",
     "networkx",
     "dowhy",
-    "osqp<1.0.0,>=0.6.2",
     "pygraphviz",
     "preliz>=0.20.0",
     "plotly>=6.3.0",
