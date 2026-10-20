@@ -2405,19 +2405,44 @@ class MMM(RegressionModelBuilder):
         Parameters
         ----------
         X : pd.DataFrame, xr.Dataset, or xr.DataArray
-            The input data for the model. When a :class:`pd.DataFrame` is provided,
-            columns should include channels, control variables (if applicable), and
-            Fourier components (if applicable). When an :class:`xr.Dataset` or
-            :class:`xr.DataArray` is provided, variables should be named ``"channel"``,
-            ``"target"``, and optionally ``"control"`` (or the underscore-prefixed
-            internal names ``"_channel"``, ``"_target"``, ``"_control"``). Its
-            ``channel`` coordinate is put in ``channel_columns`` order, and its
-            ``control`` coordinate in ``control_columns`` order when that is set;
-            labels not listed there are dropped.
+            The input data for the model.
 
-        y : pd.Series, np.ndarray, xr.DataArray, or None
-            The target/response variable for the modeling. If omitted, ``X`` must
-            contain a ``"target"`` (or ``"_target"``) variable.
+            - :class:`pd.DataFrame`: the ``date_column``, a column per entry in
+              ``dims``, the ``channel_columns`` and, when set, the
+              ``control_columns``; the ``target_column`` too when ``y`` is omitted.
+            - :class:`xr.Dataset`: a coordinate named ``date``, whatever
+              ``date_column`` is, and a coordinate per entry in ``dims``. The media
+              go in a ``"media"`` (or ``"_channel"``) variable with a ``channel``
+              dimension labelled with ``channel_columns``; the target in a
+              ``"target"`` (or ``"_target"``) variable unless ``y`` is given; and,
+              when ``control_columns`` is set, the controls in a ``"_control"``
+              variable with a ``control`` dimension labelled with
+              ``control_columns``. Other data variables are carried through, with
+              missing values set to 0, for
+              :class:`~pymc_marketing.mmm.additive_effect.DataVarMuEffect` effects
+              to read by name.
+            - :class:`xr.DataArray`: the media alone, laid out like the
+              ``"media"`` variable above, unnamed or named ``"media"`` or
+              ``"_channel"``.
+
+            The media and the controls cannot be named ``"channel"`` or
+            ``"control"``: xarray stores a variable that shares its name with one
+            of its dimensions as a coordinate (and raises if labels for that
+            dimension are also passed in ``coords``), so the model never sees it.
+            The ``channel`` coordinate is put in ``channel_columns`` order, and the
+            ``control`` coordinate in ``control_columns`` order; labels not listed
+            there are dropped. See
+            :func:`~pymc_marketing.mmm.data_conversion.to_mmm_dataset`.
+
+        y : pd.Series, pd.DataFrame, np.ndarray, xr.DataArray, or None
+            The target/response variable for the modeling. Required when ``X`` is
+            an :class:`xr.DataArray`. May be omitted when a :class:`pd.DataFrame`
+            ``X`` has the ``target_column`` column or an :class:`xr.Dataset` ``X``
+            has a ``"target"`` (or ``"_target"``) variable. Passing ``y`` with such
+            a Dataset raises; with such a DataFrame, ``y`` is used instead of the
+            column. Alongside a panel :class:`xr.Dataset` or
+            :class:`xr.DataArray`, ``y`` needs its ``date`` and ``dims`` labels,
+            e.g. as an :class:`xr.DataArray` with those coordinates.
 
         **kwargs : dict
             Additional keyword arguments that might be required by underlying methods or utilities.
