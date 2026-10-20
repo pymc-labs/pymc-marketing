@@ -2880,14 +2880,11 @@ def test_a_one_shot_evaluation_does_not_pin_the_rebinds(rebind_first):
     assert optimizer._shared_posterior is not None
 
 
-def test_an_ad_hoc_function_is_recompiled_after_a_rebind_drops_its_variable():
-    """A swap without the ad-hoc variable drops its function and still succeeds.
+def _ad_hoc_response_optimizer():
+    """The model, posterior and plan of the ad-hoc response tests.
 
-    ``noise_thing`` reads ``gamma``, which the objective does not.  A posterior
-    thinned to the objective's variables cannot satisfy the ad-hoc binding, so
-    the rebind drops that key instead of failing.  When ``gamma`` comes back,
-    the next evaluation builds a new graph and recompiles rather than reusing a
-    function that would report the old draws.
+    ``noise_thing`` reads ``gamma``, which the objective does not, so it is the
+    optional tier once the optimizer has rebound.
     """
     n_dates = 4
     channels = ["a", "b"]
@@ -2920,6 +2917,19 @@ def test_an_ad_hoc_function_is_recompiled_after_a_rebind_drops_its_variable():
         response_variable="total_media_contribution_original_scale",
     )
     plan = xr.DataArray([30.0, 70.0], dims=["channel"], coords={"channel": channels})
+    return optimizer, plan, posterior
+
+
+def test_an_ad_hoc_function_is_recompiled_after_a_rebind_drops_its_variable():
+    """A swap without the ad-hoc variable drops its function and still succeeds.
+
+    ``noise_thing`` reads ``gamma``, which the objective does not.  A posterior
+    thinned to the objective's variables cannot satisfy the ad-hoc binding, so
+    the rebind drops that key instead of failing.  When ``gamma`` comes back,
+    the next evaluation builds a new graph and recompiles rather than reusing a
+    function that would report the old draws.
+    """
+    optimizer, plan, posterior = _ad_hoc_response_optimizer()
 
     optimizer.set_posterior(xr.DataTree.from_dict({"/posterior": posterior}))
     before = optimizer.evaluate_response_distribution(plan, "noise_thing")
@@ -2946,6 +2956,125 @@ def test_an_ad_hoc_function_is_recompiled_after_a_rebind_drops_its_variable():
 
     assert optimizer._response_functions["noise_thing"][0] is not compiled
     assert not np.allclose(after.to_numpy(), reused.to_numpy())
+
+
+@pytest.mark.parametrize(
+    "error",
+    [
+        pytest.param(RuntimeError, id="exception"),
+        pytest.param(KeyboardInterrupt, id="interrupt"),
+    ],
+)
+def test_a_failed_first_rebind_rolls_the_conditioned_model_back(error, monkeypatch):
+    """A failure after the conditioned rebind leaves both objects in constant mode.
+
+    The next real rebind takes the first-rebind path again, so it recompiles and
+    evaluates the new draws rather than keeping the constant graphs.
+    """
+    optimizer, plan, posterior = _ad_hoc_response_optimizer()
+    conditioned = optimizer._conditioned
+    before_idata = optimizer.idata
+    before_objective = optimizer._objective_and_grad
+    before_posterior = conditioned.posterior
+    before_cache = {
+        key: (cached.graphs, cached.optional_binding)
+        for key, cached in conditioned._cache.items()
+    }
+    old = optimizer.evaluate_response_distribution(plan)
+    assert conditioned.shared_posterior is None
+
+    new = xr.DataTree.from_dict({"/posterior": posterior * 2.0})
+    original = conditioned.set_posterior
+
+    def rebind_then_fail(idata):
+        original(idata)
+        raise error("after the conditioned rebind")
+
+    with monkeypatch.context() as patch:
+        patch.setattr(conditioned, "set_posterior", rebind_then_fail)
+        with pytest.raises(error, match="after the conditioned rebind"):
+            optimizer.set_posterior(new)
+
+    assert conditioned.shared_posterior is None
+    assert list(conditioned._cache) == list(before_cache)
+    for key, (graphs, binding) in before_cache.items():
+        assert conditioned._cache[key].graphs is graphs
+        assert conditioned._cache[key].optional_binding is binding
+    assert conditioned.posterior is before_posterior
+    assert optimizer.idata is before_idata
+    assert optimizer._objective_and_grad is before_objective
+    np.testing.assert_allclose(
+        optimizer.evaluate_response_distribution(plan).to_numpy(), old.to_numpy()
+    )
+
+    optimizer.set_posterior(new)
+
+    assert conditioned.shared_posterior is not None
+    assert conditioned.posterior is not before_posterior
+    assert optimizer.idata is new
+    assert optimizer._objective_and_grad is not before_objective
+    assert not np.allclose(
+        optimizer.evaluate_response_distribution(plan).to_numpy(), old.to_numpy()
+    )
+
+
+def test_a_failed_shared_mode_rebind_restores_the_old_draws_without_recompiling(
+    monkeypatch,
+):
+    """A later failure puts the previous draws back into the same shared variables.
+
+    No function is recompiled and every evaluation still reports the old draws.
+    """
+    optimizer, plan, posterior = _ad_hoc_response_optimizer()
+    optimizer.set_posterior(xr.DataTree.from_dict({"/posterior": posterior}))
+    conditioned = optimizer._conditioned
+    shared = conditioned.shared_posterior
+    assert shared is not None
+    before_idata = optimizer.idata
+    before_objective = optimizer._objective_and_grad
+    before = optimizer.evaluate_response_distribution(plan)
+    before_adhoc = optimizer.evaluate_response_distribution(plan, "noise_thing")
+    adhoc_function = optimizer._response_functions["noise_thing"][0]
+    optional_key = next(
+        key for key, cached in conditioned._cache.items() if cached.optional_binding
+    )
+    optional_binding = conditioned._cache[optional_key].optional_binding
+    assert optional_binding is not None
+    variables = shared.variables
+    values = {name: variable.get_value() for name, variable in variables.items()}
+    gamma = optional_binding.variables["gamma"]
+    gamma_values = gamma.get_value()
+
+    original = conditioned.set_posterior
+
+    def rebind_then_fail(idata):
+        original(idata)
+        raise RuntimeError("after the conditioned rebind")
+
+    with monkeypatch.context() as patch:
+        patch.setattr(conditioned, "set_posterior", rebind_then_fail)
+        with pytest.raises(RuntimeError, match="after the conditioned rebind"):
+            optimizer.set_posterior(
+                xr.DataTree.from_dict({"/posterior": posterior * 2.0})
+            )
+
+    assert conditioned.shared_posterior is shared
+    assert set(shared.variables) == set(variables)
+    for name, variable in variables.items():
+        assert shared.variables[name] is variable
+        np.testing.assert_array_equal(shared.variables[name].get_value(), values[name])
+    assert optional_binding.variables["gamma"] is gamma
+    np.testing.assert_array_equal(gamma.get_value(), gamma_values)
+    assert optimizer.idata is before_idata
+    assert optimizer._objective_and_grad is before_objective
+    assert optimizer._response_functions["noise_thing"][0] is adhoc_function
+    np.testing.assert_allclose(
+        optimizer.evaluate_response_distribution(plan).to_numpy(), before.to_numpy()
+    )
+    np.testing.assert_allclose(
+        optimizer.evaluate_response_distribution(plan, "noise_thing").to_numpy(),
+        before_adhoc.to_numpy(),
+    )
 
 
 def test_a_one_shot_evaluation_follows_a_reordered_rebind():

@@ -820,6 +820,31 @@ class _CachedGraphs(NamedTuple):
     optional_binding: SharedPosterior | None = None
 
 
+class _BindingCheckpoint(NamedTuple):
+    """A private optional binding and shallow copies of its registries."""
+
+    binding: SharedPosterior
+    variables: dict[str, SharedVariable]
+    layouts: dict[str, _VariableLayout]
+
+
+class _Checkpoint(NamedTuple):
+    """A cheap snapshot of a :class:`ConditionedModel`'s binding state.
+
+    The cache and the registries are shallow-copied; the posterior dataset is
+    held by reference and no draws are copied.  A restore therefore writes the
+    previous draws back through the same :class:`SharedPosterior`, so a
+    compiled function that holds its variables keeps reading them.
+    """
+
+    cache: OrderedDict[tuple[str | Variable | bool, ...], _CachedGraphs]
+    posterior: xr.Dataset
+    shared_posterior: SharedPosterior | None
+    variables: dict[str, SharedVariable]
+    layouts: dict[str, _VariableLayout]
+    optional: tuple[_BindingCheckpoint, ...]
+
+
 class ConditionedModel:
     """A model after an intervention, and the one owner of its posterior binding.
 
@@ -1146,6 +1171,9 @@ class ConditionedModel:
         -----
         After an error, and when a registered callback raises, the previous
         cache, posterior and binding are restored.
+        A shared-mode swap that fails after some variables were written writes
+        the previous draws back into the same variables, so no compiled function
+        is left reading the new ones.
 
         A callback that extracts a new key during a rebind adds it to the cache.
         If a first rebind fails and is rolled back, the cache returns to its previous state and drops those entries.
@@ -1156,51 +1184,134 @@ class ConditionedModel:
         bound to, so a consumer re-extracts before evaluating again.
         """
         posterior = self._realigned(_posterior_dataset(idata))
-        previous_cache = self._cache
-        previous_posterior = self._posterior
-        previous_shared = self._shared_posterior
 
-        if not previous_cache:
+        if not self._cache:
             # Nothing handed out is waiting to be rebuilt, so no variable is
             # bound yet.  Switch to the shared path if needed and record the draws.
-            if previous_shared is None:
+            if self._shared_posterior is None:
                 self._shared_posterior = SharedPosterior()
             self._posterior = posterior
             return
 
-        if previous_shared is not None:
-            # The required binding goes first: its variables are the ones the
-            # long-lived graphs read, so its failure is the caller's failure.
-            # ``SharedPosterior.set_posterior`` validates exactly those and
-            # writes nothing unless all of them pass.
-            previous_shared.set_posterior(posterior)
-            # Each optional key owns a binding of its own.  One the new
-            # posterior cannot satisfy is dropped here rather than refusing the
-            # whole rebind; the next extraction of that key builds a new graph.
-            for key, cached in list(self._cache.items()):
-                binding = cached.optional_binding
-                if binding is None:
-                    continue
-                try:
-                    binding.set_posterior(posterior)
-                except (KeyError, ValueError):
-                    del self._cache[key]
-            self._posterior = posterior
+        if self._shared_posterior is not None:
+            # The checkpoint makes the swap atomic: an unexpected failure
+            # after the required variables were written puts the old draws
+            # back, so no compiled function is left reading the new ones.
+            checkpoint = self._checkpoint()
+            try:
+                # The required binding goes first: its variables are the ones
+                # the long-lived graphs read, so its failure is the caller's
+                # failure.  ``SharedPosterior.set_posterior`` validates exactly
+                # those and writes nothing unless all of them pass.
+                self._shared_posterior.set_posterior(posterior)
+                # Each optional key owns a binding of its own.  One the new
+                # posterior cannot satisfy is dropped here rather than refusing
+                # the whole rebind; the next extraction of that key builds a
+                # new graph.
+                for key, cached in list(self._cache.items()):
+                    binding = cached.optional_binding
+                    if binding is None:
+                        continue
+                    try:
+                        binding.set_posterior(posterior)
+                    except (KeyError, ValueError):
+                        del self._cache[key]
+                self._posterior = posterior
+            except BaseException:
+                self._restore(checkpoint)
+                raise
             return
 
         # First rebind with a cache: drop the constant graphs, install a fresh
         # binding and let the callbacks re-request only what they use.  A stale
         # inspection key or a replaced constraint therefore never binds.
+        checkpoint = self._checkpoint()
         self._cache = OrderedDict()
         self._shared_posterior = SharedPosterior()
         self._posterior = posterior
         try:
             self._fire_callbacks()
         except BaseException:
-            self._cache = previous_cache
-            self._shared_posterior = previous_shared
-            self._posterior = previous_posterior
+            self._restore(checkpoint)
             raise
+
+    def _checkpoint(self) -> _Checkpoint:
+        """Snapshot the cache and binding state without copying any draws.
+
+        The cache and the registries are shallow-copied, so this is cheap and
+        safe to take before a rebind that may need rolling back.  The posterior
+        dataset is held by reference: a restore writes its draws back through
+        the shared variables instead of replacing them.
+
+        Returns
+        -------
+        _Checkpoint
+            The token :meth:`_restore` reinstalls.
+        """
+        shared = self._shared_posterior
+        optional = tuple(
+            _BindingCheckpoint(
+                binding, binding._variables.copy(), binding._layouts.copy()
+            )
+            for cached in self._cache.values()
+            if (binding := cached.optional_binding) is not None
+        )
+        return _Checkpoint(
+            cache=self._cache.copy(),
+            posterior=self._posterior,
+            shared_posterior=shared,
+            variables={} if shared is None else shared._variables.copy(),
+            layouts={} if shared is None else shared._layouts.copy(),
+            optional=optional,
+        )
+
+    def _restore(self, token: _Checkpoint) -> None:
+        """Reinstall a snapshot taken by :meth:`_checkpoint`.
+
+        The cache, posterior and shared-posterior object are replaced with the
+        token's.  When the token's own :class:`SharedPosterior` is still the
+        current one -- a later rebind, which swaps draws in place -- its
+        registries are put back and the previous draws are written into the
+        same shared variables, so a compiled function that holds them reads
+        the old draws again.  A first rebind instead installed a fresh object,
+        so the token's previous object is reinstalled untouched.
+
+        Each optional binding is restored the same way.  One whose previous
+        posterior no longer satisfies it is dropped from the cache rather than
+        failing the restore.  The method runs straight through and is
+        idempotent: a second call leaves the same state.
+
+        Parameters
+        ----------
+        token : _Checkpoint
+            The token returned by :meth:`_checkpoint`.
+        """
+        self._cache = token.cache.copy()
+        self._posterior = token.posterior
+        current = self._shared_posterior
+        self._shared_posterior = token.shared_posterior
+        shared = token.shared_posterior
+        if shared is not None:
+            shared._variables = token.variables.copy()
+            shared._layouts = token.layouts.copy()
+            if current is shared:
+                shared.set_posterior(token.posterior)
+        # An optional binding is the object held by the token's cache, so a
+        # rebind may have swapped draws in it even though the entry is back.
+        for saved in token.optional:
+            binding = saved.binding
+            binding._variables = saved.variables.copy()
+            binding._layouts = saved.layouts.copy()
+            try:
+                binding.set_posterior(token.posterior)
+            except (KeyError, ValueError):
+                dropped = [
+                    key
+                    for key, cached in self._cache.items()
+                    if cached.optional_binding is binding
+                ]
+                for key in dropped:
+                    del self._cache[key]
 
     def _realigned(self, posterior: xr.Dataset) -> xr.Dataset:
         """Return ``posterior`` reordered along dimensions that keep their labels.

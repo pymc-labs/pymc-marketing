@@ -3116,7 +3116,8 @@ class BudgetOptimizer(BaseModel):
             information about.  Nothing is changed in that case, including
             on the first call:
             a recompile that fails leaves the constant-folded graphs, the
-            previous ``idata`` and the previous constraints in place.
+            previous ``idata``, the previous constraints and the conditioned
+            model's binding in place.
 
         Examples
         --------
@@ -3149,9 +3150,14 @@ class BudgetOptimizer(BaseModel):
         # on the first rebind, and fires the recompile callback.  This
         # optimizer keeps the rollback of everything it compiled from those
         # graphs, so a rebind that fails -- a posterior the shared variables
-        # cannot take, or a recompile that raises -- leaves it exactly as it
-        # was and the next call retries the first-rebind path rather than
-        # rebinding variables the compiled objective never reads.
+        # cannot take, a recompile that raises, or an interruption after the
+        # conditioned model has already rebound -- leaves it exactly as it was.
+        # After a failed first rebind the next call retries the first-rebind
+        # path rather than rebinding variables the compiled objective never
+        # reads; after a failed later swap it swaps again.  The conditioned model's
+        # own checkpoint is taken before the call so its binding is rolled back
+        # with this state, including draws a later shared-mode swap wrote.
+        checkpoint = self._conditioned._checkpoint()
         previous = (
             self.idata,
             self._objective_and_grad,
@@ -3176,6 +3182,7 @@ class BudgetOptimizer(BaseModel):
                 self._compiled_constraints,
                 self._response_functions,
             ) = previous
+            self._conditioned._restore(checkpoint)
             raise
 
     def _recompile_after_rebind(self) -> None:

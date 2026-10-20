@@ -1507,6 +1507,56 @@ def test_conditioned_model_optional_binding_follows_rebinds_and_is_dropped():
     )
 
 
+def test_conditioned_model_restore_is_idempotent_and_drops_an_unrestorable_key():
+    """A checkpoint restores every binding, and restoring it twice changes nothing.
+
+    A token whose stored posterior cannot satisfy an optional binding drops that
+    key instead of failing the restore.
+    """
+    model, spend = _channel_conditioned_model()
+    conditioned = ConditionedModel(
+        model,
+        _channel_posterior([1.0, 2.0], gamma=[10.0, 20.0]),
+        intervention={"spend": spend},
+        share_posterior=True,
+    )
+    conditioned.extract("resp")
+    optional = conditioned.extract("resp_g", required=False)
+    optional_key = next(
+        key for key, cached in conditioned._cache.items() if cached.optional_binding
+    )
+    shared = conditioned.shared_posterior
+    token = conditioned._checkpoint()
+
+    # A successful rebind swaps both bindings; the restore puts the old draws
+    # back into the same objects and keeps the optional key cached.
+    conditioned.set_posterior(_channel_posterior([3.0, 4.0], gamma=[30.0, 40.0]))
+    conditioned._restore(token)
+
+    assert conditioned.shared_posterior is shared
+    assert conditioned.extract("resp_g", required=False) is optional
+    np.testing.assert_allclose(
+        function([], optional)(), np.asarray([10.0, 20.0])[None, :] * spend
+    )
+    variables = shared.variables
+    values = {name: variable.get_value() for name, variable in variables.items()}
+
+    conditioned._restore(token)  # a second call leaves the same state
+
+    assert conditioned.shared_posterior is shared
+    assert set(shared.variables) == set(variables)
+    for name, variable in variables.items():
+        assert shared.variables[name] is variable
+        np.testing.assert_array_equal(shared.variables[name].get_value(), values[name])
+    assert optional_key in conditioned._cache
+
+    # The token's own posterior cannot satisfy the optional binding without
+    # ``gamma``, so restoring it drops only that key.
+    thinned = token._replace(posterior=token.posterior.drop_vars("gamma"))
+    conditioned._restore(thinned)
+    assert optional_key not in conditioned._cache
+
+
 @pytest.mark.parametrize("rebind_first", [False, True])
 def test_conditioned_model_uncached_extract_is_not_pinned(rebind_first):
     """A ``cache=False`` graph is never registered, on either side of a rebind.
