@@ -4,128 +4,67 @@ on:
   issues:
     types: [opened, edited]
 
+permissions: {}
+
 concurrency:
-  group: issue-${{ github.event.issue.number }}-duplicate
+  group: duplicates-${{ github.event.issue.number }}
   cancel-in-progress: false
 
 jobs:
-  check-duplicates:
+  analyze:
     if: github.event.action == 'opened' || github.event.changes.body
     runs-on: ubuntu-latest
-    timeout-minutes: 20
-
+    timeout-minutes: 15
     permissions:
       contents: read
-      issues: write
-
+      issues: read
     steps:
       - name: Wait for edits to settle
-        run: |
-          if [ "${{ github.event.action }}" = "opened" ]; then
-            sleep 120
-          else
-            sleep 300
-          fi
-
-      - name: Checkout repository
-        uses: actions/checkout@v7
-        with:
-          fetch-depth: 1
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v7
-        with:
-          node-version: "18"
-
-      - name: Install Claude Code CLI
-        run: |
-          npm install -g @anthropic-ai/claude-code
-
-      - name: Verify Claude installation
-        run: |
-          claude --version
-
-      - name: Prepare issue content
-        id: prepare
         env:
-          ISSUE_NUMBER: ${{ github.event.issue.number }}
-          ISSUE_TITLE: ${{ github.event.issue.title }}
-          ISSUE_BODY: ${{ github.event.issue.body }}
+          EVENT_ACTION: ${{ github.event.action }}
         run: |
-          {
-            printf '%s\n' "CURRENT_ISSUE_NUMBER: $ISSUE_NUMBER"
-            printf '%s\n' ""
-            printf '%s\n' "# Issue: $ISSUE_TITLE"
-            printf '%s\n' ""
-            printf '%s\n' "$ISSUE_BODY"
-          } > /tmp/issue_content.txt
-
-      - name: Run duplicate finder agent
+          if [ "$EVENT_ACTION" = "opened" ]; then sleep 120; else sleep 300; fi
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+          sparse-checkout: .github/scripts
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Classify issue without executable model tools
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           GH_TOKEN: ${{ github.token }}
-        run: |
-          set -o pipefail
-          claude -p \
-            --dangerously-skip-permissions \
-            --max-turns 50 \
-            --agent duplicate-finder \
-            --print \
-            < /tmp/issue_content.txt 2>&1 | tee /tmp/claude_output.log
+        run: python .github/scripts/issue_automation.py analyze duplicates
+      - uses: actions/upload-artifact@v7
+        with:
+          name: issue-result-duplicates
+          path: result.json
+          if-no-files-found: error
+          overwrite: true
+          retention-days: 1
 
-      - name: Extract agent response
-        id: extract_response
-        run: |
-          # Check if duplicates were found
-          if grep -q "^DUPLICATES: FOUND" /tmp/claude_output.log; then
-            # Extract everything after "DUPLICATES: FOUND"
-            RESPONSE=$(sed -n '/^DUPLICATES: FOUND/,$ p' /tmp/claude_output.log | tail -n +2)
-            echo "has_duplicates=true" >> $GITHUB_OUTPUT
-            # Store response in a temporary file to preserve formatting
-            echo "$RESPONSE" > /tmp/duplicate_response.txt
-          elif grep -q "^DUPLICATES: NONE" /tmp/claude_output.log; then
-            echo "has_duplicates=false" >> $GITHUB_OUTPUT
-          else
-            echo "has_duplicates=false" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Post or update duplicate detection comment
-        if: steps.extract_response.outputs.has_duplicates == 'true'
+  publish:
+    needs: analyze
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+          sparse-checkout: .github/scripts
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - uses: actions/download-artifact@v8
+        with:
+          name: issue-result-duplicates
+      - name: Validate and publish bounded results
         env:
           GH_TOKEN: ${{ github.token }}
-          REPO: ${{ github.repository }}
-          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-          ISSUE_NUMBER: ${{ github.event.issue.number }}
-        run: |
-          # Sentinel marker lets queued runs find and update the prior comment
-          # instead of stacking one comment per edit on the same issue.
-          MARKER='<!-- duplicate-finder-comment -->'
-          {
-            printf '%s\n' "$MARKER"
-            cat /tmp/duplicate_response.txt
-            printf '\n---\n\n'
-            printf '*[Workflow run](%s)*\n' "$RUN_URL"
-          } > /tmp/duplicate_comment.md
-
-          EXISTING_ID="$(gh issue view "$ISSUE_NUMBER" --repo "$REPO" --json comments \
-            --jq ".comments[] | select(.body | startswith(\"$MARKER\")) | .id" \
-            | head -n 1)"
-
-          if [ -n "$EXISTING_ID" ]; then
-            gh api graphql \
-              -f query='mutation($id: ID!, $body: String!) { updateIssueComment(input: {id: $id, body: $body}) { issueComment { id } } }' \
-              -f id="$EXISTING_ID" \
-              -f body="$(cat /tmp/duplicate_comment.md)" >/dev/null
-            echo "Updated existing duplicate-finder comment on issue #$ISSUE_NUMBER"
-          else
-            gh issue comment "$ISSUE_NUMBER" --repo "$REPO" --body-file /tmp/duplicate_comment.md
-            echo "Posted duplicate detection result to issue #$ISSUE_NUMBER"
-          fi
-
-      - name: Upload Claude output logs
-        if: always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: claude-output-duplicate-finder-${{ github.event.issue.number }}
-          path: /tmp/claude_output.log
-          retention-days: 7
+        run: python .github/scripts/issue_automation.py publish duplicates

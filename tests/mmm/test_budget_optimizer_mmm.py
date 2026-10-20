@@ -12,21 +12,30 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 import warnings
+from types import SimpleNamespace
 
 import arviz as az
 import numpy as np
 import pandas as pd
 import pymc as pm
+import pymc.dims as pmd
 import pytest
 import xarray as xr
 from pytensor import function
+from pytensor.compile.mode import Mode
+from pytensor.graph.traversal import ancestors
+from pytensor.xtensor import as_xtensor
+from scipy.optimize import approx_fprime
 
-from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation
+from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation, PowerPriceResponse
+from pymc_marketing.mmm.additive_effect import LinearTrendEffect, MuEffect
 from pymc_marketing.mmm.budget_optimizer import BudgetOptimizer, BuildMergedModel
+from pymc_marketing.mmm.linear_trend import LinearTrend
 from pymc_marketing.mmm.mmm import (
     MMM,
     BudgetOptimizerWrapper,
 )
+from pymc_marketing.mmm.utility import average_response
 from pymc_marketing.version import __version__
 
 
@@ -1134,7 +1143,7 @@ def test_time_distribution_validation_multidim(dummy_df, fitted_mmm, compile_kwa
 
     with pytest.raises(
         ValueError,
-        match="budget_distribution_over_period date dimension must have length 4",
+        match=r"budget_distribution_over_period .date. dimension must have length 4",
     ):
         BudgetOptimizer(
             model=optimizable_model,
@@ -1505,10 +1514,11 @@ def test_multidimensional_optimize_budget_callback_parametrized(
         callback=callback,
     )
 
-    # Check return value count
+    # The result always unpacks to two elements; callback_info holds the iterations
+    optimal_budgets, opt_result = result
+
     if callback:
-        assert len(result) == 3
-        optimal_budgets, opt_result, callback_info = result
+        callback_info = result.callback_info
 
         # Validate callback info
         assert isinstance(callback_info, list)
@@ -1525,8 +1535,7 @@ def test_multidimensional_optimize_budget_callback_parametrized(
         assert all(np.isfinite(obj) for obj in objectives)
 
     else:
-        assert len(result) == 2
-        optimal_budgets, opt_result = result
+        assert result.callback_info is None
 
     # Common validations
     assert isinstance(optimal_budgets, xr.DataArray)
@@ -1543,6 +1552,25 @@ def test_multidimensional_optimize_budget_callback_parametrized(
     assert hasattr(opt_result, "success")
     assert hasattr(opt_result, "x")
     assert hasattr(opt_result, "fun")
+
+
+def test_pre_price_response_positional_call_still_binds_callback(dummy_df, fitted_mmm):
+    """The nine-argument positional form that predates price_response binds its
+    last argument to callback; price_response is keyword-only."""
+    _df_kwargs, X_dummy, _y_dummy = dummy_df
+    wrapper = BudgetOptimizerWrapper(
+        model=fitted_mmm,
+        start_date=X_dummy["date_week"].max() + pd.Timedelta(weeks=1),
+        end_date=X_dummy["date_week"].max() + pd.Timedelta(weeks=4),
+    )
+
+    result = wrapper.optimize_budget(
+        100.0, None, None, average_response, (), None, None, None, True
+    )
+
+    assert isinstance(result.callback_info, list)
+    assert len(result.callback_info) > 0
+    assert result.implied_delivery is None
 
 
 def test_float_channel_data_optimized(simple_fitted_mmm):
@@ -1734,3 +1762,1127 @@ def test_budget_optimizer_plot_new_returns_budget_plots(fitted_mmm, dummy_df):
     optimizable_model.model_class.plot_suite = "new"
     result = optimizable_model.plot
     assert isinstance(result, BudgetPlots)
+
+
+def test_create_optimization_model_returns_valid_model(fitted_mmm, dummy_df):
+    """New API: create_optimization_model returns a usable PyMC model."""
+    _df_kwargs, X_dummy, _y_dummy = dummy_df
+    start = X_dummy["date_week"].max() + pd.Timedelta(weeks=1)
+    end = start + pd.Timedelta(weeks=4)
+    pymc_model = fitted_mmm.create_optimization_model(start, end)
+    assert isinstance(pymc_model, pm.Model)
+    assert "channel_data" in pymc_model.named_vars_to_dims
+
+
+def test_budget_optimizer_new_api(dummy_df, fitted_mmm):
+    """New API: mmm.budget_optimizer() returns a working BudgetOptimizer."""
+    _df_kwargs, X_dummy, _y_dummy = dummy_df
+    start = X_dummy["date_week"].max() + pd.Timedelta(weeks=1)
+    end = start + pd.Timedelta(weeks=4)
+    optimizer = fitted_mmm.budget_optimizer(start_date=start, end_date=end)
+    assert isinstance(optimizer, BudgetOptimizer)
+    _, result = optimizer.allocate_budget(total_budget=100)
+    assert result.success
+
+
+def test_wrapper_optimize_budget_forwards_price_response(dummy_df, fitted_mmm):
+    """The issue's suggested API is wrapper.optimize_budget(..., price_response=...), and
+    a curved, attested response with a (geo, channel) reference goes through the panel
+    wrapper: every spent cell's next unit costs more than its average unit."""
+    _df_kwargs, X_dummy, _y_dummy = dummy_df
+    fitted_mmm.add_original_scale_contribution_variable(["channel_contribution"])
+    with pytest.warns(DeprecationWarning):
+        wrapper = BudgetOptimizerWrapper(
+            model=fitted_mmm,
+            start_date=X_dummy["date_week"].max() + pd.Timedelta(weeks=1),
+            end_date=X_dummy["date_week"].max() + pd.Timedelta(weeks=4),
+        )
+    result = wrapper.optimize_budget(
+        budget=10.0, price_response=PowerPriceResponse(elasticity=0.0)
+    )
+    assert result.implied_price is not None
+
+    reference = xr.DataArray(
+        np.full((2, 2), 5.0),
+        dims=("geo", "channel"),
+        coords={"geo": ["A", "B"], "channel": ["channel_1", "channel_2"]},
+    )
+    priced = wrapper.optimize_budget(
+        budget=10.0,
+        price_response=PowerPriceResponse(
+            elasticity=0.3, reference_spend=reference, assume_delivery_units=True
+        ),
+    )
+    spent = priced.implied_price.notnull()
+    assert bool(spent.any())
+    assert bool(
+        (priced.implied_marginal_price > priced.implied_price).where(spent, True).all()
+    )
+
+
+class _MediatedEffect(MuEffect):
+    """Extra response reaching the target through a mediator, favouring one channel.
+
+    Reads ``channel_data_scaled``, so it is downstream of ``channel_data`` and
+    ``pm.do`` on the budgets moves it. But it lands in ``mu``, *not* in
+    ``channel_contribution`` -- which is precisely what the media-only
+    objective cannot see.
+    """
+
+    prefix: str = "mediated"
+
+    def to_dict(self) -> dict:
+        """Serialize the effect."""
+        return {"prefix": self.prefix}
+
+    def create_data(self, mmm) -> None:
+        """No data of its own."""
+
+    def set_data(self, mmm, model, X) -> None:
+        """No data of its own."""
+
+    def create_effect(self, mmm):
+        """Concave mediated response, weighted onto channel_1 only."""
+        spend = mmm.channel_data_scaled
+        # Michaelis-Menten rather than sqrt: concave, but with a finite
+        # derivative at zero spend, so the solver is well behaved at a bound.
+        saturated = spend / (1.0 + spend)
+        weights = as_xtensor(np.array([4.0, 0.0]), dims=["channel"])
+        return pmd.Deterministic(
+            f"{self.prefix}_effect_contribution",
+            (saturated * weights).sum(dim="channel"),
+        )
+
+
+@pytest.fixture(scope="module")
+def fitted_mmm_mediated(dummy_df, mock_pymc_sample):
+    """A fitted model whose response partly travels through a mu effect."""
+    df_kwargs, X_dummy, y_dummy = dummy_df
+
+    mmm = MMM(
+        adstock=GeometricAdstock(l_max=4),
+        saturation=LogisticSaturation(),
+        **df_kwargs,
+    ).add_mu_effect(_MediatedEffect())
+
+    mmm.build_model(X=X_dummy, y=y_dummy)
+    mmm.fit(
+        X=X_dummy,
+        y=y_dummy,
+        chains=2,
+        target_accept=0.8,
+        tune=50,
+        draws=50,
+        progressbar=False,
+        random_seed=42,
+    )
+    return mmm
+
+
+def test_mediated_response_changes_the_allocation(dummy_df, fitted_mmm_mediated):
+    """The objective that sees the mu effect allocates differently.
+
+    #2890 measured this on a real funnel model: scored against the media-only
+    objective, the optimizer is blind to everything the mediator carries and
+    underspends whatever drives it. Here channel_1 is the only channel feeding
+    the mediator, so the funnel-aware objective must send it more budget.
+    """
+    _df_kwargs, X_dummy, _y_dummy = dummy_df
+
+    def allocate(response_variable):
+        wrapper = BudgetOptimizerWrapper(
+            model=fitted_mmm_mediated,
+            start_date=X_dummy["date_week"].max() + pd.Timedelta(weeks=1),
+            end_date=X_dummy["date_week"].max() + pd.Timedelta(weeks=10),
+        )
+        budgets, result = wrapper.optimize_budget(
+            budget=10, response_variable=response_variable
+        )
+        assert result.success
+        return budgets
+
+    media_only = allocate("total_media_contribution_original_scale")
+    funnel_aware = allocate("total_response_original_scale")
+
+    assert not np.allclose(media_only.to_numpy(), funnel_aware.to_numpy(), atol=1e-6), (
+        "the two objectives produced the same plan, so the mu effect was invisible"
+    )
+
+    ch1 = {"channel": "channel_1"}
+    assert funnel_aware.sel(**ch1).sum() > media_only.sel(**ch1).sum(), (
+        "the objective that sees the mediator should fund the channel driving it"
+    )
+
+
+@pytest.fixture(scope="module")
+def fitted_mmm_trend(dummy_df, mock_pymc_sample):
+    """A fitted model with a mu effect that is *not* downstream of the budgets.
+
+    `LinearTrendEffect` stands for the whole family -- events, Fourier,
+    controls -- whose contributions the media objective correctly excludes.
+    """
+    df_kwargs, X_dummy, y_dummy = dummy_df
+
+    mmm = MMM(
+        adstock=GeometricAdstock(l_max=4),
+        saturation=LogisticSaturation(),
+        **df_kwargs,
+    ).add_mu_effect(
+        LinearTrendEffect(trend=LinearTrend(n_changepoints=2), prefix="trend")
+    )
+
+    mmm.build_model(X=X_dummy, y=y_dummy)
+    mmm.fit(
+        X=X_dummy,
+        y=y_dummy,
+        chains=2,
+        target_accept=0.8,
+        tune=50,
+        draws=50,
+        progressbar=False,
+        random_seed=42,
+    )
+    return mmm
+
+
+class TestDefaultObjectiveWarning:
+    """A model routing media response through an effect must not do so silently.
+
+    The optimizer's reachability check only fires for declared levers, so a
+    model with a mediating effect and no levers would otherwise misconfigure
+    silently -- the exact failure this objective exists to prevent.
+    """
+
+    @staticmethod
+    def _window(X_dummy):
+        return {
+            "start_date": X_dummy["date_week"].max() + pd.Timedelta(weeks=1),
+            "end_date": X_dummy["date_week"].max() + pd.Timedelta(weeks=10),
+        }
+
+    @pytest.fixture(params=["budget_optimizer", "optimize_budget"])
+    def call_entry_point(self, request, dummy_df):
+        """Both public paths resolve the objective, so both must behave alike."""
+        _df_kwargs, X_dummy, _y_dummy = dummy_df
+        window = self._window(X_dummy)
+
+        def call(mmm, **kwargs):
+            if request.param == "budget_optimizer":
+                return mmm.budget_optimizer(**window, **kwargs)
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", DeprecationWarning)
+                wrapper = BudgetOptimizerWrapper(model=mmm, **window)
+            return wrapper.optimize_budget(budget=10, **kwargs)
+
+        return call
+
+    @staticmethod
+    def _assert_no_objective_warning(call, *args, **kwargs):
+        """Assert our warning is absent, ignoring unrelated ones.
+
+        `simplefilter("error")` would also trip on warnings this guard has
+        nothing to do with, such as the optimizer's default-bounds notice.
+        """
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            call(*args, **kwargs)
+        offending = [w for w in caught if "undercounts that path" in str(w.message)]
+        assert not offending, f"unexpected objective warning: {offending}"
+
+    def test_warns_when_the_objective_is_left_unset(
+        self, fitted_mmm_mediated, call_entry_point
+    ):
+        with pytest.warns(UserWarning, match="undercounts that path"):
+            call_entry_point(fitted_mmm_mediated)
+
+    def test_silent_when_the_objective_is_chosen_explicitly(
+        self, fitted_mmm_mediated, call_entry_point
+    ):
+        """Passing the default explicitly is a deliberate choice, not a mistake."""
+        for chosen in (
+            "total_media_contribution_original_scale",
+            "total_response_original_scale",
+        ):
+            self._assert_no_objective_warning(
+                call_entry_point, fitted_mmm_mediated, response_variable=chosen
+            )
+
+    def test_warning_points_at_the_caller(self, fitted_mmm_mediated, call_entry_point):
+        """stacklevel has to blame the user's call, not the library internals."""
+        with pytest.warns(UserWarning, match="undercounts that path") as record:
+            call_entry_point(fitted_mmm_mediated)
+
+        assert record[0].filename == __file__, (
+            f"warning blamed {record[0].filename}, not the caller"
+        )
+
+    def test_explicit_none_resolves_rather_than_failing_validation(
+        self, dummy_df, fitted_mmm_mediated
+    ):
+        """`response_variable=None` is an omission, not a value to pass through.
+
+        Without this it reaches BudgetOptimizer as None and fails Pydantic type
+        validation, reporting a type error rather than the real problem.
+        """
+        _df_kwargs, X_dummy, _y_dummy = dummy_df
+        with pytest.warns(UserWarning, match="undercounts that path"):
+            optimizer = fitted_mmm_mediated.budget_optimizer(
+                **self._window(X_dummy), response_variable=None
+            )
+        assert optimizer.response_variable == "total_media_contribution_original_scale"
+
+    def test_silent_without_mu_effects(self, dummy_df, fitted_mmm):
+        """A plain media model has nothing the default objective misses."""
+        _df_kwargs, X_dummy, _y_dummy = dummy_df
+        self._assert_no_objective_warning(
+            fitted_mmm.budget_optimizer, **self._window(X_dummy)
+        )
+
+    def test_silent_for_effects_that_do_not_carry_media_response(
+        self, dummy_df, fitted_mmm_trend
+    ):
+        """A trend effect is not downstream of the budgets, so the default is right.
+
+        Warning here would tell every existing events or trend user that their
+        already-correct objective undercounts.
+        """
+        _df_kwargs, X_dummy, _y_dummy = dummy_df
+        self._assert_no_objective_warning(
+            fitted_mmm_trend.budget_optimizer, **self._window(X_dummy)
+        )
+
+
+class TestFunnelEffectPropagation:
+    """The optimizer's intervention on ``channel_data`` reaches a funnel ``MuEffect``.
+
+    The conftest ``FunnelEffect`` reads ``mmm.channel_data_scaled``, chains a second
+    adstock/saturation behind the model's own and brings a date-indexed ``pm.Data``
+    (``lf_budget``). The optimizer is built on the in-sample window with each
+    channel's historical spend pattern as ``budget_distribution_over_period``, so
+    the historical plan is a point of the decision space at which every quantity
+    has a posterior counterpart, and ``total_response_original_scale`` (registered
+    because the model has mu effects) is the objective that counts the mediated
+    path. Both compile modes are exercised: the default one and the C/VM linker.
+
+    The tests go through the public ``evaluate_plan``: it wraps the exact
+    callable handed to SLSQP (objective and gradient from one compiled
+    function), so what is pinned here is still what the solver sees, on the
+    labels a caller works with. Only the finite-difference check below stays on
+    the private callable, because it differentiates the flat vector function.
+    """
+
+    @pytest.fixture(scope="class", params=["default", "cvm"])
+    @staticmethod
+    def setup(request, funnel_identity_fitted_mmm):
+        """Two optimizers on the training window: funnel-aware and direct-only."""
+        mmm = funnel_identity_fitted_mmm
+        dates = pd.DatetimeIndex(mmm.xarray_dataset.coords["date"].values)
+        lags = mmm.effective_carryover_lags()
+        # The window plus the effective carry-over (the model's own l_max plus
+        # the extra lags the effect declares) is exactly the training range, so
+        # the effect's own lf_budget lines up with channel_data.
+        opt_model = mmm.create_optimization_model(dates[0], dates[-(lags + 1)])
+        assert (pd.DatetimeIndex(opt_model.coords["date"]) == dates).all()
+
+        spend = mmm.xarray_dataset["_channel"]
+        pattern = spend / spend.sum("date")
+        mean_plan = spend.mean("date")
+        compile_kwargs = (
+            {"mode": Mode(linker="cvm")} if request.param == "cvm" else None
+        )
+
+        def build(response_variable):
+            return BudgetOptimizer(
+                model=opt_model,
+                idata=mmm.idata,
+                num_periods=len(dates),
+                adstock_periods=0,
+                response_variable=response_variable,
+                budget_distribution_over_period=pattern,
+                compile_kwargs=compile_kwargs,
+            )
+
+        total = build("total_response_original_scale")
+        direct = build("total_media_contribution_original_scale")
+        x0 = total.optimization_variables.pack(mean_plan)
+        np.testing.assert_array_equal(x0, direct.optimization_variables.pack(mean_plan))
+        return SimpleNamespace(
+            mmm=mmm,
+            total=total,
+            direct=direct,
+            x0=x0,
+            mean_plan=mean_plan,
+            compile_kwargs=compile_kwargs,
+        )
+
+    def test_mediated_contribution_depends_on_the_budgets(self, setup):
+        """The decision vector is an ancestor of the mediated contribution."""
+        mediated = setup.total.extract_response_distribution(
+            "funnel_effect_contribution"
+        )
+        assert setup.total.optimization_variables.flat in set(ancestors([mediated]))
+
+    def test_objective_at_the_historical_plan_is_the_in_sample_posterior_mean(
+        self, setup
+    ):
+        """The fixed pattern reproduces history and the effect's data are the training data.
+
+        Any other window, or an effect data variable left at the wrong length or
+        values, would break this equality.
+        """
+        utility = setup.total.evaluate_plan(setup.mean_plan).utility
+        posterior_mean = float(
+            setup.mmm.idata.posterior["total_response_original_scale"].mean()
+        )
+        np.testing.assert_allclose(utility, posterior_mean, rtol=1e-6)
+
+    @pytest.mark.parametrize("scale", [1.0, 1.25], ids=["historical", "perturbed"])
+    def test_gradient_matches_finite_differences(self, setup, scale):
+        """The compiled gradient through the chained adstock/saturation is right.
+
+        Flat on purpose: `approx_fprime` differentiates the vector function, so
+        this goes through the compiled callable rather than the labelled
+        `evaluate_plan` wrapper around it.
+        """
+        x = setup.x0 * np.linspace(scale, 2 - scale, setup.x0.size)
+        _, gradient = setup.total._objective_and_grad(x)
+        finite_differences = approx_fprime(
+            x, lambda z: setup.total._objective_and_grad(z)[0], 1e-6
+        )
+        np.testing.assert_allclose(gradient, finite_differences, rtol=1e-4)
+
+    def test_the_two_objectives_differ_by_the_mediated_gradient(self, setup):
+        """Direct-only and funnel-aware objectives differ exactly by the mediated term.
+
+        The mediated contribution rises with every channel's spend, so the
+        funnel-aware utility has the larger marginal in every cell, by exactly
+        the marginal mediated response.
+        """
+        total = setup.total.evaluate_plan(setup.mean_plan).utility_gradient
+        direct = setup.direct.evaluate_plan(setup.mean_plan).utility_gradient
+        mediated_marginal = total["channel_data"] - direct["channel_data"]
+
+        # The fixture registers no original-scale mediated variable, so scale
+        # the linear-predictor contribution by hand.
+        target_scale = float(setup.mmm.idata.constant_data["target_scale"])
+        mediated = setup.total.extract_response_distribution(
+            "funnel_effect_contribution"
+        )
+        mediated_mean = mediated.sum(dim=["date"]).mean(dim="sample") * target_scale
+        mediated_fn = function(
+            [setup.total.optimization_variables.flat],
+            mediated_mean,
+            **(setup.compile_kwargs or {}),
+        )
+        mediated_gradient = approx_fprime(
+            setup.x0, lambda z: float(mediated_fn(z)), 1e-6
+        )
+
+        assert (mediated_marginal > 0).all()
+        np.testing.assert_allclose(
+            setup.total.optimization_variables.pack(mediated_marginal),
+            mediated_gradient,
+            rtol=1e-4,
+        )
+
+
+class TestLegacyWrapperNumPeriods:
+    """The deprecated wrapper's window, not the caller's ``num_periods``, sizes the model.
+
+    ``BudgetOptimizerWrapper.optimization_model`` ignores the ``num_periods``
+    it is handed and rebuilds from the wrapper's own date range, so a caller
+    who passes a different number gets a channel tensor that disagrees with
+    the model's date axis. That used to be tolerated silently whenever nothing
+    else in the graph was date-indexed; now it is said at construction, with
+    the number to pass instead.
+    """
+
+    def test_a_different_num_periods_is_refused_with_the_right_number(
+        self, dummy_df, fitted_mmm
+    ):
+        _df_kwargs, X_dummy, _y_dummy = dummy_df
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            wrapper = BudgetOptimizerWrapper(
+                model=fitted_mmm,
+                start_date=X_dummy["date_week"].max() + pd.Timedelta(weeks=1),
+                end_date=X_dummy["date_week"].max() + pd.Timedelta(weeks=4),
+            )
+        assert wrapper.num_periods == 4
+
+        with pytest.raises(ValueError, match=r"num_periods=4") as info:
+            BudgetOptimizer(
+                model=wrapper,
+                num_periods=3,
+                response_variable="total_media_contribution_original_scale",
+            )
+        assert "BudgetOptimizerWrapper" in str(info.value)
+
+
+class TestMonetarySpendVariables:
+    """A second money tensor competes with media for the same budget.
+
+    A funnel's lower-funnel spend is a decision, not an input: it is money, so
+    it belongs in the same pot as the media budgets rather than beside them.
+    `LeverVariable` cannot carry it -- a lever is optimized in its own units and
+    deliberately sits outside the budget-sum constraint -- so it rides the media
+    path over a different node instead.
+
+    `cvm` because numba cannot compile the gradient of this effect's second,
+    sample-batched adstock (pytensor#2360), which is upstream and unrelated.
+    """
+
+    # Large enough that media has saturated and the lower funnel is worth
+    # funding. At a small budget media wins outright and the split is a corner,
+    # which would not tell us the two are being traded off at all.
+    TOTAL = 200.0
+
+    def _optimizer(self, mmm, **kwargs):
+        dates = pd.DatetimeIndex(mmm.xarray_dataset.coords["date"].values)
+        t0 = dates[-1]
+        kwargs.setdefault("response_variable", "total_response_original_scale")
+        return mmm.budget_optimizer(
+            start_date=t0 + pd.Timedelta(weeks=1),
+            end_date=t0 + pd.Timedelta(weeks=8),
+            compile_kwargs={"mode": Mode(linker="cvm")},
+            **kwargs,
+        )
+
+    def test_the_budget_is_shared_with_the_media_spend(
+        self, funnel_identity_fitted_mmm
+    ):
+        """The claim: one pot, split between media and the lower funnel.
+
+        `constraints.py` is untouched by this feature. The default sum
+        constraint totals every variable that reports a `budget_contribution`,
+        so a second monetary variable joins it by being one -- which is what
+        that seam was built for.
+        """
+        optimizer = self._optimizer(
+            funnel_identity_fitted_mmm, spend_vars=["lf_budget"]
+        )
+
+        result = optimizer.allocate_budget(total_budget=self.TOTAL)
+
+        assert result.scipy_result.success, result.scipy_result.message
+        # Summed off the result alone: it records which of its allocations are
+        # money, so the check does not depend on the test knowing which keys of
+        # `optimized_vars` are spend rather than levers.
+        spent = float(result.budgets.sum()) + sum(
+            float(allocation.sum())
+            for allocation in result.spend_var_allocations.values()
+        )
+        np.testing.assert_allclose(spent, self.TOTAL, rtol=1e-6)
+
+    def test_the_split_is_interior(self, funnel_identity_fitted_mmm):
+        """Both are funded, so the two are genuinely traded off.
+
+        A corner solution would satisfy the sum constraint just as well while
+        telling us nothing about whether the second variable moves the
+        objective at all.
+        """
+        optimizer = self._optimizer(
+            funnel_identity_fitted_mmm, spend_vars=["lf_budget"]
+        )
+
+        result = optimizer.allocate_budget(total_budget=self.TOTAL)
+
+        allocations = result.spend_var_allocations
+        assert set(allocations) == {"lf_budget"}
+        assert float(allocations["lf_budget"].sum()) > 0.0
+        assert (result.budgets > 0).all()
+
+    def test_evaluate_plan_labels_every_decision_variable(
+        self, funnel_identity_fitted_mmm
+    ):
+        """A two-variable decision vector comes back keyed, not positional.
+
+        The single-variable case hides the point of returning a dict: here the
+        media gradient is over ``channel``, the spend variable's node has only
+        a date dim so its entry is 0-d, and the flat layout a caller used to
+        slice by hand is exactly what the keys replace.
+        """
+        optimizer = self._optimizer(
+            funnel_identity_fitted_mmm, spend_vars=["lf_budget"]
+        )
+        result = optimizer.allocate_budget(total_budget=self.TOTAL)
+        plan = {
+            "channel_data": result.budgets,
+            "lf_budget": result.spend_var_allocations["lf_budget"],
+        }
+
+        evaluation = optimizer.evaluate_plan(plan, total_budget=self.TOTAL)
+
+        gradient = evaluation.utility_gradient
+        assert set(gradient) == {"channel_data", "lf_budget"}
+        assert gradient["channel_data"].dims == ("channel",)
+        assert gradient["lf_budget"].shape == ()
+        # The optimum is feasible and scores exactly what the solver reported.
+        assert evaluation.feasible(atol=1e-6)
+        np.testing.assert_allclose(
+            evaluation.objective, result.scipy_result.fun, rtol=1e-9
+        )
+        np.testing.assert_allclose(
+            optimizer.optimization_variables.pack(gradient),
+            -optimizer._objective_and_grad(optimizer.optimization_variables.pack(plan))[
+                1
+            ],
+        )
+
+    def test_declaring_no_spend_variables_reports_none(
+        self, funnel_identity_fitted_mmm
+    ):
+        """The media budgets alone are not reported as a spend variable."""
+        optimizer = self._optimizer(funnel_identity_fitted_mmm, spend_vars=[])
+
+        result = optimizer.allocate_budget(total_budget=self.TOTAL)
+
+        assert result.spend_var_names == []
+        assert result.spend_var_allocations == {}
+        np.testing.assert_allclose(float(result.budgets.sum()), self.TOTAL, rtol=1e-6)
+
+    def test_a_spend_variable_the_objective_cannot_see_is_refused(
+        self, funnel_identity_fitted_mmm
+    ):
+        """Worse than an unreachable lever: it spends and returns nothing.
+
+        The default objective counts the direct path only, so the mediated
+        lower-funnel spend is invisible to it. Left to run, the solver would
+        fund it out of the media budget and get no response back.
+        """
+        with pytest.raises(ValueError, match=r"spend_vars \['lf_budget'\]"):
+            self._optimizer(
+                funnel_identity_fitted_mmm,
+                spend_vars=["lf_budget"],
+                response_variable="total_media_contribution_original_scale",
+            )
+
+    def test_a_repeated_spend_variable_is_refused(self, funnel_identity_fitted_mmm):
+        """Two variables of one name would share a slot in the flat vector.
+
+        `variable_slice` looks up by name, so the second would read the first's
+        segment and the budget allocated to it would go nowhere. The container
+        refuses the layout before it is built; this pins that, because the
+        failure it prevents is silent.
+        """
+        with pytest.raises(ValueError, match="Duplicate variable names"):
+            self._optimizer(
+                funnel_identity_fitted_mmm, spend_vars=["lf_budget", "lf_budget"]
+            )
+
+    def test_a_spend_variable_opens_on_its_own_prior_spend(
+        self, funnel_identity_fitted_mmm
+    ):
+        """Carry-in is per variable, read from each node's own history.
+
+        The leading block for a spend variable comes from that variable's data,
+        not the channel variable's, so a spend decided over different dims than
+        media still gets a correctly shaped warm start rather than a shape
+        error at substitution time.
+        """
+        mmm = funnel_identity_fitted_mmm
+        optimizer = self._optimizer(mmm, spend_vars=["lf_budget"])
+
+        assert optimizer.carry_in_periods == mmm.effective_carryover_lags()
+        spend = next(
+            variable
+            for variable in optimizer.optimization_variables.variables
+            if variable.name == "lf_budget"
+        )
+        expected = np.asarray(mmm.model["lf_budget"].get_value())[
+            -optimizer.carry_in_periods :
+        ]
+        np.testing.assert_allclose(spend.carry_in_values, expected)
+
+    def test_spend_vars_may_not_name_the_media_variable(
+        self, funnel_identity_fitted_mmm
+    ):
+        """Naming it twice would give the media budget two disjoint slices."""
+        with pytest.raises(ValueError, match="already optimized"):
+            self._optimizer(funnel_identity_fitted_mmm, spend_vars=["channel_data"])
+
+    @staticmethod
+    def _variable(optimizer, name):
+        return next(
+            variable
+            for variable in optimizer.optimization_variables.variables
+            if variable.name == name
+        )
+
+    def test_a_misspelled_spend_variable_says_so(self, funnel_identity_fitted_mmm):
+        """Carry-in is on for this path, so the name used to be read first.
+
+        The node was dereferenced while building the argument list, before
+        `from_model` validated anything, so a typo surfaced as a bare
+        `KeyError` naming nothing the caller could act on.
+        """
+        with pytest.raises(ValueError, match="not a variable with named dims"):
+            self._optimizer(funnel_identity_fitted_mmm, spend_vars=["lf_bugdet"])
+
+    def test_a_spend_variable_must_be_a_data_node(self, funnel_identity_fitted_mmm):
+        """A dimensioned node with no stored value cannot carry prior spend."""
+        with pytest.raises(ValueError, match="not a shared variable"):
+            self._optimizer(
+                funnel_identity_fitted_mmm, spend_vars=["channel_contribution"]
+            )
+
+    def test_the_default_spend_var_scale_is_one(self, funnel_identity_fitted_mmm):
+        """Declaring no scale means the node is read as raw money."""
+        optimizer = self._optimizer(
+            funnel_identity_fitted_mmm, spend_vars=["lf_budget"]
+        )
+
+        scales = self._variable(optimizer, "lf_budget").channel_scales
+        assert float(np.asarray(scales)) == 1.0
+
+    def test_a_declared_scale_reaches_the_variable(self, funnel_identity_fitted_mmm):
+        """A node stored in scaled units has to be told its scale.
+
+        `channel_scales` exists on the media variable because `channel_data` is
+        stored scaled; a second monetary node can be stored the same way. Left
+        pinned at 1.0 with no way to set it, the optimizer treats one stored
+        unit as one dollar and the allocation is wrong with nothing raised.
+        """
+        optimizer = self._optimizer(
+            funnel_identity_fitted_mmm,
+            spend_vars=["lf_budget"],
+            spend_var_scales={"lf_budget": 1000.0},
+        )
+
+        scales = self._variable(optimizer, "lf_budget").channel_scales
+        assert float(np.asarray(scales)) == 1000.0
+
+    def test_a_scale_for_an_undeclared_name_is_refused(
+        self, funnel_identity_fitted_mmm
+    ):
+        """Dropping the key silently is the failure the scale exists to prevent.
+
+        A scale keyed on a name that is not optimized has no effect, so the run
+        succeeds and answers in the wrong units.
+        """
+        with pytest.raises(ValueError, match="not in spend_vars"):
+            self._optimizer(
+                funnel_identity_fitted_mmm,
+                spend_vars=["lf_budget"],
+                spend_var_scales={"lf_bugdet": 1000.0},
+            )
+
+    def test_the_budget_is_still_shared_in_money_when_scaled(
+        self, funnel_identity_fitted_mmm
+    ):
+        """The constraint stays in money whatever the storage units are.
+
+        The scale converts money into the node's units inside `to_model`. If it
+        leaked into `budget_contribution`, the sum constraint would total
+        dollars against stored units and the split would be meaningless.
+        """
+        optimizer = self._optimizer(
+            funnel_identity_fitted_mmm,
+            spend_vars=["lf_budget"],
+            spend_var_scales={"lf_budget": 1000.0},
+        )
+
+        result = optimizer.allocate_budget(total_budget=self.TOTAL)
+
+        assert result.scipy_result.success, result.scipy_result.message
+        spent = float(result.budgets.sum()) + sum(
+            float(allocation.sum())
+            for allocation in result.spend_var_allocations.values()
+        )
+        np.testing.assert_allclose(spent, self.TOTAL, rtol=1e-6)
+
+    def test_a_bare_string_is_not_read_character_by_character(
+        self, funnel_identity_fitted_mmm
+    ):
+        """`spend_vars="lf_budget"` must not be read as ["l", "f", "_", ...]."""
+        with pytest.raises((ValueError, TypeError)) as info:
+            self._optimizer(funnel_identity_fitted_mmm, spend_vars="lf_budget")
+
+        assert "'l'" not in str(info.value), (
+            "a bare string was iterated character by character"
+        )
+
+    def test_a_bare_price_response_with_spend_vars_is_refused(
+        self, funnel_identity_fitted_mmm
+    ):
+        """Media and a spend variable draw from one pot through one constraint; pricing
+        one on a curve and the other at a constant, silently, is the failure mode."""
+        with pytest.raises(ValueError, match="name every variable"):
+            self._optimizer(
+                funnel_identity_fitted_mmm,
+                spend_vars=["lf_budget"],
+                price_response=PowerPriceResponse(
+                    elasticity=0.2, assume_delivery_units=True
+                ),
+            )
+
+    def test_a_price_response_for_an_unknown_variable_is_refused(
+        self, funnel_identity_fitted_mmm
+    ):
+        with pytest.raises(ValueError, match=r"price_response names \['nope'\]"):
+            self._optimizer(
+                funnel_identity_fitted_mmm,
+                spend_vars=["lf_budget"],
+                price_response={"nope": PowerPriceResponse(elasticity=0.2)},
+            )
+
+    def test_a_dict_must_name_every_monetary_variable(self, funnel_identity_fitted_mmm):
+        """The bare-object refusal promises that the dict form names every variable,
+        including the ones staying at a constant price. Omitting one reproduces the
+        hazard by omission: media at a constant, the spend variable on a curve, both in
+        one pot. An explicit identity response is how "constant" is said."""
+        curve = PowerPriceResponse(
+            elasticity=0.2,
+            reference_spend=xr.DataArray(1.0),
+            assume_delivery_units=True,
+        )
+        with pytest.raises(ValueError, match=r"leaves \['channel_data'\] unpriced"):
+            self._optimizer(
+                funnel_identity_fitted_mmm,
+                spend_vars=["lf_budget"],
+                price_response={"lf_budget": curve},
+            )
+        with pytest.raises(ValueError, match=r"leaves \['lf_budget'\] unpriced"):
+            self._optimizer(
+                funnel_identity_fitted_mmm,
+                spend_vars=["lf_budget"],
+                price_response={"channel_data": PowerPriceResponse(elasticity=0.0)},
+            )
+
+    def test_a_curved_spend_variable_needs_the_attestation_then_a_reference(
+        self, funnel_identity_fitted_mmm
+    ):
+        """A spend variable is a money node, so a curved response on it needs the same
+        attestation as one on media, and then a reference_spend, since no historical
+        cost_per_unit table describes a spend variable."""
+        constant_media = PowerPriceResponse(elasticity=0.0)
+        with pytest.raises(
+            ValueError, match=r"lf_budget.*a declaration, not evidence"
+        ) as info:
+            self._optimizer(
+                funnel_identity_fitted_mmm,
+                spend_vars=["lf_budget"],
+                price_response={
+                    "channel_data": constant_media,
+                    "lf_budget": PowerPriceResponse(elasticity=0.2),
+                },
+            )
+        assert "assume_delivery_units=True" in str(info.value)
+        with pytest.raises(ValueError, match=r"lf_budget.*reference_spend is required"):
+            self._optimizer(
+                funnel_identity_fitted_mmm,
+                spend_vars=["lf_budget"],
+                price_response={
+                    "channel_data": constant_media,
+                    "lf_budget": PowerPriceResponse(
+                        elasticity=0.2, assume_delivery_units=True
+                    ),
+                },
+            )
+        optimizer = self._optimizer(
+            funnel_identity_fitted_mmm,
+            spend_vars=["lf_budget"],
+            price_response={
+                "channel_data": constant_media,
+                "lf_budget": PowerPriceResponse(
+                    elasticity=0.2,
+                    assume_delivery_units=True,
+                    reference_spend=xr.DataArray(1.0),
+                ),
+            },
+        )
+        result = optimizer.allocate_budget(total_budget=self.TOTAL)
+        assert result.scipy_result.success, result.scipy_result.message
+        assert np.isfinite(result.spend_var_allocations["lf_budget"]).all()
+        spent = result.budgets > 0
+        assert np.all(result.implied_price.where(spent).fillna(1.0) == 1.0)
+
+    def test_an_identity_spend_variable_response_needs_nothing(
+        self, funnel_identity_fitted_mmm
+    ):
+        """elasticity=0 passes money through unbent: no attestation, no reference."""
+        self._optimizer(
+            funnel_identity_fitted_mmm,
+            spend_vars=["lf_budget"],
+            price_response={
+                "channel_data": PowerPriceResponse(elasticity=0.0),
+                "lf_budget": PowerPriceResponse(elasticity=0.0),
+            },
+        )
+
+
+def test_mmm_budget_optimizer_set_posterior_is_local_to_the_optimizer(
+    dummy_df, fitted_mmm
+):
+    """``mmm.budget_optimizer(...)`` rebinds like any optimizer; the MMM keeps its idata."""
+    _df_kwargs, X_dummy, _y_dummy = dummy_df
+    optimizer = fitted_mmm.budget_optimizer(
+        start_date=X_dummy["date_week"].max() + pd.Timedelta(weeks=1),
+        end_date=X_dummy["date_week"].max() + pd.Timedelta(weeks=10),
+    )
+    baseline, _ = optimizer.allocate_budget(total_budget=4.0)
+
+    posterior = fitted_mmm.idata["posterior"].to_dataset()
+    tilt = xr.DataArray(
+        [3.0, 0.2], dims="channel", coords={"channel": posterior["channel"]}
+    )
+    updated = xr.DataTree.from_dict(
+        {
+            "/posterior": posterior.assign(
+                saturation_beta=posterior["saturation_beta"] * tilt
+            )
+        }
+    )
+    mmm_idata_before = fitted_mmm.idata
+
+    optimizer.set_posterior(updated)
+    rebound, result = optimizer.allocate_budget(total_budget=4.0)
+
+    assert result.success
+    assert not np.allclose(rebound.values, baseline.values)
+    assert fitted_mmm.idata is mmm_idata_before
+    xr.testing.assert_identical(
+        fitted_mmm.idata["posterior"].to_dataset()["saturation_beta"],
+        posterior["saturation_beta"],
+    )
+
+
+def _future_window(mmm, n_plan: int = 4):
+    """Return a window right after training and its dates after training ends."""
+    dates = pd.DatetimeIndex(mmm.xarray_dataset.coords["date"].values)
+    start = dates.max() + pd.Timedelta(weeks=1)
+    end = start + pd.Timedelta(weeks=n_plan - 1)
+    future = pd.date_range(
+        start, periods=n_plan + mmm.effective_carryover_lags(), freq="W"
+    )
+    return start, end, future
+
+
+def _planned_frame(future, geos=("A", "B")) -> pd.DataFrame:
+    """Planned controls for ``fitted_mmm``, distinct per row so misalignment shows."""
+    df = pd.DataFrame(
+        [(date, geo) for date in future for geo in geos], columns=["date_week", "geo"]
+    )
+    df["event_1"] = 1.0
+    df["event_2"] = 2.0
+    df["t"] = 100.0 + np.arange(len(df))
+    return df
+
+
+def _control_data(model: pm.Model) -> xr.DataArray:
+    dims = model.named_vars_to_dims["control_data"]
+    return xr.DataArray(
+        model["control_data"].get_value(),
+        dims=dims,
+        coords={dim: list(model.coords[dim]) for dim in dims},
+    )
+
+
+ZERO_FILL_WARNING = "Pass control_data with the values you expect"
+
+
+class TestControlData:
+    """Planned control values for the optimization window (#3125)."""
+
+    def test_dataframe_sets_controls_after_training_only(self, fitted_mmm):
+        start, end, future = _future_window(fitted_mmm)
+        planned = _planned_frame(future)
+
+        baseline = _control_data(fitted_mmm.create_optimization_model(start, end))
+        actual = _control_data(
+            fitted_mmm.create_optimization_model(start, end, control_data=planned)
+        )
+
+        expected = (
+            planned.set_index(["date_week", "geo"])
+            .to_xarray()
+            .to_dataarray(dim="control")
+            .sel(
+                geo=actual.coords["geo"].values, control=actual.coords["control"].values
+            )
+        )
+        np.testing.assert_array_equal(
+            actual.sel(date=future).transpose("date", "geo", "control").values,
+            expected.transpose("date_week", "geo", "control").values,
+        )
+        carry_in = actual.coords["date"] < future[0]
+        assert int(carry_in.sum()) > 0
+        xr.testing.assert_equal(actual.sel(date=carry_in), baseline.sel(date=carry_in))
+
+    def test_dataarray_matches_dataframe(self, fitted_mmm):
+        start, end, future = _future_window(fitted_mmm)
+        planned = _planned_frame(future)
+        as_array = (
+            planned.set_index(["date_week", "geo"])
+            .to_xarray()
+            .to_dataarray(dim="control")
+            .rename(date_week="date")
+            .transpose("control", "geo", "date")
+        )
+
+        from_frame = fitted_mmm.create_optimization_model(
+            start, end, control_data=planned
+        )
+        from_array = fitted_mmm.create_optimization_model(
+            start, end, control_data=as_array
+        )
+
+        np.testing.assert_array_equal(
+            from_array["control_data"].get_value(),
+            from_frame["control_data"].get_value(),
+        )
+
+    def test_budget_optimizer_forwards_control_data(self, fitted_mmm):
+        start, end, future = _future_window(fitted_mmm)
+        planned = _planned_frame(future)
+
+        optimizer = fitted_mmm.budget_optimizer(start, end, control_data=planned)
+        model = fitted_mmm.create_optimization_model(start, end, control_data=planned)
+
+        np.testing.assert_array_equal(
+            optimizer.model["control_data"].get_value(),
+            model["control_data"].get_value(),
+        )
+
+    def test_dates_after_the_window_are_ignored(self, fitted_mmm):
+        start, end, future = _future_window(fitted_mmm)
+        longer = future.append(
+            pd.date_range(future[-1] + pd.Timedelta(weeks=1), periods=3, freq="W")
+        )
+
+        exact = fitted_mmm.create_optimization_model(
+            start, end, control_data=_planned_frame(future)
+        )
+        extended = fitted_mmm.create_optimization_model(
+            start, end, control_data=_planned_frame(longer)
+        )
+
+        np.testing.assert_array_equal(
+            extended["control_data"].get_value(), exact["control_data"].get_value()
+        )
+
+    @pytest.mark.parametrize(
+        "mutate, match",
+        [
+            pytest.param(
+                lambda df, future, last: pd.concat(
+                    [df, df.iloc[[0]].assign(date_week=last)], ignore_index=True
+                ),
+                "which the training data covers",
+                id="covers-training-dates",
+            ),
+            pytest.param(
+                lambda df, future, last: df[df["date_week"] != future[-1]],
+                "no value, or NaN",
+                id="missing-carry-over-date",
+            ),
+        ],
+    )
+    def test_invalid_dates_raise(self, fitted_mmm, mutate, match):
+        start, end, future = _future_window(fitted_mmm)
+        last = pd.DatetimeIndex(fitted_mmm.xarray_dataset.coords["date"].values).max()
+        planned = mutate(_planned_frame(future), future, last)
+
+        with pytest.raises(ValueError, match=match):
+            fitted_mmm.create_optimization_model(start, end, control_data=planned)
+
+    def test_fractional_plan_survives_integer_controls(self):
+        dates = pd.date_range("2024-01-07", periods=12, freq="W")
+        X = pd.DataFrame(
+            {
+                "date": dates,
+                "channel_1": 1.0,
+                "event": np.arange(12) % 2,
+                "price": np.ones(12, dtype=int),
+            }
+        )
+        mmm = MMM(
+            date_column="date",
+            target_column="y",
+            channel_columns=["channel_1"],
+            control_columns=["event", "price"],
+            adstock=GeometricAdstock(l_max=2),
+            saturation=LogisticSaturation(),
+        )
+        mmm.build_model(X, pd.Series(np.linspace(5, 10, 12)))
+        start, end, future = _future_window(mmm, n_plan=2)
+        planned = pd.DataFrame({"date": future, "event": 0.5, "price": 1.02})
+
+        model = mmm.create_optimization_model(start, end, control_data=planned)
+
+        controls = _control_data(model).sel(date=future)
+        np.testing.assert_allclose(controls.sel(control="event"), 0.5)
+        np.testing.assert_allclose(controls.sel(control="price"), 1.02)
+
+    def test_window_inside_training_raises(self, fitted_mmm):
+        dates = pd.DatetimeIndex(fitted_mmm.xarray_dataset.coords["date"].values)
+        _, _, future = _future_window(fitted_mmm)
+
+        with pytest.raises(ValueError, match="control_data does not apply"):
+            fitted_mmm.create_optimization_model(
+                dates[2], dates[4], control_data=_planned_frame(future)
+            )
+
+    def test_model_without_controls_raises(self, log_link_fitted_mmm):
+        start, end, future = _future_window(log_link_fitted_mmm)
+
+        with pytest.raises(ValueError, match="has no control_columns"):
+            log_link_fitted_mmm.create_optimization_model(
+                start, end, control_data=pd.DataFrame({"date": future, "x": 0.0})
+            )
+
+    def test_log_link_warns_when_future_controls_are_zero_filled(
+        self, log_link_control_fitted_mmm
+    ):
+        start, end, _ = _future_window(log_link_control_fitted_mmm)
+
+        with pytest.warns(UserWarning, match=ZERO_FILL_WARNING):
+            log_link_control_fitted_mmm.create_optimization_model(start, end)
+
+    @pytest.mark.parametrize(
+        "fixture, window, with_control_data",
+        [
+            ("log_link_control_fitted_mmm", "future", True),
+            ("log_link_control_fitted_mmm", "in_sample", False),
+            ("fitted_mmm", "future", False),
+        ],
+    )
+    def test_no_zero_fill_warning(self, request, fixture, window, with_control_data):
+        mmm = request.getfixturevalue(fixture)
+        start, end, future = _future_window(mmm)
+        if window == "in_sample":
+            dates = pd.DatetimeIndex(mmm.xarray_dataset.coords["date"].values)
+            start, end = dates[4], dates[6]
+        control_data = (
+            pd.DataFrame({"date": future, "control_1": 0.5})
+            if with_control_data
+            else None
+        )
+
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            mmm.create_optimization_model(start, end, control_data=control_data)
+
+        assert not [w for w in caught if ZERO_FILL_WARNING in str(w.message)]
+
+    def test_log_link_objective_follows_planned_controls(
+        self, log_link_control_fitted_mmm
+    ):
+        mmm = log_link_control_fitted_mmm
+        start, end, future = _future_window(mmm)
+        plan = xr.DataArray(
+            [1.0, 1.0], dims="channel", coords={"channel": ["channel_1", "channel_2"]}
+        )
+
+        def response(control_data):
+            optimizer = mmm.budget_optimizer(start, end, control_data=control_data)
+            return optimizer.evaluate_response_distribution(plan)
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", UserWarning)
+            default = response(None)
+        zeros = response(pd.DataFrame({"date": future, "control_1": 0.0}))
+        raised = response(pd.DataFrame({"date": future, "control_1": 0.5}))
+
+        xr.testing.assert_allclose(zeros, default)
+        assert not np.allclose(raised.values, zeros.values)

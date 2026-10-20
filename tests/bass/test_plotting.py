@@ -177,3 +177,37 @@ def test_product_on_single_product_raises(
 ) -> None:
     with pytest.raises(ValueError, match="no faceting dimension"):
         getattr(single_product_model, method)(coord="A")
+
+
+@pytest.fixture(scope="module")
+def pooled_priors_model(mock_pymc_sample) -> BassModel:
+    counts = np.random.default_rng(42).poisson(lam=100, size=(20, 3))
+    ds = xr.Dataset(
+        {"observed": (("T", "product"), counts)},
+        coords={"T": np.arange(20), "product": ["A", "B", "C"]},
+    )
+    model = BassModel(model_config={"likelihood": Prior("Poisson", dims="product")})
+    model.fit(data=ds, draws=20, tune=5, chains=1, random_seed=42)
+    return model
+
+
+@pytest.mark.parametrize("method", PLOT_METHODS)
+def test_pooled_priors_on_multi_series_data(
+    pooled_priors_model: BassModel, method: str
+) -> None:
+    """Pooled priors give one pooled curve, whatever dims the data has.
+
+    The curves carry only the dims the priors declare, so selecting a coord
+    must say so instead of claiming the model is single-series.
+    """
+    assert pooled_priors_model.idata.posterior["adopters"].dims == (
+        "chain",
+        "draw",
+        "T",
+    )
+
+    _, axes = getattr(pooled_priors_model, method)()
+    assert np.asarray(axes).size == 1
+
+    with pytest.raises(ValueError, match="only carry the dims"):
+        getattr(pooled_priors_model, method)(coord="A")

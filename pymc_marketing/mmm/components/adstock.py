@@ -58,12 +58,11 @@ Plot the default priors for an adstock transformation:
 from __future__ import annotations
 
 from inspect import signature
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 import numpy as np
 import xarray as xr
 from pydantic import Field, validate_call
-from pymc_extras.deserialize import deserialize
 from pymc_extras.prior import Prior
 from pytensor.xtensor import as_xtensor
 
@@ -140,17 +139,6 @@ class AdstockTransformation(Transformation):
 
         return data
 
-    @classmethod
-    def from_dict(cls, data: dict) -> AdstockTransformation:
-        """Reconstruct an adstock transformation from a dict."""
-        data = data.copy()
-        data.pop("__type__", None)
-
-        if "priors" in data:
-            data["priors"] = {k: deserialize(v) for k, v in data["priors"].items()}
-
-        return cls(**data)
-
     def sample_curve(
         self,
         parameters: xr.Dataset,
@@ -188,6 +176,251 @@ class AdstockTransformation(Transformation):
             coords=coords,
             **sample_prior_predictive_kwargs,
         )
+
+    def cumulative_weights(
+        self,
+        parameters: xr.Dataset,
+        horizon: int | None = None,
+        **sample_posterior_predictive_kwargs: Any,
+    ) -> xr.DataArray:
+        r"""Share of the kernel's weight that lands within *horizon* periods.
+
+        With the kernel :math:`w_0, \dots, w_{l_{max}-1}` on lags
+        :math:`0 \dots l_{max}-1` after the spend period, this is
+
+        .. math::
+
+            C(c) = \frac{\sum_{l \le c} w_l}{\sum_{l < l_{max}} w_l}.
+
+        Under ``normalize=True`` the weights already sum to one over the
+        truncated kernel, so the denominator is one.  Under ``normalize=False``
+        it is not, and dividing by it is what makes :math:`C` a share; the same
+        kernel then gives the same :math:`C` whichever way it was built.
+
+        The kernel is sampled once per posterior draw through
+        :meth:`sample_curve`, so parameters with their own dimensions
+        (``channel``, ``country``, ...) broadcast.  Nothing is reduced over
+        draws: multiply :math:`C` by a contribution draw by draw and summarize
+        last, because :math:`E[C]\,E[\text{contribution}] \ne
+        E[C \cdot \text{contribution}]` whenever the two vary together.
+
+        The share is of *modelled* value.  The kernel stops at ``l_max``, so
+        nothing past it is attributed, however long the real carryover.
+
+        A draw whose kernel is not finite has no share and gives ``NaN``.  The
+        Weibull kernels can underflow to ``0 / 0`` for extreme parameters, and
+        the ``NaN`` is passed on.
+
+        Parameters
+        ----------
+        parameters : xr.Dataset
+            Dataset with the adstock's parameters, with ``chain`` and ``draw``
+            dimensions, as :meth:`sample_curve` takes it.
+        horizon : int or None, default=None
+            Periods after the spend period that count, in ``0 .. l_max - 1``.
+            ``0`` is the spend period alone and ``l_max - 1`` the whole kernel,
+            for which :math:`C` is exactly one.  ``None`` returns every horizon
+            on a ``"horizon"`` dimension, from one sampling of the kernel.
+        sample_posterior_predictive_kwargs : Any
+            Passed to :meth:`sample_curve`, for example ``progressbar=False``.
+
+        Returns
+        -------
+        xr.DataArray
+            :math:`C(\text{horizon})`, the shape of the sampled kernel without
+            its ``"time since exposure"`` dimension; for ``horizon=None``, with a
+            ``"horizon"`` dimension of length ``l_max`` in its place.
+
+        Raises
+        ------
+        TypeError
+            If *horizon* is not an integer.
+        ValueError
+            If *horizon* is outside ``0 .. l_max - 1``, or if ``mode`` is not
+            ``ConvMode.After``: under ``Before`` and ``Overlap`` the kernel is
+            placed on dates before the spend, so its first entries are not the
+            spend period and a cumulative sum from lag 0 is not "current".
+
+        Examples
+        --------
+        Share of a geometric adstock's weight within two periods of the spend:
+
+        .. code-block:: python
+
+            adstock = GeometricAdstock(l_max=8)
+            parameters = adstock.sample_prior()
+            share = adstock.cumulative_weights(parameters, horizon=2)
+        """
+        if self.mode != ConvMode.After:
+            raise ValueError(
+                "cumulative_weights needs mode=ConvMode.After, got "
+                f"{self.mode!s}.  Under a leading kernel the first entries are "
+                "not the spend period, so their cumulative sum is not the share "
+                "that lands within a horizon."
+            )
+
+        if horizon is not None and (
+            isinstance(horizon, bool) or not isinstance(horizon, int | np.integer)
+        ):
+            raise TypeError(f"horizon must be an integer or None, got {horizon!r}.")
+
+        if horizon is not None and not 0 <= horizon <= self.l_max - 1:
+            raise ValueError(
+                f"horizon must be in 0..{self.l_max - 1} (the periods after the "
+                f"spend period that the kernel of l_max={self.l_max} covers), "
+                f"got {horizon}."
+            )
+
+        weights = self.sample_curve(parameters, **sample_posterior_predictive_kwargs)
+        lag = "time since exposure"
+
+        # Dividing by the cumulative sum's own last entry makes the whole kernel
+        # exactly one, so the share beyond it is exactly zero; a sum taken in
+        # another order can differ from it in the last bit.
+        cumulative = weights.cumsum(lag)
+        curve = cumulative / cumulative.isel({lag: -1})
+
+        if horizon is None:
+            curve = curve.rename({lag: "horizon"}).assign_coords(
+                horizon=np.arange(self.l_max)
+            )
+            return curve.rename("cumulative_weights")
+
+        return curve.isel({lag: horizon}, drop=True).rename("cumulative_weights")
+
+
+# Only a base for type checkers: at runtime the mixin derives from object, so it
+# is not itself an AdstockTransformation and is skipped by anything collecting
+# the subclasses. Type checkers still need the base to resolve the cooperative
+# super().__init__ call and the members the mixin reads off the transformation.
+if TYPE_CHECKING:
+    _MixinBase = AdstockTransformation
+else:
+    _MixinBase = object
+
+
+class _AlphaHalfLifeParametrization(_MixinBase):
+    """Let a decay be parametrised by its retention rate or by its half-life.
+
+    Mixed in ahead of :class:`AdstockTransformation` so that the
+    ``function_priors`` setter, ``variable_mapping``, ``model_config`` and the
+    prior checks all key off whichever parametrization is active. It is not a
+    usable transformation on its own.
+
+    Subclasses provide ``default_priors`` for the ``alpha`` parametrization,
+    ``halflife_priors`` for the half-life one, and ``_alpha_from_halflife`` to
+    map between them.
+    """
+
+    _alternative_parameters = ("alpha", "halflife")
+
+    default_priors: dict[str, SupportedPrior]
+    halflife_priors: dict[str, SupportedPrior]
+
+    @validate_call
+    def __init__(
+        self,
+        l_max: int = Field(
+            ..., gt=0, description="Maximum lag for the adstock transformation."
+        ),
+        normalize: bool = Field(
+            True, description="Whether to normalize the adstock values."
+        ),
+        mode: ConvMode = Field(ConvMode.After, description="Convolution mode."),
+        priors: dict[str, SupportedPrior] | None = Field(
+            default=None, description="Priors for the parameters."
+        ),
+        prefix: str | None = Field(None, description="Prefix for the parameters."),
+        parametrization: Literal["alpha", "halflife"] | None = Field(
+            None, description="Whether to parametrize the decay by alpha or half-life."
+        ),
+    ) -> None:
+        prior_names = set(priors or {})
+
+        if parametrization is None:
+            parametrization = "halflife" if "halflife" in prior_names else "alpha"
+
+        if parametrization == "halflife":
+            # Shadows the class attribute so that variable_mapping, model_config
+            # and the function_priors setter all key off halflife.
+            self.default_priors = self.halflife_priors
+
+        self.parametrization = parametrization
+
+        # Priors for the inactive parametrization are rejected by the
+        # function_priors setter, which this call assigns through.
+        super().__init__(
+            l_max=l_max,
+            normalize=normalize,
+            mode=mode,
+            priors=priors,
+            prefix=prefix,
+        )
+
+    @staticmethod
+    def _alpha_from_halflife(halflife):
+        """Map a half-life onto the retention rate of the decay."""
+        raise NotImplementedError
+
+    def _resolve_alpha(self, alpha, halflife):
+        """Return the retention rate, from whichever parameter was given."""
+        if (alpha is None) == (halflife is None):
+            raise ValueError("Provide exactly one of 'alpha' and 'halflife'.")
+
+        return alpha if halflife is None else self._alpha_from_halflife(halflife)
+
+    @AdstockTransformation.function_priors.setter  # type: ignore[attr-defined]
+    def function_priors(self, priors: dict[str, Any | Prior] | None) -> None:
+        """Reject priors for the inactive parametrization before storing them.
+
+        The base setter merges what it is given into ``default_priors``, so a
+        prior for the inactive parameter would be kept, ignored when building
+        the model, and then serialised alongside the parametrization into
+        something that ``from_dict`` refuses to load.
+        """
+        if conflicting := (
+            set(self._alternative_parameters) - {self.parametrization}
+        ) & set(priors or {}):
+            raise ValueError(
+                f"Priors for {conflicting.pop()!r} are not used when"
+                f" parametrization={self.parametrization!r}."
+                f" 'alpha' and 'halflife' are alternatives, so pass a prior for"
+                f" {self.parametrization!r} only."
+            )
+
+        AdstockTransformation.function_priors.fset(self, priors)  # type: ignore[attr-defined]
+
+    def _has_defaults_for_all_arguments(self) -> None:
+        """Check the priors of the active parametrization.
+
+        ``alpha`` and ``halflife`` are alternatives, so only the one of the
+        active parametrization needs a prior. Every other argument of
+        ``function`` still does, which keeps the check meaningful for subclasses
+        that override it.
+        """
+        function_signature = signature(self.function)
+
+        # Drop the first one as assumed to be the data, and the dim kwarg
+        parameters = set(list(function_signature.parameters.keys())[1:]) - {"dim"}
+        parameters_that_need_priors = (
+            parameters - set(self._alternative_parameters)
+        ) | {self.parametrization}
+        parameters_with_priors = set(self.default_priors)
+
+        missing_priors = parameters_that_need_priors - parameters_with_priors
+        missing_parameters = parameters_with_priors - parameters_that_need_priors
+
+        if missing_priors or missing_parameters:
+            raise ParameterPriorException(missing_priors, missing_parameters)
+
+    def to_dict(self) -> dict:
+        """Convert the adstock transformation to a dictionary."""
+        data = super().to_dict()
+
+        if self.parametrization != "alpha":
+            data["parametrization"] = self.parametrization
+
+        return data
 
 
 @serialization.register
@@ -235,7 +468,7 @@ class BinomialAdstock(AdstockTransformation):
 
 
 @serialization.register
-class GeometricAdstock(AdstockTransformation):
+class GeometricAdstock(_AlphaHalfLifeParametrization, AdstockTransformation):
     r"""Wrapper around geometric adstock function.
 
     Calls :func:`pymc_marketing.mmm.transformers.geometric_adstock` with the wrapper's
@@ -307,137 +540,104 @@ class GeometricAdstock(AdstockTransformation):
 
     """
 
-    @validate_call
-    def __init__(
-        self,
-        l_max: int = Field(
-            ..., gt=0, description="Maximum lag for the adstock transformation."
-        ),
-        normalize: bool = Field(
-            True, description="Whether to normalize the adstock values."
-        ),
-        mode: ConvMode = Field(ConvMode.After, description="Convolution mode."),
-        priors: dict[str, SupportedPrior] | None = Field(
-            default=None, description="Priors for the parameters."
-        ),
-        prefix: str | None = Field(None, description="Prefix for the parameters."),
-        parametrization: Literal["alpha", "halflife"] | None = Field(
-            None, description="Whether to parametrize the decay by alpha or half-life."
-        ),
-    ) -> None:
-        prior_names = set(priors or {})
-
-        if parametrization is None:
-            parametrization = "halflife" if "halflife" in prior_names else "alpha"
-
-        if parametrization == "halflife":
-            # Shadows the class attribute so that variable_mapping, model_config
-            # and the function_priors setter all key off halflife.
-            self.default_priors = self.halflife_priors
-
-        self.parametrization = parametrization
-
-        # Priors for the inactive parametrization are rejected by the
-        # function_priors setter, which this call assigns through.
-        super().__init__(
-            l_max=l_max,
-            normalize=normalize,
-            mode=mode,
-            priors=priors,
-            prefix=prefix,
-        )
+    @staticmethod
+    def _alpha_from_halflife(halflife):
+        """Map a half-life onto the retention rate of the decay."""
+        return 0.5 ** (1.0 / halflife)
 
     def function(self, x, alpha=None, halflife=None, *, dim: str):
         """Geometric adstock function."""
-        if (alpha is None) == (halflife is None):
-            raise ValueError("Provide exactly one of 'alpha' and 'halflife'.")
-
-        if halflife is not None:
-            alpha = 0.5 ** (1.0 / halflife)
-
         return geometric_adstock(
             x,
-            alpha=alpha,
+            alpha=self._resolve_alpha(alpha, halflife),
             l_max=self.l_max,
             normalize=self.normalize,
             mode=self.mode,
             dim=dim,
         )
 
-    @AdstockTransformation.function_priors.setter  # type: ignore[attr-defined]
-    def function_priors(self, priors: dict[str, Any | Prior] | None) -> None:
-        """Reject priors for the inactive parametrization before storing them.
-
-        The base setter merges what it is given into ``default_priors``, so a
-        prior for the inactive parameter would be kept, ignored when building
-        the model, and then serialised alongside the parametrization into
-        something that ``from_dict`` refuses to load.
-        """
-        if conflicting := (
-            set(self._alternative_parameters) - {self.parametrization}
-        ) & set(priors or {}):
-            raise ValueError(
-                f"Priors for {conflicting.pop()!r} are not used when"
-                f" parametrization={self.parametrization!r}."
-                f" 'alpha' and 'halflife' are alternatives, so pass a prior for"
-                f" {self.parametrization!r} only."
-            )
-
-        AdstockTransformation.function_priors.fset(self, priors)  # type: ignore[attr-defined]
-
-    def _has_defaults_for_all_arguments(self) -> None:
-        """Check the priors of the active parametrization.
-
-        ``alpha`` and ``halflife`` are alternatives, so only the one of the
-        active parametrization needs a prior. Every other argument of
-        ``function`` still does, which keeps the check meaningful for subclasses
-        that override it.
-        """
-        function_signature = signature(self.function)
-
-        # Drop the first one as assumed to be the data, and the dim kwarg
-        parameters = set(list(function_signature.parameters.keys())[1:]) - {"dim"}
-        parameters_that_need_priors = (
-            parameters - set(self._alternative_parameters)
-        ) | {self.parametrization}
-        parameters_with_priors = set(self.default_priors)
-
-        missing_priors = parameters_that_need_priors - parameters_with_priors
-        missing_parameters = parameters_with_priors - parameters_that_need_priors
-
-        if missing_priors or missing_parameters:
-            raise ParameterPriorException(missing_priors, missing_parameters)
-
-    def to_dict(self) -> dict:
-        """Convert the adstock transformation to a dictionary."""
-        data = super().to_dict()
-
-        if self.parametrization != "alpha":
-            data["parametrization"] = self.parametrization
-
-        return data
-
-    _alternative_parameters = ("alpha", "halflife")
     default_priors = {"alpha": Prior("Beta", alpha=1, beta=3)}
     # Implies approximately the default alpha prior under alpha = 0.5 ** (1 / h)
     halflife_priors = {"halflife": Prior("InverseGamma", alpha=2.6, beta=1)}
 
 
 @serialization.register
-class DelayedAdstock(AdstockTransformation):
-    """Wrapper around delayed adstock function.
+class DelayedAdstock(_AlphaHalfLifeParametrization, AdstockTransformation):
+    r"""Wrapper around delayed adstock function.
 
     Calls :func:`pymc_marketing.mmm.transformers.delayed_adstock` with the wrapper's
     ``l_max``, ``normalize`` and ``mode`` settings.
+
+    The width of the response around the peak can be parametrised either by the
+    retention rate ``alpha`` (the default) or by the half-life of the ad effect.
+    Since the weight at lag :math:`\ell` is :math:`\alpha^{(\ell-\theta)^2}`, a
+    half-life :math:`h` corresponds to
+
+    .. math::
+
+        \alpha = 2^{-1 / h^{2}},
+        \qquad
+        w_\ell = 2^{-\left(\frac{\ell-\theta}{h}\right)^{2}},
+
+    which maps any positive half-life into :math:`(0, 1)` and holds exactly for
+    every ``l_max`` and either setting of ``normalize``. Under the half-life
+    parametrisation the trace will contain ``adstock_halflife`` instead of
+    ``adstock_alpha``.
+
+    Unlike :class:`GeometricAdstock`, where the half-life is a decay time
+    measured from lag zero, here it is a half-width either side of the peak at
+    ``theta``: the effect takes ``halflife`` periods to rise to its peak as well
+    as to fall back from it.
+
+    The two defaults are matched, implying a median ``alpha`` of 0.207 against
+    0.206. The priors imply a median half-life of 0.66 periods. A custom
+    half-life prior must have positive support and should keep its mass away
+    from zero, where the likelihood goes numerically flat. The
+    :ref:`adstock functions guide <adstock_functions_guide>` covers both points.
 
     Parameters
     ----------
     alpha : tensor
         Retention rate of the ad effect; must be between 0 and 1. Default prior:
-        ``Prior("Beta", alpha=1, beta=3)``.
+        ``Prior("Beta", alpha=1, beta=3)``. Only used when
+        ``parametrization="alpha"``.
+    halflife : tensor
+        Number of time periods between peak effectiveness and half of it; must be
+        positive. Because the kernel is symmetric about ``theta``, this is both
+        the time over which effectiveness rises from half to its peak and the
+        time over which it decays from the peak back to half. Default prior:
+        ``Prior("InverseGamma", alpha=9, beta=5.75)``. Only used when
+        ``parametrization="halflife"``.
     theta : tensor
-        Delay of the peak effect; must be between 0 and ``l_max - 1``. Default prior:
-        ``Prior("HalfNormal", sigma=1)``.
+        Delay from exposure to peak effectiveness; must be between 0 and
+        ``l_max - 1``. Default prior: ``Prior("HalfNormal", sigma=1)``. Used by
+        both parametrisations, and passed to ``function`` by keyword only, so
+        that a positional call cannot bind it to ``halflife`` by mistake.
+    parametrization : str
+        Either ``"alpha"`` or ``"halflife"``. When left unset it is inferred
+        from the priors, defaulting to ``"alpha"``. Passing a prior for the
+        parameter of the other parametrisation raises a ``ValueError``.
+
+    Examples
+    --------
+    Parametrise the width of the response by its half-life rather than by the
+    retention rate. For weekly data the priors below say that the effect peaks a
+    couple of weeks after exposure and takes about three weeks to move between
+    half and peak effectiveness:
+
+    .. code-block:: python
+
+        import numpy as np
+        from pymc_extras.prior import Prior
+        from pymc_marketing.mmm import DelayedAdstock
+
+        adstock = DelayedAdstock(
+            l_max=12,
+            priors={
+                "halflife": Prior("LogNormal", mu=np.log(3), sigma=0.3),
+                "theta": Prior("HalfNormal", sigma=2),
+            },
+        )
 
     .. plot::
         :context: close-figs
@@ -456,11 +656,16 @@ class DelayedAdstock(AdstockTransformation):
 
     """
 
-    def function(self, x, alpha, theta, *, dim: str):
+    @staticmethod
+    def _alpha_from_halflife(halflife):
+        """Map a half-life onto the retention rate of the decay."""
+        return 2.0 ** (-1.0 / halflife**2)
+
+    def function(self, x, alpha=None, halflife=None, *, theta, dim: str):
         """Delayed adstock function."""
         return delayed_adstock(
             x,
-            alpha=alpha,
+            alpha=self._resolve_alpha(alpha, halflife),
             theta=theta,
             l_max=self.l_max,
             normalize=self.normalize,
@@ -470,6 +675,11 @@ class DelayedAdstock(AdstockTransformation):
 
     default_priors = {
         "alpha": Prior("Beta", alpha=1, beta=3),
+        "theta": Prior("HalfNormal", sigma=1),
+    }
+    # Implies approximately the default alpha prior under alpha = 2 ** (-1 / h**2)
+    halflife_priors = {
+        "halflife": Prior("InverseGamma", alpha=9, beta=5.75),
         "theta": Prior("HalfNormal", sigma=1),
     }
 
@@ -534,6 +744,12 @@ class WeibullCDFAdstock(AdstockTransformation):
     Calls :func:`pymc_marketing.mmm.transformers.weibull_adstock` with
     ``type=WeibullType.CDF`` and the wrapper's ``l_max``, ``normalize`` and ``mode``
     settings.
+
+    .. note::
+        ``l_max`` is the total number of kernel weights: the current period plus
+        ``l_max - 1`` lags. Releases up to and including 1.2.0 applied one extra
+        CDF weight (``l_max + 1`` in total), so models saved with those releases
+        can produce different predictions when reloaded.
 
     Parameters
     ----------

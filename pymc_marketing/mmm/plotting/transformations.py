@@ -105,6 +105,7 @@ from pymc_marketing.mmm.plotting._helpers import (
     _process_plot_params,
     _select_dims,
 )
+from pymc_marketing.mmm.summary.helpers import get_channel_x_data
 
 _SCALED_SPACE_MAX_THRESHOLD = 10.0
 
@@ -114,15 +115,6 @@ def _x_axis_label(data: MMMIDataWrapper, apply_cost_per_unit: bool) -> str:
     if apply_cost_per_unit and data.cost_per_unit is not None:
         return "Spend"
     return "Channel Data"
-
-
-def _get_channel_x_data(
-    data: MMMIDataWrapper, apply_cost_per_unit: bool
-) -> xr.DataArray:
-    """Return channel spend or raw channel data based on cost-per-unit flag."""
-    if apply_cost_per_unit:
-        return data.get_channel_spend()
-    return data.get_channel_data()
 
 
 class TransformationPlots:
@@ -183,6 +175,10 @@ class TransformationPlots:
         Returns
         -------
         tuple[Figure, NDArray[Axes]] or PlotCollection
+
+        See Also
+        --------
+        MMMSummaryFactory.saturation_scatterplot : Tabular export for custom frontends
         """
         data = (
             MMMIDataWrapper(idata, schema=self._data.schema)
@@ -200,7 +196,7 @@ class TransformationPlots:
         contributions = data.get_channel_contributions(original_scale=original_scale)
         mean_contrib = contributions.mean(dim=["chain", "draw"])
 
-        x_data = _get_channel_x_data(data, apply_cost_per_unit)
+        x_data = get_channel_x_data(data, apply_cost_per_unit)
         scatter_ds = xr.Dataset({"x": x_data, "y": mean_contrib})
 
         scatter_ds = _select_dims(scatter_ds, dims)
@@ -333,6 +329,10 @@ class TransformationPlots:
         Returns
         -------
         tuple[Figure, NDArray[Axes]] or PlotCollection
+
+        See Also
+        --------
+        MMMSummaryFactory.saturation_curves : Tabular export for custom frontends
         """
         data = (
             MMMIDataWrapper(idata, schema=self._data.schema)

@@ -5,7 +5,9 @@ version: 2
 sphinx:
   configuration: docs/source/conf.py
   # Mirror the GH Actions `Docs` workflow gate: fail the RTD build on any
-  # sphinx/myst/numpydoc warning. History: #1210.
+  # sphinx/myst/numpydoc warning. History: #1210. With the html step
+  # overridden below this key no longer drives the build; the -W flag in
+  # that command is the gate.
   fail_on_warning: true
 
 build:
@@ -17,6 +19,16 @@ build:
       # Install core dependencies first
       - pip install --upgrade pip setuptools wheel
       - python scripts/generate_gallery.py
+    build:
+      # RTD's default command plus an explicit job count. The RTD builder
+      # exposes 2 CPUs (-j auto resolves to 2; measured from the chunk counts
+      # of build 34587451) and Sphinx writes with N-1 workers, so -j 2 leaves
+      # the write phase (~85% of the build) on a single worker. -j 3 puts both
+      # CPUs on it. $READTHEDOCS_LANGUAGE keeps the pymc-marketing-es project
+      # building in Spanish; a literal language code would silently make it
+      # an English mirror.
+      html:
+        - python -m sphinx -T -W --keep-going -j 3 -b html -d _build/doctrees -D language=$READTHEDOCS_LANGUAGE docs/source $READTHEDOCS_OUTPUT/html
 
 python:
   install:

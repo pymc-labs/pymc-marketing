@@ -1,3 +1,11 @@
+# Marimo
+marimo/_static/
+marimo/_lsp/
+__marimo__/
+
+# JOSS paper build artifacts
+paper/jats/
+
 # MLflow logging
 mlruns/
 mlruns.db

@@ -17,7 +17,15 @@ from pymc_marketing.mmm import preprocessing, validating
 from pymc_marketing.mmm.additive_effect import (
     ControlMuEffect,
     DataVarMuEffect,
+    IncrementalitySpec,
     MediaMuEffect,
+)
+from pymc_marketing.mmm.budget_optimizer import (
+    BudgetOptimizationResult,
+    BudgetOptimizer,
+    PlanEvaluation,
+    merge_inference_data,
+    merge_models_and_idata,
 )
 from pymc_marketing.mmm.components.adstock import (
     AdstockTransformation,
@@ -54,6 +62,7 @@ from pymc_marketing.mmm.hsgp import (
     create_eta_prior,
     create_m_and_L_recommendations,
 )
+from pymc_marketing.mmm.incrementality import Incrementality
 from pymc_marketing.mmm.linear_regression import FancyLinearRegression
 from pymc_marketing.mmm.linear_trend import LinearTrend
 from pymc_marketing.mmm.media_transformation import (
@@ -65,11 +74,16 @@ from pymc_marketing.mmm.mmm import (
     MMM,
     BudgetOptimizerWrapper,
 )
+from pymc_marketing.mmm.optimization_variables import (
+    OptimizationVariable,
+    OptimizationVariables,
+)
 from pymc_marketing.mmm.plotting import MMMPlotSuiteFacade
 from pymc_marketing.mmm.preprocessing import (
     preprocessing_method_X,
     preprocessing_method_y,
 )
+from pymc_marketing.mmm.price_response import PowerPriceResponse, PriceResponse
 from pymc_marketing.mmm.scaling import (
     DataDerivedScaling,
     FixedScaling,
@@ -89,6 +103,8 @@ __all__ = [
     "MMM",
     "AdstockTransformation",
     "BinomialAdstock",
+    "BudgetOptimizationResult",
+    "BudgetOptimizer",
     "BudgetOptimizerWrapper",
     "ControlMuEffect",
     "CovFunc",
@@ -101,6 +117,8 @@ __all__ = [
     "HSGPPeriodic",
     "HillSaturation",
     "HillSaturationSigmoid",
+    "Incrementality",
+    "IncrementalitySpec",
     "InverseScaledLogisticSaturation",
     "LinearTrend",
     "LogSaturation",
@@ -115,7 +133,12 @@ __all__ = [
     "MonthlyFourier",
     "NoAdstock",
     "NoSaturation",
+    "OptimizationVariable",
+    "OptimizationVariables",
     "PeriodicCovFunc",
+    "PlanEvaluation",
+    "PowerPriceResponse",
+    "PriceResponse",
     "RootSaturation",
     "SaturationTransformation",
     "Scaling",
@@ -135,6 +158,8 @@ __all__ = [
     "create_constrained_inverse_gamma_prior",
     "create_eta_prior",
     "create_m_and_L_recommendations",
+    "merge_inference_data",
+    "merge_models_and_idata",
     "preprocessing",
     "preprocessing_method_X",
     "preprocessing_method_y",

@@ -153,6 +153,10 @@ class SensitivityPlots:
         Returns
         -------
         tuple[Figure, NDArray[Axes]] or PlotCollection
+
+        See Also
+        --------
+        MMMSummaryFactory.sensitivity_analysis : Tabular export for custom frontends
         """
         data = (
             MMMIDataWrapper(idata, schema=self._data.schema)
@@ -243,6 +247,10 @@ class SensitivityPlots:
         Returns
         -------
         tuple[Figure, NDArray[Axes]] or PlotCollection
+
+        See Also
+        --------
+        MMMSummaryFactory.sensitivity_uplift : Tabular export for custom frontends
         """
         data = (
             MMMIDataWrapper(idata, schema=self._data.schema)
@@ -368,6 +376,10 @@ class SensitivityPlots:
         Returns
         -------
         tuple[Figure, NDArray[Axes]] or PlotCollection
+
+        See Also
+        --------
+        MMMSummaryFactory.sensitivity_marginal : Tabular export for custom frontends
         """
         data = (
             MMMIDataWrapper(idata, schema=self._data.schema)

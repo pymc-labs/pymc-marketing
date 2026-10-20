@@ -114,7 +114,8 @@ directly from the training ``xr.Dataset``.
 ``DataVarMuEffect``
     Abstract base for effects that reference named variables in the Dataset.
     Subclasses implement ``create_effect``; ``create_data`` and ``set_data``
-    are provided.
+    are provided.  Each dataset column is registered once as ``pm.Data`` under
+    its dataset name; effects that share a column reuse the same graph node.
 
 ``MediaMuEffect(DataVarMuEffect)``
     Applies a ``MediaTransformation`` (adstock + saturation) to a named
@@ -208,15 +209,23 @@ coefficients.
 """
 
 from abc import ABC, abstractmethod
-from typing import Annotated, Any, Protocol
+from typing import Annotated, Any, Literal, Protocol
 
+import numpy as np
 import numpy.typing as npt
 import pandas as pd
 import pymc as pm
 import pymc.dims as pmd
 import pytensor.xtensor as ptx
 import xarray as xr
-from pydantic import Field, InstanceOf
+from pydantic import (
+    BaseModel,
+    BeforeValidator,
+    ConfigDict,
+    Field,
+    InstanceOf,
+    StrictInt,
+)
 from pymc_extras.prior import Prior, VariableFactory
 from pytensor.xtensor.type import XTensorVariable
 
@@ -339,6 +348,90 @@ class Model(Protocol):
         """
 
 
+def _accept_numpy_integer(value: Any) -> Any:
+    """Let a NumPy integer stand in for a Python one.
+
+    ``StrictInt`` is here to refuse ``True`` and ``2.0``, both of which would
+    otherwise size an evaluation window without anyone noticing.  It also
+    refuses ``np.int64``, which is not the same kind of mistake: it is what a
+    caller gets from the shape or ``l_max`` of anything array-backed.
+    """
+    return int(value) if isinstance(value, np.integer) else value
+
+
+CarryoverLags = Annotated[
+    StrictInt, BeforeValidator(_accept_numpy_integer), Field(ge=0)
+]
+"""A non-negative window length, tolerant of NumPy integers but not of ``bool``."""
+
+
+class IncrementalitySpec(BaseModel):
+    r"""Declaration that an effect may take part in incrementality analysis.
+
+    Returned by :meth:`MuEffect.incrementality_spec`.  Only effects whose
+    contribution depends on ``channel_data`` need one: a spend counterfactual
+    cannot reach any other effect, so those are part of the baseline and are
+    left alone.
+
+    Nothing has to be filled in.  An empty ``IncrementalitySpec()`` opts the
+    effect in and lets
+    :class:`~pymc_marketing.mmm.incrementality.Incrementality` work the rest out
+    from the graph: the date-indexed ``pm.Data`` the effect reads is discovered
+    by traversal, and how far in time the effect carries a change in spend is
+    *measured* by perturbing one date and watching where the contribution moves.
+    The fields below override that measurement when a caller would rather state
+    the answer than have it derived.
+
+    Parameters
+    ----------
+    additional_carryover_lags : int, optional
+        Number of periods *beyond* the model's own ``adstock.l_max`` over which
+        a change in spend at time *t* can still move this effect's contribution.
+        For an effect that chains a second adstock behind the model's -- as a
+        funnel mediator does, with ``upper_transform`` feeding
+        ``demand_transform`` -- it is the ``l_max`` of that second adstock.
+        Left at ``None`` it is measured.  A declared value is allowed to be
+        *larger* than the measured reach (a wider window only costs compute) but
+        a smaller one is rejected, since it would silently truncate the mediated
+        tail and understate the increment.
+    evaluation_mode : {"auto", "window", "full"}, default="auto"
+        How much of the date axis the effect needs to see to be evaluated
+        correctly.  ``"window"`` is the cheap case: the effect propagates spend
+        forward over a bounded number of periods, so a counterfactual can be
+        evaluated on a window around each period.  ``"full"`` is required by an
+        effect that reads the whole series at once -- anything with a reduction
+        over ``date``, such as a normalisation by ``x.mean("date")`` -- because
+        such an effect takes a different value on a truncated axis.  ``"auto"``
+        measures which of the two applies.
+
+    Examples
+    --------
+    Opt in and let everything be measured:
+
+    .. code-block:: python
+
+        class FunnelEffect(DataVarMuEffect):
+            def incrementality_spec(self) -> IncrementalitySpec:
+                return IncrementalitySpec()
+
+    Declare the carryover instead, for a funnel whose mediator applies a second
+    adstock of ``l_max=8``:
+
+    .. code-block:: python
+
+        class FunnelEffect(DataVarMuEffect):
+            def incrementality_spec(self) -> IncrementalitySpec:
+                return IncrementalitySpec(
+                    additional_carryover_lags=self.demand_transform.adstock.l_max
+                )
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid", validate_assignment=True)
+
+    additional_carryover_lags: CarryoverLags | None = None
+    evaluation_mode: Literal["auto", "window", "full"] = "auto"
+
+
 class MuEffect(SerializableBaseModel, ABC):
     """Abstract base class for arbitrary additive mu effects.
 
@@ -382,6 +475,37 @@ class MuEffect(SerializableBaseModel, ABC):
             )
         return f"{prefix}_effect_contribution"
 
+    def incrementality_spec(self) -> IncrementalitySpec | None:
+        """Opt this effect in to spend-counterfactual incrementality analysis.
+
+        :class:`~pymc_marketing.mmm.incrementality.Incrementality` perturbs
+        ``channel_data`` and reads the resulting change in the linear predictor.
+        An effect that depends on ``channel_data`` -- a funnel mediator, say --
+        carries part of that change, and is only included in the increment if it
+        returns a spec here.
+
+        The default returns ``None``, which is correct for every effect whose
+        contribution does not depend on ``channel_data``: such an effect belongs
+        to the baseline, is unaffected by the counterfactual, and is skipped
+        without ever consulting this method.  An effect that *does* depend on
+        ``channel_data`` and returns ``None`` raises ``NotImplementedError``
+        rather than being silently dropped from the increment.
+
+        Opting in costs one line -- ``return IncrementalitySpec()`` -- because
+        the spec's fields are overrides for quantities that are otherwise
+        measured from the graph.
+
+        Returns
+        -------
+        IncrementalitySpec or None
+            ``None`` to opt out.
+
+        See Also
+        --------
+        IncrementalitySpec : What has to be declared, and why.
+        """
+        return None
+
     def idata_groups(self) -> dict[str, xr.Dataset]:
         """Return supplementary data groups to store in DataTree.
 
@@ -406,6 +530,13 @@ class DataVarMuEffect(MuEffect, ABC):
     Subclasses only need to implement ``create_effect``.
     ``create_data`` and ``set_data`` are provided by default.
 
+    Each dataset column in ``data_vars`` is registered once as ``pm.Data`` under
+    its dataset name.  Multiple effects referencing the same column share that
+    node when the existing node is a data variable with matching dims and
+    shape.  A name that already belongs to a different kind of variable, or to
+    a data variable with different dims or shape, raises ``ValueError``.
+    Inside ``create_effect``, read inputs with ``model[var_name]``.
+
     Parameters
     ----------
     data_vars : list[str]
@@ -421,14 +552,40 @@ class DataVarMuEffect(MuEffect, ABC):
     def create_data(self, mmm: Model) -> None:
         """Register each data variable as ``pm.Data``.
 
+        Reuses an existing data node when the name, dims, and shape match the
+        dataset column. Raises if the name is reserved by MMM or taken by a
+        different variable.
+
         Parameters
         ----------
         mmm : Model
             The MMM model instance.
         """
+        model = mmm.model
         for var_name in self.data_vars:
             da = mmm.xarray_dataset[var_name]
-            pmd.Data(var_name, da.values, dims=da.dims)
+            existing = model.named_vars.get(var_name)
+            if existing is None:
+                pmd.Data(var_name, da.values, dims=da.dims, model=model)
+                continue
+            if var_name in getattr(mmm, "_library_data_names", frozenset()):
+                raise ValueError(
+                    f"Cannot register dataset column {var_name!r} as pm.Data: "
+                    "that name is registered by MMM itself; rename the dataset column."
+                )
+            if existing not in model.data_vars:
+                raise ValueError(
+                    f"Cannot register dataset column {var_name!r} as pm.Data: "
+                    "a non-data variable with that name already exists in the model."
+                )
+            existing_dims = tuple(model.named_vars_to_dims.get(var_name, ()))
+            existing_shape = tuple(existing.get_value(borrow=True).shape)
+            if existing_dims != tuple(da.dims) or existing_shape != tuple(da.shape):
+                raise ValueError(
+                    f"Cannot reuse pm.Data {var_name!r}: existing dims/shape "
+                    f"{existing_dims}/{existing_shape} do not match dataset column "
+                    f"{tuple(da.dims)}/{tuple(da.shape)}."
+                )
 
     @abstractmethod
     def create_effect(self, mmm: Model) -> XTensorVariable:
@@ -462,7 +619,8 @@ class MediaMuEffect(DataVarMuEffect):
     media_transformation : MediaTransformation
         Transformation combining adstock and saturation with configurable order.
         Its ``dims`` must include the channel dimension plus any extra dims
-        (e.g. ``("product", "channel")``).
+        (e.g. ``("product", "channel")``). Adstock and saturation priors
+        without explicit ``dims`` get these dims, i.e. one parameter per cell.
     channel_dim : str, optional
         Name of the channel dimension to aggregate over.
         Default is ``"channel"``.

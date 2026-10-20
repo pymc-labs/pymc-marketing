@@ -273,6 +273,98 @@ class TestParamStability:
         cv_plot.param_stability()
         assert len(plt.get_fignums()) == 1
 
+    def test_constrained_layout_by_default(self, cv_plot):
+        from matplotlib.layout_engine import ConstrainedLayoutEngine
+
+        fig, _axes = cv_plot.param_stability()
+        assert isinstance(fig.get_layout_engine(), ConstrainedLayoutEngine)
+
+    def test_layout_override_is_honoured(self, cv_plot):
+        from matplotlib.layout_engine import ConstrainedLayoutEngine
+
+        # Figure.set_layout_engine("none") yields None only when no engine was
+        # set before, and a PlaceHolderLayoutEngine otherwise. Either way the
+        # point is that the constrained default is off.
+        fig, _axes = cv_plot.param_stability(figure_kwargs={"layout": "none"})
+        assert not isinstance(fig.get_layout_engine(), ConstrainedLayoutEngine)
+
+    def test_variable_label_clears_channel_labels(self, cv_results_idata):
+        """Regression test for the variable label overlapping the channel labels.
+
+        The variable label is drawn left-aligned and the channel labels
+        right-aligned inside the same narrow left column, so wide channel names
+        are what push them into each other. Uses the channel names and the call
+        signature from the MMM case study, which is where this was reported.
+
+        Asserts both that the labels clear each other under the default and that
+        the default leaves more room than ``layout="none"``. The second check
+        does not depend on font metrics, so it still catches a revert to the old
+        default if label placement in matplotlib or arviz_plots ever shifts far
+        enough to invalidate the first.
+        """
+        from pymc_marketing.mmm.plotting.cv import MMMCVPlotSuite
+
+        channels = sorted(
+            [
+                "Direct Mail",
+                "Insert",
+                "Newspaper",
+                "Online Display",
+                "Radio",
+                "Social Media",
+                "TV",
+            ]
+        )
+        cv_labels = cv_results_idata["/posterior"].dataset.coords["cv"].values
+        rng = np.random.default_rng(SEED)
+        posterior = xr.Dataset(
+            {
+                "saturation_beta": xr.DataArray(
+                    rng.normal(size=(len(cv_labels), 2, 50, len(channels))),
+                    dims=["cv", "chain", "draw", "channel"],
+                    coords={
+                        "cv": cv_labels,
+                        "chain": np.arange(2),
+                        "draw": np.arange(50),
+                        "channel": channels,
+                    },
+                )
+            }
+        )
+        suite = MMMCVPlotSuite(
+            xr.DataTree.from_dict(
+                {
+                    "/posterior": posterior,
+                    "/cv_metadata": cv_results_idata.cv_metadata,
+                }
+            )
+        )
+
+        def label_geometry(**figure_kwargs):
+            """Clearance in pixels between the variable label and the channels."""
+            fig, axes = suite.param_stability(
+                var_names=["saturation_beta"], figsize=(12, 9), **figure_kwargs
+            )
+            fig.canvas.draw()
+            label_ax = np.ravel(axes)[0]
+            var_label = next(
+                t for t in label_ax.texts if t.get_text().strip() == "saturation_beta"
+            )
+            channel_labels = [
+                t for t in label_ax.texts if t.get_text().strip() in channels
+            ]
+            assert len(channel_labels) == len(channels)
+            var_box = var_label.get_window_extent()
+            boxes = [t.get_window_extent() for t in channel_labels]
+            overlaps = any(var_box.overlaps(b) for b in boxes)
+            return min(b.x0 for b in boxes) - var_box.x1, overlaps
+
+        default_gap, default_overlaps = label_geometry()
+        unlaid_gap, _ = label_geometry(figure_kwargs={"layout": "none"})
+
+        assert not default_overlaps
+        assert default_gap > unlaid_gap
+
 
 @pytest.fixture(scope="module")
 def cv_results_idata_geo():
@@ -447,3 +539,69 @@ class TestCRPS:
             assert np.any(np.isfinite(y_vals)), (
                 "CRPS panel contains only NaN — CRPS computation failed"
             )
+
+    def test_fold_axis_is_discrete_and_labelled(self, cv_plot, cv_results_idata):
+        """The x axis names the folds instead of showing positional floats."""
+        from pymc_marketing.mmm.plotting.cv import _extract_cv_labels
+
+        cv_labels = _extract_cv_labels(cv_results_idata)
+        _fig, axes = cv_plot.crps()
+        for ax in axes:
+            np.testing.assert_array_equal(ax.get_xticks(), np.arange(len(cv_labels)))
+            assert [t.get_text() for t in ax.get_xticklabels()] == [
+                str(label) for label in cv_labels
+            ]
+
+    def test_fold_axis_labelled_for_geo(self, cv_results_idata_geo):
+        from pymc_marketing.mmm.plotting.cv import MMMCVPlotSuite, _extract_cv_labels
+
+        suite = MMMCVPlotSuite(cv_results_idata_geo)
+        cv_labels = _extract_cv_labels(cv_results_idata_geo)
+        _fig, axes = suite.crps()
+        for ax in axes:
+            assert [t.get_text() for t in ax.get_xticklabels()] == [
+                str(label) for label in cv_labels
+            ]
+
+    def test_markers_drawn_by_default(self, cv_plot):
+        _fig, axes = cv_plot.crps()
+        assert all(ax.lines[0].get_marker() == "o" for ax in axes)
+
+    def test_marker_can_be_overridden(self, cv_plot):
+        _fig, axes = cv_plot.crps(line_kwargs={"marker": "s"})
+        assert all(ax.lines[0].get_marker() == "s" for ax in axes)
+
+    def test_combine_splits_single_panel(self, cv_plot):
+        """combine_splits puts train and test in one panel, so they share a y-scale."""
+        _fig, axes = cv_plot.crps(combine_splits=True)
+        assert len(axes) == 1
+        ax = axes[0]
+        assert len(ax.lines) == 2
+        assert len({line.get_color() for line in ax.lines}) == 2
+
+    def test_combine_splits_one_panel_per_geo(self, cv_results_idata_geo):
+        from pymc_marketing.mmm.plotting.cv import MMMCVPlotSuite
+
+        suite = MMMCVPlotSuite(cv_results_idata_geo)
+        _fig, axes = suite.crps(combine_splits=True)
+        assert len(axes) == 2, "Expected one panel per geo"
+        for ax in axes:
+            assert len(ax.lines) == 2
+
+    def test_fold_ticks_skip_backends_without_tick_api(self):
+        """A non-matplotlib plot object is left alone instead of raising."""
+        from types import SimpleNamespace
+
+        from pymc_marketing.mmm.plotting.cv import _label_fold_ticks
+
+        class TicklessPanel:
+            """Stand-in for a backend panel with no matplotlib tick API."""
+
+        panel = TicklessPanel()
+        pc = SimpleNamespace(
+            viz={"plot": SimpleNamespace(values=np.array([panel], dtype=object))}
+        )
+
+        _label_fold_ticks(pc, ["Fold 0", "Fold 1"])
+
+        assert not hasattr(panel, "set_xticks")

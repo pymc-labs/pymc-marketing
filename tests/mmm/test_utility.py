@@ -25,6 +25,7 @@ from pymc_marketing.mmm.utility import (
     adjusted_value_at_risk_score,
     average_response,
     conditional_value_at_risk,
+    diversification_ratio,
     mean_tightness_score,
     portfolio_entropy,
     raroc,
@@ -305,6 +306,104 @@ def test_covariance_matrix_matches_numpy(data):
         atol=1e-8,
         err_msg=f"Mismatch for input data:\n{data}",
     )
+
+
+_dr_rng = np.random.default_rng(0)  # local so the module-level rng stream is untouched
+
+
+def _diversification_ratio_numpy(data: np.ndarray, budgets: np.ndarray) -> float:
+    weights = budgets / budgets.sum()
+    return (weights * data.std(axis=0, ddof=1)).sum() / np.sqrt(
+        weights @ np.cov(data, rowvar=False) @ weights
+    )
+
+
+@pytest.mark.parametrize(
+    "data, budgets",
+    [
+        (np.array([[1.0, 2.0], [3.0, 5.0], [5.0, 4.0]]), np.array([1.0, 3.0])),
+        (
+            _dr_rng.normal(size=(500, 3))
+            @ np.array([[1, 0.5, 0], [0, 1, 0.2], [0, 0, 1]]),
+            np.array([1.0, 2.0, 3.0]),
+        ),
+        (_dr_rng.normal(size=(200, 4)), np.array([10.0, 20.0, 30.0, 40.0])),
+    ],
+)
+def test_diversification_ratio_matches_numpy(data, budgets):
+    """(w . sigma).sum() / sqrt(w' Sigma w) against a numpy reference."""
+    pt_data = ptx.xtensor("pt_data", dims=("sample", "channel"))
+    pt_budgets = ptx.xtensor("pt_budgets", dims=("channel",))
+    dr_func = function(
+        [pt_data, pt_budgets], diversification_ratio(pt_data, pt_budgets)
+    )
+
+    np.testing.assert_allclose(
+        dr_func(data, budgets), _diversification_ratio_numpy(data, budgets), rtol=1e-6
+    )
+
+
+def _diversification_ratio_eval(data: np.ndarray, budgets: np.ndarray) -> float:
+    return float(
+        diversification_ratio(
+            as_xtensor(data, dims=("sample", "channel")),
+            as_xtensor(budgets, dims=("channel",)),
+        ).eval()
+    )
+
+
+def test_diversification_ratio_independent_assets_is_sqrt_n():
+    """Uncorrelated assets with equal volatility and equal weights give sqrt(n)."""
+    # Columns of a Hadamard matrix (minus the all-ones one) sum to zero and are
+    # mutually orthogonal with equal norms, so the covariance is a multiple of
+    # the identity.
+    data = np.array(
+        [
+            [1.0, 1.0, 1.0],
+            [-1.0, 1.0, -1.0],
+            [1.0, -1.0, -1.0],
+            [-1.0, -1.0, 1.0],
+        ]
+    )
+    np.testing.assert_allclose(
+        _diversification_ratio_eval(data, np.ones(3)), np.sqrt(3), rtol=1e-6
+    )
+
+
+def test_diversification_ratio_lower_bound_is_one():
+    """Perfectly correlated assets, and a single asset, sit at the floor DR = 1."""
+    x = np.array([1.0, 2.0, 4.0, 7.0, 11.0])
+    correlated = np.column_stack([x, 2 * x])
+    np.testing.assert_allclose(
+        _diversification_ratio_eval(correlated, np.array([1.0, 3.0])), 1.0, rtol=1e-6
+    )
+    np.testing.assert_allclose(
+        _diversification_ratio_eval(x[:, None], np.array([5.0])), 1.0, rtol=1e-6
+    )
+
+
+@pytest.mark.parametrize(
+    "samples_dims, budgets_dims, match",
+    [
+        (("sample",), ("channel",), "2D tensor variable"),
+        (("sample", "channel", "date"), ("channel",), "2D tensor variable"),
+        (("chain", "channel"), ("channel",), "'sample' dim"),
+        (("sample", "channel"), ("media",), "not found in samples dims"),
+        (("sample", "channel"), ("sample", "channel"), "budgets to be a 1D"),
+    ],
+    ids=[
+        "1d-samples",
+        "3d-samples",
+        "no-sample-dim",
+        "asset-dim-mismatch",
+        "2d-budgets",
+    ],
+)
+def test_diversification_ratio_rejects_bad_dims(samples_dims, budgets_dims, match):
+    samples = ptx.xtensor("samples", dims=samples_dims)
+    budgets = ptx.xtensor("budgets", dims=budgets_dims)
+    with pytest.raises(ValueError, match=match):
+        diversification_ratio(samples, budgets)
 
 
 # Test Cases

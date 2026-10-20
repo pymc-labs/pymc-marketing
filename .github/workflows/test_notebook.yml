@@ -2,7 +2,7 @@ name: Test Notebooks
 
 on:
   pull_request:
-    branches: [main, v1.0.0]
+    branches: [main]
     paths:
      - "pyproject.toml"
      - "tests/**.py"
@@ -10,10 +10,10 @@ on:
      - ".github/workflows/test_notebook.yml"
      - "scripts/run_notebooks/**.py"
      - "docs/source/notebooks/**.ipynb"
-     - "!docs/source/notebooks/mmm/**.ipynb"
      - "!docs/source/notebooks/*/dev/**.ipynb"
+     - "docs/source/guide/**.ipynb"
   push:
-    branches: [main, v1.0.0]
+    branches: [main]
     paths:
      - "pyproject.toml"
      - "tests/**.py"
@@ -21,18 +21,8 @@ on:
      - ".github/workflows/test_notebook.yml"
      - "scripts/run_notebooks/**.py"
      - "docs/source/notebooks/**.ipynb"
-     - "!docs/source/notebooks/mmm/**.ipynb"
      - "!docs/source/notebooks/*/dev/**.ipynb"
-  merge_group:
-    paths:
-     - "pyproject.toml"
-     - "tests/**.py"
-     - "pymc_marketing/**"
-     - ".github/workflows/test_notebook.yml"
-     - "scripts/run_notebooks/**.py"
-     - "docs/source/notebooks/**.ipynb"
-     - "!docs/source/notebooks/mmm/**.ipynb"
-     - "!docs/source/notebooks/*/dev/**.ipynb"
+     - "docs/source/guide/**.ipynb"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -45,17 +35,16 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        linker: [cvm, numba]
         split:
+          # MMM runs in three splits to stay under the 60 min timeout (#3179)
           - "--notebooks mmm --end-idx 10"
-          - "--notebooks mmm --start-idx 10"
+          - "--notebooks mmm --start-idx 10 --end-idx 30"
+          - "--notebooks mmm --start-idx 30"
           - "--notebooks clv"
           - "--notebooks bass"
           - "--notebooks customer_choice"
           - "--notebooks general"
           - "--exclude-dirs mmm clv bass customer_choice general"
-    env:
-      PYTENSOR_FLAGS: linker=${{ matrix.linker }}
     steps:
     - uses: actions/checkout@v7
 

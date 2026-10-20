@@ -198,6 +198,30 @@ def fitted_pnbd(test_summary_data) -> ParetoNBDModel:
     return pnbd_model
 
 
+@pytest.fixture(scope="module")
+def map_fitted_bg(test_summary_data) -> BetaGeoModel:
+    """A model whose idata has the single (chain, draw) shape of a `fit(method="map")` fit."""
+    rng = np.random.default_rng(13)
+
+    model_config = {
+        # Narrow Gaussian centered at MLE params from lifetimes BetaGeoFitter
+        "a": Prior("DiracDelta", c=1.85034151),
+        "alpha": Prior("DiracDelta", c=1.86428187),
+        "b": Prior("DiracDelta", c=3.18105431),
+        "r": Prior("DiracDelta", c=0.16385072),
+    }
+    model = BetaGeoModel(
+        model_config=model_config,
+    )
+    model.build_model(data=test_summary_data)
+    fake_fit = pm.sample_prior_predictive(draws=1, model=model.model, random_seed=rng)
+    # posterior group required to pass L80 assert check
+    fake_fit["/posterior"] = fake_fit["/prior"].to_dataset()
+    set_model_fit(model, fake_fit)
+
+    return model
+
+
 @pytest.fixture(params=["bg_model", "mbg_model", "pnbd_model"])
 def fitted_model(request, fitted_bg, fitted_mbg, fitted_pnbd):
     fitted_models = {

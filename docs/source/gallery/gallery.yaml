@@ -25,12 +25,18 @@ sections:
             notebook: mmm/mmm_build_from_yml_example
           - title: Sensitivity Analysis and Marginal Effects
             notebook: mmm/mmm_sensitivity_analysis
+          - title: "Current vs Future Media Value: Splitting Contributions by When They Land"
+            notebook: mmm/mmm_current_vs_future_value
           - title: Additive vs Log vs Log-Log MMMs
             notebook: mmm/mmm_multiplicative
+          - title: "Introduction to Mu Effects: Channel Interactions"
+            notebook: mmm/mmm_mu_effects_intro
           - title: Interactive MMM Visualizations
             notebook: mmm/plot_interactive
           - title: "Cost-per-Unit: Model What Drives Revenue, Report What You Spend"
             notebook: mmm/mmm_cost_per_unit
+          - title: "Why and how to account for media inflation in your media mix model (MMM)"
+            notebook: mmm/mmm_media_inflation
           - title: Parameter Recovery
             notebook: mmm/mmm_data_generator
           - title: MMM API Migration Guide
@@ -50,6 +56,12 @@ sections:
             thumb: mmm_example.png
           - title: Custom MMM with ROAS Parameterization
             notebook: mmm/mmm_roas_parametrization
+          - title: "Halo and Cannibalisation Effects in Multi-Dimensional MMMs"
+            notebook: mmm/mmm_halo
+          - title: "Splitting MMM Channel Impact Across Campaigns"
+            notebook: mmm/mmm_credibility_disaggregation
+          - title: "Year-over-Year Target Transform for Highly Seasonal KPIs"
+            notebook: mmm/mmm_yoy_target_transform
       - title: Data Connectors
         cards:
           - title: MMM Fivetran Connectors
@@ -74,6 +86,8 @@ sections:
             notebook: mmm/mmm_roas
           - title: Calibrating an MMM with ROAS Estimates
             notebook: mmm/mmm_roas_calibration
+          - title: How Much Would One Lift Test Reduce ROAS Uncertainty?
+            notebook: mmm/mmm_roas_experimentation
       - title: Time-Varying Parameters
         cards:
           - title: MMM with time-varying media baseline
@@ -86,6 +100,9 @@ sections:
             notebook: mmm/mmm_time_slice_cross_validation
           - title: Metrics and Model Evaluation
             notebook: mmm/mmm_evaluation
+          - title: Prior Sensitivity in the MMM Workflow
+            notebook: mmm/mmm_prior_sensitivity
+            thumb: mmm_prior_sensitivity_psense.png
       - title: Causal Inference
         cards:
           - title: Causal Identification
@@ -100,6 +117,8 @@ sections:
             notebook: mmm/mmm_funnel_mueffect
           - title: "Advanced Funnel-Aware MMM: Geo-Level Mediation Through Lower-Funnel Spend"
             notebook: mmm/mmm_funnel_mueffect_advanced
+          - title: "Funnel MMMs from YAML"
+            notebook: mmm/mmm_funnel_from_yml
           - title: Long-Term Brand Effects in MMMs with Brand Metrics and a Bayesian VARX
             notebook: mmm/mmm_brand_metrics_long_term
           - title: Causal Reasoning and Discovery
@@ -108,6 +127,11 @@ sections:
         cards:
           - title: MMM End-to-End Case Study
             notebook: mmm/mmm_case_study
+          - title: "MMM Case Study II: Funnel-Aware Modeling, ROAS Calibration, and Budget Planning"
+            notebook: mmm/mmm_case_study2
+          - title: Pareto Optimization Across Products with a Shared Media Budget
+            notebook: mmm/mmm_pareto_optimization
+            thumb: mmm_pareto_optimization_frontier.png
           - title: Integrating Foundational Time Series Models with PyMC-Marketing MMM
             notebook: mmm/mmm_chronos
   - title: Customer Lifetime Value (CLV) Models

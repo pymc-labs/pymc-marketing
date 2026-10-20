@@ -29,4 +29,6 @@ mmm = MMM(
 
 Once the model is fitted, we can further optimize our budget allocation as we are including diminishing returns and carry-over effects in our model.
 
-Explore a hands-on [simulated example](https://pymc-marketing.readthedocs.io/en/stable/notebooks/mmm/mmm_example.html) for more insights into MMM with PyMC-Marketing.
+New to MMM? Follow the {ref}`guided learning path <mmm_learning_path>` first. It tells you what to read, what to run, and in which order.
+
+Explore a hands-on {ref}`simulated example <mmm_example>` for more insights into MMM with PyMC-Marketing.

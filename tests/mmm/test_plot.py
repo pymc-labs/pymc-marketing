@@ -22,6 +22,7 @@ import pytest
 import xarray as xr
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
+from matplotlib.layout_engine import ConstrainedLayoutEngine
 
 from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation
 
@@ -30,7 +31,7 @@ with warnings.catch_warnings():
     from pymc_marketing.mmm.mmm import MMM
 
 from pymc_marketing.data.idata.mmm_wrapper import MMMIDataWrapper
-from pymc_marketing.mmm.plot import MMMPlotSuite
+from pymc_marketing.mmm.plot import MMMPlotSuite, _tight_layout
 
 
 @pytest.fixture
@@ -1490,9 +1491,39 @@ class TestResidualsOverTime:
         assert isinstance(axes, np.ndarray)
         assert all(isinstance(ax, Axes) for ax in axes.flat)
 
-    def test_residuals_over_time_no_y_original_scale(self, mock_suite):
-        """Test that residuals over time raises error without y_original_scale."""
-        # Create idata with posterior_predictive but without y_original_scale
+    def test_residuals_over_time_derives_from_y(self, mock_suite):
+        """Without a stored y_original_scale the residuals use y * target_scale."""
+        dates = pd.date_range("2025-01-01", periods=20, freq="W-MON")
+        rng = np.random.default_rng(1)
+        y = xr.DataArray(
+            rng.normal(size=(2, 50, 20)),
+            dims=("chain", "draw", "date"),
+            coords={"chain": [0, 1], "draw": np.arange(50), "date": dates},
+        )
+        target = xr.DataArray(
+            rng.normal(100, 10, size=20), dims=("date",), coords={"date": dates}
+        )
+        idata = xr.DataTree.from_dict(
+            {
+                "/posterior_predictive": xr.Dataset({"y": y}),
+                "/constant_data": xr.Dataset(
+                    {"target_data": target, "target_scale": xr.DataArray(100.0)}
+                ),
+            }
+        )
+        suite = MMMPlotSuite(idata=idata)
+
+        residuals = suite._compute_residuals()
+
+        xr.testing.assert_allclose(
+            residuals, (target - y * 100.0).transpose(*residuals.dims)
+        )
+        fig, axes = suite.residuals_over_time()
+        assert isinstance(fig, Figure)
+        assert axes.shape == (1, 1)
+
+    def test_residuals_over_time_no_target_scale(self, mock_suite):
+        """Without y_original_scale and target_scale the residuals cannot be derived."""
         dates = pd.date_range("2025-01-01", periods=20, freq="W-MON")
         idata = xr.DataTree.from_dict(
             {
@@ -1513,7 +1544,7 @@ class TestResidualsOverTime:
         )
         suite = MMMPlotSuite(idata=idata)
 
-        with pytest.raises(ValueError, match=r"Variable 'y_original_scale' not found"):
+        with pytest.raises(ValueError, match=r"target_scale not found"):
             suite.residuals_over_time()
 
     def test_residuals_over_time_no_target_data(self, mock_suite_with_constant_data):
@@ -1523,7 +1554,7 @@ class TestResidualsOverTime:
 
         # Add y_original_scale to posterior_predictive
         dates = pd.date_range("2025-01-01", periods=20, freq="W-MON")
-        idata.posterior_predictive = xr.Dataset(
+        idata["/posterior_predictive"] = xr.Dataset(
             {
                 "y_original_scale": xr.DataArray(
                     np.random.normal(100, 10, size=(4, 50, 20)),
@@ -1544,7 +1575,7 @@ class TestResidualsOverTime:
         idata["/constant_data"] = xr.DataTree(dataset=constant_data_ds)
 
         suite = MMMPlotSuite(idata=idata)
-        with pytest.raises(ValueError, match=r"Variable 'target_data' not found"):
+        with pytest.raises(ValueError, match=r"Target data not found"):
             suite.residuals_over_time()
 
     def test_residuals_over_time_invalid_hdi_prob(self, mock_suite_with_errors_data):
@@ -2178,6 +2209,68 @@ class TestWaterfallPlot:
         assert isinstance(fig, Figure)
         assert isinstance(ax, Axes)
         plt.close(fig)
+
+    def test_waterfall_auto_detect_excludes_channel_increment(self):
+        """The log-link calibration node is not an additive component.
+
+        A calibrated log-link posterior carries ``channel_incremental_contribution``
+        next to ``channel_contribution`` and no per-component
+        ``*_contribution_original_scale``, so auto-detection falls back to the
+        ``*_contribution`` variables.  Both are expanded over ``channel`` into the
+        same ``channel__<label>`` columns and the first one wins, so the
+        increment is listed first here: if it were picked up, the channel bars
+        would silently carry the increment's values.
+        """
+        rng = np.random.default_rng(3128)
+        dates = pd.date_range("2025-01-01", periods=10, freq="W-MON")
+        channels = ["C1", "C2"]
+        coords = {"chain": [0, 1], "draw": np.arange(50), "date": dates}
+        channel_coords = {**coords, "channel": channels}
+        channel_contribution = xr.DataArray(
+            rng.normal(0.3, 0.1, size=(2, 50, 10, 2)),
+            dims=("chain", "draw", "date", "channel"),
+            coords=channel_coords,
+        )
+        idata = xr.DataTree.from_dict(
+            {
+                "/posterior": xr.Dataset(
+                    {
+                        "channel_incremental_contribution": xr.DataArray(
+                            rng.normal(30, 10, size=(2, 50, 10, 2)),
+                            dims=("chain", "draw", "date", "channel"),
+                            coords=channel_coords,
+                        ),
+                        "intercept_contribution": xr.DataArray(
+                            rng.normal(5, 0.5, size=(2, 50, 10)),
+                            dims=("chain", "draw", "date"),
+                            coords=coords,
+                        ),
+                        "channel_contribution": channel_contribution,
+                        "total_media_contribution_original_scale": xr.DataArray(
+                            rng.normal(60, 15, size=(2, 50, 10)),
+                            dims=("chain", "draw", "date"),
+                            coords=coords,
+                        ),
+                    }
+                )
+            }
+        )
+
+        suite = MMMPlotSuite(idata=idata)
+        dataframe, _, _ = suite._prepare_waterfall_data()
+
+        assert set(dataframe.columns) == {
+            "date",
+            "intercept",
+            "channel__C1",
+            "channel__C2",
+        }
+        expected = channel_contribution.mean(("chain", "draw"))
+        for channel in channels:
+            np.testing.assert_allclose(
+                dataframe[f"channel__{channel}"].to_numpy(),
+                expected.sel(channel=channel).to_numpy(),
+            )
 
     def test_prepare_waterfall_data_basic(self, mock_suite_for_waterfall):
         """Test the _prepare_waterfall_data method."""
@@ -5425,3 +5518,88 @@ class TestSensitivityAnalysisCostPerUnit:
             "x-axis ranges should differ when apply_cost_per_unit changes "
             f"(cpu={xlim_cpu}, no_cpu={xlim_no})"
         )
+
+
+class TestAmbientLayoutEngine:
+    """The plot methods must not replace a layout engine set by the caller."""
+
+    def test_helper_lays_out_when_no_engine(self):
+        with plt.rc_context({"figure.constrained_layout.use": False}):
+            fig, _ax = plt.subplots()
+            left_before = fig.axes[0].get_position().x0
+            _tight_layout(fig)
+            assert fig.axes[0].get_position().x0 != pytest.approx(left_before)
+        plt.close(fig)
+
+    def test_helper_leaves_an_existing_engine_alone(self):
+        with plt.rc_context({"figure.constrained_layout.use": True}):
+            fig, _ax = plt.subplots()
+            with warnings.catch_warnings():
+                warnings.filterwarnings(
+                    "error", message="The figure layout has changed"
+                )
+                _tight_layout(fig)
+        assert isinstance(fig.get_layout_engine(), ConstrainedLayoutEngine)
+        plt.close(fig)
+
+    def test_helper_forwards_kwargs(self):
+        with plt.rc_context({"figure.constrained_layout.use": False}):
+            fig, _ax = plt.subplots()
+            _tight_layout(fig, rect=[0, 0.5, 1, 1])
+            assert fig.axes[0].get_position().y0 >= 0.5
+        plt.close(fig)
+
+    def test_budget_allocation_keeps_engine(self, mock_suite_with_constant_data):
+        samples = mock_suite_with_constant_data.idata.posterior.to_dataset().copy()
+        samples["allocation"] = (
+            samples["channel_contribution"].dims,
+            np.abs(samples["channel_contribution"].values),
+        )
+        with plt.rc_context({"figure.constrained_layout.use": True}):
+            with warnings.catch_warnings():
+                warnings.filterwarnings(
+                    "error", message="The figure layout has changed"
+                )
+                fig, _ax = mock_suite_with_constant_data.budget_allocation(
+                    samples=samples
+                )
+        assert isinstance(fig.get_layout_engine(), ConstrainedLayoutEngine)
+        plt.close(fig)
+
+    def test_sensitivity_analysis_keeps_engine(
+        self, mock_suite_with_sensitivity_and_channels
+    ):
+        suite = mock_suite_with_sensitivity_and_channels
+        with plt.rc_context({"figure.constrained_layout.use": True}):
+            with warnings.catch_warnings():
+                warnings.filterwarnings(
+                    "error", message="The figure layout has changed"
+                )
+                fig, _ax = suite.sensitivity_analysis(hue_dim="channel")
+        assert isinstance(fig.get_layout_engine(), ConstrainedLayoutEngine)
+        plt.close(fig)
+
+    def test_cv_predictions_keeps_engine(self):
+        suite = MMMPlotSuite(idata=None)
+        results = _build_cv_results_for_cv_predictions()
+        with plt.rc_context({"figure.constrained_layout.use": True}):
+            with warnings.catch_warnings():
+                warnings.filterwarnings(
+                    "error", message="The figure layout has changed"
+                )
+                fig, _axes = suite.cv_predictions(results, dims=None)
+        assert isinstance(fig.get_layout_engine(), ConstrainedLayoutEngine)
+        plt.close(fig)
+
+    def test_cv_predictions_still_reserves_room_for_the_legend(self):
+        """The rect kwarg must survive the move from plt to the helper."""
+        suite = MMMPlotSuite(idata=None)
+        results = _build_cv_results_for_cv_predictions()
+        with plt.rc_context({"figure.constrained_layout.use": False}):
+            fig, _axes = suite.cv_predictions(results, dims=None)
+        fig.canvas.draw()
+        renderer = fig.canvas.get_renderer()
+        legend_top = fig.legends[0].get_window_extent(renderer).y1
+        axes_bottom = min(ax.get_window_extent(renderer).y0 for ax in fig.axes)
+        assert axes_bottom > legend_top
+        plt.close(fig)

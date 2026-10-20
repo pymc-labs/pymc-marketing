@@ -1,3 +1,12 @@
+{# Classes that should not get their own autosummary page. Deprecated
+   backward-compat aliases (e.g. OptimizerCompatibleModelWrapper, an alias of
+   OptimizerCompatibleModel) resolve to the same class object under a second
+   name; autodoc then appends an "alias of ..." trailer with no blank line,
+   which docutils flags as "Explicit markup ends without a blank line"
+   (issue #2660). The canonical class still gets its page. #}
+{% set excluded_classes = [
+    "OptimizerCompatibleModelWrapper",
+] %}
 {{ name | escape | underline}}
 
 .. automodule:: {{ fullname }}
@@ -34,7 +43,7 @@
       :toctree:
 
    {% for item in classes %}
-      {% if not item.endswith("RV") %}
+      {% if not item.endswith("RV") and item not in excluded_classes %}
       {{ item }}
       {% endif %}
    {%- endfor %}

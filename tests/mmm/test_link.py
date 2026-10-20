@@ -16,22 +16,28 @@ import warnings
 
 import numpy as np
 import pandas as pd
+import pymc as pm
+import pymc.dims as pmd
 import pytest
 import xarray as xr
 from pydantic import ValidationError
-from pymc_extras.prior import Prior
+from pymc_extras.prior import Censored, Prior, Scaled
+from scipy import stats
 
 from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation, LogSaturation
+from pymc_marketing.mmm.additive_effect import MuEffect
 from pymc_marketing.mmm.link import (
     IdentityLinkSpec,
     LinkFunction,
     LinkSpec,
     LogLinkSpec,
+    _distribution_name,
     get_link_spec,
 )
 from pymc_marketing.mmm.mmm import MMM, BudgetOptimizerWrapper
 from pymc_marketing.mmm.scaling import DataDerivedScaling, FixedScaling, Scaling
 from pymc_marketing.serialization import serialization
+from pymc_marketing.special_priors import LogNormalPrior
 
 
 def _make_positive_panel(
@@ -55,6 +61,16 @@ def _make_positive_panel(
     y = df.pop(target_column)
     y.name = target_column
     return df, y
+
+
+def _make_panel_with_target(y_values, channels=("C1", "C2")):
+    """Single-dim panel whose target is exactly *y_values*."""
+    rng = np.random.default_rng(0)
+    n = len(y_values)
+    df = pd.DataFrame({"date": pd.date_range("2025-01-06", periods=n, freq="W-MON")})
+    for ch in channels:
+        df[ch] = rng.uniform(10, 100, n)
+    return df, pd.Series(np.asarray(y_values, dtype=float), name="y")
 
 
 def _make_mmm(link: str = "identity", dims=("country",), **kwargs) -> MMM:
@@ -190,23 +206,208 @@ class TestLinkSpec:
         [
             Prior("Normal", sigma=1),
             Prior("StudentT", nu=3, sigma=1),
-            Prior("LogNormal", sigma=1),
             Prior("TruncatedNormal", sigma=1, lower=0),
+            Prior("Gamma", sigma=1),
+            Prior("Laplace", b=1),
+            Prior("InverseGamma", sigma=1),
         ],
     )
-    def test_validate_likelihood_compat_identity_accepts_any(self, likelihood):
-        LinkSpec.validate_likelihood_compatibility(LinkFunction.IDENTITY, likelihood)
+    def test_validate_likelihood_compat_identity_accepts_response_scale(
+        self, likelihood
+    ):
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            LinkSpec.validate_likelihood_compatibility(
+                LinkFunction.IDENTITY, likelihood
+            )
+
+    def test_validate_likelihood_compat_identity_lognormal_raises(self):
+        with pytest.raises(ValueError) as excinfo:
+            LinkSpec.validate_likelihood_compatibility(
+                LinkFunction.IDENTITY, Prior("LogNormal", sigma=1)
+            )
+        message = str(excinfo.value)
+        assert "not compatible with link='identity'" in message
+        # The message has to carry the recipe for repairing a saved model,
+        # since the check also runs on the load path.
+        assert "idata_to_init_kwargs" in message
+
+    def test_identity_error_names_lognormal_prior_as_class_not_distribution(self):
+        # 'LogNormalPrior' is a special_priors class admitted by class name,
+        # not a distribution accepted by Prior(...); the message must not
+        # present it inside the distribution-name list.
+        with pytest.raises(ValueError) as excinfo:
+            LinkSpec.validate_likelihood_compatibility(
+                LinkFunction.IDENTITY, Prior("LogNormal", sigma=1)
+            )
+        message = str(excinfo.value)
+        assert "pymc_marketing.special_priors.LogNormalPrior" in message
+        assert "'LogNormalPrior'" not in message
+
+    def test_identity_warning_names_lognormal_prior_as_class_not_distribution(self):
+        with pytest.warns(UserWarning) as records:
+            LinkSpec.validate_likelihood_compatibility(
+                LinkFunction.IDENTITY, Prior("Weibull", alpha=1, beta=1)
+            )
+        message = str(records[0].message)
+        assert "pymc_marketing.special_priors.LogNormalPrior" in message
+        assert "'LogNormalPrior'" not in message
+
+    def test_validate_likelihood_compat_identity_looks_through_censored(self):
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            LinkSpec.validate_likelihood_compatibility(
+                LinkFunction.IDENTITY, Censored(Prior("Normal", sigma=1), lower=0)
+            )
+
+    def test_validate_likelihood_compat_log_looks_through_censored(self):
+        LinkSpec.validate_likelihood_compatibility(
+            LinkFunction.LOG, Censored(Prior("LogNormal", sigma=1), lower=0)
+        )
+
+    def test_validate_likelihood_compat_identity_unknown_warns(self):
+        with pytest.warns(UserWarning, match="not a known response-scale likelihood"):
+            LinkSpec.validate_likelihood_compatibility(
+                LinkFunction.IDENTITY, Prior("Weibull", alpha=1, beta=1)
+            )
+
+    def test_validate_likelihood_compat_identity_unnamed_uses_class_name(self):
+        class Unnamed:
+            pass
+
+        with pytest.warns(UserWarning, match="'Unnamed' is not a known"):
+            LinkSpec.validate_likelihood_compatibility(LinkFunction.IDENTITY, Unnamed())
+
+    def test_distribution_name_falls_back_to_class_name(self):
+        # The name drives the set lookups, so an object without a
+        # ``distribution`` has to resolve to something other than None.
+        class Unnamed:
+            pass
+
+        assert _distribution_name(Prior("Normal", sigma=1)) == "Normal"
+        assert (
+            _distribution_name(Censored(Prior("Normal", sigma=1), lower=0)) == "Normal"
+        )
+        assert _distribution_name(Unnamed()) == "Unnamed"
+
+    def test_validate_likelihood_compat_identity_accepts_lognormal_prior(self):
+        # LogNormalPrior's mean is the response-scale expectation, so it is
+        # admitted under identity via its class name (#2858).
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            LinkSpec.validate_likelihood_compatibility(
+                LinkFunction.IDENTITY, LogNormalPrior(std=1.0)
+            )
+
+    def test_validate_likelihood_compat_log_rejects_lognormal_prior(self):
+        # Under the log link mu is a log-scale predictor, not a
+        # response-scale mean, so LogNormalPrior stays rejected.
+        with pytest.raises(ValueError, match="not compatible with link='log'"):
+            LinkSpec.validate_likelihood_compatibility(
+                LinkFunction.LOG, LogNormalPrior(std=1.0)
+            )
 
     def test_validate_likelihood_compat_log_lognormal(self):
         LinkSpec.validate_likelihood_compatibility(
             LinkFunction.LOG, Prior("LogNormal", sigma=1)
         )
 
+    def test_validate_likelihood_compat_log_unnamed_uses_class_name(self):
+        class Unnamed:
+            pass
+
+        with pytest.raises(ValueError, match="'Unnamed' is not compatible"):
+            LinkSpec.validate_likelihood_compatibility(LinkFunction.LOG, Unnamed())
+
     def test_validate_likelihood_compat_log_normal_raises(self):
         with pytest.raises(ValueError, match="not compatible"):
             LinkSpec.validate_likelihood_compatibility(
                 LinkFunction.LOG, Prior("Normal", sigma=1)
             )
+
+    @staticmethod
+    def _increment_inputs():
+        from pytensor.xtensor import as_xtensor
+
+        rng = np.random.default_rng(7)
+        mu = rng.normal(0, 0.5, size=(5, 2))
+        contribution = rng.uniform(0.01, 0.3, size=(5, 2, 3))
+        contribution[0, 0, 0] = 1e-12
+        scale = np.array([100.0, 250.0])
+        return (
+            (mu, contribution, scale),
+            (
+                as_xtensor(mu, dims=("date", "geo")),
+                as_xtensor(contribution, dims=("date", "geo", "channel")),
+                as_xtensor(scale, dims=("geo",)),
+            ),
+        )
+
+    def test_identity_channel_increment_is_scaled_contribution(self):
+        (_, contribution, scale), tensors = self._increment_inputs()
+        out = IdentityLinkSpec().channel_incremental_contribution(*tensors)
+        assert out.dims == ("date", "geo", "channel")
+        np.testing.assert_allclose(out.eval(), contribution * scale[None, :, None])
+
+    def test_log_channel_increment_is_counterfactual_level_change(self):
+        """s(exp(mu) - exp(mu - m_c)), accurate where m_c is tiny."""
+        (mu, contribution, scale), tensors = self._increment_inputs()
+        out = LogLinkSpec().channel_incremental_contribution(*tensors)
+        assert out.dims == ("date", "geo", "channel")
+        expected = scale[None, :, None] * (
+            np.exp(mu)[:, :, None] - np.exp(mu[:, :, None] - contribution)
+        )
+        values = out.eval()
+        np.testing.assert_allclose(values[1:], expected[1:], rtol=1e-12)
+        # First-order limit s * exp(mu) * m_c, which the literal difference
+        # exp(mu) - exp(mu - m_c) only reproduces to ~1e-4 at m_c = 1e-12.
+        np.testing.assert_allclose(
+            values[0, 0, 0], scale[0] * np.exp(mu[0, 0]) * 1e-12, rtol=1e-9
+        )
+
+    def test_mean_ratio_tensor_is_lognormal_factor_with_sigma_dims(self):
+        """Identity: no factor. Log: exp(sigma**2 / 2) carrying y_sigma's dims."""
+        with pm.Model(coords={"geo": ["a", "b"]}) as model:
+            sigma = pmd.HalfNormal("y_sigma", sigma=0.5, dims=("geo",))
+        likelihood = Prior("LogNormal", sigma=Prior("HalfNormal", sigma=0.5))
+
+        assert IdentityLinkSpec().mean_ratio_tensor(model, likelihood) is None
+
+        factor = LogLinkSpec().mean_ratio_tensor(model, likelihood)
+        assert factor.dims == ("geo",)
+        values = np.array([0.25, 0.5])
+        np.testing.assert_allclose(
+            factor.eval({sigma: values}), np.exp(values**2 / 2), rtol=1e-12
+        )
+
+    def test_log_mean_ratio_tensor_needs_sigma_variable(self):
+        """A fixed sigma is refused with the safe remedy first: give sigma a prior."""
+        with pm.Model() as model:
+            pmd.Normal("other", dims=())
+        with pytest.raises(ValueError, match="Give sigma a prior"):
+            LogLinkSpec().mean_ratio_tensor(model, Prior("LogNormal", sigma=0.2))
+
+    @pytest.mark.parametrize("spec", [IdentityLinkSpec, LogLinkSpec])
+    def test_mean_ratio_tensor_refuses_wrapped_likelihood(self, spec):
+        """Censoring moves E[y] off the mu-based mean on either link.
+
+        The log link looks through ``Censored`` at build time and the model
+        still carries ``y_sigma``, so the wrapper has to be refused here, before
+        the factor is built.  Unlike the reporting entry points, the message
+        must not send the caller to ``"median"`` unqualified: on this path the
+        value being matched is an observed readout, and ``"median"`` would
+        pair it with the latent-median lift.
+        """
+        with pm.Model(coords={"geo": ["a", "b"]}) as model:
+            pmd.HalfNormal("y_sigma", sigma=0.5, dims=("geo",))
+        likelihood = Censored(
+            Prior("LogNormal", sigma=Prior("HalfNormal", sigma=0.5)), upper=1.0
+        )
+        with pytest.raises(
+            ValueError,
+            match=r"not supported for a wrapped likelihood.*appropriate only when",
+        ):
+            spec().mean_ratio_tensor(model, likelihood)
 
 
 class TestLogSaturation:
@@ -343,24 +544,85 @@ class TestBuildModelDeterministics:
         mmm.build_model(X, y)
         assert "total_media_contribution_original_scale" in mmm.model.named_vars
 
+    def test_build_model_identity_lognormal_raises(self, mock_pymc_sample):
+        mmm = _make_mmm(
+            link="identity",
+            model_config={"likelihood": Prior("LogNormal", sigma=Prior("HalfNormal"))},
+        )
+        X, y = _make_positive_panel()
+        with pytest.raises(ValueError, match="not compatible with link='identity'"):
+            mmm.build_model(X, y)
+
+    def test_build_model_identity_lognormal_prior_builds(self, mock_pymc_sample):
+        # Regression test for #2858: LogNormalPrior takes mu on the response
+        # scale, so it must be admitted under link='identity' and build an
+        # observed variable without warnings.
+        mmm = _make_mmm(
+            link="identity",
+            model_config={
+                "likelihood": LogNormalPrior(
+                    std=Prior("HalfNormal", sigma=0.5, dims=("country",)),
+                    dims=("date", "country"),
+                ),
+            },
+        )
+        X, y = _make_positive_panel()
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", UserWarning)
+            mmm.build_model(X, y)
+        assert "y" in mmm.model.named_vars
+        assert np.isfinite(mmm.model.point_logps()["y"])
+
+    def test_build_model_identity_lognormal_prior_negative_mu_ninf(
+        self, mock_pymc_sample
+    ):
+        # A linear predictor that dips below zero must be rejected with -inf,
+        # not folded to |mu| (#2858).
+        mmm = _make_mmm(
+            link="identity",
+            model_config={
+                "likelihood": LogNormalPrior(
+                    std=Prior("HalfNormal", sigma=0.5, dims=("country",)),
+                    dims=("date", "country"),
+                ),
+            },
+        )
+        X, y = _make_positive_panel()
+        mmm.build_model(X, y)
+
+        bad_point = mmm.model.initial_point()
+        bad_point["intercept_contribution"] = np.full_like(
+            bad_point["intercept_contribution"], -50.0
+        )
+        assert np.isneginf(mmm.model.point_logps(point=bad_point)["y"])
+
     def test_build_model_identity_no_y_original_scale(self, mock_pymc_sample):
         mmm = _make_mmm(link="identity")
         X, y = _make_positive_panel()
         mmm.build_model(X, y)
         assert "y_original_scale" not in mmm.model.named_vars
 
-    def test_build_model_log_has_y_original_scale(self, mock_pymc_sample):
-        mmm = _make_mmm(link="log")
-        X, y = _make_positive_panel()
-        mmm.build_model(X, y)
-        assert "y_original_scale" in mmm.model.named_vars
+    def test_build_model_log_registers_mu_original_scale(self, mock_pymc_sample):
+        """The log link's LogNormal median is ``mu_original_scale = exp(mu) * target_scale``.
 
-    def test_build_model_log_y_original_scale_uses_output_var(self, mock_pymc_sample):
+        ``y_original_scale`` stays free for the ``y`` opt-in, which means
+        ``y * target_scale`` under every link (#3132).
+        """
         mmm = _make_mmm(link="log")
         X, y = _make_positive_panel()
         mmm.build_model(X, y)
-        expected_name = f"{mmm.output_var}_original_scale"
-        assert expected_name in mmm.model.named_vars
+        assert "mu_original_scale" in mmm.model.named_vars
+        assert "y_original_scale" not in mmm.model.named_vars
+        with mmm.model:
+            mu, median, scale = pm.draw(
+                [
+                    mmm.model["mu"],
+                    mmm.model["mu_original_scale"],
+                    mmm.model["target_scale"],
+                ],
+                random_seed=0,
+            )
+        np.testing.assert_allclose(median, np.exp(mu) * scale, rtol=1e-10)
 
     @pytest.mark.parametrize("link", ["identity", "log"])
     def test_build_model_has_channel_contribution(self, link, mock_pymc_sample):
@@ -534,6 +796,149 @@ class TestDecomposition:
         ds = mmm.compute_counterfactual_contributions_dataset()
         component_cols = {c for c in df.columns if c not in ("date", "country")}
         assert set(ds.data_vars) == component_cols
+
+
+PERIODS = ["weekly", "monthly", "quarterly", "yearly", "all_time"]
+
+
+def _sum_per_period(
+    per_date: xr.DataArray, dates: xr.DataArray, period: str
+) -> xr.DataArray:
+    """Sum a per-date component over ``period`` bins, independently of the utils.
+
+    A component without a ``date`` dim is added in every period, so it is
+    repeated on every observed date first and counted once per date.
+    """
+    if "date" not in per_date.dims:
+        per_date = per_date.expand_dims(date=dates)
+    if period == "all_time":
+        return per_date.sum("date")
+    rule = {"weekly": "W", "monthly": "ME", "quarterly": "QE", "yearly": "YE"}[period]
+    return per_date.resample(date=rule).sum("date")
+
+
+@pytest.fixture(scope="module", params=["identity", "log"])
+def fitted(request, mock_pymc_sample) -> MMM:
+    """A fitted MMM with a time-invariant intercept and a ``country`` dim."""
+    mmm = _make_mmm(link=request.param)
+    X, y = _make_positive_panel()
+    mmm.fit(X, y, random_seed=42)
+    return mmm
+
+
+class TestCounterfactualDecompositionPeriod:
+    """``period=`` sums the per-date, per-draw counterfactual over each period (#3074).
+
+    Decompose first, aggregate afterwards: under ``link="log"`` the inverse
+    link is nonlinear in ``mu``, so decomposing the summed ``mu`` is wrong.
+    """
+
+    @pytest.mark.parametrize("period", PERIODS)
+    def test_period_sums_the_per_date_counterfactual_per_draw(self, fitted, period):
+        per_date = fitted.compute_counterfactual_contributions_dataset()
+
+        result = fitted.compute_counterfactual_contributions_dataset(period=period)
+
+        assert set(result.data_vars) == set(per_date.data_vars)
+        for component in per_date.data_vars:
+            expected = _sum_per_period(per_date[component], per_date["date"], period)
+            xr.testing.assert_allclose(
+                result[component], expected.transpose(*result[component].dims)
+            )
+
+    def test_time_invariant_intercept_is_counted_once_per_period(self, fitted):
+        per_date = fitted.compute_counterfactual_contributions_dataset()
+        n_dates = per_date.sizes["date"]
+
+        result = fitted.compute_counterfactual_contributions_dataset(period="all_time")
+
+        assert "date" not in result.dims
+        intercept = per_date["intercept"]
+        if "date" not in intercept.dims:  # identity link, time-invariant
+            expected = intercept * n_dates
+        else:  # log link, built from ``mu``
+            expected = intercept.sum("date")
+        xr.testing.assert_allclose(result["intercept"], expected)
+
+    def test_period_date_holds_the_period_end(self, fitted):
+        result = fitted.compute_counterfactual_contributions_dataset(period="monthly")
+
+        assert result["date"].dt.is_month_end.all()
+        assert result.sizes["date"] == 2  # January and February 2025
+
+    def test_mean_scale_is_applied_per_date_before_summing(self, mock_pymc_sample):
+        mmm = _make_mmm(link="log")
+        X, y = _make_positive_panel()
+        mmm.fit(X, y, random_seed=42)
+        per_date = mmm.compute_counterfactual_contributions_dataset(
+            central_tendency="mean"
+        )
+
+        result = mmm.compute_counterfactual_contributions_dataset(
+            central_tendency="mean", period="monthly"
+        )
+
+        for component in per_date.data_vars:
+            xr.testing.assert_allclose(
+                result[component],
+                _sum_per_period(per_date[component], per_date["date"], "monthly"),
+            )
+
+    @pytest.mark.parametrize("period", PERIODS)
+    def test_dataframe_has_one_row_per_period_and_extra_dim(self, fitted, period):
+        dataset = fitted.compute_counterfactual_contributions_dataset(period=period)
+
+        df = fitted.compute_mean_contributions_over_time(period=period)
+
+        n_periods = dataset.sizes.get("date", 1)
+        assert len(df) == n_periods * dataset.sizes["country"]
+        assert ("date" in df.columns) == (period != "all_time")
+        index_cols = [c for c in ("date", "country") if c in df.columns]
+        posterior_mean = dataset.mean(("chain", "draw"))
+        for component in dataset.data_vars:
+            expected = (
+                posterior_mean[component].to_dataframe(name="expected").reset_index()
+            )
+            merged = df.merge(expected, on=index_cols)
+            assert len(merged) == len(df)
+            np.testing.assert_allclose(
+                merged[component].values, merged["expected"].values, rtol=1e-6
+            )
+
+    def test_all_time_dataframe_without_extra_dims_has_a_single_row(
+        self, mock_pymc_sample
+    ):
+        mmm = _make_mmm(link="identity", dims=None)
+        X, y = _make_positive_panel(countries=("A",))
+        mmm.fit(X.drop(columns="country"), y, random_seed=42)
+        dataset = mmm.compute_counterfactual_contributions_dataset(period="all_time")
+
+        df = mmm.compute_mean_contributions_over_time(period="all_time")
+
+        assert len(df) == 1
+        assert set(df.columns) == set(dataset.data_vars)
+        for component in dataset.data_vars:
+            np.testing.assert_allclose(
+                df[component].iloc[0],
+                dataset[component].mean(("chain", "draw")).item(),
+                rtol=1e-6,
+            )
+
+    @pytest.mark.parametrize(
+        "method",
+        [
+            "compute_counterfactual_contributions_dataset",
+            "compute_mean_contributions_over_time",
+        ],
+    )
+    def test_invalid_period_is_rejected_before_any_work(self, method):
+        """A typo fails at the call, with the valid values, not deep in the sum."""
+        unfitted = _make_mmm(link="identity")
+
+        with pytest.raises(ValueError, match=r"(?s)period.*'monthly'") as excinfo:
+            getattr(unfitted, method)(period="Monthly")
+
+        assert "idata" not in str(excinfo.value)
 
 
 class TestEquality:
@@ -744,6 +1149,707 @@ class TestCentralTendency:
         with pytest.raises(ValueError, match="sampled likelihood scale"):
             mmm.compute_counterfactual_contributions_dataset(central_tendency="mean")
 
+    def test_mean_correction_is_deprecated_on_the_log_link(self):
+        posterior = xr.Dataset(
+            {"y_sigma": xr.DataArray([[0.5]], dims=("chain", "date"))}
+        )
+        with pytest.warns(DeprecationWarning, match="use to_mean_scale"):
+            factor = LogLinkSpec().mean_correction(posterior)
+        xr.testing.assert_allclose(factor, np.exp(posterior["y_sigma"] ** 2 / 2))
+
+    def test_mean_correction_refuses_under_identity(self):
+        # It used to return 1.0 here, which is the bug #2834 is about. A
+        # deprecated method must not keep handing back a known-wrong number.
+        with pytest.raises(ValueError, match="depends on the likelihood"):
+            IdentityLinkSpec().mean_correction(xr.Dataset())
+
+
+class TestTruncatedNormalMeanCorrection:
+    """Identity link: TruncatedNormal shifts E[y] off mu, so contributions move."""
+
+    @pytest.fixture(scope="class")
+    def mmm(self, mock_pymc_sample) -> MMM:
+        """Fit once for the class: the tests only read from the model."""
+        mmm = _make_mmm(
+            link="identity",
+            model_config={
+                "likelihood": Prior(
+                    "TruncatedNormal", lower=0.0, sigma=Prior("HalfNormal", sigma=1)
+                )
+            },
+        )
+        X, y = _make_positive_panel()
+        mmm.fit(X, y, random_seed=42)
+        return mmm
+
+    def test_a_posterior_without_mu_is_refused_through_the_public_api(self, mmm):
+        """A model fitted before ``mu`` was registered cannot be corrected.
+
+        The offset is pointwise in ``mu``, so a posterior that predates its
+        registration has nothing to evaluate it at.  Deleting ``mu`` reproduces
+        such a posterior.  The error has to name the way out rather than let a
+        ``KeyError`` escape from three frames down.
+        """
+        saved = mmm.idata.posterior["mu"]
+        del mmm.idata.posterior["mu"]
+        try:
+            with pytest.raises(ValueError, match="need 'mu' in the posterior"):
+                mmm.compute_counterfactual_contributions_dataset(
+                    central_tendency="mean"
+                )
+        finally:
+            mmm.idata.posterior["mu"] = saved
+
+    def test_mu_keeps_the_predictor_dim_order_under_identity(self, mmm):
+        """ "date" stays last: the identity branch does not transpose.
+
+        The log branch moves "date" to the front, so a reader who assumes the
+        log ordering under identity indexes the wrong axis.
+        """
+        assert mmm.idata.posterior["mu"].dims == ("chain", "draw", "country", "date")
+
+    def test_mean_scale_parts_sum_to_the_truncated_mean(self, mmm):
+        """The corrected parts reconcile against E[y], which is the #2834 ask.
+
+        The per-term assertions above pin where the offset lands; this pins the
+        property a reader actually reads the decomposition for.
+        """
+        mean_ds = mmm.compute_counterfactual_contributions_dataset(
+            central_tendency="mean"
+        )
+        total = sum(mean_ds[var] for var in mean_ds.data_vars)
+
+        posterior = mmm.idata.posterior
+        target_scale = mmm.idata.constant_data["target_scale"].squeeze(drop=True)
+        mu = posterior["mu"]
+        sigma = posterior["y_sigma"]
+        expected = xr.apply_ufunc(
+            lambda m, s: stats.truncnorm.mean((0.0 - m) / s, np.inf, loc=m, scale=s),
+            mu,
+            sigma,
+        )
+
+        xr.testing.assert_allclose(
+            total, (expected * target_scale).transpose(*total.dims)
+        )
+
+    def test_offset_matches_closed_form_truncated_mean(self, mmm):
+        median_ds = mmm.compute_counterfactual_contributions_dataset(
+            central_tendency="median"
+        )
+        mean_ds = mmm.compute_counterfactual_contributions_dataset(
+            central_tendency="mean"
+        )
+
+        posterior = mmm.idata.posterior
+        target_scale = mmm.idata.constant_data["target_scale"].squeeze(drop=True)
+        mu = posterior["mu"]
+        sigma = posterior["y_sigma"]
+        expected = xr.apply_ufunc(
+            lambda m, s: (
+                stats.truncnorm.mean((0.0 - m) / s, np.inf, loc=m, scale=s) - m
+            ),
+            mu,
+            sigma,
+        )
+
+        xr.testing.assert_allclose(
+            mean_ds["intercept"], median_ds["intercept"] + expected * target_scale
+        )
+
+    def test_components_other_than_the_baseline_are_untouched(self, mmm):
+        median_ds = mmm.compute_counterfactual_contributions_dataset(
+            central_tendency="median"
+        )
+        mean_ds = mmm.compute_counterfactual_contributions_dataset(
+            central_tendency="mean"
+        )
+        for var in median_ds.data_vars:
+            if var == "intercept":
+                continue
+            xr.testing.assert_allclose(mean_ds[var], median_ds[var])
+
+    def test_offset_is_finite_and_positive_for_negative_mu(self):
+        # The offset must stay well behaved where mu <= 0, which is the case
+        # the ratio form could not express.
+        posterior = xr.Dataset(
+            {
+                "mu": xr.DataArray([[-2.0, -0.5, 0.0, 3.0]], dims=("chain", "date")),
+                "y_sigma": xr.DataArray([[1.0, 1.0, 1.0, 1.0]], dims=("chain", "date")),
+            }
+        )
+        likelihood = Prior("TruncatedNormal", lower=0, sigma=1)
+        offset = IdentityLinkSpec()._truncation_offset(posterior, likelihood, "y")
+
+        expected = [
+            stats.truncnorm.mean((0.0 - m) / 1.0, np.inf, loc=m, scale=1.0) - m
+            for m in (-2.0, -0.5, 0.0, 3.0)
+        ]
+        np.testing.assert_allclose(offset.values[0], expected)
+        assert np.all(np.isfinite(offset.values))
+        assert np.all(offset.values > 0)
+
+    def test_offset_matches_the_analytic_half_normal_value(self):
+        # At mu = 0 with lower = 0 the truncated normal is a half normal, whose
+        # mean is sigma * sqrt(2 / pi). Independent of scipy's truncnorm.
+        posterior = xr.Dataset(
+            {
+                "mu": xr.DataArray([[0.0, 0.0]], dims=("chain", "date")),
+                "y_sigma": xr.DataArray([[1.0, 2.5]], dims=("chain", "date")),
+            }
+        )
+        likelihood = Prior("TruncatedNormal", lower=0, sigma=1)
+        offset = IdentityLinkSpec()._truncation_offset(posterior, likelihood, "y")
+        np.testing.assert_allclose(
+            offset.values[0], np.array([1.0, 2.5]) * np.sqrt(2 / np.pi)
+        )
+
+    def test_offset_stays_finite_far_below_the_truncation_point(self):
+        # The textbook phi/Phi ratio returns nan from about ten sigma out. The
+        # identity link puts no bound on mu, so this has to hold.
+        posterior = xr.Dataset(
+            {
+                "mu": xr.DataArray([[-10.0, -40.0, -100.0]], dims=("chain", "date")),
+                "y_sigma": xr.DataArray([[1.0, 1.0, 1.0]], dims=("chain", "date")),
+            }
+        )
+        likelihood = Prior("TruncatedNormal", lower=0, sigma=1)
+        offset = IdentityLinkSpec()._truncation_offset(posterior, likelihood, "y")
+        assert np.all(np.isfinite(offset.values))
+        # E[y] sits just above the truncation point, so the offset is about -mu.
+        np.testing.assert_allclose(
+            offset.values[0], [10.098093, 40.024969, 100.009998], rtol=1e-5
+        )
+
+    def test_two_sided_truncation_matches_scipy(self):
+        posterior = xr.Dataset(
+            {
+                "mu": xr.DataArray([[-1.0, 0.5, 4.0]], dims=("chain", "date")),
+                "y_sigma": xr.DataArray([[1.0, 2.0, 1.5]], dims=("chain", "date")),
+            }
+        )
+        likelihood = Prior("TruncatedNormal", lower=0, upper=5, sigma=1)
+        offset = IdentityLinkSpec()._truncation_offset(posterior, likelihood, "y")
+
+        mus = np.array([-1.0, 0.5, 4.0])
+        sigmas = np.array([1.0, 2.0, 1.5])
+        expected = [
+            stats.truncnorm.mean((0.0 - m) / s, (5.0 - m) / s, loc=m, scale=s) - m
+            for m, s in zip(mus, sigmas, strict=True)
+        ]
+        np.testing.assert_allclose(offset.values[0], expected)
+
+    def test_upper_only_truncation_matches_scipy(self):
+        posterior = xr.Dataset(
+            {
+                "mu": xr.DataArray([[0.0, 4.0, 60.0]], dims=("chain", "date")),
+                "y_sigma": xr.DataArray([[1.0, 1.0, 1.0]], dims=("chain", "date")),
+            }
+        )
+        likelihood = Prior("TruncatedNormal", upper=3, sigma=1)
+        offset = IdentityLinkSpec()._truncation_offset(posterior, likelihood, "y")
+
+        expected = [
+            stats.truncnorm.mean(-np.inf, (3.0 - m) / 1.0, loc=m, scale=1.0) - m
+            for m in (0.0, 4.0, 60.0)
+        ]
+        np.testing.assert_allclose(offset.values[0], expected)
+        assert np.all(np.isfinite(offset.values))
+
+    def test_censored_wrapper_raises_rather_than_using_the_wrong_mean(self):
+        # Censoring piles mass at the bounds, so E[y] != mu even for the
+        # response-scale names the wrapper resolves to.
+        posterior = xr.Dataset(
+            {
+                "mu": xr.DataArray([[1.0]], dims=("chain", "date")),
+                "y_sigma": xr.DataArray([[1.0]], dims=("chain", "date")),
+            }
+        )
+        dataset = xr.Dataset({"intercept": posterior["mu"]})
+        with pytest.raises(ValueError, match="wrapped likelihood"):
+            IdentityLinkSpec().to_mean_scale(
+                dataset,
+                posterior,
+                Censored(Prior("TruncatedNormal", lower=0, sigma=1), lower=0),
+                xr.DataArray(1.0),
+            )
+
+    def test_log_censored_wrapper_raises_rather_than_using_the_wrong_mean(self):
+        """The log link reaches here with a censored LogNormal and must refuse it."""
+        posterior = xr.Dataset(
+            {
+                "mu": xr.DataArray([[1.0]], dims=("chain", "date")),
+                "y_sigma": xr.DataArray([[1.0]], dims=("chain", "date")),
+            }
+        )
+        dataset = xr.Dataset({"intercept": posterior["mu"]})
+        with pytest.raises(ValueError, match="wrapped likelihood"):
+            LogLinkSpec().to_mean_scale(
+                dataset,
+                posterior,
+                Censored(Prior("LogNormal", sigma=1), upper=1.0),
+                xr.DataArray(1.0),
+            )
+
+    def test_scaled_wrapper_is_refused_and_named(self):
+        """A Scaled likelihood moves the mean off ``mu`` like any other wrapper.
+
+        Scaled resolves to its own class name rather than the one it holds, so
+        the message names it once; the contract under test is the refusal.
+        """
+        posterior = xr.Dataset({"mu": xr.DataArray([[1.0]], dims=("chain", "date"))})
+        dataset = xr.Dataset({"intercept": posterior["mu"]})
+        likelihood = Scaled(Prior("TruncatedNormal", lower=0, sigma=1), factor=2)
+
+        with pytest.raises(ValueError, match="wrapped likelihood \\(Scaled\\)"):
+            IdentityLinkSpec().to_mean_scale(
+                dataset, posterior, likelihood, xr.DataArray(1.0)
+            )
+
+    def test_fixed_sigma_is_used_instead_of_the_posterior(self):
+        posterior = xr.Dataset({"mu": xr.DataArray([[0.0]], dims=("chain", "date"))})
+        likelihood = Prior("TruncatedNormal", lower=0, sigma=2.0)
+        offset = IdentityLinkSpec()._truncation_offset(posterior, likelihood, "y")
+        np.testing.assert_allclose(offset.values[0], [2.0 * np.sqrt(2 / np.pi)])
+
+    def test_two_sided_stays_finite_far_from_both_bounds(self):
+        # The direct phi/Phi form returns -inf and nan here.
+        posterior = xr.Dataset(
+            {
+                "mu": xr.DataArray([[39.0, 42.0, -42.0]], dims=("chain", "date")),
+                "y_sigma": xr.DataArray([[1.0, 1.0, 1.0]], dims=("chain", "date")),
+            }
+        )
+        likelihood = Prior("TruncatedNormal", lower=0, upper=1, sigma=1)
+        offset = IdentityLinkSpec()._truncation_offset(posterior, likelihood, "y")
+        assert np.all(np.isfinite(offset.values))
+        expected = [
+            stats.truncnorm.mean((0.0 - m) / 1.0, (1.0 - m) / 1.0, loc=m, scale=1.0) - m
+            for m in (39.0, 42.0, -42.0)
+        ]
+        np.testing.assert_allclose(offset.values[0], expected)
+
+    def test_two_sided_matches_the_direct_phi_over_Phi_form(self):
+        # An oracle that is not the scipy call the implementation makes: at
+        # moderate arguments the textbook ratio is well conditioned, so it
+        # pins the value, not just the plumbing.
+        mus = np.array([-1.0, 0.5, 4.0])
+        sigmas = np.array([1.0, 2.0, 1.5])
+        posterior = xr.Dataset(
+            {
+                "mu": xr.DataArray(mus[None, :], dims=("chain", "date")),
+                "y_sigma": xr.DataArray(sigmas[None, :], dims=("chain", "date")),
+            }
+        )
+        likelihood = Prior("TruncatedNormal", lower=0, upper=5, sigma=1)
+        offset = IdentityLinkSpec()._truncation_offset(posterior, likelihood, "y")
+
+        alpha = (0.0 - mus) / sigmas
+        beta = (5.0 - mus) / sigmas
+        expected = (
+            sigmas
+            * (stats.norm.pdf(alpha) - stats.norm.pdf(beta))
+            / (stats.norm.cdf(beta) - stats.norm.cdf(alpha))
+        )
+        np.testing.assert_allclose(offset.values[0], expected)
+
+    @pytest.mark.parametrize(
+        ("lower", "upper"),
+        [
+            (0.0, np.array([5.0, 5.0])),
+            (np.array([0.0, 0.0]), 5.0),
+            (np.array([0.0, 0.0]), np.array([5.0, 5.0])),
+            (np.array([-np.inf, 0.0]), 5.0),
+        ],
+    )
+    def test_array_valued_bounds_are_handled(self, lower, upper):
+        # A vector bound used to reach `if np.isposinf(array)` and die on the
+        # ambiguous truth value instead of computing an offset.
+        posterior = xr.Dataset(
+            {
+                "mu": xr.DataArray([[0.5, 2.0]], dims=("chain", "date")),
+                "y_sigma": xr.DataArray([[1.0, 1.0]], dims=("chain", "date")),
+            }
+        )
+        likelihood = Prior(
+            "TruncatedNormal", lower=lower, upper=upper, sigma=1, dims="date"
+        )
+        offset = IdentityLinkSpec()._truncation_offset(posterior, likelihood, "y")
+
+        lows = np.broadcast_to(lower, (2,))
+        highs = np.broadcast_to(upper, (2,))
+        expected = [
+            stats.truncnorm.mean(lo - m, hi - m, loc=m, scale=1.0) - m
+            for lo, hi, m in zip(lows, highs, (0.5, 2.0), strict=True)
+        ]
+        np.testing.assert_allclose(offset.values[0], expected)
+
+    def test_an_array_bound_follows_its_dim_not_the_position_of_mu(self):
+        # The identity link registers mu without transposing, so its dim order
+        # is whatever the linear predictor produced. A per-country bound has to
+        # land on country even when country is not the trailing axis of mu;
+        # positional numpy broadcasting either raised here or, for a bound
+        # whose length happened to match the last axis, corrected the wrong
+        # cells in silence.
+        mu = xr.DataArray(
+            [[[[0.0, 1.0, 2.0], [0.0, 1.0, 2.0]]]],
+            dims=("chain", "draw", "country", "date"),
+            coords={"country": ["a", "b"], "date": [0, 1, 2]},
+        )
+        posterior = xr.Dataset({"mu": mu, "y_sigma": xr.DataArray(1.0)})
+        # Country "a" is truncated at 0, country "b" is effectively unbounded.
+        likelihood = Prior(
+            "TruncatedNormal",
+            lower=np.array([0.0, -50.0]),
+            sigma=1,
+            dims=("date", "country"),
+        )
+
+        offset = IdentityLinkSpec()._truncation_offset(posterior, likelihood, "y")
+
+        assert set(offset.dims) == {"chain", "draw", "country", "date"}
+        expected_a = [
+            stats.truncnorm.mean(0.0 - m, np.inf, loc=m, scale=1.0) - m
+            for m in (0.0, 1.0, 2.0)
+        ]
+        np.testing.assert_allclose(offset.sel(country="a").values.ravel(), expected_a)
+        # 50 sigma away from the bound: no shift at all.
+        np.testing.assert_allclose(
+            offset.sel(country="b").values.ravel(), [0.0, 0.0, 0.0], atol=1e-12
+        )
+
+    def test_a_fixed_array_sigma_follows_its_dim_too(self):
+        # A fixed non-scalar sigma never reaches the posterior, so it is read
+        # straight off the prior and needs the same labelling as the bounds:
+        # per-country scales against an untransposed mu were a shape error at
+        # best and a silent misalignment at worst.
+        mu = xr.DataArray(
+            [[[[0.0, 1.0, 2.0], [0.0, 1.0, 2.0]]]],
+            dims=("chain", "draw", "country", "date"),
+            coords={"country": ["a", "b"], "date": [0, 1, 2]},
+        )
+        posterior = xr.Dataset({"mu": mu})
+        sigmas = np.array([1.0, 4.0])
+        likelihood = Prior(
+            "TruncatedNormal", lower=0, sigma=sigmas, dims=("date", "country")
+        )
+
+        offset = IdentityLinkSpec()._truncation_offset(posterior, likelihood, "y")
+
+        assert set(offset.dims) == {"chain", "draw", "country", "date"}
+        for country, sigma in zip(("a", "b"), sigmas, strict=True):
+            expected = [
+                stats.truncnorm.mean((0.0 - m) / sigma, np.inf, loc=m, scale=sigma) - m
+                for m in (0.0, 1.0, 2.0)
+            ]
+            np.testing.assert_allclose(
+                offset.sel(country=country).values.ravel(), expected
+            )
+
+    def test_an_unnameable_fixed_array_sigma_is_refused(self):
+        posterior = xr.Dataset(
+            {"mu": xr.DataArray([[0.5, 2.0]], dims=("chain", "date"))}
+        )
+        likelihood = Prior("TruncatedNormal", lower=0, sigma=np.array([1.0, 2.0]))
+        with pytest.raises(ValueError, match="too few to name its axes"):
+            IdentityLinkSpec()._truncation_offset(posterior, likelihood, "y")
+
+    def test_an_unnameable_array_bound_is_refused(self):
+        # Without dims there is no way to know which axis the bound indexes,
+        # and guessing is how the silent misalignment above happened.
+        posterior = xr.Dataset(
+            {
+                "mu": xr.DataArray([[0.5, 2.0]], dims=("chain", "date")),
+                "y_sigma": xr.DataArray([[1.0, 1.0]], dims=("chain", "date")),
+            }
+        )
+        likelihood = Prior("TruncatedNormal", lower=np.array([0.0, 0.0]), sigma=1)
+        with pytest.raises(ValueError, match="too few to name its axes"):
+            IdentityLinkSpec()._truncation_offset(posterior, likelihood, "y")
+
+
+class TestRegisteredMuAndPosteriorPredictive:
+    """``mu`` in the posterior must not freeze out-of-sample predictions."""
+
+    @pytest.fixture(scope="class")
+    def fitted(self, mock_pymc_sample):
+        mmm = _make_mmm(link="identity", dims=None)
+        X, y = _make_panel_with_target(np.linspace(50.0, 300.0, 10))
+        mmm.fit(X, y, random_seed=42)
+        return mmm, X
+
+    def test_new_spend_still_moves_the_predictive_draws(self, fitted):
+        """Registering ``mu`` must not turn prediction into a trace lookup.
+
+        ``mu`` is now a Deterministic, so it is in the posterior and
+        ``sample_posterior_predictive`` reads it from the trace wherever it is
+        not volatile.  Correctness out of sample rests entirely on PyMC marking
+        it volatile once the channel data changes, which is load-bearing enough
+        to pin: a counterfactual ``X`` of the *same* length is the case where a
+        shape change cannot do the job for us.
+        """
+        mmm, X = fitted
+        assert "mu" in mmm.idata.posterior
+
+        X_zero = X.copy()
+        X_zero[["C1", "C2"]] = 0.0
+
+        baseline = mmm.sample_posterior_predictive(
+            X, extend_idata=False, random_seed=0, progressbar=False
+        )["y"]
+        counterfactual = mmm.sample_posterior_predictive(
+            X_zero, extend_idata=False, random_seed=0, progressbar=False
+        )["y"]
+
+        assert baseline.shape == counterfactual.shape
+        # Media drives the fitted response, so removing all of it has to move
+        # the draws. Equality would mean the stale in-sample mu was reused.
+        assert float(baseline.mean()) != pytest.approx(
+            float(counterfactual.mean()), rel=1e-6
+        )
+
+
+class TestMeanScaleFactor:
+    """The factor-only entry point used where a scale is folded in."""
+
+    @staticmethod
+    def _posterior():
+        return xr.Dataset(
+            {"y_sigma": xr.DataArray([[0.5, 0.5]], dims=("chain", "date"))}
+        )
+
+    def test_identity_normal_is_one(self):
+        factor = IdentityLinkSpec().mean_scale_factor(
+            self._posterior(), Prior("Normal", sigma=1)
+        )
+        assert float(factor) == 1.0
+
+    def test_identity_truncated_normal_refuses(self):
+        with pytest.raises(ValueError, match="is an offset, not a factor"):
+            IdentityLinkSpec().mean_scale_factor(
+                self._posterior(), Prior("TruncatedNormal", lower=0, sigma=1)
+            )
+
+    def test_log_returns_the_lognormal_ratio(self):
+        posterior = self._posterior()
+        factor = LogLinkSpec().mean_scale_factor(posterior, Prior("LogNormal", sigma=1))
+        xr.testing.assert_allclose(factor, np.exp(posterior["y_sigma"] ** 2 / 2))
+
+    # The factor entry point has to reject and warn about exactly what
+    # to_mean_scale does. Returning 1.0 for any of these is the bug this
+    # branch fixes, moved to the other caller.
+
+    def test_censored_wrapper_refuses(self):
+        # The value here is the second entry point, not the inner prior: the
+        # wrapper is rejected before the distribution it holds is consulted.
+        # A reporting entry point gets the reporting message, whose remedy
+        # (read the median) is right for a caller reporting the model.
+        with pytest.raises(ValueError, match="No mean correction is defined"):
+            IdentityLinkSpec().mean_scale_factor(
+                self._posterior(),
+                Censored(Prior("TruncatedNormal", lower=0, sigma=1), lower=0),
+            )
+
+    def test_log_censored_wrapper_refuses(self):
+        """``validate_likelihood_compatibility`` looks through ``Censored`` under
+        the log link, so the factor entry point is where a censored LogNormal
+        has to be refused rather than rescaled by ``exp(sigma**2 / 2)``.  As a
+        reporting entry point it gets the reporting message, not the
+        calibration one."""
+        with pytest.raises(ValueError, match="No mean correction is defined"):
+            LogLinkSpec().mean_scale_factor(
+                self._posterior(),
+                Censored(Prior("LogNormal", sigma=1), upper=1.0),
+            )
+
+    def test_studentt_at_or_below_one_refuses(self):
+        with pytest.raises(ValueError, match="no mean when nu <= 1"):
+            IdentityLinkSpec().mean_scale_factor(
+                self._posterior(), Prior("StudentT", nu=1, sigma=1)
+            )
+
+    def test_unknown_likelihood_warns(self):
+        with pytest.warns(UserWarning, match="No mean correction is known"):
+            factor = IdentityLinkSpec().mean_scale_factor(
+                self._posterior(), Prior("Weibull", alpha=1, beta=1)
+            )
+        assert float(factor) == 1.0
+
+    def test_sampled_nu_message_counts_the_offending_draws(self):
+        posterior = xr.Dataset(
+            {"y_nu": xr.DataArray([[0.4, 0.9, 6.0]], dims=("chain", "draw"))}
+        )
+        with pytest.raises(ValueError, match="2 of 3 draws are at or below 1"):
+            IdentityLinkSpec().mean_scale_factor(
+                posterior, Prior("StudentT", nu=Prior("Gamma", mu=2, sigma=1), sigma=1)
+            )
+
+    def test_a_hierarchical_nu_is_counted_in_draws_not_in_cells(self):
+        # nu per country: 6 cells, but only 2 of the 3 draws are unusable. The
+        # raw cell count would report "3 of 6" and overstate the damage.
+        posterior = xr.Dataset(
+            {
+                "y_nu": xr.DataArray(
+                    [[[0.4, 5.0], [0.9, 0.8], [6.0, 7.0]]],
+                    dims=("chain", "draw", "country"),
+                )
+            }
+        )
+        with pytest.raises(ValueError, match="2 of 3 draws are at or below 1"):
+            IdentityLinkSpec().mean_scale_factor(
+                posterior, Prior("StudentT", nu=Prior("Gamma", mu=2, sigma=1), sigma=1)
+            )
+
+    def test_missing_baseline_term_raises(self):
+        posterior = xr.Dataset(
+            {
+                "mu": xr.DataArray([[1.0]], dims=("chain", "date")),
+                "y_sigma": xr.DataArray([[1.0]], dims=("chain", "date")),
+            }
+        )
+        dataset = xr.Dataset(
+            {"channel_1": xr.DataArray([[1.0]], dims=("chain", "date"))}
+        )
+        with pytest.raises(ValueError, match="'intercept' term, which is missing"):
+            IdentityLinkSpec().to_mean_scale(
+                dataset,
+                posterior,
+                Prior("TruncatedNormal", lower=0, sigma=1),
+                xr.DataArray(1.0),
+            )
+
+    def test_raises_without_mu_in_posterior(self):
+        posterior = xr.Dataset(
+            {"y_sigma": xr.DataArray([[1.0]], dims=("chain", "date"))}
+        )
+        likelihood = Prior("TruncatedNormal", lower=0, sigma=1)
+        with pytest.raises(ValueError, match="need 'mu' in the posterior"):
+            IdentityLinkSpec()._truncation_offset(posterior, likelihood, "y")
+
+
+class TestIdentityMeanScaleDispatch:
+    """to_mean_scale dispatches on the likelihood, not only on the link."""
+
+    @staticmethod
+    def _dataset():
+        return xr.Dataset(
+            {
+                "channel_1": xr.DataArray([[1.0, 2.0]], dims=("chain", "date")),
+                "intercept": xr.DataArray([[3.0, 4.0]], dims=("chain", "date")),
+            }
+        )
+
+    @staticmethod
+    def _posterior():
+        return xr.Dataset(
+            {
+                "mu": xr.DataArray([[0.5, 1.5]], dims=("chain", "date")),
+                "y_sigma": xr.DataArray([[1.0, 1.0]], dims=("chain", "date")),
+                "y_nu": xr.DataArray([[5.0, 6.0]], dims=("chain", "date")),
+            }
+        )
+
+    @pytest.mark.parametrize(
+        "likelihood",
+        [
+            Prior("Normal", sigma=1),
+            Prior("Gamma", sigma=1),
+            Prior("Laplace", b=1),
+            Prior("InverseGamma", sigma=1),
+        ],
+    )
+    def test_response_scale_likelihoods_are_a_noop(self, likelihood):
+        # simplefilter("error"), because the unknown-likelihood branch also
+        # returns the dataset unchanged: without it a name silently dropping
+        # out of RESPONSE_SCALE_LIKELIHOODS would still pass here.
+        dataset = self._dataset()
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            out = IdentityLinkSpec().to_mean_scale(
+                dataset, self._posterior(), likelihood, xr.DataArray(2.0)
+            )
+        xr.testing.assert_identical(out, dataset)
+
+    def test_studentt_above_one_is_a_noop(self):
+        dataset = self._dataset()
+        out = IdentityLinkSpec().to_mean_scale(
+            dataset,
+            self._posterior(),
+            Prior("StudentT", nu=3, sigma=1),
+            xr.DataArray(2.0),
+        )
+        xr.testing.assert_identical(out, dataset)
+
+    def test_studentt_with_fixed_nu_at_or_below_one_raises(self):
+        with pytest.raises(ValueError, match="no mean when nu <= 1"):
+            IdentityLinkSpec().to_mean_scale(
+                self._dataset(),
+                self._posterior(),
+                Prior("StudentT", nu=1, sigma=1),
+                xr.DataArray(2.0),
+            )
+
+    def test_studentt_with_sampled_nu_below_one_raises(self):
+        posterior = self._posterior()
+        posterior["y_nu"] = xr.DataArray([[0.4, 6.0]], dims=("chain", "date"))
+        with pytest.raises(ValueError, match="no mean when nu <= 1"):
+            IdentityLinkSpec().to_mean_scale(
+                self._dataset(),
+                posterior,
+                Prior("StudentT", nu=Prior("Gamma", mu=2, sigma=1), sigma=1),
+                xr.DataArray(2.0),
+            )
+
+    def test_non_response_scale_likelihood_refuses(self):
+        # validate_likelihood_compatibility stops a model reaching here, but
+        # the correction path rejects it on its own rather than warning: 'mu'
+        # is not even in the units of the target.
+        with pytest.raises(ValueError, match="on the log scale"):
+            IdentityLinkSpec().to_mean_scale(
+                self._dataset(),
+                self._posterior(),
+                Prior("LogNormal", sigma=1),
+                xr.DataArray(2.0),
+            )
+
+    def test_unknown_likelihood_warns_and_is_a_noop(self):
+        dataset = self._dataset()
+        with pytest.warns(UserWarning, match="No mean correction is known"):
+            out = IdentityLinkSpec().to_mean_scale(
+                dataset,
+                self._posterior(),
+                Prior("Weibull", alpha=1, beta=1),
+                xr.DataArray(2.0),
+            )
+        xr.testing.assert_identical(out, dataset)
+
+
+class TestMuNameCollision:
+    """Registering mu turns a name clash into a build-time error."""
+
+    def test_effect_registering_mu_collides_under_identity(self):
+        # Before mu was registered under the identity link this built, because
+        # the branch only set mu_var.name. Now PyMC rejects the duplicate.
+        class MuNamingEffect(MuEffect):
+            def create_data(self, mmm) -> None:
+                pass
+
+            def create_effect(self, mmm):
+                return pmd.Deterministic(
+                    "mu", pmd.Normal("collider", dims=("date",)) * 0.0
+                )
+
+            def set_data(self, mmm, model, X) -> None:
+                pass
+
+        mmm = _make_mmm(link="identity", dims=None)
+        mmm.mu_effects.append(MuNamingEffect())
+        X, y = _make_positive_panel(countries=("A",))
+        X = X.drop(columns=["country"])
+
+        with pytest.raises(ValueError, match="Variable name mu already exists"):
+            mmm.build_model(X, y)
+
 
 class TestMuEffectsDecomposition:
     """mu_effects must appear in the counterfactual decomposition."""
@@ -795,3 +1901,491 @@ class TestOriginalScaleGuardLogLink:
         with warnings.catch_warnings():
             warnings.simplefilter("error", UserWarning)
             mmm.add_original_scale_contribution_variable(["channel_contribution"])
+
+
+class _DataShiftEffect(MuEffect):
+    """Minimal mu effect adding a settable per-date term to the predictor.
+
+    Deliberately trivial: the point of the tests below is *where the effect's
+    contribution shows up*, not what it computes.
+    """
+
+    prefix: str = "shift"
+
+    def to_dict(self) -> dict:
+        """Serialize the effect."""
+        return {"prefix": self.prefix}
+
+    def create_data(self, mmm) -> None:
+        """Register the settable per-date term."""
+        pmd.Data(
+            f"{self.prefix}_data",
+            np.zeros(len(mmm.model.coords["date"])),
+            dims="date",
+        )
+
+    def set_data(self, mmm, model, X) -> None:
+        """No prediction-time refresh needed for these tests."""
+
+    def create_effect(self, mmm):
+        """Add the term to the linear predictor."""
+        return pmd.Deterministic(
+            f"{self.prefix}_effect_contribution",
+            mmm.model[f"{self.prefix}_data"],
+        )
+
+
+class TestTotalResponseDeterministic:
+    """``total_response_original_scale``: the objective that sees mu effects."""
+
+    @staticmethod
+    def _built(link: str, with_effect: bool) -> MMM:
+        mmm = _make_mmm(link=link)
+        if with_effect:
+            mmm.mu_effects.append(_DataShiftEffect())
+        X, y = _make_positive_panel()
+        mmm.build_model(X, y)
+        return mmm
+
+    @pytest.mark.parametrize("link", ["identity", "log"])
+    def test_absent_without_mu_effects(self, link, mock_pymc_sample):
+        """Plain media models keep their posterior unchanged."""
+        mmm = self._built(link, with_effect=False)
+        assert "total_response_original_scale" not in mmm.model.named_vars
+
+    @pytest.mark.parametrize("link", ["identity", "log"])
+    def test_registered_with_mu_effects(self, link, mock_pymc_sample):
+        mmm = self._built(link, with_effect=True)
+        assert "total_response_original_scale" in mmm.model.named_vars
+
+    def test_log_matches_summed_response(self, mock_pymc_sample):
+        """Cross-check against the independently built ``mu_original_scale``."""
+        mmm = self._built("log", with_effect=True)
+        with mmm.model:
+            total, per_date = pm.draw(
+                [
+                    mmm.model["total_response_original_scale"],
+                    mmm.model["mu_original_scale"],
+                ],
+                random_seed=0,
+            )
+        np.testing.assert_allclose(float(total), float(per_date.sum()), rtol=1e-10)
+
+    def test_identity_sees_the_effect_where_the_media_objective_does_not(
+        self, mock_pymc_sample
+    ):
+        """The gap this closes: under identity the media objective is blind.
+
+        ``total_media_contribution_original_scale`` is built from the channel
+        tensor alone, so moving a mu effect leaves it bit-identical while the
+        response genuinely changes -- which is how a budget optimized against
+        it undervalues whatever drives the effect.
+        """
+        mmm = self._built("identity", with_effect=True)
+        names = [
+            "total_response_original_scale",
+            "total_media_contribution_original_scale",
+        ]
+        n_dates = len(mmm.model.coords["date"])
+
+        with mmm.model:
+            before = pm.draw([mmm.model[n] for n in names], random_seed=0)
+            pm.set_data(
+                {"shift_data": np.full(n_dates, 0.5)},
+                model=mmm.model,
+            )
+            after = pm.draw([mmm.model[n] for n in names], random_seed=0)
+
+        assert float(before[0]) != float(after[0])
+        assert float(before[1]) == float(after[1])
+
+
+class TestLikelihoodSupport:
+    """Target values outside the likelihood support are rejected at build time.
+
+    See issue #2835.  The likelihood observes ``target / target_scale``, so
+    every case here is stated in terms of that ratio rather than the target.
+    """
+
+    GAMMA = Prior("Gamma", sigma=Prior("HalfNormal", sigma=1), dims=("date",))
+
+    def test_negative_scaled_target_raises(self, mock_pymc_sample):
+        """One negative value, positive scale, so the ratio leaves the support."""
+        mmm = _make_mmm(dims=None, model_config={"likelihood": self.GAMMA})
+        X, y = _make_panel_with_target([-5.0, 3.0, 7.0, 2.0, 9.0, 4.0, 6.0, 8.0])
+        with pytest.raises(ValueError, match="1 of 8 values"):
+            mmm.build_model(X, y)
+
+    def test_negative_target_with_negative_scale_builds(self, mock_pymc_sample):
+        """An all-negative target scales to a positive ratio and must be allowed.
+
+        ``DataDerivedScaling`` reduces with ``max``, not ``max(abs(...))``, so
+        the scale is negative here and every observed value is positive.  A
+        check written against the raw target would reject a model that fits.
+        """
+        mmm = _make_mmm(dims=None, model_config={"likelihood": self.GAMMA})
+        X, y = _make_panel_with_target([-5.0, -3.0, -7.0, -2.0, -9.0, -4.0, -6.0, -8.0])
+        mmm.build_model(X, y)
+
+        assert float(mmm.scalers["_target"].values) < 0
+        assert np.all(mmm.target_data_scaled.eval() > 0)
+        logp = mmm.model.compile_logp()(mmm.model.initial_point())
+        assert np.isfinite(logp)
+
+    def test_all_zero_placeholder_target_is_skipped(self, mock_pymc_sample):
+        """An all-zero target is the no-``y`` placeholder, not data to reject.
+
+        ``fit`` and ``sample_prior_predictive`` substitute ``np.zeros`` when
+        no target is given, and the scale is then zero, so every observed
+        value is the clamped ``0.0``.  Rejecting that would make it impossible
+        to build a model in order to look at its prior.
+        """
+        mmm = _make_mmm(dims=None, model_config={"likelihood": self.GAMMA})
+        X, y = _make_panel_with_target([0.0] * 8)
+        mmm.build_model(X, y)
+
+    def test_prior_predictive_without_y_builds(self, mock_pymc_sample):
+        """The same placeholder path, reached the way a user reaches it.
+
+        Only the build is under test.  Drawing from a ``Gamma`` prior under
+        ``link='identity'`` can raise ``scale < 0`` because ``mu`` is
+        unconstrained, which is the likelihood's own business and depends on
+        the seed.  That failure is tolerated; the support check firing on the
+        placeholder is not.
+        """
+        mmm = _make_mmm(dims=None, model_config={"likelihood": self.GAMMA})
+        X, _ = _make_panel_with_target([1.0] * 8)
+        try:
+            mmm.sample_prior_predictive(X, samples=5)
+        except ValueError as exc:
+            assert "requires the observed target" not in str(exc)
+        assert "y" in mmm.model.named_vars
+
+    def test_multidimensional_target_is_checked(self, mock_pymc_sample):
+        """The mask is over the full ``(date, country)`` grid, not one series."""
+        mmm = _make_mmm(model_config={"likelihood": self.GAMMA})
+        X, y = _make_positive_panel()
+        y.iloc[0] = -1.0
+        with pytest.raises(ValueError, match="1 of 16 values"):
+            mmm.build_model(X, y)
+
+    def test_degenerate_scale_names_the_scale(self, mock_pymc_sample):
+        """A zero scale clamps a real target to 0.0; say so, not "bad values".
+
+        Country ``A``'s target has a maximum of zero, so its scale is zero and
+        every ratio is NaN or infinite.  ``build_model`` rewrites those to
+        ``0.0``, which is outside ``Gamma``'s support, and the user-visible
+        cause is the scale rather than anything in the target.
+        """
+        dates = pd.date_range("2025-01-06", periods=4, freq="W-MON")
+        rng = np.random.default_rng(0)
+        rows = [
+            {
+                "date": d,
+                "country": c,
+                "C1": rng.uniform(10, 100),
+                "C2": rng.uniform(10, 100),
+            }
+            for d in dates
+            for c in ("A", "B")
+        ]
+        X = pd.DataFrame(rows)
+        y = pd.Series([-2.0, 50.0, -2.0, 50.0, -2.0, 50.0, 0.0, 50.0], name="y")
+
+        per_country = DataDerivedScaling(method="max", dims=())
+        mmm = _make_mmm(
+            scaling=Scaling(target=per_country, channel=per_country),
+            model_config={
+                "likelihood": Prior(
+                    "Gamma",
+                    sigma=Prior("HalfNormal", sigma=1),
+                    dims=("date", "country"),
+                )
+            },
+        )
+        with pytest.raises(ValueError) as excinfo:
+            mmm.build_model(X, y)
+
+        message = str(excinfo.value)
+        assert "'target_scale' has a zero entry" in message
+        assert "the scale is the cause" in message
+
+    def test_target_zeros_are_not_blamed_on_the_scale(self, mock_pymc_sample):
+        """Genuine zeros in the target look identical to the clamp's output.
+
+        A target containing zero weeks produces exact ``0.0`` observations
+        under a perfectly healthy scale, so attributing every all-zero
+        violation to a degenerate scale sends the reader hunting for a zero
+        entry that is not there.
+        """
+        mmm = _make_mmm(dims=None, model_config={"likelihood": self.GAMMA})
+        X, y = _make_panel_with_target([0.0, 5.0, 10.0, 0.0, 8.0, 3.0, 7.0, 2.0])
+        with pytest.raises(ValueError) as excinfo:
+            mmm.build_model(X, y)
+
+        message = str(excinfo.value)
+        assert "no zero entry" in message
+        assert "zeros in the target rather than a scaling artefact" in message
+
+    def test_zero_attribution_names_both_without_the_scale(self):
+        """The staticmethod has no scale to consult, so it asserts neither."""
+        likelihood = Prior("Gamma", dims=("date",))
+        with pytest.raises(ValueError) as excinfo:
+            LinkSpec.validate_likelihood_support(likelihood, np.array([0.0, 1.0]))
+
+        message = str(excinfo.value)
+        assert (
+            "Check the target for zeros and 'target_scale' for a zero entry" in message
+        )
+
+    @pytest.mark.parametrize(
+        "dist_name, kwargs",
+        [
+            ("Gamma", {}),
+            ("Beta", {}),
+            ("TruncatedNormal", {"sigma": 1, "lower": 0, "upper": 5}),
+        ],
+    )
+    def test_nan_is_never_silently_accepted(self, dist_name, kwargs):
+        """`np.nan <= 0` is False, so a naive mask lets NaN through."""
+        likelihood = Prior(dist_name, dims=("date",), **kwargs)
+        with pytest.raises(ValueError):
+            LinkSpec.validate_likelihood_support(likelihood, np.array([0.5, np.nan]))
+
+    def test_numpy_truncation_bounds_are_honoured(self):
+        """A numpy scalar bound is a bound.
+
+        ``Prior`` rejects ``np.int64`` and ``np.float32`` outright, so
+        ``np.float64`` is the only numpy bound reachable through it.  It
+        happens to subclass ``float``, but the check is written against
+        ``numbers.Real`` so it does not depend on that.
+        """
+        likelihood = Prior(
+            "TruncatedNormal",
+            sigma=1,
+            lower=np.float64(0),
+            upper=np.float64(5),
+            dims=("date",),
+        )
+        with pytest.raises(ValueError, match=r"lower 0.0 and upper 5.0"):
+            LinkSpec.validate_likelihood_support(likelihood, np.array([2.5, 6.0]))
+
+    def test_boolean_truncation_bound_is_not_treated_as_a_number(self):
+        """`isinstance(False, int)` is True; `lower=False` is not a bound."""
+        likelihood = Prior("TruncatedNormal", sigma=1, lower=False, dims=("date",))
+        LinkSpec.validate_likelihood_support(likelihood, np.array([-100.0, 100.0]))
+
+    def test_unevaluable_observed_is_skipped(self):
+        """A check that can break build_model is worse than no check."""
+
+        class Unevaluable:
+            def eval(self):
+                raise RuntimeError("cannot evaluate")
+
+        likelihood = Prior("Gamma", dims=("date",))
+        LinkSpec.validate_likelihood_support(likelihood, Unevaluable())
+
+    def test_log_link_still_rejects_the_raw_target(self, mock_pymc_sample):
+        """``LogLinkSpec.validate_target`` is unchanged and fires first.
+
+        The scaled target here is strictly positive (the scale is negative),
+        so the support check would accept it.  The link-level rule is a
+        separate decision and still rejects it.
+        """
+        mmm = _make_mmm(link="log", dims=None)
+        X, y = _make_panel_with_target([-5.0, -3.0, -7.0, -2.0, -9.0, -4.0, -6.0, -8.0])
+        with pytest.raises(ValueError, match="strictly positive when using link='log'"):
+            mmm.build_model(X, y)
+
+    def test_unbounded_likelihood_is_not_checked(self, mock_pymc_sample):
+        """``Normal`` has no bound, so the same target builds fine."""
+        mmm = _make_mmm(dims=None)
+        X, y = _make_panel_with_target([-5.0, 3.0, 7.0, 2.0, 9.0, 4.0, 6.0, 8.0])
+        mmm.build_model(X, y)
+
+    def test_censored_wrapper_is_not_checked(self, mock_pymc_sample):
+        """Censoring at zero is what makes a zero valid; do not reject it.
+
+        ``_distribution_name`` unwraps to ``LogNormal``, so a naive lookup
+        would apply LogNormal's positivity rule to exactly the zero-inflated
+        data the wrapper exists for.
+        """
+        likelihood = Censored(
+            Prior("LogNormal", sigma=Prior("HalfNormal", sigma=1), dims=("date",)),
+            lower=0,
+        )
+        observed = np.array([0.0, 0.5, 1.0])
+        LinkSpec.validate_likelihood_support(likelihood, observed)
+
+    @pytest.mark.parametrize(
+        "dist_name, observed, expected",
+        [
+            ("LogNormal", [1.0, -1.0], "strictly positive"),
+            ("InverseGamma", [1.0, 0.0], "strictly positive"),
+            ("Beta", [0.5, 1.5], r"strictly inside \(0, 1\)"),
+            ("Poisson", [1.0, 1.5], "a non-negative integer"),
+            ("NegativeBinomial", [1.0, -2.0], "a non-negative integer"),
+        ],
+    )
+    def test_support_rules(self, dist_name, observed, expected):
+        likelihood = Prior(dist_name, dims=("date",))
+        with pytest.raises(ValueError, match=expected):
+            LinkSpec.validate_likelihood_support(likelihood, np.array(observed))
+
+    def test_truncated_normal_uses_its_bounds(self):
+        likelihood = Prior("TruncatedNormal", sigma=1, lower=0, upper=5, dims=("date",))
+        LinkSpec.validate_likelihood_support(likelihood, np.array([0.0, 2.5, 5.0]))
+        with pytest.raises(ValueError, match=r"lower 0 and upper 5"):
+            LinkSpec.validate_likelihood_support(likelihood, np.array([2.5, 6.0]))
+
+    def test_truncated_normal_without_numeric_bounds_is_skipped(self):
+        """A ``Prior`` bound has no single interval to report, so skip it."""
+        likelihood = Prior(
+            "TruncatedNormal", sigma=1, lower=Prior("Normal"), dims=("date",)
+        )
+        LinkSpec.validate_likelihood_support(likelihood, np.array([-100.0, 100.0]))
+
+    def test_error_names_the_distribution_and_the_count(self):
+        likelihood = Prior("Gamma", dims=("date",))
+        with pytest.raises(ValueError) as excinfo:
+            LinkSpec.validate_likelihood_support(
+                likelihood, np.array([1.0, -1.0, -2.0, 3.0])
+            )
+        message = str(excinfo.value)
+        assert "'Gamma'" in message
+        assert "strictly positive" in message
+        assert "2 of 4 values" in message
+
+
+class TestOutputVarOriginalScale:
+    """``y_original_scale`` means ``y * target_scale`` under every link (#3132).
+
+    The likelihood observes ``target / target_scale`` whatever the link, so the
+    output variable is already on the response scale and its original-scale
+    version is a plain product: no inverse link, no median.
+    """
+
+    @staticmethod
+    def _fitted(link: str, opt_in: bool) -> MMM:
+        mmm = _make_mmm(
+            link=link, scaling={"target": DataDerivedScaling(method="max", dims=())}
+        )
+        X, y = _make_positive_panel()
+        mmm.build_model(X, y)
+
+        if opt_in:
+            with warnings.catch_warnings():
+                warnings.simplefilter("error", UserWarning)
+                mmm.add_original_scale_contribution_variable(["y"])
+
+        mmm.fit(X, y)
+        mmm.sample_posterior_predictive(X, extend_idata=True, combined=False)
+        mmm.sample_prior_predictive(X, y, extend_idata=True)
+        return mmm
+
+    @pytest.mark.parametrize("link", ["identity", "log"])
+    def test_opt_in_registers_response_scale_draws(self, link, mock_pymc_sample):
+        """After the opt-in, the predictive groups hold ``y * target_scale``, per country."""
+        mmm = self._fitted(link, opt_in=True)
+        scale = mmm.data.get_target_scale()
+        assert set(scale.dims) == {"country"}
+        pp = mmm.idata.posterior_predictive
+        xr.testing.assert_allclose(
+            pp["y_original_scale"],
+            (pp["y"] * scale).transpose(*pp["y_original_scale"].dims),
+        )
+        prior = mmm.idata.prior["y_original_scale"]
+        xr.testing.assert_allclose(
+            prior,
+            (mmm.idata.prior_predictive["y"] * scale).transpose(*prior.dims),
+        )
+
+    @pytest.mark.parametrize("link", ["identity", "log"])
+    @pytest.mark.parametrize("opt_in", [False, True])
+    def test_predictive_target_accessor_derives_or_reads(
+        self, link, opt_in, mock_pymc_sample
+    ):
+        """``get_predictive_target`` gives ``y * target_scale`` with or without the opt-in."""
+        mmm = self._fitted(link, opt_in=opt_in)
+        scale = mmm.data.get_target_scale()
+
+        for group, predictive in [
+            ("posterior", mmm.idata.posterior_predictive),
+            ("prior", mmm.idata.prior_predictive),
+        ]:
+            draws = predictive["y"]
+            got = mmm.data.get_predictive_target(group, original_scale=True)
+            assert got.dims == draws.dims
+            xr.testing.assert_allclose(got, draws * scale)
+            xr.testing.assert_identical(
+                mmm.data.get_predictive_target(group, original_scale=False), draws
+            )
+
+    @pytest.mark.parametrize("link", ["identity", "log"])
+    def test_diagnostics_work_without_the_opt_in(self, link, mock_pymc_sample):
+        """The single-model gap from #3132: every original-scale consumer runs."""
+        import matplotlib
+
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+
+        mmm = self._fitted(link, opt_in=False)
+        assert "y_original_scale" not in mmm.idata.posterior_predictive
+
+        try:
+            mmm.plot_suite = "new"
+            mmm.plot.diagnostics.posterior_predictive(original_scale=True)
+            mmm.plot.diagnostics.prior_predictive(original_scale=True)
+            mmm.plot.diagnostics.residuals_over_time()
+            mmm.plot_suite = "legacy"
+            mmm.plot.residuals_over_time()
+            mmm.plot.residuals_posterior_distribution()
+        finally:
+            plt.close("all")
+
+        residuals = mmm.summary.residuals_over_time()
+        assert len(residuals) == mmm.idata.posterior_predictive.sizes["date"] * 2
+        prior = mmm.summary.prior_predictive(original_scale=True)
+        expected_mean = (
+            (mmm.idata.prior_predictive["y"] * mmm.data.get_target_scale())
+            .mean(("chain", "draw"))
+            .transpose("date", "country")
+            .values.ravel()
+        )
+        np.testing.assert_allclose(prior["mean"].to_numpy(), expected_mean)
+
+    def test_log_median_is_mu_original_scale(self, mock_pymc_sample):
+        """``to_original_scale("mu")`` is the median; ``to_original_scale("y")`` is not."""
+        mmm = self._fitted("log", opt_in=False)
+        posterior = mmm.idata.posterior
+        median = mmm.data.to_original_scale("mu")
+        xr.testing.assert_allclose(
+            median,
+            (np.exp(posterior["mu"]) * mmm.data.get_target_scale()).transpose(
+                *median.dims
+            ),
+        )
+        with pytest.raises(ValueError, match="'y' not found in posterior"):
+            mmm.data.to_original_scale("y")
+
+    def test_save_load_keeps_the_opt_in_without_warning(
+        self, mock_pymc_sample, tmp_path
+    ):
+        """A log model with the ``y`` opt-in round-trips: both names, no 'already in the model'."""
+        mmm = self._fitted("log", opt_in=True)
+        path = tmp_path / "mmm_log.nc"
+        mmm.save(str(path))
+        tree = xr.open_datatree(str(path)).load()
+        assert {"mu_original_scale", "y_original_scale"} <= set(tree.posterior)
+
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            loaded = MMM.load_from_idata(tree)
+
+        assert not [w for w in caught if "already in the model" in str(w.message)]
+        assert "mu_original_scale" in loaded.model.named_vars
+        assert "y_original_scale" in loaded.model.named_vars
+        xr.testing.assert_allclose(
+            loaded.data.get_predictive_target("posterior"),
+            tree.posterior_predictive["y_original_scale"],
+        )

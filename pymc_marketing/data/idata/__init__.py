@@ -22,12 +22,14 @@ from pymc_marketing.data.idata.schema import (
 from pymc_marketing.data.idata.utils import (
     aggregate_idata_dims,
     aggregate_idata_time,
+    broadcast_over_date,
     filter_idata_by_dates,
     filter_idata_by_dims,
     get_posterior_predictive,
     get_prior,
     get_prior_predictive,
     subsample_draws,
+    sum_contributions_over_time,
 )
 
 __all__ = [
@@ -37,10 +39,12 @@ __all__ = [
     "VariableSchema",
     "aggregate_idata_dims",
     "aggregate_idata_time",
+    "broadcast_over_date",
     "filter_idata_by_dates",
     "filter_idata_by_dims",
     "get_posterior_predictive",
     "get_prior",
     "get_prior_predictive",
     "subsample_draws",
+    "sum_contributions_over_time",
 ]

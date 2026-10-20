@@ -101,6 +101,7 @@ To effectively implement a Media Mix Model (MMM), you need to gather specific ty
    - Competitor activities (if available)
    - Seasonal factors (e.g., holidays, special events)
    - Price changes or promotions
+   - PyMC-Marketing scales the target and the channels, but uses control columns as they are, on purpose: a control enters the model linearly, so its coefficient absorbs its scale. The default prior on the control coefficients is stated on the scaled target and shared by every control, so put controls on a comparable scale yourself (for example, divide each by its maximum absolute value) or give the `gamma_control` prior a `sigma` per control. Prefer a `LinearTrendEffect` and `yearly_seasonality` to time-index columns for trend and seasonality.
 
 4. External Factors:
    - Weather data (if relevant to your business)
@@ -167,11 +168,15 @@ PyMC-Marketing can be seamlessly integrated into production environments using m
 
 By leveraging these tools, you can create a robust, automated MMM pipeline that continuously provides insights for your marketing strategies.
 
+To serve pre-aggregated model outputs to a JavaScript dashboard or API, use [`mmm.summary`](data_export) to export tabular summaries (contributions, ROAS, HDI bands) as JSON-serializable records instead of rendering matplotlib figures server-side.
+
 For more information on these tools, visit:
 - Docker: [https://www.docker.com/](https://www.docker.com/)
 - MLflow: [https://mlflow.org/](https://mlflow.org/)
 
 
 ## How to get started?
+
+If you are new to MMMs, start with the {ref}`guided learning path <mmm_learning_path>`. It orders the example notebooks into stages and tells you what to read and what to run.
 
 To see how all these different components come together, you can review the {ref}`MMM Example notebook <mmm_example>` and [MMM Explainer App](https://pymc-marketing-app.streamlit.app/).

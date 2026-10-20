@@ -15,25 +15,40 @@
 """PyTensor utility functions."""
 
 from collections import Counter
+from collections.abc import Sequence
+from typing import cast, overload
 
 import arviz as az
+import numpy as np
 import pandas as pd
 import xarray as xr
 from pymc.model.core import Model
 from pymc.model.fgraph import (
+    ModelValuedVar,
     ModelVar,
-    extract_dims,
     fgraph_from_model,
     model_from_fgraph,
 )
-from pymc.pytensorf import StringConstant, rvs_in_graph
+from pymc.pytensorf import rvs_in_graph, toposort_replace
+from pytensor.compile.sharedvalue import SharedVariable, shared
 from pytensor.graph.basic import Variable
 from pytensor.graph.fg import FunctionGraph
 from pytensor.graph.replace import clone_replace
 from pytensor.graph.rewriting import rewrite_graph
 from pytensor.graph.traversal import ancestors
 from pytensor.xtensor import xtensor_constant
+from pytensor.xtensor.type import as_xtensor
 from pytensor.xtensor.vectorization import vectorize_graph
+
+
+def _rebuild_model_var(var, *, name: str, dims: tuple[str, ...]):
+    """Return a copy of a ``ModelVar``-wrapped variable with new ``name``/``dims`` props."""
+    op = var.owner.op
+    if isinstance(op, ModelValuedVar):
+        new_op = type(op)(name=name, dims=dims, transform=op.transform)
+    else:
+        new_op = type(op)(name=name, dims=dims)
+    return new_op(*var.owner.inputs)
 
 
 def _prefix_model(f2, prefix: str, exclude_vars: set | None = None):
@@ -45,93 +60,49 @@ def _prefix_model(f2, prefix: str, exclude_vars: set | None = None):
     if exclude_vars is None:
         exclude_vars = set()
 
-    # First, collect dimensions that belong to excluded variables
-    exclude_dims = set()
-    for v in f2.outputs:
-        if v.name in exclude_vars:
-            v_dims = extract_dims(v)
-            for dim in v_dims:
-                exclude_dims.add(dim.data)
+    model_nodes = [node for node in f2.toposort() if isinstance(node.op, ModelVar)]
 
-    # Track dims and build a mapping from base variable names to prefixed names
-    dims = set()
-    base_to_prefixed: dict[str, str] = {}
-    for v in f2.outputs:
-        # Only prefix if not in exclude_vars and has a valid name
-        old_name = getattr(v, "name", None)
-        if old_name and (old_name not in exclude_vars):
-            new_name = f"{prefix}_{old_name}"
-            v.name = new_name
-            if isinstance(v.owner.op, ModelVar):
-                rv = v.owner.inputs[0]
-                rv.name = new_name
-            # Record base to prefixed mapping for subsequent value-var renaming
-            base_to_prefixed[old_name] = new_name
-        dims.update(extract_dims(v))
-
-    # Also collect ModelVar outputs that may not be listed among f2.outputs
-    # (e.g., observed RVs or deterministics created internally)
-    for var in list(f2.variables):
-        if (
-            (owner := getattr(var, "owner", None)) is not None
-            and isinstance(owner.op, ModelVar)
-            and isinstance(name := getattr(var, "name", None), str)
-            and name
-            and name not in exclude_vars
-            and name not in base_to_prefixed
-            and not name.startswith(prefix + "_")
-        ):
-            new_name = f"{prefix}_{name}"
-            var.name = new_name
-            owner.inputs[0].name = new_name
-            base_to_prefixed[name] = new_name
-
-    # Don't rename dimensions that belong to excluded variables
-    dims_rename = {
-        dim: StringConstant(dim.type, f"{prefix}_{dim.data}")
-        for dim in dims
-        if dim.data not in exclude_dims
+    # Dimensions that belong to excluded variables are never prefixed
+    exclude_dims: set[str] = {
+        dim
+        for node in model_nodes
+        if node.op.name in exclude_vars
+        for dim in node.op.dims
     }
-    if dims_rename:
-        f2.replace_all(tuple(dims_rename.items()))
 
-    # Don't prefix coordinates for excluded dimensions
-    new_coords = {}
-    for k, v in f2._coords.items():  # type: ignore[attr-defined]
-        if k not in exclude_dims:
-            new_coords[f"{prefix}_{k}"] = v
-        else:
-            new_coords[k] = v
-    f2._coords = new_coords  # type: ignore[attr-defined]
+    def _prefixed(name: str) -> str:
+        return name if name in exclude_dims else f"{prefix}_{name}"
 
-    # Also rename associated transformed/value variables to keep names unique across merged graphs.
-    # Example patterns include: "<base>", "<base>_log__", "<base>_logodds__", etc.
-    # We only attempt renames for bases we actually prefixed above.
-    if base_to_prefixed:
-        for var in list(f2.variables):
-            if (
-                isinstance(name := getattr(var, "name", None), str)
-                and name
-                and name not in exclude_vars
-                and (
-                    match := next(
-                        (
-                            (base, prefixed)
-                            for base, prefixed in base_to_prefixed.items()
-                            if isinstance(base, str)
-                            and base
-                            and (
-                                name == base
-                                or name.startswith(base + "_")
-                                or name.startswith(base + "__")
-                            )
-                        ),
-                        None,
-                    )
-                )
-            ):
-                base, prefixed = match
-                var.name = name.replace(base, prefixed, 1)
+    # Rebuild every ModelVar op with the prefixed name/dims (they are Op props).
+    replacements = []
+    for node in model_nodes:
+        op = node.op
+        old_name = op.name
+        new_name = old_name if old_name in exclude_vars else f"{prefix}_{old_name}"
+        new_dims = tuple(_prefixed(dim) for dim in op.dims)
+        if new_name == old_name and new_dims == op.dims:
+            continue
+        if isinstance(op, ModelValuedVar) and new_name != old_name:
+            # The value var of a free RV is a graph input named "<name>" or
+            # "<name>_<transform>__". Observed value vars are either Data (a
+            # ModelNamed node, rebuilt in this loop) or unnamed constants.
+            value = node.inputs[1]
+            if isinstance(value.name, str) and value.name and value.owner is None:
+                value.name = f"{prefix}_{value.name}"
+        replacements.append(
+            (
+                node.outputs[0],
+                _rebuild_model_var(node.outputs[0], name=new_name, dims=new_dims),
+            )
+        )
+    # Consumers before producers, so no stale ModelVar node is re-imported
+    toposort_replace(f2, tuple(replacements), reverse=True)
+
+    f2._coords = {_prefixed(k): v for k, v in f2._coords.items()}  # type: ignore[attr-defined]
+    f2._dim_lengths = {  # type: ignore[attr-defined]
+        _prefixed(k): v
+        for k, v in f2._dim_lengths.items()  # type: ignore[attr-defined]
+    }
 
     return f2
 
@@ -194,6 +165,15 @@ def merge_models(
             if not merge_vars:
                 raise ValueError(f"Variable '{merge_on}' not found in model {i + 1}")
             fgraphs[i].replace(merge_vars[0], first_merge_var, import_missing=True)
+            # Shared dims of the merge variable must use a single dim-length variable
+            first_dim_lengths = fgraphs[0]._dim_lengths  # type: ignore[attr-defined]
+            for dim, length in list(fgraphs[i]._dim_lengths.items()):  # type: ignore[attr-defined]
+                first_length = first_dim_lengths.get(dim)
+                if first_length is None or first_length is length:
+                    continue
+                if length in fgraphs[i].variables:
+                    fgraphs[i].replace(length, first_length, import_missing=True)
+                fgraphs[i]._dim_lengths[dim] = first_length  # type: ignore[attr-defined]
 
     # Combine all outputs
     all_outputs = []
@@ -203,11 +183,15 @@ def merge_models(
     # Create merged FunctionGraph
     f = FunctionGraph(outputs=all_outputs, clone=False)
 
-    # Merge coordinates from all models
+    # Merge coordinates and dim lengths from all models (first model wins on shared dims)
     merged_coords: dict = {}
+    merged_dim_lengths: dict = {}
     for fg in fgraphs:
         merged_coords.update(fg._coords)  # type: ignore[attr-defined]
+        for dim, length in fg._dim_lengths.items():  # type: ignore[attr-defined]
+            merged_dim_lengths.setdefault(dim, length)
     f._coords = merged_coords  # type: ignore[attr-defined]
+    f._dim_lengths = merged_dim_lengths  # type: ignore[attr-defined]
 
     return model_from_fgraph(f, mutate_fgraph=True)
 
@@ -262,12 +246,246 @@ def validate_unique_value_vars(model: Model) -> None:
         )
 
 
+def _posterior_sample_major(idata: xr.DataTree | xr.Dataset) -> xr.Dataset:
+    """Stack ``chain`` and ``draw`` into a leading ``sample`` dimension."""
+    extracted = az.extract(idata)
+    # A single-variable posterior comes back squeezed to a DataArray.
+    if isinstance(extracted, xr.DataArray):
+        extracted = extracted.to_dataset()
+    return extracted.transpose("sample", ...)  # type: ignore
+
+
+def _array_equal(a: np.ndarray, b: np.ndarray) -> bool:
+    """``np.array_equal`` that treats NaN as equal to itself for float arrays."""
+    equal_nan = np.issubdtype(a.dtype, np.inexact) and np.issubdtype(
+        b.dtype, np.inexact
+    )
+    return bool(np.array_equal(a, b, equal_nan=equal_nan))
+
+
+class SharedPosterior:
+    """Posterior draws held in PyTensor shared variables.
+
+    :func:`extract_response_distribution` conditions a graph on posterior draws
+    by substituting them as constants, which welds every graph -- and every
+    function compiled from it -- to one posterior.  Passing a
+    ``SharedPosterior`` instead binds the draws through shared variables, so
+    :meth:`set_posterior` can point an already compiled function at a new set
+    of draws without extracting or compiling again.  That is what makes a
+    loop over many posteriors (a resampled or updated posterior per
+    iteration) affordable: the compile happens once.
+
+    One instance can back several graphs.  A variable is created the first
+    time a graph needs it and reused by every later extraction that passes the
+    same instance, so a single :meth:`set_posterior` call rebinds all of them
+    at once.  A later extraction must therefore be conditioned on the draws
+    the instance already holds; handing it a different posterior raises,
+    since the graph would otherwise silently read the bound draws.
+
+    The contract for a rebind: every bound variable is present with the
+    dtype it was bound with; every non-sample dimension keeps its name and
+    its set of labels, compared by value (so a reordered ``channel`` axis is
+    realigned, and a datetime axis may change storage unit); a dimension
+    bound without labels must arrive without labels; the number of draws is
+    free.  Anything else is refused, and a rebind is atomic: every variable
+    is validated and laid out before any is written.
+
+    Examples
+    --------
+    .. code-block:: python
+
+        shared_posterior = SharedPosterior()
+        graph = extract_response_distribution(
+            model, idata, "channel_contribution", shared_posterior=shared_posterior
+        )
+        fn = function([budgets], graph)  # compiled once
+
+        fn(x)  # under ``idata``
+        shared_posterior.set_posterior(other_idata)
+        fn(x)  # under ``other_idata``, no recompile
+    """
+
+    def __init__(self) -> None:
+        self._variables: dict[str, SharedVariable] = {}
+        self._dims: dict[str, tuple[str, ...]] = {}
+        self._coords: dict[str, dict[str, pd.Index]] = {}
+
+    def __repr__(self) -> str:
+        """Show each bound variable with its current ``(sample, ...)`` shape."""
+        bound = ", ".join(
+            f"{name}{tuple(self._variables[name].get_value(borrow=True).shape)}"
+            for name in self._variables
+        )
+        return f"SharedPosterior({bound})"
+
+    @property
+    def variables(self) -> dict[str, SharedVariable]:
+        """The shared variables, keyed by posterior variable name."""
+        return dict(self._variables)
+
+    @property
+    def dims(self) -> dict[str, tuple[str, ...]]:
+        """The dimension order each variable is stored in, ``sample`` first."""
+        return dict(self._dims)
+
+    def _aligned_values(self, name: str, posterior_da: xr.DataArray) -> np.ndarray:
+        """Return ``posterior_da`` laid out and typed like the bound variable ``name``.
+
+        Raises ``ValueError`` on any mismatch with the contract in the class
+        docstring; writes nothing.  The returned array is a fresh allocation
+        the shared variable can own outright, which keeps the write phase of
+        :meth:`set_posterior` infallible.
+        """
+        dims = self._dims[name]
+        if set(posterior_da.dims) != set(dims):
+            raise ValueError(
+                f"Posterior variable {name!r} has dims {tuple(posterior_da.dims)}, "
+                f"expected {dims}."
+            )
+        for dim in dims[1:]:
+            bound = self._coords[name].get(dim)
+            given = posterior_da.indexes.get(dim)
+            if (bound is None) != (given is None):
+                raise ValueError(
+                    f"Posterior variable {name!r}: dimension {dim!r} is labelled on "
+                    "one side only. Label both sides or neither; positions cannot "
+                    "be checked against labels."
+                )
+            if bound is None or given is None:
+                continue
+            # pd.Index compares datetimes by value across storage units.  The
+            # bound index is unique (checked at bind time), so equal lengths
+            # plus an empty difference means the same set of labels, with any
+            # duplicate on the given side surfacing as a missing label.  No
+            # sorting, so a mixed-type object axis is fine.
+            if len(bound) != len(given) or not bound.difference(given).empty:
+                extra, missing = given.difference(bound), bound.difference(given)
+                raise ValueError(
+                    f"Posterior variable {name!r} has different {dim} labels: "
+                    f"{len(extra)} not bound, {len(missing)} missing "
+                    f"(e.g. {list(extra[:3])} / {list(missing[:3])})."
+                )
+            posterior_da = posterior_da.sel({dim: bound})
+        var = self._variables[name]
+        # astype always allocates, so the shared variable owns the array and
+        # borrow=True cannot alias the caller's data.
+        values = posterior_da.transpose(*dims).values.astype(var.type.dtype)
+        bound_shape = var.get_value(borrow=True).shape[1:]
+        if values.shape[1:] != bound_shape:
+            raise ValueError(
+                f"Posterior variable {name!r} has shape {values.shape[1:]} over "
+                f"dims {dims[1:]}, expected {bound_shape}. Only the sample "
+                "dimension may change length between rebinds."
+            )
+        return values
+
+    def _get_or_create(self, posterior_da: xr.DataArray, *, name: str, dtype: str):
+        """Return the xtensor view of ``name``'s shared variable, creating it if needed.
+
+        On reuse the draws handed in must be the ones already bound: the graph
+        will read the shared variable, so a different posterior here would be
+        silently ignored.
+        """
+        if name not in self._variables:
+            dims = tuple(str(dim) for dim in posterior_da.dims)
+            self._variables[name] = shared(posterior_da.values.astype(dtype), name=name)
+            self._dims[name] = dims
+            coords = {
+                dim: posterior_da.indexes[dim]
+                for dim in dims[1:]
+                if dim in posterior_da.indexes
+            }
+            # Labels are a set: a duplicated label could not be realigned by
+            # ``sel`` later, which would silently pick one column twice.
+            for dim, index in coords.items():
+                if not index.is_unique:
+                    raise ValueError(
+                        f"Posterior variable {name!r} has duplicated {dim} labels: "
+                        f"{index[index.duplicated()].unique().tolist()}."
+                    )
+            self._coords[name] = coords
+        else:
+            var = self._variables[name]
+            if np.dtype(dtype) != np.dtype(var.type.dtype):
+                raise ValueError(
+                    f"Posterior variable {name!r} is bound as {var.type.dtype}, "
+                    f"but this graph wants {dtype}."
+                )
+            values = self._aligned_values(name, posterior_da)
+            if not _array_equal(values, var.get_value(borrow=True)):
+                raise ValueError(
+                    f"This SharedPosterior already binds {name!r} to different draws. "
+                    "Extract every graph from the same posterior, then call "
+                    "set_posterior() to move all of them together."
+                )
+        return as_xtensor(self._variables[name], dims=self._dims[name])
+
+    def set_posterior(self, idata: xr.DataTree | xr.Dataset) -> None:
+        """Rebind every variable to the draws in ``idata``.
+
+        Parameters
+        ----------
+        idata : xr.DataTree or xr.Dataset
+            Inference data with a ``posterior`` group (or the posterior
+            dataset itself) holding every variable this instance owns.
+
+        Raises
+        ------
+        KeyError
+            If the posterior lacks a variable this instance owns.
+        ValueError
+            If a variable's non-sample dimensions differ, in name, length or
+            coordinate labels, from the ones it was created with.  Nothing is
+            written in that case.
+        """
+        posterior = _posterior_sample_major(idata)
+        missing = sorted(set(self._variables) - set(posterior.data_vars))
+        if missing:
+            raise KeyError(
+                f"Posterior is missing variables bound by this SharedPosterior: {missing}"
+            )
+        # Validate, align and cast everything first so a failure leaves the
+        # binding untouched rather than half-swapped between two posteriors.
+        # Every fallible step lives in _aligned_values; the write loop only
+        # hands over arrays that already have the right dtype and shape.
+        prepared = {
+            name: self._aligned_values(name, posterior[name])
+            for name in self._variables
+        }
+        for name, values in prepared.items():
+            self._variables[name].set_value(values, borrow=True)
+
+
+@overload
 def extract_response_distribution(
     pymc_model: Model,
     idata: xr.DataTree,
-    response_variable: str,
+    response_variable: str | Variable,
+    frozen_deterministics: list[str] | None = ...,
+    *,
+    shared_posterior: SharedPosterior | None = ...,
+) -> Variable: ...
+
+
+@overload
+def extract_response_distribution(
+    pymc_model: Model,
+    idata: xr.DataTree,
+    response_variable: Sequence[str | Variable],
+    frozen_deterministics: list[str] | None = ...,
+    *,
+    shared_posterior: SharedPosterior | None = ...,
+) -> list[Variable]: ...
+
+
+def extract_response_distribution(
+    pymc_model: Model,
+    idata: xr.DataTree,
+    response_variable: str | Variable | Sequence[str | Variable],
     frozen_deterministics: list[str] | None = None,
-) -> Variable:
+    *,
+    shared_posterior: SharedPosterior | None = None,
+) -> Variable | list[Variable]:
     """Extract the response distribution graph, conditioned on posterior parameters.
 
     Parameters
@@ -276,16 +494,33 @@ def extract_response_distribution(
         The PyMC model to extract the response distribution from.
     idata : xr.DataTree
         The inference data containing posterior samples.
-    response_variable : str
-        The name of the response variable to extract.
+    response_variable : str, Variable, or sequence of either
+        The response variable to extract, by name or as the graph node itself.
+        A node is accepted because not every interesting quantity is a named
+        variable of the model: an MMM's linear predictor is only registered as a
+        ``Deterministic`` under a log link, and is an anonymous intermediate
+        otherwise.  A sequence extracts several variables in a single pass, so
+        any subgraph they share is conditioned, rewritten and vectorized once
+        and stays shared in the result -- which is what makes it cheap to
+        evaluate, say, ``channel_contribution`` alongside a mediated effect that
+        reads the same spend data.
     frozen_deterministics : list of str, optional
         Names of Deterministic variables to freeze at their posterior values instead of recomputing from the graph.
         Some models (e.g, those containing HSGP) need this to to obtain a valid conditional posterior graph.
+    shared_posterior : SharedPosterior, optional
+        Bind the posterior draws through this object's shared variables instead
+        of baking them into the graph as constants.  Its
+        :meth:`SharedPosterior.set_posterior` then swaps the draws under any
+        function compiled from the result without recompiling.  Variables the
+        object already holds are reused, so several graphs extracted with the
+        same instance are rebound together.
 
     Returns
     -------
-    pt.TensorVariable
-        The response distribution graph.
+    pt.TensorVariable or list of pt.TensorVariable
+        The response distribution graph.  A list -- matching
+        ``response_variable`` element-wise -- when a sequence was passed, a
+        single variable otherwise.
 
     Examples
     --------
@@ -294,10 +529,19 @@ def extract_response_distribution(
     the newly introduced budgets and the posterior of model parameters.
     """
     # Convert DataTree to a sample-major xarray
-    posterior = az.extract(idata).transpose("sample", ...)  # type: ignore
+    posterior = _posterior_sample_major(idata)
 
-    # The PyMC variable to extract
-    response_var = pymc_model[response_variable]
+    # A single name keeps the historical scalar return type; a sequence opts
+    # into the list form.  Everything in between is list-shaped.
+    single = isinstance(response_variable, str | Variable)
+    requested = [response_variable] if single else list(response_variable)
+    if not requested:
+        raise ValueError("'response_variable' must name at least one variable.")
+
+    # The PyMC variables to extract
+    response_vars = [
+        pymc_model[var] if isinstance(var, str) else var for var in requested
+    ]
 
     # Identify which free RVs are needed to compute `response_var`.
     # Frozen deterministics are treated as additional blockers so their
@@ -312,45 +556,64 @@ def extract_response_distribution(
 
     blockers = free_rvs | frozen_vars
     needed_rvs = [
-        rv for rv in ancestors([response_var], blockers=blockers) if rv in blockers
+        rv for rv in ancestors(response_vars, blockers=blockers) if rv in blockers
     ]
     placeholder_replace_dict = {pymc_model[rv.name]: rv.clone() for rv in needed_rvs}
 
-    [response_var] = clone_replace(
-        [response_var],
-        replace=placeholder_replace_dict,
+    response_vars = list(
+        clone_replace(
+            response_vars,
+            replace=placeholder_replace_dict,
+        )
     )
 
-    if rvs_in_graph([response_var]):
+    if rvs_in_graph(response_vars):
         raise RuntimeError("RVs found in the extracted graph, this is likely a bug")
 
-    # Cleanup graph
-    response_var = rewrite_graph(response_var, include=("canonicalize", "ShapeOpt"))
+    # Cleanup graph.  rewrite_graph mirrors the shape of what it is given, so a
+    # list of outputs comes back as a list.
+    response_vars = list(
+        cast(
+            Sequence[Variable],
+            rewrite_graph(response_vars, include=("canonicalize", "ShapeOpt")),
+        )
+    )
 
-    # Replace placeholders with actual posterior samples
+    # Replace placeholders with actual posterior samples: constants by default,
+    # shared variables when the caller wants to rebind them later.
     replace_dict = {}
     for placeholder in placeholder_replace_dict.values():
         posterior_da = posterior[placeholder.name].astype(placeholder.dtype)
-        replace_dict[placeholder] = xtensor_constant(
-            posterior_da.values,
-            name=placeholder.name,
-            dims=posterior_da.dims,
-        )
+        if shared_posterior is not None:
+            replace_dict[placeholder] = shared_posterior._get_or_create(
+                posterior_da, name=placeholder.name, dtype=placeholder.dtype
+            )
+        else:
+            replace_dict[placeholder] = xtensor_constant(
+                posterior_da.values,
+                name=placeholder.name,
+                dims=posterior_da.dims,
+            )
 
     # Vectorize across samples
-    response_distribution = vectorize_graph(response_var, replace=replace_dict)
+    response_distribution = list(vectorize_graph(response_vars, replace=replace_dict))
 
     # Final cleanup
-    response_distribution = rewrite_graph(
-        response_distribution,
-        include=(
-            "useless",
-            "local_eager_useless_unbatched_blockwise",
-            "local_useless_unbatched_blockwise",
-        ),
+    response_distribution = list(
+        cast(
+            Sequence[Variable],
+            rewrite_graph(
+                response_distribution,
+                include=(
+                    "useless",
+                    "local_eager_useless_unbatched_blockwise",
+                    "local_useless_unbatched_blockwise",
+                ),
+            ),
+        )
     )
 
-    return response_distribution
+    return response_distribution[0] if single else response_distribution
 
 
 class ModelSamplerEstimator:

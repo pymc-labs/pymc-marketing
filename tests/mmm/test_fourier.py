@@ -617,6 +617,24 @@ def test_fourier_arbitrary_prior(seasonality) -> None:
         "weekly",
     ],
 )
+def test_fourier_arbitrary_prior_sample_prior(seasonality) -> None:
+    prior = ArbitraryCode(dims=("fourier",))
+    fourier = seasonality(n_order=4, prior=prior)
+
+    prior_samples = fourier.sample_prior(samples=10)
+
+    assert prior_samples[fourier.variable_name].shape == (1, 10, 2 * 4)
+
+
+@pytest.mark.parametrize(
+    argnames="seasonality",
+    argvalues=[YearlyFourier, MonthlyFourier, WeeklyFourier],
+    ids=[
+        "yearly",
+        "monthly",
+        "weekly",
+    ],
+)
 def test_fourier_dims_modified(seasonality) -> None:
     prior = ArbitraryCode(dims=())
     YearlyFourier(n_order=4, prior=prior)

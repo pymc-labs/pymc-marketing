@@ -19,6 +19,7 @@ import pytensor.tensor as pt
 import pytest
 import xarray as xr
 from pymc_extras.prior import Prior
+from pytensor.graph.traversal import ancestors
 
 from pymc_marketing.mmm.additive_effect import (
     ControlMuEffect,
@@ -501,6 +502,17 @@ class TestDataVarMuEffect:
         )
         return MockMMM()
 
+    def _make_shared_var_setup(self, dates):
+        """Dataset and mock MMM with a single shared column for two effects."""
+        rng = np.random.default_rng(42)
+        ds = xr.Dataset(
+            {"shared": (("date",), rng.normal(size=len(dates)))},
+            coords={"date": dates},
+        )
+        model = pm.Model(coords={"date": dates})
+        mmm = self._make_mock_mmm(model, ds)
+        return mmm, ds, model, rng
+
     def test_concrete_subclass_create_data(self, dates):
         """Subclass registers data variables from xarray_dataset as pm.Data."""
         rng = np.random.default_rng(42)
@@ -528,6 +540,7 @@ class TestDataVarMuEffect:
             effect.create_data(mmm)
 
         assert "feature" in mmm.model.named_vars
+        assert mmm.model["feature"] in mmm.model.data_vars
 
     def test_set_data_updates_variables(self, dates, new_dates):
         """set_data updates pm.Data from new dataset."""
@@ -563,6 +576,147 @@ class TestDataVarMuEffect:
             model_copy = model.copy()
             model_copy.set_dim("date", len(new_dates), coord_values=new_dates)
             effect.set_data(mmm, model_copy, new_ds)
+
+    @pytest.mark.parametrize("order", ["ab", "ba"], ids=["a_then_b", "b_then_a"])
+    def test_two_effects_with_same_data_vars_do_not_collide(self, dates, order):
+        """Two effects sharing a dataset column reuse one pm.Data node."""
+        mmm, _, _, _ = self._make_shared_var_setup(dates)
+
+        class EffectA(DataVarMuEffect):
+            data_vars: list[str] = ["shared"]
+            prefix: str = "a"
+
+            def create_effect(self, mmm):  # type: ignore
+                return pt.as_tensor(0.0)
+
+        class EffectB(DataVarMuEffect):
+            data_vars: list[str] = ["shared"]
+            prefix: str = "b"
+
+            def create_effect(self, mmm):  # type: ignore
+                return pt.as_tensor(0.0)
+
+        effects = [EffectA(), EffectB()]
+        if order == "ba":
+            effects.reverse()
+
+        with mmm.model:
+            for effect in effects:
+                effect.create_data(mmm)
+
+        shared = mmm.model["shared"]
+        assert shared in mmm.model.data_vars
+        assert [v for v in mmm.model.data_vars if v.name == "shared"] == [shared]
+
+    def test_shared_data_wired_through_create_effect(self, dates):
+        """Both effects read the same registered pm.Data inside create_effect."""
+        mmm, _, _, _ = self._make_shared_var_setup(dates)
+
+        class EffectA(DataVarMuEffect):
+            data_vars: list[str] = ["shared"]
+            prefix: str = "a"
+
+            def create_effect(self, mmm):  # type: ignore
+                return pm.Deterministic(f"{self.prefix}_contrib", mmm.model["shared"])
+
+        class EffectB(DataVarMuEffect):
+            data_vars: list[str] = ["shared"]
+            prefix: str = "b"
+
+            def create_effect(self, mmm):  # type: ignore
+                return pm.Deterministic(
+                    f"{self.prefix}_contrib", 2.0 * mmm.model["shared"]
+                )
+
+        with mmm.model:
+            effect_a = EffectA()
+            effect_b = EffectB()
+            effect_a.create_data(mmm)
+            effect_b.create_data(mmm)
+            contrib_a = effect_a.create_effect(mmm)
+            contrib_b = effect_b.create_effect(mmm)
+
+        shared = mmm.model["shared"]
+        assert shared in ancestors([contrib_a])
+        assert shared in ancestors([contrib_b])
+
+    def test_set_data_updates_shared_column(self, dates, new_dates):
+        """Default set_data updates the single shared pm.Data node."""
+        mmm, _, model, rng = self._make_shared_var_setup(dates)
+        new_ds = xr.Dataset(
+            {"shared": (("date",), rng.normal(size=len(new_dates)))},
+            coords={"date": new_dates},
+        )
+
+        class EffectA(DataVarMuEffect):
+            data_vars: list[str] = ["shared"]
+            prefix: str = "a"
+
+            def create_effect(self, mmm):  # type: ignore
+                return pt.as_tensor(0.0)
+
+        class EffectB(DataVarMuEffect):
+            data_vars: list[str] = ["shared"]
+            prefix: str = "b"
+
+            def create_effect(self, mmm):  # type: ignore
+                return pt.as_tensor(0.0)
+
+        with mmm.model:
+            effect_a = EffectA()
+            effect_b = EffectB()
+            effect_a.create_data(mmm)
+            effect_b.create_data(mmm)
+            model_copy = model.copy()
+            model_copy.set_dim("date", len(new_dates), coord_values=new_dates)
+            effect_a.set_data(mmm, model_copy, new_ds)
+            np.testing.assert_allclose(
+                model_copy["shared"].get_value(borrow=False),
+                new_ds["shared"].values,
+            )
+            effect_b.set_data(mmm, model_copy, new_ds)
+            np.testing.assert_allclose(
+                model_copy["shared"].get_value(borrow=False),
+                new_ds["shared"].values,
+            )
+
+    def test_create_data_raises_on_non_data_name_collision(self, dates):
+        """A dataset column that matches a non-data variable must not be skipped."""
+        mmm, _, _, _ = self._make_shared_var_setup(dates)
+
+        class Effect(DataVarMuEffect):
+            data_vars: list[str] = ["shared"]
+            prefix: str = "a"
+
+            def create_effect(self, mmm):  # type: ignore
+                return pt.as_tensor(0.0)
+
+        with mmm.model:
+            pmd.Data("other_data", np.ones(len(dates)), dims="date")
+            pm.Normal("shared", 0, 1)
+            with pytest.raises(ValueError, match="non-data variable"):
+                Effect().create_data(mmm)
+
+    def test_create_data_raises_on_mismatched_existing_data(self, dates):
+        """An existing pm.Data with different dims or shape is not reused."""
+        ds = xr.Dataset(
+            {"shared": (("date",), np.ones(len(dates)))},
+            coords={"date": dates},
+        )
+        model = pm.Model(coords={"date": dates, "other": ["a", "b"]})
+        mmm = self._make_mock_mmm(model, ds)
+
+        class Effect(DataVarMuEffect):
+            data_vars: list[str] = ["shared"]
+            prefix: str = "a"
+
+            def create_effect(self, mmm):  # type: ignore
+                return pt.as_tensor(0.0)
+
+        with mmm.model:
+            pmd.Data("shared", np.ones((len(dates), 2)), dims=("date", "other"))
+            with pytest.raises(ValueError, match=r"Cannot reuse pm\.Data"):
+                Effect().create_data(mmm)
 
 
 class TestMediaMuEffect:
@@ -765,6 +919,103 @@ class TestMediaMuEffect:
         assert type(restored.media_transformation.saturation) is LogisticSaturation
         assert restored.media_transformation.adstock_first is True
         assert restored == original
+
+    PARAMETERS = ("adstock_alpha", "saturation_lam", "saturation_beta")
+
+    @staticmethod
+    def _build(effect, dates, extra_coords) -> pm.Model:
+        """Register the effect's data and build it in a fresh model."""
+        channels = ["tv", "digital"]
+        coords = {"date": dates, **extra_coords, "channel": channels}
+        shape = [len(values) for values in coords.values()]
+        ds = xr.Dataset(
+            {"media_data": (tuple(coords), np.ones(shape))},
+            coords=coords,
+        )
+        model = pm.Model(coords=coords)
+        mmm = type(
+            "MockMMM",
+            (),
+            {"dims": tuple(extra_coords), "model": model, "xarray_dataset": ds},
+        )()
+        with model:
+            effect.create_data(mmm)
+            effect.create_effect(mmm)
+        return model
+
+    @classmethod
+    def _parameter_dims(cls, model: pm.Model) -> dict[str, tuple[str, ...]]:
+        """Dims of the transformation parameters; ``KeyError`` if one is missing."""
+        return {name: model.named_vars_to_dims[name] for name in cls.PARAMETERS}
+
+    @pytest.mark.parametrize(
+        "extra_coords",
+        [
+            pytest.param({}, id="no_dims"),
+            pytest.param({"product": ["A", "B"]}, id="single_dim"),
+        ],
+    )
+    def test_default_priors_take_media_transformation_dims(self, dates, extra_coords):
+        """Priors without dims get one parameter per ``media_transformation.dims`` cell."""
+        transformation_dims = (*extra_coords, "channel")
+        effect = MediaMuEffect(
+            data_vars=["media_data"],
+            media_transformation=MediaTransformation(
+                adstock=GeometricAdstock(l_max=4),
+                saturation=LogisticSaturation(),
+                adstock_first=True,
+                dims=transformation_dims,
+            ),
+            prefix="media",
+        )
+
+        model = self._build(effect, dates, extra_coords)
+
+        assert self._parameter_dims(model) == dict.fromkeys(
+            self.PARAMETERS, transformation_dims
+        )
+
+    def test_explicit_prior_dims_are_kept(self, dates):
+        """Only priors without dims take ``media_transformation.dims``."""
+        effect = MediaMuEffect(
+            data_vars=["media_data"],
+            media_transformation=MediaTransformation(
+                adstock=GeometricAdstock(
+                    l_max=4, priors={"alpha": Prior("Beta", alpha=1, beta=3, dims=())}
+                ),
+                saturation=LogisticSaturation(),
+                adstock_first=False,
+                dims=("channel",),
+            ),
+            prefix="media",
+        )
+
+        model = self._build(effect, dates, {})
+
+        assert self._parameter_dims(model) == {
+            "adstock_alpha": (),
+            "saturation_lam": ("channel",),
+            "saturation_beta": ("channel",),
+        }
+
+    def test_serialized_effect_builds_the_same_parameters(self, dates):
+        """An effect restored from its serialization builds the parameters it built."""
+        effect = MediaMuEffect(
+            data_vars=["media_data"],
+            media_transformation=MediaTransformation(
+                adstock=GeometricAdstock(l_max=4),
+                saturation=LogisticSaturation(),
+                adstock_first=True,
+                dims=("channel",),
+            ),
+            prefix="media",
+        )
+        model = self._build(effect, dates, {})
+        restored = serialization.deserialize(serialization.serialize(effect))
+
+        restored_model = self._build(restored, dates, {})
+
+        assert self._parameter_dims(restored_model) == self._parameter_dims(model)
 
 
 class TestControlMuEffect:

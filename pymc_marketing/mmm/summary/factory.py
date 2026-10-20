@@ -26,10 +26,13 @@ Key Features:
     - output_format parameter: Choose between Pandas and Polars DataFrames
     - frequency parameter: View data at different aggregation levels
     - HDI computation: Configurable probability levels for uncertainty
+    - Frontend export: ``df.to_dict(orient="records")`` for dashboard integration
 """
 
 from __future__ import annotations
 
+import itertools
+import warnings
 from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any, Literal
@@ -38,25 +41,36 @@ import arviz as az
 import numpy as np
 import pandas as pd
 import xarray as xr
+from numpy.linalg import LinAlgError
 from pydantic import validate_call
 from pymc.util import RandomState
+from scipy.stats import gaussian_kde
 
 from pymc_marketing.data.idata.mmm_wrapper import MMMIDataWrapper
 from pymc_marketing.data.idata.schema import Frequency
+from pymc_marketing.data.idata.utils import _aggregate_over_time
 from pymc_marketing.mmm.incrementality import Incrementality
+from pymc_marketing.mmm.summary.helpers import (
+    DataFrameType,
+    OutputFormat,
+    compute_channel_shares,
+    compute_residuals,
+    compute_waterfall_components,
+    get_channel_x_data,
+)
+from pymc_marketing.mmm.summary.sensitivity import (
+    sensitivity_analysis as _sensitivity_analysis,
+)
+from pymc_marketing.mmm.summary.sensitivity import (
+    sensitivity_marginal as _sensitivity_marginal,
+)
+from pymc_marketing.mmm.summary.sensitivity import (
+    sensitivity_uplift as _sensitivity_uplift,
+)
+from pymc_marketing.mmm.xarray_utils import _select_dims
 
-# Type aliases
-OutputFormat = Literal["pandas", "polars"]
-
-# Union type for return values
-DataFrameType = pd.DataFrame  # Will be Union[pd.DataFrame, pl.DataFrame] at runtime
-
-# Public API
 __all__ = [
-    "DataFrameType",
-    "Frequency",
     "MMMSummaryFactory",
-    "OutputFormat",
 ]
 
 
@@ -84,11 +98,27 @@ class MMMSummaryFactory:
     output_format : {"pandas", "polars"}, default "pandas"
         Default output DataFrame format
 
+    Methods overview
+    ----------------
+    Core summaries: ``contributions``, ``waterfall``, ``channel_share_hdi``,
+    ``posterior_predictive``, ``prior_predictive``, ``residuals_over_time``,
+    ``residuals_distribution``, ``prior_vs_posterior``, ``roas``,
+    ``channel_spend``, ``saturation_curves``, ``adstock_curves``,
+    ``saturation_scatterplot``, ``total_contribution``, ``change_over_time``,
+    ``sensitivity_analysis``, ``sensitivity_uplift``, ``sensitivity_marginal``.
+
+    For frontend export, see the
+    :doc:`Exporting MMM data for frontends guide </guide/mmm/data_export>`.
+
     Examples
     --------
     >>> # With data only (for most summaries)
     >>> factory = MMMSummaryFactory(mmm.data)
     >>> contributions_df = factory.contributions()
+    >>>
+    >>> # Frontend-ready JSON records
+    >>> from pymc_marketing.mmm.summary import dataframe_to_json_records
+    >>> records = dataframe_to_json_records(mmm.summary.contributions())
     >>>
     >>> # With model (for transformation curves)
     >>> factory = MMMSummaryFactory(mmm.data, model=mmm)
@@ -284,8 +314,15 @@ class MMMSummaryFactory:
         result_dict = {"mean": mean_, "median": median_, **hdi_results}
         result_ds = xr.Dataset(result_dict)
 
-        # Convert to DataFrame - this preserves coordinate values
-        df = result_ds.to_dataframe().reset_index()
+        if index_cols:
+            # Convert to DataFrame - this preserves coordinate values
+            df = result_ds.to_dataframe().reset_index()
+        else:
+            # A quantity with no dims besides the sample dims (e.g. a
+            # time-invariant intercept) reduces to scalars: one row.
+            df = pd.DataFrame(
+                {name: [value.item()] for name, value in result_ds.data_vars.items()}
+            )
 
         # Ensure coordinate columns have correct order
         other_cols = [c for c in df.columns if c not in index_cols]
@@ -306,7 +343,14 @@ class MMMSummaryFactory:
         1. Resolves hdi_probs default from self.hdi_probs
         2. Resolves output_format default from self.output_format
         3. Validates hdi_probs
-        4. Aggregates data by frequency if specified
+        4. Repeats a time-invariant intercept on every date, since the model
+           adds it to ``mu`` in every period
+           (:meth:`MMMIDataWrapper.broadcast_per_period_contributions`)
+        5. Aggregates data by frequency if specified. Summaries that decompose
+           contributions pass ``frequency=None`` and sum the decomposed
+           samples over each period instead: under ``link="log"`` the
+           decomposition is nonlinear in ``mu``, so it has to run on the
+           original dates.
 
         Parameters
         ----------
@@ -329,7 +373,7 @@ class MMMSummaryFactory:
 
         self._validate_hdi_probs(effective_hdi_probs)
 
-        data = self.data
+        data = self.data.broadcast_per_period_contributions()
         if frequency is not None and frequency != "original":
             data = data.aggregate_time(frequency)
 
@@ -351,8 +395,9 @@ class MMMSummaryFactory:
     ) -> DataFrameType:
         """Create posterior predictive summary DataFrame.
 
-        Computes mean, median, and HDI bounds for posterior predictive samples,
-        along with observed values for comparison.
+        Computes mean, median, and HDI bounds for the posterior predictive
+        draws of the target in original units (``y * target_scale`` under
+        every link), along with observed values for comparison.
 
         Parameters
         ----------
@@ -386,11 +431,7 @@ class MMMSummaryFactory:
             hdi_probs, frequency, output_format
         )
 
-        # Get posterior predictive samples
-        if hasattr(data.idata, "posterior_predictive"):
-            pp_samples = data.to_original_scale(data.idata.posterior_predictive["y"])
-        else:
-            raise AttributeError("No posterior predictive samples found in idata")
+        pp_samples = data.get_predictive_target("posterior", original_scale=True)
 
         # Get observed data
         observed = data.get_target(original_scale=True)
@@ -453,10 +494,15 @@ class MMMSummaryFactory:
         -----
         Expects validated data. Call `data.validate_or_raise()` if you've
         modified the underlying idata before calling this method.
+
+        A time-invariant intercept is reported on every date, since the model
+        adds it to ``mu`` in every period. With a ``frequency`` it is summed
+        over the dates in each period like every other component, so the
+        components add up to the prediction at any frequency.
         """
         # Resolve all defaults in one call
         data, hdi_probs, output_format = self._prepare_data_and_hdi(
-            hdi_probs, frequency, output_format
+            hdi_probs, frequency=None, output_format=output_format
         )
 
         if component == "control":
@@ -476,6 +522,9 @@ class MMMSummaryFactory:
             if component not in contributions.data_vars:
                 raise ValueError(f"No {component} contributions found in model")
             component_data = contributions[component]
+
+        # Sum the per-date decomposition over each period
+        component_data = _aggregate_over_time(component_data, frequency or "original")
 
         # Compute summary stats with HDI
         df = self._compute_summary_stats_with_hdi(component_data, hdi_probs)
@@ -516,7 +565,8 @@ class MMMSummaryFactory:
             - **elementwise**: Simple element-wise division of contributions
               by spend. Does NOT account for carryover effects. Useful for
               daily efficiency tracking but not true incrementality.
-              Works with data-only factory.
+              Works with data-only factory. With a ``frequency``, contributions
+              and spend are each summed over the period before dividing.
         include_carryover : bool, default True
             Include adstock carryover effects. Only used when
             ``method="incremental"``.
@@ -566,6 +616,29 @@ class MMMSummaryFactory:
            Effects. Google Inc.
            https://research.google/pubs/bayesian-methods-for-media-mix-modeling-with-carryover-and-shape-effects/
 
+        Raises
+        ------
+        ValueError
+            If an incremental-only parameter is passed with
+            ``method="elementwise"``; if ``method`` is neither
+            ``"incremental"`` nor ``"elementwise"``; or, with
+            ``method="incremental"``, for the reasons documented on
+            :meth:`~pymc_marketing.mmm.incrementality.Incrementality.contribution_over_spend`.
+        NotImplementedError
+            With ``method="incremental"``, for the reasons documented on
+            :meth:`~pymc_marketing.mmm.incrementality.Incrementality.compute_incremental_contribution`
+            (an unsupported link, or a channel-dependent ``mu_effect`` that has
+            not opted in).
+
+        Warns
+        -----
+        UserWarning
+            With ``method="incremental"``, when the counterfactual's reach
+            could not be measured and the evaluation falls back to the full
+            date axis; see
+            :meth:`~pymc_marketing.mmm.spend_reach.SpendProbe.measure` for the
+            full story.
+
         Examples
         --------
         >>> df = mmm.summary.roas()
@@ -613,9 +686,9 @@ class MMMSummaryFactory:
             )
         elif method == "elementwise":
             data = data.filter_dates(start_date=start_date, end_date=end_date)
-            if frequency is not None and frequency != "original":
-                data = data.aggregate_time(frequency)
-            roas = data.get_elementwise_roas(original_scale=True)
+            roas = data.get_elementwise_roas(
+                original_scale=True, period=frequency or "original"
+            )
         else:
             raise ValueError(
                 f"method must be 'incremental' or 'elementwise', got {method!r}"
@@ -928,11 +1001,13 @@ class MMMSummaryFactory:
         """
         # Resolve all defaults in one call
         data, hdi_probs, output_format = self._prepare_data_and_hdi(
-            hdi_probs, frequency, output_format
+            hdi_probs, frequency=None, output_format=output_format
         )
 
-        # Get all contributions
-        contributions = data.get_contributions(original_scale=True)
+        # Get all contributions, the per-date decomposition summed over each period
+        contributions = _aggregate_over_time(
+            data.get_contributions(original_scale=True), frequency or "original"
+        )
 
         all_dfs = []
 
@@ -1009,11 +1084,14 @@ class MMMSummaryFactory:
         """
         # Resolve all defaults in one call
         data, hdi_probs, output_format = self._prepare_data_and_hdi(
-            hdi_probs, frequency, output_format
+            hdi_probs, frequency=None, output_format=output_format
         )
 
-        # Get contributions (chain, draw, date, channel)
-        contributions = data.get_channel_contributions(original_scale=True)
+        # Get contributions (chain, draw, date, channel), summed over each period
+        contributions = _aggregate_over_time(
+            data.get_channel_contributions(original_scale=True),
+            frequency or "original",
+        )
 
         # Check for date dimension
         if "date" not in contributions.dims:
@@ -1050,3 +1128,606 @@ class MMMSummaryFactory:
         )
 
         return self._convert_output(df, output_format)
+
+    def waterfall(
+        self,
+        hdi_probs: Sequence[float] | None = None,
+        dims: dict[str, Any] | None = None,
+        original_scale: bool = True,
+        output_format: OutputFormat | None = None,
+    ) -> DataFrameType:
+        """Create waterfall decomposition summary DataFrame.
+
+        Summarizes per-component mean contributions (averaged over date) with
+        mean, median, HDI bounds, and percentage of total contribution.
+
+        Parameters
+        ----------
+        hdi_probs : sequence of float, optional
+            HDI probability levels (default: uses factory default)
+        dims : dict, optional
+            Dimension filters, e.g. ``{"geo": ["CA"]}``.
+        original_scale : bool, default True
+            Whether to use original-scale contributions.
+        output_format : {"pandas", "polars"}, optional
+            Output DataFrame format (default: uses factory default)
+
+        Returns
+        -------
+        pd.DataFrame or pl.DataFrame
+            Summary DataFrame with columns:
+
+            - component: Contribution component name
+            - mean, median: Point estimates of mean per-period contributions
+            - abs_error_{prob}_lower/upper: HDI bounds on mean contributions
+            - pct_of_total: Mean share of total (from per-draw ratios; see share_*)
+            - share_mean, share_median: Share point estimates with uncertainty
+            - share_abs_error_{prob}_lower/upper: HDI bounds on share of total
+            - <custom_dims>: One column per custom dimension when present
+
+        Notes
+        -----
+        ``mean``/``abs_error_*`` describe mean per-period contributions (matching
+        :meth:`~pymc_marketing.mmm.plotting.decomposition.DecompositionPlots.waterfall`
+        bar heights). ``share_*`` and ``pct_of_total`` describe each component's
+        share of the total per posterior draw (ratio HDIs, not derived from
+        component-total HDIs).
+        """
+        effective_hdi_probs = hdi_probs if hdi_probs is not None else self.hdi_probs
+        effective_output_format = (
+            output_format if output_format is not None else self.output_format
+        )
+        self._validate_hdi_probs(effective_hdi_probs)
+
+        components = compute_waterfall_components(
+            self.data, dims=dims, original_scale=original_scale
+        )
+        df = self._compute_summary_stats_with_hdi(components, effective_hdi_probs)
+
+        total_per_draw = components.sum(dim="component")
+        share_components = (components / total_per_draw) * 100
+        share_df = self._compute_summary_stats_with_hdi(
+            share_components, effective_hdi_probs
+        )
+        share_df = share_df.rename(
+            columns={
+                c: f"share_{c}"
+                for c in share_df.columns
+                if c in ("mean", "median") or c.startswith("abs_error_")
+            }
+        )
+        merge_keys = ["component", *self.data.custom_dims]
+        merge_keys = [
+            k for k in merge_keys if k in df.columns and k in share_df.columns
+        ]
+        df = df.merge(share_df, on=merge_keys, how="left")
+        df["pct_of_total"] = df["share_mean"]
+
+        return self._convert_output(df, effective_output_format)
+
+    def channel_share_hdi(
+        self,
+        hdi_probs: Sequence[float] | None = None,
+        dims: dict[str, Any] | None = None,
+        original_scale: bool = True,
+        output_format: OutputFormat | None = None,
+    ) -> DataFrameType:
+        """Create channel share of total contribution summary DataFrame.
+
+        Parameters
+        ----------
+        hdi_probs : sequence of float, optional
+            HDI probability levels (default: uses factory default)
+        dims : dict, optional
+            Dimension filters, e.g. ``{"geo": ["CA"]}``.
+        original_scale : bool, default True
+            Whether to use original-scale channel contributions.
+        output_format : {"pandas", "polars"}, optional
+            Output DataFrame format (default: uses factory default)
+
+        Returns
+        -------
+        pd.DataFrame or pl.DataFrame
+            Summary DataFrame with columns:
+
+            - channel: Channel name
+            - mean, median: Share point estimates
+            - abs_error_{prob}_lower/upper: HDI bounds for each prob
+            - <custom_dims>: One column per custom dimension when present
+        """
+        effective_hdi_probs = hdi_probs if hdi_probs is not None else self.hdi_probs
+        effective_output_format = (
+            output_format if output_format is not None else self.output_format
+        )
+        self._validate_hdi_probs(effective_hdi_probs)
+
+        channel_contributions = self.data.get_channel_contributions(
+            original_scale=original_scale
+        )
+        channel_contributions = _select_dims(channel_contributions, dims)
+        shares = compute_channel_shares(channel_contributions)
+        df = self._compute_summary_stats_with_hdi(shares, effective_hdi_probs)
+
+        return self._convert_output(df, effective_output_format)
+
+    def prior_predictive(
+        self,
+        hdi_probs: Sequence[float] | None = None,
+        frequency: Frequency | None = None,
+        original_scale: bool = True,
+        output_format: OutputFormat | None = None,
+    ) -> DataFrameType:
+        """Create prior predictive summary DataFrame.
+
+        Mirrors :meth:`posterior_predictive` but draws from the prior predictive
+        distribution.
+
+        Parameters
+        ----------
+        hdi_probs : sequence of float, optional
+            HDI probability levels (default: uses factory default)
+        frequency : Frequency, optional
+            Time aggregation period (default: None, no aggregation)
+        original_scale : bool, default True
+            If True, summarize the prior predictive draws of the target in
+            original units (``y * target_scale``; the stored
+            ``prior["y_original_scale"]`` when registered, otherwise derived
+            from ``prior_predictive["y"]``).
+            If False, summarize ``y`` from ``idata.prior_predictive``.
+        output_format : {"pandas", "polars"}, optional
+            Output DataFrame format (default: uses factory default)
+
+        Returns
+        -------
+        pd.DataFrame or pl.DataFrame
+            Summary DataFrame with columns:
+
+            - date: Time index
+            - mean, median: Prior predictive point estimates
+            - observed: Observed target values
+            - abs_error_{prob}_lower/upper: HDI bounds for each prob
+        """
+        data, hdi_probs, output_format = self._prepare_data_and_hdi(
+            hdi_probs, frequency, output_format
+        )
+
+        pp_samples = data.get_predictive_target("prior", original_scale)
+
+        observed = data.get_target(original_scale=original_scale)
+        df = self._compute_summary_stats_with_hdi(pp_samples, hdi_probs)
+
+        observed_df = observed.to_dataframe(name="observed").reset_index()
+        merge_keys = ["date", *data.custom_dims]
+        df = df.merge(observed_df, on=merge_keys, how="left")
+
+        return self._convert_output(df, output_format)
+
+    def residuals_over_time(
+        self,
+        hdi_probs: Sequence[float] | None = None,
+        frequency: Frequency | None = None,
+        dims: dict[str, Any] | None = None,
+        output_format: OutputFormat | None = None,
+    ) -> DataFrameType:
+        """Create residuals-over-time summary DataFrame.
+
+        Parameters
+        ----------
+        hdi_probs : sequence of float, optional
+            HDI probability levels (default: uses factory default)
+        frequency : Frequency, optional
+            Time aggregation period (default: None, no aggregation)
+        dims : dict, optional
+            Dimension filters, e.g. ``{"geo": ["CA"]}``.
+        output_format : {"pandas", "polars"}, optional
+            Output DataFrame format (default: uses factory default)
+
+        Returns
+        -------
+        pd.DataFrame or pl.DataFrame
+            Summary DataFrame with columns:
+
+            - date: Time index
+            - mean, median: Residual point estimates
+            - abs_error_{prob}_lower/upper: HDI bounds for each prob
+            - <custom_dims>: One column per custom dimension when present
+        """
+        data, hdi_probs, output_format = self._prepare_data_and_hdi(
+            hdi_probs, frequency, output_format
+        )
+
+        residuals = compute_residuals(data)
+        residuals = _select_dims(residuals, dims)
+        df = self._compute_summary_stats_with_hdi(residuals, hdi_probs)
+
+        return self._convert_output(df, output_format)
+
+    def residuals_distribution(
+        self,
+        quantiles: Sequence[float] | None = None,
+        aggregation: list[str] | str | None = None,
+        dims: dict[str, Any] | None = None,
+        output_format: OutputFormat | None = None,
+    ) -> DataFrameType:
+        """Create residual distribution quantile summary DataFrame.
+
+        Parameters
+        ----------
+        quantiles : sequence of float, optional
+            Quantile probabilities to report. Default ``[0.025, 0.5, 0.975]``.
+        aggregation : list[str] or str, optional
+            Extra custom dimensions to collapse into the distribution.
+        dims : dict, optional
+            Dimension filters applied before computing quantiles.
+        output_format : {"pandas", "polars"}, optional
+            Output DataFrame format (default: uses factory default)
+
+        Returns
+        -------
+        pd.DataFrame or pl.DataFrame
+            Summary DataFrame with columns:
+
+            - quantile: Quantile probability
+            - value: Residual value at that quantile
+            - <custom_dims>: Facet dimensions not included in aggregation
+        """
+        effective_output_format = (
+            output_format if output_format is not None else self.output_format
+        )
+
+        if quantiles is None:
+            quantiles = [0.025, 0.5, 0.975]
+        for q in quantiles:
+            if not 0.0 <= q <= 1.0:
+                raise ValueError(f"Each quantile must be in [0, 1]; got {q}.")
+
+        residuals = compute_residuals(self.data)
+        residuals = _select_dims(residuals, dims)
+
+        if isinstance(aggregation, str):
+            aggregation = [aggregation]
+        if aggregation is not None:
+            for dim in aggregation:
+                if dim not in residuals.dims:
+                    raise ValueError(
+                        f"Dimension '{dim}' in aggregation not found in residuals. "
+                        f"Available: {list(residuals.dims)}"
+                    )
+
+        sample_dims = ["chain", "draw", "date"] + (aggregation or [])
+        quantile_da = residuals.quantile(list(quantiles), dim=sample_dims)
+        df = quantile_da.to_dataframe(name="value").reset_index()
+
+        return self._convert_output(df, effective_output_format)
+
+    def prior_vs_posterior(
+        self,
+        var_names: list[str] | str | None = None,
+        dims: dict[str, Any] | None = None,
+        num_points: int = 200,
+        output_format: OutputFormat | None = None,
+    ) -> DataFrameType:
+        """Create prior vs posterior density grid summary DataFrame.
+
+        Evaluates Gaussian KDEs on a fixed grid for stable JSON export.
+
+        Parameters
+        ----------
+        var_names : list[str], str, or None, optional
+            Variables to summarize. ``None`` uses variables present in both
+            prior and posterior groups.
+        dims : dict, optional
+            Coordinate filters applied before flattening samples.
+        num_points : int, default 200
+            Number of evaluation points on the density grid.
+        output_format : {"pandas", "polars"}, optional
+            Output DataFrame format (default: uses factory default)
+
+        Returns
+        -------
+        pd.DataFrame or pl.DataFrame
+            Summary DataFrame with columns:
+
+            - variable: Parameter name
+            - x: Evaluation point on the density grid
+            - density_prior: Prior KDE density at ``x``
+            - density_posterior: Posterior KDE density at ``x``
+            - <custom_dims>: Facet dimensions when present
+        """
+        effective_output_format = (
+            output_format if output_format is not None else self.output_format
+        )
+        idata = self.data.idata
+
+        if not hasattr(idata, "prior") or idata.prior is None:
+            raise ValueError(
+                "No prior group found in idata. "
+                "Run MMM.sample_prior_predictive() first."
+            )
+        if not hasattr(idata, "posterior") or idata.posterior is None:
+            raise ValueError("No posterior group found in idata. Fit the model first.")
+
+        if var_names is None:
+            var_names_list = sorted(
+                set(idata.prior.data_vars) & set(idata.posterior.data_vars)
+            )
+        elif isinstance(var_names, str):
+            var_names_list = [var_names]
+        else:
+            var_names_list = list(var_names)
+
+        if var_names is None and len(var_names_list) > 20:
+            warnings.warn(
+                f"Summarizing {len(var_names_list)} variables with {num_points} grid "
+                "points each may produce a large payload. Pass var_names to limit scope.",
+                UserWarning,
+                stacklevel=2,
+            )
+
+        rows: list[dict[str, Any]] = []
+        skipped_facets = 0
+        for var in var_names_list:
+            if var not in idata.prior.data_vars:
+                raise ValueError(
+                    f"Variable '{var}' not found in prior. "
+                    f"Available: {list(idata.prior.data_vars)}"
+                )
+            if var not in idata.posterior.data_vars:
+                raise ValueError(
+                    f"Variable '{var}' not found in posterior. "
+                    f"Available: {list(idata.posterior.data_vars)}"
+                )
+
+            prior_da = _select_dims(idata.prior[var], dims)
+            posterior_da = _select_dims(idata.posterior[var], dims)
+            facet_dims = [d for d in prior_da.dims if d not in ("chain", "draw")]
+
+            if facet_dims:
+                combos = list(
+                    itertools.product(*[prior_da.coords[d].values for d in facet_dims])
+                )
+            else:
+                combos = [()]
+
+            for combo in combos:
+                sel = dict(zip(facet_dims, combo, strict=True))
+                prior_samples = np.asarray(
+                    prior_da.sel(sel).values.flatten(), dtype=float
+                )
+                posterior_samples = np.asarray(
+                    posterior_da.sel(sel).values.flatten(), dtype=float
+                )
+                prior_samples = prior_samples[np.isfinite(prior_samples)]
+                posterior_samples = posterior_samples[np.isfinite(posterior_samples)]
+
+                if prior_samples.size < 2 or posterior_samples.size < 2:
+                    skipped_facets += 1
+                    warnings.warn(
+                        f"Skipping prior_vs_posterior for '{var}' "
+                        f"{sel or ''}: fewer than 2 finite samples.",
+                        UserWarning,
+                        stacklevel=2,
+                    )
+                    continue
+
+                all_samples = np.concatenate([prior_samples, posterior_samples])
+                x_grid = np.linspace(
+                    float(all_samples.min()), float(all_samples.max()), num_points
+                )
+
+                try:
+                    prior_density = gaussian_kde(prior_samples)(x_grid)
+                    posterior_density = gaussian_kde(posterior_samples)(x_grid)
+                except LinAlgError:
+                    skipped_facets += 1
+                    warnings.warn(
+                        f"Skipping prior_vs_posterior KDE for '{var}' {sel or ''}: "
+                        "degenerate samples (e.g. fixed prior or near-constant posterior).",
+                        UserWarning,
+                        stacklevel=2,
+                    )
+                    continue
+
+                for x_val, dp, dpost in zip(
+                    x_grid, prior_density, posterior_density, strict=True
+                ):
+                    row: dict[str, Any] = {
+                        "variable": var,
+                        "x": float(x_val),
+                        "density_prior": float(dp),
+                        "density_posterior": float(dpost),
+                    }
+                    row.update(sel)
+                    rows.append(row)
+
+        if not rows:
+            raise ValueError(
+                "No prior vs posterior density rows produced. "
+                f"Skipped {skipped_facets} facet(s) with insufficient or degenerate samples."
+            )
+
+        df = pd.DataFrame(rows)
+        return self._convert_output(df, effective_output_format)
+
+    def saturation_scatterplot(
+        self,
+        original_scale: bool = True,
+        apply_cost_per_unit: bool = True,
+        dims: dict[str, Any] | None = None,
+        output_format: OutputFormat | None = None,
+    ) -> DataFrameType:
+        """Create saturation scatterplot data as a long-form DataFrame.
+
+        Parameters
+        ----------
+        original_scale : bool, default True
+            If True, plot contributions in original (un-scaled) units.
+        apply_cost_per_unit : bool, default True
+            If True and cost-per-unit data is available, ``x`` is spend.
+            Otherwise ``x`` is raw channel data.
+        dims : dict, optional
+            Dimension filters, e.g. ``{"channel": ["tv"]}``.
+        output_format : {"pandas", "polars"}, optional
+            Output DataFrame format (default: uses factory default)
+
+        Returns
+        -------
+        pd.DataFrame or pl.DataFrame
+            Long-format DataFrame with columns:
+
+            - date: Time index
+            - channel: Channel name
+            - x: Spend or channel data value
+            - y: Mean posterior channel contribution
+            - <custom_dims>: One column per custom dimension when present
+        """
+        effective_output_format = (
+            output_format if output_format is not None else self.output_format
+        )
+
+        contributions = self.data.get_channel_contributions(
+            original_scale=original_scale
+        )
+        mean_contrib = contributions.mean(dim=["chain", "draw"])
+        x_data = get_channel_x_data(self.data, apply_cost_per_unit)
+
+        scatter_ds = xr.Dataset({"x": x_data, "y": mean_contrib})
+        scatter_ds = _select_dims(scatter_ds, dims)
+        df = scatter_ds.to_dataframe().reset_index()
+
+        return self._convert_output(df, effective_output_format)
+
+    def sensitivity_analysis(
+        self,
+        hdi_probs: Sequence[float] | None = None,
+        dims: dict[str, Any] | None = None,
+        aggregation: dict[str, str | list[str]] | None = None,
+        x_sweep_axis: Literal["relative", "absolute"] = "relative",
+        apply_cost_per_unit: bool = True,
+        output_format: OutputFormat | None = None,
+    ) -> DataFrameType:
+        """Summarize raw sensitivity sweep results (``sensitivity_analysis['x']``).
+
+        Requires ``SensitivityAnalysis.run_sweep(..., extend_idata=True)``.
+
+        Parameters
+        ----------
+        hdi_probs : sequence of float, optional
+            HDI probability levels (default: uses factory default).
+        dims : dict, optional
+            Dimension filters.
+        aggregation : dict, optional
+            Aggregation spec before summarization.
+        x_sweep_axis : {"relative", "absolute"}, default "relative"
+            Sweep axis interpretation for ``sweep_x`` column.
+        apply_cost_per_unit : bool, default True
+            Use spend for absolute x-axis when applicable.
+        output_format : {"pandas", "polars"}, optional
+            Output DataFrame format (default: uses factory default).
+
+        Returns
+        -------
+        pd.DataFrame or pl.DataFrame
+            Summary with sweep, mean, median, HDI, and ``sweep_x`` columns.
+        """
+        return _sensitivity_analysis(
+            self.data,
+            hdi_probs=hdi_probs if hdi_probs is not None else self.hdi_probs,
+            dims=dims,
+            aggregation=aggregation,
+            x_sweep_axis=x_sweep_axis,
+            apply_cost_per_unit=apply_cost_per_unit,
+            output_format=output_format
+            if output_format is not None
+            else self.output_format,
+        )
+
+    def sensitivity_uplift(
+        self,
+        hdi_probs: Sequence[float] | None = None,
+        dims: dict[str, Any] | None = None,
+        aggregation: dict[str, str | list[str]] | None = None,
+        x_sweep_axis: Literal["relative", "absolute"] = "relative",
+        apply_cost_per_unit: bool = True,
+        output_format: OutputFormat | None = None,
+    ) -> DataFrameType:
+        """Summarize uplift curves (``sensitivity_analysis['uplift_curve']``).
+
+        Requires ``SensitivityAnalysis.compute_uplift_curve_respect_to_base()``.
+
+        Parameters
+        ----------
+        hdi_probs : sequence of float, optional
+            HDI probability levels (default: uses factory default).
+        dims : dict, optional
+            Dimension filters.
+        aggregation : dict, optional
+            Aggregation spec before summarization.
+        x_sweep_axis : {"relative", "absolute"}, default "relative"
+            Sweep axis interpretation for ``sweep_x`` column.
+        apply_cost_per_unit : bool, default True
+            Use spend for absolute x-axis when applicable.
+        output_format : {"pandas", "polars"}, optional
+            Output DataFrame format (default: uses factory default).
+
+        Returns
+        -------
+        pd.DataFrame or pl.DataFrame
+            Summary with sweep, mean, median, HDI, and ``sweep_x`` columns.
+        """
+        return _sensitivity_uplift(
+            self.data,
+            hdi_probs=hdi_probs if hdi_probs is not None else self.hdi_probs,
+            dims=dims,
+            aggregation=aggregation,
+            x_sweep_axis=x_sweep_axis,
+            apply_cost_per_unit=apply_cost_per_unit,
+            output_format=output_format
+            if output_format is not None
+            else self.output_format,
+        )
+
+    def sensitivity_marginal(
+        self,
+        hdi_probs: Sequence[float] | None = None,
+        dims: dict[str, Any] | None = None,
+        aggregation: dict[str, str | list[str]] | None = None,
+        x_sweep_axis: Literal["relative", "absolute"] = "relative",
+        apply_cost_per_unit: bool = True,
+        output_format: OutputFormat | None = None,
+    ) -> DataFrameType:
+        """Summarize marginal effects (``sensitivity_analysis['marginal_effects']``).
+
+        Requires ``SensitivityAnalysis.compute_marginal_effects()``.
+
+        Parameters
+        ----------
+        hdi_probs : sequence of float, optional
+            HDI probability levels (default: uses factory default).
+        dims : dict, optional
+            Dimension filters.
+        aggregation : dict, optional
+            Aggregation spec before summarization.
+        x_sweep_axis : {"relative", "absolute"}, default "relative"
+            Sweep axis interpretation for ``sweep_x`` column.
+        apply_cost_per_unit : bool, default True
+            Use spend for absolute x-axis when applicable.
+        output_format : {"pandas", "polars"}, optional
+            Output DataFrame format (default: uses factory default).
+
+        Returns
+        -------
+        pd.DataFrame or pl.DataFrame
+            Summary with sweep, mean, median, HDI, and ``sweep_x`` columns.
+        """
+        return _sensitivity_marginal(
+            self.data,
+            hdi_probs=hdi_probs if hdi_probs is not None else self.hdi_probs,
+            dims=dims,
+            aggregation=aggregation,
+            x_sweep_axis=x_sweep_axis,
+            apply_cost_per_unit=apply_cost_per_unit,
+            output_format=output_format
+            if output_format is not None
+            else self.output_format,
+        )
