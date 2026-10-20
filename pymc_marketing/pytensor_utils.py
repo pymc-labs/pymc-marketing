@@ -807,10 +807,17 @@ _GRAPH_CACHE_SIZE = 32
 
 
 class _CachedGraphs(NamedTuple):
-    """A cached extraction: the resolved inputs and the graphs handed out."""
+    """A cached extraction: the resolved inputs, the graphs and their binding.
+
+    ``optional_binding`` is the private :class:`SharedPosterior` of a
+    non-required extraction, or ``None``.  A non-required graph extracted
+    before the switch is constant and has none; after the switch it owns one,
+    so a rebind that cannot satisfy it drops only this key instead of failing.
+    """
 
     resolved: list[Variable]
     graphs: list[XTensorVariable]
+    optional_binding: SharedPosterior | None = None
 
 
 class ConditionedModel:
@@ -822,8 +829,8 @@ class ConditionedModel:
     rebinding them as the posterior moves, so the "intervene, condition, extract,
     compile" dance is owned here instead of by each consumer.
 
-    Extraction is cached by response names alone: ``frozen_deterministics`` is
-    fixed per instance, so it cannot tell two extractions apart.
+    Extraction is cached by response names and the ``required`` flag:
+    ``frozen_deterministics`` is fixed per instance, so it cannot tell two extractions apart.
     The cache is a small LRU, bounded by the module constant ``_GRAPH_CACHE_SIZE``.
     Repeated :meth:`extract` of a cached key returns the identical graph, while a
     caller that builds a new derived node on every call keeps at most that many
@@ -839,6 +846,14 @@ class ConditionedModel:
     Once the graphs share a binding, it holds at most the model's free RVs plus
     the frozen deterministics: its variables are keyed by posterior variable
     name, so caching many derived graphs never adds a variable beyond those names.
+    Optional keys are the exception: each owns a private binding, so it holds its own copy of the draws it reads.
+
+    A non-required extraction (``required=False``) is an optional tier.
+    After the switch it binds through its own :class:`SharedPosterior`, so a
+    compiled function built from it follows later draw swaps without
+    recompiling.  A rebind that cannot satisfy it drops it silently instead of
+    failing.  Before the switch it is a constant graph like any other, and the
+    lazy switch drops it.
 
     A variable is validated when a graph reads it, against that variable's layout in the construction posterior.
     A posterior variable no graph reads is never checked, so a refit posterior whose unread date axis moved is accepted.
@@ -922,7 +937,7 @@ class ConditionedModel:
         self._shared_posterior: SharedPosterior | None = (
             SharedPosterior() if share_posterior else None
         )
-        self._cache: OrderedDict[tuple[str | Variable, ...], _CachedGraphs] = (
+        self._cache: OrderedDict[tuple[str | Variable | bool, ...], _CachedGraphs] = (
             OrderedDict()
         )
         self._callbacks: list[Callable[[], None]] = []
@@ -957,6 +972,7 @@ class ConditionedModel:
         response_vars: str | Variable,
         *,
         cache: bool = ...,
+        required: bool = ...,
     ) -> XTensorVariable: ...
 
     @overload
@@ -965,6 +981,7 @@ class ConditionedModel:
         response_vars: Sequence[Variable],
         *,
         cache: bool = ...,
+        required: bool = ...,
     ) -> list[XTensorVariable]: ...
 
     def extract(
@@ -972,6 +989,7 @@ class ConditionedModel:
         response_vars: str | Variable | Sequence[str | Variable],
         *,
         cache: bool = True,
+        required: bool = True,
     ) -> XTensorVariable | list[XTensorVariable]:
         """Return response graphs conditioned on the current posterior.
 
@@ -1001,6 +1019,18 @@ class ConditionedModel:
             That is the path for a caller that builds a fresh derived node per call: the cache is bounded,
             so each new node would evict another key and be re-extracted on every miss.
             Nothing tracks a one-shot graph across a rebind, so a consumer re-extracts it after a rebind.
+        required : bool, default True
+            Whether a rebind must keep satisfying this extraction.
+            A required graph is bound to the conditioned model's own shared posterior and its
+            variables are validated on every rebind; a posterior that cannot satisfy it makes
+            that rebind raise, as before.
+            A non-required graph is the optional tier: before the switch it is a constant graph
+            like any other, and the switch drops it; after the switch it owns a
+            :class:`SharedPosterior` of its own, so it follows later draw swaps too.
+            A rebind that cannot satisfy it drops it silently instead of failing; the next
+            :meth:`extract` of the same key raises while the posterior lacks a variable it reads,
+            and returns a new graph once it holds them.
+            This is what lets an ad-hoc response compile once without pinning the rebinds.
 
         Returns
         -------
@@ -1036,11 +1066,24 @@ class ConditionedModel:
             # posterior, so it registers no variable a later rebind would need.
             graphs = self._extract(resolved, None, self._posterior)
             return graphs[0] if single else list(graphs)
-        cache_key = self._names(resolved)
+        # The required flag is part of the key: the same response bound to the
+        # model-wide binding and to an optional one are different graphs.
+        cache_key = (*self._names(resolved), required)
         cached = self._cache.get(cache_key)
         if cached is None:
-            graphs = self._extract(resolved, self._shared_posterior, self._posterior)
-            cached = _CachedGraphs(resolved, graphs)
+            # An optional extraction only gets a binding of its own once the
+            # model has switched to the shared path.  Before that it is an
+            # ordinary constant graph, and the lazy switch drops it.
+            optional_binding = (
+                SharedPosterior()
+                if not required and self._shared_posterior is not None
+                else None
+            )
+            binding = (
+                self._shared_posterior if optional_binding is None else optional_binding
+            )
+            graphs = self._extract(resolved, binding, self._posterior)
+            cached = _CachedGraphs(resolved, graphs, optional_binding)
             self._cache[cache_key] = cached
             # Eviction only drops the entry.  A graph already handed out keeps
             # working, and a compiled function keeps reading its shared variables.
@@ -1074,8 +1117,12 @@ class ConditionedModel:
         callback that does.
         A call with nothing cached only switches to the shared path and fires
         no callback.  An uncached ``cache=False`` graph is untouched by it.
-        Every later call only swaps the draws, which validates the variables
-        bound to the shared posterior and needs no recompile.
+        Every later call swaps the draws in the shared posterior first, which
+        validates the variables the required graphs read and needs no recompile.
+        It then tries each optional key's private binding.  A key the new
+        posterior cannot satisfy is dropped from the cache, and its next
+        :meth:`extract` returns a new graph once the posterior can satisfy it;
+        an optional key never makes the rebind fail.
 
         Parameters
         ----------
@@ -1087,13 +1134,13 @@ class ConditionedModel:
         ------
         KeyError
             If a callback re-extracts a graph whose variables ``idata`` lacks,
-            or, on a shared-mode call, if a variable bound to the shared
-            posterior is missing.
+            or, on a shared-mode call, if a variable bound to the required
+            shared posterior is missing.
         ValueError
             If a callback re-extracts a variable whose non-sample dimensions,
             length or labels differ from the construction posterior, or if a
             dimension is labeled on one side only; or, on a shared-mode
-            call, if a bound variable's layout differs.
+            call, if a required bound variable's layout differs.
 
         Notes
         -----
@@ -1104,6 +1151,9 @@ class ConditionedModel:
         If a first rebind fails and is rolled back, the cache returns to its previous state and drops those entries.
         The cache is bounded, so a callback that extracts more keys than it holds evicts the least recently used
         ones; an evicted key is simply extracted again on the next request.
+        An optional key dropped by a shared-mode rebind is only dropped from the
+        cache: a graph already handed out keeps reading the draws it was last
+        bound to, so a consumer re-extracts before evaluating again.
         """
         posterior = self._realigned(_posterior_dataset(idata))
         previous_cache = self._cache
@@ -1119,10 +1169,22 @@ class ConditionedModel:
             return
 
         if previous_shared is not None:
-            # Every handed-out graph already reads the shared variables, so
+            # The required binding goes first: its variables are the ones the
+            # long-lived graphs read, so its failure is the caller's failure.
             # ``SharedPosterior.set_posterior`` validates exactly those and
             # writes nothing unless all of them pass.
             previous_shared.set_posterior(posterior)
+            # Each optional key owns a binding of its own.  One the new
+            # posterior cannot satisfy is dropped here rather than refusing the
+            # whole rebind; the next extraction of that key builds a new graph.
+            for key, cached in list(self._cache.items()):
+                binding = cached.optional_binding
+                if binding is None:
+                    continue
+                try:
+                    binding.set_posterior(posterior)
+                except (KeyError, ValueError):
+                    del self._cache[key]
             self._posterior = posterior
             return
 

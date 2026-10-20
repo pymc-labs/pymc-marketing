@@ -1465,6 +1465,48 @@ def test_conditioned_model_names_distinguish_shared_name(
     np.testing.assert_allclose(function([], anonymous_graph)(), 2.0 * data_values)
 
 
+def test_conditioned_model_optional_binding_follows_rebinds_and_is_dropped():
+    """A non-required graph owns a binding that a rebind may drop, never fail on.
+
+    After the switch the graph reads its own shared variables, so a draw swap
+    is followed without re-extracting.  A posterior that lacks a variable the
+    graph reads drops only this key: the rebind succeeds, the next extraction
+    is a miss, and it rebinds once the variable is back.
+    """
+    model, spend = _channel_conditioned_model()
+    first = _channel_posterior([1.0, 2.0], gamma=[10.0, 20.0])
+    second = _channel_posterior([3.0, 4.0], gamma=[30.0, 40.0])
+    conditioned = ConditionedModel(
+        model, first, intervention={"spend": spend}, share_posterior=True
+    )
+
+    conditioned.extract("resp")  # required, on the model-wide binding
+    optional = conditioned.extract("resp_g", required=False)
+    np.testing.assert_allclose(
+        function([], optional)(), np.asarray([10.0, 20.0])[None, :] * spend
+    )
+
+    conditioned.set_posterior(second)
+    assert conditioned.extract("resp_g", required=False) is optional
+    np.testing.assert_allclose(
+        function([], optional)(), np.asarray([30.0, 40.0])[None, :] * spend
+    )
+
+    # A posterior without ``gamma`` cannot satisfy the optional key, so the
+    # rebind drops it instead of raising.
+    conditioned.set_posterior(_channel_posterior([5.0, 6.0]))
+    with pytest.raises(KeyError, match="gamma"):
+        conditioned.extract("resp_g", required=False)
+
+    third = _channel_posterior([7.0, 8.0], gamma=[50.0, 60.0])
+    conditioned.set_posterior(third)
+    rebuilt = conditioned.extract("resp_g", required=False)
+    assert rebuilt is not optional
+    np.testing.assert_allclose(
+        function([], rebuilt)(), np.asarray([50.0, 60.0])[None, :] * spend
+    )
+
+
 @pytest.mark.parametrize("rebind_first", [False, True])
 def test_conditioned_model_uncached_extract_is_not_pinned(rebind_first):
     """A ``cache=False`` graph is never registered, on either side of a rebind.

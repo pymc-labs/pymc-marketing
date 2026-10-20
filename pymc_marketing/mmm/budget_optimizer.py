@@ -1684,9 +1684,9 @@ class BudgetOptimizer(BaseModel):
     _objective_and_grad: Callable = PrivateAttr()
     _constraints: dict = PrivateAttr()
     _compiled_constraints: list[dict] = PrivateAttr()
-    _response_functions: dict[str, tuple[Callable, tuple[str, ...]]] = PrivateAttr(
-        default_factory=dict
-    )
+    _response_functions: dict[
+        str, tuple[Callable, tuple[str, ...], XTensorVariable]
+    ] = PrivateAttr(default_factory=dict)
 
     @model_validator(mode="before")
     @classmethod
@@ -2170,6 +2170,9 @@ class BudgetOptimizer(BaseModel):
             If a supplied ``DataArray`` has a dim carrying no coordinates, or
             if ``plan`` omits a decision variable, omits an optimized cell, or
             carries coordinates the model does not have.
+        KeyError
+            If the current posterior lacks a variable the requested response
+            reads, as after a rebind to a thinned posterior.
 
         Notes
         -----
@@ -2885,20 +2888,26 @@ class BudgetOptimizer(BaseModel):
         return self._extract_response_distribution(response_variable, cache=True)
 
     def _extract_response_distribution(
-        self, response_variable: str, *, cache: bool
+        self, response_variable: str, *, cache: bool, required: bool = True
     ) -> XTensorVariable:
         """Extract a response graph, optionally keeping it for later rebinds.
 
-        ``cache=True`` is the long-lived path -- the objective and the
-        constraints -- whose graphs the conditioned model re-extracts through
-        the shared posterior on the first rebind so they follow every later
-        one.  ``cache=False`` conditions the graph on the current draws as
-        constants, so it registers nothing on the shared posterior and a
-        thinned posterior that still satisfies the objective is not refused by
-        a variable only this graph reads.  Nothing tracks it across a rebind,
-        so the compiled function is dropped whenever the draws move.
+        ``cache=True`` is the long-lived path -- the objective, the constraints
+        and an ad-hoc evaluation -- whose graphs the conditioned model rebinds on
+        later draw swaps once the optimizer has rebound.  ``required=True``
+        means a rebind that cannot satisfy the graph must fail, which is the
+        objective's and the constraints' contract.  An ad-hoc response passes
+        ``required=False``: after the switch it gets a private binding and a
+        rebind that cannot satisfy it drops it instead of failing.
+        ``cache=False`` conditions the graph on the current draws as constants,
+        so it registers nothing on the shared posterior and a thinned posterior
+        that still satisfies the objective is not refused by a variable only
+        this graph reads.  Nothing tracks it across a rebind, so the compiled
+        function is dropped whenever the draws move.
         """
-        return self._conditioned.extract(response_variable, cache=cache)
+        return self._conditioned.extract(
+            response_variable, cache=cache, required=required
+        )
 
     def evaluate_response_distribution(
         self,
@@ -2939,14 +2948,23 @@ class BudgetOptimizer(BaseModel):
             If a supplied ``DataArray`` has a dim carrying no coordinates, or
             if ``plan`` omits a decision variable, omits an optimized cell, or
             carries coordinates the model does not have.
+        KeyError
+            If the current posterior lacks a variable the requested response
+            reads, as after a rebind to a thinned posterior.
 
         Notes
         -----
-        The compiled function is cached per response variable and dropped by
-        :meth:`set_posterior`, so scoring many plans against the same posterior
-        compiles once and no cached function outlives its draws. The cache key
-        is the variable name alone, which is enough because ``compile_kwargs``
-        is fixed when the optimizer is constructed.
+        The compiled function is cached per response variable.  The objective's
+        response follows every draw swap without recompiling.  An ad-hoc
+        response also compiles once after the first rebind: it is bound through
+        its own shared posterior, so a later swap reuses the function while the
+        conditioned model still holds the same graph.  A swap the posterior
+        cannot satisfy drops that graph; the next evaluation recompiles it
+        against the new draws once the posterior holds its variables again.
+        Scoring many plans against the same posterior therefore compiles once,
+        and a function whose graph was dropped is never reused against stale
+        draws.  The cache key is the variable name alone, which is enough
+        because ``compile_kwargs`` is fixed when the optimizer is constructed.
 
         A response variable the plan cannot reach -- an intercept, a control
         contribution -- is still evaluated: the decision vector is simply an
@@ -2975,11 +2993,22 @@ class BudgetOptimizer(BaseModel):
         self._require_labelled_plan(plan, "evaluate_response_distribution")
 
         name = response_variable or self.response_variable
-        if name not in self._response_functions:
-            # The objective's own response shares its cached graph, so the compiled
-            # function follows every later draw swap; any other variable is ad hoc.
+        # The objective's response is required: a rebind that cannot satisfy it
+        # must fail.  Every other name is ad hoc and enters the optional tier,
+        # which is what lets its function be compiled once and then reused
+        # across draw swaps without ever pinning a rebind.
+        required = name == self.response_variable
+        cached = self._response_functions.get(name)
+        if cached is not None and not required:
+            # The conditioned model returns the identical graph while its
+            # optional key is still cached.  A dropped key re-extracts, which is
+            # the signal that the compiled function is stale.
+            graph = self._conditioned.extract(name, required=False)
+            if graph is not cached[2]:
+                cached = None
+        if cached is None:
             graph = self._extract_response_distribution(
-                name, cache=name == self.response_variable
+                name, cache=True, required=required
             )
             if self._budgets_flat not in set(ancestors([graph.values])):
                 warnings.warn(
@@ -2992,7 +3021,7 @@ class BudgetOptimizer(BaseModel):
                     UserWarning,
                     stacklevel=2,
                 )
-            self._response_functions[name] = (
+            cached = (
                 function(
                     [self._budgets_flat],
                     graph.values,
@@ -3006,8 +3035,10 @@ class BudgetOptimizer(BaseModel):
                     **{"on_unused_input": "ignore", **(self.compile_kwargs or {})},
                 ),
                 tuple(graph.type.dims),
+                graph,
             )
-        compiled, dims = self._response_functions[name]
+            self._response_functions[name] = cached
+        compiled, dims, _ = cached
         values = np.asarray(compiled(self._pack_decision_vector(plan)))
         return DataArray(values, dims=dims, coords=self._known_coords(dims, values))
 
@@ -3042,13 +3073,19 @@ class BudgetOptimizer(BaseModel):
         and into shared variables, which costs one recompile of the objective
         and the constraints.  Every later call swaps the draws in place, so a
         loop over many posteriors -- one per resampled or updated posterior --
-        costs one solve each rather than one compile each.  Optimizers that
-        never call this keep the constant-folded graphs they have today.
+        costs one solve each rather than one compile each.  An ad-hoc response
+        function compiled after the first call follows those swaps too, so it is
+        compiled once as well.  Optimizers that never call this keep the
+        constant-folded graphs they have today.
 
-        The new posterior must hold every variable the graphs read, with the
-        same non-sample dimensions and the same set of labels on each; labels
-        are compared by value, so a reordered ``channel`` axis is realigned.
-        The number of draws may differ.  The budget mask is fixed at
+        The new posterior must hold every variable the required graphs read,
+        with the same non-sample dimensions and the same set of labels on each;
+        labels are compared by value, so a reordered ``channel`` axis is
+        realigned.
+        The number of draws may differ.  The ad-hoc responses are optional: a
+        posterior that lacks a variable only one of them reads drops that
+        response instead of failing the rebind, and evaluating that response
+        raises ``KeyError`` until a posterior holds the variable again.  The budget mask is fixed at
         construction: it defines the decision vector the graphs were compiled
         for, so a posterior that would have auto-detected a different mask is
         solved on the existing one.  Build a new optimizer to change the mask.
@@ -3124,15 +3161,12 @@ class BudgetOptimizer(BaseModel):
         )
         try:
             self._conditioned.set_posterior(idata)
-            # An ad-hoc response function is compiled from a graph with the draws
-            # baked in as constants, so any rebind -- the first or a later draw
-            # swap -- makes it stale. Drop those; the objective's own response
-            # reads the shared draws and is dropped only by the recompile.
-            self._response_functions = {
-                name: entry
-                for name, entry in self._response_functions.items()
-                if name == self.response_variable
-            }
+            # The conditioned model rebinds the objective's required graph and
+            # every ad-hoc optional graph it still holds.  An ad-hoc graph the
+            # new posterior cannot satisfy was dropped there, so its entry here
+            # stays until the next evaluation notices the graph changed and
+            # recompiles; the objective's response is dropped by the recompile
+            # callback on the first rebind and reused on every later swap.
             self.idata = idata
         except BaseException:
             (
@@ -3154,8 +3188,9 @@ class BudgetOptimizer(BaseModel):
         later rebind swaps draws under the same shared variables, which the
         compiled functions read directly, so it fires nothing.  The objective's
         own response function was compiled from the pre-rebind graph and is
-        dropped here; the ad-hoc ones are dropped by :meth:`set_posterior` on
-        every rebind.
+        dropped here, as is every ad-hoc response function: the lazy switch
+        dropped the constant ad-hoc graphs, so the next evaluation extracts and
+        compiles each one again through its own binding.
         """
         self._response_functions = {}
         self._compile_objective_and_grad()

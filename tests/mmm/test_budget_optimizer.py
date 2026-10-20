@@ -1104,22 +1104,22 @@ class TestEvaluateResponseDistribution:
         assert not np.allclose(after.to_numpy(), before.to_numpy())
 
     @pytest.mark.parametrize(
-        ("variable", "reused"),
+        "variable",
         [
-            ("total_media_contribution_original_scale", True),
-            ("channel_contribution", False),
+            "total_media_contribution_original_scale",
+            "channel_contribution",
         ],
         ids=["objective-response", "ad-hoc"],
     )
-    def test_a_later_rebind_keeps_the_objective_function_and_rebuilds_ad_hoc_ones(
-        self, mmm_wrapper, dummy_idata, variable, reused
+    def test_a_later_rebind_reuses_the_objective_and_ad_hoc_functions(
+        self, mmm_wrapper, dummy_idata, variable
     ):
-        """After the first rebind, a draw swap reuses the objective's response function.
+        """After the first rebind, a draw swap reuses every response function.
 
-        The objective's own response reads the shared draws, so its compiled
-        function follows a later ``set_posterior`` without recompiling.  An
-        ad-hoc variable bakes the draws in as constants, so the rebind drops it
-        and the next evaluation recompiles.  Both report the newer draws.
+        The objective's own response reads the shared draws; an ad-hoc response
+        compiled after the switch gets a private shared posterior of its own.
+        Both therefore follow a later ``set_posterior`` without recompiling,
+        and both report the newer draws.
         """
         optimizer = BudgetOptimizer(
             model=mmm_wrapper,
@@ -1136,7 +1136,7 @@ class TestEvaluateResponseDistribution:
         optimizer.set_posterior(_scaled(posterior, 4.0))
         after = optimizer.evaluate_response_distribution(plan, variable)
 
-        assert (optimizer._response_functions[variable][0] is compiled) is reused
+        assert optimizer._response_functions[variable][0] is compiled
         assert not np.allclose(after.to_numpy(), before.to_numpy())
 
     def test_a_raw_array_is_refused_here_too(self, mmm_wrapper):
@@ -2836,8 +2836,8 @@ def test_a_one_shot_evaluation_does_not_pin_the_rebinds(rebind_first):
     ``evaluate_response_distribution(plan, "noise_thing")`` reads ``gamma``,
     which the objective does not.  A posterior thinned to the variables the
     objective reads is still accepted whether the ad-hoc call comes before the
-    first rebind or after it: the one-shot graph is conditioned on constants,
-    so it is never registered on the conditioned model's shared posterior.
+    first rebind or after it: before it the graph is conditioned on constants,
+    and after it the graph is optional, so the rebind drops it instead of failing.
     """
     n_dates = 4
     channels = ["a", "b"]
@@ -2878,6 +2878,74 @@ def test_a_one_shot_evaluation_does_not_pin_the_rebinds(rebind_first):
     optimizer.set_posterior(thinned)
     assert optimizer.idata is thinned
     assert optimizer._shared_posterior is not None
+
+
+def test_an_ad_hoc_function_is_recompiled_after_a_rebind_drops_its_variable():
+    """A swap without the ad-hoc variable drops its function and still succeeds.
+
+    ``noise_thing`` reads ``gamma``, which the objective does not.  A posterior
+    thinned to the objective's variables cannot satisfy the ad-hoc binding, so
+    the rebind drops that key instead of failing.  When ``gamma`` comes back,
+    the next evaluation builds a new graph and recompiles rather than reusing a
+    function that would report the old draws.
+    """
+    n_dates = 4
+    channels = ["a", "b"]
+    with pm.Model(coords={"channel": channels}) as model:
+        model.add_coord("date", length=n_dates)
+        channel_data = pmd.Data(
+            "channel_data", np.ones((n_dates, 2)), dims=("date", "channel")
+        )
+        beta = pmd.Normal("beta", 1.0, 0.1, dims="channel")
+        gamma = pmd.Normal("gamma", 0.0, 1.0)
+        pmd.Deterministic(
+            "total_media_contribution_original_scale", (channel_data * beta).sum()
+        )
+        pmd.Deterministic("noise_thing", gamma + (channel_data * beta).sum())
+
+    posterior = xr.Dataset(
+        {
+            "beta": (("chain", "draw", "channel"), np.ones((2, 2, 2))),
+            "gamma": (("chain", "draw"), np.ones((2, 2))),
+        },
+        coords={"channel": channels},
+    )
+    optimizer = BudgetOptimizer(
+        model=CustomModelWrapper(
+            base_model=model,
+            idata=xr.DataTree.from_dict({"/posterior": posterior}),
+            channels=channels,
+        ),
+        num_periods=n_dates,
+        response_variable="total_media_contribution_original_scale",
+    )
+    plan = xr.DataArray([30.0, 70.0], dims=["channel"], coords={"channel": channels})
+
+    optimizer.set_posterior(xr.DataTree.from_dict({"/posterior": posterior}))
+    before = optimizer.evaluate_response_distribution(plan, "noise_thing")
+    compiled = optimizer._response_functions["noise_thing"][0]
+
+    # A swap that still carries ``gamma`` reuses the function.
+    scaled = xr.DataTree.from_dict(
+        {"/posterior": posterior.assign(gamma=posterior["gamma"] * 2.0)}
+    )
+    optimizer.set_posterior(scaled)
+    reused = optimizer.evaluate_response_distribution(plan, "noise_thing")
+    assert optimizer._response_functions["noise_thing"][0] is compiled
+    assert not np.allclose(reused.to_numpy(), before.to_numpy())
+
+    thinned = xr.DataTree.from_dict({"/posterior": posterior.drop_vars("gamma")})
+    optimizer.set_posterior(thinned)  # the optional key is dropped, not fatal
+    assert optimizer.idata is thinned
+
+    restored = xr.DataTree.from_dict(
+        {"/posterior": posterior.assign(gamma=posterior["gamma"] * 3.0)}
+    )
+    optimizer.set_posterior(restored)
+    after = optimizer.evaluate_response_distribution(plan, "noise_thing")
+
+    assert optimizer._response_functions["noise_thing"][0] is not compiled
+    assert not np.allclose(after.to_numpy(), reused.to_numpy())
 
 
 def test_a_one_shot_evaluation_follows_a_reordered_rebind():
