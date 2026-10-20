@@ -115,48 +115,32 @@ class ChoiceDataMixin:
         """
         return getattr(self, self._X_data_name), self.F, self.y
 
-    def _restore_model_data(self) -> None:
-        """Restore the fitted model and instance state to the stored choice data.
-
-        Re-runs the same preprocessing :meth:`build_model` applies to the stored
-        choice data, which resets the instance state (design matrices, outcome,
-        alternatives, coordinates and, for :class:`NestedLogit`, the nest
-        lookups), then points the model's data containers back at those training
-        arrays. Call this from a ``finally`` block after a prediction so the
-        fitted model is unchanged even when sampling fails.
-        """
-        choice_df = self._require_choice_df()
-        self.preprocess_model_data(choice_df, self.utility_equations)
-        self._set_model_data(*self._training_arrays())
-
     @contextmanager
-    def _temporary_model_data(
-        self, choice_df: pd.DataFrame | None, utility_equations: list[str]
-    ) -> Iterator[None]:
-        """Swap in a data set, restoring the stored data on exit.
+    def _prediction_model_data(self, choice_df: pd.DataFrame | None) -> Iterator[None]:
+        """Point the model at prediction data, resetting it to the training data on exit.
 
-        The forward preprocessing overwrites the instance state built from the
-        stored choice data, so the stored data is preprocessed again on exit. If
-        the body or the swap fails, the stored data is still restored and the
-        original error is re-raised; a failed restore is chained onto it rather
-        than replacing it. Passing ``None`` leaves the model untouched.
+        The ``None`` case leaves the model untouched. Otherwise the new data is
+        preprocessed and set on the model, and the training arrays stored by
+        :meth:`build_model` are reset on exit without re-preprocessing, even
+        when the body fails. If the reset fails, the original error is re-raised
+        with the reset error chained onto it.
         """
         if choice_df is None:
             yield
             return
 
         try:
-            X, F, y = self.preprocess_model_data(choice_df, utility_equations)
+            X, F, y = self.preprocess_model_data(choice_df, self.utility_equations)
             self._set_model_data(X, F, y)
             yield
-        except BaseException as body_error:
+        except BaseException as error:
             try:
-                self._restore_model_data()
-            except Exception as restore_error:
-                raise body_error from restore_error
+                self._set_model_data(*self._training_arrays())
+            except Exception as reset_error:
+                raise error from reset_error
             raise
         else:
-            self._restore_model_data()
+            self._set_model_data(*self._training_arrays())
 
     @classmethod
     def _raise_missing_settings(cls, **settings: Any) -> NoReturn:

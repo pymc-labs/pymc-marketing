@@ -409,9 +409,29 @@ class MNLogit(ChoiceDataMixin, ModelBuilder):
     def preprocess_model_data(
         self, choice_df: pd.DataFrame, utility_equations: list[str]
     ) -> tuple[np.ndarray, np.ndarray | None, np.ndarray]:
-        """Pre-process the model initiation inputs into a format that can be used by the PyMC model."""
+        """Pre-process the model initiation inputs into a format that can be used by the PyMC model.
+
+        The instance state is left untouched; only :meth:`build_model` stores
+        the preprocessed arrays.
+
+        Parameters
+        ----------
+        choice_df : pd.DataFrame
+            The choice data to preprocess.
+        utility_equations : list of str
+            The utility equations to preprocess the data with.
+
+        Returns
+        -------
+        X : np.ndarray
+            Alternative-specific covariates, shape
+            ``(n_obs, n_alts, n_covariates)``.
+        F : np.ndarray or None
+            Fixed covariates, or ``None`` when the utility equations have none.
+        y : np.ndarray
+            Encoded choices, shape ``(n_obs,)``.
+        """
         data = self._preprocess(choice_df, utility_equations)
-        self._store_preprocessed(data)
         return data.X, data.F, data.y
 
     def build_model(self, **kwargs) -> None:
@@ -742,7 +762,7 @@ class MNLogit(ChoiceDataMixin, ModelBuilder):
         if self.idata is None:
             raise RuntimeError("self.idata must be initialized before extending")
 
-        with self._temporary_model_data(choice_df, self.utility_equations):
+        with self._prediction_model_data(choice_df):
             with self.model:
                 post_pred = pm.sample_posterior_predictive(
                     self.idata, var_names=["likelihood", "p"], **kwargs
@@ -826,7 +846,7 @@ class MNLogit(ChoiceDataMixin, ModelBuilder):
         if not hasattr(self, "model"):
             self.sample()
         if new_utility_equations is None:
-            with self._temporary_model_data(new_choice_df, self.utility_equations):
+            with self._prediction_model_data(new_choice_df):
                 with self.model:
                     # use the updated values and predict outcomes and probabilities:
                     idata_new_policy = pm.sample_posterior_predictive(

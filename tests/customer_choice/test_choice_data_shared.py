@@ -579,6 +579,24 @@ def test_private_preprocess_preserves_instance_state(
     _assert_attributes_unchanged(model, snapshot)
 
 
+def test_preprocess_model_data_preserves_instance_state(
+    model_case, sample_df, other_utility_eqs
+):
+    model = model_case.build()
+    model._set_choice_inputs(sample_df)
+    model.build_model()
+    snapshot = _attribute_snapshot(model)
+
+    # Different rows and equations, so re-assigning any stored state would
+    # change its content and fail the snapshot comparison below.
+    other_df = pd.concat([sample_df, sample_df], ignore_index=True)
+    X, _F, y = model.preprocess_model_data(other_df, other_utility_eqs)
+
+    assert X.shape[0] == len(other_df)
+    assert y.shape == (len(other_df),)
+    _assert_attributes_unchanged(model, snapshot)
+
+
 def test_build_model_stores_preprocessed_state(model_case, sample_df):
     model = model_case.build()
     stored_names = {"alternatives", "coords", "y", "F", model._X_data_name}
@@ -655,6 +673,33 @@ def test_refit_after_posterior_predictive_uses_training_data(
     _assert_model_data(model, expected_X, expected_F, expected_y)
 
 
+@pytest.mark.parametrize(
+    "method",
+    [
+        pytest.param("apply_intervention", id="apply-intervention"),
+        pytest.param("sample_posterior_predictive", id="sample-posterior-predictive"),
+    ],
+)
+def test_refit_after_different_row_count_uses_training_data(
+    model_case, sample_df, mock_pymc_sample, method
+):
+    model = model_case.build()
+    model.fit(sample_df)
+    expected_X, expected_F, expected_y = _expected_preprocessed(model_case, sample_df)
+
+    intervened = pd.concat([sample_df, sample_df], ignore_index=True)
+    if method == "apply_intervention":
+        model.apply_intervention(intervened)
+    else:
+        model.sample_posterior_predictive(choice_df=intervened)
+
+    model.fit(sample_df)
+
+    _assert_model_data(model, expected_X, expected_F, expected_y)
+    assert model.model["y"].get_value().shape == (len(sample_df),)
+    assert len(model.model.coords["obs"]) == len(sample_df)
+
+
 def test_sample_posterior_predictive_after_intervention_uses_stored_data(
     model_case, sample_df, mock_pymc_sample
 ):
@@ -726,7 +771,7 @@ def test_failed_posterior_predictive_restores_model(
     assert len(model.model.coords["obs"]) == len(sample_df)
 
 
-def test_failed_restore_keeps_original_error(
+def test_failed_reset_keeps_original_error(
     model_case, sample_df, monkeypatch, mock_pymc_sample
 ):
     model = model_case.build()
@@ -737,17 +782,89 @@ def test_failed_restore_keeps_original_error(
     def sample_boom(*args, **kwargs):
         raise RuntimeError("sampling blew up")
 
-    def restore_boom():
-        raise RuntimeError("restore failed")
+    def reset_boom():
+        raise RuntimeError("reset failed")
 
     monkeypatch.setattr(pm, "sample_posterior_predictive", sample_boom)
-    monkeypatch.setattr(model, "_restore_model_data", restore_boom)
+    monkeypatch.setattr(model, "_training_arrays", reset_boom)
 
     with pytest.raises(RuntimeError, match="sampling blew up") as excinfo:
         model.sample_posterior_predictive(choice_df=intervened)
 
     assert isinstance(excinfo.value.__cause__, RuntimeError)
-    assert "restore failed" in str(excinfo.value.__cause__)
+    assert "reset failed" in str(excinfo.value.__cause__)
+
+
+def _forbid_model_data_swap(model, monkeypatch):
+    """Fail if a no-data prediction preprocesses data or swaps it into the model."""
+
+    def fail(*args, **kwargs):
+        raise AssertionError("a no-data prediction must not touch model data")
+
+    for name in ("preprocess_model_data", "_preprocess", "_set_model_data"):
+        monkeypatch.setattr(model, name, fail)
+
+
+def test_default_posterior_predictive_uses_training_data(
+    model_case, sample_df, monkeypatch, mock_pymc_sample
+):
+    model = model_case.build()
+    model.fit(sample_df)
+    expected_X, expected_F, expected_y = _expected_preprocessed(model_case, sample_df)
+    snapshot = _instance_snapshot(model)
+    _forbid_model_data_swap(model, monkeypatch)
+
+    post_pred = model.sample_posterior_predictive()
+
+    assert post_pred["posterior_predictive"]["p"].sizes["obs"] == len(sample_df)
+    _assert_model_data(model, expected_X, expected_F, expected_y)
+    _assert_instance_state(model, snapshot)
+
+
+def test_intervention_without_new_data_uses_training_data(
+    model_case, sample_df, monkeypatch, mock_pymc_sample
+):
+    model = model_case.build()
+    model.fit(sample_df)
+    expected_X, expected_F, expected_y = _expected_preprocessed(model_case, sample_df)
+    snapshot = _instance_snapshot(model)
+    _forbid_model_data_swap(model, monkeypatch)
+
+    intervention = model.apply_intervention(None)
+
+    assert intervention["posterior_predictive"]["p"].sizes["obs"] == len(sample_df)
+    _assert_model_data(model, expected_X, expected_F, expected_y)
+    _assert_instance_state(model, snapshot)
+
+
+def test_failed_data_swap_restores_training_data(
+    model_case, sample_df, monkeypatch, mock_pymc_sample
+):
+    model = model_case.build()
+    model.fit(sample_df)
+    expected_X, expected_F, expected_y = _expected_preprocessed(model_case, sample_df)
+    snapshot = _instance_snapshot(model)
+    intervened = pd.concat([sample_df, sample_df], ignore_index=True)
+
+    set_model_data = model._set_model_data
+
+    def swap_X_and_y_then_fail(X, F, y):
+        if len(X) == len(sample_df):
+            set_model_data(X, F, y)
+            return
+        # X and y now hold the prediction data, while the fixed covariates are
+        # rejected before they are set.
+        set_model_data(X, None, y)
+        raise ValueError("fixed covariates have an incompatible shape")
+
+    monkeypatch.setattr(model, "_set_model_data", swap_X_and_y_then_fail)
+
+    with pytest.raises(ValueError, match="incompatible shape"):
+        model.sample_posterior_predictive(choice_df=intervened)
+
+    _assert_model_data(model, expected_X, expected_F, expected_y)
+    _assert_instance_state(model, snapshot)
+    assert len(model.model.coords["obs"]) == len(sample_df)
 
 
 @pytest.mark.parametrize(
@@ -781,7 +898,7 @@ def test_no_fixed_covariates_different_row_count(
 
 
 def test_new_equations_intervention_keeps_fitted_model(
-    model_case, sample_df, utility_eqs, mock_pymc_sample, monkeypatch
+    model_case, sample_df, utility_eqs, mock_pymc_sample
 ):
     model = model_case.build()
     model.fit(sample_df)
@@ -789,11 +906,6 @@ def test_new_equations_intervention_keeps_fitted_model(
     snapshot = _instance_snapshot(model)
     fitted_X = fitted_model["X"].get_value().copy()
     fitted_y = fitted_model["y"].get_value().copy()
-
-    def restore_boom():
-        raise AssertionError("new-equations intervention must not restore state")
-
-    monkeypatch.setattr(model, "_restore_model_data", restore_boom)
 
     # New equations reorder the alternatives and the new data has more rows.
     new_equations = list(reversed(utility_eqs))

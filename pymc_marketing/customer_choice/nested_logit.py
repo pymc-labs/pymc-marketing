@@ -575,8 +575,8 @@ class NestedLogit(ChoiceDataMixin, ModelBuilder):
         """Pre-process the model initiation inputs into a format that can be used by the PyMC model.
 
         This method prepares the 3D design matrix `X`, fixed covariate matrix `F` (if applicable),
-        and the encoded response vector `y`, while also extracting and storing relevant metadata
-        such as alternatives, fixed covariate names, product index mappings, and nesting structures.
+        and the encoded response vector `y`. The instance state is left untouched;
+        only :meth:`build_model` stores the preprocessed arrays and metadata.
 
         Parameters
         ----------
@@ -606,14 +606,11 @@ class NestedLogit(ChoiceDataMixin, ModelBuilder):
 
         Notes
         -----
-        - Updates internal state: assigns ``X_data``, ``F``, ``alternatives``, ``fixed_covar``,
-          ``y``, ``prod_indices``, ``nest_indices``, ``all_nests``, ``lambda_lkup``, and ``coords``.
         - Handles single-layer nesting structures only.
         - Assumes the existence of instance attributes ``depvar``, ``covariates``, and ``nesting_structure``.
 
         """
         data = self._preprocess(choice_df, utility_equations)
-        self._store_preprocessed(data)
         return data.X, data.F, data.y
 
     def build_model(self, **kwargs) -> None:
@@ -1087,7 +1084,7 @@ class NestedLogit(ChoiceDataMixin, ModelBuilder):
         if self.idata is None:
             raise RuntimeError("self.idata must be initialized before extending")
 
-        with self._temporary_model_data(choice_df, self.utility_equations):
+        with self._prediction_model_data(choice_df):
             with self.model:
                 post_pred = pm.sample_posterior_predictive(
                     self.idata, var_names=["likelihood", "p"], **kwargs
@@ -1207,7 +1204,7 @@ class NestedLogit(ChoiceDataMixin, ModelBuilder):
         if not hasattr(self, "model"):
             self.sample()
         if new_utility_equations is None:
-            with self._temporary_model_data(new_choice_df, self.utility_equations):
+            with self._prediction_model_data(new_choice_df):
                 with self.model:
                     # use the updated values and predict outcomes and probabilities:
                     idata_new_policy = pm.sample_posterior_predictive(
