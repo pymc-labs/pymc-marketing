@@ -8,6 +8,7 @@ import sys
 from pathlib import Path
 
 import plotly.io as pio
+from sphinx import addnodes
 
 import pymc_marketing  # isort:skip
 
@@ -40,7 +41,6 @@ extensions = [
     "notfound.extension",
     "sphinx_copybutton",
     "sphinx_design",
-    "sphinx_remove_toctrees",
     "sphinx_sitemap",
     "sphinxext.opengraph",
 ]
@@ -106,10 +106,6 @@ gettext_compact = False
 locale_dirs = ["../../locales"]
 
 # -- Extension configuration ------------------------------------------------
-
-# exclude method and attribute pages from toctree to make pages lighter and
-# build faster
-remove_from_toctrees = ["**/classmethods/*", "**/classattributes/*"]
 
 # matplotlib plot directive configuration
 # plot_pre_code runs before every .. plot:: block; replaces the default
@@ -394,6 +390,25 @@ def scrub_plotly_mathjax(app, pagename, templatename, context, doctree):
         )
 
 
+def remove_api_member_navigation(app, env):
+    """Keep API member pages linked from tables without expanding the sidebar."""
+    member_prefixes = ("api/generated/classmethods/", "api/generated/classattributes/")
+    for toc in env.tocs.values():
+        # Materialize the traversal before removing nodes. Mutating a live
+        # findall iterator skips adjacent toctrees (e.g. the attributes after
+        # a class's methods), leaving thousands of links in every sidebar.
+        for node in list(toc.findall(addnodes.toctree)):
+            entries = [
+                entry
+                for entry in node["entries"]
+                if not entry[1].startswith(member_prefixes)
+            ]
+            if entries:
+                node["entries"] = entries
+            else:
+                node.parent.remove(node)
+
+
 def setup(app):
     """Configure Sphinx application event handlers.
 
@@ -401,3 +416,4 @@ def setup(app):
     """
     # Connect the scrubbing function to the html-page-context event
     app.connect("html-page-context", scrub_plotly_mathjax)
+    app.connect("env-updated", remove_api_member_navigation)

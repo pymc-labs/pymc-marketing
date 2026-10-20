@@ -1,0 +1,4 @@
+# Keep the GitHub Actions and Read the Docs environments consistent.
+-e .[docs]
+# Newer releases corrupt wrapped Raises descriptions with numpydoc xrefs.
+sphinx-autodoc-typehints==3.13.10

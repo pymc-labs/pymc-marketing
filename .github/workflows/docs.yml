@@ -52,7 +52,7 @@ jobs:
       - name: Install package and docs dependencies
         run: |
           sudo apt-get install graphviz graphviz-dev
-          uv pip install -e .[docs]
+          uv pip install -r docs/requirements.txt
       - name: Generate gallery thumbnails
         # Mirrors what RTD runs in its pre_build step (see .readthedocs.yaml).
         run: uv run python scripts/generate_gallery.py
