@@ -177,6 +177,117 @@ class AdstockTransformation(Transformation):
             **sample_prior_predictive_kwargs,
         )
 
+    def cumulative_weights(
+        self,
+        parameters: xr.Dataset,
+        horizon: int | None = None,
+        **sample_posterior_predictive_kwargs: Any,
+    ) -> xr.DataArray:
+        r"""Share of the kernel's weight that lands within *horizon* periods.
+
+        With the kernel :math:`w_0, \dots, w_{l_{max}-1}` on lags
+        :math:`0 \dots l_{max}-1` after the spend period, this is
+
+        .. math::
+
+            C(c) = \frac{\sum_{l \le c} w_l}{\sum_{l < l_{max}} w_l}.
+
+        Under ``normalize=True`` the weights already sum to one over the
+        truncated kernel, so the denominator is one.  Under ``normalize=False``
+        it is not, and dividing by it is what makes :math:`C` a share; the same
+        kernel then gives the same :math:`C` whichever way it was built.
+
+        The kernel is sampled once per posterior draw through
+        :meth:`sample_curve`, so parameters with their own dimensions
+        (``channel``, ``country``, ...) broadcast.  Nothing is reduced over
+        draws: multiply :math:`C` by a contribution draw by draw and summarize
+        last, because :math:`E[C]\,E[\text{contribution}] \ne
+        E[C \cdot \text{contribution}]` whenever the two vary together.
+
+        The share is of *modelled* value.  The kernel stops at ``l_max``, so
+        nothing past it is attributed, however long the real carryover.
+
+        A draw whose kernel is not finite has no share and gives ``NaN``.  The
+        Weibull kernels can underflow to ``0 / 0`` for extreme parameters, and
+        the ``NaN`` is passed on.
+
+        Parameters
+        ----------
+        parameters : xr.Dataset
+            Dataset with the adstock's parameters, with ``chain`` and ``draw``
+            dimensions, as :meth:`sample_curve` takes it.
+        horizon : int or None, default=None
+            Periods after the spend period that count, in ``0 .. l_max - 1``.
+            ``0`` is the spend period alone and ``l_max - 1`` the whole kernel,
+            for which :math:`C` is exactly one.  ``None`` returns every horizon
+            on a ``"horizon"`` dimension, from one sampling of the kernel.
+        sample_posterior_predictive_kwargs : Any
+            Passed to :meth:`sample_curve`, for example ``progressbar=False``.
+
+        Returns
+        -------
+        xr.DataArray
+            :math:`C(\text{horizon})`, the shape of the sampled kernel without
+            its ``"time since exposure"`` dimension; for ``horizon=None``, with a
+            ``"horizon"`` dimension of length ``l_max`` in its place.
+
+        Raises
+        ------
+        TypeError
+            If *horizon* is not an integer.
+        ValueError
+            If *horizon* is outside ``0 .. l_max - 1``, or if ``mode`` is not
+            ``ConvMode.After``: under ``Before`` and ``Overlap`` the kernel is
+            placed on dates before the spend, so its first entries are not the
+            spend period and a cumulative sum from lag 0 is not "current".
+
+        Examples
+        --------
+        Share of a geometric adstock's weight within two periods of the spend:
+
+        .. code-block:: python
+
+            adstock = GeometricAdstock(l_max=8)
+            parameters = adstock.sample_prior()
+            share = adstock.cumulative_weights(parameters, horizon=2)
+        """
+        if self.mode != ConvMode.After:
+            raise ValueError(
+                "cumulative_weights needs mode=ConvMode.After, got "
+                f"{self.mode!s}.  Under a leading kernel the first entries are "
+                "not the spend period, so their cumulative sum is not the share "
+                "that lands within a horizon."
+            )
+
+        if horizon is not None and (
+            isinstance(horizon, bool) or not isinstance(horizon, int | np.integer)
+        ):
+            raise TypeError(f"horizon must be an integer or None, got {horizon!r}.")
+
+        if horizon is not None and not 0 <= horizon <= self.l_max - 1:
+            raise ValueError(
+                f"horizon must be in 0..{self.l_max - 1} (the periods after the "
+                f"spend period that the kernel of l_max={self.l_max} covers), "
+                f"got {horizon}."
+            )
+
+        weights = self.sample_curve(parameters, **sample_posterior_predictive_kwargs)
+        lag = "time since exposure"
+
+        # Dividing by the cumulative sum's own last entry makes the whole kernel
+        # exactly one, so the share beyond it is exactly zero; a sum taken in
+        # another order can differ from it in the last bit.
+        cumulative = weights.cumsum(lag)
+        curve = cumulative / cumulative.isel({lag: -1})
+
+        if horizon is None:
+            curve = curve.rename({lag: "horizon"}).assign_coords(
+                horizon=np.arange(self.l_max)
+            )
+            return curve.rename("cumulative_weights")
+
+        return curve.isel({lag: horizon}, drop=True).rename("cumulative_weights")
+
 
 # Only a base for type checkers: at runtime the mixin derives from object, so it
 # is not itself an AdstockTransformation and is skipped by anything collecting
@@ -633,6 +744,12 @@ class WeibullCDFAdstock(AdstockTransformation):
     Calls :func:`pymc_marketing.mmm.transformers.weibull_adstock` with
     ``type=WeibullType.CDF`` and the wrapper's ``l_max``, ``normalize`` and ``mode``
     settings.
+
+    .. note::
+        ``l_max`` is the total number of kernel weights: the current period plus
+        ``l_max - 1`` lags. Releases up to and including 1.2.0 applied one extra
+        CDF weight (``l_max + 1`` in total), so models saved with those releases
+        can produce different predictions when reloaded.
 
     Parameters
     ----------

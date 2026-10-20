@@ -588,6 +588,23 @@ def test_autolog_mmm(mmm, toy_X, toy_y) -> None:
     }
 
 
+def test_log_mmm_configuration_keeps_large_lift_metadata_as_artifact(mmm, mocker):
+    calibration = json.dumps([{"data": "x" * 10_000}])
+    mocker.patch.object(
+        mmm,
+        "create_idata_attrs",
+        return_value={"model_config": "{}", "lift_test_calibrations": calibration},
+    )
+    log_params = mocker.patch.object(pmm_mlflow.mlflow, "log_params")
+    mocker.patch.object(pmm_mlflow.mlflow, "log_param")
+    log_text = mocker.patch.object(pmm_mlflow.mlflow, "log_text")
+
+    pmm_mlflow.log_mmm_configuration(mmm)
+
+    log_params.assert_called_once_with({"model_config": "{}"})
+    log_text.assert_called_once_with(calibration, "lift_test_calibrations.json")
+
+
 @pytest.fixture(scope="module")
 def multidimensional_mmm() -> MMM:
     return MMM(

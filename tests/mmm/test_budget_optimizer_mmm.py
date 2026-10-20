@@ -27,7 +27,7 @@ from pytensor.graph.traversal import ancestors
 from pytensor.xtensor import as_xtensor
 from scipy.optimize import approx_fprime
 
-from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation
+from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation, PowerPriceResponse
 from pymc_marketing.mmm.additive_effect import LinearTrendEffect, MuEffect
 from pymc_marketing.mmm.budget_optimizer import BudgetOptimizer, BuildMergedModel
 from pymc_marketing.mmm.linear_trend import LinearTrend
@@ -35,6 +35,7 @@ from pymc_marketing.mmm.mmm import (
     MMM,
     BudgetOptimizerWrapper,
 )
+from pymc_marketing.mmm.utility import average_response
 from pymc_marketing.version import __version__
 
 
@@ -1553,6 +1554,25 @@ def test_multidimensional_optimize_budget_callback_parametrized(
     assert hasattr(opt_result, "fun")
 
 
+def test_pre_price_response_positional_call_still_binds_callback(dummy_df, fitted_mmm):
+    """The nine-argument positional form that predates price_response binds its
+    last argument to callback; price_response is keyword-only."""
+    _df_kwargs, X_dummy, _y_dummy = dummy_df
+    wrapper = BudgetOptimizerWrapper(
+        model=fitted_mmm,
+        start_date=X_dummy["date_week"].max() + pd.Timedelta(weeks=1),
+        end_date=X_dummy["date_week"].max() + pd.Timedelta(weeks=4),
+    )
+
+    result = wrapper.optimize_budget(
+        100.0, None, None, average_response, (), None, None, None, True
+    )
+
+    assert isinstance(result.callback_info, list)
+    assert len(result.callback_info) > 0
+    assert result.implied_delivery is None
+
+
 def test_float_channel_data_optimized(simple_fitted_mmm):
     """Budget optimizer should produce identical allocations regardless of channel_data dtype."""
     total_budget = 5000.0
@@ -1763,6 +1783,41 @@ def test_budget_optimizer_new_api(dummy_df, fitted_mmm):
     assert isinstance(optimizer, BudgetOptimizer)
     _, result = optimizer.allocate_budget(total_budget=100)
     assert result.success
+
+
+def test_wrapper_optimize_budget_forwards_price_response(dummy_df, fitted_mmm):
+    """The issue's suggested API is wrapper.optimize_budget(..., price_response=...), and
+    a curved, attested response with a (geo, channel) reference goes through the panel
+    wrapper: every spent cell's next unit costs more than its average unit."""
+    _df_kwargs, X_dummy, _y_dummy = dummy_df
+    fitted_mmm.add_original_scale_contribution_variable(["channel_contribution"])
+    with pytest.warns(DeprecationWarning):
+        wrapper = BudgetOptimizerWrapper(
+            model=fitted_mmm,
+            start_date=X_dummy["date_week"].max() + pd.Timedelta(weeks=1),
+            end_date=X_dummy["date_week"].max() + pd.Timedelta(weeks=4),
+        )
+    result = wrapper.optimize_budget(
+        budget=10.0, price_response=PowerPriceResponse(elasticity=0.0)
+    )
+    assert result.implied_price is not None
+
+    reference = xr.DataArray(
+        np.full((2, 2), 5.0),
+        dims=("geo", "channel"),
+        coords={"geo": ["A", "B"], "channel": ["channel_1", "channel_2"]},
+    )
+    priced = wrapper.optimize_budget(
+        budget=10.0,
+        price_response=PowerPriceResponse(
+            elasticity=0.3, reference_spend=reference, assume_delivery_units=True
+        ),
+    )
+    spent = priced.implied_price.notnull()
+    assert bool(spent.any())
+    assert bool(
+        (priced.implied_marginal_price > priced.implied_price).where(spent, True).all()
+    )
 
 
 class _MediatedEffect(MuEffect):
@@ -2447,6 +2502,114 @@ class TestMonetarySpendVariables:
             "a bare string was iterated character by character"
         )
 
+    def test_a_bare_price_response_with_spend_vars_is_refused(
+        self, funnel_identity_fitted_mmm
+    ):
+        """Media and a spend variable draw from one pot through one constraint; pricing
+        one on a curve and the other at a constant, silently, is the failure mode."""
+        with pytest.raises(ValueError, match="name every variable"):
+            self._optimizer(
+                funnel_identity_fitted_mmm,
+                spend_vars=["lf_budget"],
+                price_response=PowerPriceResponse(
+                    elasticity=0.2, assume_delivery_units=True
+                ),
+            )
+
+    def test_a_price_response_for_an_unknown_variable_is_refused(
+        self, funnel_identity_fitted_mmm
+    ):
+        with pytest.raises(ValueError, match=r"price_response names \['nope'\]"):
+            self._optimizer(
+                funnel_identity_fitted_mmm,
+                spend_vars=["lf_budget"],
+                price_response={"nope": PowerPriceResponse(elasticity=0.2)},
+            )
+
+    def test_a_dict_must_name_every_monetary_variable(self, funnel_identity_fitted_mmm):
+        """The bare-object refusal promises that the dict form names every variable,
+        including the ones staying at a constant price. Omitting one reproduces the
+        hazard by omission: media at a constant, the spend variable on a curve, both in
+        one pot. An explicit identity response is how "constant" is said."""
+        curve = PowerPriceResponse(
+            elasticity=0.2,
+            reference_spend=xr.DataArray(1.0),
+            assume_delivery_units=True,
+        )
+        with pytest.raises(ValueError, match=r"leaves \['channel_data'\] unpriced"):
+            self._optimizer(
+                funnel_identity_fitted_mmm,
+                spend_vars=["lf_budget"],
+                price_response={"lf_budget": curve},
+            )
+        with pytest.raises(ValueError, match=r"leaves \['lf_budget'\] unpriced"):
+            self._optimizer(
+                funnel_identity_fitted_mmm,
+                spend_vars=["lf_budget"],
+                price_response={"channel_data": PowerPriceResponse(elasticity=0.0)},
+            )
+
+    def test_a_curved_spend_variable_needs_the_attestation_then_a_reference(
+        self, funnel_identity_fitted_mmm
+    ):
+        """A spend variable is a money node, so a curved response on it needs the same
+        attestation as one on media, and then a reference_spend, since no historical
+        cost_per_unit table describes a spend variable."""
+        constant_media = PowerPriceResponse(elasticity=0.0)
+        with pytest.raises(
+            ValueError, match=r"lf_budget.*a declaration, not evidence"
+        ) as info:
+            self._optimizer(
+                funnel_identity_fitted_mmm,
+                spend_vars=["lf_budget"],
+                price_response={
+                    "channel_data": constant_media,
+                    "lf_budget": PowerPriceResponse(elasticity=0.2),
+                },
+            )
+        assert "assume_delivery_units=True" in str(info.value)
+        with pytest.raises(ValueError, match=r"lf_budget.*reference_spend is required"):
+            self._optimizer(
+                funnel_identity_fitted_mmm,
+                spend_vars=["lf_budget"],
+                price_response={
+                    "channel_data": constant_media,
+                    "lf_budget": PowerPriceResponse(
+                        elasticity=0.2, assume_delivery_units=True
+                    ),
+                },
+            )
+        optimizer = self._optimizer(
+            funnel_identity_fitted_mmm,
+            spend_vars=["lf_budget"],
+            price_response={
+                "channel_data": constant_media,
+                "lf_budget": PowerPriceResponse(
+                    elasticity=0.2,
+                    assume_delivery_units=True,
+                    reference_spend=xr.DataArray(1.0),
+                ),
+            },
+        )
+        result = optimizer.allocate_budget(total_budget=self.TOTAL)
+        assert result.scipy_result.success, result.scipy_result.message
+        assert np.isfinite(result.spend_var_allocations["lf_budget"]).all()
+        spent = result.budgets > 0
+        assert np.all(result.implied_price.where(spent).fillna(1.0) == 1.0)
+
+    def test_an_identity_spend_variable_response_needs_nothing(
+        self, funnel_identity_fitted_mmm
+    ):
+        """elasticity=0 passes money through unbent: no attestation, no reference."""
+        self._optimizer(
+            funnel_identity_fitted_mmm,
+            spend_vars=["lf_budget"],
+            price_response={
+                "channel_data": PowerPriceResponse(elasticity=0.0),
+                "lf_budget": PowerPriceResponse(elasticity=0.0),
+            },
+        )
+
 
 def test_mmm_budget_optimizer_set_posterior_is_local_to_the_optimizer(
     dummy_df, fitted_mmm
@@ -2482,3 +2645,244 @@ def test_mmm_budget_optimizer_set_posterior_is_local_to_the_optimizer(
         fitted_mmm.idata["posterior"].to_dataset()["saturation_beta"],
         posterior["saturation_beta"],
     )
+
+
+def _future_window(mmm, n_plan: int = 4):
+    """Return a window right after training and its dates after training ends."""
+    dates = pd.DatetimeIndex(mmm.xarray_dataset.coords["date"].values)
+    start = dates.max() + pd.Timedelta(weeks=1)
+    end = start + pd.Timedelta(weeks=n_plan - 1)
+    future = pd.date_range(
+        start, periods=n_plan + mmm.effective_carryover_lags(), freq="W"
+    )
+    return start, end, future
+
+
+def _planned_frame(future, geos=("A", "B")) -> pd.DataFrame:
+    """Planned controls for ``fitted_mmm``, distinct per row so misalignment shows."""
+    df = pd.DataFrame(
+        [(date, geo) for date in future for geo in geos], columns=["date_week", "geo"]
+    )
+    df["event_1"] = 1.0
+    df["event_2"] = 2.0
+    df["t"] = 100.0 + np.arange(len(df))
+    return df
+
+
+def _control_data(model: pm.Model) -> xr.DataArray:
+    dims = model.named_vars_to_dims["control_data"]
+    return xr.DataArray(
+        model["control_data"].get_value(),
+        dims=dims,
+        coords={dim: list(model.coords[dim]) for dim in dims},
+    )
+
+
+ZERO_FILL_WARNING = "Pass control_data with the values you expect"
+
+
+class TestControlData:
+    """Planned control values for the optimization window (#3125)."""
+
+    def test_dataframe_sets_controls_after_training_only(self, fitted_mmm):
+        start, end, future = _future_window(fitted_mmm)
+        planned = _planned_frame(future)
+
+        baseline = _control_data(fitted_mmm.create_optimization_model(start, end))
+        actual = _control_data(
+            fitted_mmm.create_optimization_model(start, end, control_data=planned)
+        )
+
+        expected = (
+            planned.set_index(["date_week", "geo"])
+            .to_xarray()
+            .to_dataarray(dim="control")
+            .sel(
+                geo=actual.coords["geo"].values, control=actual.coords["control"].values
+            )
+        )
+        np.testing.assert_array_equal(
+            actual.sel(date=future).transpose("date", "geo", "control").values,
+            expected.transpose("date_week", "geo", "control").values,
+        )
+        carry_in = actual.coords["date"] < future[0]
+        assert int(carry_in.sum()) > 0
+        xr.testing.assert_equal(actual.sel(date=carry_in), baseline.sel(date=carry_in))
+
+    def test_dataarray_matches_dataframe(self, fitted_mmm):
+        start, end, future = _future_window(fitted_mmm)
+        planned = _planned_frame(future)
+        as_array = (
+            planned.set_index(["date_week", "geo"])
+            .to_xarray()
+            .to_dataarray(dim="control")
+            .rename(date_week="date")
+            .transpose("control", "geo", "date")
+        )
+
+        from_frame = fitted_mmm.create_optimization_model(
+            start, end, control_data=planned
+        )
+        from_array = fitted_mmm.create_optimization_model(
+            start, end, control_data=as_array
+        )
+
+        np.testing.assert_array_equal(
+            from_array["control_data"].get_value(),
+            from_frame["control_data"].get_value(),
+        )
+
+    def test_budget_optimizer_forwards_control_data(self, fitted_mmm):
+        start, end, future = _future_window(fitted_mmm)
+        planned = _planned_frame(future)
+
+        optimizer = fitted_mmm.budget_optimizer(start, end, control_data=planned)
+        model = fitted_mmm.create_optimization_model(start, end, control_data=planned)
+
+        np.testing.assert_array_equal(
+            optimizer.model["control_data"].get_value(),
+            model["control_data"].get_value(),
+        )
+
+    def test_dates_after_the_window_are_ignored(self, fitted_mmm):
+        start, end, future = _future_window(fitted_mmm)
+        longer = future.append(
+            pd.date_range(future[-1] + pd.Timedelta(weeks=1), periods=3, freq="W")
+        )
+
+        exact = fitted_mmm.create_optimization_model(
+            start, end, control_data=_planned_frame(future)
+        )
+        extended = fitted_mmm.create_optimization_model(
+            start, end, control_data=_planned_frame(longer)
+        )
+
+        np.testing.assert_array_equal(
+            extended["control_data"].get_value(), exact["control_data"].get_value()
+        )
+
+    @pytest.mark.parametrize(
+        "mutate, match",
+        [
+            pytest.param(
+                lambda df, future, last: pd.concat(
+                    [df, df.iloc[[0]].assign(date_week=last)], ignore_index=True
+                ),
+                "which the training data covers",
+                id="covers-training-dates",
+            ),
+            pytest.param(
+                lambda df, future, last: df[df["date_week"] != future[-1]],
+                "no value, or NaN",
+                id="missing-carry-over-date",
+            ),
+        ],
+    )
+    def test_invalid_dates_raise(self, fitted_mmm, mutate, match):
+        start, end, future = _future_window(fitted_mmm)
+        last = pd.DatetimeIndex(fitted_mmm.xarray_dataset.coords["date"].values).max()
+        planned = mutate(_planned_frame(future), future, last)
+
+        with pytest.raises(ValueError, match=match):
+            fitted_mmm.create_optimization_model(start, end, control_data=planned)
+
+    def test_fractional_plan_survives_integer_controls(self):
+        dates = pd.date_range("2024-01-07", periods=12, freq="W")
+        X = pd.DataFrame(
+            {
+                "date": dates,
+                "channel_1": 1.0,
+                "event": np.arange(12) % 2,
+                "price": np.ones(12, dtype=int),
+            }
+        )
+        mmm = MMM(
+            date_column="date",
+            target_column="y",
+            channel_columns=["channel_1"],
+            control_columns=["event", "price"],
+            adstock=GeometricAdstock(l_max=2),
+            saturation=LogisticSaturation(),
+        )
+        mmm.build_model(X, pd.Series(np.linspace(5, 10, 12)))
+        start, end, future = _future_window(mmm, n_plan=2)
+        planned = pd.DataFrame({"date": future, "event": 0.5, "price": 1.02})
+
+        model = mmm.create_optimization_model(start, end, control_data=planned)
+
+        controls = _control_data(model).sel(date=future)
+        np.testing.assert_allclose(controls.sel(control="event"), 0.5)
+        np.testing.assert_allclose(controls.sel(control="price"), 1.02)
+
+    def test_window_inside_training_raises(self, fitted_mmm):
+        dates = pd.DatetimeIndex(fitted_mmm.xarray_dataset.coords["date"].values)
+        _, _, future = _future_window(fitted_mmm)
+
+        with pytest.raises(ValueError, match="control_data does not apply"):
+            fitted_mmm.create_optimization_model(
+                dates[2], dates[4], control_data=_planned_frame(future)
+            )
+
+    def test_model_without_controls_raises(self, log_link_fitted_mmm):
+        start, end, future = _future_window(log_link_fitted_mmm)
+
+        with pytest.raises(ValueError, match="has no control_columns"):
+            log_link_fitted_mmm.create_optimization_model(
+                start, end, control_data=pd.DataFrame({"date": future, "x": 0.0})
+            )
+
+    def test_log_link_warns_when_future_controls_are_zero_filled(
+        self, log_link_control_fitted_mmm
+    ):
+        start, end, _ = _future_window(log_link_control_fitted_mmm)
+
+        with pytest.warns(UserWarning, match=ZERO_FILL_WARNING):
+            log_link_control_fitted_mmm.create_optimization_model(start, end)
+
+    @pytest.mark.parametrize(
+        "fixture, window, with_control_data",
+        [
+            ("log_link_control_fitted_mmm", "future", True),
+            ("log_link_control_fitted_mmm", "in_sample", False),
+            ("fitted_mmm", "future", False),
+        ],
+    )
+    def test_no_zero_fill_warning(self, request, fixture, window, with_control_data):
+        mmm = request.getfixturevalue(fixture)
+        start, end, future = _future_window(mmm)
+        if window == "in_sample":
+            dates = pd.DatetimeIndex(mmm.xarray_dataset.coords["date"].values)
+            start, end = dates[4], dates[6]
+        control_data = (
+            pd.DataFrame({"date": future, "control_1": 0.5})
+            if with_control_data
+            else None
+        )
+
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            mmm.create_optimization_model(start, end, control_data=control_data)
+
+        assert not [w for w in caught if ZERO_FILL_WARNING in str(w.message)]
+
+    def test_log_link_objective_follows_planned_controls(
+        self, log_link_control_fitted_mmm
+    ):
+        mmm = log_link_control_fitted_mmm
+        start, end, future = _future_window(mmm)
+        plan = xr.DataArray(
+            [1.0, 1.0], dims="channel", coords={"channel": ["channel_1", "channel_2"]}
+        )
+
+        def response(control_data):
+            optimizer = mmm.budget_optimizer(start, end, control_data=control_data)
+            return optimizer.evaluate_response_distribution(plan)
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", UserWarning)
+            default = response(None)
+        zeros = response(pd.DataFrame({"date": future, "control_1": 0.0}))
+        raised = response(pd.DataFrame({"date": future, "control_1": 0.5}))
+
+        xr.testing.assert_allclose(zeros, default)
+        assert not np.allclose(raised.values, zeros.values)

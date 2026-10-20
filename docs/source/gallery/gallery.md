@@ -54,9 +54,19 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :link: ../notebooks/mmm/mmm_sensitivity_analysis.html
 :::
 
+:::{grid-item-card} Current vs Future Media Value: Splitting Contributions by When They Land
+:img-top: ../gallery/images/mmm_current_vs_future_value.png
+:link: ../notebooks/mmm/mmm_current_vs_future_value.html
+:::
+
 :::{grid-item-card} Additive vs Log vs Log-Log MMMs
 :img-top: ../gallery/images/mmm_multiplicative.png
 :link: ../notebooks/mmm/mmm_multiplicative.html
+:::
+
+:::{grid-item-card} Introduction to Mu Effects: Channel Interactions
+:img-top: ../gallery/images/mmm_mu_effects_intro.png
+:link: ../notebooks/mmm/mmm_mu_effects_intro.html
 :::
 
 :::{grid-item-card} Interactive MMM Visualizations
@@ -128,6 +138,11 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :::{grid-item-card} Splitting MMM Channel Impact Across Campaigns
 :img-top: ../gallery/images/mmm_credibility_disaggregation.png
 :link: ../notebooks/mmm/mmm_credibility_disaggregation.html
+:::
+
+:::{grid-item-card} Year-over-Year Target Transform for Highly Seasonal KPIs
+:img-top: ../gallery/images/mmm_yoy_target_transform.png
+:link: ../notebooks/mmm/mmm_yoy_target_transform.html
 :::
 ::::
 
@@ -300,6 +315,11 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :::{grid-item-card} MMM Case Study II: Funnel-Aware Modeling, ROAS Calibration, and Budget Planning
 :img-top: ../gallery/images/mmm_case_study2.png
 :link: ../notebooks/mmm/mmm_case_study2.html
+:::
+
+:::{grid-item-card} Pareto Optimization Across Products with a Shared Media Budget
+:img-top: ../gallery/images/mmm_pareto_optimization_frontier.png
+:link: ../notebooks/mmm/mmm_pareto_optimization.html
 :::
 
 :::{grid-item-card} Integrating Foundational Time Series Models with PyMC-Marketing MMM
