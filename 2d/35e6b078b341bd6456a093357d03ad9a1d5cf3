@@ -1,0 +1,19 @@
+uv.lock
+  s_21f4a970d7eadd::t_620f4828eae8bd 4172,4986,4991,4993
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "2d35e6b078b341bd6456a093357d03ad9a1d5cf3",
+  "prompts": {},
+  "sessions": {
+    "s_21f4a970d7eadd": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a154b0-62ef-77b1-b0a1-987be1cc3f61",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Benjamin T. Vincent <inferencelab@gmail.com>"
+    }
+  }
+}
