@@ -493,12 +493,13 @@ class TestModifiedBetaGeoModel:
             }
         )
 
-        # `T` overrides the column of the fit data.
+        # `T` overrides the `T` column of `data`.
+        subset = self.data.head(20)
         short = mock_model.distribution_new_customer_recency_frequency(
-            T=1, random_seed=42
+            subset, T=1, random_seed=42, n_samples=200
         )
         long = mock_model.distribution_new_customer_recency_frequency(
-            T=100, random_seed=42
+            subset, T=100, random_seed=42, n_samples=200
         )
         assert (
             short.sel(obs_var="frequency").mean() < long.sel(obs_var="frequency").mean()
@@ -509,7 +510,7 @@ class TestModifiedBetaGeoModel:
         # `T` is accepted in place of a `T` column.
         new_customers = pd.DataFrame({"customer_id": [0, 1, 2]})
         rf = mock_model.distribution_new_customer_recency_frequency(
-            new_customers, T=10, random_seed=42
+            new_customers, T=10, random_seed=42, n_samples=200
         )
         assert rf.sizes["customer_id"] == 3
         assert (rf.sel(obs_var="recency") <= 10).all()
