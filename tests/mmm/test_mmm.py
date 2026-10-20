@@ -7734,7 +7734,7 @@ def test_sample_prior_predictive_lognormal_likelihood_without_target(
     # validate_observed rejects, breaking the standard pre-fit
     # prior-predictive call for this likelihood. The ones placeholder that
     # replaces them must be announced, since a later fit on the same
-    # instance would reuse the built model and train on it (#2956).
+    # instance without y would train on it.
     X, _ = lognormal_likelihood_data
     mmm = lognormal_likelihood_mmm
 
@@ -7877,20 +7877,20 @@ def test_sample_prior_predictive_dataframe_embedded_target_normal_likelihood(
     np.testing.assert_array_equal(mmm.xarray_dataset["_target"].values, y.values)
 
 
-def test_fit_after_placeholder_prior_predictive_warns(
+def test_fit_without_y_after_placeholder_prior_predictive_warns(
     lognormal_likelihood_mmm, lognormal_likelihood_data, mock_pymc_sample
 ):
-    # `fit` reuses the model that `sample_prior_predictive` built on the ones
-    # placeholder (#2956), so the posterior is fit to ones; warn where that
+    # Without y, `fit` keeps the ones placeholder that `sample_prior_predictive`
+    # built the model on, so the posterior is fit to ones; warn where that
     # wrong answer appears, not only where the placeholder was substituted.
-    X, y = lognormal_likelihood_data
+    X, _ = lognormal_likelihood_data
     mmm = lognormal_likelihood_mmm
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         mmm.sample_prior_predictive(X, samples=10, random_seed=42)
 
     with pytest.warns(UserWarning, match="fit to the placeholder"):
-        mmm.fit(X, y, chains=1, draws=10, tune=10, random_seed=42)
+        mmm.fit(X, chains=1, draws=10, tune=10, random_seed=42)
 
 
 def test_fit_after_prior_predictive_with_target_does_not_warn(
@@ -7907,3 +7907,202 @@ def test_fit_after_prior_predictive_with_target_does_not_warn(
         mmm.fit(X, y, chains=1, draws=10, tune=10, random_seed=42)
 
     assert not any("placeholder" in str(r.message) for r in records)
+
+
+def _two_channel_mmm(model_config: dict | None = None) -> MMM:
+    return MMM(
+        date_column="date",
+        channel_columns=["channel_1", "channel_2"],
+        target_column="y",
+        adstock=GeometricAdstock(l_max=4),
+        saturation=LogisticSaturation(),
+        model_config=model_config,
+    )
+
+
+def _fit(mmm: MMM, X: pd.DataFrame, y: pd.Series | None = None) -> xr.DataTree:
+    return mmm.fit(X, y, chains=1, draws=10, tune=10, random_seed=42)
+
+
+@pytest.mark.parametrize(
+    "model_config",
+    [
+        None,
+        {
+            "likelihood": LogNormalPrior(
+                std=Prior("HalfNormal", sigma=0.5), dims=("date",)
+            )
+        },
+    ],
+    ids=["normal", "lognormal"],
+)
+def test_fit_after_prior_predictive_without_target_observes_y(
+    lognormal_likelihood_data, mock_pymc_sample, model_config
+):
+    # Regression for #2956: the model built by `sample_prior_predictive`
+    # without y holds a placeholder target (zeros, or ones for LogNormal),
+    # and `fit` used to sample against it instead of y.
+    X, y = lognormal_likelihood_data
+    mmm = _two_channel_mmm(model_config)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        mmm.sample_prior_predictive(X, samples=10, random_seed=42)
+
+    with warnings.catch_warnings(record=True) as records:
+        warnings.simplefilter("always")
+        _fit(mmm, X, y)
+
+    assert not any("placeholder" in str(r.message) for r in records)
+    np.testing.assert_allclose(mmm.model["target_data"].eval(), y)
+    np.testing.assert_allclose(mmm.model["target_scale"].eval(), y.max())
+    np.testing.assert_allclose(mmm.xarray_dataset["_target"], y)
+
+
+def test_refit_with_new_target_keeps_model_and_updates_target(
+    lognormal_likelihood_data, mock_pymc_sample
+):
+    # Regression for #2605: a second fit with the same X and a new y kept
+    # the first target and its scale.
+    X, y = lognormal_likelihood_data
+    mmm = _two_channel_mmm()
+    _fit(mmm, X, y)
+    model = mmm.model
+
+    _fit(mmm, X, 2 * y)
+
+    assert mmm.model is model
+    np.testing.assert_allclose(mmm.model["target_data"].eval(), 2 * y)
+    np.testing.assert_allclose(mmm.model["target_scale"].eval(), 2 * y.max())
+
+
+def test_fit_without_y_keeps_built_target(lognormal_likelihood_data, mock_pymc_sample):
+    X, y = lognormal_likelihood_data
+    mmm = _two_channel_mmm()
+    mmm.build_model(X, y)
+    model = mmm.model
+
+    _fit(mmm, X)
+
+    assert mmm.model is model
+    np.testing.assert_allclose(mmm.model["target_data"].eval(), y)
+    np.testing.assert_allclose(mmm.model["target_scale"].eval(), y.max())
+
+
+@pytest.mark.parametrize("bad_value", [0.0, -1.0], ids=["zero", "negative"])
+def test_fit_lognormal_likelihood_nonpositive_target_raises_on_built_model(
+    lognormal_likelihood_mmm, lognormal_likelihood_data, bad_value
+):
+    X, y = lognormal_likelihood_data
+    mmm = lognormal_likelihood_mmm
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        mmm.sample_prior_predictive(X, samples=10, random_seed=42)
+    y.iloc[3] = bad_value
+
+    with pytest.raises(ValueError, match="strictly positive"):
+        _fit(mmm, X, y)
+    # The rejected target must not be left in the model.
+    np.testing.assert_array_equal(mmm.model["target_data"].eval(), 1.0)
+
+
+def test_refit_with_float_target_after_int_target(
+    lognormal_likelihood_data, mock_pymc_sample
+):
+    # An int target (unit sales) must not make `target_data` an int node that
+    # truncates, or rejects, the target of a later fit.
+    X, y = lognormal_likelihood_data
+    mmm = _two_channel_mmm()
+    _fit(mmm, X, y.round().astype(int))
+
+    _fit(mmm, X, y)
+
+    np.testing.assert_allclose(mmm.model["target_data"].eval(), y)
+
+
+def test_refit_with_new_dates_rebuilds_model(
+    lognormal_likelihood_data, mock_pymc_sample
+):
+    # A new X can change the coords and the channel scale, which the built
+    # graph cannot take, so the second fit rebuilds the model.
+    X, y = lognormal_likelihood_data
+    mmm = _two_channel_mmm()
+    mmm.sample_prior_predictive(X, y, samples=10, random_seed=42)
+    _fit(mmm, X, y)
+
+    X_new = X.iloc[5:].assign(channel_1=lambda df: df["channel_1"] * 2)
+    y_new = y.iloc[5:]
+    _fit(mmm, X_new, y_new)
+
+    # The prior was sampled from the old model, on the old dates.
+    assert "prior" not in mmm.idata.children
+    np.testing.assert_array_equal(
+        mmm.idata.posterior.coords["date"].values, X_new["date"].values
+    )
+    np.testing.assert_allclose(
+        mmm.model["channel_scale"].eval(),
+        X_new[["channel_1", "channel_2"]].max().to_numpy(),
+    )
+    np.testing.assert_allclose(mmm.model["target_data"].eval(), y_new)
+
+
+def test_fit_with_frame_after_building_from_richer_dataset_keeps_model(
+    lognormal_likelihood_data, mock_pymc_sample
+):
+    # A model built from a Dataset with variables a DataFrame cannot carry is
+    # fit with the equivalent DataFrame; that must not count as a new X.
+    from pymc_marketing.mmm.data_conversion import to_mmm_dataset
+
+    X, y = lognormal_likelihood_data
+    dataset = to_mmm_dataset(
+        X, None, date_column="date", channel_columns=["channel_1", "channel_2"]
+    )
+    dataset["extra"] = dataset["_channel"].sum("channel")
+    y_da = xr.DataArray(y.to_numpy(), dims=("date",), coords={"date": dataset.date})
+    mmm = _two_channel_mmm()
+    mmm.build_model(X=dataset, y=y_da)
+    mmm.add_original_scale_contribution_variable(var=["channel_contribution"])
+    model = mmm.model
+
+    _fit(mmm, X, y)
+
+    assert mmm.model is model
+    assert "extra" in mmm.xarray_dataset
+    assert "channel_contribution_original_scale" in mmm.idata.posterior
+
+
+def test_refit_that_changes_scales_after_lift_tests_raises(lognormal_likelihood_data):
+    # Lift-test rows are scaled with the scales at the time they are added,
+    # so they would be stale after a fit that changes those scales.
+    X, y = lognormal_likelihood_data
+    mmm = _two_channel_mmm()
+    mmm.build_model(X, y)
+    mmm.add_lift_test_measurements(
+        pd.DataFrame(
+            {
+                "channel": ["channel_1"],
+                "x": [10.0],
+                "delta_x": [5.0],
+                "delta_y": [10.0],
+                "sigma": [2.0],
+            }
+        )
+    )
+
+    with pytest.raises(ValueError, match="lift tests"):
+        _fit(mmm, X, 2 * y)
+
+
+def test_refit_with_new_X_after_adding_variables_raises(
+    lognormal_likelihood_data, mock_pymc_sample
+):
+    # A rebuild would silently drop variables added after the build, such as
+    # calibrations or original-scale contributions.
+    X, y = lognormal_likelihood_data
+    mmm = _two_channel_mmm()
+    mmm.build_model(X, y)
+    mmm.add_original_scale_contribution_variable(var=["channel_contribution"])
+    _fit(mmm, X, y)
+
+    with pytest.raises(ValueError, match="channel_contribution_original_scale"):
+        _fit(mmm, X.iloc[5:], y.iloc[5:])
+    assert "channel_contribution_original_scale" in mmm.model.named_vars
