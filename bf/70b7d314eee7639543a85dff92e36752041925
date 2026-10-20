@@ -1,0 +1,29 @@
+docs/requirements.txt
+  s_21f4a970d7eadd::t_ed6f181cf57ae7 1-4
+.github/workflows/docs.yml
+  s_21f4a970d7eadd::t_ed6f181cf57ae7 55
+docs/source/conf.py
+  s_21f4a970d7eadd::t_6164b2c9e2b1a5 11,393-411,419
+pyproject.toml
+  s_21f4a970d7eadd::t_8a65740841206c 76
+.readthedocs.yml
+  s_21f4a970d7eadd::t_ed6f181cf57ae7 35
+uv.lock
+  s_21f4a970d7eadd::t_dd602004c7c955 4172,4986,4991,4993
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "bf70b7d314eee7639543a85dff92e36752041925",
+  "prompts": {},
+  "sessions": {
+    "s_21f4a970d7eadd": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a154b0-62ef-77b1-b0a1-987be1cc3f61",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Benjamin T. Vincent <inferencelab@gmail.com>"
+    }
+  }
+}
