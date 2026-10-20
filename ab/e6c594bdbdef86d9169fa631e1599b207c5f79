@@ -1,0 +1,19 @@
+docs/source/notebooks/mmm/mmm_multi_arm_geolift_calibration.ipynb
+  s_ff92373a24a7d0::t_c6c3856895b64c 11,17-18,39-41,328-329,331-342,344-346,348-352,354,356-358,360-364,366,368-370,372-376,378,380-382,384-388,390-394,396,398-406,408,410-413,415-427,429,431-433,435-439,441-447,449-464,479-520,529-531
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "abe6c594bdbdef86d9169fa631e1599b207c5f79",
+  "prompts": {},
+  "sessions": {
+    "s_ff92373a24a7d0": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1544d-1b42-75d0-9f6b-5e0eba4eac3e",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Benjamin T. Vincent <inferencelab@gmail.com>"
+    }
+  }
+}
