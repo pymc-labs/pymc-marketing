@@ -1371,6 +1371,69 @@ def test_conditioned_model_extract_is_cached_by_key(conditioned_slope):
     assert conditioned_slope.extract("tripled") is other_graph
 
 
+def _derived_responses(conditioned, *factors):
+    """Distinct derived nodes over the clone, one per factor."""
+    return [conditioned.model["doubled"] * factor for factor in factors]
+
+
+def test_conditioned_model_cache_evicts_the_least_recent_key(
+    conditioned_slope, monkeypatch
+):
+    """N+1 distinct derived keys leave N entries: the oldest one is dropped."""
+    monkeypatch.setattr("pymc_marketing.pytensor_utils._GRAPH_CACHE_SIZE", 2)
+    first, second, third = _derived_responses(conditioned_slope, 2.0, 3.0, 4.0)
+
+    for node in (first, second, third):
+        conditioned_slope.extract(node)
+
+    assert [key[0] for key in conditioned_slope._cache] == [second, third]
+
+
+def test_conditioned_model_cache_hit_refreshes_recency(conditioned_slope, monkeypatch):
+    """A hit marks its key as most recent, so a later insert evicts the untouched one."""
+    monkeypatch.setattr("pymc_marketing.pytensor_utils._GRAPH_CACHE_SIZE", 2)
+    first, second, third = _derived_responses(conditioned_slope, 2.0, 3.0, 4.0)
+
+    first_graph = conditioned_slope.extract(first)
+    conditioned_slope.extract(second)
+    assert conditioned_slope.extract(first) is first_graph  # a hit, no new entry
+    conditioned_slope.extract(third)
+
+    assert [key[0] for key in conditioned_slope._cache] == [first, third]
+
+
+def test_conditioned_model_evicted_key_reextracts_and_follows_a_later_rebind(
+    slope_posteriors, monkeypatch
+):
+    """An evicted key is a miss, so it re-extracts onto the shared binding.
+
+    Eviction drops the entry only: the graph handed out before it still reads the
+    shared variables and still works, and the re-extracted graph follows a later
+    rebind without another rebind-time re-extraction.
+    """
+    model, data_values, _, second, third = slope_posteriors
+    conditioned = ConditionedModel(
+        model, second, intervention={"data": data_values}, share_posterior=True
+    )
+    monkeypatch.setattr("pymc_marketing.pytensor_utils._GRAPH_CACHE_SIZE", 1)
+    kept, evicting = _derived_responses(conditioned, 2.0, 3.0)
+
+    kept_graph = conditioned.extract(kept)
+    conditioned.extract(evicting)  # the cap of one evicts ``kept``
+    assert [key[0] for key in conditioned._cache] == [evicting]
+
+    re_extracted = conditioned.extract(kept)
+    assert re_extracted is not kept_graph
+    np.testing.assert_allclose(
+        function([], kept_graph)(), 2.0 * _expected_doubled(second, data_values)
+    )
+
+    conditioned.set_posterior(third)
+    np.testing.assert_allclose(
+        function([], re_extracted)(), 2.0 * _expected_doubled(third, data_values)
+    )
+
+
 def test_conditioned_model_names_distinguish_shared_name(
     conditioned_slope, slope_posteriors
 ):

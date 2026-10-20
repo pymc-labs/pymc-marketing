@@ -16,7 +16,7 @@
 
 import contextlib
 import warnings
-from collections import Counter
+from collections import Counter, OrderedDict
 from collections.abc import Callable, Iterator, Mapping, Sequence
 from typing import NamedTuple, cast, overload
 
@@ -802,11 +802,8 @@ def _apply_intervention(
         return do(model, dict(intervention))
 
 
-class _ExtractKey(NamedTuple):
-    """Cache key of a conditioned extraction."""
-
-    names: tuple[str | Variable, ...]
-    frozen_deterministics: tuple[str, ...]
+_GRAPH_CACHE_SIZE = 32
+"""Number of extractions a :class:`ConditionedModel` caches before evicting the least recent."""
 
 
 class _CachedGraphs(NamedTuple):
@@ -825,11 +822,23 @@ class ConditionedModel:
     rebinding them as the posterior moves, so the "intervene, condition, extract,
     compile" dance is owned here instead of by each consumer.
 
-    Extraction is cached by ``(response names, frozen deterministics)``.
-    Repeated :meth:`extract` of the same key returns the identical graph.
+    Extraction is cached by response names alone: ``frozen_deterministics`` is
+    fixed per instance, so it cannot tell two extractions apart.
+    The cache is a small LRU, bounded by the module constant ``_GRAPH_CACHE_SIZE``.
+    Repeated :meth:`extract` of a cached key returns the identical graph, while a
+    caller that builds a new derived node on every call keeps at most that many
+    entries and evicts the least recently used.
+    Eviction only drops the cache entry: a graph already handed out keeps working,
+    and a compiled function keeps reading the shared variables it was built over.
+    A caller that derives a node per call should pass ``cache=False`` to
+    :meth:`extract` instead of relying on eviction.
     By default the draws enter as constants until the first :meth:`set_posterior`, keeping constant folding.
     With ``share_posterior=True`` they enter through a :class:`SharedPosterior` from the first :meth:`extract`.
     No rebind then re-extracts; even the first only swaps draws.
+
+    Once the graphs share a binding, it holds at most the model's free RVs plus
+    the frozen deterministics: its variables are keyed by posterior variable
+    name, so caching many derived graphs never adds a variable beyond those names.
 
     A variable is validated when a graph reads it, against that variable's layout in the construction posterior.
     A posterior variable no graph reads is never checked, so a refit posterior whose unread date axis moved is accepted.
@@ -913,7 +922,9 @@ class ConditionedModel:
         self._shared_posterior: SharedPosterior | None = (
             SharedPosterior() if share_posterior else None
         )
-        self._cache: dict[_ExtractKey, _CachedGraphs] = {}
+        self._cache: OrderedDict[tuple[str | Variable, ...], _CachedGraphs] = (
+            OrderedDict()
+        )
         self._callbacks: list[Callable[[], None]] = []
 
     @property
@@ -976,16 +987,20 @@ class ConditionedModel:
             A graph that reads an input from outside the intervened model is refused.
             A sequence extracts every variable in one pass, so a subgraph they share stays shared in the result.
         cache : bool, default True
-            Whether to keep the extraction for :meth:`set_posterior` to drop or rebind.
+            Whether to keep the extraction in the LRU cache for :meth:`set_posterior` to drop or rebind.
             A cached graph is the long-lived kind.
             Its variables are validated when a graph reads them, against the construction posterior.
             After the first rebind a re-extraction reads shared variables, so it follows every later rebind.
             A graph handed out before the first rebind does not: re-extract it, or register a callback that does.
+            A repeated call for a cached key returns the identical graph, and marks that key as the most
+            recently used, so a cache that fills evicts the least recently used key instead.
+            Eviction only drops the entry; a compiled function keeps reading its shared variables.
             A caller that passes ``cache=False`` gets a graph conditioned on the current draws as constants instead.
             It registers nothing on the shared posterior.
             A later rebind to a posterior without those variables therefore still succeeds.
-            A caller that builds a fresh derived node per call should pass ``cache=False``.
-            Nothing tracks that graph across a rebind, so a consumer re-extracts it after a rebind.
+            That is the path for a caller that builds a fresh derived node per call: the cache is bounded,
+            so each new node would evict another key and be re-extracted on every miss.
+            Nothing tracks a one-shot graph across a rebind, so a consumer re-extracts it after a rebind.
 
         Returns
         -------
@@ -1021,11 +1036,19 @@ class ConditionedModel:
             # posterior, so it registers no variable a later rebind would need.
             graphs = self._extract(resolved, None, self._posterior)
             return graphs[0] if single else list(graphs)
-        cache_key = _ExtractKey(self._names(resolved), self.frozen_deterministics)
-        if cache_key not in self._cache:
+        cache_key = self._names(resolved)
+        cached = self._cache.get(cache_key)
+        if cached is None:
             graphs = self._extract(resolved, self._shared_posterior, self._posterior)
-            self._cache[cache_key] = _CachedGraphs(resolved, graphs)
-        graphs = self._cache[cache_key].graphs
+            cached = _CachedGraphs(resolved, graphs)
+            self._cache[cache_key] = cached
+            # Eviction only drops the entry.  A graph already handed out keeps
+            # working, and a compiled function keeps reading its shared variables.
+            while len(self._cache) > _GRAPH_CACHE_SIZE:
+                self._cache.popitem(last=False)
+        else:
+            self._cache.move_to_end(cache_key)
+        graphs = cached.graphs
         # Hand out a fresh list every call: the cached one is shared by every
         # consumer, so a caller mutating what it got back must not corrupt it.
         # The graph elements themselves stay identical.
@@ -1079,6 +1102,8 @@ class ConditionedModel:
 
         A callback that extracts a new key during a rebind adds it to the cache.
         If a first rebind fails and is rolled back, the cache returns to its previous state and drops those entries.
+        The cache is bounded, so a callback that extracts more keys than it holds evicts the least recently used
+        ones; an evicted key is simply extracted again on the next request.
         """
         posterior = self._realigned(_posterior_dataset(idata))
         previous_cache = self._cache
@@ -1104,7 +1129,7 @@ class ConditionedModel:
         # First rebind with a cache: drop the constant graphs, install a fresh
         # binding and let the callbacks re-request only what they use.  A stale
         # inspection key or a replaced constraint therefore never binds.
-        self._cache = {}
+        self._cache = OrderedDict()
         self._shared_posterior = SharedPosterior()
         self._posterior = posterior
         try:
