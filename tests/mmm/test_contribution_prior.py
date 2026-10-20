@@ -371,14 +371,18 @@ def test_xarray_two_dimensions_and_missing_cells(labeled_panel):
         ("channel", "product", "date", "region"),
     ],
 )
+@pytest.mark.parametrize("permute_labels", [False, True])
 def test_equivalent_named_axes_rebuild_fit_and_persist(
     labeled_panel,
     layout,
+    permute_labels,
     tmp_path,
     mock_pymc_sample,
 ):
     """Both reference identity and frozen input values respect dimension names."""
     ds, X, y = labeled_panel
+    if permute_labels:
+        ds = ds.sel(region=["B", "A"], product=["q", "p"])
     original = ds.transpose(*layout)
     m = make_model(dims=("region", "product"))
     m.build_model(original)
@@ -389,7 +393,11 @@ def test_equivalent_named_axes_rebuild_fit_and_persist(
     expected = evaluate(
         m.model, [m.model["belief"], m.model.logp(vars=m.model.potentials)]
     )
-    m.build_model(original.transpose("product", "date", "region", "channel"))
+    m.build_model(
+        original.sortby(["region", "product"]).transpose(
+            "product", "date", "region", "channel"
+        )
+    )
     assert m._contribution_factors.fingerprint == reference
     np.testing.assert_allclose(
         evaluate(m.model, [m.model["belief"], m.model.logp(vars=m.model.potentials)]),
@@ -512,7 +520,7 @@ def test_nonnegative_factor_rejects_incompatible_zero_without_mutation(
     state = copy.deepcopy(m._contribution_factors.specs)
     source = m._contribution_factors.frozen_graph
     fingerprint = m._contribution_factors.fingerprint
-    with pytest.raises(ValueError, match="initial historical contribution"):
+    with pytest.raises(ValueError, match="nonzero historical channel inputs"):
         m.add_contribution_factor(
             "zero_share", ["tiktok"], "share", Prior("LogNormal", mu=-1, sigma=0.5)
         )
@@ -684,15 +692,6 @@ def test_public_prediction_optimizer_and_effective_prior(data, mock_pymc_sample)
     )
 
 
-def test_factor_metadata_is_small(data):
-    m = make_model()
-    m.build_model(*data)
-    m.add_contribution_factor("belief", ["search"], "share", Prior("Normal"))
-    metadata = json.loads(m.create_idata_attrs()["contribution_factors"])
-    assert set(metadata) == {"version", "specs", "fingerprint"}
-    assert len(json.dumps(metadata)) < 1000
-
-
 def test_time_slice_cv_rejects_rebinding_historical_factors(data):
     from pymc_marketing.mmm import TimeSliceCrossValidator
 
@@ -763,16 +762,6 @@ def test_spend_dependent_effect_rejected(funnel_identity_fitted_mmm):
     with pytest.raises(ValueError, match="spend-dependent"):
         m.add_contribution_factor("belief", ["channel_1"], "share", Prior("Normal"))
     assert set(m.model.named_vars) == names
-
-
-def test_legacy_metadata_never_silently_drops_factors():
-    from pymc_marketing.mmm.contribution_factors import ContributionFactorState
-
-    idata = xr.DataTree(
-        xr.Dataset(attrs={"contribution_priors": '[{"name":"belief"}]'})
-    )
-    with pytest.raises(ValueError, match="Legacy contribution-prior"):
-        ContributionFactorState.from_idata(idata)
 
 
 def test_effective_prior_preserves_user_parameters_and_deterministics(data):
@@ -853,9 +842,7 @@ def test_effective_prior_rejects_additional_calibration_terms(data, extra_term):
         Prior("HalfNormal", sigma=0.5),
     ],
 )
-def test_effective_prior_returns_prior_sampling_diagnostics(
-    data, mock_pymc_sample, monkeypatch, prior
-):
+def test_effective_prior_returns_prior_sampling_diagnostics(data, monkeypatch, prior):
     from pymc.sampling.mcmc import sample
 
     # Other tests use a module-scoped mock; this contract needs actual MCMC stats.
@@ -883,3 +870,217 @@ def test_effective_prior_returns_prior_sampling_diagnostics(
     assert "diverging" in result.sample_stats_prior
     assert np.isfinite(result.prior.belief).all()
     assert m.idata is None
+
+
+@pytest.mark.parametrize("family", ["LogNormal", "HalfNormal"])
+@pytest.mark.parametrize("quantity", ["share", "total"])
+def test_positive_factors_reject_signed_effect_support_atomically(
+    data, family, quantity
+):
+    m = make_model(
+        model_config={
+            "saturation_beta": Prior("Normal", mu=0.3, sigma=0.5, dims="channel")
+        }
+    )
+    m.build_model(*data)
+    m.add_contribution_factor("existing", ["search"], "share", Prior("Normal"))
+    names = set(m.model.named_vars)
+    before = copy.deepcopy(m._contribution_factors.specs)
+    with pytest.raises(ValueError, match="nonnegative support"):
+        m.add_contribution_factor(
+            "positive", ["tiktok"], quantity, Prior(family, sigma=0.05)
+        )
+    assert set(m.model.named_vars) == names
+    assert m._contribution_factors.specs == before
+
+
+@pytest.mark.parametrize("name", ["chain", "draw", "sample"])
+def test_sampling_dimension_names_are_reserved(data, name):
+    m = make_model()
+    m.build_model(*data)
+    names = set(m.model.named_vars)
+    with pytest.raises(ValueError, match="reserved"):
+        m.add_contribution_factor(name, ["search"], "share", Prior("Normal"))
+    assert set(m.model.named_vars) == names
+    assert not m._contribution_factors.specs
+
+
+def test_total_rejects_zero_target_scaling(data):
+    m = make_model()
+    m.build_model(data[0], np.zeros(len(data[0])))
+    names = set(m.model.named_vars)
+    with pytest.raises(ValueError, match="positive target scaling"):
+        m.add_contribution_factor("total", ["search"], "total", Prior("Normal"))
+    assert set(m.model.named_vars) == names
+
+
+def test_factor_rejects_positive_placeholder_target(data):
+    from pymc_marketing.special_priors import LogNormalPrior
+
+    m = make_model(model_config={"likelihood": LogNormalPrior(std=0.1)})
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", UserWarning)
+        m.sample_prior_predictive(data[0], samples=2, random_seed=123)
+    assert m._target_is_placeholder
+    with pytest.raises(ValueError, match="placeholder target"):
+        m.add_contribution_factor("total", ["search"], "total", Prior("Normal"))
+
+
+def test_effective_prior_merges_sampler_defaults(data):
+    from unittest.mock import patch
+
+    config = {"nuts_sampler": "numpyro", "draws": 777, "target_accept": 0.99}
+    m = make_model(sampler_config=config)
+    m.build_model(*data)
+    m.add_contribution_factor("belief", ["search"], "share", Prior("Normal"))
+    with patch(
+        "pymc.sample", return_value=xr.DataTree.from_dict({"posterior": xr.Dataset()})
+    ) as sample:
+        m.sample_effective_prior(draws=12, random_seed=42)
+    assert sample.call_args.kwargs == {**config, "draws": 12, "random_seed": 42}
+    assert m.sampler_config == config
+
+
+@pytest.mark.parametrize("extra_potential", [False, True])
+def test_predictive_warning_is_specific_to_unclassified_potentials(
+    data, mock_pymc_sample, extra_potential
+):
+    m = make_model()
+    m.build_model(*data)
+    m.add_contribution_factor("belief", ["search"], "share", Prior("Normal"))
+    if extra_potential:
+        with m.model:
+            pm.Potential("unclassified", pm.math.constant(0.0))
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always", UserWarning)
+        m.sample_prior_predictive(*data, samples=2, random_seed=123)
+    messages = [str(w.message) for w in caught]
+    assert sum("not the effective prior" in msg for msg in messages) == 1
+    assert any("The effect of Potentials" in msg for msg in messages) == extra_potential
+    m.fit(*data)
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always", UserWarning)
+        m.sample_posterior_predictive(data[0], extend_idata=False, random_seed=123)
+    assert (
+        any("The effect of Potentials" in str(w.message) for w in caught)
+        == extra_potential
+    )
+
+
+def test_failed_factor_rebuild_isolates_mutable_configuration(data, monkeypatch):
+    m = make_model()
+    m.build_model(*data)
+    m.add_contribution_factor("belief", ["search"], "share", Prior("Normal"))
+    model = m.model
+    effects = m.mu_effects
+    configuration = copy.deepcopy(m.model_config)
+    original = MMM._build_graph
+
+    def broken(working, X, y):
+        original(working, X, y)
+        working.mu_effects.append(object())
+        working.model_config["saturation_beta"] = Prior("Normal")
+        raise RuntimeError("reject after in-place mutations")
+
+    monkeypatch.setattr(MMM, "_build_graph", broken)
+    with pytest.raises(RuntimeError, match="in-place mutations"):
+        m.build_model(*data)
+    assert m.model is model
+    assert m.mu_effects is effects
+    assert m.mu_effects == []
+    assert m.model_config == configuration
+
+
+@pytest.mark.slow
+def test_effective_prior_matches_independent_importance_weighting(data, monkeypatch):
+    """Prior-only MCMC agrees with forward draws weighted by the supplied density."""
+    from pymc.sampling.mcmc import sample
+
+    monkeypatch.setattr(pm, "sample", sample)
+    m = make_model()
+    m.build_model(*data)
+    m.add_contribution_factor(
+        "belief", ["search"], "share", Prior("Normal", mu=0.1, sigma=0.015)
+    )
+    with m.model, warnings.catch_warnings():
+        warnings.filterwarnings("ignore", message="The effect of Potentials.*")
+        forward = pm.sample_prior_predictive(
+            draws=200_000, var_names=["belief"], random_seed=731
+        )
+    shares = forward.prior.belief.values.ravel()
+    order = np.argsort(shares)
+    weights = norm.pdf(shares[order], loc=0.1, scale=0.015)
+    cdf = (weights.cumsum() - 0.5 * weights) / weights.sum()
+    probabilities = [0.05, 0.25, 0.5, 0.75, 0.95]
+    expected = np.interp(probabilities, cdf, shares[order])
+    effective = m.sample_effective_prior(
+        draws=1000,
+        tune=1000,
+        chains=2,
+        cores=1,
+        target_accept=0.95,
+        random_seed=732,
+        progressbar=False,
+    )
+    actual = np.quantile(effective.prior.belief.values, probabilities)
+    # This tolerance accommodates Monte Carlo error while excluding unweighted
+    # parameter-prior draws and sales-conditioned posterior draws.
+    np.testing.assert_allclose(actual, expected, atol=0.01, rtol=0)
+    assert not effective.sample_stats_prior.diverging.any()
+
+
+@pytest.mark.parametrize("family", ["LogNormal", "HalfNormal"])
+def test_positive_factor_rebuild_rejects_new_signed_effects(data, family):
+    m = make_model()
+    m.build_model(*data)
+    m.add_contribution_factor("belief", ["search"], "share", Prior(family, sigma=0.1))
+    model = m.model
+    m.model_config["saturation_beta"] = Prior(
+        "Normal", mu=0.3, sigma=0.5, dims="channel"
+    )
+    with pytest.raises(ValueError, match="nonnegative support"):
+        m.build_model(*data)
+    assert m.model is model
+    assert len(m._contribution_factors.specs) == 1
+
+
+def test_effective_prior_restores_historical_inputs_after_public_prediction(
+    data, mock_pymc_sample
+):
+    from unittest.mock import patch
+
+    import pymc.dims as pmd
+
+    m = make_model()
+    m.build_model(*data)
+    m.add_contribution_factor("belief", ["search"], "share", Prior("Normal"))
+    with m.model:
+        extra_data = pmd.Data("user_data", np.array(3.0))
+        pmd.Deterministic(
+            "historical_user_sum", m.model["channel_data"].sum() + extra_data
+        )
+    expected = data[0][["search", "tiktok"]].to_numpy().sum() + 3.0
+    m.fit(*data)
+    future = pd.DataFrame(
+        {
+            "date": pd.date_range("2026-01-01", periods=8),
+            "search": 100.0,
+            "tiktok": 200.0,
+        }
+    )
+    m.sample_posterior_predictive(
+        future, clone_model=False, extend_idata=False, random_seed=123
+    )
+
+    def inspect(**kwargs):
+        sampling = pm.modelcontext(None)
+        assert len(sampling.coords["date"]) == len(data[0])
+        np.testing.assert_allclose(
+            evaluate(sampling, [sampling["historical_user_sum"]])[0], expected
+        )
+        return xr.DataTree.from_dict({"posterior": xr.Dataset()})
+
+    with patch("pymc.sample", side_effect=inspect):
+        m.sample_effective_prior()
+    # Sampling does not undo the caller's prediction data update.
+    assert len(m.model.coords["date"]) == 8

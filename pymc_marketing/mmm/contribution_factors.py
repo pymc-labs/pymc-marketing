@@ -92,8 +92,8 @@ def _validate_factor_spec(
         for v in prior.parameters.values()
     ):
         raise ValueError("prior parameters must be fixed finite scalars")
-    # These nonnegative families have bounded densities. Other families can
-    # have poles at zero, making products of overlapping factors improper.
+    # Initially support only these two nonnegative families. This is an
+    # explicit API allowlist, not a classification of all bounded densities.
     if prior.preliz.support != (-np.inf, np.inf) and prior.distribution not in (
         "LogNormal",
         "HalfNormal",
@@ -116,6 +116,8 @@ def _validate_factor_spec(
 
 def _training_fingerprint(dataset: xr.Dataset, mask: xr.DataArray) -> str:
     """Hash named cells canonically, independently of physical axis order."""
+    dataset = dataset.sortby(list(dataset.dims))
+    mask = mask.sortby(list(mask.dims))
     digest = hashlib.sha256()
     for name, value in sorted(dataset.data_vars.items()):
         value = value.transpose(*sorted(value.dims))
@@ -169,32 +171,48 @@ class ContributionFactorState:
             )
 
     @contextmanager
-    def rebuilding(self, mmm: MMM, X: Any, y: Any) -> Iterator[None]:
+    def rebuilding(self, mmm: MMM, X: Any, y: Any) -> Iterator[MMM]:
         """Build into fresh state; publish it only after every factor restores."""
         self.validate_reference(mmm, X, y)
-        with self.transaction(mmm):
-            candidate = ContributionFactorState()
-            mmm._contribution_factors = candidate
-            yield
-            if self.restoring:
-                candidate.mask = self.mask
-            candidate._capture_inputs(mmm)
-            if self.specs:
-                candidate._validate_model(mmm)
-                for spec in self.specs:
-                    candidate._register_factor(mmm, spec)
+        # Factor rebuilds are staged on an isolated configuration, including
+        # mutable MuEffects/HSGPs. Plain MMM builds retain their existing behavior.
+        working = self.isolated_configuration(mmm) if self.specs else mmm
+        candidate = ContributionFactorState()
+        working._contribution_factors = candidate
+        yield working
+        if self.restoring:
+            candidate.mask = self.mask
+        candidate._capture_inputs(working)
+        if self.specs:
+            candidate._validate_model(working)
+            for spec in self.specs:
+                candidate._register_factor(working, spec)
+        if working is not mmm:
+            mmm.__dict__.update(working.__dict__)
 
     @staticmethod
+    def isolated_configuration(mmm: MMM) -> MMM:
+        """Copy mutable build configuration, sharing the old graph and trace."""
+        memo = {id(mmm.model): mmm.model} if hasattr(mmm, "model") else {}
+        if mmm.idata is not None:
+            memo[id(mmm.idata)] = mmm.idata
+        return copy.deepcopy(mmm, memo)
+
     @contextmanager
-    def transaction(mmm: MMM) -> Iterator[None]:
-        """Restore the previous model and definitions after an unsuccessful update."""
-        previous = mmm.__dict__.copy()
-        try:
+    def predicting(self, mmm: MMM) -> Iterator[None]:
+        """Hide only PyMC's redundant warning for classified contribution factors."""
+        expected = {f"{spec['name']}_factor" for spec in self.specs}
+        only_factors = (
+            bool(expected) and {v.name for v in mmm.model.potentials} == expected
+        )
+        with warnings.catch_warnings():
+            if only_factors:
+                warnings.filterwarnings(
+                    "ignore",
+                    message="The effect of Potentials on other parameters is ignored during .*predictive sampling.*",
+                    category=UserWarning,
+                )
             yield
-        except Exception:
-            mmm.__dict__.clear()
-            mmm.__dict__.update(previous)
-            raise
 
     def _capture_inputs(self, mmm: MMM) -> None:
         """Copy only mutable ancestors of the original-scale contribution."""
@@ -251,11 +269,19 @@ class ContributionFactorState:
             quantity,
             prior,
             channel_columns=mmm.channel_columns,
-            reserved_names=set(mmm.model.named_vars) | set(mmm.model.coords),
+            reserved_names=set(mmm.model.named_vars)
+            | set(mmm.model.coords)
+            | {"chain", "draw", "sample"},
         )
-        if not np.all(np.isfinite(self.inputs["target_scale"])):
+        if getattr(mmm, "_target_is_placeholder", False):
             raise ValueError(
-                "Original-unit contributions require finite target scaling"
+                "Contributions require real observed outcomes, not a placeholder target"
+            )
+        if not np.all(np.isfinite(self.inputs["target_scale"])) or not np.all(
+            self.inputs["target_scale"] > 0
+        ):
+            raise ValueError(
+                "Original-unit contributions require finite positive target scaling"
             )
         if self.mask is None or not bool(self.mask.any()):
             raise ValueError("Contributions require finite observed training outcomes")
@@ -266,7 +292,8 @@ class ContributionFactorState:
             )
         # Only make a sign claim when this model's amplitude support establishes it.
         beta = mmm.model_config.get("saturation_beta")
-        if isinstance(beta, Prior) and beta.preliz.support[0] >= 0:
+        nonnegative_effects = isinstance(beta, Prior) and beta.preliz.support[0] >= 0
+        if nonnegative_effects:
             try:
                 log_negative_mass = pm.logcdf(
                     prior.pymc_distribution.dist(**prior.parameters), 0
@@ -285,6 +312,30 @@ class ContributionFactorState:
                     )
         self._register_factor(mmm, spec)
 
+    def _validate_component_support(
+        self, mmm: MMM, channels: Collection[str], prior: Prior
+    ) -> None:
+        """Prevent nonnegative factors from truncating signed channel effects."""
+        if prior.distribution in ("LogNormal", "HalfNormal"):
+            beta = mmm.model_config.get("saturation_beta")
+            if not isinstance(beta, Prior) or beta.preliz.support[0] < 0:
+                raise ValueError(
+                    "LogNormal/HalfNormal factors require channel-effect priors "
+                    "with nonnegative support; signed or unknown effects are unsupported"
+                )
+            if prior.distribution == "LogNormal":
+                channels_data = xr.DataArray(
+                    self.inputs["channel_data"],
+                    dims=mmm.model["channel_data"].dims,
+                    coords={
+                        d: mmm.model_coords[d] for d in mmm.model["channel_data"].dims
+                    },
+                )
+                if not bool((channels_data.sel(channel=list(channels)) > 0).any()):
+                    raise ValueError(
+                        "LogNormal factors require nonzero historical channel inputs"
+                    )
+
     def _freeze_training_contribution_graph(self, mmm: MMM) -> Any:
         """Reuse the original-scale transform, sharing RVs but fixing Data."""
         source = mmm._link_spec.original_scale_transform(
@@ -301,16 +352,22 @@ class ContributionFactorState:
 
     def _register_factor(self, mmm: MMM, spec: dict[str, Any]) -> None:
         """Register one scalar aggregate and differentiable log-density factor."""
-        source = self.frozen_graph
-        if source is None:
-            source = self._freeze_training_contribution_graph(mmm)
-        indices = [mmm.channel_columns.index(c) for c in spec["channels"]]
-        total = source.isel(channel=indices).where(as_xtensor(self.mask), 0).sum()
-        denominator = float(mmm.xarray_dataset["_target"].where(self.mask, 0).sum())
-        value = total / denominator if spec["quantity"] == "share" else total
         prior = serialization.deserialize_model_config({"prior": spec["prior"]})[
             "prior"
         ]
+        self._validate_component_support(mmm, spec["channels"], prior)
+        source = self.frozen_graph
+        if source is None:
+            source = self._freeze_training_contribution_graph(mmm)
+        # Resolve selections and the observation mask against the historical
+        # labels, never the mutable prediction coordinates.
+        indices = pd.Index(mmm.model_coords["channel"]).get_indexer(spec["channels"])
+        if self.mask is None:
+            raise ValueError("Contributions require an observed training mask")
+        mask = self.mask.reindex({dim: mmm.model_coords[dim] for dim in self.mask.dims})
+        total = source.isel(channel=indices).where(as_xtensor(mask), 0).sum()
+        denominator = float(mmm.xarray_dataset["_target"].where(self.mask, 0).sum())
+        value = total / denominator if spec["quantity"] == "share" else total
         value_aggregate = mmm.model.replace_rvs_by_values([value])[0]
         # XTensor Potential logp is not lowered by conditional_logp. Keep
         # this explicit lowering until upstream supports its pullbacks.
@@ -322,16 +379,6 @@ class ContributionFactorState:
             ),
             include=("lower_xtensor",),
         )
-        if prior.preliz.support == (0, np.inf):
-            initial_logp = mmm.model.compile_fn(
-                logp, inputs=mmm.model.value_vars, on_unused_input="ignore"
-            )(mmm.model.initial_point())
-            if not np.isfinite(initial_logp):
-                raise ValueError(
-                    "This nonnegative component requires a finite log density at "
-                    "the model's initial historical contribution. Check zero spend, "
-                    "signed effects, and the component's support."
-                )
         with mmm.model:
             pmd.Deterministic(spec["name"], value)
             pm.Potential(f"{spec['name']}_factor", logp)
@@ -357,10 +404,6 @@ class ContributionFactorState:
     def from_idata(cls, idata: xr.DataTree) -> ContributionFactorState:
         """Read factor definitions; frozen graph inputs are rebuilt from fit_data."""
         metadata = json.loads(idata.attrs.get("contribution_factors", "{}"))
-        if not metadata and json.loads(idata.attrs.get("contribution_priors", "[]")):
-            raise ValueError(
-                "Legacy contribution-prior metadata requires rebuilding with add_contribution_factor"
-            )
         specs = metadata.get("specs", [])
         if metadata and metadata.get("version") != 1:
             raise ValueError("Unsupported contribution-factor serialization version")
@@ -374,7 +417,8 @@ class ContributionFactorState:
 
     def sample(self, mmm: MMM, **kwargs: Any) -> xr.DataTree:
         """Construct an isolated historical sampling model, without observations."""
-        if "model" in kwargs or kwargs.get("return_inferencedata") is False:
+        config = {**mmm.sampler_config, **kwargs}
+        if "model" in config or config.get("return_inferencedata") is False:
             raise ValueError(
                 "sample_effective_prior controls its model and requires inference-data output"
             )
@@ -386,28 +430,15 @@ class ContributionFactorState:
                 "Effective-prior sampling requires only contribution factors "
                 "and the sales likelihood; additional likelihoods/Potentials are unsupported"
             )
-        # Sampling needs a fresh graph/configuration, not a copy of a potentially
-        # large fitted trace or the graph that is about to be rebuilt.
-        state = ContributionFactorState(
-            specs=copy.deepcopy(self.specs),
-            mask=self.mask.copy() if self.mask is not None else None,
-            fingerprint=self.fingerprint,
-            restoring=True,
-        )
-        memo: dict[int, Any] = {id(self): state, id(mmm.model): None}
-        if mmm.idata is not None:
-            memo[id(mmm.idata)] = None
-        working = copy.deepcopy(mmm, memo)
-        working.idata = None
-        working.build_model(working.xarray_dataset)
-        # Preserve any user-added parameter RVs and Deterministics. Rebuilding
-        # supplies historical Data values, but is not the sampling graph.
+        # Reset standard MMM inputs on a clone. User-added RVs, Data, and
+        # Deterministics remain intact; fitted results and configuration are shared
+        # read-only, with no rebuild or deep copy of the MMM needed.
         sampling_copy = clone_model(mmm.model)
+        mmm._set_xarray_data(mmm.xarray_dataset, model=sampling_copy)
+        for effect in mmm.mu_effects:
+            effect.set_data(mmm, sampling_copy, mmm.xarray_dataset)
         with sampling_copy:
-            pm.set_data(
-                {v.name: v.get_value() for v in working.model.data_vars},
-                coords=working.model.coords,
-            )
+            pm.set_data(self.inputs)
         frozen = freeze_dims_and_data(sampling_copy)
         output = frozen[mmm.output_var]
         fixed = output.type.constant_type(
@@ -424,7 +455,7 @@ class ContributionFactorState:
                 "Effective-prior sampling must not retain observed likelihoods"
             )
         with sampling_model:
-            result = pm.sample(**kwargs)
+            result = pm.sample(**config)
         result["prior"] = result.posterior.dataset
         result = result.drop_nodes("posterior")
         if "sample_stats" in result:

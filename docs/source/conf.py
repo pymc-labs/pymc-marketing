@@ -3,7 +3,6 @@
 
 import inspect
 import os
-import re
 import subprocess
 import sys
 from pathlib import Path
@@ -163,7 +162,7 @@ numpydoc_xref_param_type = True
 # fmt: off
 numpydoc_xref_ignore = {
     "of", "or", "optional", "default", "numeric", "type", "scalar", "1D", "2D", "3D", "nD", "array",
-    "instance", "M", "N",
+    "instance", "M", "N"
 }
 # fmt: on
 numpydoc_xref_aliases = {
@@ -395,20 +394,10 @@ def scrub_plotly_mathjax(app, pagename, templatename, context, doctree):
         )
 
 
-def normalize_raises_fields(app, what, name, obj, options, lines):
-    """Keep cross-reference roles out of generated exception field names.
-
-    sphinx-autodoc-typehints 3.17 converts numpydoc Raises sections into
-    fields such as ``:raises :obj:`ValueError`:``. Nested roles are invalid
-    in field names; Sphinx resolves plain exception identifiers itself.
-    Only the field name is normalized, preserving references in its body.
-    """
-    for index, line in enumerate(lines):
-        lines[index] = re.sub(r"^:raises :obj:`([^`]+)`:", r":raises \1:", line)
-
-
 def setup(app):
-    """Register exception-field normalization and Plotly MathJax cleanup."""
-    app.connect("autodoc-process-docstring", normalize_raises_fields, priority=1000)
+    """Configure Sphinx application event handlers.
+
+    Connects the Plotly MathJax scrubbing function to the html-page-context event.
+    """
     # Connect the scrubbing function to the html-page-context event
     app.connect("html-page-context", scrub_plotly_mathjax)

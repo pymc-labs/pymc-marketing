@@ -33,9 +33,6 @@ jobs:
     needs: changes
     if: ${{ needs.changes.outputs.should_test == 'true' }}
     runs-on: ubuntu-latest
-    env:
-      # OSQP <1 builds from source on Python 3.14 with an old CMake minimum.
-      CMAKE_POLICY_VERSION_MINIMUM: "3.5"
     strategy:
       fail-fast: false
       matrix:
