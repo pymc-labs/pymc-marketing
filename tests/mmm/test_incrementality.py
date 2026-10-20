@@ -57,6 +57,7 @@ from pymc_marketing.mmm.counterfactual import (
     EvaluationWindows,
 )
 from pymc_marketing.mmm.incrementality import (
+    _EVALUATOR_CACHE_ATTR,
     IdentityLinkReducer,
     Incrementality,
     IncrementalReducer,
@@ -6492,7 +6493,7 @@ class TestEvaluatorCache:
 
         mmm.build_model(simple_mmm_data["X"], simple_mmm_data["y"])
 
-        assert getattr(mmm, "_incrementality_evaluator_cache", None) is None
+        assert getattr(mmm, _EVALUATOR_CACHE_ATTR, None) is None
 
     def test_deepcopy_drops_the_cache_and_still_computes(self, simple_fitted_mmm):
         """A deep-copied MMM starts with an empty cache and recomputes the same increments."""

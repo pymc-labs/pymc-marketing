@@ -231,7 +231,10 @@ from pymc_marketing.mmm.dims import XTensorLike
 from pymc_marketing.mmm.events import EventEffect
 from pymc_marketing.mmm.fourier import YearlyFourier
 from pymc_marketing.mmm.hsgp import HSGPBase
-from pymc_marketing.mmm.incrementality import Incrementality
+from pymc_marketing.mmm.incrementality import (
+    _EVALUATOR_CACHE_ATTR,
+    Incrementality,
+)
 from pymc_marketing.mmm.lift_test import (
     _resolve_likelihood,
     add_cost_per_target_observations,
@@ -3882,7 +3885,7 @@ class MMM(RegressionModelBuilder):
         A later incrementality call then compiles a fresh evaluator.
         The slot itself is created lazily by :class:`~pymc_marketing.mmm.incrementality.Incrementality`.
         """
-        self.__dict__.pop("_incrementality_evaluator_cache", None)
+        self.__dict__.pop(_EVALUATOR_CACHE_ATTR, None)
 
     def _make_channel_transform(
         self, df_lift_test: pd.DataFrame

@@ -1050,6 +1050,9 @@ class ClosedFormInputs:
 _EVALUATOR_CACHE_SIZE = 4
 """Number of compiled evaluators a fitted MMM keeps before evicting the least recent."""
 
+_EVALUATOR_CACHE_ATTR = "_incrementality_evaluator_cache"
+"""Name of the attribute that holds the compiled-evaluator cache."""
+
 
 class _EvaluatorCacheKey(NamedTuple):
     """Identity of a compiled counterfactual evaluator.
@@ -4518,9 +4521,7 @@ class Incrementality:
                 else None
             ),
         )
-        cache = self.model.__dict__.setdefault(
-            "_incrementality_evaluator_cache", _EvaluatorCache()
-        )
+        cache = self.model.__dict__.setdefault(_EVALUATOR_CACHE_ATTR, _EvaluatorCache())
         evaluator, cached = cache.get_or_build(
             self._evaluator_cache_key(response_vars), build_evaluator
         )
