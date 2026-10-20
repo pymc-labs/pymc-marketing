@@ -24,11 +24,6 @@ import pandas as pd
 import xarray as xr
 
 from pymc_marketing.data.idata import MMMIDataWrapper
-from pymc_marketing.data.idata.utils import (
-    get_posterior_predictive,
-    get_prior,
-    get_prior_predictive,
-)
 from pymc_marketing.mmm.xarray_utils import (
     _apply_aggregation,
     _ensure_chain_draw_dims,
@@ -49,13 +44,15 @@ __all__ = [
     "convert_output",
     "dataframe_to_json_records",
     "get_channel_x_data",
-    "get_prior_for_plot",
     "prepare_sensitivity_data",
 ]
 
 
 def compute_residuals(data: MMMIDataWrapper) -> xr.DataArray:
-    """Compute residuals as target minus posterior predictions.
+    """Compute residuals as target minus posterior predictions, in original units.
+
+    The predictions are ``y * target_scale`` from ``posterior_predictive``
+    (:meth:`MMMIDataWrapper.get_predictive_target`), under every link.
 
     Parameters
     ----------
@@ -65,45 +62,19 @@ def compute_residuals(data: MMMIDataWrapper) -> xr.DataArray:
     Returns
     -------
     xr.DataArray
-        Residuals named ``residuals`` with same dims as ``y_original_scale``.
+        Residuals named ``residuals`` with the dims of the predictive draws.
 
     Raises
     ------
     ValueError
-        If ``y_original_scale`` is missing from posterior_predictive.
+        If ``posterior_predictive`` or its ``y`` draws, ``target_data`` or
+        ``target_scale`` are missing.
     """
-    pp_var = "y_original_scale"
-    pp_ds = get_posterior_predictive(data.idata)
-    if pp_var not in pp_ds:
-        raise ValueError(
-            f"Variable '{pp_var}' not found in posterior_predictive. "
-            f"Available: {list(pp_ds.data_vars)}"
-        )
-    predictions = pp_ds[pp_var]
+    predictions = data.get_predictive_target("posterior", original_scale=True)
     target = data.get_target(original_scale=True)
     residuals = target - predictions
     residuals.name = "residuals"
     return residuals
-
-
-def get_prior_for_plot(data: MMMIDataWrapper, original_scale: bool) -> xr.Dataset:
-    """Return the correct idata group for prior predictive plotting.
-
-    Parameters
-    ----------
-    data : MMMIDataWrapper
-        Wrapper holding the model's DataTree.
-    original_scale : bool
-        If True, return ``idata.prior`` (contains ``y_original_scale``).
-        If False, return ``idata.prior_predictive`` (contains ``y``).
-
-    Returns
-    -------
-    xr.Dataset
-    """
-    if original_scale:
-        return get_prior(data.idata)
-    return get_prior_predictive(data.idata)
 
 
 def compute_waterfall_components(

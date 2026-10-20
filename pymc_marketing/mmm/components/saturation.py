@@ -369,8 +369,9 @@ class TanhSaturationBaselined(SaturationTransformation):
         Value of the curve at ``x0`` divided by ``x0`` (the ROAS at the baseline).
         Default prior: ``Prior("HalfNormal", sigma=1)``.
     r : tensor
-        Overspend fraction, the ratio of the response at ``x0`` to the saturation
-        level. Default prior: ``Prior("HalfNormal", sigma=1)``.
+        Overspend fraction, the ratio of the response at ``x0`` to the saturation level.
+        Must lie in ``(0, 1)``, since ``arctanh(r)`` diverges at ``r = 1``.
+        Default prior: ``Prior("Beta", alpha=2, beta=3)`` (mean 0.4).
     beta : tensor
         Scaling factor applied to the baselined-tanh response (multiplies the
         gain-implied asymptote ``gain * x0 / r``). Default prior:
@@ -400,7 +401,7 @@ class TanhSaturationBaselined(SaturationTransformation):
     default_priors = {
         "x0": Prior("HalfNormal", sigma=1),
         "gain": Prior("HalfNormal", sigma=1),
-        "r": Prior("HalfNormal", sigma=1),
+        "r": Prior("Beta", alpha=2, beta=3),
         "beta": Prior("HalfNormal", sigma=1),
     }
 

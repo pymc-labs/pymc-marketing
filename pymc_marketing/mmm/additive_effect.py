@@ -138,6 +138,7 @@ Example: multi-granularity media and controls
     from pymc_marketing.mmm.media_transformation import MediaTransformation
 
     # X is an xr.Dataset with:
+    #   media:              (date, product, geo, channel)
     #   media_product:      (date, product, product-channel)
     #   media_geo:          (date, geo, geo-channel)
     #   control_national:   (date,)
@@ -647,7 +648,8 @@ class MediaMuEffect(DataVarMuEffect):
     media_transformation : MediaTransformation
         Transformation combining adstock and saturation with configurable order.
         Its ``dims`` must include the channel dimension plus any extra dims
-        (e.g. ``("product", "channel")``).
+        (e.g. ``("product", "channel")``). Adstock and saturation priors
+        without explicit ``dims`` get these dims, i.e. one parameter per cell.
     channel_dim : str, optional
         Name of the channel dimension to aggregate over.
         Default is ``"channel"``.

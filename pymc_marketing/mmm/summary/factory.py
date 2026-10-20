@@ -57,7 +57,6 @@ from pymc_marketing.mmm.summary.helpers import (
     compute_residuals,
     compute_waterfall_components,
     get_channel_x_data,
-    get_prior_for_plot,
 )
 from pymc_marketing.mmm.summary.sensitivity import (
     sensitivity_analysis as _sensitivity_analysis,
@@ -396,8 +395,9 @@ class MMMSummaryFactory:
     ) -> DataFrameType:
         """Create posterior predictive summary DataFrame.
 
-        Computes mean, median, and HDI bounds for posterior predictive samples,
-        along with observed values for comparison.
+        Computes mean, median, and HDI bounds for the posterior predictive
+        draws of the target in original units (``y * target_scale`` under
+        every link), along with observed values for comparison.
 
         Parameters
         ----------
@@ -431,11 +431,7 @@ class MMMSummaryFactory:
             hdi_probs, frequency, output_format
         )
 
-        # Get posterior predictive samples
-        if hasattr(data.idata, "posterior_predictive"):
-            pp_samples = data.to_original_scale(data.idata.posterior_predictive["y"])
-        else:
-            raise AttributeError("No posterior predictive samples found in idata")
+        pp_samples = data.get_predictive_target("posterior", original_scale=True)
 
         # Get observed data
         observed = data.get_target(original_scale=True)
@@ -1273,7 +1269,10 @@ class MMMSummaryFactory:
         frequency : Frequency, optional
             Time aggregation period (default: None, no aggregation)
         original_scale : bool, default True
-            If True, summarize ``y_original_scale`` from ``idata.prior``.
+            If True, summarize the prior predictive draws of the target in
+            original units (``y * target_scale``; the stored
+            ``prior["y_original_scale"]`` when registered, otherwise derived
+            from ``prior_predictive["y"]``).
             If False, summarize ``y`` from ``idata.prior_predictive``.
         output_format : {"pandas", "polars"}, optional
             Output DataFrame format (default: uses factory default)
@@ -1292,14 +1291,7 @@ class MMMSummaryFactory:
             hdi_probs, frequency, output_format
         )
 
-        pp_ds = get_prior_for_plot(data, original_scale)
-        var_name = "y_original_scale" if original_scale else "y"
-        if var_name not in pp_ds:
-            raise AttributeError(
-                f"Variable '{var_name}' not found in prior predictive data. "
-                f"Available: {list(pp_ds.data_vars)}"
-            )
-        pp_samples = pp_ds[var_name]
+        pp_samples = data.get_predictive_target("prior", original_scale)
 
         observed = data.get_target(original_scale=original_scale)
         df = self._compute_summary_stats_with_hdi(pp_samples, hdi_probs)
