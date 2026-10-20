@@ -771,7 +771,7 @@ def test_failed_posterior_predictive_restores_model(
     assert len(model.model.coords["obs"]) == len(sample_df)
 
 
-def test_failed_reset_keeps_original_error(
+def test_failed_reset_adds_note_to_original_error(
     model_case, sample_df, monkeypatch, mock_pymc_sample
 ):
     model = model_case.build()
@@ -791,8 +791,8 @@ def test_failed_reset_keeps_original_error(
     with pytest.raises(RuntimeError, match="sampling blew up") as excinfo:
         model.sample_posterior_predictive(choice_df=intervened)
 
-    assert isinstance(excinfo.value.__cause__, RuntimeError)
-    assert "reset failed" in str(excinfo.value.__cause__)
+    assert excinfo.value.__cause__ is None
+    assert any("reset failed" in note for note in excinfo.value.__notes__)
 
 
 def _forbid_model_data_swap(model, monkeypatch):

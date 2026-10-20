@@ -122,8 +122,9 @@ class ChoiceDataMixin:
         The ``None`` case leaves the model untouched. Otherwise the new data is
         preprocessed and set on the model, and the training arrays stored by
         :meth:`build_model` are reset on exit without re-preprocessing, even
-        when the body fails. If the reset fails, the original error is re-raised
-        with the reset error chained onto it.
+        when the body fails. If the reset fails too, the original error is re-raised
+        with the reset failure attached as a note, so the traceback does not
+        claim the reset caused it.
         """
         if choice_df is None:
             yield
@@ -137,7 +138,7 @@ class ChoiceDataMixin:
             try:
                 self._set_model_data(*self._training_arrays())
             except Exception as reset_error:
-                raise error from reset_error
+                error.add_note(f"Resetting the model data also failed: {reset_error!r}")
             raise
         else:
             self._set_model_data(*self._training_arrays())
