@@ -35,10 +35,11 @@ Public vs. internal variable names
       - ``_control``
       - Control variable data
 
-The names ``channel`` and ``control`` **cannot** be used as data variable names
-because xarray promotes them to dimension coordinates when the variable and
-dimension share a name. Use ``media`` instead of ``channel``, and use
-``_control`` for control data.
+The media and the controls **cannot** be named ``channel`` or ``control``:
+xarray stores a variable that shares its name with one of its dimensions as a
+coordinate (and raises if labels for that dimension are also passed in
+``coords``), so the model never sees it. Use ``media`` (or ``_channel``) for
+the media and ``_control`` for the controls.
 
 Examples
 --------
@@ -96,7 +97,14 @@ def to_mmm_dataset(
     Parameters
     ----------
     X
-        Feature data.
+        Feature data.  A ``pd.DataFrame`` is wide: the *date_column*, a column
+        per entry in *dims*, and one per channel, control and extra variable.
+        An ``xr.Dataset`` holds the variables listed in
+        :mod:`~pymc_marketing.mmm.data_conversion` on a ``date`` coordinate:
+        ``media`` (or ``_channel``), ``target`` (or ``_target``) and
+        ``_control``; any other data variable is passed through.  An
+        ``xr.DataArray`` holds the media alone, unnamed or named ``media`` or
+        ``_channel``.
     y
         Target variable.  When *X* is already an ``xr.Dataset`` that contains
         a ``target`` / ``_target`` data variable this may be omitted.
@@ -136,7 +144,10 @@ def to_mmm_dataset(
     ValueError
         If an ``xr.Dataset`` input lacks a required variable or coordinate:
         ``_channel``, ``date`` and ``channel`` always, and ``_control`` with a
-        labelled ``control`` coordinate when *control_columns* is set.
+        labelled ``control`` coordinate when *control_columns* is set; if *y*
+        is passed and *X* already has a ``target`` / ``_target`` data variable;
+        or if *y* has no ``date`` coordinate for a panel ``xr.Dataset`` or
+        ``xr.DataArray`` *X*.
     """
     # 1. Coerce date column to datetime for DataFrame inputs.
     if isinstance(X, pd.DataFrame) and date_column in X.columns:
