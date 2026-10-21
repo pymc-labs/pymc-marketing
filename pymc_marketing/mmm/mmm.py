@@ -245,6 +245,7 @@ from pymc_marketing.mmm.link import (
     LinkSpec,
     get_link_spec,
 )
+from pymc_marketing.mmm.optimization_variables import _reject_unknown_coords
 from pymc_marketing.mmm.plot import MMMPlotSuite
 from pymc_marketing.mmm.plotting import MMMPlotSuiteFacade
 from pymc_marketing.mmm.plotting.budget import BudgetPlots
@@ -2826,15 +2827,17 @@ class MMM(RegressionModelBuilder):
             ds, include_last_observations
         )
 
-        # Expand to include all original dimension coordinates so that
-        # _set_xarray_data always gets a dataset whose shape matches the
-        # model (missing dims get filled with zeros).
-        for dim in self.dims:
-            if dim in ds.coords and not set(ds.coords[dim].values).issuperset(
-                self.xarray_dataset.coords[dim].values
-            ):
-                all_vals = list(self.xarray_dataset.coords[dim].values)
-                ds = ds.reindex({dim: all_vals}, fill_value=0)
+        # pm.set_data assigns by position, so put each custom dim in the model's
+        # label order: a DataFrame comes out of to_mmm_dataset with sorted labels,
+        # while a Dataset keeps its own order. Labels the model was not fit on
+        # are refused; labels missing from X are filled with zeros.
+        model_coords = {
+            dim: self.xarray_dataset.coords[dim].values.tolist()
+            for dim in self.dims
+            if dim in ds.indexes
+        }
+        _reject_unknown_coords(ds, model_coords, label="X")
+        ds = ds.reindex(model_coords, fill_value=0)
 
         if y is None and "_target" not in ds.data_vars:
             target_dtype = self.xarray_dataset._target.dtype
@@ -2844,7 +2847,7 @@ class MMM(RegressionModelBuilder):
             for dim in self.dims:
                 coords[dim] = (
                     ds.coords[dim].values
-                    if dim in ds.coords
+                    if dim in ds.indexes
                     else self.xarray_dataset.coords[dim].values
                 )
             ds["_target"] = xr.DataArray(
@@ -3463,7 +3466,11 @@ class MMM(RegressionModelBuilder):
         X : pd.DataFrame or xr.Dataset
             Input data for prediction, with the same structure as the training
             data (see :meth:`build_model`); the dims of an ``xr.Dataset``
-            variable may be in any order.
+            variable may be in any order. The labels of the custom ``dims`` (for
+            example ``geo``) are matched to the model's labels by name, so the
+            channels, controls and target in ``X`` may list them in any order.
+            Labels absent from ``X`` are filled with zeros; pass every label to
+            avoid silent zero contributions.
         extend_idata : bool, optional
             Whether to add predictions to the inference data object. Defaults to True.
         combined : bool, optional
@@ -3480,6 +3487,11 @@ class MMM(RegressionModelBuilder):
         -------
         xr.Dataset
             Posterior predictive samples.
+
+        Raises
+        ------
+        ValueError
+            If ``X`` is ``None``, or has custom-dim labels the model was not fit on.
         """
         # Update model data with xarray
         if X is None:

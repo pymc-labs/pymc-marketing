@@ -490,6 +490,8 @@ def test_additive_effect_type_registered(type_key):
 class TestDataVarMuEffect:
     """Tests for the DataVarMuEffect base class."""
 
+    GEOS = ["north", "east", "south"]  # not sorted
+
     def test_instantiation_error(self):
         """DataVarMuEffect is abstract and cannot be instantiated directly."""
         with pytest.raises(TypeError):
@@ -679,6 +681,59 @@ class TestDataVarMuEffect:
                 model_copy["shared"].get_value(borrow=False),
                 new_ds["shared"].values,
             )
+
+    def _make_geo_setup(self, dates):
+        """Mock MMM and effect reading a ``(date, geo)`` column on unsorted geos."""
+        rng = np.random.default_rng(42)
+        ds = xr.Dataset(
+            {"feature": (("date", "geo"), rng.normal(size=(len(dates), 3)))},
+            coords={"date": dates, "geo": self.GEOS},
+        )
+        model = pm.Model(coords={"date": dates, "geo": self.GEOS})
+        mmm = self._make_mock_mmm(model, ds)
+
+        class Effect(DataVarMuEffect):
+            data_vars: list[str] = ["feature"]
+            prefix: str = "geo"
+
+            def create_effect(self, mmm):  # type: ignore
+                return pt.as_tensor(0.0)
+
+        effect = Effect()
+        with model:
+            effect.create_data(mmm)
+        return mmm, ds, model, effect
+
+    def test_set_data_aligns_labels_to_the_model(self, dates):
+        """Each label's values land in that label's slot, whatever the input order."""
+        mmm, ds, model, effect = self._make_geo_setup(dates)
+        new_ds = ds.sortby("geo") + 1.0
+
+        effect.set_data(mmm, model, new_ds)
+
+        np.testing.assert_allclose(
+            model["feature"].get_value(borrow=False),
+            new_ds["feature"].sel(geo=self.GEOS).values,
+        )
+
+    @pytest.mark.parametrize(
+        "geos, pattern",
+        [
+            (["north", "east", "south", "west"], r"does not have.*west"),
+            (["north", "east", "west"], r"does not have.*west"),
+            (["east", "north"], r"missing.*south"),
+        ],
+        ids=["extra_label", "relabelled", "missing_label"],
+    )
+    def test_set_data_rejects_labels_that_do_not_match_the_model(
+        self, dates, geos, pattern
+    ):
+        """A label the model lacks, or a model label the data lacks, is an error."""
+        mmm, ds, model, effect = self._make_geo_setup(dates)
+        new_ds = ds.reindex(geo=geos, fill_value=0.0)
+
+        with pytest.raises(ValueError, match=pattern):
+            effect.set_data(mmm, model, new_ds)
 
     def test_create_data_raises_on_non_data_name_collision(self, dates):
         """A dataset column that matches a non-data variable must not be skipped."""
