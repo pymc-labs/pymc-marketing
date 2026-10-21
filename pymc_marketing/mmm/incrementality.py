@@ -272,6 +272,7 @@ from pymc_marketing.mmm.spend_reach import (
     resolve_channel_dependent_effects,
 )
 from pymc_marketing.mmm.transformers import ConvMode
+from pymc_marketing.pytensor_utils import _reordered_to_model_coords
 
 if TYPE_CHECKING:
     from numpy.random import Generator, RandomState
@@ -4556,7 +4557,7 @@ class Incrementality:
         # than trusting constant_data to already hold it, so date-first and the
         # position of ``channel`` are both facts about the model here, not
         # assumptions about the idata group.
-        channel_data = self.data.get_channel_data()
+        channel_data = self._channel_data_in_model_order()
         if channel_data_dims:
             channel_data = channel_data.transpose(*channel_data_dims)
         baseline_array = channel_data.values
@@ -4946,6 +4947,21 @@ class Incrementality:
             delta_mu = delta_mu + delta(name)
         return delta_mu
 
+    def _channel_data_in_model_order(self) -> xr.DataArray:
+        """Return the channel data with each labelled dim in the model's coord order.
+
+        The draws are read in the model's order, and a reloaded model's coords
+        can be sorted while ``constant_data`` keeps the order of the ``xr.Dataset``
+        it was built from.  The baseline is evaluated on this array, so its
+        positions pair with the draws'.
+        """
+        channel_data = self.data.get_channel_data()
+        name = channel_data.name or "channel_data"
+        ordered = _reordered_to_model_coords(
+            channel_data.to_dataset(name=name), self.model.model.coords
+        )
+        return ordered[name]
+
     def _compute_period_increments(
         self,
         windows: EvaluationWindows,
@@ -5045,8 +5061,12 @@ class Incrementality:
         # baseline was evaluated on, so its labels are the ones they carry.
         # Not ``fit_data``'s: ``create_fit_data`` sorts those, while a model
         # built from an ``xr.Dataset`` keeps the Dataset's order (#3212).
-        channel_data = self.data.get_channel_data()
+        # The values follow the model's order; the result goes back to the
+        # order of ``constant_data`` below, which is the order callers see.
+        channel_data = self._channel_data_in_model_order()
         custom_coords = {dim: channel_data.coords[dim].values for dim in custom_dims}
+        data_order = self.data.get_channel_data()
+        reported_order = {dim: data_order.coords[dim].values for dim in custom_dims}
         out_dims = ["channel", *custom_dims] if scope == "per_channel" else custom_dims
         results = []
 
@@ -5139,7 +5159,7 @@ class Incrementality:
                     reshaped, dims=("chain", "draw", *out_dims), coords=coords
                 )
                 period_result = total.assign_coords(date=window.end).expand_dims("date")
-            results.append(period_result)
+            results.append(period_result.sel(reported_order))
 
         return results
 
