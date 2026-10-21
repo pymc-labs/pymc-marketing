@@ -1320,10 +1320,8 @@ class ConditionedModel:
         the old draws again.  A first rebind instead installed a fresh object,
         so the token's previous object is reinstalled untouched.
 
-        Each optional binding is restored the same way.  One whose previous
-        posterior no longer satisfies it is dropped from the cache rather than
-        failing the restore.  The method runs straight through and is
-        idempotent: a second call leaves the same state.
+        Each optional binding is restored the same way.  The method runs
+        straight through and is idempotent: a second call leaves the same state.
 
         Parameters
         ----------
@@ -1346,16 +1344,7 @@ class ConditionedModel:
             binding = saved.binding
             binding._variables = saved.variables.copy()
             binding._layouts = saved.layouts.copy()
-            try:
-                binding.set_posterior(token.posterior)
-            except (KeyError, ValueError):
-                dropped = [
-                    key
-                    for key, cached in self._cache.items()
-                    if cached.optional_binding is binding
-                ]
-                for key in dropped:
-                    del self._cache[key]
+            binding.set_posterior(token.posterior)
 
     def register(self, callback: Callable[[], None]) -> None:
         """Register ``callback`` to run after a rebind that dropped the graphs.

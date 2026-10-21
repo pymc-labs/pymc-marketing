@@ -2939,9 +2939,12 @@ class BudgetOptimizer(BaseModel):
         TypeError
             If ``plan`` is not labelled at all.
         ValueError
-            If a supplied ``DataArray`` has a dim carrying no coordinates, or
-            if ``plan`` omits a decision variable, omits an optimized cell, or
-            carries coordinates the model does not have.
+            If a supplied ``DataArray`` has a dim carrying no coordinates, if
+            ``plan`` omits a decision variable, omits an optimized cell, or
+            carries coordinates the model does not have, or if a variable the
+            requested response reads changed its non-sample dimensions, their
+            lengths or their labels, as after a rebind that gives one of them a
+            new dim.
         KeyError
             If the current posterior lacks a variable the requested response
             reads, as after a rebind to a thinned posterior.
@@ -3075,9 +3078,10 @@ class BudgetOptimizer(BaseModel):
         labels are compared by value, so a reordered ``channel`` axis is
         realigned.
         The number of draws may differ.  The ad-hoc responses are optional: a
-        posterior that lacks a variable only one of them reads drops that
-        response instead of failing the rebind, and evaluating that response
-        raises ``KeyError`` until a posterior holds the variable again.  The budget mask is fixed at
+        posterior that lacks, or changes the layout of, a variable only one of
+        them reads drops that response instead of failing the rebind, and
+        evaluating that response raises until a posterior holds the variable
+        again in its original layout.  The budget mask is fixed at
         construction: it defines the decision vector the graphs were compiled
         for, so a posterior that would have auto-detected a different mask is
         solved on the existing one.  Build a new optimizer to change the mask.
@@ -3137,18 +3141,8 @@ class BudgetOptimizer(BaseModel):
                 cast(DataArray, self.budgets_to_optimize), idata
             )
 
-        # The conditioned model owns the binding: it moves the draws into (or
-        # swaps them under) shared variables, drops the cache on the first rebind so
-        # the callbacks re-request only the keys they use, and fires the recompile callback.  This
-        # optimizer keeps the rollback of everything it compiled from those
-        # graphs, so a rebind that fails -- a posterior the shared variables
-        # cannot take, a recompile that raises, or an interruption after the
-        # conditioned model has already rebound -- leaves it exactly as it was.
-        # After a failed first rebind the next call retries the first-rebind
-        # path rather than rebinding variables the compiled objective never
-        # reads; after a failed later swap it swaps again.  The conditioned model's
-        # own checkpoint is taken before the call so its binding is rolled back
-        # with this state, including draws a later shared-mode swap wrote.
+        # This optimizer must roll back the state it compiled from the graphs
+        # together with the binding, so it keeps its own checkpoint.
         checkpoint = self._conditioned._checkpoint()
         previous = (
             self.idata,
@@ -3174,6 +3168,7 @@ class BudgetOptimizer(BaseModel):
                 self._compiled_constraints,
                 self._response_functions,
             ) = previous
+            # Idempotent: a binding ``set_posterior`` already restored is rewritten.
             self._conditioned._restore(checkpoint)
             raise
 

@@ -1560,12 +1560,8 @@ def test_conditioned_model_shared_empty_cache_still_requires_bound_variables(
         conditioned.set_posterior(without_beta)
 
 
-def test_conditioned_model_restore_is_idempotent_and_drops_an_unrestorable_key():
-    """A checkpoint restores every binding, and restoring it twice changes nothing.
-
-    A token whose stored posterior cannot satisfy an optional binding drops that
-    key instead of failing the restore.
-    """
+def test_conditioned_model_restore_is_idempotent():
+    """A checkpoint restores every binding, and restoring it twice changes nothing."""
     model, spend = _channel_conditioned_model()
     conditioned = ConditionedModel(
         model,
@@ -1602,12 +1598,6 @@ def test_conditioned_model_restore_is_idempotent_and_drops_an_unrestorable_key()
         assert shared.variables[name] is variable
         np.testing.assert_array_equal(shared.variables[name].get_value(), values[name])
     assert optional_key in conditioned._cache
-
-    # The token's own posterior cannot satisfy the optional binding without
-    # ``gamma``, so restoring it drops only that key.
-    thinned = token._replace(posterior=token.posterior.drop_vars("gamma"))
-    conditioned._restore(thinned)
-    assert optional_key not in conditioned._cache
 
 
 @pytest.mark.parametrize("rebind_first", [False, True])

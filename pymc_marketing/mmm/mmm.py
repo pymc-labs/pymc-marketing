@@ -2369,8 +2369,8 @@ class MMM(RegressionModelBuilder):
         xr.DataTree
             Inference data of the fitted model.
         """
-        # A cached evaluator never holds the fit-time posterior, because _probe_reach rebinds it on every call.
-        # The clear is a safeguard: a refit can change coordinate labels, which the shared binding would refuse.
+        # A refit replaces the posterior and can move its coordinate labels, which
+        # the evaluator's shared binding would refuse; build against it from scratch.
         self._clear_incrementality_evaluator_cache()
         if hasattr(self, "model") and self._target_is_placeholder:
             warnings.warn(

@@ -856,17 +856,6 @@ class CounterfactualEvaluator:
         # changed buffer means the compiled graphs read fit-time values.
         self._watched_sources: dict[str, np.ndarray] = {}
 
-        # State ``_build`` fills in.  Declared here so every attribute exists
-        # before the first build and a build that raises part-way cannot leave
-        # an attribute missing next to the old compiled function.
-        self.non_date_dims: dict[str, tuple[str, ...]] = {}
-        self._elements_per_date = 0
-        self.time_dtype: str | None = None
-        self._sample_markers: dict[np.dtype, SharedVariable] = {}
-        self._aux: list[DateIndexedInput] = []
-        self._aux_live: dict[str, Variable] = {}
-        self._aux_dims: dict[str, tuple[str, ...]] = {}
-
         target_var = self._validate_target(
             pymc_model,
             target=intervention_target,
@@ -918,10 +907,6 @@ class CounterfactualEvaluator:
     def _build(self) -> None:
         """Extract the graphs and compile the batched evaluator for the binding.
 
-        Everything is built into locals and committed only once every step has
-        succeeded, so a build that raises -- a response that does not depend on
-        the target, a date-indexed input of the wrong length -- leaves the
-        previous compiled function and its bookkeeping untouched.
         It is called once at construction; every later rebind reaches the same graphs through the shared posterior.
         """
         do_model = self._do_model
@@ -932,8 +917,10 @@ class CounterfactualEvaluator:
         # "sample" axis.  Broadcasting it against a marker that tracks the bound
         # posterior keeps the promised result layout and lets the draw count
         # change on a rebind without recompiling.
-        sample_markers: dict[np.dtype, SharedVariable] = {}
-        graphs = [self._with_sample_axis(graph, sample_markers) for graph in extracted]
+        self._sample_markers: dict[np.dtype, SharedVariable] = {}
+        graphs = [
+            self._with_sample_axis(graph, self._sample_markers) for graph in extracted
+        ]
 
         graph_ancestors = set(ancestors(graphs))
         if self._placeholder not in graph_ancestors:
@@ -942,23 +929,23 @@ class CounterfactualEvaluator:
                 f"depend on the intervention target {self.intervention_target!r}; "
                 "every counterfactual would equal the baseline."
             )
-        watched_sources = self._watched_source_buffers(graph_ancestors)
+        self._watched_sources = self._watched_source_buffers(graph_ancestors)
 
-        non_date_dims = {
+        self.non_date_dims = {
             name: self._non_date_dims(graph)
             for name, graph in zip(self.response_vars, graphs, strict=True)
         }
         # Output elements one scenario costs per date of its window, summed over
         # the evaluated nodes.  The live draw count is applied in
         # ``_batch_size`` so a rebind cannot leave it stale.
-        elements_per_date = sum(
+        self._elements_per_date = sum(
             int(np.prod([len(do_model.coords[dim]) for dim in dims], dtype=int))
-            for dims in non_date_dims.values()
+            for dims in self.non_date_dims.values()
         )
 
         # The intervention values are the evaluator's first input, whatever the
         # target: perturbed spend under the default, a mask under "scale".
-        target_dtype = self._placeholder.dtype
+        self.target_dtype = self._placeholder.dtype
         replace: dict = {
             self._placeholder: self._batched(
                 self._placeholder, self.intervention_target
@@ -969,13 +956,13 @@ class CounterfactualEvaluator:
         # time_index: only replaced when the graph actually reads it (with
         # time_varying_intercept but not time_varying_media it is unused, and
         # passing it would raise UnusedInputError).
-        time_dtype: str | None = None
+        self.time_dtype: str | None = None
         if (
             self.TIME_INDEX in do_model.named_vars
             and do_model[self.TIME_INDEX] in graph_ancestors
         ):
             time_index = do_model[self.TIME_INDEX]
-            time_dtype = time_index.dtype
+            self.time_dtype = time_index.dtype
             replace[time_index] = self._batched(time_index, "time_index")
             func_inputs.append(replace[time_index])
 
@@ -984,9 +971,9 @@ class CounterfactualEvaluator:
         # category-demand series), and an endogenous target turns spend itself
         # into one, held at its factual values.  Discovery is by graph traversal
         # rather than by declaration so an effect cannot forget to mention one.
-        aux: list[DateIndexedInput] = []
-        aux_live: dict[str, Variable] = {}
-        aux_dims: dict[str, tuple[str, ...]] = {}
+        self._aux: list[DateIndexedInput] = []
+        self._aux_live: dict[str, Variable] = {}
+        self._aux_dims: dict[str, tuple[str, ...]] = {}
         for data in self._date_indexed_data(
             do_model,
             graph_ancestors,
@@ -1006,7 +993,7 @@ class CounterfactualEvaluator:
             batched = self._batched(data, data.name)
             replace[data] = batched
             func_inputs.append(batched)
-            aux.append(
+            self._aux.append(
                 DateIndexedInput(
                     name=data.name,
                     values=values,
@@ -1015,34 +1002,22 @@ class CounterfactualEvaluator:
                     date_axis=date_axis,
                 )
             )
-            aux_live[data.name] = data
-            aux_dims[data.name] = dims
+            self._aux_live[data.name] = data
+            self._aux_dims[data.name] = dims
 
         # Canonical output layout, so that a caller adding two nodes together
         # does not have to reconcile the axis order each of them happens to
         # carry.  Transposing inside the graph rather than on the results keeps
         # it a view where the backend can make it one.
         outputs = [
-            out.transpose(self.BATCH_DIM, "sample", "date", *non_date_dims[name])
+            out.transpose(self.BATCH_DIM, "sample", "date", *self.non_date_dims[name])
             for name, out in zip(
                 self.response_vars,
                 vectorize_graph(graphs, replace=replace),
                 strict=True,
             )
         ]
-        evaluator = function(func_inputs, outputs)
-
-        # Commit only once every step above has succeeded.
-        self._sample_markers = sample_markers
-        self.non_date_dims = non_date_dims
-        self._elements_per_date = elements_per_date
-        self.target_dtype = target_dtype
-        self.time_dtype = time_dtype
-        self._aux = aux
-        self._aux_live = aux_live
-        self._aux_dims = aux_dims
-        self._watched_sources = watched_sources
-        self._evaluator = evaluator
+        self._evaluator = function(func_inputs, outputs)
 
     def _watched_source_buffers(self, graph_ancestors: set) -> dict[str, np.ndarray]:
         """Record the source model's shared buffers the graphs read, keyed by name.
