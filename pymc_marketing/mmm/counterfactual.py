@@ -775,7 +775,7 @@ class CounterfactualEvaluator:
         Values are compared only when the source model's buffer was replaced since the last check.
         ``time_index`` is compared against the fabricated ``np.arange(n_dates)`` once, at construction.
         An unchanged shared input is identified by the borrowed buffer seen at the last full check.
-        A repeated call therefore costs only an identity comparison.
+        A repeated call costs only an identity comparison.
         An in-place mutation of the buffer itself is not detected.
         A name absent from the mapping is not verified here; a source buffer
         replaced for it is caught by :meth:`is_stale` instead.
@@ -1049,7 +1049,7 @@ class CounterfactualEvaluator:
         """Point every sample marker at the draw count of the bound posterior.
 
         The markers are what a sample-less response is broadcast over, and their shared shape is symbolic.
-        Resizing one therefore needs no recompile.
+        Resizing one needs no recompile.
         A rebind only swaps the draws, so syncing here before every evaluation keeps a marker from going stale.
         """
         if not self._sample_markers:
@@ -1083,7 +1083,7 @@ class CounterfactualEvaluator:
         """Hoist the fit-time record into the form the per-call check reads.
 
         The stored arrays are transposed to the model's own dimension order here.
-        An evaluation therefore reads the prepared arrays rather than rebuilding them.
+        An evaluation reads the prepared arrays rather than rebuilding them.
         ``time_index`` is fabricated from the fitted date count rather than read off the model.
         It cannot change between calls, so it is compared once, at construction.
         A date-indexed input the record covers leaves the staleness watch set: a
@@ -1166,9 +1166,12 @@ class CounterfactualEvaluator:
     def set_posterior(self, idata: xr.DataTree | xr.Dataset) -> None:
         """Re-point the evaluator at a new posterior.
 
-        Delegates to :meth:`~pymc_marketing.pytensor_utils.ConditionedModel.set_posterior`.
-        The draws live in shared variables, so the number of draws is free and no rebind recompiles.
-        The sample-axis markers are re-synced on the next evaluation rather than here.
+        Delegates to
+        :meth:`~pymc_marketing.pytensor_utils.ConditionedModel.set_posterior`,
+        which describes the rebind.  The draws live in shared variables from
+        construction, so a call swaps them without recompiling and the number
+        of draws is free.  The sample-axis markers are re-synced on the next
+        evaluation rather than here.
 
         Parameters
         ----------
