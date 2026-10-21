@@ -575,28 +575,24 @@ class TestSourceInputStaleness:
         with pytest.raises(ValueError, match=r"'aux_input'.*changed since"):
             evaluator.evaluate_baseline(np.ones((len(self.dates), 2, 1)))
 
-    def test_the_intervention_target_is_watched_only_when_scaled(self):
+    def test_the_intervention_target_is_watched_under_scale(self):
         """Under ``scale`` the target's own data is read, so replacing it makes the build stale."""
         model, posterior, _ = build_aux_dims_model(
             ("date", "country"), n_dates=len(self.dates), n_country=2
         )
-        evaluators = {
-            mode: CounterfactualEvaluator(
-                pymc_model=model,
-                posterior=posterior,
-                response_vars=["channel_contribution"],
-                frozen_deterministics=[],
-                dates=self.dates,
-                intervention_mode=mode,
-            )
-            for mode in ("replace", "scale")
-        }
+        evaluator = CounterfactualEvaluator(
+            pymc_model=model,
+            posterior=posterior,
+            response_vars=["channel_contribution"],
+            frozen_deterministics=[],
+            dates=self.dates,
+            intervention_mode="scale",
+        )
 
         with model:
             pm.set_data({"channel_data": np.full((len(self.dates), 2, 1), 3.0)})
 
-        assert not evaluators["replace"].is_stale()
-        assert evaluators["scale"].is_stale()
+        assert evaluator.is_stale()
 
     def test_a_rebind_does_not_mark_the_build_stale(self):
         """New draws swap posterior buffers, which the watch set never holds."""

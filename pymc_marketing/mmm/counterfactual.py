@@ -1025,10 +1025,13 @@ class CounterfactualEvaluator:
         ``pm.do`` clones the model, so the graphs read the clone's own data
         variables, which never change again.  The source model, which
         ``pm.set_data`` mutates, is matched by name.  Posterior shared variables
-        are not recorded: their source is a random variable, and a rebind swaps
-        their buffers on every call.  The intervention target and ``time_index``
-        are handled by dedicated inputs, so they are left out; under ``scale`` the
-        target's own data is still read by the graph, so it stays in.
+        are not recorded: they live in the clone, and the source model holds a
+        random variable under their name.  ``time_index`` is a batched input of
+        the compiled function, so nothing reads a frozen copy of it.  Under
+        ``replace`` the graphs read the placeholder, not the target's data, so
+        the target is left out; the exclusion is defensive, as the target is not
+        an ancestor there.  Under ``scale`` the graph reads the target's own
+        data, so it stays in.
         """
         source = self._source_model
         watched: dict[str, np.ndarray] = {}

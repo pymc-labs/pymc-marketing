@@ -911,7 +911,7 @@ class ConditionedModel:
 
     A posterior is reordered to the model's coords per dimension on the way in.
     A variable is validated when a graph reads it, against its construction
-    layout; a variable no graph reads is stored as given.
+    layout; a variable no graph reads is not validated.
 
     See :meth:`set_posterior` for how a rebind treats cached graphs.
 

@@ -3248,7 +3248,8 @@ class BudgetOptimizer(BaseModel):
                 self._compiled_constraints,
                 self._response_functions,
             ) = previous
-            # Idempotent: a binding ``set_posterior`` already restored is rewritten.
+            # Needed, not only harmless: an interrupt can land inside the restore
+            # ``set_posterior`` ran itself, and restoring again finishes it.
             self._conditioned._restore(checkpoint)
             raise
         self._warn_uninformed_reach(cast(DataArray, self.budgets_to_optimize), informed)
