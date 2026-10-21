@@ -2045,6 +2045,38 @@ class BudgetOptimizer(BaseModel):
         self._constraints = {}
         self.set_constraints(constraints=self.constraints)
 
+    def __copy__(self) -> "BudgetOptimizer":
+        """Return a copy that owns its posterior binding and compiled functions.
+
+        pydantic's ``model_copy()`` uses this.  Its default copies private
+        attributes shallowly, so both optimizers would share one
+        :class:`ConditionedModel` and its callback would stay bound to the
+        original: a rebind on either would then move the other's draws while its
+        ``idata`` stayed put.  The copy instead builds a fresh conditioned model
+        over the same intervened model and the optimizer's current ``idata``,
+        registers its own callback and rebuilds everything compiled from those
+        graphs.  The two optimizers then follow their own posteriors.
+
+        ``model_copy(deep=True)`` does not use this method.  Likewise, an
+        ``update`` passed to ``model_copy`` is applied after this method
+        returns, so the copy's compiled functions are not rebuilt for it; build
+        a new optimizer to change construction settings.
+        """
+        clone = super().__copy__()
+        # The compiled constraints close over the total-budget shared variable,
+        # so the copy needs its own or an allocation on one would retarget the other.
+        clone._total_budget = shared(
+            self._total_budget.get_value(), name="total_budget"
+        )
+        clone._conditioned = ConditionedModel(
+            clone._pymc_model,
+            clone.idata,
+            frozen_deterministics=clone.frozen_deterministics,
+        )
+        clone._conditioned.register(clone._recompile_after_rebind)
+        clone._recompile_after_rebind()
+        return clone
+
     @property
     def optimization_variables(self) -> OptimizationVariables:
         """The decision vector's variables: media, plus any ``optimizable_vars``.

@@ -43,6 +43,9 @@ from pytensor.xtensor import xtensor_constant
 from pytensor.xtensor.type import XTensorVariable, as_xtensor
 from pytensor.xtensor.vectorization import vectorize_graph
 
+_GRAPH_CACHE_SIZE = 32
+"""Number of extractions a :class:`ConditionedModel` caches before evicting the least recent."""
+
 
 def _rebuild_model_var(var, *, name: str, dims: tuple[str, ...]):
     """Return a copy of a ``ModelVar``-wrapped variable with new ``name``/``dims`` props."""
@@ -290,6 +293,82 @@ def _variable_layout(
     )
 
 
+def _non_sample_dims(
+    posterior_da: xr.DataArray, *, sample_dims: tuple[str, ...]
+) -> tuple[str, ...]:
+    """Return the non-sample dims of ``posterior_da`` in storage order."""
+    return tuple(str(dim) for dim in posterior_da.dims if str(dim) not in sample_dims)
+
+
+def _check_aligned_dims(
+    name: str, dims: tuple[str, ...], layout: _VariableLayout
+) -> None:
+    """Raise if ``dims`` is not the dim set the variable was constructed with.
+
+    The order is free here: ``_align_posterior_dim`` and the final transpose
+    put the axes back in the layout's order.
+    """
+    if set(dims) != set(layout.dims):
+        raise ValueError(
+            f"Posterior variable {name!r} has dims {dims}, expected {layout.dims}."
+        )
+
+
+def _align_posterior_dim(
+    name: str,
+    posterior_da: xr.DataArray,
+    dim: str,
+    bound: pd.Index | None,
+) -> xr.DataArray:
+    """Check ``dim``'s labels against ``bound`` and reorder the axis to them.
+
+    A dimension labeled on one side only cannot be checked, and a duplicated
+    layout label could not be realigned by ``sel`` -- it would silently pick
+    one column twice -- so both are refused.  An unlabeled dimension, or one
+    whose labels already match, keeps its labels in the bound order.
+    """
+    given = posterior_da.indexes.get(dim)
+    if (bound is None) != (given is None):
+        raise ValueError(
+            f"Posterior variable {name!r}: dimension {dim!r} is labeled on "
+            "one side only. Label both sides or neither; positions cannot "
+            "be checked against labels."
+        )
+    if bound is None:
+        return posterior_da
+    # A duplicated layout label could not be realigned by ``sel``: it would
+    # silently pick one column twice, so the layout has to be a set.
+    if not bound.is_unique:
+        raise ValueError(
+            f"Posterior variable {name!r} has duplicated {dim} labels: "
+            f"{bound[bound.duplicated()].unique().tolist()}."
+        )
+    # pd.Index compares datetimes by value across storage units.  The bound
+    # index is unique, so equal lengths plus an empty difference means the same
+    # set of labels, with any duplicate on the given side surfacing as a
+    # missing label.  No sorting, so a mixed-type object axis is fine.
+    if len(bound) != len(given) or not bound.difference(given).empty:
+        extra, missing = given.difference(bound), bound.difference(given)
+        raise ValueError(
+            f"Posterior variable {name!r} has different {dim} labels: "
+            f"{len(extra)} not bound, {len(missing)} missing "
+            f"(e.g. {list(extra[:3])} / {list(missing[:3])})."
+        )
+    return posterior_da.sel({dim: bound})
+
+
+def _check_aligned_shape(
+    name: str, shape: tuple[int, ...], layout: _VariableLayout
+) -> None:
+    """Raise if the non-sample ``shape`` differs from the constructed one."""
+    if shape != layout.shape:
+        raise ValueError(
+            f"Posterior variable {name!r} has shape {shape} over dims "
+            f"{layout.dims}, expected {layout.shape}. Only the sample "
+            "dimension may change length."
+        )
+
+
 def _aligned_posterior(
     name: str,
     posterior_da: xr.DataArray,
@@ -311,50 +390,15 @@ def _aligned_posterior(
         set differs (or the layout's labels are duplicated), or a non-sample
         length differs.  The sample dimension may change length freely.
     """
-    dims = tuple(str(dim) for dim in posterior_da.dims if str(dim) not in sample_dims)
-    if set(dims) != set(layout.dims):
-        raise ValueError(
-            f"Posterior variable {name!r} has dims {dims}, expected {layout.dims}."
-        )
+    _check_aligned_dims(
+        name, _non_sample_dims(posterior_da, sample_dims=sample_dims), layout
+    )
     for dim in layout.dims:
-        bound = layout.coords.get(dim)
-        given = posterior_da.indexes.get(dim)
-        if (bound is None) != (given is None):
-            raise ValueError(
-                f"Posterior variable {name!r}: dimension {dim!r} is labeled on "
-                "one side only. Label both sides or neither; positions cannot "
-                "be checked against labels."
-            )
-        if bound is None or given is None:
-            continue
-        # A duplicated layout label could not be realigned by ``sel``: it would
-        # silently pick one column twice, so the layout has to be a set.
-        if not bound.is_unique:
-            raise ValueError(
-                f"Posterior variable {name!r} has duplicated {dim} labels: "
-                f"{bound[bound.duplicated()].unique().tolist()}."
-            )
-        # pd.Index compares datetimes by value across storage units.  The
-        # bound index is unique, so equal lengths plus an empty difference
-        # means the same set of labels, with any duplicate on the given side
-        # surfacing as a missing label.  No sorting, so a mixed-type object
-        # axis is fine.
-        if len(bound) != len(given) or not bound.difference(given).empty:
-            extra, missing = given.difference(bound), bound.difference(given)
-            raise ValueError(
-                f"Posterior variable {name!r} has different {dim} labels: "
-                f"{len(extra)} not bound, {len(missing)} missing "
-                f"(e.g. {list(extra[:3])} / {list(missing[:3])})."
-            )
-        posterior_da = posterior_da.sel({dim: bound})
-    posterior_da = posterior_da.transpose(*sample_dims, *layout.dims)
-    shape = posterior_da.shape[len(sample_dims) :]
-    if shape != layout.shape:
-        raise ValueError(
-            f"Posterior variable {name!r} has shape {shape} over dims "
-            f"{layout.dims}, expected {layout.shape}. Only the sample "
-            "dimension may change length."
+        posterior_da = _align_posterior_dim(
+            name, posterior_da, dim, layout.coords.get(dim)
         )
+    posterior_da = posterior_da.transpose(*sample_dims, *layout.dims)
+    _check_aligned_shape(name, posterior_da.shape[len(sample_dims) :], layout)
     return posterior_da
 
 
@@ -848,10 +892,6 @@ def _apply_intervention(
         return do(model, dict(intervention))
 
 
-_GRAPH_CACHE_SIZE = 32
-"""Number of extractions a :class:`ConditionedModel` caches before evicting the least recent."""
-
-
 class _CachedGraphs(NamedTuple):
     """A cached extraction: the graphs and their binding.
 
@@ -957,6 +997,18 @@ class ConditionedModel:
         # Every node of the clone, so an input read from outside it can be told
         # from one of the clone's own inputs by identity.
         self._clone_nodes = frozenset(ancestors(list(self._model.named_vars.values())))
+        # The source model's graph inputs, by identity.  After an intervention
+        # they still hold their pre-intervention values; without one the clone
+        # is the model itself, so no input can be pre-intervention.
+        self._pre_intervention_roots = (
+            frozenset(
+                node
+                for node in ancestors(list(model.named_vars.values()))
+                if node.owner is None and not isinstance(node, Constant)
+            )
+            if intervention is not None
+            else frozenset()
+        )
         self._posterior = _reordered_to_model_coords(
             _posterior_dataset(idata), self._model.coords
         )
@@ -1029,9 +1081,10 @@ class ConditionedModel:
         response_vars : str, Variable, or sequence of either
             The response variable(s) to extract.  A name resolves against the
             intervened model, a ``Variable`` may be any graph over that clone,
-            and a sequence extracts all in one pass.  A graph reading an input
-            from outside the intervened model is refused, since it would carry
-            no intervention into the result.
+            and a sequence extracts all in one pass.  When an intervention was
+            applied, a graph that reads a root of the source model is refused,
+            since that input still holds its pre-intervention value; a free
+            input the model does not bind is accepted as a function argument.
         cache : bool, default True
             Keep the extraction in the cache for :meth:`set_posterior` to drop
             or rebind.  A cached key returns the identical graph on a repeat, and
@@ -1057,10 +1110,10 @@ class ConditionedModel:
             If a requested name is not a variable of the intervened model, or
             if the current posterior lacks a variable the graph reads.
         ValueError
-            If a ``Variable`` reads an input from outside the intervened model,
-            if no response variable is given, or if a variable the graph reads
-            has different non-sample dimensions, length or labels from its
-            construction layout (or is labeled on one side only).
+            If a ``Variable`` reads a pre-intervention input of the source
+            model, if no response variable is given, or if a variable the graph
+            reads has different non-sample dimensions, length or labels from
+            its construction layout (or is labeled on one side only).
         """
         if isinstance(response_vars, str | Variable):
             single = True
@@ -1345,14 +1398,17 @@ class ConditionedModel:
         return xr.Dataset(selected)
 
     def _resolve(self, var: str | Variable) -> Variable:
-        """Resolve a response against the intervened clone, refusing a graph that reads an outsider.
+        """Resolve a response against the intervened clone.
 
         A node the clone registers, and any graph built over it, is accepted.
-        A graph whose leaves include an input from outside the clone is refused.
-        A node of the pre-intervention model, or of an unrelated one, is such an input.
-        The refusal names those inputs, falling back to their type when they are anonymous.
-        With ``intervention=None`` the clone is the model itself, so a node of the source model is accepted.
-        Constants are never treated as an outside input.
+        Any other graph input is accepted as a function argument.  When an
+        intervention was applied, a graph whose leaves include a root of the
+        source model is refused: that input still holds its pre-intervention
+        value, so the graph would not carry the intervention.  The refusal
+        names those inputs, falling back to their type when they are anonymous.
+        With ``intervention=None`` the clone is the model itself, so no input
+        is treated as pre-intervention.  Constants are never treated as a
+        pre-intervention input.
         """
         if isinstance(var, str):
             if var not in self._model.named_vars:
@@ -1368,13 +1424,16 @@ class ConditionedModel:
             and not isinstance(node, Constant)
             and node not in self._clone_nodes
         ]
-        if outside_inputs:
+        pre_intervention = [
+            node for node in outside_inputs if node in self._pre_intervention_roots
+        ]
+        if pre_intervention:
             raise ValueError(
-                f"{var!r} reads inputs outside the intervened model: "
-                f"{self._describe_outside_inputs(outside_inputs)}. Pass a "
+                f"{var!r} reads pre-intervention inputs of the source model: "
+                f"{self._describe_outside_inputs(pre_intervention)}. Pass a "
                 "name or a node of the model this object holds (its .model); "
-                "a node of the pre-intervention model is refused because it "
-                "would carry no intervention into the graph."
+                "an input of the pre-intervention model would carry no "
+                "intervention into the graph."
             )
         return var
 

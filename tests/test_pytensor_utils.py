@@ -21,6 +21,7 @@ import numpy as np
 import pandas as pd
 import pymc as pm
 import pymc.dims as pmd
+import pytensor.xtensor as ptx
 import pytest
 import xarray as xr
 from pymc.model.fgraph import fgraph_from_model
@@ -37,7 +38,12 @@ from pymc_marketing.pytensor_utils import (
     ConditionedModel,
     ModelSamplerEstimator,
     SharedPosterior,
+    _align_posterior_dim,
+    _check_aligned_dims,
+    _check_aligned_shape,
+    _non_sample_dims,
     _prefix_model,
+    _VariableLayout,
     extract_response_distribution,
     merge_models,
     validate_unique_value_vars,
@@ -714,6 +720,93 @@ def test_extract_response_distribution_accepts_several_variables():
 
     with pytest.raises(ValueError, match="at least one variable"):
         extract_response_distribution(model, idata, [])
+
+
+def _channel_layout(dims=("channel",), *, shape=(2,), coords=None):
+    return _VariableLayout(
+        dims=dims,
+        coords={} if coords is None else coords,
+        shape=shape,
+    )
+
+
+def test_non_sample_dims_keeps_storage_order_and_drops_samples():
+    posterior_da = xr.DataArray(np.ones((2, 3, 4)), dims=("chain", "channel", "draw"))
+    assert _non_sample_dims(posterior_da, sample_dims=("chain", "draw")) == ("channel",)
+
+
+def test_check_aligned_dims_compares_the_dim_set_not_its_order():
+    layout = _channel_layout(dims=("channel", "date"), shape=(2, 3))
+
+    _check_aligned_dims("beta", ("date", "channel"), layout)  # order is free
+
+    with pytest.raises(ValueError, match="has dims"):
+        _check_aligned_dims("beta", ("channel",), layout)
+
+
+@pytest.mark.parametrize(
+    "given, bound, match",
+    [
+        pytest.param(
+            None,
+            pd.Index(["a", "b"]),
+            "labeled on one side only",
+            id="labelled-given-unlabelled",
+        ),
+        pytest.param(
+            pd.Index(["a", "b"]),
+            None,
+            "labeled on one side only",
+            id="labelled-bound-unlabelled",
+        ),
+        pytest.param(
+            pd.Index(["a", "b"]),
+            pd.Index(["a", "a"]),
+            "has duplicated channel labels",
+            id="duplicated-bound-labels",
+        ),
+        pytest.param(
+            pd.Index(["a", "c"]),
+            pd.Index(["a", "b"]),
+            "has different channel labels",
+            id="different-labels",
+        ),
+    ],
+)
+def test_align_posterior_dim_refuses_unusable_labels(given, bound, match):
+    posterior_da = xr.DataArray(
+        np.ones((2, 3)),
+        dims=("channel", "sample"),
+        coords={} if given is None else {"channel": given},
+    )
+
+    with pytest.raises(ValueError, match=match):
+        _align_posterior_dim("beta", posterior_da, "channel", bound)
+
+
+def test_align_posterior_dim_reorders_the_axis_to_the_bound_labels():
+    posterior_da = xr.DataArray(
+        [1.0, 2.0], dims="channel", coords={"channel": ["b", "a"]}
+    )
+
+    aligned = _align_posterior_dim(
+        "beta", posterior_da, "channel", pd.Index(["a", "b"])
+    )
+
+    assert list(aligned.indexes["channel"]) == ["a", "b"]
+    np.testing.assert_allclose(aligned.values, [2.0, 1.0])
+    # The same array comes back when neither side is labeled.
+    unlabelled = xr.DataArray(np.ones((2, 3)), dims=("channel", "sample"))
+    assert _align_posterior_dim("beta", unlabelled, "channel", None) is unlabelled
+
+
+def test_check_aligned_shape_allows_only_the_sample_length_to_change():
+    layout = _channel_layout(shape=(2,))
+
+    _check_aligned_shape("beta", (2,), layout)
+
+    with pytest.raises(ValueError, match="Only the sample dimension may change"):
+        _check_aligned_shape("beta", (3,), layout)
 
 
 def _slope_model_and_draws(draws: int, seed: int):
@@ -1774,7 +1867,9 @@ def test_conditioned_model_refuses_pre_intervention_variable(
     conditioned_slope, slope_posteriors
 ):
     model, *_ = slope_posteriors
-    with pytest.raises(ValueError, match="reads inputs outside the intervened model"):
+    with pytest.raises(
+        ValueError, match="reads pre-intervention inputs of the source model"
+    ):
         conditioned_slope.extract(model["doubled"])
 
 
@@ -1800,24 +1895,36 @@ def test_conditioned_model_accepts_a_derived_expression_over_the_clone(
     np.testing.assert_allclose(function([], graph)(), expected)
 
 
+def test_conditioned_model_accepts_a_free_symbolic_input():
+    """A free input is a function argument, not a pre-intervention value."""
+    model, spend = _channel_conditioned_model()
+    conditioned = ConditionedModel(
+        model, _channel_posterior([1.0, 2.0]), intervention={"spend": spend}
+    )
+    price = ptx.xtensor("price", dims=())
+
+    graph = conditioned.extract(conditioned.model["resp"] * price)
+
+    np.testing.assert_allclose(function([price], graph)(2.0), [[20.0, 80.0]])
+
+
 @pytest.mark.parametrize(
     "build_response",
     [
         pytest.param(lambda model: model["resp"], id="source-node"),
         pytest.param(lambda model: model["resp"].sum("channel"), id="source-derived"),
-        pytest.param(
-            lambda model: _channel_conditioned_model()[0]["resp"], id="unrelated-node"
-        ),
     ],
 )
-def test_conditioned_model_refuses_a_graph_outside_the_intervened_model(build_response):
-    """A source-model node, a graph derived over it, and an unrelated model's node are refused."""
+def test_conditioned_model_refuses_a_source_model_graph(build_response):
+    """A source-model node and a graph derived over it are refused after an intervention."""
     model, spend = _channel_conditioned_model()
     conditioned = ConditionedModel(
         model, _channel_posterior([1.0, 2.0]), intervention={"spend": spend}
     )
 
-    with pytest.raises(ValueError, match="reads inputs outside the intervened model"):
+    with pytest.raises(
+        ValueError, match="reads pre-intervention inputs of the source model"
+    ):
         conditioned.extract(build_response(model))
 
 
@@ -1854,51 +1961,30 @@ def test_conditioned_model_refusal_names_the_outside_input():
     assert "'spend'" in str(excinfo.value)
 
 
-def test_conditioned_model_refusal_names_an_anonymous_input_by_type():
+def test_describe_outside_inputs_names_an_anonymous_input_by_type():
     """An anonymous input is named by its type, never by a repr with an address."""
-    model, spend = _channel_conditioned_model()
-    conditioned = ConditionedModel(
-        model, _channel_posterior([1.0, 2.0]), intervention={"spend": spend}
-    )
-    # This scalar source variable leaves the source model's anonymous RNG as
-    # the only outside root.
-    with pm.Model() as source:
-        pm.Normal("outside")
+    message = ConditionedModel._describe_outside_inputs([shared(np.array(1.0))])
 
-    with pytest.raises(ValueError) as excinfo:
-        conditioned.extract(conditioned.model["beta"] * source["outside"])
-
-    message = str(excinfo.value)
-    assert "<RandomGeneratorSharedVariable>" in message
+    assert "<TensorSharedVariable>" in message
     assert "0x" not in message
 
 
-def test_conditioned_model_refusal_deduplicates_named_inputs():
+def test_describe_outside_inputs_deduplicates_named_inputs():
     """The same name reached through two roots is listed once."""
-    model, spend = _channel_conditioned_model()
-    conditioned = ConditionedModel(
-        model, _channel_posterior([1.0, 2.0]), intervention={"spend": spend}
-    )
-    duplicate = shared(np.array(1.0), name="spend")
+    first = shared(np.array(1.0), name="spend")
+    second = shared(np.array(2.0), name="spend")
 
-    with pytest.raises(ValueError) as excinfo:
-        conditioned.extract(conditioned.model["beta"] * (model["spend"] + duplicate))
+    message = ConditionedModel._describe_outside_inputs([first, second])
 
-    assert str(excinfo.value).count("'spend'") == 1
+    assert message.count("'spend'") == 1
 
 
-def test_conditioned_model_refusal_caps_the_named_inputs():
+def test_describe_outside_inputs_caps_the_named_inputs():
     """Only five names are shown, followed by the number left out."""
-    model, spend = _channel_conditioned_model()
-    conditioned = ConditionedModel(
-        model, _channel_posterior([1.0, 2.0]), intervention={"spend": spend}
-    )
     outside = [shared(np.array(1.0), name=f"outside{index}") for index in range(6)]
 
-    with pytest.raises(ValueError) as excinfo:
-        conditioned.extract(conditioned.model["beta"] * sum(outside))
+    message = ConditionedModel._describe_outside_inputs(outside)
 
-    message = str(excinfo.value)
     assert sum(f"'outside{index}'" in message for index in range(6)) == 5
     assert "and 1 more" in message
 

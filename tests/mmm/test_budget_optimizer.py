@@ -2960,6 +2960,33 @@ def _ad_hoc_response_optimizer():
     return optimizer, plan, posterior
 
 
+def test_a_shallow_copy_follows_its_own_posterior():
+    """A copy owns its conditioned model, so a rebind moves only its own draws.
+
+    pydantic's ``model_copy`` shares private attributes by default, which would
+    leave both optimizers on one conditioned model: the clone would optimize the
+    old draws while reporting the new ones, and the original would move to a
+    posterior its ``idata`` does not hold.
+    """
+    optimizer, plan, posterior = _ad_hoc_response_optimizer()
+    scaled = xr.DataTree.from_dict(
+        {"/posterior": posterior.assign(beta=posterior["beta"] * 3.0)}
+    )
+
+    clone = optimizer.model_copy()
+    assert clone._total_budget is not optimizer._total_budget
+    clone.set_posterior(scaled)
+
+    np.testing.assert_allclose(
+        clone.evaluate_response_distribution(plan).to_numpy(), 1200.0
+    )
+    np.testing.assert_allclose(
+        optimizer.evaluate_response_distribution(plan).to_numpy(), 400.0
+    )
+    assert clone.evaluate_plan(plan).objective == pytest.approx(-1200.0)
+    assert optimizer.evaluate_plan(plan).objective == pytest.approx(-400.0)
+
+
 def test_an_ad_hoc_function_is_recompiled_after_a_rebind_drops_its_variable():
     """A swap without the ad-hoc variable drops its function and still succeeds.
 
