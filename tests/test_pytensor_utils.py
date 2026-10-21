@@ -1321,7 +1321,7 @@ def _expected_tripled(idata, data_values) -> np.ndarray:
 
 
 def _channel_conditioned_model():
-    """The reported model: ``resp = beta * spend`` and ``resp_g = gamma * spend``."""
+    """A model with ``resp = beta * spend`` and ``resp_g = gamma * spend``."""
     spend = np.array([10.0, 20.0])
     with pm.Model(coords={"channel": ["a", "b"]}) as model:
         spend_var = pmd.Data("spend", spend, dims="channel")
@@ -1376,30 +1376,30 @@ def _derived_responses(conditioned, *factors):
     return [conditioned.model["doubled"] * factor for factor in factors]
 
 
-def test_conditioned_model_cache_evicts_the_least_recent_key(
+def test_conditioned_model_cache_keeps_a_hit_and_evicts_the_least_recent(
     conditioned_slope, monkeypatch
 ):
-    """N+1 distinct derived keys leave N entries: the oldest one is dropped."""
-    monkeypatch.setattr("pymc_marketing.pytensor_utils._GRAPH_CACHE_SIZE", 2)
-    first, second, third = _derived_responses(conditioned_slope, 2.0, 3.0, 4.0)
+    """A hit keeps its graph, and an insert evicts the least recent key.
 
-    for node in (first, second, third):
-        conditioned_slope.extract(node)
-
-    assert [key[0] for key in conditioned_slope._cache] == [second, third]
-
-
-def test_conditioned_model_cache_hit_refreshes_recency(conditioned_slope, monkeypatch):
-    """A hit marks its key as most recent, so a later insert evicts the untouched one."""
+    An evicted key re-extracts to a new graph.  A hit makes its key the most
+    recent, so the next insert evicts the other one instead.
+    """
     monkeypatch.setattr("pymc_marketing.pytensor_utils._GRAPH_CACHE_SIZE", 2)
     first, second, third = _derived_responses(conditioned_slope, 2.0, 3.0, 4.0)
 
     first_graph = conditioned_slope.extract(first)
     conditioned_slope.extract(second)
-    assert conditioned_slope.extract(first) is first_graph  # a hit, no new entry
-    conditioned_slope.extract(third)
+    conditioned_slope.extract(third)  # the third key evicts the least recent, ``first``
+    assert conditioned_slope.extract(first) is not first_graph
 
-    assert [key[0] for key in conditioned_slope._cache] == [first, third]
+    first_graph = conditioned_slope.extract(
+        first
+    )  # cached again, so the next call hits
+    conditioned_slope.extract(second)
+    # A hit moves ``first`` to the most recent position.
+    assert conditioned_slope.extract(first) is first_graph
+    conditioned_slope.extract(third)  # evicts ``second``, not the just-used ``first``
+    assert conditioned_slope.extract(first) is first_graph
 
 
 def test_conditioned_model_evicted_key_reextracts_and_follows_a_later_rebind(
@@ -1420,7 +1420,6 @@ def test_conditioned_model_evicted_key_reextracts_and_follows_a_later_rebind(
 
     kept_graph = conditioned.extract(kept)
     conditioned.extract(evicting)  # the cap of one evicts ``kept``
-    assert [key[0] for key in conditioned._cache] == [evicting]
 
     re_extracted = conditioned.extract(kept)
     assert re_extracted is not kept_graph
@@ -1742,7 +1741,7 @@ def test_conditioned_model_failed_rebind_keeps_the_previous_binding(
 
 
 def test_conditioned_model_failed_extract_leaves_the_binding_unchanged():
-    """The maintainer repro: an extract that fails on a missing variable leaves no trace.
+    """An extract that fails on a missing variable leaves no trace.
 
     After the first rebind the shared posterior binds ``beta`` only.  Extracting
     ``resp``, which reads ``gamma2 + gamma1``, inserts ``gamma1`` and then fails
@@ -1960,8 +1959,8 @@ def test_conditioned_model_reordered_rebind_realigns_constants_and_new_keys(
 ):
     """A rebind realigns at the door, so every later read sees model order.
 
-    On the reported model a posterior stored as ``(b, a)`` gave ``[[20, 20]]`` from the one-shot constant path.
-    A new ``resp_g`` key gave ``[[40, 60]]``.
+    A posterior stored as ``(b, a)`` used to give ``[[20, 20]]`` from the one-shot constant path,
+    and a new ``resp_g`` key gave ``[[40, 60]]`` instead of ``[[30, 80]]``.
     """
     model, spend = _channel_conditioned_model()
     conditioned = ConditionedModel(
@@ -1970,7 +1969,7 @@ def test_conditioned_model_reordered_rebind_realigns_constants_and_new_keys(
         intervention={"spend": spend},
         share_posterior=share_posterior,
     )
-    conditioned.extract("resp")  # hand out a cached graph, as in the report
+    conditioned.extract("resp")  # hand out a cached graph before the reordered rebind
 
     conditioned.set_posterior(
         _channel_posterior([2.0, 1.0], channel=("b", "a"), gamma=[4.0, 3.0])
@@ -2262,7 +2261,7 @@ def _dated_posterior(dates, beta, channel=("a", "b")):
 
 @pytest.mark.parametrize("share_posterior", [False, True])
 def test_conditioned_model_ignores_unread_date_labels_on_rebind(share_posterior):
-    """Maintainer repro 1: a refit date window on an unread deterministic is accepted.
+    """A refit date window on an unread deterministic is accepted.
 
     ``resp`` reads only ``beta``, so the newer ``date`` labels of the unread
     ``channel_contribution`` must not refuse the rebind.  A reordered
@@ -2286,11 +2285,13 @@ def test_conditioned_model_ignores_unread_date_labels_on_rebind(share_posterior)
 
 @pytest.mark.parametrize("share_posterior", [False, True])
 def test_conditioned_model_stale_inspection_key_does_not_bind(share_posterior):
-    """Maintainer repro 2: an inspection of ``resp_g`` must not pin ``gamma``.
+    """An inspection of ``resp_g`` before a rebind does not pin ``gamma``.
 
     In constant mode the first rebind drops the cached inspection key with the
-    rest of the cache.  In shared mode a cached graph genuinely follows the
-    rebind, so the inspection used for this check is the one-shot form.
+    rest of the cache.  In shared mode the inspection is extracted as
+    non-required, so it binds ``gamma`` to a private binding and a posterior
+    without ``gamma`` is still accepted.  Either way the model-wide binding
+    holds ``beta`` only.
     """
     model, spend = _channel_conditioned_model()
     conditioned = ConditionedModel(
@@ -2299,14 +2300,17 @@ def test_conditioned_model_stale_inspection_key_does_not_bind(share_posterior):
         intervention={"spend": spend},
         share_posterior=share_posterior,
     )
-    conditioned.extract("resp_g", cache=not share_posterior)
+    conditioned.extract("resp_g", required=False)
     conditioned.extract("resp")
     refreshed = []
     conditioned.register(lambda: refreshed.append(conditioned.extract("resp")))
 
     conditioned.set_posterior(_channel_posterior([2.0, 1.0]))
 
-    graph = refreshed[0] if refreshed else conditioned.extract("resp")
+    assert set(conditioned.shared_posterior.variables) == {"beta"}
+    # Shared mode fires no callback: the cached ``resp`` graph follows the swap.
+    assert bool(refreshed) is not share_posterior
+    graph = conditioned.extract("resp") if share_posterior else refreshed[0]
     np.testing.assert_allclose(function([], graph)(), [[20.0, 20.0]])
 
 

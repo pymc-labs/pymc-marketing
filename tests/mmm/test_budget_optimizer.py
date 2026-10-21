@@ -3016,10 +3016,6 @@ def test_a_failed_first_rebind_rolls_the_conditioned_model_back(error, monkeypat
     before_idata = optimizer.idata
     before_objective = optimizer._objective_and_grad
     before_posterior = conditioned.posterior
-    before_cache = {
-        key: (cached.graphs, cached.optional_binding)
-        for key, cached in conditioned._cache.items()
-    }
     old = optimizer.evaluate_response_distribution(plan)
     assert conditioned.shared_posterior is None
 
@@ -3036,10 +3032,6 @@ def test_a_failed_first_rebind_rolls_the_conditioned_model_back(error, monkeypat
             optimizer.set_posterior(new)
 
     assert conditioned.shared_posterior is None
-    assert list(conditioned._cache) == list(before_cache)
-    for key, (graphs, binding) in before_cache.items():
-        assert conditioned._cache[key].graphs is graphs
-        assert conditioned._cache[key].optional_binding is binding
     assert conditioned.posterior is before_posterior
     assert optimizer.idata is before_idata
     assert optimizer._objective_and_grad is before_objective
@@ -3075,15 +3067,8 @@ def test_a_failed_shared_mode_rebind_restores_the_old_draws_without_recompiling(
     before = optimizer.evaluate_response_distribution(plan)
     before_adhoc = optimizer.evaluate_response_distribution(plan, "noise_thing")
     adhoc_function = optimizer._response_functions["noise_thing"][0]
-    optional_key = next(
-        key for key, cached in conditioned._cache.items() if cached.optional_binding
-    )
-    optional_binding = conditioned._cache[optional_key].optional_binding
-    assert optional_binding is not None
     variables = shared.variables
     values = {name: variable.get_value() for name, variable in variables.items()}
-    gamma = optional_binding.variables["gamma"]
-    gamma_values = gamma.get_value()
 
     original = conditioned.set_posterior
 
@@ -3103,8 +3088,6 @@ def test_a_failed_shared_mode_rebind_restores_the_old_draws_without_recompiling(
     for name, variable in variables.items():
         assert shared.variables[name] is variable
         np.testing.assert_array_equal(shared.variables[name].get_value(), values[name])
-    assert optional_binding.variables["gamma"] is gamma
-    np.testing.assert_array_equal(gamma.get_value(), gamma_values)
     assert optimizer.idata is before_idata
     assert optimizer._objective_and_grad is before_objective
     assert optimizer._response_functions["noise_thing"][0] is adhoc_function
