@@ -537,6 +537,25 @@ class TestSerializeModelConfig:
 
         assert restored == prior
 
+    def test_prior_with_scaled_parameter_survives_json_round_trip(self):
+        """A ``Scaled`` parameter is written in the format ``Prior.from_dict`` reads."""
+        import json
+
+        from pymc_extras.prior import Prior, Scaled
+
+        inner = Prior("HalfNormal", sigma=1, transform="exp")
+        prior = Prior("Normal", mu=0, sigma=Scaled(inner, factor=2.0))
+
+        serialized = json.loads(
+            json.dumps(serialization.serialize_model_config({"prior": prior}))
+        )
+        restored = serialization.deserialize_model_config(serialized)["prior"]
+
+        restored_sigma = restored.parameters["sigma"]
+        assert isinstance(restored_sigma, Scaled)
+        assert restored_sigma.dist == inner
+        assert restored_sigma.factor == 2.0
+
     def test_prior_without_transform_writes_no_transform_key(self):
         """A ``Prior`` without a transform is written without a ``transform`` key."""
         from pymc_extras.prior import Prior

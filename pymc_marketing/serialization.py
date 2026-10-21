@@ -290,14 +290,10 @@ class TypeRegistry:
         from pymc_extras.prior import Prior
 
         if isinstance(value, Prior):
-            # Start from ``Prior.to_dict`` so every attribute it writes (``dims``,
-            # ``centered``, ``transform``, ...) is kept, and only re-encode the
-            # parameters so nested values go through this function.
-            result: dict[str, Any] = value.to_dict()
-            result["kwargs"] = {
-                k: self._serialize_config_value(v) for k, v in value.parameters.items()
-            }
-            return result
+            # ``Prior.to_dict`` writes every attribute (``dims``, ``centered``,
+            # ``transform``, ...) and encodes nested parameters in the format
+            # ``Prior.from_dict`` reads back. The model id uses the same encoding.
+            return value.to_dict()
 
         type_key = f"{value.__class__.__module__}.{value.__class__.__qualname__}"
         if type_key in self._registry:
