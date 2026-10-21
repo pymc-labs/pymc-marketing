@@ -396,18 +396,6 @@ def create_log_callback(
     return callback
 
 
-def _log_and_remove_artifact(path: str | Path) -> None:
-    """Log an artifact to MLflow and then remove the local file.
-
-    Parameters
-    ----------
-    path : str | Path
-        Path to the artifact file to log and remove.
-    """
-    mlflow.log_artifact(str(path))
-    os.remove(path)
-
-
 def _force_load_idata_groups(idata: xr.DataTree) -> None:
     """Force load all groups into memory since the store is read lazily.
 
@@ -450,14 +438,16 @@ def log_arviz_summary(
 ) -> None:
     """Log the ArviZ summary as an artifact on MLflow.
 
-    Automatically removes the file after logging.
+    The summary is written in a temporary directory, so no file is written to
+    the working directory.
 
     Parameters
     ----------
     idata : xr.DataTree
         The DataTree object returned by the sampling method.
     path : str | Path
-        The path to save the summary as HTML.
+        The name to log the HTML summary under. Only the file name is used; any
+        directory part is ignored.
     var_names : list[str], optional
         The names of the variables to include in the summary. Default is
         all the variables in the DataTree object.
@@ -466,9 +456,10 @@ def log_arviz_summary(
 
     """
     df_summary = az.summary(idata, var_names=var_names, **summary_kwargs)
-    df_summary.to_html(path)
-    mlflow.log_artifact(str(path))
-    os.remove(path)
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        tmp_path = Path(tmp_dir) / Path(path).name
+        df_summary.to_html(tmp_path)
+        mlflow.log_artifact(str(tmp_path))
 
 
 def log_metadata(model: Model, idata: xr.DataTree) -> None:
@@ -706,16 +697,22 @@ def log_inference_data(
 ) -> None:
     """Log the DataTree to MLflow.
 
+    The netCDF file is written in a temporary directory, so no file is written
+    to the working directory.
+
     Parameters
     ----------
     idata : xr.DataTree
         The DataTree object returned by the sampling method.
     save_file : str | Path
-        The path to save the DataTree object as a netCDF file.
+        The name to log the netCDF file under. Only the file name is used; any
+        directory part is ignored.
 
     """
-    idata.to_netcdf(str(save_file))
-    _log_and_remove_artifact(save_file)
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        tmp_path = Path(tmp_dir) / Path(save_file).name
+        idata.to_netcdf(str(tmp_path))
+        mlflow.log_artifact(str(tmp_path))
 
 
 def log_mmm_evaluation_metrics(
