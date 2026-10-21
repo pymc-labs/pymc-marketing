@@ -968,7 +968,7 @@ class ProbedReach:
 
     Parameters
     ----------
-    lease : _EvaluatorLease
+    lease : EvaluatorLease
         The compiled batched evaluator, held for the duration of the request.
     baseline : dict
         The factual evaluation of every node, per node
@@ -987,7 +987,7 @@ class ProbedReach:
         ``channel_data``'s declared axis order.
     """
 
-    lease: _EvaluatorLease
+    lease: EvaluatorLease
     baseline: dict
     baseline_array: np.ndarray
     probe: SpendProbe
@@ -1069,7 +1069,7 @@ _EVALUATOR_CACHE_ATTR = "_incrementality_evaluator_cache"
 """Name of the attribute that holds the compiled-evaluator cache."""
 
 
-class _EvaluatorCacheKey(NamedTuple):
+class EvaluatorCacheKey(NamedTuple):
     """Identity of a compiled counterfactual evaluator.
 
     Structural fields pick the compiled graph; ``dates`` and ``data_fingerprint`` pick the data it was built and
@@ -1126,7 +1126,7 @@ def _constant_data_fingerprint(idata: xr.DataTree) -> tuple | None:
     return tuple(entries)
 
 
-class _EvaluatorLease:
+class EvaluatorLease:
     """One request's hold on a compiled evaluator, taken out of the cache.
 
     A leased evaluator belongs to the request until :meth:`release`: nothing
@@ -1136,9 +1136,9 @@ class _EvaluatorLease:
 
     Parameters
     ----------
-    cache : _EvaluatorCache
+    cache : EvaluatorCache
         The cache it was taken from and is returned to.
-    key : _EvaluatorCacheKey
+    key : EvaluatorCacheKey
         The identity it is cached under.
     evaluator : CounterfactualEvaluator
         The compiled evaluator.
@@ -1148,8 +1148,8 @@ class _EvaluatorLease:
 
     def __init__(
         self,
-        cache: _EvaluatorCache,
-        key: _EvaluatorCacheKey,
+        cache: EvaluatorCache,
+        key: EvaluatorCacheKey,
         evaluator: CounterfactualEvaluator,
         *,
         cached: bool,
@@ -1179,7 +1179,7 @@ class _EvaluatorLease:
         self._cache.put(self._key, self._evaluator)
 
 
-class _EvaluatorCache:
+class EvaluatorCache:
     """Bounded LRU cache of compiled counterfactual evaluators.
 
     A fitted MMM keeps one so its :class:`Incrementality` objects reuse compiled evaluators, keyed by graph shape and
@@ -1200,14 +1200,14 @@ class _EvaluatorCache:
 
     def __init__(self, max_entries: int = 4) -> None:
         self._max_entries = max_entries
-        self._entries: OrderedDict[_EvaluatorCacheKey, CounterfactualEvaluator] = (
+        self._entries: OrderedDict[EvaluatorCacheKey, CounterfactualEvaluator] = (
             OrderedDict()
         )
         # Guards only the dictionary bookkeeping, never a request: a release must not
         # fail because another thread evicted its key between two dict operations.
         self._lock = threading.Lock()
 
-    def get(self, key: _EvaluatorCacheKey) -> CounterfactualEvaluator | None:
+    def get(self, key: EvaluatorCacheKey) -> CounterfactualEvaluator | None:
         """Return the evaluator cached under ``key``, marking it most recent."""
         with self._lock:
             evaluator = self._entries.get(key)
@@ -1215,7 +1215,7 @@ class _EvaluatorCache:
                 self._entries.move_to_end(key)
             return evaluator
 
-    def put(self, key: _EvaluatorCacheKey, evaluator: CounterfactualEvaluator) -> None:
+    def put(self, key: EvaluatorCacheKey, evaluator: CounterfactualEvaluator) -> None:
         """Store ``evaluator`` under ``key``, evicting the least recent entry."""
         with self._lock:
             self._entries[key] = evaluator
@@ -1225,9 +1225,9 @@ class _EvaluatorCache:
 
     def lease(
         self,
-        key: _EvaluatorCacheKey,
+        key: EvaluatorCacheKey,
         factory: Callable[[], CounterfactualEvaluator],
-    ) -> _EvaluatorLease:
+    ) -> EvaluatorLease:
         """Take the evaluator cached under ``key``, building one on a miss.
 
         The entry is removed from the cache and stays out until the lease is
@@ -1239,14 +1239,14 @@ class _EvaluatorCache:
 
         Parameters
         ----------
-        key : _EvaluatorCacheKey
+        key : EvaluatorCacheKey
             Identity to look up.
         factory : callable
             Builds the evaluator when the key is absent or stale.
 
         Returns
         -------
-        _EvaluatorLease
+        EvaluatorLease
             The evaluator and whether it came from the cache.  A caller that
             rebinds a cached evaluator to new draws needs to know the
             difference: a freshly built one is already conditioned on the draws
@@ -1255,8 +1255,8 @@ class _EvaluatorCache:
         with self._lock:
             evaluator = self._entries.pop(key, None)
         if evaluator is not None and not evaluator.is_stale():
-            return _EvaluatorLease(self, key, evaluator, cached=True)
-        return _EvaluatorLease(self, key, factory(), cached=False)
+            return EvaluatorLease(self, key, evaluator, cached=True)
+        return EvaluatorLease(self, key, factory(), cached=False)
 
     def __len__(self) -> int:
         return len(self._entries)
@@ -4385,7 +4385,7 @@ class Incrementality:
 
     def _evaluator_cache_key(
         self, response_vars: Sequence[str | Variable]
-    ) -> _EvaluatorCacheKey:
+    ) -> EvaluatorCacheKey:
         """Return the cache identity of the evaluator :meth:`_compute_increments` needs.
 
         The key mirrors what the evaluator bakes into its compiled graph (responses, target, mode, frozen
@@ -4399,11 +4399,11 @@ class Incrementality:
 
         Returns
         -------
-        _EvaluatorCacheKey
+        EvaluatorCacheKey
             Identity the evaluator is cached under.
         """
         dates = self.data.dates
-        return _EvaluatorCacheKey(
+        return EvaluatorCacheKey(
             response_vars=tuple(
                 var if isinstance(var, str) else (var.name or var)
                 for var in response_vars
@@ -4662,7 +4662,7 @@ class Incrementality:
                 else None
             ),
         )
-        cache = self.model.__dict__.setdefault(_EVALUATOR_CACHE_ATTR, _EvaluatorCache())
+        cache = self.model.__dict__.setdefault(_EVALUATOR_CACHE_ATTR, EvaluatorCache())
         lease = cache.lease(self._evaluator_cache_key(response_vars), build_evaluator)
         evaluator = lease.evaluator
         # A hit carries the draws of the request that built it; a miss was just

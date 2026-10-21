@@ -269,7 +269,7 @@ def _array_equal(a: np.ndarray, b: np.ndarray) -> bool:
     return bool(np.array_equal(a, b, equal_nan=equal_nan))
 
 
-class _VariableLayout(NamedTuple):
+class VariableLayout(NamedTuple):
     """The non-sample layout a posterior variable was constructed with."""
 
     dims: tuple[str, ...]
@@ -279,10 +279,10 @@ class _VariableLayout(NamedTuple):
 
 def _variable_layout(
     posterior_da: xr.DataArray, *, sample_dims: tuple[str, ...]
-) -> _VariableLayout:
+) -> VariableLayout:
     """Record the non-sample dims, labels and shape of ``posterior_da``."""
     dims = tuple(str(dim) for dim in posterior_da.dims if str(dim) not in sample_dims)
-    return _VariableLayout(
+    return VariableLayout(
         dims=dims,
         coords={
             dim: posterior_da.indexes[dim]
@@ -301,7 +301,7 @@ def _non_sample_dims(
 
 
 def _check_aligned_dims(
-    name: str, dims: tuple[str, ...], layout: _VariableLayout
+    name: str, dims: tuple[str, ...], layout: VariableLayout
 ) -> None:
     """Raise if ``dims`` is not the dim set the variable was constructed with.
 
@@ -358,7 +358,7 @@ def _align_posterior_dim(
 
 
 def _check_aligned_shape(
-    name: str, shape: tuple[int, ...], layout: _VariableLayout
+    name: str, shape: tuple[int, ...], layout: VariableLayout
 ) -> None:
     """Raise if the non-sample ``shape`` differs from the constructed one."""
     if shape != layout.shape:
@@ -372,7 +372,7 @@ def _check_aligned_shape(
 def _aligned_posterior(
     name: str,
     posterior_da: xr.DataArray,
-    layout: _VariableLayout,
+    layout: VariableLayout,
     *,
     sample_dims: tuple[str, ...],
 ) -> xr.DataArray:
@@ -450,7 +450,7 @@ class SharedPosterior:
 
     def __init__(self) -> None:
         self._variables: dict[str, SharedVariable] = {}
-        self._layouts: dict[str, _VariableLayout] = {}
+        self._layouts: dict[str, VariableLayout] = {}
 
     def __repr__(self) -> str:
         """Show each bound variable with its current ``(sample, ...)`` shape."""
@@ -892,7 +892,7 @@ def _apply_intervention(
         return do(model, dict(intervention))
 
 
-class _CachedGraphs(NamedTuple):
+class CachedGraphs(NamedTuple):
     """A cached extraction: the graphs and their binding.
 
     ``optional_binding`` is the private :class:`SharedPosterior` of a
@@ -905,15 +905,15 @@ class _CachedGraphs(NamedTuple):
     optional_binding: SharedPosterior | None = None
 
 
-class _BindingCheckpoint(NamedTuple):
+class BindingCheckpoint(NamedTuple):
     """A private optional binding and shallow copies of its registries."""
 
     binding: SharedPosterior
     variables: dict[str, SharedVariable]
-    layouts: dict[str, _VariableLayout]
+    layouts: dict[str, VariableLayout]
 
 
-class _Checkpoint(NamedTuple):
+class Checkpoint(NamedTuple):
     """A cheap snapshot of a :class:`ConditionedModel`'s binding state.
 
     The cache and the registries are shallow-copied; the posterior dataset is
@@ -922,12 +922,12 @@ class _Checkpoint(NamedTuple):
     compiled function that holds its variables keeps reading them.
     """
 
-    cache: OrderedDict[tuple[str | Variable | bool, ...], _CachedGraphs]
+    cache: OrderedDict[tuple[str | Variable | bool, ...], CachedGraphs]
     posterior: xr.Dataset
     shared_posterior: SharedPosterior | None
     variables: dict[str, SharedVariable]
-    layouts: dict[str, _VariableLayout]
-    optional: tuple[_BindingCheckpoint, ...]
+    layouts: dict[str, VariableLayout]
+    optional: tuple[BindingCheckpoint, ...]
 
 
 class ConditionedModel:
@@ -1015,14 +1015,14 @@ class ConditionedModel:
         # The layout each variable is validated against when a graph reads it,
         # taken once here.  It is metadata only; a variable no graph reads is
         # never checked, so a refit over a new date window is accepted.
-        self._layouts: dict[str, _VariableLayout] = {
+        self._layouts: dict[str, VariableLayout] = {
             str(name): _variable_layout(var, sample_dims=("chain", "draw"))
             for name, var in self._posterior.data_vars.items()
         }
         self._shared_posterior: SharedPosterior | None = (
             SharedPosterior() if share_posterior else None
         )
-        self._cache: OrderedDict[tuple[str | Variable | bool, ...], _CachedGraphs] = (
+        self._cache: OrderedDict[tuple[str | Variable | bool, ...], CachedGraphs] = (
             OrderedDict()
         )
         self._callbacks: list[Callable[[], None]] = []
@@ -1147,7 +1147,7 @@ class ConditionedModel:
                 self._shared_posterior if optional_binding is None else optional_binding
             )
             graphs = self._extract(resolved, binding)
-            cached = _CachedGraphs(graphs, optional_binding)
+            cached = CachedGraphs(graphs, optional_binding)
             self._cache[cache_key] = cached
             # Eviction only drops the entry.  A graph already handed out keeps
             # working, and a compiled function keeps reading its shared variables.
@@ -1255,7 +1255,7 @@ class ConditionedModel:
             self._restore(checkpoint)
             raise
 
-    def _checkpoint(self) -> _Checkpoint:
+    def _checkpoint(self) -> Checkpoint:
         """Snapshot the cache and binding state without copying any draws.
 
         The cache and the registries are shallow-copied, so this is cheap and
@@ -1265,18 +1265,18 @@ class ConditionedModel:
 
         Returns
         -------
-        _Checkpoint
+        Checkpoint
             The token :meth:`_restore` reinstalls.
         """
         shared = self._shared_posterior
         optional = tuple(
-            _BindingCheckpoint(
+            BindingCheckpoint(
                 binding, binding._variables.copy(), binding._layouts.copy()
             )
             for cached in self._cache.values()
             if (binding := cached.optional_binding) is not None
         )
-        return _Checkpoint(
+        return Checkpoint(
             cache=self._cache.copy(),
             posterior=self._posterior,
             shared_posterior=shared,
@@ -1285,7 +1285,7 @@ class ConditionedModel:
             optional=optional,
         )
 
-    def _restore(self, token: _Checkpoint) -> None:
+    def _restore(self, token: Checkpoint) -> None:
         """Reinstall a snapshot taken by :meth:`_checkpoint`.
 
         The cache, posterior and shared-posterior object are replaced with the
@@ -1301,7 +1301,7 @@ class ConditionedModel:
 
         Parameters
         ----------
-        token : _Checkpoint
+        token : Checkpoint
             The token returned by :meth:`_checkpoint`.
         """
         self._cache = token.cache.copy()

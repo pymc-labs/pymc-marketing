@@ -60,11 +60,11 @@ from pymc_marketing.mmm.counterfactual import (
 )
 from pymc_marketing.mmm.incrementality import (
     _EVALUATOR_CACHE_ATTR,
+    EvaluatorCache,
     IdentityLinkReducer,
     Incrementality,
     IncrementalReducer,
     LogLinkReducer,
-    _EvaluatorCache,
     kernel_trailing_lags,
 )
 from pymc_marketing.mmm.spend_reach import (
@@ -6840,7 +6840,7 @@ class TestEvaluatorCache:
 
     def test_the_lru_evicts_the_least_recent_and_get_refreshes_recency(self):
         """A size-4 cache drops its oldest key, and a ``get`` hit protects a key from the next eviction."""
-        cache = _EvaluatorCache(max_entries=4)
+        cache = EvaluatorCache(max_entries=4)
         keys = [object() for _ in range(5)]
         values = [object() for _ in range(5)]
         for key, value in zip(keys[:4], values[:4], strict=True):
@@ -6908,7 +6908,7 @@ class TestEvaluatorCache:
 
     def test_a_leased_entry_is_out_of_the_cache_until_released(self):
         """A second request on a leased key misses rather than sharing it."""
-        cache = _EvaluatorCache(max_entries=2)
+        cache = EvaluatorCache(max_entries=2)
         key = object()
         evaluator = _FakeEvaluator()
         cache.put(key, evaluator)

@@ -38,12 +38,12 @@ from pymc_marketing.pytensor_utils import (
     ConditionedModel,
     ModelSamplerEstimator,
     SharedPosterior,
+    VariableLayout,
     _align_posterior_dim,
     _check_aligned_dims,
     _check_aligned_shape,
     _non_sample_dims,
     _prefix_model,
-    _VariableLayout,
     extract_response_distribution,
     merge_models,
     validate_unique_value_vars,
@@ -723,7 +723,7 @@ def test_extract_response_distribution_accepts_several_variables():
 
 
 def _channel_layout(dims=("channel",), *, shape=(2,), coords=None):
-    return _VariableLayout(
+    return VariableLayout(
         dims=dims,
         coords={} if coords is None else coords,
         shape=shape,
