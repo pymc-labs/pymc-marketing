@@ -16,6 +16,7 @@ import logging
 from collections import namedtuple
 from types import SimpleNamespace
 
+import graphviz
 import mlflow
 import mlflow.artifacts
 import numpy as np
@@ -35,7 +36,9 @@ from pymc_marketing.clv import BetaGeoModel
 from pymc_marketing.mlflow import (
     autolog,
     create_log_callback,
+    log_arviz_summary,
     log_error,
+    log_inference_data,
     log_likelihood_type,
     log_mmm,
     log_mmm_evaluation_metrics,
@@ -300,17 +303,27 @@ def test_dims_censored_likelihood_type() -> None:
             ValueError("lam < 0 or lam contains NaNs"),
             "Unable to render the model graph. lam < 0 or lam contains NaNs",
         ),
+        # `graph.render` saves the DOT source before it invokes `dot`, so
+        # patching below `save` checks that a failed render leaves no file.
+        (
+            "graphviz.backend.rendering.render",
+            graphviz.ExecutableNotFound(["dot"]),
+            f"Unable to render the model graph. {graphviz.ExecutableNotFound(['dot'])}",
+        ),
     ],
-    ids=["no_graphviz", "render_error", "graph_creation_error"],
+    ids=["no_graphviz", "render_error", "graph_creation_error", "dot_missing"],
 )
 def test_log_model_graph_no_graphviz(
     caplog,
     mocker,
+    monkeypatch,
     model_with_likelihood,
+    tmp_path,
     to_patch,
     side_effect,
     expected_info_message,
 ) -> None:
+    monkeypatch.chdir(tmp_path)
     mocker.patch(
         to_patch,
         side_effect=side_effect,
@@ -318,6 +331,8 @@ def test_log_model_graph_no_graphviz(
     with mlflow.start_run() as run:
         with caplog.at_level(logging.INFO, logger="pymc_marketing.mlflow"):
             log_model_graph(model_with_likelihood, "model_graph")
+
+    assert not list(tmp_path.glob("model_graph*"))
 
     # Only inspect records emitted by pymc-marketing itself. caplog's handler is
     # attached to the root logger, so it also captures unrelated INFO logs from
@@ -721,6 +736,42 @@ def test_log_sample_diagnostics_missing_group(mock_idata, selected_group: str) -
     match = rf"DataTree object does not contain the group {missing_group}."
     with pytest.raises(KeyError, match=match):
         log_sample_diagnostics(idata)
+
+
+ARTIFACT_WRITERS = pytest.mark.parametrize(
+    "log_func, name",
+    [(log_arviz_summary, "summary.html"), (log_inference_data, "idata.nc")],
+    ids=["summary", "idata"],
+)
+
+
+@ARTIFACT_WRITERS
+@pytest.mark.parametrize("prefix", ["", "out/"], ids=["name", "missing_dir"])
+def test_artifact_written_outside_working_directory(
+    mock_idata, monkeypatch, tmp_path, log_func, name, prefix
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / name).write_text("user data")
+
+    with mlflow.start_run() as run:
+        log_func(mock_idata, f"{prefix}{name}")
+
+    assert get_run_data(run.info.run_id)[-1] == [name]
+    assert (tmp_path / name).read_text() == "user data"
+    assert not (tmp_path / "out").exists()
+
+
+@ARTIFACT_WRITERS
+def test_artifact_log_failure_writes_no_file(
+    mock_idata, mocker, monkeypatch, tmp_path, log_func, name
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    mocker.patch("mlflow.log_artifact", side_effect=RuntimeError("upload failed"))
+
+    with pytest.raises(RuntimeError, match="upload failed"):
+        log_func(mock_idata, name)
+
+    assert not list(tmp_path.iterdir())
 
 
 def test_force_load_idata_groups_visits_every_group(mock_idata, monkeypatch) -> None:
