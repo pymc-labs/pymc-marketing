@@ -34,49 +34,54 @@ Two questions, each answered over many simulated markets:
    ``"observed_only"`` scenario spend is exogenous given the controls, so a
    plain MMM has nothing to correct and every ``gamma`` should be zero. How much
    accuracy does the budget model give up there, and how often does the 94%
-   interval exclude zero (the false-alarm rate), with a correctly specified
-   sales equation and with a misspecified one (logistic saturation fit to
-   Michaelis-Menten data)?
+   interval exclude zero (the false-alarm rate)?
+
+The fitted models use logistic saturation by default, although the simulator
+draws sales from a Michaelis-Menten curve (see the note after the results).
 
 Usage::
 
-    python scripts/budget_model/simulation_study.py --n-seeds 50 --workers 4 --out study
+    python scripts/budget_model/simulation_study.py --n-seeds 50 --workers 3 --out study
     python scripts/budget_model/simulation_study.py --summarise-only --out study
+
+Pass ``--saturation michaelis_menten`` to fit the simulator's own curve
+family; the ``observed_only`` scenario then adds a
+``budget_design_misspecified`` arm fitted with logistic saturation.
 
 Each fit is appended to ``<out>/results.csv`` as it finishes, so an interrupted
 run resumes where it stopped. ``<out>/summary.md`` holds the tables.
 
 Expected results
 ----------------
-With the defaults (seeds 1000-1049; 500 draws, 1,000 tuning steps and 2 chains
-per fit; nutpie), the study takes a couple of hours on 5 workers and gives the
-tables below. The true marginal return is about 2. Coverage is of the 94%
-interval, with an exact 95% binomial CI. The interval score is the Winkler
-score (width plus 2/0.06 times the distance by which the interval misses the
-truth; lower is better). Divergences are per fit, out of 1,000 draws. Every
-arm completed all 50 fits; the script reports ``n`` per arm and lists any fit
-that fails.
+With the defaults (seeds 1000-1049; logistic saturation; 1,000 draws, 1,500
+tuning steps and 4 chains per fit; nutpie), the study takes about two hours on
+3 workers and gives the tables below. The true marginal return is about 2.
+Coverage is of the 94% interval, with an exact 95% binomial CI. The interval
+score is the Winkler score (width plus 2/0.06 times the distance by which the
+interval misses the truth; lower is better). Divergences are per fit, out of
+4,000 draws; MR R-hat is the R-hat of TV's marginal return. Every arm
+completed all 50 fits; the script reports ``n`` per arm and lists any fit that
+fails.
 
 Recovery of TV's marginal return when budgets chase demand (``"forecast"``)::
 
-    arm                 coverage           mean err  abs err  width  score  div (median/p90)
-    plain               0.04 [0.00, 0.14]   +2.18     2.18    1.94   42.2   0 / 0
-    lift_history        0.30 [0.18, 0.45]   +1.06     1.10    1.46   16.1   0 / 1
-    lift_full           0.24 [0.13, 0.38]   +1.05     1.09    1.33   17.1   0 / 1
-    budget_no_design    0.80 [0.66, 0.90]   +1.56     1.63    5.48    8.8   0 / 4
-    budget_design       0.64 [0.49, 0.77]   +0.85     1.05    2.74    9.0   0 / 3
-    budget_design_lag1  0.82 [0.69, 0.91]   +0.51     0.81    2.83    4.7   0 / 2
-    budget_design_lag3  0.88 [0.76, 0.95]   +0.47     0.79    2.83    4.7   0 / 3
+    arm                 coverage           mean err  abs err  width  score  div (median/p90)  MR R-hat (median/max)
+    plain               0.04 [0.00, 0.14]   +2.31     2.31    2.03   45.7   0 / 120           1.004 / 1.257
+    lift_history        0.22 [0.12, 0.36]   +1.49     1.49    1.84   22.5   0 / 36            1.003 / 1.372
+    lift_full           0.20 [0.10, 0.34]   +1.42     1.42    1.65   22.9   0 / 8             1.004 / 1.076
+    budget_no_design    0.96 [0.86, 1.00]   +1.59     1.67    8.37    9.0   10 / 67           1.029 / 1.620
+    budget_design       0.74 [0.60, 0.85]   +0.75     0.98    3.06    6.3   9 / 44            1.011 / 1.101
+    budget_design_lag1  0.94 [0.83, 0.99]   +0.35     0.72    3.02    3.8   10 / 42           1.010 / 1.256
+    budget_design_lag3  0.94 [0.83, 0.99]   +0.27     0.66    3.09    3.7   10 / 64           1.010 / 1.474
 
 Recovery when spend is exogenous given the controls (``"observed_only"``)::
 
-    arm                         coverage           mean err  abs err  width  score
-    plain                       0.78 [0.64, 0.88]   +0.22     0.67    2.31    3.4
-    budget_design               0.72 [0.58, 0.84]   +0.48     0.94    2.98    6.5
-    budget_design_lag1          0.76 [0.62, 0.87]   +0.55     0.96    3.08    5.5
-    budget_design_lag3          0.86 [0.73, 0.94]   +0.59     1.01    3.14    5.9
-    budget_no_design            0.76 [0.62, 0.87]   +1.99     2.18    7.35   13.6
-    budget_design_misspecified  0.82 [0.69, 0.91]   +0.27     0.88    3.17    4.3
+    arm                 coverage           mean err  abs err  width  score  div (median/p90)  MR R-hat (median/max)
+    plain               0.90 [0.78, 0.97]   +0.06     0.64    2.50    3.1   2 / 11            1.006 / 1.098
+    budget_design       0.92 [0.81, 0.98]   +0.24     0.86    3.21    3.9   11 / 611          1.018 / 1.477
+    budget_design_lag1  0.90 [0.78, 0.97]   +0.29     0.91    3.26    4.6   10 / 54           1.013 / 1.556
+    budget_design_lag3  0.86 [0.73, 0.94]   +0.33     0.93    3.30    5.3   9 / 40            1.015 / 1.296
+    budget_no_design    0.98 [0.89, 1.00]   +0.97     1.22    8.18    8.3   8 / 33            1.021 / 1.383
 
 Share of markets where TV's 94% ``gamma`` interval excludes zero (power in
 ``"forecast"``, false alarms in ``"observed_only"``). "Lag 0" is the
@@ -85,32 +90,44 @@ lag" asks whether any of the ``1 + surprise_lags`` intervals excludes zero; by
 chance alone that happens about ``1 - 0.94 ** (1 + surprise_lags)`` of the time
 (12% with one lag, 22% with three)::
 
-    scenario       arm                         lag 0               any lag             mean P(gamma > 0)
-    forecast       budget_design               0.56 [0.41, 0.70]   -                   0.92
-    forecast       budget_design_lag1          0.56 [0.41, 0.70]   0.74 [0.60, 0.85]   0.92
-    forecast       budget_design_lag3          0.50 [0.36, 0.64]   0.70 [0.55, 0.82]   0.92
-    forecast       budget_no_design            0.08 [0.02, 0.19]   -                   0.66
-    observed_only  budget_design               0.12 [0.05, 0.24]   -                   0.41
-    observed_only  budget_design_lag1          0.14 [0.06, 0.27]   0.22 [0.12, 0.36]   0.39
-    observed_only  budget_design_lag3          0.16 [0.07, 0.29]   0.40 [0.26, 0.55]   0.39
-    observed_only  budget_no_design            0.14 [0.06, 0.27]   -                   0.30
-    observed_only  budget_design_misspecified  0.08 [0.02, 0.19]   -                   0.48
+    scenario       arm                 lag 0               any lag             mean P(gamma > 0)
+    forecast       budget_design       0.64 [0.49, 0.77]   -                   0.94
+    forecast       budget_design_lag1  0.66 [0.51, 0.79]   0.80 [0.66, 0.90]   0.94
+    forecast       budget_design_lag3  0.66 [0.51, 0.79]   0.84 [0.71, 0.93]   0.94
+    forecast       budget_no_design    0.00 [0.00, 0.07]   -                   0.71
+    observed_only  budget_design       0.08 [0.02, 0.19]   -                   0.47
+    observed_only  budget_design_lag1  0.08 [0.02, 0.19]   0.18 [0.09, 0.31]   0.47
+    observed_only  budget_design_lag3  0.12 [0.05, 0.24]   0.40 [0.26, 0.55]   0.46
+    observed_only  budget_no_design    0.06 [0.01, 0.17]   -                   0.47
 
-Reading: every arm overstates TV when budgets chase demand. The lift likelihood
-halves the plain MMM's bias, and counting the experiment twice does not help.
-The budget model with the design and one lagged surprise cuts the bias to about
-+0.5, covers the truth in 82% of markets, and has less than a third of the lift
-likelihood's interval score; without the design, its coverage comes only from
-intervals twice as wide. When there is nothing to correct, the same
-configuration gives up about 0.3 in bias (interval score 3.4 to 5.5), so with a
-design the correction is cheap insurance, and without one it is a poor bet.
-With a design, the contemporaneous ``gamma`` detects demand-chasing budgets
-in about half of markets, with a false-alarm rate roughly twice nominal and a
-negative lean. Reading the lagged coefficients too raises power to about 0.74
-with one lag, but the false-alarm rate rises with it, to 0.22 against about 0.12
-expected by chance, and to 0.40 with three lags. An interval that excludes zero
+Reading: every arm overstates TV when budgets chase demand. The lift
+likelihood removes about a third of the plain MMM's bias, and counting the
+experiment twice does not help. The budget model with the design and one
+lagged surprise cuts the bias to about +0.35, covers the truth in 94% of
+markets, its nominal rate, and has a sixth of the lift likelihood's interval
+score; without the design, its coverage comes only from intervals almost three
+times as wide. When there is nothing to correct, the same configuration gives
+up about 0.2 in bias (interval score 3.1 to 4.6) while covering as often as the
+plain MMM, so with a design the correction is cheap insurance, and without one
+it is a poor bet. With a design, the contemporaneous ``gamma`` detects
+demand-chasing budgets in about two thirds of markets, with a false-alarm rate
+close to nominal; without one it never does. Reading the lagged coefficients
+too raises power to about 0.80 with one lag, but the false-alarm rate rises
+with it, to 0.18 against about 0.12 expected by chance (Digital, never tested,
+also reaches 0.12), and to 0.40 with three lags. An interval that excludes zero
 is evidence worth following up, not a verdict, and three lags make the
 diagnostic unreliable: one more reason to keep ``surprise_lags`` small.
+
+Logistic saturation misspecifies the simulator's Michaelis-Menten curve on
+purpose. Every comparison reads the curve's slope near typical spend, where the
+two families agree closely, and the logistic fits mix far better. With
+``--saturation michaelis_menten`` (2 chains of 500 draws), the budget model's
+marginal return mixes slowly along a ridge between the curve's two parameters,
+and the recommended configuration covers the truth in only 82% [69%, 91%] of
+markets, with a bias of +0.51. Mixing is improved, not perfect, with logistic
+saturation: TV's marginal return has R-hat above 1.05 in 1 to 4 of the 50
+design-arm fits per scenario when budgets chase demand, 4 to 12 when they do
+not, and 8 to 12 without a design.
 """
 
 from __future__ import annotations
@@ -152,6 +169,7 @@ COLUMNS = [
     "lower",
     "upper",
     "divergences",
+    "mr_rhat",
     *[
         f"gamma_{channel}_{stat}"
         for channel in ("tv", "digital")
@@ -204,7 +222,9 @@ def _tv_marginal_return(mmm, x: float) -> np.ndarray:
     return (values[1] - values[0]) * scale_y / (2 * eps)
 
 
-def _fit_one(scenario: str, arm: str, seed: int, sample_kwargs: dict) -> dict:
+def _fit_one(
+    scenario: str, arm: str, seed: int, sample_kwargs: dict, saturation: str
+) -> dict:
     warnings.filterwarnings("ignore")
     from pymc_marketing.mmm import BudgetModelEffect
     from pymc_marketing.mmm.synthetic_data import simulate_endogenous_spend_market
@@ -213,7 +233,7 @@ def _fit_one(scenario: str, arm: str, seed: int, sample_kwargs: dict) -> dict:
     data, n_hist = market.data, market.n_history
     X, y = data.drop(columns="y"), data["y"]
     effect = None
-    mmm = _make_mmm("logistic" if arm.endswith("misspecified") else "michaelis_menten")
+    mmm = _make_mmm("logistic" if arm.endswith("misspecified") else saturation)
 
     if arm == "lift_history":
         mmm.build_model(X.iloc[:n_hist], y.iloc[:n_hist])
@@ -244,6 +264,7 @@ def _fit_one(scenario: str, arm: str, seed: int, sample_kwargs: dict) -> dict:
         "lower": lower,
         "upper": upper,
         "divergences": int(mmm.idata.sample_stats["diverging"].sum()),
+        "mr_rhat": _rhat(values, mmm.idata.posterior.sizes["chain"]),
     }
     if effect is not None:
         summary = effect.exogeneity_summary(mmm, interval_prob=INTERVAL_PROB)
@@ -258,10 +279,25 @@ def _fit_one(scenario: str, arm: str, seed: int, sample_kwargs: dict) -> dict:
     return row
 
 
-def _jobs(n_seeds: int, first_seed: int) -> list[tuple[str, str, int]]:
+def _rhat(values: np.ndarray, n_chains: int) -> float:
+    """Rank-normalised R-hat of posterior draws stored chain by chain."""
+    import arviz as az
+    import xarray as xr
+
+    draws = xr.DataArray(values.reshape(n_chains, -1), dims=("chain", "draw"))
+    return float(az.rhat(draws.rename("value").to_dataset())["value"])
+
+
+def _jobs(n_seeds: int, first_seed: int, saturation: str) -> list[tuple[str, str, int]]:
     seeds = range(first_seed, first_seed + n_seeds)
+    # With logistic saturation everywhere, the misspecified arm is budget_design.
+    calibration = [
+        arm
+        for arm in CALIBRATION_ARMS
+        if not (saturation == "logistic" and arm.endswith("misspecified"))
+    ]
     return [("forecast", arm, s) for s in seeds for arm in RECOVERY_ARMS] + [
-        ("observed_only", arm, s) for s in seeds for arm in CALIBRATION_ARMS
+        ("observed_only", arm, s) for s in seeds for arm in calibration
     ]
 
 
@@ -354,6 +390,10 @@ def summarise(results: pd.DataFrame) -> str:
                         f"{frame['divergences'].median():.0f} / "
                         f"{frame['divergences'].quantile(0.9):.0f}"
                     ),
+                    "MR R-hat (median / max)": (
+                        f"{frame['mr_rhat'].median():.3f} / "
+                        f"{frame['mr_rhat'].max():.3f}"
+                    ),
                 }
             )
         lines += [title, "", pd.DataFrame(rows).to_markdown(index=False), ""]
@@ -361,7 +401,8 @@ def summarise(results: pd.DataFrame) -> str:
         "Coverage is of the 94% interval, with an exact 95% binomial CI. The "
         "interval score is the Winkler score (lower is better): width plus "
         "2/0.06 times the distance by which the interval misses the truth. "
-        "Divergences are counted per fit, out of the fit's post-warmup draws.",
+        "Divergences are counted per fit, out of the fit's post-warmup draws. "
+        "MR R-hat is the rank-normalised R-hat of TV's marginal return.",
         "",
     ]
 
@@ -417,9 +458,16 @@ def main() -> None:
     parser.add_argument(
         "--workers", type=int, default=max(1, (os.cpu_count() or 2) // 2)
     )
-    parser.add_argument("--draws", type=int, default=500)
-    parser.add_argument("--tune", type=int, default=1000)
-    parser.add_argument("--chains", type=int, default=2)
+    parser.add_argument("--draws", type=int, default=1000)
+    parser.add_argument("--tune", type=int, default=1500)
+    parser.add_argument("--chains", type=int, default=4)
+    parser.add_argument(
+        "--saturation",
+        choices=["michaelis_menten", "logistic"],
+        default="logistic",
+        help="Saturation family of every fitted MMM; the simulator always uses "
+        "Michaelis-Menten.",
+    )
     parser.add_argument("--out", type=Path, default=Path("budget_model_study"))
     parser.add_argument("--summarise-only", action="store_true")
     args = parser.parse_args()
@@ -435,7 +483,9 @@ def main() -> None:
                 zip(done["scenario"], done["arm"], done["seed"], strict=True)
             )
         jobs = [
-            job for job in _jobs(args.n_seeds, args.first_seed) if job not in finished
+            job
+            for job in _jobs(args.n_seeds, args.first_seed, args.saturation)
+            if job not in finished
         ]
         sample_kwargs = {
             "draws": args.draws,
@@ -447,7 +497,10 @@ def main() -> None:
         print(f"{len(jobs)} fits to run, {len(finished)} already done.")
         failed = []
         with ProcessPoolExecutor(max_workers=args.workers) as pool:
-            futures = {pool.submit(_fit_one, *job, sample_kwargs): job for job in jobs}
+            futures = {
+                pool.submit(_fit_one, *job, sample_kwargs, args.saturation): job
+                for job in jobs
+            }
             for i, future in enumerate(as_completed(futures), start=1):
                 job = futures[future]
                 try:
