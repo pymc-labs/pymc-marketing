@@ -205,7 +205,7 @@ def _dataset_has_target(ds: xr.Dataset) -> bool:
     return "_target" in ds.data_vars or "target" in ds.data_vars
 
 
-def _has_embedded_target(
+def has_embedded_target(
     X: pd.DataFrame | xr.Dataset | xr.DataArray, target_column: str | None
 ) -> bool:
     """Return whether ``X`` carries the target, so that ``y`` may be omitted.

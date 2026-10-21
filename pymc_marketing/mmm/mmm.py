@@ -222,7 +222,7 @@ from pymc_marketing.mmm.causal import CausalGraphModel
 from pymc_marketing.mmm.components.adstock import AdstockTransformation
 from pymc_marketing.mmm.components.saturation import SaturationTransformation
 from pymc_marketing.mmm.constraints import Constraint
-from pymc_marketing.mmm.data_conversion import _has_embedded_target, to_mmm_dataset
+from pymc_marketing.mmm.data_conversion import has_embedded_target, to_mmm_dataset
 from pymc_marketing.mmm.decomposition import (
     identity_counterfactual_component,
     log_counterfactual_remove_component,
@@ -3395,7 +3395,7 @@ class MMM(RegressionModelBuilder):
         (see issue #2956).
         """
         placeholder_target = False
-        if y is None and _has_embedded_target(X, self.target_column):
+        if y is None and has_embedded_target(X, self.target_column):
             if not hasattr(self, "model"):
                 self.build_model(X)
         elif (
@@ -4576,7 +4576,7 @@ class MMM(RegressionModelBuilder):
         if y is not None:
             return super()._validate_fit_inputs(X, y)
 
-        if not _has_embedded_target(X, self.target_column):
+        if not has_embedded_target(X, self.target_column):
             raise ValueError(
                 "y was not provided and X does not carry the target: pass y, or "
                 f"include the '{self.target_column}' column in a DataFrame X or a "
