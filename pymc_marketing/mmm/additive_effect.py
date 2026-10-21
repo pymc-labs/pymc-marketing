@@ -138,6 +138,7 @@ Example: multi-granularity media and controls
     from pymc_marketing.mmm.media_transformation import MediaTransformation
 
     # X is an xr.Dataset with:
+    #   media:              (date, product, geo, channel)
     #   media_product:      (date, product, product-channel)
     #   media_geo:          (date, geo, geo-channel)
     #   control_national:   (date,)
