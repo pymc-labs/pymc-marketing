@@ -1473,6 +1473,43 @@ class TestSerializationIntegration:
         assert loaded2.adstock.l_max == 3
         assert isinstance(loaded2.saturation, TanhSaturation)
 
+    @pytest.mark.parametrize(
+        "beta_prior",
+        [
+            Prior("Normal", mu=0, sigma=1, dims="channel", transform="abs"),
+            Prior(
+                "HalfNormal",
+                sigma=Prior("Normal", transform="exp"),
+                dims="channel",
+            ),
+            Prior(
+                "Normal",
+                mu=0,
+                sigma=Prior("HalfNormal"),
+                dims="channel",
+                centered=False,
+                transform="abs",
+            ),
+        ],
+        ids=["transform", "nested-transform", "non-centered-transform"],
+    )
+    def test_roundtrip_preserves_prior_transform(
+        self, minimal_fit_data, tmp_path, mock_pymc_sample, beta_prior
+    ):
+        """Regression test for #3225: a transformed prior survives save/load."""
+        X, y = minimal_fit_data
+        mmm = self._base_mmm(model_config={"saturation_beta": beta_prior})
+        mmm.fit(X, y)
+
+        fname = tmp_path / "model.nc"
+        mmm.save(str(fname))
+        loaded = MMM.load(str(fname))
+
+        assert loaded == mmm
+        assert sorted(rv.name for rv in loaded.model.free_RVs) == sorted(
+            rv.name for rv in mmm.model.free_RVs
+        )
+
     def test_roundtrip_with_tvp(self, minimal_fit_data, tmp_path, mock_pymc_sample):
         """Save/load with time-varying parameters (HSGP) preserves HSGP config."""
         X, y = minimal_fit_data

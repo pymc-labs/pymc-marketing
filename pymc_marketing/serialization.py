@@ -290,17 +290,13 @@ class TypeRegistry:
         from pymc_extras.prior import Prior
 
         if isinstance(value, Prior):
-            result: dict[str, Any] = {
-                "dist": value.distribution,
-                "kwargs": {
-                    k: self._serialize_config_value(v)
-                    for k, v in value.parameters.items()
-                },
+            # Start from ``Prior.to_dict`` so every attribute it writes (``dims``,
+            # ``centered``, ``transform``, ...) is kept, and only re-encode the
+            # parameters so nested values go through this function.
+            result: dict[str, Any] = value.to_dict()
+            result["kwargs"] = {
+                k: self._serialize_config_value(v) for k, v in value.parameters.items()
             }
-            if value.dims is not None:
-                result["dims"] = value.dims
-            if not value.centered:
-                result["centered"] = False
             return result
 
         type_key = f"{value.__class__.__module__}.{value.__class__.__qualname__}"
