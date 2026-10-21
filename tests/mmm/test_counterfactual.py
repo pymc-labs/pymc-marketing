@@ -13,7 +13,9 @@
 #   limitations under the License.
 """Tests for the counterfactual evaluation machinery: windows, scenarios, inputs."""
 
+import gc
 import warnings
+import weakref
 
 import numpy as np
 import pandas as pd
@@ -528,6 +530,131 @@ class TestPostFitMutationGuard:
         evaluator.evaluate_baseline(values)
         assert comparisons == []
         assert evaluations == []
+
+
+class TestSourceInputStaleness:
+    """A source shared input replaced after the build makes the evaluator stale.
+
+    The evaluator compiles against the ``pm.do`` clone, whose data variables
+    never change; the source model is what ``pm.set_data`` replaces.  A watcher
+    keyed by name and held by reference is what lets a cache rebuild instead of
+    returning fit-time numbers.
+    """
+
+    dates = pd.date_range("2023-01-02", freq="W-MON", periods=6)
+
+    def test_a_replaced_source_buffer_is_stale(self):
+        """``pm.set_data`` on a watched input turns an unchanged build stale."""
+        model, posterior, aux_values = build_aux_dims_model(
+            ("date", "country"), n_dates=len(self.dates), n_country=2
+        )
+        evaluator = CounterfactualEvaluator(
+            pymc_model=model,
+            posterior=posterior,
+            response_vars=["channel_contribution"],
+            frozen_deterministics=[],
+            dates=self.dates,
+            expected_aux_values={},
+        )
+        assert not evaluator.is_stale()
+
+        with model:
+            pm.set_data({"aux_input": aux_values + 1.0})
+
+        assert evaluator.is_stale()
+
+    def test_a_recorded_input_is_refused_rather_than_rebuilt(self):
+        """An input the fit-time record covers is not stale: it is refused on evaluation."""
+        model, posterior, aux_values = build_aux_dims_model(
+            ("date", "country"), n_dates=len(self.dates), n_country=2
+        )
+        evaluator = CounterfactualEvaluator(
+            pymc_model=model,
+            posterior=posterior,
+            response_vars=["channel_contribution"],
+            frozen_deterministics=[],
+            dates=self.dates,
+            expected_aux_values={
+                "aux_input": xr.DataArray(aux_values, dims=("date", "country"))
+            },
+        )
+
+        with model:
+            pm.set_data({"aux_input": aux_values + 1.0})
+
+        assert not evaluator.is_stale()
+        with pytest.raises(ValueError, match=r"'aux_input'.*changed since"):
+            evaluator.evaluate_baseline(np.ones((len(self.dates), 2, 1)))
+
+    def test_the_intervention_target_is_watched_only_when_scaled(self):
+        """Under ``scale`` the target's own data is read, so replacing it makes the build stale."""
+        model, posterior, _ = build_aux_dims_model(
+            ("date", "country"), n_dates=len(self.dates), n_country=2
+        )
+        evaluators = {
+            mode: CounterfactualEvaluator(
+                pymc_model=model,
+                posterior=posterior,
+                response_vars=["channel_contribution"],
+                frozen_deterministics=[],
+                dates=self.dates,
+                intervention_mode=mode,
+            )
+            for mode in ("replace", "scale")
+        }
+
+        with model:
+            pm.set_data({"channel_data": np.full((len(self.dates), 2, 1), 3.0)})
+
+        assert not evaluators["replace"].is_stale()
+        assert evaluators["scale"].is_stale()
+
+    def test_a_rebind_does_not_mark_the_build_stale(self):
+        """New draws swap posterior buffers, which the watch set never holds."""
+        model, posterior, _ = build_aux_dims_model(
+            ("date", "country"), n_dates=len(self.dates), n_country=2
+        )
+        evaluator = CounterfactualEvaluator(
+            pymc_model=model,
+            posterior=posterior,
+            response_vars=["channel_contribution"],
+            frozen_deterministics=[],
+            dates=self.dates,
+        )
+
+        evaluator.set_posterior(draws_posterior(3, seed=11))
+
+        assert set(evaluator._watched_sources) == {"aux_input"}
+        assert not evaluator.is_stale()
+
+    def test_the_fit_time_record_is_not_kept_alive(self):
+        """The evaluator keeps the arrays it checks, not the idata node that held them."""
+        model, posterior, aux_values = build_aux_dims_model(
+            ("date", "country"), n_dates=len(self.dates), n_country=2
+        )
+        tree = xr.DataTree.from_dict(
+            {
+                "constant_data": xr.Dataset(
+                    {"aux_input": xr.DataArray(aux_values, dims=("date", "country"))}
+                )
+            }
+        )
+        record = weakref.ref(tree)
+
+        evaluator = CounterfactualEvaluator(
+            pymc_model=model,
+            posterior=posterior,
+            response_vars=["channel_contribution"],
+            frozen_deterministics=[],
+            dates=self.dates,
+            expected_aux_values=tree.constant_data,
+        )
+
+        del tree
+        gc.collect()
+
+        assert record() is None
+        assert evaluator is not None
 
 
 class TestPeriodEdgeCases:

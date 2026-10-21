@@ -1119,6 +1119,7 @@ class _EvaluatorCache:
     The cache is bounded so a model cannot pin an unbounded number of compiled functions, and it is never serialized
     because compiled functions only make sense in-process.
     Calls on one MMM share the cached evaluator, so concurrent calls from several threads are not supported.
+    An entry whose evaluator reads a source input replaced after its build is rebuilt before it is returned.
 
     Parameters
     ----------
@@ -1153,12 +1154,16 @@ class _EvaluatorCache:
     ) -> tuple[CounterfactualEvaluator, bool]:
         """Return the evaluator cached under ``key``, building and caching it on a miss.
 
+        A hit whose evaluator reads a source input that has been replaced since
+        it was built is treated as a miss: the compiled graphs hold the old
+        buffer, so the factory rebuilds and the entry is replaced.
+
         Parameters
         ----------
         key : _EvaluatorCacheKey
             Identity to look up.
         factory : callable
-            Builds the evaluator when the key is absent.
+            Builds the evaluator when the key is absent or stale.
 
         Returns
         -------
@@ -1169,7 +1174,7 @@ class _EvaluatorCache:
             it was asked for.
         """
         evaluator = self.get(key)
-        if evaluator is not None:
+        if evaluator is not None and not evaluator.is_stale():
             return evaluator, True
         evaluator = factory()
         self.put(key, evaluator)
@@ -1228,6 +1233,8 @@ class Incrementality:
     -----
     Computation reuses compiled evaluators cached on the fitted model, so repeated calls do not recompile; calls on
     one model share that cache, so concurrent calls from several threads are not supported.
+    An in-place edit of ``idata.constant_data`` while an instance is held is not detected by that instance; a fresh
+    ``mmm.incrementality`` sees it.
 
     Examples
     --------

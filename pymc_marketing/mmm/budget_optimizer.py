@@ -1434,6 +1434,9 @@ class BudgetOptimizer(BaseModel):
 
     Notes
     -----
+    Inputs changed after construction -- for example with ``pm.set_data`` -- are
+    not re-read: the optimizer's evaluator is built once.
+
     For backward compatibility, pass a legacy wrapper (implementing
     ``OptimizerCompatibleModel``) as ``model=``, the optimizer will
     unpack it automatically via a ``model_validator``.

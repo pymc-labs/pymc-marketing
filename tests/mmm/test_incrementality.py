@@ -6360,6 +6360,18 @@ class TestEvaluatorCache:
         )
         return idata
 
+    @staticmethod
+    def _idata_without_constant_data(mmm, name):
+        """A copy of the model's idata whose ``constant_data`` lacks ``name``.
+
+        A pre-``constant_data`` idata looks like this, and the name is then only
+        available from the model's live shared variable.
+        """
+        idata = mmm.idata.copy()
+        node = idata["constant_data"]
+        node.dataset = node.dataset.drop_vars(name)
+        return idata
+
     def test_same_shape_reuses_and_compiles_once(self, simple_fitted_mmm, monkeypatch):
         """A miss compiles once, and a second same-shape call never recompiles."""
         builds = []
@@ -6383,6 +6395,97 @@ class TestEvaluatorCache:
         incr.compute_incremental_contribution(frequency="all_time")
 
         assert len(builds) == 1
+
+    def test_a_rebind_does_not_count_as_a_source_change(
+        self, simple_fitted_mmm, constructed
+    ):
+        """Only new draws arrive on a rebind, so the cache entry stays a hit."""
+        mmm = simple_fitted_mmm
+        incr = mmm.incrementality
+        incr.compute_incremental_contribution(
+            frequency="all_time", num_samples=50, random_state=np.random.default_rng(7)
+        )
+
+        # The second call is a hit and rebinds the cached evaluator to its draws.
+        incr.compute_incremental_contribution(
+            frequency="all_time", num_samples=20, random_state=np.random.default_rng(8)
+        )
+        incr.compute_incremental_contribution(
+            frequency="all_time", num_samples=20, random_state=np.random.default_rng(8)
+        )
+
+        assert len(constructed) == 1
+
+    @pytest.mark.parametrize(
+        ("variable", "fixture_name", "replacement", "drop_from_constant_data"),
+        [
+            (
+                "channel_scale",
+                "simple_fitted_mmm",
+                lambda values: values * 2.0,
+                False,
+            ),
+            (
+                "lf_budget",
+                "funnel_identity_fitted_mmm",
+                lambda values: values + 5.0,
+                True,
+            ),
+        ],
+    )
+    def test_a_replaced_source_input_matches_a_cold_cache(
+        self,
+        variable,
+        fixture_name,
+        replacement,
+        drop_from_constant_data,
+        request,
+        constructed,
+    ):
+        """A warm cache re-reads a replaced input instead of returning fit-time numbers.
+
+        ``channel_scale`` is in ``constant_data`` but is not date-indexed, so the
+        evaluate-time check does not cover it.  ``lf_budget`` is date-indexed but
+        dropped from the copy's ``constant_data``, so it is not covered either.
+        Both are otherwise read from the clone made at the first build.
+        """
+        mmm = request.getfixturevalue(fixture_name)
+        model = mmm.model
+        original = model[variable].get_value(borrow=False).copy()
+        assert variable in mmm.idata.constant_data.data_vars
+        idata = (
+            self._idata_without_constant_data(mmm, variable)
+            if drop_from_constant_data
+            else mmm.idata
+        )
+        kwargs = {"frequency": "all_time"}
+
+        held = Incrementality(model=mmm, idata=idata)
+        fit_time = held.compute_incremental_contribution(**kwargs)
+        try:
+            with model:
+                pm.set_data({variable: replacement(original)})
+
+            # A second instance finds the entry stale and rebuilds it once...
+            shared = Incrementality(
+                model=mmm, idata=idata
+            ).compute_incremental_contribution(**kwargs)
+            # ...and the held instance then hits the rebuilt entry.
+            warm = held.compute_incremental_contribution(**kwargs)
+            rebuilds = len(constructed)
+            mmm._clear_incrementality_evaluator_cache()
+            cold = Incrementality(
+                model=mmm, idata=idata
+            ).compute_incremental_contribution(**kwargs)
+        finally:
+            with model:
+                pm.set_data({variable: original})
+            mmm._clear_incrementality_evaluator_cache()
+
+        xr.testing.assert_allclose(warm, cold)
+        xr.testing.assert_allclose(shared, cold)
+        assert not np.allclose(warm, fit_time)
+        assert rebuilds == 2
 
     def test_the_constant_data_fingerprint_is_computed_once_per_instance(
         self, simple_fitted_mmm, monkeypatch
@@ -6489,7 +6592,7 @@ class TestEvaluatorCache:
         """build_model drops the compiled evaluators."""
         mmm = simple_fitted_mmm
         mmm.incrementality.compute_incremental_contribution(frequency="all_time")
-        assert len(mmm._incrementality_evaluator_cache) == 1
+        assert len(getattr(mmm, _EVALUATOR_CACHE_ATTR)) == 1
 
         mmm.build_model(simple_mmm_data["X"], simple_mmm_data["y"])
 
@@ -6501,11 +6604,11 @@ class TestEvaluatorCache:
         result = mmm.incrementality.compute_incremental_contribution(
             frequency="all_time", num_samples=50, random_state=np.random.default_rng(7)
         )
-        assert len(mmm._incrementality_evaluator_cache) == 1
+        assert len(getattr(mmm, _EVALUATOR_CACHE_ATTR)) == 1
 
         clone = copy.deepcopy(mmm)
 
-        assert len(clone._incrementality_evaluator_cache) == 0
+        assert len(getattr(clone, _EVALUATOR_CACHE_ATTR)) == 0
 
         cloned = clone.incrementality.compute_incremental_contribution(
             frequency="all_time", num_samples=50, random_state=np.random.default_rng(7)

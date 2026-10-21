@@ -777,7 +777,8 @@ class CounterfactualEvaluator:
         An unchanged shared input is identified by the borrowed buffer seen at the last full check.
         A repeated call therefore costs only an identity comparison.
         An in-place mutation of the buffer itself is not detected.
-        A name absent from the mapping is unchecked.
+        A name absent from the mapping is not verified here; a source buffer
+        replaced for it is caught by :meth:`is_stale` instead.
 
     Attributes
     ----------
@@ -846,12 +847,14 @@ class CounterfactualEvaluator:
         self.intervention_mode: InterventionMode = intervention_mode
         self._response_requested = tuple(response_vars)
         self._dates = dates
-        self._expected_aux_values = expected_aux_values
         # Prepared once from the fit-time record; see
         # ``_prepare_expected_aux_values``.  The second mapping remembers the
         # borrowed source buffer each input held at its last full check.
         self._expected_aux_arrays: dict[str, np.ndarray] = {}
         self._source_values_at_last_check: dict[str, np.ndarray | None] = {}
+        # Borrowed source buffers the graphs read, keyed by variable name; a
+        # changed buffer means the compiled graphs read fit-time values.
+        self._watched_sources: dict[str, np.ndarray] = {}
 
         # State ``_build`` fills in.  Declared here so every attribute exists
         # before the first build and a build that raises part-way cannot leave
@@ -893,7 +896,7 @@ class CounterfactualEvaluator:
         )
         self._do_model = self._conditioned.model
         self._build()
-        self._prepare_expected_aux_values()
+        self._prepare_expected_aux_values(expected_aux_values)
         self._check_expected_aux_values()
 
     def _extract_graphs(self) -> list[XTensorVariable]:
@@ -939,6 +942,7 @@ class CounterfactualEvaluator:
                 f"depend on the intervention target {self.intervention_target!r}; "
                 "every counterfactual would equal the baseline."
             )
+        watched_sources = self._watched_source_buffers(graph_ancestors)
 
         non_date_dims = {
             name: self._non_date_dims(graph)
@@ -1037,7 +1041,34 @@ class CounterfactualEvaluator:
         self._aux = aux
         self._aux_live = aux_live
         self._aux_dims = aux_dims
+        self._watched_sources = watched_sources
         self._evaluator = evaluator
+
+    def _watched_source_buffers(self, graph_ancestors: set) -> dict[str, np.ndarray]:
+        """Record the source model's shared buffers the graphs read, keyed by name.
+
+        ``pm.do`` clones the model, so the graphs read the clone's own data
+        variables, which never change again.  The source model, which
+        ``pm.set_data`` mutates, is matched by name.  Posterior shared variables
+        are not recorded: their source is a random variable, and a rebind swaps
+        their buffers on every call.  The intervention target and ``time_index``
+        are handled by dedicated inputs, so they are left out; under ``scale`` the
+        target's own data is still read by the graph, so it stays in.
+        """
+        source = self._source_model
+        watched: dict[str, np.ndarray] = {}
+        for node in graph_ancestors:
+            name = node.name
+            if name is None or name in watched:
+                continue
+            if name == self.TIME_INDEX or (
+                name == self.intervention_target and self.intervention_mode == "replace"
+            ):
+                continue
+            source_var = source.named_vars.get(name)
+            if isinstance(source_var, SharedVariable):
+                watched[name] = source_var.get_value(borrow=True)
+        return watched
 
     def _sync_sample_markers(self) -> None:
         """Point every sample marker at the draw count of the bound posterior.
@@ -1071,15 +1102,18 @@ class CounterfactualEvaluator:
         posterior = self._conditioned.posterior
         return int(posterior.sizes["chain"]) * int(posterior.sizes["draw"])
 
-    def _prepare_expected_aux_values(self) -> None:
+    def _prepare_expected_aux_values(
+        self, expected: Mapping[str, xr.DataArray] | None
+    ) -> None:
         """Hoist the fit-time record into the form the per-call check reads.
 
         The stored arrays are transposed to the model's own dimension order here.
         An evaluation therefore reads the prepared arrays rather than rebuilding them.
         ``time_index`` is fabricated from the fitted date count rather than read off the model.
         It cannot change between calls, so it is compared once, at construction.
+        A date-indexed input the record covers leaves the staleness watch set: a
+        change is refused there rather than re-read here.
         """
-        expected = self._expected_aux_values
         if expected is None:
             return
         if self.TIME_INDEX in expected:
@@ -1094,6 +1128,8 @@ class CounterfactualEvaluator:
                     expected[name].transpose(*dims).values
                 )
                 self._source_values_at_last_check[name] = None
+        for name in self._expected_aux_arrays:
+            self._watched_sources.pop(name, None)
 
     def _check_expected_aux_values(self) -> None:
         """Refuse a source-model state that disagrees with the fit-time record.
@@ -1128,6 +1164,29 @@ class CounterfactualEvaluator:
                 self._check_not_mutated(
                     name, live=np.asarray(live_var.eval()), stored=stored
                 )
+
+    def is_stale(self) -> bool:
+        """Whether a source input the graphs read has been replaced since the build.
+
+        Each watched variable costs one borrowed-buffer identity check and no
+        value comparison.  ``pm.set_data`` replaces the buffer, which is what
+        this sees; an in-place write to the buffer itself is not detected.
+        A buffer replaced by equal values still counts as a change.
+
+        Returns
+        -------
+        bool
+            ``True`` when a watched source variable no longer holds the buffer
+            recorded at build time, so the compiled graphs read stale values.
+        """
+        source = self._source_model
+        for name, buffer in self._watched_sources.items():
+            source_var = source.named_vars.get(name)
+            if not isinstance(source_var, SharedVariable):
+                return True
+            if source_var.get_value(borrow=True) is not buffer:
+                return True
+        return False
 
     def set_posterior(self, idata: xr.DataTree | xr.Dataset) -> None:
         """Re-point the evaluator at a new posterior.
