@@ -370,8 +370,6 @@ def test_fit_with_dataset_embedded_target(single_dim_data):
         saturation=LogisticSaturation(),
     )
 
-    # Call build_model directly (bypassing RegressionModelBuilder.fit,
-    # which can't handle xr.Dataset's lack of .shape)
     mmm.build_model(X=dataset, y=None)
 
     assert "_target" in mmm.xarray_dataset.data_vars
@@ -398,6 +396,252 @@ def test_fit_with_dataset_embedded_target(single_dim_data):
     # Check that we can access the actual values
     assert not mmm.xarray_dataset["_target"].isnull().any()
     assert not mmm.xarray_dataset["_channel"].isnull().any()
+
+
+class TestFitWithXarrayInput:
+    """Regression tests for #3227: ``fit`` accepts the documented xarray inputs.
+
+    ``fit`` must take the same ``xr.Dataset`` forms as ``build_model`` (a target
+    embedded as ``target`` / ``_target``, or a separate ``y`` DataArray) and an
+    ``xr.DataArray`` of media with ``y``, and store ``fit_data`` in the same wide
+    layout as for a ``DataFrame`` so that ``save`` / ``load`` keep working.
+    """
+
+    CHANNELS = ["tv", "radio"]
+    CONTROLS = ["price"]
+
+    @pytest.fixture(params=[(), ("geo",)], ids=["national", "panel"])
+    def inputs(self, request) -> dict:
+        """Media, controls and target as xarray objects, and the same data as a DataFrame.
+
+        The ``geo`` labels are sorted, so the DataFrame path and the Dataset path
+        agree on the coordinate order.
+        """
+        dims = request.param
+        rng = np.random.default_rng(3227)
+        dates = pd.date_range("2024-01-01", periods=8, freq="W-MON")
+        coords = {"date": dates, **({"geo": ["east", "north"]} if dims else {})}
+        sizes = [len(values) for values in coords.values()]
+        media = xr.DataArray(
+            rng.uniform(0.5, 1.5, (*sizes, len(self.CHANNELS))),
+            dims=(*coords, "channel"),
+            coords={**coords, "channel": self.CHANNELS},
+        )
+        control = xr.DataArray(
+            rng.uniform(0.0, 1.0, (*sizes, len(self.CONTROLS))),
+            dims=(*coords, "control"),
+            coords={**coords, "control": self.CONTROLS},
+        )
+        target = media.sum("channel") + 1.0
+        X_df = (
+            xr.merge([media.to_dataset("channel"), control.to_dataset("control")])
+            .to_dataframe()
+            .reset_index()
+        )
+        y = target.to_series().reset_index(drop=True).rename("y")
+        return {
+            "dims": dims,
+            "media": media,
+            "control": control,
+            "target": target,
+            "X_df": X_df,
+            "y": y,
+        }
+
+    def _mmm(self, dims, control_columns) -> MMM:
+        return MMM(
+            date_column="date",
+            target_column="y",
+            channel_columns=self.CHANNELS,
+            control_columns=control_columns,
+            dims=dims,
+            adstock=GeometricAdstock(l_max=2),
+            saturation=LogisticSaturation(),
+        )
+
+    @pytest.mark.parametrize("form", ["target", "_target", "separate_y"])
+    def test_fit_with_dataset_stores_dataframe_layout(
+        self, inputs, form, mock_pymc_sample
+    ):
+        X = xr.Dataset({"media": inputs["media"], "_control": inputs["control"]})
+        y = None
+        if form == "separate_y":
+            y = inputs["target"]
+        else:
+            X[form] = inputs["target"]
+        mmm = self._mmm(inputs["dims"], self.CONTROLS)
+
+        mmm.fit(X, y)
+
+        # The model trains on the real target, not on a placeholder.
+        np.testing.assert_allclose(mmm.y, inputs["target"].values)
+        expected = self._mmm(inputs["dims"], self.CONTROLS).create_fit_data(
+            inputs["X_df"], inputs["y"]
+        )
+        xr.testing.assert_allclose(mmm.idata.fit_data.to_dataset(), expected)
+
+    def test_fit_with_dataarray_stores_dataframe_layout(self, inputs, mock_pymc_sample):
+        mmm = self._mmm(inputs["dims"], None)
+
+        mmm.fit(inputs["media"], inputs["target"])
+
+        np.testing.assert_allclose(mmm.y, inputs["target"].values)
+        expected = self._mmm(inputs["dims"], None).create_fit_data(
+            inputs["X_df"].drop(columns=self.CONTROLS), inputs["y"]
+        )
+        xr.testing.assert_allclose(mmm.idata.fit_data.to_dataset(), expected)
+
+    @pytest.mark.parametrize("X_type", ["dataset", "dataframe"])
+    def test_fit_without_target_raises_value_error(
+        self, inputs, X_type, mock_pymc_sample
+    ):
+        """``X`` with neither an embedded target nor ``y`` is a user error.
+
+        ``fit`` must not train on a placeholder target of zeros instead.
+        """
+        X = (
+            xr.Dataset({"media": inputs["media"], "_control": inputs["control"]})
+            if X_type == "dataset"
+            else inputs["X_df"]
+        )
+        mmm = self._mmm(inputs["dims"], self.CONTROLS)
+
+        with pytest.raises(ValueError, match="target"):
+            mmm.fit(X)
+
+    @staticmethod
+    def _unsorted_panel_dataset(
+        media_dims: tuple[str, ...] = ("date", "geo", "channel"),
+    ) -> xr.Dataset:
+        """Panel Dataset with unsorted ``geo`` labels and media on ``media_dims``."""
+        rng = np.random.default_rng(3227)
+        dates = pd.date_range("2024-01-01", periods=8, freq="W-MON")
+        geos = ["north", "east"]
+        channels = TestFitWithXarrayInput.CHANNELS
+        media = xr.DataArray(
+            rng.uniform(0.5, 1.5, (len(dates), len(geos), len(channels))),
+            dims=("date", "geo", "channel"),
+            coords={"date": dates, "geo": geos, "channel": channels},
+        )
+        control = xr.DataArray(
+            rng.uniform(0.0, 1.0, (len(dates), len(geos), 1)),
+            dims=("date", "geo", "control"),
+            coords={"date": dates, "geo": geos, "control": ["price"]},
+        )
+        return xr.Dataset(
+            {
+                "media": media.transpose(*media_dims),
+                "_control": control,
+                "target": media.sum("channel") + 1,
+            }
+        )
+
+    def test_fit_with_dataset_keeps_label_order_in_dataframe_layout(
+        self, mock_pymc_sample
+    ):
+        """``fit_data`` is laid out on ``(date, geo)`` and keeps the model's label order."""
+        mmm = self._mmm(("geo",), self.CONTROLS)
+
+        mmm.fit(self._unsorted_panel_dataset(media_dims=("geo", "channel", "date")))
+
+        fit_data = mmm.idata.fit_data.to_dataset()
+        assert set(fit_data.data_vars) == {*self.CHANNELS, *self.CONTROLS, "y"}
+        assert {name: var.dims for name, var in fit_data.data_vars.items()} == {
+            name: ("date", "geo") for name in fit_data.data_vars
+        }
+        assert list(fit_data.coords["geo"].values) == ["north", "east"]
+        assert list(mmm.model.coords["geo"]) == ["north", "east"]
+
+    @pytest.mark.parametrize("fit_from", ["dataset", "dataframe"])
+    def test_load_keeps_posterior_paired_with_unsorted_dataset_labels(
+        self, fit_from, tmp_path, mock_pymc_sample
+    ):
+        """A loaded model predicts like the saved one for unsorted ``geo`` labels.
+
+        The model is built from a Dataset whose ``geo`` labels are not sorted,
+        so its posterior keeps that order, while ``load`` rebuilds the model from
+        ``fit_data`` as a DataFrame. Posterior draws are matched by position, so
+        the rebuilt model must use the posterior's label order.
+        """
+        ds = self._unsorted_panel_dataset()
+        mmm = self._mmm(("geo",), self.CONTROLS)
+        if fit_from == "dataset":
+            mmm.fit(ds)
+        else:
+            df = (
+                xr.merge(
+                    [
+                        ds["media"].to_dataset("channel"),
+                        ds["_control"].to_dataset("control"),
+                        ds["target"].rename("y"),
+                    ]
+                )
+                .to_dataframe()
+                .reset_index()
+            )
+            mmm.build_model(ds)
+            mmm.fit(df.drop(columns="y"), df["y"])
+        file = str(tmp_path / "unsorted_geo.nc")
+        mmm.save(file)
+        loaded = MMM.load(file)
+
+        # The training data follows the posterior's labels too, not only the coords.
+        xr.testing.assert_allclose(loaded.xarray_dataset, mmm.xarray_dataset)
+
+        X_new = ds[["media", "_control"]]
+        kwargs = {
+            "var_names": ["channel_contribution", "y"],
+            "extend_idata": False,
+            "progressbar": False,
+            "random_seed": 0,
+        }
+        xr.testing.assert_allclose(
+            loaded.sample_posterior_predictive(X_new, **kwargs),
+            mmm.sample_posterior_predictive(X_new, **kwargs),
+        )
+
+    def test_fit_with_dataset_save_load_roundtrip(
+        self, inputs, tmp_path, mock_pymc_sample
+    ):
+        X = xr.Dataset(
+            {
+                "media": inputs["media"],
+                "_control": inputs["control"],
+                "target": inputs["target"],
+            }
+        )
+        mmm = self._mmm(inputs["dims"], self.CONTROLS)
+        mmm.fit(X)
+
+        file = str(tmp_path / "dataset_fit.nc")
+        mmm.save(file)
+        loaded = MMM.load(file)
+
+        xr.testing.assert_allclose(loaded.xarray_dataset, mmm.xarray_dataset)
+        xr.testing.assert_equal(loaded.idata.posterior, mmm.idata.posterior)
+
+
+def test_fit_with_dataframe_embedded_target_column(simple_mmm_data, mock_pymc_sample):
+    """``fit`` reads the ``target_column`` of ``X`` when ``y`` is omitted (#3227).
+
+    ``build_model`` documents this form; ``fit`` must not replace the column by a
+    placeholder target of zeros.
+    """
+    X = simple_mmm_data["X"].assign(target=simple_mmm_data["y"].to_numpy())
+    mmm = MMM(
+        date_column="date",
+        channel_columns=["channel_1", "channel_2", "channel_3"],
+        target_column="target",
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+    )
+
+    mmm.fit(X)
+
+    np.testing.assert_allclose(mmm.y, X["target"].to_numpy())
+    np.testing.assert_allclose(
+        mmm.idata.fit_data["target"].values, X["target"].to_numpy()
+    )
 
 
 def test_sample_prior_predictive(mmm: MMM, target_column, df: pd.DataFrame):

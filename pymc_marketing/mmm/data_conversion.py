@@ -205,6 +205,31 @@ def _dataset_has_target(ds: xr.Dataset) -> bool:
     return "_target" in ds.data_vars or "target" in ds.data_vars
 
 
+def _has_embedded_target(
+    X: pd.DataFrame | xr.Dataset | xr.DataArray, target_column: str | None
+) -> bool:
+    """Return whether ``X`` carries the target, so that ``y`` may be omitted.
+
+    Parameters
+    ----------
+    X : pd.DataFrame or xr.Dataset or xr.DataArray
+        Feature data.
+    target_column : str or None
+        Name of the target column in a ``pd.DataFrame``.
+
+    Returns
+    -------
+    bool
+        ``True`` for an ``xr.Dataset`` with a ``target`` / ``_target`` data
+        variable, or a ``pd.DataFrame`` with a *target_column* column.
+    """
+    if isinstance(X, xr.Dataset):
+        return _dataset_has_target(X)
+    if isinstance(X, pd.DataFrame):
+        return bool(target_column) and target_column in X.columns
+    return False
+
+
 @singledispatch
 def _to_mmm_xarray(X, /, **params) -> xr.Dataset:
     raise TypeError(
