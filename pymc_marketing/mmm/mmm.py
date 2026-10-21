@@ -1954,7 +1954,7 @@ class MMM(RegressionModelBuilder):
         """Return the target values as a numpy array.
 
         Backwards-compatible accessor for the ``_target`` variable in
-        the internal ``xr.Dataset``.
+        the internal ``xr.Dataset``, laid out ``("date", *dims)``.
         """
         self._validate_model_was_built()
         return cast(
@@ -2417,8 +2417,11 @@ class MMM(RegressionModelBuilder):
               ``"target"`` (or ``"_target"``) variable unless ``y`` is given; and,
               when ``control_columns`` is set, the controls in a ``"_control"``
               variable with a ``control`` dimension labelled with
-              ``control_columns``. Other data variables are carried through, with
-              missing values set to 0, for
+              ``control_columns``. The dims of each variable may be in any
+              order; the media, controls and target are laid out
+              ``("date", *dims, "channel")``, ``("date", *dims, "control")`` and
+              ``("date", *dims)`` before the model is built. Other data variables
+              are carried through, with missing values set to 0, for
               :class:`~pymc_marketing.mmm.additive_effect.DataVarMuEffect` effects
               to read by name.
             - :class:`xr.DataArray`: the media alone, laid out like the
@@ -3423,7 +3426,9 @@ class MMM(RegressionModelBuilder):
         Parameters
         ----------
         X : pd.DataFrame or xr.Dataset
-            Input data for prediction, with the same structure as the training data.
+            Input data for prediction, with the same structure as the training
+            data (see :meth:`build_model`); the dims of an ``xr.Dataset``
+            variable may be in any order.
         extend_idata : bool, optional
             Whether to add predictions to the inference data object. Defaults to True.
         combined : bool, optional
