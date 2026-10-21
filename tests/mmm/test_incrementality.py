@@ -6372,6 +6372,14 @@ class TestEvaluatorCache:
         node.dataset = node.dataset.drop_vars(name)
         return idata
 
+    @staticmethod
+    def _idata_with_reordered_dim(mmm, dim, order):
+        """A copy of the model's idata whose posterior stores ``dim`` in ``order``."""
+        idata = mmm.idata.copy()
+        posterior = idata["posterior"].to_dataset().isel({dim: order})
+        idata["posterior"] = xr.DataTree(posterior)
+        return idata
+
     def test_same_shape_reuses_and_compiles_once(self, simple_fitted_mmm, monkeypatch):
         """A miss compiles once, and a second same-shape call never recompiles."""
         builds = []
@@ -6567,6 +6575,65 @@ class TestEvaluatorCache:
         mmm.summary.roas(method="incremental", frequency="original", num_samples=10)
 
         assert len(constructed) == 1
+
+    def test_a_reordered_posterior_does_not_poison_the_evaluator_cache(
+        self, simple_fitted_mmm
+    ):
+        """A first call from a reordered posterior reads draws in the model's order.
+
+        The evaluator cache key does not include the posterior, so the first
+        call's label order used to be the reference for every later call: the
+        second call and ``summary.roas`` were wrong without an error.
+        """
+        mmm = simple_fitted_mmm
+        mmm._clear_incrementality_evaluator_cache()
+        clean = mmm.incrementality.compute_incremental_contribution(
+            frequency="all_time"
+        )
+        clean_roas = mmm.summary.roas(method="incremental", frequency="all_time")
+
+        mmm._clear_incrementality_evaluator_cache()
+        reordered = self._idata_with_reordered_dim(mmm, "channel", [2, 0, 1])
+        first = Incrementality(
+            model=mmm, idata=reordered
+        ).compute_incremental_contribution(frequency="all_time")
+        # The second call hits the evaluator the first one built.
+        second = mmm.incrementality.compute_incremental_contribution(
+            frequency="all_time"
+        )
+        roas = mmm.summary.roas(method="incremental", frequency="all_time")
+        mmm._clear_incrementality_evaluator_cache()
+
+        xr.testing.assert_allclose(first, clean)
+        xr.testing.assert_allclose(second, clean)
+        pd.testing.assert_frame_equal(roas, clean_roas)
+
+    @pytest.mark.parametrize("dim", ["country", "channel"])
+    def test_a_reordered_panel_axis_does_not_poison_the_evaluator_cache(
+        self, panel_fitted_mmm, dim
+    ):
+        """Reversing a panel axis in the first posterior leaves later calls correct."""
+        mmm = panel_fitted_mmm
+        mmm._clear_incrementality_evaluator_cache()
+        clean = mmm.incrementality.compute_incremental_contribution(
+            frequency="all_time"
+        )
+
+        mmm._clear_incrementality_evaluator_cache()
+        labels = mmm.idata["posterior"].to_dataset().indexes[dim]
+        reordered = self._idata_with_reordered_dim(
+            mmm, dim, list(reversed(range(len(labels))))
+        )
+        first = Incrementality(
+            model=mmm, idata=reordered
+        ).compute_incremental_contribution(frequency="all_time")
+        second = mmm.incrementality.compute_incremental_contribution(
+            frequency="all_time"
+        )
+        mmm._clear_incrementality_evaluator_cache()
+
+        xr.testing.assert_allclose(first, clean)
+        xr.testing.assert_allclose(second, clean)
 
     def test_closed_form_and_pipeline_share_one_evaluator(
         self, simple_mmm_data, constructed

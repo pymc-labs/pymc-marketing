@@ -1968,7 +1968,7 @@ def test_conditioned_model_first_rebind_validates_like_later_calls():
 def test_conditioned_model_reordered_rebind_realigns_constants_and_new_keys(
     share_posterior,
 ):
-    """A rebind realigns at the door, so every later read sees construction order.
+    """A rebind realigns at the door, so every later read sees model order.
 
     On the reported model a posterior stored as ``(b, a)`` gave ``[[20, 20]]`` from the one-shot constant path.
     A new ``resp_g`` key gave ``[[40, 60]]``.
@@ -2001,7 +2001,7 @@ def test_conditioned_model_empty_cache_rebind_only_switches_mode(share_posterior
     """A rebind before any extraction realigns the labels and fires nothing.
 
     Nothing has been handed out, so the rebind fires no callback.
-    The next ``extract`` builds its graph on the construction label order.
+    The next ``extract`` builds its graph on the model's label order.
     A resized axis is stored as given at the door and refused when a graph reads it.
     """
     model, spend = _channel_conditioned_model()
@@ -2324,20 +2324,20 @@ def test_conditioned_model_stale_inspection_key_does_not_bind(share_posterior):
 def test_conditioned_model_first_read_after_reordered_rebind(
     share_posterior,
 ):
-    """A variable first read after a reordered rebind is bound in construction order.
+    """A variable first read after a reordered rebind is read in the model's order.
 
-    ``gamma`` is absent from the first extraction and arrives stored as
-    ``(b, a)``.  Read for the first time after the rebind, it must be laid out
-    as the construction ``(a, b)``: ``a=40`` and ``b=30``.
+    The construction posterior carries no ``channel`` labels (a thinned
+    posterior), so only the model's coords can order the rebind.  ``gamma`` is
+    absent from it and arrives stored as ``(b, a)``; it must be read as the
+    model's ``(a, b)``: ``a=40`` and ``b=30``.
     """
     model, spend = _channel_conditioned_model()
     conditioned = ConditionedModel(
         model,
-        _channel_posterior([1.0, 2.0], gamma=[3.0, 4.0]),
+        _channel_posterior([1.0, 2.0]).drop_vars("channel"),
         intervention={"spend": spend},
         share_posterior=share_posterior,
     )
-    conditioned.extract("resp")
 
     conditioned.set_posterior(
         _channel_posterior([10.0, 20.0], channel=("b", "a"), gamma=[30.0, 40.0])
@@ -2345,6 +2345,33 @@ def test_conditioned_model_first_read_after_reordered_rebind(
 
     np.testing.assert_allclose(
         function([], conditioned.extract("resp_g"))(), [[400.0, 600.0]]
+    )
+    assert conditioned.posterior.indexes["channel"].tolist() == ["a", "b"]
+
+
+@pytest.mark.parametrize("share_posterior", [False, True])
+def test_conditioned_model_construction_posterior_in_non_model_order(share_posterior):
+    """Draws stored in another label order are read in the model's order.
+
+    The model's coords are ``(a, b)``; the construction posterior stores
+    ``(b, a)`` with ``beta=[2, 1]`` and ``gamma=[4, 3]``.  The stored dataset is
+    reordered on the way in, so ``posterior`` is in the model's order and the
+    graphs read ``a=1`` and ``b=2``.
+    """
+    model, spend = _channel_conditioned_model()
+    conditioned = ConditionedModel(
+        model,
+        _channel_posterior([2.0, 1.0], channel=("b", "a"), gamma=[4.0, 3.0]),
+        intervention={"spend": spend},
+        share_posterior=share_posterior,
+    )
+
+    assert conditioned.posterior.indexes["channel"].tolist() == ["a", "b"]
+    np.testing.assert_allclose(
+        function([], conditioned.extract("resp"))(), [[10.0, 40.0]]
+    )
+    np.testing.assert_allclose(
+        function([], conditioned.extract("resp_g"))(), [[30.0, 80.0]]
     )
 
 

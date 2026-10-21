@@ -332,6 +332,40 @@ def test_allocate_budget(
     assert -optimization_res.fun == pytest.approx(expected_response, abs=1e-2, rel=1e-2)
 
 
+def test_a_reordered_idata_matches_the_plain_one(mmm_wrapper, dummy_idata):
+    """A posterior stored in another channel order scores the same plan.
+
+    The graphs read draws by position in the model's coord order, so an
+    optimizer built from a reordered posterior must match one built from the
+    plain one.
+    """
+    reordered_idata = xr.DataTree.from_dict(
+        {"/posterior": dummy_idata["/posterior"].to_dataset().isel(channel=[1, 0])}
+    )
+    reordered_wrapper = CustomModelWrapper(
+        base_model=mmm_wrapper.base_model,
+        idata=reordered_idata,
+        channels=mmm_wrapper.channel_columns,
+    )
+
+    def build(wrapper):
+        return BudgetOptimizer(
+            model=wrapper,
+            num_periods=30,
+            response_variable="total_media_contribution_original_scale",
+        )
+
+    plan = xr.DataArray(
+        [30.0, 70.0],
+        dims="channel",
+        coords={"channel": list(mmm_wrapper.channel_columns)},
+    )
+    plain = build(mmm_wrapper).evaluate_plan(plan).objective
+    reordered = build(reordered_wrapper).evaluate_plan(plan).objective
+
+    np.testing.assert_allclose(reordered, plain, rtol=1e-12)
+
+
 def test_budget_optimizer_clear_error_on_missing_response_variable(mmm_wrapper):
     """An unknown ``response_variable`` must raise a clear error listing the
     posterior variables available on the wrapped model."""

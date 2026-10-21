@@ -18,7 +18,7 @@ import contextlib
 import warnings
 from collections import Counter, OrderedDict
 from collections.abc import Callable, Iterator, Mapping, Sequence
-from typing import NamedTuple, cast, overload
+from typing import Any, NamedTuple, cast, overload
 
 import arviz as az
 import numpy as np
@@ -768,6 +768,52 @@ def _posterior_dataset(idata: xr.DataTree | xr.Dataset) -> xr.Dataset:
     )
 
 
+def _reordered_to_model_coords(
+    posterior: xr.Dataset, model_coords: Mapping[str, Any]
+) -> xr.Dataset:
+    """Return ``posterior`` with each labelled non-sample dim in the model's order.
+
+    A graph reads draws by position in the model's coord order, so the model is
+    the reference layout.  A dim whose labels differ from the model's in value
+    or length -- a refit window, a thinned posterior -- is stored as given: no
+    graph has read it yet, and each graph validates its own variables.
+
+    Parameters
+    ----------
+    posterior : xr.Dataset
+        The posterior draws to reorder.
+    model_coords : mapping
+        The coordinates of the conditioned model.
+
+    Returns
+    -------
+    xr.Dataset
+        The draws, in the model's label order where that is unambiguous.
+    """
+    indexers: dict[str, pd.Index] = {}
+    for name in posterior.sizes:
+        dim = str(name)
+        if dim in ("chain", "draw"):
+            continue
+        index = posterior.indexes.get(dim)
+        if index is None:
+            continue
+        coords = model_coords.get(dim)
+        if coords is None:
+            continue
+        reference = pd.Index(coords)
+        # A duplicated reference label would make ``sel`` drop a column, so
+        # that dim is stored as given and refused later by whatever reads it.
+        if not reference.is_unique or index.equals(reference):
+            continue
+        # Compared by value as ``_aligned_posterior`` does: pd.Index handles
+        # datetime storage units and ``datetime.date`` labels, unlike ``set``.
+        if len(reference) != len(index) or not reference.difference(index).empty:
+            continue
+        indexers[dim] = reference
+    return posterior.sel(indexers) if indexers else posterior
+
+
 def _apply_intervention(
     model: Model,
     intervention: Mapping[str, Variable | np.ndarray | float] | None,
@@ -879,6 +925,8 @@ class ConditionedModel:
     failing.  Before the switch it is a constant graph like any other, and the
     lazy switch drops it.
 
+    A posterior is reordered to the model's coords per dimension on the way in,
+    so a graph reads draws in the model's label order.
     A variable is validated when a graph reads it, against that variable's layout in the construction posterior.
     A posterior variable no graph reads is never checked, so a refit posterior whose unread date axis moved is accepted.
     A model built without ``share_posterior`` starts with the draws baked in as constants.
@@ -942,21 +990,15 @@ class ConditionedModel:
         # Every node of the clone, so an input read from outside it can be told
         # from one of the clone's own inputs by identity.
         self._clone_nodes = frozenset(ancestors(list(self._model.named_vars.values())))
-        self._posterior = _posterior_dataset(idata)
+        self._posterior = _reordered_to_model_coords(
+            _posterior_dataset(idata), self._model.coords
+        )
         # The layout each variable is validated against when a graph reads it,
         # taken once here.  It is metadata only; a variable no graph reads is
         # never checked, so a refit over a new date window is accepted.
         self._layouts: dict[str, _VariableLayout] = {
             str(name): _variable_layout(var, sample_dims=("chain", "draw"))
             for name, var in self._posterior.data_vars.items()
-        }
-        # The dataset-level label layout every rebind is leniently realigned
-        # to.  A thinned posterior can drop a dimension, so it cannot be read
-        # from the last stored posterior.
-        self._label_layout: dict[str, pd.Index] = {
-            dim: index
-            for dim, index in self._posterior.indexes.items()
-            if dim not in ("chain", "draw")
         }
         self._shared_posterior: SharedPosterior | None = (
             SharedPosterior() if share_posterior else None
@@ -1129,9 +1171,9 @@ class ConditionedModel:
         posterior.  The door itself refuses nothing for a variable no graph
         reads: a refit posterior whose unread date-indexed deterministic has a
         newer window is stored as given.
-        A dimension whose labels equal the construction ones is reordered, so
-        ``posterior`` keeps the construction order; any other dimension is
-        stored as given.
+        A dimension that carries the model's coord labels in another order is
+        reordered to them, so ``posterior`` keeps the model's order and the graphs read its
+        draws by position; any other dimension is stored as given.
 
         Without ``share_posterior``, the first call after a graph has been
         cached drops the cache, switches to a fresh :class:`SharedPosterior`
@@ -1184,7 +1226,9 @@ class ConditionedModel:
         cache: a graph already handed out keeps reading the draws it was last
         bound to, so a consumer re-extracts before evaluating again.
         """
-        posterior = self._realigned(_posterior_dataset(idata))
+        posterior = _reordered_to_model_coords(
+            _posterior_dataset(idata), self._model.coords
+        )
 
         if not self._cache and self._shared_posterior is None:
             # The draws are still constants and nothing is cached, so no
@@ -1312,36 +1356,6 @@ class ConditionedModel:
                 ]
                 for key in dropped:
                     del self._cache[key]
-
-    def _realigned(self, posterior: xr.Dataset) -> xr.Dataset:
-        """Return ``posterior`` reordered along dimensions that keep their labels.
-
-        The construction records are the reference.  A dimension whose label
-        set equals the construction one is reordered to the construction order,
-        so ``conditioned.posterior`` keeps it.  Any other dimension -- a refit
-        date window, a new dimension, a one-sided labeling -- is stored as
-        given: no graph has read it yet, and each graph validates its own
-        variables when it does.
-
-        Reordering needs unique reference labels; a duplicated one would make
-        ``sel`` drop a column, so that dimension is stored as given and refused
-        later by whichever graph reads it.
-        """
-        references = {**self._posterior.indexes, **self._label_layout}
-        indexers: dict[str, pd.Index] = {}
-        for dim, bound in references.items():
-            if dim in ("chain", "draw"):
-                continue
-            if dim not in posterior.sizes:
-                continue
-            given = posterior.indexes.get(dim)
-            if given is None or not bound.is_unique:
-                continue
-            if given.equals(bound):
-                continue
-            if len(given) == len(bound) and bound.difference(given).empty:
-                indexers[dim] = bound
-        return posterior.sel(indexers) if indexers else posterior
 
     def register(self, callback: Callable[[], None]) -> None:
         """Register ``callback`` to run after a rebind that dropped the graphs.
