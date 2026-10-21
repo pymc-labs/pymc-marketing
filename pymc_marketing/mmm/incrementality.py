@@ -232,6 +232,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import threading
 import warnings
 from abc import ABC, abstractmethod
 from collections import OrderedDict
@@ -272,7 +273,10 @@ from pymc_marketing.mmm.spend_reach import (
     resolve_channel_dependent_effects,
 )
 from pymc_marketing.mmm.transformers import ConvMode
-from pymc_marketing.pytensor_utils import _reordered_to_model_coords
+from pymc_marketing.pytensor_utils import (
+    _needed_posterior_names,
+    _reordered_to_model_coords,
+)
 
 if TYPE_CHECKING:
     from numpy.random import Generator, RandomState
@@ -960,12 +964,12 @@ class PeriodIncrements:
 
 @dataclass(frozen=True)
 class ProbedReach:
-    """Compiled evaluator, factual baseline and measured reach of one evaluation.
+    """Leased evaluator, factual baseline and measured reach of one evaluation.
 
     Parameters
     ----------
-    evaluator : CounterfactualEvaluator
-        The compiled batched evaluator.
+    lease : _EvaluatorLease
+        The compiled batched evaluator, held for the duration of the request.
     baseline : dict
         The factual evaluation of every node, per node
         ``(n_samples, n_dates, *non_date_dims)``.
@@ -983,7 +987,7 @@ class ProbedReach:
         ``channel_data``'s declared axis order.
     """
 
-    evaluator: CounterfactualEvaluator
+    lease: _EvaluatorLease
     baseline: dict
     baseline_array: np.ndarray
     probe: SpendProbe
@@ -991,6 +995,15 @@ class ProbedReach:
     effect_names: tuple[str, ...]
     trailing_lags: int
     channel_data_dims: list[str]
+
+    @property
+    def evaluator(self) -> CounterfactualEvaluator:
+        """The compiled batched evaluator this request holds."""
+        return self.lease.evaluator
+
+    def release(self) -> None:
+        """Return the evaluator to the cache, also when the request raised."""
+        self.lease.release()
 
 
 @dataclass(frozen=True)
@@ -1010,7 +1023,7 @@ class PreparedEvaluation:
     effects : tuple of ChannelDependentEffect
         The channel-dependent effects evaluated with ``channel_contribution``.
     probed : ProbedReach
-        The evaluator, the baseline and the measured reach.
+        The leased evaluator, the baseline and the measured reach.
     freq_offset : BaseOffset
         The data's date frequency.
     windows : EvaluationWindows
@@ -1026,6 +1039,10 @@ class PreparedEvaluation:
     probed: ProbedReach
     freq_offset: BaseOffset
     windows: EvaluationWindows
+
+    def release(self) -> None:
+        """Return the leased evaluator to the model's cache."""
+        self.probed.release()
 
 
 @dataclass(frozen=True)
@@ -1047,9 +1064,6 @@ class ClosedFormInputs:
     saturated: xr.DataArray
     labels: dict
 
-
-_EVALUATOR_CACHE_SIZE = 4
-"""Number of compiled evaluators a fitted MMM keeps before evicting the least recent."""
 
 _EVALUATOR_CACHE_ATTR = "_incrementality_evaluator_cache"
 """Name of the attribute that holds the compiled-evaluator cache."""
@@ -1112,6 +1126,59 @@ def _constant_data_fingerprint(idata: xr.DataTree) -> tuple | None:
     return tuple(entries)
 
 
+class _EvaluatorLease:
+    """One request's hold on a compiled evaluator, taken out of the cache.
+
+    A leased evaluator belongs to the request until :meth:`release`: nothing
+    else can rebind the shared draws under it, so a concurrent request misses
+    the cache and compiles or leases a copy of its own.  The evaluator is
+    returned to the cache when the request is done, also when it raises.
+
+    Parameters
+    ----------
+    cache : _EvaluatorCache
+        The cache it was taken from and is returned to.
+    key : _EvaluatorCacheKey
+        The identity it is cached under.
+    evaluator : CounterfactualEvaluator
+        The compiled evaluator.
+    cached : bool
+        Whether it was taken from the cache rather than built for this request.
+    """
+
+    def __init__(
+        self,
+        cache: _EvaluatorCache,
+        key: _EvaluatorCacheKey,
+        evaluator: CounterfactualEvaluator,
+        *,
+        cached: bool,
+    ) -> None:
+        self._cache = cache
+        self._key = key
+        self._evaluator = evaluator
+        self.cached = cached
+        self._released = False
+
+    @property
+    def evaluator(self) -> CounterfactualEvaluator:
+        """The compiled evaluator this lease holds."""
+        return self._evaluator
+
+    def release(self) -> None:
+        """Return the evaluator to the cache, once.
+
+        Releasing twice is a no-op, so both a failure path and the caller's
+        ``finally`` may release.  If the cache already holds an evaluator for
+        this key -- another request finished first -- one is kept and the LRU
+        stays bounded.
+        """
+        if self._released:
+            return
+        self._released = True
+        self._cache.put(self._key, self._evaluator)
+
+
 class _EvaluatorCache:
     """Bounded LRU cache of compiled counterfactual evaluators.
 
@@ -1119,8 +1186,11 @@ class _EvaluatorCache:
     dataset, so repeated questions pay one compile.
     The cache is bounded so a model cannot pin an unbounded number of compiled functions, and it is never serialized
     because compiled functions only make sense in-process.
-    Calls on one MMM share the cached evaluator, so concurrent calls from several threads are not supported.
-    An entry whose evaluator reads a source input replaced after its build is rebuilt before it is returned.
+    A request leases an evaluator for its duration: :meth:`lease` takes the entry out of the cache and the request
+    returns it in a ``finally``.  Concurrent requests on one model therefore never share the shared draws an evaluator
+    is rebound to -- one of them misses the cache and compiles or leases its own -- and no request waits on another.
+    A lock guards only the dictionary bookkeeping, never an evaluation.
+    An entry whose evaluator reads a source input replaced after its build is rebuilt rather than leased.
 
     Parameters
     ----------
@@ -1128,36 +1198,44 @@ class _EvaluatorCache:
         Number of evaluators kept before the least recently used is evicted.
     """
 
-    def __init__(self, max_entries: int = _EVALUATOR_CACHE_SIZE) -> None:
+    def __init__(self, max_entries: int = 4) -> None:
         self._max_entries = max_entries
         self._entries: OrderedDict[_EvaluatorCacheKey, CounterfactualEvaluator] = (
             OrderedDict()
         )
+        # Guards only the dictionary bookkeeping, never a request: a release must not
+        # fail because another thread evicted its key between two dict operations.
+        self._lock = threading.Lock()
 
     def get(self, key: _EvaluatorCacheKey) -> CounterfactualEvaluator | None:
         """Return the evaluator cached under ``key``, marking it most recent."""
-        evaluator = self._entries.get(key)
-        if evaluator is not None:
-            self._entries.move_to_end(key)
-        return evaluator
+        with self._lock:
+            evaluator = self._entries.get(key)
+            if evaluator is not None:
+                self._entries.move_to_end(key)
+            return evaluator
 
     def put(self, key: _EvaluatorCacheKey, evaluator: CounterfactualEvaluator) -> None:
         """Store ``evaluator`` under ``key``, evicting the least recent entry."""
-        self._entries[key] = evaluator
-        self._entries.move_to_end(key)
-        while len(self._entries) > self._max_entries:
-            self._entries.popitem(last=False)
+        with self._lock:
+            self._entries[key] = evaluator
+            self._entries.move_to_end(key)
+            while len(self._entries) > self._max_entries:
+                self._entries.popitem(last=False)
 
-    def get_or_build(
+    def lease(
         self,
         key: _EvaluatorCacheKey,
         factory: Callable[[], CounterfactualEvaluator],
-    ) -> tuple[CounterfactualEvaluator, bool]:
-        """Return the evaluator cached under ``key``, building and caching it on a miss.
+    ) -> _EvaluatorLease:
+        """Take the evaluator cached under ``key``, building one on a miss.
 
-        A hit whose evaluator reads a source input that has been replaced since
-        it was built is treated as a miss: the compiled graphs hold the old
-        buffer, so the factory rebuilds and the entry is replaced.
+        The entry is removed from the cache and stays out until the lease is
+        released, so a second request for the same key does not find it and
+        builds its own instead of sharing draws with the first.  A cached
+        evaluator that reads a source input replaced since it was built is
+        treated as a miss: the compiled graphs hold the old buffer, so the
+        factory rebuilds it.
 
         Parameters
         ----------
@@ -1168,18 +1246,17 @@ class _EvaluatorCache:
 
         Returns
         -------
-        tuple
-            The evaluator, and whether it came from the cache.  A caller that
+        _EvaluatorLease
+            The evaluator and whether it came from the cache.  A caller that
             rebinds a cached evaluator to new draws needs to know the
             difference: a freshly built one is already conditioned on the draws
             it was asked for.
         """
-        evaluator = self.get(key)
+        with self._lock:
+            evaluator = self._entries.pop(key, None)
         if evaluator is not None and not evaluator.is_stale():
-            return evaluator, True
-        evaluator = factory()
-        self.put(key, evaluator)
-        return evaluator, False
+            return _EvaluatorLease(self, key, evaluator, cached=True)
+        return _EvaluatorLease(self, key, factory(), cached=False)
 
     def __len__(self) -> int:
         return len(self._entries)
@@ -1190,8 +1267,9 @@ class _EvaluatorCache:
 
     def __setstate__(self, state: dict[str, int]) -> None:
         """Restore `max_entries` with an empty cache."""
-        self._max_entries = state.get("_max_entries", _EVALUATOR_CACHE_SIZE)
+        self._max_entries = state.get("_max_entries", 4)
         self._entries = OrderedDict()
+        self._lock = threading.Lock()
 
 
 class Incrementality:
@@ -1232,8 +1310,9 @@ class Incrementality:
 
     Notes
     -----
-    Computation reuses compiled evaluators cached on the fitted model, so repeated calls do not recompile; calls on
-    one model share that cache, so concurrent calls from several threads are not supported.
+    Computation reuses compiled evaluators cached on the fitted model, so repeated calls do not recompile.  A call
+    leases the evaluator it uses and returns it when it finishes, so concurrent calls on one model each hold their own
+    evaluator -- a call that finds the cache empty compiles one -- rather than sharing the draws it is rebound to.
     An in-place edit of ``idata.constant_data`` while an instance is held is not detected by that instance; a fresh
     ``mmm.incrementality`` sees it.
 
@@ -2568,25 +2647,32 @@ class Incrementality:
                 lags=lags,
             ),
         )
-        # No channel-dependent effects reach this point: the guards refused them.
-        probed = prepared.probed
-        _refuse_dedicated_rows(
-            probed.probe.mixes_channels(non_date_dims=probed.evaluator.non_date_dims),
-            requirement=CLOSED_FORM_REQUIREMENT,
-        )
+        # The probe is the closed form's only use of the evaluator, so the lease
+        # ends with it rather than with the matrix the caller builds afterwards.
+        try:
+            # No channel-dependent effects reach this point: the guards refused them.
+            probed = prepared.probed
+            _refuse_dedicated_rows(
+                probed.probe.mixes_channels(
+                    non_date_dims=probed.evaluator.non_date_dims
+                ),
+                requirement=CLOSED_FORM_REQUIREMENT,
+            )
 
-        # The identity link is one of the guards, so the reducer only rescales.
-        reducer = cast(IdentityLinkReducer, prepared.reducer)
-        posterior = prepared.posterior
-        labels = {
-            "chain": np.arange(posterior.sizes["chain"]),
-            "draw": np.arange(posterior.sizes["draw"]),
-        }
-        saturated = _relabel_draws(
-            self._saturated_media(posterior, counterfactual_spend_factor)
-            * reducer.scale,
-            labels,
-        )
+            # The identity link is one of the guards, so the reducer only rescales.
+            reducer = cast(IdentityLinkReducer, prepared.reducer)
+            posterior = prepared.posterior
+            labels = {
+                "chain": np.arange(posterior.sizes["chain"]),
+                "draw": np.arange(posterior.sizes["draw"]),
+            }
+            saturated = _relabel_draws(
+                self._saturated_media(posterior, counterfactual_spend_factor)
+                * reducer.scale,
+                labels,
+            )
+        finally:
+            prepared.release()
         return ClosedFormInputs(prepared=prepared, saturated=saturated, labels=labels)
 
     @staticmethod
@@ -4415,16 +4501,22 @@ class Incrementality:
         )
 
         # The stretch of dates each period is evaluated over, which of them enter
-        # the sum, and the length they all stack to.
-        windows = EvaluationWindows.build(
-            periods=periods,
-            dates=self.data.dates,
-            l_max=probed.reach.effective_l_max,
-            freq_offset=freq_offset,
-            full_axis=probed.reach.requires_full_axis,
-            include_carryover=include_carryover,
-            mode=self.model.adstock.mode,
-        )
+        # the sum, and the length they all stack to.  A failure here still has to
+        # return the leased evaluator; the caller only releases once it has a
+        # prepared evaluation.
+        try:
+            windows = EvaluationWindows.build(
+                periods=periods,
+                dates=self.data.dates,
+                l_max=probed.reach.effective_l_max,
+                freq_offset=freq_offset,
+                full_axis=probed.reach.requires_full_axis,
+                include_carryover=include_carryover,
+                mode=self.model.adstock.mode,
+            )
+        except BaseException:
+            probed.release()
+            raise
 
         return PreparedEvaluation(
             start_ts=start_ts,
@@ -4437,6 +4529,43 @@ class Incrementality:
             freq_offset=freq_offset,
             windows=windows,
         )
+
+    def _evaluator_posterior(
+        self, posterior: xr.Dataset, response_vars: Sequence[str | Variable]
+    ) -> xr.Dataset:
+        """Return the posterior variables the evaluator's graphs read.
+
+        A compiled evaluator keeps the draws it was conditioned on for as long as
+        it lies in the cache, so handing it the whole subsample would pin every
+        large deterministic in the posterior -- ``channel_contribution`` among
+        them -- although the graphs read only the free RVs and the frozen
+        deterministics they are built over.  Narrowing here leaves the reducer,
+        which does want the whole subsample, untouched.
+
+        Parameters
+        ----------
+        posterior : xr.Dataset
+            The already subsampled posterior.
+        response_vars : sequence of str or Variable
+            Responses the evaluator is built for.  A response given as a raw node
+            is resolved against the model for the traversal only; the evaluator
+            still receives the node.
+
+        Returns
+        -------
+        xr.Dataset
+            The variables those responses read, in ``posterior``'s own order.  A
+            variable the posterior lacks is left out, so the evaluator raises its
+            usual error when the graph asks for it.
+        """
+        model = self.model.model
+        resolved = [
+            model[var] if isinstance(var, str) else var for var in response_vars
+        ]
+        read = set(
+            _needed_posterior_names(model, resolved, self.model.frozen_deterministics)
+        )
+        return posterior[[name for name in posterior.data_vars if name in read]]
 
     def _probe_reach(
         self,
@@ -4515,11 +4644,15 @@ class Incrementality:
             *effect_names,
             *([predictor] if predictor is not None else []),
         ]
-        # Reuse the compiled evaluator for this graph shape and dataset; a hit only rebinds the posterior.
+        # Reuse the compiled evaluator for this graph shape and dataset.  The
+        # evaluator is leased for the whole request: it leaves the cache here and
+        # comes back below, so a concurrent call misses and compiles its own
+        # rather than rebinding the draws under this one.
+        posterior_for_evaluator = self._evaluator_posterior(posterior, response_vars)
         build_evaluator = partial(
             CounterfactualEvaluator,
             pymc_model=posterior_predictive_model,
-            posterior=posterior,
+            posterior=posterior_for_evaluator,
             response_vars=response_vars,
             frozen_deterministics=self.model.frozen_deterministics,
             dates=dates,
@@ -4530,71 +4663,76 @@ class Incrementality:
             ),
         )
         cache = self.model.__dict__.setdefault(_EVALUATOR_CACHE_ATTR, _EvaluatorCache())
-        evaluator, cached = cache.get_or_build(
-            self._evaluator_cache_key(response_vars), build_evaluator
-        )
+        lease = cache.lease(self._evaluator_cache_key(response_vars), build_evaluator)
+        evaluator = lease.evaluator
         # A hit carries the draws of the request that built it; a miss was just
         # conditioned on this request's posterior, so rebinding it would copy the
         # same draws a second time.
-        if cached:
-            evaluator.set_posterior(posterior)
+        try:
+            if lease.cached:
+                evaluator.set_posterior(posterior_for_evaluator)
 
-        # channel_data's declared axis order, which the baseline array below and
-        # the per-channel scenarios further down are both read against.  Taken
-        # from the model rather than assumed: it is not always (date, channel),
-        # since panel models lay channel_data out as (date, *custom_dims,
-        # channel).
-        channel_data_dims = list(
-            posterior_predictive_model.named_vars_to_dims.get(
-                CounterfactualEvaluator.CHANNEL_DATA, ()
+            # channel_data's declared axis order, which the baseline array below and
+            # the per-channel scenarios further down are both read against.  Taken
+            # from the model rather than assumed: it is not always (date, channel),
+            # since panel models lay channel_data out as (date, *custom_dims,
+            # channel).
+            channel_data_dims = list(
+                posterior_predictive_model.named_vars_to_dims.get(
+                    CounterfactualEvaluator.CHANNEL_DATA, ()
+                )
             )
-        )
 
-        # Evaluate baseline on full dataset (once).  Comparable to the windowed
-        # counterfactuals because a window is clamped to the fitted dates and
-        # carries l_max of history, so every evaluated date sees the same inputs
-        # it would on the full axis.  Transposed into the declared order rather
-        # than trusting constant_data to already hold it, so date-first and the
-        # position of ``channel`` are both facts about the model here, not
-        # assumptions about the idata group.
-        channel_data = self._channel_data_in_model_order()
-        if channel_data_dims:
-            channel_data = channel_data.transpose(*channel_data_dims)
-        baseline_array = channel_data.values
-        baseline = evaluator.evaluate_baseline(baseline_array)
-        # Per node: (n_samples, n_dates, *non_date_dims)
+            # Evaluate baseline on full dataset (once).  Comparable to the windowed
+            # counterfactuals because a window is clamped to the fitted dates and
+            # carries l_max of history, so every evaluated date sees the same inputs
+            # it would on the full axis.  Transposed into the declared order rather
+            # than trusting constant_data to already hold it, so date-first and the
+            # position of ``channel`` are both facts about the model here, not
+            # assumptions about the idata group.
+            channel_data = self._channel_data_in_model_order()
+            if channel_data_dims:
+                channel_data = channel_data.transpose(*channel_data_dims)
+            baseline_array = channel_data.values
+            baseline = evaluator.evaluate_baseline(baseline_array)
+            # Per node: (n_samples, n_dates, *non_date_dims)
 
-        # What the window is allowed to assume, measured on the compiled graph
-        # rather than declared.  Unconditional: a mediated path that outlives the
-        # direct one is the obvious reason a window has to be widened, but it is
-        # not the only one -- a custom adstock or saturation that reduces over
-        # ``date`` is not a causal filter, and a plain MMM carrying one cannot be
-        # windowed at all.  Costs one more call to an already-compiled function.
-        probe = SpendProbe(
-            evaluator=evaluator,
-            baseline=baseline,
-            baseline_array=baseline_array,
-            counterfactual_spend_factor=counterfactual_spend_factor,
-        )
-        probe.assert_increment_is_complete(
-            effects=effects, non_date_dims=evaluator.non_date_dims
-        )
-        # The adstock kernel's own trailing lags: the floor under the measured
-        # horizon, and the lower bound on the unobserved tail when the probe
-        # sends every period to the full date axis.
-        trailing_lags = kernel_trailing_lags(
-            self.model.adstock.l_max, self.model.adstock.mode
-        )
-        reach = probe.measure(
-            effects=effects,
-            l_max=self.model.adstock.l_max,
-            trailing_lags=trailing_lags,
-        )
-        if validate_reach is not None:
-            validate_reach(reach)
+            # What the window is allowed to assume, measured on the compiled graph
+            # rather than declared.  Unconditional: a mediated path that outlives the
+            # direct one is the obvious reason a window has to be widened, but it is
+            # not the only one -- a custom adstock or saturation that reduces over
+            # ``date`` is not a causal filter, and a plain MMM carrying one cannot be
+            # windowed at all.  Costs one more call to an already-compiled function.
+            probe = SpendProbe(
+                evaluator=evaluator,
+                baseline=baseline,
+                baseline_array=baseline_array,
+                counterfactual_spend_factor=counterfactual_spend_factor,
+            )
+            probe.assert_increment_is_complete(
+                effects=effects, non_date_dims=evaluator.non_date_dims
+            )
+            # The adstock kernel's own trailing lags: the floor under the measured
+            # horizon, and the lower bound on the unobserved tail when the probe
+            # sends every period to the full date axis.
+            trailing_lags = kernel_trailing_lags(
+                self.model.adstock.l_max, self.model.adstock.mode
+            )
+            reach = probe.measure(
+                effects=effects,
+                l_max=self.model.adstock.l_max,
+                trailing_lags=trailing_lags,
+            )
+            if validate_reach is not None:
+                validate_reach(reach)
+        except BaseException:
+            # The request never got a prepared evaluation to release from, so the
+            # evaluator goes back here rather than being dropped with the frame.
+            lease.release()
+            raise
 
         return ProbedReach(
-            evaluator=evaluator,
+            lease=lease,
             baseline=baseline,
             baseline_array=baseline_array,
             probe=probe,
@@ -4694,86 +4832,93 @@ class Incrementality:
             validate_reach=validate_reach,
             posterior=posterior,
         )
-        posterior_sub = prepared.posterior
-        n_chains = posterior_sub.sizes["chain"]
-        n_draws = posterior_sub.sizes["draw"]
-        reducer = prepared.reducer
-        effects = prepared.effects
-        freq_offset = prepared.freq_offset
-        windows = prepared.windows
-        probed = prepared.probed
-        evaluator = probed.evaluator
-        baseline = probed.baseline
-        baseline_array = probed.baseline_array
-        probe = probed.probe
-        reach = probed.reach
-        effect_names = probed.effect_names
-        trailing_lags = probed.trailing_lags
-        channel_data_dims = probed.channel_data_dims
+        # The evaluator is held until the increments it was leased for are
+        # computed, and returned also when that raises.
+        try:
+            posterior_sub = prepared.posterior
+            n_chains = posterior_sub.sizes["chain"]
+            n_draws = posterior_sub.sizes["draw"]
+            reducer = prepared.reducer
+            effects = prepared.effects
+            freq_offset = prepared.freq_offset
+            windows = prepared.windows
+            probed = prepared.probed
+            evaluator = probed.evaluator
+            baseline = probed.baseline
+            baseline_array = probed.baseline_array
+            probe = probed.probe
+            reach = probed.reach
+            effect_names = probed.effect_names
+            trailing_lags = probed.trailing_lags
+            channel_data_dims = probed.channel_data_dims
 
-        # Two ways a per-channel column can stop being channel m's unilateral
-        # counterfactual.  An effect can mix channels before reaching the
-        # response, so no per-channel column survives at all.  Failing that, the
-        # media transform itself can mix them -- ``forward_pass`` hands the
-        # saturation the whole (date, channel) tensor, so a shared denominator is
-        # expressible -- which is measured rather than assumed away, and only
-        # where a per-channel column is going to be read: the joint estimand sums
-        # over channels either way, and with effects the per-channel scenarios
-        # are already being built.
-        needs_dedicated_rows = bool(effects) or (
-            scope == "per_channel"
-            and probe.mixes_channels(non_date_dims=evaluator.non_date_dims)
-        )
-        if validate_dedicated_rows is not None:
-            validate_dedicated_rows(needs_dedicated_rows)
+            # Two ways a per-channel column can stop being channel m's unilateral
+            # counterfactual.  An effect can mix channels before reaching the
+            # response, so no per-channel column survives at all.  Failing that, the
+            # media transform itself can mix them -- ``forward_pass`` hands the
+            # saturation the whole (date, channel) tensor, so a shared denominator is
+            # expressible -- which is measured rather than assumed away, and only
+            # where a per-channel column is going to be read: the joint estimand sums
+            # over channels either way, and with effects the per-channel scenarios
+            # are already being built.
+            needs_dedicated_rows = bool(effects) or (
+                scope == "per_channel"
+                and probe.mixes_channels(non_date_dims=evaluator.non_date_dims)
+            )
+            if validate_dedicated_rows is not None:
+                validate_dedicated_rows(needs_dedicated_rows)
 
-        # Where a channel sits among channel_data's non-date axes.  Needed only
-        # in per-channel mode, and it is not always axis 0.
-        channel_axis = None
-        if needs_dedicated_rows:
-            channel_axis = [d for d in channel_data_dims if d != "date"].index(
-                "channel"
+            # Where a channel sits among channel_data's non-date axes.  Needed only
+            # in per-channel mode, and it is not always axis 0.
+            channel_axis = None
+            if needs_dedicated_rows:
+                channel_axis = [d for d in channel_data_dims if d != "date"].index(
+                    "channel"
+                )
+
+            scenarios = windows.build_scenarios(
+                baseline_array=baseline_array,
+                counterfactual_spend_factor=counterfactual_spend_factor,
+                dtype=evaluator.channel_dtype,
+                channel_axis=channel_axis,
+                n_channels=len(self.model.channel_columns),
+                estimand=scope,
             )
 
-        scenarios = windows.build_scenarios(
-            baseline_array=baseline_array,
-            counterfactual_spend_factor=counterfactual_spend_factor,
-            dtype=evaluator.channel_dtype,
-            channel_axis=channel_axis,
-            n_channels=len(self.model.channel_columns),
-            estimand=scope,
-        )
+            counterfactual = evaluator.evaluate_counterfactual(
+                scenarios, windows=windows
+            )
+            # Per node: (n_scenarios, n_samples, max_window, *non_date_dims)
 
-        counterfactual = evaluator.evaluate_counterfactual(scenarios, windows=windows)
-        # Per node: (n_scenarios, n_samples, max_window, *non_date_dims)
-
-        # Assemble results
-        period_results = self._compute_period_increments(
-            windows=windows,
-            scenarios=scenarios,
-            baseline=baseline,
-            counterfactual=counterfactual,
-            non_date_dims=evaluator.non_date_dims,
-            effect_names=effect_names,
-            counterfactual_spend_factor=counterfactual_spend_factor,
-            n_chains=n_chains,
-            n_draws=n_draws,
-            reducer=reducer,
-            scope=scope,
-            dedicated_channel_rows=channel_axis is not None,
-            freq_offset=freq_offset,
-            # How far past a period's last spend date its carryover is known to
-            # land: the measured reach, or under full-axis evaluation the
-            # kernel's own trailing lags, which bound it from below.
-            tail_lags=reach.max_lag if reach.max_lag is not None else trailing_lags,
-            keep_date_axis=keep_date_axis,
-        )
-        return PeriodIncrements(
-            periods=period_results,
-            windows=windows,
-            reach=reach,
-            freq_offset=freq_offset,
-        )
+            # Assemble results
+            period_results = self._compute_period_increments(
+                windows=windows,
+                scenarios=scenarios,
+                baseline=baseline,
+                counterfactual=counterfactual,
+                non_date_dims=evaluator.non_date_dims,
+                effect_names=effect_names,
+                counterfactual_spend_factor=counterfactual_spend_factor,
+                n_chains=n_chains,
+                n_draws=n_draws,
+                reducer=reducer,
+                scope=scope,
+                dedicated_channel_rows=channel_axis is not None,
+                freq_offset=freq_offset,
+                # How far past a period's last spend date its carryover is known to
+                # land: the measured reach, or under full-axis evaluation the
+                # kernel's own trailing lags, which bound it from below.
+                tail_lags=reach.max_lag if reach.max_lag is not None else trailing_lags,
+                keep_date_axis=keep_date_axis,
+            )
+            return PeriodIncrements(
+                periods=period_results,
+                windows=windows,
+                reach=reach,
+                freq_offset=freq_offset,
+            )
+        finally:
+            prepared.release()
 
     @staticmethod
     def _stack_periods(

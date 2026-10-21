@@ -16,7 +16,9 @@
 import copy
 import json
 import logging
+import sys
 import warnings
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -6451,6 +6453,14 @@ class TestSplitIncrementalContributionHelpers:
         assert bool(result.coords["complete"])
 
 
+class _FakeEvaluator:
+    """Only what the evaluator cache asks of an entry: whether it went stale."""
+
+    def is_stale(self) -> bool:
+        """Whether the entry should be rebuilt instead of reused."""
+        return False
+
+
 class TestEvaluatorCache:
     """The MMM-level cache that lets Incrementality reuse compiled evaluators.
 
@@ -6866,3 +6876,137 @@ class TestEvaluatorCache:
         finally:
             with model:
                 pm.set_data({"lf_budget": original})
+
+    def test_the_cached_evaluator_holds_only_the_variables_its_graphs_read(
+        self, simple_fitted_mmm
+    ):
+        """A cached evaluator keeps the draws it reads, not the whole subsample.
+
+        The evaluator lives in the MMM's cache for as long as the entry survives,
+        so holding the subsample it was conditioned on would pin every large
+        deterministic -- ``channel_contribution`` among them -- although the
+        graphs are evaluated against it, not from it.
+        """
+        mmm = simple_fitted_mmm
+        incr = mmm.incrementality
+        incr.compute_incremental_contribution(
+            frequency="all_time", num_samples=50, random_state=np.random.default_rng(3)
+        )
+
+        cache = getattr(mmm, _EVALUATOR_CACHE_ATTR)
+        evaluator = cache.get(incr._evaluator_cache_key(["channel_contribution"]))
+        assert evaluator is not None
+        held = set(evaluator._conditioned.posterior.data_vars)
+        read = {rv.name for rv in mmm.model.free_RVs} | set(mmm.frozen_deterministics)
+
+        assert held <= read
+        assert "channel_contribution" in mmm.idata.posterior.data_vars
+        assert "channel_contribution" not in held
+        assert (
+            evaluator._conditioned.posterior.nbytes < mmm.idata.posterior.dataset.nbytes
+        )
+
+    def test_a_leased_entry_is_out_of_the_cache_until_released(self):
+        """A second request on a leased key misses rather than sharing it."""
+        cache = _EvaluatorCache(max_entries=2)
+        key = object()
+        evaluator = _FakeEvaluator()
+        cache.put(key, evaluator)
+
+        lease = cache.lease(key, lambda: pytest.fail("a cached entry is a hit"))
+        assert lease.cached
+        assert lease.evaluator is evaluator
+        assert len(cache) == 0
+
+        concurrent = cache.lease(key, _FakeEvaluator)
+        assert not concurrent.cached
+        assert concurrent.evaluator is not evaluator
+
+        lease.release()
+        lease.release()  # releasing twice is a no-op
+        concurrent.release()
+
+        assert len(cache) == 1
+        assert cache.get(key) is concurrent.evaluator
+
+    @pytest.mark.parametrize(
+        "failing_method",
+        ["set_posterior", "evaluate_baseline", "evaluate_counterfactual"],
+    )
+    def test_a_failed_call_returns_the_evaluator_to_the_cache(
+        self, simple_fitted_mmm, monkeypatch, failing_method
+    ):
+        """The lease ends in a ``finally``, so a raising call leaves a warm cache."""
+        mmm = simple_fitted_mmm
+        incr = mmm.incrementality
+        # Warm the cache, so the failing call below is a hit that rebinds.
+        incr.compute_incremental_contribution(frequency="all_time")
+
+        def failing(*args, **kwargs):
+            raise RuntimeError("evaluation failed")
+
+        monkeypatch.setattr(CounterfactualEvaluator, failing_method, failing)
+
+        with pytest.raises(RuntimeError, match="evaluation failed"):
+            incr.compute_incremental_contribution(frequency="all_time")
+
+        cache = getattr(mmm, _EVALUATOR_CACHE_ATTR)
+        assert len(cache) == 1
+        assert (
+            cache.get(incr._evaluator_cache_key(["channel_contribution"])) is not None
+        )
+
+
+@pytest.fixture
+def quick_thread_switching():
+    """Make the GIL change hands often, so calls issued together interleave.
+
+    A call on a mock-fit model is short enough to finish inside a default 5 ms
+    slice, which would let a concurrency test pass because of the scheduler
+    rather than because the calls do not share an evaluator.  The interval is
+    global to the process, so it is restored.
+    """
+    previous = sys.getswitchinterval()
+    sys.setswitchinterval(1e-4)
+    try:
+        yield
+    finally:
+        sys.setswitchinterval(previous)
+
+
+class TestConcurrentCalls:
+    """Several threads calling incrementality on one fitted MMM at the same time."""
+
+    @staticmethod
+    def _increment(mmm, seed, num_samples):
+        """One call's total incremental contribution, as a plain number."""
+        return float(
+            mmm.incrementality.compute_incremental_contribution(
+                frequency="monthly", num_samples=num_samples, random_state=seed
+            ).sum()
+        )
+
+    @pytest.mark.parametrize(
+        "requests",
+        [
+            [(seed, 50) for seed in range(8)],
+            [(seed, num_samples) for seed in range(6) for num_samples in (20, 50)],
+        ],
+        ids=["same-num-samples", "mixed-num-samples"],
+    )
+    def test_threaded_calls_return_their_own_numbers(
+        self, simple_fitted_mmm, quick_thread_switching, requests
+    ):
+        """A call in a thread pool returns the value it returns when run alone."""
+        mmm = simple_fitted_mmm
+        expected = {request: self._increment(mmm, *request) for request in requests}
+
+        with ThreadPoolExecutor(max_workers=4) as pool:
+            futures = {
+                request: pool.submit(self._increment, mmm, *request)
+                for request in requests
+            }
+            results = {request: future.result() for request, future in futures.items()}
+
+        for request, result in results.items():
+            np.testing.assert_allclose(result, expected[request], rtol=1e-8)
