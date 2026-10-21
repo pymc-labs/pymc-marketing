@@ -293,7 +293,9 @@ class TypeRegistry:
             # ``Prior.to_dict`` writes every attribute (``dims``, ``centered``,
             # ``transform``, ...) and encodes nested parameters in the format
             # ``Prior.from_dict`` reads back. The model id uses the same encoding.
-            return value.to_dict()
+            # Its output can still hold numpy scalars (for example ``np.int64``
+            # or ``np.float32``) that ``json`` cannot encode, so convert them.
+            return self._serialize_config_value(value.to_dict())
 
         type_key = f"{value.__class__.__module__}.{value.__class__.__qualname__}"
         if type_key in self._registry:

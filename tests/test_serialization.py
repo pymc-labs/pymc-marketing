@@ -537,14 +537,20 @@ class TestSerializeModelConfig:
 
         assert restored == prior
 
-    def test_prior_with_scaled_parameter_survives_json_round_trip(self):
-        """A ``Scaled`` parameter is written in the format ``Prior.from_dict`` reads."""
+    @pytest.mark.parametrize("factor_dtype", ["float64", "float32", "int64"])
+    def test_prior_with_scaled_parameter_survives_json_round_trip(self, factor_dtype):
+        """A ``Scaled`` parameter is written in the format ``Prior.from_dict`` reads.
+
+        ``float32`` and ``int64`` factors are numpy scalars that ``json`` cannot encode.
+        """
         import json
 
+        import numpy as np
         from pymc_extras.prior import Prior, Scaled
 
         inner = Prior("HalfNormal", sigma=1, transform="exp")
-        prior = Prior("Normal", mu=0, sigma=Scaled(inner, factor=2.0))
+        factor = np.dtype(factor_dtype).type(2)
+        prior = Prior("Normal", mu=0, sigma=Scaled(inner, factor=factor))
 
         serialized = json.loads(
             json.dumps(serialization.serialize_model_config({"prior": prior}))
