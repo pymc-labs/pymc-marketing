@@ -1507,6 +1507,59 @@ def test_conditioned_model_optional_binding_follows_rebinds_and_is_dropped():
     )
 
 
+def test_conditioned_model_shared_rebind_writes_draws_with_an_empty_cache(
+    monkeypatch,
+):
+    """A shared-mode rebind still swaps the draws when nothing is cached.
+
+    A required graph is compiled and then evicted by an optional extraction.
+    A rebind without ``gamma`` drops that optional key and leaves the cache
+    empty.  The next rebind must still write ``beta``, so the function compiled
+    before the eviction returns the newest draws.
+    """
+    model, spend = _channel_conditioned_model()
+    conditioned = ConditionedModel(
+        model,
+        _channel_posterior([1.0, 2.0], gamma=[3.0, 4.0]),
+        intervention={"spend": spend},
+        share_posterior=True,
+    )
+    monkeypatch.setattr("pymc_marketing.pytensor_utils._GRAPH_CACHE_SIZE", 1)
+    fn = function([], conditioned.extract("resp"))
+
+    conditioned.extract(conditioned.model["resp_g"] * 2.0, required=False)
+    conditioned.set_posterior(_channel_posterior([5.0, 6.0]))
+    assert not conditioned._cache
+
+    conditioned.set_posterior(_channel_posterior([7.0, 8.0]))
+
+    np.testing.assert_allclose(fn(), [[70.0, 160.0]])
+
+
+def test_conditioned_model_shared_empty_cache_still_requires_bound_variables(
+    monkeypatch,
+):
+    """An empty cache means no graph is waiting, not that no draws are bound.
+
+    The shared variables are still bound, so a rebind that lacks one of them
+    raises ``KeyError`` instead of being recorded and skipped.
+    """
+    model, spend = _channel_conditioned_model()
+    conditioned = ConditionedModel(
+        model,
+        _channel_posterior([1.0, 2.0]),
+        intervention={"spend": spend},
+        share_posterior=True,
+    )
+    monkeypatch.setattr("pymc_marketing.pytensor_utils._GRAPH_CACHE_SIZE", 0)
+    conditioned.extract("resp")
+    assert not conditioned._cache
+
+    without_beta = xr.Dataset({"gamma": (("chain", "draw"), np.zeros((1, 1)))})
+    with pytest.raises(KeyError, match="beta"):
+        conditioned.set_posterior(without_beta)
+
+
 def test_conditioned_model_restore_is_idempotent_and_drops_an_unrestorable_key():
     """A checkpoint restores every binding, and restoring it twice changes nothing.
 

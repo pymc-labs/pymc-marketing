@@ -1139,10 +1139,12 @@ class ConditionedModel:
         use, which is what validates those variables.  A graph handed out
         before that call does not follow it: re-extract it, or register a
         callback that does.
-        A call with nothing cached only switches to the shared path and fires
-        no callback.  An uncached ``cache=False`` graph is untouched by it.
-        Every later call swaps the draws in the shared posterior first, which
-        validates the variables the required graphs read and needs no recompile.
+        While the draws are still constants, a call with nothing cached only
+        switches to the shared path and fires no callback; an uncached
+        ``cache=False`` graph is untouched by it.
+        Once on the shared path, every call swaps the draws in the shared
+        posterior first, even with nothing cached, which validates the variables
+        the required graphs read and needs no recompile.
         It then tries each optional key's private binding.  A key the new
         posterior cannot satisfy is dropped from the cache, and its next
         :meth:`extract` returns a new graph once the posterior can satisfy it;
@@ -1184,11 +1186,10 @@ class ConditionedModel:
         """
         posterior = self._realigned(_posterior_dataset(idata))
 
-        if not self._cache:
-            # Nothing handed out is waiting to be rebuilt, so no variable is
-            # bound yet.  Switch to the shared path if needed and record the draws.
-            if self._shared_posterior is None:
-                self._shared_posterior = SharedPosterior()
+        if not self._cache and self._shared_posterior is None:
+            # The draws are still constants and nothing is cached, so no
+            # variable is bound.  Switch to the shared path and record them.
+            self._shared_posterior = SharedPosterior()
             self._posterior = posterior
             return
 

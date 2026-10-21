@@ -2573,9 +2573,9 @@ def _two_response_optimizer(posterior, *, constraints=None):
     )
 
 
-def _two_response_posterior(*, gamma=None):
+def _two_response_posterior(*, beta=(1.0, 1.0), gamma=None):
     data_vars = {
-        "beta": (("chain", "draw", "channel"), np.ones((1, 1, 2))),
+        "beta": (("chain", "draw", "channel"), np.asarray(beta, float)[None, None]),
     }
     if gamma is not None:
         data_vars["gamma"] = (
@@ -2629,6 +2629,42 @@ def test_set_posterior_ignores_a_replaced_custom_constraint():
     optimizer.set_posterior(thinned)
 
     assert optimizer.idata is thinned
+
+
+def test_shared_rebind_after_eviction_updates_the_objective(monkeypatch):
+    """An ad-hoc response must not leave the objective on stale draws.
+
+    An ad-hoc response that reads ``gamma`` evicts the objective's key from the
+    bounded cache.  A rebind without ``gamma`` then drops that response, so the
+    cache is empty while ``beta`` is still bound.  The next rebind must still
+    swap ``beta``: the objective compiled before the eviction has to match a
+    fresh optimizer built on the final draws.
+    """
+    optimizer = _two_response_optimizer(_two_response_posterior(gamma=(1.0, 1.0)))
+    plan = xr.DataArray([30.0, 70.0], dims=["channel"], coords={"channel": ["a", "b"]})
+    optimizer.set_posterior(
+        xr.DataTree.from_dict(
+            {"/posterior": _two_response_posterior(beta=(2.0, 2.0), gamma=(1.0, 1.0))}
+        )
+    )
+
+    monkeypatch.setattr("pymc_marketing.pytensor_utils._GRAPH_CACHE_SIZE", 1)
+    optimizer.evaluate_response_distribution(plan, "inspection")
+    assert not any(required for _, required in optimizer._conditioned._cache)
+
+    optimizer.set_posterior(
+        xr.DataTree.from_dict({"/posterior": _two_response_posterior(beta=(3.0, 3.0))})
+    )
+    assert not optimizer._conditioned._cache
+
+    final = _two_response_posterior(beta=(4.0, 4.0))
+    optimizer.set_posterior(xr.DataTree.from_dict({"/posterior": final}))
+
+    x = optimizer.optimization_variables.pack(plan)
+    fresh = _two_response_optimizer(final)
+    np.testing.assert_allclose(
+        optimizer._objective_and_grad(x)[0], fresh._objective_and_grad(x)[0]
+    )
 
 
 def test_set_posterior_accepts_bare_posterior_dataset(mmm_wrapper, dummy_idata):
