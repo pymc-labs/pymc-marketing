@@ -222,6 +222,7 @@ from pymc_marketing.mmm.causal import CausalGraphModel
 from pymc_marketing.mmm.components.adstock import AdstockTransformation
 from pymc_marketing.mmm.components.saturation import SaturationTransformation
 from pymc_marketing.mmm.constraints import Constraint
+from pymc_marketing.mmm.contribution_factors import ContributionFactorState
 from pymc_marketing.mmm.data_conversion import _dataset_has_target, to_mmm_dataset
 from pymc_marketing.mmm.decomposition import (
     identity_counterfactual_component,
@@ -684,6 +685,7 @@ class MMM(RegressionModelBuilder):
 
         self.mu_effects: list[MuEffect] = []
         self._lift_test_calibrations: list[dict[str, Any]] = []
+        self._contribution_factors = ContributionFactorState()
 
     def add_mu_effect(
         self: Self,
@@ -717,6 +719,8 @@ class MMM(RegressionModelBuilder):
             )
 
         """
+        if self._contribution_factors.specs:
+            raise ValueError("Configure MuEffects before adding contribution factors")
         self.mu_effects.append(mu_effect)
         return self
 
@@ -1110,6 +1114,7 @@ class MMM(RegressionModelBuilder):
         attrs["link"] = self.link.value
         attrs["scaling"] = json.dumps(serialization.serialize(self.scaling))
         attrs["lift_test_calibrations"] = json.dumps(self._lift_test_calibrations)
+        attrs.update(self._contribution_factors.to_attrs())
         attrs["dag"] = json.dumps(getattr(self, "dag", None))
         attrs["treatment_nodes"] = json.dumps(getattr(self, "treatment_nodes", None))
         attrs["outcome_node"] = json.dumps(getattr(self, "outcome_node", None))
@@ -1929,7 +1934,13 @@ class MMM(RegressionModelBuilder):
             channel_columns=self.channel_columns,
             control_columns=self.control_columns,
             target_column=self.target_column,
-        ).fillna(0)
+        )
+        # Keep the original observed-cell mask: the existing likelihood still
+        # uses the zero-filled target, but contribution beliefs exclude missing cells.
+        self._contribution_factors.mask = cast(
+            xr.DataArray, np.isfinite(self.xarray_dataset["_target"])
+        )
+        self.xarray_dataset = self.xarray_dataset.fillna(0)
 
         self.xarray_dataset["_channel"] = self.xarray_dataset["_channel"].astype(float)
         # Integer control columns (0/1 flags) would otherwise make `control_data`
@@ -2366,6 +2377,7 @@ class MMM(RegressionModelBuilder):
         xr.DataTree
             Inference data of the fitted model.
         """
+        self._contribution_factors.validate_reference(self, X, y)
         if hasattr(self, "model") and self._target_is_placeholder:
             warnings.warn(
                 "The model was built by `sample_prior_predictive` with a "
@@ -2489,6 +2501,11 @@ class MMM(RegressionModelBuilder):
             )
 
         """
+        with self._contribution_factors.rebuilding(self, X, y) as working:
+            working._build_graph(X, y)
+
+    def _build_graph(self, X, y) -> None:
+        """Construct the standard MMM graph from its input data."""
         # Calibration rows belong to a particular graph. A rebuild creates a
         # fresh graph, so callers must re-add any lift tests they want to use.
         self._lift_test_calibrations = []
@@ -2744,6 +2761,99 @@ class MMM(RegressionModelBuilder):
                 xdist=True,
             )
 
+    def add_contribution_factor(
+        self,
+        name: str,
+        channels: Sequence[str],
+        quantity: Literal["total", "share"],
+        prior: Prior,
+    ) -> Self:
+        """Weight the joint prior by a density on historical media contribution.
+
+        Parameters
+        ----------
+        name : str
+            Unique aggregate Deterministic name. The Potential is ``{name}_factor``.
+        channels : sequence of str
+            Distinct selected channels. Groups may overlap or be nested.
+        quantity : {"total", "share"}
+            Original-unit total over observed training cells, or that total
+            divided by their fixed observed outcome sum. Extra dimensions pool.
+        prior : Prior
+            Scalar, centered, untransformed continuous density with fixed finite
+            scalar parameters. Smooth real-line densities, LogNormal, and
+            HalfNormal are supported. These are the only nonnegative component
+            families currently supported.
+            Its density multiplies existing priors; it does not replace the
+            share marginal. Choose support appropriate to the contribution.
+
+        Returns
+        -------
+        Self
+            This MMM for chaining.
+
+        Notes
+        -----
+        Call after building and before fitting. Configure MuEffects first;
+        spend-dependent effects and non-identity links are unsupported. Missing
+        original targets are excluded from both aggregates, independently of
+        the sales likelihood's existing zero-filling behavior. Shares require a
+        finite positive outcome sum. Finite-support densities and hard caps are
+        rejected. LogNormal/HalfNormal components require channel-effect priors
+        with nonnegative support; signed or uninspectable effect-size priors are
+        rejected. LogNormal also requires nonzero historical channel inputs. Shares are not
+        clipped: a contribution divided by observed outcomes can exceed one.
+
+        Factors retain their historical period through prediction and budget
+        allocation. Rebuilding with different training data, including time-slice
+        cross-validation, requires a fresh MMM and new period-specific factors.
+        Registering a factor adds only a scalar aggregate and Potential, not a
+        full original-scale contribution array to the trace.
+
+        Use :meth:`sample_effective_prior` to inspect the resulting prior.
+        Ordinary forward prior-predictive sampling ignores the factors.
+        """
+        self._validate_model_was_built()
+        self._contribution_factors.add(self, name, channels, quantity, prior)
+        return self
+
+    def sample_effective_prior(self, **kwargs: Any) -> xr.DataTree:
+        """Sample parameter priors and contribution factors without the sales likelihood.
+
+        Requires a built model. Uses its original training inputs even after
+        prediction, and leaves this model and any fitted posterior unchanged.
+        Observed outcomes enter only through fixed scaling and historical share
+        denominators. This is not conditioning on the sales likelihood.
+
+        Parameters
+        ----------
+        **kwargs : Any
+            Passed to :func:`pymc.sample`, including draws, tune, chains,
+            random_seed and nuts_sampler. Sampling uses MCMC and requires the
+            usual convergence checks. Overrides matching ``sampler_config`` keys.
+
+        Returns
+        -------
+        xr.DataTree
+            Independent result with ``prior`` parameter/Deterministic draws and
+            ``sample_stats_prior`` diagnostics. No sales predictive draws are
+            generated. Use these parameter draws for a separate forward
+            predictive step; preserve the parameters when generating outcomes.
+
+        Notes
+        -----
+        Models containing additional likelihoods or unclassified Potentials
+        are rejected rather than accidentally conditioning on measurements.
+        """
+        self._validate_model_was_built()
+        return self._contribution_factors.sample(self, **kwargs)
+
+    def set_idata_attrs(self, idata: xr.DataTree | None = None) -> xr.DataTree:
+        """Attach model metadata and the labeled contribution-factor mask."""
+        result = super().set_idata_attrs(idata)
+        self._contribution_factors.attach_mask(result)
+        return result
+
     def _validate_date_overlap_with_include_last_observations(
         self, X: xr.Dataset, include_last_observations: bool
     ) -> None:
@@ -2841,9 +2951,7 @@ class MMM(RegressionModelBuilder):
             The model with updated data.
         """
         # Get channel data and handle dtype conversion
-        channel_values = dataset_xarray._channel.transpose(
-            "date", *self.dims, "channel"
-        )
+        channel_values = dataset_xarray._channel.transpose(*model["channel_data"].dims)
         if "channel_data" in model.named_vars:
             original_dtype = model.named_vars["channel_data"].type.dtype
             channel_values = channel_values.astype(original_dtype)
@@ -2872,7 +2980,7 @@ class MMM(RegressionModelBuilder):
             )
 
         if "_target" in dataset_xarray:
-            target_values = dataset_xarray._target.transpose("date", *self.dims)
+            target_values = dataset_xarray._target.transpose(*model["target_data"].dims)
             # Get the original dtype from the model's shared variable
             if "target_data" in model.named_vars:
                 original_dtype = model.named_vars["target_data"].type.dtype
@@ -3356,6 +3464,14 @@ class MMM(RegressionModelBuilder):
         train on the placeholder rather than the real target, warns again
         (see issue #2956).
         """
+        if self._contribution_factors.specs:
+            warnings.warn(
+                "Prior predictive sampling ignores contribution-factor Potentials; "
+                "these are base parameter-prior draws, not the effective prior. "
+                "Use sample_effective_prior() for prior-only MCMC on the historical reference.",
+                UserWarning,
+                stacklevel=2,
+            )
         placeholder_target = False
         if y is None and (
             (isinstance(X, xr.Dataset) and _dataset_has_target(X))
@@ -3392,14 +3508,15 @@ class MMM(RegressionModelBuilder):
                 UserWarning,
                 stacklevel=2,
             )
-        prior_predictive_samples = super().sample_prior_predictive(
-            X,
-            y=y,
-            samples=samples,
-            extend_idata=extend_idata,
-            combined=combined,
-            **kwargs,
-        )
+        with self._contribution_factors.predicting(self):
+            prior_predictive_samples = super().sample_prior_predictive(
+                X,
+                y=y,
+                samples=samples,
+                extend_idata=extend_idata,
+                combined=combined,
+                **kwargs,
+            )
         if placeholder_target:
             # Set after delegating: build_model, which runs inside the base
             # call, resets the flag.
@@ -3464,11 +3581,12 @@ class MMM(RegressionModelBuilder):
             mu_effect.set_data(self, model, dataset_xarray)
 
         # Sample from posterior predictive
-        post_pred = pm.sample_posterior_predictive(
-            self.idata,
-            model=model,
-            **sample_posterior_predictive_kwargs,
-        )
+        with self._contribution_factors.predicting(self):
+            post_pred = pm.sample_posterior_predictive(
+                self.idata,
+                model=model,
+                **sample_posterior_predictive_kwargs,
+            )
 
         if extend_idata and self.idata is not None:
             if "posterior_predictive" in self.idata:
@@ -4678,6 +4796,18 @@ class MMM(RegressionModelBuilder):
             mmm.build_from_idata(idata)
 
         """
+        factor_state = ContributionFactorState.from_idata(idata)
+        working = (
+            factor_state.isolated_configuration(self)
+            if factor_state.specs or self._contribution_factors.specs
+            else self
+        )
+        working._build_from_idata(idata, factor_state)
+        if working is not self:
+            self.__dict__.update(working.__dict__)
+
+    def _build_from_idata(self, idata, factor_state) -> None:
+        """Restore graph inputs and persisted calibration on the chosen instance."""
         self.idata = idata
         if "mu_effects" in idata.attrs:
             mu_effects_data = json.loads(idata.attrs["mu_effects"])
@@ -4697,6 +4827,7 @@ class MMM(RegressionModelBuilder):
         X = dataset.drop(columns=[self.target_column])
         y = dataset[self.target_column]
 
+        self._contribution_factors = factor_state
         self.build_model(X, y)  # type: ignore
 
         # Lift-test rows are model inputs, rather than part of fit_data. Restore
