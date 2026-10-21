@@ -598,6 +598,71 @@ def non_after_fitted_mmm(request, simple_mmm_data):
     return mmm
 
 
+@pytest.fixture(scope="module")
+def dataset_ordered_panel_fitted_mmm():
+    """A panel MMM whose ``geo`` coordinate is not in sorted order (#3212).
+
+    A ``DataFrame`` input is sorted on the way into the model, so only a model
+    built from an ``xr.Dataset`` keeps an unsorted coordinate, while
+    ``fit_data`` is sorted by ``create_fit_data`` regardless.  ``north`` spends
+    and sells ten times what ``east`` does, so a label paired with the other
+    geo's value is off by an order of magnitude rather than by rounding.
+
+    Fitted like :func:`tests.mmm.conftest.mock_fit`, which cannot be reused
+    here: it builds the model and ``fit_data`` from the same ``X``, and
+    ``create_fit_data`` would flatten the Dataset's ``media`` variable into long
+    format rather than one column per channel.
+    """
+    rng = np.random.default_rng(3212)
+    dates = pd.date_range("2024-01-01", periods=16, freq="W-MON")
+    geos = ["north", "east"]
+    channels = ["tv", "search"]
+    size = xr.DataArray([10.0, 1.0], dims="geo", coords={"geo": geos})
+    unit_spend = xr.DataArray(
+        rng.gamma(2.0, 1.0, size=(len(dates), len(geos), len(channels))),
+        dims=("date", "geo", "channel"),
+        coords={"date": dates, "geo": geos, "channel": channels},
+    )
+    media = (size * unit_spend).transpose("date", "geo", "channel")
+    target = (
+        size
+        * (
+            1.0
+            + 0.3 * unit_spend.sel(channel="tv", drop=True)
+            + 0.5 * unit_spend.sel(channel="search", drop=True)
+        )
+    ).transpose("date", "geo")
+    X = media.to_dataset("channel").to_dataframe().reset_index()
+    y = target.rename("target").to_series()
+
+    mmm = MMM(
+        date_column="date",
+        channel_columns=channels,
+        target_column="target",
+        dims=("geo",),
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+    )
+    mmm.build_model(X=xr.Dataset({"media": media, "target": target}))
+    assert list(mmm.model.coords["geo"]) == geos
+    mmm.add_original_scale_contribution_variable(var=["channel_contribution"])
+    mmm._set_xarray_data(mmm.xarray_dataset, model=mmm.model)
+    with mmm.model:
+        idata = pm.sample_prior_predictive(draws=100, random_seed=rng)
+    with warnings.catch_warnings():
+        warnings.filterwarnings(
+            "ignore",
+            category=UserWarning,
+            message="The group fit_data is not defined in the DataTree scheme",
+        )
+        idata["/posterior"] = idata["/prior"].to_dataset()
+        idata["/fit_data"] = mmm.create_fit_data(X, y)
+    assert list(idata["fit_data"].coords["geo"].values) == sorted(geos)
+    mmm.idata = idata
+    mmm.set_idata_attrs(idata=idata)
+    return mmm
+
+
 class TestIncrementality:
     """Tests for compute_incremental_contribution and supporting methods."""
 
@@ -611,6 +676,8 @@ class TestIncrementality:
             ("simple_fitted_mmm", "monthly", True, 1.01),
             ("panel_fitted_mmm", "monthly", True, 0.0),
             ("panel_fitted_mmm", "all_time", True, 1.01),
+            ("dataset_ordered_panel_fitted_mmm", "all_time", True, 0.0),
+            ("dataset_ordered_panel_fitted_mmm", "monthly", True, 1.01),
             ("monthly_fitted_mmm", "original", True, 0.0),
             ("time_varying_media_fitted_mmm", "original", True, 0.0),
             ("time_varying_media_fitted_mmm", "monthly", True, 0.0),
@@ -657,6 +724,68 @@ class TestIncrementality:
         # parametrisation the worst relative error is 2.2e-11, so the tolerance
         # keeps three orders of margin rather than the seven 1e-4 allowed.
         xr.testing.assert_allclose(result, gt, rtol=1e-8)
+
+    def test_joint_increment_pairs_each_label_with_its_own_cell(
+        self, dataset_ordered_panel_fitted_mmm
+    ):
+        """The joint estimand labels an unsorted custom dim like the model (#3212).
+
+        Under an additive link with no mediation the joint increment is the
+        per-channel ground truth summed over channels, so the oracle above
+        carries over to the ``scope="joint"`` output, whose only non-sample dim
+        is the custom one.
+        """
+        mmm = dataset_ordered_panel_fitted_mmm
+        gt = compute_ground_truth_incremental_by_period(mmm, frequency="all_time")
+
+        joint = mmm.incrementality.compute_joint_incremental_contribution(
+            frequency="all_time"
+        )
+
+        xr.testing.assert_allclose(joint, gt.sum("channel"), rtol=1e-8)
+
+    def test_panel_roas_divides_each_geo_by_its_own_spend(
+        self, dataset_ordered_panel_fitted_mmm
+    ):
+        """Per-geo ROAS pairs each geo's increment with that geo's spend (#3212).
+
+        The division aligns by label, so an increment labelled with the other
+        geo is divided by the other geo's spend, a tenfold error either way.
+        """
+        mmm = dataset_ordered_panel_fitted_mmm
+        spend = mmm.xarray_dataset["_channel"].sum("date")
+        expected = (
+            compute_ground_truth_incremental_by_period(mmm, frequency="all_time")
+            / spend
+        )
+
+        roas = mmm.incrementality.contribution_over_spend(frequency="all_time")
+
+        xr.testing.assert_allclose(roas, expected.transpose(*roas.dims), rtol=1e-8)
+
+    def test_labels_pair_with_their_cells_after_save_and_load(
+        self, dataset_ordered_panel_fitted_mmm, tmp_path
+    ):
+        """A reloaded model labels each geo with its own increment (#3212).
+
+        ``MMM.load`` rebuilds the model from the sorted ``fit_data``, so the
+        reloaded model's coords are sorted while ``posterior`` and
+        ``constant_data`` keep the Dataset's order, which is the order the
+        increment is evaluated in.  Under this additive model the all-time
+        zero-out increment is the stored contribution summed over dates.
+        """
+        path = tmp_path / "mmm.nc"
+        dataset_ordered_panel_fitted_mmm.save(str(path))
+        loaded = MMM.load(str(path))
+        expected = loaded.idata.posterior["channel_contribution_original_scale"].sum(
+            "date"
+        )
+
+        result = loaded.incrementality.compute_incremental_contribution(
+            frequency="all_time"
+        )
+
+        xr.testing.assert_allclose(result, expected.transpose(*result.dims), rtol=1e-8)
 
     def test_non_after_convolution_matches_full_axis_oracle(self, non_after_fitted_mmm):
         """The public API retains all leading kernel mass for one-date periods."""
@@ -4048,6 +4177,7 @@ class TestAllocationEstimand:
             ("simple_fitted_mmm", "monthly"),
             ("simple_fitted_mmm", "all_time"),
             ("panel_fitted_mmm", "monthly"),
+            ("dataset_ordered_panel_fitted_mmm", "monthly"),
             ("monthly_fitted_mmm", "original"),
             ("time_varying_media_fitted_mmm", "original"),
             ("time_varying_intercept_fitted_mmm", "monthly"),

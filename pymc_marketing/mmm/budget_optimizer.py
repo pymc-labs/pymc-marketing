@@ -213,6 +213,12 @@ Notes
 - If ``budgets_to_optimize`` is not provided, the optimizer auto‑detects cells with
   historical information using
   ``idata.posterior.channel_contribution.mean(("chain","draw","date")).astype(bool)``.
+  When ``channel_data_var`` lacks some of those dims, as a shared ``(date, channel)``
+  spend broadcast into a ``(date, geo, channel)`` model does, a cell counts as informed
+  when any contribution cell it is broadcast into is; a warning names the uninformed
+  ones it reaches. An explicit ``budgets_to_optimize`` is checked against the same rule.
+  When the contribution does not carry every dim of ``channel_data_var``, no mask can be
+  derived and ``budgets_to_optimize`` has to be passed.
 - Default bounds are ``[0, total_budget]`` on each optimized cell.
 - ``allocate_budget(...)`` returns a :class:`BudgetOptimizationResult`. It unpacks as
   ``optimal, res = optimizer.allocate_budget(...)`` for backward compatibility; set
@@ -224,6 +230,7 @@ import json
 import warnings
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import (
     Any,
     ClassVar,
@@ -236,6 +243,7 @@ from typing import (
 )
 
 import numpy as np
+import pydantic
 import pymc as pm
 import pytensor.tensor as pt
 import pytensor.xtensor as ptx
@@ -272,6 +280,7 @@ from pymc_marketing.mmm.optimization_variables import (
     align_to_model_coords,
 )
 from pymc_marketing.mmm.price_response import PriceResponse
+from pymc_marketing.mmm.spend_reach import _PKG_PREFIX
 from pymc_marketing.mmm.utility import UtilityFunctionType, average_response
 from pymc_marketing.pytensor_utils import (
     ConditionedModel,
@@ -279,6 +288,14 @@ from pymc_marketing.pytensor_utils import (
     merge_models,
 )
 from pymc_marketing.version import __version__
+
+_VALIDATION_WARNING_SKIP = (_PKG_PREFIX, str(Path(pydantic.__file__).resolve().parent))
+"""Frames to skip when warning from inside :class:`BudgetOptimizer` validation.
+
+Construction runs through pydantic's validator, so a warning raised there is
+attributed to the first frame outside both this package and pydantic: the
+caller's.
+"""
 
 DEFAULT_RESPONSE_VARIABLE = "total_media_contribution_original_scale"
 """Objective used when no ``response_variable`` is given: the media contribution
@@ -1834,7 +1851,10 @@ class BudgetOptimizer(BaseModel):
             self._mask_auto_detected = True
             self.budgets_to_optimize = self._auto_detect_mask(self.idata)
         else:
-            self._validate_mask_against_posterior(self.budgets_to_optimize, self.idata)
+            informed = self._validate_mask_against_posterior(
+                self.budgets_to_optimize, self.idata
+            )
+            self._warn_uninformed_reach(self.budgets_to_optimize, informed)
 
         # Align the mask with the model's coordinate order, not just its dim
         # order: every coordinate-bearing input is consumed positionally
@@ -2280,6 +2300,8 @@ class BudgetOptimizer(BaseModel):
     def _posterior_channel_mask(self, idata: Any) -> DataArray | None:
         """Cells the posterior has information about: non-zero mean channel contribution.
 
+        Indexed like the contribution variable, which can carry dims the
+        decision variable lacks; see :meth:`_project_onto_budget_dims`.
         ``None`` when ``idata`` has no posterior or no channel-contribution
         variable, in which case the mask cannot be derived from it.
         """
@@ -2295,22 +2317,88 @@ class BudgetOptimizer(BaseModel):
             .astype(bool)
         )
 
+    def _project_onto_budget_dims(self, informed: DataArray) -> DataArray:
+        """Which budget cells reach a contribution cell the posterior has information about.
+
+        A decision variable with fewer dims than the contribution, such as a
+        shared ``(date, channel)`` spend broadcast into a ``(date, geo, channel)``
+        model, moves every contribution cell along the dims it lacks, so a
+        budget cell is informed when any of those cells is.  When the
+        contribution does not carry every budget dim no broadcast relates the
+        two, and *informed* is returned as it is.
+        """
+        broadcast = [dim for dim in informed.dims if dim not in self._budget_dims]
+        if broadcast and set(self._budget_dims) <= set(informed.dims):
+            return informed.any(broadcast)
+        return informed
+
+    def _warn_uninformed_reach(
+        self, mask: DataArray, informed: DataArray | None
+    ) -> None:
+        """Name the uninformed contribution cells an optimized budget cell is broadcast into.
+
+        Only a broadcast decision variable reaches them, since a mask that selects
+        an uninformed cell directly has already been refused: one shared budget
+        cell feeds informed and uninformed contribution cells alike, and the
+        response the optimizer credits to the latter is not backed by data.
+        *informed* is ``None`` when the posterior says nothing about the cells.
+        """
+        if informed is None:
+            return
+        reached = (mask.astype(bool) & ~informed).transpose(*informed.dims, ...)
+        if not bool(reached.any()):
+            return
+        labels = {dim: reached[dim].values.tolist() for dim in reached.dims}
+        cells = [
+            tuple(labels[dim][i] for dim, i in zip(reached.dims, index, strict=True))
+            for index in np.argwhere(reached.values)
+        ]
+        warnings.warn(
+            f"budgets_to_optimize: {self.channel_contribution_var!r} cells {cells} (dims "
+            f"{list(reached.dims)}) have no information in the posterior, but optimized cells of "
+            f"{self.channel_data_var!r} are broadcast into them along with informed ones. The "
+            "response credited to those cells rests on the priors rather than the data; set the "
+            "budget cell to False in budgets_to_optimize to leave it out.",
+            UserWarning,
+            skip_file_prefixes=_VALIDATION_WARNING_SKIP,
+        )
+
     def _auto_detect_mask(self, idata: Any) -> DataArray:
         """Return the mask used when none is supplied: informed cells, or every cell."""
-        mask = self._posterior_channel_mask(idata)
-        if mask is not None:
-            return mask
-        ones = np.ones(self._budget_shape, dtype=bool)
-        return xr.DataArray(ones, coords=self._budget_coords, dims=self._budget_dims)
+        informed = self._posterior_channel_mask(idata)
+        if informed is None:
+            ones = np.ones(self._budget_shape, dtype=bool)
+            return xr.DataArray(
+                ones, coords=self._budget_coords, dims=self._budget_dims
+            )
+        mask = self._project_onto_budget_dims(informed)
+        if set(mask.dims) != set(self._budget_dims):
+            raise ValueError(
+                f"Cannot derive budgets_to_optimize from {self.channel_contribution_var!r}: its "
+                f"cells have dims {list(informed.dims)} (besides {self.date_dim!r}), which do not "
+                f"cover the budget dims {self._budget_dims} of {self.channel_data_var!r}. Pass "
+                f"budgets_to_optimize over {self._budget_dims}."
+            )
+        self._warn_uninformed_reach(mask, informed)
+        return mask
 
-    def _validate_mask_against_posterior(self, mask: DataArray, idata: Any) -> None:
-        """Reject a mask that optimizes a cell the posterior has no information about."""
-        expected_mask = self._posterior_channel_mask(idata)
-        if expected_mask is not None and np.any((mask > expected_mask).values):
+    def _validate_mask_against_posterior(
+        self, mask: DataArray, idata: Any
+    ) -> DataArray | None:
+        """Reject a mask that optimizes a cell the posterior has no information about.
+
+        Returns the contribution cells' information the mask was checked against,
+        for :meth:`_warn_uninformed_reach`, or ``None`` when ``idata`` carries none.
+        """
+        informed = self._posterior_channel_mask(idata)
+        if informed is None:
+            return None
+        if np.any((mask > self._project_onto_budget_dims(informed)).values):
             raise ValueError(
                 "budgets_to_optimize mask contains True values at coordinates where the model has no "
                 "information."
             )
+        return informed
 
     def _decision_date_coords(self) -> list | None:
         """Labels of the decision block of the model's date axis; ``None`` for a length-only dim.
@@ -3127,8 +3215,9 @@ class BudgetOptimizer(BaseModel):
         # user-supplied mask is still checked against the new posterior the way
         # construction checks it, so it cannot optimize a cell the new draws
         # carry no information about.
+        informed = None
         if not self._mask_auto_detected:
-            self._validate_mask_against_posterior(
+            informed = self._validate_mask_against_posterior(
                 cast(DataArray, self.budgets_to_optimize), idata
             )
 
@@ -3162,6 +3251,7 @@ class BudgetOptimizer(BaseModel):
             # Idempotent: a binding ``set_posterior`` already restored is rewritten.
             self._conditioned._restore(checkpoint)
             raise
+        self._warn_uninformed_reach(cast(DataArray, self.budgets_to_optimize), informed)
 
     def _recompile_after_rebind(self) -> None:
         """Recompile the objective and constraints after a rebind re-extracted the graphs.
