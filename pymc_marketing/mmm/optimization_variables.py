@@ -56,6 +56,8 @@ __all__ = [
     "OptimizationVariable",
     "OptimizationVariables",
     "align_to_model_coords",
+    "reject_missing_coords",
+    "reject_unknown_coords",
 ]
 
 #: Name of the flat decision vector's dimension, shared by every variable and
@@ -63,7 +65,7 @@ __all__ = [
 FLAT_DIM = "budgets_flat"
 
 
-def _reject_unknown_coords(
+def reject_unknown_coords(
     da: DataArray | Dataset,
     coords: Mapping[str, list],
     *,
@@ -110,7 +112,7 @@ def _reject_unknown_coords(
         )
 
 
-def _reject_missing_coords(
+def reject_missing_coords(
     da: DataArray | Dataset,
     coords: Mapping[str, list],
     *,
@@ -184,11 +186,11 @@ def align_to_model_coords(
         If the input carries coordinates the model does not have, or does not
         cover every coordinate the model does.
     """
-    _reject_unknown_coords(da, coords, label=label)
+    reject_unknown_coords(da, coords, label=label)
 
     aligned = da.reindex(coords)
     if bool(aligned.isnull().any()):
-        _reject_missing_coords(da, coords, label=label)
+        reject_missing_coords(da, coords, label=label)
         raise ValueError(f"{label} contains missing values (NaN) after alignment.")
     return aligned
 
@@ -765,7 +767,7 @@ class MediaVariable(OptimizationVariable):
         # check below cannot catch it -- dropping a label leaves no NaN -- and
         # stays scoped to the mask, because a cell outside the optimization
         # may legitimately be omitted.
-        _reject_unknown_coords(da, self.coords, label=self.name)
+        reject_unknown_coords(da, self.coords, label=self.name)
         aligned = da.reindex(self.coords).transpose(*self.dims)
         values = aligned.values[self._bool_mask]
         if np.isnan(values).any():

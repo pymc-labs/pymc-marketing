@@ -245,7 +245,7 @@ from pymc_marketing.mmm.link import (
     LinkSpec,
     get_link_spec,
 )
-from pymc_marketing.mmm.optimization_variables import _reject_unknown_coords
+from pymc_marketing.mmm.optimization_variables import reject_unknown_coords
 from pymc_marketing.mmm.plot import MMMPlotSuite
 from pymc_marketing.mmm.plotting import MMMPlotSuiteFacade
 from pymc_marketing.mmm.plotting.budget import BudgetPlots
@@ -2836,7 +2836,7 @@ class MMM(RegressionModelBuilder):
             for dim in self.dims
             if dim in ds.indexes
         }
-        _reject_unknown_coords(ds, model_coords, label="X")
+        reject_unknown_coords(ds, model_coords, label="X")
         ds = ds.reindex(model_coords, fill_value=0)
 
         if y is None and "_target" not in ds.data_vars:

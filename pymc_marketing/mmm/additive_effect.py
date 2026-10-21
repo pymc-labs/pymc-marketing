@@ -235,8 +235,8 @@ from pymc_marketing.mmm.fourier import FourierBase
 from pymc_marketing.mmm.linear_trend import LinearTrend
 from pymc_marketing.mmm.media_transformation import MediaTransformation
 from pymc_marketing.mmm.optimization_variables import (
-    _reject_missing_coords,
-    _reject_unknown_coords,
+    reject_missing_coords,
+    reject_unknown_coords,
 )
 from pymc_marketing.mmm.validating import _validate_non_numeric_dtype
 from pymc_marketing.serialization import SerializableBaseModel, serialization
@@ -635,8 +635,8 @@ class DataVarMuEffect(MuEffect, ABC):
                 and dim in da.indexes
                 and model.coords.get(dim) is not None
             }
-            _reject_unknown_coords(da, coords, label=repr(var_name))
-            _reject_missing_coords(da, coords, label=repr(var_name))
+            reject_unknown_coords(da, coords, label=repr(var_name))
+            reject_missing_coords(da, coords, label=repr(var_name))
             pm.set_data({var_name: da.reindex(coords).values}, model=model)
 
 
