@@ -686,6 +686,9 @@ class MMM(RegressionModelBuilder):
         self._lift_test_calibrations: list[dict[str, Any]] = []
         # Variables `build_model` creates; anything else was added afterwards.
         self._built_var_names: frozenset[str] = frozenset()
+        # The data the current model was built on. None until a build
+        # finishes, so a build that raised partway is never reused by `fit`.
+        self._built_dataset: xr.Dataset | None = None
 
     def add_mu_effect(
         self: Self,
@@ -2436,12 +2439,26 @@ class MMM(RegressionModelBuilder):
         # model as it was.
         checked_X, checked_y = self._validate_fit_inputs(X, y)
         dataset = self._to_xarray_dataset(X, y)
+        built = self._built_dataset
         X_vars = [name for name in dataset.data_vars if name != "_target"]
-        same_X = set(X_vars) <= set(self.xarray_dataset.data_vars) and dataset[
-            X_vars
-        ].equals(self.xarray_dataset[X_vars])
+        same_X = (
+            built is not None
+            and set(X_vars) <= set(built.data_vars)
+            and dataset[X_vars].equals(built[X_vars])
+        )
+        # Without `y`, a rebuild observes what `build_model` makes of `X`, and
+        # `build_model` runs these checks itself.
+        if y is not None:
+            target = dataset["_target"]
+            target_scale = self._compute_scale_for_variable(target, self.scaling.target)
+            self._validate_observed_target(target, target_scale)
+
         if not same_X:
-            if added := sorted(set(self.model.named_vars) - self._built_var_names):
+            # Without `built`, the last build raised partway and left nothing
+            # worth keeping.
+            if built is not None and (
+                added := sorted(set(self.model.named_vars) - self._built_var_names)
+            ):
                 raise ValueError(
                     "`fit` got a new `X`, which rebuilds the model and drops "
                     f"what was added to it after it was built: {added}. Call "
@@ -2455,37 +2472,57 @@ class MMM(RegressionModelBuilder):
         if y is None:
             return
 
-        target = dataset["_target"]
-        target_scale = self._compute_scale_for_variable(target, self.scaling.target)
-        # Lift-test rows are scaled once, with the target scale at the time
-        # they are added.
-        if self._lift_test_calibrations and not target_scale.equals(
-            self.scalers["_target"]
-        ):
-            raise ValueError(
-                "`fit` got a `y` that changes the target scale, but lift tests "
-                "were added with the old scale. Call `build_model` with this "
-                "data, add the lift tests again, and then call `fit`."
-            )
-
-        likelihood = self.model_config["likelihood"]
-        self._link_spec.validate_target(target.values)
-        if isinstance(likelihood, LogNormalPrior):
-            likelihood.validate_observed(target.values)
-        if np.any(target.values != 0):
-            # Same clamp as `target_data_scaled` in `build_model`.
-            scaled = (target / target_scale).transpose("date", *self.dims).values
-            LinkSpec.validate_likelihood_support(
-                likelihood,
-                np.where(np.isfinite(scaled), scaled, 0.0),
-                target_scale=target_scale.values,
-            )
+        if not target_scale.equals(self.scalers["_target"]):
+            # Lift-test rows are scaled once, with the target scale at the
+            # time they are added.
+            if self._lift_test_calibrations:
+                raise ValueError(
+                    "`fit` got a `y` that changes the target scale, but lift "
+                    "tests were added with the old scale. Call `build_model` "
+                    "with this data, add the lift tests again, and then call "
+                    "`fit`."
+                )
+            # Groups such as the prior were sampled with the old scale.
+            self.idata = None
 
         self.xarray_dataset["_target"] = target
         self.scalers["_target"] = target_scale
         self._target_is_placeholder = False
         self._set_xarray_data(dataset, model=self.model)
         pm.set_data({"target_scale": target_scale}, model=self.model)
+
+    def _validate_observed_target(
+        self, target: xr.DataArray, target_scale: xr.DataArray
+    ) -> None:
+        """Raise if the likelihood cannot observe ``target`` at ``target_scale``.
+
+        Shared by :meth:`build_model` and :meth:`fit`, so both run these checks
+        before the model changes.
+        """
+        likelihood = self.model_config["likelihood"]
+        self._link_spec.validate_target(target.values)
+        # LogNormalPrior observes the raw target on the strictly positive
+        # support, which the link-level validate_target cannot know about.
+        if isinstance(likelihood, LogNormalPrior):
+            likelihood.validate_observed(target.values)
+
+        # An all-zero target is the placeholder that `fit` and
+        # `sample_prior_predictive` substitute when no `y` is given
+        # (`model_builder.py:1546`, `:1772`). It has no support to respect,
+        # and failing it would break building a model in order to look at
+        # its prior, so skip the check rather than reject the placeholder.
+        if not np.any(target.values != 0):
+            return
+        # The likelihood observes the target over its scale, with NaN/inf
+        # clamped to 0 as `target_data_scaled` does in `build_model`, not
+        # the raw target: the scale can be negative, so the raw values are
+        # not the ones being fitted.
+        scaled = (target / target_scale).transpose("date", *self.dims).values
+        LinkSpec.validate_likelihood_support(
+            likelihood,
+            np.where(np.isfinite(scaled), scaled, 0.0),
+            target_scale=target_scale.values,
+        )
 
     def build_model(  # type: ignore[override]
         self,
@@ -2589,6 +2626,7 @@ class MMM(RegressionModelBuilder):
         # Calibration rows belong to a particular graph. A rebuild creates a
         # fresh graph, so callers must re-add any lift tests they want to use.
         self._lift_test_calibrations = []
+        self._built_dataset = None
         self._generate_and_preprocess_model_data(
             X=X,
             y=y,
@@ -2596,13 +2634,13 @@ class MMM(RegressionModelBuilder):
         self._target_is_placeholder = False
 
         likelihood = self.model_config["likelihood"]
-        if "_target" in self.xarray_dataset.data_vars:
-            self._link_spec.validate_target(self.xarray_dataset["_target"].values)
-            # LogNormalPrior observes the raw target on the strictly positive
-            # support, which the link-level validate_target cannot know about.
-            if isinstance(likelihood, LogNormalPrior):
-                likelihood.validate_observed(self.xarray_dataset["_target"].values)
         LinkSpec.validate_likelihood_compatibility(self.link, likelihood)
+
+        # Compute and save scales
+        self._compute_scales()
+        self._validate_observed_target(
+            self.xarray_dataset["_target"], self.scalers["_target"]
+        )
 
         if self.link == LinkFunction.LOG and self.mu_effects:
             warnings.warn(
@@ -2613,9 +2651,6 @@ class MMM(RegressionModelBuilder):
                 UserWarning,
                 stacklevel=2,
             )
-
-        # Compute and save scales
-        self._compute_scales()
 
         with pm.Model(coords=self.model_coords) as self.model:
             if self.yearly_seasonality:
@@ -2659,26 +2694,6 @@ class MMM(RegressionModelBuilder):
             target_data_scaled.name = "target_scaled"
             ## TODO: Find a better way to save it or access it in the pytensor graph.
             self.target_data_scaled = target_data_scaled
-
-            # The likelihood observes this, not `_target`, so the support check
-            # has to run here rather than next to `validate_target` above: the
-            # scale can be negative and the switch above rewrites NaN/inf to
-            # zero, so the raw target's values are not the ones being fitted.
-            # `validate_likelihood_support` evaluates the variable only if the
-            # likelihood has a support to check, so the default `Normal` pays
-            # nothing.
-            #
-            # An all-zero target is the placeholder that `fit` and
-            # `sample_prior_predictive` substitute when no `y` is given
-            # (`model_builder.py:1546`, `:1772`). It has no support to respect,
-            # and failing it would break building a model in order to look at
-            # its prior, so skip the check rather than reject the placeholder.
-            if np.any(self.xarray_dataset["_target"].values != 0):
-                LinkSpec.validate_likelihood_support(
-                    self.model_config["likelihood"],
-                    target_data_scaled,
-                    target_scale=self.scalers["_target"].values,
-                )
 
             # DataVarMuEffect inputs may be shared by several effects, but must
             # never reuse data nodes that MMM registered for its own internals.
@@ -2842,6 +2857,7 @@ class MMM(RegressionModelBuilder):
             )
 
         self._built_var_names = frozenset(self.model.named_vars)
+        self._built_dataset = self.xarray_dataset.copy()
 
     def _validate_date_overlap_with_include_last_observations(
         self, X: xr.Dataset, include_last_observations: bool

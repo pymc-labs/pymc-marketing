@@ -8106,3 +8106,131 @@ def test_refit_with_new_X_after_adding_variables_raises(
     with pytest.raises(ValueError, match="channel_contribution_original_scale"):
         _fit(mmm, X.iloc[5:], y.iloc[5:])
     assert "channel_contribution_original_scale" in mmm.model.named_vars
+
+
+def test_refit_on_new_X_after_rejected_target_rebuilds(
+    lognormal_likelihood_data, mock_pymc_sample
+):
+    # A target rejected on a new X must leave the model as it was, so the
+    # next fit on that X still rebuilds instead of writing it into the old
+    # graph with the old channel scale.
+    X, y = lognormal_likelihood_data
+    mmm = _two_channel_mmm(
+        {
+            "likelihood": LogNormalPrior(
+                std=Prior("HalfNormal", sigma=0.5), dims=("date",)
+            )
+        }
+    )
+    mmm.build_model(X, y)
+    model = mmm.model
+    X_new = X.iloc[5:].assign(channel_1=lambda df: df["channel_1"] * 10)
+    y_new = y.iloc[5:]
+    y_bad = y_new.copy()
+    y_bad.iloc[0] = -1.0
+
+    with pytest.raises(ValueError, match="strictly positive"):
+        _fit(mmm, X_new, y_bad)
+    assert mmm.model is model
+    np.testing.assert_array_equal(mmm.xarray_dataset.date, X["date"])
+
+    _fit(mmm, X_new, y_new)
+
+    np.testing.assert_allclose(
+        mmm.model["channel_scale"].eval(),
+        X_new[["channel_1", "channel_2"]].max().to_numpy(),
+    )
+    np.testing.assert_allclose(mmm.model["target_data"].eval(), y_new)
+
+
+def test_fit_on_new_X_after_build_model_rejects_target_rebuilds(
+    lognormal_likelihood_data, mock_pymc_sample
+):
+    # `build_model` stores the new X before its target checks run, so a
+    # rejected build must not make that X look like the one the model has.
+    X, y = lognormal_likelihood_data
+    mmm = _two_channel_mmm(
+        {
+            "likelihood": LogNormalPrior(
+                std=Prior("HalfNormal", sigma=0.5), dims=("date",)
+            )
+        }
+    )
+    mmm.build_model(X, y)
+    X_new = X.iloc[5:].assign(channel_1=lambda df: df["channel_1"] * 10)
+    y_new = y.iloc[5:]
+    y_bad = y_new.copy()
+    y_bad.iloc[0] = -1.0
+
+    with pytest.raises(ValueError, match="strictly positive"):
+        mmm.build_model(X_new, y_bad)
+    _fit(mmm, X_new, y_new)
+
+    np.testing.assert_allclose(
+        mmm.model["channel_scale"].eval(),
+        X_new[["channel_1", "channel_2"]].max().to_numpy(),
+    )
+    np.testing.assert_allclose(mmm.model["target_data"].eval(), y_new)
+
+
+def test_fit_after_build_model_rejects_target_builds_full_model(
+    lognormal_likelihood_data, mock_pymc_sample
+):
+    # The support check used to run inside the model context, so a rejected
+    # target left a model holding only the data, which the next fit reused.
+    X, y = lognormal_likelihood_data
+    mmm = _two_channel_mmm(
+        {
+            "likelihood": Prior(
+                "Gamma", sigma=Prior("HalfNormal", sigma=1), dims=("date",)
+            )
+        }
+    )
+
+    y_bad = y.copy()
+    y_bad.iloc[0] = -1.0
+
+    with pytest.raises(ValueError, match="Gamma"):
+        mmm.build_model(X, y_bad)
+    _fit(mmm, X, y)
+
+    assert mmm.model.free_RVs
+    np.testing.assert_allclose(mmm.model["target_data"].eval(), y)
+
+
+def test_fit_after_build_model_fails_partway_rebuilds(
+    lognormal_likelihood_data, mock_pymc_sample, monkeypatch
+):
+    # A build that raises after the model context opened leaves an
+    # unfinished model behind; the next fit must not reuse it.
+    X, y = lognormal_likelihood_data
+    mmm = _two_channel_mmm()
+
+    def fail(*args, **kwargs):
+        raise RuntimeError("likelihood failed")
+
+    with monkeypatch.context() as m:
+        m.setattr(Prior, "create_likelihood_variable", fail)
+        with pytest.raises(RuntimeError, match="likelihood failed"):
+            mmm.build_model(X, y)
+    _fit(mmm, X, y)
+
+    assert "y" in mmm.model.named_vars
+
+
+def test_refit_that_changes_target_scale_drops_prior(
+    lognormal_likelihood_data, mock_pymc_sample
+):
+    # The prior was sampled with the old target scale, so its original-scale
+    # variables would be wrong after a fit that changes it.
+    X, y = lognormal_likelihood_data
+    mmm = _two_channel_mmm()
+    mmm.build_model(X, y)
+    mmm.add_original_scale_contribution_variable(var=["channel_contribution", "y"])
+    mmm.sample_prior_predictive(X, y, samples=10, random_seed=42)
+
+    _fit(mmm, X, y)
+    assert "prior" in mmm.idata.children
+
+    _fit(mmm, X, 100 * y)
+    assert "prior" not in mmm.idata.children
