@@ -29,6 +29,8 @@ sections:
             notebook: mmm/mmm_current_vs_future_value
           - title: Additive vs Log vs Log-Log MMMs
             notebook: mmm/mmm_multiplicative
+          - title: "Introduction to Mu Effects: Channel Interactions"
+            notebook: mmm/mmm_mu_effects_intro
           - title: Interactive MMM Visualizations
             notebook: mmm/plot_interactive
           - title: "Cost-per-Unit: Model What Drives Revenue, Report What You Spend"

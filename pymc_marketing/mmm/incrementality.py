@@ -4829,10 +4829,15 @@ class Incrementality:
             over the period's evaluated dates and its unobserved tail, with a
             boolean ``observed`` coordinate on ``realization_date``.
         """
-        fit_data = self.idata.fit_data
         dates = self.data.dates
         channels = list(self.model.channel_columns)
         custom_dims = list(self.model.dims)
+        # The values are laid out by position along the channel data the
+        # baseline was evaluated on, so its labels are the ones they carry.
+        # Not ``fit_data``'s: ``create_fit_data`` sorts those, while a model
+        # built from an ``xr.Dataset`` keeps the Dataset's order (#3212).
+        channel_data = self.data.get_channel_data()
+        custom_coords = {dim: channel_data.coords[dim].values for dim in custom_dims}
         out_dims = ["channel", *custom_dims] if scope == "per_channel" else custom_dims
         results = []
 
@@ -4902,7 +4907,7 @@ class Incrementality:
             coords: dict = {
                 "chain": np.arange(n_chains),
                 "draw": np.arange(n_draws),
-                **{dim: fit_data.coords[dim].values for dim in custom_dims},
+                **custom_coords,
             }
             if scope == "per_channel":
                 coords["channel"] = channels
