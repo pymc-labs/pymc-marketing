@@ -99,14 +99,13 @@ from matplotlib.figure import Figure
 from numpy.typing import NDArray
 
 from pymc_marketing.data.idata import MMMIDataWrapper
-from pymc_marketing.data.idata.utils import get_posterior_predictive
 from pymc_marketing.mmm.plotting._helpers import (
     _dims_to_sel_kwargs,
     _extract_matplotlib_result,
     _process_plot_params,
     _select_dims,
 )
-from pymc_marketing.mmm.summary.helpers import compute_residuals, get_prior_for_plot
+from pymc_marketing.mmm.summary.helpers import compute_residuals
 
 
 class DiagnosticsPlots:
@@ -133,7 +132,7 @@ class DiagnosticsPlots:
     def _plot_predictive(
         self,
         data: MMMIDataWrapper,
-        pp_ds: xr.Dataset,
+        var_da: xr.DataArray,
         original_scale: bool,
         hdi_prob: float,
         dims: dict[str, Any] | None,
@@ -154,11 +153,13 @@ class DiagnosticsPlots:
         ----------
         data : MMMIDataWrapper
             Resolved data wrapper (already accounting for any idata override).
-        pp_ds : xr.Dataset
-            The posterior_predictive or prior_predictive group.
+        var_da : xr.DataArray
+            The predictive draws of the target, from
+            :meth:`MMMIDataWrapper.get_predictive_target`.
         original_scale : bool
-            If True, plots ``y_original_scale``; if False, plots ``y``.
-            Also controls the scale of the observed target line.
+            Whether ``var_da`` is ``y_original_scale`` (``y * target_scale``)
+            or ``y``. Controls the line label and the scale of the observed
+            target line.
         hdi_prob : float
             HDI probability mass.
         dims : dict[str, Any] | None
@@ -182,7 +183,7 @@ class DiagnosticsPlots:
         PlotCollection
         """
         var_name = "y_original_scale" if original_scale else "y"
-        var_da = _select_dims(pp_ds[var_name], dims)
+        var_da = _select_dims(var_da, dims)
         extra_dims = list(data.custom_dims)
         mean_da = var_da.mean(dim=("chain", "draw"))
         hdi_da = var_da.azstats.hdi(prob=hdi_prob)
@@ -250,8 +251,9 @@ class DiagnosticsPlots:
         Parameters
         ----------
         original_scale : bool, default True
-            If True, plots ``y_original_scale`` from posterior_predictive and
-            the observed target in original units.
+            If True, plots the posterior predictive draws of the target in
+            original units (``y_original_scale``, i.e. ``y * target_scale``
+            under every link) and the observed target in the same units.
             If False, plots ``y`` (internal model scale) and the observed target
             in the same scaled units.
         hdi_prob : float, default 0.94
@@ -307,18 +309,11 @@ class DiagnosticsPlots:
             **pc_kwargs,
         )
 
-        pp_ds = get_posterior_predictive(data.idata)
-
-        var_name = "y_original_scale" if original_scale else "y"
-        if var_name not in pp_ds:
-            raise ValueError(
-                f"Variable '{var_name}' not found in posterior_predictive. "
-                f"Available: {list(pp_ds.data_vars)}"
-            )
+        var_da = data.get_predictive_target("posterior", original_scale)
 
         pc = self._plot_predictive(
             data=data,
-            pp_ds=pp_ds,
+            var_da=var_da,
             original_scale=original_scale,
             hdi_prob=hdi_prob,
             dims=dims,
@@ -354,8 +349,11 @@ class DiagnosticsPlots:
         Parameters
         ----------
         original_scale : bool, default True
-            If True, plots ``y_original_scale`` from ``idata.prior`` (where
-            PyMC stores Deterministics) and the observed target in original units.
+            If True, plots the prior predictive draws of the target in original
+            units (``y_original_scale``, i.e. ``y * target_scale``: the stored
+            Deterministic in ``idata.prior`` when registered, otherwise derived
+            from ``idata.prior_predictive["y"]``) and the observed target in
+            original units.
             If False, plots ``y`` from ``idata.prior_predictive`` (where PyMC
             stores observed variables) and the observed target in scaled units.
         hdi_prob : float, default 0.94
@@ -404,19 +402,11 @@ class DiagnosticsPlots:
             **pc_kwargs,
         )
 
-        pp_ds = get_prior_for_plot(data, original_scale)
-
-        var_name = "y_original_scale" if original_scale else "y"
-        group_name = "prior" if original_scale else "prior_predictive"
-        if var_name not in pp_ds:
-            raise ValueError(
-                f"Variable '{var_name}' not found in {group_name}. "
-                f"Available: {list(pp_ds.data_vars)}"
-            )
+        var_da = data.get_predictive_target("prior", original_scale)
 
         pc = self._plot_predictive(
             data=data,
-            pp_ds=pp_ds,
+            var_da=var_da,
             original_scale=original_scale,
             hdi_prob=hdi_prob,
             dims=dims,
@@ -443,8 +433,9 @@ class DiagnosticsPlots:
     ) -> tuple[Figure, NDArray[Axes]] | PlotCollection:
         """Plot residuals (target − posterior predictions) over time.
 
-        Computes residuals using ``y_original_scale`` from posterior_predictive
-        and ``target_data`` from constant_data. One panel per extra-dimension
+        Computes residuals using the posterior predictive draws of the target
+        in original units (``y * target_scale``) and ``target_data`` from
+        constant_data. One panel per extra-dimension
         combination. Each panel shows a mean residuals line, an HDI band,
         and a zero reference line.
 

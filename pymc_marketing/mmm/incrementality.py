@@ -230,12 +230,14 @@ Google MMM Paper: https://storage.googleapis.com/gweb-research2023-media/pubtool
 from __future__ import annotations
 
 import json
+import logging
 import warnings
 from abc import ABC, abstractmethod
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Iterator, Mapping, Sequence
+from contextlib import contextmanager
 from dataclasses import dataclass
 from functools import partial
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Any, Literal, cast
 
 import numpy as np
 import pandas as pd
@@ -245,13 +247,21 @@ from pydantic import ConfigDict, validate_call
 from pymc_marketing.data.idata.mmm_wrapper import MMMIDataWrapper
 from pymc_marketing.data.idata.schema import Frequency
 from pymc_marketing.data.idata.utils import subsample_draws
+from pymc_marketing.mmm.components.adstock import (
+    BinomialAdstock,
+    DelayedAdstock,
+    GeometricAdstock,
+    NoAdstock,
+    WeibullCDFAdstock,
+    WeibullPDFAdstock,
+)
 from pymc_marketing.mmm.counterfactual import (
     CounterfactualEvaluator,
     CounterfactualScenarios,
     Estimand,
     EvaluationWindows,
 )
-from pymc_marketing.mmm.link import LinkFunction
+from pymc_marketing.mmm.link import MU_ORIGINAL_SCALE, LinkFunction
 from pymc_marketing.mmm.spend_reach import (
     _PKG_PREFIX,
     CHANNEL_CONTRIBUTION,
@@ -265,9 +275,11 @@ if TYPE_CHECKING:
     from numpy.random import Generator, RandomState
     from pandas.tseries.offsets import BaseOffset
 
+    from pymc_marketing.mmm.components.adstock import AdstockTransformation
+    from pymc_marketing.mmm.components.saturation import SaturationTransformation
     from pymc_marketing.mmm.counterfactual import PeriodWindow
     from pymc_marketing.mmm.mmm import MMM
-    from pymc_marketing.mmm.spend_reach import SpendReach
+    from pymc_marketing.mmm.spend_reach import ChannelDependentEffect, SpendReach
 
 __all__ = [
     "CentralTendency",
@@ -284,6 +296,34 @@ __all__ = [
 ]
 
 CentralTendency = Literal["median", "mean"]
+
+LAG_DIM = "time since exposure"
+
+ALLOCATION_REQUIREMENT = "estimand='allocation'"
+CLOSED_FORM_REQUIREMENT = "method='closed_form'"
+
+BUILTIN_ADSTOCKS = (
+    BinomialAdstock,
+    DelayedAdstock,
+    GeometricAdstock,
+    NoAdstock,
+    WeibullCDFAdstock,
+    WeibullPDFAdstock,
+)
+
+INCOMPLETE_SPLIT_NOTE = (
+    "Some periods' carryover runs past the end of the fitted data; future is "
+    "NaN there, and so is current where that carryover falls inside the "
+    "current window."
+)
+
+CUSTOM_ADSTOCK_NOTE = (
+    "This model's adstock is not one of the built-in ones.  The allocation reads "
+    "it as a linear convolution, and it passed a homogeneity check (doubling "
+    "the spend doubles the kernel), which does not prove linearity.  If it is "
+    "not a linear convolution, the allocation is wrong even if the columns add "
+    "up."
+)
 
 
 class IncrementalReducer(ABC):
@@ -434,7 +474,8 @@ class LogLinkReducer(IncrementalReducer):
     ----------
     baseline_response : xr.DataArray
         Baseline prediction on the response scale -- the model's
-        ``{output_var}_original_scale`` deterministic -- with dimensions
+        ``mu_original_scale`` deterministic (the LogNormal median
+        ``exp(mu) * target_scale``) -- with dimensions
         ``("sample", "date", *custom_dims)`` and ``date`` coordinates spanning
         the fitted data.  It already carries ``target_scale``, so the
         increment needs no further rescaling.
@@ -504,6 +545,382 @@ def kernel_trailing_lags(l_max: int, mode: ConvMode) -> int:
     raise ValueError(f"Wrong Mode: {mode}, expected one of {', '.join(ConvMode)}")
 
 
+def _refuse_unbounded_reach(
+    reach: SpendReach, *, kernel_lags: int, requirement: str
+) -> None:
+    """Refuse a reach that runs further than the adstock kernel.
+
+    Passed as ``validate_reach`` with *kernel_lags* and *requirement* bound.
+    The allocation and the closed form both read each date's response as the
+    sum of one cohort's kernel weights, so the probe has to find that a change
+    in spend moves the response no further than the kernel does.
+
+    Parameters
+    ----------
+    reach : SpendReach
+        What the probe measured.
+    kernel_lags : int
+        The last lag the adstock's own kernel reaches, from
+        :func:`kernel_trailing_lags`.
+    requirement : str
+        What reads the kernel, for the message: :data:`ALLOCATION_REQUIREMENT`
+        or :data:`CLOSED_FORM_REQUIREMENT`.
+
+    Raises
+    ------
+    NotImplementedError
+        If the reach requires the full date axis, or runs past the kernel.
+    """
+    if reach.requires_full_axis:
+        raise NotImplementedError(
+            f"{requirement} reads the adstock as a fixed causal kernel, "
+            "and the spend probe could not verify that the effect of a change "
+            "in spend dies out within the fitted dates.  A transform that "
+            "reduces over date, carryover that outlasts the fitted dates, or a "
+            "channel that spends only where the probe cannot perturb it (on the "
+            "first or last date) each leave that unverified."
+        )
+
+    if reach.max_lag is not None and reach.max_lag > kernel_lags:
+        raise NotImplementedError(
+            f"{requirement} reads each date's response as the adstock "
+            f"kernel's, which reaches {kernel_lags} periods after the spend, "
+            f"but the spend probe found that spend moves the response up to "
+            f"{reach.max_lag} periods later.  Something else in the media "
+            "transform, such as a saturation that carries spend over a window, "
+            "spreads it across dates, which the kernel does not describe."
+        )
+
+
+def _is_builtin_adstock(adstock: object) -> bool:
+    """Whether *adstock* is exactly one of the library's own adstocks.
+
+    The type is compared, not its ancestry: a subclass of a built-in adstock can
+    override ``function`` with anything, so it is not known to be linear.  The
+    classes are listed in :data:`BUILTIN_ADSTOCKS`, not told apart by where
+    they are defined, so moving one between modules cannot demote it.
+
+    Parameters
+    ----------
+    adstock : object
+        The model's adstock transformation.
+
+    Returns
+    -------
+    bool
+        ``True`` if its class is one of :data:`BUILTIN_ADSTOCKS`.
+    """
+    return type(adstock) in BUILTIN_ADSTOCKS
+
+
+def _require_homogeneous_adstock(
+    adstock: AdstockTransformation, weights: xr.DataArray, posterior: xr.Dataset
+) -> None:
+    """Refuse a custom adstock whose response to a unit impulse does not scale.
+
+    The allocation reads the response to a unit impulse as a convolution kernel.
+    That holds only if the adstock is linear, and a nonlinear one gives an
+    allocation that is wrong, with the columns still reconciling under
+    ``adstock_first=True``.  Doubling the impulse
+    must double the response; this catches an adstock with a power or a
+    saturation inside, but a pass is necessary, not sufficient, for linearity.
+
+    Parameters
+    ----------
+    adstock : AdstockTransformation
+        The model's adstock, not a built-in one.
+    weights : xr.DataArray
+        Its response to a unit impulse at *posterior*.
+    posterior : xr.Dataset
+        The draws *weights* were sampled at.
+
+    Raises
+    ------
+    NotImplementedError
+        If the response to a double impulse is not twice *weights*.
+    """
+    with _quiet_posterior_predictive_log():
+        doubled = adstock.sample_curve(
+            parameters=posterior, amount=2.0, progressbar=False
+        )
+    if not np.allclose(doubled.values, 2 * weights.values, rtol=1e-5, atol=1e-12):
+        raise NotImplementedError(
+            "estimand='allocation' needs the adstock to be a linear convolution "
+            f"(spend x kernel), but {type(adstock).__name__} does not scale: "
+            "doubling the spend does not double its response, so the "
+            "allocation would be wrong."
+        )
+    warnings.warn(CUSTOM_ADSTOCK_NOTE, UserWarning, skip_file_prefixes=(_PKG_PREFIX,))
+
+
+def _refuse_dedicated_rows(needs_dedicated_rows: bool, *, requirement: str) -> None:
+    """Refuse a result whose per-channel columns are not each channel's own.
+
+    Passed as ``validate_dedicated_rows`` with *requirement* bound.  A
+    channel-dependent ``mu_effect`` is refused before this, from the model
+    alone, so what is left is what the probe measured about the media
+    transform.
+
+    Parameters
+    ----------
+    needs_dedicated_rows : bool
+        Whether the channels have to be perturbed one at a time.
+    requirement : str
+        What needs the columns, for the message: :data:`ALLOCATION_REQUIREMENT`
+        or :data:`CLOSED_FORM_REQUIREMENT`.
+
+    Raises
+    ------
+    NotImplementedError
+        If they do.
+    """
+    if needs_dedicated_rows:
+        raise NotImplementedError(
+            f"{requirement} needs each channel's column to depend on "
+            "that channel's spend alone, and the spend probe could not "
+            "establish that: either the media transform mixes channels, or some "
+            "channel spends only where the probe cannot perturb it."
+        )
+
+
+class _DropSamplingLine(logging.Filter):
+    """Drop pymc's ``Sampling: [...]`` record and keep every other one."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        return not record.getMessage().startswith("Sampling:")
+
+
+@contextmanager
+def _quiet_posterior_predictive_log() -> Iterator[None]:
+    """Hold back pymc's ``Sampling: [...]`` line around an internal call.
+
+    :meth:`~pymc_marketing.mmm.components.base.Transformation.sample_curve`
+    goes through ``pm.sample_posterior_predictive``, which logs the variables it
+    samples at ``INFO``.  Inside a method that never asked to sample, the line
+    reads as if it had.  Only that record is dropped, and the logger's level is
+    left alone, so any other message still gets through.
+
+    Yields
+    ------
+    None
+    """
+    logger = logging.getLogger("pymc.sampling.forward")
+    dropper = _DropSamplingLine()
+    logger.addFilter(dropper)
+    try:
+        yield
+    finally:
+        logger.removeFilter(dropper)
+
+
+def _transformation_parameters(
+    posterior: xr.Dataset,
+    transformation: AdstockTransformation | SaturationTransformation,
+) -> xr.Dataset:
+    """Keep a posterior's draws, and only the variables a transformation reads.
+
+    ``sample_curve`` and a graph evaluation turn every variable they are given
+    into per-draw dictionaries, and a kernel is ``l_max`` long, so handing them
+    ``channel_contribution``, ``mu`` and the rest is memory spent for nothing.
+    The variables of the transformation's own priors are kept, the
+    hyperparameters of a hierarchical one among them.  A transformation with
+    fixed parameters has no variable in the posterior, so it keeps the smallest
+    one there is, which is where its draws come from.
+
+    Parameters
+    ----------
+    posterior : xr.Dataset
+        The draws the transformation is evaluated at.
+    transformation : AdstockTransformation or SaturationTransformation
+        The transformation whose variables to keep.
+
+    Returns
+    -------
+    xr.Dataset
+        *posterior* without the variables the transformation does not read.
+    """
+    roots = tuple(transformation.variable_mapping.values())
+    # A prior with parameters that are priors names them ``<name>_<parameter>``.
+    needed = {
+        name
+        for name in posterior.data_vars
+        if any(name == root or str(name).startswith(f"{root}_") for root in roots)
+    }
+    if not needed:
+        # pymc takes the number of draws from a variable, so a transformation
+        # with fixed parameters keeps the smallest one the posterior has.
+        needed = {min(posterior.data_vars, key=lambda name: posterior[name].size)}
+    return posterior.drop_vars(
+        [name for name in posterior.data_vars if name not in needed]
+    )
+
+
+def _missing_variables(
+    transformation: AdstockTransformation | SaturationTransformation,
+    posterior: xr.Dataset,
+) -> list[str]:
+    """List the random parameters of a transformation that the posterior lacks.
+
+    Fixed parameters never appear in a posterior and are skipped.
+
+    Parameters
+    ----------
+    transformation : AdstockTransformation or SaturationTransformation
+        The transformation to check.
+    posterior : xr.Dataset
+        The posterior it is evaluated at.
+
+    Returns
+    -------
+    list of str
+        The names of the variables that are missing.
+    """
+    return [
+        name
+        for parameter, name in transformation.variable_mapping.items()
+        if hasattr(transformation.function_priors[parameter], "create_variable")
+        and name not in posterior
+    ]
+
+
+def _relabel_draws(sampled: xr.DataArray, labels: Mapping[str, Any]) -> xr.DataArray:
+    """Label a posterior-predictive sample with the draws it was computed at.
+
+    ``pm.sample_posterior_predictive`` returns the draws in the order of the
+    posterior it is given, under that posterior's ``chain`` and ``draw``
+    labels.  Those are not the pipeline's: the pipeline labels its results
+    with ``np.arange``, while :func:`~pymc_marketing.data.idata.utils.subsample_draws`
+    drops the coordinates of a subsample and a full posterior keeps whatever
+    labels it was given.  Relabeling by position is right only while the order
+    holds: nothing between the subsample and the sampling may reorder or drop
+    draws.  The sizes are checked here: a draw lost or added on the way would
+    pair draw *i* of one array with draw *j* of another, so it raises.  The
+    parity tests pin the order itself.
+
+    Parameters
+    ----------
+    sampled : xr.DataArray
+        The sample, with ``chain`` and ``draw`` dimensions.
+    labels : mapping
+        The ``chain`` and ``draw`` coordinates to give it.
+
+    Returns
+    -------
+    xr.DataArray
+        *sampled* under *labels*.
+
+    Raises
+    ------
+    ValueError
+        If the sample does not have as many chains and draws as *labels*.
+    """
+    for dim in ("chain", "draw"):
+        if sampled.sizes[dim] != len(labels[dim]):
+            raise ValueError(
+                f"The sample has {sampled.sizes[dim]} {dim}s where the posterior "
+                f"it was computed at has {len(labels[dim])}."
+            )
+    return sampled.assign_coords(chain=labels["chain"], draw=labels["draw"])
+
+
+def _adstock_terms(
+    weights: xr.DataArray, spend: xr.DataArray
+) -> Iterator[xr.DataArray]:
+    """Yield each lag's term of the adstocked spend, lag by lag.
+
+    Term ``l`` is :math:`w_l x_{t-l}` on every date :math:`t`, with spend before
+    the first date taken as zero, as
+    :func:`~pymc_marketing.mmm.transformers.batched_convolution` pads it under
+    ``ConvMode.After``.  Their sum is the adstocked spend.
+
+    Parameters
+    ----------
+    weights : xr.DataArray
+        The adstock kernel, with a ``"time since exposure"`` lag dimension.
+    spend : xr.DataArray
+        The channel spend, with a ``date`` dimension.
+
+    Yields
+    ------
+    xr.DataArray
+        One lag's term, ``weights``'s dims less the lag, broadcast with
+        ``spend``'s.
+    """
+    for lag in range(weights.sizes[LAG_DIM]):
+        yield weights.isel({LAG_DIM: lag}, drop=True) * spend.shift(
+            date=lag, fill_value=0.0
+        )
+
+
+def _row_of_dates(
+    dates: pd.DatetimeIndex, periods: list[tuple[pd.Timestamp, pd.Timestamp]]
+) -> np.ndarray:
+    """Map each date to the spend period it falls in.
+
+    Parameters
+    ----------
+    dates : pd.DatetimeIndex
+        The fitted date axis.
+    periods : list of tuple
+        ``(start, end)`` of each spend period, in row order.
+
+    Returns
+    -------
+    np.ndarray
+        Per date, the index of its period, or ``-1`` for a date in none of them.
+    """
+    row_of = np.full(len(dates), -1)
+    for row, (start, end) in enumerate(periods):
+        row_of[(dates >= start) & (dates <= end)] = row
+    return row_of
+
+
+def _scatter_by_cohort(
+    values: np.ndarray,
+    landed: np.ndarray,
+    *,
+    row_of: np.ndarray,
+    lag: int,
+    columns: np.ndarray | None = None,
+) -> None:
+    """Add one lag's landed contribution to its spend periods' rows, in place.
+
+    What lands on date :math:`t` at lag ``lag`` was spent on :math:`t - lag`, so
+    it goes to that date's row, in column :math:`t`.  Spend dates outside every
+    period are dropped.
+
+    Parameters
+    ----------
+    values : np.ndarray
+        The matrix, ``(chain, draw, row, realization_date, *rest)``.
+    landed : np.ndarray
+        What this lag puts on each date, ``(chain, draw, date, *rest)``, on the
+        fitted dates.
+    row_of : np.ndarray
+        Per date, its row, or ``-1``; see :func:`_row_of_dates`.
+    lag : int
+        The lag *landed* was taken at.
+    columns : np.ndarray, optional
+        Per fitted date, its column in *values*, or ``-1`` for a date that is not
+        a column.  By default the columns are the fitted dates themselves.
+    """
+    spent = np.arange(len(row_of) - lag)
+    rows = row_of[spent]
+    in_rows = rows >= 0
+    realized = spent[in_rows] + lag
+    rows = rows[in_rows]
+    if columns is not None:
+        placed = columns[realized] >= 0
+        rows, realized, target = (
+            rows[placed],
+            realized[placed],
+            columns[realized][placed],
+        )
+    else:
+        target = realized
+    values[:, :, rows, target] += landed[:, :, realized]
+
+
 @dataclass(frozen=True)
 class PeriodIncrements:
     """Every period's increment, before the periods are laid out together.
@@ -535,6 +952,96 @@ class PeriodIncrements:
     windows: EvaluationWindows
     reach: SpendReach
     freq_offset: BaseOffset
+
+
+@dataclass(frozen=True)
+class ProbedReach:
+    """Compiled evaluator, factual baseline and measured reach of one evaluation.
+
+    Parameters
+    ----------
+    evaluator : CounterfactualEvaluator
+        The compiled batched evaluator.
+    baseline : dict
+        The factual evaluation of every node, per node
+        ``(n_samples, n_dates, *non_date_dims)``.
+    baseline_array : np.ndarray
+        The factual spend the baseline was evaluated on.
+    probe : SpendProbe
+        The probe, for what is measured on demand (channel mixing).
+    reach : SpendReach
+        How far in time a change in spend moves the evaluated nodes.
+    effect_names : tuple of str
+        The contribution variables of the channel-dependent effects evaluated.
+    trailing_lags : int
+        The adstock kernel's own trailing lags.
+    channel_data_dims : list of str
+        ``channel_data``'s declared axis order.
+    """
+
+    evaluator: CounterfactualEvaluator
+    baseline: dict
+    baseline_array: np.ndarray
+    probe: SpendProbe
+    reach: SpendReach
+    effect_names: tuple[str, ...]
+    trailing_lags: int
+    channel_data_dims: list[str]
+
+
+@dataclass(frozen=True)
+class PreparedEvaluation:
+    """Validated request, posterior, reducer, probe and windows of one evaluation.
+
+    Parameters
+    ----------
+    start_ts, end_ts : pd.Timestamp
+        The validated range of spend periods.
+    periods : list of tuple
+        ``(start, end)`` of each spend period.
+    posterior : xr.Dataset
+        The subsampled posterior everything is evaluated at.
+    reducer : IncrementalReducer
+        Maps a linear-predictor change to a response-scale increment.
+    effects : tuple of ChannelDependentEffect
+        The channel-dependent effects evaluated with ``channel_contribution``.
+    probed : ProbedReach
+        The evaluator, the baseline and the measured reach.
+    freq_offset : BaseOffset
+        The data's date frequency.
+    windows : EvaluationWindows
+        Each period's evaluation window.
+    """
+
+    start_ts: pd.Timestamp
+    end_ts: pd.Timestamp
+    periods: list[tuple[pd.Timestamp, pd.Timestamp]]
+    posterior: xr.Dataset
+    reducer: IncrementalReducer
+    effects: tuple[ChannelDependentEffect, ...]
+    probed: ProbedReach
+    freq_offset: BaseOffset
+    windows: EvaluationWindows
+
+
+@dataclass(frozen=True)
+class ClosedFormInputs:
+    r"""A prepared evaluation plus the saturated spend the closed form reads.
+
+    Parameters
+    ----------
+    prepared : PreparedEvaluation
+        The validated request, posterior, probe and windows.
+    saturated : xr.DataArray
+        :math:`\beta g(x_t) - \beta g(f x_t)` in original scale, per date and
+        draw, signed like the pipeline's increments.
+    labels : dict
+        ``chain`` and ``draw`` coordinates of the pipeline's results.
+    """
+
+    prepared: PreparedEvaluation
+    saturated: xr.DataArray
+    labels: dict
 
 
 class Incrementality:
@@ -592,12 +1099,10 @@ class Incrementality:
             raise ValueError("Provide either 'idata' or 'data'.")
 
         self.model = model
-        if data is not None:
-            self.data = data
-            self.idata = data.idata
-        else:
-            self.idata = idata
-            self.data = MMMIDataWrapper.from_mmm(model, idata)
+        if data is None:
+            data = MMMIDataWrapper.from_mmm(model, idata)
+        self.data = data
+        self.idata = data.idata
 
         in_model_not_idata, in_idata_not_model = self.data.compare_coords(model)
         if in_idata_not_model or in_model_not_idata:
@@ -706,7 +1211,7 @@ class Incrementality:
         Returns
         -------
         xr.DataArray
-            ``{output_var}_original_scale`` with dimensions
+            ``mu_original_scale`` with dimensions
             ``("sample", "date", *custom_dims)``.
 
         Raises
@@ -714,16 +1219,16 @@ class Incrementality:
         ValueError
             If the deterministic is absent from the posterior.
         """
-        name = f"{self.model.output_var}_original_scale"
-        if name not in posterior:
+        if MU_ORIGINAL_SCALE not in posterior:
             raise ValueError(
                 f"Incrementality under link='{self.model.link}' needs the baseline "
-                f"response-scale prediction '{name}', which is not in the posterior. "
-                "It is registered automatically when a log-link model is built, so "
-                "this posterior was most likely sampled with a restricted "
-                "'var_names'. Refit without filtering it out."
+                f"response-scale prediction '{MU_ORIGINAL_SCALE}', which is not in "
+                "the posterior. It is registered automatically when a log-link "
+                "model is built, so this posterior was most likely sampled with a "
+                "restricted 'var_names'. Refit without filtering it out."
             )
-        return self._stack_samples(posterior[name])
+
+        return self._stack_samples(posterior[MU_ORIGINAL_SCALE])
 
     def _build_reducer(
         self,
@@ -848,7 +1353,10 @@ class Incrementality:
             is nonlinear in ``mu``, so it neither cancels in the difference
             nor folds into the reducer's scale.  Use ``"median"`` there, or
             :meth:`~pymc_marketing.mmm.mmm.MMM.compute_counterfactual_contributions_dataset`,
-            which corrects a level rather than a difference.
+            which corrects a level rather than a difference.  A wrapped
+            likelihood (``Censored``, ``Scaled``) is refused under ``"mean"``
+            on either link and by both methods, because the wrapper moves the
+            observed mean off any ``mu``-based quantity; use ``"median"``.
 
         Returns
         -------
@@ -1115,12 +1623,15 @@ class Incrementality:
 
             \sum_u A[s, u] = \text{compute\_incremental\_contribution}[s]
 
-        holds to floating-point tolerance, for both links and either
-        ``adstock_first``.  Rows are the carryover-inclusive value of a period's
-        spend, up to the last fitted date (see Notes); reading a column instead
-        (what landed on a date, from all earlier spend) is a different estimand
-        when the response mixes cohorts, which is what ``estimand="allocation"``
-        will provide.
+        holds to floating-point tolerance for ``estimand="counterfactual"``, for
+        both links and either ``adstock_first``.  Rows are the
+        carryover-inclusive value of a period's spend, up to the last fitted
+        date (see Notes); reading a column instead (what landed on a date, from
+        all earlier spend) is a different estimand when the response mixes
+        cohorts, which is what ``estimand="allocation"`` provides.  Its rows are
+        Aumann-Shapley values, so with ``adstock_first=True`` and a concave
+        saturation they do not equal
+        :meth:`compute_incremental_contribution`.
 
         In particular, the entries do not add up to ``channel_contribution``
         when saturation follows adstock (``adstock_first=True``, the default).
@@ -1129,7 +1640,7 @@ class Incrementality:
         come in below the channel's total contribution, by how much depends on
         how saturated the channel is.  Use these numbers to value a period's
         spend, not to decompose the reported total; ``estimand="allocation"``
-        is the one that will reconcile with it.  On an identity-link model
+        is the one that reconciles with it.  On an identity-link model
         without mediated effects, the all-time counterfactual, which zeroes
         every period at once, matches ``channel_contribution``; the
         period increments match it only with ``adstock_first=False``, where the
@@ -1150,14 +1661,33 @@ class Incrementality:
         estimand : {"counterfactual", "allocation"}, default="counterfactual"
             ``"counterfactual"`` zeroes (or scales) one period's spend and records
             the per-date response, which reconciles with today's incrementality
-            row by row.  ``"allocation"`` (Aumann-Shapley, reconciling with
-            ``channel_contribution`` column by column) is not implemented yet.
+            row by row.  ``"allocation"`` splits each date's contribution among
+            the spend periods that produced it, so that it reconciles with
+            ``channel_contribution`` column by column; see the Notes.  It needs
+            an identity link, a forward-looking adstock (``ConvMode.After``) and
+            ``counterfactual_spend_factor=0``, and it covers the fitted dates
+            only.
+            It also needs a linear convolution for an adstock: the built-in ones
+            are, a custom one is checked for homogeneity, warned about if it
+            passes and refused if it fails.  With ``adstock_first=True`` it
+            needs non-negative channel data and kernel weights too.
         method : {"pipeline", "closed_form"}, default="pipeline"
-            ``"pipeline"`` evaluates the model graph and is exact for every
-            supported model.  ``"closed_form"`` (cumulative adstock weights) is
-            not implemented yet.  It will be valid only for cohort-separable
-            models, and will raise rather than approximate on the others,
-            ``adstock_first=True`` among them.
+            ``"pipeline"`` evaluates the model once per spend period and is
+            exact for every supported model.  ``"closed_form"`` computes the
+            same matrix from the adstock kernel and the saturated spend, with
+            no evaluation per period, for models where saturation runs first;
+            see the Notes.  It raises on any other model:
+
+            - ``adstock_first=True``, or a link other than identity;
+            - a custom adstock, or one that is not ``ConvMode.After``;
+            - a channel-dependent ``mu_effect``, or ``time_varying_media``;
+            - a media transform the spend probe finds to carry spend over a
+              window of dates or to mix channels;
+            - an effect the spend probe cannot bound within the fitted dates,
+              such as carryover longer than the data, which the pipeline still
+              evaluates on the full date axis;
+            - ``estimand="allocation"`` with a ``counterfactual_spend_factor``
+              other than ``0``.
         num_samples : int or None, optional
             Number of posterior samples to use; all of them when None.
         random_state : RandomState or Generator or None, optional
@@ -1183,7 +1713,13 @@ class Incrementality:
               where the period's carryover runs past the end of the fitted data.
               Those entries are ``NaN``, and they run from the first date after
               the last fitted date to the period's last spend date plus
-              ``effective_horizon``.
+              ``effective_horizon``.  The allocation never has such entries:
+              its ``realization_date`` is the fitted dates, and ``observed`` is
+              ``True`` throughout.
+            - ``complete`` on ``spend_date``, for ``estimand="allocation"``
+              only: ``False`` for a period whose carryover runs past the last
+              fitted date, so that its row is the part of its effect the data
+              can show.  A scalar for ``"all_time"``.
 
             Entries outside a period's evaluated dates are ``0``.  With a
             windowed evaluation (the usual case) the probe measured every date
@@ -1222,17 +1758,41 @@ class Incrementality:
               ``attrs.get("effective_horizon")`` then gives ``None``.
             - ``assumptions``: a JSON string (``json.loads`` it) recording the
               model settings the matrix depends on and ``"evaluation"``,
-              ``"window"`` or ``"full_axis"``.  A string, like every attribute
-              here, so the result can be written with ``to_netcdf``.
+              ``"window"`` or ``"full_axis"``.  For ``estimand="allocation"``
+              also ``"allocation_rule"``: ``"aumann_shapley_share"`` with
+              ``adstock_first=True``, ``"separable_cohorts"`` with
+              ``adstock_first=False``, where the counterfactual matrix is the
+              allocation.  A string, like every attribute here, so the result
+              can be written with ``to_netcdf``.
             - ``warnings``: notes on how to read the result, as a JSON string
               holding a list (``json.loads`` it), for the same reason.
 
         Raises
         ------
         NotImplementedError
-            For ``estimand="allocation"`` or ``method="closed_form"``.
+            For ``method="closed_form"`` on a model outside the class it is
+            exact for (see ``method``).  For ``estimand="allocation"`` under a
+            log link, an adstock that is not ``ConvMode.After`` or a
+            channel-dependent ``mu_effect``, and when the spend probe cannot
+            verify that the effect of a change in spend dies out within the
+            fitted dates, or cannot establish that each channel's column
+            depends on that channel's spend alone.  The probe falls short on a
+            transform that reduces over ``date`` or mixes channels, but also on
+            carryover that outlasts the fitted dates and on a channel that
+            spends only on the first or last date, which a plain adstock can
+            have.  Also for ``estimand="allocation"`` when the probe finds that
+            spend moves the response further than the adstock's kernel reaches
+            (a saturation that carries spend over a window), and, with
+            ``adstock_first=True``, for negative channel data and for a negative
+            kernel weight, and for a custom adstock that is not homogeneous
+            (doubling the spend does not double the kernel).
         ValueError
-            For an unknown ``estimand`` or ``method``, and for everything
+            For an unknown ``estimand`` or ``method``, for
+            ``estimand="allocation"`` with a ``counterfactual_spend_factor``
+            other than ``0`` or, with ``adstock_first=True`` or a custom
+            adstock, an adstock parameter that is missing from the posterior.
+            The same for ``method="closed_form"``, which also needs the
+            saturation's parameters in the posterior.  And for everything
             :meth:`compute_incremental_contribution` raises on.
 
         Warns
@@ -1248,6 +1808,44 @@ class Incrementality:
         future value reported here is future-within-a-quarter, whatever the
         channel's real carryover; raising ``l_max`` to lengthen the tail buys a
         number driven by the adstock prior, not by the data.
+
+        ``estimand="allocation"`` answers the column question: how much of the
+        contribution on date :math:`t` does the spend of period :math:`s`
+        account for?  With ``adstock_first=True`` one date's contribution is
+        :math:`\beta\,g(z_t)` for the adstocked spend
+        :math:`z_t = \sum_l w_l x_{t-l}`, and saturation mixes the cohorts into
+        :math:`z_t`, so no cohort has a contribution of its own.  The
+        Aumann-Shapley value, the continuous counterpart of the Shapley value
+        (integrated gradients along the ray from zero spend to actual spend), is
+        symmetric between cohorts and adds up.  It is one choice among several
+        such splits -- the discrete Shapley value has the same properties and
+        gives different numbers for a concave response -- and for this response
+        it collapses to a share split,
+
+        .. math::
+
+            A[s, t] = \left(c_t - c_t^{0}\right)
+            \frac{w_{t-s}\,x_s}{z_t},
+
+        where :math:`c_t^{0}` is the contribution at zero spend.  Hence
+        ``A.sum("spend_date")`` is ``channel_contribution`` (less its zero-spend
+        value, which is nil for a saturation through the origin) on every date.
+        With a linear response it equals the ``"counterfactual"`` matrix; with a
+        concave one the counterfactual rows are smaller, which is the gap
+        described above.  With ``adstock_first=False`` the response is already
+        separable by cohort, the counterfactual matrix reconciles by column,
+        and the allocation is that matrix; its columns too are
+        ``channel_contribution`` less its zero-spend value.  The allocation
+        covers the fitted
+        dates only: attributing a date past the data would need spend that has
+        not happened, so there is no ``observed=False`` tail.  Rows are the part
+        of each period's effect the data can show, and the ``complete``
+        coordinate on ``spend_date`` marks the ones that are the whole of it:
+        ``False`` for the last periods, whose carryover runs past the last
+        fitted date.  Reduce only ``complete`` rows to a current-vs-future
+        reading.  The columns add up to the contribution only when every spend
+        period is a row; a narrower ``start_date`` / ``end_date`` leaves out the
+        other periods' shares.
 
         The matrix is dense in ``realization_date``, so that columns line up
         across rows and ``sel`` works directly.  Reductions need care on two
@@ -1275,6 +1873,20 @@ class Incrementality:
         use ``num_samples`` or an aggregated frequency on long series.
         :meth:`split_incremental_contribution_current_future` works on each
         period's band instead and never builds this matrix.
+
+        ``method="closed_form"`` applies when saturation runs before the
+        adstock.  The model is then additively separable across spend dates:
+        spend on date :math:`s` puts :math:`w_l V_s` on date :math:`s + l`,
+        with :math:`w_l` the adstock's kernel and
+        :math:`V_s = \beta g(x_s) - \beta g(f x_s)` the change in the saturated
+        spend when the spend is scaled by the counterfactual factor :math:`f`.
+        Both are read off the posterior, the second in one evaluation of the
+        saturation for all dates, and the matrix is the pipeline's entry for
+        entry.  The counterfactual and the allocation coincide on such a
+        model, so either estimand can use it.  Its cost does not grow with the
+        number of periods; the spend probe, which both methods run, does not
+        depend on them either, so at coarse frequencies the two cost about the
+        same.
 
         See Also
         --------
@@ -1306,20 +1918,93 @@ class Incrementality:
                 f"method must be 'pipeline' or 'closed_form', got {method!r}"
             )
 
-        if estimand == "allocation":
-            raise NotImplementedError(
-                "estimand='allocation' (Aumann-Shapley shares that reconcile with "
-                "channel_contribution) is not implemented yet. See "
-                "https://github.com/pymc-labs/pymc-marketing/issues/2941."
-            )
-
+        # One route per combination, each refusing what it does not cover before
+        # anything is evaluated.  The closed form takes both estimands, which
+        # coincide on the models it accepts.
         if method == "closed_form":
-            raise NotImplementedError(
-                "method='closed_form' is not implemented yet; use "
-                "method='pipeline', which is exact for every supported model. See "
-                "https://github.com/pymc-labs/pymc-marketing/issues/2941."
+            return self._split_closed_form(
+                frequency=frequency,
+                start_date=start_date,
+                end_date=end_date,
+                estimand=estimand,
+                method=method,
+                num_samples=num_samples,
+                random_state=random_state,
+                counterfactual_spend_factor=counterfactual_spend_factor,
+                central_tendency=central_tendency,
             )
+        elif estimand == "allocation":
+            return self._split_allocation(
+                frequency=frequency,
+                start_date=start_date,
+                end_date=end_date,
+                method=method,
+                num_samples=num_samples,
+                random_state=random_state,
+                counterfactual_spend_factor=counterfactual_spend_factor,
+                central_tendency=central_tendency,
+            )
+        elif estimand == "counterfactual":
+            return self._split_counterfactual(
+                frequency=frequency,
+                start_date=start_date,
+                end_date=end_date,
+                method=method,
+                num_samples=num_samples,
+                random_state=random_state,
+                counterfactual_spend_factor=counterfactual_spend_factor,
+                central_tendency=central_tendency,
+            )
+        else:  # pragma: no cover - estimand was validated above
+            raise ValueError(f"An unknown estimand {estimand!r} reached the dispatch.")
 
+    def _split_counterfactual(
+        self,
+        *,
+        frequency: Frequency,
+        start_date: str | pd.Timestamp | None,
+        end_date: str | pd.Timestamp | None,
+        method: str,
+        num_samples: int | None,
+        random_state: RandomState | Generator | None,
+        counterfactual_spend_factor: float,
+        central_tendency: CentralTendency,
+    ) -> xr.DataArray:
+        """Build the ``estimand="counterfactual"`` matrix with ``method="pipeline"``.
+
+        The body of :meth:`split_incremental_contribution_over_time` for that
+        combination; see there for the definition and the layout.  Each period
+        is evaluated with its spend scaled, so none of the structural guards of
+        the other routes apply: an adstock that is not ``ConvMode.After`` is
+        only warned about.
+
+        Parameters
+        ----------
+        frequency, start_date, end_date, num_samples, random_state
+            As in :meth:`split_incremental_contribution_over_time`.
+        counterfactual_spend_factor, central_tendency
+            As in :meth:`split_incremental_contribution_over_time`.
+        method : str
+            Echoed into the result's attributes.
+
+        Returns
+        -------
+        xr.DataArray
+            As :meth:`split_incremental_contribution_over_time`.
+
+        Raises
+        ------
+        ValueError
+            If an input is out of range, or the date frequency cannot be inferred.
+        NotImplementedError
+            If the link has no reducer, or a channel-dependent ``mu_effect`` has
+            not opted in.
+
+        Warns
+        -----
+        UserWarning
+            If ``adstock.mode`` is not ``ConvMode.After``.
+        """
         mode = self.model.adstock.mode
         notes: list[str] = []
 
@@ -1348,6 +2033,54 @@ class Incrementality:
 
         matrix = self._carryover_band_to_matrix(increments, frequency=frequency)
 
+        return self._finish_counterfactual_matrix(
+            matrix,
+            increments.reach,
+            notes=notes,
+            estimand="counterfactual",
+            method=method,
+            frequency=frequency,
+            counterfactual_spend_factor=counterfactual_spend_factor,
+        )
+
+    def _finish_counterfactual_matrix(
+        self,
+        matrix: xr.DataArray,
+        reach: SpendReach,
+        *,
+        notes: list[str],
+        estimand: str,
+        method: str,
+        frequency: Frequency,
+        counterfactual_spend_factor: float,
+    ) -> xr.DataArray:
+        """Order the dims of a counterfactual matrix and describe it.
+
+        The pipeline and the closed form both call this once their matrix is
+        laid out, so the two return the same dimension order, notes and
+        attributes.
+
+        Parameters
+        ----------
+        matrix : xr.DataArray
+            As :meth:`_carryover_band_to_matrix` returns it.
+        reach : SpendReach
+            What the spend probe measured for the evaluation behind *matrix*.
+        notes : list of str
+            Notes already collected on how to read the result.
+        estimand, method : str
+            As passed to :meth:`split_incremental_contribution_over_time`.
+        frequency : Frequency
+            Aggregation of the spend periods.
+        counterfactual_spend_factor : float
+            Multiplicative factor applied to spend in the counterfactual.
+
+        Returns
+        -------
+        xr.DataArray
+            *matrix*, transposed and with its attributes set.
+        """
+        mode = self.model.adstock.mode
         if not bool(matrix.coords["observed"].all()):
             note = (
                 "Some periods' carryover runs past the end of the fitted data; "
@@ -1357,7 +2090,7 @@ class Incrementality:
             # Only a forward-only kernel on a measured window keeps the observed
             # cells independent of what comes after the data, so that the
             # skipped tail is all a row sum misses.
-            if mode == ConvMode.After and not increments.reach.requires_full_axis:
+            if mode == ConvMode.After and not reach.requires_full_axis:
                 note += (
                     ", a lower bound on those periods' effect whenever more "
                     "spend never lowers the response on a later date"
@@ -1371,7 +2104,7 @@ class Incrementality:
         matrix = matrix.transpose(*dim_order, *self.model.dims)
 
         matrix.attrs = self._carryover_attrs(
-            increments,
+            reach,
             estimand=estimand,
             method=method,
             frequency=frequency,
@@ -1381,18 +2114,1166 @@ class Incrementality:
 
         return matrix
 
+    def _split_allocation(
+        self,
+        *,
+        frequency: Frequency,
+        start_date: str | pd.Timestamp | None,
+        end_date: str | pd.Timestamp | None,
+        method: str,
+        num_samples: int | None,
+        random_state: RandomState | Generator | None,
+        counterfactual_spend_factor: float,
+        central_tendency: CentralTendency,
+    ) -> xr.DataArray:
+        """Build the ``estimand="allocation"`` matrix.
+
+        The body of :meth:`split_incremental_contribution_over_time` for the
+        allocation estimand; see there for the definition and the layout.  What
+        the model's structure rules out is refused before anything is
+        evaluated; what only the spend probe can establish (an effect that dies out within the fitted dates,
+        channels that do not mix) is refused after the probe and before any
+        period is evaluated.
+
+        Parameters
+        ----------
+        frequency, start_date, end_date, num_samples, random_state, central_tendency
+            As in :meth:`split_incremental_contribution_over_time`.
+        method : str
+            Echoed into the result's attributes.
+        counterfactual_spend_factor : float
+            Must be ``0``: the allocation is measured against zero spend.
+
+        Returns
+        -------
+        xr.DataArray
+            As :meth:`split_incremental_contribution_over_time`, with
+            ``realization_date`` restricted to the fitted dates and a ``complete``
+            coordinate on ``spend_date``.
+
+        Raises
+        ------
+        ValueError
+            If ``counterfactual_spend_factor`` is not ``0``, or a random adstock
+            parameter is missing from the posterior.
+        NotImplementedError
+            Under a log link, a non-``After`` adstock or a channel-dependent
+            ``mu_effect``; for a custom adstock that is not linear; for negative
+            channel data or kernel weights with ``adstock_first=True``; when the
+            probe could
+            not verify that the effect of a change in spend dies out within the
+            fitted dates, or finds that it outlasts the kernel; and when it
+            could not establish that each channel's column depends on that
+            channel's spend alone.
+        """
+        self._refuse_unsupported_allocation(counterfactual_spend_factor)
+
+        start_ts, end_ts = self._validate_input(start_date, end_date)
+        periods = self._create_period_groups(start_ts, end_ts, frequency)
+
+        # One subset for both computations below: drawing twice from a
+        # Generator would give each a different one.
+        posterior_sub = subsample_draws(
+            self.idata.posterior.dataset,
+            num_samples=num_samples,
+            random_state=random_state,
+        )
+
+        # The shares need c - c0 on every date, so adstock-first evaluates the
+        # whole axis whatever rows were asked for.
+        whole_axis = self.model.adstock_first
+        # What the kernel alone can refuse is refused before the evaluation.
+        weights = None
+        if whole_axis:
+            weights = self._adstock_kernel(posterior_sub, divides=True)
+        elif not _is_builtin_adstock(self.model.adstock):
+            # Nothing divides by the adstocked spend here, but the cohorts only
+            # separate if the adstock is a linear convolution.
+            self._adstock_kernel(posterior_sub, divides=False)
+        increments = self._allocation_increments(
+            frequency="all_time" if whole_axis else frequency,
+            start_date=None if whole_axis else start_date,
+            end_date=None if whole_axis else end_date,
+            posterior=posterior_sub,
+            central_tendency=central_tendency,
+        )
+        max_lag = increments.reach.max_lag
+        if max_lag is None:  # pragma: no cover - _refuse_unbounded_reach ran
+            raise ValueError("An unbounded reach reached the allocation.")
+
+        if weights is not None:
+            rule = "aumann_shapley_share"
+            matrix = self._allocate_by_shares(
+                increments.periods[0],
+                weights=weights,
+                periods=periods,
+                frequency=frequency,
+            )
+            complete = self._rows_complete(periods, self.data.dates, max_lag)
+        else:
+            rule = "separable_cohorts"
+            # Saturation runs before the adstock, so each cohort's response is
+            # its own and the counterfactual already adds up by column.
+            matrix = self._carryover_band_to_matrix(increments, frequency=frequency)
+            # A row is complete when no part of its carryover was left past the
+            # fitted dates, which is what the band's unobserved tail records.
+            complete = [
+                bool(done)
+                for done in np.atleast_1d(
+                    matrix.coords["observed"].all("realization_date").values
+                )
+            ]
+            matrix = self._on_fitted_dates(matrix)
+
+        return self._finish_allocation_matrix(
+            matrix,
+            complete,
+            increments.reach,
+            rule=rule,
+            method=method,
+            frequency=frequency,
+            start_ts=start_ts,
+            end_ts=end_ts,
+        )
+
+    def _finish_allocation_matrix(
+        self,
+        matrix: xr.DataArray,
+        complete: list[bool],
+        reach: SpendReach,
+        *,
+        rule: str,
+        method: str,
+        frequency: Frequency,
+        start_ts: pd.Timestamp,
+        end_ts: pd.Timestamp,
+    ) -> xr.DataArray:
+        """Mark each row's completeness, order the dims and describe the allocation.
+
+        Called by the pipeline's and the closed form's allocation once the
+        matrix holds the fitted dates only.
+
+        Parameters
+        ----------
+        matrix : xr.DataArray
+            The allocation on the fitted dates.
+        complete : list of bool
+            Per row, whether its carryover lands within the fitted dates.
+        reach : SpendReach
+            What the spend probe measured for the evaluation behind *matrix*.
+        rule : str
+            The allocation rule, echoed into ``assumptions``.
+        method : str
+            Echoed into the result's attributes.
+        frequency : Frequency
+            Aggregation of the spend periods.
+        start_ts, end_ts : pd.Timestamp
+            The validated range of spend periods.
+
+        Returns
+        -------
+        xr.DataArray
+            *matrix* with a ``complete`` coordinate, transposed, with attributes.
+        """
+        matrix = matrix.assign_coords(
+            complete=complete[0]
+            if frequency == "all_time"
+            else ("spend_date", complete)
+        )
+
+        notes = [
+            "The allocation covers the fitted dates only: attributing a date "
+            "past the data would need spend that has not happened, so there is "
+            "no observed=False tail and each row is the part of the period's "
+            "effect the data can show.",
+        ]
+        dates = self.data.dates
+        if start_ts <= dates[0] and end_ts >= dates[-1]:
+            notes.append(
+                "Columns sum to channel_contribution less its value at zero "
+                "spend, which is nil for a saturation through the origin."
+            )
+        else:
+            notes.append(
+                "start_date and end_date keep only some spend periods, so each "
+                "column sums to the part of channel_contribution (less its "
+                "value at zero spend) that those periods produced, not to all "
+                "of it."
+            )
+        if not _is_builtin_adstock(self.model.adstock):
+            notes.append(CUSTOM_ADSTOCK_NOTE)
+        if not all(complete):
+            notes.append(
+                "Rows with complete=False are periods whose carryover runs past "
+                "the end of the fitted data.  Their entries are exact, but the "
+                "part landing after the last fitted date is not in the matrix, "
+                "so reducing them to current vs future value understates future "
+                "value."
+            )
+
+        dim_order = ["chain", "draw", "spend_date", "realization_date", "channel"]
+
+        if frequency == "all_time":
+            dim_order.remove("spend_date")
+
+        matrix = matrix.transpose(*dim_order, *self.model.dims)
+
+        matrix.attrs = self._carryover_attrs(
+            reach,
+            estimand="allocation",
+            method=method,
+            frequency=frequency,
+            counterfactual_spend_factor=0.0,
+            notes=notes,
+            extra_assumptions={"allocation_rule": rule},
+        )
+        return matrix
+
+    def _data_freq_offset(self) -> BaseOffset:
+        """Resolve the fitted data's date frequency.
+
+        Returns
+        -------
+        BaseOffset
+            The offset between consecutive fitted dates.
+
+        Raises
+        ------
+        ValueError
+            If the frequency cannot be inferred from the date index.
+        """
+        inferred_freq: str | None = pd.infer_freq(self.data.dates)
+        if inferred_freq is None:
+            raise ValueError(
+                "Could not infer frequency from the date index. "
+                "Ensure the fitted data has a regular date frequency."
+            )
+        return pd.tseries.frequencies.to_offset(inferred_freq)
+
+    def _closed_form_inputs(
+        self,
+        *,
+        frequency: Frequency,
+        start_date: str | pd.Timestamp | None,
+        end_date: str | pd.Timestamp | None,
+        num_samples: int | None,
+        random_state: RandomState | Generator | None,
+        central_tendency: CentralTendency,
+        counterfactual_spend_factor: float,
+        lags: int | None = None,
+    ) -> ClosedFormInputs:
+        r"""Probe the model and evaluate the saturation stage, for the closed form.
+
+        Runs :meth:`_prepare_evaluation`, refuses a media transform the spend
+        probe finds to mix channels, and evaluates the change in saturated
+        spend :math:`V_t` once for all dates.
+
+        Parameters
+        ----------
+        frequency, start_date, end_date, num_samples, random_state, central_tendency
+            As in :meth:`split_incremental_contribution_over_time`.
+        counterfactual_spend_factor : float
+            Multiplicative factor applied to spend in the counterfactual.
+        lags : int, optional
+            For a current/future split, the lags after each spend date that count
+            as current, checked against the measured reach.
+
+        Returns
+        -------
+        ClosedFormInputs
+            The probe, the windows and the saturated spend.
+
+        Raises
+        ------
+        ValueError
+            If ``central_tendency`` is unknown, ``counterfactual_spend_factor`` is
+            negative, the date range is out of range, or *lags* is past the
+            measured reach.
+        NotImplementedError
+            When the spend probe cannot verify that the effect of a change in
+            spend dies out within the fitted dates and no further than the
+            kernel reaches, or cannot establish that each channel's column
+            depends on that channel's spend alone.
+        """
+        adstock = self.model.adstock
+        prepared = self._prepare_evaluation(
+            frequency=frequency,
+            start_date=start_date,
+            end_date=end_date,
+            num_samples=num_samples,
+            random_state=random_state,
+            central_tendency=central_tendency,
+            counterfactual_spend_factor=counterfactual_spend_factor,
+            include_carryover=True,
+            validate_reach=partial(
+                self._validate_closed_form_reach,
+                kernel_lags=kernel_trailing_lags(adstock.l_max, adstock.mode),
+                lags=lags,
+            ),
+        )
+        # No channel-dependent effects reach this point: the guards refused them.
+        probed = prepared.probed
+        _refuse_dedicated_rows(
+            probed.probe.mixes_channels(non_date_dims=probed.evaluator.non_date_dims),
+            requirement=CLOSED_FORM_REQUIREMENT,
+        )
+
+        # The identity link is one of the guards, so the reducer only rescales.
+        reducer = cast(IdentityLinkReducer, prepared.reducer)
+        posterior = prepared.posterior
+        labels = {
+            "chain": np.arange(posterior.sizes["chain"]),
+            "draw": np.arange(posterior.sizes["draw"]),
+        }
+        saturated = _relabel_draws(
+            self._saturated_media(posterior, counterfactual_spend_factor)
+            * reducer.scale,
+            labels,
+        )
+        return ClosedFormInputs(prepared=prepared, saturated=saturated, labels=labels)
+
+    @staticmethod
+    def _validate_closed_form_reach(
+        reach: SpendReach, *, kernel_lags: int, lags: int | None
+    ) -> None:
+        """Refuse a reach the closed form cannot be read from.
+
+        Parameters
+        ----------
+        reach : SpendReach
+            What the probe measured.
+        kernel_lags : int
+            The last lag the adstock's own kernel reaches.
+        lags : int, optional
+            For a current/future split, the lags that count as current.
+
+        Raises
+        ------
+        NotImplementedError
+            If the reach is unbounded or runs past the kernel.
+        ValueError
+            If *lags* is past the measured reach.
+        """
+        _refuse_unbounded_reach(
+            reach, kernel_lags=kernel_lags, requirement=CLOSED_FORM_REQUIREMENT
+        )
+        if lags is not None:
+            Incrementality._check_reach_supports_split(reach, lags=lags)
+
+    def _split_closed_form(
+        self,
+        *,
+        frequency: Frequency,
+        start_date: str | pd.Timestamp | None,
+        end_date: str | pd.Timestamp | None,
+        estimand: str,
+        method: str,
+        num_samples: int | None,
+        random_state: RandomState | Generator | None,
+        counterfactual_spend_factor: float,
+        central_tendency: CentralTendency,
+    ) -> xr.DataArray:
+        r"""Build the matrix of ``method="closed_form"`` without evaluating any period.
+
+        With saturation first, a cohort's increment on lag :math:`l` is
+        :math:`w_l V_s`: the adstock's kernel times
+        :math:`V_s = \beta g(x_s) - \beta g(f x_s)`, the change in the
+        saturated spend.  Both are read off the posterior, the second by
+        evaluating the saturation stage alone, and no period is evaluated.  What
+        the model's structure rules out is refused first; what only the spend
+        probe can establish (a saturation that carries spend over a window or
+        mixes channels) is refused after the probe, with the checks the
+        allocation makes.  The layout is that of the pipeline route, entry for entry, and
+        both estimands give the same numbers here: the model is additively
+        separable across cohorts, where a counterfactual and an allocation
+        coincide.
+
+        Parameters
+        ----------
+        frequency, start_date, end_date, num_samples, random_state
+            As in :meth:`split_incremental_contribution_over_time`.
+        counterfactual_spend_factor, central_tendency
+            As in :meth:`split_incremental_contribution_over_time`.
+        estimand : {"counterfactual", "allocation"}
+            Which layout to return.
+        method : str
+            Echoed into the result's attributes.
+
+        Returns
+        -------
+        xr.DataArray
+            As :meth:`split_incremental_contribution_over_time`.
+
+        Raises
+        ------
+        ValueError
+            For ``estimand="allocation"`` with a ``counterfactual_spend_factor``
+            other than ``0``, for a random adstock or saturation parameter
+            missing from the posterior, if ``central_tendency`` is unknown, or
+            if the date range is out of range.
+        NotImplementedError
+            For a model outside the class the closed form is exact for (see
+            :meth:`_refuse_unsupported_closed_form`); when the spend probe
+            cannot verify that the effect of a change in spend dies out within
+            the fitted dates and no further than the kernel reaches, or cannot
+            establish that each channel's column depends on that channel's
+            spend alone.
+        """
+        if estimand == "allocation":
+            self._refuse_allocation_spend_factor(counterfactual_spend_factor)
+        self._refuse_unsupported_closed_form()
+
+        inputs = self._closed_form_inputs(
+            frequency=frequency,
+            start_date=start_date,
+            end_date=end_date,
+            num_samples=num_samples,
+            random_state=random_state,
+            central_tendency=central_tendency,
+            counterfactual_spend_factor=counterfactual_spend_factor,
+        )
+        prepared = inputs.prepared
+        probed, windows = prepared.probed, prepared.windows
+        freq_offset = prepared.freq_offset
+        weights = self._adstock_kernel(prepared.posterior, divides=False)
+        matrix = self._closed_form_matrix(
+            inputs.saturated,
+            _relabel_draws(weights, inputs.labels),
+            periods=prepared.periods,
+            windows=windows,
+            tail_lags=probed.reach.max_lag,
+            freq_offset=freq_offset,
+            frequency=frequency,
+        )
+        start_ts, end_ts = prepared.start_ts, prepared.end_ts
+
+        if estimand == "counterfactual":
+            return self._finish_counterfactual_matrix(
+                matrix,
+                probed.reach,
+                notes=[],
+                estimand=estimand,
+                method=method,
+                frequency=frequency,
+                counterfactual_spend_factor=counterfactual_spend_factor,
+            )
+
+        complete = [
+            bool(done)
+            for done in np.atleast_1d(
+                matrix.coords["observed"].all("realization_date").values
+            )
+        ]
+        return self._finish_allocation_matrix(
+            self._on_fitted_dates(matrix),
+            complete,
+            probed.reach,
+            rule="separable_cohorts",
+            method=method,
+            frequency=frequency,
+            start_ts=start_ts,
+            end_ts=end_ts,
+        )
+
+    def _saturated_media(
+        self, posterior: xr.Dataset, counterfactual_spend_factor: float
+    ) -> xr.DataArray:
+        r"""Evaluate how much the saturation stage moves when spend is scaled.
+
+        Per date and draw, :math:`\beta g(x_t) - \beta g(f x_t)` with
+        :math:`f` the counterfactual spend factor, signed as the pipeline signs
+        its increments: actual minus counterfactual for :math:`f \le 1`, the
+        other way round above.  With :math:`f = 0` this is the saturated spend
+        less its value at zero spend, so a saturation that does not pass
+        through the origin is handled too.  When saturation runs before the
+        adstock, ``channel_contribution`` is the adstock of these values.
+
+        The spend goes in as the model sees it, divided by ``channel_scale``
+        with a non-finite ratio taken as zero, mirroring the input scaling in
+        :meth:`~pymc_marketing.mmm.mmm.MMM.build_model`.  Both spend levels are
+        evaluated in one posterior-predictive run.
+
+        Parameters
+        ----------
+        posterior : xr.Dataset
+            The already subsampled posterior.
+        counterfactual_spend_factor : float
+            Multiplicative factor applied to spend in the counterfactual.
+
+        Returns
+        -------
+        xr.DataArray
+            The increment in the model's own units (the target scaled),
+            ``(chain, draw, ...)`` with ``date`` among the other dimensions.
+        """
+        saturation = self.model.saturation
+        # The model scales its input the same way when it builds the graph
+        # (``channel_data / channel_scale`` with NaN and inf switched to 0, in
+        # MMM.build_model).  That one is symbolic, so the two cannot share code;
+        # keep them in step.
+        spend = self.data.get_channel_data() / self.data.get_channel_scale()
+        spend = spend.where(np.isfinite(spend), 0.0)
+        parameters = _transformation_parameters(posterior, saturation)
+
+        # Both spend levels go through one application of the saturation: a
+        # second application would create its parameters a second time.
+        coords = {
+            dim: np.asarray(coord)
+            for dim, coord in spend.coords.items()
+            if dim in spend.dims
+        }
+        coords["spend_level"] = np.asarray(["actual", "counterfactual"])
+        with _quiet_posterior_predictive_log():
+            sampled = saturation._sample_response(
+                "saturated_media",
+                parameters,
+                np.stack([spend.values, counterfactual_spend_factor * spend.values]),
+                dims=("spend_level", *map(str, spend.dims)),
+                coords=coords,
+                core_dim="date",
+                progressbar=False,
+            )
+
+        increment = sampled.sel(spend_level="actual", drop=True) - sampled.sel(
+            spend_level="counterfactual", drop=True
+        )
+        return increment if counterfactual_spend_factor <= 1.0 else -increment
+
+    def _closed_form_matrix(
+        self,
+        saturated: xr.DataArray,
+        weights: xr.DataArray,
+        *,
+        periods: list[tuple[pd.Timestamp, pd.Timestamp]],
+        windows: EvaluationWindows,
+        tail_lags: int | None,
+        freq_offset: BaseOffset,
+        frequency: Frequency,
+    ) -> xr.DataArray:
+        r"""Lay out :math:`A[s, u] = w_{u-s} V_s` as the pipeline route would.
+
+        One pass over the kernel's lags: what lag :math:`l` lands on each date
+        is :math:`w_l V_{t-l}`, and it
+        goes to the period its spend date belongs to, so an aggregated period's
+        row is the sum of its dates' cohorts.  The columns are those of the
+        pipeline route, the evaluated dates of every period plus the dates past
+        the fitted axis that a period's carryover reaches, and these are ``NaN``
+        with ``observed=False``: carryover the model has but the data ends
+        before.
+
+        Parameters
+        ----------
+        saturated : xr.DataArray
+            :math:`V_t` in original scale, ``(chain, draw, ...)`` with ``date``.
+        weights : xr.DataArray
+            The adstock kernel, with a ``"time since exposure"`` dimension.
+        periods : list of tuple
+            ``(start, end)`` of each spend period, the rows.
+        windows : EvaluationWindows
+            The periods' evaluation windows, for the rows' labels and columns.
+        tail_lags : int
+            Lags past a period's last fitted spend date that its carryover
+            reaches.
+        freq_offset : BaseOffset
+            The data's date frequency.
+        frequency : Frequency
+            Aggregation of the spend periods.
+
+        Returns
+        -------
+        xr.DataArray
+            As :meth:`_carryover_band_to_matrix` returns it.
+        """
+        if tail_lags is None:  # pragma: no cover - _refuse_unbounded_reach ran
+            raise ValueError("An unbounded reach reached the closed form.")
+
+        dates = self.data.dates
+        out_dims = tuple(
+            str(dim) for dim in saturated.dims if dim not in ("chain", "draw", "date")
+        )
+        n_chains, n_draws = saturated.sizes["chain"], saturated.sizes["draw"]
+        sizes = tuple(saturated.sizes[dim] for dim in out_dims)
+
+        tails = [
+            self._tail_dates(
+                window=window,
+                dates=dates,
+                tail_lags=tail_lags,
+                freq_offset=freq_offset,
+            )
+            for window in windows.windows
+        ]
+        realization = windows.windows[0].eval_dates
+        for window, tail in zip(windows.windows, tails, strict=True):
+            realization = realization.union(window.eval_dates).union(tail)
+
+        # Straight into the matrix: it is the size of the result, and a second
+        # array of that size to copy from would cost more than the kernel pass.
+        values = np.zeros((n_chains, n_draws, len(periods), len(realization), *sizes))
+        observed = np.ones((len(periods), len(realization)), dtype=bool)
+        row_of = _row_of_dates(dates, periods)
+        columns = realization.get_indexer(dates)
+        for lag, term in enumerate(_adstock_terms(weights, saturated)):
+            _scatter_by_cohort(
+                values,
+                term.transpose("chain", "draw", "date", *out_dims).values,
+                row_of=row_of,
+                lag=lag,
+                columns=columns,
+            )
+        for row, tail in enumerate(tails):
+            tail_columns = realization.get_indexer(tail)
+            values[:, :, row, tail_columns] = np.nan
+            observed[row, tail_columns] = False
+
+        return self._matrix_from_arrays(
+            values,
+            observed,
+            realization=realization,
+            windows=windows.windows,
+            coords={
+                "chain": saturated["chain"].values,
+                "draw": saturated["draw"].values,
+                **{dim: saturated.coords[dim].values for dim in out_dims},
+            },
+            out_dims=out_dims,
+            frequency=frequency,
+        )
+
+    def _refuse_unsupported_closed_form(self) -> None:
+        r"""Refuse what the closed form is not exact for, from the model alone.
+
+        ``method="closed_form"`` reads each cohort's response as
+        :math:`w_l V_s` on lag :math:`l`: the adstock's kernel times a change in
+        saturated spend that depends on that date's spend alone.  That holds
+        only when saturation runs first, the kernel is a known linear
+        convolution that places its first weight on the spend period, and
+        ``channel_contribution`` is the only route from spend to the response.
+        Outside that class the closed form is not exact, so it raises;
+        ``method="pipeline"`` handles those models.
+
+        Every check reads the model's structure or its posterior, so none of
+        them needs an evaluation.  What only the spend probe can establish (a
+        saturation that carries spend over a window or mixes channels) is
+        refused after the probe, with the same checks as the allocation.
+
+        Raises
+        ------
+        ValueError
+            If a random adstock or saturation parameter is missing from the
+            posterior.
+        NotImplementedError
+            For ``adstock_first=True``, a non-identity link, a custom adstock, a
+            channel-dependent ``mu_effect``, an adstock that is not
+            ``ConvMode.After`` or ``time_varying_media``.
+        """
+        if self.model.adstock_first:
+            raise NotImplementedError(
+                "method='closed_form' needs adstock_first=False.  With "
+                "saturation after the adstock it acts on the sum of every "
+                "cohort's carryover, so a cohort's response is not its kernel "
+                "times its own spend.  Use method='pipeline'."
+            )
+
+        self._refuse_non_separable_route(
+            CLOSED_FORM_REQUIREMENT, hint="  Use method='pipeline'."
+        )
+
+        if not _is_builtin_adstock(self.model.adstock):
+            raise NotImplementedError(
+                "method='closed_form' needs one of the library's adstocks, whose "
+                "kernels are known to be linear convolutions, got "
+                f"{type(self.model.adstock).__name__}.  Use method='pipeline', "
+                "which evaluates any adstock."
+            )
+
+        # TODO: support time_varying_media.  The pipeline already does, by
+        # scaling the contribution on each realization date.  Here a cohort's
+        # entry on lag l would be beta * m_{s+l} * w_l * g(x_s): the multiplier
+        # has to enter the scatter per lag, and the split can no longer use one
+        # cumulative weight per draw.
+        if self.model.time_varying_media:
+            raise NotImplementedError(
+                "method='closed_form' does not support time_varying_media.  The "
+                "temporal multiplier acts on each realization date, so a "
+                "cohort's entries are no longer the kernel's weights times one "
+                "number.  Use method='pipeline'."
+            )
+
+        self._refuse_missing_parameters("adstock", CLOSED_FORM_REQUIREMENT)
+        self._refuse_missing_parameters("saturation", CLOSED_FORM_REQUIREMENT)
+
+    def _refuse_non_separable_route(self, requirement: str, hint: str = "") -> None:
+        """Refuse the model structures that neither the allocation nor the closed form reads.
+
+        Both read a date's contribution as cohorts of one channel's own spend,
+        each spread over the dates after it by the adstock kernel.  That needs
+        an identity link, a kernel placed on and after the spend date, and
+        ``channel_contribution`` as the only route from spend to the response.
+
+        Parameters
+        ----------
+        requirement : str
+            Who refuses, for the message: :data:`ALLOCATION_REQUIREMENT` or
+            :data:`CLOSED_FORM_REQUIREMENT`.
+        hint : str, optional
+            A sentence appended to each message, such as where to go instead.
+
+        Raises
+        ------
+        NotImplementedError
+            Under a non-identity link, an adstock that is not
+            ``ConvMode.After`` or a channel-dependent ``mu_effect``.
+        """
+        if self.model.link != LinkFunction.IDENTITY:
+            raise NotImplementedError(
+                f"{requirement} needs link='identity'.  Under "
+                f"link='{self.model.link}' channel_contribution lives in the "
+                "linear predictor, so a response-scale increment is not a sum "
+                f"of the cohorts' contributions.{hint}"
+            )
+
+        mode = self.model.adstock.mode
+        if mode != ConvMode.After:
+            raise NotImplementedError(
+                f"{requirement} needs a forward-looking adstock "
+                f"(ConvMode.After), got {mode!s}.  A leading kernel puts weight "
+                "on dates before the spend, which the kernel's lags do not "
+                f"describe.{hint}"
+            )
+
+        if resolve_channel_dependent_effects(self.model):
+            raise NotImplementedError(
+                f"{requirement} needs channel_contribution to be the only route "
+                "from spend to the response.  This model has a "
+                "channel-dependent mu_effect, whose contribution would be left "
+                f"out.{hint}"
+            )
+
+    @staticmethod
+    def _refuse_allocation_spend_factor(counterfactual_spend_factor: float) -> None:
+        """Refuse an allocation against anything but zero spend.
+
+        Parameters
+        ----------
+        counterfactual_spend_factor : float
+            Must be ``0``: the allocation splits each date's contribution less
+            its value at zero spend.
+
+        Raises
+        ------
+        ValueError
+            If ``counterfactual_spend_factor`` is not ``0``.
+        """
+        if counterfactual_spend_factor != 0.0:
+            raise ValueError(
+                "estimand='allocation' splits the contribution against zero "
+                "spend, so counterfactual_spend_factor must be 0, got "
+                f"{counterfactual_spend_factor}."
+            )
+
+    def _refuse_unsupported_allocation(
+        self, counterfactual_spend_factor: float
+    ) -> None:
+        """Refuse what the allocation is not defined for, from the model alone.
+
+        Every check here reads the model's structure, so none of them needs an
+        evaluation.  The ones that need the spend probe run inside
+        :meth:`_compute_increments`, through :func:`_refuse_unbounded_reach` and
+        :func:`_refuse_dedicated_rows`.
+
+        Parameters
+        ----------
+        counterfactual_spend_factor : float
+            Must be ``0``: the allocation is measured against zero spend.
+
+        Raises
+        ------
+        ValueError
+            If ``counterfactual_spend_factor`` is not ``0``, or a random adstock
+            parameter is missing from the posterior.
+        NotImplementedError
+            Under a log link, a non-``After`` adstock or a channel-dependent
+            ``mu_effect``; and, with ``adstock_first=True``, for negative
+            channel data.
+        """
+        self._refuse_allocation_spend_factor(counterfactual_spend_factor)
+        self._refuse_non_separable_route(ALLOCATION_REQUIREMENT)
+
+        if self.model.adstock_first:
+            self._refuse_signed_spend()
+
+        # The kernel is sampled whenever the shares need it or a custom adstock
+        # has to be checked for linearity.
+        if self.model.adstock_first or not _is_builtin_adstock(self.model.adstock):
+            self._refuse_missing_parameters("adstock")
+
+    def _refuse_signed_spend(self) -> None:
+        """Refuse negative spend, which the adstock-first shares cannot split.
+
+        The shares divide each date's contribution by its adstocked spend, and
+        with spend of both signs that can sit near or at zero while the
+        contribution does not, so the columns would not reconcile.
+
+        Raises
+        ------
+        NotImplementedError
+            If any channel has negative spend.
+        """
+        if (self.data.get_channel_data() < 0).any():
+            raise NotImplementedError(
+                "estimand='allocation' with adstock_first=True splits each "
+                "date's contribution in proportion to the adstocked spend, "
+                "which is not defined for negative channel data.  Remove the "
+                "negative values, or fit with adstock_first=False, where the "
+                "allocation does not divide by it."
+            )
+
+    def _refuse_missing_parameters(
+        self,
+        component: Literal["adstock", "saturation"],
+        requirement: str = ALLOCATION_REQUIREMENT,
+    ) -> None:
+        """Refuse a posterior that lacks a parameter *component* is drawn from.
+
+        Evaluating the transformation draws a parameter that is missing from the
+        posterior from its prior, so the kernel or the saturated spend would no
+        longer be the one the contribution was computed at.  Fixed parameters
+        never appear in the posterior and are skipped.
+
+        Parameters
+        ----------
+        component : {"adstock", "saturation"}
+            Which of the model's transformations is evaluated.
+        requirement : str, default=ALLOCATION_REQUIREMENT
+            What needs it, for the message.
+
+        Raises
+        ------
+        ValueError
+            If a random parameter of *component* is not in the posterior.
+        """
+        missing = _missing_variables(
+            getattr(self.model, component), self.idata.posterior.dataset
+        )
+        if missing:
+            raise ValueError(
+                f"{requirement} needs the {component} parameters {missing} in the "
+                "posterior; without them they would be drawn from the prior."
+            )
+
+    def _allocation_increments(
+        self,
+        *,
+        frequency: Frequency,
+        start_date: str | pd.Timestamp | None,
+        end_date: str | pd.Timestamp | None,
+        posterior: xr.Dataset,
+        central_tendency: CentralTendency,
+    ) -> PeriodIncrements:
+        """Evaluate the zero-spend counterfactual the allocation is built from.
+
+        Per channel, carryover included, kept per realization date, on the
+        caller's posterior subset, and refused when the probe cannot verify that the
+        effect of a spend change dies out within the fitted dates or cannot show the channels to be separable.
+
+        Parameters
+        ----------
+        frequency, start_date, end_date
+            The spend periods to evaluate.
+        posterior : xr.Dataset
+            The already subsampled posterior, shared with the shares.
+        central_tendency : {"median", "mean"}
+            As in :meth:`split_incremental_contribution_over_time`.
+
+        Returns
+        -------
+        PeriodIncrements
+            Each period's per-date band, as :meth:`_compute_increments` with
+            ``keep_date_axis``.
+        """
+        return self._compute_increments(
+            scope="per_channel",
+            frequency=frequency,
+            start_date=start_date,
+            end_date=end_date,
+            include_carryover=True,
+            num_samples=None,
+            random_state=None,
+            counterfactual_spend_factor=0.0,
+            central_tendency=central_tendency,
+            keep_date_axis=True,
+            validate_reach=partial(
+                _refuse_unbounded_reach,
+                requirement=ALLOCATION_REQUIREMENT,
+                kernel_lags=kernel_trailing_lags(
+                    self.model.adstock.l_max, self.model.adstock.mode
+                ),
+            ),
+            posterior=posterior,
+            validate_dedicated_rows=partial(
+                _refuse_dedicated_rows, requirement=ALLOCATION_REQUIREMENT
+            ),
+        )
+
+    @staticmethod
+    def _rows_complete(
+        periods: list[tuple[pd.Timestamp, pd.Timestamp]],
+        dates: pd.DatetimeIndex,
+        tail_lags: int,
+    ) -> list[bool]:
+        """Whether each period's carryover lands within the fitted dates.
+
+        Parameters
+        ----------
+        periods : list of tuple
+            ``(start, end)`` of each spend period.
+        dates : pd.DatetimeIndex
+            The fitted date axis.
+        tail_lags : int
+            Lags after a period's last spend date that its carryover reaches,
+            in data periods.
+
+        Returns
+        -------
+        list of bool
+            ``True`` where the period's last fitted spend date plus *tail_lags*
+            is still a fitted date.  A period with no fitted date has no spend,
+            so nothing of it lands past the data and it is ``True``, as the
+            counterfactual's ``observed`` coordinate has it.
+        """
+        complete = []
+        for start, end in periods:
+            spent = np.flatnonzero((dates >= start) & (dates <= end))
+            complete.append(
+                not len(spent) or bool(spent[-1] + tail_lags <= len(dates) - 1)
+            )
+        return complete
+
+    def _on_fitted_dates(self, matrix: xr.DataArray) -> xr.DataArray:
+        """Give a matrix of per-period bands the fitted dates as its columns.
+
+        The bands only cover the dates the requested periods move, and any past
+        the last fitted date are not data.  Every other fitted date is a cell no
+        requested period reaches, so it is ``0``, and an observed zero.
+
+        Parameters
+        ----------
+        matrix : xr.DataArray
+            As :meth:`_carryover_band_to_matrix` returns it.
+
+        Returns
+        -------
+        xr.DataArray
+            *matrix* with ``realization_date`` equal to the fitted dates.
+        """
+        dates = self.data.dates
+        within = matrix.realization_date.values <= dates[-1]
+        matrix = matrix.isel(realization_date=within)
+        # reindex would fill the non-index ``observed`` coordinate with NaN.
+        observed = matrix.coords["observed"].reindex(
+            realization_date=dates, fill_value=True
+        )
+        return (
+            matrix.drop_vars("observed")
+            .reindex(realization_date=dates, fill_value=0.0)
+            .assign_coords(observed=observed)
+        )
+
+    def _allocate_by_shares(
+        self,
+        contribution: xr.DataArray,
+        *,
+        weights: xr.DataArray,
+        periods: list[tuple[pd.Timestamp, pd.Timestamp]],
+        frequency: Frequency,
+    ) -> xr.DataArray:
+        r"""Split each date's contribution among the cohorts that produced it.
+
+        The Aumann-Shapley share split for ``adstock_first=True``,
+
+        .. math::
+
+            A[s, t] = (c_t - c_t^0)\,\frac{w_{t-s}\,x_s}{z_t},
+
+        with :math:`z_t = \sum_l w_l x_{t-l}`.  The weights are the adstock's
+        impulse response at the posterior draws, which is its kernel for any
+        causal convolution; a date with no adstocked spend gets ``0``.  The
+        shares do not depend on the channel's scale, so the spend is taken as
+        recorded.
+
+        Two passes over the lags keep memory at a few arrays the size of
+        *contribution* rather than ``l_max`` of them: the first sums the
+        adstocked spend :math:`z_t`, the second recomputes each lag's term and
+        places its share of :math:`(c_t - c_t^0) / z_t` in the matrix.
+
+        Parameters
+        ----------
+        contribution : xr.DataArray
+            :math:`c_t - c_t^0` in original scale, as the per-date band of the
+            all-time counterfactual.  Dims ``(chain, draw, realization_date,
+            channel, *custom_dims)`` with an ``observed`` coordinate.
+        weights : xr.DataArray
+            The adstock's kernel at the draws *contribution* was computed at,
+            from :meth:`_adstock_kernel`.
+        periods : list of tuple
+            ``(start, end)`` of each spend period, the rows of the result.
+        frequency : Frequency
+            Aggregation of the periods; ``"all_time"`` drops ``spend_date``.
+
+        Returns
+        -------
+        xr.DataArray
+            Dims ``(chain, draw, spend_date, realization_date, channel,
+            *custom_dims)``, ``realization_date`` being the fitted dates, with
+            ``period_start`` and ``observed`` coordinates as
+            :meth:`_carryover_band_to_matrix`.  ``spend_date`` is a scalar
+            coordinate for a single ``"all_time"`` period.
+        """
+        out_dims = tuple(
+            dim
+            for dim in contribution.dims
+            if dim not in ("chain", "draw", "realization_date")
+        )
+        total = (
+            contribution.isel(realization_date=contribution["observed"].values)
+            .drop_vars("observed")
+            .rename(realization_date="date")
+        )
+        dates = pd.DatetimeIndex(total["date"].values)
+        # The share tests pin the allocation's columns to the contribution draw
+        # by draw, on a subsample too, so a change in the order fails them.
+        weights = _relabel_draws(
+            weights, {"chain": total["chain"].values, "draw": total["draw"].values}
+        )
+        spend = self.data.get_channel_data()
+
+        adstocked = sum(_adstock_terms(weights, spend))
+        positive = adstocked > 0
+        # The contribution per unit of adstocked spend: each cohort's entry is
+        # this times its own term.  A NaN contribution on a date with spend
+        # still comes through as NaN.
+        per_unit = (total / adstocked.where(positive)).where(positive, 0.0)
+
+        row_of = _row_of_dates(dates, periods)
+        values = np.zeros(
+            (
+                total.sizes["chain"],
+                total.sizes["draw"],
+                len(periods),
+                len(dates),
+                *(total.sizes[dim] for dim in out_dims),
+            ),
+            dtype=total.dtype,
+        )
+        for lag, term in enumerate(_adstock_terms(weights, spend)):
+            landed = per_unit * term
+            _scatter_by_cohort(
+                values,
+                landed.transpose("chain", "draw", "date", *out_dims).values,
+                row_of=row_of,
+                lag=lag,
+            )
+
+        matrix = xr.DataArray(
+            values,
+            dims=("chain", "draw", "spend_date", "realization_date", *out_dims),
+            coords={
+                **{
+                    name: coord
+                    for name, coord in total.coords.items()
+                    if name in ("chain", "draw", *out_dims)
+                },
+                "spend_date": [end for _, end in periods],
+                "realization_date": dates,
+            },
+        ).assign_coords(
+            period_start=("spend_date", [start for start, _ in periods]),
+            observed=(
+                ("spend_date", "realization_date"),
+                np.ones((len(periods), len(dates)), dtype=bool),
+            ),
+        )
+
+        if frequency == "all_time":
+            matrix = matrix.squeeze("spend_date", drop=False)
+
+        return matrix
+
+    def _adstock_parameters(self, posterior: xr.Dataset) -> xr.Dataset:
+        """Keep the posterior's draws, and only the adstock's own variables.
+
+        Parameters
+        ----------
+        posterior : xr.Dataset
+            The draws the kernel is sampled at.
+
+        Returns
+        -------
+        xr.Dataset
+            *posterior* without the variables the adstock does not read; see
+            :func:`_transformation_parameters`.
+        """
+        return _transformation_parameters(posterior, self.model.adstock)
+
+    def _adstock_kernel(self, posterior: xr.Dataset, *, divides: bool) -> xr.DataArray:
+        """Sample the adstock's kernel at each posterior draw, and vet it.
+
+        Everything the allocation needs to know about the kernel is checked
+        here, from the posterior alone, so a kernel it cannot use is refused
+        before any period is evaluated.
+
+        Parameters
+        ----------
+        posterior : xr.Dataset
+            The draws to evaluate the kernel at.
+        divides : bool
+            Whether the allocation divides by the adstocked spend, as the
+            adstock-first shares do.  Only then must the weights be
+            non-negative.
+
+        Returns
+        -------
+        xr.DataArray
+            The adstock of a unit impulse, with a ``"time since exposure"`` lag
+            dimension of length ``l_max`` and the parameters' other dimensions.
+            The draws are in the posterior's order and under its labels, which
+            need not be the pipeline's; see :func:`_relabel_draws`.
+
+        Raises
+        ------
+        NotImplementedError
+            If *divides* and a kernel weight is negative, or the adstock is a
+            custom one that fails the homogeneity check.
+        """
+        adstock = self.model.adstock
+        parameters = self._adstock_parameters(posterior)
+        with _quiet_posterior_predictive_log():
+            weights = adstock.sample_curve(parameters=parameters, progressbar=False)
+        if divides and bool((weights < 0).any()):
+            raise NotImplementedError(
+                "estimand='allocation' needs the adstock's kernel weights to be "
+                "non-negative: with a negative weight the adstocked spend can "
+                "be zero or negative on a date where the contribution is not, "
+                "and that date would be left out of the matrix."
+            )
+        if not _is_builtin_adstock(adstock):
+            _require_homogeneous_adstock(adstock, weights, parameters)
+        return weights
+
     def split_incremental_contribution_current_future(
         self,
         frequency: Frequency,
         start_date: str | pd.Timestamp | None = None,
         end_date: str | pd.Timestamp | None = None,
         horizon: int | None = None,
+        method: Literal["pipeline", "closed_form"] = "pipeline",
         num_samples: int | None = None,
         random_state: RandomState | Generator | None = None,
         counterfactual_spend_factor: float = 0.0,
         central_tendency: CentralTendency = "median",
     ) -> xr.Dataset:
-        """Split each period's incremental contribution into current and future.
+        r"""Split each period's incremental contribution into current and future.
 
         *Current* is what a period's spend produced on the dates of that same
         reporting period, *future* is the carryover that lands afterwards.  The
@@ -1423,6 +3304,15 @@ class Incrementality:
             plus ``horizon`` data periods" would give spend early in a month a
             longer current window than spend late in it, which is neither
             definition of current.  Must lie in ``0 .. effective_horizon``.
+        method : {"pipeline", "closed_form"}, default="pipeline"
+            ``"pipeline"`` evaluates the model once per spend period and is
+            exact for every supported model.  ``"closed_form"`` computes the
+            same split, ``NaN`` for ``NaN``, from the adstock kernel and the
+            saturated spend, with no evaluation per period and no matrix; see
+            the Notes.  It raises on the models listed under ``method`` in
+            :meth:`split_incremental_contribution_over_time`, except the last:
+            the split has no estimand, so a ``counterfactual_spend_factor``
+            other than ``0`` works here.
         num_samples : int or None, optional
             Number of posterior samples to use; all of them when None.
         random_state : RandomState or Generator or None, optional
@@ -1460,8 +3350,12 @@ class Incrementality:
             If the reach probe forced full-axis evaluation: there is then no
             measured horizon for *future* to be a share of.  If ``horizon`` is
             negative, positive at an aggregated frequency, or past
-            ``effective_horizon``.  All of these are raised before any period is
-            evaluated.
+            ``effective_horizon``, or if ``method`` is unknown.  All of these
+            are raised before any period is evaluated.
+        NotImplementedError
+            For ``method="closed_form"`` on a model outside the class it is
+            exact for, or when the spend probe finds that spend moves the
+            response further than the kernel reaches.
 
         Notes
         -----
@@ -1491,6 +3385,17 @@ class Incrementality:
         ``effective_horizon`` periods before the last fitted date to get a
         complete all-time split.
 
+        With ``method="closed_form"``, spend on date :math:`s` puts
+        :math:`V_s W\,C(m)` into current and the rest of :math:`V_s W` into
+        future.  :math:`V_s` is the change in the saturated spend,
+        :math:`W` the kernel's total weight and :math:`C(m)` the share of the
+        kernel within the :math:`m` lags that count, as
+        :meth:`~pymc_marketing.mmm.components.adstock.AdstockTransformation.cumulative_weights`
+        returns it.  At ``frequency="original"`` :math:`m` is ``horizon`` for
+        every date; at an aggregated frequency it is the number of data periods
+        left in the reporting period.  A period's value is the sum over its
+        dates.
+
         See Also
         --------
         split_incremental_contribution_over_time : The per-date increments this
@@ -1507,6 +3412,11 @@ class Incrementality:
             # months whose carryover the data fully shows:
             split["future_share"].where(split["complete"])
         """
+        if method not in ("pipeline", "closed_form"):
+            raise ValueError(
+                f"method must be 'pipeline' or 'closed_form', got {method!r}"
+            )
+
         mode = self.model.adstock.mode
         if mode != ConvMode.After:
             raise ValueError(
@@ -1519,6 +3429,20 @@ class Incrementality:
             )
 
         lags = self._validate_horizon(horizon, frequency)
+
+        if method == "closed_form":
+            self._refuse_unsupported_closed_form()
+
+            return self._current_future_closed_form(
+                frequency=frequency,
+                start_date=start_date,
+                end_date=end_date,
+                lags=lags,
+                num_samples=num_samples,
+                random_state=random_state,
+                counterfactual_spend_factor=counterfactual_spend_factor,
+                central_tendency=central_tendency,
+            )
 
         increments = self._compute_increments(
             scope="per_channel",
@@ -1562,14 +3486,10 @@ class Incrementality:
 
         notes: list[str] = []
         if not all(complete):
-            notes.append(
-                "Some periods' carryover runs past the end of the fitted data; "
-                "future is NaN there, and so is current where that carryover "
-                "falls inside the current window."
-            )
+            notes.append(INCOMPLETE_SPLIT_NOTE)
 
         result.attrs = self._carryover_attrs(
-            increments,
+            increments.reach,
             estimand="counterfactual",
             method="pipeline",
             frequency=frequency,
@@ -1579,6 +3499,324 @@ class Incrementality:
         result.attrs["horizon"] = lags
 
         return result
+
+    def _current_future_closed_form(
+        self,
+        *,
+        frequency: Frequency,
+        start_date: str | pd.Timestamp | None,
+        end_date: str | pd.Timestamp | None,
+        lags: int,
+        num_samples: int | None,
+        random_state: RandomState | Generator | None,
+        counterfactual_spend_factor: float,
+        central_tendency: CentralTendency,
+    ) -> xr.Dataset:
+        r"""Build the current/future split of ``method="closed_form"`` without a matrix.
+
+        Date :math:`s`, spent in period :math:`P`, puts :math:`V_s \sum_{l \le m}
+        w_l` on the dates up to the period's current end, :math:`m` data periods
+        after it.  With :math:`W = \sum_l w_l` and :math:`C(m)` the share of the
+        kernel within :math:`m` lags, that is :math:`V_s W\,C(m)`, and the rest
+        of :math:`V_s W` is future.  A period's value is the sum over its dates.
+        At ``frequency="original"`` :math:`m` is the one constant ``horizon`` and
+        :math:`C` is the share
+        :meth:`~pymc_marketing.mmm.components.adstock.AdstockTransformation.cumulative_weights`
+        returns; at an aggregated frequency :math:`m` is the number of data
+        periods left in the reporting period, which depends on the date.  Both
+        read the cumulative kernel from one sampling, and no period-by-date
+        matrix is built.
+
+        ``NaN`` follows the pipeline: ``future`` where a period's carryover runs
+        past the data, ``current`` too when that carryover falls inside the
+        current window.
+
+        Parameters
+        ----------
+        frequency, start_date, end_date, num_samples, random_state
+            As in :meth:`split_incremental_contribution_current_future`.
+        counterfactual_spend_factor, central_tendency
+            As in :meth:`split_incremental_contribution_current_future`.
+        lags : int
+            Lags after each spend date that count as current, already validated.
+
+        Returns
+        -------
+        xr.Dataset
+            As :meth:`split_incremental_contribution_current_future`.
+        """
+        inputs = self._closed_form_inputs(
+            frequency=frequency,
+            start_date=start_date,
+            end_date=end_date,
+            num_samples=num_samples,
+            random_state=random_state,
+            central_tendency=central_tendency,
+            counterfactual_spend_factor=counterfactual_spend_factor,
+            lags=lags,
+        )
+        prepared = inputs.prepared
+        adstock = self.model.adstock
+        reach, windows = prepared.probed.reach, prepared.windows.windows
+        max_lag = reach.max_lag
+        if max_lag is None:  # pragma: no cover - _refuse_unbounded_reach ran
+            raise ValueError("An unbounded reach reached the closed form.")
+
+        # The kernel's weight within each lag, W C(m), read off one sampling of
+        # the kernel.  Its last entry is the whole kernel, so the future part is
+        # exactly zero for a date whose window covers it.
+        cumulative = _relabel_draws(
+            self._adstock_kernel(prepared.posterior, divides=False), inputs.labels
+        ).cumsum(LAG_DIM)
+
+        dates = self.data.dates
+        offset = prepared.freq_offset
+        saturated = inputs.saturated
+        out_dims = tuple(
+            str(dim) for dim in saturated.dims if dim not in ("chain", "draw", "date")
+        )
+        row_of = _row_of_dates(dates, prepared.periods)
+        current_end = pd.DatetimeIndex(
+            [
+                self._current_window_end(window.end, lags=lags, freq_offset=offset)
+                for window in windows
+            ]
+        )
+        spent, counted = self._lags_within_window(
+            dates,
+            row_of,
+            current_end,
+            l_max=adstock.l_max,
+            max_lag=max_lag,
+            freq_offset=offset,
+        )
+
+        cohorts = saturated.isel(date=spent)
+        within = cumulative.isel({LAG_DIM: xr.DataArray(counted, dims="date")})
+        within = within.assign_coords(date=cohorts["date"].values)
+        whole = cumulative.isel({LAG_DIM: -1}, drop=True)
+        order = ("chain", "draw", "date", *out_dims)
+        rows = row_of[spent]
+
+        current = self._sum_by_period(
+            (cohorts * within).transpose(*order).values, rows, len(windows)
+        )
+        future = self._sum_by_period(
+            (cohorts * (whole - within)).transpose(*order).values, rows, len(windows)
+        )
+
+        cut, current_unobserved, future_unobserved = self._cut_periods(
+            dates, row_of, current_end, max_lag=max_lag, freq_offset=offset
+        )
+        current[:, :, current_unobserved] = np.nan
+        future[:, :, future_unobserved] = np.nan
+
+        coords = {
+            **inputs.labels,
+            "spend_date": pd.Index(
+                [window.end for window in windows], name="spend_date"
+            ),
+            **{dim: saturated.coords[dim].values for dim in out_dims},
+        }
+        dims = ("chain", "draw", "spend_date", *out_dims)
+        result = self._current_future_dataset(
+            xr.DataArray(current, dims=dims, coords=coords),
+            xr.DataArray(future, dims=dims, coords=coords),
+            list(~cut),
+            period_starts=pd.DatetimeIndex([window.start for window in windows]),
+            frequency=frequency,
+            custom_dims=list(self.model.dims),
+        )
+
+        notes: list[str] = []
+        if cut.any():
+            notes.append(INCOMPLETE_SPLIT_NOTE)
+        result.attrs = self._carryover_attrs(
+            reach,
+            estimand="counterfactual",
+            method="closed_form",
+            frequency=frequency,
+            counterfactual_spend_factor=counterfactual_spend_factor,
+            notes=notes,
+        )
+        result.attrs["horizon"] = lags
+
+        return result
+
+    @staticmethod
+    def _current_window_end(
+        end: pd.Timestamp, *, lags: int, freq_offset: BaseOffset
+    ) -> pd.Timestamp:
+        """Return the last date a period's current window covers.
+
+        Parameters
+        ----------
+        end : pd.Timestamp
+            The period's end.
+        lags : int
+            Data periods after *end* that still count as current.
+        freq_offset : BaseOffset
+            The data's date frequency, which *lags* is counted in.
+
+        Returns
+        -------
+        pd.Timestamp
+            *end* plus *lags* data periods.
+        """
+        # Adding zero periods of an anchored offset rolls an off-anchor date
+        # forward (a month end plus 0 weeks is the next Sunday), so a zero lag
+        # leaves the period end where it is.
+        return end + lags * freq_offset if lags else end
+
+    @staticmethod
+    def _dates_past_the_data(
+        dates: pd.DatetimeIndex, *, periods: int, freq_offset: BaseOffset
+    ) -> pd.DatetimeIndex:
+        """Extend the fitted dates by *periods* data periods.
+
+        Parameters
+        ----------
+        dates : pd.DatetimeIndex
+            The fitted date axis.
+        periods : int
+            How many dates to add after the last one.
+        freq_offset : BaseOffset
+            The data's date frequency.
+
+        Returns
+        -------
+        pd.DatetimeIndex
+            *dates* followed by the *periods* dates after them.
+        """
+        return pd.DatetimeIndex(
+            dates.append(
+                pd.date_range(dates[-1], periods=periods + 1, freq=freq_offset)[1:]
+            )
+        )
+
+    @staticmethod
+    def _lags_within_window(
+        dates: pd.DatetimeIndex,
+        row_of: np.ndarray,
+        current_end: pd.DatetimeIndex,
+        *,
+        l_max: int,
+        max_lag: int,
+        freq_offset: BaseOffset,
+    ) -> tuple[np.ndarray, np.ndarray]:
+        """Count, for each spend date, the kernel lags inside its current window.
+
+        Lag :math:`l` of spend on date :math:`s` lands :math:`l` data periods
+        later, and it is current if that date is on or before the window's end.
+        Lags past the kernel carry no weight, so the count stops at
+        ``l_max - 1``.
+
+        Parameters
+        ----------
+        dates : pd.DatetimeIndex
+            The fitted date axis.
+        row_of : np.ndarray
+            Per date, its period, or ``-1``; see :func:`_row_of_dates`.
+        current_end : pd.DatetimeIndex
+            Per period, the last date of its current window.
+        l_max : int
+            The adstock's number of kernel weights.
+        max_lag : int
+            The measured reach, how far past the data a window can need dates.
+        freq_offset : BaseOffset
+            The data's date frequency.
+
+        Returns
+        -------
+        spent : np.ndarray
+            Indices of the dates that belong to a period.
+        counted : np.ndarray
+            For each of them, the last lag that is current, ``0 .. l_max - 1``.
+        """
+        spent = np.flatnonzero(row_of >= 0)
+        extended = Incrementality._dates_past_the_data(
+            dates, periods=max_lag, freq_offset=freq_offset
+        )
+        position = np.searchsorted(
+            extended.values, current_end.values[row_of[spent]], "right"
+        )
+        return spent, np.clip(position - 1 - spent, 0, l_max - 1)
+
+    @staticmethod
+    def _cut_periods(
+        dates: pd.DatetimeIndex,
+        row_of: np.ndarray,
+        current_end: pd.DatetimeIndex,
+        *,
+        max_lag: int,
+        freq_offset: BaseOffset,
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+        """Find the periods whose carryover the data cuts, and where that shows.
+
+        A period is cut when its last spend date plus the reach lies past the
+        last fitted date.  Its current value is then unobserved if the current
+        window reaches the first date after the data, and its future value if
+        the carryover runs past the window.
+
+        Parameters
+        ----------
+        dates : pd.DatetimeIndex
+            The fitted date axis.
+        row_of : np.ndarray
+            Per date, its period, or ``-1``; see :func:`_row_of_dates`.
+        current_end : pd.DatetimeIndex
+            Per period, the last date of its current window.
+        max_lag : int
+            The measured reach, in data periods.
+        freq_offset : BaseOffset
+            The data's date frequency.
+
+        Returns
+        -------
+        cut, current_unobserved, future_unobserved : np.ndarray
+            Booleans per period.
+        """
+        n_dates = len(dates)
+        last_spent = np.full(len(current_end), -1)
+        spent = np.flatnonzero(row_of >= 0)
+        np.maximum.at(last_spent, row_of[spent], spent)
+        cut = (last_spent >= 0) & (last_spent + max_lag > n_dates - 1)
+
+        extended = Incrementality._dates_past_the_data(
+            dates, periods=max_lag, freq_offset=freq_offset
+        )
+        reached = extended.values[np.where(cut, last_spent + max_lag, 0)]
+        # The first unobserved date comes from the last fitted one, since the
+        # extended axis is empty past the data when the reach is zero.
+        first_unobserved = dates[-1] + freq_offset
+        current_unobserved = cut & np.asarray(first_unobserved <= current_end)
+        future_unobserved = cut & (reached > current_end.values)
+        return cut, current_unobserved, future_unobserved
+
+    @staticmethod
+    def _sum_by_period(values: np.ndarray, rows: np.ndarray, n_rows: int) -> np.ndarray:
+        """Sum per-date values into their periods.
+
+        Parameters
+        ----------
+        values : np.ndarray
+            ``(chain, draw, date, *rest)`` on the dates that belong to a period.
+        rows : np.ndarray
+            Each of those dates' period, non-decreasing.
+        n_rows : int
+            The number of periods; a period without dates sums to ``0``.
+
+        Returns
+        -------
+        np.ndarray
+            ``(chain, draw, period, *rest)``.
+        """
+        summed = np.zeros((*values.shape[:2], n_rows, *values.shape[3:]))
+        if len(rows):
+            # Each period's dates are contiguous, so reduceat sums each run.
+            starts = np.flatnonzero(np.r_[True, rows[1:] != rows[:-1]])
+            summed[:, :, rows[starts]] = np.add.reduceat(values, starts, axis=2)
+        return summed
 
     @staticmethod
     def _validate_horizon(horizon: int | None, frequency: Frequency) -> int:
@@ -1694,10 +3932,9 @@ class Incrementality:
         complete : bool
             Whether every date in the band is observed.
         """
-        # Adding zero periods of an anchored offset rolls an off-anchor date
-        # forward (a month end plus 0 weeks is the next Sunday), so a zero lag
-        # leaves the period end where it is.
-        current_end = end + lags * freq_offset if lags else end
+        current_end = Incrementality._current_window_end(
+            end, lags=lags, freq_offset=freq_offset
+        )
         realization = band.indexes["realization_date"]
         in_current = (realization >= start) & (realization <= current_end)
 
@@ -1747,14 +3984,61 @@ class Incrementality:
             ``period_start`` and ``complete`` sit on ``spend_date``.
         """
         index = pd.Index(spend_dates, name="spend_date")
-        split = {
-            "current": xr.concat(current, dim=index),
-            "future": xr.concat(future, dim=index),
-        }
-        total = split["current"] + split["future"]
-        split["future_share"] = (split["future"] / total).where(total != 0)
 
-        result = xr.Dataset(split).assign_coords(
+        return Incrementality._current_future_dataset(
+            xr.concat(current, dim=index),
+            xr.concat(future, dim=index),
+            complete,
+            period_starts=period_starts,
+            frequency=frequency,
+            custom_dims=custom_dims,
+        )
+
+    @staticmethod
+    def _current_future_dataset(
+        current: xr.DataArray,
+        future: xr.DataArray,
+        complete: Sequence[bool],
+        *,
+        period_starts: pd.DatetimeIndex,
+        frequency: Frequency,
+        custom_dims: Sequence[str],
+    ) -> xr.Dataset:
+        """Assemble current, future and future share into the split's dataset.
+
+        The pipeline stacks one array per period into it, the closed form passes
+        every period at once.
+
+        Parameters
+        ----------
+        current, future : xr.DataArray
+            Dims ``(chain, draw, spend_date, channel, *custom_dims)`` in any
+            order, with ``spend_date`` labelled by each period's end.
+        complete : sequence of bool
+            Per period, whether its carryover is fully observed.
+        period_starts : pd.DatetimeIndex
+            Per period, its start.
+        frequency : Frequency
+            Aggregation of the spend periods.  ``"all_time"`` keeps
+            ``spend_date`` as a scalar coordinate instead of a dimension.
+        custom_dims : sequence of str
+            The model's own dimensions, placed last.
+
+        Returns
+        -------
+        xr.Dataset
+            ``current``, ``future`` and ``future_share``, the future value over
+            current plus future, ``NaN`` where that total is zero.  Coordinates
+            ``period_start`` and ``complete`` sit on ``spend_date``.
+        """
+        total = current + future
+        result = xr.Dataset(
+            {
+                "current": current,
+                "future": future,
+                "future_share": (future / total).where(total != 0),
+            }
+        ).assign_coords(
             period_start=("spend_date", period_starts),
             complete=("spend_date", list(complete)),
         )
@@ -1768,20 +4052,21 @@ class Incrementality:
 
     def _carryover_attrs(
         self,
-        increments: PeriodIncrements,
+        reach: SpendReach,
         *,
         estimand: str,
         method: str,
         frequency: Frequency,
         counterfactual_spend_factor: float,
         notes: list[str],
+        extra_assumptions: dict | None = None,
     ) -> dict:
         """Describe a carryover result in attributes ``to_netcdf`` can write.
 
         Parameters
         ----------
-        increments : PeriodIncrements
-            The evaluation the result was reduced from.
+        reach : SpendReach
+            What the spend probe measured for the evaluation behind the result.
         estimand, method : str
             As passed to :meth:`split_incremental_contribution_over_time`.
         frequency : Frequency
@@ -1791,6 +4076,8 @@ class Incrementality:
         notes : list of str
             Caller-specific notes on how to read the result; the ones every
             carryover result shares are appended here.
+        extra_assumptions : dict, optional
+            Further JSON-serializable entries for ``assumptions``.
 
         Returns
         -------
@@ -1802,7 +4089,6 @@ class Incrementality:
             reads an empty list back as a float array and a single note as a
             bare string.
         """
-        reach = increments.reach
         notes = list(notes)
         if reach.requires_full_axis:
             note = (
@@ -1836,6 +4122,7 @@ class Incrementality:
             "frequency": frequency,
             "counterfactual_spend_factor": float(counterfactual_spend_factor),
             "evaluation": "full_axis" if reach.requires_full_axis else "window",
+            **(extra_assumptions or {}),
         }
         attrs: dict = {"estimand": estimand, "method": method}
         if reach.max_lag is not None:
@@ -1844,62 +4131,44 @@ class Incrementality:
         attrs["warnings"] = json.dumps(notes)
         return attrs
 
-    def _compute_increments(
+    def _prepare_evaluation(
         self,
         *,
-        scope: Estimand,
         frequency: Frequency,
         start_date: str | pd.Timestamp | None,
         end_date: str | pd.Timestamp | None,
-        include_carryover: bool,
         num_samples: int | None,
         random_state: RandomState | Generator | None,
-        counterfactual_spend_factor: float,
         central_tendency: CentralTendency,
-        keep_date_axis: bool = False,
-        validate_reach: Callable[[SpendReach], None] | None = None,
-    ) -> PeriodIncrements:
-        """Shared machinery behind the per-channel and joint increments.
+        counterfactual_spend_factor: float,
+        include_carryover: bool,
+        validate_reach: Callable[[SpendReach], None] | None,
+        posterior: xr.Dataset | None = None,
+    ) -> PreparedEvaluation:
+        """Validate a request, subsample the posterior, probe the reach and build the windows.
 
-        Resolves which nodes the counterfactual reaches, compiles one batched
-        evaluator for them, builds the scenarios, evaluates, and reduces each
-        period.  The callers differ in ``scope`` and in how they lay the
-        periods out.
+        Everything that comes before a period is evaluated or a closed form is
+        read, in one order for every route, so that the pipeline and the closed
+        form validate, subsample and window a request the same way.
 
         Parameters
         ----------
-        scope : {"per_channel", "joint"}
-            Whether to perturb channels one at a time or all together.
-        frequency : Frequency
-            Time aggregation frequency.
-        start_date : str or pd.Timestamp, optional
-            Start of the evaluation range.
-        end_date : str or pd.Timestamp, optional
-            End of the evaluation range.
-        include_carryover : bool
-            Whether to extend the evaluation window by the carryover length.
-        num_samples : int or None
-            Posterior subsample size.
-        random_state : RandomState or Generator or None
-            Seed for the subsample.
+        frequency, start_date, end_date, num_samples, random_state, central_tendency
+            As in :meth:`_compute_increments`.
         counterfactual_spend_factor : float
             Multiplicative factor applied to spend in the counterfactual.
-        central_tendency : {"median", "mean"}
-            Central tendency of the differenced predictions.
-        keep_date_axis : bool, default=False
-            Return each period's increment per realization date instead of
-            summed over its evaluation window; see
-            :meth:`_compute_period_increments`.
+        include_carryover : bool
+            Whether to extend the evaluation window by the carryover length.
         validate_reach : callable, optional
-            Called with the measured :class:`~pymc_marketing.mmm.spend_reach.SpendReach`
-            before any period is evaluated, so that a request the reach rules
-            out fails before the expensive part rather than after it.
+            Called with the measured reach before the windows are built.
+        posterior : xr.Dataset, optional
+            An already subsampled posterior, used as is.
 
         Returns
         -------
-        PeriodIncrements
-            Each period's increment in the original scale of the target, with
-            the windows, measured reach and date frequency they came from.
+        PreparedEvaluation
+            The periods, the posterior, the reducer, the effects, the probe, the
+            date frequency and the windows.
 
         Raises
         ------
@@ -1909,7 +4178,6 @@ class Incrementality:
             If the link has no reducer, or a channel-dependent ``mu_effect`` has
             not opted in.
         """
-        # Validate inputs
         if counterfactual_spend_factor < 0:
             raise ValueError(
                 f"counterfactual_spend_factor must be >= 0, got {counterfactual_spend_factor}"
@@ -1919,17 +4187,18 @@ class Incrementality:
                 f"central_tendency must be 'median' or 'mean', got {central_tendency!r}"
             )
 
-        # Validate and parse dates
-        start_date_ts, end_date_ts = self._validate_input(start_date, end_date)
+        start_ts, end_ts = self._validate_input(start_date, end_date)
 
-        # Subsample posterior if needed (correctly across chain x draw)
-        posterior_sub = subsample_draws(
-            self.idata.posterior.dataset,
-            num_samples=num_samples,
-            random_state=random_state,
+        # Subsample the posterior across chain x draw, unless the caller did.
+        posterior_sub = (
+            posterior
+            if posterior is not None
+            else subsample_draws(
+                self.idata.posterior.dataset,
+                num_samples=num_samples,
+                random_state=random_state,
+            )
         )
-        n_chains = posterior_sub.sizes["chain"]
-        n_draws = posterior_sub.sizes["draw"]
 
         # Resolve the link-specific reduction and the effects to include before
         # compiling anything, so an unsupported link or an effect that has not
@@ -1937,18 +4206,73 @@ class Incrementality:
         reducer = self._build_reducer(posterior_sub, central_tendency)
         effects = resolve_channel_dependent_effects(self.model)
 
-        # Create period groups based on frequency
-        dates = self.data.dates
-        periods = self._create_period_groups(start_date_ts, end_date_ts, frequency)
+        periods = self._create_period_groups(start_ts, end_ts, frequency)
+        freq_offset = self._data_freq_offset()
 
-        inferred_freq: str | None = pd.infer_freq(dates)
-        if inferred_freq is None:
-            raise ValueError(
-                "Could not infer frequency from the date index. "
-                "Ensure the fitted data has a regular date frequency."
-            )
-        freq: str = inferred_freq
-        freq_offset = pd.tseries.frequencies.to_offset(freq)
+        probed = self._probe_reach(
+            posterior=posterior_sub,
+            effects=effects,
+            counterfactual_spend_factor=counterfactual_spend_factor,
+            validate_reach=validate_reach,
+        )
+
+        # The stretch of dates each period is evaluated over, which of them enter
+        # the sum, and the length they all stack to.
+        windows = EvaluationWindows.build(
+            periods=periods,
+            dates=self.data.dates,
+            l_max=probed.reach.effective_l_max,
+            freq_offset=freq_offset,
+            full_axis=probed.reach.requires_full_axis,
+            include_carryover=include_carryover,
+            mode=self.model.adstock.mode,
+        )
+
+        return PreparedEvaluation(
+            start_ts=start_ts,
+            end_ts=end_ts,
+            periods=periods,
+            posterior=posterior_sub,
+            reducer=reducer,
+            effects=tuple(effects),
+            probed=probed,
+            freq_offset=freq_offset,
+            windows=windows,
+        )
+
+    def _probe_reach(
+        self,
+        *,
+        posterior: xr.Dataset,
+        effects: Sequence[ChannelDependentEffect],
+        counterfactual_spend_factor: float,
+        validate_reach: Callable[[SpendReach], None] | None,
+    ) -> ProbedReach:
+        """Compile the batched evaluator, evaluate the baseline and probe the reach.
+
+        Called from :meth:`_prepare_evaluation` for every route.  The closed
+        form evaluates no period, but it still needs the reach and the channel
+        mixing that the probe measures on the evaluator.
+
+        Parameters
+        ----------
+        posterior : xr.Dataset
+            The already subsampled posterior the evaluator conditions on.
+        effects : sequence of ChannelDependentEffect
+            The channel-dependent effects to evaluate with ``channel_contribution``.
+        counterfactual_spend_factor : float
+            Multiplicative factor the probe applies to spend.
+        validate_reach : callable, optional
+            Called with the measured
+            :class:`~pymc_marketing.mmm.spend_reach.SpendReach`, so that a request
+            the reach rules out fails before anything else is evaluated.
+
+        Returns
+        -------
+        ProbedReach
+            The evaluator, the baseline and the probe with what it measured.
+        """
+        dates = self.data.dates
 
         # Compile one batched evaluator over every node the counterfactual
         # reaches: channel_contribution plus each included effect's contribution.
@@ -1990,7 +4314,7 @@ class Incrementality:
         # recorded, and the evaluator falls back to the live snapshot then.
         evaluator = CounterfactualEvaluator(
             pymc_model=posterior_predictive_model,
-            posterior=posterior_sub,
+            posterior=posterior,
             response_vars=[
                 CHANNEL_CONTRIBUTION,
                 *effect_names,
@@ -2058,19 +4382,124 @@ class Incrementality:
         )
         if validate_reach is not None:
             validate_reach(reach)
-        l_max = reach.effective_l_max
 
-        # The stretch of dates each period is evaluated over, which of them enter
-        # the sum, and the length they all stack to.
-        windows = EvaluationWindows.build(
-            periods=periods,
-            dates=dates,
-            l_max=l_max,
-            freq_offset=freq_offset,
-            full_axis=reach.requires_full_axis,
-            include_carryover=include_carryover,
-            mode=self.model.adstock.mode,
+        return ProbedReach(
+            evaluator=evaluator,
+            baseline=baseline,
+            baseline_array=baseline_array,
+            probe=probe,
+            reach=reach,
+            effect_names=effect_names,
+            trailing_lags=trailing_lags,
+            channel_data_dims=channel_data_dims,
         )
+
+    def _compute_increments(
+        self,
+        *,
+        scope: Estimand,
+        frequency: Frequency,
+        start_date: str | pd.Timestamp | None,
+        end_date: str | pd.Timestamp | None,
+        include_carryover: bool,
+        num_samples: int | None,
+        random_state: RandomState | Generator | None,
+        counterfactual_spend_factor: float,
+        central_tendency: CentralTendency,
+        keep_date_axis: bool = False,
+        validate_reach: Callable[[SpendReach], None] | None = None,
+        posterior: xr.Dataset | None = None,
+        validate_dedicated_rows: Callable[[bool], None] | None = None,
+    ) -> PeriodIncrements:
+        """Shared machinery behind the per-channel and joint increments.
+
+        Resolves which nodes the counterfactual reaches, compiles one batched
+        evaluator for them, builds the scenarios, evaluates, and reduces each
+        period.  The callers differ in ``scope`` and in how they lay the
+        periods out.
+
+        Parameters
+        ----------
+        scope : {"per_channel", "joint"}
+            Whether to perturb channels one at a time or all together.
+        frequency : Frequency
+            Time aggregation frequency.
+        start_date : str or pd.Timestamp, optional
+            Start of the evaluation range.
+        end_date : str or pd.Timestamp, optional
+            End of the evaluation range.
+        include_carryover : bool
+            Whether to extend the evaluation window by the carryover length.
+        num_samples : int or None
+            Posterior subsample size.
+        random_state : RandomState or Generator or None
+            Seed for the subsample.
+        counterfactual_spend_factor : float
+            Multiplicative factor applied to spend in the counterfactual.
+        central_tendency : {"median", "mean"}
+            Central tendency of the differenced predictions.
+        keep_date_axis : bool, default=False
+            Return each period's increment per realization date instead of
+            summed over its evaluation window; see
+            :meth:`_compute_period_increments`.
+        validate_reach : callable, optional
+            Called with the measured :class:`~pymc_marketing.mmm.spend_reach.SpendReach`
+            before any period is evaluated, so that a request the reach rules
+            out fails before the expensive part rather than after it.
+        posterior : xr.Dataset, optional
+            A posterior the caller has already subsampled, used as is:
+            ``num_samples`` and ``random_state`` are then ignored.  For a caller
+            that needs the very same draws for a second computation, since
+            drawing twice from a ``Generator`` gives two different subsets.
+        validate_dedicated_rows : callable, optional
+            Called with whether the model needs a dedicated counterfactual row
+            per channel (a channel-dependent ``mu_effect``, or a media transform
+            the probe measured to mix channels or could not measure), before
+            any period is evaluated.  For results that only make sense when each
+            channel's column depends on that channel's own spend alone.
+
+        Returns
+        -------
+        PeriodIncrements
+            Each period's increment in the original scale of the target, with
+            the windows, measured reach and date frequency they came from.
+
+        Raises
+        ------
+        ValueError
+            If an input is out of range, or the date frequency cannot be inferred.
+        NotImplementedError
+            If the link has no reducer, or a channel-dependent ``mu_effect`` has
+            not opted in.
+        """
+        prepared = self._prepare_evaluation(
+            frequency=frequency,
+            start_date=start_date,
+            end_date=end_date,
+            num_samples=num_samples,
+            random_state=random_state,
+            central_tendency=central_tendency,
+            counterfactual_spend_factor=counterfactual_spend_factor,
+            include_carryover=include_carryover,
+            validate_reach=validate_reach,
+            posterior=posterior,
+        )
+        posterior_sub = prepared.posterior
+        n_chains = posterior_sub.sizes["chain"]
+        n_draws = posterior_sub.sizes["draw"]
+        reducer = prepared.reducer
+        effects = prepared.effects
+        freq_offset = prepared.freq_offset
+        windows = prepared.windows
+        probed = prepared.probed
+        evaluator = probed.evaluator
+        baseline = probed.baseline
+        baseline_array = probed.baseline_array
+        probe = probed.probe
+        reach = probed.reach
+        effect_names = probed.effect_names
+        trailing_lags = probed.trailing_lags
+        channel_data_dims = probed.channel_data_dims
 
         # Two ways a per-channel column can stop being channel m's unilateral
         # counterfactual.  An effect can mix channels before reaching the
@@ -2085,6 +4514,9 @@ class Incrementality:
             scope == "per_channel"
             and probe.mixes_channels(non_date_dims=evaluator.non_date_dims)
         )
+        if validate_dedicated_rows is not None:
+            validate_dedicated_rows(needs_dedicated_rows)
+
         # Where a channel sits among channel_data's non-date axes.  Needed only
         # in per-channel mode, and it is not always axis 0.
         channel_axis = None
@@ -2397,10 +4829,15 @@ class Incrementality:
             over the period's evaluated dates and its unobserved tail, with a
             boolean ``observed`` coordinate on ``realization_date``.
         """
-        fit_data = self.idata.fit_data
         dates = self.data.dates
         channels = list(self.model.channel_columns)
         custom_dims = list(self.model.dims)
+        # The values are laid out by position along the channel data the
+        # baseline was evaluated on, so its labels are the ones they carry.
+        # Not ``fit_data``'s: ``create_fit_data`` sorts those, while a model
+        # built from an ``xr.Dataset`` keeps the Dataset's order (#3212).
+        channel_data = self.data.get_channel_data()
+        custom_coords = {dim: channel_data.coords[dim].values for dim in custom_dims}
         out_dims = ["channel", *custom_dims] if scope == "per_channel" else custom_dims
         results = []
 
@@ -2470,7 +4907,7 @@ class Incrementality:
             coords: dict = {
                 "chain": np.arange(n_chains),
                 "draw": np.arange(n_draws),
-                **{dim: fit_data.coords[dim].values for dim in custom_dims},
+                **custom_coords,
             }
             if scope == "per_channel":
                 coords["channel"] = channels
@@ -2496,6 +4933,43 @@ class Incrementality:
             results.append(period_result)
 
         return results
+
+    @staticmethod
+    def _tail_dates(
+        *,
+        window: PeriodWindow,
+        dates: pd.DatetimeIndex,
+        tail_lags: int,
+        freq_offset: BaseOffset,
+    ) -> pd.DatetimeIndex:
+        """List the dates past the fitted axis that a period's carryover lands on.
+
+        Parameters
+        ----------
+        window : PeriodWindow
+            The period's window.
+        dates : pd.DatetimeIndex
+            The full fitted date axis.
+        tail_lags : int
+            Lags after the period's last fitted spend date that its carryover
+            is known to reach, in data periods.
+        freq_offset : BaseOffset
+            The data's date frequency.
+
+        Returns
+        -------
+        pd.DatetimeIndex
+            From the first date after the last fitted date to the period's last
+            fitted spend date plus *tail_lags*; empty for a period with no fitted
+            spend date.
+        """
+        spend = dates[(dates >= window.start) & (dates <= window.end)]
+        tail = pd.DatetimeIndex([])
+        if len(spend):
+            reach_end = spend[-1] + tail_lags * freq_offset
+            tail = pd.date_range(dates[-1], reach_end, freq=freq_offset)
+            tail = tail[tail > dates[-1]]
+        return tail
 
     @staticmethod
     def _append_unobserved_tail(
@@ -2554,12 +5028,9 @@ class Incrementality:
             *band* with the unobserved dates appended and a boolean
             ``observed`` coordinate on ``realization_date``.
         """
-        spend = dates[(dates >= window.start) & (dates <= window.end)]
-        tail = pd.DatetimeIndex([])
-        if len(spend):
-            reach_end = spend[-1] + tail_lags * freq_offset
-            tail = pd.date_range(dates[-1], reach_end, freq=freq_offset)
-            tail = tail[tail > dates[-1]]
+        tail = Incrementality._tail_dates(
+            window=window, dates=dates, tail_lags=tail_lags, freq_offset=freq_offset
+        )
         realization = band.indexes["realization_date"].append(tail)
         return band.reindex(realization_date=realization).assign_coords(
             observed=("realization_date", ~realization.isin(tail))
@@ -2624,7 +5095,7 @@ class Incrementality:
             realization = realization.union(band.indexes["realization_date"])
 
         template = bands[0]
-        out_dims = template.dims[3:]
+        out_dims = tuple(map(str, template.dims[3:]))
         n_rows, n_cols = len(bands), len(realization)
         values = np.zeros(
             (
@@ -2649,6 +5120,57 @@ class Incrementality:
             for name, coord in template.coords.items()
             if name in ("chain", "draw", *out_dims)
         }
+        return Incrementality._matrix_from_arrays(
+            values,
+            observed,
+            realization=realization,
+            windows=windows,
+            coords=coords,
+            out_dims=out_dims,
+            frequency=frequency,
+        )
+
+    @staticmethod
+    def _matrix_from_arrays(
+        values: np.ndarray,
+        observed: np.ndarray,
+        *,
+        realization: pd.DatetimeIndex,
+        windows: Sequence[PeriodWindow],
+        coords: dict,
+        out_dims: Sequence[str],
+        frequency: Frequency,
+    ) -> xr.DataArray:
+        """Wrap a spend x realization array in the carryover matrix's coordinates.
+
+        Both routes build the matrix through this, so their layouts match: the
+        pipeline fills the array from per-period bands, the closed form from the
+        adstock kernel.
+
+        Parameters
+        ----------
+        values : np.ndarray
+            The entries, ``(chain, draw, spend_date, realization_date, *out_dims)``.
+        observed : np.ndarray
+            ``(spend_date, realization_date)``; ``False`` where the data ends
+            before the entry's date.
+        realization : pd.DatetimeIndex
+            The columns.
+        windows : sequence of PeriodWindow
+            One per row, in row order, for the rows' labels.
+        coords : dict
+            Coordinates of ``chain``, ``draw`` and *out_dims*.
+        out_dims : sequence of str
+            Dimensions after ``realization_date``.
+        frequency : Frequency
+            Aggregation of the spend periods; ``"all_time"`` drops ``spend_date``.
+
+        Returns
+        -------
+        xr.DataArray
+            Dims ``(chain, draw, spend_date, realization_date, *out_dims)`` with
+            ``period_start`` and ``observed`` coordinates.
+        """
         matrix = xr.DataArray(
             values,
             dims=("chain", "draw", "spend_date", "realization_date", *out_dims),

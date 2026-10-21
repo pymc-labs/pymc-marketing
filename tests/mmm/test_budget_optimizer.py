@@ -1988,6 +1988,343 @@ class TestDateAxisMustMatchTheBlocks:
             BudgetOptimizer(model=model, idata=idata, num_periods=5, adstock_periods=2)
 
 
+def test_price_response_and_channel_scales_compose_through_the_optimizer(mmm_wrapper):
+    """The ordering fix, reached through BudgetOptimizer's own wiring rather than a
+    hand-built MediaVariable: with channel_scales set, the node receives
+    implied_delivery / channel_scales, while implied_delivery itself -- the delivery the
+    money buys -- does not depend on the scales at all. A CustomModelWrapper has no
+    fitted price artifact, so the response opts out with an explicit reference."""
+    from pytensor import function
+
+    from pymc_marketing.mmm import PowerPriceResponse
+
+    channels = list(mmm_wrapper.channel_columns)
+    reference = xr.DataArray(
+        [50.0, 50.0], dims=("channel",), coords={"channel": channels}
+    )
+    response = PowerPriceResponse(
+        elasticity=0.3, reference_spend=reference, assume_delivery_units=True
+    )
+    scales = np.array([2.0, 5.0])
+
+    def node_input_and_report(channel_scales):
+        optimizer = BudgetOptimizer(
+            model=mmm_wrapper,
+            num_periods=30,
+            channel_scales=channel_scales,
+            price_response=response,
+            response_variable="total_media_contribution_original_scale",
+        )
+        variables = optimizer.optimization_variables
+        media = variables.variables[0]
+        x = np.array([30.0, 70.0])
+        node = function(
+            [variables.flat], media.to_model(variables.variable_slice(media.name))
+        )(x)
+        return node[: optimizer.num_periods], media.delivery_report(x)[
+            "implied_delivery"
+        ].values
+
+    node_unscaled, delivery_unscaled = node_input_and_report(1.0)
+    node_scaled, delivery_scaled = node_input_and_report(scales)
+
+    np.testing.assert_allclose(delivery_scaled, delivery_unscaled, rtol=1e-12)
+    np.testing.assert_allclose(node_scaled, delivery_scaled / scales, rtol=1e-12)
+    np.testing.assert_allclose(node_unscaled, delivery_unscaled, rtol=1e-12)
+
+
+def test_price_gate_names_a_missing_channel_dim_rather_than_a_missing_table():
+    """A model whose media dim is not called ``channel`` cannot be matched against the
+    fitted cost_per_unit table's columns, so no reference can be derived. That is a
+    different fact from "no table", and the refusal has to say which one it is, or the
+    user goes and sets a table they already have. Not reachable through MMM (its channel
+    data always carries a ``channel`` dim); reachable through any custom model with the
+    attr set. Without the attestation the refusal is about the attestation."""
+    from pymc_marketing.mmm import PowerPriceResponse
+
+    n_dates, media = 6, ["a", "b"]
+    with pm.Model(coords={"media": media}) as model:
+        model.add_coord("date", length=n_dates)
+        channel_data = pmd.Data(
+            "channel_data", np.ones((n_dates, 2)), dims=("date", "media")
+        )
+        beta = pmd.Normal("beta", 1.0, 0.1, dims="media")
+        pmd.Deterministic(
+            "total_media_contribution_original_scale",
+            (channel_data * beta).sum(),
+            dims=(),
+        )
+    prior = pm.sample_prior_predictive(draws=4, model=model, random_seed=1)
+    idata = xr.DataTree.from_dict({"posterior": prior.prior})
+    table = pd.DataFrame(
+        {"date": pd.date_range("2025-01-05", periods=3, freq="7D"), "a": 2.0, "b": 3.0}
+    )
+    idata.attrs["cost_per_unit"] = table.to_json(orient="split", date_format="iso")
+
+    def build(response):
+        return BudgetOptimizer(
+            model=model,
+            idata=idata,
+            num_periods=4,
+            adstock_periods=2,
+            price_response=response,
+        )
+
+    with pytest.raises(ValueError, match="a declaration, not evidence") as info:
+        build(PowerPriceResponse(elasticity=0.3))
+    assert "every optimized channel" in str(info.value)
+    with pytest.raises(ValueError, match=r"no 'channel' dim") as info:
+        build(PowerPriceResponse(elasticity=0.3, assume_delivery_units=True))
+    assert "no usable historical cost_per_unit table" not in str(info.value)
+    assert "set_cost_per_unit" not in str(info.value)
+    assert "['media']" in str(info.value)
+
+
+def _channel_model(channels, n_dates=6, node="channel_data"):
+    """A ``(date, channel)`` data node feeding the default response; prior draws stand in for the posterior."""
+    with pm.Model(coords={"channel": channels}) as model:
+        model.add_coord("date", length=n_dates)
+        channel_data = pmd.Data(
+            node, np.ones((n_dates, len(channels))), dims=("date", "channel")
+        )
+        beta = pmd.Normal("beta", 1.0, 0.1, dims="channel")
+        pmd.Deterministic(
+            "total_media_contribution_original_scale",
+            (channel_data * beta).sum(),
+            dims=(),
+        )
+    prior = pm.sample_prior_predictive(draws=4, model=model, random_seed=1)
+    return model, prior.prior
+
+
+def _split_json_table(prices: dict) -> str:
+    """A historical cost_per_unit table as MMM stores it in ``idata.attrs``."""
+    dates = pd.date_range("2025-01-05", periods=3, freq="7D")
+    return pd.DataFrame({"date": dates, **prices}).to_json(
+        orient="split", date_format="iso"
+    )
+
+
+def test_price_gate_does_not_refuse_a_map_that_adds_no_curvature():
+    """The gate keys on curvature, not on identity: a family that is linear in money
+    (#3067's bracket schedule) rescales the axis without bending it, so it needs no
+    attestation. Written against the ABC alone, with its default curved_cells and the
+    base implied_price, on an idata with no table at all, so nothing could anchor a
+    reference either."""
+    import pytensor.xtensor as ptx
+
+    from pymc_marketing.mmm.price_response import (
+        PriceResponse,
+        ResolvedPriceResponse,
+    )
+
+    class ResolvedHalfPrice(ResolvedPriceResponse):
+        def __init__(self, dims, shape):
+            self.dims = dims
+            self.is_identity = False
+            self.money_scale = np.ones(shape)
+            self.curved = np.zeros(shape, dtype=bool)
+
+        def to_delivery(self, spend, base_price=None):
+            units = 2.0 * ptx.math.maximum(spend, 0.0)
+            return units if base_price is None else units / base_price
+
+        def implied_marginal_price(self, spend, base_price=None):
+            price = 0.0 * spend + 0.5
+            return price if base_price is None else price * base_price
+
+    class HalfPrice(PriceResponse):
+        @property
+        def adds_curvature(self) -> bool:
+            return False
+
+        def resolve(
+            self,
+            *,
+            dims,
+            coords,
+            mask,
+            date_dim,
+            derived_reference,
+            label,
+            num_periods=None,
+        ):
+            template, _ = self._layout(dims, coords, mask)
+            return ResolvedHalfPrice(tuple(dims), template.shape)
+
+    model, posterior = _channel_model(["a", "b"])
+    optimizer = BudgetOptimizer(
+        model=model,
+        idata=xr.DataTree.from_dict({"posterior": posterior}),
+        num_periods=4,
+        adstock_periods=2,
+        price_response=HalfPrice(),
+    )
+    media = optimizer.optimization_variables.variables[0]
+    assert isinstance(media.price_response, ResolvedHalfPrice)
+    report = media.delivery_report(np.array([3.0, 5.0]))
+    np.testing.assert_allclose(report["implied_price"].values, 0.5)
+
+
+def test_inference_data_root_attrs_reach_the_price_gate():
+    """_to_datatree used to rebuild the tree from its groups and drop the root attrs, so a
+    priced model handed over as a legacy InferenceData could derive no reference.
+    arviz >= 1.2 has no InferenceData class (it is a DataTree), so the stand-in below is the
+    duck type the branch exists for: groups() plus one attribute per group. With the attrs
+    carried, the attested response reads the table and the next error is about the missing
+    channel_spend array, which is the true state of this idata."""
+
+    class LegacyInferenceData:
+        def __init__(self, posterior, attrs):
+            self.posterior = posterior
+            self.attrs = attrs
+
+        def groups(self):
+            return ["posterior"]
+
+    from pymc_marketing.mmm import PowerPriceResponse
+
+    model, posterior = _channel_model(["a", "b"])
+    idata = LegacyInferenceData(
+        posterior=posterior,
+        attrs={"cost_per_unit": _split_json_table({"a": 2.0, "b": 3.0})},
+    )
+
+    with pytest.raises(ValueError, match="channel_spend") as info:
+        BudgetOptimizer(
+            model=model,
+            idata=idata,
+            num_periods=4,
+            adstock_periods=2,
+            price_response=PowerPriceResponse(
+                elasticity=0.3, assume_delivery_units=True
+            ),
+        )
+    assert "no usable historical cost_per_unit table" not in str(info.value)
+
+
+def test_price_gate_matches_non_string_channel_labels_against_the_table():
+    """The table's JSON columns, the model's channel coords and a dict elasticity's keys are
+    compared as strings, so integer labels priced by the table get a derived reference and
+    an unpriced one is still named. The priced run then stops at the missing channel_spend,
+    the true state of this idata. The attestation refusal names every curved channel."""
+    from pymc_marketing.mmm import PowerPriceResponse
+
+    model, posterior = _channel_model([1, 2])
+    idata = xr.DataTree.from_dict({"posterior": posterior})
+    idata.attrs["cost_per_unit"] = _split_json_table({1: 2.0})
+
+    def build(elasticity, **kwargs):
+        return BudgetOptimizer(
+            model=model,
+            idata=idata,
+            num_periods=4,
+            adstock_periods=2,
+            price_response=PowerPriceResponse(elasticity=elasticity, **kwargs),
+        )
+
+    with pytest.raises(ValueError, match="a declaration, not evidence") as info:
+        build(0.3)
+    assert "channels ['1', '2']" in str(info.value)
+    for elasticity in (0.3, {2: 0.3}):
+        with pytest.raises(ValueError, match="reference_spend is required") as info:
+            build(elasticity, assume_delivery_units=True)
+        assert "channels ['2']" in str(info.value)
+    only_priced = xr.DataArray(
+        [0.3, 0.0], dims=("channel",), coords={"channel": [1, 2]}
+    )
+    for elasticity in (only_priced, {1: 0.3}, {"1": 0.3}):
+        with pytest.raises(ValueError, match="channel_spend") as info:
+            build(elasticity, assume_delivery_units=True)
+        assert "reference_spend is required" not in str(info.value)
+
+
+def test_the_table_anchors_no_reference_for_a_custom_node():
+    """MMM writes the historical cost_per_unit table for its channel_data node. A custom
+    channel_data_var that shares its channel labels is not tied to it, so a curved response
+    there needs the attestation and then a reference, as a spend variable does. A flat
+    response bends nothing and passes without either."""
+    from pymc_marketing.mmm import PowerPriceResponse
+
+    model, posterior = _channel_model(["a", "b"], node="media_spend")
+    idata = xr.DataTree.from_dict({"posterior": posterior})
+    idata.attrs["cost_per_unit"] = _split_json_table({"a": 2.0, "b": 3.0})
+
+    def build(response):
+        return BudgetOptimizer(
+            model=model,
+            idata=idata,
+            num_periods=4,
+            adstock_periods=2,
+            channel_data_var="media_spend",
+            price_response=response,
+        )
+
+    with pytest.raises(
+        ValueError, match=r"media_spend.*a declaration, not evidence"
+    ) as info:
+        build(PowerPriceResponse(elasticity=0.3))
+    assert "assume_delivery_units=True" in str(info.value)
+    assert "no historical table describes this node" in str(info.value)
+    with pytest.raises(
+        ValueError, match=r"media_spend.*reference_spend is required"
+    ) as info:
+        build(PowerPriceResponse(elasticity=0.3, assume_delivery_units=True))
+    assert "describes MMM's 'channel_data' node only" in str(info.value)
+    assert "set_cost_per_unit" not in str(info.value)
+
+    reference = xr.DataArray(
+        [50.0, 80.0], dims=("channel",), coords={"channel": ["a", "b"]}
+    )
+    attested = build(
+        PowerPriceResponse(
+            elasticity=0.3, assume_delivery_units=True, reference_spend=reference
+        )
+    )
+    resolved = attested.optimization_variables.variables[0].price_response
+    np.testing.assert_array_equal(resolved.reference_spend, [50.0, 80.0])
+    build(PowerPriceResponse(elasticity=0.0))
+
+
+def test_pinned_cell_warning_on_a_national_budget_warns_instead_of_raising():
+    """A channel_data node over date alone has a 0-d mask and a 0-d ``curved``. NumPy indexes a
+    0-d array with a 0-d boolean as one cell, so a priced national budget the bounds hold at
+    zero gets the warning instead of an IndexError."""
+    from pymc_marketing.mmm import PowerPriceResponse
+
+    n_dates = 6
+    with pm.Model() as model:
+        model.add_coord("date", length=n_dates)
+        channel_data = pmd.Data("channel_data", np.ones(n_dates), dims=("date",))
+        beta = pmd.Normal("beta", 1.0, 0.1)
+        pmd.Deterministic(
+            "total_media_contribution_original_scale",
+            (channel_data * beta).sum(),
+            dims=(),
+        )
+    prior = pm.sample_prior_predictive(draws=4, model=model, random_seed=1)
+    optimizer = BudgetOptimizer(
+        model=model,
+        idata=xr.DataTree.from_dict({"posterior": prior.prior}),
+        num_periods=4,
+        adstock_periods=2,
+        price_response=PowerPriceResponse(
+            elasticity=0.3,
+            reference_spend=xr.DataArray(50.0),
+            assume_delivery_units=True,
+        ),
+    )
+    assert optimizer.optimization_variables.variables[0].mask.ndim == 0
+    bounds = xr.DataArray(
+        [0.0, 0.0], dims=("bound",), coords={"bound": ["lower", "upper"]}
+    )
+    with pytest.warns(UserWarning, match="held at zero by budget_bounds"):
+        result = optimizer.allocate_budget(total_budget=0.0, budget_bounds=bounds)
+    # Every variable is fixed by its bounds, so SLSQP returns before it evaluates anything.
+    assert result.scipy_result.success, result.scipy_result.message
+    assert float(result.budgets) == 0.0
+
+
 def test_budget_optimizer_has_no_marketing_imports():
     """The optimizer stays a graph-level tool: levers are wired by name only."""
     banned = ("pymc_marketing.mmm.additive_effect", "pymc_marketing.mmm.mmm")
