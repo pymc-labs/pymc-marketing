@@ -1736,9 +1736,7 @@ def test_conditioned_model_refuses_pre_intervention_variable(
     conditioned_slope, slope_posteriors
 ):
     model, *_ = slope_posteriors
-    with pytest.raises(
-        ValueError, match="reads pre-intervention inputs of the source model"
-    ):
+    with pytest.raises(ValueError, match="reads inputs of the source model"):
         conditioned_slope.extract(model["doubled"])
 
 
@@ -1777,6 +1775,29 @@ def test_conditioned_model_accepts_a_free_symbolic_input():
     np.testing.assert_allclose(function([price], graph)(2.0), [[20.0, 80.0]])
 
 
+def test_conditioned_model_without_an_intervention_keeps_the_construction_data():
+    """Without an intervention the model is still cloned, so its data stay fixed.
+
+    Regression: ``intervention=None`` used the source model itself, so a
+    ``pm.set_data`` on it after construction reached every compiled graph,
+    while the same object built with an intervention kept the construction
+    data.
+    """
+    model, _ = _channel_conditioned_model()
+    conditioned = ConditionedModel(model, _channel_posterior([1.0, 2.0]))
+    fn = function([], conditioned.extract("resp"))
+
+    pm.set_data({"spend": np.array([100.0, 200.0])}, model=model)
+
+    np.testing.assert_allclose(fn(), [[10.0, 40.0]])
+    # A graph first extracted after the change reads the clone's data too.
+    later = conditioned.extract(conditioned.model["resp"] * 2.0)
+    np.testing.assert_allclose(function([], later)(), [[20.0, 80.0]])
+
+
+@pytest.mark.parametrize(
+    "with_intervention", [False, True], ids=["no-intervention", "with-intervention"]
+)
 @pytest.mark.parametrize(
     "build_response",
     [
@@ -1784,16 +1805,22 @@ def test_conditioned_model_accepts_a_free_symbolic_input():
         pytest.param(lambda model: model["resp"].sum("channel"), id="source-derived"),
     ],
 )
-def test_conditioned_model_refuses_a_source_model_graph(build_response):
-    """A source-model node and a graph derived over it are refused after an intervention."""
+def test_conditioned_model_refuses_a_source_model_graph(
+    build_response, with_intervention
+):
+    """A source-model node and a graph derived over it are refused.
+
+    The clone holds its own copy of every input, so a graph over the source
+    model would read the source's live data, and no intervention.
+    """
     model, spend = _channel_conditioned_model()
     conditioned = ConditionedModel(
-        model, _channel_posterior([1.0, 2.0]), intervention={"spend": spend}
+        model,
+        _channel_posterior([1.0, 2.0]),
+        intervention={"spend": spend} if with_intervention else None,
     )
 
-    with pytest.raises(
-        ValueError, match="reads pre-intervention inputs of the source model"
-    ):
+    with pytest.raises(ValueError, match="reads inputs of the source model"):
         conditioned.extract(build_response(model))
 
 

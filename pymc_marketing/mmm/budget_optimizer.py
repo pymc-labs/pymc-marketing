@@ -1699,6 +1699,7 @@ class BudgetOptimizer(BaseModel):
     _budget_distribution_over_period_tensor: XTensorVariable | None = PrivateAttr()
     _cost_per_unit_tensor: XTensorVariable | None = PrivateAttr()
     _media_variable: MediaVariable = PrivateAttr()
+    _frozen_model: Model = PrivateAttr()
     _pymc_model: Model = PrivateAttr()
     # Built by the first set_posterior; until then the graphs bake the draws in
     # as constants.
@@ -1983,10 +1984,11 @@ class BudgetOptimizer(BaseModel):
             self._variables.variable_slice(self.channel_data_var)
         )
 
-        self._pymc_model = do(
-            freeze_dims_and_data(self.model, data=[]),
-            self._variables.substitutions(),
-        )
+        # The frozen model before the substitutions: every conditioned model
+        # applies them to it itself, which keeps the decision vector an input
+        # of its clone (cloning the intervened model would copy the vector).
+        self._frozen_model = freeze_dims_and_data(self.model, data=[])
+        self._pymc_model = do(self._frozen_model, self._variables.substitutions())
 
         # 8. Validate that the requested response variable actually exists in
         # the underlying PyMC model.
@@ -3280,10 +3282,16 @@ class BudgetOptimizer(BaseModel):
         self._warn_uninformed_reach(cast(DataArray, self.budgets_to_optimize), informed)
 
     def _new_conditioned_model(self) -> ConditionedModel:
-        """Return a conditioned model over the intervened model and the current ``idata``."""
+        """Return a conditioned model over the optimization model and the current ``idata``.
+
+        It applies the decision-vector substitutions to the frozen model itself,
+        so its clone reads the optimizer's decision vector and none of the
+        data a later ``pm.set_data`` on the source would change.
+        """
         return ConditionedModel(
-            self._pymc_model,
+            self._frozen_model,
             _to_datatree(self.idata),
+            intervention=self._variables.substitutions(),
             frozen_deterministics=self.frozen_deterministics,
         )
 

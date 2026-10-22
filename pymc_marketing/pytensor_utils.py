@@ -29,6 +29,7 @@ from pymc.model.core import Model
 from pymc.model.fgraph import (
     ModelValuedVar,
     ModelVar,
+    clone_model,
     fgraph_from_model,
     model_from_fgraph,
 )
@@ -960,23 +961,24 @@ def _apply_intervention(
     model: Model,
     intervention: Mapping[str, Variable | np.ndarray | float] | None,
 ) -> Model:
-    """Return ``model`` with ``intervention`` applied, or ``model`` unchanged.
+    """Return a clone of ``model`` with ``intervention`` applied.
 
     Parameters
     ----------
     model : pm.Model
-        The model to transform.  Never modified: ``do`` clones it.
+        The model to transform.  Never modified.
     intervention : mapping or None
         A mapping of :func:`pymc.do` arguments -- variable name to intervention
-        value.  ``None`` leaves the model as it is.
+        value.  ``None`` clones the model unchanged.
 
     Returns
     -------
     pm.Model
-        The intervened model.
+        The intervened clone, whose data no later ``pm.set_data`` on ``model``
+        reaches.
     """
     if intervention is None:
-        return model
+        return clone_model(model)
     with warnings.catch_warnings():
         # The ``scale`` intervention references the target on purpose:
         # ``target * mask`` is what holds the factual value in the graph.
@@ -1016,16 +1018,34 @@ class ConditionedModel:
     the construction posterior, and on every rebind after that; a variable no
     graph reads is not validated.
 
+    The model is always cloned, by :func:`pymc.do` when an intervention is
+    given, so its data are fixed at construction: a later ``pm.set_data`` on
+    the model does not reach any graph handed out here.
+
     Parameters
     ----------
     model : pm.Model
-        The model to intervene on.
+        The model to intervene on.  It is cloned, never modified.
     idata : xr.DataTree or xr.Dataset
         Posterior draws to condition on.  A tree's ``posterior`` group is used.
     intervention : mapping, optional
-        A mapping of ``pm.do`` arguments.  ``None`` uses the model unchanged.
+        A mapping of ``pm.do`` arguments.  ``None`` clones the model unchanged.
     frozen_deterministics : list of str, optional
         Names of Deterministic variables to freeze at their posterior values.
+
+    Raises
+    ------
+    NotImplementedError, ValueError
+        If PyMC cannot clone ``model``, as for a model with custom initial
+        values or nested sub-models.
+
+    Notes
+    -----
+    Cloning copies every input of the model, including a free symbolic input
+    that is not a model variable, so a graph extracted here reads the clone's
+    copy of it and a function compiled against the original input fails to
+    compile.  Pass such an input through ``intervention`` instead:
+    :func:`pymc.do` keeps the inputs of an intervention expression.
 
     Examples
     --------
@@ -1053,17 +1073,13 @@ class ConditionedModel:
         # Every node of the clone, so an input read from outside it can be told
         # from one of the clone's own inputs by identity.
         self._clone_nodes = frozenset(ancestors(list(self._model.named_vars.values())))
-        # The source model's graph inputs, by identity.  After an intervention
-        # they still hold their pre-intervention values; without one the clone
-        # is the model itself, so no input can be pre-intervention.
-        self._pre_intervention_roots = (
-            frozenset(
-                node
-                for node in ancestors(list(model.named_vars.values()))
-                if node.owner is None and not isinstance(node, Constant)
-            )
-            if intervention is not None
-            else frozenset()
+        # The source model's graph inputs, by identity.  The clone holds copies
+        # of them, so a graph that reads one reads the source's live data and,
+        # after an intervention, its pre-intervention values.
+        self._source_roots = frozenset(
+            node
+            for node in ancestors(list(model.named_vars.values()))
+            if node.owner is None and not isinstance(node, Constant)
         )
         self._posterior = reorder_to_model_coords(
             _posterior_dataset(idata), self._model.coords
@@ -1118,10 +1134,11 @@ class ConditionedModel:
         response_vars : str, Variable, or sequence of either
             The response variable(s) to extract.  A name resolves against the
             intervened model, a ``Variable`` may be any graph over that clone,
-            and a sequence extracts all in one pass.  When an intervention was
-            applied, a graph that reads a root of the source model is refused,
-            since that input still holds its pre-intervention value; a free
-            input the model does not bind is accepted as a function argument.
+            and a sequence extracts all in one pass.  A graph that reads a root
+            of the source model is refused, since that input is not the
+            clone's: it holds the source's live data and no intervention.  A
+            free input the model does not bind is accepted as a function
+            argument.
 
         Returns
         -------
@@ -1135,8 +1152,8 @@ class ConditionedModel:
             If a requested name is not a variable of the intervened model, or
             if the current posterior lacks a variable the graph reads.
         ValueError
-            If a ``Variable`` reads a pre-intervention input of the source
-            model, if no response variable is given, or if a variable the graph
+            If a ``Variable`` reads an input of the source model, if no
+            response variable is given, or if a variable the graph
             reads has different non-sample dimensions, length or labels from
             its construction layout (or is labeled on one side only).
         """
@@ -1269,14 +1286,12 @@ class ConditionedModel:
         """Resolve a response against the intervened clone.
 
         A node the clone registers, and any graph built over it, is accepted.
-        Any other graph input is accepted as a function argument.  When an
-        intervention was applied, a graph whose leaves include a root of the
-        source model is refused: that input still holds its pre-intervention
-        value, so the graph would not carry the intervention.  The refusal
-        names those inputs, falling back to their type when they are anonymous.
-        With ``intervention=None`` the clone is the model itself, so no input
-        is treated as pre-intervention.  Constants are never treated as a
-        pre-intervention input.
+        Any other graph input is accepted as a function argument.  A graph
+        whose leaves include a root of the source model is refused: the clone
+        holds its own copy of every such input, so the graph would read the
+        source's live data and carry no intervention.  The refusal names those
+        inputs, falling back to their type when they are anonymous.  Constants
+        are never treated as an input of the source model.
         """
         if isinstance(var, str):
             if var not in self._model.named_vars:
@@ -1292,16 +1307,14 @@ class ConditionedModel:
             and not isinstance(node, Constant)
             and node not in self._clone_nodes
         ]
-        pre_intervention = [
-            node for node in outside_inputs if node in self._pre_intervention_roots
-        ]
-        if pre_intervention:
+        source_inputs = [node for node in outside_inputs if node in self._source_roots]
+        if source_inputs:
             raise ValueError(
-                f"{var!r} reads pre-intervention inputs of the source model: "
-                f"{self._describe_outside_inputs(pre_intervention)}. Pass a "
-                "name or a node of the model this object holds (its .model); "
-                "an input of the pre-intervention model would carry no "
-                "intervention into the graph."
+                f"{var!r} reads inputs of the source model: "
+                f"{self._describe_outside_inputs(source_inputs)}. Pass a name "
+                "or a node of the model this object holds (its .model); an "
+                "input of the source model is not the clone's, so it would "
+                "carry neither the intervention nor the clone's data."
             )
         return var
 
