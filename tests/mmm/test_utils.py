@@ -447,6 +447,52 @@ class TestCreateZeroDataset:
             result["_channel"].sel(channel="channel2").values == 0
         )  # Not provided
 
+    def test_create_zero_dataset_channel_xr_matched_by_label(self):
+        """channel_xr must be written by label, not by position (#3234).
+
+        A plan laid out with the model's dims swapped and one dim's labels
+        reversed (equal lengths, so the positional copy used to succeed) must
+        land on the cells the labels name, not on the cells the position names.
+        """
+        dates = pd.date_range("2022-01-01", "2022-01-31", freq="D")
+        geos, products = ["north", "south"], ["a", "b"]
+
+        class FakeAdstock:
+            l_max = 7
+
+        class FakeMMM2D:
+            date_column = "date"
+            channel_columns = ["tv", "radio"]
+            control_columns = []
+            dims = ["geo", "product"]
+            adstock = FakeAdstock()
+            xarray_dataset = xr.Dataset(
+                coords={"date": dates, "geo": geos, "product": products}
+            )
+
+        # Plan laid out (product, geo) with the geo labels reversed.
+        plan_da = xr.DataArray(
+            [[1.0, 2.0], [3.0, 4.0]],
+            dims=("product", "geo"),
+            coords={"product": products, "geo": ["south", "north"]},
+        )
+        plan = plan_da.to_dataset(name="tv")
+        plan["radio"] = plan_da * 10
+
+        result = create_zero_dataset(
+            FakeMMM2D(), "2022-02-01", "2022-02-10", plan, include_carryover=False
+        )
+        got = (
+            result["_channel"]
+            .isel(date=0)
+            .sel(channel="tv")
+            .transpose("geo", "product")
+        )
+        expected = (
+            plan["tv"].reindex(geo=geos, product=products).transpose("geo", "product")
+        )
+        assert np.allclose(got.values, expected.values)
+
     def test_create_zero_dataset_include_carryover_false(self):
         """Test create_zero_dataset with include_carryover=False."""
         model = FakeMMM()
