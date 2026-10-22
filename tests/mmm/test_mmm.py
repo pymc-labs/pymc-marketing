@@ -3224,6 +3224,18 @@ def _model_scale_by_label(mmm: MMM, name: str) -> xr.DataArray:
             id="target-country-unsorted",
         ),
         pytest.param(
+            "multi_dim_data",
+            ("country",),
+            "target",
+            ["channel_1", "channel_2", "channel_3"],
+            lambda: xr.DataArray(
+                [30_000.0, 40_000.0, 10_000.0, 20_000.0],
+                dims="country",
+                coords={"country": ["Chile", "Peru", "Venezuela", "Colombia"]},
+            ),
+            id="target-country-extra-label-ignored",
+        ),
+        pytest.param(
             "single_dim_data",
             (),
             "channel",
@@ -3456,12 +3468,16 @@ def test_fixed_scaling_dataarray_three_dims_country_product_channel(
 def test_multidimensional_fixed_scaling_dataarray_idata_roundtrip(
     multi_dim_data,
 ) -> None:
-    """Scaling with DataArray-valued FixedScaling survives idata attrs round-trip."""
+    """A DataArray-valued FixedScaling survives the idata attrs round-trip.
+
+    Distinct values per cell and unsorted labels, so a model built from the
+    restored scaling must match by label rather than by position.
+    """
     X, y = multi_dim_data
-    countries = ["Venezuela", "Colombia", "Chile"]
-    channels = ["channel_1", "channel_2", "channel_3"]
+    countries = ["Chile", "Venezuela", "Colombia"]
+    channels = ["channel_3", "channel_1", "channel_2"]
     da = xr.DataArray(
-        np.full((3, 3), 2_000.0),
+        100.0 * np.arange(1, 10, dtype=float).reshape(3, 3),
         dims=("country", "channel"),
         coords={"country": countries, "channel": channels},
     )
@@ -3475,7 +3491,7 @@ def test_multidimensional_fixed_scaling_dataarray_idata_roundtrip(
         scaling=scaling,
         date_column="date",
         target_column="target",
-        channel_columns=channels,
+        channel_columns=["channel_1", "channel_2", "channel_3"],
         dims=("country",),
     )
     mmm.build_model(X, y)
@@ -3485,6 +3501,22 @@ def test_multidimensional_fixed_scaling_dataarray_idata_roundtrip(
     assert isinstance(restored.channel, FixedScaling)
     assert isinstance(restored.channel.value, xr.DataArray)
     xr.testing.assert_equal(restored.channel.value, da)
+
+    loaded = MMM(
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+        scaling=restored,
+        date_column="date",
+        target_column="target",
+        channel_columns=["channel_1", "channel_2", "channel_3"],
+        dims=("country",),
+    )
+    loaded.build_model(X, y)
+    used = _model_scale_by_label(loaded, "channel_scale")
+    expected = da.sel(
+        country=used.coords["country"].values, channel=used.coords["channel"].values
+    ).transpose(*used.dims)
+    np.testing.assert_allclose(used.values, expected.values)
 
 
 def test_fixed_scaling_dict_missing_key(multi_dim_data) -> None:
