@@ -4558,9 +4558,9 @@ class Incrementality:
             variable the posterior lacks is left out, so the evaluator raises its
             usual error when the graph asks for it.  When none of the variables
             they read is in ``posterior`` -- in particular when they read none,
-            every channel parameter being fixed in the model config -- the whole
-            ``posterior`` is returned: an empty selection would drop the ``chain``
-            and ``draw`` dimensions the evaluator still broadcasts over.
+            every channel parameter being fixed in the model config -- the result
+            holds no variable, only the ``chain`` and ``draw`` coordinates the
+            evaluator still broadcasts over; an empty selection would drop them.
         """
         model = self.model.model
         resolved = [
@@ -4570,7 +4570,11 @@ class Incrementality:
             needed_posterior_names(model, resolved, self.model.frozen_deterministics)
         )
         names = [name for name in posterior.data_vars if name in read]
-        return posterior[names] if names else posterior
+        if names:
+            return posterior[names]
+        return xr.Dataset(
+            coords={"chain": posterior["chain"], "draw": posterior["draw"]}
+        )
 
     def _probe_reach(
         self,

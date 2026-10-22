@@ -6918,7 +6918,7 @@ class TestEvaluatorCache:
 
         The sample axis then has to come from the posterior itself, both on the
         call that builds the evaluator and on a later call that rebinds it to a
-        smaller subsample.
+        smaller subsample, and the cached evaluator still pins no draws.
         """
         from tests.mmm.conftest import mock_fit
 
@@ -6937,7 +6937,8 @@ class TestEvaluatorCache:
         )
         xr.testing.assert_allclose(result, expected, rtol=1e-8)
 
-        rebound = mmm.incrementality.compute_incremental_contribution(
+        incr = mmm.incrementality
+        rebound = incr.compute_incremental_contribution(
             frequency="all_time", num_samples=3, random_state=0
         )
         assert rebound.sizes["draw"] == 3
@@ -6947,6 +6948,10 @@ class TestEvaluatorCache:
             np.broadcast_to(expected.isel(chain=0, draw=0).values, rebound.shape),
             rtol=1e-8,
         )
+        cache = getattr(mmm, EVALUATOR_CACHE_ATTR)
+        evaluator = cache.get(incr._evaluator_cache_key(["channel_contribution"]))
+        assert evaluator is not None
+        assert not evaluator._conditioned.posterior.data_vars
 
     def test_a_leased_entry_is_out_of_the_cache_until_released(self):
         """A second request on a leased key misses rather than sharing it."""
