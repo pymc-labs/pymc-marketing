@@ -48,6 +48,7 @@ from scipy.stats import gaussian_kde
 
 from pymc_marketing.data.idata.mmm_wrapper import MMMIDataWrapper
 from pymc_marketing.data.idata.schema import Frequency
+from pymc_marketing.data.idata.utils import _aggregate_over_time
 from pymc_marketing.mmm.incrementality import Incrementality
 from pymc_marketing.mmm.summary.helpers import (
     DataFrameType,
@@ -56,7 +57,6 @@ from pymc_marketing.mmm.summary.helpers import (
     compute_residuals,
     compute_waterfall_components,
     get_channel_x_data,
-    get_prior_for_plot,
 )
 from pymc_marketing.mmm.summary.sensitivity import (
     sensitivity_analysis as _sensitivity_analysis,
@@ -346,7 +346,11 @@ class MMMSummaryFactory:
         4. Repeats a time-invariant intercept on every date, since the model
            adds it to ``mu`` in every period
            (:meth:`MMMIDataWrapper.broadcast_per_period_contributions`)
-        5. Aggregates data by frequency if specified
+        5. Aggregates data by frequency if specified. Summaries that decompose
+           contributions pass ``frequency=None`` and sum the decomposed
+           samples over each period instead: under ``link="log"`` the
+           decomposition is nonlinear in ``mu``, so it has to run on the
+           original dates.
 
         Parameters
         ----------
@@ -391,8 +395,9 @@ class MMMSummaryFactory:
     ) -> DataFrameType:
         """Create posterior predictive summary DataFrame.
 
-        Computes mean, median, and HDI bounds for posterior predictive samples,
-        along with observed values for comparison.
+        Computes mean, median, and HDI bounds for the posterior predictive
+        draws of the target in original units (``y * target_scale`` under
+        every link), along with observed values for comparison.
 
         Parameters
         ----------
@@ -426,11 +431,7 @@ class MMMSummaryFactory:
             hdi_probs, frequency, output_format
         )
 
-        # Get posterior predictive samples
-        if hasattr(data.idata, "posterior_predictive"):
-            pp_samples = data.to_original_scale(data.idata.posterior_predictive["y"])
-        else:
-            raise AttributeError("No posterior predictive samples found in idata")
+        pp_samples = data.get_predictive_target("posterior", original_scale=True)
 
         # Get observed data
         observed = data.get_target(original_scale=True)
@@ -501,7 +502,7 @@ class MMMSummaryFactory:
         """
         # Resolve all defaults in one call
         data, hdi_probs, output_format = self._prepare_data_and_hdi(
-            hdi_probs, frequency, output_format
+            hdi_probs, frequency=None, output_format=output_format
         )
 
         if component == "control":
@@ -521,6 +522,9 @@ class MMMSummaryFactory:
             if component not in contributions.data_vars:
                 raise ValueError(f"No {component} contributions found in model")
             component_data = contributions[component]
+
+        # Sum the per-date decomposition over each period
+        component_data = _aggregate_over_time(component_data, frequency or "original")
 
         # Compute summary stats with HDI
         df = self._compute_summary_stats_with_hdi(component_data, hdi_probs)
@@ -561,7 +565,8 @@ class MMMSummaryFactory:
             - **elementwise**: Simple element-wise division of contributions
               by spend. Does NOT account for carryover effects. Useful for
               daily efficiency tracking but not true incrementality.
-              Works with data-only factory.
+              Works with data-only factory. With a ``frequency``, contributions
+              and spend are each summed over the period before dividing.
         include_carryover : bool, default True
             Include adstock carryover effects. Only used when
             ``method="incremental"``.
@@ -681,9 +686,9 @@ class MMMSummaryFactory:
             )
         elif method == "elementwise":
             data = data.filter_dates(start_date=start_date, end_date=end_date)
-            if frequency is not None and frequency != "original":
-                data = data.aggregate_time(frequency)
-            roas = data.get_elementwise_roas(original_scale=True)
+            roas = data.get_elementwise_roas(
+                original_scale=True, period=frequency or "original"
+            )
         else:
             raise ValueError(
                 f"method must be 'incremental' or 'elementwise', got {method!r}"
@@ -996,11 +1001,13 @@ class MMMSummaryFactory:
         """
         # Resolve all defaults in one call
         data, hdi_probs, output_format = self._prepare_data_and_hdi(
-            hdi_probs, frequency, output_format
+            hdi_probs, frequency=None, output_format=output_format
         )
 
-        # Get all contributions
-        contributions = data.get_contributions(original_scale=True)
+        # Get all contributions, the per-date decomposition summed over each period
+        contributions = _aggregate_over_time(
+            data.get_contributions(original_scale=True), frequency or "original"
+        )
 
         all_dfs = []
 
@@ -1077,11 +1084,14 @@ class MMMSummaryFactory:
         """
         # Resolve all defaults in one call
         data, hdi_probs, output_format = self._prepare_data_and_hdi(
-            hdi_probs, frequency, output_format
+            hdi_probs, frequency=None, output_format=output_format
         )
 
-        # Get contributions (chain, draw, date, channel)
-        contributions = data.get_channel_contributions(original_scale=True)
+        # Get contributions (chain, draw, date, channel), summed over each period
+        contributions = _aggregate_over_time(
+            data.get_channel_contributions(original_scale=True),
+            frequency or "original",
+        )
 
         # Check for date dimension
         if "date" not in contributions.dims:
@@ -1259,7 +1269,10 @@ class MMMSummaryFactory:
         frequency : Frequency, optional
             Time aggregation period (default: None, no aggregation)
         original_scale : bool, default True
-            If True, summarize ``y_original_scale`` from ``idata.prior``.
+            If True, summarize the prior predictive draws of the target in
+            original units (``y * target_scale``; the stored
+            ``prior["y_original_scale"]`` when registered, otherwise derived
+            from ``prior_predictive["y"]``).
             If False, summarize ``y`` from ``idata.prior_predictive``.
         output_format : {"pandas", "polars"}, optional
             Output DataFrame format (default: uses factory default)
@@ -1278,14 +1291,7 @@ class MMMSummaryFactory:
             hdi_probs, frequency, output_format
         )
 
-        pp_ds = get_prior_for_plot(data, original_scale)
-        var_name = "y_original_scale" if original_scale else "y"
-        if var_name not in pp_ds:
-            raise AttributeError(
-                f"Variable '{var_name}' not found in prior predictive data. "
-                f"Available: {list(pp_ds.data_vars)}"
-            )
-        pp_samples = pp_ds[var_name]
+        pp_samples = data.get_predictive_target("prior", original_scale)
 
         observed = data.get_target(original_scale=original_scale)
         df = self._compute_summary_stats_with_hdi(pp_samples, hdi_probs)

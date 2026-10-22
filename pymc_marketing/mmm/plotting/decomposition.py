@@ -190,6 +190,7 @@ class DecompositionPlots:
                 f"Unknown contribution type(s): {invalid}. Valid options: {all_keys}"
             )
 
+        data = data.broadcast_per_period_contributions()
         contributions_ds = data.get_contributions(
             original_scale=original_scale,
             include_baseline="baseline" in include_set,
@@ -200,21 +201,6 @@ class DecompositionPlots:
             contributions_ds = contributions_ds.drop_vars("channels", errors="ignore")
 
         extra_dims = list(data.custom_dims)
-
-        # Find date coordinate from any contribution that has a date dim.
-        # Fall back to the raw posterior coordinate so baseline-only plots work.
-        dates_coord = next(
-            (
-                contributions_ds[k].coords["date"]
-                for k in contributions_ds.data_vars
-                if "date" in contributions_ds[k].dims
-            ),
-            None,
-        )
-        if dates_coord is None:
-            posterior = data.idata.posterior
-            if "date" in posterior.coords:
-                dates_coord = posterior.coords["date"]
 
         # Build flat entries: each entry has dims (chain, draw, date[, extra_dims])
         # so the rendering loop below is unchanged.
@@ -228,15 +214,8 @@ class DecompositionPlots:
                 )
 
         if "baseline" in contributions_ds:
-            bl_da = contributions_ds["baseline"]
-            # baseline has no date dim — broadcast it over the date axis
-            bl_broadcast = (
-                bl_da.expand_dims({"date": dates_coord})
-                if dates_coord is not None
-                else bl_da
-            )
             entries_ds["baseline"] = _select_dims(
-                bl_broadcast, dims, allow_missing=True
+                contributions_ds["baseline"], dims, allow_missing=True
             )
 
         if "controls" in contributions_ds:

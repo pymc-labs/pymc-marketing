@@ -490,6 +490,8 @@ def test_additive_effect_type_registered(type_key):
 class TestDataVarMuEffect:
     """Tests for the DataVarMuEffect base class."""
 
+    GEOS = ["north", "east", "south"]  # not sorted
+
     def test_instantiation_error(self):
         """DataVarMuEffect is abstract and cannot be instantiated directly."""
         with pytest.raises(TypeError):
@@ -680,6 +682,73 @@ class TestDataVarMuEffect:
                 new_ds["shared"].values,
             )
 
+    def _make_geo_setup(self, dates):
+        """Mock MMM and effect reading a ``(date, geo)`` column on unsorted geos."""
+        rng = np.random.default_rng(42)
+        ds = xr.Dataset(
+            {"feature": (("date", "geo"), rng.normal(size=(len(dates), 3)))},
+            coords={"date": dates, "geo": self.GEOS},
+        )
+        model = pm.Model(coords={"date": dates, "geo": self.GEOS})
+        mmm = self._make_mock_mmm(model, ds)
+
+        class Effect(DataVarMuEffect):
+            data_vars: list[str] = ["feature"]
+            prefix: str = "geo"
+
+            def create_effect(self, mmm):  # type: ignore
+                return pt.as_tensor(0.0)
+
+        effect = Effect()
+        with model:
+            effect.create_data(mmm)
+        return mmm, ds, model, effect
+
+    def test_set_data_aligns_labels_to_the_model(self, dates):
+        """Each label's values land in that label's slot, whatever the input order."""
+        mmm, ds, model, effect = self._make_geo_setup(dates)
+        new_ds = ds.sortby("geo") + 1.0
+
+        effect.set_data(mmm, model, new_ds)
+
+        np.testing.assert_allclose(
+            model["feature"].get_value(borrow=False),
+            new_ds["feature"].sel(geo=self.GEOS).values,
+        )
+
+    def test_set_data_keeps_a_variable_absent_from_X(self, dates):
+        """A variable ``X`` does not carry keeps its training values.
+
+        This pins the documented contract rather than endorsing it: freezing
+        effect data at training values without a warning is the sharp edge
+        discussed in issue #2938.
+        """
+        mmm, ds, model, effect = self._make_geo_setup(dates)
+        before = model["feature"].get_value(borrow=False)
+
+        effect.set_data(mmm, model, ds.drop_vars("feature") + 1.0)
+
+        np.testing.assert_array_equal(model["feature"].get_value(borrow=False), before)
+
+    @pytest.mark.parametrize(
+        "geos, pattern",
+        [
+            (["north", "east", "south", "west"], r"does not have.*west"),
+            (["north", "east", "west"], r"does not have.*west"),
+            (["east", "north"], r"missing.*south"),
+        ],
+        ids=["extra_label", "relabelled", "missing_label"],
+    )
+    def test_set_data_rejects_labels_that_do_not_match_the_model(
+        self, dates, geos, pattern
+    ):
+        """A label the model lacks, or a model label the data lacks, is an error."""
+        mmm, ds, model, effect = self._make_geo_setup(dates)
+        new_ds = ds.reindex(geo=geos, fill_value=0.0)
+
+        with pytest.raises(ValueError, match=pattern):
+            effect.set_data(mmm, model, new_ds)
+
     def test_create_data_raises_on_non_data_name_collision(self, dates):
         """A dataset column that matches a non-data variable must not be skipped."""
         mmm, _, _, _ = self._make_shared_var_setup(dates)
@@ -717,6 +786,87 @@ class TestDataVarMuEffect:
             pmd.Data("shared", np.ones((len(dates), 2)), dims=("date", "other"))
             with pytest.raises(ValueError, match=r"Cannot reuse pm\.Data"):
                 Effect().create_data(mmm)
+
+    @pytest.mark.parametrize(
+        "new_dims, n_products",
+        [
+            # Equal lengths: a positional write would not raise and would store
+            # the values transposed.
+            pytest.param(("date", "channel", "product"), 2, id="same_length_swap"),
+            pytest.param(("product", "date", "channel"), 3, id="date_not_first"),
+        ],
+    )
+    def test_set_data_matches_values_by_dimension_name(
+        self, dates, new_dims, n_products
+    ):
+        """Regression for #3224: the prediction dataset's layout does not matter."""
+        coords = {
+            "date": dates,
+            "product": [f"p{i}" for i in range(n_products)],
+            "channel": ["tv", "radio"],
+        }
+        shape = tuple(len(values) for values in coords.values())
+        rng = np.random.default_rng(0)
+        ds = xr.Dataset(
+            {"feature": (tuple(coords), rng.normal(size=shape))}, coords=coords
+        )
+        new_ds = xr.Dataset(
+            {"feature": (tuple(coords), rng.normal(size=shape))}, coords=coords
+        )
+        new_ds["feature"] = new_ds["feature"].transpose(*new_dims)
+        model = pm.Model(coords=coords)
+        mmm = self._make_mock_mmm(model, ds)
+
+        class Effect(DataVarMuEffect):
+            data_vars: list[str] = ["feature"]
+            prefix: str = "test"
+
+            def create_effect(self, mmm):  # type: ignore
+                return pt.as_tensor(0.0)
+
+        effect = Effect()
+        with model:
+            effect.create_data(mmm)
+        effect.set_data(mmm, model, new_ds)
+
+        model_dims = model.named_vars_to_dims["feature"]
+        np.testing.assert_array_equal(
+            model["feature"].get_value(),
+            new_ds["feature"].transpose(*model_dims).values,
+        )
+
+    def test_set_data_writes_node_registered_without_dims(self, dates):
+        """A subclass may register its ``pm.Data`` without dims and inherit ``set_data``."""
+        rng = np.random.default_rng(0)
+        ds = xr.Dataset(
+            {"feature": (("date",), rng.normal(size=len(dates)))},
+            coords={"date": dates},
+        )
+        new_ds = xr.Dataset(
+            {"feature": (("date",), rng.normal(size=len(dates)))},
+            coords={"date": dates},
+        )
+        model = pm.Model(coords={"date": dates})
+        mmm = self._make_mock_mmm(model, ds)
+
+        class Effect(DataVarMuEffect):
+            data_vars: list[str] = ["feature"]
+            prefix: str = "test"
+
+            def create_data(self, mmm):  # type: ignore
+                pm.Data("feature", mmm.xarray_dataset["feature"].values)
+
+            def create_effect(self, mmm):  # type: ignore
+                return pt.as_tensor(0.0)
+
+        effect = Effect()
+        with model:
+            effect.create_data(mmm)
+        effect.set_data(mmm, model, new_ds)
+
+        np.testing.assert_array_equal(
+            model["feature"].get_value(), new_ds["feature"].values
+        )
 
 
 class TestMediaMuEffect:
@@ -919,6 +1069,103 @@ class TestMediaMuEffect:
         assert type(restored.media_transformation.saturation) is LogisticSaturation
         assert restored.media_transformation.adstock_first is True
         assert restored == original
+
+    PARAMETERS = ("adstock_alpha", "saturation_lam", "saturation_beta")
+
+    @staticmethod
+    def _build(effect, dates, extra_coords) -> pm.Model:
+        """Register the effect's data and build it in a fresh model."""
+        channels = ["tv", "digital"]
+        coords = {"date": dates, **extra_coords, "channel": channels}
+        shape = [len(values) for values in coords.values()]
+        ds = xr.Dataset(
+            {"media_data": (tuple(coords), np.ones(shape))},
+            coords=coords,
+        )
+        model = pm.Model(coords=coords)
+        mmm = type(
+            "MockMMM",
+            (),
+            {"dims": tuple(extra_coords), "model": model, "xarray_dataset": ds},
+        )()
+        with model:
+            effect.create_data(mmm)
+            effect.create_effect(mmm)
+        return model
+
+    @classmethod
+    def _parameter_dims(cls, model: pm.Model) -> dict[str, tuple[str, ...]]:
+        """Dims of the transformation parameters; ``KeyError`` if one is missing."""
+        return {name: model.named_vars_to_dims[name] for name in cls.PARAMETERS}
+
+    @pytest.mark.parametrize(
+        "extra_coords",
+        [
+            pytest.param({}, id="no_dims"),
+            pytest.param({"product": ["A", "B"]}, id="single_dim"),
+        ],
+    )
+    def test_default_priors_take_media_transformation_dims(self, dates, extra_coords):
+        """Priors without dims get one parameter per ``media_transformation.dims`` cell."""
+        transformation_dims = (*extra_coords, "channel")
+        effect = MediaMuEffect(
+            data_vars=["media_data"],
+            media_transformation=MediaTransformation(
+                adstock=GeometricAdstock(l_max=4),
+                saturation=LogisticSaturation(),
+                adstock_first=True,
+                dims=transformation_dims,
+            ),
+            prefix="media",
+        )
+
+        model = self._build(effect, dates, extra_coords)
+
+        assert self._parameter_dims(model) == dict.fromkeys(
+            self.PARAMETERS, transformation_dims
+        )
+
+    def test_explicit_prior_dims_are_kept(self, dates):
+        """Only priors without dims take ``media_transformation.dims``."""
+        effect = MediaMuEffect(
+            data_vars=["media_data"],
+            media_transformation=MediaTransformation(
+                adstock=GeometricAdstock(
+                    l_max=4, priors={"alpha": Prior("Beta", alpha=1, beta=3, dims=())}
+                ),
+                saturation=LogisticSaturation(),
+                adstock_first=False,
+                dims=("channel",),
+            ),
+            prefix="media",
+        )
+
+        model = self._build(effect, dates, {})
+
+        assert self._parameter_dims(model) == {
+            "adstock_alpha": (),
+            "saturation_lam": ("channel",),
+            "saturation_beta": ("channel",),
+        }
+
+    def test_serialized_effect_builds_the_same_parameters(self, dates):
+        """An effect restored from its serialization builds the parameters it built."""
+        effect = MediaMuEffect(
+            data_vars=["media_data"],
+            media_transformation=MediaTransformation(
+                adstock=GeometricAdstock(l_max=4),
+                saturation=LogisticSaturation(),
+                adstock_first=True,
+                dims=("channel",),
+            ),
+            prefix="media",
+        )
+        model = self._build(effect, dates, {})
+        restored = serialization.deserialize(serialization.serialize(effect))
+
+        restored_model = self._build(restored, dates, {})
+
+        assert self._parameter_dims(restored_model) == self._parameter_dims(model)
 
 
 class TestControlMuEffect:

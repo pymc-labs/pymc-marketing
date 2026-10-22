@@ -290,18 +290,12 @@ class TypeRegistry:
         from pymc_extras.prior import Prior
 
         if isinstance(value, Prior):
-            result: dict[str, Any] = {
-                "dist": value.distribution,
-                "kwargs": {
-                    k: self._serialize_config_value(v)
-                    for k, v in value.parameters.items()
-                },
-            }
-            if value.dims is not None:
-                result["dims"] = value.dims
-            if not value.centered:
-                result["centered"] = False
-            return result
+            # ``Prior.to_dict`` writes every attribute (``dims``, ``centered``,
+            # ``transform``, ...) and encodes nested parameters in the format
+            # ``Prior.from_dict`` reads back. The model id uses the same encoding.
+            # Its output can still hold numpy scalars (for example ``np.int64``
+            # or ``np.float32``) that ``json`` cannot encode, so convert them.
+            return self._serialize_config_value(value.to_dict())
 
         type_key = f"{value.__class__.__module__}.{value.__class__.__qualname__}"
         if type_key in self._registry:

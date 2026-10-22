@@ -26,6 +26,8 @@ from pytensor import xtensor as ptx
 from pytensor.graph.basic import Variable
 from pytensor.graph.replace import graph_replace
 
+from pymc_marketing.mmm.optimization_variables import align_to_model_coords
+
 logger = logging.getLogger(__name__)
 
 
@@ -317,9 +319,12 @@ def create_zero_dataset(
     is a leading block of real spend before the window; that is
     ``include_last_observations``.
 
-    For a scenario that is neither -- a planned promotional calendar, a
-    committed lower-funnel budget -- build the model with
-    :meth:`~pymc_marketing.mmm.mmm.MMM.create_optimization_model`,
+    For a scenario that is neither, planned controls go through the
+    ``control_data`` argument of
+    :meth:`~pymc_marketing.mmm.mmm.MMM.create_optimization_model` and
+    :meth:`~pymc_marketing.mmm.mmm.MMM.budget_optimizer`.  For the variables
+    the effects read -- a committed lower-funnel budget, say -- build the model
+    with :meth:`~pymc_marketing.mmm.mmm.MMM.create_optimization_model`,
     ``pm.set_data`` those variables on it, and hand that model to
     ``BudgetOptimizer`` directly.  That model's date axis is three blocks,
     ``carry_in + decisions + carry_over``, each flank
@@ -494,11 +499,14 @@ def create_zero_dataset(
         if "date" in channel_xr.dims:
             raise ValueError("`channel_xr` must NOT include the date dimension.")
 
+        coords = {dim: list(dim_coords[dim]) for dim in dim_cols}
         for ch in channel_cols:
             if ch in channel_xr.data_vars:
-                ch_idx = channel_cols.index(ch)
-                vals = channel_xr[ch].values
-                channel_data[..., ch_idx] = np.broadcast_to(
+                da = align_to_model_coords(
+                    channel_xr[ch], coords, label=f"channel_xr[{ch!r}]"
+                )
+                vals = da.transpose(*dim_cols).values
+                channel_data[..., channel_cols.index(ch)] = np.broadcast_to(
                     vals, (n_dates, *vals.shape)
                 )
 
@@ -519,15 +527,6 @@ def create_zero_dataset(
         ctrl_coords["control"] = control_cols
 
         if preserve_observed and "_control" in xa:
-            # Only the date axis is reindexed, deliberately. `build_model` calls
-            # `pmd.Data("control_data", xarray_dataset._control)`, so the model's
-            # `control` coord order *is* the training variable's, and inheriting
-            # it here is what keeps `pm.set_data` -- which writes positionally --
-            # aligned. Reordering to `model.control_columns` looks tidier and
-            # silently misaligns every control coefficient. (The zero-filled
-            # branch below does order by `control_columns`; that disagrees with
-            # the model whenever the two differ, and is harmless only because
-            # zeros are order-invariant.)
             data_vars["_control"] = xa["_control"].reindex(date=new_dates, fill_value=0)
         else:
             data_vars["_control"] = xr.DataArray(
@@ -599,6 +598,230 @@ def create_zero_dataset(
             )
 
     return dataset
+
+
+_MISSING_CONTROLS = (
+    "control_data is missing the control columns {}. Give planned values for "
+    "every control, including any you expect to stay at zero."
+)
+
+
+def _planned_controls_from_frame(
+    control_data: pd.DataFrame,
+    date_column: str,
+    dims: list[str],
+    control_columns: list[str],
+) -> xr.DataArray:
+    index_cols = [date_column, *dims]
+    missing_index = [c for c in index_cols if c not in control_data.columns]
+    if missing_index:
+        raise ValueError(f"control_data is missing the columns {missing_index}.")
+    missing = [c for c in control_columns if c not in control_data.columns]
+    if missing:
+        raise ValueError(_MISSING_CONTROLS.format(missing))
+
+    # Only the index and control columns are read, so future rows of ``X`` can
+    # be passed as they are, channel columns and all.
+    frame = control_data[[*index_cols, *control_columns]].assign(
+        **{date_column: pd.to_datetime(control_data[date_column])}
+    )
+    duplicated = frame.duplicated(subset=index_cols, keep=False)
+    if duplicated.any():
+        example = frame.loc[duplicated, index_cols].iloc[0].to_dict()
+        raise ValueError(
+            f"control_data has {int(duplicated.sum())} rows that share their "
+            f"{index_cols} values with another row, for example {example}. "
+            "Give one row per date" + (" and dim label." if dims else ".")
+        )
+
+    planned = (
+        frame.set_index(index_cols)[control_columns]
+        .to_xarray()
+        .to_dataarray(dim="control")
+    )
+    if date_column != "date":
+        planned = planned.rename({date_column: "date"})
+    return planned
+
+
+def _planned_controls_from_array(
+    control_data: xr.DataArray,
+    dims: list[str],
+    control_columns: list[str],
+) -> xr.DataArray:
+    all_dims = ["date", *dims, "control"]
+    if set(control_data.dims) != set(all_dims):
+        raise ValueError(
+            f"control_data must have dims {sorted(all_dims)}, "
+            f"got {sorted(map(str, control_data.dims))}."
+        )
+    # Without labels xarray falls back to positions, which would be read as
+    # dates in 1970 or as the wrong dim labels.
+    unlabelled = [d for d in all_dims if d not in control_data.indexes]
+    if unlabelled:
+        raise ValueError(f"control_data needs labelled coordinates for {unlabelled}.")
+    duplicated = [d for d in all_dims if not control_data.indexes[d].is_unique]
+    if duplicated:
+        raise ValueError(f"control_data has duplicate labels along {duplicated}.")
+
+    labels = list(control_data.indexes["control"])
+    unknown = [str(c) for c in labels if c not in control_columns]
+    if unknown:
+        raise ValueError(
+            f"control_data has controls that are not control_columns: {unknown}."
+        )
+    missing = [c for c in control_columns if c not in labels]
+    if missing:
+        raise ValueError(_MISSING_CONTROLS.format(missing))
+
+    return control_data.assign_coords(date=pd.to_datetime(control_data.indexes["date"]))
+
+
+def planned_controls_to_dataarray(
+    control_data: pd.DataFrame | xr.DataArray,
+    date_column: str,
+    dims: list[str] | tuple[str, ...],
+    control_columns: list[str],
+) -> xr.DataArray:
+    """Convert planned control values to a labelled ``DataArray``.
+
+    Parameters
+    ----------
+    control_data : pd.DataFrame or xr.DataArray
+        A DataFrame with the date column, one column per dim and one column per
+        control (other columns are ignored), or a DataArray with dims
+        ``("date", *dims, "control")`` and a labelled coordinate for each.
+    date_column : str
+        Name of the DataFrame's date column.
+    dims : list of str or tuple of str
+        The model's dims besides date, such as ``("geo",)``.
+    control_columns : list of str
+        The model's control columns. Every one of them is required.
+
+    Returns
+    -------
+    xr.DataArray
+        The planned values with dims ``("date", *dims, "control")``, in any
+        order, and a datetime ``date`` coordinate.
+
+    Raises
+    ------
+    ValueError
+        If a date, dim or control column or coordinate is missing or
+        unlabelled, a row or label is duplicated, or a DataArray names a
+        control that is not in *control_columns*.
+    TypeError
+        If *control_data* is neither a DataFrame nor a DataArray.
+    """
+    if isinstance(control_data, pd.DataFrame):
+        return _planned_controls_from_frame(
+            control_data, date_column, list(dims), control_columns
+        )
+    if isinstance(control_data, xr.DataArray):
+        return _planned_controls_from_array(control_data, list(dims), control_columns)
+    raise TypeError(
+        "control_data must be a pd.DataFrame or an xr.DataArray, "
+        f"got {type(control_data).__name__}."
+    )
+
+
+def validate_planned_control_dates(
+    planned_dates: pd.DatetimeIndex,
+    training_end: pd.Timestamp,
+    future_dates: pd.DatetimeIndex,
+) -> None:
+    """Check that planned controls only cover dates after the training data.
+
+    An optimization window keeps the observed controls wherever the training
+    data reaches, so planned values apply only to the window dates after it.
+
+    Parameters
+    ----------
+    planned_dates : pd.DatetimeIndex
+        Dates of the planned control values.
+    training_end : pd.Timestamp
+        Last date of the training data.
+    future_dates : pd.DatetimeIndex
+        The window dates after *training_end*, through the end of the
+        carry-over.
+
+    Raises
+    ------
+    ValueError
+        If *planned_dates* includes a date up to *training_end*, or the window
+        has no dates after it.
+    """
+    observed = planned_dates[planned_dates <= training_end]
+    if len(observed):
+        raise ValueError(
+            f"control_data covers {len(observed)} date(s) up to "
+            f"{observed.max().date()}, which the training data covers (it ends "
+            f"{training_end.date()}). Those dates keep their observed control "
+            "values; give control_data only for later dates."
+        )
+    if future_dates.empty:
+        raise ValueError(
+            "The optimization window, including its carry-over, ends by "
+            f"{training_end.date()}, when the training data ends, so its controls "
+            "take their observed values and control_data does not apply."
+        )
+
+
+def align_planned_controls(
+    planned: xr.DataArray,
+    window_controls: xr.DataArray,
+    future_dates: pd.DatetimeIndex,
+) -> xr.DataArray:
+    """Align planned control values to the window dates after training ends.
+
+    Parameters
+    ----------
+    planned : xr.DataArray
+        Planned values, as returned by :func:`planned_controls_to_dataarray`.
+    window_controls : xr.DataArray
+        The window's ``_control`` variable, from :func:`create_zero_dataset`.
+    future_dates : pd.DatetimeIndex
+        The window dates after the training data ends. Every one of them needs
+        a value; other planned dates are ignored.
+
+    Returns
+    -------
+    xr.DataArray
+        The planned values on *future_dates*, in the dims and coordinate order
+        of *window_controls*.
+
+    Raises
+    ------
+    ValueError
+        If *planned* has dim labels the window does not, or no value (or NaN)
+        on one of *future_dates*.
+    """
+    label_dims = [d for d in window_controls.dims if d != "date"]
+    for dim in label_dims:
+        extra = set(planned.coords[dim].values) - set(
+            window_controls.coords[dim].values
+        )
+        if extra:
+            raise ValueError(
+                f"control_data has {dim!r} labels the model does not have: "
+                f"{sorted(map(str, extra))}."
+            )
+
+    aligned = planned.reindex(
+        date=future_dates,
+        **{dim: window_controls.coords[dim].values for dim in label_dims},
+    )
+    gaps = aligned.isnull().any(label_dims)
+    if bool(gaps.any()):
+        gap_dates = future_dates[gaps.values]
+        raise ValueError(
+            f"control_data has no value, or NaN, on {len(gap_dates)} of the "
+            f"window's dates after the training data ends, starting "
+            f"{gap_dates[0].date()}. Every date from {future_dates[0].date()} to "
+            f"{future_dates[-1].date()}, the end of the carry-over, needs a value "
+            "for every control."
+        )
+    return aligned.transpose(*window_controls.dims)
 
 
 def add_noise_to_channel_allocation(

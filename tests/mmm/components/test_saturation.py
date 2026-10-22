@@ -29,6 +29,7 @@ from pymc_marketing.mmm.components.saturation import (
     MichaelisMentenSaturation,
     RootSaturation,
     SaturationTransformation,
+    TanhSaturationBaselined,
 )
 from pymc_marketing.serialization import serialization
 
@@ -78,6 +79,47 @@ def test_apply_method(
     assert y.eval().shape == x.type.shape
 
 
+@pytest.mark.parametrize("saturation_cls", ALL_SATURATION_CLASSES)
+def test_parameters_broadcast_against_x_by_dim_name(
+    saturation_cls: type[SaturationTransformation],
+) -> None:
+    """Check that per-channel parameters pair with ``x`` by dim name, not position.
+
+    The result on a channel-first and on a channel-last input must both match
+    applying the function to each channel on its own. The date and channel
+    lengths differ, so a positional broadcast either fails or pairs a
+    parameter with the wrong axis.
+    """
+    saturation = saturation_cls()
+    x_date_channel = np.array(
+        [[0.0, 1.0, 2.0], [0.5, 3.0, 0.0], [2.0, 0.25, 1.0], [4.0, 2.0, 0.75]]
+    )
+    per_channel = np.array([0.3, 0.5, 0.7])
+    params = {
+        name: as_xtensor(per_channel, dims=("channel",))
+        for name in saturation.default_priors
+    }
+
+    expected = np.stack(
+        [
+            saturation.function(
+                as_xtensor(x_date_channel[:, i], dims=("date",)),
+                **{name: per_channel[i] for name in saturation.default_priors},
+            ).eval()
+            for i in range(per_channel.size)
+        ],
+        axis=1,
+    )
+    for dims, x in [
+        (("date", "channel"), x_date_channel),
+        (("channel", "date"), x_date_channel.T),
+    ]:
+        y = saturation.function(as_xtensor(x, dims=dims), **params)
+        np.testing.assert_allclose(
+            y.transpose("date", "channel").eval(), expected, err_msg=str(dims)
+        )
+
+
 def test_root_saturation_logp_is_differentiable_at_zero_input() -> None:
     """RootSaturation gradients must stay finite at exactly-zero input.
 
@@ -86,8 +128,8 @@ def test_root_saturation_logp_is_differentiable_at_zero_input() -> None:
     derivative ``d/dx (x ** alpha) = alpha * x ** (alpha - 1)`` is infinite at
     ``x == 0`` for ``alpha < 1``, so the resulting NaN propagated into the
     log-probability gradient of every upstream parameter and broke NUTS. The
-    transformation guards the gradient with ``pt.where`` so that ``f(0) = 0``
-    exactly and the derivative is finite everywhere.
+    transformation evaluates the power on a safe input (``ptx.where`` in
+    xtensor) so that ``f(0) = 0`` exactly and the derivative is finite everywhere.
     """
     x = np.linspace(0.0, 1.0, 30)
     x[:5] = 0.0  # exact zero-spend periods
@@ -104,6 +146,23 @@ def test_root_saturation_logp_is_differentiable_at_zero_input() -> None:
     dlogp = model.compile_dlogp()
     grad = dlogp(model.initial_point())
     assert np.all(np.isfinite(grad))
+
+
+def test_tanh_saturation_baselined_default_priors_have_a_finite_logp() -> None:
+    """Default priors give a finite logp at the initial point on zero-spend input (#3047)."""
+    x = np.linspace(0.0, 1.0, 10)
+    x[:2] = 0.0  # exact zero-spend periods
+    with pm.Model(coords={"time": range(x.shape[0])}) as model:
+        x_tensor = as_xtensor(x, dims=("time",))
+        mu = TanhSaturationBaselined().apply(x_tensor)
+        sigma = pm.HalfNormal("sigma", 1)
+        pm.Normal(
+            "obs", mu=mu.values, sigma=sigma, observed=np.zeros_like(x), dims=("time",)
+        )
+
+    point = model.initial_point()
+    assert np.isfinite(model.compile_logp()(point))
+    assert np.all(np.isfinite(model.compile_dlogp()(point)))
 
 
 @pytest.mark.parametrize(
@@ -323,3 +382,34 @@ class TestSaturationRoundtrips:
 )
 def test_type_registered(type_key):
     assert type_key in serialization._registry, f"{type_key} not registered"
+
+
+def test_sample_response_takes_an_input_of_any_dimensions() -> None:
+    """A 2-D input comes back per draw with its own dims, as the function gives."""
+    lam, beta = np.array([1.0, 3.0]), np.array([2.0, 0.5])
+    saturation = LogisticSaturation(
+        priors={
+            "lam": as_xtensor(lam, dims=("channel",)),
+            "beta": as_xtensor(beta, dims=("channel",)),
+        }
+    )
+    parameters = saturation.sample_prior(coords={"channel": ["a", "b"]})
+    x = np.array([[0.0, 0.5], [1.0, 2.0], [0.25, 0.0]])
+
+    response = saturation._sample_response(
+        "response",
+        parameters,
+        x,
+        dims=("date", "channel"),
+        coords={"date": np.arange(3), "channel": ["a", "b"]},
+        core_dim="date",
+        progressbar=False,
+    )
+
+    expected = beta * (1 - np.exp(-lam * x)) / (1 + np.exp(-lam * x))
+    assert response.dims[:2] == ("chain", "draw")
+    np.testing.assert_allclose(
+        response.isel(chain=0, draw=0).transpose("date", "channel").values,
+        expected,
+        rtol=1e-12,
+    )

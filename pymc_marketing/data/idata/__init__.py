@@ -13,6 +13,12 @@
 #   limitations under the License.
 """DataTree utilities and wrappers for PyMC-Marketing models."""
 
+from pymc_marketing.data.idata.io import (
+    IdataFormat,
+    load_idata,
+    remove_idata,
+    save_idata,
+)
 from pymc_marketing.data.idata.mmm_wrapper import MMMIDataWrapper
 from pymc_marketing.data.idata.schema import (
     InferenceDataGroupSchema,
@@ -22,25 +28,33 @@ from pymc_marketing.data.idata.schema import (
 from pymc_marketing.data.idata.utils import (
     aggregate_idata_dims,
     aggregate_idata_time,
+    broadcast_over_date,
     filter_idata_by_dates,
     filter_idata_by_dims,
     get_posterior_predictive,
     get_prior,
     get_prior_predictive,
     subsample_draws,
+    sum_contributions_over_time,
 )
 
 __all__ = [
+    "IdataFormat",
     "InferenceDataGroupSchema",
     "MMMIDataWrapper",
     "MMMIdataSchema",
     "VariableSchema",
     "aggregate_idata_dims",
     "aggregate_idata_time",
+    "broadcast_over_date",
     "filter_idata_by_dates",
     "filter_idata_by_dims",
     "get_posterior_predictive",
     "get_prior",
     "get_prior_predictive",
+    "load_idata",
+    "remove_idata",
+    "save_idata",
     "subsample_draws",
+    "sum_contributions_over_time",
 ]

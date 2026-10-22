@@ -17,6 +17,7 @@ import pymc as pm
 import pymc.dims as pmd
 import pytest
 from pymc.model_graph import fast_eval
+from pymc_extras.prior import Prior
 from pytensor.xtensor import as_xtensor
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import MaxAbsScaler
@@ -32,17 +33,324 @@ from pymc_marketing.mmm.components.saturation import (
 from pymc_marketing.mmm.lift_test import (
     NonMonotonicError,
     UnalignedValuesError,
+    _resolve_likelihood,
     add_cost_per_target_observations,
     add_cost_per_target_potentials,
     add_lift_measurements_to_likelihood_from_saturation,
+    add_saturation_observations,
     assert_monotonic,
     create_time_varying_saturation,
     exact_row_indices,
     scale_channel_lift_measurements,
     scale_lift_measurements,
     scale_target_for_lift_measurements,
+    validate_cost_per_target_rows,
 )
 from pymc_marketing.mmm.mmm import MMM
+
+
+def test_add_saturation_observations_defaults_to_signed_normal_likelihood() -> None:
+    sigma = 0.5
+    with pm.Model(coords={"channel": ["one"]}) as model:
+        pmd.Normal("beta", mu=1.0, sigma=0.1, dims="channel")
+
+    df_lift_test = pd.DataFrame(
+        {
+            "channel": ["one"],
+            "x": [2.0],
+            "delta_x": [-1.0],
+            "delta_y": [-0.5],
+            "sigma": [sigma],
+        }
+    )
+    add_saturation_observations(
+        df_lift_test,
+        variable_mapping={"beta": "beta"},
+        saturation_function=lambda x, beta: beta * x,
+        model=model,
+    )
+
+    lift_rv = model["lift_measurements"]
+    assert model.rvs_to_values[lift_rv].eval().item() == -0.5
+    logp = model.compile_logp(vars=[lift_rv])(model.initial_point())
+    expected_logp = -np.log(sigma * np.sqrt(2 * np.pi)) - 0.5 * (0.5 / sigma) ** 2
+    assert np.isclose(logp, expected_logp)
+    assert "lift_measurements_model_estimated_lift" in model
+
+
+@pytest.mark.parametrize("distribution", ["Normal", "StudentT", "Gamma"])
+def test_supported_lift_likelihoods_build_with_finite_logp(distribution: str) -> None:
+    with pm.Model(coords={"channel": ["one"]}) as model:
+        pmd.HalfNormal("beta", sigma=1.0, dims="channel")
+
+    df_lift_test = pd.DataFrame(
+        {
+            "channel": ["one"],
+            "x": [0.0],
+            "delta_x": [1.0],
+            "delta_y": [1.0],
+            "sigma": [0.5],
+        }
+    )
+    likelihood = (
+        Prior(distribution, nu=4) if distribution == "StudentT" else Prior(distribution)
+    )
+    add_saturation_observations(
+        df_lift_test,
+        variable_mapping={"beta": "beta"},
+        saturation_function=lambda x, beta: beta * x,
+        model=model,
+        likelihood=likelihood,
+    )
+
+    logp = model.compile_logp()(model.initial_point())
+    assert np.isfinite(logp)
+
+
+def test_add_saturation_observations_allows_explicit_gamma_likelihood() -> None:
+    with pm.Model(coords={"channel": ["one"]}) as model:
+        pmd.HalfNormal("beta", sigma=1.0, dims="channel")
+
+    df_lift_test = pd.DataFrame(
+        {
+            "channel": ["one"],
+            "x": [0.0],
+            "delta_x": [1.0],
+            "delta_y": [1.0],
+            "sigma": [0.5],
+        }
+    )
+    add_saturation_observations(
+        df_lift_test,
+        variable_mapping={"beta": "beta"},
+        saturation_function=lambda x, beta: beta * x,
+        model=model,
+        likelihood=Prior("Gamma"),
+    )
+
+    logp = model.compile_logp(vars=[model["lift_measurements"]])(model.initial_point())
+    # Gamma(mu=1, sigma=0.5) has shape=4 and rate=4.
+    expected_logp = np.log(4**4 / 6) - 4
+    assert np.isclose(logp, expected_logp)
+
+
+def test_positive_support_likelihood_rejects_unknown_or_signed_parameter_support() -> (
+    None
+):
+    df_lift_test = pd.DataFrame(
+        {
+            "channel": ["one"],
+            "x": [0.0],
+            "delta_x": [1.0],
+            "delta_y": [1.0],
+            "sigma": [0.5],
+        }
+    )
+    with pm.Model(coords={"channel": ["one"]}) as model:
+        pmd.Normal("beta", mu=1.0, sigma=0.1, dims="channel")
+
+    with pytest.raises(ValueError, match="positivity could not be established"):
+        add_saturation_observations(
+            df_lift_test,
+            variable_mapping={"beta": "beta"},
+            saturation_function=lambda x, beta: beta * x,
+            model=model,
+            likelihood=Prior("Gamma"),
+        )
+
+    with pytest.raises(ValueError, match="HalfNormal distribution is not supported"):
+        add_saturation_observations(
+            df_lift_test,
+            variable_mapping={"beta": "beta"},
+            saturation_function=lambda x, beta: beta * x,
+            model=model,
+            likelihood=Prior("HalfNormal"),
+        )
+
+
+@pytest.mark.parametrize("distribution", ["Laplace", "LogNormal", "InverseGamma"])
+def test_unverified_lift_likelihoods_are_rejected(distribution: str) -> None:
+    with pm.Model(coords={"channel": ["one"]}) as model:
+        pmd.HalfNormal("beta", sigma=1.0, dims="channel")
+
+    df_lift_test = pd.DataFrame(
+        {
+            "channel": ["one"],
+            "x": [0.0],
+            "delta_x": [1.0],
+            "delta_y": [1.0],
+            "sigma": [0.5],
+        }
+    )
+    with pytest.raises(
+        ValueError, match=f"{distribution} distribution is not supported"
+    ):
+        add_saturation_observations(
+            df_lift_test,
+            variable_mapping={"beta": "beta"},
+            saturation_function=lambda x, beta: beta * x,
+            model=model,
+            likelihood=Prior(distribution),
+        )
+
+
+def test_lift_likelihood_rejects_user_sigma_parameter() -> None:
+    with pm.Model(coords={"channel": ["one"]}) as model:
+        pmd.HalfNormal("beta", sigma=1.0, dims="channel")
+
+    df_lift_test = pd.DataFrame(
+        {
+            "channel": ["one"],
+            "x": [0.0],
+            "delta_x": [1.0],
+            "delta_y": [1.0],
+            "sigma": [0.5],
+        }
+    )
+    with pytest.raises(ValueError, match="Do not pass `sigma` in `likelihood`"):
+        add_saturation_observations(
+            df_lift_test,
+            variable_mapping={"beta": "beta"},
+            saturation_function=lambda x, beta: beta * x,
+            model=model,
+            likelihood=Prior("StudentT", nu=4, sigma=2.0),
+        )
+
+
+@pytest.mark.parametrize(
+    ("likelihood", "parameter"),
+    [
+        (Prior("Normal", mu=0.0), "mu"),
+        (Prior("Normal", dims="channel"), "dims"),
+    ],
+)
+def test_lift_likelihood_rejects_model_determined_parameters(
+    likelihood: Prior, parameter: str
+) -> None:
+    with pm.Model(coords={"channel": ["one"]}) as model:
+        pmd.HalfNormal("beta", sigma=1.0, dims="channel")
+    lift = pd.DataFrame(
+        {
+            "channel": ["one"],
+            "x": [0.0],
+            "delta_x": [1.0],
+            "delta_y": [1.0],
+            "sigma": [0.5],
+        }
+    )
+    with pytest.raises(ValueError, match=f"Do not pass `{parameter}` in `likelihood`"):
+        add_saturation_observations(
+            lift,
+            variable_mapping={"beta": "beta"},
+            saturation_function=lambda x, beta: beta * x,
+            model=model,
+            likelihood=likelihood,
+        )
+
+
+def test_student_t_likelihood_requires_degrees_of_freedom() -> None:
+    with pm.Model(coords={"channel": ["one"]}) as model:
+        pmd.HalfNormal("beta", sigma=1.0, dims="channel")
+
+    df_lift_test = pd.DataFrame(
+        {
+            "channel": ["one"],
+            "x": [0.0],
+            "delta_x": [1.0],
+            "delta_y": [1.0],
+            "sigma": [0.5],
+        }
+    )
+    with pytest.raises(ValueError, match="requires a `nu` parameter"):
+        add_saturation_observations(
+            df_lift_test,
+            variable_mapping={"beta": "beta"},
+            saturation_function=lambda x, beta: beta * x,
+            model=model,
+            likelihood=Prior("StudentT"),
+        )
+
+
+def test_lift_likelihood_resolver_validates_legacy_and_invalid_inputs() -> None:
+    with pytest.warns(DeprecationWarning, match="distribution class"):
+        resolved = _resolve_likelihood(pmd.Gamma)
+    assert resolved.distribution == "Gamma"
+
+    with pytest.raises(ValueError, match="Specify only one"):
+        _resolve_likelihood(Prior("Normal"), pmd.Gamma)
+
+    with pytest.raises(TypeError, match=r"must be a pymc_extras.prior.Prior"):
+        _resolve_likelihood("Normal")  # type: ignore[arg-type]
+
+
+def test_gamma_likelihood_rejects_nonpositive_spend_change() -> None:
+    with pm.Model(coords={"channel": ["one"]}) as model:
+        pmd.HalfNormal("beta", sigma=1.0, dims="channel")
+
+    df_lift_test = pd.DataFrame(
+        {
+            "channel": ["one"],
+            "x": [0.0],
+            "delta_x": [-1.0],
+            "delta_y": [1.0],
+            "sigma": [0.5],
+        }
+    )
+    with pytest.raises(ValueError, match="only valid when the spend changes"):
+        add_saturation_observations(
+            df_lift_test,
+            variable_mapping={"beta": "beta"},
+            saturation_function=lambda x, beta: beta * x,
+            model=model,
+            likelihood=Prior("Gamma"),
+        )
+
+
+def test_gamma_likelihood_rejects_negative_initial_model_lift() -> None:
+    with pm.Model(coords={"channel": ["one"]}) as model:
+        pmd.HalfNormal("beta", sigma=1.0, dims="channel")
+
+    df_lift_test = pd.DataFrame(
+        {
+            "channel": ["one"],
+            "x": [0.0],
+            "delta_x": [1.0],
+            "delta_y": [1.0],
+            "sigma": [0.5],
+        }
+    )
+    with pytest.raises(ValueError, match="at the model's initial point"):
+        add_saturation_observations(
+            df_lift_test,
+            variable_mapping={"beta": "beta"},
+            saturation_function=lambda x, beta: -beta * x,
+            model=model,
+            likelihood=Prior("Gamma"),
+        )
+
+
+def test_explicit_gamma_rejects_negative_lift_at_construction() -> None:
+    with pm.Model(coords={"channel": ["one"]}) as model:
+        pmd.Normal("beta", mu=1.0, sigma=0.1, dims="channel")
+
+    df_lift_test = pd.DataFrame(
+        {
+            "channel": ["one", "one"],
+            "x": [0.0, 2.0],
+            "delta_x": [1.0, -1.0],
+            "delta_y": [1.0, -0.5],
+            "sigma": [0.5, 0.5],
+        }
+    )
+    with pytest.raises(ValueError, match="Gamma lift likelihood requires positive"):
+        with pytest.warns(DeprecationWarning, match="`dist` argument is deprecated"):
+            add_saturation_observations(
+                df_lift_test,
+                variable_mapping={"beta": "beta"},
+                saturation_function=lambda x, beta: beta * x,
+                model=model,
+                dist=pmd.Gamma,
+            )
 
 
 @pytest.fixture(scope="module")
@@ -261,8 +569,6 @@ def test_works_with_negative_delta(df_lift_test_with_numerics) -> None:
     )
 
     alpha_dims = "date"
-    dist = pmd.Gamma
-
     coords = {
         "date": pd.to_datetime(["2020-01-01", "2020-01-02", "2020-01-03"]),
         "channel": [0, 1, 2],
@@ -274,7 +580,6 @@ def test_works_with_negative_delta(df_lift_test_with_numerics) -> None:
         add_lift_measurements_to_likelihood_from_saturation(
             df_lift_test=df_lift_test_with_numerics_negative,
             saturation=MichaelisMentenSaturation(),
-            dist=dist,
         )
 
     assert "lift_measurements" in model
@@ -286,13 +591,13 @@ def test_works_with_negative_delta(df_lift_test_with_numerics) -> None:
         pytest.fail("Negative delta values caused a sampling error.")
 
 
-def test_check_increasing_assumption() -> None:
+def test_assert_monotonic_is_deprecated() -> None:
     delta_x = pd.Series([1, 2, 3])
     delta_y = pd.Series([1, -2, 3])
 
-    match = r"The data is not monotonic."
-    with pytest.raises(NonMonotonicError, match=match):
-        assert_monotonic(delta_x, delta_y)
+    with pytest.warns(DeprecationWarning, match="signed lift estimates are supported"):
+        with pytest.raises(NonMonotonicError, match="not monotonic"):
+            assert_monotonic(delta_x, delta_y)
 
 
 def saturation_functions() -> list[SaturationTransformation]:
@@ -816,3 +1121,197 @@ def test_add_cost_per_target_potentials_emits_deprecation_warning(dummy_mmm_mode
 
     obs_names = [rv.name for rv in model.model.observed_RVs]
     assert "cpt_calibration" in obs_names
+
+
+@pytest.mark.parametrize("column", ["x", "delta_x", "delta_y", "sigma"])
+@pytest.mark.parametrize("bad_value", [np.nan, np.inf, -np.inf])
+def test_lift_rejects_nonfinite_measurements_before_model_mutation(column, bad_value):
+    with pm.Model(coords={"channel": ["one"]}) as model:
+        pmd.HalfNormal("beta", sigma=1.0, dims="channel")
+    frame = pd.DataFrame(
+        {
+            "channel": ["one", "one"],
+            "x": [1.0, 1.0],
+            "delta_x": [0.2, 0.2],
+            "delta_y": [0.1, 0.1],
+            "sigma": [0.05, 0.05],
+        }
+    )
+    original_value = frame.loc[1, column]
+    frame.loc[1, column] = bad_value
+    names = set(model.named_vars)
+    coords = dict(model.coords)
+    with pytest.raises(ValueError, match=rf"'{column}'.*finite real numeric"):
+        add_saturation_observations(
+            frame,
+            variable_mapping={"beta": "beta"},
+            saturation_function=lambda x, beta: beta * x,
+            model=model,
+        )
+    assert set(model.named_vars) == names
+    assert model.coords == coords
+    assert not model.observed_RVs
+
+    frame.loc[1, column] = original_value
+    add_saturation_observations(
+        frame,
+        variable_mapping={"beta": "beta"},
+        saturation_function=lambda x, beta: beta * x,
+        model=model,
+    )
+    assert len(model.observed_RVs) == 1
+    assert model.rvs_to_values[model["lift_measurements"]].eval().shape == (2,)
+
+
+@pytest.mark.parametrize("distribution", ["Normal", "StudentT"])
+@pytest.mark.parametrize("delta_y", [0.0, -0.1, 1e-12])
+@pytest.mark.parametrize("sigma", [0.5, 3.3e-11])
+def test_lift_accepts_null_signed_estimates_and_small_uncertainty(
+    distribution, delta_y, sigma
+):
+    with pm.Model(coords={"channel": ["one"]}) as model:
+        pmd.HalfNormal("beta", sigma=1.0, dims="channel")
+    frame = pd.DataFrame(
+        {
+            "channel": ["one"],
+            "x": [1.0],
+            "delta_x": [-0.2],
+            "delta_y": [delta_y],
+            "sigma": [sigma],
+        }
+    )
+    likelihood = (
+        Prior("StudentT", nu=4) if distribution == "StudentT" else Prior("Normal")
+    )
+    add_saturation_observations(
+        frame,
+        variable_mapping={"beta": "beta"},
+        saturation_function=lambda x, beta: beta * x,
+        model=model,
+        likelihood=likelihood,
+    )
+    observed = model["lift_measurements"]
+    assert model.rvs_to_values[observed].eval().item() == delta_y
+    assert np.isfinite(model.compile_logp(vars=[observed])(model.initial_point()))
+
+
+@pytest.mark.parametrize("sigma", [0.0, -0.1])
+def test_lift_rejects_nonpositive_standard_errors(sigma):
+    frame = pd.DataFrame(
+        {"x": [1.0], "delta_x": [0.2], "delta_y": [-0.1], "sigma": [sigma]}
+    )
+    with pytest.raises(ValueError, match=r"'sigma'.*strictly positive"):
+        add_saturation_observations(
+            frame, variable_mapping={}, saturation_function=lambda x: x
+        )
+
+
+@pytest.mark.parametrize("column", ["cost_per_target", "sigma"])
+@pytest.mark.parametrize("bad_value", [np.nan, np.inf, -np.inf])
+def test_cost_per_target_rejects_nonfinite_measurements(
+    dummy_mmm_model, column, bad_value
+):
+    model = dummy_mmm_model.model
+    shape = (len(model.coords["date"]), len(model.coords["channel"]))
+    cost = as_xtensor(np.ones(shape), dims=("date", "channel"))
+    target = as_xtensor(np.ones(shape), dims=("date", "channel"))
+    frame = pd.DataFrame(
+        {
+            "channel": [model.coords["channel"][0]],
+            "cost_per_target": [2.0],
+            "sigma": [0.2],
+        }
+    )
+    frame.loc[0, column] = bad_value
+    names = set(model.named_vars)
+    coords = set(model.coords)
+    with pytest.raises(ValueError, match=rf"'{column}'.*finite real numeric"):
+        add_cost_per_target_observations(
+            frame, model=model, cost_value=cost, target_value=target
+        )
+
+    assert set(model.named_vars) == names
+    assert set(model.coords) == coords
+
+
+@pytest.mark.parametrize("sigma", [0.0, -1.0])
+def test_cost_per_target_rejects_nonpositive_standard_errors(dummy_mmm_model, sigma):
+    model = dummy_mmm_model.model
+    shape = (len(model.coords["date"]), len(model.coords["channel"]))
+    cost = as_xtensor(np.ones(shape), dims=("date", "channel"))
+    target = as_xtensor(np.ones(shape), dims=("date", "channel"))
+    frame = pd.DataFrame(
+        {
+            "channel": [model.coords["channel"][0]],
+            "cost_per_target": [2.0],
+            "sigma": [sigma],
+        }
+    )
+    with pytest.raises(ValueError, match=r"'sigma'.*strictly positive"):
+        add_cost_per_target_observations(
+            frame, model=model, cost_value=cost, target_value=target
+        )
+
+
+@pytest.mark.parametrize(
+    "value", ["not numeric", "0.1", 1 + 2j, pd.Timestamp("2026-01-01"), True]
+)
+@pytest.mark.parametrize("column", ["x", "delta_x", "delta_y", "sigma"])
+def test_lift_rejects_nonreal_measurement_dtypes(column, value):
+    values = {"x": [1.0], "delta_x": [0.2], "delta_y": [0.1], "sigma": [0.05]}
+    values[column] = [value]
+    with pytest.raises(ValueError, match=rf"'{column}'.*finite real numeric"):
+        add_saturation_observations(
+            pd.DataFrame(values), variable_mapping={}, saturation_function=lambda x: x
+        )
+
+
+def test_lift_rejects_nullable_missing_measurements():
+    frame = pd.DataFrame(
+        {
+            "x": [1.0],
+            "delta_x": [0.2],
+            "delta_y": pd.Series([pd.NA], dtype="Float64"),
+            "sigma": [0.05],
+        }
+    )
+    with pytest.raises(ValueError, match=r"'delta_y'.*finite real numeric"):
+        add_saturation_observations(
+            frame, variable_mapping={}, saturation_function=lambda x: x
+        )
+
+
+def test_cost_per_target_validates_custom_target_before_mutation(dummy_mmm_model):
+    model = dummy_mmm_model.model
+    names, coords = set(model.named_vars), set(model.coords)
+    frame = pd.DataFrame(
+        {
+            "channel": [model.coords["channel"][0]],
+            "custom_target": [np.nan],
+            "sigma": [0.2],
+        }
+    )
+    with pytest.raises(ValueError, match=r"'custom_target'.*finite real numeric"):
+        add_cost_per_target_observations(
+            frame,
+            model=model,
+            cost_value=None,
+            target_value=None,
+            target_column="custom_target",
+        )
+    assert set(model.named_vars) == names
+    assert set(model.coords) == coords
+
+
+def test_cost_per_target_preserves_numeric_string_conversion(dummy_mmm_model):
+    model = dummy_mmm_model.model
+    frame = pd.DataFrame(
+        {
+            "channel": [model.coords["channel"][0]],
+            "cost_per_target": ["-2.0"],
+            "sigma": ["0.2"],
+        }
+    )
+    _, targets, sigmas = validate_cost_per_target_rows(frame, model)
+    np.testing.assert_allclose(targets, [-2.0])
+    np.testing.assert_allclose(sigmas, [0.2])

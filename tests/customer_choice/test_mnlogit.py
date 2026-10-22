@@ -67,8 +67,10 @@ def utility_eqs():
 
 
 @pytest.fixture
-def mnl(sample_df, utility_eqs):
-    return MNLogit(sample_df, utility_eqs, "choice", ["X1", "X2"])
+def mnl(utility_eqs):
+    return MNLogit(
+        utility_equations=utility_eqs, depvar="choice", covariates=["X1", "X2"]
+    )
 
 
 @pytest.fixture
@@ -77,8 +79,17 @@ def utility_eqs_no_fixed():
 
 
 @pytest.fixture
-def mnl_no_fixed(sample_df, utility_eqs_no_fixed):
-    return MNLogit(sample_df, utility_eqs_no_fixed, "choice", ["X1", "X2"])
+def mnl_no_fixed(utility_eqs_no_fixed):
+    return MNLogit(
+        utility_equations=utility_eqs_no_fixed, depvar="choice", covariates=["X1", "X2"]
+    )
+
+
+def _build_with_data(model, df):
+    """Build ``model`` on ``df`` and return the stored training arrays."""
+    model._set_choice_inputs(df)
+    model.build_model()
+    return model._training_arrays()
 
 
 def test_parse_formula_valid(mnl, sample_df):
@@ -141,21 +152,20 @@ def test_prepare_X_matrix_no_fixed_covariates(mnl, sample_df):
     assert len(fixed_cov) == 0
 
 
-def test_build_model_returns_pymc_model(mnl, sample_df, utility_eqs):
+def test_build_model_returns_pymc_model(mnl, sample_df):
     X = np.random.randn(5, 2, 3)  # 5 obs x 2 alts x 3 alt covariates
     F = np.random.randn(5, 2)  # 5 obs x 2 fixed covariates
     y = np.random.randint(0, 2, size=5)  # obs labels
 
-    mnl.preprocess_model_data(sample_df, utility_eqs)
+    _build_with_data(mnl, sample_df)
     model = mnl.make_model(X, F, y)
     assert isinstance(model, pm.Model)
     assert mnl.alternatives == ["alt", "other"]
     assert mnl.covariates == ["X1", "X2"]
 
 
-def test_sample(mnl, mock_pymc_sample):
-    X, F, y = mnl.preprocess_model_data(mnl.choice_df, mnl.utility_equations)
-    _ = mnl.make_model(X, F, y)
+def test_sample(mnl, sample_df, mock_pymc_sample):
+    mnl.fit(sample_df)
     mnl.sample()
     assert "prior_predictive" in mnl.idata
     mnl.sample()
@@ -167,10 +177,10 @@ def test_sample(mnl, mock_pymc_sample):
     assert "posterior_predictive" in mnl.idata
     assert "fit_data" in mnl.idata
 
-    mnl.sample_posterior_predictive(choice_df=mnl.choice_df, extend_idata=True)
+    mnl.sample_posterior_predictive(choice_df=sample_df, extend_idata=True)
     assert isinstance(mnl.idata, xr.DataTree)
 
-    mnl.fit(choice_df=mnl.choice_df, utility_equations=mnl.utility_equations)
+    mnl.fit(choice_df=sample_df, utility_equations=mnl.utility_equations)
 
     with pytest.raises(
         RuntimeError, match=r"self.idata must be initialized before extending"
@@ -181,11 +191,10 @@ def test_sample(mnl, mock_pymc_sample):
         )
 
 
-def test_counterfactual(mnl, mock_pymc_sample):
-    X, F, y = mnl.preprocess_model_data(mnl.choice_df, mnl.utility_equations)
-    _ = mnl.make_model(X, F, y)
+def test_counterfactual(mnl, sample_df, mock_pymc_sample):
+    mnl.fit(sample_df)
     mnl.sample()
-    new = mnl.choice_df.copy()
+    new = sample_df.copy()
     new["alt_X1"] = new["alt_X1"] * 1.2
     mnl.apply_intervention(new)
     change_df = mnl.calculate_share_change(mnl.idata, mnl.intervention_idata)
@@ -204,9 +213,9 @@ def test_make_change_plot_returns_figure(mnl, sample_change_df):
 class TestMakeIntercepts:
     """Tests for the make_intercepts() method."""
 
-    def test_make_intercepts_creates_deterministic(self, mnl, sample_df, utility_eqs):
+    def test_make_intercepts_creates_deterministic(self, mnl, sample_df):
         """Test that make_intercepts creates a Deterministic variable."""
-        _X, _F, _y = mnl.preprocess_model_data(sample_df, utility_eqs)
+        _build_with_data(mnl, sample_df)
 
         with pm.Model(coords=mnl.coords):
             alphas = mnl.make_intercepts()
@@ -214,9 +223,9 @@ class TestMakeIntercepts:
             assert isinstance(alphas, pt.TensorVariable)
             assert alphas.name == "alphas"
 
-    def test_make_intercepts_last_alternative_zero(self, mnl, sample_df, utility_eqs):
+    def test_make_intercepts_last_alternative_zero(self, mnl, sample_df):
         """Test that the last alternative intercept is constrained to zero."""
-        _X, _F, _y = mnl.preprocess_model_data(sample_df, utility_eqs)
+        _build_with_data(mnl, sample_df)
 
         with pm.Model(coords=mnl.coords):
             alphas = mnl.make_intercepts()
@@ -229,9 +238,9 @@ class TestMakeIntercepts:
 class TestMakeAltCoefs:
     """Tests for the make_alt_coefs() method."""
 
-    def test_make_alt_coefs_creates_variable(self, mnl, sample_df, utility_eqs):
+    def test_make_alt_coefs_creates_variable(self, mnl, sample_df):
         """Test that make_alt_coefs creates the beta coefficients."""
-        _X, _F, _y = mnl.preprocess_model_data(sample_df, utility_eqs)
+        _build_with_data(mnl, sample_df)
 
         with pm.Model(coords=mnl.coords):
             betas = mnl.make_alt_coefs()
@@ -239,9 +248,9 @@ class TestMakeAltCoefs:
             assert isinstance(betas, pt.TensorVariable)
             assert betas.name == "betas"
 
-    def test_make_alt_coefs_correct_shape(self, mnl, sample_df, utility_eqs):
+    def test_make_alt_coefs_correct_shape(self, mnl, sample_df):
         """Test that betas have the correct dimensionality."""
-        _X, _F, _y = mnl.preprocess_model_data(sample_df, utility_eqs)
+        _build_with_data(mnl, sample_df)
 
         with pm.Model(coords=mnl.coords):
             betas = mnl.make_alt_coefs()
@@ -253,9 +262,9 @@ class TestMakeAltCoefs:
 class TestMakeFixedCoefs:
     """Tests for the make_fixed_coefs() method."""
 
-    def test_make_fixed_coefs_with_fixed_covariates(self, mnl, sample_df, utility_eqs):
+    def test_make_fixed_coefs_with_fixed_covariates(self, mnl, sample_df):
         """Test fixed coefs when fixed covariates are provided."""
-        X, F, _y = mnl.preprocess_model_data(sample_df, utility_eqs)
+        X, F, _y = _build_with_data(mnl, sample_df)
         n_obs, n_alts = X.shape[0], X.shape[1]
 
         with pm.Model(coords=mnl.coords):
@@ -266,11 +275,9 @@ class TestMakeFixedCoefs:
             assert F_contrib_draw.shape == (n_obs, n_alts)
             assert F_contrib.name == "F_interaction"
 
-    def test_make_fixed_coefs_without_fixed_covariates(
-        self, mnl_no_fixed, sample_df, utility_eqs_no_fixed
-    ):
+    def test_make_fixed_coefs_without_fixed_covariates(self, mnl_no_fixed, sample_df):
         """Test that fixed coefs returns zeros when no fixed covariates."""
-        X, F, _y = mnl_no_fixed.preprocess_model_data(sample_df, utility_eqs_no_fixed)
+        X, F, _y = _build_with_data(mnl_no_fixed, sample_df)
         n_obs, n_alts = X.shape[0], X.shape[1]
 
         with pm.Model(coords=mnl_no_fixed.coords):
@@ -280,9 +287,9 @@ class TestMakeFixedCoefs:
             # Should be zeros with shape (n_obs, n_alts)
             assert F_contrib_draw.shape == (n_obs, n_alts)
 
-    def test_make_fixed_coefs_none_input(self, mnl, sample_df, utility_eqs):
+    def test_make_fixed_coefs_none_input(self, mnl, sample_df):
         """Test that None input for fixed covariates returns zeros."""
-        X, _F, _y = mnl.preprocess_model_data(sample_df, utility_eqs)
+        X, _F, _y = _build_with_data(mnl, sample_df)
         n_obs, n_alts = X.shape[0], X.shape[1]
 
         with pm.Model(coords=mnl.coords):
@@ -291,9 +298,9 @@ class TestMakeFixedCoefs:
             assert isinstance(F_contrib, pt.TensorVariable)
             assert F_contrib.type.shape == (n_obs, n_alts)
 
-    def test_make_fixed_coefs_last_alternative_zero(self, mnl, sample_df, utility_eqs):
+    def test_make_fixed_coefs_last_alternative_zero(self, mnl, sample_df):
         """Test that betas_fixed has last alternative constrained to zero."""
-        X, F, _y = mnl.preprocess_model_data(sample_df, utility_eqs)
+        X, F, _y = _build_with_data(mnl, sample_df)
         n_obs, n_alts = X.shape[0], X.shape[1]
 
         with pm.Model(coords=mnl.coords) as model:
@@ -306,9 +313,9 @@ class TestMakeFixedCoefs:
 class TestMakeUtility:
     """Tests for the make_utility() method."""
 
-    def test_make_utility_creates_deterministic(self, mnl, sample_df, utility_eqs):
+    def test_make_utility_creates_deterministic(self, mnl, sample_df):
         """Test that make_utility creates a Deterministic variable U."""
-        X, F, _y = mnl.preprocess_model_data(sample_df, utility_eqs)
+        X, F, _y = _build_with_data(mnl, sample_df)
         n_obs, n_alts = X.shape[0], X.shape[1]
 
         with pm.Model(coords=mnl.coords):
@@ -322,9 +329,9 @@ class TestMakeUtility:
             assert isinstance(U, pt.TensorVariable)
             assert U.name == "U"
 
-    def test_make_utility_correct_shape(self, mnl, sample_df, utility_eqs):
+    def test_make_utility_correct_shape(self, mnl, sample_df):
         """Test that utility has shape (n_obs, n_alts)."""
-        X, F, _y = mnl.preprocess_model_data(sample_df, utility_eqs)
+        X, F, _y = _build_with_data(mnl, sample_df)
         n_obs, n_alts = X.shape[0], X.shape[1]
 
         with pm.Model(coords=mnl.coords):
@@ -341,9 +348,9 @@ class TestMakeUtility:
 class TestMakeChoiceProb:
     """Tests for the make_choice_prob() method."""
 
-    def test_make_choice_prob_creates_deterministic(self, mnl, sample_df, utility_eqs):
+    def test_make_choice_prob_creates_deterministic(self, mnl, sample_df):
         """Test that make_choice_prob creates a Deterministic variable p."""
-        X, F, _y = mnl.preprocess_model_data(sample_df, utility_eqs)
+        X, F, _y = _build_with_data(mnl, sample_df)
         n_obs, n_alts = X.shape[0], X.shape[1]
 
         with pm.Model(coords=mnl.coords):
@@ -358,9 +365,9 @@ class TestMakeChoiceProb:
             assert isinstance(p, pt.TensorVariable)
             assert p.name == "p"
 
-    def test_make_choice_prob_correct_shape(self, mnl, sample_df, utility_eqs):
+    def test_make_choice_prob_correct_shape(self, mnl, sample_df):
         """Test that probabilities have shape (n_obs, n_alts)."""
-        X, F, _y = mnl.preprocess_model_data(sample_df, utility_eqs)
+        X, F, _y = _build_with_data(mnl, sample_df)
         n_obs, n_alts = X.shape[0], X.shape[1]
 
         with pm.Model(coords=mnl.coords):
@@ -378,9 +385,9 @@ class TestMakeChoiceProb:
 class TestMakeModelIntegration:
     """Integration tests for the refactored make_model() method."""
 
-    def test_make_model_with_fixed_covariates(self, mnl, sample_df, utility_eqs):
+    def test_make_model_with_fixed_covariates(self, mnl, sample_df):
         """Test that make_model correctly integrates all components with fixed covariates."""
-        X, F, y = mnl.preprocess_model_data(sample_df, utility_eqs)
+        X, F, y = _build_with_data(mnl, sample_df)
         model = mnl.make_model(X, F, y)
 
         assert isinstance(model, pm.Model)
@@ -392,11 +399,9 @@ class TestMakeModelIntegration:
         assert "p" in model.named_vars
         assert "likelihood" in model.named_vars
 
-    def test_make_model_without_fixed_covariates(
-        self, mnl_no_fixed, sample_df, utility_eqs_no_fixed
-    ):
+    def test_make_model_without_fixed_covariates(self, mnl_no_fixed, sample_df):
         """Test that make_model works correctly without fixed covariates."""
-        X, F, y = mnl_no_fixed.preprocess_model_data(sample_df, utility_eqs_no_fixed)
+        X, F, y = _build_with_data(mnl_no_fixed, sample_df)
         model = mnl_no_fixed.make_model(X, F, y)
 
         assert isinstance(model, pm.Model)
@@ -409,9 +414,9 @@ class TestMakeModelIntegration:
         # betas_fixed should NOT be in the model
         assert "betas_fixed" not in model.named_vars
 
-    def test_make_model_coords_consistency(self, mnl, sample_df, utility_eqs):
+    def test_make_model_coords_consistency(self, mnl, sample_df):
         """Test that model coordinates are correctly specified."""
-        X, F, y = mnl.preprocess_model_data(sample_df, utility_eqs)
+        X, F, y = _build_with_data(mnl, sample_df)
         model = mnl.make_model(X, F, y)
 
         # Check that coords were passed to the model
@@ -421,9 +426,9 @@ class TestMakeModelIntegration:
         assert "alt_covariates" in model.coords
         assert "fixed_covariates" in model.coords
 
-    def test_make_model_data_variables(self, mnl, sample_df, utility_eqs):
+    def test_make_model_data_variables(self, mnl, sample_df):
         """Test that pm.Data variables are correctly created."""
-        X, F, y = mnl.preprocess_model_data(sample_df, utility_eqs)
+        X, F, y = _build_with_data(mnl, sample_df)
         model = mnl.make_model(X, F, y)
 
         # Check that data containers exist
@@ -435,12 +440,9 @@ class TestMakeModelIntegration:
 class TestBackwardCompatibility:
     """Tests to ensure refactored code maintains backward compatibility."""
 
-    def test_same_model_structure_as_original(
-        self, mnl, sample_df, utility_eqs, mock_pymc_sample
-    ):
+    def test_same_model_structure_as_original(self, mnl, sample_df, mock_pymc_sample):
         """Test that refactored model produces same structure as original."""
-        X, F, y = mnl.preprocess_model_data(sample_df, utility_eqs)
-        _ = mnl.make_model(X, F, y)
+        mnl.fit(sample_df)
 
         # Test sampling still works
         mnl.sample()
@@ -452,11 +454,10 @@ class TestBackwardCompatibility:
 
     def test_intervention_still_works(self, mnl, sample_df, mock_pymc_sample):
         """Test that interventions work with refactored model."""
-        X, F, y = mnl.preprocess_model_data(mnl.choice_df, mnl.utility_equations)
-        _ = mnl.make_model(X, F, y)
+        mnl.fit(sample_df)
         mnl.sample()
 
-        new = mnl.choice_df.copy()
+        new = sample_df.copy()
         new["alt_X1"] = new["alt_X1"] * 1.2
         idata_new = mnl.apply_intervention(new)
 
@@ -470,9 +471,11 @@ class TestEdgeCases:
     def test_single_covariate(self, sample_df):
         """Test model with single alternative-specific covariate."""
         utility_eqs_single = ["alt ~ alt_X1 | income", "other ~ other_X1 | income"]
-        mnl_single = MNLogit(sample_df, utility_eqs_single, "choice", ["X1"])
+        mnl_single = MNLogit(
+            utility_equations=utility_eqs_single, depvar="choice", covariates=["X1"]
+        )
 
-        X, F, y = mnl_single.preprocess_model_data(sample_df, utility_eqs_single)
+        X, F, y = _build_with_data(mnl_single, sample_df)
         model = mnl_single.make_model(X, F, y)
 
         assert isinstance(model, pm.Model)
@@ -495,9 +498,11 @@ class TestEdgeCases:
             "alt3 ~ alt3_X1",
             "alt4 ~ alt4_X1",
         ]
-        mnl_many = MNLogit(df_many, utility_eqs_many, "choice", ["X1"])
+        mnl_many = MNLogit(
+            utility_equations=utility_eqs_many, depvar="choice", covariates=["X1"]
+        )
 
-        X, F, y = mnl_many.preprocess_model_data(df_many, utility_eqs_many)
+        X, F, y = _build_with_data(mnl_many, df_many)
         model = mnl_many.make_model(X, F, y)
 
         assert isinstance(model, pm.Model)

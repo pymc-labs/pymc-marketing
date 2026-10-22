@@ -561,6 +561,72 @@ class Transformation:
             sel_to_string=sel_to_string,
         )
 
+    def _sample_response(
+        self,
+        var_name: str,
+        parameters: xr.Dataset | xr.DataTree,
+        x: Any,
+        *,
+        dims: Sequence[str],
+        coords: dict[str, Any],
+        core_dim: str,
+        **sample_posterior_predictive_kwargs: Any,
+    ) -> xr.DataArray:
+        """Apply the transformation to *x* at every draw of *parameters*.
+
+        Builds a model holding the transformation of *x* as one deterministic,
+        with the parameters' own coordinates added to *coords*, and samples it
+        with ``pm.sample_posterior_predictive``.  *x* may have any dimensions.
+
+        Parameters
+        ----------
+        var_name : str
+            Name of the deterministic, and of the returned array.
+        parameters : xr.Dataset or xr.DataTree
+            The transformation's parameters, with ``chain`` and ``draw``
+            dimensions.
+        x : array-like
+            The input, with the dimensions in *dims*.
+        dims : sequence of str
+            Dimension names of *x*, in order.
+        coords : dict
+            Coordinates of *x*'s dimensions.
+        core_dim : str
+            The dimension the transformation acts along, as in :meth:`apply`.
+        **sample_posterior_predictive_kwargs : Any
+            Passed to ``pm.sample_posterior_predictive``.
+
+        Returns
+        -------
+        xr.DataArray
+            The transformed input per draw, ``(chain, draw, *dims)`` and the
+            parameters' other dimensions.  The draws are in the posterior's order
+            and under its ``chain`` and ``draw`` labels.
+        """
+        coords = coords | {
+            dim: np.asarray(coord)
+            for dim, coord in parameters.coords.items()
+            if dim not in ["chain", "draw"]
+        }
+
+        with pm.Model(coords=coords):
+            pmd.Deterministic(
+                var_name,
+                self.apply(as_xtensor(x, dims=tuple(dims)), core_dim=core_dim),
+            )
+
+            dt_cls = getattr(xr, "DataTree", None)
+            if isinstance(parameters, xr.Dataset) and dt_cls is not None:
+                idata = dt_cls.from_dict({"/posterior": parameters})
+            else:
+                idata = parameters
+
+            return pm.sample_posterior_predictive(
+                idata,
+                var_names=[var_name],
+                **sample_posterior_predictive_kwargs,
+            ).posterior_predictive[var_name]
+
     def _sample_curve(
         self,
         var_name: str,
@@ -574,31 +640,15 @@ class Transformation:
             raise ValueError("The coords should only have one key.")
         x_dim = keys[0]
 
-        x = as_xtensor(x, dims=(x_dim,))
-
-        coords = coords | {
-            dim: np.asarray(coord)
-            for dim, coord in parameters.coords.items()
-            if dim not in ["chain", "draw"]
-        }
-
-        with pm.Model(coords=coords):
-            pmd.Deterministic(
-                var_name,
-                self.apply(x, core_dim=x_dim),
-            )
-
-            dt_cls = getattr(xr, "DataTree", None)
-            if isinstance(parameters, xr.Dataset) and dt_cls is not None:
-                idata = dt_cls.from_dict({"/posterior": parameters})
-            else:
-                idata = parameters
-
-            return pm.sample_posterior_predictive(
-                idata,
-                var_names=[var_name],
-                **sample_prior_predictive_kwargs,
-            ).posterior_predictive[var_name]
+        return self._sample_response(
+            var_name,
+            parameters,
+            x,
+            dims=(x_dim,),
+            coords=coords,
+            core_dim=x_dim,
+            **sample_prior_predictive_kwargs,
+        )
 
     def plot_curve_samples(
         self,
@@ -737,7 +787,8 @@ class Transformation:
         If called inside a ``pm.Model`` context that already contains this
         transformation's variables (e.g. after :meth:`apply` has been called
         during ``build_model``), the existing ``XTensorVariable``s are reused
-        rather than creating new ones.  Otherwise falls back to
+        rather than creating new ones. Fixed parameters without registered
+        variables retain their configured values. Otherwise falls back to
         :meth:`apply` behaviour (creates new distributions).
 
         Parameters
@@ -794,10 +845,14 @@ class Transformation:
         """
         model = pm.Model.get_context(error_if_none=False)
         if model is not None and all(
-            v in model.named_vars for v in self.variable_mapping.values()
+            model.name_for(var) in model.named_vars
+            or not hasattr(self.function_priors[param], "create_variable")
+            for param, var in self.variable_mapping.items()
         ):
             kwargs = {
-                param: model.named_vars[var]
+                param: model.named_vars.get(
+                    model.name_for(var), self.function_priors[param]
+                )
                 for param, var in self.variable_mapping.items()
             }
         else:

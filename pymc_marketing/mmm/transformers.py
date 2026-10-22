@@ -484,7 +484,7 @@ def weibull_adstock(
     k : float, by default 1.
         Shape parameter of the Weibull distribution. Must be positive.
     l_max : int, by default 12
-        Maximum duration of carryover effect.
+        Number of kernel weights: the current period plus ``l_max - 1`` lags.
     dim : str
         The dimension of the x input along which to perform the convolution.
     mode : ConvMode, optional
@@ -511,14 +511,14 @@ def weibull_adstock(
     kernel_dim = f"{dim}_kernel"
     lam = as_xtensor(lam)
     k = as_xtensor(k)
-    t = as_xtensor(pt.arange(l_max, dtype=x.dtype) + 1, dims=(kernel_dim,))
-
     if type == WeibullType.PDF:
+        t = as_xtensor(pt.arange(l_max, dtype=x.dtype) + 1, dims=(kernel_dim,))
         w = density(Weibull, value=t, alpha=k, beta=lam)
         w = (w - w.min(dim=kernel_dim)) / (
             w.max(dim=kernel_dim) - w.min(dim=kernel_dim)
         )
     elif type == WeibullType.CDF:
+        t = as_xtensor(pt.arange(l_max - 1, dtype=x.dtype) + 1, dims=(kernel_dim,))
         w = 1 - cdf(Weibull, value=t, alpha=k, beta=lam)
         padded_w = ptx.concat([1, w], dim=kernel_dim)
         w = padded_w.cumprod(dim=kernel_dim)
@@ -1044,11 +1044,39 @@ def hill_function(
         f(x) = 1 - \frac{\kappa^s}{\kappa^s + x^s}
 
     where:
-     - :math:`s` is the slope of the hill.
+     - :math:`s` is the slope of the hill, which sets how steeply the curve rises
+       around :math:`\kappa`.
      - :math:`\kappa` is the half-saturation point as :math:`f(\kappa) = 0.5` for any value of :math:`s`.
      - :math:`x` is the independent variable and must be non-negative.
 
     Hill function from Equation (5) in the paper [1]_.
+
+    The slope alone decides the shape of the curve. For :math:`s \le 1` it is
+    concave everywhere, with :math:`s = 1` giving the Michaelis-Menten curve. For
+    :math:`s > 1` it is S-shaped: convex at small :math:`x`, then concave, with a
+    single inflection point at
+
+    .. math::
+        x^* = \kappa \left(\frac{s - 1}{s + 1}\right)^{1/s},
+        \qquad f(x^*) = \frac{s - 1}{2s}.
+
+    The inflection point always sits below :math:`\kappa` and moves toward it as
+    :math:`s` grows. Since :math:`f` depends on :math:`x` only through
+    :math:`x / \kappa`, changing :math:`\kappa` stretches the curve horizontally
+    without changing its shape. Whether an S-shape is visible in data depends on
+    both parameters: when :math:`x^*` lies close to zero or beyond the observed
+    range of :math:`x`, the data cannot tell the curve apart from a purely concave
+    or purely convex one.
+
+    The slope is easiest to read at the half-saturation point, where the gradient
+    is :math:`f'(\kappa) = s / (4 \kappa)`. Measured in units of :math:`\kappa`,
+    the curve rises at a rate of :math:`s / 4` as it passes the halfway mark.
+    Equivalently, :math:`\operatorname{logit} f(x) = s (\log x - \log \kappa)`, so
+    :math:`s` is the constant slope of the curve on logit-log axes.
+
+    The grid below shows how the two parameters interact on the unit interval. The
+    dashed line marks :math:`\kappa` and the dot marks the inflection point
+    :math:`x^*` when it falls inside the plotted range.
 
     .. plot::
         :context: close-figs
@@ -1058,33 +1086,40 @@ def hill_function(
         import pytensor.tensor as pt
         import pytensor.xtensor as ptx
         from pymc_marketing.mmm.transformers import hill_function
-        x_np = np.linspace(0, 10, 100)
-        x = ptx.as_xtensor(pt.as_tensor_variable(x_np), dims=('x',))
-        # Varying slope
-        slopes = [0.3, 0.7, 1.2]
-        fig, axes = plt.subplots(1, 3, figsize=(12, 4), sharey=True)
+
+        x_np = np.linspace(0, 1, 200)
+        x = ptx.as_xtensor(pt.as_tensor_variable(x_np), dims=("x",))
+        slopes = [0.7, 1.5, 3]
+        kappas = [0.1, 0.5, 2]
+        fig, axes = plt.subplots(3, 3, figsize=(10, 9), sharex=True, sharey=True)
         for i, slope in enumerate(slopes):
-            plt.subplot(1, 3, i+1)
-            y = hill_function(x, slope, 2).eval()
-            plt.plot(x_np, y)
-            plt.xlabel('x')
-            plt.title(f'Slope = {slope}')
-        plt.subplot(1,3,1)
-        plt.ylabel('Hill Saturation Sigmoid')
-        plt.tight_layout()
-        plt.show()
-        # Varying kappa
-        kappas = [1, 5, 10]
-        fig, axes = plt.subplots(1, 3, figsize=(12, 4), sharey=True)
-        for i, kappa in enumerate(kappas):
-            plt.subplot(1, 3, i+1)
-            y = hill_function(x, 1, kappa).eval()
-            plt.plot(x_np, y)
-            plt.xlabel('x')
-            plt.title(f'Kappa = {kappa}')
-        plt.subplot(1,3,1)
-        plt.ylabel('Hill Saturation Sigmoid')
-        plt.tight_layout()
+            for j, kappa in enumerate(kappas):
+                ax = axes[i, j]
+                y = hill_function(x, slope, kappa).eval()
+                ax.plot(x_np, y)
+                if kappa <= 1:
+                    ax.axvline(kappa, color="gray", linestyle="--", linewidth=1)
+                if slope > 1:
+                    x_inf = kappa * ((slope - 1) / (slope + 1)) ** (1 / slope)
+                    if x_inf <= 1:
+                        y_inf = (slope - 1) / (2 * slope)
+                        ax.plot(x_inf, y_inf, "o", color="C3")
+                        ax.annotate(
+                            f"x* = {x_inf:.2f}",
+                            (x_inf, y_inf),
+                            xytext=(6, -12),
+                            textcoords="offset points",
+                            fontsize=8,
+                        )
+                ax.set_xlim(0, 1)
+                ax.set_ylim(0, 1)
+                ax.set_title(f"slope = {slope}, kappa = {kappa}", fontsize=10)
+        for ax in axes[-1]:
+            ax.set_xlabel("x")
+        for ax in axes[:, 0]:
+            ax.set_ylabel("f(x)")
+        fig.suptitle("Hill Saturation")
+        fig.tight_layout()
         plt.show()
 
     Parameters
@@ -1093,7 +1128,9 @@ def hill_function(
         The independent variable, typically representing the concentration of a
         substrate or the intensity of a stimulus.
     slope : XTensorLike
-        The slope of the hill. Must be non-positive.
+        Steepness of the curve as it passes the half-saturation point: the gradient
+        at :math:`x = \kappa` is :math:`s / (4 \kappa)`. Values above 1 give an
+        S-shaped curve. Must be non-negative.
     kappa : XTensorLike
         The half-saturation point as :math:`f(\kappa) = 0.5` for any value of :math:`s`.
 
@@ -1110,8 +1147,16 @@ def hill_function(
     x = as_xtensor(x)
     slope = as_xtensor(slope)
     kappa = as_xtensor(kappa)
-    return 1 - ptx.math.power(kappa, slope) / (
-        ptx.math.power(kappa, slope) + ptx.math.power(x, slope)
+    # f(x) = sigmoid(slope * (log(x) - log(kappa))), defined as 0.0 at x == 0.
+    # Equivalent to 1 - kappa**slope / (kappa**slope + x**slope) but evaluated
+    # in log space, so large slope * log(kappa) products cannot overflow:
+    # the response (and its gradients) stay finite for any positive
+    # (slope, kappa), including zero-spend weeks.
+    safe_x = ptx.math.maximum(x, np.asanyarray(np.finfo(np.float64).tiny))
+    return ptx.math.where(
+        x > 0,
+        ptx.math.sigmoid(slope * (ptx.math.log(safe_x) - ptx.math.log(kappa))),
+        np.asanyarray(0.0),
     )
 
 
@@ -1254,8 +1299,10 @@ def root_saturation(
     ----------
     x : tensor
         Input tensor.
-    alpha : float
-        Exponent for the root transformation. Must be non-negative.
+    alpha : float or tensor
+        Exponent for the root transformation. Must be non-negative. A tensor
+        with dims, such as a per-channel ``("channel",)`` alpha, is matched to
+        ``x`` by dimension name, not by position.
 
     Returns
     -------
@@ -1265,9 +1312,8 @@ def root_saturation(
     """
     x = as_xtensor(x)
     alpha = as_xtensor(alpha)
-    x_tensor = x.values
-    alpha_tensor = alpha.values
-    x_safe = pt.where(x_tensor > 0, x_tensor, 1.0)
-    result = pt.where(x_tensor > 0, x_safe**alpha_tensor, 0.0)
-    result_dims = x.dims + tuple(d for d in alpha.dims if d not in x.dims)
-    return as_xtensor(result, dims=result_dims)
+    # Do not drop to ``.values`` here: ``x`` and ``alpha`` must broadcast by dim
+    # name. ``x_safe`` keeps the gradient finite at ``x == 0`` for ``alpha < 1``.
+    positive = x > 0
+    x_safe = ptx.where(positive, x, 1.0)
+    return ptx.where(positive, x_safe**alpha, 0.0)
