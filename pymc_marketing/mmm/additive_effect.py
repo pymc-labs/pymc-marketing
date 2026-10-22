@@ -595,6 +595,10 @@ class DataVarMuEffect(MuEffect, ABC):
     def set_data(self, mmm: Model, model: pm.Model, X: xr.Dataset) -> None:
         """Update ``pm.Data`` variables from a new prediction dataset.
 
+        Each variable is written in the dim order of its ``pm.Data`` node, so
+        the layout of the variable in *X* does not matter.  A node registered
+        without ``dims`` is written as *X* lays it out.
+
         Parameters
         ----------
         mmm : Model
@@ -606,7 +610,10 @@ class DataVarMuEffect(MuEffect, ABC):
         """
         for var_name in self.data_vars:
             if var_name in X.data_vars:
-                pm.set_data({var_name: X[var_name].values}, model=model)
+                da = X[var_name]
+                if dims := model.named_vars_to_dims.get(var_name):
+                    da = da.transpose(*dims)
+                pm.set_data({var_name: da.values}, model=model)
 
 
 class MediaMuEffect(DataVarMuEffect):
