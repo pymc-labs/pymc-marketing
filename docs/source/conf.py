@@ -3,6 +3,7 @@
 
 import inspect
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -324,7 +325,6 @@ html_theme_options = {
     "analytics": {"google_analytics_id": "G-DNPNG22HVY"},
     # navbar_persistent is the only header slot shown at every width. Setting
     # it replaces the theme default, so keep the search button first.
-    # navbar-contact-button.html renders on the homepage only.
     "navbar_persistent": ["search-button-field", "navbar-contact-button.html"],
 }
 html_context = {
@@ -345,10 +345,7 @@ html_context = {
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
 html_static_path = ["_static/"]
-html_css_files = ["custom.css", "fold-code-cells.css"]
-# Folds notebook code cells by default so example pages lead with narrative
-# and outputs instead of walls of code (#2926).
-html_js_files = ["fold-code-cells.js"]
+html_css_files = ["custom.css"]
 
 # -- Options for LaTeX output ---------------------------------------------
 
@@ -395,10 +392,29 @@ def scrub_plotly_mathjax(app, pagename, templatename, context, doctree):
         )
 
 
+_RAISES_ROLE_RE = re.compile(r"^:raises :obj:`([^`]+)`:")
+
+
+def normalize_raises_fields(app, what, name, obj, options, lines):
+    """Keep cross-reference roles out of the exception names of ``:raises:`` fields.
+
+    Since 3.14, sphinx-autodoc-typehints converts numpydoc's Raises section into fields such as
+    ``:raises :obj:`ValueError`:``, keeping the exception name as numpydoc wrote it, which is a role
+    because of ``numpydoc_xref_param_type``. docutils does not accept a role inside a field name, so
+    the field falls back to a paragraph. Sphinx links plain exception names in ``:raises:`` fields
+    itself. Only the field name is rewritten; roles in the description are kept.
+    """
+    for index, line in enumerate(lines):
+        lines[index] = _RAISES_ROLE_RE.sub(r":raises \1:", line)
+
+
 def setup(app):
     """Configure Sphinx application event handlers.
 
-    Connects the Plotly MathJax scrubbing function to the html-page-context event.
+    Connects the ``:raises:`` field normalization to the autodoc-process-docstring event and the
+    Plotly MathJax scrubbing function to the html-page-context event.
     """
+    # Run after numpydoc (priority 500) and sphinx-autodoc-typehints (501) have written the fields
+    app.connect("autodoc-process-docstring", normalize_raises_fields, priority=1000)
     # Connect the scrubbing function to the html-page-context event
     app.connect("html-page-context", scrub_plotly_mathjax)

@@ -787,7 +787,8 @@ class Transformation:
         If called inside a ``pm.Model`` context that already contains this
         transformation's variables (e.g. after :meth:`apply` has been called
         during ``build_model``), the existing ``XTensorVariable``s are reused
-        rather than creating new ones.  Otherwise falls back to
+        rather than creating new ones. Fixed parameters without registered
+        variables retain their configured values. Otherwise falls back to
         :meth:`apply` behaviour (creates new distributions).
 
         Parameters
@@ -844,10 +845,14 @@ class Transformation:
         """
         model = pm.Model.get_context(error_if_none=False)
         if model is not None and all(
-            v in model.named_vars for v in self.variable_mapping.values()
+            model.name_for(var) in model.named_vars
+            or not hasattr(self.function_priors[param], "create_variable")
+            for param, var in self.variable_mapping.items()
         ):
             kwargs = {
-                param: model.named_vars[var]
+                param: model.named_vars.get(
+                    model.name_for(var), self.function_priors[param]
+                )
                 for param, var in self.variable_mapping.items()
             }
         else:
