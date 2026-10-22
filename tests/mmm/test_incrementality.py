@@ -1014,6 +1014,44 @@ class TestIncrementality:
 
         _assert_same_increments(result, expected)
 
+    @pytest.mark.parametrize(
+        "model_fixture, route",
+        [
+            (model_fixture, route)
+            for model_fixture, routes in _ROUTES_BY_MODEL.items()
+            for route in routes
+        ],
+    )
+    def test_a_transposed_posterior_variable_leaves_every_increment_unchanged(
+        self, request, model_fixture, route
+    ):
+        """Storing a posterior variable's dims in another order changes no number.
+
+        Every variable with two or more non-sample dims is stored with them
+        reversed, so ``saturation_lam`` and ``adstock_alpha`` are stored as
+        ``(channel, geo)``: three by three, so a positional read is wrong
+        without an error.  The closed form and the allocation shares evaluate
+        those parameters through PyMC, which reads values in storage order
+        against the dims the model declares.
+        """
+        mmm = request.getfixturevalue(model_fixture)
+        posterior = mmm.idata["posterior"].to_dataset()
+        # Every variable is stored as (chain, draw, ...), so the rest is reversed.
+        transposed = posterior.assign(
+            {
+                name: var.transpose("chain", "draw", *reversed(var.dims[2:]))
+                for name, var in posterior.data_vars.items()
+                if var.ndim > 3
+            }
+        )
+        stored = mmm.idata.copy()
+        stored["posterior"] = xr.DataTree(transposed)
+
+        expected = _INCREMENT_ROUTES[route](mmm.incrementality)
+        result = _INCREMENT_ROUTES[route](Incrementality(model=mmm, idata=stored))
+
+        _assert_same_increments(result, expected)
+
     def test_non_after_convolution_matches_full_axis_oracle(self, non_after_fitted_mmm):
         """The public API retains all leading kernel mass for one-date periods."""
         mmm = non_after_fitted_mmm

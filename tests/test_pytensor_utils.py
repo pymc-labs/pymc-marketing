@@ -34,6 +34,7 @@ from pymc_marketing._conditioning import (
     check_aligned_dims,
     check_aligned_shape,
     non_sample_dims,
+    transpose_to_model_dims,
 )
 from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation
 from pymc_marketing.mmm.budget_optimizer import BudgetOptimizer
@@ -798,6 +799,45 @@ def test_align_posterior_dim_reorders_the_axis_to_the_bound_labels():
     # The same array comes back when neither side is labeled.
     unlabeled = xr.DataArray(np.ones((2, 3)), dims=("channel", "sample"))
     assert align_posterior_dim("beta", unlabeled, "channel", None) is unlabeled
+
+
+def test_transpose_to_model_dims_moves_only_a_reordering_of_the_declared_dims():
+    """A variable over the declared dims in another order is transposed.
+
+    The sample dims stay in front, a variable already in order or over another
+    set of dims is left as given, and so is one the model does not declare.
+    """
+    model_dims = {
+        "lam": ("geo", "channel"),
+        "alpha": ("geo", "channel"),
+        "sigma": ("geo",),
+    }
+    rng = np.random.default_rng(0)
+    posterior = xr.Dataset(
+        {
+            "lam": (("chain", "draw", "channel", "geo"), rng.normal(size=(1, 2, 3, 3))),
+            "alpha": (
+                ("chain", "draw", "geo", "channel"),
+                rng.normal(size=(1, 2, 3, 3)),
+            ),
+            "sigma": (("chain", "draw", "geo", "extra"), rng.normal(size=(1, 2, 3, 2))),
+            "free": (
+                ("chain", "draw", "channel", "geo"),
+                rng.normal(size=(1, 2, 3, 3)),
+            ),
+        }
+    )
+
+    laid_out = transpose_to_model_dims(posterior, model_dims)
+
+    assert laid_out["lam"].dims == ("chain", "draw", "geo", "channel")
+    xr.testing.assert_identical(
+        laid_out["lam"], posterior["lam"].transpose(*laid_out["lam"].dims)
+    )
+    for name in ("alpha", "sigma", "free"):
+        assert laid_out[name].dims == posterior[name].dims
+    # Nothing to move returns the dataset itself.
+    assert transpose_to_model_dims(laid_out, model_dims) is laid_out
 
 
 def test_check_aligned_shape_allows_only_the_sample_length_to_change():

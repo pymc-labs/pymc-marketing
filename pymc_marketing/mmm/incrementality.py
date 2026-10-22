@@ -247,6 +247,7 @@ from pydantic import ConfigDict, validate_call
 from pymc_marketing._conditioning import (
     needed_posterior_names,
     reorder_to_model_coords,
+    transpose_to_model_dims,
 )
 from pymc_marketing.data.idata.mmm_wrapper import MMMIDataWrapper
 from pymc_marketing.data.idata.schema import Frequency
@@ -4950,23 +4951,29 @@ class Incrementality:
         return ordered[name]
 
     def _posterior_in_data_order(self, posterior: xr.Dataset) -> xr.Dataset:
-        """Return ``posterior`` with each labeled dim in ``constant_data``'s order.
+        """Return ``posterior`` laid out as PyMC reads it next to ``constant_data``.
 
         The closed form and the allocation shares evaluate the saturation and
         the adstock kernel through PyMC, which pairs the draws with the channel
-        data by position, so the two must share one label order.  A posterior
-        stored in another order -- a reordered or reloaded ``idata`` -- is
-        reordered here; the evaluator reorders its own copy to the model's
-        order, and the reducer pairs by label.
+        data by position, so the two must share one label order.  PyMC also
+        reads each parameter's values in storage order against the dims the
+        transformation's priors declare, which are the dims the model was built
+        with, so each variable is put in the model's dim order too.  A
+        posterior stored otherwise, such as a reordered, transposed or reloaded
+        ``idata``, is laid out here.  The evaluator binds its own copy by dim
+        name in the model's order, and the reducer pairs by label.
         """
         channel_data = self.data.get_channel_data()
-        return reorder_to_model_coords(
+        in_data_order = reorder_to_model_coords(
             posterior,
             {
                 str(dim): channel_data.coords[dim].values
                 for dim in channel_data.dims
                 if dim != "date" and dim in channel_data.coords
             },
+        )
+        return transpose_to_model_dims(
+            in_data_order, self.model.model.named_vars_to_dims
         )
 
     def _compute_period_increments(

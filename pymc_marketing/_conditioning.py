@@ -319,3 +319,46 @@ def reorder_to_model_coords(
             continue
         indexers[dim] = reference
     return posterior.sel(indexers) if indexers else posterior
+
+
+def transpose_to_model_dims(
+    posterior: xr.Dataset,
+    model_dims: Mapping[str, Sequence[str | None]],
+    *,
+    sample_dims: tuple[str, ...] = ("chain", "draw"),
+) -> xr.Dataset:
+    """Return ``posterior`` with each variable's dims in the order the model declares.
+
+    PyMC's posterior predictive reads a variable's values in storage order
+    against the dims its model declares, so a variable stored as ``(channel,
+    geo)`` for a model that declares ``(geo, channel)`` is read transposed, and
+    silently so when the two axes have the same length.  A variable whose
+    non-sample dims are the declared dims in another order is transposed.  Any
+    other variable (one the model does not declare, or one over another set of
+    dims) is left as given.
+
+    Parameters
+    ----------
+    posterior : xr.Dataset
+        The draws to transpose.
+    model_dims : mapping
+        The dims of each model variable, such as ``pm.Model.named_vars_to_dims``.
+    sample_dims : tuple of str, default ("chain", "draw")
+        The dims that index draws.  They stay in front, in their stored order.
+
+    Returns
+    -------
+    xr.Dataset
+        ``posterior`` with every such variable in the model's dim order, or
+        ``posterior`` itself when every variable already is.
+    """
+    transposed: dict[str, xr.DataArray] = {}
+    for name, posterior_da in posterior.data_vars.items():
+        declared = tuple(str(dim) for dim in model_dims.get(str(name)) or ())
+        stored = non_sample_dims(posterior_da, sample_dims=sample_dims)
+        # Only the same dims in another order are moved.
+        if stored == declared or sorted(stored) != sorted(declared):
+            continue
+        leading = [dim for dim in posterior_da.dims if dim in sample_dims]
+        transposed[str(name)] = posterior_da.transpose(*leading, *declared)
+    return posterior.assign(transposed) if transposed else posterior
