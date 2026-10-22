@@ -9129,5 +9129,52 @@ def test_refit_that_changes_target_scale_drops_prior(
     _fit(mmm, X, y)
     assert "prior" in mmm.idata.children
 
-    _fit(mmm, X, 100 * y)
+    with pytest.warns(UserWarning, match="channel_contribution_original_scale"):
+        _fit(mmm, X, 100 * y)
     assert "prior" not in mmm.idata.children
+
+
+def test_fit_after_prior_predictive_without_y_warns_that_the_prior_is_dropped(
+    lognormal_likelihood_data, mock_pymc_sample
+):
+    # Every MMM prior holds `total_media_contribution_original_scale`, which
+    # the placeholder target scale made wrong, so the fit with the real `y`
+    # drops the prior and says so.
+    X, y = lognormal_likelihood_data
+    mmm = _two_channel_mmm()
+    mmm.sample_prior_predictive(X, samples=10, random_seed=42)
+
+    with pytest.warns(UserWarning, match="total_media_contribution_original_scale"):
+        _fit(mmm, X, y)
+
+    assert "prior" not in mmm.idata.children
+
+
+def test_prior_without_original_scale_vars_survives_a_scale_change():
+    mmm = _two_channel_mmm()
+    mmm.idata = xr.DataTree.from_dict(
+        {"prior": xr.Dataset({"intercept": ("sample", np.zeros(3))})}
+    )
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        mmm._drop_prior_sampled_with_old_scale()
+
+    assert "prior" in mmm.idata.children
+
+
+def test_fit_with_new_X_and_no_y_raises_and_keeps_the_model(
+    lognormal_likelihood_data, mock_pymc_sample
+):
+    # The target the model holds belongs to the old X, so a new X without a
+    # target is rejected before anything is rebuilt.
+    X, y = lognormal_likelihood_data
+    mmm = _two_channel_mmm()
+    mmm.build_model(X, y)
+    model = mmm.model
+
+    with pytest.raises(ValueError, match="does not carry the target"):
+        _fit(mmm, X.iloc[5:])
+
+    assert mmm.model is model
+    np.testing.assert_array_equal(mmm.xarray_dataset.date, X["date"])

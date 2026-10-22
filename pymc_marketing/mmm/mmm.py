@@ -2477,7 +2477,9 @@ class MMM(RegressionModelBuilder):
         :meth:`sample_prior_predictive` or an earlier ``fit``, it is rebuilt
         when the data in ``X`` differs from the data it was built on.
         Otherwise, the target passed here, as ``y`` or inside ``X``, replaces
-        the observed target and its scale.
+        the observed target and its scale. If that changes the target scale, a
+        prior in ``idata`` that holds ``*_original_scale`` variables is dropped
+        with a warning.
         """
         if hasattr(self, "model"):
             self._update_model_for_fit(X, y)
@@ -2553,13 +2555,40 @@ class MMM(RegressionModelBuilder):
                     "with this data, add the lift tests again, and then call "
                     "`fit`."
                 )
-            # Groups such as the prior were sampled with the old scale.
-            self.idata = None
+            self._drop_prior_sampled_with_old_scale()
 
         self.xarray_dataset["_target"] = target
         self.scalers["_target"] = target_scale
         self._set_xarray_data(dataset, model=self.model)
         pm.set_data({"target_scale": target_scale}, model=self.model)
+
+    def _drop_prior_sampled_with_old_scale(self) -> None:
+        """Drop ``idata`` when its prior holds original-scale variables.
+
+        Those variables multiply by the target scale, so a fit that changes
+        the scale leaves them wrong. A prior without them does not depend on
+        the scale and is kept.
+        """
+        if self.idata is None:
+            return
+        stale = sorted(
+            {
+                name
+                for group in ("prior", "prior_predictive")
+                if group in self.idata.children
+                for name in self.idata[group].data_vars
+                if str(name).endswith("_original_scale")
+            }
+        )
+        if stale:
+            warnings.warn(
+                "`fit` changed the target scale, so the prior in `idata` was "
+                f"dropped: {stale} were computed with the old scale. Call "
+                "`sample_prior_predictive` again to get them.",
+                UserWarning,
+                stacklevel=4,
+            )
+            self.idata = None
 
     def _validate_observed_target(
         self, target: xr.DataArray, target_scale: xr.DataArray
