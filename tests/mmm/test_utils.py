@@ -33,6 +33,7 @@ from pymc_marketing.mmm.utils import (
     create_index,
     create_new_spend_data,
     create_zero_dataset,
+    infer_frequency,
     planned_controls_to_dataarray,
     transform_1d_array,
     validate_planned_control_dates,
@@ -297,6 +298,36 @@ def test_create_index(dims, take, expected_result):
     assert create_index(dims, take) == expected_result
 
 
+class TestInferFrequency:
+    """``infer_frequency`` returns pandas' frequency string, quietly on every pandas version."""
+
+    @pytest.mark.parametrize("freq", ["W-MON", "W-SUN", "D", "MS", "ME", "h", "B"])
+    def test_returns_the_frequency_string_without_a_warning(self, freq):
+        """pandas 3.1 warns on every ``pd.infer_freq`` call; this must not."""
+        # The values carry no frequency, as dates read back from a dataset.
+        dates = pd.date_range("2024-01-01", periods=10, freq=freq).values
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            result = infer_frequency(dates)
+
+        assert result == pd.tseries.frequencies.to_offset(freq).freqstr
+
+    @pytest.mark.parametrize(
+        "dates",
+        [
+            pytest.param(["2024-01-01", "2024-01-03", "2024-01-10"], id="irregular"),
+            pytest.param(["2024-01-15", "2024-01-01", "2024-01-08"], id="unsorted"),
+        ],
+    )
+    def test_returns_none_when_no_frequency_fits(self, dates):
+        assert infer_frequency(pd.DatetimeIndex(dates)) is None
+
+    def test_needs_three_dates_as_pandas_does(self):
+        with pytest.raises(ValueError, match="Need at least 3 dates"):
+            infer_frequency(pd.DatetimeIndex(["2024-01-01", "2024-01-08"]))
+
+
 class TestConvertFrequencyToTimedelta:
     """Test cases for _convert_frequency_to_timedelta function."""
 
@@ -446,6 +477,52 @@ class TestCreateZeroDataset:
         assert np.all(
             result["_channel"].sel(channel="channel2").values == 0
         )  # Not provided
+
+    def test_create_zero_dataset_channel_xr_matched_by_label(self):
+        """channel_xr must be written by label, not by position (#3234).
+
+        A plan laid out with the model's dims swapped and one dim's labels
+        reversed (equal lengths, so the positional copy used to succeed) must
+        land on the cells the labels name, not on the cells the position names.
+        """
+        dates = pd.date_range("2022-01-01", "2022-01-31", freq="D")
+        geos, products = ["north", "south"], ["a", "b"]
+
+        class FakeAdstock:
+            l_max = 7
+
+        class FakeMMM2D:
+            date_column = "date"
+            channel_columns = ["tv", "radio"]
+            control_columns = []
+            dims = ["geo", "product"]
+            adstock = FakeAdstock()
+            xarray_dataset = xr.Dataset(
+                coords={"date": dates, "geo": geos, "product": products}
+            )
+
+        # Plan laid out (product, geo) with the geo labels reversed.
+        plan_da = xr.DataArray(
+            [[1.0, 2.0], [3.0, 4.0]],
+            dims=("product", "geo"),
+            coords={"product": products, "geo": ["south", "north"]},
+        )
+        plan = plan_da.to_dataset(name="tv")
+        plan["radio"] = plan_da * 10
+
+        result = create_zero_dataset(
+            FakeMMM2D(), "2022-02-01", "2022-02-10", plan, include_carryover=False
+        )
+        got = (
+            result["_channel"]
+            .isel(date=0)
+            .sel(channel="tv")
+            .transpose("geo", "product")
+        )
+        expected = (
+            plan["tv"].reindex(geo=geos, product=products).transpose("geo", "product")
+        )
+        assert np.allclose(got.values, expected.values)
 
     def test_create_zero_dataset_include_carryover_false(self):
         """Test create_zero_dataset with include_carryover=False."""
