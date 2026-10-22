@@ -731,6 +731,11 @@ class SpendProbe:
         gives: a forward tail needs room on the axis to end in, and a backward
         move shows up from anywhere.  Among the head dates, the largest magnitude
         wins, so the perturbation is as far above float noise as the data allows.
+        When the head carries no magnitude (a channel that only runs in flights
+        later in the axis), the largest magnitude among the earliest half of the
+        non-zero dates wins, for the same reason: the largest magnitude of the
+        whole axis can sit at its end, where no tail has room, and a probe there
+        reads as a reach longer than the axis can show.
 
         Parameters
         ----------
@@ -748,7 +753,11 @@ class SpendProbe:
         """
         head_stop = max(2, n_dates // 8) - 1
         in_head = np.flatnonzero(magnitude[:head_stop])
-        chosen = in_head if in_head.size else np.flatnonzero(magnitude)
+        if in_head.size:
+            chosen = in_head
+        else:
+            non_zero = np.flatnonzero(magnitude)
+            chosen = non_zero[: (non_zero.size + 1) // 2]
         return 1 + int(chosen[np.argmax(magnitude[chosen])])
 
     @classmethod

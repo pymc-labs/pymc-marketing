@@ -818,6 +818,28 @@ class TestSpendProbe:
         assert len(indices) == 1
         assert spend[indices[0]].all()
 
+    def test_a_covering_peak_at_the_end_of_the_axis_is_not_the_probe(self):
+        """Among late covering dates, the probe leaves room for the tail.
+
+        A channel that runs in flights is dark over the head, so the covering
+        probe comes from further along the axis.  Picking the largest covering
+        week there used to land on a peak right before the axis end, whose tail
+        the axis cannot show, and the measurement then demanded full-axis
+        evaluation for a plain causal filter.
+        """
+        spend = self._spend(dark=self.dark)
+        spend[-2] = 50.0  # the largest covering week is the last interior date
+        probe = self._probe(spend, **{CHANNEL_CONTRIBUTION: causal_filter(self.l_max)})
+
+        assert probe.probe_indices[0] < self.n_dates - 1 - self.l_max
+
+        reach = probe.measure(
+            effects=(), l_max=self.l_max, trailing_lags=self.l_max - 1
+        )
+
+        assert not reach.requires_full_axis
+        assert reach.effective_l_max == self.l_max
+
     def test_an_all_zero_channel_does_not_force_extra_probes(self):
         """A channel that never spends cannot be moved, so it needs no probe."""
         spend = self._spend()
