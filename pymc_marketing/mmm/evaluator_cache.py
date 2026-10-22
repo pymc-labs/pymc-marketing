@@ -14,9 +14,12 @@
 
 """The compiled-evaluator cache a fitted MMM keeps for its incrementality questions.
 
-Private: :class:`~pymc_marketing.mmm.incrementality.Incrementality` leases
-evaluators from it and :class:`~pymc_marketing.mmm.mmm.MMM` owns it.  None of it
-is public API.
+A fitted :class:`~pymc_marketing.mmm.mmm.MMM` owns one :class:`EvaluatorCache`.
+Every :class:`~pymc_marketing.mmm.incrementality.Incrementality` object it
+creates leases compiled
+:class:`~pymc_marketing.mmm.counterfactual.CounterfactualEvaluator` objects from
+it, so repeated questions over the same graph and data compile once.  The
+model creates and clears the cache itself; a user does not call it directly.
 """
 
 from __future__ import annotations
@@ -186,7 +189,20 @@ class EvaluatorCache:
         self._lock = threading.Lock()
 
     def get(self, key: EvaluatorCacheKey) -> CounterfactualEvaluator | None:
-        """Return the evaluator cached under ``key``, marking it most recent."""
+        """Return the evaluator cached under ``key``, marking it most recent.
+
+        Parameters
+        ----------
+        key : EvaluatorCacheKey
+            Identity to look up.
+
+        Returns
+        -------
+        CounterfactualEvaluator or None
+            The cached evaluator, which stays in the cache, or ``None`` when
+            ``key`` is absent.  A request takes an evaluator out with
+            :meth:`lease` instead.
+        """
         with self._lock:
             evaluator = self._entries.get(key)
             if evaluator is not None:
@@ -194,7 +210,18 @@ class EvaluatorCache:
             return evaluator
 
     def put(self, key: EvaluatorCacheKey, evaluator: CounterfactualEvaluator) -> None:
-        """Store ``evaluator`` under ``key``, evicting the least recent entry."""
+        """Store ``evaluator`` under ``key``, evicting the least recent entry.
+
+        An evaluator already cached under ``key`` is replaced, so the cache
+        never holds more than ``max_entries`` evaluators.
+
+        Parameters
+        ----------
+        key : EvaluatorCacheKey
+            Identity to store it under.
+        evaluator : CounterfactualEvaluator
+            The compiled evaluator.
+        """
         with self._lock:
             self._entries[key] = evaluator
             self._entries.move_to_end(key)
@@ -237,6 +264,7 @@ class EvaluatorCache:
         return EvaluatorLease(self, key, factory(), cached=False)
 
     def __len__(self) -> int:
+        """Return the number of cached evaluators."""
         return len(self._entries)
 
     def __getstate__(self) -> dict[str, int]:

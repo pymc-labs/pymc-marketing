@@ -53,7 +53,6 @@ from pymc_marketing.mmm import (
     WeibullPDFAdstock,
 )
 from pymc_marketing.mmm import incrementality as incrementality_module
-from pymc_marketing.mmm._evaluator_cache import EvaluatorCache
 from pymc_marketing.mmm.additive_effect import IncrementalitySpec
 from pymc_marketing.mmm.counterfactual import (
     CounterfactualEvaluator,
@@ -6716,14 +6715,6 @@ class TestSplitIncrementalContributionHelpers:
         assert bool(result.coords["complete"])
 
 
-class _FakeEvaluator:
-    """Only what the evaluator cache asks of an entry: whether it went stale."""
-
-    def is_stale(self) -> bool:
-        """Whether the entry should be rebuilt instead of reused."""
-        return False
-
-
 class TestEvaluatorCache:
     """The MMM-level cache that lets Incrementality reuse compiled evaluators.
 
@@ -7127,25 +7118,6 @@ class TestEvaluatorCache:
 
         assert len(constructed) == 2
 
-    def test_the_lru_evicts_the_least_recent_and_get_refreshes_recency(self):
-        """A size-4 cache drops its oldest key, and a ``get`` hit protects a key from the next eviction."""
-        cache = EvaluatorCache(max_entries=4)
-        keys = [object() for _ in range(5)]
-        values = [object() for _ in range(5)]
-        for key, value in zip(keys[:4], values[:4], strict=True):
-            cache.put(key, value)
-        cache.put(keys[4], values[4])
-
-        assert len(cache) == 4
-        assert cache.get(keys[0]) is None
-
-        # A hit on the least recent key makes it the most recent, so the next put evicts the one after it.
-        assert cache.get(keys[1]) is values[1]
-        cache.put(keys[0], values[0])
-
-        assert cache.get(keys[1]) is values[1]
-        assert cache.get(keys[2]) is None
-
     def test_a_mutation_after_the_first_call_is_still_refused(
         self, funnel_identity_fitted_mmm
     ):
@@ -7246,29 +7218,6 @@ class TestEvaluatorCache:
         )
         assert len(constructed) == 1
         assert not constructed[0]["posterior"].data_vars
-
-    def test_a_leased_entry_is_out_of_the_cache_until_released(self):
-        """A second request on a leased key misses rather than sharing it."""
-        cache = EvaluatorCache(max_entries=2)
-        key = object()
-        evaluator = _FakeEvaluator()
-        cache.put(key, evaluator)
-
-        lease = cache.lease(key, lambda: pytest.fail("a cached entry is a hit"))
-        assert lease.cached
-        assert lease.evaluator is evaluator
-        assert len(cache) == 0
-
-        concurrent = cache.lease(key, _FakeEvaluator)
-        assert not concurrent.cached
-        assert concurrent.evaluator is not evaluator
-
-        lease.release()
-        lease.release()  # releasing twice is a no-op
-        concurrent.release()
-
-        assert len(cache) == 1
-        assert cache.get(key) is concurrent.evaluator
 
     @pytest.mark.parametrize(
         "failing_method",

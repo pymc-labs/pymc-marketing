@@ -247,11 +247,6 @@ from pydantic import ConfigDict, validate_call
 from pymc_marketing.data.idata.mmm_wrapper import MMMIDataWrapper
 from pymc_marketing.data.idata.schema import Frequency
 from pymc_marketing.data.idata.utils import subsample_draws
-from pymc_marketing.mmm._evaluator_cache import (
-    EvaluatorCacheKey,
-    EvaluatorLease,
-    constant_data_fingerprint,
-)
 from pymc_marketing.mmm.components.adstock import (
     BinomialAdstock,
     DelayedAdstock,
@@ -265,6 +260,11 @@ from pymc_marketing.mmm.counterfactual import (
     CounterfactualScenarios,
     Estimand,
     EvaluationWindows,
+)
+from pymc_marketing.mmm.evaluator_cache import (
+    EvaluatorCacheKey,
+    EvaluatorLease,
+    constant_data_fingerprint,
 )
 from pymc_marketing.mmm.link import MU_ORIGINAL_SCALE, LinkFunction
 from pymc_marketing.mmm.spend_reach import (

@@ -209,7 +209,6 @@ from pymc_marketing.data.idata.utils import (
 )
 from pymc_marketing.hsgp_kwargs import HSGPKwargs
 from pymc_marketing.mmm import SoftPlusHSGP
-from pymc_marketing.mmm._evaluator_cache import EvaluatorCache
 from pymc_marketing.mmm.additive_effect import (
     EventAdditiveEffect,
     MuEffect,
@@ -229,6 +228,7 @@ from pymc_marketing.mmm.decomposition import (
     log_counterfactual_remove_component,
 )
 from pymc_marketing.mmm.dims import XTensorLike
+from pymc_marketing.mmm.evaluator_cache import EvaluatorCache
 from pymc_marketing.mmm.events import EventEffect
 from pymc_marketing.mmm.fourier import YearlyFourier
 from pymc_marketing.mmm.hsgp import HSGPBase
