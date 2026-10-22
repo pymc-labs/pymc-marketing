@@ -1493,6 +1493,48 @@ def _expected_doubled(idata, data_values) -> np.ndarray:
     return np.outer(drawn, 2.0 * data_values)
 
 
+@pytest.mark.parametrize(
+    "rebinder",
+    ["shared_posterior", "conditioned_model", "conditioned_model_before_extract"],
+)
+def test_a_rebind_ignores_an_unread_variable_it_could_not_stack(rebinder):
+    """A posterior variable no graph reads may change freely on a rebind.
+
+    Regression: a rebind stacked the whole posterior into one ``sample`` axis
+    before it picked the bound variables, so every rebind copied every
+    deterministic of a lazily loaded posterior.  An unread variable that could
+    not be stacked, here one that already has a ``sample`` dim of another
+    length, made the rebind fail, also before any graph was extracted.
+    """
+    model, first, data_values = _slope_model_and_draws(draws=4, seed=1)
+    _, second, _ = _slope_model_and_draws(draws=6, seed=2)
+    posterior = second["posterior"].to_dataset().assign(junk=("sample", np.zeros(5)))
+    if rebinder == "shared_posterior":
+        bound = SharedPosterior()
+        graph = extract_response_distribution(
+            model, first, "doubled", shared_posterior=bound
+        )
+    else:
+        bound = ConditionedModel(model, first, intervention={"data": data_values})
+        if rebinder == "conditioned_model_before_extract":
+            bound.set_posterior(posterior)
+        graph = bound.extract("doubled")
+    fn = function([], graph)
+
+    bound.set_posterior(posterior)
+
+    np.testing.assert_allclose(fn(), _expected_doubled(second, data_values))
+
+
+def test_a_rebind_with_nothing_bound_still_needs_chain_and_draw():
+    """With nothing bound a rebind writes nothing, but still refuses unindexed draws."""
+    shared_posterior = SharedPosterior()
+    unindexed = xr.Dataset({"slope": (("draw",), np.zeros(3))})
+
+    with pytest.raises(ValueError, match="indexed by 'chain' and 'draw'"):
+        shared_posterior.set_posterior(unindexed)
+
+
 def _channel_conditioned_model():
     """A model with ``resp = beta * spend`` and ``resp_g = gamma * spend``."""
     spend = np.array([10.0, 20.0])

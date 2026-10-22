@@ -448,12 +448,31 @@ class SharedPosterior:
             written in that case, and a write cut short by an interrupt puts
             the previous draws back.
         """
-        posterior = _posterior_sample_major(idata)
+        # The input is read as ``az.extract`` reads it, so the narrowing below
+        # accepts and refuses the same inputs.
+        posterior = az.convert_to_dataset(idata, group="posterior")
         missing = sorted(set(self._variables) - set(posterior.data_vars))
         if missing:
             raise KeyError(
                 f"Posterior is missing variables bound by this SharedPosterior: {missing}"
             )
+        # Stack only the bound variables.  A posterior also carries every
+        # deterministic (``channel_contribution``, ``mu`` and the rest), which
+        # stacking would copy on every rebind of a lazily loaded posterior, and
+        # a variable no graph reads may hold anything, even a layout that does
+        # not stack.  The draws must still be indexed by ``chain`` and
+        # ``draw``, as ``az.extract`` requires, even with nothing bound.
+        bound = list(self._variables)
+        narrowed = posterior[bound] if bound else posterior
+        absent = [dim for dim in ("chain", "draw") if dim not in narrowed.dims]
+        if absent:
+            raise ValueError(
+                f"Posterior draws must be indexed by 'chain' and 'draw'; {absent} "
+                f"missing from dims {tuple(narrowed.dims)}."
+            )
+        if not bound:
+            return
+        posterior = _posterior_sample_major(narrowed)
         # Validate, align and cast everything first so a failure leaves the
         # binding untouched rather than half-swapped between two posteriors.
         # Every fallible step lives in _aligned_values; the write loop only
