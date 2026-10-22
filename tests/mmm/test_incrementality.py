@@ -604,9 +604,15 @@ def _fit_dataset_ordered_panel_mmm(**model_kwargs):
 
     A ``DataFrame`` input is sorted on the way into the model, so only a model
     built from an ``xr.Dataset`` keeps an unsorted coordinate, while
-    ``fit_data`` is sorted by ``create_fit_data`` regardless.  ``north`` spends
-    and sells ten times what ``east`` does, so a label paired with the other
-    geo's value is off by an order of magnitude rather than by rounding.
+    ``fit_data`` is sorted by ``create_fit_data`` regardless.  ``north``,
+    ``east`` and ``south`` are sized ``10 : 3 : 1`` and their spend and sales
+    scale with that size, so a label paired with another geo's value is off
+    by a factor of about two or more rather than by rounding.  Each axis has
+    three labels, so a test can permute an axis cyclically: a permutation of
+    two labels is a swap, its own inverse, and cannot tell a reorder from one
+    applied backwards.  ``channel`` is unsorted too, and no cyclic
+    permutation of either axis is its sorted order, the order an xarray
+    alignment can produce.
 
     Fitted like :func:`tests.mmm.conftest.mock_fit`, which cannot be reused
     here: it builds the model and ``fit_data`` from the same ``X``, while this
@@ -616,9 +622,9 @@ def _fit_dataset_ordered_panel_mmm(**model_kwargs):
     """
     rng = np.random.default_rng(3212)
     dates = pd.date_range("2024-01-01", periods=16, freq="W-MON")
-    geos = ["north", "east"]
-    channels = ["tv", "search"]
-    size = xr.DataArray([10.0, 1.0], dims="geo", coords={"geo": geos})
+    geos = ["north", "east", "south"]
+    channels = ["tv", "social", "search"]
+    size = xr.DataArray([10.0, 3.0, 1.0], dims="geo", coords={"geo": geos})
     unit_spend = xr.DataArray(
         rng.gamma(2.0, 1.0, size=(len(dates), len(geos), len(channels))),
         dims=("date", "geo", "channel"),
@@ -631,6 +637,7 @@ def _fit_dataset_ordered_panel_mmm(**model_kwargs):
             1.0
             + 0.3 * unit_spend.sel(channel="tv", drop=True)
             + 0.5 * unit_spend.sel(channel="search", drop=True)
+            + 0.2 * unit_spend.sel(channel="social", drop=True)
         )
     ).transpose("date", "geo")
     X = media.to_dataset("channel").to_dataframe().reset_index()
@@ -681,8 +688,8 @@ def per_geo_scaled_dataset_ordered_panel_fitted_mmm():
     """The unsorted panel MMM with one target scale per geo.
 
     The identity reducer multiplies every increment by the target scale, so
-    with a ``geo`` axis on the scale a geo paired with the other's scale is off
-    by the tenfold size difference.
+    with a ``geo`` axis on the scale a geo paired with another's scale is off
+    by the size ratio, a factor of three or more.
     """
     mmm = _fit_dataset_ordered_panel_mmm(
         scaling={
@@ -717,6 +724,97 @@ def saturation_first_dataset_ordered_panel_fitted_mmm():
             "target": {"method": "max", "dims": ()},
             "channel": {"method": "max", "dims": ()},
         },
+    )
+
+
+# Every route that reduces an increment, by name, for the tests that store
+# ``idata`` in another layout and expect the same numbers.
+_INCREMENT_ROUTES = {
+    "per_channel": lambda incr: incr.compute_incremental_contribution(
+        frequency="all_time"
+    ),
+    "per_channel_mean": lambda incr: incr.compute_incremental_contribution(
+        frequency="all_time", central_tendency="mean"
+    ),
+    "marginal": lambda incr: incr.compute_incremental_contribution(
+        frequency="monthly", counterfactual_spend_factor=1.01
+    ),
+    "joint": lambda incr: incr.compute_joint_incremental_contribution(
+        frequency="all_time"
+    ),
+    "over_time": lambda incr: incr.split_incremental_contribution_over_time(
+        frequency="monthly"
+    ),
+    "current_future": (
+        lambda incr: incr.split_incremental_contribution_current_future(
+            frequency="monthly"
+        )
+    ),
+    "allocation": lambda incr: incr.split_incremental_contribution_over_time(
+        frequency="monthly", estimand="allocation"
+    ),
+    "closed_form_over_time": (
+        lambda incr: incr.split_incremental_contribution_over_time(
+            frequency="monthly", method="closed_form"
+        )
+    ),
+    "closed_form_allocation": (
+        lambda incr: incr.split_incremental_contribution_over_time(
+            frequency="monthly", estimand="allocation", method="closed_form"
+        )
+    ),
+    "closed_form_current_future": (
+        lambda incr: incr.split_incremental_contribution_current_future(
+            frequency="monthly", method="closed_form"
+        )
+    ),
+}
+
+# The routes each unsorted panel model is checked on: the log reducer's own
+# inputs, every identity route, and the closed form where it is exact.
+_ROUTES_BY_MODEL = {
+    "log_link_dataset_ordered_panel_fitted_mmm": (
+        "per_channel",
+        "per_channel_mean",
+        "marginal",
+        "joint",
+        "over_time",
+    ),
+    "per_geo_scaled_dataset_ordered_panel_fitted_mmm": (
+        "per_channel",
+        "joint",
+        "over_time",
+        "current_future",
+        "allocation",
+    ),
+    "saturation_first_dataset_ordered_panel_fitted_mmm": (
+        "closed_form_over_time",
+        "closed_form_allocation",
+        "closed_form_current_future",
+    ),
+}
+
+# A cyclic permutation of three labels and its inverse.  Unlike a swap, a
+# cycle is not its own inverse, so a reorder applied backwards shows.
+_CYCLE = [1, 2, 0]
+_INVERSE_CYCLE = [2, 0, 1]
+
+
+def _assert_same_increments(result, expected) -> None:
+    """Assert ``result`` holds ``expected``'s numbers under ``expected``'s labels.
+
+    The current/future split is a Dataset whose variables share one layout.
+    """
+    layout = (
+        expected["current"] if isinstance(expected, xr.Dataset) else expected
+    ).dims
+    labels = {
+        name: expected[name].values
+        for name in ("geo", "channel")
+        if name in expected.dims
+    }
+    xr.testing.assert_allclose(
+        result.sel(labels).transpose(*layout), expected, rtol=1e-8
     )
 
 
@@ -806,8 +904,9 @@ class TestIncrementality:
     ):
         """Per-geo ROAS pairs each geo's increment with that geo's spend (#3212).
 
-        The division aligns by label, so an increment labelled with the other
-        geo is divided by the other geo's spend, a tenfold error either way.
+        The division aligns by label, so an increment labeled with another
+        geo is divided by that geo's spend, an error of a factor of about two
+        or more.
         """
         mmm = dataset_ordered_panel_fitted_mmm
         spend = mmm.xarray_dataset["_channel"].sum("date")
@@ -852,39 +951,27 @@ class TestIncrementality:
 
         xr.testing.assert_allclose(result, expected.transpose(*result.dims), rtol=1e-8)
 
-    @pytest.mark.parametrize("group", ["posterior", "constant_data"])
+    @pytest.mark.parametrize(
+        "group",
+        ["posterior", "constant_data", "both_same", "both_different", "mixed"],
+    )
     @pytest.mark.parametrize(
         "model_fixture, dim, route",
         [
             *[
                 ("log_link_dataset_ordered_panel_fitted_mmm", "geo", route)
-                for route in (
-                    "per_channel",
-                    "per_channel_mean",
-                    "marginal",
-                    "joint",
-                    "over_time",
-                )
+                for route in _ROUTES_BY_MODEL[
+                    "log_link_dataset_ordered_panel_fitted_mmm"
+                ]
             ],
             *[
-                ("per_geo_scaled_dataset_ordered_panel_fitted_mmm", dim, route)
-                for dim in ("geo", "channel")
-                for route in (
-                    "per_channel",
-                    "joint",
-                    "over_time",
-                    "current_future",
-                    "allocation",
+                (model_fixture, dim, route)
+                for model_fixture in (
+                    "per_geo_scaled_dataset_ordered_panel_fitted_mmm",
+                    "saturation_first_dataset_ordered_panel_fitted_mmm",
                 )
-            ],
-            *[
-                ("saturation_first_dataset_ordered_panel_fitted_mmm", dim, route)
                 for dim in ("geo", "channel")
-                for route in (
-                    "closed_form_over_time",
-                    "closed_form_allocation",
-                    "closed_form_current_future",
-                )
+                for route in _ROUTES_BY_MODEL[model_fixture]
             ],
         ],
     )
@@ -899,73 +986,33 @@ class TestIncrementality:
         correction under the log link, the per-geo target scale under the
         identity link.  The closed form and the allocation shares evaluate the
         posterior's transformations through PyMC on the spend in
-        ``constant_data``.  Reversing the axis in one group only leaves the
-        posterior, ``constant_data`` and the model each in its own order, and
-        each cell must still meet its own draws and inputs on every route.
-        ``north`` is ten times ``east``, so a positional pairing is an order of
-        magnitude off.
+        ``constant_data``.  The axis is permuted cyclically in the posterior,
+        in ``constant_data``, in both the same way, in both in inverse orders
+        (so the model, the posterior and the data each have their own order),
+        or in the posterior while ``constant_data`` permutes the other axis.
+        Each cell must still meet its own draws and inputs on every route, and
+        the geos are sized ``10 : 3 : 1``, so a positional pairing shows.
         """
         mmm = request.getfixturevalue(model_fixture)
+        other = "channel" if dim == "geo" else "geo"
+        orders = {
+            "posterior": {"posterior": {dim: _CYCLE}},
+            "constant_data": {"constant_data": {dim: _CYCLE}},
+            "both_same": {"posterior": {dim: _CYCLE}, "constant_data": {dim: _CYCLE}},
+            "both_different": {
+                "posterior": {dim: _CYCLE},
+                "constant_data": {dim: _INVERSE_CYCLE},
+            },
+            "mixed": {"posterior": {dim: _CYCLE}, "constant_data": {other: _CYCLE}},
+        }[group]
         reordered = mmm.idata.copy()
-        reordered[group] = xr.DataTree(
-            reordered[group].to_dataset().isel({dim: [1, 0]})
-        )
-        routes = {
-            "per_channel": lambda incr: incr.compute_incremental_contribution(
-                frequency="all_time"
-            ),
-            "per_channel_mean": lambda incr: incr.compute_incremental_contribution(
-                frequency="all_time", central_tendency="mean"
-            ),
-            "marginal": lambda incr: incr.compute_incremental_contribution(
-                frequency="monthly", counterfactual_spend_factor=1.01
-            ),
-            "joint": lambda incr: incr.compute_joint_incremental_contribution(
-                frequency="all_time"
-            ),
-            "over_time": lambda incr: incr.split_incremental_contribution_over_time(
-                frequency="monthly"
-            ),
-            "current_future": (
-                lambda incr: incr.split_incremental_contribution_current_future(
-                    frequency="monthly"
-                )
-            ),
-            "allocation": lambda incr: incr.split_incremental_contribution_over_time(
-                frequency="monthly", estimand="allocation"
-            ),
-            "closed_form_over_time": (
-                lambda incr: incr.split_incremental_contribution_over_time(
-                    frequency="monthly", method="closed_form"
-                )
-            ),
-            "closed_form_allocation": (
-                lambda incr: incr.split_incremental_contribution_over_time(
-                    frequency="monthly", estimand="allocation", method="closed_form"
-                )
-            ),
-            "closed_form_current_future": (
-                lambda incr: incr.split_incremental_contribution_current_future(
-                    frequency="monthly", method="closed_form"
-                )
-            ),
-        }
+        for name, indexers in orders.items():
+            reordered[name] = xr.DataTree(reordered[name].to_dataset().isel(indexers))
 
-        expected = routes[route](mmm.incrementality)
-        result = routes[route](Incrementality(model=mmm, idata=reordered))
+        expected = _INCREMENT_ROUTES[route](mmm.incrementality)
+        result = _INCREMENT_ROUTES[route](Incrementality(model=mmm, idata=reordered))
 
-        # The current/future split is a Dataset whose variables share one layout.
-        layout = (
-            expected["current"] if isinstance(expected, xr.Dataset) else expected
-        ).dims
-        labels = {
-            name: expected[name].values
-            for name in ("geo", "channel")
-            if name in expected.dims
-        }
-        xr.testing.assert_allclose(
-            result.sel(labels).transpose(*layout), expected, rtol=1e-8
-        )
+        _assert_same_increments(result, expected)
 
     def test_non_after_convolution_matches_full_axis_oracle(self, non_after_fitted_mmm):
         """The public API retains all leading kernel mass for one-date periods."""

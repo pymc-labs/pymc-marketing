@@ -1708,6 +1708,52 @@ def test_conditioned_model_failed_rebind_keeps_the_previous_binding(
     np.testing.assert_allclose(fn(), _expected_doubled(first, data_values))
 
 
+def test_conditioned_model_interrupted_rebind_keeps_the_previous_draws(monkeypatch):
+    """An interrupt partway through a rebind leaves every graph on the previous draws.
+
+    ``resp`` and ``resp_g`` read ``beta`` and ``gamma``, so a rebind writes two
+    shared variables.  An interrupt on the second write lands after the first
+    was swapped; the compiled function and ``posterior`` must still be on the
+    previous posterior rather than on a mix of two.
+    """
+    model, spend = _channel_conditioned_model()
+    conditioned = ConditionedModel(
+        model,
+        _channel_posterior([1.0, 2.0], gamma=[3.0, 4.0]),
+        intervention={"spend": spend},
+    )
+    fn = function([], conditioned.extract(["resp", "resp_g"]))
+    posterior = conditioned.posterior
+    variables = conditioned.shared_posterior.variables
+    assert list(variables) == ["beta", "gamma"]
+
+    second = variables["gamma"]
+    original_set_value = second.set_value
+    calls = []
+
+    def interrupted_once(*args, **kwargs):
+        calls.append(1)
+        if len(calls) == 1:
+            raise KeyboardInterrupt
+        return original_set_value(*args, **kwargs)
+
+    monkeypatch.setattr(second, "set_value", interrupted_once)
+
+    with pytest.raises(KeyboardInterrupt):
+        conditioned.set_posterior(_channel_posterior([5.0, 6.0], gamma=[7.0, 8.0]))
+
+    assert conditioned.posterior is posterior
+    resp, resp_g = fn()
+    np.testing.assert_allclose(resp, [[10.0, 40.0]])
+    np.testing.assert_allclose(resp_g, [[30.0, 80.0]])
+
+    # The binding is intact: the next rebind writes both variables.
+    conditioned.set_posterior(_channel_posterior([5.0, 6.0], gamma=[7.0, 8.0]))
+    resp, resp_g = fn()
+    np.testing.assert_allclose(resp, [[50.0, 120.0]])
+    np.testing.assert_allclose(resp_g, [[70.0, 160.0]])
+
+
 def test_conditioned_model_failed_extract_leaves_the_binding_unchanged():
     """An extract that fails on a missing variable leaves no trace.
 
