@@ -716,6 +716,20 @@ class TestDataVarMuEffect:
             new_ds["feature"].sel(geo=self.GEOS).values,
         )
 
+    def test_set_data_keeps_a_variable_absent_from_X(self, dates):
+        """A variable ``X`` does not carry keeps its training values.
+
+        This pins the documented contract rather than endorsing it: freezing
+        effect data at training values without a warning is the sharp edge
+        discussed in issue #2938.
+        """
+        mmm, ds, model, effect = self._make_geo_setup(dates)
+        before = model["feature"].get_value(borrow=False)
+
+        effect.set_data(mmm, model, ds.drop_vars("feature") + 1.0)
+
+        np.testing.assert_array_equal(model["feature"].get_value(borrow=False), before)
+
     @pytest.mark.parametrize(
         "geos, pattern",
         [
