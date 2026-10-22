@@ -22,6 +22,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import pymc as pm
+import pymc.dims as pmd
 import pytensor.tensor as pt
 import pytest
 import xarray as xr
@@ -7776,6 +7777,227 @@ class TestDatasetInputDimOrder:
             .transpose(*control_data.dims)
             .values,
         )
+
+
+class TestCustomDimLabelAlignment:
+    """Regression tests for #3222.
+
+    Prediction writes new data into the model by position. A ``DataFrame`` input
+    comes out with its custom-dim labels sorted, while an ``xr.Dataset`` keeps its
+    own order, so the prediction input has to be aligned to the model's labels
+    first, or each geo silently receives another geo's data.
+    """
+
+    GEOS = ["north", "east", "south"]  # not sorted: east, north, south
+    SEGMENTS = ["b", "a"]  # not sorted; an effect-only dim, not a panel dim
+    CHANNELS = ["tv", "radio"]
+    CONTROLS = ["price"]
+
+    @pytest.fixture
+    def dataset(self) -> xr.Dataset:
+        """Panel data on unsorted geos, with values that differ by geo."""
+        dates = pd.date_range("2024-01-01", periods=8, freq="W-MON")
+        rng = np.random.default_rng(0)
+        n_dates, n_geos = len(dates), len(self.GEOS)
+        level = np.array([1.0, 10.0, 100.0])[None, :]
+        media = level[..., None] * rng.uniform(0.5, 1.5, (n_dates, n_geos, 2))
+        # The first date holds the largest spend and target, so a model built on
+        # the first dates has the same data-derived scales as one built on all.
+        media[0] = 2.0 * level[0][:, None]
+        control = level[..., None] * rng.uniform(0.5, 1.5, (n_dates, n_geos, 1))
+        promo = (
+            level[..., None]
+            * np.array([1.0, 3.0])
+            * rng.uniform(0.5, 1.5, (n_dates, n_geos, len(self.SEGMENTS)))
+        )
+        return xr.Dataset(
+            {
+                "media": (("date", "geo", "channel"), media),
+                "_control": (("date", "geo", "control"), control),
+                "promo": (("date", "geo", "segment"), promo),
+                "target": (("date", "geo"), media.sum(axis=-1)),
+            },
+            coords={
+                "date": dates,
+                "geo": self.GEOS,
+                "segment": self.SEGMENTS,
+                "channel": self.CHANNELS,
+                "control": self.CONTROLS,
+            },
+        )
+
+    @staticmethod
+    def _as_frame(ds: xr.Dataset) -> pd.DataFrame:
+        """Return the same channels, controls and target as a long DataFrame."""
+        return pd.concat(
+            [
+                ds["media"].to_dataset("channel").to_dataframe(),
+                ds["_control"].to_dataset("control").to_dataframe(),
+                ds["target"].to_dataframe(name="y"),
+            ],
+            axis=1,
+        ).reset_index()
+
+    def _mmm_with_known_posterior(self, X, mu_effects=()) -> MMM:
+        """Build the model and use prior draws as the posterior."""
+        mmm = MMM(
+            date_column="date",
+            target_column="y",
+            channel_columns=self.CHANNELS,
+            control_columns=self.CONTROLS,
+            dims=("geo",),
+            adstock=GeometricAdstock(l_max=2),
+            saturation=LogisticSaturation(),
+        )
+        for effect in mu_effects:
+            mmm.add_mu_effect(effect)
+        mmm.build_model(X)
+        with mmm.model:
+            idata = pm.sample_prior_predictive(draws=4, random_seed=1)
+        idata["/posterior"] = idata["/prior"].to_dataset()
+        mmm.idata = idata
+        return mmm
+
+    def _inputs(self, dataset: xr.Dataset) -> dict:
+        return {
+            "dataset": dataset,
+            "sorted_dataset": dataset.sortby("geo"),
+            "dataframe": self._as_frame(dataset),
+        }
+
+    @pytest.mark.parametrize(
+        "build_from, predict_with",
+        [
+            ("dataset", "dataframe"),
+            ("dataframe", "dataset"),
+            ("dataset", "sorted_dataset"),
+        ],
+        ids=["dataset_then_dataframe", "dataframe_then_dataset", "reordered_dataset"],
+    )
+    def test_sample_posterior_predictive_reproduces_in_sample_by_label(
+        self, dataset, build_from, predict_with
+    ):
+        inputs = self._inputs(dataset)
+        mmm = self._mmm_with_known_posterior(inputs[build_from])
+
+        pred = mmm.sample_posterior_predictive(
+            inputs[predict_with],
+            var_names=["channel_contribution", "control_contribution"],
+            combined=False,
+            progressbar=False,
+            random_seed=0,
+        )
+
+        # Predicting on the training data must give back the in-sample values of
+        # every geo, whatever the order of the labels in the input.
+        for var in ["channel_contribution", "control_contribution"]:
+            in_sample = mmm.idata.posterior[var]
+            np.testing.assert_allclose(
+                pred[var].transpose(*in_sample.dims).sel(geo=self.GEOS).values,
+                in_sample.sel(geo=self.GEOS).values,
+                err_msg=var,
+            )
+        written_target = mmm.idata.posterior_predictive_constant_data["target_data"]
+        np.testing.assert_allclose(
+            written_target.transpose("date", "geo").sel(geo=self.GEOS).values,
+            dataset["target"].sel(geo=self.GEOS).values,
+        )
+
+    @pytest.mark.parametrize("reordered", ["dataframe", "sorted_dataset"])
+    def test_include_last_observations_aligns_custom_dims_by_label(
+        self, dataset, reordered
+    ):
+        n_train = 5
+        future = self._inputs(dataset.isel(date=slice(n_train, None)))
+        mmm = self._mmm_with_known_posterior(dataset.isel(date=slice(None, n_train)))
+        # Same seed and same scales: the model on all dates draws the same
+        # parameters, so its in-sample values on the last dates are the truth.
+        full = self._mmm_with_known_posterior(dataset)
+
+        pred = mmm.sample_posterior_predictive(
+            future[reordered],
+            include_last_observations=True,
+            var_names=["channel_contribution"],
+            extend_idata=False,
+            combined=False,
+            progressbar=False,
+            random_seed=0,
+        )["channel_contribution"]
+
+        in_sample = full.idata.posterior["channel_contribution"].isel(
+            date=slice(n_train, None)
+        )
+        np.testing.assert_allclose(
+            pred.transpose(*in_sample.dims).sel(geo=self.GEOS).values,
+            in_sample.sel(geo=self.GEOS).values,
+        )
+
+    def test_mu_effect_data_vars_align_by_label(self, dataset):
+        class PromoEffect(DataVarMuEffect):
+            data_vars: list[str] = ["promo"]
+            prefix: str = "promo"
+
+            def create_effect(self, mmm):  # type: ignore
+                contribution = pmd.Deterministic(
+                    f"{self.prefix}_contribution", 0.1 * mmm.model["promo"]
+                )
+                return contribution.sum("segment")
+
+        mmm = self._mmm_with_known_posterior(dataset, mu_effects=[PromoEffect()])
+
+        # `geo` is a panel dim, `segment` only belongs to the effect's data.
+        pred = mmm.sample_posterior_predictive(
+            dataset.sortby("geo").sortby("segment"),
+            var_names=["promo_contribution"],
+            extend_idata=False,
+            combined=False,
+            progressbar=False,
+            random_seed=0,
+        )
+
+        in_sample = mmm.idata.posterior["promo_contribution"]
+        labels = {"geo": self.GEOS, "segment": self.SEGMENTS}
+        np.testing.assert_allclose(
+            pred["promo_contribution"].transpose(*in_sample.dims).sel(labels).values,
+            in_sample.sel(labels).values,
+        )
+
+    def test_missing_labels_are_zero_filled_by_label(self, dataset):
+        """Pin the existing contract: geos absent from X are filled with zeros.
+
+        This already holds on main. It guards the rewritten label alignment, and
+        is not a regression test.
+        """
+        mmm = self._mmm_with_known_posterior(self._as_frame(dataset))
+        subset = ["south", "north"]
+
+        pred = mmm.sample_posterior_predictive(
+            dataset.sel(geo=subset),
+            var_names=["channel_contribution"],
+            extend_idata=False,
+            combined=False,
+            progressbar=False,
+            random_seed=0,
+        )["channel_contribution"]
+
+        in_sample = mmm.idata.posterior["channel_contribution"]
+        np.testing.assert_allclose(
+            pred.transpose(*in_sample.dims).sel(geo=subset).values,
+            in_sample.sel(geo=subset).values,
+        )
+        np.testing.assert_array_equal(pred.sel(geo="east").values, 0.0)
+
+    @pytest.mark.parametrize(
+        "geos",
+        [["north", "east", "south", "west"], ["north", "east", "west"]],
+        ids=["extra_label", "relabelled"],
+    )
+    def test_labels_unknown_to_the_model_raise(self, dataset, geos):
+        mmm = self._mmm_with_known_posterior(dataset)
+        X = dataset.reindex(geo=geos, fill_value=1.0)
+
+        with pytest.raises(ValueError, match=r"does not have.*west"):
+            mmm.sample_posterior_predictive(X, extend_idata=False, progressbar=False)
 
 
 class TestComputeMeanContributionsOverTime:
