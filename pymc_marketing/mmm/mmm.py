@@ -266,6 +266,7 @@ from pymc_marketing.mmm.utils import (
     add_noise_to_channel_allocation,
     align_planned_controls,
     create_zero_dataset,
+    infer_frequency,
     planned_controls_to_dataarray,
     validate_planned_control_dates,
 )
@@ -5365,7 +5366,7 @@ class BudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
         from pymc_marketing.mmm.utils import _convert_frequency_to_timedelta
 
         dates = pd.DatetimeIndex(data_with_noise.coords["date"].values)
-        inferred_freq = pd.infer_freq(dates)
+        inferred_freq = infer_frequency(dates)
         if inferred_freq is None:
             warnings.warn(
                 "Could not infer frequency. Using weekly ('W').",

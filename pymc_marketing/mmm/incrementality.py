@@ -275,6 +275,7 @@ from pymc_marketing.mmm.spend_reach import (
     resolve_channel_dependent_effects,
 )
 from pymc_marketing.mmm.transformers import ConvMode
+from pymc_marketing.mmm.utils import infer_frequency
 from pymc_marketing.pytensor_utils import (
     needed_posterior_names,
     reorder_to_model_coords,
@@ -2376,7 +2377,7 @@ class Incrementality:
         ValueError
             If the frequency cannot be inferred from the date index.
         """
-        inferred_freq: str | None = pd.infer_freq(self.data.dates)
+        inferred_freq = infer_frequency(self.data.dates)
         if inferred_freq is None:
             raise ValueError(
                 "Could not infer frequency from the date index. "
@@ -5745,7 +5746,7 @@ class Incrementality:
             dates = pd.date_range(
                 start,
                 end,
-                freq=pd.infer_freq(self.data.dates),
+                freq=infer_frequency(self.data.dates),
             )
             return [(d, d) for d in dates]
 
