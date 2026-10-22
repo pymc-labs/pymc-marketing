@@ -2563,14 +2563,11 @@ def test_allocate_budget_is_invariant_to_response_units(
         )
 
 
-def test_allocate_budget_converges_when_one_channel_is_far_steeper_at_x0():
-    """The default rescaling does not stop early in the flatter channels.
+def _steep_channel_optimizer() -> tuple[BudgetOptimizer, list[str]]:
+    """Optimizer where ``c1`` is about 1e5 times steeper than ``c2`` and ``c3`` at x0.
 
-    At the equal split, ``c1`` is about 1e5 times steeper than ``c2`` and ``c3``,
-    and it saturates on the way to the optimum. A scale fixed at ``x0`` would
-    then stop SLSQP before it splits the rest of the budget between ``c2`` and
-    ``c3``. At the optimum, ``c1`` and ``c3`` have equal marginal responses and
-    ``c2`` gets nothing.
+    ``c1`` saturates on the way to the optimum, so the default solve rescales
+    the objective at ``x0`` and then solves once more from the first solution.
     """
     channels = ["c1", "c2", "c3"]
     n_dates = 10
@@ -2611,6 +2608,17 @@ def test_allocate_budget_converges_when_one_channel_is_far_steeper_at_x0():
         num_periods=8,
         response_variable="total_media_contribution_original_scale",
     )
+    return optimizer, channels
+
+
+def test_allocate_budget_converges_when_one_channel_is_far_steeper_at_x0():
+    """The default rescaling does not stop early in the flatter channels.
+
+    A scale fixed at ``x0`` would stop SLSQP before it splits the rest of the
+    budget between ``c2`` and ``c3``. At the optimum, ``c1`` and ``c3`` have
+    equal marginal responses and ``c2`` gets nothing.
+    """
+    optimizer, channels = _steep_channel_optimizer()
 
     result = optimizer.allocate_budget(
         total_budget=60.0,
@@ -2619,6 +2627,42 @@ def test_allocate_budget_converges_when_one_channel_is_far_steeper_at_x0():
 
     assert result.scipy_result.success
     np.testing.assert_allclose(result.budgets.values, [42.141, 0.0, 17.859], atol=1e-2)
+
+
+def test_allocate_budget_keeps_the_first_solve_when_the_second_fails(monkeypatch):
+    """A failed second solve does not discard a successful first one.
+
+    The allocation is the first solve's, the result is a success, and the
+    iteration and evaluation counts include both solves.
+    """
+    optimizer, channels = _steep_channel_optimizer()
+    real_minimize = budget_optimizer_module.minimize
+    solves: list[OptimizeResult] = []
+
+    def minimize_with_failing_polish(*args, **kwargs):
+        solve = real_minimize(*args, **kwargs)
+        solves.append(OptimizeResult(solve))
+        if len(solves) == 2:
+            solve.success = False
+            solve.message = "Iteration limit reached"
+        return solve
+
+    monkeypatch.setattr(
+        budget_optimizer_module, "minimize", minimize_with_failing_polish
+    )
+
+    result = optimizer.allocate_budget(
+        total_budget=60.0,
+        budget_bounds={channel: (0.0, 60.0) for channel in channels},
+    )
+
+    assert len(solves) == 2
+    first, polish = solves
+    assert result.scipy_result.success
+    np.testing.assert_allclose(result.budgets.values, first.x)
+    assert result.scipy_result.nit == first.nit + polish.nit
+    assert result.scipy_result.nfev == first.nfev + polish.nfev
+    assert result.scipy_result.njev == first.njev + polish.njev
 
 
 def test_set_posterior_rebinds_without_recompile(mmm_wrapper, dummy_idata):

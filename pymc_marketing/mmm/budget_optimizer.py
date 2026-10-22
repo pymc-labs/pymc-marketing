@@ -3254,8 +3254,6 @@ class BudgetOptimizer(BaseModel):
         user_kwargs = dict(minimize_kwargs or {})
         kwargs = {key: value for key, value in defaults.items() if key != "options"}
         kwargs.update(user_kwargs)
-        if kwargs.get("method") is None:
-            kwargs["method"] = defaults["method"]
         method = kwargs["method"]
         user_options = dict(user_kwargs.get("options") or {})
         user_set_tolerance = "ftol" in user_options or kwargs.get("tol") is not None
