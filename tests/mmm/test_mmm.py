@@ -3539,17 +3539,176 @@ def test_fixed_scaling_dataarray_broadcasts_country_only(multi_dim_data) -> None
             )
 
 
-def test_fixed_scaling_dataarray_misaligned_country_raises(multi_dim_data) -> None:
-    """Mismatched country labels on fixed channel scale raise when aligning."""
-    X, y = multi_dim_data
-    da = xr.DataArray(
-        [500.0],
-        dims="country",
-        coords={"country": ["NowhereLand"]},
+def _model_scale_by_label(mmm: MMM, name: str) -> xr.DataArray:
+    """Label the values the model registered for ``name`` with the model's coords."""
+    dims = mmm.model.named_vars_to_dims.get(name, ())
+    return xr.DataArray(
+        mmm.model[name].get_value(),
+        dims=dims,
+        coords={dim: list(mmm.model.coords[dim]) for dim in dims},
     )
+
+
+@pytest.mark.parametrize(
+    "data_fixture, dims, variable, channel_columns, make_value",
+    [
+        pytest.param(
+            "multi_dim_data",
+            ("country",),
+            "target",
+            ["channel_1", "channel_2", "channel_3"],
+            lambda: xr.DataArray(
+                [10_000.0, 20_000.0, 30_000.0],
+                dims="country",
+                coords={"country": ["Venezuela", "Colombia", "Chile"]},
+            ),
+            id="target-country-unsorted",
+        ),
+        pytest.param(
+            "multi_dim_data",
+            ("country",),
+            "target",
+            ["channel_1", "channel_2", "channel_3"],
+            lambda: xr.DataArray(
+                [30_000.0, 40_000.0, 10_000.0, 20_000.0],
+                dims="country",
+                coords={"country": ["Chile", "Peru", "Venezuela", "Colombia"]},
+            ),
+            id="target-country-extra-label-ignored",
+        ),
+        pytest.param(
+            "single_dim_data",
+            (),
+            "channel",
+            ["channel_1", "channel_2", "channel_3"],
+            lambda: xr.DataArray(
+                [3_000.0, 2_000.0, 1_000.0],
+                dims="channel",
+                coords={"channel": ["channel_3", "channel_2", "channel_1"]},
+            ),
+            id="national-channel-reversed",
+        ),
+        pytest.param(
+            "multi_dim_data",
+            ("country",),
+            "channel",
+            ["channel_1", "channel_2", "channel_3"],
+            lambda: xr.DataArray(
+                np.arange(9, dtype=float).reshape(3, 3) + 100.0,
+                dims=("channel", "country"),
+                coords={
+                    "channel": ["channel_2", "channel_3", "channel_1"],
+                    "country": ["Venezuela", "Chile", "Colombia"],
+                },
+            ),
+            id="channel-country-grid-transposed-and-shuffled",
+        ),
+        pytest.param(
+            "multi_dim_data",
+            ("country",),
+            "channel",
+            ["channel_2", "channel_1", "channel_3"],
+            lambda: (
+                FixedScaling.from_long_dataframe(
+                    dims=(),
+                    df=pd.DataFrame(
+                        {
+                            "country": np.repeat(["Venezuela", "Colombia", "Chile"], 3),
+                            "channel": ["channel_2", "channel_1", "channel_3"] * 3,
+                            "scale": 100.0 * np.arange(1, 10),
+                        }
+                    ),
+                    value_col="scale",
+                    dim_cols=["country", "channel"],
+                ).value
+            ),
+            id="from-long-dataframe-channel-columns-order",
+        ),
+    ],
+)
+def test_fixed_scaling_dataarray_model_uses_scale_by_label(
+    request, data_fixture, dims, variable, channel_columns, make_value
+) -> None:
+    """The model divides each cell by the user's scale for that cell's labels.
+
+    Regression test for issue #3223: a DataArray-valued FixedScaling whose
+    label or dimension order differs from the model's coordinates was applied
+    by position, so cells received each other's scale.
+    """
+    X, y = request.getfixturevalue(data_fixture)
+    value = make_value()
+    fixed = FixedScaling(dims=(), value=value)
+    scalar = FixedScaling(dims=dims, value=5_000.0)
+    scaling = (
+        Scaling(target=fixed, channel=scalar)
+        if variable == "target"
+        else Scaling(target=scalar, channel=fixed)
+    )
+    mmm = MMM(
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+        scaling=scaling,
+        date_column="date",
+        target_column="target",
+        channel_columns=channel_columns,
+        dims=dims,
+    )
+    mmm.build_model(X, y)
+
+    used = _model_scale_by_label(mmm, f"{variable}_scale")
+    expected = (
+        value.sel({dim: used.coords[dim].values for dim in value.dims})
+        .broadcast_like(used)
+        .transpose(*used.dims)
+    )
+    np.testing.assert_allclose(used.values, expected.values)
+
+
+@pytest.mark.parametrize(
+    "make_value, match",
+    [
+        pytest.param(
+            lambda: xr.DataArray(
+                [1_000.0, 2_000.0],
+                dims="country",
+                coords={"country": ["Venezuela", "Colombia"]},
+            ),
+            r"missing[^.]*'Chile'",
+            id="missing",
+        ),
+        pytest.param(
+            lambda: xr.DataArray(
+                [500.0],
+                dims="country",
+                coords={"country": ["NowhereLand"]},
+            ),
+            r"missing[^.]*'Chile'[^.]*'Colombia'[^.]*'Venezuela'",
+            id="unknown-only",
+        ),
+        pytest.param(
+            lambda: xr.DataArray(
+                [1_000.0, 2_000.0, 3_000.0, 4_000.0],
+                dims="country",
+                coords={"country": ["Venezuela", "Colombia", "Chile", "Chile"]},
+            ),
+            "duplicate",
+            id="duplicate",
+        ),
+        pytest.param(
+            lambda: xr.DataArray([1_000.0, 2_000.0, 3_000.0], dims="country"),
+            "coordinate",
+            id="unlabeled",
+        ),
+    ],
+)
+def test_fixed_scaling_dataarray_invalid_labels_raise(
+    multi_dim_data, make_value, match
+) -> None:
+    """A DataArray scale that cannot be matched to the model by label fails clearly."""
+    X, y = multi_dim_data
     scaling = Scaling(
-        target=FixedScaling(dims=("country",), value=25_000.0),
-        channel=FixedScaling(dims=(), value=da),
+        target=FixedScaling(dims=(), value=make_value()),
+        channel=FixedScaling(dims=("country",), value=5_000.0),
     )
     mmm = MMM(
         adstock=GeometricAdstock(l_max=2),
@@ -3560,7 +3719,7 @@ def test_fixed_scaling_dataarray_misaligned_country_raises(multi_dim_data) -> No
         channel_columns=["channel_1", "channel_2", "channel_3"],
         dims=("country",),
     )
-    with pytest.raises(ValueError, match=r"NaN|align|shape"):
+    with pytest.raises(ValueError, match=match):
         mmm.build_model(X, y)
 
 
@@ -3650,12 +3809,16 @@ def test_fixed_scaling_dataarray_three_dims_country_product_channel(
 def test_multidimensional_fixed_scaling_dataarray_idata_roundtrip(
     multi_dim_data,
 ) -> None:
-    """Scaling with DataArray-valued FixedScaling survives idata attrs round-trip."""
+    """A DataArray-valued FixedScaling survives the idata attrs round-trip.
+
+    Distinct values per cell and unsorted labels, so a model built from the
+    restored scaling must match by label rather than by position.
+    """
     X, y = multi_dim_data
-    countries = ["Venezuela", "Colombia", "Chile"]
-    channels = ["channel_1", "channel_2", "channel_3"]
+    countries = ["Chile", "Venezuela", "Colombia"]
+    channels = ["channel_3", "channel_1", "channel_2"]
     da = xr.DataArray(
-        np.full((3, 3), 2_000.0),
+        100.0 * np.arange(1, 10, dtype=float).reshape(3, 3),
         dims=("country", "channel"),
         coords={"country": countries, "channel": channels},
     )
@@ -3669,7 +3832,7 @@ def test_multidimensional_fixed_scaling_dataarray_idata_roundtrip(
         scaling=scaling,
         date_column="date",
         target_column="target",
-        channel_columns=channels,
+        channel_columns=["channel_1", "channel_2", "channel_3"],
         dims=("country",),
     )
     mmm.build_model(X, y)
@@ -3679,6 +3842,22 @@ def test_multidimensional_fixed_scaling_dataarray_idata_roundtrip(
     assert isinstance(restored.channel, FixedScaling)
     assert isinstance(restored.channel.value, xr.DataArray)
     xr.testing.assert_equal(restored.channel.value, da)
+
+    loaded = MMM(
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+        scaling=restored,
+        date_column="date",
+        target_column="target",
+        channel_columns=["channel_1", "channel_2", "channel_3"],
+        dims=("country",),
+    )
+    loaded.build_model(X, y)
+    used = _model_scale_by_label(loaded, "channel_scale")
+    expected = da.sel(
+        country=used.coords["country"].values, channel=used.coords["channel"].values
+    ).transpose(*used.dims)
+    np.testing.assert_allclose(used.values, expected.values)
 
 
 def test_fixed_scaling_dict_missing_key(multi_dim_data) -> None:
