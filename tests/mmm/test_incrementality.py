@@ -6464,8 +6464,8 @@ class _FakeEvaluator:
 class TestEvaluatorCache:
     """The MMM-level cache that lets Incrementality reuse compiled evaluators.
 
-    One compiled ``CounterfactualEvaluator`` is shared per graph shape and dataset.
-    Every ``Incrementality`` object a fitted MMM creates reuses those evaluators.
+    One compiled ``CounterfactualEvaluator`` is cached per graph shape and dataset.
+    Every ``Incrementality`` object a fitted MMM creates leases those evaluators.
     That covers direct calls and the summary factory.
     """
 

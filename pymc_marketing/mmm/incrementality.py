@@ -1267,7 +1267,7 @@ class EvaluatorCache:
 
     def __setstate__(self, state: dict[str, int]) -> None:
         """Restore `max_entries` with an empty cache."""
-        self._max_entries = state.get("_max_entries", 4)
+        self._max_entries = state["_max_entries"]
         self._entries = OrderedDict()
         self._lock = threading.Lock()
 
