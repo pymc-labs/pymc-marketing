@@ -6906,6 +6906,48 @@ class TestEvaluatorCache:
             evaluator._conditioned.posterior.nbytes < mmm.idata.posterior.dataset.nbytes
         )
 
+    @pytest.mark.parametrize(
+        "adstock",
+        [NoAdstock(l_max=1), GeometricAdstock(l_max=4, priors={"alpha": 0.5})],
+        ids=["no-adstock", "fixed-alpha"],
+    )
+    def test_a_graph_that_reads_no_draws_matches_the_oracle(
+        self, simple_mmm_data, adstock
+    ):
+        """Fixed channel parameters leave the evaluator no posterior variable to read.
+
+        The sample axis then has to come from the posterior itself, both on the
+        call that builds the evaluator and on a later call that rebinds it to a
+        smaller subsample.
+        """
+        from tests.mmm.conftest import mock_fit
+
+        mmm = MMM(
+            channel_columns=["channel_1", "channel_2", "channel_3"],
+            date_column="date",
+            target_column="target",
+            adstock=adstock,
+            saturation=NoSaturation(priors={"beta": 2.0}),
+        )
+        mock_fit(mmm, simple_mmm_data["X"], simple_mmm_data["y"], random_seed=42)
+        expected = compute_ground_truth_incremental_by_period(mmm, frequency="all_time")
+
+        result = mmm.incrementality.compute_incremental_contribution(
+            frequency="all_time"
+        )
+        xr.testing.assert_allclose(result, expected, rtol=1e-8)
+
+        rebound = mmm.incrementality.compute_incremental_contribution(
+            frequency="all_time", num_samples=3, random_state=0
+        )
+        assert rebound.sizes["draw"] == 3
+        # No draw enters the media response, so every draw has the same increment.
+        np.testing.assert_allclose(
+            rebound.values,
+            np.broadcast_to(expected.isel(chain=0, draw=0).values, rebound.shape),
+            rtol=1e-8,
+        )
+
     def test_a_leased_entry_is_out_of_the_cache_until_released(self):
         """A second request on a leased key misses rather than sharing it."""
         cache = EvaluatorCache(max_entries=2)
