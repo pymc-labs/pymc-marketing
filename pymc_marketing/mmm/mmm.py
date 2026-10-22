@@ -182,7 +182,7 @@ from __future__ import annotations
 import io
 import json
 import warnings
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Hashable, Sequence
 from copy import deepcopy
 from typing import TYPE_CHECKING, Annotated, Any, Literal, NamedTuple, Self, cast
 
@@ -2154,28 +2154,77 @@ class MMM(RegressionModelBuilder):
         user_scale: xr.DataArray,
         reduce_dims: tuple[str, ...],
     ) -> xr.DataArray:
-        """Broadcast a user-supplied scale grid to match reduced data coordinates."""
+        """Match a user-supplied scale grid to the reduced data grid by label.
+
+        Parameters
+        ----------
+        data : xr.DataArray
+            The raw data variable from :attr:`xarray_dataset`.
+        user_scale : xr.DataArray
+            The ``FixedScaling.value`` array. Its dimensions must be a subset of
+            the dimensions left after reducing ``data`` over ``reduce_dims``.
+        reduce_dims : tuple of str
+            Dimensions reduced away by the scaling.
+
+        Returns
+        -------
+        xr.DataArray
+            Scale factors on the reduced data grid, in its label and dimension
+            order, so that position-based consumers such as ``pmd.Data`` see
+            the value the user gave for each label.
+
+        Raises
+        ------
+        ValueError
+            If ``user_scale`` has a dimension the reduced grid lacks, a
+            dimension without coordinate labels, duplicate labels, or lacks a
+            label of the reduced grid.
+
+        Notes
+        -----
+        Labels the reduced grid does not have are ignored, unlike
+        :func:`~pymc_marketing.mmm.optimization_variables.align_to_model_coords`
+        and the ``dict`` form of :class:`FixedScaling`, which reject them. A
+        stored scale table may cover more cells than the data of any one
+        model (e.g. a table over every geo used for a model fitted on a
+        subset), and such tables were accepted before label matching was
+        added.
+        """
         template = data.max(dim=reduce_dims, skipna=True).astype(float)
-        zeros = xr.zeros_like(template, dtype=float)
-        try:
-            aligned = user_scale.astype(float) + zeros
-        except (ValueError, TypeError) as e:
+        scale = user_scale.astype(float)
+        unexpected = [dim for dim in scale.dims if dim not in template.dims]
+        if unexpected:
             raise ValueError(
-                "Could not align fixed scaling DataArray with the data grid after "
-                f"reduction over {reduce_dims!r}. Check dimension names and coordinate "
-                f"labels. Underlying error: {e}"
-            ) from e
-        if np.isnan(np.asarray(aligned.values)).any():
-            raise ValueError(
-                "Fixed scaling DataArray produced NaNs after alignment — coordinates "
-                "likely do not match the data grid on a shared dimension."
+                f"Fixed scaling DataArray dims {unexpected} do not align with the "
+                f"data grid after reduction over {reduce_dims!r}; expected a subset "
+                f"of {template.dims}."
             )
-        if dict(aligned.sizes) != dict(template.sizes):
-            raise ValueError(
-                f"Fixed scaling DataArray has shape {dict(aligned.sizes)} after "
-                f"broadcast; expected {dict(template.sizes)} matching reduced data."
-            )
-        return aligned
+        indexers: dict[Hashable, pd.Index] = {}
+        for dim in scale.dims:
+            if dim not in scale.indexes:
+                raise ValueError(
+                    f"Fixed scaling DataArray has no coordinate labels on dimension "
+                    f"'{dim}'; add coordinates so values can be matched to the "
+                    "model by label."
+                )
+            labels = scale.indexes[dim]
+            if not labels.is_unique:
+                duplicated = labels[labels.duplicated()].unique().tolist()
+                raise ValueError(
+                    f"Fixed scaling DataArray has duplicate labels {duplicated} "
+                    f"on dimension '{dim}'."
+                )
+            model_labels = template.indexes[dim]
+            missing = model_labels.difference(labels, sort=False)
+            if len(missing):
+                raise ValueError(
+                    "Fixed scaling DataArray does not align with the data grid: "
+                    f"missing labels {missing.tolist()} on dimension '{dim}'. "
+                    f"Got labels: {labels.tolist()}; expected: "
+                    f"{model_labels.tolist()}."
+                )
+            indexers[dim] = model_labels
+        return xr.zeros_like(template, dtype=float) + scale.sel(indexers)
 
     def get_scales_as_xarray(self) -> dict[str, xr.DataArray]:
         """Return the saved scaling factors as xarray DataArrays.
