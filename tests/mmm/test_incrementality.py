@@ -611,9 +611,9 @@ def dataset_ordered_panel_fitted_mmm():
     geo's value is off by an order of magnitude rather than by rounding.
 
     Fitted like :func:`tests.mmm.conftest.mock_fit`, which cannot be reused
-    here: it builds the model and ``fit_data`` from the same ``X``, and
-    ``create_fit_data`` would flatten the Dataset's ``media`` variable into long
-    format rather than one column per channel.
+    here: it builds the model and ``fit_data`` from the same ``X``, while this
+    fixture needs a model built from the Dataset and a ``fit_data`` built from
+    the sorted DataFrame.
     """
     rng = np.random.default_rng(3212)
     dates = pd.date_range("2024-01-01", periods=16, freq="W-MON")

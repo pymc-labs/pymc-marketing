@@ -3330,6 +3330,50 @@ class BudgetOptimizer(BaseModel):
 
         self._objective_and_grad = objective_and_grad_func
 
+    def _resolve_minimize_kwargs(
+        self, minimize_kwargs: dict[str, Any] | None
+    ) -> tuple[dict[str, Any], bool]:
+        """Merge user ``minimize_kwargs`` into :attr:`DEFAULT_MINIMIZE_KWARGS`.
+
+        ``options`` are merged key by key, and only for the default method:
+        another method does not get the SLSQP options.
+
+        Returns
+        -------
+        tuple of (dict, bool)
+            The keyword arguments for :func:`scipy.optimize.minimize`, and whether
+            SLSQP runs with the default tolerance, so that the objective is rescaled.
+        """
+        defaults = self.DEFAULT_MINIMIZE_KWARGS
+        user_kwargs = dict(minimize_kwargs or {})
+        kwargs = {key: value for key, value in defaults.items() if key != "options"}
+        kwargs.update(user_kwargs)
+        method = kwargs["method"]
+        user_options = dict(user_kwargs.get("options") or {})
+        user_set_tolerance = "ftol" in user_options or kwargs.get("tol") is not None
+        default_options = dict(defaults.get("options") or {})
+        if kwargs.get("tol") is not None:
+            # Let SciPy map `tol` to `ftol`.
+            default_options.pop("ftol", None)
+        uses_default_method = (
+            isinstance(method, str) and method.lower() == defaults["method"].lower()
+        )
+        kwargs["options"] = (
+            {**default_options, **user_options} if uses_default_method else user_options
+        )
+        rescale = (
+            isinstance(method, str)
+            and method.lower() == "slsqp"
+            and not user_set_tolerance
+        )
+        return kwargs, rescale
+
+    @staticmethod
+    def _gradient_scale(grad: np.ndarray) -> float:
+        """Return the largest absolute entry of ``grad``, or one if it is not larger than one."""
+        steepest = float(np.max(np.abs(grad), initial=0.0))
+        return steepest if np.isfinite(steepest) and steepest > 1.0 else 1.0
+
     def allocate_budget(
         self,
         total_budget: float,
@@ -3363,8 +3407,12 @@ class BudgetOptimizer(BaseModel):
             also accepted. If None, the total budget is spread uniformly across
             all drivers to be optimized.
         minimize_kwargs : dict, optional
-            Extra kwargs for `scipy.optimize.minimize`. Defaults to method="SLSQP",
-            ftol=1e-9, maxiter=1_000.
+            Extra kwargs for :func:`scipy.optimize.minimize`, merged into
+            :attr:`DEFAULT_MINIMIZE_KWARGS` (``method="SLSQP"``, ``ftol=1e-9``,
+            ``maxiter=1_000``). ``options`` are merged key by key, so
+            ``{"options": {"ftol": 1e-6}}`` keeps ``maxiter=1_000``. The SLSQP default
+            ``options`` are not injected for other methods. A ``ftol`` (or ``tol``)
+            that you pass is absolute, in objective units. See Notes for the default.
         return_if_fail : bool, optional
             Return output even if optimization fails. Default is False.
         callback : bool, optional
@@ -3381,7 +3429,8 @@ class BudgetOptimizer(BaseModel):
         BudgetOptimizationResult
             Result object with ``budgets`` (the optimized allocation across
             channels, monetary units), ``scipy_result`` (the raw scipy
-            optimization result), ``optimized_vars`` (empty for now), and
+            optimization result, with ``fun``, ``jac`` and, from SciPy 1.16,
+            ``multipliers`` in objective units), ``optimized_vars`` (empty for now), and
             ``callback_info`` (per-iteration diagnostics when ``callback=True``, else
             ``None``) and, when a ``price_response`` was passed, ``implied_delivery``,
             ``implied_price`` and ``implied_marginal_price``. Iterating the result yields
@@ -3409,16 +3458,33 @@ class BudgetOptimizer(BaseModel):
           on unscaled money with ``cost_per_unit[t]`` as the base price, then ``/ channel_scales``.
         - ``total_budget`` and ``budgets`` are per-period money; so is
           ``PowerPriceResponse.reference_spend``.
+
+        **Default tolerance**:
+
+        - SLSQP's ``ftol`` is an absolute tolerance on the objective, so on its own
+          its meaning depends on the units of the response.
+        - When you do not set ``ftol`` or ``tol``, SLSQP minimizes the objective
+          divided by the largest absolute entry of its gradient at ``x0`` (clipped
+          to the bounds), if that entry is larger than one. This costs two extra
+          objective evaluations, at ``x0`` and at the solution.
+        - If that solve succeeds and the largest absolute gradient entry at its
+          solution is more than ten times smaller than at ``x0``, SLSQP solves once
+          more from the solution, with the scale taken there. The second solve is
+          kept only if it succeeds. ``nit``, ``nfev`` and ``njev`` count both solves.
+        - A change of response units then does not change the solution, as long
+          as the steepest marginal response at ``x0`` and at the first solution is
+          at least one response unit per budget unit.
+        - When the gradient entries at ``x0`` span several orders of magnitude,
+          this default can stop at a slightly less stationary point than a solve
+          in the original units would.
+        - With a ``ftol`` or ``tol`` that you pass, the objective is not rescaled.
+        - ``scipy_result.fun``, ``scipy_result.jac``, ``callback_info`` and, from
+          SciPy 1.16, ``scipy_result.multipliers`` are always in objective units.
         """
         # set total budget
         self._total_budget.set_value(np.asarray(total_budget, dtype="float64"))
 
-        # coordinate user-provided and default minimize_kwargs
-        if minimize_kwargs is None:
-            minimize_kwargs = self.DEFAULT_MINIMIZE_KWARGS
-        else:
-            # Merge with defaults (preferring user-supplied keys)
-            minimize_kwargs = {**self.DEFAULT_MINIMIZE_KWARGS, **minimize_kwargs}
+        minimize_kwargs, rescale = self._resolve_minimize_kwargs(minimize_kwargs)
 
         # 1. Process budget bounds
         bounds_overrides: dict[str, list[tuple[float | None, float | None]]] = {}
@@ -3526,15 +3592,57 @@ class BudgetOptimizer(BaseModel):
         # 5. Run the SciPy optimizer
         scipy_callback = track_progress if callback else None
 
-        result = minimize(
-            fun=self._objective_and_grad,
-            x0=x0,
-            jac=True,
-            bounds=bounds,
-            constraints=self._compiled_constraints,
-            callback=scipy_callback,
-            **minimize_kwargs,
-        )
+        def run_minimize(start: np.ndarray, scale: float) -> OptimizeResult:
+            def scaled_objective_and_grad(x):
+                objective, grad = self._objective_and_grad(x)
+                return objective / scale, grad / scale
+
+            return minimize(
+                fun=scaled_objective_and_grad,
+                x0=start,
+                jac=True,
+                bounds=bounds,
+                constraints=self._compiled_constraints,
+                callback=scipy_callback,
+                **minimize_kwargs,
+            )
+
+        # The default SLSQP tolerance is absolute, so the objective is divided by
+        # its steepest gradient entry (see Notes). SciPy clips x0 to the bounds
+        # before the first evaluation, so the scale is taken there too.
+        scale = 1.0
+        if rescale:
+            lower = [-np.inf if low is None else low for low, _ in bounds]
+            upper = [np.inf if high is None else high for _, high in bounds]
+            _, grad = self._objective_and_grad(np.clip(x0, lower, upper))
+            scale = self._gradient_scale(grad)
+
+        result = run_minimize(x0, scale)
+
+        if scale != 1.0:
+            objective, grad = self._objective_and_grad(result.x)
+            solution_scale = self._gradient_scale(grad)
+            if result.success and solution_scale * 10.0 < scale:
+                # The steepest cells at x0 flattened on the way to the solution, so
+                # the scale from x0 can stop SLSQP early in the flatter cells. Solve
+                # once more from the solution with the scale taken there, and keep
+                # that solve only if it succeeds.
+                polish = run_minimize(result.x, solution_scale)
+                if polish.success:
+                    polish.nit += result.nit
+                    polish.nfev += result.nfev
+                    polish.njev += result.njev
+                    result, scale = polish, solution_scale
+                    objective, grad = self._objective_and_grad(result.x)
+                else:
+                    result.nit += polish.nit
+                    result.nfev += polish.nfev
+                    result.njev += polish.njev
+            # Report the result in objective units.
+            result.fun = float(objective)
+            result.jac = np.asarray(grad)
+            if "multipliers" in result:
+                result.multipliers = result.multipliers * scale
 
         # 6. Process results
         if result.success or return_if_fail:
