@@ -113,6 +113,7 @@ def test_fit_always_returns_deterministics(toy_data, method) -> None:
     )
 
 
+@pytest.mark.filterwarnings("error::FutureWarning:pymc.sampling.deterministic")
 def test_recompute_deterministics_matches_inline(toy_data) -> None:
     """Deferring deterministics to a vectorized recompute is value-preserving."""
     recomputed = FitterModel(data=toy_data)
