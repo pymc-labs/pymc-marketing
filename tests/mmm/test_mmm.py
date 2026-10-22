@@ -7223,13 +7223,11 @@ class TestDatasetInputDimOrder:
                 err_msg=name,
             )
 
-    @pytest.mark.parametrize(
-        "layout",
-        # The square media layout is left out: there the carry-in copy and
-        # `_set_xarray_data` transpose the spend twice, which happens to
-        # restore it.
-        [name for name in LAYOUTS if name != "media_channel_before_geo_same_length"],
-    )
+    # On `main` the square media layout passes by accident (the carry-in copy
+    # and `_set_xarray_data` transpose the spend twice, which restores it), so
+    # it cannot detect the bug. It is kept so that it passes here for the right
+    # reason: the spend is written by label.
+    @pytest.mark.parametrize("layout", list(LAYOUTS))
     def test_create_optimization_model_holds_observed_values(self, layout):
         var, dims, n_geos = self.LAYOUTS[layout]
         observed = self._dataset(n_geos)
