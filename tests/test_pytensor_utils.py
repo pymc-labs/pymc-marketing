@@ -1690,47 +1690,6 @@ def test_conditioned_model_restore_is_idempotent():
     assert optional_key in conditioned._cache
 
 
-@pytest.mark.parametrize("rebind_first", [False, True])
-def test_conditioned_model_uncached_extract_is_not_pinned(rebind_first):
-    """A ``cache=False`` graph is never registered, on either side of a rebind.
-
-    The long-lived graph reads ``beta``; the one-shot graph also reads ``gamma``.
-    A posterior without ``gamma`` still satisfies the long-lived graph, so the
-    rebind to it must succeed whether the one-shot extraction happened before
-    the first rebind or after it -- the one-shot graph must not be pinned on the
-    shared posterior either way.
-    """
-    spend = np.array([10.0, 20.0])
-    with pm.Model(coords={"channel": ["a", "b"]}) as model:
-        spend_var = pmd.Data("spend", spend, dims="channel")
-        beta = pmd.Normal("beta", dims="channel")
-        gamma = pmd.Normal("gamma")
-        pmd.Deterministic("resp", beta * spend_var)
-        pmd.Deterministic("extra", gamma + (beta * spend_var).sum())
-
-    posterior = xr.Dataset(
-        {
-            "beta": (("chain", "draw", "channel"), np.ones((1, 1, 2))),
-            "gamma": (("chain", "draw"), np.ones((1, 1))),
-        },
-        coords={"channel": ["a", "b"]},
-    )
-    conditioned = ConditionedModel(model, posterior, intervention={"spend": spend})
-
-    conditioned.extract("resp")  # long-lived, needs beta
-    if rebind_first:
-        conditioned.set_posterior(posterior)  # first rebind -> shared path
-    adhoc = conditioned.extract("extra", cache=False)  # one-shot, also reads gamma
-    assert conditioned.extract("extra", cache=False) is not adhoc  # never cached
-
-    conditioned.set_posterior(posterior.drop_vars("gamma"))
-
-    assert conditioned.shared_posterior is not None
-    np.testing.assert_allclose(
-        function([], conditioned.extract("resp"))(), [[10.0, 20.0]]
-    )
-
-
 def test_conditioned_model_first_rebind_drops_the_cache_and_fires_callbacks_once(
     conditioned_slope, slope_posteriors
 ):
@@ -2043,8 +2002,9 @@ def test_conditioned_model_reordered_rebind_realigns_constants_and_new_keys(
 ):
     """A rebind realigns at the door, so every later read sees model order.
 
-    A posterior stored as ``(b, a)`` used to give ``[[20, 20]]`` from the one-shot constant path,
-    and a new ``resp_g`` key gave ``[[40, 60]]`` instead of ``[[30, 80]]``.
+    A posterior stored as ``(b, a)`` used to give ``[[20, 20]]`` from a graph
+    extracted after the rebind, and a new ``resp_g`` key gave ``[[40, 60]]``
+    instead of ``[[30, 80]]``.
     """
     model, spend = _channel_conditioned_model()
     conditioned = ConditionedModel(
@@ -2062,7 +2022,7 @@ def test_conditioned_model_reordered_rebind_realigns_constants_and_new_keys(
     # The stored posterior has the construction layout, not the incoming one.
     assert conditioned.posterior.indexes["channel"].tolist() == ["a", "b"]
     np.testing.assert_allclose(
-        function([], conditioned.extract("resp", cache=False))(), [[10.0, 40.0]]
+        function([], conditioned.extract("resp", required=False))(), [[10.0, 40.0]]
     )
     np.testing.assert_allclose(
         function([], conditioned.extract("resp_g"))(), [[30.0, 80.0]]

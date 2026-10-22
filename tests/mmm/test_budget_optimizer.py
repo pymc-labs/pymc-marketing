@@ -3128,9 +3128,9 @@ def test_a_failed_shared_mode_rebind_restores_the_old_draws_without_recompiling(
 
 
 def test_a_one_shot_evaluation_follows_a_reordered_rebind():
-    """A reordered rebind is realigned before the one-shot graph reads it.
+    """A reordered rebind is realigned before an ad-hoc graph reads it.
 
-    The ad-hoc graph is conditioned on constants from the stored posterior.
+    The ad-hoc graph is extracted after the rebind, from the stored posterior.
     A posterior stored as ``(b, a)`` used to read ``beta`` by position.
     That gave 640 for ``noise_thing`` where the objective gave 960.
     """
