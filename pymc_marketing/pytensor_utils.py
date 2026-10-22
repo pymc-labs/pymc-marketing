@@ -384,7 +384,8 @@ def align_posterior_dim(
             "one side only. Label both sides or neither; positions cannot "
             "be checked against labels."
         )
-    if bound is None:
+    # After the check above both are labeled or neither is.
+    if bound is None or given is None:
         return posterior_da
     # A duplicated layout label could not be realigned by ``sel``: it would
     # silently pick one column twice, so the layout has to be a set.
