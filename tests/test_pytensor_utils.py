@@ -1665,12 +1665,12 @@ def test_conditioned_model_restore_is_idempotent():
         key for key, cached in conditioned._cache.items() if cached.optional_binding
     )
     shared = conditioned.shared_posterior
-    token = conditioned._checkpoint()
+    token = conditioned.checkpoint()
 
     # A successful rebind swaps both bindings; the restore puts the old draws
     # back into the same objects and keeps the optional key cached.
     conditioned.set_posterior(_channel_posterior([3.0, 4.0], gamma=[30.0, 40.0]))
-    conditioned._restore(token)
+    conditioned.restore(token)
 
     assert conditioned.shared_posterior is shared
     assert conditioned.extract("resp_g", required=False) is optional
@@ -1680,7 +1680,7 @@ def test_conditioned_model_restore_is_idempotent():
     variables = shared.variables
     values = {name: variable.get_value() for name, variable in variables.items()}
 
-    conditioned._restore(token)  # a second call leaves the same state
+    conditioned.restore(token)  # a second call leaves the same state
 
     assert conditioned.shared_posterior is shared
     assert set(shared.variables) == set(variables)

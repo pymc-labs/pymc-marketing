@@ -987,7 +987,7 @@ class CachedGraphs(NamedTuple):
     optional_binding: SharedPosterior | None = None
 
 
-class BindingCheckpoint(NamedTuple):
+class OptionalBindingCheckpoint(NamedTuple):
     """A private optional binding and shallow copies of its registries."""
 
     binding: SharedPosterior
@@ -995,8 +995,11 @@ class BindingCheckpoint(NamedTuple):
     layouts: dict[str, VariableLayout]
 
 
-class Checkpoint(NamedTuple):
+class ConditionedModelCheckpoint(NamedTuple):
     """A cheap snapshot of a :class:`ConditionedModel`'s binding state.
+
+    Returned by :meth:`ConditionedModel.checkpoint` and reinstalled by
+    :meth:`ConditionedModel.restore`.
 
     The cache and the registries are shallow-copied; the posterior dataset is
     held by reference and no draws are copied.  A restore writes the
@@ -1009,7 +1012,7 @@ class Checkpoint(NamedTuple):
     shared_posterior: SharedPosterior | None
     variables: dict[str, SharedVariable]
     layouts: dict[str, VariableLayout]
-    optional: tuple[BindingCheckpoint, ...]
+    optional: tuple[OptionalBindingCheckpoint, ...]
 
 
 class ConditionedModel:
@@ -1299,7 +1302,7 @@ class ConditionedModel:
             # The checkpoint makes the swap atomic: an unexpected failure
             # after the required variables were written puts the old draws
             # back, so no compiled function is left reading the new ones.
-            checkpoint = self._checkpoint()
+            checkpoint = self.checkpoint()
             try:
                 # The required binding goes first: its variables are the ones
                 # the long-lived graphs read, so its failure is the caller's
@@ -1320,45 +1323,48 @@ class ConditionedModel:
                         del self._cache[key]
                 self._posterior = posterior
             except BaseException:
-                self._restore(checkpoint)
+                self.restore(checkpoint)
                 raise
             return
 
         # First rebind with a cache: drop the constant graphs, install a fresh
         # binding and let the callbacks re-request only what they use.  A stale
         # inspection key or a replaced constraint never binds.
-        checkpoint = self._checkpoint()
+        checkpoint = self.checkpoint()
         self._cache = OrderedDict()
         self._shared_posterior = SharedPosterior()
         self._posterior = posterior
         try:
             self._fire_callbacks()
         except BaseException:
-            self._restore(checkpoint)
+            self.restore(checkpoint)
             raise
 
-    def _checkpoint(self) -> Checkpoint:
+    def checkpoint(self) -> ConditionedModelCheckpoint:
         """Snapshot the cache and binding state without copying any draws.
 
-        The cache and the registries are shallow-copied, so this is cheap and
-        safe to take before a rebind that may need rolling back.  The posterior
-        dataset is held by reference: a restore writes its draws back through
-        the shared variables instead of replacing them.
+        :meth:`set_posterior` rolls its own state back when it fails.  A consumer
+        that compiled functions from the graphs and must roll those back
+        together with the binding -- as ``BudgetOptimizer.set_posterior`` does
+        -- takes a checkpoint before the rebind and passes it to :meth:`restore`
+        on failure.  The cache and the registries are shallow-copied, so this is
+        cheap.  The posterior dataset is held by reference: a restore writes its
+        draws back through the shared variables instead of replacing them.
 
         Returns
         -------
-        Checkpoint
-            The token :meth:`_restore` reinstalls.
+        ConditionedModelCheckpoint
+            The token :meth:`restore` reinstalls.
         """
         shared = self._shared_posterior
         optional = tuple(
-            BindingCheckpoint(
+            OptionalBindingCheckpoint(
                 binding, binding._variables.copy(), binding._layouts.copy()
             )
             for cached in self._cache.values()
             if (binding := cached.optional_binding) is not None
         )
-        return Checkpoint(
+        return ConditionedModelCheckpoint(
             cache=self._cache.copy(),
             posterior=self._posterior,
             shared_posterior=shared,
@@ -1367,8 +1373,8 @@ class ConditionedModel:
             optional=optional,
         )
 
-    def _restore(self, token: Checkpoint) -> None:
-        """Reinstall a snapshot taken by :meth:`_checkpoint`.
+    def restore(self, token: ConditionedModelCheckpoint) -> None:
+        """Reinstall a snapshot taken by :meth:`checkpoint`.
 
         The cache, posterior and shared-posterior object are replaced with the
         token's.  When the token's own :class:`SharedPosterior` is still the
@@ -1383,8 +1389,9 @@ class ConditionedModel:
 
         Parameters
         ----------
-        token : Checkpoint
-            The token returned by :meth:`_checkpoint`.
+        token : ConditionedModelCheckpoint
+            The token returned by this object's :meth:`checkpoint`.  A token
+            from another instance is not detected and must not be passed.
         """
         self._cache = token.cache.copy()
         self._posterior = token.posterior

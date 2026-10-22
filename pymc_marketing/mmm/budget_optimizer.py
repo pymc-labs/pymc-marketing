@@ -3255,7 +3255,7 @@ class BudgetOptimizer(BaseModel):
 
         # This optimizer must roll back the state it compiled from the graphs
         # together with the binding, so it keeps its own checkpoint.
-        checkpoint = self._conditioned._checkpoint()
+        checkpoint = self._conditioned.checkpoint()
         previous = (
             self.idata,
             self._objective_and_grad,
@@ -3282,7 +3282,7 @@ class BudgetOptimizer(BaseModel):
             ) = previous
             # Needed, not only harmless: an interrupt can land inside the restore
             # ``set_posterior`` ran itself, and restoring again finishes it.
-            self._conditioned._restore(checkpoint)
+            self._conditioned.restore(checkpoint)
             raise
         self._warn_uninformed_reach(cast(DataArray, self.budgets_to_optimize), informed)
 
