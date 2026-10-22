@@ -448,16 +448,26 @@ class TestFitWithXarrayInput:
             "y": y,
         }
 
-    def _mmm(self, dims, control_columns) -> MMM:
+    def _mmm(
+        self, dims, control_columns, *, date_column="date", target_column="y"
+    ) -> MMM:
         return MMM(
-            date_column="date",
-            target_column="y",
+            date_column=date_column,
+            target_column=target_column,
             channel_columns=self.CHANNELS,
             control_columns=control_columns,
             dims=dims,
             adstock=GeometricAdstock(l_max=2),
             saturation=LogisticSaturation(),
         )
+
+    def _X_without_target(self, inputs, X_type):
+        """``X`` of the given type (``dataset``, ``dataarray`` or ``dataframe``)."""
+        if X_type == "dataset":
+            return xr.Dataset({"media": inputs["media"], "_control": inputs["control"]})
+        if X_type == "dataarray":
+            return inputs["media"]
+        return inputs["X_df"]
 
     @pytest.mark.parametrize("form", ["target", "_target", "separate_y"])
     def test_fit_with_dataset_stores_dataframe_layout(
@@ -491,7 +501,7 @@ class TestFitWithXarrayInput:
         )
         xr.testing.assert_allclose(mmm.idata.fit_data.to_dataset(), expected)
 
-    @pytest.mark.parametrize("X_type", ["dataset", "dataframe"])
+    @pytest.mark.parametrize("X_type", ["dataset", "dataarray", "dataframe"])
     def test_fit_without_target_raises_value_error(
         self, inputs, X_type, mock_pymc_sample
     ):
@@ -499,14 +509,42 @@ class TestFitWithXarrayInput:
 
         ``fit`` must not train on a placeholder target of zeros instead.
         """
-        X = (
-            xr.Dataset({"media": inputs["media"], "_control": inputs["control"]})
-            if X_type == "dataset"
-            else inputs["X_df"]
-        )
-        mmm = self._mmm(inputs["dims"], self.CONTROLS)
+        X = self._X_without_target(inputs, X_type)
+        controls = None if X_type == "dataarray" else self.CONTROLS
+        mmm = self._mmm(inputs["dims"], controls)
 
         with pytest.raises(ValueError, match="target"):
+            mmm.fit(X)
+
+    @pytest.mark.parametrize("X_type", ["dataset", "dataarray", "dataframe"])
+    def test_create_fit_data_without_target_raises_value_error(self, inputs, X_type):
+        """``create_fit_data`` rejects ``X`` without a target when ``y`` is omitted."""
+        X = self._X_without_target(inputs, X_type)
+        controls = None if X_type == "dataarray" else self.CONTROLS
+        mmm = self._mmm(inputs["dims"], controls)
+
+        with pytest.raises(ValueError, match="target"):
+            mmm.create_fit_data(X)
+
+    @pytest.mark.parametrize("X_type", ["dataset", "dataframe"])
+    def test_fit_with_output_var_named_column_raises_value_error(
+        self, inputs, X_type, mock_pymc_sample
+    ):
+        """A column named like the output variable is rejected with ``y`` omitted too."""
+        if X_type == "dataset":
+            X = xr.Dataset(
+                {
+                    "media": inputs["media"],
+                    "_control": inputs["control"],
+                    "target": inputs["target"],
+                    "y": inputs["target"],
+                }
+            )
+        else:
+            X = inputs["X_df"].assign(target=inputs["y"].to_numpy(), y=0.0)
+        mmm = self._mmm(inputs["dims"], self.CONTROLS, target_column="target")
+
+        with pytest.raises(ValueError, match="conflicts with the target"):
             mmm.fit(X)
 
     @staticmethod
@@ -600,8 +638,9 @@ class TestFitWithXarrayInput:
             mmm.sample_posterior_predictive(X_new, **kwargs),
         )
 
+    @pytest.mark.parametrize("date_column", ["date", "week"])
     def test_fit_with_dataset_save_load_roundtrip(
-        self, inputs, tmp_path, mock_pymc_sample
+        self, inputs, date_column, tmp_path, mock_pymc_sample
     ):
         X = xr.Dataset(
             {
@@ -610,15 +649,36 @@ class TestFitWithXarrayInput:
                 "target": inputs["target"],
             }
         )
-        mmm = self._mmm(inputs["dims"], self.CONTROLS)
+        mmm = self._mmm(inputs["dims"], self.CONTROLS, date_column=date_column)
         mmm.fit(X)
 
         file = str(tmp_path / "dataset_fit.nc")
         mmm.save(file)
         loaded = MMM.load(file)
 
+        assert mmm.idata.fit_data["y"].dims == (date_column, *inputs["dims"])
         xr.testing.assert_allclose(loaded.xarray_dataset, mmm.xarray_dataset)
         xr.testing.assert_equal(loaded.idata.posterior, mmm.idata.posterior)
+
+    def test_build_from_idata_raises_when_posterior_labels_differ(
+        self, mock_pymc_sample
+    ):
+        """A posterior whose ``geo`` labels differ from ``fit_data`` cannot be loaded.
+
+        Posterior draws are matched to the model by position, so a silent
+        reindex would pair them with the wrong labels.
+        """
+        mmm = self._mmm(("geo",), self.CONTROLS)
+        mmm.fit(self._unsorted_panel_dataset())
+        idata = xr.DataTree.from_dict(
+            {
+                "/posterior": mmm.idata.posterior.sel(geo=["north"]).to_dataset(),
+                "/fit_data": mmm.idata.fit_data.to_dataset(),
+            }
+        )
+
+        with pytest.raises(ValueError, match=r"'geo' labels of the data .* posterior"):
+            self._mmm(("geo",), self.CONTROLS).build_from_idata(idata)
 
 
 def test_fit_with_dataframe_embedded_target_column(simple_mmm_data, mock_pymc_sample):
