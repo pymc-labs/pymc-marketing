@@ -704,6 +704,22 @@ def log_link_dataset_ordered_panel_fitted_mmm():
     return _fit_dataset_ordered_panel_mmm(link="log", saturation=LogSaturation())
 
 
+@pytest.fixture(scope="module")
+def saturation_first_dataset_ordered_panel_fitted_mmm():
+    """The unsorted, per-geo-scaled panel MMM with saturation before the adstock.
+
+    The class of model the closed form is exact for, whose saturation stage is
+    evaluated through PyMC on the spend in ``constant_data``.
+    """
+    return _fit_dataset_ordered_panel_mmm(
+        adstock_first=False,
+        scaling={
+            "target": {"method": "max", "dims": ()},
+            "channel": {"method": "max", "dims": ()},
+        },
+    )
+
+
 class TestIncrementality:
     """Tests for compute_incremental_contribution and supporting methods."""
 
@@ -836,12 +852,13 @@ class TestIncrementality:
 
         xr.testing.assert_allclose(result, expected.transpose(*result.dims), rtol=1e-8)
 
+    @pytest.mark.parametrize("group", ["posterior", "constant_data"])
     @pytest.mark.parametrize(
-        "model_fixture, call",
+        "model_fixture, dim, route",
         [
             *[
-                ("log_link_dataset_ordered_panel_fitted_mmm", call)
-                for call in (
+                ("log_link_dataset_ordered_panel_fitted_mmm", "geo", route)
+                for route in (
                     "per_channel",
                     "per_channel_mean",
                     "marginal",
@@ -850,8 +867,9 @@ class TestIncrementality:
                 )
             ],
             *[
-                ("per_geo_scaled_dataset_ordered_panel_fitted_mmm", call)
-                for call in (
+                ("per_geo_scaled_dataset_ordered_panel_fitted_mmm", dim, route)
+                for dim in ("geo", "channel")
+                for route in (
                     "per_channel",
                     "joint",
                     "over_time",
@@ -859,29 +877,40 @@ class TestIncrementality:
                     "allocation",
                 )
             ],
+            *[
+                ("saturation_first_dataset_ordered_panel_fitted_mmm", dim, route)
+                for dim in ("geo", "channel")
+                for route in (
+                    "closed_form_over_time",
+                    "closed_form_allocation",
+                    "closed_form_current_future",
+                )
+            ],
         ],
     )
-    def test_a_reversed_panel_axis_in_idata_leaves_every_increment_unchanged(
-        self, request, model_fixture, call
+    def test_a_reordered_axis_in_idata_leaves_every_increment_unchanged(
+        self, request, model_fixture, dim, route, group
     ):
-        """Reversing ``geo`` in the posterior and ``constant_data`` changes no number.
+        """Storing ``geo`` or ``channel`` in another order in ``idata`` changes no number.
 
-        The change in the linear predictor is evaluated in the model's ``geo``
-        order, while the reducer rescales it by inputs read from ``idata`` in
-        whatever order it stores them: ``mu_original_scale`` and the mean-scale
+        The evaluator computes the change in the linear predictor in the model's
+        order.  The reducer rescales it by inputs read from ``idata`` in the
+        order idata stores them: ``mu_original_scale`` and the mean-scale
         correction under the log link, the per-geo target scale under the
-        identity link.  Each geo must meet its own inputs, on every route that
-        reduces a change: per channel, marginal, joint, per realization date,
-        current/future and allocation.  ``north`` is ten times ``east``, so a
-        positional pairing is an order of magnitude off.
+        identity link.  The closed form and the allocation shares evaluate the
+        posterior's transformations through PyMC on the spend in
+        ``constant_data``.  Reversing the axis in one group only leaves the
+        posterior, ``constant_data`` and the model each in its own order, and
+        each cell must still meet its own draws and inputs on every route.
+        ``north`` is ten times ``east``, so a positional pairing is an order of
+        magnitude off.
         """
         mmm = request.getfixturevalue(model_fixture)
-        reversed_idata = mmm.idata.copy()
-        for group in ("posterior", "constant_data"):
-            reversed_idata[group] = xr.DataTree(
-                reversed_idata[group].to_dataset().isel(geo=[1, 0])
-            )
-        calls = {
+        reordered = mmm.idata.copy()
+        reordered[group] = xr.DataTree(
+            reordered[group].to_dataset().isel({dim: [1, 0]})
+        )
+        routes = {
             "per_channel": lambda incr: incr.compute_incremental_contribution(
                 frequency="all_time"
             ),
@@ -905,20 +934,37 @@ class TestIncrementality:
             "allocation": lambda incr: incr.split_incremental_contribution_over_time(
                 frequency="monthly", estimand="allocation"
             ),
+            "closed_form_over_time": (
+                lambda incr: incr.split_incremental_contribution_over_time(
+                    frequency="monthly", method="closed_form"
+                )
+            ),
+            "closed_form_allocation": (
+                lambda incr: incr.split_incremental_contribution_over_time(
+                    frequency="monthly", estimand="allocation", method="closed_form"
+                )
+            ),
+            "closed_form_current_future": (
+                lambda incr: incr.split_incremental_contribution_current_future(
+                    frequency="monthly", method="closed_form"
+                )
+            ),
         }
 
-        expected = calls[call](mmm.incrementality)
-        result = calls[call](Incrementality(model=mmm, idata=reversed_idata))
+        expected = routes[route](mmm.incrementality)
+        result = routes[route](Incrementality(model=mmm, idata=reordered))
 
-        assert list(result["geo"].values) == ["east", "north"]
         # The current/future split is a Dataset whose variables share one layout.
         layout = (
             expected["current"] if isinstance(expected, xr.Dataset) else expected
         ).dims
+        labels = {
+            name: expected[name].values
+            for name in ("geo", "channel")
+            if name in expected.dims
+        }
         xr.testing.assert_allclose(
-            result.sel(geo=expected["geo"].values).transpose(*layout),
-            expected,
-            rtol=1e-8,
+            result.sel(labels).transpose(*layout), expected, rtol=1e-8
         )
 
     def test_non_after_convolution_matches_full_axis_oracle(self, non_after_fitted_mmm):
@@ -6967,6 +7013,32 @@ class TestEvaluatorCache:
 
         other = Incrementality(model=mmm, idata=self._idata_with_offset(mmm, 1))
         other.compute_incremental_contribution(frequency="all_time")
+
+        assert len(constructed) == 2
+
+    def test_relabeled_data_builds_its_own_evaluator(
+        self, panel_fitted_mmm, constructed
+    ):
+        """``constant_data`` with the same values under swapped labels is other data.
+
+        Swapping the ``country`` labels leaves every value array byte for byte
+        the same, so only the labels tell the two datasets apart, and the second
+        wrapper must not lease the evaluator built for the first.
+        """
+        mmm = panel_fitted_mmm
+        mmm._clear_incrementality_evaluator_cache()
+        mmm.incrementality.compute_incremental_contribution(frequency="all_time")
+        assert len(constructed) == 1
+
+        relabeled = mmm.idata.copy()
+        constant_data = relabeled["constant_data"].to_dataset()
+        swapped = constant_data["country"].values[::-1]
+        relabeled["constant_data"] = xr.DataTree(
+            constant_data.assign_coords(country=swapped)
+        )
+        Incrementality(model=mmm, idata=relabeled).compute_incremental_contribution(
+            frequency="all_time"
+        )
 
         assert len(constructed) == 2
 

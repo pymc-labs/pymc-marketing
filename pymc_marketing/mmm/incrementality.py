@@ -2204,10 +2204,12 @@ class Incrementality:
 
         # One subset for both computations below: drawing twice from a
         # Generator would give each a different one.
-        posterior_sub = subsample_draws(
-            self.idata.posterior.dataset,
-            num_samples=num_samples,
-            random_state=random_state,
+        posterior_sub = self._posterior_in_data_order(
+            subsample_draws(
+                self.idata.posterior.dataset,
+                num_samples=num_samples,
+                random_state=random_state,
+            )
         )
 
         # The shares need c - c0 on every date, so adstock-first evaluates the
@@ -3184,7 +3186,19 @@ class Incrementality:
         weights = _relabel_draws(
             weights, {"chain": total["chain"].values, "draw": total["draw"].values}
         )
-        spend = self.data.get_channel_data()
+        # The kernel and the spend go into the contribution's label order, the
+        # one its values and the matrix's coordinates are laid out in: a labeled
+        # product keeps its first operand's order, and the masks below pair
+        # cells exactly.  The posterior and ``constant_data`` may store others.
+        in_total_order = {dim: total[dim].values for dim in out_dims}
+        weights = weights.sel(
+            {
+                dim: labels
+                for dim, labels in in_total_order.items()
+                if dim in weights.dims
+            }
+        )
+        spend = self.data.get_channel_data().sel(in_total_order)
 
         adstocked = sum(_adstock_terms(weights, spend))
         positive = adstocked > 0
@@ -4280,7 +4294,7 @@ class Incrementality:
         start_ts, end_ts = self._validate_input(start_date, end_date)
 
         # Subsample the posterior across chain x draw, unless the caller did.
-        posterior_sub = (
+        posterior_sub = self._posterior_in_data_order(
             posterior
             if posterior is not None
             else subsample_draws(
@@ -4934,6 +4948,26 @@ class Incrementality:
             channel_data.to_dataset(name=name), self.model.model.coords
         )
         return ordered[name]
+
+    def _posterior_in_data_order(self, posterior: xr.Dataset) -> xr.Dataset:
+        """Return ``posterior`` with each labeled dim in ``constant_data``'s order.
+
+        The closed form and the allocation shares evaluate the saturation and
+        the adstock kernel through PyMC, which pairs the draws with the channel
+        data by position, so the two must share one label order.  A posterior
+        stored in another order -- a reordered or reloaded ``idata`` -- is
+        reordered here; the evaluator reorders its own copy to the model's
+        order, and the reducer pairs by label.
+        """
+        channel_data = self.data.get_channel_data()
+        return reorder_to_model_coords(
+            posterior,
+            {
+                str(dim): channel_data.coords[dim].values
+                for dim in channel_data.dims
+                if dim != "date" and dim in channel_data.coords
+            },
+        )
 
     def _compute_period_increments(
         self,
