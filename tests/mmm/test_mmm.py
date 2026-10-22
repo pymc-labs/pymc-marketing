@@ -22,6 +22,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import pymc as pm
+import pymc.dims as pmd
 import pytensor.tensor as pt
 import pytest
 import xarray as xr
@@ -370,8 +371,6 @@ def test_fit_with_dataset_embedded_target(single_dim_data):
         saturation=LogisticSaturation(),
     )
 
-    # Call build_model directly (bypassing RegressionModelBuilder.fit,
-    # which can't handle xr.Dataset's lack of .shape)
     mmm.build_model(X=dataset, y=None)
 
     assert "_target" in mmm.xarray_dataset.data_vars
@@ -398,6 +397,312 @@ def test_fit_with_dataset_embedded_target(single_dim_data):
     # Check that we can access the actual values
     assert not mmm.xarray_dataset["_target"].isnull().any()
     assert not mmm.xarray_dataset["_channel"].isnull().any()
+
+
+class TestFitWithXarrayInput:
+    """Regression tests for #3227: ``fit`` accepts the documented xarray inputs.
+
+    ``fit`` must take the same ``xr.Dataset`` forms as ``build_model`` (a target
+    embedded as ``target`` / ``_target``, or a separate ``y`` DataArray) and an
+    ``xr.DataArray`` of media with ``y``, and store ``fit_data`` in the same wide
+    layout as for a ``DataFrame`` so that ``save`` / ``load`` keep working.
+    """
+
+    CHANNELS = ["tv", "radio"]
+    CONTROLS = ["price"]
+
+    @pytest.fixture(params=[(), ("geo",)], ids=["national", "panel"])
+    def inputs(self, request) -> dict:
+        """Media, controls and target as xarray objects, and the same data as a DataFrame.
+
+        The ``geo`` labels are sorted, so the DataFrame path and the Dataset path
+        agree on the coordinate order.
+        """
+        dims = request.param
+        rng = np.random.default_rng(3227)
+        dates = pd.date_range("2024-01-01", periods=8, freq="W-MON")
+        coords = {"date": dates, **({"geo": ["east", "north"]} if dims else {})}
+        sizes = [len(values) for values in coords.values()]
+        media = xr.DataArray(
+            rng.uniform(0.5, 1.5, (*sizes, len(self.CHANNELS))),
+            dims=(*coords, "channel"),
+            coords={**coords, "channel": self.CHANNELS},
+        )
+        control = xr.DataArray(
+            rng.uniform(0.0, 1.0, (*sizes, len(self.CONTROLS))),
+            dims=(*coords, "control"),
+            coords={**coords, "control": self.CONTROLS},
+        )
+        target = media.sum("channel") + 1.0
+        X_df = (
+            xr.merge([media.to_dataset("channel"), control.to_dataset("control")])
+            .to_dataframe()
+            .reset_index()
+        )
+        y = target.to_series().reset_index(drop=True).rename("y")
+        return {
+            "dims": dims,
+            "media": media,
+            "control": control,
+            "target": target,
+            "X_df": X_df,
+            "y": y,
+        }
+
+    def _mmm(
+        self, dims, control_columns, *, date_column="date", target_column="y"
+    ) -> MMM:
+        return MMM(
+            date_column=date_column,
+            target_column=target_column,
+            channel_columns=self.CHANNELS,
+            control_columns=control_columns,
+            dims=dims,
+            adstock=GeometricAdstock(l_max=2),
+            saturation=LogisticSaturation(),
+        )
+
+    def _X_without_target(self, inputs, X_type):
+        """``X`` of the given type (``dataset``, ``dataarray`` or ``dataframe``)."""
+        if X_type == "dataset":
+            return xr.Dataset({"media": inputs["media"], "_control": inputs["control"]})
+        if X_type == "dataarray":
+            return inputs["media"]
+        return inputs["X_df"]
+
+    @pytest.mark.parametrize("form", ["target", "_target", "separate_y"])
+    def test_fit_with_dataset_stores_dataframe_layout(
+        self, inputs, form, mock_pymc_sample
+    ):
+        X = xr.Dataset({"media": inputs["media"], "_control": inputs["control"]})
+        y = None
+        if form == "separate_y":
+            y = inputs["target"]
+        else:
+            X[form] = inputs["target"]
+        mmm = self._mmm(inputs["dims"], self.CONTROLS)
+
+        mmm.fit(X, y)
+
+        # The model trains on the real target, not on a placeholder.
+        np.testing.assert_allclose(mmm.y, inputs["target"].values)
+        expected = self._mmm(inputs["dims"], self.CONTROLS).create_fit_data(
+            inputs["X_df"], inputs["y"]
+        )
+        xr.testing.assert_allclose(mmm.idata.fit_data.to_dataset(), expected)
+
+    def test_fit_with_dataarray_stores_dataframe_layout(self, inputs, mock_pymc_sample):
+        mmm = self._mmm(inputs["dims"], None)
+
+        mmm.fit(inputs["media"], inputs["target"])
+
+        np.testing.assert_allclose(mmm.y, inputs["target"].values)
+        expected = self._mmm(inputs["dims"], None).create_fit_data(
+            inputs["X_df"].drop(columns=self.CONTROLS), inputs["y"]
+        )
+        xr.testing.assert_allclose(mmm.idata.fit_data.to_dataset(), expected)
+
+    @pytest.mark.parametrize("X_type", ["dataset", "dataarray", "dataframe"])
+    def test_fit_without_target_raises_value_error(
+        self, inputs, X_type, mock_pymc_sample
+    ):
+        """``X`` with neither an embedded target nor ``y`` is a user error.
+
+        ``fit`` must not train on a placeholder target of zeros instead.
+        """
+        X = self._X_without_target(inputs, X_type)
+        controls = None if X_type == "dataarray" else self.CONTROLS
+        mmm = self._mmm(inputs["dims"], controls)
+
+        with pytest.raises(ValueError, match="target"):
+            mmm.fit(X)
+
+    @pytest.mark.parametrize("X_type", ["dataset", "dataarray", "dataframe"])
+    def test_create_fit_data_without_target_raises_value_error(self, inputs, X_type):
+        """``create_fit_data`` rejects ``X`` without a target when ``y`` is omitted."""
+        X = self._X_without_target(inputs, X_type)
+        controls = None if X_type == "dataarray" else self.CONTROLS
+        mmm = self._mmm(inputs["dims"], controls)
+
+        with pytest.raises(ValueError, match="target"):
+            mmm.create_fit_data(X)
+
+    @pytest.mark.parametrize("X_type", ["dataset", "dataframe"])
+    def test_fit_with_output_var_named_column_raises_value_error(
+        self, inputs, X_type, mock_pymc_sample
+    ):
+        """A column named like the output variable is rejected with ``y`` omitted too."""
+        if X_type == "dataset":
+            X = xr.Dataset(
+                {
+                    "media": inputs["media"],
+                    "_control": inputs["control"],
+                    "target": inputs["target"],
+                    "y": inputs["target"],
+                }
+            )
+        else:
+            X = inputs["X_df"].assign(target=inputs["y"].to_numpy(), y=0.0)
+        mmm = self._mmm(inputs["dims"], self.CONTROLS, target_column="target")
+
+        with pytest.raises(ValueError, match="conflicts with the target"):
+            mmm.fit(X)
+
+    @staticmethod
+    def _unsorted_panel_dataset(
+        media_dims: tuple[str, ...] = ("date", "geo", "channel"),
+    ) -> xr.Dataset:
+        """Panel Dataset with unsorted ``geo`` labels and media on ``media_dims``."""
+        rng = np.random.default_rng(3227)
+        dates = pd.date_range("2024-01-01", periods=8, freq="W-MON")
+        geos = ["north", "east"]
+        channels = TestFitWithXarrayInput.CHANNELS
+        media = xr.DataArray(
+            rng.uniform(0.5, 1.5, (len(dates), len(geos), len(channels))),
+            dims=("date", "geo", "channel"),
+            coords={"date": dates, "geo": geos, "channel": channels},
+        )
+        control = xr.DataArray(
+            rng.uniform(0.0, 1.0, (len(dates), len(geos), 1)),
+            dims=("date", "geo", "control"),
+            coords={"date": dates, "geo": geos, "control": ["price"]},
+        )
+        return xr.Dataset(
+            {
+                "media": media.transpose(*media_dims),
+                "_control": control,
+                "target": media.sum("channel") + 1,
+            }
+        )
+
+    def test_fit_with_dataset_keeps_label_order_in_dataframe_layout(
+        self, mock_pymc_sample
+    ):
+        """``fit_data`` is laid out on ``(date, geo)`` and keeps the model's label order."""
+        mmm = self._mmm(("geo",), self.CONTROLS)
+
+        mmm.fit(self._unsorted_panel_dataset(media_dims=("geo", "channel", "date")))
+
+        fit_data = mmm.idata.fit_data.to_dataset()
+        assert set(fit_data.data_vars) == {*self.CHANNELS, *self.CONTROLS, "y"}
+        assert {name: var.dims for name, var in fit_data.data_vars.items()} == {
+            name: ("date", "geo") for name in fit_data.data_vars
+        }
+        assert list(fit_data.coords["geo"].values) == ["north", "east"]
+        assert list(mmm.model.coords["geo"]) == ["north", "east"]
+
+    @pytest.mark.parametrize("fit_from", ["dataset", "dataframe"])
+    def test_load_keeps_posterior_paired_with_unsorted_dataset_labels(
+        self, fit_from, tmp_path, mock_pymc_sample
+    ):
+        """A loaded model predicts like the saved one for unsorted ``geo`` labels.
+
+        The model is built from a Dataset whose ``geo`` labels are not sorted,
+        so its posterior keeps that order, while ``load`` rebuilds the model from
+        ``fit_data`` as a DataFrame. Posterior draws are matched by position, so
+        the rebuilt model must use the posterior's label order.
+        """
+        ds = self._unsorted_panel_dataset()
+        mmm = self._mmm(("geo",), self.CONTROLS)
+        if fit_from == "dataset":
+            mmm.fit(ds)
+        else:
+            df = (
+                xr.merge(
+                    [
+                        ds["media"].to_dataset("channel"),
+                        ds["_control"].to_dataset("control"),
+                        ds["target"].rename("y"),
+                    ]
+                )
+                .to_dataframe()
+                .reset_index()
+            )
+            mmm.build_model(ds)
+            mmm.fit(df.drop(columns="y"), df["y"])
+        file = str(tmp_path / "unsorted_geo.nc")
+        mmm.save(file)
+        loaded = MMM.load(file)
+
+        # The training data follows the posterior's labels too, not only the coords.
+        xr.testing.assert_allclose(loaded.xarray_dataset, mmm.xarray_dataset)
+
+        X_new = ds[["media", "_control"]]
+        kwargs = {
+            "var_names": ["channel_contribution", "y"],
+            "extend_idata": False,
+            "progressbar": False,
+            "random_seed": 0,
+        }
+        xr.testing.assert_allclose(
+            loaded.sample_posterior_predictive(X_new, **kwargs),
+            mmm.sample_posterior_predictive(X_new, **kwargs),
+        )
+
+    @pytest.mark.parametrize("date_column", ["date", "week"])
+    def test_fit_with_dataset_save_load_roundtrip(
+        self, inputs, date_column, tmp_path, mock_pymc_sample
+    ):
+        X = xr.Dataset(
+            {
+                "media": inputs["media"],
+                "_control": inputs["control"],
+                "target": inputs["target"],
+            }
+        )
+        mmm = self._mmm(inputs["dims"], self.CONTROLS, date_column=date_column)
+        mmm.fit(X)
+
+        file = str(tmp_path / "dataset_fit.nc")
+        mmm.save(file)
+        loaded = MMM.load(file)
+
+        assert mmm.idata.fit_data["y"].dims == (date_column, *inputs["dims"])
+        xr.testing.assert_allclose(loaded.xarray_dataset, mmm.xarray_dataset)
+        xr.testing.assert_equal(loaded.idata.posterior, mmm.idata.posterior)
+
+    def test_build_from_idata_raises_when_posterior_labels_differ(
+        self, mock_pymc_sample
+    ):
+        """A posterior whose ``geo`` labels differ from ``fit_data`` cannot be loaded.
+
+        Posterior draws are matched to the model by position, so a silent
+        reindex would pair them with the wrong labels.
+        """
+        mmm = self._mmm(("geo",), self.CONTROLS)
+        mmm.fit(self._unsorted_panel_dataset())
+        idata = xr.DataTree.from_dict(
+            {
+                "/posterior": mmm.idata.posterior.sel(geo=["north"]).to_dataset(),
+                "/fit_data": mmm.idata.fit_data.to_dataset(),
+            }
+        )
+
+        with pytest.raises(ValueError, match=r"'geo' labels of the data .* posterior"):
+            self._mmm(("geo",), self.CONTROLS).build_from_idata(idata)
+
+
+def test_fit_with_dataframe_embedded_target_column(simple_mmm_data, mock_pymc_sample):
+    """``fit`` reads the ``target_column`` of ``X`` when ``y`` is omitted (#3227).
+
+    ``build_model`` documents this form; ``fit`` must not replace the column by a
+    placeholder target of zeros.
+    """
+    X = simple_mmm_data["X"].assign(target=simple_mmm_data["y"].to_numpy())
+    mmm = MMM(
+        date_column="date",
+        channel_columns=["channel_1", "channel_2", "channel_3"],
+        target_column="target",
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+    )
+
+    mmm.fit(X)
+
+    np.testing.assert_allclose(mmm.y, X["target"].to_numpy())
+    np.testing.assert_allclose(
+        mmm.idata.fit_data["target"].values, X["target"].to_numpy()
+    )
 
 
 def test_sample_prior_predictive(mmm: MMM, target_column, df: pd.DataFrame):
@@ -1472,6 +1777,43 @@ class TestSerializationIntegration:
         assert isinstance(loaded2.adstock, DelayedAdstock)
         assert loaded2.adstock.l_max == 3
         assert isinstance(loaded2.saturation, TanhSaturation)
+
+    @pytest.mark.parametrize(
+        "beta_prior",
+        [
+            Prior("Normal", mu=0, sigma=1, dims="channel", transform="abs"),
+            Prior(
+                "HalfNormal",
+                sigma=Prior("Normal", transform="exp"),
+                dims="channel",
+            ),
+            Prior(
+                "Normal",
+                mu=0,
+                sigma=Prior("HalfNormal"),
+                dims="channel",
+                centered=False,
+                transform="abs",
+            ),
+        ],
+        ids=["transform", "nested-transform", "non-centered-transform"],
+    )
+    def test_roundtrip_preserves_prior_transform(
+        self, minimal_fit_data, tmp_path, mock_pymc_sample, beta_prior
+    ):
+        """Regression test for #3225: a transformed prior survives save/load."""
+        X, y = minimal_fit_data
+        mmm = self._base_mmm(model_config={"saturation_beta": beta_prior})
+        mmm.fit(X, y)
+
+        fname = tmp_path / "model.nc"
+        mmm.save(str(fname))
+        loaded = MMM.load(str(fname))
+
+        assert loaded == mmm
+        assert sorted(rv.name for rv in loaded.model.free_RVs) == sorted(
+            rv.name for rv in mmm.model.free_RVs
+        )
 
     def test_roundtrip_with_tvp(self, minimal_fit_data, tmp_path, mock_pymc_sample):
         """Save/load with time-varying parameters (HSGP) preserves HSGP config."""
@@ -3198,17 +3540,176 @@ def test_fixed_scaling_dataarray_broadcasts_country_only(multi_dim_data) -> None
             )
 
 
-def test_fixed_scaling_dataarray_misaligned_country_raises(multi_dim_data) -> None:
-    """Mismatched country labels on fixed channel scale raise when aligning."""
-    X, y = multi_dim_data
-    da = xr.DataArray(
-        [500.0],
-        dims="country",
-        coords={"country": ["NowhereLand"]},
+def _model_scale_by_label(mmm: MMM, name: str) -> xr.DataArray:
+    """Label the values the model registered for ``name`` with the model's coords."""
+    dims = mmm.model.named_vars_to_dims.get(name, ())
+    return xr.DataArray(
+        mmm.model[name].get_value(),
+        dims=dims,
+        coords={dim: list(mmm.model.coords[dim]) for dim in dims},
     )
+
+
+@pytest.mark.parametrize(
+    "data_fixture, dims, variable, channel_columns, make_value",
+    [
+        pytest.param(
+            "multi_dim_data",
+            ("country",),
+            "target",
+            ["channel_1", "channel_2", "channel_3"],
+            lambda: xr.DataArray(
+                [10_000.0, 20_000.0, 30_000.0],
+                dims="country",
+                coords={"country": ["Venezuela", "Colombia", "Chile"]},
+            ),
+            id="target-country-unsorted",
+        ),
+        pytest.param(
+            "multi_dim_data",
+            ("country",),
+            "target",
+            ["channel_1", "channel_2", "channel_3"],
+            lambda: xr.DataArray(
+                [30_000.0, 40_000.0, 10_000.0, 20_000.0],
+                dims="country",
+                coords={"country": ["Chile", "Peru", "Venezuela", "Colombia"]},
+            ),
+            id="target-country-extra-label-ignored",
+        ),
+        pytest.param(
+            "single_dim_data",
+            (),
+            "channel",
+            ["channel_1", "channel_2", "channel_3"],
+            lambda: xr.DataArray(
+                [3_000.0, 2_000.0, 1_000.0],
+                dims="channel",
+                coords={"channel": ["channel_3", "channel_2", "channel_1"]},
+            ),
+            id="national-channel-reversed",
+        ),
+        pytest.param(
+            "multi_dim_data",
+            ("country",),
+            "channel",
+            ["channel_1", "channel_2", "channel_3"],
+            lambda: xr.DataArray(
+                np.arange(9, dtype=float).reshape(3, 3) + 100.0,
+                dims=("channel", "country"),
+                coords={
+                    "channel": ["channel_2", "channel_3", "channel_1"],
+                    "country": ["Venezuela", "Chile", "Colombia"],
+                },
+            ),
+            id="channel-country-grid-transposed-and-shuffled",
+        ),
+        pytest.param(
+            "multi_dim_data",
+            ("country",),
+            "channel",
+            ["channel_2", "channel_1", "channel_3"],
+            lambda: (
+                FixedScaling.from_long_dataframe(
+                    dims=(),
+                    df=pd.DataFrame(
+                        {
+                            "country": np.repeat(["Venezuela", "Colombia", "Chile"], 3),
+                            "channel": ["channel_2", "channel_1", "channel_3"] * 3,
+                            "scale": 100.0 * np.arange(1, 10),
+                        }
+                    ),
+                    value_col="scale",
+                    dim_cols=["country", "channel"],
+                ).value
+            ),
+            id="from-long-dataframe-channel-columns-order",
+        ),
+    ],
+)
+def test_fixed_scaling_dataarray_model_uses_scale_by_label(
+    request, data_fixture, dims, variable, channel_columns, make_value
+) -> None:
+    """The model divides each cell by the user's scale for that cell's labels.
+
+    Regression test for issue #3223: a DataArray-valued FixedScaling whose
+    label or dimension order differs from the model's coordinates was applied
+    by position, so cells received each other's scale.
+    """
+    X, y = request.getfixturevalue(data_fixture)
+    value = make_value()
+    fixed = FixedScaling(dims=(), value=value)
+    scalar = FixedScaling(dims=dims, value=5_000.0)
+    scaling = (
+        Scaling(target=fixed, channel=scalar)
+        if variable == "target"
+        else Scaling(target=scalar, channel=fixed)
+    )
+    mmm = MMM(
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+        scaling=scaling,
+        date_column="date",
+        target_column="target",
+        channel_columns=channel_columns,
+        dims=dims,
+    )
+    mmm.build_model(X, y)
+
+    used = _model_scale_by_label(mmm, f"{variable}_scale")
+    expected = (
+        value.sel({dim: used.coords[dim].values for dim in value.dims})
+        .broadcast_like(used)
+        .transpose(*used.dims)
+    )
+    np.testing.assert_allclose(used.values, expected.values)
+
+
+@pytest.mark.parametrize(
+    "make_value, match",
+    [
+        pytest.param(
+            lambda: xr.DataArray(
+                [1_000.0, 2_000.0],
+                dims="country",
+                coords={"country": ["Venezuela", "Colombia"]},
+            ),
+            r"missing[^.]*'Chile'",
+            id="missing",
+        ),
+        pytest.param(
+            lambda: xr.DataArray(
+                [500.0],
+                dims="country",
+                coords={"country": ["NowhereLand"]},
+            ),
+            r"missing[^.]*'Chile'[^.]*'Colombia'[^.]*'Venezuela'",
+            id="unknown-only",
+        ),
+        pytest.param(
+            lambda: xr.DataArray(
+                [1_000.0, 2_000.0, 3_000.0, 4_000.0],
+                dims="country",
+                coords={"country": ["Venezuela", "Colombia", "Chile", "Chile"]},
+            ),
+            "duplicate",
+            id="duplicate",
+        ),
+        pytest.param(
+            lambda: xr.DataArray([1_000.0, 2_000.0, 3_000.0], dims="country"),
+            "coordinate",
+            id="unlabeled",
+        ),
+    ],
+)
+def test_fixed_scaling_dataarray_invalid_labels_raise(
+    multi_dim_data, make_value, match
+) -> None:
+    """A DataArray scale that cannot be matched to the model by label fails clearly."""
+    X, y = multi_dim_data
     scaling = Scaling(
-        target=FixedScaling(dims=("country",), value=25_000.0),
-        channel=FixedScaling(dims=(), value=da),
+        target=FixedScaling(dims=(), value=make_value()),
+        channel=FixedScaling(dims=("country",), value=5_000.0),
     )
     mmm = MMM(
         adstock=GeometricAdstock(l_max=2),
@@ -3219,7 +3720,7 @@ def test_fixed_scaling_dataarray_misaligned_country_raises(multi_dim_data) -> No
         channel_columns=["channel_1", "channel_2", "channel_3"],
         dims=("country",),
     )
-    with pytest.raises(ValueError, match=r"NaN|align|shape"):
+    with pytest.raises(ValueError, match=match):
         mmm.build_model(X, y)
 
 
@@ -3309,12 +3810,16 @@ def test_fixed_scaling_dataarray_three_dims_country_product_channel(
 def test_multidimensional_fixed_scaling_dataarray_idata_roundtrip(
     multi_dim_data,
 ) -> None:
-    """Scaling with DataArray-valued FixedScaling survives idata attrs round-trip."""
+    """A DataArray-valued FixedScaling survives the idata attrs round-trip.
+
+    Distinct values per cell and unsorted labels, so a model built from the
+    restored scaling must match by label rather than by position.
+    """
     X, y = multi_dim_data
-    countries = ["Venezuela", "Colombia", "Chile"]
-    channels = ["channel_1", "channel_2", "channel_3"]
+    countries = ["Chile", "Venezuela", "Colombia"]
+    channels = ["channel_3", "channel_1", "channel_2"]
     da = xr.DataArray(
-        np.full((3, 3), 2_000.0),
+        100.0 * np.arange(1, 10, dtype=float).reshape(3, 3),
         dims=("country", "channel"),
         coords={"country": countries, "channel": channels},
     )
@@ -3328,7 +3833,7 @@ def test_multidimensional_fixed_scaling_dataarray_idata_roundtrip(
         scaling=scaling,
         date_column="date",
         target_column="target",
-        channel_columns=channels,
+        channel_columns=["channel_1", "channel_2", "channel_3"],
         dims=("country",),
     )
     mmm.build_model(X, y)
@@ -3338,6 +3843,22 @@ def test_multidimensional_fixed_scaling_dataarray_idata_roundtrip(
     assert isinstance(restored.channel, FixedScaling)
     assert isinstance(restored.channel.value, xr.DataArray)
     xr.testing.assert_equal(restored.channel.value, da)
+
+    loaded = MMM(
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+        scaling=restored,
+        date_column="date",
+        target_column="target",
+        channel_columns=["channel_1", "channel_2", "channel_3"],
+        dims=("country",),
+    )
+    loaded.build_model(X, y)
+    used = _model_scale_by_label(loaded, "channel_scale")
+    expected = da.sel(
+        country=used.coords["country"].values, channel=used.coords["channel"].values
+    ).transpose(*used.dims)
+    np.testing.assert_allclose(used.values, expected.values)
 
 
 def test_fixed_scaling_dict_missing_key(multi_dim_data) -> None:
@@ -3824,6 +4345,30 @@ def test_log_link_mean_scale_calibration_needs_a_sampled_sigma() -> None:
             "could not convert",
             id="non-numeric-value",
         ),
+        pytest.param(
+            _roas_rows().assign(roas=[1.0, np.nan, 1.5]),
+            ValueError,
+            "'roas'.*finite real numeric",
+            id="nonfinite-target",
+        ),
+        pytest.param(
+            _roas_rows().assign(sigma=[0.1, np.inf, 0.2]),
+            ValueError,
+            "'sigma'.*finite real numeric",
+            id="nonfinite-sigma",
+        ),
+        pytest.param(
+            _roas_rows().assign(sigma=[0.1, 0.0, 0.2]),
+            ValueError,
+            "'sigma'.*strictly positive",
+            id="zero-sigma",
+        ),
+        pytest.param(
+            _roas_rows().assign(sigma=[0.1, -0.1, 0.2]),
+            ValueError,
+            "'sigma'.*strictly positive",
+            id="negative-sigma",
+        ),
     ],
 )
 def test_add_cost_per_target_calibration_bad_rows_fail_before_graph_changes(
@@ -3832,6 +4377,7 @@ def test_add_cost_per_target_calibration_bad_rows_fail_before_graph_changes(
     """A bad calibration table is refused before the increment node is registered."""
     mmm, X, _ = _mmm_for_calibration()
     initial_vars = set(mmm.model.named_vars)
+    initial_coords = dict(mmm.model.coords)
     with pytest.raises(exc, match=match):
         mmm.add_cost_per_target_calibration(
             data=X,
@@ -3841,6 +4387,7 @@ def test_add_cost_per_target_calibration_bad_rows_fail_before_graph_changes(
             target_per_cost=True,
         )
     assert set(mmm.model.named_vars) == initial_vars
+    assert mmm.model.coords == initial_coords
 
 
 def test_log_link_censored_likelihood_refuses_mean_scale_calibration(
@@ -7088,6 +7635,369 @@ class TestDatasetInputCoordinateOrder:
             opt_model["control_data"].get_value()[0],
             observed["_control"].sel(control=fit_labels["control"]).values,
         )
+
+
+class TestDatasetInputDimOrder:
+    """Regression tests for #3224.
+
+    The dims of a Dataset variable are named, so their order must not matter. A
+    model built from an ``xr.Dataset`` whose media, controls or target are laid
+    out in another order than ``("date", *dims, "channel")`` must still predict
+    on, and carry in, each value at its own labels.
+    """
+
+    CHANNELS = ["tv", "radio"]
+    CONTROLS = ["price", "promo"]
+    N_DATES = 12
+
+    @classmethod
+    def _dataset(cls, n_geos: int) -> xr.Dataset:
+        """Distinct values per cell, every variable in the canonical layout."""
+        rng = np.random.default_rng(0)
+        coords = {
+            "date": pd.date_range("2024-01-01", periods=cls.N_DATES, freq="W-MON"),
+            "geo": [f"g{i}" for i in range(n_geos)],
+        }
+        media = xr.DataArray(
+            rng.uniform(0.5, 1.5, (cls.N_DATES, n_geos, len(cls.CHANNELS))),
+            dims=("date", "geo", "channel"),
+            coords={**coords, "channel": cls.CHANNELS},
+        )
+        control = xr.DataArray(
+            rng.uniform(0.0, 1.0, (cls.N_DATES, n_geos, len(cls.CONTROLS))),
+            dims=("date", "geo", "control"),
+            coords={**coords, "control": cls.CONTROLS},
+        )
+        target = media.sum("channel") + control.sum("control")
+        return xr.Dataset({"media": media, "_control": control, "target": target})
+
+    @classmethod
+    def _model(cls, X: xr.Dataset) -> MMM:
+        """Build from X; prior draws stand in for the posterior (no sampling)."""
+        mmm = MMM(
+            date_column="date",
+            target_column="y",
+            channel_columns=cls.CHANNELS,
+            control_columns=cls.CONTROLS,
+            dims=("geo",),
+            adstock=GeometricAdstock(l_max=2),
+            saturation=LogisticSaturation(),
+        )
+        mmm.build_model(X)
+        with mmm.model:
+            idata = pm.sample_prior_predictive(draws=4, random_seed=1)
+        idata["/posterior"] = idata["/prior"].to_dataset()
+        mmm.idata = idata
+        return mmm
+
+    @staticmethod
+    def _data_by_label(model: pm.Model, name: str) -> xr.DataArray:
+        """The current value of a ``pm.Data`` node, labelled by its declared dims."""
+        dims = model.named_vars_to_dims[name]
+        return xr.DataArray(
+            model[name].get_value(),
+            dims=dims,
+            coords={dim: np.asarray(model.coords[dim]) for dim in dims},
+        )
+
+    # (variable, layout, number of geos). With two geos the swapped axes have
+    # the same length as the two channels or controls, so a positional write
+    # does not raise and silently transposes the data instead.
+    LAYOUTS = {
+        "media_geo_first": ("media", ("geo", "date", "channel"), 3),
+        "media_channel_before_geo_same_length": (
+            "media",
+            ("date", "channel", "geo"),
+            2,
+        ),
+        "control_date_last": ("_control", ("control", "geo", "date"), 3),
+        "control_before_geo_same_length": (
+            "_control",
+            ("date", "control", "geo"),
+            2,
+        ),
+        "target_geo_first": ("target", ("geo", "date"), 3),
+    }
+
+    @pytest.mark.parametrize("layout", list(LAYOUTS))
+    def test_predicting_on_training_dataset_reproduces_in_sample(self, layout):
+        var, dims, n_geos = self.LAYOUTS[layout]
+        X = self._dataset(n_geos)
+        X[var] = X[var].transpose(*dims)
+        mmm = self._model(X)
+
+        names = ["channel_contribution", "control_contribution"]
+        pred = mmm.sample_posterior_predictive(
+            X,
+            var_names=names,
+            combined=False,
+            extend_idata=False,
+            progressbar=False,
+            random_seed=2,
+        )
+
+        for name in names:
+            in_sample = mmm.idata.posterior[name]
+            np.testing.assert_allclose(
+                pred[name].values,
+                in_sample.transpose(*pred[name].dims).values,
+                err_msg=name,
+            )
+
+    # On `main` the square media layout passes by accident (the carry-in copy
+    # and `_set_xarray_data` transpose the spend twice, which restores it), so
+    # it cannot detect the bug. It is kept so that it passes here for the right
+    # reason: the spend is written by label.
+    @pytest.mark.parametrize("layout", list(LAYOUTS))
+    def test_create_optimization_model_holds_observed_values(self, layout):
+        var, dims, n_geos = self.LAYOUTS[layout]
+        observed = self._dataset(n_geos)
+        X = observed.copy()
+        X[var] = X[var].transpose(*dims)
+        mmm = self._model(X)
+        dates = observed.coords["date"].to_index()
+
+        opt_model = mmm.create_optimization_model(dates[6], dates[8])
+
+        # The window and its carry-over lie inside the training data, so the
+        # controls hold their observed values throughout and the spend does on
+        # the carry-in dates before the window.
+        channel_data = self._data_by_label(opt_model, "channel_data")
+        carry_in = dates[dates < dates[6]].intersection(channel_data.date.to_index())
+        assert len(carry_in) == 2
+        np.testing.assert_allclose(
+            channel_data.sel(date=carry_in).values,
+            observed["media"].sel(date=carry_in).transpose(*channel_data.dims).values,
+        )
+        control_data = self._data_by_label(opt_model, "control_data")
+        np.testing.assert_allclose(
+            control_data.values,
+            observed["_control"]
+            .sel(date=control_data.date.values)
+            .transpose(*control_data.dims)
+            .values,
+        )
+
+
+class TestCustomDimLabelAlignment:
+    """Regression tests for #3222.
+
+    Prediction writes new data into the model by position. A ``DataFrame`` input
+    comes out with its custom-dim labels sorted, while an ``xr.Dataset`` keeps its
+    own order, so the prediction input has to be aligned to the model's labels
+    first, or each geo silently receives another geo's data.
+    """
+
+    GEOS = ["north", "east", "south"]  # not sorted: east, north, south
+    SEGMENTS = ["b", "a"]  # not sorted; an effect-only dim, not a panel dim
+    CHANNELS = ["tv", "radio"]
+    CONTROLS = ["price"]
+
+    @pytest.fixture
+    def dataset(self) -> xr.Dataset:
+        """Panel data on unsorted geos, with values that differ by geo."""
+        dates = pd.date_range("2024-01-01", periods=8, freq="W-MON")
+        rng = np.random.default_rng(0)
+        n_dates, n_geos = len(dates), len(self.GEOS)
+        level = np.array([1.0, 10.0, 100.0])[None, :]
+        media = level[..., None] * rng.uniform(0.5, 1.5, (n_dates, n_geos, 2))
+        # The first date holds the largest spend and target, so a model built on
+        # the first dates has the same data-derived scales as one built on all.
+        media[0] = 2.0 * level[0][:, None]
+        control = level[..., None] * rng.uniform(0.5, 1.5, (n_dates, n_geos, 1))
+        promo = (
+            level[..., None]
+            * np.array([1.0, 3.0])
+            * rng.uniform(0.5, 1.5, (n_dates, n_geos, len(self.SEGMENTS)))
+        )
+        return xr.Dataset(
+            {
+                "media": (("date", "geo", "channel"), media),
+                "_control": (("date", "geo", "control"), control),
+                "promo": (("date", "geo", "segment"), promo),
+                "target": (("date", "geo"), media.sum(axis=-1)),
+            },
+            coords={
+                "date": dates,
+                "geo": self.GEOS,
+                "segment": self.SEGMENTS,
+                "channel": self.CHANNELS,
+                "control": self.CONTROLS,
+            },
+        )
+
+    @staticmethod
+    def _as_frame(ds: xr.Dataset) -> pd.DataFrame:
+        """Return the same channels, controls and target as a long DataFrame."""
+        return pd.concat(
+            [
+                ds["media"].to_dataset("channel").to_dataframe(),
+                ds["_control"].to_dataset("control").to_dataframe(),
+                ds["target"].to_dataframe(name="y"),
+            ],
+            axis=1,
+        ).reset_index()
+
+    def _mmm_with_known_posterior(self, X, mu_effects=()) -> MMM:
+        """Build the model and use prior draws as the posterior."""
+        mmm = MMM(
+            date_column="date",
+            target_column="y",
+            channel_columns=self.CHANNELS,
+            control_columns=self.CONTROLS,
+            dims=("geo",),
+            adstock=GeometricAdstock(l_max=2),
+            saturation=LogisticSaturation(),
+        )
+        for effect in mu_effects:
+            mmm.add_mu_effect(effect)
+        mmm.build_model(X)
+        with mmm.model:
+            idata = pm.sample_prior_predictive(draws=4, random_seed=1)
+        idata["/posterior"] = idata["/prior"].to_dataset()
+        mmm.idata = idata
+        return mmm
+
+    def _inputs(self, dataset: xr.Dataset) -> dict:
+        return {
+            "dataset": dataset,
+            "sorted_dataset": dataset.sortby("geo"),
+            "dataframe": self._as_frame(dataset),
+        }
+
+    @pytest.mark.parametrize(
+        "build_from, predict_with",
+        [
+            ("dataset", "dataframe"),
+            ("dataframe", "dataset"),
+            ("dataset", "sorted_dataset"),
+        ],
+        ids=["dataset_then_dataframe", "dataframe_then_dataset", "reordered_dataset"],
+    )
+    def test_sample_posterior_predictive_reproduces_in_sample_by_label(
+        self, dataset, build_from, predict_with
+    ):
+        inputs = self._inputs(dataset)
+        mmm = self._mmm_with_known_posterior(inputs[build_from])
+
+        pred = mmm.sample_posterior_predictive(
+            inputs[predict_with],
+            var_names=["channel_contribution", "control_contribution"],
+            combined=False,
+            progressbar=False,
+            random_seed=0,
+        )
+
+        # Predicting on the training data must give back the in-sample values of
+        # every geo, whatever the order of the labels in the input.
+        for var in ["channel_contribution", "control_contribution"]:
+            in_sample = mmm.idata.posterior[var]
+            np.testing.assert_allclose(
+                pred[var].transpose(*in_sample.dims).sel(geo=self.GEOS).values,
+                in_sample.sel(geo=self.GEOS).values,
+                err_msg=var,
+            )
+        written_target = mmm.idata.posterior_predictive_constant_data["target_data"]
+        np.testing.assert_allclose(
+            written_target.transpose("date", "geo").sel(geo=self.GEOS).values,
+            dataset["target"].sel(geo=self.GEOS).values,
+        )
+
+    @pytest.mark.parametrize("reordered", ["dataframe", "sorted_dataset"])
+    def test_include_last_observations_aligns_custom_dims_by_label(
+        self, dataset, reordered
+    ):
+        n_train = 5
+        future = self._inputs(dataset.isel(date=slice(n_train, None)))
+        mmm = self._mmm_with_known_posterior(dataset.isel(date=slice(None, n_train)))
+        # Same seed and same scales: the model on all dates draws the same
+        # parameters, so its in-sample values on the last dates are the truth.
+        full = self._mmm_with_known_posterior(dataset)
+
+        pred = mmm.sample_posterior_predictive(
+            future[reordered],
+            include_last_observations=True,
+            var_names=["channel_contribution"],
+            extend_idata=False,
+            combined=False,
+            progressbar=False,
+            random_seed=0,
+        )["channel_contribution"]
+
+        in_sample = full.idata.posterior["channel_contribution"].isel(
+            date=slice(n_train, None)
+        )
+        np.testing.assert_allclose(
+            pred.transpose(*in_sample.dims).sel(geo=self.GEOS).values,
+            in_sample.sel(geo=self.GEOS).values,
+        )
+
+    def test_mu_effect_data_vars_align_by_label(self, dataset):
+        class PromoEffect(DataVarMuEffect):
+            data_vars: list[str] = ["promo"]
+            prefix: str = "promo"
+
+            def create_effect(self, mmm):  # type: ignore
+                contribution = pmd.Deterministic(
+                    f"{self.prefix}_contribution", 0.1 * mmm.model["promo"]
+                )
+                return contribution.sum("segment")
+
+        mmm = self._mmm_with_known_posterior(dataset, mu_effects=[PromoEffect()])
+
+        # `geo` is a panel dim, `segment` only belongs to the effect's data.
+        pred = mmm.sample_posterior_predictive(
+            dataset.sortby("geo").sortby("segment"),
+            var_names=["promo_contribution"],
+            extend_idata=False,
+            combined=False,
+            progressbar=False,
+            random_seed=0,
+        )
+
+        in_sample = mmm.idata.posterior["promo_contribution"]
+        labels = {"geo": self.GEOS, "segment": self.SEGMENTS}
+        np.testing.assert_allclose(
+            pred["promo_contribution"].transpose(*in_sample.dims).sel(labels).values,
+            in_sample.sel(labels).values,
+        )
+
+    def test_missing_labels_are_zero_filled_by_label(self, dataset):
+        """Pin the existing contract: geos absent from X are filled with zeros.
+
+        This already holds on main. It guards the rewritten label alignment, and
+        is not a regression test.
+        """
+        mmm = self._mmm_with_known_posterior(self._as_frame(dataset))
+        subset = ["south", "north"]
+
+        pred = mmm.sample_posterior_predictive(
+            dataset.sel(geo=subset),
+            var_names=["channel_contribution"],
+            extend_idata=False,
+            combined=False,
+            progressbar=False,
+            random_seed=0,
+        )["channel_contribution"]
+
+        in_sample = mmm.idata.posterior["channel_contribution"]
+        np.testing.assert_allclose(
+            pred.transpose(*in_sample.dims).sel(geo=subset).values,
+            in_sample.sel(geo=subset).values,
+        )
+        np.testing.assert_array_equal(pred.sel(geo="east").values, 0.0)
+
+    @pytest.mark.parametrize(
+        "geos",
+        [["north", "east", "south", "west"], ["north", "east", "west"]],
+        ids=["extra_label", "relabelled"],
+    )
+    def test_labels_unknown_to_the_model_raise(self, dataset, geos):
+        mmm = self._mmm_with_known_posterior(dataset)
+        X = dataset.reindex(geo=geos, fill_value=1.0)
+
+        with pytest.raises(ValueError, match=r"does not have.*west"):
+            mmm.sample_posterior_predictive(X, extend_idata=False, progressbar=False)
 
 
 class TestComputeMeanContributionsOverTime:
