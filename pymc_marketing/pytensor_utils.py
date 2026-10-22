@@ -897,7 +897,7 @@ def _posterior_dataset(idata: xr.DataTree | xr.Dataset) -> xr.Dataset:
 def reorder_to_model_coords(
     posterior: xr.Dataset, model_coords: Mapping[str, Any]
 ) -> xr.Dataset:
-    """Return ``posterior`` with each labelled non-sample dim in the model's order.
+    """Return ``posterior`` with each labeled non-sample dim in the model's order.
 
     A graph reads draws by position in the model's coord order, so the model is
     the reference layout.  A dim whose labels differ from the model's in value

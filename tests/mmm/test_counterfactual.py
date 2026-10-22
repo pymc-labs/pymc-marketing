@@ -1083,7 +1083,7 @@ class TestConditionedModelRebinding:
     """The evaluator follows its conditioned model's posterior, draw count included.
 
     The sample axis is derived from the bound posterior rather than fixed at construction.
-    A rebind to a different draw count therefore stays correct.
+    A rebind to a different draw count stays correct.
     The evaluator compiles once against a shared posterior, so every rebind reuses the compiled function.
     A sample-bearing response and a sample-less one are both covered.
     """

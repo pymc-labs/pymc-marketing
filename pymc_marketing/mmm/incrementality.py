@@ -1187,7 +1187,7 @@ class EvaluatorCache:
     The cache is bounded so a model cannot pin an unbounded number of compiled functions, and it is never serialized
     because compiled functions only make sense in-process.
     A request leases an evaluator for its duration: :meth:`lease` takes the entry out of the cache and the request
-    returns it in a ``finally``.  Concurrent requests on one model therefore never share the shared draws an evaluator
+    returns it in a ``finally``.  Concurrent requests on one model never share the shared draws an evaluator
     is rebound to -- one of them misses the cache and compiles or leases its own -- and no request waits on another.
     A lock guards only the dictionary bookkeeping, never an evaluation.
     An entry whose evaluator reads a source input replaced after its build is rebuilt rather than leased.
@@ -5098,7 +5098,7 @@ class Incrementality:
         return delta_mu
 
     def _channel_data_in_model_order(self) -> xr.DataArray:
-        """Return the channel data with each labelled dim in the model's coord order.
+        """Return the channel data with each labeled dim in the model's coord order.
 
         The draws are read in the model's order, and a reloaded model's coords
         can be sorted while ``constant_data`` keeps the order of the ``xr.Dataset``

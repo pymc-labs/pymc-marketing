@@ -751,13 +751,13 @@ def test_check_aligned_dims_compares_the_dim_set_not_its_order():
             None,
             pd.Index(["a", "b"]),
             "labeled on one side only",
-            id="labelled-given-unlabelled",
+            id="given-unlabeled",
         ),
         pytest.param(
             pd.Index(["a", "b"]),
             None,
             "labeled on one side only",
-            id="labelled-bound-unlabelled",
+            id="bound-unlabeled",
         ),
         pytest.param(
             pd.Index(["a", "b"]),
@@ -794,8 +794,8 @@ def test_align_posterior_dim_reorders_the_axis_to_the_bound_labels():
     assert list(aligned.indexes["channel"]) == ["a", "b"]
     np.testing.assert_allclose(aligned.values, [2.0, 1.0])
     # The same array comes back when neither side is labeled.
-    unlabelled = xr.DataArray(np.ones((2, 3)), dims=("channel", "sample"))
-    assert align_posterior_dim("beta", unlabelled, "channel", None) is unlabelled
+    unlabeled = xr.DataArray(np.ones((2, 3)), dims=("channel", "sample"))
+    assert align_posterior_dim("beta", unlabeled, "channel", None) is unlabeled
 
 
 def test_check_aligned_shape_allows_only_the_sample_length_to_change():
@@ -1822,8 +1822,8 @@ def test_conditioned_model_failed_rebind_keeps_the_previous_binding(
     conditioned_slope.set_posterior(second)
     fn = function([], conditioned_slope.extract("doubled"))
 
-    # A posterior the shared variables cannot be rebound to is refused atomically.
-    # The previous draws therefore stay in place.
+    # A posterior the shared variables cannot be rebound to is refused atomically,
+    # so the previous draws stay in place.
     without_slope = second["posterior"].to_dataset().drop_vars("slope")
     with pytest.raises(KeyError, match="missing variables"):
         conditioned_slope.set_posterior(without_slope)

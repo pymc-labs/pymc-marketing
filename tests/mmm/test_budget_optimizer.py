@@ -1152,7 +1152,7 @@ class TestEvaluateResponseDistribution:
 
         The objective's own response reads the shared draws; an ad-hoc response
         compiled after the switch gets a private shared posterior of its own.
-        Both therefore follow a later ``set_posterior`` without recompiling,
+        Both follow a later ``set_posterior`` without recompiling,
         and both report the newer draws.
         """
         optimizer = BudgetOptimizer(
@@ -3131,7 +3131,7 @@ def test_a_one_shot_evaluation_follows_a_reordered_rebind():
     """A reordered rebind is realigned before the one-shot graph reads it.
 
     The ad-hoc graph is conditioned on constants from the stored posterior.
-    A posterior stored as ``(b, a)`` therefore used to read ``beta`` by position.
+    A posterior stored as ``(b, a)`` used to read ``beta`` by position.
     That gave 640 for ``noise_thing`` where the objective gave 960.
     """
     n_dates = 4
