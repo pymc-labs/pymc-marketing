@@ -182,7 +182,7 @@ from __future__ import annotations
 import io
 import json
 import warnings
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Hashable, Sequence
 from copy import deepcopy
 from typing import TYPE_CHECKING, Annotated, Any, Literal, NamedTuple, Self, cast
 
@@ -222,7 +222,7 @@ from pymc_marketing.mmm.causal import CausalGraphModel
 from pymc_marketing.mmm.components.adstock import AdstockTransformation
 from pymc_marketing.mmm.components.saturation import SaturationTransformation
 from pymc_marketing.mmm.constraints import Constraint
-from pymc_marketing.mmm.data_conversion import _dataset_has_target, to_mmm_dataset
+from pymc_marketing.mmm.data_conversion import has_embedded_target, to_mmm_dataset
 from pymc_marketing.mmm.decomposition import (
     identity_counterfactual_component,
     log_counterfactual_remove_component,
@@ -671,6 +671,9 @@ class MMM(RegressionModelBuilder):
         # placeholder that `sample_prior_predictive` substitutes for a missing
         # `y` under a LogNormalPrior likelihood; see `fit`.
         self._target_is_placeholder: bool = False
+        # Label order of custom dims that `build_from_idata` imposes on the
+        # rebuilt data, so that the model matches the loaded posterior by label.
+        self._custom_dim_order: dict[str, pd.Index] = {}
 
         super().__init__(model_config=model_config, sampler_config=sampler_config)
 
@@ -1886,6 +1889,28 @@ class MMM(RegressionModelBuilder):
             dataset = dataset.reindex(control=self.control_columns)
         return dataset
 
+    def _reindex_custom_dims(self, dataset: xr.Dataset) -> xr.Dataset:
+        """Put custom dims in the label order set by :meth:`build_from_idata`.
+
+        A no-op unless a loaded posterior fixed the order in
+        ``self._custom_dim_order``.
+
+        Raises
+        ------
+        ValueError
+            If the labels of a custom dim differ from those of the posterior.
+        """
+        for dim, labels in self._custom_dim_order.items():
+            present = dataset.indexes[dim]
+            if set(present) != set(labels):
+                raise ValueError(
+                    f"Cannot rebuild the model: the {dim!r} labels of the data "
+                    f"({present.tolist()}) differ from those of the posterior "
+                    f"({labels.tolist()})."
+                )
+            dataset = dataset.reindex({dim: labels})
+        return dataset
+
     def _generate_and_preprocess_model_data(
         self,
         X: pd.DataFrame | xr.Dataset | xr.DataArray,
@@ -1930,6 +1955,7 @@ class MMM(RegressionModelBuilder):
             control_columns=self.control_columns,
             target_column=self.target_column,
         ).fillna(0)
+        self.xarray_dataset = self._reindex_custom_dims(self.xarray_dataset)
 
         self.xarray_dataset["_channel"] = self.xarray_dataset["_channel"].astype(float)
         # Integer control columns (0/1 flags) would otherwise make `control_data`
@@ -1954,7 +1980,7 @@ class MMM(RegressionModelBuilder):
         """Return the target values as a numpy array.
 
         Backwards-compatible accessor for the ``_target`` variable in
-        the internal ``xr.Dataset``.
+        the internal ``xr.Dataset``, laid out ``("date", *dims)``.
         """
         self._validate_model_was_built()
         return cast(
@@ -2127,28 +2153,77 @@ class MMM(RegressionModelBuilder):
         user_scale: xr.DataArray,
         reduce_dims: tuple[str, ...],
     ) -> xr.DataArray:
-        """Broadcast a user-supplied scale grid to match reduced data coordinates."""
+        """Match a user-supplied scale grid to the reduced data grid by label.
+
+        Parameters
+        ----------
+        data : xr.DataArray
+            The raw data variable from :attr:`xarray_dataset`.
+        user_scale : xr.DataArray
+            The ``FixedScaling.value`` array. Its dimensions must be a subset of
+            the dimensions left after reducing ``data`` over ``reduce_dims``.
+        reduce_dims : tuple of str
+            Dimensions reduced away by the scaling.
+
+        Returns
+        -------
+        xr.DataArray
+            Scale factors on the reduced data grid, in its label and dimension
+            order, so that position-based consumers such as ``pmd.Data`` see
+            the value the user gave for each label.
+
+        Raises
+        ------
+        ValueError
+            If ``user_scale`` has a dimension the reduced grid lacks, a
+            dimension without coordinate labels, duplicate labels, or lacks a
+            label of the reduced grid.
+
+        Notes
+        -----
+        Labels the reduced grid does not have are ignored, unlike
+        :func:`~pymc_marketing.mmm.optimization_variables.align_to_model_coords`
+        and the ``dict`` form of :class:`FixedScaling`, which reject them. A
+        stored scale table may cover more cells than the data of any one
+        model (e.g. a table over every geo used for a model fitted on a
+        subset), and such tables were accepted before label matching was
+        added.
+        """
         template = data.max(dim=reduce_dims, skipna=True).astype(float)
-        zeros = xr.zeros_like(template, dtype=float)
-        try:
-            aligned = user_scale.astype(float) + zeros
-        except (ValueError, TypeError) as e:
+        scale = user_scale.astype(float)
+        unexpected = [dim for dim in scale.dims if dim not in template.dims]
+        if unexpected:
             raise ValueError(
-                "Could not align fixed scaling DataArray with the data grid after "
-                f"reduction over {reduce_dims!r}. Check dimension names and coordinate "
-                f"labels. Underlying error: {e}"
-            ) from e
-        if np.isnan(np.asarray(aligned.values)).any():
-            raise ValueError(
-                "Fixed scaling DataArray produced NaNs after alignment — coordinates "
-                "likely do not match the data grid on a shared dimension."
+                f"Fixed scaling DataArray dims {unexpected} do not align with the "
+                f"data grid after reduction over {reduce_dims!r}; expected a subset "
+                f"of {template.dims}."
             )
-        if dict(aligned.sizes) != dict(template.sizes):
-            raise ValueError(
-                f"Fixed scaling DataArray has shape {dict(aligned.sizes)} after "
-                f"broadcast; expected {dict(template.sizes)} matching reduced data."
-            )
-        return aligned
+        indexers: dict[Hashable, pd.Index] = {}
+        for dim in scale.dims:
+            if dim not in scale.indexes:
+                raise ValueError(
+                    f"Fixed scaling DataArray has no coordinate labels on dimension "
+                    f"'{dim}'; add coordinates so values can be matched to the "
+                    "model by label."
+                )
+            labels = scale.indexes[dim]
+            if not labels.is_unique:
+                duplicated = labels[labels.duplicated()].unique().tolist()
+                raise ValueError(
+                    f"Fixed scaling DataArray has duplicate labels {duplicated} "
+                    f"on dimension '{dim}'."
+                )
+            model_labels = template.indexes[dim]
+            missing = model_labels.difference(labels, sort=False)
+            if len(missing):
+                raise ValueError(
+                    "Fixed scaling DataArray does not align with the data grid: "
+                    f"missing labels {missing.tolist()} on dimension '{dim}'. "
+                    f"Got labels: {labels.tolist()}; expected: "
+                    f"{model_labels.tolist()}."
+                )
+            indexers[dim] = model_labels
+        return xr.zeros_like(template, dtype=float) + scale.sel(indexers)
 
     def get_scales_as_xarray(self) -> dict[str, xr.DataArray]:
         """Return the saved scaling factors as xarray DataArrays.
@@ -2345,9 +2420,21 @@ class MMM(RegressionModelBuilder):
         Parameters
         ----------
         X : pd.DataFrame or xr.Dataset or xr.DataArray
-            Training input samples.
+            Training input samples, in any form :meth:`build_model` accepts:
+
+            - a :class:`pd.DataFrame` with the ``target_column`` column and no ``y``;
+            - a :class:`pd.DataFrame` and a separate ``y``;
+            - an :class:`xr.Dataset` with a ``"target"`` (or ``"_target"``)
+              variable and no ``y``;
+            - an :class:`xr.Dataset` or :class:`xr.DataArray` and ``y`` as an
+              :class:`xr.DataArray` on ``date`` and ``dims``.
+
+            ``idata.fit_data`` holds one variable per column of ``X`` (per channel
+            and control for xarray input) plus the target under
+            ``target_column``, on ``(date_column, *dims)``. See
+            :meth:`create_fit_data`.
         y : pd.Series or xr.DataArray or np.ndarray or None
-            Target values.
+            Target values. Required unless ``X`` carries the target.
         method : str
             Method used to fit the model. One of ``"mcmc"``, ``"map"``, ``"demz"``,
             ``"advi"`` or ``"fullrank_advi"``.
@@ -2417,8 +2504,11 @@ class MMM(RegressionModelBuilder):
               ``"target"`` (or ``"_target"``) variable unless ``y`` is given; and,
               when ``control_columns`` is set, the controls in a ``"_control"``
               variable with a ``control`` dimension labelled with
-              ``control_columns``. Other data variables are carried through, with
-              missing values set to 0, for
+              ``control_columns``. The dims of each variable may be in any
+              order; the media, controls and target are laid out
+              ``("date", *dims, "channel")``, ``("date", *dims, "control")`` and
+              ``("date", *dims)`` before the model is built. Other data variables
+              are carried through, with missing values set to 0, for
               :class:`~pymc_marketing.mmm.additive_effect.DataVarMuEffect` effects
               to read by name.
             - :class:`xr.DataArray`: the media alone, laid out like the
@@ -3357,10 +3447,7 @@ class MMM(RegressionModelBuilder):
         (see issue #2956).
         """
         placeholder_target = False
-        if y is None and (
-            (isinstance(X, xr.Dataset) and _dataset_has_target(X))
-            or (isinstance(X, pd.DataFrame) and self.target_column in X.columns)
-        ):
+        if y is None and has_embedded_target(X, self.target_column):
             if not hasattr(self, "model"):
                 self.build_model(X)
         elif (
@@ -3423,7 +3510,9 @@ class MMM(RegressionModelBuilder):
         Parameters
         ----------
         X : pd.DataFrame or xr.Dataset
-            Input data for prediction, with the same structure as the training data.
+            Input data for prediction, with the same structure as the training
+            data (see :meth:`build_model`); the dims of an ``xr.Dataset``
+            variable may be in any order.
         extend_idata : bool, optional
             Whether to add predictions to the inference data object. Defaults to True.
         combined : bool, optional
@@ -4518,6 +4607,42 @@ class MMM(RegressionModelBuilder):
 
         return self
 
+    def _validate_fit_inputs(
+        self,
+        X: pd.DataFrame | xr.Dataset | xr.DataArray,
+        y: pd.Series | pd.DataFrame | xr.DataArray | np.ndarray | None = None,
+    ) -> tuple[Any, Any]:
+        """Check the X/y pair passed to :meth:`fit`.
+
+        Replaces the base class's placeholder target of zeros: when ``y`` is
+        omitted, ``X`` must carry the target (a ``target_column`` column in a
+        DataFrame, or a ``"target"`` / ``"_target"`` variable in an
+        ``xr.Dataset``), which :meth:`build_model` and :meth:`create_fit_data`
+        then read. With ``y`` given, the base class checks apply unchanged.
+
+        Raises
+        ------
+        ValueError
+            If ``y`` is omitted and ``X`` does not carry the target, or if ``X``
+            has a column or variable named like the model's output variable
+            besides the target.
+        """
+        if y is not None:
+            return super()._validate_fit_inputs(X, y)
+
+        if not has_embedded_target(X, self.target_column):
+            raise ValueError(
+                "y was not provided and X does not carry the target: pass y, or "
+                f"include the '{self.target_column}' column in a DataFrame X or a "
+                "'target' / '_target' variable in an xr.Dataset X."
+            )
+        if self.output_var != self.target_column and self.output_var in X:
+            raise ValueError(
+                f"X includes a column named '{self.output_var}', which conflicts "
+                "with the target variable."
+            )
+        return X, None
+
     def create_fit_data(
         self,
         X: pd.DataFrame | xr.Dataset | xr.DataArray,
@@ -4527,30 +4652,35 @@ class MMM(RegressionModelBuilder):
 
         Builds and returns an xarray ``Dataset`` that contains:
 
-        - data variables from ``X`` (all non-coordinate columns),
-        - the target variable from ``y`` under ``self.output_var``, and
+        - one data variable per column of ``X`` (for xarray input, one per channel
+          and control),
+        - the target variable under ``self.target_column``, and
         - coordinates on ``(self.date_column, *dims present in X)``.
 
         Parameters
         ----------
         X : pd.DataFrame | xr.Dataset | xr.DataArray
-            Feature data. If an xarray object is provided, it is converted to a
-            DataFrame via ``to_dataframe().reset_index()`` before processing.
+            Feature data. An xarray object is normalized with
+            :func:`~pymc_marketing.mmm.data_conversion.to_mmm_dataset`, as in
+            :meth:`build_model`, and its media and controls are split into one
+            variable per label, so the result has the same layout as for a
+            DataFrame.
         y : np.ndarray | pd.Series | xr.DataArray | None, optional
-            Target values. If ``None``, ``X`` must contain ``self.target_column``
-            or ``"_target"`` (e.g. when an ``xr.Dataset`` with an embedded target
-            variable is passed).
+            Target values. If ``None``, ``X`` must carry the target: a
+            ``self.target_column`` column for a DataFrame, or a ``"target"`` (or
+            ``"_target"``) variable for an ``xr.Dataset``.
 
         Returns
         -------
         xr.Dataset
             Dataset indexed by ``(self.date_column, *dims present in X)`` with the
-            feature variables and a target variable named ``self.output_var``.
+            feature variables and a target variable named ``self.target_column``.
 
         Raises
         ------
         ValueError
             - If ``self.date_column`` is missing in ``X``.
+            - If ``y`` is ``None`` and ``X`` does not carry the target.
             - If ``y`` is a ``np.ndarray`` and its length does not match ``X``.
             - If ``y`` cannot be aligned to ``X`` by index or position.
         RuntimeError
@@ -4560,30 +4690,45 @@ class MMM(RegressionModelBuilder):
         -----
         - The original date column name is preserved (``self.date_column``).
         - Coordinates are assigned only for dimensions present in ``X``.
-        - Data is sorted by ``(self.date_column, *dims present in X)`` prior to
-          conversion to xarray.
+        - DataFrame input is sorted by ``(self.date_column, *dims present in X)``
+          prior to conversion to xarray. xarray input keeps its label order,
+          which is also the order of the model built from it.
         """
-        # --- Coerce X to DataFrame ---
-        if isinstance(X, xr.Dataset):
-            X_df = X.to_dataframe().reset_index()
-            if "date" in X_df.columns and self.date_column != "date":
-                X_df = X_df.rename(columns={"date": self.date_column})
-        elif isinstance(X, xr.DataArray):
-            X_df = X.to_dataframe(name=X.name or "value").reset_index()
-            if "date" in X_df.columns and self.date_column != "date":
-                X_df = X_df.rename(columns={"date": self.date_column})
-        else:
-            X_df = X.copy()
+        if isinstance(X, xr.Dataset | xr.DataArray):
+            ds = to_mmm_dataset(
+                X,
+                y,
+                date_column=self.date_column,
+                dims=self.dims,
+                channel_columns=self.channel_columns,
+                control_columns=self.control_columns,
+                target_column=self.target_column,
+            )
+            if "_target" not in ds:
+                raise ValueError(
+                    "y was not provided and X has no 'target' / '_target' variable"
+                )
+            parts = [
+                ds["_channel"].to_dataset("channel"),
+                ds["_target"].rename(self.target_column).to_dataset(),
+            ]
+            if "_control" in ds:
+                parts.append(ds["_control"].to_dataset("control"))
+            fit_data = xr.merge(parts, combine_attrs="drop")
+            if self.date_column != "date":
+                fit_data = fit_data.rename({"date": self.date_column})
+            return fit_data.transpose(
+                self.date_column, *self.dims, missing_dims="ignore"
+            )
+
+        X_df = X.copy()
 
         if self.date_column not in X_df.columns:
             raise ValueError(f"'{self.date_column}' not in X columns")
 
         # --- Coerce y to Series ---
         if y is None:
-            # Target may be embedded in xr.Dataset as _target
-            if "_target" in X_df.columns:
-                y_s = X_df.pop("_target").rename(self.target_column)
-            elif self.target_column in X_df.columns:
+            if self.target_column in X_df.columns:
                 y_s = X_df.pop(self.target_column)
                 y_s.name = self.target_column
             else:
@@ -4603,11 +4748,6 @@ class MMM(RegressionModelBuilder):
         else:
             y_s = y.copy()
         y_s.name = self.target_column
-
-        # Drop internal underscore columns that should not persist in fit_data
-        for col in ["_channel", "_control", "_target"]:
-            if col in X_df.columns:
-                X_df = X_df.drop(columns=[col])
 
         dims_in_X = [d for d in self.dims if d in X_df.columns]
         coord_cols = [self.date_column, *dims_in_X]
@@ -4662,12 +4802,22 @@ class MMM(RegressionModelBuilder):
         -------
         None
 
+        Raises
+        ------
+        ValueError
+            If the labels of a custom dimension in ``fit_data`` differ from those
+            of the posterior.
+
         Notes
         -----
         - Expects ``idata.fit_data`` to exist and contain both features and the
-            target column named ``self.output_var``.
+            target column named ``self.target_column``.
         - Sets ``self.idata`` to the provided ``idata``, enabling downstream
             methods like ``sample_posterior_predictive`` to access posterior samples.
+        - The custom dimensions of the rebuilt model follow the label order of
+            the posterior. Posterior draws are matched to the model by position,
+            and a model fit from an ``xr.Dataset`` keeps the Dataset's order,
+            while the DataFrame built from ``fit_data`` is sorted.
         - Restores lift-test calibration. Cost-per-target calibration is not
             currently restored because its input data are not saved.
 
@@ -4697,7 +4847,16 @@ class MMM(RegressionModelBuilder):
         X = dataset.drop(columns=[self.target_column])
         y = dataset[self.target_column]
 
-        self.build_model(X, y)  # type: ignore
+        if "posterior" in idata.children:
+            self._custom_dim_order = {
+                dim: idata.posterior.indexes[dim]
+                for dim in self.dims
+                if dim in idata.posterior.indexes
+            }
+        try:
+            self.build_model(X, y)  # type: ignore
+        finally:
+            self._custom_dim_order = {}
 
         # Lift-test rows are model inputs, rather than part of fit_data. Restore
         # them after rebuilding the base MMM so their likelihood and posterior
