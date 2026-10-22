@@ -2507,7 +2507,8 @@ def test_allocate_budget_is_invariant_to_response_units(
     response, and so the objective, by that constant, as reporting the target
     in dollars instead of millions of dollars would. The optimum does not move,
     so the default ``minimize_kwargs`` must converge to it in both units and
-    report the objective, its gradient and the multipliers in the rescaled units.
+    report the objective, its gradient and, when SciPy reports them, the
+    multipliers in the rescaled units.
     """
     total_budget = 10.0
     budget_bounds = {
@@ -2553,11 +2554,13 @@ def test_allocate_budget_is_invariant_to_response_units(
     np.testing.assert_allclose(
         rescaled.scipy_result.jac, unit_scale * reference.scipy_result.jac, rtol=1e-4
     )
-    np.testing.assert_allclose(
-        rescaled.scipy_result.multipliers,
-        unit_scale * reference.scipy_result.multipliers,
-        rtol=1e-4,
-    )
+    # SLSQP reports the KKT multipliers from SciPy 1.16.
+    if "multipliers" in reference.scipy_result:
+        np.testing.assert_allclose(
+            rescaled.scipy_result.multipliers,
+            unit_scale * reference.scipy_result.multipliers,
+            rtol=1e-4,
+        )
 
 
 def test_allocate_budget_converges_when_one_channel_is_far_steeper_at_x0():

@@ -3337,8 +3337,8 @@ class BudgetOptimizer(BaseModel):
         BudgetOptimizationResult
             Result object with ``budgets`` (the optimized allocation across
             channels, monetary units), ``scipy_result`` (the raw scipy
-            optimization result, with ``fun``, ``jac`` and ``multipliers`` in
-            objective units), ``optimized_vars`` (empty for now), and
+            optimization result, with ``fun``, ``jac`` and, from SciPy 1.16,
+            ``multipliers`` in objective units), ``optimized_vars`` (empty for now), and
             ``callback_info`` (per-iteration diagnostics when ``callback=True``, else
             ``None``) and, when a ``price_response`` was passed, ``implied_delivery``,
             ``implied_price`` and ``implied_marginal_price``. Iterating the result yields
@@ -3386,8 +3386,8 @@ class BudgetOptimizer(BaseModel):
           this default can stop at a slightly less stationary point than a solve
           in the original units would.
         - With a ``ftol`` or ``tol`` that you pass, the objective is not rescaled.
-        - ``scipy_result.fun``, ``scipy_result.jac``, ``scipy_result.multipliers``
-          and ``callback_info`` are always in objective units.
+        - ``scipy_result.fun``, ``scipy_result.jac``, ``callback_info`` and, from
+          SciPy 1.16, ``scipy_result.multipliers`` are always in objective units.
         """
         # set total budget
         self._total_budget.set_value(np.asarray(total_budget, dtype="float64"))
