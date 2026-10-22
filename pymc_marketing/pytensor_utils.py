@@ -824,7 +824,7 @@ class ConditionedModel:
 
     @property
     def model(self) -> Model:
-        """The intervened clone every response is resolved against."""
+        """The clone every response is resolved against, intervened when an intervention was given."""
         return self._model
 
     @property

@@ -2046,10 +2046,10 @@ class BudgetOptimizer(BaseModel):
         :class:`~pymc_marketing.pytensor_utils.ConditionedModel` and one
         total-budget variable: a rebind or an allocation on either would then
         move the other.  The copy instead gets its own total budget and, once
-        the original reads shared draws, a fresh conditioned model over the
-        same intervened model and the copy's ``idata``; everything compiled
-        from the graphs is then rebuilt.  The two optimizers follow their own
-        posteriors.
+        the original reads shared draws, a conditioned model of its own, which
+        applies the decision-vector substitutions to the frozen model again and
+        binds the copy's ``idata``; everything compiled from the graphs is then
+        rebuilt.  The two optimizers follow their own posteriors.
 
         ``model_copy(deep=True)`` does not use this method.  Likewise, an
         ``update`` passed to ``model_copy`` is applied after this method

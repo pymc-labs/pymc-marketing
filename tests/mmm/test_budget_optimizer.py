@@ -1243,10 +1243,10 @@ class TestEvaluateResponseDistribution:
     ):
         """After the first rebind, a draw swap reuses every response function.
 
-        The objective's own response reads the shared draws; an ad-hoc response
-        compiled after the switch gets a private shared posterior of its own.
-        Both follow a later ``set_posterior`` without recompiling,
-        and both report the newer draws.
+        The objective's own response and an ad-hoc response compiled after the
+        switch both read the shared draws of the optimizer's conditioned model.
+        Both follow a later ``set_posterior`` without recompiling, and both
+        report the newer draws.
         """
         optimizer = BudgetOptimizer(
             model=mmm_wrapper,
@@ -2883,10 +2883,10 @@ def _two_response_posterior(*, beta=(1.0, 1.0), gamma=None):
 def test_set_posterior_ignores_a_stale_public_inspection():
     """A public inspection extraction must not pin its variables on the first rebind.
 
-    ``extract_response_distribution("inspection")`` caches a graph that reads
-    ``gamma``.  The first rebind drops the cache and the recompile callback
-    requests only the objective and the current constraints, so a posterior
-    without ``gamma`` is accepted.
+    ``extract_response_distribution("inspection")`` returns a graph on constant
+    draws before the first rebind.  That rebind builds a fresh conditioned
+    model and recompiles only the objective and the current constraints from
+    it, so a posterior without ``gamma`` is accepted.
     """
     optimizer = _two_response_optimizer(_two_response_posterior(gamma=(1.0, 1.0)))
     optimizer.extract_response_distribution("inspection")
@@ -3073,11 +3073,12 @@ def test_set_posterior_requires_every_bound_variable(mmm_wrapper, dummy_idata):
 def test_a_failing_recompile_rolls_back_the_whole_rebind(
     mmm_wrapper, dummy_idata, monkeypatch
 ):
-    """A first rebind whose recompile callback raises leaves nothing behind.
+    """A first rebind whose recompile raises leaves nothing behind.
 
-    The conditioned model accepts the new draws, then the optimizer's recompile callback raises.
-    The binding, the objective, the constraints and the response cache must all return to their construction state.
-    A retry must then take the first-rebind path again.
+    The recompile against the fresh conditioned model raises before any draw is
+    rebound.  The objective, the constraints and the response cache must all
+    return to their construction state, and a retry must take the first-rebind
+    path again.
     """
     total_budget = 60.0
     optimizer = BudgetOptimizer(
@@ -3294,7 +3295,11 @@ def test_a_shallow_copy_follows_its_own_posterior(original_rebound):
     )
 
     clone = optimizer.model_copy()
-    assert clone._total_budget is not optimizer._total_budget
+    # The copy's constraints close over its own total budget, also before its
+    # first rebind: the plan meets a total of 100 on the copy.
+    residuals = clone.evaluate_plan(plan, total_budget=100.0).constraint_residuals
+    assert residuals is not None
+    assert residuals["default"]["value"] == pytest.approx(0.0)
     clone.set_posterior(scaled)
 
     np.testing.assert_allclose(

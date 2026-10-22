@@ -4013,8 +4013,9 @@ class MMM(RegressionModelBuilder):
         """Return the cache of compiled incrementality evaluators, creating it on first use.
 
         Every :class:`~pymc_marketing.mmm.incrementality.Incrementality` built on
-        this model shares it.  It is never serialized, starts empty on a copy,
-        and :meth:`_clear_incrementality_evaluator_cache` drops it.  Creation
+        this model shares it.  It is never serialized, starts empty on a deep
+        copy (a shallow copy shares it, as it shares the PyMC model), and
+        :meth:`_clear_incrementality_evaluator_cache` drops it.  Creation
         goes through ``dict.setdefault``, so two threads making the first call
         at once still share one cache.
         """
