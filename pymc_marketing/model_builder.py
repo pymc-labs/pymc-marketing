@@ -817,9 +817,7 @@ class ModelFitter:
 
             var_names = [var.name for var in model.free_RVs]
             idata = pm.sample(var_names=var_names, **kwargs)
-            idata["/posterior"] = pm.compute_deterministics(
-                idata["/posterior"], merge_dataset=True
-            )
+            pm.compute_deterministics(idata, extend_dataset=True)
         return idata
 
     def _fit_mcmc(self, sampler_kwargs: dict[str, Any]) -> xr.DataTree:

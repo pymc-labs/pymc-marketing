@@ -26,6 +26,8 @@ from pytensor import xtensor as ptx
 from pytensor.graph.basic import Variable
 from pytensor.graph.replace import graph_replace
 
+from pymc_marketing.mmm.optimization_variables import align_to_model_coords
+
 logger = logging.getLogger(__name__)
 
 
@@ -497,11 +499,14 @@ def create_zero_dataset(
         if "date" in channel_xr.dims:
             raise ValueError("`channel_xr` must NOT include the date dimension.")
 
+        coords = {dim: list(dim_coords[dim]) for dim in dim_cols}
         for ch in channel_cols:
             if ch in channel_xr.data_vars:
-                ch_idx = channel_cols.index(ch)
-                vals = channel_xr[ch].values
-                channel_data[..., ch_idx] = np.broadcast_to(
+                da = align_to_model_coords(
+                    channel_xr[ch], coords, label=f"channel_xr[{ch!r}]"
+                )
+                vals = da.transpose(*dim_cols).values
+                channel_data[..., channel_cols.index(ch)] = np.broadcast_to(
                     vals, (n_dates, *vals.shape)
                 )
 
