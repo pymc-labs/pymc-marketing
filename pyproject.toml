@@ -30,6 +30,10 @@ dependencies = [
     # the arviz meta-package to pull it in.
     "arviz-stats>=1.2.0,<2.0",
     "arviz>=1.2.0,<2.0",
+    # ModelIO.save() writes non-Zarr paths via DataTree.to_netcdf(). ArviZ 1.x
+    # made NetCDF backends optional, and h5netcdf does not depend on h5py.
+    "h5netcdf>=1.8.1",
+    "h5py>=3.16.0",
     "matplotlib>=3.5.1",
     "narwhals",
     # numba<=0.66 (a hard requirement of pytensor 3.x) does not support numpy 2.5,
@@ -49,12 +53,15 @@ dependencies = [
     "seaborn>=0.12.2",
     "tqdm",
     "xarray-einstats>=0.5.1",
-    "xarray>=2024.1.0",
+    # arviz-base already pins xarray>=2024.11.0; the zarr extra needs a newer floor.
+    "xarray>=2024.11.0",
 ]
 
 [project.optional-dependencies]
-dag = ["dowhy", "networkx", "osqp<1.0.0,>=0.6.2", "pygraphviz"]
+dag = ["dowhy", "networkx", "pygraphviz"]
 pie = ["pymc-bart>=0.13.0"]
+# zarr 3.0.0-3.0.7 are yanked; DataTree.to_zarr needs xarray>=2025.6.0 to write zarr-python 3 stores.
+zarr = ["zarr>=3.0.8", "xarray>=2025.6.0"]
 docs = [
     "blackjax<1.6",
     "fastprogress",
@@ -81,7 +88,6 @@ docs = [
     "mlflow>=2.0.0",
     "networkx",
     "dowhy",
-    "osqp<1.0.0,>=0.6.2",
     "preliz>=0.20.0",
     "plotly>=6.3.0",
     "impulso>=0.0.12"
@@ -90,9 +96,8 @@ lint = ["mypy", "pandas-stubs", "pre-commit>=2.19.0", "ruff>=0.1.4"]
 test = [
     "blackjax<1.6",
     "fastprogress",
-    "h5netcdf>=1.8.1",
-    "h5py>=3.16.0",
     "nutpie>=0.16.7",
+    "zarr>=3.0.8",
     "numpyro",
     "ipykernel",
     "jax",
@@ -108,7 +113,6 @@ test = [
     "mlflow>=2.0.0",
     "networkx",
     "dowhy",
-    "osqp<1.0.0,>=0.6.2",
     "pygraphviz",
     "preliz>=0.20.0",
     "plotly>=6.3.0",
@@ -223,8 +227,6 @@ ignore_missing_imports = true
 
 [dependency-groups]
 dev = [
-    "h5netcdf>=1.8.1",
-    "h5py>=3.16.0",
     "mypy>=2.1.0",
     "pandas-stubs>=3.0.3.260530",
     "pyyaml>=6.0.3",

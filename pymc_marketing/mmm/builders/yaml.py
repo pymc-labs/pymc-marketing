@@ -20,12 +20,15 @@ from pathlib import Path
 
 import pandas as pd
 import xarray as xr
+from pymc_extras.prior import Prior
 
+from pymc_marketing.data.idata.io import load_idata
 from pymc_marketing.mmm.builders.factories import build, naming, resolve
 from pymc_marketing.mmm.builders.schema import CalibrationStep, MMMYamlConfig
 from pymc_marketing.mmm.data_conversion import (
     _dataset_has_target,
     _validate_extra_vars,
+    has_embedded_target,
     to_mmm_dataset,
 )
 from pymc_marketing.mmm.mmm import MMM
@@ -57,20 +60,19 @@ def _apply_and_validate_calibration_steps(
         if not callable(method):
             raise TypeError(f"Attribute '{step.method_name}' is not callable on MMM.")
 
-        if (
-            step.method_name == "add_lift_test_measurements"
-            and step.params
-            and "dist" in step.params
-        ):
-            raise ValueError(
-                "`dist` parameter for 'add_lift_test_measurements' is not "
-                "supported via YAML configuration yet."
-            )
-
         resolved_kwargs = {}
         for key, value in (step.params or {}).items():
             with naming(f"{step.method_name}.{key}"):
                 resolved_kwargs[key] = resolve(value)
+
+        if step.method_name == "add_lift_test_measurements":
+            if "dist" in resolved_kwargs:
+                raise ValueError(
+                    "Use `likelihood` for YAML lift-test configuration; `dist` is "
+                    "only supported as a deprecated Python API argument."
+                )
+            if isinstance(resolved_kwargs.get("likelihood"), str):
+                resolved_kwargs["likelihood"] = Prior(resolved_kwargs["likelihood"])
 
         try:
             method(**resolved_kwargs)
@@ -139,12 +141,7 @@ def build_mmm_from_yaml(
         X = _load_df(data_cfg.X_path)
     target_column = model_spec["kwargs"].get("target_column")
     if y is None:
-        has_embedded_target = (
-            isinstance(X, xr.Dataset) and _dataset_has_target(X)
-        ) or (
-            isinstance(X, pd.DataFrame) and target_column and target_column in X.columns
-        )
-        if not has_embedded_target:
+        if not has_embedded_target(X, target_column):
             if data_cfg is None or data_cfg.y_path is None:
                 raise ValueError("y not provided and no `data.y_path` found in YAML.")
             y = _load_df(data_cfg.y_path)
@@ -210,6 +207,6 @@ def build_mmm_from_yaml(
     if cfg.idata_path is not None:
         idata_path = Path(cfg.idata_path)
         if os.path.exists(idata_path):
-            model.idata = xr.open_datatree(str(idata_path))
+            model.idata = load_idata(idata_path)
 
     return model

@@ -25,7 +25,7 @@ are patched:
 
 - `pymc.sample`:
 
-    - :func:`log_versions`: Log the versions of PyMC-Marketing, PyMC, and ArviZ to MLflow.
+    - :func:`log_versions`: Log the versions of PyMC-Marketing, PyMC, ArviZ, xarray and the idata backends to MLflow.
     - :func:`log_model_derived_info`: Log types of parameters, coords, model graph, etc.
     - :func:`log_sample_diagnostics`: Log information derived from the DataTree object.
     - :func:`log_arviz_summary`: Log table of summary statistics about estimated parameters
@@ -42,18 +42,24 @@ are patched:
     - All parameters, metrics, and artifacts from `pymc.sample`
     - :func:`log_mmm_configuration`: Log the configuration of the MMM model.
     - Stamp the active MLflow run id on ``idata.attrs["mlflow_run_id"]``.
+    - :func:`log_inference_data`: Log the DataTree as ``idata.nc`` or, with
+      ``autolog(idata_format="zarr")``, as ``idata.zarr``.
 
 - `CLVModel.fit`:
 
     - Information dependent on fit method used (MCMC or MAP)
     - Model type and fit method
     - Stamp the active MLflow run id on ``idata.attrs["mlflow_run_id"]``.
+    - :func:`log_inference_data`: Log the DataTree as ``idata.nc`` or, with
+      ``autolog(idata_format="zarr")``, as ``idata.zarr``.
 
 - `BassModel.fit`:
 
     - All parameters, metrics, and artifacts from `pymc.sample`
     - :func:`log_bass_configuration`: Log the configuration of the Bass model.
     - Stamp the active MLflow run id on ``idata.attrs["mlflow_run_id"]``.
+    - :func:`log_inference_data`: Log the DataTree as ``idata.nc`` or, with
+      ``autolog(idata_format="zarr")``, as ``idata.zarr``.
 
 Examples
 --------
@@ -97,6 +103,7 @@ Autologging for a PyMC-Marketing MMM:
     import pymc_marketing.mlflow
 
     pymc_marketing.mlflow.autolog(log_mmm=True)
+    # autolog(log_mmm=True, idata_format="zarr") logs idata.zarr instead of idata.nc
 
     # Usual PyMC-Marketing model code
 
@@ -188,13 +195,16 @@ Autologging for a PyMC-Marketing Bass model:
 
 """
 
+import inspect
 import logging
 import os
 import tempfile
 import traceback
 import warnings
+import weakref
 from collections.abc import Callable, Mapping
 from functools import wraps
+from importlib import metadata
 from pathlib import Path
 from typing import Any, Literal
 
@@ -213,11 +223,20 @@ except ImportError:  # pragma: no cover
     msg = "This module requires mlflow. Install using `pip install mlflow`"
     raise ImportError(msg)
 
-from mlflow.utils.autologging_utils import autologging_integration
+from mlflow.utils.autologging_utils import (
+    autologging_integration,
+    autologging_is_disabled,
+)
 from packaging import version
 
 from pymc_marketing.bass import BassModel
 from pymc_marketing.clv.models.basic import CLVModel
+from pymc_marketing.data.idata.io import (
+    IdataFormat,
+    check_zarr_writer,
+    remove_idata,
+    save_idata,
+)
 from pymc_marketing.mmm import MMM
 from pymc_marketing.mmm.evaluation import compute_summary_metrics
 from pymc_marketing.version import __version__
@@ -230,6 +249,9 @@ _MLFLOW_SUPPORTS_NAME_PARAM = version.parse(mlflow.__version__) >= version.parse
 )
 
 FLAVOR_NAME = "pymc"
+
+# Wrappers installed by autolog, so a later call can strip them and leave other wrappers alone.
+_AUTOLOG_WRAPPERS: weakref.WeakSet[Callable] = weakref.WeakSet()
 
 
 def _exclude_tuning(func):
@@ -406,6 +428,212 @@ def _log_and_remove_artifact(path: str | Path) -> None:
     """
     mlflow.log_artifact(str(path))
     os.remove(path)
+
+
+def _idata_artifact_name(idata_format: IdataFormat | str) -> str:
+    """Artifact name under which ``autolog`` stores the inference data."""
+    return f"idata{IdataFormat(idata_format).suffix}"
+
+
+def _download_and_load_mmm(
+    run_id: str, artifact: str, dst_path: str, keep_idata: bool
+) -> MMM:
+    """Download ``artifact`` of ``run_id`` into ``dst_path`` and load the MMM from it.
+
+    Unless ``keep_idata`` is True, the download is removed afterwards, also when loading fails.
+    """
+    # MLflow downloads file by file and never clears the target, so a stale
+    # Zarr store from an earlier keep_idata=True load would be merged into the new one.
+    remove_idata(Path(dst_path) / artifact)
+    idata_path = mlflow.artifacts.download_artifacts(
+        run_id=run_id, artifact_path=artifact, dst_path=dst_path
+    )
+    try:
+        model = MMM.load(idata_path)
+        if not keep_idata:
+            _force_load_idata_groups(model.idata)
+            model.idata.close()
+    finally:
+        if not keep_idata:
+            try:
+                remove_idata(idata_path)
+            except OSError:
+                warnings.warn(
+                    f"Could not remove {idata_path}. You may want to remove it manually.",
+                    UserWarning,
+                    skip_file_prefixes=(os.path.dirname(__file__) + os.sep,),
+                )
+    return model
+
+
+def load_mmm_from_run(
+    run_id: str,
+    *,
+    keep_idata: bool = False,
+    dst_path: str | None = None,
+    artifact: str | None = None,
+) -> MMM:
+    """Download the inference data of an MLflow run and load the MMM from it.
+
+    Parameters
+    ----------
+    run_id : str
+        The MLflow run ID that holds the inference-data artifact.
+    keep_idata : bool, default=False
+        If True, keep the downloaded inference data on disk.
+    dst_path : str | None, default=None
+        Directory for the download. With ``keep_idata=True`` it defaults to
+        ``idata_{run_id}`` in the working directory; otherwise to a temporary
+        directory that is deleted after loading. A directory you pass is kept and
+        only the downloaded artifact is removed; an existing copy of the artifact
+        in it is replaced.
+    artifact : str | None, default=None
+        Name of an artifact at the root of the run, not a local path. ``None``
+        detects ``idata.nc`` or ``idata.zarr``; pass the file name given to
+        ``log_inference_data(idata, save_file=...)`` to load data logged under
+        another name.
+
+    Returns
+    -------
+    MMM
+        The loaded model; the download is removed unless ``keep_idata`` is True,
+        also when loading fails.
+
+    Raises
+    ------
+    FileNotFoundError
+        If ``artifact`` is ``None`` and the run holds neither ``idata.nc`` nor ``idata.zarr``,
+        or if the run has no artifact named ``artifact`` at its root.
+    ValueError
+        If ``artifact`` is ``None`` and the run holds both, or if ``artifact``
+        is not a plain name.
+
+    See Also
+    --------
+    load_mmm : Also loads the lighter ``PyFuncModel`` logged with :func:`log_mmm`.
+
+    Examples
+    --------
+    .. code-block:: python
+
+        from pymc_marketing.mlflow import load_mmm_from_run
+
+        mmm = load_mmm_from_run("your_run_id")
+        mmm = load_mmm_from_run("your_run_id", artifact="my_model.nc", keep_idata=True)
+    """
+    if artifact is None:
+        artifact = _find_idata_artifact(run_id)
+    elif str(artifact) in ("", ".", "..") or Path(artifact).name != str(artifact):
+        # The download and its cleanup assume the artifact lands at dst_path/artifact,
+        # which holds only for a plain name; anything else could delete local files.
+        raise ValueError(
+            "artifact must be a plain name at the root of the run, "
+            f"such as 'idata.nc'; got {artifact!r}. For an artifact in a subdirectory, "
+            "download it with mlflow.artifacts.download_artifacts and call MMM.load on it."
+        )
+    elif str(artifact) not in _root_artifact_names(run_id):
+        # Checked before the stale-copy removal below, so a wrong name or run id
+        # does not delete a same-named local file.
+        raise FileNotFoundError(
+            f"Run {run_id} has no artifact {str(artifact)!r} at its root."
+        )
+    if dst_path is None and not keep_idata:
+        # A fresh directory is the only one this call owns; idata_{run_id} in the
+        # working directory may hold files from an earlier keep_idata=True load.
+        with tempfile.TemporaryDirectory(
+            dir=".", prefix=f".idata_{run_id}_", ignore_cleanup_errors=True
+        ) as tmp:
+            return _download_and_load_mmm(run_id, artifact, tmp, keep_idata=False)
+    return _download_and_load_mmm(
+        run_id, artifact, dst_path or f"idata_{run_id}", keep_idata
+    )
+
+
+def _root_artifact_names(run_id: str) -> set[str]:
+    """Names of the artifacts at the root of ``run_id``."""
+    # MlflowClient.list_artifacts exists since mlflow 2.0; mlflow.artifacts.list_artifacts only since 2.13.
+    return {info.path for info in mlflow.MlflowClient().list_artifacts(run_id)}
+
+
+def _find_idata_artifact(run_id: str) -> str:
+    """Return the name of the inference-data artifact logged on ``run_id``.
+
+    Parameters
+    ----------
+    run_id : str
+        MLflow run id.
+
+    Returns
+    -------
+    str
+        ``"idata.nc"`` or ``"idata.zarr"``.
+
+    Raises
+    ------
+    FileNotFoundError
+        If the run holds no inference-data artifact.
+    ValueError
+        If the run holds more than one.
+    """
+    logged = _root_artifact_names(run_id)
+    candidates = [_idata_artifact_name(fmt) for fmt in IdataFormat]
+    found = [name for name in candidates if name in logged]
+    if not found:
+        raise FileNotFoundError(
+            f"Run {run_id} has no inference-data artifact; expected one of {candidates}. "
+            "Was it logged with autolog() or log_inference_data()?"
+        )
+    if len(found) > 1:
+        raise ValueError(
+            f"Run {run_id} has several inference-data artifacts {found}; "
+            "download the one you want and call MMM.load on it."
+        )
+    return found[0]
+
+
+def _autolog_wrapper(wrapper: Callable) -> Callable:
+    """Register ``wrapper`` as one that ``autolog`` installed."""
+    _AUTOLOG_WRAPPERS.add(wrapper)
+    return wrapper
+
+
+def _without_autolog_wrappers(func: Callable) -> Callable:
+    """Strip the wrappers ``autolog`` installed on ``func``. Other wrappers stay in place."""
+    return inspect.unwrap(func, stop=lambda f: f not in _AUTOLOG_WRAPPERS)
+
+
+def _check_idata_format(idata_format: IdataFormat | str, *, preflight: bool) -> None:
+    """Reject an unknown format and, when ``preflight`` is set, prove the Zarr writer works."""
+    try:
+        fmt = IdataFormat(idata_format)
+    except ValueError:
+        allowed = [member.value for member in IdataFormat]
+        raise ValueError(
+            f"idata_format must be one of {allowed}, got {idata_format!r}."
+        ) from None
+    if preflight and fmt is IdataFormat.ZARR:
+        check_zarr_writer()
+
+
+def _check_arguments_first(autolog_fn: Callable) -> Callable:
+    """Run the argument checks before mlflow stores the call as the integration's config.
+
+    mlflow records every call, ``disable=False`` included, before the body runs,
+    so an error raised inside the body would re-enable patches that an earlier
+    ``autolog(disable=True)`` switched off.
+    """
+    signature = inspect.signature(autolog_fn)
+
+    @wraps(autolog_fn)
+    def checked(*args: Any, **kwargs: Any) -> None:
+        bound = signature.bind(*args, **kwargs)
+        bound.apply_defaults()
+        _check_idata_format(
+            bound.arguments["idata_format"], preflight=not bound.arguments["disable"]
+        )
+        autolog_fn(*args, **kwargs)
+
+    return checked
 
 
 def _force_load_idata_groups(idata: xr.DataTree) -> None:
@@ -700,18 +928,39 @@ def log_inference_data(
     idata: xr.DataTree,
     save_file: str | Path = "idata.nc",
 ) -> None:
-    """Log the DataTree to MLflow.
+    """Log the DataTree to MLflow as netCDF or Zarr.
+
+    The data is written to a temporary directory inside the parent of
+    ``save_file`` and removed after upload. If the removal fails, for example
+    because another process still holds a file open on Windows, the directory
+    is left behind rather than failing a fit whose artifact is already logged.
 
     Parameters
     ----------
     idata : xr.DataTree
         The DataTree object returned by the sampling method.
-    save_file : str | Path
-        The path to save the DataTree object as a netCDF file.
+    save_file : str or Path
+        Path whose file name becomes the artifact name and whose suffix picks
+        the format (``.zarr`` for a Zarr directory store, anything else for
+        netCDF). Its parent directory must exist.
+
+    Raises
+    ------
+    FileNotFoundError
+        If the parent directory of ``save_file`` does not exist.
 
     """
-    idata.to_netcdf(str(save_file))
-    _log_and_remove_artifact(save_file)
+    save_file = Path(save_file)
+    if not save_file.parent.is_dir():
+        raise FileNotFoundError(f"Parent directory of {save_file} does not exist.")
+    with tempfile.TemporaryDirectory(
+        dir=save_file.parent,
+        prefix=".pymc_marketing_idata_",
+        ignore_cleanup_errors=True,
+    ) as tmp:
+        local = save_idata(idata, Path(tmp) / save_file.name)
+        # log_artifact uploads a directory recursively (mlflow >= 2.0).
+        mlflow.log_artifact(str(local))
 
 
 def log_mmm_evaluation_metrics(
@@ -1033,26 +1282,41 @@ def load_mmm(
     Load a PyMC-Marketing MMM model from MLflow.
 
     Can either load the full model including the DataTree, or just the lighter PyFuncModel version.
+    With ``full_model=True`` the inference-data artifact (``idata.nc`` or ``idata.zarr``) is
+    detected from the run.
 
     Parameters
     ----------
     run_id : str
         The MLflow run ID from which to load the model.
-    full_model : bool, default=True
+    full_model : bool, default=False
         If True, load the full MMM model including the DataTree.
     keep_idata : bool, default=False
-        If True, keep the downloaded DataTree saved locally.
+        If True, keep the downloaded inference data on disk.
     artifact_path : str, default="model"
         The artifact path within the run where the model is stored.
     dst_path : str | None, default=None
-        The local destination path where the DataTree will be downloaded.
-        If None, defaults to "idata_{run_id}" to avoid conflicts when loading multiple models.
+        Directory for the download. With ``keep_idata=True`` it defaults to
+        ``idata_{run_id}`` in the working directory; otherwise to a temporary
+        directory that is deleted after loading. A directory you pass is kept and
+        only the downloaded artifact is removed; an existing ``idata.nc`` or
+        ``idata.zarr`` in it is replaced.
 
     Returns
     -------
     model : mlflow.pyfunc.PyFuncModel | MMM
         The loaded MLflow PyFuncModel or MMM model.
 
+    Raises
+    ------
+    FileNotFoundError
+        If the run holds neither ``idata.nc`` nor ``idata.zarr``.
+    ValueError
+        If the run holds both.
+
+    See Also
+    --------
+    load_mmm_from_run : Load the MMM only, with a custom artifact name.
 
     Examples
     --------
@@ -1064,46 +1328,40 @@ def load_mmm(
     model_uri = f"runs:/{run_id}/{artifact_path}"
 
     if not full_model:
-        model = mlflow.pyfunc.load_model(model_uri)
-        return model
+        return mlflow.pyfunc.load_model(model_uri)
 
-    # Create unique destination path if not provided
-    if dst_path is None:
-        dst_path = f"idata_{run_id}"
+    return load_mmm_from_run(run_id, keep_idata=keep_idata, dst_path=dst_path)
 
-    idata_path = mlflow.artifacts.download_artifacts(
-        run_id=run_id, artifact_path="idata.nc", dst_path=dst_path
-    )
 
-    model = MMM.load(idata_path)
-
-    if not keep_idata:
-        _force_load_idata_groups(model.idata)
-
-        try:
-            os.remove(idata_path)
-            os.rmdir(dst_path)
-        except OSError:
-            warnings.warn(
-                f"Could not remove temporary files at {dst_path}. You may want to remove them manually.",
-                UserWarning,
-                stacklevel=2,
-            )
-
-    return model
+_IDATA_BACKENDS = ("zarr", "netCDF4", "h5netcdf")
 
 
 def log_versions() -> None:
-    """Log the versions of PyMC-Marketing, PyMC, and ArviZ to MLflow."""
+    """Log the versions of PyMC-Marketing, PyMC, ArviZ, xarray and the idata backends to MLflow.
+
+    The backends are the packages xarray can write inference data with: ``zarr``, ``netCDF4`` and ``h5netcdf``.
+    A backend that is not installed is skipped, so ``zarr_version``, ``netcdf4_version`` and ``h5netcdf_version``
+    are logged only when present. Versions come from package metadata, so no backend is imported.
+    """
     mlflow.log_param("pymc_marketing_version", __version__)
     mlflow.log_param("pymc_version", pm.__version__)
     mlflow.log_param("arviz_version", az.__version__)
+    mlflow.log_param("xarray_version", xr.__version__)
+    for package in _IDATA_BACKENDS:
+        try:
+            package_version = metadata.version(package)
+        except metadata.PackageNotFoundError:
+            continue
+        mlflow.log_param(f"{package.lower()}_version", package_version)
 
 
 def log_mmm_configuration(mmm: MMM) -> None:
     """Log the configuration of the MMM model to MLflow."""
     attrs = mmm.create_idata_attrs()
+    lift_test_calibrations = attrs.pop("lift_test_calibrations", None)
     mlflow.log_params(attrs)
+    if lift_test_calibrations not in (None, "[]"):
+        mlflow.log_text(lift_test_calibrations, "lift_test_calibrations.json")
 
     adstock_name = type(mmm.adstock).__name__.removesuffix("Adstock")
     saturation_name = type(mmm.saturation).__name__.removesuffix("Saturation")
@@ -1174,6 +1432,7 @@ def log_error(func: Callable, file_name: str):
     return wrapped
 
 
+@_check_arguments_first
 @autologging_integration(FLAVOR_NAME)
 def autolog(
     log_sampler_info: bool = True,
@@ -1185,6 +1444,7 @@ def autolog(
     log_mmm: bool = True,
     log_clv: bool = True,
     log_bass: bool = True,
+    idata_format: IdataFormat | str = IdataFormat.NETCDF,
     disable: bool = False,
     silent: bool = False,
 ) -> None:
@@ -1218,10 +1478,47 @@ def autolog(
         Whether to log PyMC-Marketing CLV models. Default is True.
     log_bass : bool, optional
         Whether to log PyMC-Marketing Bass models. Default is True.
+    idata_format : {"netcdf", "zarr"}, optional
+        Format of the inference-data artifact logged by the ``fit`` patches:
+        ``"netcdf"`` writes ``idata.nc``, ``"zarr"`` writes the directory
+        ``idata.zarr``. Default is ``"netcdf"``.
     disable : bool, optional
         Whether to disable autologging. Default is False.
     silent : bool, optional
         Whether to suppress all warnings. Default is False.
+
+    Notes
+    -----
+    ``idata_format="zarr"`` requires the ``zarr`` extra:
+    ``pip install 'pymc-marketing[zarr]'``. A Zarr store is a directory with
+    several files per variable, so remote artifact stores pay per file on
+    upload and download, whereas netCDF is a single file. Names that differ
+    only by letter case (``T`` and ``t``) cannot share a Zarr directory store
+    on a case-insensitive filesystem (macOS and Windows defaults). zarr-python 3
+    writes string coordinates with an encoding that is not yet in the Zarr
+    specification, so stores with string coordinates may need re-encoding for a
+    later zarr-python release.
+
+    Calling ``autolog`` again replaces its earlier patches instead of stacking
+    them, so the last call decides what is logged, and ``autolog(disable=True)``
+    switches the patches off until the next call. A wrapper that other code
+    installs on top of an ``autolog`` patch is left in place together with the
+    patch beneath it, so a later ``autolog`` call adds a second patch above it
+    and each fit is logged twice. The argument checks run before mlflow records
+    the call, so a rejected call leaves the previous state in place, including
+    ``disable=True``; with ``idata_format="zarr"`` they write a tiny probe store
+    to the temporary directory.
+
+    Raises
+    ------
+    ValueError
+        If ``idata_format`` is not ``"netcdf"`` or ``"zarr"``.
+    ImportError
+        If ``idata_format="zarr"`` and ``zarr`` is missing or xarray is older
+        than the floor of the ``zarr`` extra.
+    RuntimeError
+        If ``idata_format="zarr"`` and the installed xarray, zarr and pandas
+        cannot write a Zarr store; see :func:`pymc_marketing.data.idata.io.check_zarr_writer`.
 
     Examples
     --------
@@ -1359,6 +1656,7 @@ def autolog(
             idata = model.fit(data=adoption)
 
     """
+    idata_artifact = _idata_artifact_name(idata_format)
     arviz_summary_kwargs = arviz_summary_kwargs or {}
 
     def patch_sample(sample: Callable) -> Callable:
@@ -1393,16 +1691,26 @@ def autolog(
 
             return idata
 
+        logged: Callable = new_sample
         if sample_error_file:
-            new_sample = log_error(new_sample, sample_error_file)
+            logged = log_error(logged, sample_error_file)
 
-        return new_sample
+        @wraps(sample)
+        def dispatch(*args, **kwargs):
+            # Outermost layer, so a disabled integration skips error logging too.
+            if autologging_is_disabled(FLAVOR_NAME):
+                return sample(*args, **kwargs)
+            return logged(*args, **kwargs)
 
-    pm.sample = patch_sample(pm.sample)
+        return _autolog_wrapper(dispatch)
+
+    pm.sample = patch_sample(_without_autolog_wrappers(pm.sample))
 
     def patch_find_MAP(find_MAP):
         @wraps(find_MAP)
         def new_find_MAP(*args, **kwargs):
+            if autologging_is_disabled(FLAVOR_NAME):
+                return find_MAP(*args, **kwargs)
             model = pm.modelcontext(kwargs.get("model"))
 
             if log_model_info:
@@ -1410,30 +1718,36 @@ def autolog(
 
             return find_MAP(*args, **kwargs)
 
-        return new_find_MAP
+        return _autolog_wrapper(new_find_MAP)
 
-    pm.find_MAP = patch_find_MAP(pm.find_MAP)
+    pm.find_MAP = patch_find_MAP(_without_autolog_wrappers(pm.find_MAP))
 
     def patch_mmm_fit(fit: Callable) -> Callable:
         @wraps(fit)
         def new_fit(self, *args, **kwargs):
+            if autologging_is_disabled(FLAVOR_NAME):
+                return fit(self, *args, **kwargs)
             log_mmm_configuration(self)
 
             idata = fit(self, *args, **kwargs)
             _attach_run_id(idata)
 
-            log_inference_data(idata, save_file="idata.nc")
+            log_inference_data(idata, save_file=idata_artifact)
 
             return idata
 
-        return new_fit
+        return _autolog_wrapper(new_fit)
 
+    # Unwrap even when not re-patching, so autolog(log_mmm=False) removes an earlier patch.
+    MMM.fit = _without_autolog_wrappers(MMM.fit)
     if log_mmm:
         MMM.fit = patch_mmm_fit(MMM.fit)
 
     def patch_clv_fit(fit):
         @wraps(fit)
         def new_fit(self, data=None, method: str = "mcmc", **kwargs):
+            if autologging_is_disabled(FLAVOR_NAME):
+                return fit(self, data=data, method=method, **kwargs)
             mlflow.log_param("model_type", self._model_type)
             mlflow.log_param(
                 "fit_method",
@@ -1444,28 +1758,32 @@ def autolog(
                 idata.attrs,
             )
             _attach_run_id(idata)
-            log_inference_data(idata, save_file="idata.nc")
+            log_inference_data(idata, save_file=idata_artifact)
 
             return idata
 
-        return new_fit
+        return _autolog_wrapper(new_fit)
 
+    CLVModel.fit = _without_autolog_wrappers(CLVModel.fit)
     if log_clv:
         CLVModel.fit = patch_clv_fit(CLVModel.fit)
 
     def patch_bass_fit(fit: Callable) -> Callable:
         @wraps(fit)
         def new_fit(self, *args, **kwargs):
+            if autologging_is_disabled(FLAVOR_NAME):
+                return fit(self, *args, **kwargs)
             log_bass_configuration(self)
 
             idata = fit(self, *args, **kwargs)
             _attach_run_id(idata)
 
-            log_inference_data(idata, save_file="idata.nc")
+            log_inference_data(idata, save_file=idata_artifact)
 
             return idata
 
-        return new_fit
+        return _autolog_wrapper(new_fit)
 
+    BassModel.fit = _without_autolog_wrappers(BassModel.fit)  # type: ignore[method-assign]
     if log_bass:
         BassModel.fit = patch_bass_fit(BassModel.fit)  # type: ignore[method-assign]

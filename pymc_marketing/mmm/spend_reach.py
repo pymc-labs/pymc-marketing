@@ -338,10 +338,16 @@ class TemporalReach:
         longer than the axis can show), or moves dates *before* the perturbed one
         -- the signature of a reduction over ``date``, which takes a different
         value on a truncated axis and so cannot be windowed at all.
+    max_lag : int, default=0
+        The last lag, in data periods after the perturbed date, at which the
+        node still moved.  ``adstock.l_max - 1`` for a plain ``ConvMode.After``
+        adstock, whose kernel covers lags ``0 .. l_max - 1``.  A lower bound
+        alongside ``requires_full_axis``, like ``additional_carryover_lags``.
     """
 
     additional_carryover_lags: int
     requires_full_axis: bool
+    max_lag: int = 0
 
     @classmethod
     def none(cls) -> TemporalReach:
@@ -349,7 +355,9 @@ class TemporalReach:
         return cls(additional_carryover_lags=0, requires_full_axis=False)
 
     @classmethod
-    def full_axis(cls, additional_carryover_lags: int = 0) -> TemporalReach:
+    def full_axis(
+        cls, additional_carryover_lags: int = 0, max_lag: int = 0
+    ) -> TemporalReach:
         """Return the reach of a node no window can reproduce.
 
         Parameters
@@ -359,6 +367,9 @@ class TemporalReach:
             evaluation sums to the axis end regardless, so this does not size
             anything; it is kept so that a declaration narrower than what was
             plainly measured can still be refused rather than accepted.
+        max_lag : int, default=0
+            The same lower bound, counted from the perturbed date rather than
+            from ``adstock.l_max``.
 
         Returns
         -------
@@ -368,6 +379,7 @@ class TemporalReach:
         return cls(
             additional_carryover_lags=additional_carryover_lags,
             requires_full_axis=True,
+            max_lag=max_lag,
         )
 
     @classmethod
@@ -390,6 +402,7 @@ class TemporalReach:
                 (reach.additional_carryover_lags for reach in reaches), default=0
             ),
             requires_full_axis=any(reach.requires_full_axis for reach in reaches),
+            max_lag=max((reach.max_lag for reach in reaches), default=0),
         )
 
 
@@ -398,9 +411,9 @@ class SpendReach:
     """What the evaluation is allowed to assume about its window.
 
     The whole contract between this module and
-    :class:`~pymc_marketing.mmm.incrementality.Incrementality`: two numbers, plus
-    the per-node measurements they were derived from for anyone who wants to see
-    the working.
+    :class:`~pymc_marketing.mmm.incrementality.Incrementality`: the window
+    length, the evaluation mode and the longest lag, plus the per-node
+    measurements they were derived from for anyone who wants to see the working.
 
     Parameters
     ----------
@@ -415,11 +428,50 @@ class SpendReach:
     measured : mapping
         Per evaluated node, its :class:`TemporalReach`.  Empty when no probe was
         possible.
+    max_lag : int or None, default=None
+        The last lag, in data periods after the spend date, at which a change
+        in spend moves any evaluated node.  Not ``effective_l_max - 1``: the
+        window is one date longer than a plain adstock's kernel, which covers
+        lags ``0 .. l_max - 1``, while a mediated tail that outlives the direct
+        path sizes the window to exactly its own last lag.  Never less than the
+        kernel's own trailing lags (``l_max - 1`` under ``ConvMode.After``,
+        ``l_max // 2`` under ``Overlap``, none under ``Before``; see
+        :func:`~pymc_marketing.mmm.incrementality.kernel_trailing_lags`), so a
+        plain adstock's horizon is its kernel length and does not shift with
+        how far the sampled weights stay above
+        :attr:`SpendProbe.REACH_TOLERANCE`.  Measured only: a declaration wider
+        than the measurement widens the window, but the documented recipe
+        declares a mediator's own ``l_max``, which overstates the chained
+        reach, so it does not move this.  ``None`` exactly when
+        ``requires_full_axis``: no window bounds the reach, so there is no
+        longest lag to report.  Any other combination raises ``ValueError``, so
+        a windowed reach always carries a horizon.
     """
 
     effective_l_max: int
     requires_full_axis: bool
     measured: Mapping[str, TemporalReach] = field(default_factory=dict)
+    max_lag: int | None = None
+
+    def __post_init__(self) -> None:
+        """Reject a windowed reach without a horizon, and the reverse.
+
+        Readers take ``max_lag is None`` to mean full-axis evaluation.  A
+        windowed reach built without one would read as having no carryover past
+        the fitted axis at all.
+
+        Raises
+        ------
+        ValueError
+            If ``max_lag`` is ``None`` and ``requires_full_axis`` is not set, or
+            the other way round.
+        """
+        if (self.max_lag is None) != self.requires_full_axis:
+            raise ValueError(
+                "SpendReach.max_lag must be None exactly when requires_full_axis "
+                f"is set; got requires_full_axis={self.requires_full_axis} with "
+                f"max_lag={self.max_lag}."
+            )
 
 
 class SpendProbe:
@@ -672,13 +724,32 @@ class SpendProbe:
         )
 
     @staticmethod
-    def _pick_probe_date(magnitude: np.ndarray, n_dates: int) -> int:
+    def _pick_probe_date(
+        magnitude: np.ndarray, n_dates: int, *, room_for_tail: bool = True
+    ) -> int:
         """Choose which interior date to probe, given a per-date magnitude.
 
         Prefers an early date, for the reasons :meth:`_select_probe_indices`
         gives: a forward tail needs room on the axis to end in, and a backward
         move shows up from anywhere.  Among the head dates, the largest magnitude
         wins, so the perturbation is as far above float noise as the data allows.
+        When the head carries no magnitude (a channel that only runs in flights
+        later in the axis), the search widens to the first half of the axis, the
+        dates before ``n_dates // 2``, and the largest magnitude there wins.
+        With no magnitude in the first half either, the earliest non-zero date
+        wins, because it leaves the most room after it.  The position on the
+        axis decides the room: a flight that ramps up late in the axis has its
+        largest magnitude at its end, where no tail has room, and a probe there
+        reads as a reach longer than the axis can show.  So a reach of up to
+        about half the axis is bounded whenever some non-zero date leaves room
+        for it.
+
+        A mixing probe (see :meth:`_select_channel_probe_indices`) only asks
+        whether another channel's column moves at all, so it needs no room for
+        a tail.  Without *room_for_tail*, the largest magnitude on the whole
+        axis wins once the head is empty, because the front of a late flight
+        can be a date at which the other channels are dark, and their columns
+        cannot show a move there.
 
         Parameters
         ----------
@@ -687,7 +758,10 @@ class SpendProbe:
             zero is date index one.  At least one entry must be non-zero.
         n_dates : int
             Length of the full date axis, which fixes how much of it counts as
-            the head.
+            the head and where its first half ends.
+        room_for_tail : bool, default True
+            Whether the probe has to leave room on the axis for a forward tail,
+            as a reach probe does.
 
         Returns
         -------
@@ -695,9 +769,17 @@ class SpendProbe:
             Index into the full date axis.
         """
         head_stop = max(2, n_dates // 8) - 1
-        in_head = np.flatnonzero(magnitude[:head_stop])
-        chosen = in_head if in_head.size else np.flatnonzero(magnitude)
-        return 1 + int(chosen[np.argmax(magnitude[chosen])])
+        # Past the head, a reach probe looks no further than the first half of
+        # the axis, and a mixing probe looks at all of it.
+        wider_stop = n_dates // 2 - 1 if room_for_tail else magnitude.size
+        non_zero = np.flatnonzero(magnitude)
+        for stop in (head_stop, wider_stop):
+            early = non_zero[non_zero < stop]
+            if early.size:
+                return 1 + int(early[np.argmax(magnitude[early])])
+        # Nothing spends in the first half of the axis: the earliest date leaves
+        # the most room after it.
+        return 1 + int(non_zero[0])
 
     @classmethod
     def _select_channel_probe_indices(
@@ -708,7 +790,11 @@ class SpendProbe:
         Distinct from :meth:`_select_probe_indices`, which is free to answer with
         a single date that covers every channel: a mixing probe has to perturb
         *one* channel and watch the others, so each channel needs a date of its
-        own at which it spends.
+        own at which it spends.  Past the head of the axis, a mixing probe keeps
+        the date of the channel's largest spend instead of the front of a late
+        flight, where a reach probe goes: it needs no room for a tail, and the
+        other channels can be dark at the front of the flight, which hides a
+        move in their columns (see :meth:`_pick_probe_date`).
 
         Parameters
         ----------
@@ -737,7 +823,9 @@ class SpendProbe:
         if (per_date.any(axis=0) & ~probeable).any():
             return None
         return {
-            int(channel): cls._pick_probe_date(eligible[:, channel], n_dates)
+            int(channel): cls._pick_probe_date(
+                eligible[:, channel], n_dates, room_for_tail=False
+            )
             for channel in np.flatnonzero(probeable)
         }
 
@@ -793,6 +881,7 @@ class SpendProbe:
         *,
         effects: Sequence[ChannelDependentEffect],
         l_max: int,
+        trailing_lags: int,
     ) -> SpendReach:
         r"""Measure how far in time a change in spend moves the evaluated nodes.
 
@@ -826,6 +915,12 @@ class SpendProbe:
         l_max : int
             The model's own ``adstock.l_max``, subtracted from each measured
             reach because the window already carries it.
+        trailing_lags : int
+            Lags after a spend date that the model's adstock kernel itself
+            reaches, the floor under the measured ``max_lag``; see
+            :func:`~pymc_marketing.mmm.incrementality.kernel_trailing_lags`.
+            Passed in rather than derived here, so this module needs nothing
+            about convolution modes.
 
         Returns
         -------
@@ -882,10 +977,24 @@ class SpendProbe:
                 *self._reconcile_declarations(effects, measured),
             ]
         )
+        # The longest lag spend was measured to move anything at, floored at the
+        # kernel's own trailing lags, the same lags full-axis evaluation uses as
+        # its lower bound.  Read off the measurements, not the window: the
+        # window keeps one date of slack past a plain kernel and honours wider
+        # declarations, neither of which is carryover that lands.
+        max_lag = (
+            None
+            if combined.requires_full_axis
+            else max(
+                trailing_lags,
+                max(reach.max_lag for reach in measured.values()),
+            )
+        )
         return SpendReach(
             effective_l_max=l_max + combined.additional_carryover_lags,
             requires_full_axis=combined.requires_full_axis,
             measured=measured,
+            max_lag=max_lag,
         )
 
     def _reach_of(
@@ -925,16 +1034,20 @@ class SpendProbe:
 
         moved = per_date > self.REACH_TOLERANCE * largest
         last_moved = int(np.flatnonzero(moved)[-1])
-        lags = max(last_moved - probe_index - l_max, 0)
+        max_lag = last_moved - probe_index
+        lags = max(max_lag - l_max, 0)
         if moved[:probe_index].any() or last_moved == n_dates - 1:
             # The axis could not bound the tail, but it did establish that the
             # node still moved that far, and a declaration claiming less than
             # that is still falsified.  Carrying the bound is what keeps
             # _reconcile_declarations able to say so.
-            return TemporalReach.full_axis(additional_carryover_lags=lags)
+            return TemporalReach.full_axis(
+                additional_carryover_lags=lags, max_lag=max_lag
+            )
         return TemporalReach(
             additional_carryover_lags=lags,
             requires_full_axis=False,
+            max_lag=max_lag,
         )
 
     @staticmethod
@@ -1034,6 +1147,7 @@ class SpendProbe:
                 TemporalReach(
                     additional_carryover_lags=lags,
                     requires_full_axis=requires_full_axis,
+                    max_lag=own.max_lag,
                 )
             )
 

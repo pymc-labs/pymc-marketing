@@ -138,6 +138,7 @@ Example: multi-granularity media and controls
     from pymc_marketing.mmm.media_transformation import MediaTransformation
 
     # X is an xr.Dataset with:
+    #   media:              (date, product, geo, channel)
     #   media_product:      (date, product, product-channel)
     #   media_geo:          (date, geo, geo-channel)
     #   control_national:   (date,)
@@ -233,6 +234,10 @@ from pymc_marketing.mmm.events import EventEffect, days_from_reference
 from pymc_marketing.mmm.fourier import FourierBase
 from pymc_marketing.mmm.linear_trend import LinearTrend
 from pymc_marketing.mmm.media_transformation import MediaTransformation
+from pymc_marketing.mmm.optimization_variables import (
+    reject_missing_coords,
+    reject_unknown_coords,
+)
 from pymc_marketing.mmm.validating import _validate_non_numeric_dtype
 from pymc_marketing.serialization import SerializableBaseModel, serialization
 
@@ -594,6 +599,14 @@ class DataVarMuEffect(MuEffect, ABC):
     def set_data(self, mmm: Model, model: pm.Model, X: xr.Dataset) -> None:
         """Update ``pm.Data`` variables from a new prediction dataset.
 
+        Each variable of ``data_vars`` present in ``X`` is written in the dim
+        order of its ``pm.Data`` node, so the layout of the variable in *X* does
+        not matter; a node registered without ``dims`` is written as *X* lays it
+        out. On every dim other than ``date`` that carries labels in both ``X``
+        and the model, the values are matched to the model's coordinates by
+        label, so those labels may run in any order. Other dims are written by
+        position. Variables absent from ``X`` keep their current values.
+
         Parameters
         ----------
         mmm : Model
@@ -602,10 +615,29 @@ class DataVarMuEffect(MuEffect, ABC):
             The PyMC model.
         X : xr.Dataset
             The new prediction dataset.
+
+        Raises
+        ------
+        ValueError
+            If a variable in ``X`` has dim labels the model does not have, or
+            lacks labels the model has.
         """
         for var_name in self.data_vars:
-            if var_name in X.data_vars:
-                pm.set_data({var_name: X[var_name].values}, model=model)
+            if var_name not in X.data_vars:
+                continue
+            da = X[var_name]
+            if dims := model.named_vars_to_dims.get(var_name):
+                da = da.transpose(*dims)
+            coords = {
+                dim: np.asarray(model.coords[dim]).tolist()
+                for dim in da.dims
+                if dim != "date"
+                and dim in da.indexes
+                and model.coords.get(dim) is not None
+            }
+            reject_unknown_coords(da, coords, label=repr(var_name))
+            reject_missing_coords(da, coords, label=repr(var_name))
+            pm.set_data({var_name: da.reindex(coords).values}, model=model)
 
 
 class MediaMuEffect(DataVarMuEffect):
@@ -619,7 +651,8 @@ class MediaMuEffect(DataVarMuEffect):
     media_transformation : MediaTransformation
         Transformation combining adstock and saturation with configurable order.
         Its ``dims`` must include the channel dimension plus any extra dims
-        (e.g. ``("product", "channel")``).
+        (e.g. ``("product", "channel")``). Adstock and saturation priors
+        without explicit ``dims`` get these dims, i.e. one parameter per cell.
     channel_dim : str, optional
         Name of the channel dimension to aggregate over.
         Default is ``"channel"``.
