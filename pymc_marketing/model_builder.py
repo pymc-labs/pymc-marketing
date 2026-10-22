@@ -1534,7 +1534,11 @@ class RegressionModelBuilder(ModelBuilder):
         X: pd.DataFrame | xr.Dataset | xr.DataArray,
         y: pd.Series | xr.DataArray | np.ndarray | None = None,
     ) -> tuple[Any, Any]:
-        """Check the X/y pair and fill in a placeholder target when none is given."""
+        """Check the X/y pair and fill in a placeholder target when none is given.
+
+        Subclasses may override this to accept other X/y forms; ``MMM`` does so
+        to read a target embedded in ``X``.
+        """
         if (
             isinstance(y, pd.Series)
             and isinstance(X, pd.DataFrame)
