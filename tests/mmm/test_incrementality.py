@@ -59,7 +59,7 @@ from pymc_marketing.mmm.counterfactual import (
     EvaluationWindows,
 )
 from pymc_marketing.mmm.incrementality import (
-    _EVALUATOR_CACHE_ATTR,
+    EVALUATOR_CACHE_ATTR,
     EvaluatorCache,
     IdentityLinkReducer,
     Incrementality,
@@ -6799,11 +6799,11 @@ class TestEvaluatorCache:
         """build_model drops the compiled evaluators."""
         mmm = simple_fitted_mmm
         mmm.incrementality.compute_incremental_contribution(frequency="all_time")
-        assert len(getattr(mmm, _EVALUATOR_CACHE_ATTR)) == 1
+        assert len(getattr(mmm, EVALUATOR_CACHE_ATTR)) == 1
 
         mmm.build_model(simple_mmm_data["X"], simple_mmm_data["y"])
 
-        assert getattr(mmm, _EVALUATOR_CACHE_ATTR, None) is None
+        assert getattr(mmm, EVALUATOR_CACHE_ATTR, None) is None
 
     def test_deepcopy_drops_the_cache_and_still_computes(self, simple_fitted_mmm):
         """A deep-copied MMM starts with an empty cache and recomputes the same increments."""
@@ -6811,11 +6811,11 @@ class TestEvaluatorCache:
         result = mmm.incrementality.compute_incremental_contribution(
             frequency="all_time", num_samples=50, random_state=np.random.default_rng(7)
         )
-        assert len(getattr(mmm, _EVALUATOR_CACHE_ATTR)) == 1
+        assert len(getattr(mmm, EVALUATOR_CACHE_ATTR)) == 1
 
         clone = copy.deepcopy(mmm)
 
-        assert len(getattr(clone, _EVALUATOR_CACHE_ATTR)) == 0
+        assert len(getattr(clone, EVALUATOR_CACHE_ATTR)) == 0
 
         cloned = clone.incrementality.compute_incremental_contribution(
             frequency="all_time", num_samples=50, random_state=np.random.default_rng(7)
@@ -6893,7 +6893,7 @@ class TestEvaluatorCache:
             frequency="all_time", num_samples=50, random_state=np.random.default_rng(3)
         )
 
-        cache = getattr(mmm, _EVALUATOR_CACHE_ATTR)
+        cache = getattr(mmm, EVALUATOR_CACHE_ATTR)
         evaluator = cache.get(incr._evaluator_cache_key(["channel_contribution"]))
         assert evaluator is not None
         held = set(evaluator._conditioned.posterior.data_vars)
@@ -6992,7 +6992,7 @@ class TestEvaluatorCache:
         with pytest.raises(RuntimeError, match="evaluation failed"):
             incr.compute_incremental_contribution(frequency="all_time")
 
-        cache = getattr(mmm, _EVALUATOR_CACHE_ATTR)
+        cache = getattr(mmm, EVALUATOR_CACHE_ATTR)
         assert len(cache) == 1
         assert (
             cache.get(incr._evaluator_cache_key(["channel_contribution"])) is not None

@@ -293,20 +293,47 @@ def _variable_layout(
     )
 
 
-def _non_sample_dims(
+def non_sample_dims(
     posterior_da: xr.DataArray, *, sample_dims: tuple[str, ...]
 ) -> tuple[str, ...]:
-    """Return the non-sample dims of ``posterior_da`` in storage order."""
+    """Return the non-sample dims of ``posterior_da`` in storage order.
+
+    Parameters
+    ----------
+    posterior_da : xr.DataArray
+        A posterior variable.
+    sample_dims : tuple of str
+        The dims that index draws, such as ``("chain", "draw")`` or ``("sample",)``.
+
+    Returns
+    -------
+    tuple of str
+        Every other dim of ``posterior_da``, in the order it is stored in.
+    """
     return tuple(str(dim) for dim in posterior_da.dims if str(dim) not in sample_dims)
 
 
-def _check_aligned_dims(
+def check_aligned_dims(
     name: str, dims: tuple[str, ...], layout: VariableLayout
 ) -> None:
     """Raise if ``dims`` is not the dim set the variable was constructed with.
 
-    The order is free here: ``_align_posterior_dim`` and the final transpose
+    The order is free here: :func:`align_posterior_dim` and the final transpose
     put the axes back in the layout's order.
+
+    Parameters
+    ----------
+    name : str
+        The posterior variable, named in the error.
+    dims : tuple of str
+        Its non-sample dims, as returned by :func:`non_sample_dims`.
+    layout : VariableLayout
+        The layout the variable was constructed with.
+
+    Raises
+    ------
+    ValueError
+        If ``dims`` and ``layout.dims`` are different sets.
     """
     if set(dims) != set(layout.dims):
         raise ValueError(
@@ -314,7 +341,7 @@ def _check_aligned_dims(
         )
 
 
-def _align_posterior_dim(
+def align_posterior_dim(
     name: str,
     posterior_da: xr.DataArray,
     dim: str,
@@ -326,6 +353,29 @@ def _align_posterior_dim(
     layout label could not be realigned by ``sel`` -- it would silently pick
     one column twice -- so both are refused.  An unlabeled dimension, or one
     whose labels already match, keeps its labels in the bound order.
+
+    Parameters
+    ----------
+    name : str
+        The posterior variable, named in the error.
+    posterior_da : xr.DataArray
+        The variable to align.
+    dim : str
+        The dimension to check and reorder.
+    bound : pd.Index or None
+        The labels ``dim`` was constructed with, or ``None`` when it had none.
+
+    Returns
+    -------
+    xr.DataArray
+        ``posterior_da`` with ``dim`` in the order of ``bound``, or unchanged
+        when ``dim`` is unlabeled on both sides.
+
+    Raises
+    ------
+    ValueError
+        If ``dim`` is labeled on one side only, ``bound`` holds a duplicated
+        label, or the two label sets differ in length or content.
     """
     given = posterior_da.indexes.get(dim)
     if (bound is None) != (given is None):
@@ -357,10 +407,26 @@ def _align_posterior_dim(
     return posterior_da.sel({dim: bound})
 
 
-def _check_aligned_shape(
+def check_aligned_shape(
     name: str, shape: tuple[int, ...], layout: VariableLayout
 ) -> None:
-    """Raise if the non-sample ``shape`` differs from the constructed one."""
+    """Raise if the non-sample ``shape`` differs from the constructed one.
+
+    Parameters
+    ----------
+    name : str
+        The posterior variable, named in the error.
+    shape : tuple of int
+        Its non-sample shape, in the layout's dim order.
+    layout : VariableLayout
+        The layout the variable was constructed with.
+
+    Raises
+    ------
+    ValueError
+        If ``shape`` differs from ``layout.shape``.  Only the sample dimension
+        may change length.
+    """
     if shape != layout.shape:
         raise ValueError(
             f"Posterior variable {name!r} has shape {shape} over dims "
@@ -390,15 +456,15 @@ def _aligned_posterior(
         set differs (or the layout's labels are duplicated), or a non-sample
         length differs.  The sample dimension may change length freely.
     """
-    _check_aligned_dims(
-        name, _non_sample_dims(posterior_da, sample_dims=sample_dims), layout
+    check_aligned_dims(
+        name, non_sample_dims(posterior_da, sample_dims=sample_dims), layout
     )
     for dim in layout.dims:
-        posterior_da = _align_posterior_dim(
+        posterior_da = align_posterior_dim(
             name, posterior_da, dim, layout.coords.get(dim)
         )
     posterior_da = posterior_da.transpose(*sample_dims, *layout.dims)
-    _check_aligned_shape(name, posterior_da.shape[len(sample_dims) :], layout)
+    check_aligned_shape(name, posterior_da.shape[len(sample_dims) :], layout)
     return posterior_da
 
 
@@ -579,7 +645,7 @@ class SharedPosterior:
             self._variables[name].set_value(values, borrow=True)
 
 
-def _needed_posterior_names(
+def needed_posterior_names(
     pymc_model: Model,
     response_vars: Sequence[Variable],
     frozen_deterministics: Sequence[str] = (),
@@ -590,6 +656,22 @@ def _needed_posterior_names(
     traversal: an extraction substitutes their posterior draws instead of
     traversing their subgraphs.  The order is the graph traversal's, so it is
     stable for a given response but says nothing about the posterior layout.
+
+    Parameters
+    ----------
+    pymc_model : pm.Model
+        The model ``response_vars`` belong to.
+    response_vars : sequence of Variable
+        The response graphs to traverse.
+    frozen_deterministics : sequence of str, default ()
+        Deterministics held at their posterior values; a name the model does
+        not have is ignored.
+
+    Returns
+    -------
+    list of str
+        The names of the free RVs and frozen deterministics the responses
+        depend on, each once.
     """
     blockers = set(pymc_model.free_RVs)
     blockers.update(
@@ -697,7 +779,7 @@ def extract_response_distribution(
     # Frozen deterministics are treated as additional blockers so their
     # subgraphs are not traversed — their posterior values are substituted
     # directly, just like free RVs.
-    needed_names = _needed_posterior_names(
+    needed_names = needed_posterior_names(
         pymc_model, response_vars, frozen_deterministics or ()
     )
     placeholder_replace_dict = {
@@ -812,7 +894,7 @@ def _posterior_dataset(idata: xr.DataTree | xr.Dataset) -> xr.Dataset:
     )
 
 
-def _reordered_to_model_coords(
+def reorder_to_model_coords(
     posterior: xr.Dataset, model_coords: Mapping[str, Any]
 ) -> xr.Dataset:
     """Return ``posterior`` with each labelled non-sample dim in the model's order.
@@ -1009,7 +1091,7 @@ class ConditionedModel:
             if intervention is not None
             else frozenset()
         )
-        self._posterior = _reordered_to_model_coords(
+        self._posterior = reorder_to_model_coords(
             _posterior_dataset(idata), self._model.coords
         )
         # The layout each variable is validated against when a graph reads it,
@@ -1202,7 +1284,7 @@ class ConditionedModel:
         its key to the bounded cache.  A dropped optional key is only removed
         from the cache: a graph already handed out keeps its last draws.
         """
-        posterior = _reordered_to_model_coords(
+        posterior = reorder_to_model_coords(
             _posterior_dataset(idata), self._model.coords
         )
 
@@ -1348,7 +1430,7 @@ class ConditionedModel:
         realigned against its own construction layout.  Only the variables a
         graph reads are checked: unread data may change freely.
         """
-        read_names = _needed_posterior_names(
+        read_names = needed_posterior_names(
             self._model, resolved, self.frozen_deterministics
         )
         # Every conditioned graph is an xtensor expression, so the sequence is safely narrowed.

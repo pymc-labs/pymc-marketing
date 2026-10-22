@@ -274,8 +274,8 @@ from pymc_marketing.mmm.spend_reach import (
 )
 from pymc_marketing.mmm.transformers import ConvMode
 from pymc_marketing.pytensor_utils import (
-    _needed_posterior_names,
-    _reordered_to_model_coords,
+    needed_posterior_names,
+    reorder_to_model_coords,
 )
 
 if TYPE_CHECKING:
@@ -1065,7 +1065,7 @@ class ClosedFormInputs:
     labels: dict
 
 
-_EVALUATOR_CACHE_ATTR = "_incrementality_evaluator_cache"
+EVALUATOR_CACHE_ATTR = "_incrementality_evaluator_cache"
 """Name of the attribute that holds the compiled-evaluator cache."""
 
 
@@ -4567,7 +4567,7 @@ class Incrementality:
             model[var] if isinstance(var, str) else var for var in response_vars
         ]
         read = set(
-            _needed_posterior_names(model, resolved, self.model.frozen_deterministics)
+            needed_posterior_names(model, resolved, self.model.frozen_deterministics)
         )
         names = [name for name in posterior.data_vars if name in read]
         return posterior[names] if names else posterior
@@ -4667,7 +4667,7 @@ class Incrementality:
                 else None
             ),
         )
-        cache = self.model.__dict__.setdefault(_EVALUATOR_CACHE_ATTR, EvaluatorCache())
+        cache = self.model.__dict__.setdefault(EVALUATOR_CACHE_ATTR, EvaluatorCache())
         lease = cache.lease(self._evaluator_cache_key(response_vars), build_evaluator)
         evaluator = lease.evaluator
         # A hit carries the draws of the request that built it; a miss was just
@@ -5107,7 +5107,7 @@ class Incrementality:
         """
         channel_data = self.data.get_channel_data()
         name = channel_data.name or "channel_data"
-        ordered = _reordered_to_model_coords(
+        ordered = reorder_to_model_coords(
             channel_data.to_dataset(name=name), self.model.model.coords
         )
         return ordered[name]

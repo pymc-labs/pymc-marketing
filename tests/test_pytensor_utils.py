@@ -39,13 +39,13 @@ from pymc_marketing.pytensor_utils import (
     ModelSamplerEstimator,
     SharedPosterior,
     VariableLayout,
-    _align_posterior_dim,
-    _check_aligned_dims,
-    _check_aligned_shape,
-    _non_sample_dims,
     _prefix_model,
+    align_posterior_dim,
+    check_aligned_dims,
+    check_aligned_shape,
     extract_response_distribution,
     merge_models,
+    non_sample_dims,
     validate_unique_value_vars,
 )
 
@@ -732,16 +732,16 @@ def _channel_layout(dims=("channel",), *, shape=(2,), coords=None):
 
 def test_non_sample_dims_keeps_storage_order_and_drops_samples():
     posterior_da = xr.DataArray(np.ones((2, 3, 4)), dims=("chain", "channel", "draw"))
-    assert _non_sample_dims(posterior_da, sample_dims=("chain", "draw")) == ("channel",)
+    assert non_sample_dims(posterior_da, sample_dims=("chain", "draw")) == ("channel",)
 
 
 def test_check_aligned_dims_compares_the_dim_set_not_its_order():
     layout = _channel_layout(dims=("channel", "date"), shape=(2, 3))
 
-    _check_aligned_dims("beta", ("date", "channel"), layout)  # order is free
+    check_aligned_dims("beta", ("date", "channel"), layout)  # order is free
 
     with pytest.raises(ValueError, match="has dims"):
-        _check_aligned_dims("beta", ("channel",), layout)
+        check_aligned_dims("beta", ("channel",), layout)
 
 
 @pytest.mark.parametrize(
@@ -781,7 +781,7 @@ def test_align_posterior_dim_refuses_unusable_labels(given, bound, match):
     )
 
     with pytest.raises(ValueError, match=match):
-        _align_posterior_dim("beta", posterior_da, "channel", bound)
+        align_posterior_dim("beta", posterior_da, "channel", bound)
 
 
 def test_align_posterior_dim_reorders_the_axis_to_the_bound_labels():
@@ -789,24 +789,22 @@ def test_align_posterior_dim_reorders_the_axis_to_the_bound_labels():
         [1.0, 2.0], dims="channel", coords={"channel": ["b", "a"]}
     )
 
-    aligned = _align_posterior_dim(
-        "beta", posterior_da, "channel", pd.Index(["a", "b"])
-    )
+    aligned = align_posterior_dim("beta", posterior_da, "channel", pd.Index(["a", "b"]))
 
     assert list(aligned.indexes["channel"]) == ["a", "b"]
     np.testing.assert_allclose(aligned.values, [2.0, 1.0])
     # The same array comes back when neither side is labeled.
     unlabelled = xr.DataArray(np.ones((2, 3)), dims=("channel", "sample"))
-    assert _align_posterior_dim("beta", unlabelled, "channel", None) is unlabelled
+    assert align_posterior_dim("beta", unlabelled, "channel", None) is unlabelled
 
 
 def test_check_aligned_shape_allows_only_the_sample_length_to_change():
     layout = _channel_layout(shape=(2,))
 
-    _check_aligned_shape("beta", (2,), layout)
+    check_aligned_shape("beta", (2,), layout)
 
     with pytest.raises(ValueError, match="Only the sample dimension may change"):
-        _check_aligned_shape("beta", (3,), layout)
+        check_aligned_shape("beta", (3,), layout)
 
 
 def _slope_model_and_draws(draws: int, seed: int):
