@@ -7153,6 +7153,148 @@ class TestDatasetInputCoordinateOrder:
         )
 
 
+class TestDatasetInputDimOrder:
+    """Regression tests for #3224.
+
+    The dims of a Dataset variable are named, so their order must not matter. A
+    model built from an ``xr.Dataset`` whose media, controls or target are laid
+    out in another order than ``("date", *dims, "channel")`` must still predict
+    on, and carry in, each value at its own labels.
+    """
+
+    CHANNELS = ["tv", "radio"]
+    CONTROLS = ["price", "promo"]
+    N_DATES = 12
+
+    @classmethod
+    def _dataset(cls, n_geos: int) -> xr.Dataset:
+        """Distinct values per cell, every variable in the canonical layout."""
+        rng = np.random.default_rng(0)
+        coords = {
+            "date": pd.date_range("2024-01-01", periods=cls.N_DATES, freq="W-MON"),
+            "geo": [f"g{i}" for i in range(n_geos)],
+        }
+        media = xr.DataArray(
+            rng.uniform(0.5, 1.5, (cls.N_DATES, n_geos, len(cls.CHANNELS))),
+            dims=("date", "geo", "channel"),
+            coords={**coords, "channel": cls.CHANNELS},
+        )
+        control = xr.DataArray(
+            rng.uniform(0.0, 1.0, (cls.N_DATES, n_geos, len(cls.CONTROLS))),
+            dims=("date", "geo", "control"),
+            coords={**coords, "control": cls.CONTROLS},
+        )
+        target = media.sum("channel") + control.sum("control")
+        return xr.Dataset({"media": media, "_control": control, "target": target})
+
+    @classmethod
+    def _model(cls, X: xr.Dataset) -> MMM:
+        """Build from X; prior draws stand in for the posterior (no sampling)."""
+        mmm = MMM(
+            date_column="date",
+            target_column="y",
+            channel_columns=cls.CHANNELS,
+            control_columns=cls.CONTROLS,
+            dims=("geo",),
+            adstock=GeometricAdstock(l_max=2),
+            saturation=LogisticSaturation(),
+        )
+        mmm.build_model(X)
+        with mmm.model:
+            idata = pm.sample_prior_predictive(draws=4, random_seed=1)
+        idata["/posterior"] = idata["/prior"].to_dataset()
+        mmm.idata = idata
+        return mmm
+
+    @staticmethod
+    def _data_by_label(model: pm.Model, name: str) -> xr.DataArray:
+        """The current value of a ``pm.Data`` node, labelled by its declared dims."""
+        dims = model.named_vars_to_dims[name]
+        return xr.DataArray(
+            model[name].get_value(),
+            dims=dims,
+            coords={dim: np.asarray(model.coords[dim]) for dim in dims},
+        )
+
+    # (variable, layout, number of geos). With two geos the swapped axes have
+    # the same length as the two channels or controls, so a positional write
+    # does not raise and silently transposes the data instead.
+    LAYOUTS = {
+        "media_geo_first": ("media", ("geo", "date", "channel"), 3),
+        "media_channel_before_geo_same_length": (
+            "media",
+            ("date", "channel", "geo"),
+            2,
+        ),
+        "control_date_last": ("_control", ("control", "geo", "date"), 3),
+        "control_before_geo_same_length": (
+            "_control",
+            ("date", "control", "geo"),
+            2,
+        ),
+        "target_geo_first": ("target", ("geo", "date"), 3),
+    }
+
+    @pytest.mark.parametrize("layout", list(LAYOUTS))
+    def test_predicting_on_training_dataset_reproduces_in_sample(self, layout):
+        var, dims, n_geos = self.LAYOUTS[layout]
+        X = self._dataset(n_geos)
+        X[var] = X[var].transpose(*dims)
+        mmm = self._model(X)
+
+        names = ["channel_contribution", "control_contribution"]
+        pred = mmm.sample_posterior_predictive(
+            X,
+            var_names=names,
+            combined=False,
+            extend_idata=False,
+            progressbar=False,
+            random_seed=2,
+        )
+
+        for name in names:
+            in_sample = mmm.idata.posterior[name]
+            np.testing.assert_allclose(
+                pred[name].values,
+                in_sample.transpose(*pred[name].dims).values,
+                err_msg=name,
+            )
+
+    # On `main` the square media layout passes by accident (the carry-in copy
+    # and `_set_xarray_data` transpose the spend twice, which restores it), so
+    # it cannot detect the bug. It is kept so that it passes here for the right
+    # reason: the spend is written by label.
+    @pytest.mark.parametrize("layout", list(LAYOUTS))
+    def test_create_optimization_model_holds_observed_values(self, layout):
+        var, dims, n_geos = self.LAYOUTS[layout]
+        observed = self._dataset(n_geos)
+        X = observed.copy()
+        X[var] = X[var].transpose(*dims)
+        mmm = self._model(X)
+        dates = observed.coords["date"].to_index()
+
+        opt_model = mmm.create_optimization_model(dates[6], dates[8])
+
+        # The window and its carry-over lie inside the training data, so the
+        # controls hold their observed values throughout and the spend does on
+        # the carry-in dates before the window.
+        channel_data = self._data_by_label(opt_model, "channel_data")
+        carry_in = dates[dates < dates[6]].intersection(channel_data.date.to_index())
+        assert len(carry_in) == 2
+        np.testing.assert_allclose(
+            channel_data.sel(date=carry_in).values,
+            observed["media"].sel(date=carry_in).transpose(*channel_data.dims).values,
+        )
+        control_data = self._data_by_label(opt_model, "control_data")
+        np.testing.assert_allclose(
+            control_data.values,
+            observed["_control"]
+            .sel(date=control_data.date.values)
+            .transpose(*control_data.dims)
+            .values,
+        )
+
+
 class TestComputeMeanContributionsOverTime:
     """Tests for compute_mean_contributions_over_time method."""
 

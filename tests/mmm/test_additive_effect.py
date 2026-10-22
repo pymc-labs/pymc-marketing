@@ -718,6 +718,87 @@ class TestDataVarMuEffect:
             with pytest.raises(ValueError, match=r"Cannot reuse pm\.Data"):
                 Effect().create_data(mmm)
 
+    @pytest.mark.parametrize(
+        "new_dims, n_products",
+        [
+            # Equal lengths: a positional write would not raise and would store
+            # the values transposed.
+            pytest.param(("date", "channel", "product"), 2, id="same_length_swap"),
+            pytest.param(("product", "date", "channel"), 3, id="date_not_first"),
+        ],
+    )
+    def test_set_data_matches_values_by_dimension_name(
+        self, dates, new_dims, n_products
+    ):
+        """Regression for #3224: the prediction dataset's layout does not matter."""
+        coords = {
+            "date": dates,
+            "product": [f"p{i}" for i in range(n_products)],
+            "channel": ["tv", "radio"],
+        }
+        shape = tuple(len(values) for values in coords.values())
+        rng = np.random.default_rng(0)
+        ds = xr.Dataset(
+            {"feature": (tuple(coords), rng.normal(size=shape))}, coords=coords
+        )
+        new_ds = xr.Dataset(
+            {"feature": (tuple(coords), rng.normal(size=shape))}, coords=coords
+        )
+        new_ds["feature"] = new_ds["feature"].transpose(*new_dims)
+        model = pm.Model(coords=coords)
+        mmm = self._make_mock_mmm(model, ds)
+
+        class Effect(DataVarMuEffect):
+            data_vars: list[str] = ["feature"]
+            prefix: str = "test"
+
+            def create_effect(self, mmm):  # type: ignore
+                return pt.as_tensor(0.0)
+
+        effect = Effect()
+        with model:
+            effect.create_data(mmm)
+        effect.set_data(mmm, model, new_ds)
+
+        model_dims = model.named_vars_to_dims["feature"]
+        np.testing.assert_array_equal(
+            model["feature"].get_value(),
+            new_ds["feature"].transpose(*model_dims).values,
+        )
+
+    def test_set_data_writes_node_registered_without_dims(self, dates):
+        """A subclass may register its ``pm.Data`` without dims and inherit ``set_data``."""
+        rng = np.random.default_rng(0)
+        ds = xr.Dataset(
+            {"feature": (("date",), rng.normal(size=len(dates)))},
+            coords={"date": dates},
+        )
+        new_ds = xr.Dataset(
+            {"feature": (("date",), rng.normal(size=len(dates)))},
+            coords={"date": dates},
+        )
+        model = pm.Model(coords={"date": dates})
+        mmm = self._make_mock_mmm(model, ds)
+
+        class Effect(DataVarMuEffect):
+            data_vars: list[str] = ["feature"]
+            prefix: str = "test"
+
+            def create_data(self, mmm):  # type: ignore
+                pm.Data("feature", mmm.xarray_dataset["feature"].values)
+
+            def create_effect(self, mmm):  # type: ignore
+                return pt.as_tensor(0.0)
+
+        effect = Effect()
+        with model:
+            effect.create_data(mmm)
+        effect.set_data(mmm, model, new_ds)
+
+        np.testing.assert_array_equal(
+            model["feature"].get_value(), new_ds["feature"].values
+        )
+
 
 class TestMediaMuEffect:
     """Tests for MediaMuEffect."""
