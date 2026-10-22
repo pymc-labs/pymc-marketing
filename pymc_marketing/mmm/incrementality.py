@@ -5019,6 +5019,7 @@ class Incrementality:
         baseline: dict[str, np.ndarray],
         counterfactual: dict[str, np.ndarray],
         non_date_dims: dict[str, tuple[str, ...]],
+        coords: Mapping[str, np.ndarray],
         effect_names: Sequence[str],
         channel: int | None,
     ) -> xr.DataArray:
@@ -5059,6 +5060,13 @@ class Incrementality:
             ``(n_scenarios, n_samples, max_window, *non_date_dims)``.
         non_date_dims : dict
             Per response variable, its dimensions with ``date`` removed.
+        coords : mapping
+            The labels of the non-date dimensions in the order the evaluator
+            computed them, the model's.  The change carries them so that xarray
+            pairs it with each reducer input by label: the target scale,
+            ``mu_original_scale`` and the mean-scale correction are read from
+            ``idata`` in whatever order it stores them.  A dimension without an
+            entry stays unlabeled.
         effect_names : sequence of str
             The included effects' contribution variables.  Passed in rather than
             read off the other arguments' keys, which also carry nodes evaluated
@@ -5079,14 +5087,19 @@ class Incrementality:
         Returns
         -------
         xr.DataArray
-            Dimensions ``("sample", "date", *custom_dims)``.
+            Dimensions ``("sample", "date", *custom_dims)``, labeled with
+            *coords*.
         """
 
         def delta(name: str) -> xr.DataArray:
+            dims = non_date_dims[name]
             return xr.DataArray(
                 counterfactual[name][row][:, cf_mask] - baseline[name],
-                dims=("sample", "date", *non_date_dims[name]),
-                coords={"date": window_dates},
+                dims=("sample", "date", *dims),
+                coords={
+                    "date": window_dates,
+                    **{dim: coords[dim] for dim in dims if dim in coords},
+                },
             )
 
         channel_delta = delta(CHANNEL_CONTRIBUTION)
@@ -5210,17 +5223,19 @@ class Incrementality:
         """
         dates = self.data.dates
         custom_dims = list(self.model.dims)
-        # The values are laid out by position along the channel data the
-        # baseline was evaluated on, so its labels are the ones they carry --
-        # for ``channel`` as for the custom dims, so one array decides both the
-        # values and their labels.  Not ``fit_data``'s: ``create_fit_data``
-        # sorts those, while a model built from an ``xr.Dataset`` keeps the
-        # Dataset's order (#3212).  The values follow the model's order; the
-        # custom dims go back to the order of ``constant_data`` below, which is
-        # the order callers see.
+        # The evaluator computed every node in the model's label order, so the
+        # change in the linear predictor is labeled with the model's coords:
+        # the channel data the baseline was evaluated on is in that order.  The
+        # reducer's inputs come from ``idata`` in whatever order it stores them,
+        # and xarray pairs them with the change by label.  The result then takes
+        # its labels from the reduced increment itself, never by position, and
+        # the custom dims go back to the order of ``constant_data`` below, which
+        # is the order callers see.
         channel_data = self._channel_data_in_model_order()
-        channels = channel_data.coords["channel"].values.tolist()
-        custom_coords = {dim: channel_data.coords[dim].values for dim in custom_dims}
+        model_coords = {
+            dim: channel_data.coords[dim].values for dim in ["channel", *custom_dims]
+        }
+        channels = model_coords["channel"].tolist()
         data_order = self.data.get_channel_data()
         reported_order = {dim: data_order.coords[dim].values for dim in custom_dims}
         out_dims = ["channel", *custom_dims] if scope == "per_channel" else custom_dims
@@ -5257,6 +5272,7 @@ class Incrementality:
                     baseline=period_baseline,
                     counterfactual=counterfactual,
                     non_date_dims=non_date_dims,
+                    coords=model_coords,
                     effect_names=effect_names,
                     channel=channel,
                 )
@@ -5292,10 +5308,10 @@ class Incrementality:
             coords: dict = {
                 "chain": np.arange(n_chains),
                 "draw": np.arange(n_draws),
-                **custom_coords,
+                # A labeled product keeps its first operand's order, which may
+                # be the reducer input's, so the labels are read off the result.
+                **{dim: increment.coords[dim].values for dim in out_dims},
             }
-            if scope == "per_channel":
-                coords["channel"] = channels
 
             if keep_date_axis:
                 band = xr.DataArray(

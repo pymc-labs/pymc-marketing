@@ -600,9 +600,8 @@ def non_after_fitted_mmm(request, simple_mmm_data):
     return mmm
 
 
-@pytest.fixture(scope="module")
-def dataset_ordered_panel_fitted_mmm():
-    """A panel MMM whose ``geo`` coordinate is not in sorted order (#3212).
+def _fit_dataset_ordered_panel_mmm(**model_kwargs):
+    """Fit a panel MMM whose ``geo`` coordinate is not in sorted order (#3212).
 
     A ``DataFrame`` input is sorted on the way into the model, so only a model
     built from an ``xr.Dataset`` keeps an unsorted coordinate, while
@@ -613,7 +612,8 @@ def dataset_ordered_panel_fitted_mmm():
     Fitted like :func:`tests.mmm.conftest.mock_fit`, which cannot be reused
     here: it builds the model and ``fit_data`` from the same ``X``, while this
     fixture needs a model built from the Dataset and a ``fit_data`` built from
-    the sorted DataFrame.
+    the sorted DataFrame.  ``model_kwargs`` override the MMM's defaults (a
+    ``LogisticSaturation`` under the identity link).
     """
     rng = np.random.default_rng(3212)
     dates = pd.date_range("2024-01-01", periods=16, freq="W-MON")
@@ -637,17 +637,23 @@ def dataset_ordered_panel_fitted_mmm():
     X = media.to_dataset("channel").to_dataframe().reset_index()
     y = target.rename("target").to_series()
 
-    mmm = MMM(
-        date_column="date",
-        channel_columns=channels,
-        target_column="target",
-        dims=("geo",),
-        adstock=GeometricAdstock(l_max=2),
-        saturation=LogisticSaturation(),
-    )
+    with warnings.catch_warnings():
+        # link="log" is flagged experimental.
+        warnings.simplefilter("ignore", UserWarning)
+        mmm = MMM(
+            date_column="date",
+            channel_columns=channels,
+            target_column="target",
+            dims=("geo",),
+            adstock=GeometricAdstock(l_max=2),
+            **{"saturation": LogisticSaturation(), **model_kwargs},
+        )
     mmm.build_model(X=xr.Dataset({"media": media, "target": target}))
     assert list(mmm.model.coords["geo"]) == geos
-    mmm.add_original_scale_contribution_variable(var=["channel_contribution"])
+    if mmm.link == "identity":
+        # Under the identity link the stored original-scale contribution
+        # summed over dates is the all-time zero-out increment.
+        mmm.add_original_scale_contribution_variable(var=["channel_contribution"])
     mmm._set_xarray_data(mmm.xarray_dataset, model=mmm.model)
     with mmm.model:
         idata = pm.sample_prior_predictive(draws=100, random_seed=rng)
@@ -663,6 +669,40 @@ def dataset_ordered_panel_fitted_mmm():
     mmm.idata = idata
     mmm.set_idata_attrs(idata=idata)
     return mmm
+
+
+@pytest.fixture(scope="module")
+def dataset_ordered_panel_fitted_mmm():
+    """A panel MMM with an unsorted ``geo`` coordinate and a scalar target scale."""
+    return _fit_dataset_ordered_panel_mmm()
+
+
+@pytest.fixture(scope="module")
+def per_geo_scaled_dataset_ordered_panel_fitted_mmm():
+    """The unsorted panel MMM with one target scale per geo.
+
+    The identity reducer multiplies every increment by the target scale, so
+    with a ``geo`` axis on the scale a geo paired with the other's scale is off
+    by the tenfold size difference.
+    """
+    mmm = _fit_dataset_ordered_panel_mmm(
+        scaling={
+            "target": {"method": "max", "dims": ()},
+            "channel": {"method": "max", "dims": ()},
+        }
+    )
+    assert mmm.model["target_scale"].type.ndim == 1
+    return mmm
+
+
+@pytest.fixture(scope="module")
+def log_link_dataset_ordered_panel_fitted_mmm():
+    """The unsorted panel MMM under a log link.
+
+    The log reducer weights every increment by the baseline response
+    ``mu_original_scale``, which carries a ``geo`` axis.
+    """
+    return _fit_dataset_ordered_panel_mmm(link="log", saturation=LogSaturation())
 
 
 class TestIncrementality:
@@ -765,19 +805,27 @@ class TestIncrementality:
 
         xr.testing.assert_allclose(roas, expected.transpose(*roas.dims), rtol=1e-8)
 
+    @pytest.mark.parametrize(
+        "model_fixture",
+        [
+            "dataset_ordered_panel_fitted_mmm",
+            "per_geo_scaled_dataset_ordered_panel_fitted_mmm",
+        ],
+    )
     def test_labels_pair_with_their_cells_after_save_and_load(
-        self, dataset_ordered_panel_fitted_mmm, tmp_path
+        self, request, model_fixture, tmp_path
     ):
         """A reloaded model labels each geo with its own increment (#3212).
 
-        ``MMM.load`` rebuilds the model from the sorted ``fit_data``, so the
-        reloaded model's coords are sorted while ``posterior`` and
-        ``constant_data`` keep the Dataset's order, which is the order the
-        increment is evaluated in.  Under this additive model the all-time
-        zero-out increment is the stored contribution summed over dates.
+        ``MMM.load`` rebuilds the model from ``fit_data``, whose labels are
+        sorted, while ``posterior`` and ``constant_data`` keep the Dataset's
+        order; the rebuilt model must read every draw and input with its own
+        geo, including a per-geo target scale.  Under this additive model the
+        all-time zero-out increment is the stored contribution summed over
+        dates.
         """
         path = tmp_path / "mmm.nc"
-        dataset_ordered_panel_fitted_mmm.save(str(path))
+        request.getfixturevalue(model_fixture).save(str(path))
         loaded = MMM.load(str(path))
         expected = loaded.idata.posterior["channel_contribution_original_scale"].sum(
             "date"
@@ -788,6 +836,91 @@ class TestIncrementality:
         )
 
         xr.testing.assert_allclose(result, expected.transpose(*result.dims), rtol=1e-8)
+
+    @pytest.mark.parametrize(
+        "model_fixture, call",
+        [
+            *[
+                ("log_link_dataset_ordered_panel_fitted_mmm", call)
+                for call in (
+                    "per_channel",
+                    "per_channel_mean",
+                    "marginal",
+                    "joint",
+                    "over_time",
+                )
+            ],
+            *[
+                ("per_geo_scaled_dataset_ordered_panel_fitted_mmm", call)
+                for call in (
+                    "per_channel",
+                    "joint",
+                    "over_time",
+                    "current_future",
+                    "allocation",
+                )
+            ],
+        ],
+    )
+    def test_a_reversed_panel_axis_in_idata_leaves_every_increment_unchanged(
+        self, request, model_fixture, call
+    ):
+        """Reversing ``geo`` in the posterior and ``constant_data`` changes no number.
+
+        The change in the linear predictor is evaluated in the model's ``geo``
+        order, while the reducer rescales it by inputs read from ``idata`` in
+        whatever order it stores them: ``mu_original_scale`` and the mean-scale
+        correction under the log link, the per-geo target scale under the
+        identity link.  Each geo must meet its own inputs, on every route that
+        reduces a change: per channel, marginal, joint, per realization date,
+        current/future and allocation.  ``north`` is ten times ``east``, so a
+        positional pairing is an order of magnitude off.
+        """
+        mmm = request.getfixturevalue(model_fixture)
+        reversed_idata = mmm.idata.copy()
+        for group in ("posterior", "constant_data"):
+            reversed_idata[group] = xr.DataTree(
+                reversed_idata[group].to_dataset().isel(geo=[1, 0])
+            )
+        calls = {
+            "per_channel": lambda incr: incr.compute_incremental_contribution(
+                frequency="all_time"
+            ),
+            "per_channel_mean": lambda incr: incr.compute_incremental_contribution(
+                frequency="all_time", central_tendency="mean"
+            ),
+            "marginal": lambda incr: incr.compute_incremental_contribution(
+                frequency="monthly", counterfactual_spend_factor=1.01
+            ),
+            "joint": lambda incr: incr.compute_joint_incremental_contribution(
+                frequency="all_time"
+            ),
+            "over_time": lambda incr: incr.split_incremental_contribution_over_time(
+                frequency="monthly"
+            ),
+            "current_future": (
+                lambda incr: incr.split_incremental_contribution_current_future(
+                    frequency="monthly"
+                )
+            ),
+            "allocation": lambda incr: incr.split_incremental_contribution_over_time(
+                frequency="monthly", estimand="allocation"
+            ),
+        }
+
+        expected = calls[call](mmm.incrementality)
+        result = calls[call](Incrementality(model=mmm, idata=reversed_idata))
+
+        assert list(result["geo"].values) == ["east", "north"]
+        # The current/future split is a Dataset whose variables share one layout.
+        layout = (
+            expected["current"] if isinstance(expected, xr.Dataset) else expected
+        ).dims
+        xr.testing.assert_allclose(
+            result.sel(geo=expected["geo"].values).transpose(*layout),
+            expected,
+            rtol=1e-8,
+        )
 
     def test_non_after_convolution_matches_full_axis_oracle(self, non_after_fitted_mmm):
         """The public API retains all leading kernel mass for one-date periods."""
