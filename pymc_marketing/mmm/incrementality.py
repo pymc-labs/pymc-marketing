@@ -5209,15 +5209,17 @@ class Incrementality:
             boolean ``observed`` coordinate on ``realization_date``.
         """
         dates = self.data.dates
-        channels = list(self.model.channel_columns)
         custom_dims = list(self.model.dims)
         # The values are laid out by position along the channel data the
-        # baseline was evaluated on, so its labels are the ones they carry.
-        # Not ``fit_data``'s: ``create_fit_data`` sorts those, while a model
-        # built from an ``xr.Dataset`` keeps the Dataset's order (#3212).
-        # The values follow the model's order; the result goes back to the
-        # order of ``constant_data`` below, which is the order callers see.
+        # baseline was evaluated on, so its labels are the ones they carry --
+        # for ``channel`` as for the custom dims, so one array decides both the
+        # values and their labels.  Not ``fit_data``'s: ``create_fit_data``
+        # sorts those, while a model built from an ``xr.Dataset`` keeps the
+        # Dataset's order (#3212).  The values follow the model's order; the
+        # custom dims go back to the order of ``constant_data`` below, which is
+        # the order callers see.
         channel_data = self._channel_data_in_model_order()
+        channels = channel_data.coords["channel"].values.tolist()
         custom_coords = {dim: channel_data.coords[dim].values for dim in custom_dims}
         data_order = self.data.get_channel_data()
         reported_order = {dim: data_order.coords[dim].values for dim in custom_dims}
