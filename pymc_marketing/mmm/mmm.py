@@ -4763,11 +4763,7 @@ class MMM(RegressionModelBuilder):
         - The custom dimensions of the rebuilt model follow the label order of
             the posterior. Posterior draws are matched to the model by position,
             and a model fit from an ``xr.Dataset`` keeps the Dataset's order,
-            while the DataFrame built from ``fit_data`` is sorted. Prediction
-            input is still written into the model by position for custom
-            dimensions, so a model fit from a Dataset with unsorted labels must
-            be given input in the same label order (for example the same
-            Dataset layout) at prediction time.
+            while the DataFrame built from ``fit_data`` is sorted.
         - Restores lift-test calibration. Cost-per-target calibration is not
             currently restored because its input data are not saved.
 
