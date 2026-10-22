@@ -899,22 +899,26 @@ def reorder_to_model_coords(
 ) -> xr.Dataset:
     """Return ``posterior`` with each labeled non-sample dim in the model's order.
 
-    A graph reads draws by position in the model's coord order, so the model is
-    the reference layout.  A dim whose labels differ from the model's in value
-    or length -- a refit window, a thinned posterior -- is stored as given: no
-    graph has read it yet, and each graph validates its own variables.
+    A graph reads draws and data by position in the model's coord order, so the
+    model is the reference layout.  :class:`ConditionedModel` applies this to
+    every posterior it receives, and ``Incrementality`` to the channel data its
+    baseline is evaluated on.  A dim whose labels differ from the model's in
+    value or length -- a refit window, a thinned posterior -- is left as given,
+    for whatever reads it to validate.  ``chain`` and ``draw`` are never
+    reordered.
 
     Parameters
     ----------
     posterior : xr.Dataset
-        The posterior draws to reorder.
+        The draws, or any dataset over the model's dims, to reorder.
     model_coords : mapping
-        The coordinates of the conditioned model.
+        The coordinates of the model, such as ``pm.Model.coords``.
 
     Returns
     -------
     xr.Dataset
-        The draws, in the model's label order where that is unambiguous.
+        ``posterior`` in the model's label order on every dim whose labels
+        equal the model's (unique) labels as a set; other dims keep their order.
     """
     indexers: dict[str, pd.Index] = {}
     for name in posterior.sizes:
@@ -988,7 +992,7 @@ class CachedGraphs(NamedTuple):
 
 
 class OptionalBindingCheckpoint(NamedTuple):
-    """A private optional binding and shallow copies of its registries."""
+    """An optional extraction's own binding and shallow copies of its registries."""
 
     binding: SharedPosterior
     variables: dict[str, SharedVariable]
@@ -1347,9 +1351,12 @@ class ConditionedModel:
         that compiled functions from the graphs and must roll those back
         together with the binding -- as ``BudgetOptimizer.set_posterior`` does
         -- takes a checkpoint before the rebind and passes it to :meth:`restore`
-        on failure.  The cache and the registries are shallow-copied, so this is
-        cheap.  The posterior dataset is held by reference: a restore writes its
-        draws back through the shared variables instead of replacing them.
+        on failure.  Graphs extracted after the checkpoint are not part of it:
+        after a :meth:`restore` they no longer follow rebinds, so the consumer
+        discards whatever it compiled from them, as ``BudgetOptimizer`` does.
+        The cache and the registries are shallow-copied, so this is cheap.  The
+        posterior dataset is held by reference: a restore writes its draws back
+        through the shared variables instead of replacing them.
 
         Returns
         -------
@@ -1391,7 +1398,10 @@ class ConditionedModel:
         ----------
         token : ConditionedModelCheckpoint
             The token returned by this object's :meth:`checkpoint`.  A token
-            from another instance is not detected and must not be passed.
+            from another instance is not detected and must not be passed.  The
+            cache and registries go back to the token's, so a graph extracted
+            after the checkpoint loses its binding and keeps its last draws on
+            every later rebind; re-extract it instead of reusing it.
         """
         self._cache = token.cache.copy()
         self._posterior = token.posterior
