@@ -22,6 +22,7 @@ from pymc.distributions.shape_utils import rv_size_is_none
 from pytensor import scan
 from pytensor.graph import vectorize_graph
 from pytensor.tensor.random.op import RandomVariable
+from scipy.special import gammainc, gammaincinv
 
 __all__ = [
     "BetaGeoBetaBinom",
@@ -394,30 +395,43 @@ class BetaGeoNBDRV(RandomVariable):
         alpha = np.broadcast_to(alpha, size)
         T = np.broadcast_to(T, size)
 
-        output = np.zeros(shape=size + (2,))  # noqa:RUF005
-
         lam = rng.gamma(shape=r, scale=1 / alpha, size=size)
         p = rng.beta(a=a, b=b, size=size)
 
-        def sim_data(lam, p, T):
-            t = 0  # recency
-            n = 0  # frequency
+        # rng.geometric requires p in (0, 1], but Beta can underflow to 0.0
+        p_safe = np.clip(p, np.finfo(np.float64).tiny, 1.0)
 
-            churn = 0  # BG/NBD assumes all non-repeat customers are active
-            wait = rng.exponential(scale=1 / lam)
+        # Exact sampling identity for the BG/NBD process: the purchase count is
+        # X = min(K, N_T), where K ~ Geometric(p) is the churn-limited count
+        # and N_T ~ Poisson(lam * T) the time-limited one. The recency is the
+        # arrival time of the X-th purchase, which is:
+        #   * churn-limited (K <= N_T): an Erlang(K, lam) truncated to [0, T),
+        #     sampled exactly by inverse CDF
+        #   * time-limited (K > N_T): the maximum of N_T Uniform(0, T) order
+        #     statistics, i.e. T * Beta(N_T, 1)
+        #   * X == 0 implies recency == 0
+        K = rng.geometric(p_safe, size=size)
+        N_T = rng.poisson(lam * T, size=size)
+        X = np.minimum(K, N_T)
 
-            while t + wait < T and not churn:
-                churn = rng.random() < p
-                n += 1
-                t += wait
-                wait = rng.exponential(scale=1 / lam)
+        u = rng.random(size=size)
+        recency = np.zeros(size, dtype=np.float64)
 
-            return np.array([t, n])
+        churn_limited = (K <= N_T) & (X > 0)
+        if np.any(churn_limited):
+            K_churn = np.maximum(K[churn_limited], 1)
+            cdf_T = gammainc(K_churn, (lam * T)[churn_limited])
+            recency[churn_limited] = (
+                gammaincinv(K_churn, u[churn_limited] * cdf_T) / lam[churn_limited]
+            )
 
-        for index in np.ndindex(*size):
-            output[index] = sim_data(lam[index], p[index], T[index])
+        time_limited = (K > N_T) & (X > 0)
+        if np.any(time_limited):
+            recency[time_limited] = T[time_limited] * rng.beta(
+                np.maximum(N_T[time_limited], 1), 1.0
+            )
 
-        return output
+        return np.stack([recency, X], axis=-1)
 
 
 bg_nbd = BetaGeoNBDRV()
