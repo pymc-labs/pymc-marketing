@@ -53,14 +53,13 @@ from pymc_marketing.mmm import (
     WeibullPDFAdstock,
 )
 from pymc_marketing.mmm import incrementality as incrementality_module
+from pymc_marketing.mmm._evaluator_cache import EvaluatorCache
 from pymc_marketing.mmm.additive_effect import IncrementalitySpec
 from pymc_marketing.mmm.counterfactual import (
     CounterfactualEvaluator,
     EvaluationWindows,
 )
 from pymc_marketing.mmm.incrementality import (
-    EVALUATOR_CACHE_ATTR,
-    EvaluatorCache,
     IdentityLinkReducer,
     Incrementality,
     IncrementalReducer,
@@ -6604,13 +6603,13 @@ class TestEvaluatorCache:
 
     @pytest.fixture
     def constructed(self, monkeypatch):
-        """Patch the evaluator global so each construction is recorded."""
+        """Patch the evaluator global so each construction's arguments are recorded."""
         calls = []
         real = incrementality_module.CounterfactualEvaluator
 
         class CountingEvaluator(real):
             def __init__(self, *args, **kwargs):
-                calls.append(1)
+                calls.append(kwargs)
                 super().__init__(*args, **kwargs)
 
         monkeypatch.setattr(
@@ -6773,14 +6772,14 @@ class TestEvaluatorCache:
     ):
         """``idata`` is fixed for the instance, so two requests hash it once."""
         calls = []
-        real = incrementality_module._constant_data_fingerprint
+        real = incrementality_module.constant_data_fingerprint
 
         def counting(idata):
             calls.append(1)
             return real(idata)
 
         monkeypatch.setattr(
-            incrementality_module, "_constant_data_fingerprint", counting
+            incrementality_module, "constant_data_fingerprint", counting
         )
 
         incr = simple_fitted_mmm.incrementality
@@ -6928,45 +6927,45 @@ class TestEvaluatorCache:
         xr.testing.assert_allclose(pipeline, fresh)
         xr.testing.assert_allclose(closed, pipeline)
 
-    def test_rebuild_clears_the_cache(self, simple_fitted_mmm, simple_mmm_data):
-        """build_model drops the compiled evaluators."""
+    def test_rebuild_clears_the_cache(
+        self, simple_fitted_mmm, simple_mmm_data, constructed
+    ):
+        """build_model drops the compiled evaluators, so the next call compiles again."""
         mmm = simple_fitted_mmm
         mmm.incrementality.compute_incremental_contribution(frequency="all_time")
-        assert len(getattr(mmm, EVALUATOR_CACHE_ATTR)) == 1
+        mmm.incrementality.compute_incremental_contribution(frequency="all_time")
+        assert len(constructed) == 1
 
         mmm.build_model(simple_mmm_data["X"], simple_mmm_data["y"])
+        mmm.incrementality.compute_incremental_contribution(frequency="all_time")
 
-        assert getattr(mmm, EVALUATOR_CACHE_ATTR, None) is None
+        assert len(constructed) == 2
 
-    def test_deepcopy_drops_the_cache_and_still_computes(self, simple_fitted_mmm):
-        """A deep-copied MMM starts with an empty cache and recomputes the same increments."""
+    def test_deepcopy_drops_the_cache_and_still_computes(
+        self, simple_fitted_mmm, constructed
+    ):
+        """A deep-copied MMM compiles its own evaluator and recomputes the same increments."""
         mmm = simple_fitted_mmm
         result = mmm.incrementality.compute_incremental_contribution(
             frequency="all_time", num_samples=50, random_state=np.random.default_rng(7)
         )
-        assert len(getattr(mmm, EVALUATOR_CACHE_ATTR)) == 1
+        assert len(constructed) == 1
 
         clone = copy.deepcopy(mmm)
-
-        assert len(getattr(clone, EVALUATOR_CACHE_ATTR)) == 0
-
         cloned = clone.incrementality.compute_incremental_contribution(
             frequency="all_time", num_samples=50, random_state=np.random.default_rng(7)
         )
+
+        assert len(constructed) == 2
         xr.testing.assert_allclose(cloned, result)
 
     def test_different_data_build_two_evaluators(self, simple_fitted_mmm, constructed):
-        """Two Incrementality objects over different data key apart and each build their own evaluator."""
+        """Two Incrementality objects over different data each build their own evaluator."""
         mmm = simple_fitted_mmm
-        response = ["channel_contribution"]
-        original_key = mmm.incrementality._evaluator_cache_key(response)
-
         mmm.incrementality.compute_incremental_contribution(frequency="all_time")
         assert len(constructed) == 1
 
         other = Incrementality(model=mmm, idata=self._idata_with_offset(mmm, 1))
-        assert other._evaluator_cache_key(response) != original_key
-
         other.compute_incremental_contribution(frequency="all_time")
 
         assert len(constructed) == 2
@@ -7011,33 +7010,40 @@ class TestEvaluatorCache:
                 pm.set_data({"lf_budget": original})
 
     def test_the_cached_evaluator_holds_only_the_variables_its_graphs_read(
-        self, simple_fitted_mmm
+        self, simple_fitted_mmm, constructed, monkeypatch
     ):
-        """A cached evaluator keeps the draws it reads, not the whole subsample.
+        """A cached evaluator is handed the draws it reads, not the whole subsample.
 
         The evaluator lives in the MMM's cache for as long as the entry survives,
         so holding the subsample it was conditioned on would pin every large
         deterministic -- ``channel_contribution`` among them -- although the
-        graphs are evaluated against it, not from it.
+        graphs are evaluated against it, not from it.  Both the posterior it is
+        built on and the one a cache hit rebinds it to are checked.
         """
         mmm = simple_fitted_mmm
-        incr = mmm.incrementality
-        incr.compute_incremental_contribution(
-            frequency="all_time", num_samples=50, random_state=np.random.default_rng(3)
-        )
+        rebound = []
+        real = CounterfactualEvaluator.set_posterior
 
-        cache = getattr(mmm, EVALUATOR_CACHE_ATTR)
-        evaluator = cache.get(incr._evaluator_cache_key(["channel_contribution"]))
-        assert evaluator is not None
-        held = set(evaluator._conditioned.posterior.data_vars)
+        def recording(self, idata):
+            rebound.append(idata)
+            return real(self, idata)
+
+        monkeypatch.setattr(CounterfactualEvaluator, "set_posterior", recording)
+        for seed in (3, 4):
+            mmm.incrementality.compute_incremental_contribution(
+                frequency="all_time",
+                num_samples=50,
+                random_state=np.random.default_rng(seed),
+            )
+
+        assert len(constructed) == 1
+        assert len(rebound) == 1
         read = {rv.name for rv in mmm.model.free_RVs} | set(mmm.frozen_deterministics)
-
-        assert held <= read
         assert "channel_contribution" in mmm.idata.posterior.data_vars
-        assert "channel_contribution" not in held
-        assert (
-            evaluator._conditioned.posterior.nbytes < mmm.idata.posterior.dataset.nbytes
-        )
+        for held in (constructed[0]["posterior"], rebound[0]):
+            assert set(held.data_vars) <= read
+            assert "channel_contribution" not in held.data_vars
+            assert held.sizes["draw"] == 50
 
     @pytest.mark.parametrize(
         "adstock",
@@ -7045,7 +7051,7 @@ class TestEvaluatorCache:
         ids=["no-adstock", "fixed-alpha"],
     )
     def test_a_graph_that_reads_no_draws_matches_the_oracle(
-        self, simple_mmm_data, adstock
+        self, simple_mmm_data, adstock, constructed
     ):
         """Fixed channel parameters leave the evaluator no posterior variable to read.
 
@@ -7081,10 +7087,8 @@ class TestEvaluatorCache:
             np.broadcast_to(expected.isel(chain=0, draw=0).values, rebound.shape),
             rtol=1e-8,
         )
-        cache = getattr(mmm, EVALUATOR_CACHE_ATTR)
-        evaluator = cache.get(incr._evaluator_cache_key(["channel_contribution"]))
-        assert evaluator is not None
-        assert not evaluator._conditioned.posterior.data_vars
+        assert len(constructed) == 1
+        assert not constructed[0]["posterior"].data_vars
 
     def test_a_leased_entry_is_out_of_the_cache_until_released(self):
         """A second request on a leased key misses rather than sharing it."""
@@ -7114,27 +7118,29 @@ class TestEvaluatorCache:
         ["set_posterior", "evaluate_baseline", "evaluate_counterfactual"],
     )
     def test_a_failed_call_returns_the_evaluator_to_the_cache(
-        self, simple_fitted_mmm, monkeypatch, failing_method
+        self, simple_fitted_mmm, monkeypatch, failing_method, constructed
     ):
-        """The lease ends in a ``finally``, so a raising call leaves a warm cache."""
+        """The lease ends in a ``finally``, so a raising call leaves a warm cache.
+
+        The call after the failure is a hit: nothing is compiled again.
+        """
         mmm = simple_fitted_mmm
         incr = mmm.incrementality
         # Warm the cache, so the failing call below is a hit that rebinds.
-        incr.compute_incremental_contribution(frequency="all_time")
+        expected = incr.compute_incremental_contribution(frequency="all_time")
 
         def failing(*args, **kwargs):
             raise RuntimeError("evaluation failed")
 
-        monkeypatch.setattr(CounterfactualEvaluator, failing_method, failing)
+        with monkeypatch.context() as patch:
+            patch.setattr(CounterfactualEvaluator, failing_method, failing)
+            with pytest.raises(RuntimeError, match="evaluation failed"):
+                incr.compute_incremental_contribution(frequency="all_time")
 
-        with pytest.raises(RuntimeError, match="evaluation failed"):
-            incr.compute_incremental_contribution(frequency="all_time")
+        result = incr.compute_incremental_contribution(frequency="all_time")
 
-        cache = getattr(mmm, EVALUATOR_CACHE_ATTR)
-        assert len(cache) == 1
-        assert (
-            cache.get(incr._evaluator_cache_key(["channel_contribution"])) is not None
-        )
+        assert len(constructed) == 1
+        xr.testing.assert_allclose(result, expected)
 
 
 @pytest.fixture

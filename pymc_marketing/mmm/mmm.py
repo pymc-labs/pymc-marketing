@@ -209,6 +209,7 @@ from pymc_marketing.data.idata.utils import (
 )
 from pymc_marketing.hsgp_kwargs import HSGPKwargs
 from pymc_marketing.mmm import SoftPlusHSGP
+from pymc_marketing.mmm._evaluator_cache import EvaluatorCache
 from pymc_marketing.mmm.additive_effect import (
     EventAdditiveEffect,
     MuEffect,
@@ -231,10 +232,7 @@ from pymc_marketing.mmm.dims import XTensorLike
 from pymc_marketing.mmm.events import EventEffect
 from pymc_marketing.mmm.fourier import YearlyFourier
 from pymc_marketing.mmm.hsgp import HSGPBase
-from pymc_marketing.mmm.incrementality import (
-    EVALUATOR_CACHE_ATTR,
-    Incrementality,
-)
+from pymc_marketing.mmm.incrementality import Incrementality
 from pymc_marketing.mmm.lift_test import (
     _resolve_likelihood,
     add_cost_per_target_observations,
@@ -299,6 +297,13 @@ def _deserialize_cost_per_unit(json_str: str) -> pd.DataFrame:
         if hasattr(dt_accessor, "tz") and dt_accessor.tz is not None:
             df["date"] = dt_accessor.tz_localize(None)
     return df
+
+
+_EVALUATOR_CACHE_ATTR = "_incrementality_evaluators"
+"""Instance attribute holding the compiled incrementality evaluators of an MMM.
+
+Not the accessor's own name, which the stored cache would shadow.
+"""
 
 
 class _WindowLayout(NamedTuple):
@@ -4004,14 +4009,27 @@ class MMM(RegressionModelBuilder):
         self._validate_idata_exists()
         return Incrementality(model=self, idata=self.idata)
 
+    def _incrementality_evaluator_cache(self) -> EvaluatorCache:
+        """Return the cache of compiled incrementality evaluators, creating it on first use.
+
+        Every :class:`~pymc_marketing.mmm.incrementality.Incrementality` built on
+        this model shares it.  It is never serialized, starts empty on a copy,
+        and :meth:`_clear_incrementality_evaluator_cache` drops it.  Creation
+        goes through ``dict.setdefault``, so two threads making the first call
+        at once still share one cache.
+        """
+        cache = self.__dict__.get(_EVALUATOR_CACHE_ATTR)
+        if cache is None:
+            cache = self.__dict__.setdefault(_EVALUATOR_CACHE_ATTR, EvaluatorCache())
+        return cache
+
     def _clear_incrementality_evaluator_cache(self) -> None:
         """Drop every compiled incrementality evaluator.
 
         A rebuild or refit invalidates the compiled graphs and the fit-time values they were built against.
         A later incrementality call then compiles a fresh evaluator.
-        The slot itself is created lazily by :class:`~pymc_marketing.mmm.incrementality.Incrementality`.
         """
-        self.__dict__.pop(EVALUATOR_CACHE_ATTR, None)
+        self.__dict__.pop(_EVALUATOR_CACHE_ATTR, None)
 
     def _make_channel_transform(
         self, df_lift_test: pd.DataFrame

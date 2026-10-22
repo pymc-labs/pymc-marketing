@@ -63,7 +63,11 @@ def get_package_modules(package_dir: Path) -> set[str]:
         if item.is_file() and item.suffix == ".py":
             if item.resolve() in tracked:
                 module_name = item.stem
-                if module_name not in EXCLUDE_MODULES:
+                # A private module is not public API; Sphinx's autosummary
+                # skips it too.
+                if module_name not in EXCLUDE_MODULES and not module_name.startswith(
+                    "_"
+                ):
                     modules.add(module_name)
 
         # Find all subdirectories with __init__.py (subpackages)

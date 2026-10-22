@@ -229,27 +229,33 @@ Google MMM Paper: https://storage.googleapis.com/gweb-research2023-media/pubtool
 
 from __future__ import annotations
 
-import hashlib
 import json
 import logging
-import threading
 import warnings
 from abc import ABC, abstractmethod
-from collections import OrderedDict
 from collections.abc import Callable, Iterator, Mapping, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass
 from functools import cached_property, partial
-from typing import TYPE_CHECKING, Any, Literal, NamedTuple, cast
+from typing import TYPE_CHECKING, Any, Literal, cast
 
 import numpy as np
 import pandas as pd
 import xarray as xr
 from pydantic import ConfigDict, validate_call
 
+from pymc_marketing._conditioning import (
+    needed_posterior_names,
+    reorder_to_model_coords,
+)
 from pymc_marketing.data.idata.mmm_wrapper import MMMIDataWrapper
 from pymc_marketing.data.idata.schema import Frequency
 from pymc_marketing.data.idata.utils import subsample_draws
+from pymc_marketing.mmm._evaluator_cache import (
+    EvaluatorCacheKey,
+    EvaluatorLease,
+    constant_data_fingerprint,
+)
 from pymc_marketing.mmm.components.adstock import (
     BinomialAdstock,
     DelayedAdstock,
@@ -273,10 +279,6 @@ from pymc_marketing.mmm.spend_reach import (
     resolve_channel_dependent_effects,
 )
 from pymc_marketing.mmm.transformers import ConvMode
-from pymc_marketing.pytensor_utils import (
-    needed_posterior_names,
-    reorder_to_model_coords,
-)
 
 if TYPE_CHECKING:
     from numpy.random import Generator, RandomState
@@ -1063,213 +1065,6 @@ class ClosedFormInputs:
     prepared: PreparedEvaluation
     saturated: xr.DataArray
     labels: dict
-
-
-EVALUATOR_CACHE_ATTR = "_incrementality_evaluator_cache"
-"""Name of the attribute that holds the compiled-evaluator cache."""
-
-
-class EvaluatorCacheKey(NamedTuple):
-    """Identity of a compiled counterfactual evaluator.
-
-    Structural fields pick the compiled graph; ``dates`` and ``data_fingerprint`` pick the data it was built and
-    checked against, so two wrappers over different data never share an entry.
-    """
-
-    response_vars: tuple[str | Variable, ...]
-    intervention_target: str
-    intervention_mode: str
-    frozen_deterministics: tuple[str, ...]
-    dates: tuple
-    data_fingerprint: tuple | None
-
-
-def _constant_data_fingerprint(idata: xr.DataTree) -> tuple | None:
-    """Return a content fingerprint of a DataTree's fit-time ``constant_data``.
-
-    Each ``constant_data`` variable is compared by name, shape, dtype and a 16-byte BLAKE2b digest of its values.
-    Since ``channel_data`` is included, wrappers differing only in it compile separately, while the summary factory
-    and ``MMM.incrementality`` share an entry because they wrap one fit-time dataset.
-
-    Parameters
-    ----------
-    idata : xr.DataTree
-        Fitted inference data whose ``constant_data`` group is fingerprinted when present.
-
-    Returns
-    -------
-    tuple or None
-        One ``(name, shape, dtype, digest)`` entry per data variable.
-        ``None`` when ``idata`` has no ``constant_data`` group.
-    """
-    constant_data = getattr(idata, "constant_data", None)
-    if constant_data is None:
-        return None
-    entries = []
-    for name in sorted(constant_data.data_vars):
-        values = np.asarray(constant_data[name].values)
-        # A label array's buffer holds pointers rather than content, so hash its text; numeric arrays hash
-        # directly.
-        payload = (
-            repr(values.tolist()).encode()
-            if values.dtype.hasobject
-            else np.ascontiguousarray(values).tobytes()
-        )
-        entries.append(
-            (
-                name,
-                values.shape,
-                values.dtype.str,
-                hashlib.blake2b(payload, digest_size=16).digest(),
-            )
-        )
-    return tuple(entries)
-
-
-class EvaluatorLease:
-    """One request's hold on a compiled evaluator, taken out of the cache.
-
-    A leased evaluator belongs to the request until :meth:`release`: nothing
-    else can rebind the shared draws under it, so a concurrent request misses
-    the cache and compiles or leases a copy of its own.  The evaluator is
-    returned to the cache when the request is done, also when it raises.
-
-    Parameters
-    ----------
-    cache : EvaluatorCache
-        The cache it was taken from and is returned to.
-    key : EvaluatorCacheKey
-        The identity it is cached under.
-    evaluator : CounterfactualEvaluator
-        The compiled evaluator.
-    cached : bool
-        Whether it was taken from the cache rather than built for this request.
-    """
-
-    def __init__(
-        self,
-        cache: EvaluatorCache,
-        key: EvaluatorCacheKey,
-        evaluator: CounterfactualEvaluator,
-        *,
-        cached: bool,
-    ) -> None:
-        self._cache = cache
-        self._key = key
-        self._evaluator = evaluator
-        self.cached = cached
-        self._released = False
-
-    @property
-    def evaluator(self) -> CounterfactualEvaluator:
-        """The compiled evaluator this lease holds."""
-        return self._evaluator
-
-    def release(self) -> None:
-        """Return the evaluator to the cache, once.
-
-        Releasing twice is a no-op, so both a failure path and the caller's
-        ``finally`` may release.  If the cache already holds an evaluator for
-        this key -- another request finished first -- one is kept and the LRU
-        stays bounded.
-        """
-        if self._released:
-            return
-        self._released = True
-        self._cache.put(self._key, self._evaluator)
-
-
-class EvaluatorCache:
-    """Bounded LRU cache of compiled counterfactual evaluators.
-
-    A fitted MMM keeps one so its :class:`Incrementality` objects reuse compiled evaluators, keyed by graph shape and
-    dataset, so repeated questions pay one compile.
-    The cache is bounded so a model cannot pin an unbounded number of compiled functions, and it is never serialized
-    because compiled functions only make sense in-process.
-    A request leases an evaluator for its duration: :meth:`lease` takes the entry out of the cache and the request
-    returns it in a ``finally``.  Concurrent requests on one model never share the shared draws an evaluator
-    is rebound to -- one of them misses the cache and compiles or leases its own -- and no request waits on another.
-    A lock guards only the dictionary bookkeeping, never an evaluation.
-    An entry whose evaluator reads a source input replaced after its build is rebuilt rather than leased.
-
-    Parameters
-    ----------
-    max_entries : int, default 4
-        Number of evaluators kept before the least recently used is evicted.
-    """
-
-    def __init__(self, max_entries: int = 4) -> None:
-        self._max_entries = max_entries
-        self._entries: OrderedDict[EvaluatorCacheKey, CounterfactualEvaluator] = (
-            OrderedDict()
-        )
-        # Guards only the dictionary bookkeeping, never a request: a release must not
-        # fail because another thread evicted its key between two dict operations.
-        self._lock = threading.Lock()
-
-    def get(self, key: EvaluatorCacheKey) -> CounterfactualEvaluator | None:
-        """Return the evaluator cached under ``key``, marking it most recent."""
-        with self._lock:
-            evaluator = self._entries.get(key)
-            if evaluator is not None:
-                self._entries.move_to_end(key)
-            return evaluator
-
-    def put(self, key: EvaluatorCacheKey, evaluator: CounterfactualEvaluator) -> None:
-        """Store ``evaluator`` under ``key``, evicting the least recent entry."""
-        with self._lock:
-            self._entries[key] = evaluator
-            self._entries.move_to_end(key)
-            while len(self._entries) > self._max_entries:
-                self._entries.popitem(last=False)
-
-    def lease(
-        self,
-        key: EvaluatorCacheKey,
-        factory: Callable[[], CounterfactualEvaluator],
-    ) -> EvaluatorLease:
-        """Take the evaluator cached under ``key``, building one on a miss.
-
-        The entry is removed from the cache and stays out until the lease is
-        released, so a second request for the same key does not find it and
-        builds its own instead of sharing draws with the first.  A cached
-        evaluator that reads a source input replaced since it was built is
-        treated as a miss: the compiled graphs hold the old buffer, so the
-        factory rebuilds it.
-
-        Parameters
-        ----------
-        key : EvaluatorCacheKey
-            Identity to look up.
-        factory : callable
-            Builds the evaluator when the key is absent or stale.
-
-        Returns
-        -------
-        EvaluatorLease
-            The evaluator and whether it came from the cache.  A caller that
-            rebinds a cached evaluator to new draws needs to know the
-            difference: a freshly built one is already conditioned on the draws
-            it was asked for.
-        """
-        with self._lock:
-            evaluator = self._entries.pop(key, None)
-        if evaluator is not None and not evaluator.is_stale():
-            return EvaluatorLease(self, key, evaluator, cached=True)
-        return EvaluatorLease(self, key, factory(), cached=False)
-
-    def __len__(self) -> int:
-        return len(self._entries)
-
-    def __getstate__(self) -> dict[str, int]:
-        """Skip the compiled evaluators when the owning model is pickled."""
-        return {"_max_entries": self._max_entries}
-
-    def __setstate__(self, state: dict[str, int]) -> None:
-        """Restore `max_entries` with an empty cache."""
-        self._max_entries = state["_max_entries"]
-        self._entries = OrderedDict()
-        self._lock = threading.Lock()
 
 
 class Incrementality:
@@ -4381,7 +4176,7 @@ class Incrementality:
         ``idata`` is fixed for the life of an ``Incrementality`` object.
         Hashing every variable on every request would only repeat the same work.
         """
-        return _constant_data_fingerprint(self.idata)
+        return constant_data_fingerprint(self.idata)
 
     def _evaluator_cache_key(
         self, response_vars: Sequence[str | Variable]
@@ -4394,24 +4189,35 @@ class Incrementality:
         Parameters
         ----------
         response_vars : sequence of str or Variable
-            Responses in order.
-            A node is keyed by its name if it has one, otherwise by the node itself (hashed by identity).
+            Responses in order.  A node is keyed by its name, which is how the
+            evaluator resolves it against its intervened clone.
 
         Returns
         -------
         EvaluatorCacheKey
             Identity the evaluator is cached under.
+
+        Raises
+        ------
+        ValueError
+            If a response node has no name, which the evaluator could not
+            resolve either.
         """
-        dates = self.data.dates
+        names = tuple(
+            var if isinstance(var, str) else var.name for var in response_vars
+        )
+        unnamed = [position for position, name in enumerate(names) if name is None]
+        if unnamed:
+            raise ValueError(
+                f"Response variables at positions {unnamed} have no name; the "
+                "evaluator resolves responses by name."
+            )
         return EvaluatorCacheKey(
-            response_vars=tuple(
-                var if isinstance(var, str) else (var.name or var)
-                for var in response_vars
-            ),
+            response_vars=cast(tuple[str, ...], names),
             intervention_target=CounterfactualEvaluator.CHANNEL_DATA,
             intervention_mode="replace",
             frozen_deterministics=tuple(self.model.frozen_deterministics),
-            dates=tuple(dates),
+            dates=tuple(self.data.dates),
             data_fingerprint=self._data_fingerprint,
         )
 
@@ -4671,7 +4477,7 @@ class Incrementality:
                 else None
             ),
         )
-        cache = self.model.__dict__.setdefault(EVALUATOR_CACHE_ATTR, EvaluatorCache())
+        cache = self.model._incrementality_evaluator_cache()
         lease = cache.lease(self._evaluator_cache_key(response_vars), build_evaluator)
         evaluator = lease.evaluator
         # A hit carries the draws of the request that built it; a miss was just

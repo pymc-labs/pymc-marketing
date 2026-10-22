@@ -28,6 +28,13 @@ from pymc.model.fgraph import fgraph_from_model
 from pytensor import function, shared
 from pytensor.graph.traversal import ancestors
 
+from pymc_marketing._conditioning import (
+    VariableLayout,
+    align_posterior_dim,
+    check_aligned_dims,
+    check_aligned_shape,
+    non_sample_dims,
+)
 from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation
 from pymc_marketing.mmm.budget_optimizer import BudgetOptimizer
 from pymc_marketing.mmm.mmm import (
@@ -38,14 +45,9 @@ from pymc_marketing.pytensor_utils import (
     ConditionedModel,
     ModelSamplerEstimator,
     SharedPosterior,
-    VariableLayout,
     _prefix_model,
-    align_posterior_dim,
-    check_aligned_dims,
-    check_aligned_shape,
     extract_response_distribution,
     merge_models,
-    non_sample_dims,
     validate_unique_value_vars,
 )
 
