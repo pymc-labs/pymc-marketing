@@ -9120,11 +9120,11 @@ def test_fit_after_build_model_fails_partway_rebuilds(
     assert "y" in mmm.model.named_vars
 
 
-def test_refit_that_changes_target_scale_drops_prior(
+def test_refit_that_changes_target_scale_drops_original_scale_variables(
     lognormal_likelihood_data, mock_pymc_sample
 ):
-    # The prior was sampled with the old target scale, so its original-scale
-    # variables would be wrong after a fit that changes it.
+    # The prior was sampled with the old target scale, so only its
+    # original-scale variables are wrong after a fit that changes it.
     X, y = lognormal_likelihood_data
     mmm = _two_channel_mmm()
     mmm.build_model(X, y)
@@ -9132,27 +9132,35 @@ def test_refit_that_changes_target_scale_drops_prior(
     mmm.sample_prior_predictive(X, y, samples=10, random_seed=42)
 
     _fit(mmm, X, y)
-    assert "prior" in mmm.idata.children
+    assert "channel_contribution_original_scale" in mmm.idata.prior
 
     with pytest.warns(UserWarning, match="channel_contribution_original_scale"):
         _fit(mmm, X, 100 * y)
-    assert "prior" not in mmm.idata.children
+    assert "prior" in mmm.idata.children
+    assert "channel_contribution" in mmm.idata.prior
+    assert "channel_contribution_original_scale" not in mmm.idata.prior
+    assert "y_original_scale" not in mmm.idata.prior
 
 
-def test_fit_after_prior_predictive_without_y_warns_that_the_prior_is_dropped(
+def test_fit_after_prior_predictive_without_y_keeps_the_prior(
     lognormal_likelihood_data, mock_pymc_sample
 ):
     # Every MMM prior holds `total_media_contribution_original_scale`, which
-    # the placeholder target scale made wrong, so the fit with the real `y`
-    # drops the prior and says so.
+    # the placeholder target scale made wrong. The fit with the real `y` drops
+    # it and says so, and the rest of the prior is still usable.
     X, y = lognormal_likelihood_data
     mmm = _two_channel_mmm()
     mmm.sample_prior_predictive(X, samples=10, random_seed=42)
+    assert "total_media_contribution_original_scale" in mmm.idata.prior
 
     with pytest.warns(UserWarning, match="total_media_contribution_original_scale"):
         _fit(mmm, X, y)
 
-    assert "prior" not in mmm.idata.children
+    assert "prior" in mmm.idata.children
+    assert "prior_predictive" in mmm.idata.children
+    assert "total_media_contribution_original_scale" not in mmm.idata.prior
+    assert "channel_contribution" in mmm.idata.prior
+    mmm.data.get_predictive_target("prior")
 
 
 def test_prior_without_original_scale_vars_survives_a_scale_change():
@@ -9163,9 +9171,32 @@ def test_prior_without_original_scale_vars_survives_a_scale_change():
 
     with warnings.catch_warnings():
         warnings.simplefilter("error")
-        mmm._drop_prior_sampled_with_old_scale()
+        mmm._drop_original_scale_variables_from_prior()
 
     assert "prior" in mmm.idata.children
+
+
+def test_group_left_without_variables_is_removed_when_original_scale_variables_drop():
+    mmm = _two_channel_mmm()
+    mmm.idata = xr.DataTree.from_dict(
+        {
+            "prior": xr.Dataset(
+                {
+                    "intercept": ("sample", np.zeros(3)),
+                    "mu_original_scale": ("sample", np.zeros(3)),
+                }
+            ),
+            "prior_predictive": xr.Dataset(
+                {"y_original_scale": ("sample", np.zeros(3))}
+            ),
+        }
+    )
+
+    with pytest.warns(UserWarning, match="mu_original_scale.*y_original_scale"):
+        mmm._drop_original_scale_variables_from_prior()
+
+    assert list(mmm.idata.prior.data_vars) == ["intercept"]
+    assert "prior_predictive" not in mmm.idata.children
 
 
 def test_fit_with_new_X_and_no_y_raises_and_keeps_the_model(

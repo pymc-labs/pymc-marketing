@@ -2486,9 +2486,10 @@ class MMM(RegressionModelBuilder):
         :meth:`sample_prior_predictive` or an earlier ``fit``, it is rebuilt
         when the data in ``X`` differs from the data it was built on.
         Otherwise, the target passed here, as ``y`` or inside ``X``, replaces
-        the observed target and its scale. If that changes the target scale, a
-        prior in ``idata`` that holds ``*_original_scale`` variables is dropped
-        with a warning.
+        the observed target and its scale. If that changes the target scale, the
+        ``*_original_scale`` variables are dropped from the prior and prior
+        predictive groups of ``idata`` with a warning. The rest of the prior is
+        on the scaled space and is kept.
         """
         # A refit replaces the posterior and can move its coordinate labels, which
         # the evaluator's shared binding would refuse; build against it from scratch.
@@ -2567,40 +2568,44 @@ class MMM(RegressionModelBuilder):
                     "with this data, add the lift tests again, and then call "
                     "`fit`."
                 )
-            self._drop_prior_sampled_with_old_scale()
+            self._drop_original_scale_variables_from_prior()
 
         self.xarray_dataset["_target"] = target
         self.scalers["_target"] = target_scale
         self._set_xarray_data(dataset, model=self.model)
         pm.set_data({"target_scale": target_scale}, model=self.model)
 
-    def _drop_prior_sampled_with_old_scale(self) -> None:
-        """Drop ``idata`` when its prior holds original-scale variables.
+    def _drop_original_scale_variables_from_prior(self) -> None:
+        """Drop the ``*_original_scale`` variables from the prior in ``idata``.
 
-        Those variables multiply by the target scale, so a fit that changes
-        the scale leaves them wrong. A prior without them does not depend on
-        the scale and is kept.
+        Those variables multiply by the target scale, so a fit that changes the
+        scale leaves them wrong. The other prior variables are on the scaled
+        space and stay valid. A group left with no variables is removed.
         """
         if self.idata is None:
             return
-        stale = sorted(
-            {
-                name
-                for group in ("prior", "prior_predictive")
-                if group in self.idata.children
-                for name in self.idata[group].data_vars
-                if str(name).endswith("_original_scale")
-            }
-        )
-        if stale:
+        dropped: list[str] = []
+        for group in ("prior", "prior_predictive"):
+            if group not in self.idata.children:
+                continue
+            ds = self.idata[group].to_dataset()
+            stale = [n for n in ds.data_vars if str(n).endswith("_original_scale")]
+            if not stale:
+                continue
+            dropped.extend(str(n) for n in stale)
+            remaining = ds.drop_vars(stale)
+            if remaining.data_vars:
+                self.idata[group] = remaining
+            else:
+                del self.idata[group]
+        if dropped:
             warnings.warn(
-                "`fit` changed the target scale, so the prior in `idata` was "
-                f"dropped: {stale} were computed with the old scale. Call "
+                "`fit` changed the target scale, so these variables were dropped "
+                f"from the prior in `idata`: {sorted(set(dropped))}. Call "
                 "`sample_prior_predictive` again to get them.",
                 UserWarning,
                 stacklevel=4,
             )
-            self.idata = None
 
     def _validate_observed_target(
         self, target: xr.DataArray, target_scale: xr.DataArray
