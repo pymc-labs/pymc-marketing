@@ -483,6 +483,98 @@ def test_allocate_budget_custom_minimize_args(
     assert kwargs["options"] == minimize_kwargs["options"]
 
 
+@patch("pymc_marketing.mmm.budget_optimizer.minimize")
+def test_allocate_budget_partial_options_keep_default_maxiter(
+    minimize_mock,
+    mmm_wrapper,
+) -> None:
+    """Setting only ``ftol`` in ``options`` keeps the default iteration limit.
+
+    Without it, SLSQP falls back to SciPy's limit of 100 iterations.
+    """
+    optimizer = BudgetOptimizer(
+        model=mmm_wrapper,
+        num_periods=30,
+        response_variable="total_media_contribution_original_scale",
+    )
+
+    # The mocked minimize returns a Mock result.x, which fails the optimization
+    # variables' shape validation when unpacking -- after minimize was called.
+    with pytest.raises(ValueError, match=r"expected shape"):
+        optimizer.allocate_budget(
+            total_budget=100,
+            budget_bounds={"channel_1": (0.0, 50.0), "channel_2": (0.0, 50.0)},
+            minimize_kwargs={"options": {"ftol": 1e-6}},
+        )
+
+    options = minimize_mock.call_args.kwargs["options"]
+    assert options["ftol"] == 1e-6
+    assert (
+        options.get("maxiter")
+        == BudgetOptimizer.DEFAULT_MINIMIZE_KWARGS["options"]["maxiter"]
+    )
+
+
+@patch("pymc_marketing.mmm.budget_optimizer.minimize")
+def test_allocate_budget_tol_replaces_the_default_ftol(
+    minimize_mock,
+    mmm_wrapper,
+) -> None:
+    """A top-level ``tol`` reaches SLSQP instead of the default ``ftol``.
+
+    SciPy maps ``tol`` to ``ftol`` only when ``options`` has no ``ftol``.
+    """
+    optimizer = BudgetOptimizer(
+        model=mmm_wrapper,
+        num_periods=30,
+        response_variable="total_media_contribution_original_scale",
+    )
+
+    with pytest.raises(ValueError, match=r"expected shape"):
+        optimizer.allocate_budget(
+            total_budget=100,
+            budget_bounds={"channel_1": (0.0, 50.0), "channel_2": (0.0, 50.0)},
+            minimize_kwargs={"tol": 1e-6},
+        )
+
+    kwargs = minimize_mock.call_args.kwargs
+    assert kwargs["tol"] == 1e-6
+    assert "ftol" not in kwargs["options"]
+    assert (
+        kwargs["options"]["maxiter"]
+        == BudgetOptimizer.DEFAULT_MINIMIZE_KWARGS["options"]["maxiter"]
+    )
+
+
+@pytest.mark.filterwarnings("ignore:delta_grad == 0.0:UserWarning")
+def test_allocate_budget_with_another_scipy_method(mmm_wrapper):
+    """Choosing another SciPy method does not inherit SLSQP-only default options.
+
+    ``trust-constr`` takes no ``ftol`` option, so passing only ``method``
+    must still run with that method's own defaults.
+    """
+    optimizer = BudgetOptimizer(
+        model=mmm_wrapper,
+        num_periods=30,
+        response_variable="total_media_contribution_original_scale",
+    )
+    budget_bounds = {"channel_1": (0.0, 10.0), "channel_2": (0.0, 10.0)}
+
+    reference = optimizer.allocate_budget(
+        total_budget=10.0, budget_bounds=budget_bounds
+    )
+    result = optimizer.allocate_budget(
+        total_budget=10.0,
+        budget_bounds=budget_bounds,
+        minimize_kwargs={"method": "trust-constr"},
+    )
+
+    assert result.scipy_result.success
+    np.testing.assert_allclose(
+        result.budgets.values, reference.budgets.values, atol=1e-3
+    )
+
+
 @pytest.mark.parametrize(
     "total_budget, budget_bounds, parameters, constraints",
     [
@@ -2403,6 +2495,174 @@ def _scaled(posterior: xr.Dataset, beta_scale) -> xr.DataTree:
         saturation_beta=lambda ds: ds["saturation_beta"] * beta_scale
     )
     return xr.DataTree.from_dict({"/posterior": scaled})
+
+
+@pytest.mark.parametrize("unit_scale", [1e6, 1e8])
+def test_allocate_budget_is_invariant_to_response_units(
+    mmm_wrapper, dummy_idata, unit_scale
+):
+    """The default solver settings give the same allocation in any response units.
+
+    Multiplying ``saturation_beta`` by ``unit_scale`` multiplies the media
+    response, and so the objective, by that constant, as reporting the target
+    in dollars instead of millions of dollars would. The optimum does not move,
+    so the default ``minimize_kwargs`` must converge to it in both units and
+    report the objective, its gradient and, when SciPy reports them, the
+    multipliers in the rescaled units.
+    """
+    total_budget = 10.0
+    budget_bounds = {
+        "channel_1": (0.0, total_budget),
+        "channel_2": (0.0, total_budget),
+    }
+    posterior = dummy_idata["posterior"].to_dataset()
+
+    def optimizer_for(beta_scale):
+        return BudgetOptimizer(
+            model=CustomModelWrapper(
+                base_model=mmm_wrapper.base_model,
+                idata=_scaled(posterior, beta_scale),
+                channels=mmm_wrapper.channel_columns,
+            ),
+            num_periods=30,
+            response_variable="total_media_contribution_original_scale",
+        )
+
+    reference_optimizer = optimizer_for(1.0)
+    # A tight solve in the original units locates the optimum.
+    optimum = reference_optimizer.allocate_budget(
+        total_budget=total_budget,
+        budget_bounds=budget_bounds,
+        minimize_kwargs={"options": {"ftol": 1e-12}},
+    )
+    reference = reference_optimizer.allocate_budget(
+        total_budget=total_budget, budget_bounds=budget_bounds
+    )
+    rescaled = optimizer_for(unit_scale).allocate_budget(
+        total_budget=total_budget, budget_bounds=budget_bounds
+    )
+
+    np.testing.assert_allclose(
+        reference.budgets.values, optimum.budgets.values, atol=1e-3
+    )
+    np.testing.assert_allclose(
+        rescaled.budgets.values, reference.budgets.values, atol=1e-3
+    )
+    assert rescaled.scipy_result.fun == pytest.approx(
+        unit_scale * reference.scipy_result.fun, rel=1e-6
+    )
+    np.testing.assert_allclose(
+        rescaled.scipy_result.jac, unit_scale * reference.scipy_result.jac, rtol=1e-4
+    )
+    # SLSQP reports the KKT multipliers from SciPy 1.16.
+    if "multipliers" in reference.scipy_result:
+        np.testing.assert_allclose(
+            rescaled.scipy_result.multipliers,
+            unit_scale * reference.scipy_result.multipliers,
+            rtol=1e-4,
+        )
+
+
+def _steep_channel_optimizer() -> tuple[BudgetOptimizer, list[str]]:
+    """Optimizer where ``c1`` is about 1e5 times steeper than ``c2`` and ``c3`` at x0.
+
+    ``c1`` saturates on the way to the optimum, so the default solve rescales
+    the objective at ``x0`` and then solves once more from the first solution.
+    """
+    channels = ["c1", "c2", "c3"]
+    n_dates = 10
+    X = pd.DataFrame(
+        {
+            "date_week": pd.date_range("2024-01-01", periods=n_dates, freq="W"),
+            **{channel: np.linspace(0, 1, n_dates) for channel in channels},
+        }
+    )
+    mmm = MMM(
+        date_column="date_week",
+        channel_columns=channels,
+        adstock=GeometricAdstock(l_max=4),
+        saturation=LogisticSaturation(),
+    )
+    mmm.build_model(X=X, y=pd.Series(np.ones(n_dates), name="y"))
+    coords = {"chain": [0], "draw": [0], "channel": channels}
+    dims = ("chain", "draw", "channel")
+    posterior = xr.Dataset(
+        {
+            "saturation_lam": xr.DataArray(
+                [[[1.0, 0.05, 0.08]]], dims=dims, coords=coords
+            ),
+            "saturation_beta": xr.DataArray(
+                [[[1e9, 1.0, 1.0]]], dims=dims, coords=coords
+            ),
+            "adstock_alpha": xr.DataArray(
+                [[[0.5, 0.6, 0.7]]], dims=dims, coords=coords
+            ),
+        }
+    )
+    optimizer = BudgetOptimizer(
+        model=CustomModelWrapper(
+            base_model=mmm.model,
+            idata=xr.DataTree.from_dict({"/posterior": posterior}),
+            channels=channels,
+        ),
+        num_periods=8,
+        response_variable="total_media_contribution_original_scale",
+    )
+    return optimizer, channels
+
+
+def test_allocate_budget_converges_when_one_channel_is_far_steeper_at_x0():
+    """The default rescaling does not stop early in the flatter channels.
+
+    A scale fixed at ``x0`` would stop SLSQP before it splits the rest of the
+    budget between ``c2`` and ``c3``. At the optimum, ``c1`` and ``c3`` have
+    equal marginal responses and ``c2`` gets nothing.
+    """
+    optimizer, channels = _steep_channel_optimizer()
+
+    result = optimizer.allocate_budget(
+        total_budget=60.0,
+        budget_bounds={channel: (0.0, 60.0) for channel in channels},
+    )
+
+    assert result.scipy_result.success
+    np.testing.assert_allclose(result.budgets.values, [42.141, 0.0, 17.859], atol=1e-2)
+
+
+def test_allocate_budget_keeps_the_first_solve_when_the_second_fails(monkeypatch):
+    """A failed second solve does not discard a successful first one.
+
+    The allocation is the first solve's, the result is a success, and the
+    iteration and evaluation counts include both solves.
+    """
+    optimizer, channels = _steep_channel_optimizer()
+    real_minimize = budget_optimizer_module.minimize
+    solves: list[OptimizeResult] = []
+
+    def minimize_with_failing_polish(*args, **kwargs):
+        solve = real_minimize(*args, **kwargs)
+        solves.append(OptimizeResult(solve))
+        if len(solves) == 2:
+            solve.success = False
+            solve.message = "Iteration limit reached"
+        return solve
+
+    monkeypatch.setattr(
+        budget_optimizer_module, "minimize", minimize_with_failing_polish
+    )
+
+    result = optimizer.allocate_budget(
+        total_budget=60.0,
+        budget_bounds={channel: (0.0, 60.0) for channel in channels},
+    )
+
+    assert len(solves) == 2
+    first, polish = solves
+    assert result.scipy_result.success
+    np.testing.assert_allclose(result.budgets.values, first.x)
+    assert result.scipy_result.nit == first.nit + polish.nit
+    assert result.scipy_result.nfev == first.nfev + polish.nfev
+    assert result.scipy_result.njev == first.njev + polish.njev
 
 
 def test_set_posterior_rebinds_without_recompile(mmm_wrapper, dummy_idata):
