@@ -40,6 +40,7 @@ from pytensor.graph.fg import FunctionGraph
 from pytensor.graph.replace import clone_replace
 from pytensor.graph.rewriting import rewrite_graph
 from pytensor.graph.traversal import ancestors
+from pytensor.tensor.random.op import RNGConsumerOp
 from pytensor.xtensor import xtensor_constant
 from pytensor.xtensor.type import XTensorVariable, as_xtensor
 from pytensor.xtensor.vectorization import vectorize_graph
@@ -718,6 +719,13 @@ def _apply_intervention(
         return do(model, dict(intervention))
 
 
+def _model_nodes(model: Model) -> frozenset[Variable]:
+    """Return every node of ``model``: its named variables, its dim lengths and their ancestors."""
+    return frozenset(
+        ancestors([*model.named_vars.values(), *model.dim_lengths.values()])
+    )
+
+
 class ConditionedModel:
     """A model after an intervention, and the one owner of its posterior binding.
 
@@ -746,7 +754,9 @@ class ConditionedModel:
 
     The model is always cloned, by :func:`pymc.do` when an intervention is
     given, so its data are fixed at construction: a later ``pm.set_data`` on
-    the model does not reach any graph handed out here.
+    the model does not reach any graph handed out here.  For the same reason a
+    graph that reads a node of the source model, or a shared or random
+    variable from outside the clone, is refused.
 
     Parameters
     ----------
@@ -797,16 +807,21 @@ class ConditionedModel:
         self.frozen_deterministics: tuple[str, ...] = tuple(frozen_deterministics or ())
         self._model = _apply_intervention(model, intervention)
         # Every node of the clone, so an input read from outside it can be told
-        # from one of the clone's own inputs by identity.
-        self._clone_nodes = frozenset(ancestors(list(self._model.named_vars.values())))
-        # The source model's graph inputs, by identity.  The clone holds copies
+        # from one of the clone's own inputs by identity.  The dim lengths are
+        # walked too: a dim no variable is sized by is an ancestor of nothing.
+        # Taken again when the clone gains a variable or a dim.
+        self._clone_nodes = _model_nodes(self._model)
+        self._clone_size = (len(self._model.named_vars), len(self._model.dim_lengths))
+        # Every node of the source model, by identity.  The clone holds copies
         # of them, so a graph that reads one reads the source's live data and,
         # after an intervention, its pre-intervention values.
-        self._source_roots = frozenset(
-            node
-            for node in ancestors(list(model.named_vars.values()))
-            if node.owner is None and not isinstance(node, Constant)
-        )
+        self._source_nodes = _model_nodes(model)
+        # The source's dim lengths, so a refusal names one as a dim.
+        self._source_dim_lengths: dict[Variable, str] = {
+            length: dim
+            for dim, length in model.dim_lengths.items()
+            if not isinstance(length, Constant)
+        }
         self._posterior = reorder_to_model_coords(
             _posterior_dataset(idata), self._model.coords
         )
@@ -860,11 +875,13 @@ class ConditionedModel:
         response_vars : str, Variable, or sequence of either
             The response variable(s) to extract.  A name resolves against the
             intervened model, a ``Variable`` may be any graph over that clone,
-            and a sequence extracts all in one pass.  A graph that reads a root
+            and a sequence extracts all in one pass.  A graph that reads a node
             of the source model is refused, since that input is not the
-            clone's: it holds the source's live data and no intervention.  A
-            free input the model does not bind is accepted as a function
-            argument.
+            clone's: it holds the source's live data and no intervention.  So
+            is a graph that reads a shared or random variable from outside the
+            clone: a shared variable is read live, and a random variable is not
+            conditioned on the posterior.  A free symbolic input the model does
+            not bind is accepted as a function argument.
 
         Returns
         -------
@@ -878,7 +895,8 @@ class ConditionedModel:
             If a requested name is not a variable of the intervened model, or
             if the current posterior lacks a variable the graph reads.
         ValueError
-            If a ``Variable`` reads an input of the source model, if no
+            If a ``Variable`` reads an input of the source model or a shared or
+            random variable from outside the clone, if no
             response variable is given, or if a variable the graph
             reads has different non-sample dimensions, length or labels from
             its construction layout (or is labeled on one side only).
@@ -1011,13 +1029,18 @@ class ConditionedModel:
     def _resolve(self, var: str | Variable) -> Variable:
         """Resolve a response against the intervened clone.
 
-        A node the clone registers, and any graph built over it, is accepted.
-        Any other graph input is accepted as a function argument.  A graph
-        whose leaves include a root of the source model is refused: the clone
-        holds its own copy of every such input, so the graph would read the
-        source's live data and carry no intervention.  The refusal names those
-        inputs, falling back to their type when they are anonymous.  Constants
-        are never treated as an input of the source model.
+        A node the clone registers, and any graph built over it, is accepted,
+        and so is a free symbolic input, as a function argument.  A graph that
+        reads a node of the source model is refused: the clone holds its own
+        copy of every such input, so the graph would read the source's live
+        data and carry no intervention.  A graph that reads a shared variable
+        or a random variable from outside the clone is refused too: the shared
+        variable is embedded and read live, so a later change to it reaches
+        every compiled function, and the random variable is not conditioned on
+        the posterior.  The source refusal comes first, since it says what to
+        pass instead.  A refusal names those inputs, falling back to their type
+        when they are anonymous.  Constants are never refused, a frozen model's
+        data among them.
         """
         if isinstance(var, str):
             if var not in self._model.named_vars:
@@ -1026,28 +1049,106 @@ class ConditionedModel:
                     f"intervened model, which has {sorted(self._model.named_vars)}."
                 )
             return self._model[var]
-        outside_inputs = [
-            node
-            for node in ancestors([var])
-            if node.owner is None
-            and not isinstance(node, Constant)
-            and node not in self._clone_nodes
-        ]
-        source_inputs = [node for node in outside_inputs if node in self._source_roots]
+        source_inputs, outside_inputs = self._outside_inputs(var)
         if source_inputs:
+            described = self._describe_outside_inputs(
+                source_inputs, dim_lengths=self._source_dim_lengths
+            )
             raise ValueError(
-                f"{var!r} reads inputs of the source model: "
-                f"{self._describe_outside_inputs(source_inputs)}. Pass a name "
-                "or a node of the model this object holds (its .model); an "
+                f"{var!r} reads inputs of the source model: {described}. Pass a "
+                "name or a node of the model this object holds (its .model); an "
                 "input of the source model is not the clone's, so it would "
                 "carry neither the intervention nor the clone's data."
             )
+        # Every outside input is a root or a random variable from outside both
+        # models; only a free symbolic root is a function argument.
+        foreign_inputs = [
+            node
+            for node in outside_inputs
+            if isinstance(node, SharedVariable) or node.owner is not None
+        ]
+        if foreign_inputs:
+            raise ValueError(
+                f"{var!r} reads variables from outside the model this object "
+                f"holds: {self._describe_outside_inputs(foreign_inputs)}. A "
+                "shared variable is read live, so a later change to it "
+                "(pm.set_data on the model that owns it, or set_value) would "
+                "reach every function compiled from the graph, and a random "
+                "variable outside the model is not conditioned on the posterior. "
+                "Pass a name or a node of the model this object holds (its "
+                ".model), and pass an outside value as an array or as a "
+                "symbolic input."
+            )
         return var
 
+    def _outside_inputs(self, var: Variable) -> tuple[list[Variable], list[Variable]]:
+        """Return the inputs ``var`` reads from the source model, and from elsewhere outside the clone.
+
+        An input is a root or a random variable.  The walk stops at the clone's
+        own nodes, at constants and at the source's inputs.  A random variable
+        is an input in its own right, so the RNG and the dim lengths that size
+        it are not listed.  Past an input from outside both models, such as a
+        random variable built over the source, the walk goes on only to find
+        the source's inputs behind it.  Both lists are in the order a
+        depth-first walk meets them.
+        """
+        inside = self._current_clone_nodes()
+        source_inputs: list[Variable] = []
+        outside_inputs: list[Variable] = []
+        # Each entry carries whether an outside input found there is listed:
+        # past an input, only the source's inputs are.
+        seen: set[tuple[Variable, bool]] = set()
+        stack = [(var, True)]
+        while stack:
+            node, listed = stack.pop()
+            if (node, listed) in seen or node in inside or isinstance(node, Constant):
+                continue
+            seen.add((node, listed))
+            owner = node.owner
+            is_input = owner is None or isinstance(owner.op, RNGConsumerOp)
+            if is_input and node in self._source_nodes:
+                if node not in source_inputs:
+                    source_inputs.append(node)
+                continue
+            if is_input and listed:
+                outside_inputs.append(node)
+            if owner is not None:
+                stack.extend(
+                    (parent, listed and not is_input)
+                    for parent in reversed(owner.inputs)
+                )
+        return source_inputs, outside_inputs
+
+    def _current_clone_nodes(self) -> frozenset[Variable]:
+        """Return every node of the clone, taken again if it gained a variable or a dim.
+
+        A variable added to the clone after construction, and any graph built
+        over it, is the clone's own, so it must not be taken for an outside
+        input.
+        """
+        size = (len(self._model.named_vars), len(self._model.dim_lengths))
+        if size != self._clone_size:
+            self._clone_nodes, self._clone_size = _model_nodes(self._model), size
+        return self._clone_nodes
+
     @staticmethod
-    def _describe_outside_inputs(outside_inputs: list[Variable]) -> str:
-        """List outside inputs by name, or by type when anonymous, at most five."""
-        named = [repr(node.name) for node in outside_inputs if node.name is not None]
+    def _describe_outside_inputs(
+        outside_inputs: list[Variable],
+        dim_lengths: Mapping[Variable, str] | None = None,
+    ) -> str:
+        """List outside inputs by name, or by type when anonymous, at most five.
+
+        A variable in ``dim_lengths`` is named as the length of its dim, so it
+        does not read as a data variable.
+        """
+        dim_lengths = dim_lengths or {}
+        named = [
+            f"the length of dim {dim_lengths[node]!r}"
+            if node in dim_lengths
+            else repr(node.name)
+            for node in outside_inputs
+            if node in dim_lengths or node.name is not None
+        ]
         # An anonymous root is named by its type, never by a repr that
         # may carry a memory address.
         labels = list(dict.fromkeys(named)) or list(

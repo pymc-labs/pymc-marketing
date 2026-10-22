@@ -24,7 +24,7 @@ import pymc.dims as pmd
 import pytensor.xtensor as ptx
 import pytest
 import xarray as xr
-from pymc.model.fgraph import fgraph_from_model
+from pymc.model.fgraph import clone_model, fgraph_from_model
 from pytensor import function, shared
 from pytensor.graph.traversal import ancestors
 
@@ -1943,6 +1943,158 @@ def test_conditioned_model_refusal_names_the_outside_input():
         conditioned.extract(conditioned.model["beta"] * model["spend"])
 
     assert "'spend'" in str(excinfo.value)
+
+
+def test_conditioned_model_refusal_names_a_source_random_variable_not_its_size():
+    """A source random variable is named itself, not the dim length that sizes it."""
+    model, spend = _channel_conditioned_model()
+    conditioned = ConditionedModel(
+        model, _channel_posterior([1.0, 2.0]), intervention={"spend": spend}
+    )
+
+    with pytest.raises(ValueError, match="reads inputs of the source model") as excinfo:
+        conditioned.extract(conditioned.model["resp"] + model["beta"].sum())
+
+    message = str(excinfo.value)
+    assert "'beta'" in message
+    assert "'channel'" not in message
+
+
+def test_conditioned_model_refusal_names_a_source_dim_length_as_a_dim():
+    """A dim length read directly is named as a dim, not as a data variable."""
+    model, spend = _channel_conditioned_model()
+    conditioned = ConditionedModel(
+        model, _channel_posterior([1.0, 2.0]), intervention={"spend": spend}
+    )
+    channels = ptx.as_xtensor(model.dim_lengths["channel"], dims=())
+
+    with pytest.raises(ValueError, match="reads inputs of the source model") as excinfo:
+        conditioned.extract(conditioned.model["resp"] * channels)
+
+    assert "the length of dim 'channel'" in str(excinfo.value)
+
+
+@pytest.mark.parametrize(
+    "build_response, named",
+    [
+        pytest.param(
+            lambda other, resp: resp + other["spend"].sum(),
+            "'spend'",
+            id="other-model-data",
+        ),
+        pytest.param(
+            lambda other, resp: (
+                resp * ptx.as_xtensor(shared(np.array(2.0), name="price"), dims=())
+            ),
+            "'price'",
+            id="model-less-shared",
+        ),
+        pytest.param(
+            lambda other, resp: resp + other["beta"].sum(),
+            "'beta'",
+            id="other-model-random-variable",
+        ),
+        pytest.param(
+            lambda other, resp: resp + pmd.Normal.dist(),
+            "<XTensorVariable>",
+            id="model-less-random-variable",
+        ),
+    ],
+)
+def test_conditioned_model_refuses_an_outside_shared_or_random_variable(
+    build_response, named
+):
+    """A shared or random variable from outside the clone is refused, by name.
+
+    Regression: another model's data was embedded in the graph and read live,
+    so a later ``pm.set_data`` on that model changed every compiled function,
+    against the promise that the data are fixed at construction.  A random
+    variable from outside reached the generic "RVs found ... likely a bug"
+    ``RuntimeError``.
+    """
+    model, spend = _channel_conditioned_model()
+    conditioned = ConditionedModel(
+        model, _channel_posterior([1.0, 2.0]), intervention={"spend": spend}
+    )
+    other = clone_model(model)
+
+    with pytest.raises(
+        ValueError, match="from outside the model this object holds"
+    ) as excinfo:
+        conditioned.extract(build_response(other, conditioned.model["resp"]))
+
+    message = str(excinfo.value)
+    assert named in message
+    # A random variable is named itself, not by the inputs that size it.
+    assert "'channel'" not in message
+
+
+def test_conditioned_model_accepts_the_clones_own_unused_dim_length():
+    """A dim no variable is sized by is still an input of the clone.
+
+    Its length is an ancestor of no named variable, so a graph that reads it
+    must not be taken for one that reads from outside the clone.
+    """
+    with pm.Model(coords={"channel": ["a", "b"], "week": [0, 1, 2]}) as model:
+        spend = pmd.Data("spend", np.array([10.0, 20.0]), dims="channel")
+        beta = pmd.Normal("beta", dims="channel")
+        pmd.Deterministic("resp", beta * spend)
+    conditioned = ConditionedModel(model, _channel_posterior([1.0, 2.0]))
+    weeks = ptx.as_xtensor(conditioned.model.dim_lengths["week"], dims=())
+
+    graph = conditioned.extract(conditioned.model["resp"] * weeks)
+
+    np.testing.assert_allclose(function([], graph)(), [[30.0, 120.0]])
+
+
+def test_conditioned_model_accepts_a_node_added_to_the_clone_after_construction():
+    """A variable added to the clone later, and a graph over it, are the clone's own."""
+    model, spend = _channel_conditioned_model()
+    conditioned = ConditionedModel(
+        model, _channel_posterior([1.0, 2.0]), intervention={"spend": spend}
+    )
+    with conditioned.model:
+        weight = pmd.Data("weight", np.array([2.0, 3.0]), dims="channel")
+        late = pmd.Deterministic("late", conditioned.model["resp"] * weight)
+
+    graph = conditioned.extract(late)
+
+    np.testing.assert_allclose(function([], graph)(), [[20.0, 120.0]])
+
+
+@pytest.mark.parametrize(
+    "build_response",
+    [
+        pytest.param(
+            lambda model, resp: (
+                resp
+                + model["beta"].sum()
+                + ptx.as_xtensor(shared(np.array(1.0), name="price"), dims=())
+            ),
+            id="source-and-outside-shared",
+        ),
+        pytest.param(
+            lambda model, resp: resp + pmd.Normal.dist(mu=model["beta"].sum()),
+            id="outside-random-variable-over-the-source",
+        ),
+    ],
+)
+def test_conditioned_model_source_refusal_comes_before_the_outside_one(build_response):
+    """A graph that reads the source model is refused as such, whatever else it reads.
+
+    The source refusal says what to pass instead, a node of the clone, so it
+    comes first, also when the source variable sits behind a random variable
+    from outside both models.
+    """
+    model, spend = _channel_conditioned_model()
+    conditioned = ConditionedModel(
+        model, _channel_posterior([1.0, 2.0]), intervention={"spend": spend}
+    )
+
+    with pytest.raises(ValueError, match="reads inputs of the source model") as excinfo:
+        conditioned.extract(build_response(model, conditioned.model["resp"]))
+
+    assert "'beta'" in str(excinfo.value)
 
 
 def test_describe_outside_inputs_names_an_anonymous_input_by_type():
