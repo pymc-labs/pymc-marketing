@@ -136,6 +136,15 @@ def constant_node(spend):
     return np.ones((1, len(spend)))
 
 
+def ramp(week, first, last):
+    """Spend rising by one per date from *first* to *last*, zero elsewhere.
+
+    A flight that builds up toward its last week puts its largest spend at its
+    end, which is what makes a late flight hard to probe.
+    """
+    return np.where((week >= first) & (week <= last), week - first + 1.0, 0.0)
+
+
 def float32_cancellation_values(
     n_dates,
     *,
@@ -840,6 +849,65 @@ class TestSpendProbe:
         assert not reach.requires_full_axis
         assert reach.effective_l_max == self.l_max
 
+    @pytest.mark.parametrize(
+        "n_dates, flight",
+        [
+            pytest.param(
+                104,
+                lambda week: np.where(week >= 20, 0.5 + week / 100, 0.0),
+                id="dark-head-then-ramp",
+            ),
+            pytest.param(52, lambda week: ramp(week, 40, 50), id="q4-ramp"),
+            pytest.param(
+                52,
+                lambda week: np.where(
+                    (week >= 40) & (week <= 50), 6.0 - np.abs(week - 45.0), 0.0
+                ),
+                id="q4-mid-flight-peak",
+            ),
+            pytest.param(
+                104,
+                lambda week: 0.1 * (week == 50) + ramp(week, 95, 102),
+                id="small-early-date-and-late-ramp",
+            ),
+            pytest.param(
+                104,
+                lambda week: sum(
+                    scale * ramp(week, first, first + 9)
+                    for scale, first in enumerate((20, 45, 70, 92), start=1)
+                ),
+                id="four-ramping-flights-biggest-last",
+            ),
+            pytest.param(
+                104, lambda week: ramp(week, 90, 102), id="late-ramp-in-last-13-dates"
+            ),
+        ],
+    )
+    def test_a_late_flight_is_probed_where_its_tail_fits(self, n_dates, flight):
+        """A channel that only spends late in the axis still gets a bounded reach.
+
+        With a dark head the probe comes from further along the axis, and a
+        flight that ramps up puts its largest spend close to the axis end.  The
+        probe has to land on a date that leaves room for the tail whenever some
+        spending date does, which every shape here has.
+        """
+        l_max = 8
+        week = np.arange(n_dates)
+        # (date, channel): the flighted channel next to an always-on one, so a
+        # covering date exists wherever the flight spends.
+        spend = np.column_stack([flight(week), np.ones(n_dates)])
+        probe = self._probe(spend, **{CHANNEL_CONTRIBUTION: causal_filter(l_max)})
+
+        assert len(probe.probe_indices) == 1
+        # The filter moves l_max dates from the probe on, and the last of them
+        # has to come before the last date of the axis.
+        assert probe.probe_indices[0] + l_max - 1 < n_dates - 1
+
+        reach = probe.measure(effects=(), l_max=l_max, trailing_lags=l_max - 1)
+
+        assert not reach.requires_full_axis
+        assert reach.effective_l_max == l_max
+
     def test_an_all_zero_channel_does_not_force_extra_probes(self):
         """A channel that never spends cannot be moved, so it needs no probe."""
         spend = self._spend()
@@ -934,6 +1002,24 @@ class TestSpendProbe:
             self._spend(), **{CHANNEL_CONTRIBUTION: leaks_into_the_next_channel}
         )
 
+        assert probe.mixes_channels(non_date_dims=self.channel_dims)
+
+    def test_a_late_flight_s_mixing_probe_keeps_its_largest_spend(self):
+        """A mixing probe needs no room for a tail, so it keeps the largest spend.
+
+        The reach rule puts a late flight's probe at the front of the flight,
+        which for channel 0 here is week 40.  The other channel is dark at that
+        week, so a mixing probe there would see the shared denominator move no
+        column but its own, and would read a mixing transform as separable.
+        """
+        week = np.arange(52)
+        # (date, channel): a ramp over weeks 40 to 50, and a channel that
+        # spends at week 2 and over the last weeks of that ramp.
+        other = np.where((week == 2) | ((week >= 45) & (week <= 50)), 1.0, 0.0)
+        spend = np.column_stack([ramp(week, 40, 50), other])
+        probe = self._probe(spend, **{CHANNEL_CONTRIBUTION: shared_denominator_columns})
+
+        assert SpendProbe._select_channel_probe_indices(spend) == {0: 50, 1: 2}
         assert probe.mixes_channels(non_date_dims=self.channel_dims)
 
     def test_an_unprobeable_channel_is_treated_as_mixing(self):
