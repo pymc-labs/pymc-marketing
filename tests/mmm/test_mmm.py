@@ -3861,6 +3861,30 @@ def test_log_link_mean_scale_calibration_needs_a_sampled_sigma() -> None:
             "could not convert",
             id="non-numeric-value",
         ),
+        pytest.param(
+            _roas_rows().assign(roas=[1.0, np.nan, 1.5]),
+            ValueError,
+            "'roas'.*finite real numeric",
+            id="nonfinite-target",
+        ),
+        pytest.param(
+            _roas_rows().assign(sigma=[0.1, np.inf, 0.2]),
+            ValueError,
+            "'sigma'.*finite real numeric",
+            id="nonfinite-sigma",
+        ),
+        pytest.param(
+            _roas_rows().assign(sigma=[0.1, 0.0, 0.2]),
+            ValueError,
+            "'sigma'.*strictly positive",
+            id="zero-sigma",
+        ),
+        pytest.param(
+            _roas_rows().assign(sigma=[0.1, -0.1, 0.2]),
+            ValueError,
+            "'sigma'.*strictly positive",
+            id="negative-sigma",
+        ),
     ],
 )
 def test_add_cost_per_target_calibration_bad_rows_fail_before_graph_changes(
@@ -3869,6 +3893,7 @@ def test_add_cost_per_target_calibration_bad_rows_fail_before_graph_changes(
     """A bad calibration table is refused before the increment node is registered."""
     mmm, X, _ = _mmm_for_calibration()
     initial_vars = set(mmm.model.named_vars)
+    initial_coords = dict(mmm.model.coords)
     with pytest.raises(exc, match=match):
         mmm.add_cost_per_target_calibration(
             data=X,
@@ -3878,6 +3903,7 @@ def test_add_cost_per_target_calibration_bad_rows_fail_before_graph_changes(
             target_per_cost=True,
         )
     assert set(mmm.model.named_vars) == initial_vars
+    assert mmm.model.coords == initial_coords
 
 
 def test_log_link_censored_likelihood_refuses_mean_scale_calibration(
