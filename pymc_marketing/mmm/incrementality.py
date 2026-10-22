@@ -244,11 +244,6 @@ import pandas as pd
 import xarray as xr
 from pydantic import ConfigDict, validate_call
 
-from pymc_marketing._conditioning import (
-    needed_posterior_names,
-    reorder_to_model_coords,
-    transpose_to_model_dims,
-)
 from pymc_marketing.data.idata.mmm_wrapper import MMMIDataWrapper
 from pymc_marketing.data.idata.schema import Frequency
 from pymc_marketing.data.idata.utils import subsample_draws
@@ -280,6 +275,11 @@ from pymc_marketing.mmm.spend_reach import (
     resolve_channel_dependent_effects,
 )
 from pymc_marketing.mmm.transformers import ConvMode
+from pymc_marketing.pytensor_utils import (
+    needed_posterior_names,
+    reorder_to_model_coords,
+    transpose_to_model_dims,
+)
 
 if TYPE_CHECKING:
     from numpy.random import Generator, RandomState

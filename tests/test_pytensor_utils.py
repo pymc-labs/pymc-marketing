@@ -28,14 +28,6 @@ from pymc.model.fgraph import clone_model, fgraph_from_model
 from pytensor import function, shared
 from pytensor.graph.traversal import ancestors
 
-from pymc_marketing._conditioning import (
-    VariableLayout,
-    align_posterior_dim,
-    check_aligned_dims,
-    check_aligned_shape,
-    non_sample_dims,
-    transpose_to_model_dims,
-)
 from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation
 from pymc_marketing.mmm.budget_optimizer import BudgetOptimizer
 from pymc_marketing.mmm.mmm import (
@@ -46,10 +38,20 @@ from pymc_marketing.pytensor_utils import (
     ConditionedModel,
     ModelSamplerEstimator,
     SharedPosterior,
+    VariableLayout,
     _prefix_model,
+    align_posterior_dim,
+    aligned_posterior,
+    check_aligned_dims,
+    check_aligned_shape,
     extract_response_distribution,
     merge_models,
+    needed_posterior_names,
+    non_sample_dims,
+    reorder_to_model_coords,
+    transpose_to_model_dims,
     validate_unique_value_vars,
+    variable_layout,
 )
 
 
@@ -774,11 +776,23 @@ def test_check_aligned_dims_compares_the_dim_set_not_its_order():
             "has different channel labels",
             id="different-labels",
         ),
+        pytest.param(
+            pd.Index(["a", "b", "c"]),
+            pd.Index(["a", "b"]),
+            "has different channel labels",
+            id="different-length",
+        ),
+        pytest.param(
+            pd.Index(["a", "a"]),
+            pd.Index(["a", "b"]),
+            "has different channel labels",
+            id="duplicated-given-labels",
+        ),
     ],
 )
 def test_align_posterior_dim_refuses_unusable_labels(given, bound, match):
     posterior_da = xr.DataArray(
-        np.ones((2, 3)),
+        np.ones((2 if given is None else len(given), 3)),
         dims=("channel", "sample"),
         coords={} if given is None else {"channel": given},
     )
@@ -847,6 +861,235 @@ def test_check_aligned_shape_allows_only_the_sample_length_to_change():
 
     with pytest.raises(ValueError, match="Only the sample dimension may change"):
         check_aligned_shape("beta", (3,), layout)
+
+
+def test_align_posterior_dim_compares_datetime_labels_by_value():
+    """Datetime labels stored in another unit are the same labels."""
+    dates = pd.DatetimeIndex(["2024-01-01", "2024-01-08"])
+    posterior_da = xr.DataArray(
+        [1.0, 2.0], dims="date", coords={"date": dates[::-1].as_unit("ns")}
+    )
+
+    aligned = align_posterior_dim("beta", posterior_da, "date", dates.as_unit("s"))
+
+    np.testing.assert_allclose(aligned.values, [2.0, 1.0])
+
+
+def test_variable_layout_records_the_non_sample_dims_labels_and_shape():
+    """Only a labeled dim carries labels, and the sample dims may have any names."""
+    posterior_da = xr.DataArray(
+        np.zeros((2, 4, 3, 5)),
+        dims=("chain", "draw", "channel", "lag"),
+        coords={"channel": ["a", "b", "c"]},
+    )
+
+    layout = variable_layout(posterior_da, sample_dims=("chain", "draw"))
+
+    assert layout.dims == ("channel", "lag")
+    assert list(layout.coords) == ["channel"]
+    assert list(layout.coords["channel"]) == ["a", "b", "c"]
+    assert layout.shape == (3, 5)
+    stacked = posterior_da.stack(sample=("chain", "draw")).transpose("sample", ...)
+    stacked_layout = variable_layout(stacked, sample_dims=("sample",))
+    assert stacked_layout.dims == layout.dims
+    assert stacked_layout.shape == layout.shape
+
+
+def _geo_lag_layout() -> VariableLayout:
+    """The layout of a ``(chain, draw, geo, lag)`` variable with labeled ``geo``."""
+    constructed = xr.DataArray(
+        np.zeros((1, 2, 2, 3)),
+        dims=("chain", "draw", "geo", "lag"),
+        coords={"geo": ["n", "s"]},
+    )
+    return variable_layout(constructed, sample_dims=("chain", "draw"))
+
+
+def test_aligned_posterior_lays_a_variable_out_like_its_layout():
+    """Labels are reordered and dims transposed to the layout, sample dims first.
+
+    The number of draws is free: only the non-sample geometry is checked.
+    """
+    values = np.arange(1 * 5 * 3 * 2, dtype=float).reshape(1, 5, 3, 2)
+    incoming = xr.DataArray(
+        values,
+        dims=("chain", "draw", "lag", "geo"),
+        coords={"geo": ["s", "n"]},
+    ).transpose("lag", "chain", "geo", "draw")
+
+    aligned = aligned_posterior(
+        "beta", incoming, _geo_lag_layout(), sample_dims=("chain", "draw")
+    )
+
+    assert aligned.dims == ("chain", "draw", "geo", "lag")
+    assert list(aligned.indexes["geo"]) == ["n", "s"]
+    # Position (0, 0) of the laid-out geo and lag is geo "n", stored second.
+    np.testing.assert_array_equal(aligned.values[0, :, 0, 0], values[0, :, 0, 1])
+
+
+@pytest.mark.parametrize(
+    "dims, geo, lag, match",
+    [
+        pytest.param(("chain", "draw", "geo"), ["n", "s"], None, "has dims", id="dims"),
+        pytest.param(
+            ("chain", "draw", "geo", "lag"),
+            ["n", "x"],
+            3,
+            "has different geo labels",
+            id="labels",
+        ),
+        pytest.param(
+            ("chain", "draw", "geo", "lag"),
+            None,
+            3,
+            "labeled on one side only",
+            id="one-sided-labels",
+        ),
+        pytest.param(
+            ("chain", "draw", "geo", "lag"),
+            ["n", "s"],
+            4,
+            "has shape",
+            id="non-sample-length",
+        ),
+    ],
+)
+def test_aligned_posterior_refuses_another_layout(dims, geo, lag, match):
+    """Another dim set, label set, one-sided labeling or non-sample length is refused."""
+    sizes = {"chain": 1, "draw": 2, "geo": 2, "lag": lag}
+    incoming = xr.DataArray(
+        np.zeros(tuple(sizes[dim] for dim in dims)),
+        dims=dims,
+        coords={} if geo is None else {"geo": geo},
+    )
+
+    with pytest.raises(ValueError, match=match):
+        aligned_posterior(
+            "beta", incoming, _geo_lag_layout(), sample_dims=("chain", "draw")
+        )
+
+
+def _scaled_response_model() -> pm.Model:
+    """``resp = scaled * gamma`` with ``scaled = beta * spend``, and an unused RV."""
+    with pm.Model(coords={"channel": ["a", "b"]}) as model:
+        spend = pmd.Data("spend", np.array([1.0, 2.0]), dims="channel")
+        beta = pmd.Normal("beta", dims="channel")
+        gamma = pmd.Normal("gamma")
+        pmd.Normal("unused")
+        scaled = pmd.Deterministic("scaled", beta * spend)
+        pmd.Deterministic("resp", scaled * gamma + beta)
+        pmd.Deterministic("resp_scaled", scaled * gamma)
+    return model
+
+
+def test_needed_posterior_names_lists_each_free_variable_a_response_reads_once():
+    """Data and the deterministics on the way are traversed, not listed."""
+    model = _scaled_response_model()
+
+    names = needed_posterior_names(model, [model["resp"]])
+
+    assert sorted(names) == ["beta", "gamma"]
+
+
+def test_needed_posterior_names_stops_at_a_frozen_deterministic():
+    """A frozen deterministic is listed instead of the variables behind it.
+
+    A frozen name the model does not have is ignored.
+    """
+    model = _scaled_response_model()
+
+    names = needed_posterior_names(
+        model, [model["resp_scaled"]], frozen_deterministics=["scaled", "missing"]
+    )
+
+    assert sorted(names) == ["gamma", "scaled"]
+
+
+def test_reorder_to_model_coords_puts_a_matching_label_set_in_the_model_order():
+    """Every labeled dim whose labels are the model's goes to the model's order.
+
+    ``chain`` and ``draw`` are never reordered, even when the model has coords
+    of that name, and a dataset already in order comes back as is.
+    """
+    values = np.arange(1 * 2 * 2 * 3, dtype=float).reshape(1, 2, 2, 3)
+    posterior = xr.Dataset(
+        {"beta": (("chain", "draw", "geo", "channel"), values)},
+        coords={
+            "chain": [0],
+            "draw": [1, 0],
+            "geo": ["s", "n"],
+            "channel": ["c", "a", "b"],
+        },
+    )
+    model_coords = {
+        "geo": ["n", "s"],
+        "channel": ["a", "b", "c"],
+        "draw": [0, 1],
+    }
+
+    reordered = reorder_to_model_coords(posterior, model_coords)
+
+    assert list(reordered.indexes["geo"]) == ["n", "s"]
+    assert list(reordered.indexes["channel"]) == ["a", "b", "c"]
+    assert list(reordered.indexes["draw"]) == [1, 0]
+    # Position (0, 0) is geo "n" and channel "a", both stored second.
+    np.testing.assert_array_equal(
+        reordered["beta"].values[0, :, 0, 0], values[0, :, 1, 1]
+    )
+    assert reorder_to_model_coords(reordered, model_coords) is reordered
+
+
+def test_reorder_to_model_coords_compares_datetime_labels_by_value():
+    """Model dates in another storage unit still reorder the posterior's."""
+    dates = pd.DatetimeIndex(["2024-01-01", "2024-01-08"])
+    posterior = xr.Dataset(
+        {"beta": (("chain", "draw", "date"), np.array([[[1.0, 2.0]]]))},
+        coords={"date": dates[::-1].as_unit("ns")},
+    )
+
+    reordered = reorder_to_model_coords(
+        posterior, {"date": dates.as_unit("s").to_numpy()}
+    )
+
+    np.testing.assert_allclose(reordered["beta"].values[0, 0], [2.0, 1.0])
+
+
+@pytest.mark.parametrize(
+    "labels, model_coords",
+    [
+        pytest.param(["s", "n"], {"geo": ["n", "x"]}, id="other-labels"),
+        pytest.param(["s", "n"], {"geo": ["n", "s", "e"]}, id="other-length"),
+        pytest.param(["s", "n"], {}, id="no-model-coords"),
+        pytest.param(None, {"geo": ["n", "s"]}, id="unlabeled"),
+        pytest.param(
+            ["n", "s", "n"], {"geo": ["s", "n", "n"]}, id="duplicated-model-labels"
+        ),
+    ],
+)
+def test_reorder_to_model_coords_leaves_a_dim_it_cannot_match_as_given(
+    labels, model_coords
+):
+    """A dim whose labels are not the model's (unique) labels is stored as given."""
+    size = 2 if labels is None else len(labels)
+    posterior = xr.Dataset(
+        {"beta": (("chain", "draw", "geo"), np.zeros((1, 1, size)))},
+        coords={} if labels is None else {"geo": labels},
+    )
+
+    assert reorder_to_model_coords(posterior, model_coords) is posterior
+
+
+def test_transpose_to_model_dims_keeps_a_stacked_sample_dim_in_front():
+    """Any sample dims can be named, and they stay in front."""
+    posterior = xr.Dataset(
+        {"lam": (("channel", "sample", "geo"), np.zeros((3, 4, 2)))},
+    )
+
+    laid_out = transpose_to_model_dims(
+        posterior, {"lam": ("geo", "channel")}, sample_dims=("sample",)
+    )
+
+    assert laid_out["lam"].dims == ("sample", "geo", "channel")
 
 
 def _slope_model_and_draws(draws: int, seed: int):

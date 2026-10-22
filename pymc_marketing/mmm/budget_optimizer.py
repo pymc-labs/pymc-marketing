@@ -267,7 +267,6 @@ from pytensor.xtensor.type import XTensorVariable
 from scipy.optimize import OptimizeResult, minimize
 from xarray import DataArray, DataTree
 
-from pymc_marketing._conditioning import reorder_to_model_coords
 from pymc_marketing.mmm.constraints import (
     Constraint,
     build_default_sum_constraint,
@@ -288,6 +287,7 @@ from pymc_marketing.pytensor_utils import (
     SharedPosterior,
     extract_response_distribution,
     merge_models,
+    reorder_to_model_coords,
 )
 from pymc_marketing.version import __version__
 
