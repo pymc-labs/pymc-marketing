@@ -4119,7 +4119,12 @@ def test_unserializable_lift_date_fails_before_graph_changes(
         }
     )
     initial_vars = set(mmm.model.named_vars)
-    with pytest.raises(OverflowError, match="Maximum recursion level"):
+    # pandas refuses the Period column in to_json: before 3.1 with an
+    # OverflowError, from 3.1 with a ValueError.
+    with pytest.raises(
+        (OverflowError, ValueError),
+        match=r"Maximum recursion level|Unable to serialize object to JSON",
+    ):
         mmm.add_lift_test_measurements(calibration)
     assert set(mmm.model.named_vars) == initial_vars
     assert mmm._lift_test_calibrations == []

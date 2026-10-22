@@ -2228,8 +2228,11 @@ class TestDefaultObjectiveWarning:
         with pytest.warns(UserWarning, match="undercounts that path") as record:
             call_entry_point(fitted_mmm_mediated)
 
-        assert record[0].filename == __file__, (
-            f"warning blamed {record[0].filename}, not the caller"
+        # pytest.warns records every warning of the call, not only the one it
+        # matched, so pick ours out rather than trusting the first record.
+        ours = next(w for w in record if "undercounts that path" in str(w.message))
+        assert ours.filename == __file__, (
+            f"warning blamed {ours.filename}, not the caller"
         )
 
     def test_explicit_none_resolves_rather_than_failing_validation(
