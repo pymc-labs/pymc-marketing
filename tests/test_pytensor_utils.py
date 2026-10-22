@@ -1397,18 +1397,58 @@ def test_extract_response_distribution_one_variable_posterior():
     np.testing.assert_allclose(function([], graph)(), [[2.0, 6.0]])
 
 
-def _compiled_apply_nodes(graph) -> int:
-    return len(function([], graph).maker.fgraph.apply_nodes)
+def test_shared_posterior_interrupted_write_keeps_the_previous_draws(monkeypatch):
+    """An interrupt partway through the write puts every variable back.
+
+    ``resp`` reads ``beta`` and ``gamma``, so a rebind writes two shared
+    variables.  An interrupt on the second write lands after the first was
+    swapped; every variable, and a function compiled over them, must still hold
+    the previous draws rather than a mix of two posteriors.
+    """
+    model = _two_channel_model()
+    shared_posterior = SharedPosterior()
+    fn = function(
+        [],
+        extract_response_distribution(
+            model,
+            _two_channel_posterior([1.0, 2.0], [3.0, 4.0]),
+            "resp",
+            shared_posterior=shared_posterior,
+        ),
+    )
+    variables = shared_posterior.variables
+    assert len(variables) == 2
+    before = {name: var.get_value().copy() for name, var in variables.items()}
+
+    second = list(variables.values())[1]
+    original_set_value = second.set_value
+    calls = []
+
+    def interrupted_once(*args, **kwargs):
+        calls.append(1)
+        if len(calls) == 1:
+            raise KeyboardInterrupt
+        return original_set_value(*args, **kwargs)
+
+    monkeypatch.setattr(second, "set_value", interrupted_once)
+
+    with pytest.raises(KeyboardInterrupt):
+        shared_posterior.set_posterior(
+            _two_channel_posterior([10.0, 20.0], [30.0, 40.0])
+        )
+
+    for name, var in shared_posterior.variables.items():
+        np.testing.assert_array_equal(var.get_value(), before[name])
+    np.testing.assert_allclose(fn(), [[3.0, 8.0]])
+
+    # The binding is intact: the next rebind writes both variables.
+    shared_posterior.set_posterior(_two_channel_posterior([10.0, 20.0], [30.0, 40.0]))
+    np.testing.assert_allclose(fn(), [[300.0, 800.0]])
 
 
 def _expected_doubled(idata, data_values) -> np.ndarray:
     drawn = idata["posterior"]["slope"].values.reshape(-1)
     return np.outer(drawn, 2.0 * data_values)
-
-
-def _expected_tripled(idata, data_values) -> np.ndarray:
-    drawn = idata["posterior"]["slope"].values.reshape(-1)
-    return np.outer(drawn, 3.0 * data_values)
 
 
 def _channel_conditioned_model():
@@ -1496,32 +1536,56 @@ def test_conditioned_model_cache_keeps_a_hit_and_evicts_the_least_recent(
 def test_conditioned_model_evicted_key_reextracts_and_follows_a_later_rebind(
     slope_posteriors, monkeypatch
 ):
-    """An evicted key is a miss, so it re-extracts onto the shared binding.
+    """An evicted key is a miss, so it re-extracts onto the shared posterior.
 
-    Eviction drops the entry only: the graph handed out before it still reads the
-    shared variables and still works, and the re-extracted graph follows a later
-    rebind without another rebind-time re-extraction.
+    Eviction drops the cache entry only: the graph handed out before it still
+    reads the shared variables, so a function compiled from it before a later
+    rebind follows that rebind, and so does the re-extracted graph.
     """
     model, data_values, _, second, third = slope_posteriors
-    conditioned = ConditionedModel(
-        model, second, intervention={"data": data_values}, share_posterior=True
-    )
+    conditioned = ConditionedModel(model, second, intervention={"data": data_values})
     monkeypatch.setattr("pymc_marketing.pytensor_utils._GRAPH_CACHE_SIZE", 1)
     kept, evicting = _derived_responses(conditioned, 2.0, 3.0)
 
     kept_graph = conditioned.extract(kept)
+    evicted_fn = function([], kept_graph)
     conditioned.extract(evicting)  # the cap of one evicts ``kept``
 
     re_extracted = conditioned.extract(kept)
     assert re_extracted is not kept_graph
     np.testing.assert_allclose(
-        function([], kept_graph)(), 2.0 * _expected_doubled(second, data_values)
+        evicted_fn(), 2.0 * _expected_doubled(second, data_values)
     )
 
     conditioned.set_posterior(third)
-    np.testing.assert_allclose(
-        function([], re_extracted)(), 2.0 * _expected_doubled(third, data_values)
+    expected = 2.0 * _expected_doubled(third, data_values)
+    np.testing.assert_allclose(evicted_fn(), expected)
+    np.testing.assert_allclose(function([], re_extracted)(), expected)
+
+
+def test_conditioned_model_evicted_graph_still_requires_its_variables(monkeypatch):
+    """An evicted graph keeps reading its variables, so a rebind must supply them.
+
+    ``resp_g`` is evicted by ``resp``, but a function compiled from it still
+    reads ``gamma``: a posterior without ``gamma`` is refused, and that
+    function keeps the previous draws.
+    """
+    model, spend = _channel_conditioned_model()
+    conditioned = ConditionedModel(
+        model,
+        _channel_posterior([1.0, 2.0], gamma=[3.0, 4.0]),
+        intervention={"spend": spend},
     )
+    monkeypatch.setattr("pymc_marketing.pytensor_utils._GRAPH_CACHE_SIZE", 1)
+    evicted_fn = function([], conditioned.extract("resp_g"))
+    conditioned.extract("resp")  # the cap of one evicts ``resp_g``
+
+    with pytest.raises(KeyError, match="gamma"):
+        conditioned.set_posterior(_channel_posterior([5.0, 6.0]))
+
+    np.testing.assert_allclose(evicted_fn(), [[30.0, 80.0]])
+    conditioned.set_posterior(_channel_posterior([5.0, 6.0], gamma=[7.0, 8.0]))
+    np.testing.assert_allclose(evicted_fn(), [[70.0, 160.0]])
 
 
 def test_conditioned_model_names_distinguish_shared_name(
@@ -1555,248 +1619,99 @@ def test_conditioned_model_names_distinguish_shared_name(
     np.testing.assert_allclose(function([], anonymous_graph)(), 2.0 * data_values)
 
 
-def test_conditioned_model_optional_binding_follows_rebinds_and_is_dropped():
-    """A non-required graph owns a binding that a rebind may drop, never fail on.
-
-    After the switch the graph reads its own shared variables, so a draw swap
-    is followed without re-extracting.  A posterior that lacks a variable the
-    graph reads drops only this key: the rebind succeeds, the next extraction
-    is a miss, and it rebinds once the variable is back.
-    """
-    model, spend = _channel_conditioned_model()
-    first = _channel_posterior([1.0, 2.0], gamma=[10.0, 20.0])
-    second = _channel_posterior([3.0, 4.0], gamma=[30.0, 40.0])
-    conditioned = ConditionedModel(
-        model, first, intervention={"spend": spend}, share_posterior=True
-    )
-
-    conditioned.extract("resp")  # required, on the model-wide binding
-    optional = conditioned.extract("resp_g", required=False)
-    np.testing.assert_allclose(
-        function([], optional)(), np.asarray([10.0, 20.0])[None, :] * spend
-    )
-
-    conditioned.set_posterior(second)
-    assert conditioned.extract("resp_g", required=False) is optional
-    np.testing.assert_allclose(
-        function([], optional)(), np.asarray([30.0, 40.0])[None, :] * spend
-    )
-
-    # A posterior without ``gamma`` cannot satisfy the optional key, so the
-    # rebind drops it instead of raising.
-    conditioned.set_posterior(_channel_posterior([5.0, 6.0]))
-    with pytest.raises(KeyError, match="gamma"):
-        conditioned.extract("resp_g", required=False)
-
-    third = _channel_posterior([7.0, 8.0], gamma=[50.0, 60.0])
-    conditioned.set_posterior(third)
-    rebuilt = conditioned.extract("resp_g", required=False)
-    assert rebuilt is not optional
-    np.testing.assert_allclose(
-        function([], rebuilt)(), np.asarray([50.0, 60.0])[None, :] * spend
-    )
-
-
-def test_conditioned_model_shared_rebind_writes_draws_with_an_empty_cache(
+def test_conditioned_model_rebind_with_an_empty_cache_writes_and_requires_bound_variables(
     monkeypatch,
 ):
-    """A shared-mode rebind still swaps the draws when nothing is cached.
+    """An empty cache means no graph is cached, not that no draws are bound.
 
-    A required graph is compiled and then evicted by an optional extraction.
-    A rebind without ``gamma`` drops that optional key and leaves the cache
-    empty.  The next rebind must still write ``beta``, so the function compiled
-    before the eviction returns the newest draws.
+    With a cache size of zero nothing stays cached, yet the graph handed out
+    reads the shared variables: a rebind still writes ``beta``, so the compiled
+    function follows it, and a rebind that lacks ``beta`` raises ``KeyError``
+    and leaves the draws and ``posterior`` as they were.
     """
     model, spend = _channel_conditioned_model()
     conditioned = ConditionedModel(
-        model,
-        _channel_posterior([1.0, 2.0], gamma=[3.0, 4.0]),
-        intervention={"spend": spend},
-        share_posterior=True,
-    )
-    monkeypatch.setattr("pymc_marketing.pytensor_utils._GRAPH_CACHE_SIZE", 1)
-    fn = function([], conditioned.extract("resp"))
-
-    conditioned.extract(conditioned.model["resp_g"] * 2.0, required=False)
-    conditioned.set_posterior(_channel_posterior([5.0, 6.0]))
-    assert not conditioned._cache
-
-    conditioned.set_posterior(_channel_posterior([7.0, 8.0]))
-
-    np.testing.assert_allclose(fn(), [[70.0, 160.0]])
-
-
-def test_conditioned_model_shared_empty_cache_still_requires_bound_variables(
-    monkeypatch,
-):
-    """An empty cache means no graph is waiting, not that no draws are bound.
-
-    The shared variables are still bound, so a rebind that lacks one of them
-    raises ``KeyError`` instead of being recorded and skipped.
-    """
-    model, spend = _channel_conditioned_model()
-    conditioned = ConditionedModel(
-        model,
-        _channel_posterior([1.0, 2.0]),
-        intervention={"spend": spend},
-        share_posterior=True,
+        model, _channel_posterior([1.0, 2.0]), intervention={"spend": spend}
     )
     monkeypatch.setattr("pymc_marketing.pytensor_utils._GRAPH_CACHE_SIZE", 0)
-    conditioned.extract("resp")
-    assert not conditioned._cache
+    graph = conditioned.extract("resp")
+    assert conditioned.extract("resp") is not graph  # nothing was cached
+    fn = function([], graph)
 
+    conditioned.set_posterior(_channel_posterior([7.0, 8.0]))
+    np.testing.assert_allclose(fn(), [[70.0, 160.0]])
+
+    posterior = conditioned.posterior
     without_beta = xr.Dataset({"gamma": (("chain", "draw"), np.zeros((1, 1)))})
     with pytest.raises(KeyError, match="beta"):
         conditioned.set_posterior(without_beta)
-
-
-def test_conditioned_model_restore_is_idempotent():
-    """A checkpoint restores every binding, and restoring it twice changes nothing."""
-    model, spend = _channel_conditioned_model()
-    conditioned = ConditionedModel(
-        model,
-        _channel_posterior([1.0, 2.0], gamma=[10.0, 20.0]),
-        intervention={"spend": spend},
-        share_posterior=True,
-    )
-    conditioned.extract("resp")
-    optional = conditioned.extract("resp_g", required=False)
-    optional_key = next(
-        key for key, cached in conditioned._cache.items() if cached.optional_binding
-    )
-    shared = conditioned.shared_posterior
-    token = conditioned.checkpoint()
-
-    # A successful rebind swaps both bindings; the restore puts the old draws
-    # back into the same objects and keeps the optional key cached.
-    conditioned.set_posterior(_channel_posterior([3.0, 4.0], gamma=[30.0, 40.0]))
-    conditioned.restore(token)
-
-    assert conditioned.shared_posterior is shared
-    assert conditioned.extract("resp_g", required=False) is optional
-    np.testing.assert_allclose(
-        function([], optional)(), np.asarray([10.0, 20.0])[None, :] * spend
-    )
-    variables = shared.variables
-    values = {name: variable.get_value() for name, variable in variables.items()}
-
-    conditioned.restore(token)  # a second call leaves the same state
-
-    assert conditioned.shared_posterior is shared
-    assert set(shared.variables) == set(variables)
-    for name, variable in variables.items():
-        assert shared.variables[name] is variable
-        np.testing.assert_array_equal(shared.variables[name].get_value(), values[name])
-    assert optional_key in conditioned._cache
-
-
-def test_conditioned_model_first_rebind_drops_the_cache_and_fires_callbacks_once(
-    conditioned_slope, slope_posteriors
-):
-    _, data_values, _, second, _ = slope_posteriors
-    fired = []
-    conditioned_slope.register(lambda: fired.append("first"))
-    conditioned_slope.register(lambda: fired.append("second"))
-
-    constant_graph = conditioned_slope.extract("doubled")
-    conditioned_slope.set_posterior(second)
-
-    assert fired == ["first", "second"]
-    shared_graph = conditioned_slope.extract("doubled")
-    assert shared_graph is not constant_graph
-    # The re-extracted graph reads the new draws.
-    np.testing.assert_allclose(
-        function([], shared_graph)(), _expected_doubled(second, data_values)
-    )
+    assert conditioned.posterior is posterior
+    np.testing.assert_allclose(fn(), [[70.0, 160.0]])
 
 
 def test_conditioned_model_later_rebind_reuses_graph_and_follows_new_draws(
     conditioned_slope, slope_posteriors
 ):
+    """Every rebind swaps draws in the one shared posterior, whatever the draw count."""
     _, data_values, _, second, third = slope_posteriors
-    assert conditioned_slope.shared_posterior is None  # constants until asked
-    conditioned_slope.set_posterior(second)
     shared = conditioned_slope.shared_posterior
     assert isinstance(shared, SharedPosterior)
-    shared_graph = conditioned_slope.extract("doubled")
-    fn = function([], shared_graph)
+    graph = conditioned_slope.extract("doubled")
+    fn = function([], graph)
 
-    fired = []
-    conditioned_slope.register(lambda: fired.append("again"))
-    conditioned_slope.set_posterior(third)
+    conditioned_slope.set_posterior(second)  # four draws to six
+    np.testing.assert_allclose(fn(), _expected_doubled(second, data_values))
+    conditioned_slope.set_posterior(third)  # six draws to two
 
-    # A later rebind only swaps the draws, so it fires no callback.
-    assert fired == []
-    assert conditioned_slope.shared_posterior is shared  # same binding, new draws
+    assert conditioned_slope.shared_posterior is shared
     # No re-extraction: the same compiled function follows the new draw count.
-    assert conditioned_slope.extract("doubled") is shared_graph
+    assert conditioned_slope.extract("doubled") is graph
     np.testing.assert_allclose(fn(), _expected_doubled(third, data_values))
 
 
-def test_conditioned_model_share_posterior_binds_from_the_first_extract(
-    slope_posteriors,
-):
-    """``share_posterior=True`` starts shared, so the first rebind never re-extracts."""
-    model, data_values, _, second, third = slope_posteriors
-    conditioned = ConditionedModel(
-        model, second, intervention={"data": data_values}, share_posterior=True
-    )
-
-    assert isinstance(conditioned.shared_posterior, SharedPosterior)
-    shared_graph = conditioned.extract("doubled")
-    fn = function([], shared_graph)
-
-    conditioned.set_posterior(third)
-    assert conditioned.extract("doubled") is shared_graph
-    np.testing.assert_allclose(fn(), _expected_doubled(third, data_values))
-
-
-def test_conditioned_model_failing_callback_rolls_back_binding(
+def test_conditioned_model_graph_extracted_at_construction_follows_a_rebind(
     conditioned_slope, slope_posteriors
 ):
-    """A callback that raises on the first rebind rolls the constant binding back.
+    """A graph handed out before the first rebind follows it.
 
-    The first rebind is the only one that fires a callback, so it is the only one that a callback can fail.
-    A later rebind that fails rolls the shared binding back too.
+    Regression: a graph extracted before the first ``set_posterior`` was
+    conditioned on constant draws, so a function compiled from it silently kept
+    the construction draws after the rebind.
     """
-
-    def boom():
-        raise RuntimeError("callback failed")
-
     _, data_values, first, second, _ = slope_posteriors
-    constant_graph = conditioned_slope.extract("doubled")
-    conditioned_slope.register(boom)
-    with pytest.raises(RuntimeError, match="callback failed"):
-        conditioned_slope.set_posterior(second)
-    assert conditioned_slope.extract("doubled") is constant_graph
-    np.testing.assert_allclose(
-        function([], constant_graph)(), _expected_doubled(first, data_values)
-    )
+    graph = conditioned_slope.extract("doubled")
+    fn = function([], graph)
+    np.testing.assert_allclose(fn(), _expected_doubled(first, data_values))
+
+    conditioned_slope.set_posterior(second)  # four draws to six
+
+    assert conditioned_slope.extract("doubled") is graph
+    np.testing.assert_allclose(fn(), _expected_doubled(second, data_values))
 
 
 def test_conditioned_model_failed_rebind_keeps_the_previous_binding(
     conditioned_slope, slope_posteriors
 ):
-    _, data_values, _, second, _ = slope_posteriors
-    conditioned_slope.set_posterior(second)
+    _, data_values, first, second, _ = slope_posteriors
     fn = function([], conditioned_slope.extract("doubled"))
+    posterior = conditioned_slope.posterior
 
     # A posterior the shared variables cannot be rebound to is refused atomically,
-    # so the previous draws stay in place.
+    # so the previous draws and ``posterior`` stay in place.
     without_slope = second["posterior"].to_dataset().drop_vars("slope")
     with pytest.raises(KeyError, match="missing variables"):
         conditioned_slope.set_posterior(without_slope)
 
-    np.testing.assert_allclose(fn(), _expected_doubled(second, data_values))
+    assert conditioned_slope.posterior is posterior
+    np.testing.assert_allclose(fn(), _expected_doubled(first, data_values))
 
 
 def test_conditioned_model_failed_extract_leaves_the_binding_unchanged():
     """An extract that fails on a missing variable leaves no trace.
 
-    After the first rebind the shared posterior binds ``beta`` only.  Extracting
-    ``resp``, which reads ``gamma2 + gamma1``, inserts ``gamma1`` and then fails
-    on the missing ``gamma2``; the instance must be exactly as it was, so a
-    rebind without either gamma still succeeds.
+    The shared posterior binds ``beta`` only.  Extracting ``resp``, which reads
+    ``gamma2 + gamma1``, fails on the missing ``gamma2``; nothing new may be
+    bound, so a rebind without either gamma still succeeds and is followed.
     """
     model, spend = _gamma_model()
     conditioned = ConditionedModel(
@@ -1804,20 +1719,17 @@ def test_conditioned_model_failed_extract_leaves_the_binding_unchanged():
         _gamma_posterior(gamma1=(2.0, 2.0), gamma2=(3.0, 3.0)),
         intervention={"spend": spend},
     )
-
-    conditioned.extract("base")
+    fn = function([], conditioned.extract("base"))
     conditioned.set_posterior(_gamma_posterior(gamma1=(2.0, 2.0)))
-    # The first rebind is lazy: a read is what binds the variables it uses.
-    conditioned.extract("base")
-    bound_before = set(conditioned.shared_posterior.variables)
-    assert bound_before == {"beta"}
+    assert set(conditioned.shared_posterior.variables) == {"beta"}
 
     with pytest.raises(KeyError, match="gamma2"):
         conditioned.extract("resp")
 
-    assert set(conditioned.shared_posterior.variables) == bound_before
+    assert set(conditioned.shared_posterior.variables) == {"beta"}
     # A rebind that satisfies every handed-out graph is accepted.
-    conditioned.set_posterior(_gamma_posterior())
+    conditioned.set_posterior(_gamma_posterior(beta=(2.0, 3.0)))
+    np.testing.assert_allclose(fn(), [[20.0, 60.0]])
 
 
 def test_conditioned_model_refuses_pre_intervention_variable(
@@ -1946,60 +1858,37 @@ def test_describe_outside_inputs_caps_the_named_inputs():
     assert "and 1 more" in message
 
 
-def test_conditioned_model_default_graph_keeps_constant_folding(
-    conditioned_slope, slope_posteriors
-):
-    _, _, first, _, _ = slope_posteriors
-    default_nodes = _compiled_apply_nodes(conditioned_slope.extract("doubled"))
-    plain = extract_response_distribution(conditioned_slope.model, first, ["doubled"])
-    plain_nodes = _compiled_apply_nodes(plain)
-    conditioned_slope.set_posterior(first)
-    rebind_nodes = _compiled_apply_nodes(conditioned_slope.extract("doubled"))
-
-    # The default path compiles to the plain constant-conditioned graph; the
-    # rebind is what gives up constant folding.
-    assert default_nodes == plain_nodes
-    assert default_nodes < rebind_nodes
-
-
-def test_conditioned_model_first_rebind_validates_like_later_calls():
+def test_conditioned_model_rebind_realigns_labels_and_refuses_a_resized_axis():
     model, spend = _channel_conditioned_model()
 
-    # Reordered labels on the first call are realigned against the layout the
-    # constant graph was extracted under, not bound by position.
+    # Reordered labels are realigned against the construction layout, not bound
+    # by position, so a function compiled before the rebind reads ``a=1, b=2``.
     reordered = ConditionedModel(
         model, _channel_posterior([1.0, 2.0]), intervention={"spend": spend}
     )
-    reordered.extract("resp")
+    fn = function([], reordered.extract("resp"))
     reordered.set_posterior(_channel_posterior([2.0, 1.0], channel=("b", "a")))
-    np.testing.assert_allclose(
-        function([], reordered.extract("resp"))(), [[10.0, 40.0]]
-    )
+    np.testing.assert_allclose(fn(), [[10.0, 40.0]])
 
-    # A resized axis on the first call is refused at the read, so the read
-    # happens through a re-extracting callback; the constant graph and the
-    # binding are kept by the rollback.
+    # A resized axis on a bound variable is refused before anything is written,
+    # so the graph, its draws and ``posterior`` are kept.
     conditioned = ConditionedModel(
         model, _channel_posterior([1.0, 2.0]), intervention={"spend": spend}
     )
-    constant_graph = conditioned.extract("resp")
-    conditioned.register(lambda: conditioned.extract("resp"))
+    graph = conditioned.extract("resp")
+    fn = function([], graph)
     resized = xr.Dataset(
         {"beta": (("chain", "draw", "channel"), np.ones((1, 1, 3)))},
         coords={"channel": ["a", "b", "c"]},
     )
-    with pytest.raises(ValueError, match="different channel labels"):
+    with pytest.raises(ValueError, match=r"'beta' has different channel labels"):
         conditioned.set_posterior(resized)
-    assert conditioned.shared_posterior is None
     assert conditioned.posterior.indexes["channel"].tolist() == ["a", "b"]
-    assert conditioned.extract("resp") is constant_graph
-    np.testing.assert_allclose(function([], constant_graph)(), [[10.0, 40.0]])
+    assert conditioned.extract("resp") is graph
+    np.testing.assert_allclose(fn(), [[10.0, 40.0]])
 
 
-@pytest.mark.parametrize("share_posterior", [False, True])
-def test_conditioned_model_reordered_rebind_realigns_constants_and_new_keys(
-    share_posterior,
-):
+def test_conditioned_model_reordered_rebind_realigns_handed_out_and_new_keys():
     """A rebind realigns at the door, so every later read sees model order.
 
     A posterior stored as ``(b, a)`` used to give ``[[20, 20]]`` from a graph
@@ -2011,66 +1900,45 @@ def test_conditioned_model_reordered_rebind_realigns_constants_and_new_keys(
         model,
         _channel_posterior([1.0, 2.0], gamma=[3.0, 4.0]),
         intervention={"spend": spend},
-        share_posterior=share_posterior,
     )
-    conditioned.extract("resp")  # hand out a cached graph before the reordered rebind
+    fn = function([], conditioned.extract("resp"))  # handed out before the rebind
 
     conditioned.set_posterior(
-        _channel_posterior([2.0, 1.0], channel=("b", "a"), gamma=[4.0, 3.0])
+        _channel_posterior([20.0, 10.0], channel=("b", "a"), gamma=[4.0, 3.0])
     )
 
     # The stored posterior has the construction layout, not the incoming one.
     assert conditioned.posterior.indexes["channel"].tolist() == ["a", "b"]
-    np.testing.assert_allclose(
-        function([], conditioned.extract("resp", required=False))(), [[10.0, 40.0]]
-    )
+    np.testing.assert_allclose(fn(), [[100.0, 400.0]])
     np.testing.assert_allclose(
         function([], conditioned.extract("resp_g"))(), [[30.0, 80.0]]
     )
 
 
-@pytest.mark.parametrize("share_posterior", [False, True])
-def test_conditioned_model_empty_cache_rebind_only_switches_mode(share_posterior):
-    """A rebind before any extraction realigns the labels and fires nothing.
+def test_conditioned_model_rebind_before_any_extract_realigns_and_defers_validation():
+    """A rebind before any extraction realigns the labels and validates nothing.
 
-    Nothing has been handed out, so the rebind fires no callback.
-    The next ``extract`` builds its graph on the model's label order.
-    A resized axis is stored as given at the door and refused when a graph reads it.
+    Nothing is bound yet, so the next ``extract`` builds its graph on the
+    model's label order and a later rebind is followed.  A resized axis is
+    stored as given at the door and refused when a graph reads it.
     """
     model, spend = _channel_conditioned_model()
     conditioned = ConditionedModel(
-        model,
-        _channel_posterior([1.0, 2.0]),
-        intervention={"spend": spend},
-        share_posterior=share_posterior,
+        model, _channel_posterior([1.0, 2.0]), intervention={"spend": spend}
     )
-    fired = []
-    conditioned.register(lambda: fired.append(1))
-    shared_before = conditioned.shared_posterior
 
     conditioned.set_posterior(_channel_posterior([2.0, 1.0], channel=("b", "a")))
 
-    assert fired == []
-    if share_posterior:
-        assert conditioned.shared_posterior is shared_before
-    else:
-        assert isinstance(conditioned.shared_posterior, SharedPosterior)
     assert conditioned.posterior.indexes["channel"].tolist() == ["a", "b"]
     fn = function([], conditioned.extract("resp"))
     np.testing.assert_allclose(fn(), [[10.0, 40.0]])
-
-    conditioned.set_posterior(_channel_posterior([1.0, 2.0]))
-    # The rebind above already switched to the shared path, so this one swaps draws instead of re-extracting.
-    assert fired == []
-    np.testing.assert_allclose(fn(), [[10.0, 40.0]])
+    conditioned.set_posterior(_channel_posterior([3.0, 4.0]))
+    np.testing.assert_allclose(fn(), [[30.0, 80.0]])
 
     # The door stores a resized axis as given; the read against the
     # construction layout is what refuses it.
     resized = ConditionedModel(
-        model,
-        _channel_posterior([1.0, 2.0]),
-        intervention={"spend": spend},
-        share_posterior=share_posterior,
+        model, _channel_posterior([1.0, 2.0]), intervention={"spend": spend}
     )
     resized.set_posterior(_channel_posterior([1.0, 2.0, 3.0], channel=("a", "b", "c")))
     with pytest.raises(ValueError, match="different channel labels"):
@@ -2079,10 +1947,7 @@ def test_conditioned_model_empty_cache_rebind_only_switches_mode(share_posterior
     np.testing.assert_allclose(function([], resized.extract("resp"))(), [[10.0, 40.0]])
 
 
-@pytest.mark.parametrize("share_posterior", [False, True])
-def test_conditioned_model_empty_cache_refuses_a_one_sided_labeling(
-    share_posterior,
-):
+def test_conditioned_model_empty_cache_refuses_a_one_sided_labeling():
     """An unlabeled dim cannot be read by position once the construction draws are labeled.
 
     The door stores it as given; the read against the construction layout is
@@ -2090,10 +1955,7 @@ def test_conditioned_model_empty_cache_refuses_a_one_sided_labeling(
     """
     model, spend = _channel_conditioned_model()
     conditioned = ConditionedModel(
-        model,
-        _channel_posterior([1.0, 2.0]),
-        intervention={"spend": spend},
-        share_posterior=share_posterior,
+        model, _channel_posterior([1.0, 2.0]), intervention={"spend": spend}
     )
 
     conditioned.set_posterior(_channel_posterior([2.0, 1.0]).drop_vars("channel"))
@@ -2102,15 +1964,16 @@ def test_conditioned_model_empty_cache_refuses_a_one_sided_labeling(
 
     # The refusal wrote nothing: a labeled rebind still reads the construction order.
     conditioned.set_posterior(_channel_posterior([2.0, 1.0], channel=("b", "a")))
-    np.testing.assert_allclose(
-        function([], conditioned.extract("resp"))(), [[10.0, 40.0]]
-    )
+    fn = function([], conditioned.extract("resp"))
+    np.testing.assert_allclose(fn(), [[10.0, 40.0]])
+
+    # Once bound, the same one-sided rebind is refused at the door.
+    with pytest.raises(ValueError, match="labeled on one side only"):
+        conditioned.set_posterior(_channel_posterior([2.0, 1.0]).drop_vars("channel"))
+    np.testing.assert_allclose(fn(), [[10.0, 40.0]])
 
 
-@pytest.mark.parametrize("share_posterior", [False, True])
-def test_conditioned_model_empty_cache_accepts_a_subsample_shaped_posterior(
-    share_posterior,
-):
+def test_conditioned_model_empty_cache_accepts_a_subsample_shaped_posterior():
     """``subsample_draws`` drops the ``chain``/``draw`` labels but keeps ``channel``.
 
     The skipped sample dims must not be mistaken for the one-sided case.
@@ -2120,7 +1983,6 @@ def test_conditioned_model_empty_cache_accepts_a_subsample_shaped_posterior(
         model,
         _channel_posterior([1.0, 2.0]).assign_coords(chain=[0], draw=[0]),
         intervention={"spend": spend},
-        share_posterior=share_posterior,
     )
     subsampled = (
         _channel_posterior([2.0, 1.0], channel=("b", "a"))
@@ -2137,18 +1999,14 @@ def test_conditioned_model_empty_cache_accepts_a_subsample_shaped_posterior(
     )
 
 
-@pytest.mark.parametrize("share_posterior", [False, True])
-def test_conditioned_model_empty_cache_skips_a_missing_dimension(share_posterior):
+def test_conditioned_model_empty_cache_skips_a_missing_dimension():
     """A thinned posterior that drops a variable and its dimension is accepted.
 
     A dimension is realigned only when both posteriors label it.
     """
     model, spend = _channel_conditioned_model()
     conditioned = ConditionedModel(
-        model,
-        _channel_posterior([1.0, 2.0]),
-        intervention={"spend": spend},
-        share_posterior=share_posterior,
+        model, _channel_posterior([1.0, 2.0]), intervention={"spend": spend}
     )
     thinned = xr.Dataset({"gamma": (("chain", "draw"), np.zeros((1, 1)))})
 
@@ -2162,7 +2020,6 @@ def test_conditioned_model_empty_cache_skips_a_missing_dimension(share_posterior
     )
 
 
-@pytest.mark.parametrize("share_posterior", [False, True])
 @pytest.mark.parametrize(
     ("replaced", "incoming", "message"),
     [
@@ -2170,9 +2027,7 @@ def test_conditioned_model_empty_cache_skips_a_missing_dimension(share_posterior
         (["a", "b"], ["a", "a"], "different channel labels"),
     ],
 )
-def test_conditioned_model_refuses_duplicated_labels(
-    share_posterior, replaced, incoming, message
-):
+def test_conditioned_model_refuses_duplicated_labels(replaced, incoming, message):
     """A duplicated label would make ``sel`` drop a column instead of realigning.
 
     Incoming duplicates surface as a different label set.
@@ -2183,89 +2038,11 @@ def test_conditioned_model_refuses_duplicated_labels(
         model,
         _channel_posterior([1.0, 2.0], channel=replaced),
         intervention={"spend": spend},
-        share_posterior=share_posterior,
     )
 
     conditioned.set_posterior(_channel_posterior([1.0, 2.0], channel=incoming))
     with pytest.raises(ValueError, match=message):
         conditioned.extract("resp")
-
-
-def test_conditioned_model_first_rebind_retries_after_failed_callback(
-    conditioned_slope, slope_posteriors
-):
-    _, data_values, _, second, third = slope_posteriors
-    fired = []
-    flaky_calls = []
-
-    def flaky():
-        flaky_calls.append(1)
-        if len(flaky_calls) == 1:
-            raise RuntimeError("callback failed")
-
-    # Hand out a key first: the retry only exists on the re-extracting path.
-    conditioned_slope.extract("doubled")
-    conditioned_slope.register(lambda: fired.append("fired"))
-    conditioned_slope.register(flaky)
-
-    with pytest.raises(RuntimeError, match="callback failed"):
-        conditioned_slope.set_posterior(second)
-    assert len(fired) == 1 and len(flaky_calls) == 1
-
-    # The rollback left the object able to take the first-rebind path again.
-    conditioned_slope.set_posterior(third)
-    assert len(fired) == 2 and len(flaky_calls) == 2
-    np.testing.assert_allclose(
-        function([], conditioned_slope.extract("doubled"))(),
-        _expected_doubled(third, data_values),
-    )
-
-
-def test_conditioned_model_callback_can_extract_a_new_key(
-    conditioned_slope, slope_posteriors
-):
-    _, data_values, _, second, _ = slope_posteriors
-    extracted = []
-
-    def extract_new_key():
-        extracted.append(conditioned_slope.extract("tripled"))
-
-    # The callback only runs on the re-extracting path, which needs a handed-out key.
-    conditioned_slope.extract("doubled")
-    conditioned_slope.register(extract_new_key)
-    conditioned_slope.set_posterior(second)
-
-    # The callback extracted a key that was never handed out; it was cached
-    # through the shared posterior, so it follows the rebind.
-    assert conditioned_slope.extract("tripled") is extracted[0]
-    np.testing.assert_allclose(
-        function([], extracted[0])(), _expected_tripled(second, data_values)
-    )
-
-
-def test_conditioned_model_first_rebind_reextracts_only_what_callbacks_request():
-    """Only the keys a callback re-requests are re-extracted on the first rebind.
-
-    ``resp_g`` was handed out, but the callback asks only for ``resp``.  The
-    stale key is dropped with the rest of the constant cache, so ``gamma`` is
-    never bound and a posterior without it is accepted.
-    """
-    model, spend = _channel_conditioned_model()
-    conditioned = ConditionedModel(
-        model,
-        _channel_posterior([1.0, 2.0], gamma=[3.0, 4.0]),
-        intervention={"spend": spend},
-    )
-    conditioned.extract("resp")
-    conditioned.extract("resp_g")
-    refreshed = []
-    conditioned.register(lambda: refreshed.append(conditioned.extract("resp")))
-
-    conditioned.set_posterior(_channel_posterior([2.0, 1.0]))
-
-    assert set(conditioned.shared_posterior.variables) == {"beta"}
-    assert conditioned.extract("resp") is refreshed[0]
-    np.testing.assert_allclose(function([], refreshed[0])(), [[20.0, 20.0]])
 
 
 def _dated_conditioned_model() -> pm.Model:
@@ -2303,8 +2080,7 @@ def _dated_posterior(dates, beta, channel=("a", "b")):
     )
 
 
-@pytest.mark.parametrize("share_posterior", [False, True])
-def test_conditioned_model_ignores_unread_date_labels_on_rebind(share_posterior):
+def test_conditioned_model_ignores_unread_date_labels_on_rebind():
     """A refit date window on an unread deterministic is accepted.
 
     ``resp`` reads only ``beta``, so the newer ``date`` labels of the unread
@@ -2314,54 +2090,16 @@ def test_conditioned_model_ignores_unread_date_labels_on_rebind(share_posterior)
     model = _dated_conditioned_model()
     construction = pd.date_range("2025-01-06", periods=3, freq="W-MON")
     refit = pd.date_range("2025-02-03", periods=4, freq="W-MON")
-    conditioned = ConditionedModel(
-        model,
-        _dated_posterior(construction, [1.0, 2.0]),
-        share_posterior=share_posterior,
-    )
-    conditioned.extract("resp")
+    conditioned = ConditionedModel(model, _dated_posterior(construction, [1.0, 2.0]))
+    fn = function([], conditioned.extract("resp"))
 
     conditioned.set_posterior(_dated_posterior(refit, [20.0, 10.0], channel=("b", "a")))
 
     assert conditioned.posterior.indexes["date"].tolist() == list(refit)
-    np.testing.assert_allclose(function([], conditioned.extract("resp"))(), [150.0])
+    np.testing.assert_allclose(fn(), [150.0])
 
 
-@pytest.mark.parametrize("share_posterior", [False, True])
-def test_conditioned_model_stale_inspection_key_does_not_bind(share_posterior):
-    """An inspection of ``resp_g`` before a rebind does not pin ``gamma``.
-
-    In constant mode the first rebind drops the cached inspection key with the
-    rest of the cache.  In shared mode the inspection is extracted as
-    non-required, so it binds ``gamma`` to a private binding and a posterior
-    without ``gamma`` is still accepted.  Either way the model-wide binding
-    holds ``beta`` only.
-    """
-    model, spend = _channel_conditioned_model()
-    conditioned = ConditionedModel(
-        model,
-        _channel_posterior([1.0, 2.0], gamma=[3.0, 4.0]),
-        intervention={"spend": spend},
-        share_posterior=share_posterior,
-    )
-    conditioned.extract("resp_g", required=False)
-    conditioned.extract("resp")
-    refreshed = []
-    conditioned.register(lambda: refreshed.append(conditioned.extract("resp")))
-
-    conditioned.set_posterior(_channel_posterior([2.0, 1.0]))
-
-    assert set(conditioned.shared_posterior.variables) == {"beta"}
-    # Shared mode fires no callback: the cached ``resp`` graph follows the swap.
-    assert bool(refreshed) is not share_posterior
-    graph = conditioned.extract("resp") if share_posterior else refreshed[0]
-    np.testing.assert_allclose(function([], graph)(), [[20.0, 20.0]])
-
-
-@pytest.mark.parametrize("share_posterior", [False, True])
-def test_conditioned_model_first_read_after_reordered_rebind(
-    share_posterior,
-):
+def test_conditioned_model_first_read_after_reordered_rebind():
     """A variable first read after a reordered rebind is read in the model's order.
 
     The construction posterior carries no ``channel`` labels (a thinned
@@ -2374,7 +2112,6 @@ def test_conditioned_model_first_read_after_reordered_rebind(
         model,
         _channel_posterior([1.0, 2.0]).drop_vars("channel"),
         intervention={"spend": spend},
-        share_posterior=share_posterior,
     )
 
     conditioned.set_posterior(
@@ -2387,8 +2124,7 @@ def test_conditioned_model_first_read_after_reordered_rebind(
     assert conditioned.posterior.indexes["channel"].tolist() == ["a", "b"]
 
 
-@pytest.mark.parametrize("share_posterior", [False, True])
-def test_conditioned_model_construction_posterior_in_non_model_order(share_posterior):
+def test_conditioned_model_construction_posterior_in_non_model_order():
     """Draws stored in another label order are read in the model's order.
 
     The model's coords are ``(a, b)``; the construction posterior stores
@@ -2401,7 +2137,6 @@ def test_conditioned_model_construction_posterior_in_non_model_order(share_poste
         model,
         _channel_posterior([2.0, 1.0], channel=("b", "a"), gamma=[4.0, 3.0]),
         intervention={"spend": spend},
-        share_posterior=share_posterior,
     )
 
     assert conditioned.posterior.indexes["channel"].tolist() == ["a", "b"]
@@ -2413,17 +2148,11 @@ def test_conditioned_model_construction_posterior_in_non_model_order(share_poste
     )
 
 
-@pytest.mark.parametrize("share_posterior", [False, True])
-def test_conditioned_model_refuses_a_per_variable_dim_change_at_the_read(
-    share_posterior,
-):
+def test_conditioned_model_refuses_a_per_variable_dim_change_at_the_read():
     """``beta`` gaining a dimension is refused when a graph reads it, not at the door."""
     model, spend = _channel_conditioned_model()
     conditioned = ConditionedModel(
-        model,
-        _channel_posterior([1.0, 2.0]),
-        intervention={"spend": spend},
-        share_posterior=share_posterior,
+        model, _channel_posterior([1.0, 2.0]), intervention={"spend": spend}
     )
     gained = xr.Dataset(
         {"beta": (("chain", "draw", "channel", "geo"), np.ones((1, 1, 2, 3)))},
@@ -2436,21 +2165,17 @@ def test_conditioned_model_refuses_a_per_variable_dim_change_at_the_read(
         conditioned.extract("resp")
 
 
-@pytest.mark.parametrize("share_posterior", [False, True])
-def test_conditioned_model_takes_a_variable_missing_at_construction_as_given(
-    share_posterior,
-):
+def test_conditioned_model_takes_a_variable_missing_at_construction_as_given():
     """A variable thinned out of the construction posterior has no known layout."""
     model, spend = _channel_conditioned_model()
     conditioned = ConditionedModel(
-        model,
-        _channel_posterior([1.0, 2.0]),
-        intervention={"spend": spend},
-        share_posterior=share_posterior,
+        model, _channel_posterior([1.0, 2.0]), intervention={"spend": spend}
     )
 
     conditioned.set_posterior(_channel_posterior([1.0, 2.0], gamma=[3.0, 4.0]))
 
-    np.testing.assert_allclose(
-        function([], conditioned.extract("resp_g"))(), [[30.0, 80.0]]
-    )
+    fn = function([], conditioned.extract("resp_g"))
+    np.testing.assert_allclose(fn(), [[30.0, 80.0]])
+    # Once read, it is bound like any other variable and follows a rebind.
+    conditioned.set_posterior(_channel_posterior([1.0, 2.0], gamma=[5.0, 6.0]))
+    np.testing.assert_allclose(fn(), [[50.0, 120.0]])

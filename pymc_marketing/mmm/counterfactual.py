@@ -868,9 +868,9 @@ class CounterfactualEvaluator:
         # The model the caller holds, which ``pm.set_data`` mutates in
         # place; the clone's data variables do not follow it.
         self._source_model: Model = pymc_model
-        # The evaluator owns its ConditionedModel 1:1 and asks for the shared
-        # posterior from the start, so the compile below already produces the
-        # graphs every later rebind reuses.
+        # The evaluator owns its ConditionedModel 1:1.  Its graphs read the
+        # draws through shared variables, so the compile below already produces
+        # the graphs every later rebind reuses.
         intervention_value = (
             self._placeholder
             if intervention_mode == "replace"
@@ -881,7 +881,6 @@ class CounterfactualEvaluator:
             posterior,
             intervention={self.intervention_target: intervention_value},
             frozen_deterministics=frozen_deterministics,
-            share_posterior=True,
         )
         self._do_model = self._conditioned.model
         self._build()

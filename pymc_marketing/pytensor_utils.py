@@ -17,7 +17,7 @@
 import contextlib
 import warnings
 from collections import Counter, OrderedDict
-from collections.abc import Callable, Iterator, Mapping, Sequence
+from collections.abc import Iterator, Mapping, Sequence
 from typing import Any, NamedTuple, cast, overload
 
 import arviz as az
@@ -626,7 +626,8 @@ class SharedPosterior:
         ValueError
             If a variable's non-sample dimensions differ, in name, length or
             coordinate labels, from the ones it was created with.  Nothing is
-            written in that case.
+            written in that case, and a write cut short by an interrupt puts
+            the previous draws back.
         """
         posterior = _posterior_sample_major(idata)
         missing = sorted(set(self._variables) - set(posterior.data_vars))
@@ -642,8 +643,18 @@ class SharedPosterior:
             name: self._aligned_values(name, posterior[name])
             for name in self._variables
         }
-        for name, values in prepared.items():
-            self._variables[name].set_value(values, borrow=True)
+        # The arrays held now, by reference: a write cut short by an interrupt
+        # puts them back, so no compiled function reads a mix of two posteriors.
+        previous = {
+            name: var.get_value(borrow=True) for name, var in self._variables.items()
+        }
+        try:
+            for name, values in prepared.items():
+                self._variables[name].set_value(values, borrow=True)
+        except BaseException:
+            for name, values in previous.items():
+                self._variables[name].set_value(values, borrow=True)
+            raise
 
 
 def needed_posterior_names(
@@ -979,72 +990,31 @@ def _apply_intervention(
         return do(model, dict(intervention))
 
 
-class CachedGraphs(NamedTuple):
-    """A cached extraction: the graphs and their binding.
-
-    ``optional_binding`` is the private :class:`SharedPosterior` of a
-    non-required extraction, or ``None``.  A non-required graph extracted
-    before the switch is constant and has none; after the switch it owns one,
-    so a rebind that cannot satisfy it drops only this key instead of failing.
-    """
-
-    graphs: list[XTensorVariable]
-    optional_binding: SharedPosterior | None = None
-
-
-class OptionalBindingCheckpoint(NamedTuple):
-    """An optional extraction's own binding and shallow copies of its registries."""
-
-    binding: SharedPosterior
-    variables: dict[str, SharedVariable]
-    layouts: dict[str, VariableLayout]
-
-
-class ConditionedModelCheckpoint(NamedTuple):
-    """A cheap snapshot of a :class:`ConditionedModel`'s binding state.
-
-    Returned by :meth:`ConditionedModel.checkpoint` and reinstalled by
-    :meth:`ConditionedModel.restore`.
-
-    The cache and the registries are shallow-copied; the posterior dataset is
-    held by reference and no draws are copied.  A restore writes the
-    previous draws back through the same :class:`SharedPosterior`, so a
-    compiled function that holds its variables keeps reading them.
-    """
-
-    cache: OrderedDict[tuple[str | Variable | bool, ...], CachedGraphs]
-    posterior: xr.Dataset
-    shared_posterior: SharedPosterior | None
-    variables: dict[str, SharedVariable]
-    layouts: dict[str, VariableLayout]
-    optional: tuple[OptionalBindingCheckpoint, ...]
-
-
 class ConditionedModel:
     """A model after an intervention, and the one owner of its posterior binding.
 
     A caller hands over a model, a posterior and, optionally, an intervention --
     a mapping of :func:`pymc.do` arguments, which this object applies itself.
-    It hands out response graphs conditioned on the posterior and rebinds them
-    as the posterior moves.
+    It hands out response graphs conditioned on the posterior and rebinds all
+    of them when the posterior moves.
 
-    Extraction is cached by response names and the ``required`` flag in a
-    bounded LRU: a repeated :meth:`extract` of a cached key returns the identical
-    graph, and a new derived node per call evicts the least recently used entry.
-    Eviction only drops the cache entry; graphs already handed out keep working.
-    A new node per call costs an extraction and a cache entry every time, so a
-    caller that derives one should keep the graph it gets back and reuse it.
+    Every graph reads the draws through one :class:`SharedPosterior`, so
+    :meth:`set_posterior` points every graph handed out so far -- and every
+    function compiled from one -- at the new draws without extracting or
+    compiling again, whatever the number of draws.
 
-    By default the draws enter as constants, keeping constant folding; with
-    ``share_posterior=True`` they enter through a :class:`SharedPosterior` from
-    the first :meth:`extract`.  A non-required extraction is an optional tier
-    with a private binding once on the shared path.
+    Extraction is cached by response names in a bounded LRU: a repeated
+    :meth:`extract` of a cached key returns the identical graph, and a new
+    derived node per call evicts the least recently used entry.  Eviction only
+    drops the cache entry: an evicted graph still reads the shared variables
+    and keeps following every rebind.  A new node per call costs an extraction
+    and a cache entry every time, so a caller that derives one should keep the
+    graph it gets back and reuse it.
 
     A posterior is reordered to the model's coords per dimension on the way in.
-    A variable is validated when a graph reads it, against its construction
-    layout; a variable no graph reads is not validated.
-
-    See :meth:`set_posterior` for how a rebind treats cached graphs.
+    A variable is validated when a graph first reads it, against its layout in
+    the construction posterior, and on every rebind after that; a variable no
+    graph reads is not validated.
 
     Parameters
     ----------
@@ -1056,9 +1026,6 @@ class ConditionedModel:
         A mapping of ``pm.do`` arguments.  ``None`` uses the model unchanged.
     frozen_deterministics : list of str, optional
         Names of Deterministic variables to freeze at their posterior values.
-    share_posterior : bool, default False
-        Start on the shared path: bind the draws through a :class:`SharedPosterior`
-        from the first extraction.
 
     Examples
     --------
@@ -1066,12 +1033,11 @@ class ConditionedModel:
 
         spend = {"channel_data": new_spend}
         conditioned = ConditionedModel(model, idata, intervention=spend)
-        conditioned.extract("channel_contribution")
-        conditioned.register(
-            lambda: recompile(conditioned.extract("channel_contribution"))
-        )
-        conditioned.set_posterior(updated_idata)  # recompiles once
-        conditioned.set_posterior(another_idata)  # no recompile
+        graph = conditioned.extract("channel_contribution")
+        fn = pytensor.function([], graph.values)
+        fn()  # under ``idata``
+        conditioned.set_posterior(updated_idata)
+        fn()  # under ``updated_idata``, no recompile
     """
 
     def __init__(
@@ -1081,7 +1047,6 @@ class ConditionedModel:
         *,
         intervention: Mapping[str, Variable | np.ndarray | float] | None = None,
         frozen_deterministics: list[str] | None = None,
-        share_posterior: bool = False,
     ) -> None:
         self.frozen_deterministics: tuple[str, ...] = tuple(frozen_deterministics or ())
         self._model = _apply_intervention(model, intervention)
@@ -1110,13 +1075,10 @@ class ConditionedModel:
             str(name): _variable_layout(var, sample_dims=("chain", "draw"))
             for name, var in self._posterior.data_vars.items()
         }
-        self._shared_posterior: SharedPosterior | None = (
-            SharedPosterior() if share_posterior else None
-        )
-        self._cache: OrderedDict[tuple[str | Variable | bool, ...], CachedGraphs] = (
+        self._shared_posterior = SharedPosterior()
+        self._cache: OrderedDict[tuple[str | Variable, ...], list[XTensorVariable]] = (
             OrderedDict()
         )
-        self._callbacks: list[Callable[[], None]] = []
 
     @property
     def model(self) -> Model:
@@ -1129,44 +1091,27 @@ class ConditionedModel:
         return self._posterior
 
     @property
-    def shared_posterior(self) -> SharedPosterior | None:
-        """The shared posterior binding the graphs, or ``None`` while the draws are constant.
-
-        ``None`` means the draws are baked into the graphs as constants; otherwise
-        this is the :class:`SharedPosterior` the current graphs read.  See
-        :meth:`set_posterior` for when a rebind installs a fresh one.
-        """
+    def shared_posterior(self) -> SharedPosterior:
+        """The :class:`SharedPosterior` every graph reads its draws from."""
         return self._shared_posterior
 
     @overload
-    def extract(
-        self,
-        response_vars: str | Variable,
-        *,
-        required: bool = ...,
-    ) -> XTensorVariable: ...
+    def extract(self, response_vars: str | Variable) -> XTensorVariable: ...
 
     @overload
-    def extract(
-        self,
-        response_vars: Sequence[Variable],
-        *,
-        required: bool = ...,
-    ) -> list[XTensorVariable]: ...
+    def extract(self, response_vars: Sequence[Variable]) -> list[XTensorVariable]: ...
 
     def extract(
-        self,
-        response_vars: str | Variable | Sequence[str | Variable],
-        *,
-        required: bool = True,
+        self, response_vars: str | Variable | Sequence[str | Variable]
     ) -> XTensorVariable | list[XTensorVariable]:
         """Return response graphs conditioned on the current posterior.
 
-        Every extraction is cached by response names and ``required``: a
-        repeated call returns the identical graph, and a full cache evicts the
-        least recently used key.  See :meth:`set_posterior` for how a rebind
-        treats cached graphs.  A failure leaves the cache and the shared
-        posterior as they were.
+        Every extraction is cached by response names: a repeated call returns
+        the identical graph, and a full cache evicts the least recently used
+        key.  Every graph reads its draws through :attr:`shared_posterior`, so
+        it follows every later :meth:`set_posterior`, evicted or not, and every
+        variable it reads must be in every later posterior.  A failure leaves
+        the cache and the shared posterior as they were.
 
         Parameters
         ----------
@@ -1177,12 +1122,6 @@ class ConditionedModel:
             applied, a graph that reads a root of the source model is refused,
             since that input still holds its pre-intervention value; a free
             input the model does not bind is accepted as a function argument.
-        required : bool, default True
-            Whether a rebind must keep satisfying this extraction.  A required
-            graph makes an unsatisfiable rebind raise; a non-required graph is
-            optional and owns a :class:`SharedPosterior` once on the shared path,
-            and a rebind that cannot satisfy it drops it silently.  See
-            :meth:`set_posterior`.
 
         Returns
         -------
@@ -1211,54 +1150,32 @@ class ConditionedModel:
             raise ValueError("'response_vars' must name at least one variable.")
 
         resolved = [self._resolve(var) for var in requested]
-        # The required flag is part of the key: the same response bound to the
-        # model-wide binding and to an optional one are different graphs.
-        cache_key = (*self._names(resolved), required)
-        cached = self._cache.get(cache_key)
-        if cached is None:
-            # An optional extraction only gets a binding of its own once the
-            # model has switched to the shared path.  Before that it is an
-            # ordinary constant graph, and the lazy switch drops it.
-            optional_binding = (
-                SharedPosterior()
-                if not required and self._shared_posterior is not None
-                else None
-            )
-            binding = (
-                self._shared_posterior if optional_binding is None else optional_binding
-            )
-            graphs = self._extract(resolved, binding)
-            cached = CachedGraphs(graphs, optional_binding)
-            self._cache[cache_key] = cached
-            # Eviction only drops the entry.  A graph already handed out keeps
-            # working, and a compiled function keeps reading its shared variables.
+        cache_key = self._names(resolved)
+        graphs = self._cache.get(cache_key)
+        if graphs is None:
+            graphs = self._extract(resolved)
+            self._cache[cache_key] = graphs
+            # Eviction only drops the entry: an evicted graph still reads the
+            # shared variables, which every rebind writes.
             while len(self._cache) > _GRAPH_CACHE_SIZE:
                 self._cache.popitem(last=False)
         else:
             self._cache.move_to_end(cache_key)
-        graphs = cached.graphs
         # Hand out a fresh list every call: the cached one is shared by every
         # consumer, so a caller mutating what it got back must not corrupt it.
         # The graph elements themselves stay identical.
         return graphs[0] if single else list(graphs)
 
     def set_posterior(self, idata: xr.DataTree | xr.Dataset) -> None:
-        """Point the graphs at the draws in ``idata``.
+        """Point every graph handed out so far at the draws in ``idata``.
 
-        While the draws are still constants, the first call after a graph has
-        been cached drops the cache, installs a fresh :class:`SharedPosterior`
-        and fires the registered callbacks, which re-extract and re-validate
-        what they use.  A graph handed out before that call does not follow it:
-        re-extract it, or register a callback that does.  With nothing cached
-        the call only switches to the shared path and fires nothing.  Once on
-        the shared path, including from construction with
-        ``share_posterior=True``, every call swaps the draws in place, even
-        with nothing cached, validates the required graphs and needs no
-        recompile; the number of draws may differ.
-        Each optional key is rebound, or dropped from the cache if the
-        posterior cannot satisfy it; the next :meth:`extract` of a dropped key
-        raises while the posterior lacks a variable it reads, and returns a new
-        graph once it holds them.
+        The draws are swapped in place in the shared variables, so a function
+        compiled from any of the graphs follows without recompiling, and the
+        number of draws may change.  Every variable a graph has read is checked
+        against its construction layout before any is written: it must be
+        present, with the same non-sample dimensions and the same set of labels
+        on each, which are realigned by value.  A posterior variable no graph
+        has read may change freely; it is checked when a graph first reads it.
 
         Parameters
         ----------
@@ -1269,170 +1186,30 @@ class ConditionedModel:
         Raises
         ------
         KeyError
-            If a callback re-extracts a graph whose variables ``idata`` lacks,
-            or a required bound variable is missing.
+            If the posterior lacks a variable a graph reads.
         ValueError
-            If a variable a callback re-extracts, or a required bound variable,
-            differs in its non-sample dimensions, length or labels.
+            If a variable a graph reads differs from its construction layout in
+            its non-sample dimensions, their lengths or their labels.
 
         Notes
         -----
-        After an error, and when a callback raises, the previous cache,
-        posterior and binding are restored; a failed shared-mode swap writes the
-        previous draws back.  A callback that extracts during the rebind adds
-        its key to the bounded cache.  A dropped optional key is only removed
-        from the cache: a graph already handed out keeps its last draws.
+        A rebind is atomic: after any error, an interrupt included, every graph
+        reads the previous draws and :attr:`posterior` is unchanged.
         """
         posterior = reorder_to_model_coords(
             _posterior_dataset(idata), self._model.coords
         )
-
-        if not self._cache and self._shared_posterior is None:
-            # The draws are still constants and nothing is cached, so no
-            # variable is bound.  Switch to the shared path and record them.
-            self._shared_posterior = SharedPosterior()
-            self._posterior = posterior
-            return
-
-        if self._shared_posterior is not None:
-            # The checkpoint makes the swap atomic: an unexpected failure
-            # after the required variables were written puts the old draws
-            # back, so no compiled function is left reading the new ones.
-            checkpoint = self.checkpoint()
-            try:
-                # The required binding goes first: its variables are the ones
-                # the long-lived graphs read, so its failure is the caller's
-                # failure.  ``SharedPosterior.set_posterior`` validates exactly
-                # those and writes nothing unless all of them pass.
-                self._shared_posterior.set_posterior(posterior)
-                # Each optional key owns a binding of its own.  One the new
-                # posterior cannot satisfy is dropped here rather than refusing
-                # the whole rebind; the next extraction of that key builds a
-                # new graph.
-                for key, cached in list(self._cache.items()):
-                    binding = cached.optional_binding
-                    if binding is None:
-                        continue
-                    try:
-                        binding.set_posterior(posterior)
-                    except (KeyError, ValueError):
-                        del self._cache[key]
-                self._posterior = posterior
-            except BaseException:
-                self.restore(checkpoint)
-                raise
-            return
-
-        # First rebind with a cache: drop the constant graphs, install a fresh
-        # binding and let the callbacks re-request only what they use.  A stale
-        # inspection key or a replaced constraint never binds.
-        checkpoint = self.checkpoint()
-        self._cache = OrderedDict()
-        self._shared_posterior = SharedPosterior()
+        previous = self._posterior
         self._posterior = posterior
         try:
-            self._fire_callbacks()
+            # Validates every bound variable and writes nothing unless all of
+            # them pass; a write cut short puts the previous draws back.
+            self._shared_posterior.set_posterior(posterior)
         except BaseException:
-            self.restore(checkpoint)
+            self._posterior = previous
             raise
 
-    def checkpoint(self) -> ConditionedModelCheckpoint:
-        """Snapshot the cache and binding state without copying any draws.
-
-        :meth:`set_posterior` rolls its own state back when it fails.  A consumer
-        that compiled functions from the graphs and must roll those back
-        together with the binding -- as ``BudgetOptimizer.set_posterior`` does
-        -- takes a checkpoint before the rebind and passes it to :meth:`restore`
-        on failure.  Graphs extracted after the checkpoint are not part of it:
-        after a :meth:`restore` they no longer follow rebinds, so the consumer
-        discards whatever it compiled from them, as ``BudgetOptimizer`` does.
-        The cache and the registries are shallow-copied, so this is cheap.  The
-        posterior dataset is held by reference: a restore writes its draws back
-        through the shared variables instead of replacing them.
-
-        Returns
-        -------
-        ConditionedModelCheckpoint
-            The token :meth:`restore` reinstalls.
-        """
-        shared = self._shared_posterior
-        optional = tuple(
-            OptionalBindingCheckpoint(
-                binding, binding._variables.copy(), binding._layouts.copy()
-            )
-            for cached in self._cache.values()
-            if (binding := cached.optional_binding) is not None
-        )
-        return ConditionedModelCheckpoint(
-            cache=self._cache.copy(),
-            posterior=self._posterior,
-            shared_posterior=shared,
-            variables={} if shared is None else shared._variables.copy(),
-            layouts={} if shared is None else shared._layouts.copy(),
-            optional=optional,
-        )
-
-    def restore(self, token: ConditionedModelCheckpoint) -> None:
-        """Reinstall a snapshot taken by :meth:`checkpoint`.
-
-        The cache, posterior and shared-posterior object are replaced with the
-        token's.  When the token's own :class:`SharedPosterior` is still the
-        current one -- a later rebind, which swaps draws in place -- its
-        registries are put back and the previous draws are written into the
-        same shared variables, so a compiled function that holds them reads
-        the old draws again.  A first rebind instead installed a fresh object,
-        so the token's previous object is reinstalled untouched.
-
-        Each optional binding is restored the same way.  The method runs
-        straight through and is idempotent: a second call leaves the same state.
-
-        Parameters
-        ----------
-        token : ConditionedModelCheckpoint
-            The token returned by this object's :meth:`checkpoint`.  A token
-            from another instance is not detected and must not be passed.  The
-            cache and registries go back to the token's, so a graph extracted
-            after the checkpoint loses its binding and keeps its last draws on
-            every later rebind; re-extract it instead of reusing it.
-        """
-        self._cache = token.cache.copy()
-        self._posterior = token.posterior
-        current = self._shared_posterior
-        self._shared_posterior = token.shared_posterior
-        shared = token.shared_posterior
-        if shared is not None:
-            shared._variables = token.variables.copy()
-            shared._layouts = token.layouts.copy()
-            if current is shared:
-                shared.set_posterior(token.posterior)
-        # An optional binding is the object held by the token's cache, so a
-        # rebind may have swapped draws in it even though the entry is back.
-        for saved in token.optional:
-            binding = saved.binding
-            binding._variables = saved.variables.copy()
-            binding._layouts = saved.layouts.copy()
-            binding.set_posterior(token.posterior)
-
-    def register(self, callback: Callable[[], None]) -> None:
-        """Register ``callback`` to run after a rebind that dropped the graphs.
-
-        ``callback`` takes no arguments and calls :meth:`extract` for the graphs
-        it needs; callbacks run in registration order and one that raises stops
-        the rest.  This object rolls back its own state, each consumer its own.
-        See :meth:`set_posterior` for the rebind.
-
-        Parameters
-        ----------
-        callback : callable
-            A no-argument callable, run in registration order.
-        """
-        self._callbacks.append(callback)
-
-    def _extract(
-        self,
-        resolved: list[Variable],
-        shared_posterior: SharedPosterior | None,
-    ) -> list[XTensorVariable]:
+    def _extract(self, resolved: list[Variable]) -> list[XTensorVariable]:
         """Extract ``resolved`` conditioned on the variables they read.
 
         The posterior is narrowed to the read names, each validated and
@@ -1450,7 +1227,7 @@ class ConditionedModel:
                 idata=self._read_posterior(read_names, self._posterior),
                 response_variable=resolved,
                 frozen_deterministics=list(self.frozen_deterministics),
-                shared_posterior=shared_posterior,
+                shared_posterior=self._shared_posterior,
             ),
         )
 
@@ -1555,11 +1332,6 @@ class ConditionedModel:
             else var
             for var in resolved
         )
-
-    def _fire_callbacks(self) -> None:
-        """Run every registered callback in order."""
-        for callback in self._callbacks:
-            callback()
 
 
 class ModelSamplerEstimator:

@@ -47,6 +47,7 @@ from pymc_marketing.mmm.utility import (
     _check_samples_dimensionality,
     diversification_ratio,
 )
+from pymc_marketing.pytensor_utils import ConditionedModel
 
 
 @pytest.fixture(scope="module")
@@ -2926,13 +2927,13 @@ def test_set_posterior_ignores_a_replaced_custom_constraint():
 
 
 def test_shared_rebind_after_eviction_updates_the_objective(monkeypatch):
-    """An ad-hoc response must not leave the objective on stale draws.
+    """An ad-hoc response that evicts the objective's graph must not leave it stale.
 
-    An ad-hoc response that reads ``gamma`` evicts the objective's key from the
-    bounded cache.  A rebind without ``gamma`` then drops that response, so the
-    cache is empty while ``beta`` is still bound.  The next rebind must still
-    swap ``beta``: the objective compiled before the eviction has to match a
-    fresh optimizer built on the final draws.
+    With a cache of one entry, an ad-hoc response that reads ``gamma`` evicts
+    the objective's graph from the conditioned model's cache.  The objective
+    compiled before the eviction still reads the shared draws, so the next
+    rebinds must reach it: it has to match a fresh optimizer built on the
+    final draws.
     """
     optimizer = _two_response_optimizer(_two_response_posterior(gamma=(1.0, 1.0)))
     plan = xr.DataArray([30.0, 70.0], dims=["channel"], coords={"channel": ["a", "b"]})
@@ -2944,20 +2945,18 @@ def test_shared_rebind_after_eviction_updates_the_objective(monkeypatch):
 
     monkeypatch.setattr("pymc_marketing.pytensor_utils._GRAPH_CACHE_SIZE", 1)
     optimizer.evaluate_response_distribution(plan, "inspection")
-    assert not any(required for _, required in optimizer._conditioned._cache)
 
     optimizer.set_posterior(
-        xr.DataTree.from_dict({"/posterior": _two_response_posterior(beta=(3.0, 3.0))})
+        xr.DataTree.from_dict(
+            {"/posterior": _two_response_posterior(beta=(3.0, 3.0), gamma=(1.0, 1.0))}
+        )
     )
-    assert not optimizer._conditioned._cache
-
-    final = _two_response_posterior(beta=(4.0, 4.0))
+    final = _two_response_posterior(beta=(4.0, 4.0), gamma=(1.0, 1.0))
     optimizer.set_posterior(xr.DataTree.from_dict({"/posterior": final}))
 
-    x = optimizer.optimization_variables.pack(plan)
     fresh = _two_response_optimizer(final)
-    np.testing.assert_allclose(
-        optimizer._objective_and_grad(x)[0], fresh._objective_and_grad(x)[0]
+    assert optimizer.evaluate_plan(plan).objective == pytest.approx(
+        fresh.evaluate_plan(plan).objective
     )
 
 
@@ -3159,32 +3158,70 @@ def test_set_posterior_accepts_a_posterior_without_channel_contribution(
     assert optimizer.budgets_to_optimize.values.tolist() == [True, False]  # kept
 
 
-@pytest.mark.parametrize("rebind_first", [False, True])
-def test_a_one_shot_evaluation_does_not_pin_the_rebinds(rebind_first):
-    """An ad-hoc evaluation must not force its free RVs on a rebind.
+def test_an_ad_hoc_evaluation_before_the_first_rebind_does_not_pin_it():
+    """An ad-hoc evaluation on constant draws leaves the first rebind free.
 
-    ``evaluate_response_distribution(plan, "noise_thing")`` reads ``gamma``,
-    which the objective does not.  A posterior thinned to the variables the
-    objective reads is still accepted whether the ad-hoc call comes before the
-    first rebind or after it: before it the graph is conditioned on constants,
-    and after it the graph is optional, so the rebind drops it instead of failing.
+    ``noise_thing`` reads ``gamma``, which the objective does not.  Before the
+    first rebind its graph bakes the draws in as constants, and the first
+    rebind drops it with them, so a posterior thinned to the objective's
+    variables is accepted and evaluated, as on ``main``.
     """
     optimizer, plan, posterior = _ad_hoc_response_optimizer()
-    if rebind_first:
-        optimizer.set_posterior(xr.DataTree.from_dict({"/posterior": posterior}))
     optimizer.evaluate_response_distribution(plan, "noise_thing")
 
-    thinned = xr.DataTree.from_dict({"/posterior": posterior.drop_vars("gamma")})
+    thinned = xr.DataTree.from_dict(
+        {
+            "/posterior": posterior.assign(beta=posterior["beta"] * 2.0).drop_vars(
+                "gamma"
+            )
+        }
+    )
     optimizer.set_posterior(thinned)
+
     assert optimizer.idata is thinned
-    assert optimizer._shared_posterior is not None
+    np.testing.assert_allclose(
+        optimizer.evaluate_response_distribution(plan).to_numpy(), 800.0
+    )
 
 
-def _ad_hoc_response_optimizer():
+def test_an_ad_hoc_evaluation_after_the_first_rebind_follows_and_pins_its_draws():
+    """After the first rebind an ad-hoc function reads the shared draws.
+
+    It follows a later swap without being rebuilt, and the variables it reads
+    are bound like the objective's, as on ``main``: a posterior without
+    ``gamma`` is refused and leaves the optimizer, its objective and the ad-hoc
+    function on the previous draws.
+    """
+    optimizer, plan, posterior = _ad_hoc_response_optimizer()
+    optimizer.set_posterior(xr.DataTree.from_dict({"/posterior": posterior}))
+    before = optimizer.evaluate_response_distribution(plan, "noise_thing")
+
+    shifted = xr.DataTree.from_dict(
+        {"/posterior": posterior.assign(gamma=posterior["gamma"] + 5.0)}
+    )
+    optimizer.set_posterior(shifted)
+    np.testing.assert_allclose(
+        optimizer.evaluate_response_distribution(plan, "noise_thing").to_numpy(),
+        before.to_numpy() + 5.0,
+    )
+
+    thinned = xr.DataTree.from_dict({"/posterior": posterior.drop_vars("gamma")})
+    with pytest.raises(KeyError, match="gamma"):
+        optimizer.set_posterior(thinned)
+
+    assert optimizer.idata is shifted
+    np.testing.assert_allclose(
+        optimizer.evaluate_response_distribution(plan, "noise_thing").to_numpy(),
+        before.to_numpy() + 5.0,
+    )
+    assert optimizer.evaluate_plan(plan).objective == pytest.approx(-400.0)
+
+
+def _ad_hoc_response_optimizer(constraints=None):
     """The model, posterior and plan of the ad-hoc response tests.
 
-    ``noise_thing`` reads ``gamma``, which the objective does not, so it is the
-    optional tier once the optimizer has rebound.
+    ``noise_thing`` reads ``gamma``, which the objective does not.  With every
+    ``beta`` at one, the objective's response at ``plan`` is 400.
     """
     n_dates = 4
     channels = ["a", "b"]
@@ -3215,20 +3252,43 @@ def _ad_hoc_response_optimizer():
         ),
         num_periods=n_dates,
         response_variable="total_media_contribution_original_scale",
+        constraints=constraints if constraints is not None else [],
     )
     plan = xr.DataArray([30.0, 70.0], dims=["channel"], coords={"channel": channels})
     return optimizer, plan, posterior
 
 
-def test_a_shallow_copy_follows_its_own_posterior():
-    """A copy owns its conditioned model, so a rebind moves only its own draws.
+def _response_floor_constraint(floor):
+    """An inequality constraint that reads the posterior: mean response minus ``floor``."""
+
+    def response_floor(budgets_sym, total_budget_sym, optimizer):
+        response = optimizer.extract_response_distribution(
+            "total_media_contribution_original_scale"
+        )
+        return response.mean() - floor
+
+    return Constraint(
+        key="response_floor", constraint_type="ineq", constraint_fun=response_floor
+    )
+
+
+@pytest.mark.parametrize("original_rebound", [False, True])
+def test_a_shallow_copy_follows_its_own_posterior(original_rebound):
+    """A copy owns its binding, so a rebind moves only its own draws.
 
     pydantic's ``model_copy`` shares private attributes by default, which would
     leave both optimizers on one conditioned model: the clone would optimize the
     old draws while reporting the new ones, and the original would move to a
-    posterior its ``idata`` does not hold.
+    posterior its ``idata`` does not hold.  The constraint reads the posterior
+    too, so a copy that recompiled only its objective would keep evaluating it
+    on the original's draws.  The original may still bake its draws in, or
+    already read shared ones.
     """
-    optimizer, plan, posterior = _ad_hoc_response_optimizer()
+    optimizer, plan, posterior = _ad_hoc_response_optimizer(
+        constraints=[_response_floor_constraint(100.0), build_default_sum_constraint()]
+    )
+    if original_rebound:
+        optimizer.set_posterior(xr.DataTree.from_dict({"/posterior": posterior}))
     scaled = xr.DataTree.from_dict(
         {"/posterior": posterior.assign(beta=posterior["beta"] * 3.0)}
     )
@@ -3243,46 +3303,33 @@ def test_a_shallow_copy_follows_its_own_posterior():
     np.testing.assert_allclose(
         optimizer.evaluate_response_distribution(plan).to_numpy(), 400.0
     )
-    assert clone.evaluate_plan(plan).objective == pytest.approx(-1200.0)
-    assert optimizer.evaluate_plan(plan).objective == pytest.approx(-400.0)
+    clone_eval = clone.evaluate_plan(plan, total_budget=100.0)
+    original_eval = optimizer.evaluate_plan(plan, total_budget=100.0)
+    assert clone_eval.objective == pytest.approx(-1200.0)
+    assert original_eval.objective == pytest.approx(-400.0)
+    residuals = clone_eval.constraint_residuals
+    assert residuals is not None
+    assert residuals["response_floor"]["value"] == pytest.approx(1100.0)
+    residuals = original_eval.constraint_residuals
+    assert residuals is not None
+    assert residuals["response_floor"]["value"] == pytest.approx(300.0)
 
 
-def test_an_ad_hoc_function_is_recompiled_after_a_rebind_drops_its_variable():
-    """A swap without the ad-hoc variable drops its function and still succeeds.
+def _fail_once_after_the_conditioned_rebind(monkeypatch, error):
+    """Make the next ``ConditionedModel.set_posterior`` write the draws, then raise.
 
-    ``noise_thing`` reads ``gamma``, which the objective does not.  A posterior
-    thinned to the objective's variables cannot satisfy the ad-hoc binding, so
-    the rebind drops that key instead of failing.  When ``gamma`` comes back,
-    the next evaluation builds a new graph and recompiles rather than reusing a
-    function that would report the old draws.
+    Only that call fails, so the optimizer's own rollback can rebind.
     """
-    optimizer, plan, posterior = _ad_hoc_response_optimizer()
+    original = ConditionedModel.set_posterior
+    failed = []
 
-    optimizer.set_posterior(xr.DataTree.from_dict({"/posterior": posterior}))
-    before = optimizer.evaluate_response_distribution(plan, "noise_thing")
-    compiled = optimizer._response_functions["noise_thing"][0]
+    def rebind_then_fail(self, idata):
+        original(self, idata)
+        if not failed:
+            failed.append(True)
+            raise error("after the conditioned rebind")
 
-    # A swap that still carries ``gamma`` reuses the function.
-    scaled = xr.DataTree.from_dict(
-        {"/posterior": posterior.assign(gamma=posterior["gamma"] * 2.0)}
-    )
-    optimizer.set_posterior(scaled)
-    reused = optimizer.evaluate_response_distribution(plan, "noise_thing")
-    assert optimizer._response_functions["noise_thing"][0] is compiled
-    assert not np.allclose(reused.to_numpy(), before.to_numpy())
-
-    thinned = xr.DataTree.from_dict({"/posterior": posterior.drop_vars("gamma")})
-    optimizer.set_posterior(thinned)  # the optional key is dropped, not fatal
-    assert optimizer.idata is thinned
-
-    restored = xr.DataTree.from_dict(
-        {"/posterior": posterior.assign(gamma=posterior["gamma"] * 3.0)}
-    )
-    optimizer.set_posterior(restored)
-    after = optimizer.evaluate_response_distribution(plan, "noise_thing")
-
-    assert optimizer._response_functions["noise_thing"][0] is not compiled
-    assert not np.allclose(after.to_numpy(), reused.to_numpy())
+    monkeypatch.setattr(ConditionedModel, "set_posterior", rebind_then_fail)
 
 
 @pytest.mark.parametrize(
@@ -3292,92 +3339,59 @@ def test_an_ad_hoc_function_is_recompiled_after_a_rebind_drops_its_variable():
         pytest.param(KeyboardInterrupt, id="interrupt"),
     ],
 )
-def test_a_failed_first_rebind_rolls_the_conditioned_model_back(error, monkeypatch):
-    """A failure after the conditioned rebind leaves both objects in constant mode.
+def test_a_failed_first_rebind_leaves_the_optimizer_as_built(error, monkeypatch):
+    """A failure after the first rebind wrote the new draws leaves the constant graphs.
 
-    The next real rebind takes the first-rebind path again, so it recompiles and
-    evaluates the new draws rather than keeping the constant graphs.
+    The objective and the response functions keep the construction draws and
+    ``idata`` is unchanged.  The next rebind takes the first-rebind path again,
+    so it evaluates the new draws rather than keeping the constant graphs.
     """
     optimizer, plan, posterior = _ad_hoc_response_optimizer()
-    conditioned = optimizer._conditioned
     before_idata = optimizer.idata
-    before_objective = optimizer._objective_and_grad
-    before_posterior = conditioned.posterior
     old = optimizer.evaluate_response_distribution(plan)
-    assert conditioned.shared_posterior is None
-
     new = xr.DataTree.from_dict({"/posterior": posterior * 2.0})
-    original = conditioned.set_posterior
-
-    def rebind_then_fail(idata):
-        original(idata)
-        raise error("after the conditioned rebind")
 
     with monkeypatch.context() as patch:
-        patch.setattr(conditioned, "set_posterior", rebind_then_fail)
+        _fail_once_after_the_conditioned_rebind(patch, error)
         with pytest.raises(error, match="after the conditioned rebind"):
             optimizer.set_posterior(new)
 
-    assert conditioned.shared_posterior is None
-    assert conditioned.posterior is before_posterior
     assert optimizer.idata is before_idata
-    assert optimizer._objective_and_grad is before_objective
     np.testing.assert_allclose(
         optimizer.evaluate_response_distribution(plan).to_numpy(), old.to_numpy()
     )
+    assert optimizer.evaluate_plan(plan).objective == pytest.approx(-400.0)
 
     optimizer.set_posterior(new)
 
-    assert conditioned.shared_posterior is not None
-    assert conditioned.posterior is not before_posterior
     assert optimizer.idata is new
-    assert optimizer._objective_and_grad is not before_objective
-    assert not np.allclose(
-        optimizer.evaluate_response_distribution(plan).to_numpy(), old.to_numpy()
+    np.testing.assert_allclose(
+        optimizer.evaluate_response_distribution(plan).to_numpy(), 2.0 * old.to_numpy()
     )
+    assert optimizer.evaluate_plan(plan).objective == pytest.approx(-800.0)
 
 
-def test_a_failed_shared_mode_rebind_restores_the_old_draws_without_recompiling(
-    monkeypatch,
-):
-    """A later failure puts the previous draws back into the same shared variables.
+def test_a_failed_later_rebind_puts_the_previous_draws_back(monkeypatch):
+    """A failure after a later rebind wrote the new draws restores the previous ones.
 
-    No function is recompiled and every evaluation still reports the old draws.
+    The later rebind swaps the draws in place, so the optimizer has to write
+    the previous ones back: the objective, the ad-hoc function and ``idata``
+    all report the last successful rebind.
     """
     optimizer, plan, posterior = _ad_hoc_response_optimizer()
     optimizer.set_posterior(xr.DataTree.from_dict({"/posterior": posterior}))
-    conditioned = optimizer._conditioned
-    shared = conditioned.shared_posterior
-    assert shared is not None
     before_idata = optimizer.idata
-    before_objective = optimizer._objective_and_grad
     before = optimizer.evaluate_response_distribution(plan)
     before_adhoc = optimizer.evaluate_response_distribution(plan, "noise_thing")
-    adhoc_function = optimizer._response_functions["noise_thing"][0]
-    variables = shared.variables
-    values = {name: variable.get_value() for name, variable in variables.items()}
-
-    original = conditioned.set_posterior
-
-    def rebind_then_fail(idata):
-        original(idata)
-        raise RuntimeError("after the conditioned rebind")
 
     with monkeypatch.context() as patch:
-        patch.setattr(conditioned, "set_posterior", rebind_then_fail)
+        _fail_once_after_the_conditioned_rebind(patch, RuntimeError)
         with pytest.raises(RuntimeError, match="after the conditioned rebind"):
             optimizer.set_posterior(
                 xr.DataTree.from_dict({"/posterior": posterior * 2.0})
             )
 
-    assert conditioned.shared_posterior is shared
-    assert set(shared.variables) == set(variables)
-    for name, variable in variables.items():
-        assert shared.variables[name] is variable
-        np.testing.assert_array_equal(shared.variables[name].get_value(), values[name])
     assert optimizer.idata is before_idata
-    assert optimizer._objective_and_grad is before_objective
-    assert optimizer._response_functions["noise_thing"][0] is adhoc_function
     np.testing.assert_allclose(
         optimizer.evaluate_response_distribution(plan).to_numpy(), before.to_numpy()
     )
@@ -3385,6 +3399,7 @@ def test_a_failed_shared_mode_rebind_restores_the_old_draws_without_recompiling(
         optimizer.evaluate_response_distribution(plan, "noise_thing").to_numpy(),
         before_adhoc.to_numpy(),
     )
+    assert optimizer.evaluate_plan(plan).objective == pytest.approx(-400.0)
 
 
 def test_a_one_shot_evaluation_follows_a_reordered_rebind():
