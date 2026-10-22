@@ -265,7 +265,15 @@ Gotchas
 - ``Named`` builds a ``pmd.Deterministic``, so its expression leaves must
   be dims-native: ``Parameter`` / ``Prior`` with ``xdist=True`` or
   ``pytensor.xtensor`` expressions. Plain-tensor leaves (``xdist=False``)
-  will fail when the deterministic is built.
+  will fail when the deterministic is built. ``xdist=False`` is currently
+  needed only for ``Pareto`` priors, which ``pymc.dims`` does not ship yet
+  (pymc-devs/pymc#8422, merged but unreleased); once it releases, drop the
+  flag along with ``ParetoPrior`` in ``pymc_marketing.special_priors``.
+- Terms-built expressions are dimensional (``XTensorVariable``). Consumers
+  that require plain pytensor tensors --- custom ``pm.Distribution``
+  subclasses, and the predictive distributions of the CLV models --- need an
+  explicit ``allow_xtensor_conversion`` at the boundary; see
+  ``_as_plain_tensor``.
 """
 
 from __future__ import annotations
@@ -316,6 +324,19 @@ __all__ = [
     "register_data",
     "set_data",
 ]
+
+
+def _as_plain_tensor(x: Any) -> pt.TensorVariable:
+    """Adapt a terms-built (xtensor) expression for plain-tensor consumers.
+
+    Built terms produce dimensional (``XTensorVariable``) tensors. Plain
+    pytensor consumers --- custom ``pm.Distribution`` subclasses whose
+    ``logp`` uses plain pytensor ops --- forbid implicit xtensor-to-tensor
+    conversion, so the conversion has to be explicit at the boundary.
+    """
+    return cast(
+        "pt.TensorVariable", pt.as_tensor_variable(x, allow_xtensor_conversion=True)
+    )
 
 
 def _func_name(func: Callable) -> str:
@@ -670,6 +691,13 @@ class Parameter(ModelTerm):
         (``Prior``, ``Censored``, ``Scaled``, custom) is accepted.
         When the prior carries ``dims`` (e.g. ``Prior(..., dims="cohort")``),
         ``get_coords`` will extract those coordinates from the dataset.
+    xdist : bool
+        Build the variable dims-native via ``pymc.dims`` (the default), or as a
+        plain tensor when False. Plain tensors cannot be referenced from a
+        ``Named`` expression, so this is only for priors that ``pymc.dims``
+        does not provide yet (currently ``Pareto``, see
+        ``pymc_marketing.special_priors.ParetoPrior``); the flag goes away when
+        pymc-devs/pymc#8422 releases.
 
     Examples
     --------
@@ -697,6 +725,7 @@ class Parameter(ModelTerm):
 
     name: str
     prior: VariableFactory = field(default_factory=lambda: Prior("Normal"))
+    xdist: bool = True
 
     def get_coords(self, ds: xr.Dataset) -> dict[str, Any]:
         """Collect coordinates from ``prior.dims`` present in the dataset."""
@@ -710,11 +739,15 @@ class Parameter(ModelTerm):
 
     def create_variable(self) -> pt.TensorVariable:
         """Build a free parameter variable."""
-        return self.prior.create_variable(self.name, xdist=True)
+        return self.prior.create_variable(self.name, xdist=self.xdist)
 
     def to_dict(self) -> dict[str, Any]:
-        """Serialize the parameter name and prior."""
-        return {"name": self.name, "prior": _serialize_child(self.prior)}
+        """Serialize the parameter name, prior, and xdist flag."""
+        return {
+            "name": self.name,
+            "prior": _serialize_child(self.prior),
+            "xdist": self.xdist,
+        }
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> Parameter:
@@ -723,6 +756,7 @@ class Parameter(ModelTerm):
         return cls(
             name=data["name"],
             prior=_deserialize_child(prior) if prior is not None else Prior("Normal"),
+            xdist=data.get("xdist", True),
         )
 
 
@@ -774,6 +808,10 @@ class Dot(ModelTerm):
         Provide a distinct ``name`` to reference the same ``var_name`` from
         multiple terms (e.g. separate alpha and beta coefficient branches)
         without colliding on the coefficient variable name.
+    xdist : bool
+        Build the coefficients dims-native via ``pymc.dims`` (the default), or
+        as plain tensors when False. See :class:`Parameter` for when this is
+        needed and when it goes away.
 
     Examples
     --------
@@ -803,6 +841,7 @@ class Dot(ModelTerm):
     var_name: str
     prior: VariableFactory
     name: str | None = None
+    xdist: bool = True
 
     def __post_init__(self):
         """Set the default coefficient name to ``{var_name}_beta``."""
@@ -838,15 +877,16 @@ class Dot(ModelTerm):
         """Build ``data @ beta`` tensor."""
         model = pm.modelcontext(None)
         data = model[self.var_name]
-        beta = self.prior.create_variable(self.name, xdist=True)
+        beta = self.prior.create_variable(self.name, xdist=self.xdist)
         return data @ beta
 
     def to_dict(self) -> dict[str, Any]:
-        """Serialize the data variable, coefficient prior, and name."""
+        """Serialize the data variable, coefficient prior, name, and xdist flag."""
         return {
             "var_name": self.var_name,
             "prior": _serialize_child(self.prior),
             "name": self.name,
+            "xdist": self.xdist,
         }
 
     @classmethod
@@ -856,6 +896,7 @@ class Dot(ModelTerm):
             var_name=data["var_name"],
             prior=_deserialize_child(data["prior"]),
             name=data.get("name"),
+            xdist=data.get("xdist", True),
         )
 
 
