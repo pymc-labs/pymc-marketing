@@ -33,7 +33,7 @@ jobs:
       - name: List stale-issue candidates without a model call
         env:
           GH_TOKEN: ${{ github.token }}
-        run: python .github/scripts/issue_automation.py analyze stale-summary
+        run: python .github/scripts/stale_summary.py analyze
       - uses: actions/upload-artifact@v7
         with:
           name: issue-result-stale-summary
@@ -64,4 +64,4 @@ jobs:
       - name: Validate and publish the summary issue
         env:
           GH_TOKEN: ${{ github.token }}
-        run: python .github/scripts/issue_automation.py publish stale-summary
+        run: python .github/scripts/stale_summary.py publish
