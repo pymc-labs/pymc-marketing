@@ -509,8 +509,8 @@ class TestEdgeCases:
         assert X.shape[1] == 4  # Four alternatives
 
 
-def test_prior_predictive_var_names_without_observed_raises(mnl):
-    mnl.build_model()
+def test_prior_predictive_var_names_without_observed_raises(mnl, sample_df):
+    _build_with_data(mnl, sample_df)
     with pytest.raises(ValueError, match="observed variable"):
         mnl.sample_prior_predictive(samples=5, var_names=[mnl.model.free_RVs[0].name])
     assert mnl.idata is None
