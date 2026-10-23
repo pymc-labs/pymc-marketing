@@ -12,6 +12,7 @@
   clv
   customer_choice
   data
+  distributions
   hsgp_kwargs
   metrics
   mlflow

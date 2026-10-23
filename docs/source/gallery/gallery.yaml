@@ -60,6 +60,8 @@ sections:
             notebook: mmm/mmm_halo
           - title: "Splitting MMM Channel Impact Across Campaigns"
             notebook: mmm/mmm_credibility_disaggregation
+          - title: "Campaign-Granularity MMM with `NestedMediaEffect`"
+            notebook: mmm/mmm_campaign_media
           - title: "Year-over-Year Target Transform for Highly Seasonal KPIs"
             notebook: mmm/mmm_yoy_target_transform
       - title: Data Connectors

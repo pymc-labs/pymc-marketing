@@ -74,6 +74,9 @@ from pymc_marketing.mmm.mmm import (
     MMM,
     BudgetOptimizerWrapper,
 )
+from pymc_marketing.mmm.nested_media import (
+    NestedMediaEffect,
+)
 from pymc_marketing.mmm.optimization_variables import (
     OptimizationVariable,
     OptimizationVariables,
@@ -131,6 +134,7 @@ __all__ = [
     "MediaTransformation",
     "MichaelisMentenSaturation",
     "MonthlyFourier",
+    "NestedMediaEffect",
     "NoAdstock",
     "NoSaturation",
     "OptimizationVariable",

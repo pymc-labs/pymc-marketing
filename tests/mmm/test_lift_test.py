@@ -39,6 +39,7 @@ from pymc_marketing.mmm.lift_test import (
     add_lift_measurements_to_likelihood_from_saturation,
     add_saturation_observations,
     assert_monotonic,
+    assert_valid_lift_rows,
     create_time_varying_saturation,
     exact_row_indices,
     scale_channel_lift_measurements,
@@ -598,6 +599,34 @@ def test_assert_monotonic_is_deprecated() -> None:
     with pytest.warns(DeprecationWarning, match="signed lift estimates are supported"):
         with pytest.raises(NonMonotonicError, match="not monotonic"):
             assert_monotonic(delta_x, delta_y)
+
+
+@pytest.mark.parametrize(
+    "column, value",
+    [
+        ("sigma", 0.0),
+        ("sigma", -1.0),
+        ("delta_x", 0.0),
+        ("x", np.nan),
+        ("delta_y", np.inf),
+        ("sigma", np.nan),
+    ],
+)
+def test_assert_valid_lift_rows_names_offending_rows(column, value) -> None:
+    df = pd.DataFrame(
+        {"x": [1.0, 1.0], "delta_x": [2.0, 2.0], "delta_y": [0.3, 0.3], "sigma": 0.02},
+        index=[10, 11],
+    )
+    df.loc[11, column] = value
+    with pytest.raises(ValueError, match=r"offending rows: \[11\]"):
+        assert_valid_lift_rows(df)
+
+
+def test_assert_valid_lift_rows_accepts_null_and_negative_lifts() -> None:
+    df = pd.DataFrame(
+        {"x": [1.0, 1.0], "delta_x": [2.0, -2.0], "delta_y": [0.0, -0.3], "sigma": 0.02}
+    )
+    assert_valid_lift_rows(df)
 
 
 def saturation_functions() -> list[SaturationTransformation]:

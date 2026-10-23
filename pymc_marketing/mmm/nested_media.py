@@ -1,0 +1,1016 @@
+#   Copyright 2022 - 2026 The PyMC Labs Developers
+#
+#   Licensed under the Apache License, Version 2.0 (the "License");
+#   you may not use this file except in compliance with the License.
+#   You may obtain a copy of the License at
+#
+#       http://www.apache.org/licenses/LICENSE-2.0
+#
+#   Unless required by applicable law or agreed to in writing, software
+#   distributed under the License is distributed on an "AS IS" BASIS,
+#   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#   See the License for the specific language governing permissions and
+#   limitations under the License.
+"""Media effect at a finer granularity, hierarchically pooled under a parent.
+
+``NestedMediaEffect`` nests one media granularity inside another: child
+units (campaigns, ad sets, creatives, publishers, regions) each get a curve
+tied to their parent's curve by size. The docs below use campaigns nested in
+channels, the first use case; the structure is the same for any pair of
+levels. It gives an MMM a short-term directional signal at
+campaign level without destabilising channel-level ROI.  Campaign-level
+identification comes from per-campaign saturation (the mix matters because
+``sum(f(x_c)) != f(sum(x_c))``), extra model dims, and lift tests — combined
+with hierarchical pooling of campaign parameters under channel hyperpriors.
+
+Design notes
+------------
+- The effect owns its data variable (``campaign_data`` with dims
+  ``("date", *mmm.dims, child_dim)``) and is meant to *replace* the
+  built-in channel media term for the channels it covers.  Channel-level
+  contributions are recovered as ``f"{prefix}_{parent_dim}_contribution"``.
+- Campaign spend is scaled by the *channel* total, not per campaign, so
+  priors mean the same thing for every campaign in a channel. The scale
+  follows the MMM's ``scaling.channel`` (method and reduced dims, with
+  ``"channel"`` read as the parent dimension), so it is per model dim
+  whenever the MMM's own channel scale is; saturations that require
+  unscaled input get scale 1, as in the MMM.
+- Any :class:`~pymc_marketing.mmm.components.saturation.SaturationTransformation`
+  can be used (Michaelis-Menten by default). Its priors live at *channel*
+  level and are gathered to campaigns through the parent index; its own
+  amplitude parameter is the channel capacity.
+- The campaign curve is the channel curve scaled by campaign size on both
+  axes::
+
+      contribution_c(x) = cap_c**rho * mult_c * S(x / cap_c**rho)
+
+  where ``cap_c`` is the campaign's size, its mean channel-scaled spend over
+  its active dates divided by its channel's, and ``S`` the shared channel
+  curve.  At ``rho=1`` this degree-1 homogeneity makes the parameterisation
+  *split-invariant*: splitting a campaign into parts with proportional spend
+  leaves the channel contribution exactly unchanged, and so, to within the
+  variation of spend across dates, does a flighting split, because a part
+  inherits its parent's intensity (a max would belong to whichever part
+  holds the peak).  No single size per campaign is invariant under every
+  split, since ``S`` is nonlinear; a part that owns only the peaks still
+  moves the total.  ``cap_c`` is scale-free: it is the same under any
+  channel scaling, and a value above one means the campaign is more intense,
+  on the dates it runs, than its channel's average active week.  A campaign
+  at its typical spend evaluates the channel curve where the channel's
+  average week sits on the scaled axis, as the MMM's own channel term does:
+  under ``max`` scaling that is the channel's mean-to-peak ratio, well below
+  one on a peaky channel, so campaign-level saturation barely engages over
+  the observed range; under ``mean`` scaling (``mmm.scaling.channel``) it is
+  one, where the saturation prior is informative.  Limiting extrapolation
+  beyond observed spend is the job of the optimizer's budget bounds.  The
+  same homogeneity makes marginal
+  returns equal across campaigns at proportional spend — for any saturation
+  shape.  Deviations from that neutral point must be earned from data
+  (flighting contrasts, covariates, lift tests), not from the
+  parameterisation.
+- Campaigns differ from their size-tied channel curve by one efficiency
+  multiplier, ``mult_c``, on the height of the curve. The multipliers are
+  non-centred under a channel pooling scale and normalised to a
+  spend-weighted arithmetic mean of one within each channel: the channel
+  total only informs that mean, so the rest of the campaign split is left to
+  the data on individual campaigns (mix variation, covariates, lift tests)
+  instead of tying the campaigns to a curved constraint, which samples with
+  divergences when the split is weakly identified.
+- ``incrementality_spec`` stays ``None``: ``channel_data`` is never an
+  ancestor of this effect's contribution.  Point the budget optimizer at the
+  effect via ``BudgetOptimizer(spend_vars=["campaign_data"],
+  response_variable="total_response_original_scale")``; the default response
+  variable does not depend on ``campaign_data`` and raises at construction.
+- Adstock is not yet applied (identification of the campaign split rests on
+  saturation, not carryover); pre-transform the data if carryover is needed.
+"""
+
+import warnings
+from collections.abc import Callable
+from typing import Any
+
+import numpy as np
+import pandas as pd
+import pymc as pm
+import pymc.dims as pmd
+import pytensor.xtensor as ptx
+import xarray as xr
+from pydantic import Field, InstanceOf, PrivateAttr, field_validator
+from pymc_extras.prior import Prior
+from pytensor.xtensor.type import XTensorVariable
+
+from pymc_marketing.distributions import DimWeightedZeroSumNormal
+from pymc_marketing.mmm.additive_effect import DataVarMuEffect, Model
+from pymc_marketing.mmm.components.saturation import (
+    MichaelisMentenSaturation,
+    SaturationTransformation,
+)
+from pymc_marketing.mmm.lift_test import (
+    add_saturation_observations,
+    assert_valid_lift_rows,
+)
+from pymc_marketing.mmm.scaling import DataDerivedScaling, FixedScaling, VariableScaling
+from pymc_marketing.serialization import serialization
+
+# Scaled spend at or below this counts as zero when sizing campaigns. It is
+# relative to the channel scale, so it is float dust (a residue of a
+# subtraction or an allocation), far below any real spend.
+_SPEND_DUST = 1e-12
+
+
+def _channel_scale_and_campaign_cap(
+    spend: xr.DataArray,
+    channel_of: xr.DataArray,
+    child_dim: str,
+    scaling: VariableScaling | None = None,
+    unscaled: bool = False,
+) -> tuple[xr.DataArray, xr.DataArray]:
+    """Channel scale and campaign cap, following the MMM's channel scaling.
+
+    ``channel_of`` labels each campaign with its channel and is named after
+    the channel coordinate. ``scaling`` is the MMM's ``scaling.channel``: its
+    method (``max`` or ``mean`` of the data, or a fixed scalar) is applied to
+    each channel's summed campaign spend over ``date`` and its ``dims``, where
+    ``"channel"`` means the effect's parent dimension. Dims it does not reduce
+    stay on the scale, as on the MMM's own channel scale. ``None`` is the MMM
+    default, the max over dates. ``unscaled`` forces scale 1, which is what
+    the MMM does for saturations that require unscaled input. The cap of a
+    campaign is its mean scaled spend over its active dates divided by its
+    channel's, over the same dims; a campaign with no spend gets cap 0.
+    Channels with no spend get scale 1 so nothing divides by zero.
+    """
+    parent_dim = str(channel_of.name)
+    channel_total = spend.groupby(channel_of).sum(child_dim)
+    if scaling is None:
+        scaling = DataDerivedScaling(method="max", dims=())
+    requested = [parent_dim if d == "channel" else d for d in scaling.dims]
+    reduce_dims = ["date", *[d for d in requested if d in channel_total.dims]]
+    reference = channel_total.max(reduce_dims)
+    if unscaled:
+        scale = xr.ones_like(reference)
+    elif isinstance(scaling, FixedScaling):
+        if isinstance(scaling.value, dict | xr.DataArray):
+            raise ValueError(
+                "FixedScaling for a nested media effect must be a single number: "
+                "per-channel values are keyed by the MMM's channels, not by "
+                "the effect's parents"
+            )
+        scale = xr.full_like(reference, scaling.value, dtype=float)
+    else:
+        scale = getattr(channel_total, scaling.method)(dim=reduce_dims)
+    if parent_dim not in scale.dims:  # reduced across parents: one common scale
+        scale = scale.expand_dims({parent_dim: channel_total[parent_dim].values})
+    scale = scale.where(scale > 0, 1.0)
+    scale_of_campaign = scale.sel({parent_dim: channel_of}).drop_vars(parent_dim)
+    # the cap is a campaign's spend intensity relative to its channel's: the
+    # mean over active dates, which a flighted part inherits from its parent
+    # (a max is owned by whichever part holds the peak). The channel's own
+    # intensity is unchanged by any split, so it is an exactly invariant
+    # normaliser, and a single-campaign channel gets cap 1.
+    own_dims = [d for d in reduce_dims if d != parent_dim]
+    scaled = spend / scale_of_campaign
+    scaled_total = channel_total / scale
+    # spend below float dust relative to the channel scale is no spend: a
+    # residue where a zero was meant must not make a campaign "live"
+    intensity = scaled.where(scaled > _SPEND_DUST).mean(own_dims)
+    channel_intensity = scaled_total.where(scaled_total > _SPEND_DUST).mean(own_dims)
+    cap = intensity / channel_intensity.sel({parent_dim: channel_of}).drop_vars(
+        parent_dim
+    )
+    return scale, cap.fillna(0.0)
+
+
+def _live_blocks(
+    campaigns: list[str], channel_of: xr.DataArray, live: xr.DataArray
+) -> dict[str, list[str]]:
+    """Live campaigns (``cap > 0``) of each channel that has at least two.
+
+    Channels keep their first-seen order across all campaigns.
+    """
+    live_by_channel: dict[str, list[str]] = {
+        channel: [] for channel in dict.fromkeys(channel_of.values)
+    }
+    for campaign, channel, is_live in zip(
+        campaigns, channel_of.values, live.values, strict=True
+    ):
+        if is_live:
+            live_by_channel[channel].append(campaign)
+    return {
+        channel: names for channel, names in live_by_channel.items() if len(names) >= 2
+    }
+
+
+def _spend_shares(
+    total_spend: xr.DataArray, channel_of: xr.DataArray, child_dim: str
+) -> xr.DataArray:
+    """Each campaign's share of its channel's total spend; zero when the channel has none."""
+    parent_dim = str(channel_of.name)
+    channel_total = total_spend.groupby(channel_of).sum(child_dim)
+    channel_total = channel_total.where(channel_total > 0, 1.0)
+    return total_spend / channel_total.sel({parent_dim: channel_of}).drop_vars(
+        parent_dim
+    )
+
+
+def _centred_covariates(
+    cov: xr.DataArray,
+    share: xr.DataArray,
+    live: xr.DataArray,
+    channel_of: xr.DataArray,
+    child_dim: str,
+) -> xr.DataArray:
+    """Centre campaign covariates on their channel's spend-share-weighted mean.
+
+    The covariate term then reallocates efficiency between a channel's
+    campaigns but cannot move the channel total. Dead campaigns (``cap`` of
+    0, as in ``live``) take no part in the mean and get a zero row: their
+    multiplier stays pinned at one whatever the platform says about them.
+    """
+    parent_dim = str(channel_of.name)
+    live_share = share.where(live, 0.0)
+    channel_mean = (live_share * cov).groupby(channel_of).sum(child_dim)
+    centred = cov - channel_mean.sel({parent_dim: channel_of}).drop_vars(parent_dim)
+    return centred.where(live, 0.0)
+
+
+class NestedMediaEffect(DataVarMuEffect):
+    """Media effect at a child granularity, hierarchically pooled by parent.
+
+    Campaigns nested in channels are the running example; any child level
+    nested in any parent level works the same way, with the child dimension
+    named by ``child_dim`` and the parent by ``parent_dim``. Registered
+    variable names are built from those dimension names, so the defaults
+    give ``nested_media_campaign_contribution`` and
+    ``nested_media_channel_contribution``.
+
+    Parameters
+    ----------
+    child_to_parent : dict[str, str]
+        Maps each child (campaign) name to its parent (channel) name.  Must
+        cover exactly the children present in the data variable's child
+        coordinate.  Ragged parents (different child counts) are fine.
+        ``"live"`` is reserved and cannot be a parent name.
+    saturation : SaturationTransformation, optional
+        Any saturation from :mod:`pymc_marketing.mmm.components.saturation`;
+        Michaelis-Menten by default.  Its priors are created at *channel*
+        level (dims default to the effect's channel coordinate) and gathered
+        to campaigns; its amplitude parameter is the channel capacity in
+        scaled-spend, scaled-target units.  The saturation is evaluated on
+        size-normalized spend ``x / cap_c**rho``, of order one, so the
+        library's default priors are sensible for every campaign.  With
+        ``NoSaturation`` each campaign is a straight line: the budget
+        optimizer has no diminishing returns to balance and, without bounds,
+        funds the campaign with the steepest line.
+    data_vars : list[str]
+        Single data variable in ``mmm.xarray_dataset`` holding campaign
+        spend with dims ``("date", *mmm.dims, child_dim)``.
+    prefix : str
+        Prefix for all model variable names created by this effect.
+    child_dim, parent_dim : str
+        Names of the child and parent dimensions.  Default ``"campaign"``
+        and ``"channel"``.
+    tau_beta_sigma : float
+        Scale of the HalfNormal prior on the pooling strength of the campaign
+        efficiency multipliers.  Smaller means stronger pooling.  Under the
+        spend-share-weighted zero sum the prior sd of a campaign's
+        standardised deviation is ``sqrt(1 - u_c**2)`` with
+        ``u = share / |share|``, so it is not uniform across campaigns: the
+        dominant campaign of a channel is pinned close to the channel (for a
+        90/5/3/2 split about 15x tighter than its siblings), and
+        ``tau_beta_sigma`` is therefore not "the campaign multiplier scale"
+        for every campaign.
+    rho : float
+        Exponent tying each campaign's curve to its size (``cap_c``, the
+        campaign's mean active spend relative to its channel's; 1 for a
+        channel with a single campaign).  At ``rho=1`` the campaign
+        curve is the channel curve scaled by campaign size on both axes:
+        split-invariant, with equal marginal returns at proportional spend.
+        With ``NoSaturation`` the size cancels out of the curve, so ``rho``
+        has no effect.
+    zero_sum_multipliers : bool
+        When True (default), the campaigns' standardised log-deviations are
+        constrained to a *spend-share-weighted* zero sum within each channel,
+        so they have a unique position.  Whatever the setting, the
+        multipliers themselves are normalised to a spend-weighted arithmetic
+        mean of one within each channel: the channel amplitude is then the
+        channel's spend-weighted average efficiency and, at proportional
+        spend, the campaign layer cannot move the channel contribution.
+        Channels with a single campaign get multiplier 1 (fully pooled)
+        automatically. Campaigns with zero historical spend get cap 0 and
+        multiplier 1: they contribute nothing at any spend.
+    covariate_var : str, optional
+        Name of a variable in ``mmm.xarray_dataset`` with dims
+        ``(child_dim, covariate_dim)`` holding per-campaign covariates
+        (e.g. log clicks per unit spend, log impressions, CTR).  They enter
+        the campaign amplitude multiplier and are spend-share-weighted-centred
+        *within each channel* at build time, so they reallocate efficiency
+        between a channel's campaigns without moving the channel-level total.
+        A covariate is a hypothesis about efficiency, not evidence of it: its
+        coefficient is learned only where the spend mix varies, and where it
+        does not the coefficient stays at its prior, so the prior is where
+        you state how far to trust the platform signal.  On a log scale
+        (``log(clicks / spend)``) a coefficient of 1 reads "sales efficiency
+        follows click efficiency one for one" and 0 "ignore it".
+    covariate_dim : str
+        Name of the covariate dimension.  Default ``"covariate"``.
+    gamma_mu, gamma_sigma : float
+        Mean and scale of the Normal prior on the covariate coefficients.
+        The default ``gamma_mu=0`` states no direction; a positive mean with
+        a small scale states trust in the covariate.
+
+    Examples
+    --------
+    Decompose ``social`` into two campaigns while ``search`` stays a
+    channel-level media term. The campaign spend rides in the ``xr.Dataset``
+    with its own ``campaign`` dimension, and the decomposed channel is left
+    out of ``channel_columns``:
+
+    .. code-block:: python
+
+        import numpy as np
+        import pandas as pd
+        import xarray as xr
+
+        from pymc_marketing.mmm import (
+            MMM,
+            GeometricAdstock,
+            LogisticSaturation,
+            NestedMediaEffect,
+        )
+
+        rng = np.random.default_rng(0)
+        dates = pd.date_range("2025-01-06", periods=52, freq="W-MON")
+        X = xr.Dataset(
+            {
+                "media": (("date", "channel"), rng.gamma(2.0, 1.0, (52, 1))),
+                "campaign_data": (("date", "campaign"), rng.gamma(2.0, 1.0, (52, 2))),
+            },
+            coords={
+                "date": dates,
+                "channel": ["search"],
+                "campaign": ["social_a", "social_b"],
+            },
+        )
+        y = xr.DataArray(rng.gamma(5.0, 1.0, 52), dims="date", coords={"date": dates})
+
+        effect = NestedMediaEffect(
+            child_to_parent={"social_a": "social", "social_b": "social"}
+        )
+        mmm = MMM(
+            channel_columns=["search"],
+            date_column="date",
+            target_column="y",
+            adstock=GeometricAdstock(l_max=2),
+            saturation=LogisticSaturation(),
+        ).add_mu_effect(effect)
+        mmm.build_model(X=X, y=y)
+        assert "nested_media_campaign_contribution" in mmm.model.named_vars
+    """
+
+    child_to_parent: dict[str, str]
+    saturation: InstanceOf[SaturationTransformation] = Field(
+        default_factory=MichaelisMentenSaturation
+    )
+    data_vars: list[str] = ["campaign_data"]
+    prefix: str = "nested_media"
+    child_dim: str = "campaign"
+    parent_dim: str = "channel"
+    tau_beta_sigma: float = Field(0.5, gt=0)
+    rho: float = Field(1.0, ge=0)
+    zero_sum_multipliers: bool = True
+    covariate_var: str | None = None
+    covariate_dim: str = "covariate"
+    gamma_mu: float = 0.0
+    gamma_sigma: float = Field(0.5, gt=0)
+
+    model_config = {"arbitrary_types_allowed": True}
+    _saturation: SaturationTransformation | None = PrivateAttr(default=None)
+
+    @property
+    def _built(self) -> SaturationTransformation:
+        """The build-time copy of ``saturation`` with this effect's prefix and dims."""
+        if self._saturation is None:
+            raise RuntimeError("Build the model before using the effect's saturation.")
+        return self._saturation
+
+    def create_data(self, mmm: Model) -> None:
+        """Register campaign spend plus the static index, scale and share data.
+
+        Parameters
+        ----------
+        mmm : Model
+            The MMM model instance. Its ``xarray_dataset`` must carry the
+            campaign spend variable named in ``data_vars``.
+        """
+        model = mmm.model
+        p = self.prefix
+        channel_coord = f"{p}_{self.parent_dim}"
+
+        spend = mmm.xarray_dataset[self.data_vars[0]]
+        campaigns = [str(c) for c in spend[self.child_dim].values]
+        channels = self._validate_mapping(campaigns, model)
+        channel_of = xr.DataArray(
+            [self.child_to_parent[c] for c in campaigns],
+            dims=self.child_dim,
+            coords={self.child_dim: campaigns},
+            name=channel_coord,
+        )
+        parent_idx = np.array([channels.index(ch) for ch in channel_of.values])
+
+        self._prepare_saturation(model, channel_coord, channels)
+        super().create_data(mmm)
+
+        scale, cap = self._scale_and_cap(mmm, spend, channel_of, channels)
+        total_spend = spend.sum([d for d in spend.dims if d != self.child_dim])
+        share = _spend_shares(total_spend, channel_of, self.child_dim)
+        # one notion of a live campaign everywhere: positive cap in some model
+        # dim, as create_effect uses; spend below float dust has cap 0 but a
+        # positive share, so the share must not decide it
+        live = cap.max([d for d in cap.dims if d != self.child_dim]) > 0
+
+        pmd.Data(f"{p}_parent_idx", parent_idx, dims=(self.child_dim,))
+        pmd.Data(
+            f"{p}_parent_onehot",
+            (parent_idx[:, None] == np.arange(len(channels))[None, :]).astype(float),
+            dims=(self.child_dim, channel_coord),
+        )
+        pmd.Data(f"{p}_{self.parent_dim}_scale", scale.values, dims=tuple(scale.dims))
+        pmd.Data(f"{p}_{self.child_dim}_cap", cap.values, dims=tuple(cap.dims))
+        pmd.Data(f"{p}_spend_share", share.values, dims=(self.child_dim,))
+
+        if self.zero_sum_multipliers:
+            self._register_zero_sum_blocks(model, campaigns, channel_of, live)
+
+        self._register_covariates(mmm, model, share, live, channel_of)
+
+    def _prepare_saturation(
+        self, model: pm.Model, channel_coord: str, channels: list[str]
+    ) -> None:
+        """Build the saturation with channel-level priors, gathered to campaigns later."""
+        if channel_coord not in model.coords:
+            model.add_coord(channel_coord, channels)
+        # a build-time copy: the user's object keeps its prefix and prior dims
+        self._saturation = self.saturation.with_default_prior_dims((channel_coord,))
+        self._saturation.prefix = f"{self.prefix}_saturation"
+
+    def _scale_and_cap(
+        self,
+        mmm: Model,
+        spend: xr.DataArray,
+        channel_of: xr.DataArray,
+        channels: list[str],
+    ) -> tuple[xr.DataArray, xr.DataArray]:
+        """Channel scale and campaign cap, aligned for registration, warning on dead campaigns."""
+        p = self.prefix
+        channel_coord = str(channel_of.name)
+        campaigns = [str(c) for c in spend[self.child_dim].values]
+        scaling = getattr(getattr(mmm, "scaling", None), "channel", None)
+        unscaled = bool(getattr(self.saturation, "requires_unscaled_input", False))
+        if unscaled and getattr(mmm, "_channel_scaling_explicit", False):
+            warnings.warn(
+                f"Saturation {type(self.saturation).__name__} requires unscaled "
+                "inputs, so the channel scaling you configured is ignored for "
+                f"the {p} effect and its channel scale is set to 1.",
+                UserWarning,
+                stacklevel=3,
+            )
+        scale, cap = _channel_scale_and_campaign_cap(
+            spend, channel_of, self.child_dim, scaling, unscaled=unscaled
+        )
+        scale = scale.sel({channel_coord: channels})
+        extra_dims = [d for d in scale.dims if d != channel_coord]
+        scale = scale.transpose(*extra_dims, channel_coord)
+        cap = cap.transpose(*extra_dims, self.child_dim)
+        cap_any = cap.max(extra_dims) if extra_dims else cap
+        dead = [c for c, k in zip(campaigns, cap_any.values, strict=True) if not k > 0]
+        if dead:
+            warnings.warn(
+                f"Campaigns {dead} have no spend in the data. They get cap 0: "
+                "they contribute nothing at any spend, so neither a forecast "
+                "nor the budget optimizer can fund them. Drop them, or refit "
+                "once they have run.",
+                UserWarning,
+                stacklevel=3,
+            )
+        return scale, cap
+
+    def _register_covariates(
+        self,
+        mmm: Model,
+        model: pm.Model,
+        share: xr.DataArray,
+        live: xr.DataArray,
+        channel_of: xr.DataArray,
+    ) -> None:
+        """Register the campaign covariates, centred within each channel."""
+        if self.covariate_var is None:
+            return
+        p = self.prefix
+        cov = mmm.xarray_dataset[self.covariate_var]
+        if set(cov.dims) != {self.child_dim, self.covariate_dim}:
+            raise ValueError(
+                f"{self.covariate_var!r} must have dims exactly "
+                f"({self.child_dim!r}, {self.covariate_dim!r}); got {cov.dims}"
+            )
+        cov = cov.transpose(self.child_dim, self.covariate_dim)
+        centred = _centred_covariates(cov, share, live, channel_of, self.child_dim)
+        if self.covariate_dim not in model.coords:
+            model.add_coord(
+                self.covariate_dim,
+                [str(c) for c in cov[self.covariate_dim].values]
+                if self.covariate_dim in cov.coords
+                else np.arange(cov.sizes[self.covariate_dim]),
+            )
+        pmd.Data(
+            f"{p}_covariates",
+            centred.transpose(self.child_dim, self.covariate_dim).values,
+            dims=(self.child_dim, self.covariate_dim),
+        )
+
+    @field_validator("child_to_parent")
+    @classmethod
+    def _parent_names_not_reserved(cls, value: dict[str, str]) -> dict[str, str]:
+        """Reject ``"live"`` as a parent name.
+
+        A parent's live campaigns get the coordinate
+        ``f"{prefix}_{parent}_{child_dim}"``, and the effect reserves
+        ``f"{prefix}_live_{child_dim}"`` for all live campaigns together, so a
+        parent named ``"live"`` would silently share that coordinate.
+        """
+        if "live" in value.values():
+            raise ValueError(
+                '"live" is reserved and cannot be a parent name in child_to_parent'
+            )
+        return value
+
+    def _validate_mapping(self, campaigns: list[str], model: pm.Model) -> list[str]:
+        """Check the campaign-to-channel map and return the channels in first-seen order."""
+        missing = set(campaigns) - set(self.child_to_parent)
+        extra = set(self.child_to_parent) - set(campaigns)
+        if missing or extra:
+            raise ValueError(
+                "child_to_parent must cover exactly the campaigns in "
+                f"{self.data_vars[0]!r}; missing={sorted(missing)}, extra={sorted(extra)}"
+            )
+        channels = list(dict.fromkeys(self.child_to_parent[c] for c in campaigns))
+        overlap = set(channels) & set(map(str, model.coords.get(self.parent_dim, ())))
+        if overlap:
+            warnings.warn(
+                f"Channels {sorted(overlap)} are both decomposed into campaigns by "
+                f"this effect and present in the model's {self.parent_dim!r} "
+                "coordinate. The effect REPLACES the channel-level media term; "
+                "keeping the channel in channel_columns double-counts its spend. "
+                "Exclude decomposed channels from channel_columns.",
+                UserWarning,
+                stacklevel=3,
+            )
+        return channels
+
+    def _parent_child_dim(self, parent: str) -> str:
+        """Coordinate name of the live children of ``parent``."""
+        return f"{self.prefix}_{parent}_{self.child_dim}"
+
+    def _register_zero_sum_blocks(
+        self,
+        model: pm.Model,
+        campaigns: list[str],
+        channel_of: xr.DataArray,
+        live: xr.DataArray,
+    ) -> None:
+        """Register one coordinate per constrained block and the scatter back to campaigns.
+
+        A block is a channel's live campaigns (``cap > 0``). Dead campaigns
+        stay out so their multiplier is pinned at 1 instead of adding an
+        unidentified free direction, and a channel needs two live campaigns
+        to have any free direction at all. The blocks concatenate along one
+        live-campaign coordinate; an index per campaign gathers them back to
+        the campaign dimension, with dead campaigns pointing at a zero slot.
+        """
+        live_names: list[str] = []
+        for channel, names in _live_blocks(campaigns, channel_of, live).items():
+            sub_dim = self._parent_child_dim(channel)
+            if sub_dim not in model.coords:
+                model.add_coord(sub_dim, names)
+            live_names.extend(names)
+        if not live_names:
+            return
+        live_dim = f"{self.prefix}_live_{self.child_dim}"
+        if live_dim not in model.coords:
+            model.add_coord(live_dim, live_names)
+        # position of each campaign in the live vector; the slot after the
+        # last live campaign holds a zero for campaigns outside every block
+        position = {c: i for i, c in enumerate(live_names)}
+        live_index = np.array([position.get(c, len(live_names)) for c in campaigns])
+        pmd.Data(f"{self.prefix}_live_index", live_index, dims=(self.child_dim,))
+
+    def _zero_sum_multiplier(self, model: pm.Model, name: str) -> XTensorVariable:
+        """Standardised log-multiplier with a spend-share-weighted zero sum per channel.
+
+        One :class:`~pymc_marketing.distributions.DimWeightedZeroSumNormal`
+        per channel block, weighted by the block's spend shares, concatenated
+        along the live-campaign coordinate and gathered back to the campaign
+        dimension. Campaigns outside every block get zero, i.e. multiplier one;
+        with no block at all every multiplier is pinned at one.
+        """
+        p = self.prefix
+        live_dim = f"{p}_live_{self.child_dim}"
+        if live_dim not in model.coords:
+            return pmd.Deterministic(
+                f"{p}_{name}", pmd.zeros_like(model[f"{p}_{self.child_dim}_cap"])
+            )
+        campaigns = [str(c) for c in model.coords[self.child_dim]]
+        # spend shares are training constants, which is what the dims
+        # distribution takes; the Data variable keeps them in the trace
+        share = model[f"{p}_spend_share"].get_value()
+        parts = []
+        for channel in model.coords[f"{p}_{self.parent_dim}"]:
+            sub_dim = self._parent_child_dim(channel)
+            if sub_dim not in model.coords:
+                continue
+            idx = [campaigns.index(str(c)) for c in model.coords[sub_dim]]
+            z = DimWeightedZeroSumNormal(
+                f"{p}_{name}_{channel}", weights=share[idx], core_dims=sub_dim
+            )
+            parts.append(z.rename({sub_dim: live_dim}))
+        zero_slot = pmd.zeros_like(parts[0].isel({live_dim: slice(0, 1)}))
+        z_live = ptx.concat([*parts, zero_slot], dim=live_dim)
+        gathered = z_live.isel({live_dim: model[f"{p}_live_index"]})
+        return pmd.Deterministic(f"{p}_{name}", gathered)
+
+    def set_data(self, mmm: Model, model: pm.Model, X: xr.Dataset) -> None:
+        """Update ``campaign_data`` for a new prediction window.
+
+        A wide DataFrame cannot carry the ``(date, campaign)`` spend, so the
+        default MMM prediction route hands this effect a dataset without it.
+        Silently reusing the training spend would be wrong, and a window of a
+        different length would fail deep inside PyTensor. Instead the spend is
+        set to zero over the new dates, with a warning: the campaigns then
+        contribute nothing. To predict with campaign spend, pass an
+        ``xr.Dataset`` ``X`` that carries the variable, as the budget
+        optimizer's own dataset does.
+
+        Parameters
+        ----------
+        mmm : Model
+            The MMM model instance.
+        model : pm.Model
+            The PyMC model whose data are updated.
+        X : xr.Dataset
+            The new prediction dataset.
+        """
+        var_name = self.data_vars[0]
+        if var_name in X.data_vars:
+            super().set_data(mmm, model, X)
+            return
+        current = model[var_name].get_value()
+        dims = model.named_vars_to_dims[var_name]
+        new_shape = tuple(
+            X.sizes["date"] if dim == "date" else size
+            for dim, size in zip(dims, current.shape, strict=True)
+        )
+        warnings.warn(
+            f"{var_name!r} is not in the prediction data (a DataFrame cannot carry "
+            "it), so campaign spend is set to zero over the new dates and the "
+            "campaigns contribute nothing. Pass an xr.Dataset X with "
+            f"{var_name!r} to predict with campaign spend.",
+            UserWarning,
+            stacklevel=2,
+        )
+        pm.set_data({var_name: np.zeros(new_shape, dtype=current.dtype)}, model=model)
+
+    def create_effect(self, mmm: Model) -> XTensorVariable:
+        """Build the nested campaign media contribution.
+
+        Parameters
+        ----------
+        mmm : Model
+            The MMM model instance, after :meth:`create_data`.
+
+        Returns
+        -------
+        XTensorVariable
+            The effect's total contribution over ``("date", *mmm.dims)``, the
+            ``f"{prefix}_effect_contribution"`` deterministic that enters
+            ``mu``.
+        """
+        model = mmm.model
+        p = self.prefix
+
+        x = model[self.data_vars[0]]
+        onehot = model[f"{p}_parent_onehot"]
+        scale = model[f"{p}_{self.parent_dim}_scale"]
+        cap = model[f"{p}_{self.child_dim}_cap"]
+        live = (cap > 0).astype(cap.type.dtype)  # derived, so it cannot desync
+
+        x_scaled = x / self._gather_to_campaigns(model, scale)
+        beta_multiplier = self._campaign_multiplier(model)
+
+        # channel-level saturation parameters, gathered to campaigns
+        shape_params = {
+            name: self._gather_to_campaigns(model, var)
+            for name, var in self._built._create_distributions().items()
+        }
+
+        # the campaign curve is the channel curve scaled by campaign size on
+        # both axes: split-invariant for any saturation shape
+        # a dead campaign (cap 0) evaluates on size 1 and is then zeroed, so
+        # nothing divides by zero and it contributes nothing at any spend
+        size = (cap + (1 - live)) ** self.rho
+        x_rel = x_scaled / size
+        curve = self._built.function(x_rel, dim="date", **shape_params)
+        campaign_contribution = pmd.Deterministic(
+            f"{p}_{self.child_dim}_contribution",
+            live * size * beta_multiplier * curve,
+        )
+
+        self._register_campaign_parameters(model, live, size, beta_multiplier)
+
+        pmd.Deterministic(
+            f"{p}_{self.parent_dim}_contribution",
+            (campaign_contribution * onehot).sum(dim=self.child_dim),
+        )
+        return pmd.Deterministic(
+            f"{p}_effect_contribution",
+            campaign_contribution.sum(dim=self.child_dim),
+        )
+
+    def _gather_to_campaigns(
+        self, model: pm.Model, var: XTensorVariable
+    ) -> XTensorVariable:
+        """Index a channel-level variable by each campaign's channel."""
+        channel_coord = f"{self.prefix}_{self.parent_dim}"
+        return var[{channel_coord: model[f"{self.prefix}_parent_idx"]}]
+
+    def _campaign_multiplier(self, model: pm.Model) -> XTensorVariable:
+        """Campaign efficiency multiplier, with spend-weighted mean one per channel.
+
+        ``m_c = exp(l_c) / sum_k w_k exp(l_k)`` over the channel's live
+        campaigns, with ``l_c = tau_beta * z_c`` (plus the covariate term) and
+        ``w`` the spend shares.  Data on the channel total only see that
+        weighted arithmetic mean, so fixing it at one leaves the rest of the
+        split to the prior where the data are silent, instead of to a curved
+        constraint that samples with divergences.  Single-campaign channels
+        and dead campaigns (``cap`` of 0) get a multiplier of exactly one.
+        """
+        p = self.prefix
+        tau_beta = pmd.HalfNormal(f"{p}_tau_beta", sigma=self.tau_beta_sigma)
+        if self.zero_sum_multipliers:
+            z_beta = self._zero_sum_multiplier(model, "z_beta")
+        else:
+            z_beta = pmd.Normal(f"{p}_z_beta", 0.0, 1.0, dims=(self.child_dim,))
+
+        log_mult = tau_beta * z_beta
+        if self.covariate_var is not None:
+            cov = model[f"{p}_covariates"]
+            gamma = pmd.Normal(
+                f"{p}_gamma",
+                self.gamma_mu,
+                self.gamma_sigma,
+                dims=(self.covariate_dim,),
+            )
+            log_mult = log_mult + (cov * gamma).sum(dim=self.covariate_dim)
+        raw = pmd.math.exp(log_mult)
+
+        # live campaigns, as create_effect defines them, carry the weights
+        cap = model[f"{p}_{self.child_dim}_cap"]
+        live = (cap > 0).astype(cap.type.dtype)
+        extra_dims = [d for d in cap.type.dims if d != self.child_dim]
+        if extra_dims:
+            live = live.max(dim=extra_dims)
+        weight = model[f"{p}_spend_share"] * live
+        onehot = model[f"{p}_parent_onehot"]
+        weight_total = (weight * onehot).sum(dim=self.child_dim)
+        channel_mean = (raw * weight * onehot).sum(dim=self.child_dim) / pmd.math.where(
+            weight_total > 0, weight_total, 1.0
+        )
+        normalised = raw / self._gather_to_campaigns(model, channel_mean)
+        return pmd.Deterministic(
+            f"{p}_beta_multiplier", pmd.math.where(live > 0, normalised, 1.0)
+        )
+
+    def _register_campaign_parameters(
+        self,
+        model: pm.Model,
+        live: XTensorVariable,
+        size: XTensorVariable,
+        beta_multiplier: XTensorVariable,
+    ) -> None:
+        """Per-campaign amplitude and half-saturation point, for reporting."""
+        p = self.prefix
+        amplitude = self._built.amplitude_param
+        if amplitude is not None:
+            pmd.Deterministic(
+                f"{p}_beta_{self.child_dim}",
+                self._gather_to_campaigns(
+                    model, model[self._built.variable_mapping[amplitude]]
+                )
+                * live
+                * size
+                * beta_multiplier,
+            )
+        if isinstance(self._built, MichaelisMentenSaturation):
+            # half-saturation point of campaign c on the scaled-spend axis
+            pmd.Deterministic(
+                f"{p}_lam_{self.child_dim}",
+                self._gather_to_campaigns(
+                    model, model[self._built.variable_mapping["lam"]]
+                )
+                * size,
+            )
+
+    def add_campaign_lift_test_measurements(
+        self,
+        df_lift_test: pd.DataFrame,
+        mmm: Model,
+        likelihood: Prior | None = None,
+        name: str | None = None,
+        target_transform: Callable[[np.ndarray], np.ndarray] | None = None,
+    ) -> "NestedMediaEffect":
+        """Calibrate campaign saturation curves with lift-test results.
+
+        For each row, the model's estimated lift on the campaign's own curve,
+        ``cap**rho * mult * (S((x + delta_x) / cap**rho) - S(x / cap**rho))``,
+        is conditioned on the
+        measured ``delta_y`` with ``likelihood``. Works for any saturation
+        shape.
+        This is the strongest campaign-level identification source: it does
+        not rely on flighting contrasts in the historical spend.
+
+        Parameters
+        ----------
+        df_lift_test : pd.DataFrame
+            One row per lift test with columns ``{child_dim}``, ``x``,
+            ``delta_x``, ``delta_y``, ``sigma``. ``x`` and ``delta_x`` are in
+            spend units; they are scaled internally by the campaign's channel
+            scale. ``delta_y`` and ``sigma`` are in target units.
+        mmm : Model
+            The MMM the effect was built into. The model must be built.
+        likelihood : Prior, optional
+            Serializable likelihood for the lift measurements, as in
+            :meth:`pymc_marketing.mmm.mmm.MMM.add_lift_test_measurements`:
+            its ``mu`` is the estimated lift and its ``sigma`` the table's
+            ``sigma``. Supported distributions are ``Normal``, ``StudentT``
+            and ``Gamma``. By default ``Prior("Normal")``, so a null or
+            negative measured lift is scored and an estimated lift near zero
+            is penalised. ``Gamma`` is not recommended here: it needs a
+            positive measured lift, barely penalises a collapsed lift, and
+            gives the posterior a degenerate mode.
+        name : str, optional
+            Name of the likelihood, defaults to
+            ``f"{prefix}_lift_measurements"``.
+        target_transform : Callable, optional
+            Function ``(n, 1) -> (n, 1)`` scaling ``delta_y``/``sigma`` into
+            the model's (scaled) target units. Defaults to dividing by
+            ``mmm.scalers._target`` when available (per-dim aware; model dim
+            columns are then required in ``df_lift_test``), otherwise the
+            identity (targets assumed unscaled).
+        """
+        model = mmm.model
+        p = self.prefix
+        channel_coord_name = f"{p}_{self.parent_dim}"
+        self._validate_lift_table(df_lift_test, model)
+
+        rows = df_lift_test.reset_index(drop=True)
+        row_channel = rows[self.child_dim].astype(str).map(self.child_to_parent)
+        row_scale = self._row_channel_scale(rows, row_channel, model)
+
+        if target_transform is None:
+            row_target_scale = self._row_target_scale(rows, mmm)
+
+            def target_transform(values: np.ndarray) -> np.ndarray:
+                return values / row_target_scale[:, None]
+
+        def scale_target(col: pd.Series) -> np.ndarray:
+            return target_transform(col.to_numpy()[:, None])[:, 0]
+
+        df_scaled = rows.assign(
+            **{
+                "x": rows["x"] / row_scale,
+                "delta_x": rows["delta_x"] / row_scale,
+                "delta_y": scale_target(rows["delta_y"]),
+                "sigma": scale_target(rows["sigma"]),
+                # the saturation's channel-level params are indexed by the
+                # effect's channel coordinate
+                channel_coord_name: row_channel,
+            }
+        )
+
+        rho = self.rho
+        saturation_function = self._built.function
+
+        def campaign_curve(x, cap, beta_mult, **shape_params):
+            live = (cap > 0).astype(cap.type.dtype)
+            size = (cap + (1 - live)) ** rho
+            return (
+                live * size * beta_mult * saturation_function(x / size, **shape_params)
+            )
+
+        variable_mapping = {
+            "cap": f"{p}_{self.child_dim}_cap",
+            "beta_mult": f"{p}_beta_multiplier",
+            **self._built.variable_mapping,
+        }
+
+        add_saturation_observations(
+            df_scaled,
+            variable_mapping=variable_mapping,
+            saturation_function=campaign_curve,
+            model=model,
+            likelihood=likelihood,
+            name=name or f"{p}_lift_measurements",
+        )
+        return self
+
+    def _validate_lift_table(self, df_lift_test: pd.DataFrame, model: pm.Model) -> None:
+        """Check the model is built and the lift table's columns, campaigns and rows."""
+        p = self.prefix
+        if f"{p}_beta_multiplier" not in model.named_vars:
+            raise RuntimeError(
+                "The model has not been built yet. Build the model before "
+                "adding lift test measurements."
+            )
+        required = {self.child_dim, "x", "delta_x", "delta_y", "sigma"}
+        missing = required - set(df_lift_test.columns)
+        if missing:
+            raise KeyError(f"df_lift_test is missing columns {sorted(missing)}")
+
+        campaigns = [str(c) for c in model.coords[self.child_dim]]
+        unknown = set(df_lift_test[self.child_dim].astype(str)) - set(campaigns)
+        if unknown:
+            raise ValueError(f"Unknown campaigns in df_lift_test: {sorted(unknown)}")
+        assert_valid_lift_rows(df_lift_test)
+
+    def _row_channel_scale(
+        self, rows: pd.DataFrame, row_channel: pd.Series, model: pm.Model
+    ) -> np.ndarray:
+        """Channel scale of each lift row, selected by its channel and model dims.
+
+        The scale carries the parent and any model dim the MMM's channel
+        scaling did not reduce; the lift table must provide those as columns.
+        """
+        p = self.prefix
+        channel_coord_name = f"{p}_{self.parent_dim}"
+        scale_name = f"{p}_{self.parent_dim}_scale"
+        scale_dims = tuple(model.named_vars_to_dims[scale_name])
+        channel_scale = xr.DataArray(
+            model[scale_name].get_value(),
+            dims=scale_dims,
+            coords={d: list(model.coords[d]) for d in scale_dims},
+        )
+        missing_dims = set(scale_dims) - {channel_coord_name} - set(rows.columns)
+        if missing_dims:
+            raise KeyError(
+                f"df_lift_test is missing the model dim columns "
+                f"{sorted(missing_dims)} needed to scale x/delta_x"
+            )
+        return channel_scale.sel(
+            {
+                channel_coord_name: xr.DataArray(row_channel.to_numpy(), dims="row"),
+                **{
+                    d: xr.DataArray(rows[d].to_numpy(), dims="row")
+                    for d in scale_dims
+                    if d != channel_coord_name
+                },
+            }
+        ).to_numpy()
+
+    def _row_target_scale(self, rows: pd.DataFrame, mmm: Model) -> np.ndarray:
+        """Target scale of each lift row, from the MMM's fitted target scaler.
+
+        The scaler is a scalar, or an array over some of the model dims:
+        select on exactly the dims it carries, which the lift table must then
+        provide as columns. Without a scaler, targets are assumed unscaled.
+        """
+        target_scale = getattr(getattr(mmm, "scalers", None), "_target", None)
+        if target_scale is None:
+            return np.ones(len(rows))
+        target_scale = xr.DataArray(target_scale)
+        missing_dims = set(target_scale.dims) - set(rows.columns)
+        if missing_dims:
+            raise KeyError(
+                f"df_lift_test is missing the model dim columns "
+                f"{sorted(missing_dims)} needed to scale delta_y/sigma"
+            )
+        return np.broadcast_to(
+            target_scale.sel(
+                {
+                    d: xr.DataArray(rows[d].to_numpy(), dims="row")
+                    for d in target_scale.dims
+                }
+            ).to_numpy(),
+            (len(rows),),
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize to a dict."""
+        data = self.model_dump(mode="json", exclude={"saturation"})
+        data["saturation"] = self.saturation.to_dict()
+        return data
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "NestedMediaEffect":
+        """Reconstruct from a dict."""
+        work = {k: v for k, v in data.items() if k != "__type__"}
+        if isinstance(work.get("saturation"), dict):
+            work["saturation"] = serialization.deserialize(work["saturation"])
+        return cls(**work)
