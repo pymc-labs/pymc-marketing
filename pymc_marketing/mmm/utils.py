@@ -218,49 +218,32 @@ def infer_frequency(dates) -> str | None:
     return None if frequency is None else frequency.freqstr
 
 
-def _convert_frequency_to_timedelta(periods: int, freq: str) -> pd.Timedelta:
-    """Convert frequency string and periods to Timedelta.
+def _shift_by_periods(date: pd.Timestamp, periods: int, freq: str) -> pd.Timestamp:
+    """Move *date* by *periods* steps of the pandas frequency *freq*.
+
+    The step is the calendar-aware offset ``freq`` names, so a month is as long
+    as that month and a quarter-start, business-day or hourly frequency counts
+    in its own unit.  *periods* may be negative.  Zero returns *date* as it is
+    (a zero offset would roll an unanchored date forward to its anchor).
 
     Parameters
     ----------
+    date : pd.Timestamp
+        The date to move.
     periods : int
-        Number of periods
+        Number of steps.
     freq : str
-        Frequency string (e.g., 'D', 'W', 'M', 'Y')
+        A pandas frequency string, such as the one :func:`infer_frequency`
+        returns (``"MS"``, ``"W-SUN"``, ``"h"``).
 
     Returns
     -------
-    pd.Timedelta
-        The timedelta representation
+    pd.Timestamp
+        The moved date.
     """
-    # Extract base frequency (e.g., 'W' from 'W-MON')
-    base_freq = freq[0] if len(freq) > 1 else freq
-
-    # Direct mapping for supported frequencies
-    if base_freq == "D":
-        return pd.Timedelta(days=periods)
-    elif base_freq == "W":
-        return pd.Timedelta(weeks=periods)
-    elif base_freq == "M":
-        # Approximate months as 30 days
-        return pd.Timedelta(days=periods * 30)
-    elif base_freq == "Y":
-        # Approximate years as 365 days
-        return pd.Timedelta(days=periods * 365)
-    elif base_freq == "H":
-        return pd.Timedelta(hours=periods)
-    elif base_freq == "T":
-        return pd.Timedelta(minutes=periods)
-    elif base_freq == "S":
-        return pd.Timedelta(seconds=periods)
-    else:
-        # Default to weeks if frequency not recognized
-        warnings.warn(
-            f"Unrecognized frequency '{freq}'. Defaulting to weeks.",
-            UserWarning,
-            stacklevel=2,
-        )
-        return pd.Timedelta(weeks=periods)
+    if periods == 0:
+        return date
+    return date + periods * pd.tseries.frequencies.to_offset(freq)
 
 
 def create_zero_dataset(
@@ -415,7 +398,7 @@ def create_zero_dataset(
             else getattr(model.adstock, "l_max", None)
         )
         if lags:
-            end_date += _convert_frequency_to_timedelta(lags, inferred_freq)
+            end_date = _shift_by_periods(end_date, lags, inferred_freq)
 
     new_dates = pd.date_range(start=start_date, end=end_date, freq=inferred_freq)
     if new_dates.empty:

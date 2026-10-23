@@ -5363,7 +5363,7 @@ class BudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
         self,
         data_with_noise: xr.Dataset,
     ) -> xr.Dataset:
-        from pymc_marketing.mmm.utils import _convert_frequency_to_timedelta
+        from pymc_marketing.mmm.utils import _shift_by_periods
 
         dates = pd.DatetimeIndex(data_with_noise.coords["date"].values)
         inferred_freq = infer_frequency(dates)
@@ -5375,9 +5375,7 @@ class BudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
             )
             inferred_freq = "W"
 
-        cutoff_date = dates.max() - _convert_frequency_to_timedelta(
-            self.adstock.l_max, inferred_freq
-        )
+        cutoff_date = _shift_by_periods(dates.max(), -self.adstock.l_max, inferred_freq)
 
         result = data_with_noise.copy()
         result["_channel"] = data_with_noise["_channel"].where(
