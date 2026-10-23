@@ -16,11 +16,15 @@
 The analysis job has read-only GitHub access. A separate job validates the
 artifact again and publishes only allowlisted labels or numeric issue links.
 Neither prompts nor model responses are executed or interpolated into shell.
+The stale-summary mode makes no model call: it lists stale-issue candidates
+from GitHub data and the checked-out source, and publishes numbers only.
 """
 
 import json
 import os
+import re
 import sys
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
@@ -337,6 +341,377 @@ def update_comment(repo_path, issue_path, marker, body, create):
         github(issue_path + "/comments", "POST", {"body": body})
 
 
+STALE_MARKER = "<!-- stale-summary -->"
+STALE_SECTIONS = (
+    "closed_by_merge",
+    "referenced",
+    "idle_assignees",
+    "idle_claims",
+    "idle_prs",
+    "removed_code",
+)
+REF = r"(?:(?<![\w/-])#(\d+)|https://github\.com/([\w.-]+/[\w.-]+)/issues/(\d+))"
+KEYWORD_RE = re.compile(
+    rf"\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\b:?\s+{REF}", re.I
+)
+WEAK_RE = re.compile(
+    rf"\b(?:refs?|related to|part of|addresses|towards)\b:?\s+{REF}", re.I
+)
+CLAIM_RE = re.compile(
+    r"\b(?:i(?:'d| would) like to (?:work on|take|tackle)|can i (?:work on|take)"
+    r"|may i (?:be assigned|work on|take)|assign (?:it |this )?to me"
+    r"|i(?:'ll| will) (?:work on|take) (?:this|it)|i can take (?:this|it))\b",
+    re.I,
+)
+TOKEN_RE = re.compile(r"`([A-Za-z_][\w.]*?)(?:\(\))?`")
+PATH_RE = re.compile(r"\b(pymc_marketing/[\w/]+\.py)\b")
+SAFE_TOKEN = re.compile(r"[A-Za-z_][\w./]{0,99}")
+SAFE_BRANCH = re.compile(r"[\w./-]{1,100}")
+DATE = re.compile(r"\d{4}-\d{2}-\d{2}")
+COMMON_NAMES = {"True", "False", "None", "self", "dims", "coords", "idata", "model"}
+MAINTAINERS = {"OWNER", "MEMBER", "COLLABORATOR"}
+PAGE = "pageInfo { hasNextPage endCursor }"
+MERGED_PRS = f"""query($owner: String!, $name: String!, $cursor: String) {{
+  repository(owner: $owner, name: $name) {{ defaultBranchRef {{ name }}
+    pullRequests(states: MERGED, first: 100, after: $cursor) {{ {PAGE}
+      nodes {{ number title body baseRefName mergedAt
+        closingIssuesReferences(first: 10) {{ nodes {{ number }} }} }} }} }} }}"""
+OPEN_PRS = f"""query($owner: String!, $name: String!, $cursor: String) {{
+  repository(owner: $owner, name: $name) {{
+    pullRequests(states: OPEN, first: 100, after: $cursor) {{ {PAGE}
+      nodes {{ number body updatedAt
+        closingIssuesReferences(first: 10) {{ nodes {{ number }} }} }} }} }} }}"""
+OPEN_ISSUES = f"""query($owner: String!, $name: String!, $cursor: String) {{
+  repository(owner: $owner, name: $name) {{
+    issues(states: OPEN, first: 50, after: $cursor) {{ {PAGE}
+      nodes {{ number body createdAt updatedAt
+        labels(first: 20) {{ nodes {{ name }} }}
+        assignees(first: 5) {{ nodes {{ login }} }}
+        comments(last: 20) {{ nodes {{ author {{ login }} authorAssociation createdAt body }} }}
+        timelineItems(last: 30, itemTypes: [CROSS_REFERENCED_EVENT, ASSIGNED_EVENT,
+                                            REOPENED_EVENT]) {{ nodes {{ __typename
+          ... on CrossReferencedEvent {{ createdAt source {{ __typename
+            ... on PullRequest {{ author {{ login }} }} }} }}
+          ... on AssignedEvent {{ createdAt }}
+          ... on ReopenedEvent {{ createdAt }} }} }} }} }} }} }}"""
+
+
+def graphql_nodes(query, key):
+    """Page through one fixed GraphQL connection with the read-only job token."""
+    owner, name = os.environ["GITHUB_REPOSITORY"].split("/")
+    nodes, cursor = [], None
+    while True:
+        response = request_json(
+            "https://api.github.com/graphql",
+            {"Authorization": "Bearer " + os.environ["GH_TOKEN"]},
+            "POST",
+            {
+                "query": query,
+                "variables": {"owner": owner, "name": name, "cursor": cursor},
+            },
+        )
+        if response.get("errors"):
+            raise ValueError("GraphQL query failed")
+        repository = response["data"]["repository"]
+        nodes += repository[key]["nodes"]
+        if not repository[key]["pageInfo"]["hasNextPage"]:
+            return nodes, repository
+        cursor = repository[key]["pageInfo"]["endCursor"]
+
+
+def references(regex, text):
+    """Return (issue number, in an unticked checklist item) for each local reference."""
+    repo = os.environ["GITHUB_REPOSITORY"].lower()
+    found = []
+    for line in (text or "").splitlines():
+        unticked = re.match(r"\s*[-*]\s*\[ \]", line) is not None
+        for m in regex.finditer(line):
+            if m.group(1):
+                found.append((int(m.group(1)), unticked))
+            elif m.group(2).lower() == repo:
+                found.append((int(m.group(3)), unticked))
+    return found
+
+
+def source_index(root):
+    """Collect file paths and identifiers of the checked-out package."""
+    paths, names = set(), set()
+    for file in Path(root).rglob("*.py"):
+        paths.add(file.as_posix())
+        names.update(re.findall(r"[A-Za-z_]\w*", file.read_text(errors="ignore")))
+    return paths, names
+
+
+def stale_candidates(merged, default, open_prs, issues, index, now):
+    """List stale-issue candidates as numbers, dates and checked code tokens."""
+    paths, names = index
+    by_number = {issue["number"]: issue for issue in issues}
+
+    def ts(value):
+        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+
+    def reopened_after(issue, when):
+        return any(
+            event["__typename"] == "ReopenedEvent" and ts(event["createdAt"]) > when
+            for event in issue["timelineItems"]["nodes"]
+        )
+
+    result = {section: [] for section in STALE_SECTIONS}
+    closed = {}
+    for pr in merged:
+        merged_at = ts(pr["mergedAt"])
+        keywords = references(KEYWORD_RE, pr["body"]) + references(
+            KEYWORD_RE, pr["title"]
+        )
+        linked = {node["number"] for node in pr["closingIssuesReferences"]["nodes"]}
+        for number in sorted(linked | {n for n, _ in keywords}):
+            issue = by_number.get(number)
+            if issue is None or reopened_after(issue, merged_at) or number in closed:
+                continue
+            if pr["baseRefName"] != default:
+                reason = {"reason": "base", "base": pr["baseRefName"]}
+            elif (number, True) in keywords:
+                reason = {"reason": "checklist"}
+            else:
+                reason = {"reason": "keyword"}
+            closed[number] = {"issue": number, "pr": pr["number"], **reason}
+        if merged_at > now - timedelta(days=35):
+            for number, _ in references(WEAK_RE, pr["body"]):
+                entry = {"issue": number, "pr": pr["number"]}
+                if number in by_number and entry not in result["referenced"]:
+                    result["referenced"].append(entry)
+    result["closed_by_merge"] = sorted(closed.values(), key=lambda e: e["issue"])
+    result["referenced"] = [e for e in result["referenced"] if e["issue"] not in closed]
+
+    linked_prs = {}
+    for pr in open_prs:
+        numbers = {node["number"] for node in pr["closingIssuesReferences"]["nodes"]}
+        numbers |= {n for n, _ in references(KEYWORD_RE, pr["body"])}
+        numbers |= {n for n, _ in references(WEAK_RE, pr["body"])}
+        for number in numbers & by_number.keys():
+            linked_prs.setdefault(number, []).append(pr)
+
+    for number, issue in sorted(by_number.items()):
+        if number in closed:
+            continue
+        events = issue["timelineItems"]["nodes"]
+        quiet = ts(issue["updatedAt"]) < now - timedelta(days=180)
+        if issue["assignees"]["nodes"] and quiet and number not in linked_prs:
+            assigned = [
+                e["createdAt"][:10]
+                for e in events
+                if e["__typename"] == "AssignedEvent"
+            ]
+            since = assigned[-1] if assigned else issue["createdAt"][:10]
+            result["idle_assignees"].append({"issue": number, "since": since})
+        for comment in reversed(issue["comments"]["nodes"]):
+            author = (comment["author"] or {}).get("login")
+            when = ts(comment["createdAt"])
+            if (
+                not author
+                or comment["authorAssociation"] in MAINTAINERS
+                or when > now - timedelta(days=42)
+                or not CLAIM_RE.search(comment["body"])
+            ):
+                continue
+            later_pr = any(
+                e["__typename"] == "CrossReferencedEvent"
+                and ts(e["createdAt"]) > when
+                and (e["source"].get("author") or {}).get("login") == author
+                for e in events
+            )
+            if not later_pr and number not in linked_prs:
+                result["idle_claims"].append(
+                    {"issue": number, "since": comment["createdAt"][:10]}
+                )
+            break
+        for pr in linked_prs.get(number, []):
+            if ts(pr["updatedAt"]) < now - timedelta(days=90):
+                updated = pr["updatedAt"][:10]
+                result["idle_prs"].append(
+                    {"issue": number, "pr": pr["number"], "updated": updated}
+                )
+        is_bug = any(label["name"] == "bug" for label in issue["labels"]["nodes"])
+        body = issue["body"] or ""
+        found_paths = set(PATH_RE.findall(body))
+        found_names = {t.split(".")[-1] for t in TOKEN_RE.findall(body)} - COMMON_NAMES
+        found_names = {
+            t for t in found_names if "_" in t or re.search(r"[a-z][A-Z]", t)
+        }
+        tokens = sorted(found_paths) + sorted(found_names)
+        if (
+            (is_bug or found_paths)
+            and len(tokens) >= 2
+            and not (found_paths & paths or found_names & names)
+        ):
+            result["removed_code"].append({"issue": number, "tokens": tokens[:10]})
+    return result
+
+
+def validate_stale(data):
+    """Accept only numbers, dates, branch names and checked code tokens."""
+
+    def number(value):
+        return type(value) is int and 0 < value < 2**31
+
+    def matches(pattern, value):
+        return type(value) is str and pattern.fullmatch(value) is not None
+
+    fields = {
+        "closed_by_merge": {"issue", "pr", "reason"},
+        "referenced": {"issue", "pr"},
+        "idle_assignees": {"issue", "since"},
+        "idle_claims": {"issue", "since"},
+        "idle_prs": {"issue", "pr", "updated"},
+        "removed_code": {"issue", "tokens"},
+    }
+    if type(data) is not dict or set(data) != {"date", "commit", *STALE_SECTIONS}:
+        raise ValueError("Unexpected result schema")
+    if not matches(DATE, data["date"]) or not matches(
+        re.compile(r"[0-9a-f]{7,40}"), data["commit"]
+    ):
+        raise ValueError("Invalid run metadata")
+    for section, keys in fields.items():
+        entries = data[section]
+        if type(entries) is not list or len(entries) > 500:
+            raise ValueError("Invalid section")
+        for entry in entries:
+            if type(entry) is not dict:
+                raise ValueError("Invalid entry")
+            allowed = keys | ({"base"} if entry.get("reason") == "base" else set())
+            if set(entry) != allowed or not number(entry["issue"]):
+                raise ValueError("Invalid entry")
+            if ("pr" in entry and not number(entry["pr"])) or (
+                "reason" in entry
+                and entry["reason"] not in {"base", "checklist", "keyword"}
+            ):
+                raise ValueError("Invalid entry")
+            if "base" in entry and not matches(SAFE_BRANCH, entry["base"]):
+                raise ValueError("Invalid branch")
+            for key in ("since", "updated"):
+                if key in entry and not matches(DATE, entry[key]):
+                    raise ValueError("Invalid date")
+            if "tokens" in entry and (
+                type(entry["tokens"]) is not list
+                or not 0 < len(entry["tokens"]) <= 10
+                or not all(matches(SAFE_TOKEN, t) for t in entry["tokens"])
+            ):
+                raise ValueError("Invalid code token")
+    return data
+
+
+def render_stale(data):
+    """Render the summary issue body from fixed text and validated values."""
+    reasons = {
+        "checklist": "the closing keyword is in an unticked checklist item",
+        "keyword": "the closing keyword did not close it",
+    }
+    sections = [
+        (
+            "Merged PR, issue still open",
+            "closed_by_merge",
+            lambda e: (
+                f"#{e['issue']} via #{e['pr']}: "
+                + (
+                    f"merged into `{e['base']}`"
+                    if e["reason"] == "base"
+                    else reasons[e["reason"]]
+                )
+            ),
+        ),
+        (
+            'Mentioned with "Refs" or "Related to" by a PR merged in the last 35 days',
+            "referenced",
+            lambda e: f"#{e['issue']} via #{e['pr']}",
+        ),
+        (
+            "Assigned, no activity for 180 days, no open PR",
+            "idle_assignees",
+            lambda e: f"#{e['issue']}, assigned since {e['since']}",
+        ),
+        (
+            "Claimed in a comment more than 6 weeks ago, no PR from the claimant",
+            "idle_claims",
+            lambda e: f"#{e['issue']}, claimed on {e['since']}",
+        ),
+        (
+            "Open PR idle for 90 days, linked to an open issue",
+            "idle_prs",
+            lambda e: f"#{e['issue']} via #{e['pr']}, last update {e['updated']}",
+        ),
+        (
+            "Code references no longer on the default branch",
+            "removed_code",
+            lambda e: f"#{e['issue']}: " + ", ".join(f"`{t}`" for t in e["tokens"]),
+        ),
+    ]
+    lines = [
+        STALE_MARKER,
+        f"Stale-issue candidates on {data['date']}, default branch at {data['commit'][:8]}. "
+        "Candidates only: nothing is closed automatically. Check the evidence before closing.",
+    ]
+    for title, key, fmt in sections:
+        lines += ["", f"## {title}", ""] + (
+            [f"- {fmt(e)}" for e in data[key]] or ["None."]
+        )
+    return "\n".join(lines) + "\n"
+
+
+def analyze_stale():
+    """Collect stale-issue candidates with read-only queries and no model call."""
+    merged, repository = graphql_nodes(MERGED_PRS, "pullRequests")
+    open_prs, _ = graphql_nodes(OPEN_PRS, "pullRequests")
+    issues, _ = graphql_nodes(OPEN_ISSUES, "issues")
+    now = datetime.now(UTC)
+    data = stale_candidates(
+        merged,
+        repository["defaultBranchRef"]["name"],
+        open_prs,
+        issues,
+        source_index("pymc_marketing"),
+        now,
+    )
+    data = {
+        "date": now.strftime("%Y-%m-%d"),
+        "commit": os.environ["GITHUB_SHA"],
+        **data,
+    }
+    Path("result.json").write_text(json.dumps(validate_stale(data)))
+
+
+def publish_stale():
+    """Create or update this month's bot-authored summary issue."""
+    path = Path("result.json")
+    if path.stat().st_size > 60000:
+        raise ValueError("Oversized result")
+    data = validate_stale(json.loads(path.read_text()))
+    repo_path = "/repos/" + os.environ["GITHUB_REPOSITORY"]
+    title = f"Stale-issue candidates {data['date'][:7]}"
+    body = render_stale(data)
+    page = 1
+    while True:
+        items = github(
+            f"{repo_path}/issues?state=open&creator=github-actions%5Bbot%5D"
+            f"&per_page=100&page={page}"
+        )
+        for item in items:
+            if (
+                item["user"]["login"] == "github-actions[bot]"
+                and item["title"] == title
+                and (item["body"] or "").startswith(STALE_MARKER)
+            ):
+                github(f"{repo_path}/issues/{item['number']}", "PATCH", {"body": body})
+                return
+        if len(items) < 100:
+            break
+        page += 1
+    github(
+        f"{repo_path}/issues",
+        "POST",
+        {"title": title, "body": body, "labels": ["maintenance"]},
+    )
+
+
 def main():
     """Dispatch the requested trusted workflow phase."""
     action, mode = sys.argv[1:]
@@ -344,8 +719,12 @@ def main():
         "triage",
         "duplicates",
         "pr-labeler",
+        "stale-summary",
     }:
         raise ValueError("Unsupported action or mode")
+    if mode == "stale-summary":
+        {"analyze": analyze_stale, "publish": publish_stale}[action]()
+        return
     event = json.loads(Path(os.environ["GITHUB_EVENT_PATH"]).read_text())
     {"analyze": analyze, "publish": publish}[action](mode, event)
 

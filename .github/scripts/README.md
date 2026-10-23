@@ -36,6 +36,14 @@ approved module labels. The bot posts a fixed sticky summary of those labels.
 No arbitrary model prose is published. The workflow tests verify analysis/write
 job isolation and the trusted checkout refs for all three workflows.
 
+The monthly stale-issue summary makes no model call. Its analysis job reads open
+issues, open PRs and merged PRs through fixed GraphQL queries with a read-only
+token, and checks code names cited in issues against the checked-out
+`pymc_marketing` package. The artifact holds only issue and PR numbers, dates,
+branch names and code tokens matching a strict pattern; no titles, logins or
+comment text. The publishing job revalidates it, renders fixed text, and creates
+or updates one bot-authored issue per month. It never closes or labels other issues.
+
 All seven former Claude workflows were disabled operationally during incident
 mitigation. After merge and credential rotation, re-enable only Triage, Duplicate
 Detection, and PR Release Notes Labeler. Research, Plan, Iterate and Implement

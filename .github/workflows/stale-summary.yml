@@ -1,0 +1,67 @@
+name: Stale Issue Summary
+
+on:
+  schedule:
+    - cron: "0 6 1 * *"
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: stale-summary
+  cancel-in-progress: false
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      issues: read
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+          sparse-checkout: |
+            .github/scripts
+            pymc_marketing
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: List stale-issue candidates without a model call
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python .github/scripts/issue_automation.py analyze stale-summary
+      - uses: actions/upload-artifact@v7
+        with:
+          name: issue-result-stale-summary
+          path: result.json
+          if-no-files-found: error
+          overwrite: true
+          retention-days: 1
+
+  publish:
+    needs: analyze
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+          sparse-checkout: .github/scripts
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - uses: actions/download-artifact@v8
+        with:
+          name: issue-result-stale-summary
+      - name: Validate and publish the summary issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python .github/scripts/issue_automation.py publish stale-summary

@@ -8,6 +8,7 @@ on:
       - .github/workflows/pr-labeler.yml
       - .github/workflows/triage.yml
       - .github/workflows/duplicate-issues.yml
+      - .github/workflows/stale-summary.yml
       - .github/workflows/issue-automation-tests.yml
   push:
     branches: [main]
