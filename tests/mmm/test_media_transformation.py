@@ -11,11 +11,14 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
+from copy import deepcopy
+
 import numpy as np
 import pandas as pd
 import pymc as pm
 import pymc.dims as pmd
 import pytest
+import xarray as xr
 from pymc_extras.prior import Prior
 
 from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation
@@ -365,3 +368,181 @@ class TestMediaTransformationRoundtrips:
 )
 def test_media_type_registered(type_key):
     assert type_key in serialization._registry, f"{type_key} not registered"
+
+
+@pytest.mark.parametrize("adstock_first", [True, False])
+def test_media_config_list_preserves_config_across_models(adstock_first):
+    transformation = MediaTransformation(
+        adstock=GeometricAdstock(l_max=2).set_dims_for_all_priors("online"),
+        saturation=LogisticSaturation().set_dims_for_all_priors("online"),
+        adstock_first=adstock_first,
+        dims=("online",),
+    )
+    configs = MediaConfigList([MediaConfig("online", ["a", "b"], transformation)])
+    before = deepcopy(configs.to_dict())
+    for _ in range(2):
+        with pm.Model(coords={"date": range(5), "media": ["a", "b"]}) as model:
+            configs(
+                pmd.Data("x", np.ones((5, 2)), dims=("date", "media")),
+                core_dim="date",
+                media_dim="media",
+            )
+        assert {rv.name for rv in model.free_RVs} == {
+            "online_adstock_alpha",
+            "online_saturation_lam",
+            "online_saturation_beta",
+        }
+        assert configs.to_dict() == before
+        assert configs == MediaConfigList.from_dict(before)
+        assert configs[0].media_transformation is transformation
+
+
+@pytest.mark.parametrize("adstock_first", [True, False])
+def test_media_config_list_preserves_shared_transformation(adstock_first):
+    transformation = MediaTransformation(
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+        adstock_first=adstock_first,
+    )
+    configs = MediaConfigList(
+        [
+            MediaConfig("online", ["a", "b"], transformation),
+            MediaConfig("offline", ["c"], transformation),
+        ]
+    )
+    before = deepcopy(configs.to_dict())
+    for _ in range(2):
+        with pm.Model(coords={"date": range(5), "media": ["a", "b", "c"]}) as model:
+            configs(
+                pmd.Data("x", np.ones((5, 3)), dims=("date", "media")),
+                core_dim="date",
+                media_dim="media",
+            )
+        assert {rv.name for rv in model.free_RVs} == {
+            f"{group}_{parameter}"
+            for group in ["online", "offline"]
+            for parameter in ["adstock_alpha", "saturation_lam", "saturation_beta"]
+        }
+        assert configs.to_dict() == before
+        assert configs == MediaConfigList.from_dict(before)
+        assert all(config.media_transformation is transformation for config in configs)
+
+
+@pytest.mark.parametrize(
+    "adstock_prefix,saturation_prefix",
+    [
+        ("adstock", "saturation"),
+        ("carry", "response"),
+        ("online_carry", "online_response"),
+    ],
+)
+def test_prefixed_media_transformation_returns_independent_copies(
+    adstock_prefix, saturation_prefix
+):
+    transformation = MediaTransformation(
+        adstock=GeometricAdstock(l_max=2, prefix=adstock_prefix),
+        saturation=LogisticSaturation(prefix=saturation_prefix),
+        adstock_first=False,
+    )
+    config = MediaConfig("online", ["a"], transformation)
+    before = deepcopy(config.to_dict())
+    first = config.prefixed_media_transformation()
+    second = config.prefixed_media_transformation()
+
+    assert first is not second
+    assert first.adstock is not transformation.adstock
+    assert first.saturation is not transformation.saturation
+    assert first.adstock.prefix == second.adstock.prefix == f"online_{adstock_prefix}"
+    assert (
+        first.saturation.prefix
+        == second.saturation.prefix
+        == f"online_{saturation_prefix}"
+    )
+    assert first.adstock_first is False
+    assert first.dims == transformation.dims
+    first.adstock.function_priors["alpha"].dims = ("other",)
+    first.saturation.prefix = "changed"
+    assert config.to_dict() == before
+    assert (
+        second.adstock.function_priors["alpha"].dims
+        == transformation.adstock.function_priors["alpha"].dims
+    )
+    assert second.saturation.prefix == f"online_{saturation_prefix}"
+
+
+@pytest.mark.parametrize("vector", [False, True], ids=["scalar", "channel"])
+@pytest.mark.parametrize("custom_prefixes", [False, True], ids=["default", "custom"])
+def test_prefixed_components_use_each_groups_posterior(vector, custom_prefixes):
+    adstock_prefix = "carry" if custom_prefixes else "adstock"
+    saturation_prefix = "response" if custom_prefixes else "saturation"
+    groups = [("online", ["a", "b"]), ("offline", ["c"])]
+    configs = []
+    variables = {}
+    values = {}
+    coords = {"chain": [2, 5], "draw": [3, 7, 11]}
+    for i, (name, columns) in enumerate(groups):
+        dims = (name,) if vector else ()
+        configs.append(
+            MediaConfig(
+                name,
+                columns,
+                MediaTransformation(
+                    GeometricAdstock(
+                        l_max=2, prefix=adstock_prefix
+                    ).set_dims_for_all_priors(dims),
+                    LogisticSaturation(
+                        prefix=saturation_prefix
+                    ).set_dims_for_all_priors(dims),
+                    adstock_first=True,
+                    dims=dims,
+                ),
+            )
+        )
+        shape = (2, 3, len(columns)) if vector else (2, 3)
+        indices = np.arange(np.prod(shape)).reshape(shape)
+        alpha = 0.1 + 0.2 * i + 0.03 * indices
+        lam = 0.5 + i + 0.05 * indices
+        beta = 2.0 + 20 * i + indices
+        values[name] = (alpha, lam, beta)
+        for parameter, value in [
+            (f"{adstock_prefix}_alpha", alpha),
+            (f"{saturation_prefix}_lam", lam),
+            (f"{saturation_prefix}_beta", beta),
+        ]:
+            variables[f"{name}_{parameter}"] = (("chain", "draw", *dims), value)
+        if vector:
+            coords[name] = columns
+    posterior = xr.Dataset(variables, coords=coords)
+    config_list = MediaConfigList(configs)
+    before = deepcopy(config_list.to_dict())
+    with pm.Model(coords={"date": range(5), "media": ["a", "b", "c"]}):
+        config_list(
+            pmd.Data("x", np.ones((5, 3)), dims=("date", "media")),
+            core_dim="date",
+            media_dim="media",
+        )
+
+    for config in config_list:
+        transformation = config.prefixed_media_transformation()
+        dims = (config.name,) if vector else ()
+        alpha, lam, beta = values[config.name]
+        adstock_curve = transformation.adstock.sample_curve(
+            posterior, random_seed=123, progressbar=False
+        ).transpose("chain", "draw", *dims, "time since exposure")
+        saturation_curve = transformation.saturation.sample_curve(
+            posterior, num_points=3, random_seed=123, progressbar=False
+        ).transpose("chain", "draw", *dims, "x")
+        np.testing.assert_allclose(
+            adstock_curve.values,
+            np.stack([1 / (1 + alpha), alpha / (1 + alpha)], axis=-1),
+        )
+        np.testing.assert_allclose(
+            saturation_curve.values,
+            beta[..., None] * np.tanh(lam[..., None] * np.linspace(0, 1, 3) / 2),
+        )
+        for curve in [adstock_curve, saturation_curve]:
+            np.testing.assert_array_equal(curve.coords["chain"], coords["chain"])
+            np.testing.assert_array_equal(curve.coords["draw"], coords["draw"])
+            if vector:
+                np.testing.assert_array_equal(curve.coords[config.name], config.columns)
+    assert config_list.to_dict() == before

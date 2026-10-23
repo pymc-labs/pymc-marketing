@@ -34,10 +34,9 @@ Create a media transformation for online and offline media channels:
     )
     # Shared media transformation for all online media channels
     online_media_transform = MediaTransformation(
-            adstock=GeometricAdstock(l_max=10),
-            saturation=MichaelisMentenSaturation(),
-            adstock_first=False,
-        ),
+        adstock=GeometricAdstock(l_max=10),
+        saturation=MichaelisMentenSaturation(),
+        adstock_first=False,
     )
 
 Create a combined media configuration for offline and online media channels:
@@ -49,7 +48,7 @@ Create a combined media configuration for offline and online media channels:
         MediaConfigList,
     )
 
-    media_configs: MediaConfigList(
+    media_configs = MediaConfigList(
         [
             MediaConfig(
                 name="offline",
@@ -70,6 +69,7 @@ Apply the media transformation to media data in PyMC model:
 .. code-block:: python
 
     import pymc as pm
+    import pymc.dims as pmd
     import pandas as pd
 
     df: pd.DataFrame = ...
@@ -82,7 +82,7 @@ Apply the media transformation to media data in PyMC model:
         "media": media_columns,
     }
     with pm.Model(coords=coords) as model:
-        media_data = pm.Data(
+        media_data = pmd.Data(
             "media_data", df.loc[:, media_columns].to_numpy(), dims=("date", "media")
         )
         transformed_media_data = media_configs(
@@ -93,7 +93,8 @@ Apply the media transformation to media data in PyMC model:
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from copy import deepcopy
+from dataclasses import dataclass, replace
 from typing import cast
 
 import pymc as pm
@@ -275,6 +276,33 @@ class MediaConfig:
     columns: list[str]
     media_transformation: MediaTransformation
 
+    def prefixed_media_transformation(self) -> MediaTransformation:
+        """Return a fresh transformation with this group's component prefixes.
+
+        Returns
+        -------
+        MediaTransformation
+            A copy whose adstock and saturation prefixes are the group name
+            followed by ``_`` and each configured component prefix. The original
+            transformation and its priors remain unchanged.
+
+        Notes
+        -----
+        :class:`MediaConfigList` uses this method when building a model. Use the
+        returned components to sample per-group curves from the corresponding
+        posterior. The unprefixed components in ``media_transformation`` do not
+        have the model's group-specific parameter names.
+
+        Prefixes are derived from the current configuration. This method does
+        not retrieve a fitted transformation or resolve PyMC model namespaces.
+        """
+        transformation = self.media_transformation
+        adstock = deepcopy(transformation.adstock)
+        adstock.prefix = f"{self.name}_{adstock.prefix}"
+        saturation = deepcopy(transformation.saturation)
+        saturation.prefix = f"{self.name}_{saturation.prefix}"
+        return replace(transformation, adstock=adstock, saturation=saturation)
+
     def to_dict(self) -> dict:
         """Convert the media configuration to a dictionary.
 
@@ -345,6 +373,7 @@ class MediaConfigList:
                 adstock=GeometricAdstock(l_max=10).set_dims_for_all_priors("online"),
                 saturation=LogisticSaturation().set_dims_for_all_priors("online"),
                 adstock_first=True,
+                dims=("online",),
             ),
         )
 
@@ -357,10 +386,28 @@ class MediaConfigList:
                 ).set_dims_for_all_priors("offline"),
                 saturation=LogisticSaturation().set_dims_for_all_priors("offline"),
                 adstock_first=False,
+                dims=("offline",),
             ),
         )
 
         media_configs = MediaConfigList([online, offline])
+
+    After fitting a model built with ``media_configs``, derive the group-prefixed
+    components to evaluate curves using its samples:
+
+    .. code-block:: python
+
+        online_transformation = online.prefixed_media_transformation()
+        online_curve = online_transformation.saturation.sample_curve(idata.posterior)
+
+    .. warning::
+
+        Building a model leaves ``online.media_transformation`` unchanged; it no
+        longer adds group prefixes to that object in place. For per-group curves,
+        replace ``online.media_transformation.saturation.sample_curve(...)`` with
+        the prefixed-component workflow above. The original component's names do
+        not match the group's posterior variables, so it may sample fresh priors
+        instead of using the supplied posterior values.
 
     """
 
@@ -452,7 +499,9 @@ class MediaConfigList:
         """Apply media transformation to media data.
 
         Assumes that the columns in the data correspond to the media channels
-        in the media_configs.
+        in the media_configs. Per-group component prefixes are applied to
+        copies returned by :meth:`MediaConfig.prefixed_media_transformation`;
+        the supplied configurations remain unchanged.
 
         Parameters
         ----------
@@ -475,8 +524,6 @@ class MediaConfigList:
         transformed_data = []
         start_idx = 0
         for config in self.media_configs:
-            config.media_transformation.dims = config.name
-
             model.add_coord(config.name, config.columns)
             end_idx = start_idx + len(config.columns)
 
@@ -484,14 +531,10 @@ class MediaConfigList:
                 {media_dim: config.name}
             )
 
-            adstock = config.media_transformation.adstock
-            saturation = config.media_transformation.saturation
-            adstock.prefix = f"{config.name}_{adstock.prefix}"
-            saturation.prefix = f"{config.name}_{saturation.prefix}"
-
-            media_transformation_data = config.media_transformation(
-                media_data, dim=core_dim
-            ).rename({config.name: media_dim})
+            transformation = config.prefixed_media_transformation()
+            media_transformation_data = transformation(media_data, dim=core_dim).rename(
+                {config.name: media_dim}
+            )
             transformed_data.append(media_transformation_data)
 
             start_idx = end_idx
