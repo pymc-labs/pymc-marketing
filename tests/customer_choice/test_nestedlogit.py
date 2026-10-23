@@ -89,21 +89,23 @@ def nesting_structure_invalid_two_layer():
 
 
 @pytest.fixture
-def nstL(sample_df, utility_eqs, nesting_structure_1):
+def nstL(utility_eqs, nesting_structure_1):
     return NestedLogit(
-        sample_df, utility_eqs, "choice", ["X1", "X2"], nesting_structure_1
+        utility_equations=utility_eqs,
+        depvar="choice",
+        covariates=["X1", "X2"],
+        nesting_structure=nesting_structure_1,
     )
 
 
 @pytest.fixture
-def nstL2_invalid(sample_df, utility_eqs, nesting_structure_invalid_two_layer):
+def nstL2_invalid(utility_eqs, nesting_structure_invalid_two_layer):
     """NestedLogit instance that will fail with two-layer nesting."""
     return NestedLogit(
-        sample_df,
-        utility_eqs,
-        "choice",
-        ["X1", "X2"],
-        nesting_structure_invalid_two_layer,
+        utility_equations=utility_eqs,
+        depvar="choice",
+        covariates=["X1", "X2"],
+        nesting_structure=nesting_structure_invalid_two_layer,
     )
 
 
@@ -160,44 +162,10 @@ def test_parse_nesting_empty_dict_raises(nstL):
         nstL._parse_nesting(nesting_dict, product_indices)
 
 
-def test_preprocess_model_data_sets_attributes(nstL, sample_df, utility_eqs):
-    _, _, _ = nstL.preprocess_model_data(sample_df, utility_eqs)
-
-    # Check main attributes exist
-    assert hasattr(nstL, "X_data")
-    assert hasattr(nstL, "F")
-    assert hasattr(nstL, "y")
-    assert hasattr(nstL, "alternatives")
-    assert hasattr(nstL, "prod_indices")
-    assert hasattr(nstL, "nest_indices")
-    assert hasattr(nstL, "all_nests")
-    assert hasattr(nstL, "lambda_lkup")
-    assert hasattr(nstL, "coords")
-
-    # Check X, F, y shapes match the data
-    assert nstL.X_data.shape[0] == sample_df.shape[0]
-    assert nstL.y.shape[0] == sample_df.shape[0]
-
-    # Check that nest_indices has 'top' (but not 'mid' anymore)
-    assert "top" in nstL.nest_indices
-    assert "mid" not in nstL.nest_indices
-
-    # Check that all_nests contains the correct names
-    expected_nests = ["nest1", "nest2"]
-    assert set(nstL.all_nests) == set(expected_nests)
-
-    # Check that lambda_lkup maps all nests to integers
-    for nest in expected_nests:
-        assert nest in nstL.lambda_lkup
-        assert isinstance(nstL.lambda_lkup[nest], int)
-
-    # Check that nest-specific coordinate dimensions exist
-    assert "nest1_alts" in nstL.coords
-    assert "nest2_alts" in nstL.coords
-
-
-def test_build_model_returns_pymc_model(nstL, sample_df, utility_eqs):
-    X, F, y = nstL.preprocess_model_data(sample_df, utility_eqs)
+def test_build_model_returns_pymc_model(nstL, sample_df):
+    nstL._set_choice_inputs(sample_df)
+    nstL.build_model()
+    X, F, y = nstL._training_arrays()
     model = nstL.make_model(X, F, y)
     assert isinstance(nstL.coords, dict)
     assert isinstance(model, pm.Model)
@@ -205,15 +173,31 @@ def test_build_model_returns_pymc_model(nstL, sample_df, utility_eqs):
     assert nstL.covariates == ["X1", "X2"]
 
 
+def test_make_model_nest_indices_override(nstL, sample_df, utility_eqs):
+    bundle = nstL._preprocess(sample_df, utility_eqs)
+    coords = {**bundle.coords, "single_alts": bundle.alternatives}
+
+    model = nstL.make_model(
+        bundle.X,
+        bundle.F,
+        bundle.y,
+        coords=coords,
+        nest_indices={"single": np.arange(len(bundle.alternatives))},
+    )
+
+    assert "P_single" in model.named_vars
+    assert "P_nest1" not in model.named_vars
+    assert "P_nest2" not in model.named_vars
+
+
 def test_build_model_2layer_raises_error(nstL2_invalid, sample_df, utility_eqs):
     """Test that attempting two-layer nesting raises an informative error."""
     with pytest.raises(ValueError, match=r"must map to a list of alternatives"):
-        _, _, _ = nstL2_invalid.preprocess_model_data(sample_df, utility_eqs)
+        nstL2_invalid._preprocess(sample_df, utility_eqs)
 
 
 def test_sample(nstL, sample_df, utility_eqs, mock_pymc_sample):
-    X, F, y = nstL.preprocess_model_data(sample_df, utility_eqs)
-    _ = nstL.make_model(X, F, y)
+    nstL.fit(sample_df)
     nstL.sample_prior_predictive(
         samples=5,
         extend_idata=True,
@@ -242,11 +226,8 @@ def test_sample(nstL, sample_df, utility_eqs, mock_pymc_sample):
         )
 
 
-def test_counterfactual(
-    nstL, sample_df, utility_eqs, new_utility_eqs, mock_pymc_sample
-):
-    X, F, y = nstL.preprocess_model_data(sample_df, utility_eqs)
-    _ = nstL.make_model(X, F, y)
+def test_counterfactual(nstL, sample_df, new_utility_eqs, mock_pymc_sample):
+    nstL.fit(sample_df)
     nstL.sample()
     new = sample_df.copy()
     nstL.apply_intervention(new)
@@ -262,8 +243,7 @@ def test_counterfactual(
 def test_counterfactual_removal(
     nstL, sample_df, utility_eqs_non_fixed, new_utility_eqs, mock_pymc_sample
 ):
-    X, F, y = nstL.preprocess_model_data(sample_df, utility_eqs_non_fixed)
-    _ = nstL.make_model(X, F, y)
+    nstL.fit(sample_df, utility_equations=utility_eqs_non_fixed)
     nstL.sample()
     new = sample_df[sample_df["choice"] != "another"]
     nstL.nesting_structure = {"nest1": ["alt", "other"], "nest2": ["option"]}

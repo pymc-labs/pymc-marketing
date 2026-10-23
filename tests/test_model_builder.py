@@ -28,7 +28,7 @@ import xarray as xr
 from pymc_extras.deserialize import DeserializableError
 from rich.table import Table
 
-from pymc_marketing.data.idata.utils import idata_from_zarr
+from pymc_marketing.data.idata.io import load_idata
 from pymc_marketing.hsgp_kwargs import HSGPKwargs
 from pymc_marketing.model_builder import (
     DifferentModelError,
@@ -574,24 +574,12 @@ def test_initial_build_and_fit(
         assert "/posterior" in fitted_regression_model_instance.idata.groups
 
 
-def test_save_with_kwargs(fitted_regression_model_instance):
-    """Test that kwargs are properly passed to to_netcdf"""
-    import unittest.mock as mock
-
-    with mock.patch.object(
-        fitted_regression_model_instance.idata, "to_netcdf"
-    ) as mock_to_netcdf:
-        temp = tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", delete=False)
-
-        # groups is handled by save() (filters DataTree before saving)
-        # and not passed through to to_netcdf
-        kwargs = {"engine": "netcdf4"}
-
-        fitted_regression_model_instance.save(temp.name, **kwargs)
-
-        # Verify to_netcdf was called with the correct arguments
-        mock_to_netcdf.assert_called_once_with(temp.name, **kwargs)
-        temp.close()
+def test_save_forwards_backend_kwargs(fitted_regression_model_instance, tmp_path):
+    """An unknown ``engine`` reaches the xarray backend."""
+    with pytest.raises(ValueError, match="engine"):
+        fitted_regression_model_instance.save(
+            tmp_path / "model.nc", engine="not-a-backend"
+        )
 
 
 @pytest.mark.parametrize("path_factory", [str, Path], ids=["str", "path"])
@@ -611,10 +599,7 @@ def test_save_with_kwargs_integration(
     assert file_path.exists()
 
     # Verify we can read the file and it contains the expected groups
-    if suffix == ".zarr":
-        loaded_idata = idata_from_zarr(path_arg)
-    else:
-        loaded_idata = xr.open_datatree(str(file_path))
+    loaded_idata = load_idata(path_arg)
 
     assert loaded_idata is not None
     assert "/posterior" in loaded_idata.groups

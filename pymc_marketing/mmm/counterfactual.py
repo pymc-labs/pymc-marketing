@@ -60,7 +60,6 @@ in spend while the mask is linear in contribution.
 
 from __future__ import annotations
 
-import warnings
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Literal, NamedTuple
@@ -70,14 +69,16 @@ import pandas as pd
 import pytensor.xtensor as ptx
 import xarray as xr
 from pandas.tseries.offsets import BaseOffset
-from pymc import do
+from pymc.model.core import Model
 from pytensor import function
+from pytensor.compile.sharedvalue import SharedVariable, shared
 from pytensor.graph.basic import Variable
 from pytensor.graph.traversal import ancestors
+from pytensor.xtensor.type import XTensorVariable
 from pytensor.xtensor.vectorization import vectorize_graph
 
 from pymc_marketing.mmm.transformers import ConvMode
-from pymc_marketing.pytensor_utils import extract_response_distribution
+from pymc_marketing.pytensor_utils import ConditionedModel
 
 __all__ = [
     "CounterfactualEvaluator",
@@ -736,6 +737,12 @@ class CounterfactualEvaluator:
     ``(date, country, channel)`` -- and callers that add those two together
     cannot each rediscover that.
 
+    The evaluator owns a :class:`~pymc_marketing.pytensor_utils.ConditionedModel`.
+    That object binds the draws through a shared posterior from construction.
+    :meth:`set_posterior` then re-points it at new draws without recompiling, whatever the draw count.
+    The sample axis is derived from the bound posterior rather than fixed at construction.
+    A response the intervention has cut every random variable out of is broadcast over the live draw count.
+
     Parameters
     ----------
     pymc_model : pm.Model
@@ -763,19 +770,15 @@ class CounterfactualEvaluator:
         itself as a response variable returns the *intervened* value, symmetric
         with ``"replace"`` where the evaluator's input is that value.
     expected_aux_values : mapping of str to xr.DataArray, optional
-        Fit-time values of date-indexed inputs, keyed by variable name --
-        typically ``idata.constant_data``.  Every auxiliary input discovered in
-        the graph whose name appears here has its live value, read off the
-        model's own shared variable, checked against the stored one instead of
-        trusted outright.  A mismatch means the model was mutated after
-        fitting -- by ``MMM.sample_posterior_predictive(..., clone_model=False)``
-        or a direct ``pm.set_data`` call -- and is refused rather than silently
-        evaluated on a hybrid of fitted and mutated state.  A name absent from
-        the mapping falls back to the live snapshot, unchecked, which keeps
-        this optional: an evaluator built without fit-time values behaves as
-        before.  ``time_index`` is checked the same way when present, but
-        against the *fabricated* ``np.arange(n_dates)`` rather than a live
-        value, since the evaluator never reads a live ``time_index``.
+        Fit-time values of date-indexed inputs, keyed by variable name -- typically ``idata.constant_data``.
+        Every evaluation verifies each matching auxiliary input.
+        Values are compared only when the source model's buffer was replaced since the last check.
+        ``time_index`` is compared against the fabricated ``np.arange(n_dates)`` once, at construction.
+        An unchanged shared input is identified by the borrowed buffer seen at the last full check.
+        A repeated call costs only an identity comparison.
+        An in-place mutation of the buffer itself is not detected.
+        A name absent from the mapping is not verified here; a source buffer
+        replaced for it is caught by :meth:`is_stale` instead.
 
     Attributes
     ----------
@@ -797,14 +800,13 @@ class CounterfactualEvaluator:
         If the intervention target does not exist, is a random variable, is
         frozen, is not of a floating dtype, or lacks a leading ``date``
         dimension; if no response variable depends on the target; if a
-        discovered date-indexed input does not span the fitted date axis; if
-        a response variable has no name (an anonymous node such as a raw
-        arithmetic expression, unless ``.name`` was set on it); if two
-        response variables share a name; or if a value in
-        *expected_aux_values* -- an auxiliary input, or the fabricated
-        ``time_index`` -- disagrees with what the live model or the
-        fabrication would produce, meaning the model was mutated after
-        fitting.
+        discovered date-indexed input does not span the fitted date axis; if a
+        response variable has no name (an anonymous node such as a raw
+        arithmetic expression, unless ``.name`` was set on it); if two response
+        variables share a name; or if a value in *expected_aux_values* -- an
+        auxiliary input, or the fabricated ``time_index`` -- disagrees with what
+        the live model or the fabrication would produce, meaning the model was
+        mutated after fitting.
     """
 
     CHANNEL_DATA = "channel_data"
@@ -825,7 +827,7 @@ class CounterfactualEvaluator:
     def __init__(
         self,
         *,
-        pymc_model,
+        pymc_model: Model,
         posterior: xr.Dataset,
         response_vars: Sequence[str | Variable],
         frozen_deterministics: list[str],
@@ -837,88 +839,118 @@ class CounterfactualEvaluator:
         # Results are keyed by name whether the caller asked by name or handed
         # over the node: the linear predictor is only a registered variable
         # under a log link, but it is named "mu" either way.
-        self.response_vars = tuple(
-            var if isinstance(var, str) else var.name for var in response_vars
+        self.response_vars = self._validated_response_names(
+            tuple(var if isinstance(var, str) else var.name for var in response_vars)
         )
-        self._validate_response_names(self.response_vars)
+        self._validate_mode(intervention_mode)
         self.intervention_target = intervention_target
         self.intervention_mode: InterventionMode = intervention_mode
+        self._response_requested = tuple(response_vars)
+        self._dates = dates
+        # Prepared once from the fit-time record; see
+        # ``_prepare_expected_aux_values``.  The second mapping remembers the
+        # borrowed source buffer each input held at its last full check.
+        self._expected_aux_arrays: dict[str, np.ndarray] = {}
+        self._source_values_at_last_check: dict[str, np.ndarray | None] = {}
+        # Borrowed source buffers the graphs read, keyed by variable name; a
+        # changed buffer means the compiled graphs read fit-time values.
+        self._watched_sources: dict[str, np.ndarray] = {}
+
         target_var = self._validate_target(
             pymc_model,
             target=intervention_target,
-            mode=intervention_mode,
             frozen_deterministics=frozen_deterministics,
         )
-        # ``do`` clones the model, shared variables included, so from here on
-        # every lookup goes through ``do_model``: a variable taken from
-        # ``pymc_model`` is not part of the intervened graph.  That includes
-        # response variables handed over as raw nodes, which are re-resolved by
-        # name against the clone.
-        do_model, placeholder = self._intervened_model(
-            pymc_model, target_var=target_var, mode=intervention_mode
+        # The placeholder is the evaluator's batched input: grafting it onto
+        # the target and conditioning on the posterior happen in
+        # ``ConditionedModel``, which owns the intervened clone from here on.
+        self._placeholder = self._make_placeholder(target_var)
+        # The model the caller holds, which ``pm.set_data`` mutates in
+        # place; the clone's data variables do not follow it.
+        self._source_model: Model = pymc_model
+        # The evaluator owns its ConditionedModel 1:1.  Its graphs read the
+        # draws through shared variables, so the compile below already produces
+        # the graphs every later rebind reuses.
+        intervention_value = (
+            self._placeholder
+            if intervention_mode == "replace"
+            else target_var * self._placeholder
         )
-        graphs: list = extract_response_distribution(
-            pymc_model=do_model,
-            idata=xr.DataTree.from_dict({"/posterior": posterior}),
-            response_variable=[
-                self._resolve_response(
-                    do_model,
-                    var,
-                    target=intervention_target,
-                    mode=intervention_mode,
-                )
-                for var in response_vars
-            ],
+        self._conditioned = ConditionedModel(
+            pymc_model,
+            posterior,
+            intervention={self.intervention_target: intervention_value},
             frozen_deterministics=frozen_deterministics,
         )
-        n_samples = posterior.sizes["chain"] * posterior.sizes["draw"]
+        self._do_model = self._conditioned.model
+        self._build()
+        self._prepare_expected_aux_values(expected_aux_values)
+        self._check_expected_aux_values()
+
+    def _extract_graphs(self) -> list[XTensorVariable]:
+        """Resolve the requested responses and extract their conditioned graphs.
+
+        The single place the evaluator resolves its responses and extracts them.
+        """
+        resolved = [
+            self._resolve_response(
+                self._do_model,
+                var,
+                target=self.intervention_target,
+                mode=self.intervention_mode,
+            )
+            for var in self._response_requested
+        ]
+        return self._conditioned.extract(resolved)
+
+    def _build(self) -> None:
+        """Extract the graphs and compile the batched evaluator for the binding.
+
+        It is called once at construction; every later rebind reaches the same graphs through the shared posterior.
+        """
+        do_model = self._do_model
+        extracted = self._extract_graphs()
+
         # A response the intervention has cut every random variable out of --
         # the target itself under "replace", say -- comes back without a
-        # "sample" axis.  Broadcasting it keeps the promised result layout.
+        # "sample" axis.  Broadcasting it against a marker that tracks the bound
+        # posterior keeps the promised result layout and lets the draw count
+        # change on a rebind without recompiling.
+        self._sample_markers: dict[np.dtype, SharedVariable] = {}
         graphs = [
-            graph
-            if "sample" in graph.type.dims
-            else graph.expand_dims(sample=n_samples)
-            for graph in graphs
+            self._with_sample_axis(graph, self._sample_markers) for graph in extracted
         ]
+
         graph_ancestors = set(ancestors(graphs))
-        if placeholder not in graph_ancestors:
+        if self._placeholder not in graph_ancestors:
             raise ValueError(
                 f"None of the response variables {list(self.response_vars)} "
-                f"depend on the intervention target {intervention_target!r}; "
+                f"depend on the intervention target {self.intervention_target!r}; "
                 "every counterfactual would equal the baseline."
             )
+        self._watched_sources = self._watched_source_buffers(graph_ancestors)
 
         self.non_date_dims = {
             name: self._non_date_dims(graph)
             for name, graph in zip(self.response_vars, graphs, strict=True)
         }
         # Output elements one scenario costs per date of its window, summed over
-        # the evaluated nodes.  Sizes the evaluation batches.
-        self._elements_per_date = n_samples * sum(
+        # the evaluated nodes.  The live draw count is applied in
+        # ``_batch_size`` so a rebind cannot leave it stale.
+        self._elements_per_date = sum(
             int(np.prod([len(do_model.coords[dim]) for dim in dims], dtype=int))
             for dims in self.non_date_dims.values()
         )
 
         # The intervention values are the evaluator's first input, whatever the
         # target: perturbed spend under the default, a mask under "scale".
-        self.target_dtype = placeholder.dtype
-        replace: dict = {placeholder: self._batched(placeholder, intervention_target)}
-        func_inputs: list = [replace[placeholder]]
-
-        # time_index is never read off the live model: both evaluation paths
-        # fabricate np.arange(n_dates) instead (see evaluate_baseline and
-        # EvaluationWindows.time_index), because the fit-time value always was
-        # that arange and re-deriving it avoids re-introducing exactly the
-        # hybrid live/stored state this guard exists to catch.  What can still
-        # be checked is that the fabrication agrees with what was actually
-        # fitted, when that is on record.
-        if expected_aux_values is not None and self.TIME_INDEX in expected_aux_values:
-            self._check_not_mutated(
-                self.TIME_INDEX,
-                live=np.arange(len(dates)),
-                stored=np.asarray(expected_aux_values[self.TIME_INDEX].values),
+        self.target_dtype = self._placeholder.dtype
+        replace: dict = {
+            self._placeholder: self._batched(
+                self._placeholder, self.intervention_target
             )
+        }
+        func_inputs: list = [replace[self._placeholder]]
 
         # time_index: only replaced when the graph actually reads it (with
         # time_varying_intercept but not time_varying_media it is unused, and
@@ -939,34 +971,24 @@ class CounterfactualEvaluator:
         # into one, held at its factual values.  Discovery is by graph traversal
         # rather than by declaration so an effect cannot forget to mention one.
         self._aux: list[DateIndexedInput] = []
+        self._aux_live: dict[str, Variable] = {}
+        self._aux_dims: dict[str, tuple[str, ...]] = {}
         for data in self._date_indexed_data(
             do_model,
             graph_ancestors,
-            handled={intervention_target, self.TIME_INDEX},
+            handled={self.intervention_target, self.TIME_INDEX},
         ):
             values = np.asarray(data.eval())
             dims = tuple(do_model.named_vars_to_dims[data.name])
             date_axis = dims.index("date")
-            if values.shape[date_axis] != len(dates):
+            if values.shape[date_axis] != len(self._dates):
                 raise ValueError(
                     f"Date-indexed data variable {data.name!r} has "
                     f"{values.shape[date_axis]} entries along its 'date' "
-                    f"dimension but the fitted data has {len(dates)} dates.  "
+                    f"dimension but the fitted data has {len(self._dates)} dates.  "
                     "Incrementality needs it to span the fitted date axis so it "
                     "can be cut to a window alongside spend."
                 )
-            if expected_aux_values is not None and data.name in expected_aux_values:
-                # The live value is trusted only once it is confirmed to agree
-                # with what was actually fitted; a same-length in-place
-                # mutation -- MMM.sample_posterior_predictive(...,
-                # clone_model=False), a direct pm.set_data() call -- would
-                # otherwise pass the length check above and be evaluated
-                # silently, mixing fitted spend and posterior draws with an
-                # out-of-sample covariate.
-                stored = np.asarray(
-                    expected_aux_values[data.name].transpose(*dims).values
-                )
-                self._check_not_mutated(data.name, live=values, stored=stored)
             batched = self._batched(data, data.name)
             replace[data] = batched
             func_inputs.append(batched)
@@ -979,6 +1001,8 @@ class CounterfactualEvaluator:
                     date_axis=date_axis,
                 )
             )
+            self._aux_live[data.name] = data
+            self._aux_dims[data.name] = dims
 
         # Canonical output layout, so that a caller adding two nodes together
         # does not have to reconcile the axis order each of them happens to
@@ -994,6 +1018,172 @@ class CounterfactualEvaluator:
         ]
         self._evaluator = function(func_inputs, outputs)
 
+    def _watched_source_buffers(self, graph_ancestors: set) -> dict[str, np.ndarray]:
+        """Record the source model's shared buffers the graphs read, keyed by name.
+
+        ``pm.do`` clones the model, so the graphs read the clone's own data
+        variables, which never change again.  The source model, which
+        ``pm.set_data`` mutates, is matched by name.  Posterior shared variables
+        are not recorded: they live in the clone, and the source model holds a
+        random variable under their name.  ``time_index`` is a batched input of
+        the compiled function, so nothing reads a frozen copy of it.  Under
+        ``replace`` the graphs read the placeholder, not the target's data, so
+        the target is left out; the exclusion is defensive, as the target is not
+        an ancestor there.  Under ``scale`` the graph reads the target's own
+        data, so it stays in.
+        """
+        source = self._source_model
+        watched: dict[str, np.ndarray] = {}
+        for node in graph_ancestors:
+            name = node.name
+            if name is None or name in watched:
+                continue
+            if name == self.TIME_INDEX or (
+                name == self.intervention_target and self.intervention_mode == "replace"
+            ):
+                continue
+            source_var = source.named_vars.get(name)
+            if isinstance(source_var, SharedVariable):
+                watched[name] = source_var.get_value(borrow=True)
+        return watched
+
+    def _sync_sample_markers(self) -> None:
+        """Point every sample marker at the draw count of the bound posterior.
+
+        The markers are what a sample-less response is broadcast over, and their shared shape is symbolic.
+        Resizing one needs no recompile.
+        A rebind only swaps the draws, so syncing here before every evaluation keeps a marker from going stale.
+        """
+        if not self._sample_markers:
+            return
+        n_samples = self._n_samples()
+        for marker in self._sample_markers.values():
+            if marker.get_value(borrow=True).shape[0] != n_samples:
+                marker.set_value(np.zeros(n_samples, dtype=marker.type.dtype))
+
+    def _with_sample_axis(
+        self, graph: XTensorVariable, sample_markers: dict[np.dtype, SharedVariable]
+    ) -> XTensorVariable:
+        """Broadcast a sample-less response over the live draw count."""
+        if "sample" in graph.type.dims:
+            return graph
+        dtype = np.dtype(graph.type.dtype)
+        marker = sample_markers.get(dtype)
+        if marker is None:
+            marker = shared(np.zeros(self._n_samples(), dtype=dtype))
+            sample_markers[dtype] = marker
+        return graph + ptx.zeros_like(ptx.as_xtensor(marker, dims=("sample",)))
+
+    def _n_samples(self) -> int:
+        """Draw count of the posterior the graphs are currently bound to."""
+        posterior = self._conditioned.posterior
+        return int(posterior.sizes["chain"]) * int(posterior.sizes["draw"])
+
+    def _prepare_expected_aux_values(
+        self, expected: Mapping[str, xr.DataArray] | None
+    ) -> None:
+        """Hoist the fit-time record into the form the per-call check reads.
+
+        The stored arrays are transposed to the model's own dimension order here.
+        An evaluation reads the prepared arrays rather than rebuilding them.
+        ``time_index`` is fabricated from the fitted date count rather than read off the model.
+        It cannot change between calls, so it is compared once, at construction.
+        A date-indexed input the record covers leaves the staleness watch set: a
+        change is refused there rather than re-read here.
+        """
+        if expected is None:
+            return
+        if self.TIME_INDEX in expected:
+            self._check_not_mutated(
+                self.TIME_INDEX,
+                live=np.arange(len(self._dates)),
+                stored=np.asarray(expected[self.TIME_INDEX].values),
+            )
+        for name, dims in self._aux_dims.items():
+            if name in expected:
+                self._expected_aux_arrays[name] = np.asarray(
+                    expected[name].transpose(*dims).values
+                )
+                self._source_values_at_last_check[name] = None
+        for name in self._expected_aux_arrays:
+            self._watched_sources.pop(name, None)
+
+    def _check_expected_aux_values(self) -> None:
+        """Refuse a source-model state that disagrees with the fit-time record.
+
+        This guards the model the evaluator was built from, not just the values
+        handed to a call: a ``pm.set_data`` issued after construction is caught
+        by the next evaluation.  The check runs at construction and again on
+        every evaluation.  After the first full comparison an unchanged shared
+        input costs only an identity comparison of its borrowed buffer, and the
+        values are compared again when ``pm.set_data`` has replaced that buffer.
+        ``time_index`` is not rechecked here: it is fabricated from the date
+        axis rather than read off the model, so
+        :meth:`_prepare_expected_aux_values` compares it once at construction.
+
+        In-place mutation of a borrowed buffer is not detected: ``pm.set_data``
+        replaces the array, and that change of identity is what this check sees.
+        """
+        source = self._source_model
+        for name, stored in self._expected_aux_arrays.items():
+            live_var = self._aux_live[name]
+            if name in source.named_vars:
+                # Read the source model, which pm.set_data mutates in place; the
+                # clone's data variables keep their built values.
+                live_var = source[name]
+            if isinstance(live_var, SharedVariable):
+                live = live_var.get_value(borrow=True)
+                if live is self._source_values_at_last_check[name]:
+                    continue
+                self._check_not_mutated(name, live=live, stored=stored)
+                self._source_values_at_last_check[name] = live
+            else:
+                self._check_not_mutated(
+                    name, live=np.asarray(live_var.eval()), stored=stored
+                )
+
+    def is_stale(self) -> bool:
+        """Whether a source input the graphs read has been replaced since the build.
+
+        Each watched variable costs one borrowed-buffer identity check and no
+        value comparison.  ``pm.set_data`` replaces the buffer, which is what
+        this sees; an in-place write to the buffer itself is not detected.
+        A buffer replaced by equal values still counts as a change.
+
+        Returns
+        -------
+        bool
+            ``True`` when a watched source variable no longer holds the buffer
+            recorded at build time, so the compiled graphs read stale values.
+        """
+        source = self._source_model
+        for name, buffer in self._watched_sources.items():
+            source_var = source.named_vars.get(name)
+            if not isinstance(source_var, SharedVariable):
+                return True
+            if source_var.get_value(borrow=True) is not buffer:
+                return True
+        return False
+
+    def set_posterior(self, idata: xr.DataTree | xr.Dataset) -> None:
+        """Re-point the evaluator at a new posterior.
+
+        Delegates to
+        :meth:`~pymc_marketing.pytensor_utils.ConditionedModel.set_posterior`,
+        which describes the rebind.  The draws live in shared variables from
+        construction, so a call swaps them without recompiling and the number
+        of draws is free.  The sample-axis markers are re-synced on the next
+        evaluation rather than here.
+
+        Parameters
+        ----------
+        idata : xr.DataTree or xr.Dataset
+            A tree with a ``posterior`` group, or the posterior dataset itself,
+            holding every variable the graphs read.
+            Each is validated against its construction layout when a graph reads it.
+        """
+        self._conditioned.set_posterior(idata)
+
     @property
     def windowed_data_vars(self) -> tuple[str, ...]:
         """Names of the auxiliary date-indexed inputs discovered in the graph."""
@@ -1005,8 +1195,10 @@ class CounterfactualEvaluator:
         return self.target_dtype
 
     @staticmethod
-    def _validate_response_names(response_names: tuple[str | None, ...]) -> None:
-        """Refuse response names that would resolve or key results wrongly.
+    def _validated_response_names(
+        response_names: tuple[str | None, ...],
+    ) -> tuple[str, ...]:
+        """Return the response names, refusing any that would resolve or key results wrongly.
 
         Runs on the materialized names, before any graph work: an unnamed node
         would otherwise fall through to the graph scan in
@@ -1020,6 +1212,11 @@ class CounterfactualEvaluator:
         response_names : tuple of str or None
             The materialized response names, one per requested response
             variable, in the order they were requested.
+
+        Returns
+        -------
+        tuple of str
+            The same names, in the same order, now known to be set and distinct.
 
         Raises
         ------
@@ -1042,13 +1239,13 @@ class CounterfactualEvaluator:
                     "give each response variable a distinct name."
                 )
             first_seen[name] = position
+        return tuple(first_seen)
 
     @staticmethod
     def _validate_target(
         pymc_model,
         *,
         target: str,
-        mode: str,
         frozen_deterministics: list[str],
     ) -> Variable:
         """Refuse intervention targets the machinery cannot honestly evaluate.
@@ -1059,9 +1256,6 @@ class CounterfactualEvaluator:
             The model the target is looked up in.
         target : str
             Name of the variable to intervene on.
-        mode : str
-            The requested intervention mode, checked against
-            :data:`InterventionMode`.
         frozen_deterministics : list of str
             Deterministics held at their posterior values; the target must not
             be among them.
@@ -1076,10 +1270,6 @@ class CounterfactualEvaluator:
         ValueError
             See the class docstring; every refusal names the target.
         """
-        if mode not in ("replace", "scale"):
-            raise ValueError(
-                f"Unknown intervention_mode {mode!r}; expected 'replace' or 'scale'."
-            )
         if target not in pymc_model.named_vars:
             raise ValueError(
                 f"Intervention target {target!r} is not a variable of the "
@@ -1119,52 +1309,31 @@ class CounterfactualEvaluator:
         return target_var
 
     @staticmethod
-    def _intervened_model(pymc_model, *, target_var: Variable, mode: InterventionMode):
-        """Apply the intervention and return the intervened model with its input.
+    def _make_placeholder(target_var: Variable) -> XTensorVariable:
+        """Return the symbolic input the intervention values flow through.
 
-        Parameters
-        ----------
-        pymc_model : pm.Model
-            The model to intervene on.  Never modified: ``do`` clones it.
-        target_var : Variable
-            The validated target variable.
-        mode : InterventionMode
-            How the placeholder grafts onto the target.
-
-        Returns
-        -------
-        tuple of (pm.Model, XTensorVariable)
-            The intervened model and the symbolic input the intervention values
-            flow through.  The placeholder carries the target's own dimensions;
-            the scenario axis is only introduced by the later batch
-            vectorization, which is why the intervention and the batching are
-            separate steps.
+        It carries the target's own dimensions; the scenario axis is only
+        introduced later by the batch vectorization, which is why the
+        intervention and the batching stay separate steps.
         """
-        placeholder = ptx.xtensor(
+        return ptx.xtensor(
             name=f"{target_var.name}_intervention",
-            dtype=target_var.dtype,
+            dtype=target_var.type.dtype,
             shape=target_var.type.shape,
             dims=target_var.type.dims,
         )
-        value = placeholder if mode == "replace" else target_var * placeholder
-        with warnings.catch_warnings():
-            # The scale-mode intervention references the target on purpose:
-            # ``target * mask`` is what holds the factual value in the graph.
-            # pymc warns about the self-reference and registers the intervened
-            # node as ``do_<target>``.
-            warnings.filterwarnings(
-                "ignore",
-                message="Intervention expression references the variable "
-                "that is being intervened",
+
+    @staticmethod
+    def _validate_mode(mode: InterventionMode) -> None:
+        """Refuse an intervention mode the machinery does not implement."""
+        if mode not in ("replace", "scale"):
+            raise ValueError(
+                f"Unknown intervention_mode {mode!r}; expected 'replace' or 'scale'."
             )
-            do_model = do(pymc_model, {target_var.name: value})
-        # ``do`` renames a replace-mode placeholder to the target's own name,
-        # in place, so nothing may key on ``placeholder.name`` afterwards.
-        return do_model, placeholder
 
     @staticmethod
     def _resolve_response(
-        do_model,
+        do_model: Model,
         var: str | Variable,
         *,
         target: str,
@@ -1270,10 +1439,11 @@ class CounterfactualEvaluator:
     def _check_not_mutated(name: str, *, live: np.ndarray, stored: np.ndarray) -> None:
         """Refuse a live value that disagrees with what was recorded at fit time.
 
-        A same-length in-place mutation of a shared variable -- the case this
-        exists for -- passes every other check available here: the date axis
-        is still the right length, the dtype is unchanged, only the numbers
-        moved.  Without this comparison that mutation is invisible, and the
+        A same-length replacement of a shared variable's values -- the case this
+        exists for, as ``pm.set_data`` does -- passes every other check
+        available here: the date axis is still the right length, the dtype is
+        unchanged, only the numbers moved.  Without this comparison that
+        change is invisible, and the
         counterfactual would be evaluated on a hybrid of fitted spend and
         posterior draws with an out-of-sample covariate, silently.
 
@@ -1298,8 +1468,8 @@ class CounterfactualEvaluator:
                 "fit: its live value no longer matches the value recorded in "
                 "idata.constant_data at fit time.  This happens when "
                 "MMM.sample_posterior_predictive(..., clone_model=False) or a "
-                "direct pm.set_data(...) call mutates the model's shared "
-                "variables in place after fitting; evaluating on the result "
+                "direct pm.set_data(...) call replaces the values of the "
+                "model's shared variables after fitting; evaluating on the result "
                 "would silently mix fitted spend and posterior draws with "
                 "out-of-sample covariates.  Re-fit the model on the new data, "
                 "or rebuild it from a fresh clone, before computing a "
@@ -1351,7 +1521,17 @@ class CounterfactualEvaluator:
         dict
             Per response variable, an array of shape
             ``(n_samples, n_dates, *non_date_dims)``.
+
+        Raises
+        ------
+        ValueError
+            On every call, if a value in *expected_aux_values* disagrees with
+            the source model's current state, so a ``pm.set_data`` after
+            construction fails here rather than being evaluated silently.
+            An in-place mutation of a borrowed buffer is not detected.
         """
+        self._sync_sample_markers()
+        self._check_expected_aux_values()
         args: list[np.ndarray] = [target_values[np.newaxis].astype(self.target_dtype)]
         if self.time_dtype is not None:
             args.append(
@@ -1402,7 +1582,17 @@ class CounterfactualEvaluator:
         dict
             Per response variable, an array of shape
             ``(n_scenarios, n_samples, max_window, *non_date_dims)``.
+
+        Raises
+        ------
+        ValueError
+            On every call, if a value in *expected_aux_values* disagrees with
+            the source model's current state, so a ``pm.set_data`` after
+            construction fails here rather than being evaluated silently.
+            An in-place mutation of a borrowed buffer is not detected.
         """
+        self._sync_sample_markers()
+        self._check_expected_aux_values()
         args: list[np.ndarray] = [scenarios.spend]
         if self.time_dtype is not None:
             args.append(windows.time_index(self.time_dtype)[scenarios.period_index])
@@ -1436,5 +1626,5 @@ class CounterfactualEvaluator:
             At least one, so a single scenario larger than the budget is still
             attempted rather than refused.
         """
-        per_scenario = max(self._elements_per_date * max_window, 1)
+        per_scenario = max(self._elements_per_date * self._n_samples() * max_window, 1)
         return max(1, min(n_scenarios, self.MAX_BATCH_ELEMENTS // per_scenario))
