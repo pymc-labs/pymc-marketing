@@ -71,7 +71,7 @@ def set_model_fit(model: CLVModel, fit: xr.DataTree | Dataset):
             category=UserWarning,
             message="The group fit_data is not defined in the DataTree scheme",
         )
-        model.idata["/fit_data"] = model.data.to_xarray()
+        model.idata["/fit_data"] = model.create_fit_data_group()
     model.set_idata_attrs(fit)
 
 
