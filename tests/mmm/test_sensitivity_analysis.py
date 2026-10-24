@@ -11,17 +11,32 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
+import importlib
+import math
+
 import numpy as np
 import pandas as pd
 import pymc as pm
 import pymc.dims as pmd
+import pytensor.tensor as pt
+import pytensor.xtensor as ptx
 import pytest
 import xarray as xr
+from pytensor import function as pytensor_function
+from pytensor.xtensor.type import as_xtensor
+from pytensor.xtensor.vectorization import vectorize_graph
 
 from pymc_marketing.mmm.components.adstock import GeometricAdstock
 from pymc_marketing.mmm.components.saturation import LogisticSaturation
 from pymc_marketing.mmm.mmm import MMM
 from pymc_marketing.mmm.sensitivity_analysis import SensitivityAnalysis
+from pymc_marketing.pytensor_utils import extract_response_distribution
+
+# Modules whose ``pytensor.function`` calls count as sweep compiles.  Ticket 02
+# appends the module it moves compilation into; the counter fixture patches the
+# bare name ``function`` in every module listed here, so a listed module must
+# import it as ``from pytensor import function``.
+_SWEEP_COMPILE_MODULES = ("pymc_marketing.mmm.sensitivity_analysis",)
 
 
 def _make_saturation_model_and_idata(channel_data, n_draws, alpha_val=0.8, lam_val=1.2):
@@ -545,3 +560,414 @@ def test_run_sweep_integer_channel_data_no_truncation():
         f"{sweep_values.tolist()}, got {sweep_vals.tolist()}. "
         "Integer truncation of fractional sweep_values may be the cause."
     )
+
+
+# ---------------------------------------------------------------------------
+# Parity oracle and compile counter for the sweep-cache migration
+# (sandbox/issue-3007-followup, ticket 01).
+# ---------------------------------------------------------------------------
+
+
+def _reference_draw_selection(
+    idata: xr.DataTree, posterior_sample_fraction: float
+) -> slice | np.ndarray:
+    """Frozen copy of ``SensitivityAnalysis._draw_indices_for_percentage``."""
+    if not (0 < posterior_sample_fraction <= 1):
+        raise ValueError("'posterior_sample_fraction' must be in the interval (0, 1].")
+
+    draws = int(idata.posterior.sizes.get("draw", 0))
+    if draws <= 1:
+        return slice(None)
+
+    retained_fraction = posterior_sample_fraction**2
+    if math.isclose(retained_fraction, 1.0, rel_tol=1e-9):
+        return slice(None)
+
+    target_draws = max(1, round(draws * retained_fraction))
+    if target_draws >= draws:
+        return slice(None)
+
+    indices = np.linspace(0, draws - 1, target_draws, dtype=int)
+    indices = np.unique(indices)
+    if indices.size == 0:
+        return np.array([0], dtype=int)
+    indices[-1] = draws - 1
+    return indices
+
+
+def _reference_mask_values(
+    response_mask: xr.DataArray | np.ndarray,
+    response_dims: tuple[str, ...],
+    *,
+    model: pm.Model,
+    var_names: str,
+) -> np.ndarray:
+    """Frozen copy of ``SensitivityAnalysis._prepare_response_mask``."""
+    if isinstance(response_mask, xr.DataArray):
+        mask_xr = response_mask
+        if response_dims:
+            missing_dims = set(response_dims) - set(mask_xr.dims)
+            if missing_dims:
+                raise ValueError(
+                    "response_mask is missing required dims for "
+                    f"{var_names!r}: {sorted(missing_dims)}"
+                )
+            try:
+                mask_xr = mask_xr.transpose(*response_dims)
+            except ValueError as err:
+                raise ValueError(
+                    "response_mask dims must match the order of the "
+                    f"{var_names!r} deterministic"
+                ) from err
+        mask_values = mask_xr.to_numpy()
+    else:
+        mask_values = np.asarray(response_mask)
+
+    if mask_values.dtype != bool:
+        if np.issubdtype(mask_values.dtype, np.integer) or np.issubdtype(
+            mask_values.dtype, np.floating
+        ):
+            mask_values = mask_values.astype(bool)
+        else:
+            raise TypeError("response_mask must be boolean or castable to boolean")
+
+    if response_dims and mask_values.ndim != len(response_dims):
+        raise ValueError(
+            "response_mask must have the same number of dims as the "
+            f"{var_names!r} deterministic (expected {len(response_dims)}, "
+            f"got {mask_values.ndim})"
+        )
+
+    expected_shape = [
+        len(model.coords[dim]) if dim in model.coords else mask_values.shape[axis]
+        for axis, dim in enumerate(response_dims)
+    ]
+    if expected_shape and tuple(expected_shape) != mask_values.shape:
+        raise ValueError(
+            "response_mask shape does not match deterministic dims: "
+            f"expected {tuple(expected_shape)}, got {mask_values.shape}"
+        )
+
+    return mask_values
+
+
+def _reference_sweep_dataarray(
+    result: np.ndarray,
+    dims: tuple[str, ...],
+    sweep_values: np.ndarray,
+    model: pm.Model,
+) -> xr.DataArray:
+    """Frozen copy of the coordinate assembly at the end of ``run_sweep``."""
+    coords = {}
+    for dim, shape in zip(dims, result.shape, strict=True):
+        if dim == "sweep":
+            dim_coords = np.asarray(sweep_values)
+        else:
+            dim_coords = model.coords.get(dim)
+            if dim_coords is None:
+                dim_coords = np.arange(shape)
+            else:
+                dim_coords = np.asarray(dim_coords)
+        coords[dim] = dim_coords
+    return xr.DataArray(result, dims=dims, coords=coords)
+
+
+def _reference_run_sweep(
+    analysis: SensitivityAnalysis,
+    var_input: str,
+    sweep_values: np.ndarray,
+    *,
+    var_names: str = "channel_contribution",
+    sweep_type: str = "multiplicative",
+    posterior_sample_fraction: float = 1.0,
+    response_mask: xr.DataArray | np.ndarray | None = None,
+) -> xr.DataArray:
+    """Frozen copy of ``SensitivityAnalysis.run_sweep`` as of ticket 01.
+
+    The sweep-cache migration rewrites the production method; this copy is the
+    oracle every rewritten version must still match.  The duplication is
+    deliberate and must not be collapsed back into calls to
+    ``SensitivityAnalysis.run_sweep`` or its helpers.
+    """
+    sweep = ptx.xtensor("sweep", dims=("sweep",))
+    response_dims = analysis.model[var_names].dims
+
+    draw_selection = _reference_draw_selection(
+        analysis.idata, posterior_sample_fraction
+    )
+    resp_graph = extract_response_distribution(
+        pymc_model=analysis.model,
+        idata=analysis.idata.isel(draw=draw_selection),
+        response_variable=var_names,
+    )
+
+    mask_array = None
+    mask = None
+    if response_mask is not None:
+        mask_array = _reference_mask_values(
+            response_mask,
+            response_dims,
+            model=analysis.model,
+            var_names=var_names,
+        )
+        mask = pt.tensor("mask", shape=mask_array.shape, dtype=bool)
+        mask_bcast, _ = pt.broadcast_arrays(mask, resp_graph.values)
+        resp_graph = as_xtensor(
+            resp_graph.values[~mask_bcast].set(0), dims=resp_graph.dims
+        )
+
+    base_value = analysis.model[var_input]
+    if sweep_type == "multiplicative":
+        sweep_combinations = sweep * base_value
+    elif sweep_type == "additive":
+        sweep_combinations = sweep + base_value
+    elif sweep_type == "absolute":
+        sweep_combinations = sweep.broadcast_like(base_value)
+    else:
+        raise ValueError(f"Unknown sweep_type {sweep_type!r}")
+
+    sweep_response = vectorize_graph(
+        resp_graph, replace={base_value: sweep_combinations}
+    )
+    sweep_response_summed = sweep_response.sum(dim="date").transpose(
+        "sample", "sweep", ...
+    )
+
+    inputs = [sweep] if mask is None else [sweep, mask]
+    # Imported straight from pytensor so oracle compiles never reach the compile counter.
+    compiled = pytensor_function(inputs, sweep_response_summed)
+    if mask_array is None:
+        result = compiled(sweep_values)
+    else:
+        result = compiled(sweep_values, mask_array)
+
+    return _reference_sweep_dataarray(
+        result, sweep_response_summed.dims, sweep_values, analysis.model
+    )
+
+
+def _synthetic_response_mask() -> xr.DataArray:
+    """Keep channels ``a`` and ``d`` on every date of ``simple_model_and_idata``."""
+    mask = np.zeros((6, 4), dtype=bool)
+    mask[:, [0, 3]] = True
+    return xr.DataArray(mask, dims=("date", "channel"))
+
+
+def _multidim_response_mask() -> xr.DataArray:
+    """Keep channel ``C1`` of country ``B`` on every date of ``multidim_mmm``."""
+    mask = np.zeros((3, 2, 2), dtype=bool)
+    mask[:, 1, 0] = True
+    return xr.DataArray(mask, dims=("date", "country", "channel"))
+
+
+def _assert_matches_frozen_reference(
+    analysis: SensitivityAnalysis,
+    sweep_values: np.ndarray,
+    *,
+    sweep_type: str,
+    posterior_sample_fraction: float,
+    response_mask: xr.DataArray | None,
+) -> None:
+    expected = _reference_run_sweep(
+        analysis,
+        "channel_data",
+        sweep_values,
+        var_names="channel_contribution",
+        sweep_type=sweep_type,
+        posterior_sample_fraction=posterior_sample_fraction,
+        response_mask=response_mask,
+    )
+    actual = analysis.run_sweep(
+        "channel_data",
+        sweep_values,
+        var_names="channel_contribution",
+        sweep_type=sweep_type,
+        posterior_sample_fraction=posterior_sample_fraction,
+        response_mask=response_mask,
+    )
+
+    xr.testing.assert_allclose(actual, expected)
+
+
+@pytest.mark.parametrize("posterior_sample_fraction", [1.0, 0.5])
+@pytest.mark.parametrize("use_mask", [False, True])
+@pytest.mark.parametrize("sweep_type", ["multiplicative", "additive", "absolute"])
+def test_run_sweep_matches_frozen_reference(
+    sensitivity, sweep_type, use_mask, posterior_sample_fraction
+):
+    """The sweep grid on a single-dimension model matches the frozen oracle."""
+    _assert_matches_frozen_reference(
+        sensitivity,
+        np.linspace(0.5, 1.5, 4),
+        sweep_type=sweep_type,
+        posterior_sample_fraction=posterior_sample_fraction,
+        response_mask=_synthetic_response_mask() if use_mask else None,
+    )
+
+
+@pytest.mark.parametrize("posterior_sample_fraction", [1.0, 0.5])
+@pytest.mark.parametrize("use_mask", [False, True])
+@pytest.mark.parametrize("sweep_type", ["multiplicative", "additive", "absolute"])
+def test_multidim_run_sweep_matches_frozen_reference(
+    multidim_mmm, sweep_type, use_mask, posterior_sample_fraction
+):
+    """The sweep grid keeps its dims, labels and values on a multidim MMM.
+
+    The mask covers one country/channel pair, so the grid exercises the labeled
+    ``country`` and ``channel`` axes as well as the masked-overlay path.
+    """
+    _assert_matches_frozen_reference(
+        multidim_mmm.sensitivity,
+        np.linspace(0.5, 1.5, 4),
+        sweep_type=sweep_type,
+        posterior_sample_fraction=posterior_sample_fraction,
+        response_mask=_multidim_response_mask() if use_mask else None,
+    )
+
+
+def test_run_sweep_reflects_set_data_between_calls(sensitivity):
+    """``pm.set_data`` between calls must change the sweep, as it does today."""
+    sweeps = np.linspace(0.5, 1.5, 4)
+    kwargs = {
+        "var_names": "channel_contribution",
+        "sweep_type": "multiplicative",
+    }
+    before = sensitivity.run_sweep("channel_data", sweeps, **kwargs)
+
+    channel_data = np.asarray(sensitivity.model["channel_data"].get_value())
+    pm.set_data({"channel_data": channel_data * 1.5}, model=sensitivity.model)
+    after = sensitivity.run_sweep("channel_data", sweeps, **kwargs)
+
+    xr.testing.assert_allclose(
+        after, _reference_run_sweep(sensitivity, "channel_data", sweeps, **kwargs)
+    )
+    assert not np.allclose(after.values, before.values)
+
+
+def test_run_sweep_reflects_replaced_idata(multidim_mmm):
+    """Replacing ``mmm.idata`` between calls must change the sweep."""
+    sweeps = np.linspace(0.5, 1.5, 4)
+    kwargs = {
+        "var_names": "channel_contribution",
+        "sweep_type": "multiplicative",
+    }
+    before = multidim_mmm.sensitivity.run_sweep("channel_data", sweeps, **kwargs)
+
+    replacement = multidim_mmm.idata.copy(deep=True)
+    replacement.posterior["saturation_beta"] = (
+        replacement.posterior["saturation_beta"] * 0.5
+    )
+    multidim_mmm.idata = replacement
+    after = multidim_mmm.sensitivity.run_sweep("channel_data", sweeps, **kwargs)
+
+    xr.testing.assert_allclose(
+        after,
+        _reference_run_sweep(
+            multidim_mmm.sensitivity, "channel_data", sweeps, **kwargs
+        ),
+    )
+    assert not np.allclose(after.values, before.values)
+
+
+def _channel_varying_posterior(model: pm.Model, n_draws: int = 5) -> xr.DataTree:
+    """Posterior draws whose ``alpha`` and ``lam`` differ per channel label."""
+    channel = list(model.coords["channel"])
+    alpha = np.linspace(0.4, 1.6, len(channel))
+    lam = np.linspace(0.6, 2.4, len(channel))
+
+    def draws(values: np.ndarray) -> xr.DataArray:
+        return xr.DataArray(
+            np.broadcast_to(values, (1, n_draws, len(channel))).copy(),
+            dims=["chain", "draw", "channel"],
+            coords={"channel": channel},
+        )
+
+    return xr.DataTree.from_dict(
+        {"/posterior": xr.Dataset({"alpha": draws(alpha), "lam": draws(lam)})}
+    )
+
+
+def _reverse_channel_coords(idata: xr.DataTree) -> xr.DataTree:
+    """Reverse the stored channel order while keeping each label's values."""
+    reversed_vars = {}
+    for name, posterior_da in idata.posterior.data_vars.items():
+        reversed_vars[name] = posterior_da.isel(channel=slice(None, None, -1))
+    return xr.DataTree.from_dict({"/posterior": xr.Dataset(reversed_vars)})
+
+
+def test_run_sweep_permuted_posterior_coords_pin_positional_reference(
+    simple_model_and_idata,
+):
+    """Pin today's positional posterior read until ticket 02 realigns by label.
+
+    The permuted posterior carries the same label-to-draw mapping as the
+    unpermuted one, only stored in reverse order.  ``ConditionedModel`` will
+    realign it by label, so the sweep should then equal ``label_correct``.
+    Until then ``run_sweep`` binds the draws positionally, and this test records
+    that reference value: ticket 02 replaces the two assertions below with
+    ``xr.testing.assert_allclose(actual, label_correct)``.
+    """
+    model, _ = simple_model_and_idata
+    sweeps = np.linspace(0.5, 1.5, 4)
+    kwargs = {
+        "var_names": "channel_contribution",
+        "sweep_type": "multiplicative",
+    }
+    idata = _channel_varying_posterior(model)
+    permuted_idata = _reverse_channel_coords(idata)
+
+    label_correct = SensitivityAnalysis(model, idata).run_sweep(
+        "channel_data", sweeps, **kwargs
+    )
+    permuted_analysis = SensitivityAnalysis(model, permuted_idata)
+    actual = permuted_analysis.run_sweep("channel_data", sweeps, **kwargs)
+
+    xr.testing.assert_allclose(
+        actual,
+        _reference_run_sweep(permuted_analysis, "channel_data", sweeps, **kwargs),
+    )
+    assert not np.allclose(actual.values, label_correct.values)
+
+
+@pytest.fixture
+def sweep_compile_counter(monkeypatch):
+    """Record every ``pytensor.function`` call made through a listed module."""
+    compiled_at: list[str] = []
+
+    for module_name in _SWEEP_COMPILE_MODULES:
+        module = importlib.import_module(module_name)
+        real_function = getattr(module, "function", None)
+        if real_function is None:
+            # The module no longer compiles; the ``>= 1`` total still catches a silent undercount.
+            continue
+
+        def counting_function(
+            *args, _module_name=module_name, _real=real_function, **kwargs
+        ):
+            compiled_at.append(_module_name)
+            return _real(*args, **kwargs)
+
+        monkeypatch.setattr(module, "function", counting_function)
+
+    return compiled_at
+
+
+def test_run_sweep_compiles_once_per_call(sensitivity, sweep_compile_counter):
+    """Every call compiles through the sensitivity module today.
+
+    Ticket 02 tightens these bounds to ``== 1`` for the first call and ``== 0``
+    for the repeat call, once a warm cache serves it.
+    """
+    sweeps = np.linspace(0.5, 1.5, 4)
+    kwargs = {
+        "var_names": "channel_contribution",
+        "sweep_type": "multiplicative",
+    }
+
+    sensitivity.run_sweep("channel_data", sweeps, **kwargs)
+    first_call_compiles = len(sweep_compile_counter)
+    sensitivity.run_sweep("channel_data", sweeps, **kwargs)
+    repeat_compiles = len(sweep_compile_counter) - first_call_compiles
+
+    assert first_call_compiles >= 1, f"first call compiled {first_call_compiles} times"
+    assert repeat_compiles >= 1, f"repeat call compiled {repeat_compiles} times"
