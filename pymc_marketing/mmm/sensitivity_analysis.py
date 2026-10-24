@@ -132,7 +132,8 @@ class SensitivityAnalysis:
         dims : tuple of str, default ()
             Extra non-date dims of the model, in order.
         cache : SweepCache, optional
-            Compiled-sweep cache to use.  Without one the instance keeps a
+            Compiled-sweep cache to use, a
+            :class:`~pymc_marketing.mmm.sweep_cache.SweepCache`.  Without one the instance keeps a
             private cache, so repeated calls on the instance compile once.
         """
         self.model = pymc_model
@@ -439,6 +440,20 @@ class SensitivityAnalysis:
             is averaged over the `date` axis as in the draft example. If
             extend_idata is True, stores the result under
             `idata.sensitivity_analysis` and returns None.
+
+        Raises
+        ------
+        KeyError
+            If the posterior in ``idata`` lacks a posterior variable the model reads.
+        ValueError
+            If ``posterior_sample_fraction`` is outside ``(0, 1]``.
+            If the posterior in ``idata`` no longer matches the model's
+            posterior variables in their non-sample dimension names, lengths or
+            coordinate labels, for example after assigning a different
+            posterior to ``mmm.idata``.  Reordered labels are realigned and
+            the number of draws may change.  Values are cast to the dtype the
+            model expects.  A model that cannot be cloned uses the per-call
+            path, which binds the draws by position and does not check this.
         """
         idata = self._selected_idata(posterior_sample_fraction)
         response_dims = tuple(getattr(self.model[var_names], "dims", ()))

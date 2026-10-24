@@ -3980,10 +3980,16 @@ class MMM(RegressionModelBuilder):
         .. code-block:: python
 
             mmm.sensitivity.run_sweep(
-                var_names=["channel_1", "channel_2"],
+                var_input="channel_data",
                 sweep_values=np.linspace(0.5, 2.0, 10),
+                var_names="channel_contribution",
                 sweep_type="multiplicative",
             )
+
+        Repeated sweeps on the same model reuse compiled work, so only the first
+        call for a given ``var_input``, ``var_names``, ``sweep_type`` and mask
+        shape pays the compilation cost.  A model that cannot be cloned compiles
+        on every call.  Rebuilding or refitting the model drops that cache.
 
         """
         # Provide the underlying PyMC model, the model's inference data, and dims
@@ -4048,7 +4054,7 @@ class MMM(RegressionModelBuilder):
         """Return the cache of compiled sensitivity sweeps, creating it on first use.
 
         Every :class:`~pymc_marketing.mmm.sensitivity_analysis.SensitivityAnalysis`
-        built on this model shares it.  It is never serialized, starts empty on a
+        built on this model shares it.  Its entries are never serialized, so it starts empty on a
         deep copy (a shallow copy shares it, as it shares the PyMC model), and
         :meth:`_clear_sensitivity_sweep_cache` drops it.  Creation goes through
         ``dict.setdefault``, so two threads making the first call at once still
