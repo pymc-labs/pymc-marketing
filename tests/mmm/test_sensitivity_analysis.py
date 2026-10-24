@@ -13,6 +13,8 @@
 #   limitations under the License.
 import importlib
 import math
+import threading
+from concurrent.futures import ThreadPoolExecutor
 
 import numpy as np
 import pandas as pd
@@ -30,13 +32,21 @@ from pymc_marketing.mmm.components.adstock import GeometricAdstock
 from pymc_marketing.mmm.components.saturation import LogisticSaturation
 from pymc_marketing.mmm.mmm import MMM
 from pymc_marketing.mmm.sensitivity_analysis import SensitivityAnalysis
-from pymc_marketing.pytensor_utils import extract_response_distribution
+from pymc_marketing.pytensor_utils import (
+    ConditionedModel,
+    extract_response_distribution,
+)
 
-# Modules whose ``pytensor.function`` calls count as sweep compiles.  Ticket 02
-# appends the module it moves compilation into; the counter fixture patches the
-# bare name ``function`` in every module listed here, so a listed module must
-# import it as ``from pytensor import function``.
-_SWEEP_COMPILE_MODULES = ("pymc_marketing.mmm.sensitivity_analysis",)
+# Modules whose ``pytensor.function`` calls count as sweep compiles.  The counter
+# fixture patches the bare name ``function`` in every module listed here, so a
+# listed module must import it as ``from pytensor import function``.
+_SWEEP_COMPILE_MODULES = (
+    "pymc_marketing.mmm.sensitivity_analysis",
+    "pymc_marketing.mmm.sweep_cache",
+)
+
+# Rounds of barrier-started concurrent sweeps in the concurrency test.
+CONCURRENT_ROUNDS = 3
 
 
 def _make_saturation_model_and_idata(channel_data, n_draws, alpha_val=0.8, lam_val=1.2):
@@ -869,6 +879,29 @@ def test_run_sweep_reflects_replaced_idata(multidim_mmm):
     assert not np.allclose(after.values, before.values)
 
 
+def test_run_sweep_same_instance_reflects_replaced_idata(multidim_mmm):
+    """Replacing ``idata`` on one instance changes the result of its warm cache."""
+    sweeps = np.linspace(0.5, 1.5, 4)
+    kwargs = {
+        "var_names": "channel_contribution",
+        "sweep_type": "multiplicative",
+    }
+    analysis = multidim_mmm.sensitivity
+    before = analysis.run_sweep("channel_data", sweeps, **kwargs)
+
+    replacement = multidim_mmm.idata.copy(deep=True)
+    replacement.posterior["saturation_beta"] = (
+        replacement.posterior["saturation_beta"] * 0.5
+    )
+    analysis.idata = replacement
+    after = analysis.run_sweep("channel_data", sweeps, **kwargs)
+
+    xr.testing.assert_allclose(
+        after, _reference_run_sweep(analysis, "channel_data", sweeps, **kwargs)
+    )
+    assert not np.allclose(after.values, before.values)
+
+
 def _channel_varying_posterior(model: pm.Model, n_draws: int = 5) -> xr.DataTree:
     """Posterior draws whose ``alpha`` and ``lam`` differ per channel label."""
     channel = list(model.coords["channel"])
@@ -895,17 +928,14 @@ def _reverse_channel_coords(idata: xr.DataTree) -> xr.DataTree:
     return xr.DataTree.from_dict({"/posterior": xr.Dataset(reversed_vars)})
 
 
-def test_run_sweep_permuted_posterior_coords_pin_positional_reference(
+def test_run_sweep_permuted_posterior_coords_are_label_correct(
     simple_model_and_idata,
 ):
-    """Pin today's positional posterior read until ticket 02 realigns by label.
+    """A coordinate-permuted posterior is realigned by label, not by position.
 
     The permuted posterior carries the same label-to-draw mapping as the
-    unpermuted one, only stored in reverse order.  ``ConditionedModel`` will
-    realign it by label, so the sweep should then equal ``label_correct``.
-    Until then ``run_sweep`` binds the draws positionally, and this test records
-    that reference value: ticket 02 replaces the two assertions below with
-    ``xr.testing.assert_allclose(actual, label_correct)``.
+    unpermuted one, only stored in reverse order.  ``ConditionedModel``
+    realigns it by label, so the sweep equals the label-correct result.
     """
     model, _ = simple_model_and_idata
     sweeps = np.linspace(0.5, 1.5, 4)
@@ -922,11 +952,7 @@ def test_run_sweep_permuted_posterior_coords_pin_positional_reference(
     permuted_analysis = SensitivityAnalysis(model, permuted_idata)
     actual = permuted_analysis.run_sweep("channel_data", sweeps, **kwargs)
 
-    xr.testing.assert_allclose(
-        actual,
-        _reference_run_sweep(permuted_analysis, "channel_data", sweeps, **kwargs),
-    )
-    assert not np.allclose(actual.values, label_correct.values)
+    xr.testing.assert_allclose(actual, label_correct)
 
 
 @pytest.fixture
@@ -938,7 +964,7 @@ def sweep_compile_counter(monkeypatch):
         module = importlib.import_module(module_name)
         real_function = getattr(module, "function", None)
         if real_function is None:
-            # The module no longer compiles; the ``>= 1`` total still catches a silent undercount.
+            # The module no longer imports ``function``, so it cannot compile.
             continue
 
         def counting_function(
@@ -953,11 +979,7 @@ def sweep_compile_counter(monkeypatch):
 
 
 def test_run_sweep_compiles_once_per_call(sensitivity, sweep_compile_counter):
-    """Every call compiles through the sensitivity module today.
-
-    Ticket 02 tightens these bounds to ``== 1`` for the first call and ``== 0``
-    for the repeat call, once a warm cache serves it.
-    """
+    """The first call compiles one sweep and a repeat call reuses it."""
     sweeps = np.linspace(0.5, 1.5, 4)
     kwargs = {
         "var_names": "channel_contribution",
@@ -969,5 +991,294 @@ def test_run_sweep_compiles_once_per_call(sensitivity, sweep_compile_counter):
     sensitivity.run_sweep("channel_data", sweeps, **kwargs)
     repeat_compiles = len(sweep_compile_counter) - first_call_compiles
 
-    assert first_call_compiles >= 1, f"first call compiled {first_call_compiles} times"
-    assert repeat_compiles >= 1, f"repeat call compiled {repeat_compiles} times"
+    assert sweep_compile_counter == ["pymc_marketing.mmm.sweep_cache"]
+    assert first_call_compiles == 1, f"first call compiled {first_call_compiles} times"
+    assert repeat_compiles == 0, f"repeat call compiled {repeat_compiles} times"
+
+
+# ---------------------------------------------------------------------------
+# Cache key, fallback and concurrency coverage for the sweep cache.
+# ---------------------------------------------------------------------------
+
+_KEY_CHANGE_COMPILES = (
+    ("sweep_length", 0),
+    ("mask_values", 0),
+    ("posterior_sample_fraction", 0),
+    ("var_names", 1),
+    ("var_input", 1),
+    ("sweep_type", 1),
+    ("masked_response_shape", 1),
+)
+
+
+def _two_input_model_and_idata() -> tuple[pm.Model, xr.DataTree]:
+    """A model whose response reads two inputs and has two response shapes.
+
+    Two inputs let the ``var_input`` key field change independently, and the
+    date-only deterministic lets the response dims, and with them the mask
+    shape, change.
+    """
+    rng = np.random.default_rng(2024)
+    coords = {"date": np.arange(6), "channel": list("abcd")}
+    channel_data = rng.gamma(2.0, 1.0, size=(6, 4)).astype(np.float64)
+    channel_data_2 = rng.gamma(2.0, 1.0, size=(6, 4)).astype(np.float64)
+
+    with pm.Model(coords=coords) as model:
+        first = pmd.Data("channel_data", channel_data, dims=("date", "channel"))
+        second = pmd.Data("channel_data_2", channel_data_2, dims=("date", "channel"))
+        alpha = pmd.Gamma("alpha", 1.0, 1.0, dims=("channel",))
+        lam = pmd.Gamma("lam", 1.0, 1.0, dims=("channel",))
+        response = (alpha * first) / (first + lam) + (alpha * second) / (second + lam)
+        pmd.Deterministic("channel_contribution", response, dims=("date", "channel"))
+        pmd.Deterministic(
+            "date_contribution", response.sum(dim="channel"), dims=("date",)
+        )
+
+    idata = xr.DataTree.from_dict(
+        {
+            "/posterior": xr.Dataset(
+                {
+                    "alpha": xr.DataArray(
+                        np.full((1, 5, 4), 0.8),
+                        dims=["chain", "draw", "channel"],
+                        coords={"channel": list("abcd")},
+                    ),
+                    "lam": xr.DataArray(
+                        np.full((1, 5, 4), 1.2),
+                        dims=["chain", "draw", "channel"],
+                        coords={"channel": list("abcd")},
+                    ),
+                }
+            ),
+        }
+    )
+    return model, idata
+
+
+def _key_change_calls(case: str) -> tuple[dict, dict]:
+    """Return the two ``run_sweep`` calls of one cache-key change case."""
+    sweeps = np.linspace(0.5, 1.5, 4)
+    base = {
+        "var_input": "channel_data",
+        "var_names": "channel_contribution",
+        "sweep_values": sweeps,
+        "sweep_type": "multiplicative",
+    }
+
+    match case:
+        case "sweep_length":
+            return dict(base), {**base, "sweep_values": np.linspace(0.5, 1.5, 6)}
+        case "mask_values":
+            first_mask = np.zeros((6, 4), dtype=bool)
+            first_mask[:, [0, 1]] = True
+            second_mask = np.zeros((6, 4), dtype=bool)
+            second_mask[:, [2, 3]] = True
+            return (
+                {**base, "response_mask": first_mask},
+                {**base, "response_mask": second_mask},
+            )
+        case "posterior_sample_fraction":
+            return dict(base), {**base, "posterior_sample_fraction": 0.6}
+        case "var_names":
+            return dict(base), {**base, "var_names": "date_contribution"}
+        case "var_input":
+            return dict(base), {**base, "var_input": "channel_data_2"}
+        case "sweep_type":
+            return dict(base), {**base, "sweep_type": "additive"}
+        case "masked_response_shape":
+            channel_mask = np.zeros((6, 4), dtype=bool)
+            channel_mask[:, [0]] = True
+            date_mask = np.zeros((6,), dtype=bool)
+            date_mask[:3] = True
+            return (
+                {**base, "response_mask": channel_mask},
+                {
+                    **base,
+                    "var_names": "date_contribution",
+                    "response_mask": date_mask,
+                },
+            )
+        case _:
+            raise ValueError(f"Unknown key change case {case!r}")
+
+
+@pytest.mark.parametrize(("case", "expected_compiles"), _KEY_CHANGE_COMPILES)
+def test_run_sweep_recompiles_only_on_key_change(
+    case, expected_compiles, sweep_compile_counter
+):
+    """A new grid, mask values or fraction reuses the compiled sweep.
+
+    A different variable, input, sweep type or mask shape is a different
+    compiled graph, so it compiles once more.
+    """
+    model, idata = _two_input_model_and_idata()
+    analysis = SensitivityAnalysis(model, idata)
+    first_call, second_call = _key_change_calls(case)
+
+    first = analysis.run_sweep(**first_call)
+    compiles_after_first = len(sweep_compile_counter)
+    second = analysis.run_sweep(**second_call)
+
+    assert compiles_after_first == 1
+    assert len(sweep_compile_counter) - compiles_after_first == expected_compiles
+    assert isinstance(first, xr.DataArray)
+    assert isinstance(second, xr.DataArray)
+
+    # A reused or a rebuilt entry must honour this call's grid, mask and draws.
+    xr.testing.assert_allclose(
+        second,
+        _reference_run_sweep(
+            analysis,
+            second_call["var_input"],
+            second_call["sweep_values"],
+            var_names=second_call["var_names"],
+            sweep_type=second_call["sweep_type"],
+            posterior_sample_fraction=second_call.get("posterior_sample_fraction", 1.0),
+            response_mask=second_call.get("response_mask"),
+        ),
+    )
+
+
+def _initval_model_and_idata() -> tuple[pm.Model, xr.DataTree]:
+    """A model with a non-default ``initval``, which ``clone_model`` refuses."""
+    rng = np.random.default_rng(11)
+    coords = {"date": np.arange(6), "channel": list("abcd")}
+    channel_data = rng.gamma(2.0, 1.0, size=(6, 4)).astype(np.float64)
+
+    with pm.Model(coords=coords) as model:
+        X = pmd.Data("channel_data", channel_data, dims=("date", "channel"))
+        alpha = pmd.Gamma(
+            "alpha",
+            1.0,
+            1.0,
+            dims=("channel",),
+            initval=np.full(4, 0.5),
+        )
+        lam = pmd.Gamma("lam", 1.0, 1.0, dims=("channel",))
+        pmd.Deterministic(
+            "channel_contribution",
+            (alpha * X) / (X + lam),
+            dims=("date", "channel"),
+        )
+
+    idata = xr.DataTree.from_dict(
+        {
+            "/posterior": xr.Dataset(
+                {
+                    "alpha": xr.DataArray(
+                        np.full((1, 5, 4), 0.8),
+                        dims=["chain", "draw", "channel"],
+                        coords={"channel": list("abcd")},
+                    ),
+                    "lam": xr.DataArray(
+                        np.full((1, 5, 4), 1.2),
+                        dims=["chain", "draw", "channel"],
+                        coords={"channel": list("abcd")},
+                    ),
+                }
+            ),
+        }
+    )
+    return model, idata
+
+
+def test_run_sweep_initval_model_falls_back(sweep_compile_counter):
+    """A model ``ConditionedModel`` cannot clone still sweeps, per call.
+
+    The sweep compiles on every call on this path, and the result equals the
+    frozen reference, so the fallback is behaviour-preserving.
+    """
+    model, idata = _initval_model_and_idata()
+    with pytest.raises(NotImplementedError):
+        ConditionedModel(model, idata)
+    analysis = SensitivityAnalysis(model, idata)
+    sweeps = np.linspace(0.5, 1.5, 4)
+    kwargs = {
+        "var_names": "channel_contribution",
+        "sweep_type": "multiplicative",
+    }
+
+    first = analysis.run_sweep("channel_data", sweeps, **kwargs)
+    second = analysis.run_sweep("channel_data", sweeps, **kwargs)
+
+    xr.testing.assert_allclose(
+        first, _reference_run_sweep(analysis, "channel_data", sweeps, **kwargs)
+    )
+    xr.testing.assert_allclose(second, first)
+    assert sweep_compile_counter == [
+        "pymc_marketing.mmm.sensitivity_analysis",
+        "pymc_marketing.mmm.sensitivity_analysis",
+    ]
+
+
+def _draw_varying_posterior(model: pm.Model, n_draws: int = 5) -> xr.DataTree:
+    """Posterior draws whose ``alpha`` and ``lam`` differ on every draw index."""
+    n_channels = len(model.coords["channel"])
+    steps = np.arange(n_draws, dtype=np.float64)[None, :, None]
+    ones = np.ones((1, n_draws, n_channels))
+    return xr.DataTree.from_dict(
+        {
+            "/posterior": xr.Dataset(
+                {
+                    "alpha": xr.DataArray(
+                        (0.4 + 0.3 * steps) * ones, dims=["chain", "draw", "channel"]
+                    ),
+                    "lam": xr.DataArray(
+                        (0.6 + 0.5 * steps) * ones, dims=["chain", "draw", "channel"]
+                    ),
+                }
+            ),
+        }
+    )
+
+
+def test_run_sweep_concurrent_calls_match_single_thread(simple_model_and_idata):
+    """Concurrent calls on one instance match their single-thread results.
+
+    The cache is warmed first, so the same-key pair with different draw
+    fractions contends for one cached entry, and a barrier starts all calls
+    together.  Each call leases its own entry, so no call evaluates under
+    another's posterior, whether the key differs or only the fraction does.
+    The draws differ on every index, so an evaluation under the wrong
+    posterior changes the values and not only the number of draws.
+    """
+    model, _ = simple_model_and_idata
+    sensitivity = SensitivityAnalysis(model, _draw_varying_posterior(model))
+    sweeps = np.linspace(0.5, 1.5, 4)
+    calls = [
+        {"sweep_type": "multiplicative", "posterior_sample_fraction": 1.0},
+        {"sweep_type": "additive", "posterior_sample_fraction": 1.0},
+        {"sweep_type": "absolute", "posterior_sample_fraction": 1.0},
+        {"sweep_type": "multiplicative", "posterior_sample_fraction": 0.6},
+    ]
+    expected = [
+        _reference_run_sweep(
+            sensitivity,
+            "channel_data",
+            sweeps,
+            var_names="channel_contribution",
+            **call,
+        )
+        for call in calls
+    ]
+
+    for call in calls:
+        sensitivity.run_sweep(
+            "channel_data", sweeps, var_names="channel_contribution", **call
+        )
+
+    start_together = threading.Barrier(len(calls))
+
+    def run_after_barrier(call):
+        start_together.wait(timeout=60)
+        return sensitivity.run_sweep(
+            "channel_data", sweeps, var_names="channel_contribution", **call
+        )
+
+    for _ in range(CONCURRENT_ROUNDS):
+        with ThreadPoolExecutor(max_workers=len(calls)) as pool:
+            futures = [pool.submit(run_after_barrier, call) for call in calls]
+            results = [future.result() for future in futures]
+
+        for result, want in zip(results, expected, strict=True):
+            xr.testing.assert_allclose(result, want)
