@@ -11,11 +11,13 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
+import copy
 import importlib
 import math
 import threading
 from concurrent.futures import ThreadPoolExecutor
 
+import cloudpickle
 import numpy as np
 import pandas as pd
 import pymc as pm
@@ -32,6 +34,7 @@ from pymc_marketing.mmm.components.adstock import GeometricAdstock
 from pymc_marketing.mmm.components.saturation import LogisticSaturation
 from pymc_marketing.mmm.mmm import MMM
 from pymc_marketing.mmm.sensitivity_analysis import SensitivityAnalysis
+from pymc_marketing.mmm.sweep_cache import SweepCache
 from pymc_marketing.pytensor_utils import (
     ConditionedModel,
     extract_response_distribution,
@@ -1272,6 +1275,225 @@ def test_run_sweep_concurrent_calls_match_single_thread(simple_model_and_idata):
     def run_after_barrier(call):
         start_together.wait(timeout=60)
         return sensitivity.run_sweep(
+            "channel_data", sweeps, var_names="channel_contribution", **call
+        )
+
+    for _ in range(CONCURRENT_ROUNDS):
+        with ThreadPoolExecutor(max_workers=len(calls)) as pool:
+            futures = [pool.submit(run_after_barrier, call) for call in calls]
+            results = [future.result() for future in futures]
+
+        for result, want in zip(results, expected, strict=True):
+            xr.testing.assert_allclose(result, want)
+
+
+# ---------------------------------------------------------------------------
+# MMM-owned shared cache and lifecycle (sandbox/issue-3007-followup, ticket 03).
+# ---------------------------------------------------------------------------
+
+_SENSITIVITY_KWARGS = {
+    "var_names": "channel_contribution",
+    "sweep_type": "multiplicative",
+}
+
+
+def test_mmm_sensitivity_run_sweep_compiles_once_across_accesses(
+    multidim_mmm, sweep_compile_counter
+):
+    """Two accesses to ``mmm.sensitivity`` share one compiled sweep."""
+    sweeps = np.linspace(0.5, 1.5, 4)
+
+    first = multidim_mmm.sensitivity.run_sweep(
+        "channel_data", sweeps, **_SENSITIVITY_KWARGS
+    )
+    first_call_compiles = len(sweep_compile_counter)
+    second = multidim_mmm.sensitivity.run_sweep(
+        "channel_data", sweeps, **_SENSITIVITY_KWARGS
+    )
+    repeat_compiles = len(sweep_compile_counter) - first_call_compiles
+
+    assert first_call_compiles == 1, f"first call compiled {first_call_compiles} times"
+    assert repeat_compiles == 0, f"repeat call compiled {repeat_compiles} times"
+    xr.testing.assert_allclose(second, first)
+
+
+_LIFECYCLE_SITES = ("fit", "build_model", "build_from_idata")
+
+
+def _invoke_lifecycle_site(mmm: MMM, site: str, X: pd.DataFrame, y: pd.Series) -> None:
+    """Rebuild or refit ``mmm`` at one of the sites that must clear the cache."""
+    match site:
+        case "fit":
+            # The seed keeps the refit posterior fixed, so the results stay comparable.
+            mmm.fit(X, y, random_seed=42)
+        case "build_model":
+            mmm.build_model(X, y)
+        case "build_from_idata":
+            mmm.build_from_idata(mmm.idata)
+        case _:
+            raise ValueError(f"Unknown lifecycle site {site!r}")
+
+
+@pytest.mark.parametrize("site", _LIFECYCLE_SITES)
+def test_mmm_lifecycle_site_clears_the_sweep_cache(
+    multidim_mmm, df, site, sweep_compile_counter, monkeypatch
+):
+    """``fit``, ``build_model`` and ``build_from_idata`` each drop a warm cache."""
+    mmm = multidim_mmm
+    if site == "build_from_idata":
+        # build_model clears the cache too; stub it so only this site's own clear acts.
+        monkeypatch.setattr(mmm, "build_model", lambda X, y: None)
+    X = df.drop(columns=["y"]).copy()
+    y = df["y"].copy()
+    if site == "fit":
+        # Put both sides of the site on the same seeded posterior.
+        mmm.fit(X, y, random_seed=42)
+
+    sweeps = np.linspace(0.5, 1.5, 4)
+    before = mmm.sensitivity.run_sweep("channel_data", sweeps, **_SENSITIVITY_KWARGS)
+    assert len(mmm._sensitivity_sweep_cache()) == 1
+
+    compiles_before_site = len(sweep_compile_counter)
+    _invoke_lifecycle_site(mmm, site, X, y)
+
+    assert len(mmm._sensitivity_sweep_cache()) == 0
+    after = mmm.sensitivity.run_sweep("channel_data", sweeps, **_SENSITIVITY_KWARGS)
+
+    assert len(sweep_compile_counter) - compiles_before_site == 1
+    xr.testing.assert_allclose(after, before)
+
+
+_SWEEP_CACHE_COPY_METHODS = (
+    pytest.param(copy.deepcopy, id="deepcopy"),
+    pytest.param(
+        lambda mmm: cloudpickle.loads(cloudpickle.dumps(mmm)),
+        id="pickle",
+    ),
+)
+
+
+@pytest.mark.parametrize("copy_mmm", _SWEEP_CACHE_COPY_METHODS)
+def test_mmm_deepcopy_and_pickle_drop_the_sweep_cache(multidim_mmm, copy_mmm):
+    """A copy of a warm model carries no compiled sweep but still sweeps.
+
+    Plain ``pickle`` cannot serialize an MMM at all -- a local function inside
+    ``create_dim_handler`` is unpicklable, unrelated to this cache -- so the
+    round trip uses ``cloudpickle``, which PyMC itself depends on.
+    """
+    sweeps = np.linspace(0.5, 1.5, 4)
+    warm = multidim_mmm.sensitivity.run_sweep(
+        "channel_data", sweeps, **_SENSITIVITY_KWARGS
+    )
+    assert len(multidim_mmm._sensitivity_sweep_cache()) == 1
+
+    clone = copy_mmm(multidim_mmm)
+
+    assert len(clone._sensitivity_sweep_cache()) == 0
+    assert len(multidim_mmm._sensitivity_sweep_cache()) == 1
+    copied = clone.sensitivity.run_sweep("channel_data", sweeps, **_SENSITIVITY_KWARGS)
+    xr.testing.assert_allclose(copied, warm)
+
+
+def test_mmm_idata_assignment_between_sweeps_is_picked_up(multidim_mmm):
+    """Assigning ``mmm.idata`` directly reaches the next shared-cache sweep."""
+    sweeps = np.linspace(0.5, 1.5, 4)
+    before = multidim_mmm.sensitivity.run_sweep(
+        "channel_data", sweeps, **_SENSITIVITY_KWARGS
+    )
+
+    replacement = multidim_mmm.idata.copy(deep=True)
+    replacement.posterior["saturation_beta"] = (
+        replacement.posterior["saturation_beta"] * 0.5
+    )
+    multidim_mmm.idata = replacement
+    after = multidim_mmm.sensitivity.run_sweep(
+        "channel_data", sweeps, **_SENSITIVITY_KWARGS
+    )
+
+    xr.testing.assert_allclose(
+        after,
+        _reference_run_sweep(
+            multidim_mmm.sensitivity, "channel_data", sweeps, **_SENSITIVITY_KWARGS
+        ),
+    )
+    assert not np.allclose(after.values, before.values)
+
+
+def test_sweep_cache_evicts_the_oldest_entry_and_recompiles(sweep_compile_counter):
+    """A fifth key evicts the oldest, which recompiles to the same result."""
+    model, idata = _two_input_model_and_idata()
+    cache = SweepCache()
+    analysis = SensitivityAnalysis(model, idata, cache=cache)
+    sweeps = np.linspace(0.5, 1.5, 4)
+    calls = [
+        {"var_input": "channel_data", "sweep_type": "multiplicative"},
+        {"var_input": "channel_data", "sweep_type": "additive"},
+        {"var_input": "channel_data", "sweep_type": "absolute"},
+        {"var_input": "channel_data_2", "sweep_type": "multiplicative"},
+        {"var_input": "channel_data_2", "sweep_type": "additive"},
+    ]
+
+    def run(call: dict) -> xr.DataArray:
+        return analysis.run_sweep(
+            call["var_input"],
+            sweeps,
+            var_names="channel_contribution",
+            sweep_type=call["sweep_type"],
+        )
+
+    results = []
+    for call in calls:
+        results.append(run(call))
+        assert len(cache) <= 4
+    assert len(cache) == 4
+
+    compiles_before = len(sweep_compile_counter)
+    first_again = run(calls[0])
+    assert len(sweep_compile_counter) - compiles_before == 1
+    xr.testing.assert_allclose(first_again, results[0])
+
+    compiles_before = len(sweep_compile_counter)
+    last_again = run(calls[-1])
+    assert len(sweep_compile_counter) == compiles_before
+    xr.testing.assert_allclose(last_again, results[-1])
+    assert len(cache) == 4
+
+
+def test_mmm_sensitivity_concurrent_calls_match_single_thread(multidim_mmm):
+    """Concurrent ``mmm.sensitivity`` calls each equal their single-thread result.
+
+    Every thread takes a fresh access, so the shared cache on the MMM is the only
+    state between them.  Different sweep types are different keys, and the two
+    multiplicative calls contend for one key with different draw fractions.
+    """
+    sweeps = np.linspace(0.5, 1.5, 4)
+    calls = [
+        {"sweep_type": "multiplicative", "posterior_sample_fraction": 1.0},
+        {"sweep_type": "additive", "posterior_sample_fraction": 1.0},
+        {"sweep_type": "absolute", "posterior_sample_fraction": 1.0},
+        {"sweep_type": "multiplicative", "posterior_sample_fraction": 0.5},
+    ]
+    expected = [
+        _reference_run_sweep(
+            multidim_mmm.sensitivity,
+            "channel_data",
+            sweeps,
+            var_names="channel_contribution",
+            **call,
+        )
+        for call in calls
+    ]
+
+    for call in calls:
+        multidim_mmm.sensitivity.run_sweep(
+            "channel_data", sweeps, var_names="channel_contribution", **call
+        )
+
+    start_together = threading.Barrier(len(calls))
+
+    def run_after_barrier(call: dict) -> xr.DataArray:
+        start_together.wait(timeout=60)
+        return multidim_mmm.sensitivity.run_sweep(
             "channel_data", sweeps, var_names="channel_contribution", **call
         )
 
