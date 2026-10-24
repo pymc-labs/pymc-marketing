@@ -951,11 +951,14 @@ def test_autolog_disable_skips_the_zarr_preflight(monkeypatch) -> None:
 def test_rejected_autolog_call_keeps_autologging_disabled(
     mmm, toy_X, toy_y, monkeypatch, bad_call, error
 ) -> None:
-    monkeypatch.setattr(xr, "__version__", "2025.4.0")
     autolog(disable=True)
 
-    with pytest.raises(error):
-        autolog(**bad_call)
+    # Only the rejected call sees the old xarray: the fit below reads data
+    # through pandas, which itself refuses an xarray that old.
+    with monkeypatch.context() as patch:
+        patch.setattr(xr, "__version__", "2025.4.0")
+        with pytest.raises(error):
+            autolog(**bad_call)
 
     with mlflow.start_run() as run:
         mmm.fit(toy_X, toy_y, draws=2, chains=1, tune=1)
