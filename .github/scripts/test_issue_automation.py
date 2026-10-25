@@ -416,7 +416,12 @@ class WorkflowBoundaryTests(unittest.TestCase):
     def test_analysis_and_publication_are_isolated(self):
         """Keep model credentials out of writers and PR revisions out of executable code."""
         folder = Path(__file__).resolve().parent.parent / "workflows"
-        for filename in ["triage.yml", "duplicate-issues.yml", "pr-labeler.yml"]:
+        for filename in [
+            "triage.yml",
+            "duplicate-issues.yml",
+            "pr-labeler.yml",
+            "stale-summary.yml",
+        ]:
             with self.subTest(filename=filename):
                 workflow = yaml.safe_load((folder / filename).read_text())
                 self.assertEqual(workflow["permissions"], {})
