@@ -1,0 +1,19 @@
+tests/clv/test_distributions.py
+  s_9998cf552883b3::t_53ccf6455cc77b 204-217,221,229-231,234-249,251-252
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "47c44796c2fff3e780ddcf27e6568825a65e9627",
+  "prompts": {},
+  "sessions": {
+    "s_9998cf552883b3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8ebfa9d3-5ab6-4dcb-87cd-f425b2c0cf2b",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "root <root@e2b.local>"
+    }
+  }
+}
