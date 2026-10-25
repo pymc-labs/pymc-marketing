@@ -203,6 +203,14 @@ class FixedScaling(VariableScaling):
         ``country`` × ``channel``). All values must be positive; NaNs are not
         allowed.
 
+        A ``DataArray`` is matched to the model's coordinates by label, so
+        the order of its labels and dimensions does not matter. Each of its
+        dimensions must carry coordinate labels, and every model label must
+        be present on it; dimensions without coordinates, missing labels, and
+        duplicate labels raise a ``ValueError``. Unlike the ``dict`` form,
+        labels the model does not have are ignored, so one scale table can
+        serve models fitted on different subsets of its labels.
+
     Examples
     --------
     Fixed scalar scaling for production stability:
@@ -321,6 +329,9 @@ class FixedScaling(VariableScaling):
             Column name for the positive scale values.
         dim_cols
             Column names that identify the grid (order defines ``DataArray`` dims).
+            The label and dimension order of the resulting ``DataArray`` do not
+            matter, because the MMM matches its values to the model's
+            coordinates by label.
         """
         s = df.set_index(list(dim_cols))[value_col]
         if s.index.duplicated().any():

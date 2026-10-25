@@ -16,6 +16,7 @@ import pymc as pm
 import pytensor
 import pytensor.tensor as pt
 import pytest
+import scipy.stats
 from numpy.testing import assert_almost_equal
 from pymc import Model
 from pymc.logprob.utils import ParameterValueError
@@ -26,10 +27,12 @@ from pymc.testing import (
     assert_support_point_is_expected,
     check_selfconsistency_discrete_logcdf,
 )
+from scipy.special import betaln, hyp2f1
 
 from pymc_marketing.clv.distributions import (
     BetaGeoBetaBinom,
     BetaGeoNBD,
+    BetaGeoNBDRV,
     ModifiedBetaGeoNBD,
     ParetoNBD,
     ShiftedBetaGeometric,
@@ -197,6 +200,39 @@ class TestBetaGeoBetaBinom:
             rtol=1e-3,
         )
 
+    def test_logp_length_one_value_broadcasts_to_parameter_batch(self):
+        # Regression test for #2919: with a length-1 value against a batched
+        # parameter set, `x` was not broadcast to the batch length, so `scan`
+        # truncated to a single step and the data-dependent term was computed
+        # once (effectively for draw 0) and reused for every draw, collapsing
+        # the posterior variation of everything flowing through `_logp`.
+        alpha = np.full(6, 1.204)
+        beta = np.full(6, 0.750)
+        gamma = np.full(6, 0.657)
+        delta = np.full(6, 2.783)
+        T = np.full(6, 6)
+
+        # Single customer: t_x=3, x=2
+        value_one = np.array([[3.0, 2.0]])
+        value_tiled = np.repeat(value_one, 6, axis=0)
+
+        dist = BetaGeoBetaBinom.dist(
+            alpha=alpha, beta=beta, gamma=gamma, delta=delta, T=T
+        )
+        logp_one = pm.logp(dist, value_one).eval()
+        logp_tiled = pm.logp(dist, value_tiled).eval()
+
+        # A length-1 value must broadcast to the full parameter batch.
+        assert logp_one.shape == (6,)
+        np.testing.assert_allclose(logp_one, logp_tiled, rtol=1e-10)
+
+        # And it must agree with the scalar-parameter logp of that customer.
+        dist_scalar = BetaGeoBetaBinom.dist(
+            alpha=1.204, beta=0.750, gamma=0.657, delta=2.783, T=6
+        )
+        expected_first = pm.logp(dist_scalar, value_one[0]).eval()
+        np.testing.assert_allclose(logp_tiled[0], expected_first, rtol=1e-8)
+
     def test_invalid_value_logp(self):
         beta_geo_beta_binom = BetaGeoBetaBinom.dist(
             alpha=1.20, beta=0.75, gamma=0.66, delta=2.78, T=6
@@ -272,6 +308,70 @@ class TestBetaGeoBetaBinom:
         # Loose tolerance due to sampling variance between two independent samples
         np.testing.assert_allclose(lt_frequency_mean, recency.mean(), rtol=0.9)
         np.testing.assert_allclose(lt_recency_mean, frequency.mean(), rtol=0.9)
+
+
+def _bg_nbd_rng_fn_reference(rng, a, b, r, alpha, T, size):
+    """Pre-vectorization implementation of BetaGeoNBDRV.rng_fn.
+
+    Kept as the statistical oracle for the vectorized sampler: the two must
+    produce identically distributed (recency, frequency) samples.
+    """
+    if size is None:
+        size = np.broadcast_shapes(a.shape, b.shape, r.shape, alpha.shape, T.shape)
+
+    a = np.asarray(a)
+    b = np.asarray(b)
+    r = np.asarray(r)
+    alpha = np.asarray(alpha)
+    T = np.asarray(T)
+
+    if size == ():
+        size = np.broadcast_shapes(a.shape, b.shape, r.shape, alpha.shape, T.shape)
+
+    a = np.broadcast_to(a, size)
+    b = np.broadcast_to(b, size)
+    r = np.broadcast_to(r, size)
+    alpha = np.broadcast_to(alpha, size)
+    T = np.broadcast_to(T, size)
+
+    output = np.zeros(shape=size + (2,))  # noqa:RUF005
+
+    lam = rng.gamma(shape=r, scale=1 / alpha, size=size)
+    p = rng.beta(a=a, b=b, size=size)
+
+    def sim_data(lam, p, T):
+        t = 0  # recency
+        n = 0  # frequency
+
+        churn = 0  # BG/NBD assumes all non-repeat customers are active
+        wait = rng.exponential(scale=1 / lam)
+
+        while t + wait < T and not churn:
+            churn = rng.random() < p
+            n += 1
+            t += wait
+            wait = rng.exponential(scale=1 / lam)
+
+        return np.array([t, n])
+
+    for index in np.ndindex(*size):
+        output[index] = sim_data(lam[index], p[index], T[index])
+
+    return output
+
+
+def _sample_bg_nbd(impl, a, b, r, alpha, T, draws, seed):
+    rng = np.random.default_rng(seed)
+    out = impl(
+        rng,
+        np.float64(a),
+        np.float64(b),
+        np.float64(r),
+        np.float64(alpha),
+        np.float64(T),
+        size=(draws,),
+    )
+    return out[..., 0], out[..., 1]
 
 
 class TestBetaGeoNBD:
@@ -394,6 +494,125 @@ class TestBetaGeoNBD:
             prior = pm.sample_prior_predictive(draws=100)
 
         assert prior["prior"]["bg_nbd"][0].shape == (100, *expected_size)
+
+    @pytest.mark.parametrize(
+        "a, b, r, alpha, T, draws",
+        [
+            (0.793, 2.426, 0.243, 4.414, 78.0, 25_000),  # CDNOW MLE
+            (5.0, 1.0, 1.0, 5.0, 20.0, 25_000),  # high churn
+            (0.5, 10.0, 2.0, 2.0, 50.0, 20_000),  # low churn, long histories
+        ],
+    )
+    def test_rng_fn_matches_reference(self, a, b, r, alpha, T, draws):
+        """The vectorized rng_fn is statistically equivalent to the reference."""
+        rec_ref, x_ref = _sample_bg_nbd(
+            _bg_nbd_rng_fn_reference, a, b, r, alpha, T, draws, seed=20260908
+        )
+        rec_new, x_new = _sample_bg_nbd(
+            BetaGeoNBDRV.rng_fn, a, b, r, alpha, T, draws, seed=919
+        )
+
+        # frequency: chi-square contingency, dropping bins empty in both samples
+        hi = max(int(np.quantile(np.concatenate([x_ref, x_new]), 0.999)), 5)
+        ref_counts = np.bincount(
+            np.minimum(x_ref, hi + 1).astype(int), minlength=hi + 2
+        )
+        new_counts = np.bincount(
+            np.minimum(x_new, hi + 1).astype(int), minlength=hi + 2
+        )
+        table = np.array([ref_counts, new_counts])
+        table = table[:, table.sum(axis=0) > 0]
+        _, p_chi2, _, _ = scipy.stats.chi2_contingency(table)
+        assert p_chi2 > 0.01
+
+        # recency | X > 0: two-sample KS
+        _, p_ks = scipy.stats.ks_2samp(rec_ref[x_ref > 0], rec_new[x_new > 0])
+        assert p_ks > 0.01
+
+        # frequency mean agreement
+        se = np.sqrt(x_ref.var() / draws + x_new.var() / draws)
+        assert abs(x_new.mean() - x_ref.mean()) < 5 * se
+
+    @pytest.mark.parametrize(
+        "a, b, r, alpha, T",
+        [
+            (0.793, 2.426, 0.243, 4.414, 78.0),
+            (5.0, 1.0, 1.0, 5.0, 20.0),
+        ],
+    )
+    def test_rng_fn_zero_purchase_probability(self, a, b, r, alpha, T):
+        """P(X = 0) = (alpha / (alpha + T)) ** r exactly.
+
+        A customer has no repeat purchases iff the Poisson process has no
+        arrivals before T, and the Gamma mixture of that event integrates in
+        closed form.
+        """
+        draws = 100_000
+        _, x_new = _sample_bg_nbd(
+            BetaGeoNBDRV.rng_fn, a, b, r, alpha, T, draws, seed=1234
+        )
+        p_exact = (alpha / (alpha + T)) ** r
+        se = np.sqrt(p_exact * (1 - p_exact) / draws)
+        assert abs((x_new == 0).mean() - p_exact) < 5 * se
+
+    @pytest.mark.parametrize(
+        "a, b, r, alpha, T",
+        [
+            (0.793, 2.426, 0.243, 4.414, 78.0),
+            (5.0, 1.0, 1.0, 5.0, 20.0),
+            (1.0, 1.0, 5.0, 1.0, 10.0),
+        ],
+    )
+    def test_rng_fn_expected_frequency(self, a, b, r, alpha, T):
+        """E[X] against the exact survival sum and the closed-form mean.
+
+        E[X] = sum_k P(K >= k) * P(N_T >= k), where
+        P(K >= k) = B(a, b + k - 1) / B(a, b) is the Beta-Geometric survival
+        and P(N_T >= k) = nbinom.sf(k - 1, r, alpha / (alpha + T)) comes from
+        the Gamma-Poisson mixture. The closed form (valid for a > 1) cross-
+        checks the survival sum.
+        """
+        draws = 100_000
+        _, x_new = _sample_bg_nbd(
+            BetaGeoNBDRV.rng_fn, a, b, r, alpha, T, draws, seed=5678
+        )
+
+        k = np.arange(1, 100_001)
+        surv_k = np.exp(betaln(a, b + k - 1.0) - betaln(a, b))
+        surv_nt = scipy.stats.nbinom.sf(k - 1.0, r, alpha / (alpha + T))
+        expected = float(np.sum(surv_k * surv_nt))
+
+        se = x_new.std() / np.sqrt(draws)
+        assert abs(x_new.mean() - expected) < 6 * se
+
+        if a > 1:
+            closed_form = (
+                (a + b - 1)
+                / (a - 1)
+                * (
+                    1
+                    - (alpha / (alpha + T)) ** r
+                    * hyp2f1(r, b, a + b - 1, T / (alpha + T))
+                )
+            )
+            np.testing.assert_allclose(closed_form, expected, rtol=1e-6)
+
+    @pytest.mark.parametrize(
+        "a, b, r, alpha, T",
+        [
+            (0.793, 2.426, 0.243, 4.414, 78.0),
+            (2.0, 3.0, 1.0, 1.0, 500.0),
+        ],
+    )
+    def test_rng_fn_invariants(self, a, b, r, alpha, T):
+        draws = 50_000
+        rec_new, x_new = _sample_bg_nbd(
+            BetaGeoNBDRV.rng_fn, a, b, r, alpha, T, draws, seed=4321
+        )
+        assert (rec_new >= 0).all()
+        assert (rec_new <= T + 1e-9).all()
+        assert (x_new >= 0).all()
+        np.testing.assert_array_equal(rec_new == 0, x_new == 0)
 
 
 class TestModifiedBetaGeoNBD:

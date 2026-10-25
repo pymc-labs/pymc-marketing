@@ -61,8 +61,8 @@ from pytensor.xtensor.type import XTensorVariable
 from xarray import DataArray
 
 from pymc_marketing.mmm.optimization_variables import (
-    _reject_unknown_coords,
     align_to_model_coords,
+    reject_unknown_coords,
 )
 
 __all__ = [
@@ -917,7 +917,7 @@ class PowerPriceResponse(PriceResponse):
             )
         self._require_labelled(ref, f"{label}: reference_spend")
         coords = {d: template.coords[d].values.tolist() for d in dims}
-        _reject_unknown_coords(ref, coords, label=f"{label}: reference_spend")
+        reject_unknown_coords(ref, coords, label=f"{label}: reference_spend")
         return np.asarray(ref.reindex(coords).transpose(*dims).values, dtype="float64")
 
     def _guard_supplied_reference(
