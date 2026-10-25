@@ -890,6 +890,7 @@ class BayesianBLP(ModelBuilder):
         """Draw from the prior predictive distribution."""
         if not hasattr(self, "model"):
             self.build_model()
+        self._check_prior_predictive_var_names(kwargs.get("var_names"))
         with self.model:
             prior_pred = pm.sample_prior_predictive(samples, **kwargs)
             prior_pred["prior"].attrs["pymc_marketing_version"] = __version__
