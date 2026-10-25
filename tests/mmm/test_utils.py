@@ -33,6 +33,7 @@ from pymc_marketing.mmm.utils import (
     create_index,
     create_new_spend_data,
     create_zero_dataset,
+    infer_frequency,
     planned_controls_to_dataarray,
     transform_1d_array,
     validate_planned_control_dates,
@@ -295,6 +296,36 @@ def test_create_zero_dataset():
 )
 def test_create_index(dims, take, expected_result):
     assert create_index(dims, take) == expected_result
+
+
+class TestInferFrequency:
+    """``infer_frequency`` returns pandas' frequency string, quietly on every pandas version."""
+
+    @pytest.mark.parametrize("freq", ["W-MON", "W-SUN", "D", "MS", "ME", "h", "B"])
+    def test_returns_the_frequency_string_without_a_warning(self, freq):
+        """pandas 3.1 warns on every ``pd.infer_freq`` call; this must not."""
+        # The values carry no frequency, as dates read back from a dataset.
+        dates = pd.date_range("2024-01-01", periods=10, freq=freq).values
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            result = infer_frequency(dates)
+
+        assert result == pd.tseries.frequencies.to_offset(freq).freqstr
+
+    @pytest.mark.parametrize(
+        "dates",
+        [
+            pytest.param(["2024-01-01", "2024-01-03", "2024-01-10"], id="irregular"),
+            pytest.param(["2024-01-15", "2024-01-01", "2024-01-08"], id="unsorted"),
+        ],
+    )
+    def test_returns_none_when_no_frequency_fits(self, dates):
+        assert infer_frequency(pd.DatetimeIndex(dates)) is None
+
+    def test_needs_three_dates_as_pandas_does(self):
+        with pytest.raises(ValueError, match="Need at least 3 dates"):
+            infer_frequency(pd.DatetimeIndex(["2024-01-01", "2024-01-08"]))
 
 
 class TestConvertFrequencyToTimedelta:

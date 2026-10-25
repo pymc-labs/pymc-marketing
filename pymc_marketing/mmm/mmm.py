@@ -228,6 +228,7 @@ from pymc_marketing.mmm.decomposition import (
     log_counterfactual_remove_component,
 )
 from pymc_marketing.mmm.dims import XTensorLike
+from pymc_marketing.mmm.evaluator_cache import EvaluatorCache
 from pymc_marketing.mmm.events import EventEffect
 from pymc_marketing.mmm.fourier import YearlyFourier
 from pymc_marketing.mmm.hsgp import HSGPBase
@@ -265,6 +266,7 @@ from pymc_marketing.mmm.utils import (
     add_noise_to_channel_allocation,
     align_planned_controls,
     create_zero_dataset,
+    infer_frequency,
     planned_controls_to_dataarray,
     validate_planned_control_dates,
 )
@@ -296,6 +298,13 @@ def _deserialize_cost_per_unit(json_str: str) -> pd.DataFrame:
         if hasattr(dt_accessor, "tz") and dt_accessor.tz is not None:
             df["date"] = dt_accessor.tz_localize(None)
     return df
+
+
+_EVALUATOR_CACHE_ATTR = "_incrementality_evaluators"
+"""Instance attribute holding the compiled incrementality evaluators of an MMM.
+
+Not the accessor's own name, which the stored cache would shadow.
+"""
 
 
 class _WindowLayout(NamedTuple):
@@ -2454,6 +2463,9 @@ class MMM(RegressionModelBuilder):
         xr.DataTree
             Inference data of the fitted model.
         """
+        # A refit replaces the posterior and can move its coordinate labels, which
+        # the evaluator's shared binding would refuse; build against it from scratch.
+        self._clear_incrementality_evaluator_cache()
         if hasattr(self, "model") and self._target_is_placeholder:
             warnings.warn(
                 "The model was built by `sample_prior_predictive` with a "
@@ -2580,6 +2592,8 @@ class MMM(RegressionModelBuilder):
             )
 
         """
+        # A rebuild replaces the graph every compiled incrementality evaluator was built from, so none is reusable.
+        self._clear_incrementality_evaluator_cache()
         # Calibration rows belong to a particular graph. A rebuild creates a
         # fresh graph, so callers must re-add any lift tests they want to use.
         self._lift_test_calibrations = []
@@ -3996,6 +4010,29 @@ class MMM(RegressionModelBuilder):
         self._validate_idata_exists()
         return Incrementality(model=self, idata=self.idata)
 
+    def _incrementality_evaluator_cache(self) -> EvaluatorCache:
+        """Return the cache of compiled incrementality evaluators, creating it on first use.
+
+        Every :class:`~pymc_marketing.mmm.incrementality.Incrementality` built on
+        this model shares it.  It is never serialized, starts empty on a deep
+        copy (a shallow copy shares it, as it shares the PyMC model), and
+        :meth:`_clear_incrementality_evaluator_cache` drops it.  Creation
+        goes through ``dict.setdefault``, so two threads making the first call
+        at once still share one cache.
+        """
+        cache = self.__dict__.get(_EVALUATOR_CACHE_ATTR)
+        if cache is None:
+            cache = self.__dict__.setdefault(_EVALUATOR_CACHE_ATTR, EvaluatorCache())
+        return cache
+
+    def _clear_incrementality_evaluator_cache(self) -> None:
+        """Drop every compiled incrementality evaluator.
+
+        A rebuild or refit invalidates the compiled graphs and the fit-time values they were built against.
+        A later incrementality call then compiles a fresh evaluator.
+        """
+        self.__dict__.pop(_EVALUATOR_CACHE_ATTR, None)
+
     def _make_channel_transform(
         self, df_lift_test: pd.DataFrame
     ) -> Callable[[np.ndarray], np.ndarray]:
@@ -5329,7 +5366,7 @@ class BudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
         from pymc_marketing.mmm.utils import _convert_frequency_to_timedelta
 
         dates = pd.DatetimeIndex(data_with_noise.coords["date"].values)
-        inferred_freq = pd.infer_freq(dates)
+        inferred_freq = infer_frequency(dates)
         if inferred_freq is None:
             warnings.warn(
                 "Could not infer frequency. Using weekly ('W').",

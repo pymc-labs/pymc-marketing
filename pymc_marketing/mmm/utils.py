@@ -186,6 +186,38 @@ def create_new_spend_data(
     )
 
 
+def infer_frequency(dates) -> str | None:
+    """Return the frequency pandas infers for ``dates``, as a string.
+
+    It is the string :func:`pandas.infer_freq` returns.  pandas 3.1 deprecates
+    that string result in favor of an offset and warns on every call, so the
+    frequency is read from a ``DatetimeIndex`` built with ``freq="infer"``,
+    whose ``freq`` is an offset on every pandas version.  No global option or
+    warning filter is touched, so concurrent calls are safe.
+
+    Parameters
+    ----------
+    dates : array-like of datetime
+        The dates to infer the frequency of.
+
+    Returns
+    -------
+    str or None
+        The frequency string, such as ``"W-MON"``, or ``None`` when pandas
+        cannot infer one.
+
+    Raises
+    ------
+    ValueError
+        If there are fewer than three dates, as :func:`pandas.infer_freq` raises.
+    """
+    index = pd.DatetimeIndex(dates)
+    if len(index) < 3:
+        raise ValueError("Need at least 3 dates to infer frequency")
+    frequency = pd.DatetimeIndex(index, freq="infer").freq
+    return None if frequency is None else frequency.freqstr
+
+
 def _convert_frequency_to_timedelta(periods: int, freq: str) -> pd.Timedelta:
     """Convert frequency string and periods to Timedelta.
 
@@ -362,7 +394,7 @@ def create_zero_dataset(
 
     # ---- 1. Infer date frequency from training data ---------------------------
     training_dates = pd.DatetimeIndex(xa.coords["date"].values)
-    inferred_freq = pd.infer_freq(training_dates)
+    inferred_freq = infer_frequency(training_dates)
     if inferred_freq is None:
         warnings.warn(
             "Could not infer frequency from training dates. Using weekly ('W').",

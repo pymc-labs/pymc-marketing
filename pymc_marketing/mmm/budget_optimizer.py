@@ -282,7 +282,13 @@ from pymc_marketing.mmm.optimization_variables import (
 from pymc_marketing.mmm.price_response import PriceResponse
 from pymc_marketing.mmm.spend_reach import _PKG_PREFIX
 from pymc_marketing.mmm.utility import UtilityFunctionType, average_response
-from pymc_marketing.pytensor_utils import SharedPosterior, merge_models
+from pymc_marketing.pytensor_utils import (
+    ConditionedModel,
+    SharedPosterior,
+    extract_response_distribution,
+    merge_models,
+    reorder_to_model_coords,
+)
 from pymc_marketing.version import __version__
 
 _VALIDATION_WARNING_SKIP = (_PKG_PREFIX, str(Path(pydantic.__file__).resolve().parent))
@@ -1447,6 +1453,9 @@ class BudgetOptimizer(BaseModel):
 
     Notes
     -----
+    Inputs changed after construction -- for example with ``pm.set_data`` -- are
+    not re-read: the optimizer's evaluator is built once.
+
     For backward compatibility, pass a legacy wrapper (implementing
     ``OptimizerCompatibleModel``) as ``model=``, the optimizer will
     unpack it automatically via a ``model_validator``.
@@ -1690,8 +1699,11 @@ class BudgetOptimizer(BaseModel):
     _budget_distribution_over_period_tensor: XTensorVariable | None = PrivateAttr()
     _cost_per_unit_tensor: XTensorVariable | None = PrivateAttr()
     _media_variable: MediaVariable = PrivateAttr()
+    _frozen_model: Model = PrivateAttr()
     _pymc_model: Model = PrivateAttr()
-    _shared_posterior: SharedPosterior | None = PrivateAttr(default=None)
+    # Built by the first set_posterior; until then the graphs bake the draws in
+    # as constants.
+    _conditioned: ConditionedModel | None = PrivateAttr(default=None)
     _mask_auto_detected: bool = PrivateAttr(default=False)
     _variables: OptimizationVariables = PrivateAttr()
     _objective_and_grad: Callable = PrivateAttr()
@@ -1972,10 +1984,11 @@ class BudgetOptimizer(BaseModel):
             self._variables.variable_slice(self.channel_data_var)
         )
 
-        self._pymc_model = do(
-            freeze_dims_and_data(self.model, data=[]),
-            self._variables.substitutions(),
-        )
+        # The frozen model before the substitutions: every conditioned model
+        # applies them to it itself, which keeps the decision vector an input
+        # of its clone (cloning the intervened model would copy the vector).
+        self._frozen_model = freeze_dims_and_data(self.model, data=[])
+        self._pymc_model = do(self._frozen_model, self._variables.substitutions())
 
         # 8. Validate that the requested response variable actually exists in
         # the underlying PyMC model.
@@ -2025,6 +2038,35 @@ class BudgetOptimizer(BaseModel):
         self._constraints = {}
         self.set_constraints(constraints=self.constraints)
 
+    def __copy__(self) -> "BudgetOptimizer":
+        """Return a copy that owns its posterior binding and compiled functions.
+
+        pydantic's ``model_copy()`` uses this.  Its default copies private
+        attributes shallowly, so both optimizers would share one
+        :class:`~pymc_marketing.pytensor_utils.ConditionedModel` and one
+        total-budget variable: a rebind or an allocation on either would then
+        move the other.  The copy instead gets its own total budget and, once
+        the original reads shared draws, a conditioned model of its own, which
+        applies the decision-vector substitutions to the frozen model again and
+        binds the copy's ``idata``; everything compiled from the graphs is then
+        rebuilt.  The two optimizers follow their own posteriors.
+
+        ``model_copy(deep=True)`` does not use this method.  Likewise, an
+        ``update`` passed to ``model_copy`` is applied after this method
+        returns, so the copy's compiled functions are not rebuilt for it; build
+        a new optimizer to change construction settings.
+        """
+        clone = super().__copy__()
+        # The compiled constraints close over the total-budget shared variable,
+        # so the copy needs its own or an allocation on one would retarget the other.
+        clone._total_budget = shared(
+            self._total_budget.get_value(), name="total_budget"
+        )
+        if self._conditioned is not None:
+            clone._conditioned = clone._new_conditioned_model()
+        clone._recompile()
+        return clone
+
     @property
     def optimization_variables(self) -> OptimizationVariables:
         """The decision vector's variables: media, plus any ``optimizable_vars``.
@@ -2044,6 +2086,19 @@ class BudgetOptimizer(BaseModel):
             )
         """
         return self._variables
+
+    @property
+    def _shared_posterior(self) -> SharedPosterior | None:
+        """The binding the graphs read, ``None`` while they bake in constants.
+
+        A read-only view of the conditioned model the first
+        :meth:`set_posterior` builds; see
+        :meth:`~pymc_marketing.pytensor_utils.ConditionedModel.set_posterior`
+        for what a rebind does to it.
+        """
+        if self._conditioned is None:
+            return None
+        return self._conditioned.shared_posterior
 
     def _pack_decision_vector(
         self, values: np.ndarray | DataArray | Mapping[str, DataArray]
@@ -2163,6 +2218,9 @@ class BudgetOptimizer(BaseModel):
             If a supplied ``DataArray`` has a dim carrying no coordinates, or
             if ``plan`` omits a decision variable, omits an optimized cell, or
             carries coordinates the model does not have.
+        KeyError
+            If the current posterior lacks a variable the requested response
+            reads, as after a rebind to a thinned posterior.
 
         Notes
         -----
@@ -2932,10 +2990,13 @@ class BudgetOptimizer(BaseModel):
         """Extract the response distribution graph, conditioned on posterior parameters.
 
         Until the first :meth:`set_posterior` the draws enter the graph as
-        constants.  After it they enter through shared variables owned by
-        this optimizer, so every graph extracted here -- the objective,
-        custom constraints, anything a caller compiles from this method --
-        follows later rebinds.
+        constants, which keeps constant folding.  After it they enter through
+        the shared variables of the optimizer's
+        :class:`~pymc_marketing.pytensor_utils.ConditionedModel`, so every graph
+        extracted here -- the objective, custom constraints, anything a caller
+        compiles from this method -- follows later rebinds, and every variable
+        it reads must be in every later posterior.  Either way the draws are
+        read in the model's coordinate order.
 
         Examples
         --------
@@ -2943,15 +3004,18 @@ class BudgetOptimizer(BaseModel):
         returns a graph that computes ``"channel_contribution"`` as a function of both
         the newly introduced budgets and the posterior of model parameters.
         """
-        # Local import to avoid circular import at module load time
-        from pymc_marketing.pytensor_utils import extract_response_distribution
-
-        return extract_response_distribution(
-            pymc_model=self._pymc_model,
-            idata=_extract_dataset(self.idata, "posterior"),
-            response_variable=response_variable,
-            frozen_deterministics=self.frozen_deterministics,
-            shared_posterior=self._shared_posterior,
+        if self._conditioned is not None:
+            return self._conditioned.extract(response_variable)
+        return cast(
+            XTensorVariable,
+            extract_response_distribution(
+                pymc_model=self._pymc_model,
+                idata=reorder_to_model_coords(
+                    _extract_dataset(self.idata, "posterior"), self._pymc_model.coords
+                ),
+                response_variable=response_variable,
+                frozen_deterministics=self.frozen_deterministics,
+            ),
         )
 
     def evaluate_response_distribution(
@@ -2990,17 +3054,26 @@ class BudgetOptimizer(BaseModel):
         TypeError
             If ``plan`` is not labelled at all.
         ValueError
-            If a supplied ``DataArray`` has a dim carrying no coordinates, or
-            if ``plan`` omits a decision variable, omits an optimized cell, or
-            carries coordinates the model does not have.
+            If a supplied ``DataArray`` has a dim carrying no coordinates, if
+            ``plan`` omits a decision variable, omits an optimized cell, or
+            carries coordinates the model does not have, or if a variable the
+            requested response reads changed its non-sample dimensions, their
+            lengths or their labels, as after a rebind that gives one of them a
+            new dim.
+        KeyError
+            If the current posterior lacks a variable the requested response
+            reads, as after a rebind to a thinned posterior.
 
         Notes
         -----
-        The compiled function is cached per response variable and dropped by
-        :meth:`set_posterior`, so scoring many plans against the same posterior
-        compiles once and no cached function outlives its draws. The cache key
-        is the variable name alone, which is enough because ``compile_kwargs``
-        is fixed when the optimizer is constructed.
+        The compiled function is cached per response variable, so scoring many
+        plans against the same posterior compiles once.  The first
+        :meth:`set_posterior` drops the cache together with the constant draws
+        it was compiled against.  A function compiled after it reads the same
+        shared draws the objective does, so it follows every later rebind
+        without recompiling, and the variables it reads must be in every later
+        posterior.  The cache key is the variable name alone, which is enough
+        because ``compile_kwargs`` is fixed when the optimizer is constructed.
 
         A response variable the plan cannot reach -- an intercept, a control
         contribution -- is still evaluated: the decision vector is simply an
@@ -3088,22 +3161,27 @@ class BudgetOptimizer(BaseModel):
     def set_posterior(self, idata: Any) -> None:
         """Point the compiled objective and constraints at a new posterior.
 
-        The first call moves the posterior draws out of the compiled graphs
-        and into shared variables, which costs one recompile of the objective
-        and the constraints.  Every later call swaps the draws in place, so a
-        loop over many posteriors -- one per resampled or updated posterior --
-        costs one solve each rather than one compile each.  Optimizers that
-        never call this keep the constant-folded graphs they have today.
+        The first call moves the posterior draws out of the compiled graphs and
+        into the shared variables of a
+        :class:`~pymc_marketing.pytensor_utils.ConditionedModel`, which costs
+        one recompile of the objective and the constraints and drops the cached
+        response functions.  Every later call swaps the draws in place, so a
+        loop over many posteriors costs one solve each rather than one compile
+        each, and a response function compiled after the first call follows
+        those swaps too.  Optimizers that never call this keep the
+        constant-folded graphs.
 
-        The new posterior must hold every variable the graphs read, with the
-        same non-sample dimensions and the same set of labels on each; labels
-        are compared by value, so a reordered ``channel`` axis is realigned.
-        The number of draws may differ.  The budget mask is fixed at
-        construction: it defines the decision vector the graphs were compiled
-        for, so a posterior that would have auto-detected a different mask is
-        solved on the existing one.  Build a new optimizer to change the mask.
-        A user-supplied mask is validated against the new posterior the way
-        construction validates it.
+        The new posterior must hold every variable a graph extracted since the
+        first call reads, with the same non-sample dimensions and the same set
+        of labels on each.  Labels are compared by value and the draws are read
+        in the model's coordinate order, so a reordered ``channel`` axis is
+        realigned.  The number of draws may differ.
+
+        The budget mask is fixed at construction: it defines the decision vector
+        the graphs were compiled for, so a posterior that would have
+        auto-detected a different mask is solved on the existing one.  Build a
+        new optimizer to change the mask.  A user-supplied mask is validated
+        against the new posterior the way construction validates it.
 
         The rebind is local to this optimizer.  A model the optimizer was
         built from keeps its own ``idata``; post-processing done there still
@@ -3127,9 +3205,9 @@ class BudgetOptimizer(BaseModel):
             labels differ from the construction posterior, or if a
             user-supplied mask optimizes a cell the new posterior has no
             information about.  Nothing is changed in that case, including
-            on the first call:
-            a recompile that fails leaves the constant-folded graphs, the
-            previous ``idata`` and the previous constraints in place.
+            on the first call: a recompile that fails leaves the
+            constant-folded graphs, the previous ``idata`` and the previous
+            constraints in place.
 
         Examples
         --------
@@ -3158,56 +3236,75 @@ class BudgetOptimizer(BaseModel):
                 cast(DataArray, self.budgets_to_optimize), idata
             )
 
-        # Warned about only once the new draws are bound, so a posterior the
-        # rebind refuses raises without a warning about it.
-        if self._shared_posterior is not None:
-            self._shared_posterior.set_posterior(_extract_dataset(idata, "posterior"))
-            self.idata = idata
-            self._warn_uninformed_reach(
-                cast(DataArray, self.budgets_to_optimize), informed
-            )
-            return
-
-        # First rebind: bind the draws through shared variables and compile once
-        # against them; later calls are set_value only.  The compile runs on the
-        # posterior the optimizer was built with, and the new draws then arrive
-        # through the same validated rebind path as every later call -- so a
-        # reordered axis is realigned and a resized one refused here exactly as
-        # it would be on the second call.  Anything that raises rolls every
-        # piece back, so a failed first call leaves the constant-folded graphs
-        # and the previous idata in place, and the next call retries this path
-        # rather than rebinding variables the compiled objective never reads.
-        # The response cache holds functions compiled against the pre-rebind
-        # graph, whose draws are constants. They go with the recompile, and
-        # come back with a rollback. Later calls take the fast path above,
-        # where the cached functions read the same shared variables the
-        # objective does and so follow the new draws on their own.
+        # Anything that raises below -- a refused rebind, a failed recompile, an
+        # interrupt -- restores all of this, so the optimizer is left as it was.
         previous = (
-            self._shared_posterior,
+            self._conditioned,
             self.idata,
             self._objective_and_grad,
             self._constraints,
             self._compiled_constraints,
             self._response_functions,
         )
-        self._shared_posterior = SharedPosterior()
-        self._response_functions = {}
+        bound = self._conditioned
+        bound_posterior = None if bound is None else bound.posterior
         try:
-            self._compile_objective_and_grad()
-            self.set_constraints(constraints=list(self._constraints.values()))
-            self._shared_posterior.set_posterior(_extract_dataset(idata, "posterior"))
+            conditioned = bound
+            if conditioned is None:
+                # First rebind: bind the draws through a fresh conditioned model
+                # and compile once against it.  The compile runs on the
+                # posterior the optimizer was built with, and the new draws then
+                # arrive through the same validated rebind as every later call,
+                # so a reordered axis is realigned and a resized one refused here
+                # exactly as on the second call.  A failure drops the fresh
+                # model, so a graph extracted for a retired constraint never
+                # binds a variable a later call would have to satisfy.
+                conditioned = self._conditioned = self._new_conditioned_model()
+                self._recompile()
+            conditioned.set_posterior(idata)
             self.idata = idata
         except BaseException:
             (
-                self._shared_posterior,
+                self._conditioned,
                 self.idata,
                 self._objective_and_grad,
                 self._constraints,
                 self._compiled_constraints,
                 self._response_functions,
             ) = previous
+            # A later rebind writes the draws in place.  Whatever failed --
+            # the rebind itself, which restores its own draws, or anything after
+            # it, an interrupt included -- the previous draws are written back,
+            # which cannot fail: every bound variable was bound to them.
+            if bound is not None and bound_posterior is not None:
+                bound.set_posterior(bound_posterior)
             raise
         self._warn_uninformed_reach(cast(DataArray, self.budgets_to_optimize), informed)
+
+    def _new_conditioned_model(self) -> ConditionedModel:
+        """Return a conditioned model over the optimization model and the current ``idata``.
+
+        It applies the decision-vector substitutions to the frozen model itself,
+        so its clone reads the optimizer's decision vector and none of the
+        data a later ``pm.set_data`` on the source would change.
+        """
+        return ConditionedModel(
+            self._frozen_model,
+            _to_datatree(self.idata),
+            intervention=self._variables.substitutions(),
+            frozen_deterministics=self.frozen_deterministics,
+        )
+
+    def _recompile(self) -> None:
+        """Compile the objective and the constraints from the current graphs.
+
+        The first :meth:`set_posterior` and a copy call this: their graphs come
+        from a new binding, so everything compiled from the previous graphs is
+        rebuilt, and the response functions compiled against them are dropped.
+        """
+        self._response_functions = {}
+        self._compile_objective_and_grad()
+        self.set_constraints(constraints=list(self._constraints.values()))
 
     def _compile_objective_and_grad(self):
         """Compile the objective function and its gradient, both referencing `self._budgets_flat`."""
