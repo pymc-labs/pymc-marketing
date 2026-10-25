@@ -201,20 +201,24 @@ class TestBetaGeoBetaBinom:
         )
 
     def test_logp_length_one_value_broadcasts_to_parameter_batch(self):
-        # Regression test for #2919: with a length-1 value against a batched
-        # parameter set, `x` was not broadcast to the batch length, so `scan`
-        # truncated to a single step and the data-dependent term was computed
-        # once (effectively for draw 0) and reused for every draw, collapsing
-        # the posterior variation of everything flowing through `_logp`.
-        alpha = np.full(6, 1.204)
-        beta = np.full(6, 0.750)
-        gamma = np.full(6, 0.657)
-        delta = np.full(6, 2.783)
-        T = np.full(6, 6)
+        # Regression test for #2919: with a length-1 value against a batch of
+        # parameter draws, `x` was not broadcast to the batch length, so `scan`
+        # truncated to a single step and the data-dependent term of draw 0 was
+        # reused for every draw, collapsing the posterior variation of
+        # everything flowing through `_logp`.
+        # The draws below must differ from each other: with identical draws the
+        # buggy and the correct computation agree numerically.
+        rng = np.random.default_rng(42)
+        n_draws = 6
+        alpha = 1.204 * np.exp(rng.normal(scale=0.3, size=n_draws))
+        beta = 0.750 * np.exp(rng.normal(scale=0.3, size=n_draws))
+        gamma = 0.657 * np.exp(rng.normal(scale=0.3, size=n_draws))
+        delta = 2.783 * np.exp(rng.normal(scale=0.3, size=n_draws))
+        T = np.full(n_draws, 6)
 
         # Single customer: t_x=3, x=2
         value_one = np.array([[3.0, 2.0]])
-        value_tiled = np.repeat(value_one, 6, axis=0)
+        value_tiled = np.repeat(value_one, n_draws, axis=0)
 
         dist = BetaGeoBetaBinom.dist(
             alpha=alpha, beta=beta, gamma=gamma, delta=delta, T=T
@@ -222,16 +226,30 @@ class TestBetaGeoBetaBinom:
         logp_one = pm.logp(dist, value_one).eval()
         logp_tiled = pm.logp(dist, value_tiled).eval()
 
-        # A length-1 value must broadcast to the full parameter batch.
-        assert logp_one.shape == (6,)
+        # A length-1 value must broadcast to the full parameter batch...
+        assert logp_one.shape == (n_draws,)
+        # ...and agree with tiling the customer by hand.
         np.testing.assert_allclose(logp_one, logp_tiled, rtol=1e-10)
 
-        # And it must agree with the scalar-parameter logp of that customer.
-        dist_scalar = BetaGeoBetaBinom.dist(
-            alpha=1.204, beta=0.750, gamma=0.657, delta=2.783, T=6
+        # Both must vary across draws and match the scalar-parameter logp
+        # draw by draw, so the two batched paths cannot pass by sharing a bug.
+        expected = np.array(
+            [
+                pm.logp(
+                    BetaGeoBetaBinom.dist(
+                        alpha=alpha[i],
+                        beta=beta[i],
+                        gamma=gamma[i],
+                        delta=delta[i],
+                        T=6,
+                    ),
+                    value_one[0],
+                ).eval()
+                for i in range(n_draws)
+            ]
         )
-        expected_first = pm.logp(dist_scalar, value_one[0]).eval()
-        np.testing.assert_allclose(logp_tiled[0], expected_first, rtol=1e-8)
+        assert np.ptp(expected) > 0.1
+        np.testing.assert_allclose(logp_one, expected, rtol=1e-8)
 
     def test_invalid_value_logp(self):
         beta_geo_beta_binom = BetaGeoBetaBinom.dist(
