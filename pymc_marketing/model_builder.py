@@ -20,7 +20,6 @@ from abc import ABC, abstractmethod
 from collections.abc import Callable
 from functools import cache, wraps
 from inspect import signature
-from pathlib import Path
 from typing import Any, Literal, cast
 
 import arviz as az
@@ -37,7 +36,7 @@ from pymc_extras.deserialize import DeserializableError, deserialize
 from pymc_extras.printing import model_table
 from rich.table import Table
 
-from pymc_marketing.data.idata.utils import idata_from_zarr, idata_to_zarr
+from pymc_marketing.data.idata.io import load_idata, save_idata
 from pymc_marketing.version import __version__
 
 # If scikit-learn is available, use its data validator
@@ -334,13 +333,14 @@ class ModelIO:
         fname : str
             The name and path of the file to save the inference data with model parameters.
         **kwargs
-            Additional keyword arguments to pass to xr.DataTree.to_netcdf().
+            Keyword arguments passed to :meth:`xarray.DataTree.to_netcdf` or, for
+            a ``.zarr`` path or existing directory, :meth:`xarray.DataTree.to_zarr`.
             Common options include:
 
             - ``engine`` : str, optional (default ``"netcdf4"``)
-              Library to use for writing files.
+              Library to use for writing netCDF files.
             - ``groups`` : list of str, optional
-              Groups to save to netcdf. If None, all groups are saved.
+              Groups to save. If None, all groups are saved.
 
         Returns
         -------
@@ -377,23 +377,8 @@ class ModelIO:
 
         """
         if self.idata is not None and "posterior" in self.idata:
-            file = Path(str(fname))
             groups = kwargs.pop("groups", None)
-            idata_to_save = self.idata
-            if groups is not None:
-                groups_with_slash = {
-                    g if g.startswith("/") else f"/{g}" for g in groups
-                }
-                nodes_to_drop = [
-                    node[1:]
-                    for node in self.idata.groups
-                    if node != "/" and node not in groups_with_slash
-                ]
-                idata_to_save = self.idata.drop_nodes(nodes_to_drop)
-            if file.suffix == ".zarr" or file.is_dir():
-                idata_to_zarr(idata_to_save, file, **kwargs)
-            else:
-                idata_to_save.to_netcdf(str(file), **kwargs)
+            save_idata(self.idata, str(fname), groups=groups, **kwargs)
         else:
             raise RuntimeError("The model hasn't been fit yet, call .fit() first")
 
@@ -514,11 +499,7 @@ class ModelIO:
             model = MyModel.load(file_name)
 
         """
-        filepath = Path(str(fname))
-        if filepath.suffix == ".zarr" or filepath.is_dir():
-            idata = idata_from_zarr(filepath)
-        else:
-            idata = xr.open_datatree(str(filepath))
+        idata = load_idata(str(fname))
 
         try:
             return cls.load_from_idata(idata, check=check)
@@ -836,9 +817,7 @@ class ModelFitter:
 
             var_names = [var.name for var in model.free_RVs]
             idata = pm.sample(var_names=var_names, **kwargs)
-            idata["/posterior"] = pm.compute_deterministics(
-                idata["/posterior"], merge_dataset=True
-            )
+            pm.compute_deterministics(idata, extend_dataset=True)
         return idata
 
     def _fit_mcmc(self, sampler_kwargs: dict[str, Any]) -> xr.DataTree:
@@ -1534,7 +1513,11 @@ class RegressionModelBuilder(ModelBuilder):
         X: pd.DataFrame | xr.Dataset | xr.DataArray,
         y: pd.Series | xr.DataArray | np.ndarray | None = None,
     ) -> tuple[Any, Any]:
-        """Check the X/y pair and fill in a placeholder target when none is given."""
+        """Check the X/y pair and fill in a placeholder target when none is given.
+
+        Subclasses may override this to accept other X/y forms; ``MMM`` does so
+        to read a target embedded in ``X``.
+        """
         if (
             isinstance(y, pd.Series)
             and isinstance(X, pd.DataFrame)

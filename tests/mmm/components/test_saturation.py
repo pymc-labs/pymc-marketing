@@ -382,3 +382,34 @@ class TestSaturationRoundtrips:
 )
 def test_type_registered(type_key):
     assert type_key in serialization._registry, f"{type_key} not registered"
+
+
+def test_sample_response_takes_an_input_of_any_dimensions() -> None:
+    """A 2-D input comes back per draw with its own dims, as the function gives."""
+    lam, beta = np.array([1.0, 3.0]), np.array([2.0, 0.5])
+    saturation = LogisticSaturation(
+        priors={
+            "lam": as_xtensor(lam, dims=("channel",)),
+            "beta": as_xtensor(beta, dims=("channel",)),
+        }
+    )
+    parameters = saturation.sample_prior(coords={"channel": ["a", "b"]})
+    x = np.array([[0.0, 0.5], [1.0, 2.0], [0.25, 0.0]])
+
+    response = saturation._sample_response(
+        "response",
+        parameters,
+        x,
+        dims=("date", "channel"),
+        coords={"date": np.arange(3), "channel": ["a", "b"]},
+        core_dim="date",
+        progressbar=False,
+    )
+
+    expected = beta * (1 - np.exp(-lam * x)) / (1 + np.exp(-lam * x))
+    assert response.dims[:2] == ("chain", "draw")
+    np.testing.assert_allclose(
+        response.isel(chain=0, draw=0).transpose("date", "channel").values,
+        expected,
+        rtol=1e-12,
+    )

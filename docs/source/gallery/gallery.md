@@ -54,9 +54,19 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :link: ../notebooks/mmm/mmm_sensitivity_analysis.html
 :::
 
+:::{grid-item-card} Current vs Future Media Value: Splitting Contributions by When They Land
+:img-top: ../gallery/images/mmm_current_vs_future_value.png
+:link: ../notebooks/mmm/mmm_current_vs_future_value.html
+:::
+
 :::{grid-item-card} Additive vs Log vs Log-Log MMMs
 :img-top: ../gallery/images/mmm_multiplicative.png
 :link: ../notebooks/mmm/mmm_multiplicative.html
+:::
+
+:::{grid-item-card} Introduction to Mu Effects: Channel Interactions
+:img-top: ../gallery/images/mmm_mu_effects_intro.png
+:link: ../notebooks/mmm/mmm_mu_effects_intro.html
 :::
 
 :::{grid-item-card} Interactive MMM Visualizations
