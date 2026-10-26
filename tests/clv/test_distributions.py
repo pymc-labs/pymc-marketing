@@ -318,14 +318,57 @@ class TestBetaGeoBetaBinom:
             )
             prior = pm.sample_prior_predictive(draws=1000, random_seed=42)
             prior = prior["prior"]["beta_geo_beta_binom"][0]
-            recency = prior[:, 0]
-            frequency = prior[:, 1]
+            recency = prior[..., 0]
+            frequency = prior[..., 1]
 
         assert prior.shape == (1000, *expected_size)
 
-        # Loose tolerance due to sampling variance between two independent samples
-        np.testing.assert_allclose(lt_frequency_mean, recency.mean(), rtol=0.9)
-        np.testing.assert_allclose(lt_recency_mean, frequency.mean(), rtol=0.9)
+        # Tolerance allows for sampling variance between two independent samples
+        np.testing.assert_allclose(frequency.mean(), lt_frequency_mean, rtol=0.15)
+        np.testing.assert_allclose(recency.mean(), lt_recency_mean, rtol=0.15)
+
+    @pytest.mark.parametrize(
+        "alpha, beta, gamma, delta, T",
+        [
+            (1.204, 0.750, 0.657, 2.783, 6),  # donations MLE
+            (2.0, 2.0, 0.5, 20.0, 20),  # low dropout, many customers alive at T
+        ],
+    )
+    def test_rng_fn_matches_exact_moments(self, alpha, beta, gamma, delta, T):
+        """Draws stay in the support and match exact BG/BB quantities.
+
+        A customer is alive at opportunity t with probability
+        B(gamma, delta + t) / B(gamma, delta), has purchase probability p at
+        each opportunity while alive, and has recency 0 when they never buy.
+        """
+        draws = 50_000
+        recency, frequency = pm.draw(
+            BetaGeoBetaBinom.dist(
+                alpha=alpha, beta=beta, gamma=gamma, delta=delta, T=T, size=draws
+            ),
+            random_seed=20261026,
+        ).T
+
+        assert (frequency >= 0).all()
+        assert (frequency <= recency).all()
+        assert (recency <= T).all()
+        np.testing.assert_array_equal(recency == 0, frequency == 0)
+
+        t = np.arange(T + 1)
+        alive = np.exp(betaln(gamma, delta + t) - betaln(gamma, delta))
+        purchase = alpha / (alpha + beta)
+        # Opportunities while alive m = 0, ..., T and P(no purchase | m)
+        p_m = np.append(alive[:-1] - alive[1:], alive[-1])
+        p_no_purchase = np.exp(betaln(alpha, beta + t) - betaln(alpha, beta))
+
+        exact = {
+            "E[frequency]": (frequency, purchase * alive[1:].sum()),
+            "P(frequency = 0)": (frequency == 0, (p_m * p_no_purchase).sum()),
+            "P(recency = T)": (recency == T, purchase * alive[-1]),
+        }
+        for name, (sample, expected) in exact.items():
+            se = sample.std() / np.sqrt(draws)
+            assert abs(sample.mean() - expected) < 5 * se, name
 
 
 def _bg_nbd_rng_fn_reference(rng, a, b, r, alpha, T, size):
