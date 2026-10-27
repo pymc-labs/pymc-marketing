@@ -239,6 +239,34 @@ class TypeRegistry:
                 "serialization.serialize() or a to_dict() that includes '__type__'."
             )
 
+        entry = self._entry(type_key)
+
+        if entry.deserializer is not None:
+            return entry.deserializer(data, context)
+
+        return entry.cls.from_dict(data)  # type: ignore[attr-defined]
+
+    def lookup(self, type_key: str) -> type:
+        """Return the class registered under ``type_key``.
+
+        Parameters
+        ----------
+        type_key : str
+            Fully qualified class path, as stored under ``__type__``.
+
+        Returns
+        -------
+        type
+            The registered class.
+
+        Raises
+        ------
+        SerializationError
+            If no class is registered under ``type_key``.
+        """
+        return self._entry(type_key).cls
+
+    def _entry(self, type_key: str) -> _RegistryEntry:
         if type_key not in self._registry:
             raise SerializationError(
                 f"Unknown type {type_key!r}. The class may not have been "
@@ -246,13 +274,7 @@ class TypeRegistry:
                 f"it may not have been imported. "
                 f"Registered types: {sorted(self._registry.keys())}"
             )
-
-        entry = self._registry[type_key]
-
-        if entry.deserializer is not None:
-            return entry.deserializer(data, context)
-
-        return entry.cls.from_dict(data)  # type: ignore[attr-defined]
+        return self._registry[type_key]
 
     def serialize_model_config(self, config: dict[str, Any]) -> dict[str, Any]:
         """Serialize a model_config dict to JSON-safe values.
