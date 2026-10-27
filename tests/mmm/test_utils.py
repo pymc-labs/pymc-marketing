@@ -27,12 +27,16 @@ from pymc_marketing.mmm.additive_effect import IncrementalitySpec
 from pymc_marketing.mmm.utils import (
     _convert_frequency_to_timedelta,
     add_noise_to_channel_allocation,
+    align_planned_controls,
     apply_sklearn_transformer_across_dim,
     build_contributions,
     create_index,
     create_new_spend_data,
     create_zero_dataset,
+    infer_frequency,
+    planned_controls_to_dataarray,
     transform_1d_array,
+    validate_planned_control_dates,
 )
 
 
@@ -294,6 +298,36 @@ def test_create_index(dims, take, expected_result):
     assert create_index(dims, take) == expected_result
 
 
+class TestInferFrequency:
+    """``infer_frequency`` returns pandas' frequency string, quietly on every pandas version."""
+
+    @pytest.mark.parametrize("freq", ["W-MON", "W-SUN", "D", "MS", "ME", "h", "B"])
+    def test_returns_the_frequency_string_without_a_warning(self, freq):
+        """pandas 3.1 warns on every ``pd.infer_freq`` call; this must not."""
+        # The values carry no frequency, as dates read back from a dataset.
+        dates = pd.date_range("2024-01-01", periods=10, freq=freq).values
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            result = infer_frequency(dates)
+
+        assert result == pd.tseries.frequencies.to_offset(freq).freqstr
+
+    @pytest.mark.parametrize(
+        "dates",
+        [
+            pytest.param(["2024-01-01", "2024-01-03", "2024-01-10"], id="irregular"),
+            pytest.param(["2024-01-15", "2024-01-01", "2024-01-08"], id="unsorted"),
+        ],
+    )
+    def test_returns_none_when_no_frequency_fits(self, dates):
+        assert infer_frequency(pd.DatetimeIndex(dates)) is None
+
+    def test_needs_three_dates_as_pandas_does(self):
+        with pytest.raises(ValueError, match="Need at least 3 dates"):
+            infer_frequency(pd.DatetimeIndex(["2024-01-01", "2024-01-08"]))
+
+
 class TestConvertFrequencyToTimedelta:
     """Test cases for _convert_frequency_to_timedelta function."""
 
@@ -443,6 +477,52 @@ class TestCreateZeroDataset:
         assert np.all(
             result["_channel"].sel(channel="channel2").values == 0
         )  # Not provided
+
+    def test_create_zero_dataset_channel_xr_matched_by_label(self):
+        """channel_xr must be written by label, not by position (#3234).
+
+        A plan laid out with the model's dims swapped and one dim's labels
+        reversed (equal lengths, so the positional copy used to succeed) must
+        land on the cells the labels name, not on the cells the position names.
+        """
+        dates = pd.date_range("2022-01-01", "2022-01-31", freq="D")
+        geos, products = ["north", "south"], ["a", "b"]
+
+        class FakeAdstock:
+            l_max = 7
+
+        class FakeMMM2D:
+            date_column = "date"
+            channel_columns = ["tv", "radio"]
+            control_columns = []
+            dims = ["geo", "product"]
+            adstock = FakeAdstock()
+            xarray_dataset = xr.Dataset(
+                coords={"date": dates, "geo": geos, "product": products}
+            )
+
+        # Plan laid out (product, geo) with the geo labels reversed.
+        plan_da = xr.DataArray(
+            [[1.0, 2.0], [3.0, 4.0]],
+            dims=("product", "geo"),
+            coords={"product": products, "geo": ["south", "north"]},
+        )
+        plan = plan_da.to_dataset(name="tv")
+        plan["radio"] = plan_da * 10
+
+        result = create_zero_dataset(
+            FakeMMM2D(), "2022-02-01", "2022-02-10", plan, include_carryover=False
+        )
+        got = (
+            result["_channel"]
+            .isel(date=0)
+            .sel(channel="tv")
+            .transpose("geo", "product")
+        )
+        expected = (
+            plan["tv"].reindex(geo=geos, product=products).transpose("geo", "product")
+        )
+        assert np.allclose(got.values, expected.values)
 
     def test_create_zero_dataset_include_carryover_false(self):
         """Test create_zero_dataset with include_carryover=False."""
@@ -1470,3 +1550,173 @@ class TestEffectiveCarryover:
         monkeypatch.setattr(type(effect), "incrementality_spec", lambda self: None)
 
         assert mmm.effective_carryover_lags() == mmm.adstock.l_max
+
+
+PLAN_DATES = pd.date_range("2025-01-05", periods=3, freq="W")
+CONTROLS = ["event", "price"]
+
+
+def _plan_frame(**overrides) -> pd.DataFrame:
+    df = pd.DataFrame(
+        [(date, geo) for date in PLAN_DATES for geo in ("A", "B")],
+        columns=["week", "geo"],
+    )
+    df["event"] = 1.0
+    df["price"] = 1.0 + np.arange(len(df)) / 10
+    return df.assign(**overrides)
+
+
+def _plan_array(**coords) -> xr.DataArray:
+    coords = {"date": PLAN_DATES, "geo": ["A", "B"], "control": CONTROLS, **coords}
+    shape = tuple(len(v) for v in coords.values())
+    return xr.DataArray(np.ones(shape), dims=tuple(coords), coords=coords)
+
+
+class TestPlannedControlsToDataArray:
+    def test_dataframe(self):
+        df = _plan_frame(channel_1=5.0)  # non-control columns are ignored
+
+        planned = planned_controls_to_dataarray(df, "week", ("geo",), CONTROLS)
+
+        assert set(planned.dims) == {"date", "geo", "control"}
+        assert list(planned.indexes["control"]) == CONTROLS
+        np.testing.assert_array_equal(
+            planned.sel(control="price").transpose("date", "geo").values.ravel(),
+            df["price"].values,
+        )
+
+    def test_dataarray_with_string_dates(self):
+        da = _plan_array(date=[str(d.date()) for d in PLAN_DATES])
+
+        planned = planned_controls_to_dataarray(da, "week", ("geo",), CONTROLS)
+
+        pd.testing.assert_index_equal(
+            pd.DatetimeIndex(planned.indexes["date"]), PLAN_DATES, check_names=False
+        )
+
+    @pytest.mark.parametrize(
+        "df, match",
+        [
+            pytest.param(
+                _plan_frame().drop(columns="geo"),
+                r"missing the columns \['geo'\]",
+                id="missing-dim-column",
+            ),
+            pytest.param(
+                _plan_frame().drop(columns="price"),
+                r"missing the control columns \['price'\]",
+                id="missing-control",
+            ),
+            pytest.param(
+                pd.concat([_plan_frame(), _plan_frame().iloc[[0]]], ignore_index=True),
+                "rows that share their",
+                id="duplicate-row",
+            ),
+        ],
+    )
+    def test_invalid_dataframe(self, df, match):
+        with pytest.raises(ValueError, match=match):
+            planned_controls_to_dataarray(df, "week", ("geo",), CONTROLS)
+
+    @pytest.mark.parametrize(
+        "da, match",
+        [
+            pytest.param(
+                _plan_array().isel(geo=0, drop=True),
+                "control_data must have dims",
+                id="wrong-dims",
+            ),
+            pytest.param(
+                _plan_array().drop_vars(["date", "geo"]),
+                r"needs labelled coordinates for \['date', 'geo'\]",
+                id="unlabelled",
+            ),
+            pytest.param(
+                _plan_array(geo=["A", "A"]),
+                r"duplicate labels along \['geo'\]",
+                id="duplicate-labels",
+            ),
+            pytest.param(
+                _plan_array(control=[*CONTROLS, "promo"]),
+                r"not control_columns: \['promo'\]",
+                id="unknown-control",
+            ),
+            pytest.param(
+                _plan_array(control=["event"]),
+                r"missing the control columns \['price'\]",
+                id="missing-control",
+            ),
+        ],
+    )
+    def test_invalid_dataarray(self, da, match):
+        with pytest.raises(ValueError, match=match):
+            planned_controls_to_dataarray(da, "week", ("geo",), CONTROLS)
+
+    def test_wrong_type(self):
+        with pytest.raises(TypeError, match=r"pd\.DataFrame or an xr\.DataArray"):
+            planned_controls_to_dataarray({"event": 1.0}, "week", ("geo",), CONTROLS)
+
+
+class TestValidatePlannedControlDates:
+    TRAINING_END = pd.Timestamp("2024-12-29")
+
+    def test_dates_after_training_pass(self):
+        validate_planned_control_dates(PLAN_DATES, self.TRAINING_END, PLAN_DATES)
+
+    def test_training_dates_raise(self):
+        dates = PLAN_DATES.insert(0, self.TRAINING_END)
+
+        with pytest.raises(ValueError, match="which the training data covers"):
+            validate_planned_control_dates(dates, self.TRAINING_END, PLAN_DATES)
+
+    def test_window_inside_training_raises(self):
+        with pytest.raises(ValueError, match="control_data does not apply"):
+            validate_planned_control_dates(
+                PLAN_DATES, self.TRAINING_END, pd.DatetimeIndex([])
+            )
+
+
+class TestAlignPlannedControls:
+    @staticmethod
+    def window(dates=PLAN_DATES) -> xr.DataArray:
+        # Training-style order: control labels reversed, dims in another order.
+        return xr.DataArray(
+            np.zeros((len(dates), 2, 2)),
+            dims=("date", "control", "geo"),
+            coords={"date": dates, "control": CONTROLS[::-1], "geo": ["A", "B"]},
+        )
+
+    def test_aligns_to_window_order_and_ignores_other_dates(self):
+        planned = _plan_array().copy(data=np.arange(12.0).reshape(3, 2, 2))
+        future = PLAN_DATES[1:]
+
+        aligned = align_planned_controls(planned, self.window(PLAN_DATES), future)
+
+        assert aligned.dims == ("date", "control", "geo")
+        assert list(aligned.indexes["control"]) == CONTROLS[::-1]
+        xr.testing.assert_equal(
+            aligned,
+            planned.sel(date=future, control=CONTROLS[::-1]).transpose(*aligned.dims),
+        )
+
+    def test_unknown_dim_label_raises(self):
+        with pytest.raises(ValueError, match=r"'geo' labels the model does not have"):
+            align_planned_controls(
+                _plan_array(geo=["A", "C"]), self.window(), PLAN_DATES
+            )
+
+    @pytest.mark.parametrize(
+        "planned",
+        [
+            pytest.param(_plan_array().isel(date=slice(0, 2)), id="missing-date"),
+            pytest.param(
+                _plan_array().where(
+                    lambda da: ~((da.date == PLAN_DATES[1]) & (da.geo == "B"))
+                ),
+                id="nan",
+            ),
+        ],
+    )
+    def test_gap_raises(self, planned):
+        with pytest.raises(ValueError, match="no value, or NaN"):
+            align_planned_controls(planned, self.window(), PLAN_DATES)

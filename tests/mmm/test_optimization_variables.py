@@ -492,6 +492,16 @@ def test_lever_pack_rejects_unknown_coords():
         lever.pack(da)
 
 
+def test_lever_pack_rejects_nan_values():
+    """A plan that covers every label but holds a NaN is refused, not scored."""
+    lever = make_lever_variable()
+    da = xr.DataArray(
+        [0.3, np.nan], dims=("promo",), coords={"promo": ["spring", "fall"]}
+    )
+    with pytest.raises(ValueError, match=r"contains missing values \(NaN\)"):
+        lever.pack(da)
+
+
 def test_media_and_lever_layout_exercises_the_isel_path():
     """Two variables: the isel branch of variable_slice runs and stays correct.
 
