@@ -1,7 +1,7 @@
 (experimental-term-optimizer)=
 # Experimental term-first optimization
 
-`pymc_marketing.experimental.terms.Problem` defines an optimization over deterministic terms from a fitted `GAM`.
+`pymc_marketing.experimental.terms.Problem` defines an optimization over deterministic terms from a fitted Structural Causal Model (`SCM`).
 Construct a problem once, use `problem.evaluate(plan)` to score a concrete plan, then call `problem.solve(x0=plan)` to run the optimizer.
 The fitted model supplies parameter identities and joint posterior draws; the caller supplies the objective, bounds, constraints and scoring policy.
 This API is experimental; the stable `MMM` budget optimizer is unchanged.
@@ -21,7 +21,7 @@ The following builds two responses sharing a spend input; `train` is a labeled `
 
 ```python
 from pymc_extras.prior import Prior
-from pymc_marketing.experimental.terms import GAM, Data, Equation, MediaTransform, Problem
+from pymc_marketing.experimental.terms import SCM, Data, Equation, MediaTransform, Problem
 from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation
 
 spend = Data("spend")
@@ -40,7 +40,7 @@ signups_media = (
     (adstocked >> LogisticSaturation(prefix="signups")) * signups_scale
 ).named("signups_media")
 
-gam = GAM(
+scm = SCM(
     Equation(
         observed="sales",
         mu=sales_media.sum("channel"),
@@ -52,13 +52,13 @@ gam = GAM(
         likelihood=Prior("Normal", sigma=0.05 * signups_scale),
     ),
 )
-gam.fit(train, random_seed=42)
+scm.fit(train, random_seed=42)
 ```
 
 `MediaTransform` accepts composite expressions such as normalized spend.
 The `>>` shorthand starts directly from `Data` or another experimental graph term.
 Reuse the fitted term objects when constructing optimization expressions; a new `Parameter` with the same name is not the fitted parameter.
-After loading a saved `GAM`, select terms from the loaded equations rather than retaining objects from the original model.
+After loading a saved `SCM`, select terms from the loaded equations rather than retaining objects from the original model.
 New deterministic compositions and reductions of fitted terms are supported, including named references to fitted deterministics.
 Decision values are continuous floating-point values, including when the corresponding training data were integers or Boolean.
 Experimental numeric inputs are registered as unscaled `float64` before the fitted graph is constructed, including declared custom shared-term inputs, so integer training columns cannot insert implicit casts that truncate fractional allocations.
@@ -89,7 +89,7 @@ def late_sales_floor(evaluate, u):
 
 
 problem = Problem(
-    model=gam,
+    model=scm,
     terms={"sales": sales_media, "signups": signups_media},
     dates=initial.indexes["date"],
     objective=profit,
@@ -196,7 +196,7 @@ History is optional, fixed and explicit; carryover is a separate scoring policy:
 
 ```python
 problem = Problem(
-    model=gam,
+    model=scm,
     terms={"sales": sales_media},
     dates=initial.indexes["date"],
     history=train[["spend"]].isel(date=slice(-2, None)),
@@ -286,7 +286,7 @@ For example:
 
 ```python
 problem = Problem(
-    model=gam,
+    model=scm,
     terms=sales_media,
     dates=initial.indexes["date"],
     bounds={"spend": (0.0, float("inf"))},
@@ -340,7 +340,8 @@ A problem with all entries fixed is evaluated without running SLSQP and reports 
 
 ## Experimental API change record
 
-- Moved graph-first modeling and term-first optimization to `pymc_marketing.experimental.terms`, outside the MMM namespace. The serialized format marker remains `pymc_marketing.experimental.GAM/1`, but stores using former MMM graph-node identifiers must be recreated, refitted, and saved again; `check=False` does not migrate them.
+- Renamed the experimental support model from `GAM` to `SCM` (Structural Causal Model), with no compatibility alias. The serialized format is now `pymc_marketing.experimental.SCM/1`; older GAM stores must be recreated with `SCM`, refitted, and saved again. Causal interpretation depends on the specified assumptions; prediction does not automatically identify causal effects or perform interventions or counterfactual inference.
+- Moved graph-first modeling and term-first optimization to `pymc_marketing.experimental.terms`, outside the MMM namespace. Stores using former MMM graph-node identifiers must likewise be recreated, refitted, and saved again; `check=False` does not migrate them.
 - Replaced the synchronous `optimize` function with public `Problem`, `evaluate` and `solve`; retained `OptimizationResult` and original-unit reporting.
 - Infer decisions from selected value graphs, require explicit bounds, separate construction from the required initial plan, and reuse compiled graphs across parameter updates and starting points.
 - Separate decided dates, fixed history and scored carryover; support explicit nonzero tail data and the `evaluate.decided` helper.

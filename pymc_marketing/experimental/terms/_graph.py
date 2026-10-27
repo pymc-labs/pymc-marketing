@@ -53,7 +53,7 @@ if TYPE_CHECKING:
     from pymc_marketing.experimental.terms._terms import MediaTransform
 
 _ACTIVE_CONTEXT: ContextVar[BuildContext | None] = ContextVar(
-    "experimental_gam_build_context", default=None
+    "experimental_scm_build_context", default=None
 )
 
 

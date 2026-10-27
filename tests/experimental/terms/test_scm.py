@@ -11,7 +11,7 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
-"""Behavioral contracts of the experimental GAM: fitting, prior checks, and forecasting."""
+"""Behavioral contracts of the experimental SCM: fitting, prior checks, and forecasting."""
 
 import numpy as np
 import pandas as pd
@@ -22,7 +22,7 @@ from pymc_extras.prior import Prior
 from scipy.special import gammaln
 from scipy.stats import norm
 
-from pymc_marketing.experimental.terms import GAM, Data, Equation
+from pymc_marketing.experimental.terms import SCM, Data, Equation
 from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation
 from pymc_marketing.terms import Dot, Intercept, Parameter, Transform
 
@@ -144,29 +144,29 @@ def multi_target():
         rng.gamma(2.0, 1.0, size=(len(FUTURE_DATES), len(CHANNELS))),
         rng.uniform(1.0, 3.0, size=(len(FUTURE_DATES), len(PRODUCTS))),
     )
-    gam = GAM(_multi_target_recipe())
-    gam.fit(train, **SAMPLE_KWARGS)
-    return gam, train, future
+    scm = SCM(_multi_target_recipe())
+    scm.fit(train, **SAMPLE_KWARGS)
+    return scm, train, future
 
 
-def _forecast_mean(gam, future, **kwargs):
-    return gam.sample_posterior_predictive(
+def _forecast_mean(scm, future, **kwargs):
+    return scm.sample_posterior_predictive(
         future, var_names=["sales", "sales_mean"], **PREDICT_KWARGS, **kwargs
     )
 
 
-def _oracle_with_history(gam, train, future):
+def _oracle_with_history(scm, train, future):
     spend = np.concatenate(
         [train["spend"].values[-(L_MAX - 1) :], future["spend"].values]
     )
     return _sales_mean_oracle(
-        gam.idata["posterior"].to_dataset(), spend, future["price"].values, L_MAX - 1
+        scm.idata["posterior"].to_dataset(), spend, future["price"].values, L_MAX - 1
     )
 
 
 def test_multi_target_forecast_matches_numpy_oracle(multi_target):
-    gam, train, future = multi_target
-    prediction = _forecast_mean(gam, future)
+    scm, train, future = multi_target
+    prediction = _forecast_mean(scm, future)
 
     assert prediction["sales"].sizes == {
         "chain": 1,
@@ -181,13 +181,13 @@ def test_multi_target_forecast_matches_numpy_oracle(multi_target):
         prediction["sales_mean"]
         .transpose("chain", "draw", "date", "product", "target")
         .values,
-        _oracle_with_history(gam, train, future),
+        _oracle_with_history(scm, train, future),
         atol=1e-10,
     )
 
 
 def test_forecast_is_invariant_to_label_order(multi_target):
-    gam, _, future = multi_target
+    scm, _, future = multi_target
     reversed_labels = _multi_target_future(
         future["spend"].values[:, ::-1],
         future["price"].values,
@@ -195,33 +195,33 @@ def test_forecast_is_invariant_to_label_order(multi_target):
         coords={"target": TARGETS[::-1]},
     )
 
-    baseline = _forecast_mean(gam, future)["sales_mean"]
-    reordered = _forecast_mean(gam, reversed_labels)["sales_mean"]
+    baseline = _forecast_mean(scm, future)["sales_mean"]
+    reordered = _forecast_mean(scm, reversed_labels)["sales_mean"]
 
     assert list(reordered["target"].values) == TARGETS
     np.testing.assert_allclose(reordered.values, baseline.values, atol=1e-10)
 
 
 def test_forecast_responds_to_future_spend(multi_target):
-    gam, train, future = multi_target
+    scm, train, future = multi_target
     scaled = future.assign(spend=future["spend"] * 1.7)
 
-    baseline = _forecast_mean(gam, future)["sales_mean"]
-    prediction = _forecast_mean(gam, scaled)["sales_mean"]
+    baseline = _forecast_mean(scm, future)["sales_mean"]
+    prediction = _forecast_mean(scm, scaled)["sales_mean"]
 
     assert not np.allclose(prediction.values, baseline.values)
     np.testing.assert_allclose(
         prediction.transpose("chain", "draw", "date", "product", "target").values,
-        _oracle_with_history(gam, train, scaled),
+        _oracle_with_history(scm, train, scaled),
         atol=1e-10,
     )
 
 
 def test_forecast_without_history_pads_with_zeros(multi_target):
-    gam, _, future = multi_target
+    scm, _, future = multi_target
 
-    with_history = _forecast_mean(gam, future)["sales_mean"]
-    scenario = _forecast_mean(gam, future, include_last_observations=False)[
+    with_history = _forecast_mean(scm, future)["sales_mean"]
+    scenario = _forecast_mean(scm, future, include_last_observations=False)[
         "sales_mean"
     ]
 
@@ -229,7 +229,7 @@ def test_forecast_without_history_pads_with_zeros(multi_target):
     np.testing.assert_allclose(
         scenario.transpose("chain", "draw", "date", "product", "target").values,
         _sales_mean_oracle(
-            gam.idata["posterior"].to_dataset(),
+            scm.idata["posterior"].to_dataset(),
             future["spend"].values,
             future["price"].values,
             0,
@@ -261,38 +261,38 @@ def test_forecast_without_history_pads_with_zeros(multi_target):
     ],
 )
 def test_forecast_rejects_inconsistent_future_data(multi_target, alter, match):
-    gam, _, future = multi_target
+    scm, _, future = multi_target
     with pytest.raises(ValueError, match=match):
-        _forecast_mean(gam, alter(future))
+        _forecast_mean(scm, alter(future))
 
 
 def test_build_model_requires_every_observation_variable():
     train = _multi_target_training().drop_vars("sales")
     with pytest.raises(ValueError, match="missing observations 'sales'"):
-        GAM(_multi_target_recipe()).build_model(train)
+        SCM(_multi_target_recipe()).build_model(train)
 
 
 def test_forecast_leaves_fit_untouched(multi_target):
-    gam, train, future = multi_target
-    fitted_model = gam.model
+    scm, train, future = multi_target
+    fitted_model = scm.model
     train_before = train.copy(deep=True)
-    posterior_before = gam.idata["posterior"].to_dataset().copy(deep=True)
+    posterior_before = scm.idata["posterior"].to_dataset().copy(deep=True)
 
-    _forecast_mean(gam, future.isel(channel=slice(None, None, -1)))
+    _forecast_mean(scm, future.isel(channel=slice(None, None, -1)))
 
-    assert gam.model is fitted_model
+    assert scm.model is fitted_model
     xr.testing.assert_identical(train, train_before)
-    xr.testing.assert_identical(gam.idata["posterior"].to_dataset(), posterior_before)
+    xr.testing.assert_identical(scm.idata["posterior"].to_dataset(), posterior_before)
 
 
 def test_prior_predictive_samples_every_equation_without_touching_the_fit(
     multi_target,
 ):
-    gam, train, _ = multi_target
-    fitted_model = gam.model
-    posterior_before = gam.idata["posterior"].to_dataset().copy(deep=True)
+    scm, train, _ = multi_target
+    fitted_model = scm.model
+    posterior_before = scm.idata["posterior"].to_dataset().copy(deep=True)
 
-    prior = gam.sample_prior_predictive(train, draws=25, random_seed=3)
+    prior = scm.sample_prior_predictive(train, draws=25, random_seed=3)
 
     assert sorted(prior.children) == ["observed_data", "prior", "prior_predictive"]
     assert prior["prior_predictive"]["sales"].sizes == {
@@ -305,14 +305,14 @@ def test_prior_predictive_samples_every_equation_without_touching_the_fit(
     assert (
         prior["prior"]["sales_mean"].sizes == prior["prior_predictive"]["sales"].sizes
     )
-    assert gam.model is fitted_model
-    xr.testing.assert_identical(gam.idata["posterior"].to_dataset(), posterior_before)
+    assert scm.model is fitted_model
+    xr.testing.assert_identical(scm.idata["posterior"].to_dataset(), posterior_before)
 
 
 def test_prior_predictive_requires_observations():
     train = _multi_target_training().drop_vars("sales")
     with pytest.raises(ValueError, match="missing observations 'sales'"):
-        GAM(_multi_target_recipe()).sample_prior_predictive(train, draws=5)
+        SCM(_multi_target_recipe()).sample_prior_predictive(train, draws=5)
 
 
 DRIVER = np.array([0.5, 1.0, 1.5, 2.0, 2.5])
@@ -359,9 +359,9 @@ def shared_slope():
         mu=slope,
         likelihood=Prior("Normal", sigma=0.2),
     )
-    gam = GAM(revenue, orders, calibration)
-    gam.fit(_shared_slope_training(), **SAMPLE_KWARGS)
-    return gam
+    scm = SCM(revenue, orders, calibration)
+    scm.fit(_shared_slope_training(), **SAMPLE_KWARGS)
+    return scm
 
 
 def _shared_slope_logp(slope):
@@ -445,8 +445,8 @@ def conditioning():
         mu=Parameter("beta", Prior("Normal")) * search,
         likelihood=Prior("Normal", sigma=Prior("HalfNormal")),
     )
-    gam = GAM(search, sales)
-    gam.fit(_conditioning_training(), **SAMPLE_KWARGS)
+    scm = SCM(search, sales)
+    scm.fit(_conditioning_training(), **SAMPLE_KWARGS)
     future = xr.Dataset(
         {
             "tv": ("date", np.array([1.0, 2.0, 3.0])),
@@ -454,16 +454,16 @@ def conditioning():
         },
         coords={"date": pd.date_range("2025-06-09", periods=3, freq="D")},
     )
-    return gam, future
+    return scm, future
 
 
 def test_condition_on_holds_supplied_observations_fixed(conditioning):
-    gam, future = conditioning
+    scm, future = conditioning
 
-    conditioned = gam.sample_posterior_predictive(
+    conditioned = scm.sample_posterior_predictive(
         future, condition_on=["search"], **PREDICT_KWARGS
     )
-    generated = gam.sample_posterior_predictive(
+    generated = scm.sample_posterior_predictive(
         future, condition_on=(), **PREDICT_KWARGS
     )
 
@@ -482,20 +482,20 @@ def test_condition_on_holds_supplied_observations_fixed(conditioning):
     ],
 )
 def test_condition_on_rejects_invalid_selectors(conditioning, condition_on, error):
-    gam, future = conditioning
+    scm, future = conditioning
     with pytest.raises(error):
-        gam.sample_posterior_predictive(
+        scm.sample_posterior_predictive(
             future, condition_on=condition_on, **PREDICT_KWARGS
         )
 
 
-def test_gam_rejects_invalid_equation_sets():
+def test_scm_rejects_invalid_equation_sets():
     with pytest.raises(TypeError):
-        GAM()
+        SCM()
     with pytest.raises(ValueError, match="name its observations"):
-        GAM(Equation(name="latent", mu=Parameter("a", Prior("Normal"))))
+        SCM(Equation(name="latent", mu=Parameter("a", Prior("Normal"))))
     with pytest.raises(ValueError, match="distinct"):
-        GAM(
+        SCM(
             Equation(observed="y", mu=Parameter("a", Prior("Normal"))),
             Equation(observed="y", mu=Parameter("b", Prior("Normal"))),
         )
@@ -509,7 +509,7 @@ def _scalar_training():
 
 
 def test_equation_name_defaults_to_observed_variable():
-    model = GAM(
+    model = SCM(
         Equation(observed="y", mu=Parameter("level", Prior("Normal")))
     ).build_model(_scalar_training())
 
@@ -522,7 +522,7 @@ def test_nanosecond_dates_build_with_dot_terms():
         {"x": (("date", "feature"), np.ones((4, 1))), "y": ("date", np.ones(4))},
         coords={"date": dates, "feature": ["a"]},
     )
-    model = GAM(
+    model = SCM(
         Equation(
             observed="y", mu=Dot(var_name="x", prior=Prior("Normal", dims="feature"))
         )
@@ -533,29 +533,29 @@ def test_nanosecond_dates_build_with_dot_terms():
 
 def test_specification_change_after_fit_blocks_prediction():
     likelihood = Prior("Normal", sigma=1)
-    gam = GAM(
+    scm = SCM(
         Equation(
             observed="y", mu=Parameter("level", Prior("Normal")), likelihood=likelihood
         )
     )
     train = _scalar_training()
-    gam.fit(train, **SAMPLE_KWARGS)
+    scm.fit(train, **SAMPLE_KWARGS)
 
     likelihood.parameters["sigma"] = 3
 
     with pytest.raises(RuntimeError, match="specification changed"):
-        gam.sample_posterior_predictive(train, **PREDICT_KWARGS)
+        scm.sample_posterior_predictive(train, **PREDICT_KWARGS)
 
 
 def test_failed_rebuild_clears_previous_fit():
-    gam = GAM(Equation(observed="y", mu=Parameter("level", Prior("Normal"))))
+    scm = SCM(Equation(observed="y", mu=Parameter("level", Prior("Normal"))))
     train = _scalar_training()
-    gam.fit(train, **SAMPLE_KWARGS)
+    scm.fit(train, **SAMPLE_KWARGS)
 
     with pytest.raises(ValueError, match="missing observations 'y'"):
-        gam.build_model(train.rename(y="z"))
+        scm.build_model(train.rename(y="z"))
 
-    assert gam.model is None
-    assert gam.idata is None
+    assert scm.model is None
+    assert scm.idata is None
     with pytest.raises(RuntimeError, match="fit before"):
-        gam.sample_posterior_predictive(train, **PREDICT_KWARGS)
+        scm.sample_posterior_predictive(train, **PREDICT_KWARGS)

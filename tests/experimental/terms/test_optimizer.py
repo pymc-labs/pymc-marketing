@@ -30,7 +30,7 @@ from pytensor.tensor.shape import Shape_i
 from pytensor.xtensor.type import XTensorVariable, as_xtensor
 
 from pymc_marketing.experimental.terms import (
-    GAM,
+    SCM,
     Data,
     Equation,
     MediaTransform,
@@ -67,7 +67,7 @@ SAMPLE_KWARGS = {
 
 @dataclass
 class FittedProblem:
-    model: GAM
+    model: SCM
     train: xr.Dataset
     future: xr.Dataset
     spend: Data
@@ -84,7 +84,7 @@ class FittedProblem:
 
 @dataclass
 class DatedConstantProblem:
-    model: GAM
+    model: SCM
     train: xr.Dataset
     level: Data
     constant: xr.DataArray
@@ -93,7 +93,7 @@ class DatedConstantProblem:
 
 @dataclass
 class UnlabeledConstantProblem:
-    model: GAM
+    model: SCM
     train: xr.Dataset
     spend: Data
     labeled: Any
@@ -180,7 +180,7 @@ def fitted() -> FittedProblem:
         + level
     ).named("sales_mean")
     dated = Parameter("dated_beta", Prior("Normal", mu=0.2, sigma=0.05, dims="date"))
-    model = GAM(
+    model = SCM(
         Equation(observed="sales", mu=mean, likelihood=Prior("Normal", sigma=0.05)),
         Equation(observed="left_obs", mu=left, likelihood=Prior("Normal", sigma=0.05)),
         Equation(
@@ -234,7 +234,7 @@ def dated_constant_fitted() -> DatedConstantProblem:
     )
     level = Data("level")
     term = (level * constant).named("dated_level")
-    model = GAM(
+    model = SCM(
         Equation(
             observed="sales",
             mu=term + Parameter("offset", Prior("Normal", sigma=1.0)),
@@ -268,7 +268,7 @@ def unlabeled_constant_fitted(fitted: FittedProblem) -> UnlabeledConstantProblem
         * factor.values
     )
     train = train.assign(constant_obs=(("date", "channel"), observations))
-    model = GAM(
+    model = SCM(
         Equation(
             observed="constant_obs",
             mu=unlabeled,
@@ -1367,7 +1367,7 @@ def test_public_fit_save_load_and_solve_preserves_posterior_behavior(
 ) -> None:
     path = tmp_path / "optimizer.zarr"
     fitted.model.save(path)
-    loaded = GAM.load(path)
+    loaded = SCM.load(path)
     media = next(
         node
         for node in walk(loaded.equations)
@@ -2280,7 +2280,7 @@ def test_fitted_date_constants_select_training_labels_without_positional_relabel
     if loaded:
         path = tmp_path / "dated-constant-optimizer.zarr"
         fitted.model.save(path)
-        model = GAM.load(path)
+        model = SCM.load(path)
         term = next(
             node
             for node in walk(model.equations)
@@ -2948,7 +2948,7 @@ def test_atomic_tuple_labels_preserve_fitted_order_and_decision_values() -> None
     )
     x = Data("x")
     beta = Parameter("beta", Prior("Normal", mu=1.0, sigma=0.2))
-    model = GAM(
+    model = SCM(
         Equation(observed="y", mu=x * beta, likelihood=Prior("Normal", sigma=0.1))
     )
     # Native PyMC honors explicit atomic tuple coordinates during inference export.
@@ -2996,7 +2996,7 @@ def test_unused_training_columns_cannot_override_fitted_input_identity(
         },
         coords={"date": pd.date_range("2025-01-01", periods=3)},
     )
-    model = GAM(
+    model = SCM(
         Equation(observed="sales", mu=signal, likelihood=Prior("Normal", sigma=0.1))
     )
     model.fit(
@@ -3256,7 +3256,7 @@ def test_dynamic_nonzero_count_cannot_hide_in_a_rebroadcast_factor(
 
 @dataclass
 class DiscreteReductionProblem:
-    model: GAM
+    model: SCM
     train: xr.Dataset
     x: Data
     total: Any
@@ -3299,7 +3299,7 @@ def discrete_reduction_fitted(
         },
         coords={"geo": ["north", "south"]},
     )
-    model = GAM(
+    model = SCM(
         Equation(
             observed="y",
             mu=beta_total + gamma * x + 0.01 * explicit + factory,
@@ -3475,7 +3475,7 @@ def custom_continuous_fitted(request: pytest.FixtureRequest) -> dict[str, Any]:
         {"x": ("geo", np.asarray([1, 3], dtype="int32")), "y": 4.0, "level": 1.0},
         coords={"geo": ["a", "b"]},
     )
-    model = GAM(
+    model = SCM(
         Equation(
             observed="y",
             mu=0.01 * terms["pure"]
@@ -3563,7 +3563,7 @@ def retained_input_fitted() -> dict[str, Any]:
         },
         coords={"geo": ["a", "b"]},
     )
-    model = GAM(
+    model = SCM(
         Equation(
             observed="canonical_y",
             mu=Data("x").sum("geo"),
@@ -3659,7 +3659,7 @@ def fitted_fourier_history() -> dict[str, Any]:
     level, spend = Data("level"), Data("spend")
     fourier = YearlyFourier(n_order=1)
     seasonal = (level + fourier).named("seasonal_level")
-    model = GAM(
+    model = SCM(
         Equation(
             observed="y", mu=seasonal + spend, likelihood=Prior("Normal", sigma=1.0)
         )
@@ -3917,7 +3917,7 @@ def test_noncanonical_fitted_inputs_reject_only_reachable_value_paths(
     train = xr.Dataset(
         {"x": ("geo", [1.0, 3.0]), "y": 4.0, "level": 1.0}, coords={"geo": ["a", "b"]}
     )
-    model = GAM(Equation(observed="y", mu=term, likelihood=Prior("Normal", sigma=0.1)))
+    model = SCM(Equation(observed="y", mu=term, likelihood=Prior("Normal", sigma=0.1)))
     model.fit(train, **{**SAMPLE_KWARGS, "random_seed": 9201})
     posterior = model.idata["posterior"].to_dataset().copy(deep=True)
     data = xr.Dataset({"x": ("geo", [0.25, 0.75])}, coords={"geo": train["geo"]})
@@ -3965,7 +3965,7 @@ def test_canonical_integer_input_graph_survives_verified_save_load(
     )
     filename = tmp_path / "canonical_inputs.zarr"
     fitted.model.save(filename)
-    loaded = GAM.load(filename)
+    loaded = SCM.load(filename)
     xr.testing.assert_identical(
         loaded.idata["posterior"].to_dataset(),
         fitted.model.idata["posterior"].to_dataset(),
@@ -4080,7 +4080,7 @@ def hierarchical_coefficient_fitted() -> dict[str, Any]:
     coefficient = HierarchicalCoefficient(prior_mu)
     level = Data("level")
     train = xr.Dataset({"level": 1.0, "y": 1.0})
-    model = GAM(
+    model = SCM(
         Equation(
             observed="y",
             mu=coefficient * level,
