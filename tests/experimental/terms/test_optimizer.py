@@ -13,6 +13,7 @@
 #   limitations under the License.
 """Original-unit, labeled, posterior-conditioned optimization contracts."""
 
+from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -30,7 +31,7 @@ from pytensor.tensor.shape import Shape_i
 from pytensor.xtensor.type import XTensorVariable, as_xtensor
 
 from pymc_marketing.experimental.terms import (
-    GAM,
+    SCM,
     Data,
     Equation,
     MediaTransform,
@@ -38,6 +39,7 @@ from pymc_marketing.experimental.terms import (
 )
 from pymc_marketing.experimental.terms._graph import walk
 from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation
+from pymc_marketing.mmm.components.adstock import NoAdstock
 from pymc_marketing.mmm.transformers import ConvMode
 from pymc_marketing.terms import (
     ModelTerm,
@@ -67,7 +69,7 @@ SAMPLE_KWARGS = {
 
 @dataclass
 class FittedProblem:
-    model: GAM
+    model: SCM
     train: xr.Dataset
     future: xr.Dataset
     spend: Data
@@ -84,7 +86,7 @@ class FittedProblem:
 
 @dataclass
 class DatedConstantProblem:
-    model: GAM
+    model: SCM
     train: xr.Dataset
     level: Data
     constant: xr.DataArray
@@ -93,7 +95,7 @@ class DatedConstantProblem:
 
 @dataclass
 class UnlabeledConstantProblem:
-    model: GAM
+    model: SCM
     train: xr.Dataset
     spend: Data
     labeled: Any
@@ -180,7 +182,7 @@ def fitted() -> FittedProblem:
         + level
     ).named("sales_mean")
     dated = Parameter("dated_beta", Prior("Normal", mu=0.2, sigma=0.05, dims="date"))
-    model = GAM(
+    model = SCM(
         Equation(observed="sales", mu=mean, likelihood=Prior("Normal", sigma=0.05)),
         Equation(observed="left_obs", mu=left, likelihood=Prior("Normal", sigma=0.05)),
         Equation(
@@ -234,7 +236,7 @@ def dated_constant_fitted() -> DatedConstantProblem:
     )
     level = Data("level")
     term = (level * constant).named("dated_level")
-    model = GAM(
+    model = SCM(
         Equation(
             observed="sales",
             mu=term + Parameter("offset", Prior("Normal", sigma=1.0)),
@@ -268,7 +270,7 @@ def unlabeled_constant_fitted(fitted: FittedProblem) -> UnlabeledConstantProblem
         * factor.values
     )
     train = train.assign(constant_obs=(("date", "channel"), observations))
-    model = GAM(
+    model = SCM(
         Equation(
             observed="constant_obs",
             mu=unlabeled,
@@ -297,6 +299,36 @@ def _arguments(fitted: FittedProblem, **changes: Any) -> dict[str, Any]:
         "bounds": {"spend": (0.0, 2.5)},
         **changes,
     }
+
+
+@pytest.fixture
+def unchanged_fitted(fitted: FittedProblem) -> Iterator[FittedProblem]:
+    scm = fitted.model
+    model, context = scm.model, scm._context
+    assert model is not None
+    assert context is not None
+    assert scm._training_data is not None
+    training = scm._training_data.copy(deep=True)
+    posterior = _posterior(fitted).copy(deep=True)
+    inputs = {name: model[name].get_value().copy() for name in context.data_variables}
+    coords = dict(model.coords)
+    source = fitted.train.copy(deep=True)
+    future = fitted.future.copy(deep=True)
+    saturation = fitted.media.expr.transformation
+    prior = saturation.function_priors["beta"].to_dict()
+
+    yield fitted
+
+    assert scm.model is model
+    assert scm._context is context
+    assert model.coords == coords
+    xr.testing.assert_identical(scm._training_data, training)
+    xr.testing.assert_identical(_posterior(fitted), posterior)
+    xr.testing.assert_identical(fitted.train, source)
+    xr.testing.assert_identical(fitted.future, future)
+    assert saturation.function_priors["beta"].to_dict() == prior
+    for name, before in inputs.items():
+        np.testing.assert_array_equal(model[name].get_value(), before)
 
 
 @pytest.mark.parametrize("weight", [0.25, 0.75])
@@ -1367,7 +1399,7 @@ def test_public_fit_save_load_and_solve_preserves_posterior_behavior(
 ) -> None:
     path = tmp_path / "optimizer.zarr"
     fitted.model.save(path)
-    loaded = GAM.load(path)
+    loaded = SCM.load(path)
     media = next(
         node
         for node in walk(loaded.equations)
@@ -2280,7 +2312,7 @@ def test_fitted_date_constants_select_training_labels_without_positional_relabel
     if loaded:
         path = tmp_path / "dated-constant-optimizer.zarr"
         fitted.model.save(path)
-        model = GAM.load(path)
+        model = SCM.load(path)
         term = next(
             node
             for node in walk(model.equations)
@@ -2948,7 +2980,7 @@ def test_atomic_tuple_labels_preserve_fitted_order_and_decision_values() -> None
     )
     x = Data("x")
     beta = Parameter("beta", Prior("Normal", mu=1.0, sigma=0.2))
-    model = GAM(
+    model = SCM(
         Equation(observed="y", mu=x * beta, likelihood=Prior("Normal", sigma=0.1))
     )
     # Native PyMC honors explicit atomic tuple coordinates during inference export.
@@ -2996,7 +3028,7 @@ def test_unused_training_columns_cannot_override_fitted_input_identity(
         },
         coords={"date": pd.date_range("2025-01-01", periods=3)},
     )
-    model = GAM(
+    model = SCM(
         Equation(observed="sales", mu=signal, likelihood=Prior("Normal", sigma=0.1))
     )
     model.fit(
@@ -3256,7 +3288,7 @@ def test_dynamic_nonzero_count_cannot_hide_in_a_rebroadcast_factor(
 
 @dataclass
 class DiscreteReductionProblem:
-    model: GAM
+    model: SCM
     train: xr.Dataset
     x: Data
     total: Any
@@ -3299,7 +3331,7 @@ def discrete_reduction_fitted(
         },
         coords={"geo": ["north", "south"]},
     )
-    model = GAM(
+    model = SCM(
         Equation(
             observed="y",
             mu=beta_total + gamma * x + 0.01 * explicit + factory,
@@ -3475,7 +3507,7 @@ def custom_continuous_fitted(request: pytest.FixtureRequest) -> dict[str, Any]:
         {"x": ("geo", np.asarray([1, 3], dtype="int32")), "y": 4.0, "level": 1.0},
         coords={"geo": ["a", "b"]},
     )
-    model = GAM(
+    model = SCM(
         Equation(
             observed="y",
             mu=0.01 * terms["pure"]
@@ -3563,7 +3595,7 @@ def retained_input_fitted() -> dict[str, Any]:
         },
         coords={"geo": ["a", "b"]},
     )
-    model = GAM(
+    model = SCM(
         Equation(
             observed="canonical_y",
             mu=Data("x").sum("geo"),
@@ -3659,7 +3691,7 @@ def fitted_fourier_history() -> dict[str, Any]:
     level, spend = Data("level"), Data("spend")
     fourier = YearlyFourier(n_order=1)
     seasonal = (level + fourier).named("seasonal_level")
-    model = GAM(
+    model = SCM(
         Equation(
             observed="y", mu=seasonal + spend, likelihood=Prior("Normal", sigma=1.0)
         )
@@ -3917,7 +3949,7 @@ def test_noncanonical_fitted_inputs_reject_only_reachable_value_paths(
     train = xr.Dataset(
         {"x": ("geo", [1.0, 3.0]), "y": 4.0, "level": 1.0}, coords={"geo": ["a", "b"]}
     )
-    model = GAM(Equation(observed="y", mu=term, likelihood=Prior("Normal", sigma=0.1)))
+    model = SCM(Equation(observed="y", mu=term, likelihood=Prior("Normal", sigma=0.1)))
     model.fit(train, **{**SAMPLE_KWARGS, "random_seed": 9201})
     posterior = model.idata["posterior"].to_dataset().copy(deep=True)
     data = xr.Dataset({"x": ("geo", [0.25, 0.75])}, coords={"geo": train["geo"]})
@@ -3965,7 +3997,7 @@ def test_canonical_integer_input_graph_survives_verified_save_load(
     )
     filename = tmp_path / "canonical_inputs.zarr"
     fitted.model.save(filename)
-    loaded = GAM.load(filename)
+    loaded = SCM.load(filename)
     xr.testing.assert_identical(
         loaded.idata["posterior"].to_dataset(),
         fitted.model.idata["posterior"].to_dataset(),
@@ -4080,7 +4112,7 @@ def hierarchical_coefficient_fitted() -> dict[str, Any]:
     coefficient = HierarchicalCoefficient(prior_mu)
     level = Data("level")
     train = xr.Dataset({"level": 1.0, "y": 1.0})
-    model = GAM(
+    model = SCM(
         Equation(
             observed="y",
             mu=coefficient * level,
@@ -5324,3 +5356,474 @@ def test_plain_tensor_date_reductions_preserve_nondate_score_equivalence(
         np.testing.assert_allclose(result.allocation["spend"], 2.5, atol=1e-7)
         np.testing.assert_allclose(result.objective, expected_objective, rtol=1e-10)
     xr.testing.assert_allclose(named.allocation, tensor.allocation, atol=1e-7)
+
+
+@pytest.mark.parametrize(
+    "kind, exception",
+    [
+        ("empty-terms", TypeError),
+        ("unnamed-term", TypeError),
+        ("unlabeled-dates", TypeError),
+        ("no-decision", ValueError),
+        ("unknown-reference", ValueError),
+        ("unnamed-bounds", TypeError),
+    ],
+)
+def test_problem_admission_requires_named_terms_dates_and_decisions(
+    unchanged_fitted: FittedProblem, kind: str, exception: type[Exception]
+) -> None:
+    fitted = unchanged_fitted
+    changes = {
+        "empty-terms": {"terms": {}},
+        "unnamed-term": {"terms": {"": fitted.media}},
+        "unlabeled-dates": {"dates": fitted.future["date"].values},
+        "no-decision": {"terms": fitted.dated, "bounds": {}},
+        "unknown-reference": {"terms": Ref("missing_mean")},
+        "unnamed-bounds": {"bounds": [("spend", (0.0, 2.5))]},
+    }[kind]
+    with pytest.raises(exception):
+        Problem(**_arguments(fitted, **changes))
+
+
+@pytest.mark.parametrize(
+    "pair, exception",
+    [
+        pytest.param((0.0,), ValueError, id="incomplete-pair"),
+        pytest.param((np.zeros(2), 2.5), TypeError, id="unlabeled-endpoint"),
+        pytest.param((2.5, 0.0), ValueError, id="reversed-interval"),
+        pytest.param((np.inf, np.inf), ValueError, id="fixed-infinity"),
+    ],
+)
+def test_decision_bounds_require_labeled_endpoints_and_a_real_ordered_interval(
+    unchanged_fitted: FittedProblem, pair: Any, exception: type[Exception]
+) -> None:
+    with pytest.raises(exception):
+        Problem(**_arguments(unchanged_fitted, bounds={"spend": pair}))
+
+
+@pytest.mark.parametrize(
+    "scaling, exception",
+    [
+        pytest.param("manual", ValueError, id="unsupported-mode"),
+        pytest.param({"constraint": 1.0}, ValueError, id="unknown-setting"),
+        pytest.param({"decisions": [1.0]}, TypeError, id="unnamed-scales"),
+        pytest.param({"decisions": {"price": 1.0}}, ValueError, id="unknown-decision"),
+    ],
+)
+def test_scaling_configuration_requires_known_settings_and_decision_names(
+    unchanged_fitted: FittedProblem, scaling: Any, exception: type[Exception]
+) -> None:
+    with pytest.raises(exception):
+        Problem(**_arguments(unchanged_fitted, scaling=scaling))
+
+
+@pytest.mark.parametrize(
+    "parameters",
+    [
+        pytest.param([("target", 1.0)], id="not-a-mapping"),
+        pytest.param({"": 1.0}, id="empty-name"),
+        pytest.param({"target": np.ones(2)}, id="unlabeled-array"),
+    ],
+)
+def test_parameter_defaults_require_names_and_scalar_or_labeled_values(
+    unchanged_fitted: FittedProblem, parameters: Any
+) -> None:
+    with pytest.raises(TypeError):
+        Problem(**_arguments(unchanged_fitted, parameters=parameters))
+
+
+def test_nonmapping_parameter_overrides_do_not_replace_declared_defaults(
+    unchanged_fitted: FittedProblem,
+) -> None:
+    fitted = unchanged_fitted
+    problem = Problem(
+        **_arguments(
+            fitted,
+            terms=fitted.level,
+            objective=lambda e, u: -((e(u)["term"] - e.parameter("target")) ** 2),
+            bounds={"level": (0.0, 3.0)},
+            parameters={"target": 2.0},
+        )
+    )
+    initial = xr.Dataset({"level": 1.0})
+    with pytest.raises(TypeError):
+        problem.solve(initial, parameters=[("target", 1.5)])
+    result = problem.solve(initial, options={"ftol": 1e-12})
+    assert result.scipy.success and result.feasible
+    np.testing.assert_allclose(result.allocation["level"], 2.0, atol=1e-8)
+    np.testing.assert_allclose(result.objective, 0.0, atol=1e-12)
+
+
+@pytest.mark.parametrize("kind", ["unsupported-kind", "noncallable-residual"])
+def test_constraint_declarations_require_a_supported_kind_and_symbolic_residual(
+    unchanged_fitted: FittedProblem, kind: str
+) -> None:
+    fitted = unchanged_fitted
+    constraint = {
+        "type": "less-than" if kind == "unsupported-kind" else "ineq",
+        "fun": (lambda e, u: u["level"]) if kind == "unsupported-kind" else 1.0,
+    }
+    with pytest.raises(ValueError):
+        Problem(
+            **_arguments(
+                fitted,
+                terms=fitted.level,
+                objective=lambda e, u: e(u)["term"],
+                bounds={"level": (0.0, 3.0)},
+                constraints=[constraint],
+            )
+        )
+
+
+@pytest.mark.parametrize(
+    "kind, exception",
+    [
+        ("not-a-dataset", TypeError),
+        ("missing-input", ValueError),
+        ("missing-dates", ValueError),
+        ("overlapping-dates", ValueError),
+        ("broadcast-dimensions", ValueError),
+    ],
+)
+def test_history_requires_measured_dated_inputs_strictly_before_decisions(
+    unchanged_fitted: FittedProblem, kind: str, exception: type[Exception]
+) -> None:
+    fitted = unchanged_fitted
+    history = fitted.train[["spend"]].isel(date=slice(-2, None)).copy(deep=True)
+    invalid = {
+        "not-a-dataset": history["spend"],
+        "missing-input": history.drop_vars("spend"),
+        "missing-dates": history.isel(date=0, drop=True),
+        "overlapping-dates": fitted.future[["spend"]].isel(date=slice(0, 1)),
+        "broadcast-dimensions": history.sum("channel"),
+    }[kind]
+    before = invalid.copy(deep=True)
+    with pytest.raises(exception):
+        Problem(**_arguments(fitted, history=invalid))
+    xr.testing.assert_identical(invalid, before)
+
+
+@pytest.mark.parametrize(
+    "kind", ["negative-count", "missing-dates", "overlapping-dates", "dimensions"]
+)
+def test_carryover_requires_a_nonnegative_count_or_matching_future_rows(
+    unchanged_fitted: FittedProblem, kind: str
+) -> None:
+    fitted = unchanged_fitted
+    tail_dates = pd.date_range(
+        fitted.future.indexes["date"][-1] + pd.Timedelta(weeks=1),
+        periods=2,
+        freq="W-MON",
+    )
+    tail = fitted.future[["spend"]].isel(date=slice(0, 2)).copy(deep=True)
+    tail = tail.assign_coords(date=tail_dates)
+    invalid = {
+        "negative-count": -1,
+        "missing-dates": tail.isel(date=0, drop=True),
+        "overlapping-dates": tail.assign_coords(
+            date=tail_dates - pd.Timedelta(weeks=1)
+        ),
+        "dimensions": tail.sum("channel"),
+    }[kind]
+    before = invalid.copy(deep=True) if isinstance(invalid, xr.Dataset) else invalid
+    with pytest.raises(ValueError):
+        Problem(**_arguments(fitted, carryover=invalid))
+    if isinstance(invalid, xr.Dataset):
+        xr.testing.assert_identical(invalid, before)
+
+
+@pytest.mark.parametrize(
+    "kind, exception",
+    [
+        ("not-a-plan", TypeError),
+        ("unlabeled-input", TypeError),
+        ("unlabeled-dimension", ValueError),
+    ],
+)
+def test_evaluation_requires_labeled_plan_arrays_without_poisoning_the_problem(
+    unchanged_fitted: FittedProblem, kind: str, exception: type[Exception]
+) -> None:
+    fitted = unchanged_fitted
+    problem = Problem(**_arguments(fitted))
+    plan = fitted.future[["spend"]]
+    invalid = {
+        "not-a-plan": plan["spend"].values,
+        "unlabeled-input": {"spend": plan["spend"].values},
+        "unlabeled-dimension": {"spend": plan["spend"].drop_vars("channel")},
+    }[kind]
+    with pytest.raises(exception):
+        problem.evaluate(invalid)
+    np.testing.assert_allclose(
+        problem.evaluate(plan)["term"].transpose("sample", "date", "channel"),
+        _media(_posterior(fitted), plan["spend"].values).reshape(
+            (-1, plan.sizes["date"], len(CHANNELS))
+        ),
+        atol=1e-10,
+    )
+
+
+@pytest.mark.parametrize(
+    "kind, exception",
+    [
+        ("missing-input", ValueError),
+        ("unnamed-tensor", TypeError),
+        ("broadcast-input", ValueError),
+        ("scored-input", ValueError),
+    ],
+)
+def test_symbolic_evaluation_requires_exact_decided_inputs_not_scored_tail_rows(
+    unchanged_fitted: FittedProblem, kind: str, exception: type[Exception]
+) -> None:
+    fitted = unchanged_fitted
+
+    def objective(evaluate: Any, u: dict[str, XTensorVariable]) -> XTensorVariable:
+        if kind == "missing-input":
+            inputs = {}
+        elif kind == "unnamed-tensor":
+            inputs = {"spend": u["spend"].values}
+        elif kind == "broadcast-input":
+            inputs = {"spend": u["spend"].sum("channel")}
+        else:
+            inputs = {"spend": evaluate(u)["term"]}
+        return evaluate(inputs)["term"].sum("date").sum("channel")
+
+    with pytest.raises(exception):
+        Problem(
+            **_arguments(
+                fitted,
+                terms=fitted.spend,
+                carryover=2 if kind == "scored-input" else 0,
+                objective=objective,
+            )
+        )
+
+
+@pytest.mark.parametrize(
+    "kind, exception",
+    [
+        ("constant-array", TypeError),
+        ("constant-without-labels", ValueError),
+        ("decided-plain-tensor", TypeError),
+    ],
+)
+def test_scoring_helpers_require_labeled_constants_and_named_symbolic_outputs(
+    unchanged_fitted: FittedProblem, kind: str, exception: type[Exception]
+) -> None:
+    fitted = unchanged_fitted
+
+    def objective(evaluate: Any, u: dict[str, XTensorVariable]) -> XTensorVariable:
+        if kind == "decided-plain-tensor":
+            factor = evaluate.decided(u["spend"].values)
+        elif kind == "constant-array":
+            factor = evaluate.constant(np.ones(len(CHANNELS)))
+        else:
+            factor = evaluate.constant(xr.DataArray(np.ones(2), dims="channel"))
+        return (evaluate(u)["term"] * factor).sum("date").sum("channel")
+
+    with pytest.raises(exception):
+        Problem(
+            **_arguments(
+                fitted,
+                terms=fitted.spend,
+                objective=objective,
+            )
+        )
+
+
+@pytest.mark.parametrize("kind", ["unlabeled-output", "undeclared-shared-input"])
+def test_new_deterministic_wrappers_require_output_labels_and_declared_inputs(
+    unchanged_fitted: FittedProblem, kind: str
+) -> None:
+    fitted = unchanged_fitted
+    if kind == "unlabeled-output":
+        term = Transform(
+            fitted.spend,
+            lambda value: as_xtensor(value.values, dims=("date", "market")),
+        )
+    else:
+        with pm.Model():
+            multiplier = pmd.Data("undeclared_multiplier", xr.DataArray(2.0))
+        term = Transform(fitted.spend, lambda value: value * multiplier)
+    with pytest.raises(ValueError):
+        Problem(**_arguments(fitted, terms=term))
+    if kind == "undeclared-shared-input":
+        assert float(multiplier.get_value()) == 2.0
+
+
+@pytest.mark.parametrize(
+    "transform, expected",
+    [
+        pytest.param(ptx.math.log, np.log(4.0), id="nonfinite-score"),
+        pytest.param(ptx.math.sqrt, 2.0, id="nonfinite-derivative"),
+    ],
+)
+def test_nonfinite_initial_scores_and_derivatives_do_not_poison_later_solves(
+    unchanged_fitted: FittedProblem, transform: Any, expected: float
+) -> None:
+    fitted = unchanged_fitted
+    problem = Problem(
+        **_arguments(
+            fitted,
+            terms=Transform(fitted.level, transform),
+            objective=lambda e, u: e(u)["term"],
+            bounds={"level": (0.0, 4.0)},
+        )
+    )
+    with np.errstate(divide="ignore", invalid="ignore"), pytest.raises(ValueError):
+        problem.solve(xr.Dataset({"level": 0.0}))
+    result = problem.solve(xr.Dataset({"level": 1.0}), options={"ftol": 1e-12})
+    assert result.scipy.success and result.feasible
+    np.testing.assert_allclose(result.allocation["level"], 4.0, atol=1e-7)
+    np.testing.assert_allclose(result.objective, expected, atol=1e-10)
+    np.testing.assert_allclose(
+        problem.evaluate(result.allocation)["term"], expected, atol=1e-10
+    )
+
+
+def test_finite_bounds_cannot_overflow_the_declared_decision_scale(
+    unchanged_fitted: FittedProblem,
+) -> None:
+    fitted = unchanged_fitted
+    problem = Problem(
+        **_arguments(
+            fitted,
+            terms=fitted.level,
+            objective=lambda e, u: e(u)["term"],
+            bounds={"level": (0.0, 3.0)},
+            scaling={"decisions": {"level": np.nextafter(0.0, 1.0)}},
+        )
+    )
+    initial = xr.Dataset({"level": 1.0})
+    with pytest.raises(ValueError):
+        problem.solve(initial)
+    xr.testing.assert_allclose(problem.evaluate(initial), xr.Dataset({"term": 1.0}))
+
+
+def test_unscaled_solves_report_identity_scales_and_original_unit_residuals(
+    unchanged_fitted: FittedProblem,
+) -> None:
+    fitted = unchanged_fitted
+    problem = Problem(
+        **_arguments(
+            fitted,
+            terms=fitted.level,
+            objective=lambda e, u: -((e(u)["term"] - 1.5) ** 2),
+            bounds={"level": (0.0, 3.0)},
+            constraints=[{"type": "ineq", "fun": lambda e, u: u["level"] - 1.25}],
+            scaling=None,
+        )
+    )
+    result = problem.solve(xr.Dataset({"level": 1.0}), options={"ftol": 1e-12})
+    assert result.scipy.success and result.feasible
+    np.testing.assert_allclose(result.allocation["level"], 1.5, atol=1e-8)
+    np.testing.assert_allclose(result.objective, 0.0, atol=1e-12)
+    assert float(result.decision_centers["level"]) == 0.0
+    assert float(result.decision_scales["level"]) == 1.0
+    assert result.objective_scale == 1.0
+    xr.testing.assert_allclose(result.constraints[0], xr.DataArray(0.25), atol=1e-8)
+    xr.testing.assert_identical(result.constraint_scales[0], xr.DataArray(1.0))
+    assert result.max_bound_violation == 0.0
+    assert result.max_constraint_violation == 0.0
+
+
+def test_output_date_parameters_weight_fixed_tail_without_becoming_decisions(
+    unchanged_fitted: FittedProblem,
+) -> None:
+    fitted = unchanged_fitted
+    initial = fitted.future[["price"]]
+    dates = pd.date_range(initial.indexes["date"][0], periods=5, freq="W-MON")
+    tail = xr.Dataset({"price": ("date", [5.0, 7.0])}, coords={"date": dates[-2:]})
+    weights = xr.DataArray(
+        [1.0, 2.0, 3.0, 4.0, 5.0], dims="date", coords={"date": dates}
+    )
+    declared = weights.isel(date=[4, 1, 3, 0, 2]).copy(deep=True)
+    problem = Problem(
+        **_arguments(
+            fitted,
+            terms=fitted.price,
+            objective=lambda e, u: (e(u)["term"] * e.parameter("weights")).sum("date"),
+            bounds={"price": (0.0, 2.0)},
+            carryover=tail,
+            parameters={"weights": declared},
+        )
+    )
+    declared.values[:] = 0.0
+    override_weights = weights.copy(data=weights.values[::-1])
+    override = override_weights.isel(date=[2, 4, 0, 1, 3]).copy(deep=True)
+    changed = problem.solve(
+        initial, parameters={"weights": override}, options={"ftol": 1e-12}
+    )
+    override.values[:] = 0.0
+    default = problem.solve(initial, options={"ftol": 1e-12})
+    output = xr.concat([xr.full_like(initial["price"], 2.0), tail["price"]], dim="date")
+    for result, expected_weights in (
+        (changed, override_weights),
+        (default, weights),
+    ):
+        assert result.scipy.success and result.feasible
+        xr.testing.assert_allclose(
+            result.allocation["price"], xr.full_like(initial["price"], 2.0), atol=1e-8
+        )
+        np.testing.assert_array_equal(result.allocation["date"], initial["date"])
+        xr.testing.assert_allclose(problem.evaluate(result.allocation)["term"], output)
+        np.testing.assert_allclose(
+            result.objective, float((output * expected_weights).sum()), atol=1e-9
+        )
+
+
+def test_forecasts_select_frozen_dated_draws_by_label_and_reject_new_dates(
+    unchanged_fitted: FittedProblem,
+) -> None:
+    fitted = unchanged_fitted
+    subset = fitted.train.isel(date=[2, 4, 7])
+    prediction = fitted.model.sample_posterior_predictive(
+        subset,
+        var_names="dated_beta",
+        include_last_observations=False,
+        random_seed=9138,
+        progressbar=False,
+    )
+    expected = _posterior(fitted)["dated_beta"].sel(date=subset["date"])
+    xr.testing.assert_allclose(
+        prediction["dated_beta"].transpose(*expected.dims), expected
+    )
+    with pytest.raises(ValueError):
+        fitted.model.sample_posterior_predictive(
+            subset.assign_coords(date=subset["date"] + pd.Timedelta(weeks=52)),
+            var_names="dated_beta",
+            include_last_observations=False,
+            random_seed=9138,
+            progressbar=False,
+        )
+
+
+@pytest.mark.parametrize("kind", ["gap", "phase"])
+def test_identity_adstock_accepts_irregular_dates_but_a_one_period_lag_does_not(
+    unchanged_fitted: FittedProblem, kind: str
+) -> None:
+    fitted = unchanged_fitted
+    initial = fitted.future[["spend"]]
+    if kind == "gap":
+        initial = initial.isel(date=[0, 2])
+    else:
+        initial = initial.assign_coords(date=initial["date"] + pd.Timedelta(days=1))
+    kwargs = _arguments(
+        fitted,
+        dates=initial.indexes["date"],
+        objective=lambda e, u: e(u)["term"].sum("date").sum("channel"),
+        bounds={"spend": (initial["spend"], initial["spend"])},
+    )
+    identity = Problem(**{**kwargs, "terms": fitted.spend >> NoAdstock(l_max=1)})
+    xr.testing.assert_allclose(identity.evaluate(initial)["term"], initial["spend"])
+    result = identity.solve(initial)
+    assert result.scipy.success and result.feasible
+    xr.testing.assert_allclose(result.allocation, initial)
+    np.testing.assert_allclose(result.objective, float(initial["spend"].sum()))
+    with pytest.raises(ValueError):
+        Problem(
+            **{
+                **kwargs,
+                "terms": fitted.spend
+                >> GeometricAdstock(l_max=1, priors={"alpha": ALPHA}),
+            }
+        )

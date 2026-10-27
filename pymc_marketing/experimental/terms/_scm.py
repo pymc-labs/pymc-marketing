@@ -44,14 +44,12 @@ _LOGP_DRAWS = 3
 _LOGP_RTOL = 1e-6
 
 
-class GAM:
-    """Fit, forecast, and save a Bayesian generalized additive model of observed equations.
+class SCM:
+    """Fit, forecast, and save a Bayesian Structural Causal Model (SCM).
 
-    Each equation's mean is a sum of terms: parameters, linear effects, media
-    response curves, seasonality, and any other ``ModelTerm``. Several equations
-    with different likelihoods can share parameters in one joint model, and any
-    distribution parameter, not only ``mu``, can be modeled. This makes the class a
-    multi-response, distributional GAM.
+    Compose equations from parameters, data, response curves, seasonality, and other ``ModelTerm`` expressions.
+    Equations can depend on other equations and share parameters in one joint model.
+    Different likelihoods and expressions for any distribution parameter, not only ``mu``, are supported.
 
     Parameters
     ----------
@@ -80,12 +78,15 @@ class GAM:
     Modifying the equations, their priors, the exposed model, or the posterior after
     fitting is unsupported; call ``fit`` again instead.
 
+    Causal interpretation depends on the assumptions encoded by the equations.
+    Prediction is forward simulation, not automatic causal identification, intervention, or counterfactual inference.
+
     Examples
     --------
     .. code-block:: python
 
         from pymc_extras.prior import Prior
-        from pymc_marketing.experimental.terms import GAM, Data, Equation
+        from pymc_marketing.experimental.terms import SCM, Data, Equation
         from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation
         from pymc_marketing.terms import Intercept
 
@@ -99,13 +100,13 @@ class GAM:
             mu=Intercept(prior=Prior("Normal", sigma=2)) + response.sum("channel"),
             likelihood=Prior("Normal", sigma=Prior("HalfNormal", sigma=2)),
         )
-        gam = GAM(sales)
+        scm = SCM(sales)
         # train: xr.Dataset with spend(date, channel) and sales(date)
-        # prior = gam.sample_prior_predictive(train)
-        # gam.fit(train)
-        # gam.save("model.zarr")
-        # gam = GAM.load("model.zarr")
-        # gam.sample_posterior_predictive(future)
+        # prior = scm.sample_prior_predictive(train)
+        # scm.fit(train)
+        # scm.save("model.zarr")
+        # scm = SCM.load("model.zarr")
+        # scm.sample_posterior_predictive(future)
     """
 
     def __init__(self, *equations: Equation) -> None:
@@ -127,9 +128,9 @@ class GAM:
         if not self._roots or any(
             not isinstance(root, Equation) for root in self._roots
         ):
-            raise TypeError("GAM requires one or more Equation instances.")
+            raise TypeError("SCM requires one or more Equation instances.")
         if any(root.observed is None for root in self._roots):
-            raise ValueError("Each equation given to GAM must name its observations.")
+            raise ValueError("Each equation given to SCM must name its observations.")
         names = [root.name or root.observed for root in self._roots]
         if len(set(names)) != len(names):
             raise ValueError("Equation names must be distinct.")
@@ -328,7 +329,7 @@ class GAM:
                         archive.write(file, file.relative_to(store).as_posix())
 
     @classmethod
-    def load(cls, path: str | Path, *, check: bool = True) -> GAM:
+    def load(cls, path: str | Path, *, check: bool = True) -> SCM:
         """Load a model written by ``save``, ready for prediction.
 
         Parameters
@@ -342,7 +343,7 @@ class GAM:
 
         Returns
         -------
-        GAM
+        SCM
             A fitted model. Posterior arrays load lazily when first used.
 
         Raises
@@ -359,22 +360,22 @@ class GAM:
             consolidated=False,
         )
         if "spec" not in tree.attrs or "fit_data" not in tree.children:
-            raise ValueError(f"{str(path)!r} is not a model saved by GAM.save.")
-        gam = cls(*spec_from_dict(tree.attrs["spec"]))
-        model = gam.build_model(_native_strings(tree["fit_data"].to_dataset()))
-        gam.idata = xr.DataTree.from_dict(
+            raise ValueError(f"{str(path)!r} is not a model saved by SCM.save.")
+        scm = cls(*spec_from_dict(tree.attrs["spec"]))
+        model = scm.build_model(_native_strings(tree["fit_data"].to_dataset()))
+        scm.idata = xr.DataTree.from_dict(
             {
                 f"/{name}": _native_strings(node.to_dataset())
                 for name, node in tree.children.items()
                 if name != "fit_data"
             }
         )
-        gam._fitted_key = gam._key()
+        scm._fitted_key = scm._key()
         if check:
             saved = tree.attrs["logp_check"]
             rebuilt = _joint_logp(
                 model,
-                gam.idata["posterior"].to_dataset(),
+                scm.idata["posterior"].to_dataset(),
                 saved["chain"],
                 saved["draw"],
             )
@@ -385,7 +386,7 @@ class GAM:
                     f"{tree.attrs['versions']}, loading with {_versions()}. "
                     "Pass check=False to load anyway."
                 )
-        return gam
+        return scm
 
     def _check_fitted(self) -> None:
         if self.idata is None or self._context is None or self._training_data is None:

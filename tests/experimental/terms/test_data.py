@@ -11,7 +11,7 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
-"""Labeled dataset validation contracts for the experimental GAM."""
+"""Labeled dataset validation contracts for the experimental SCM."""
 
 import numpy as np
 import pandas as pd
@@ -41,6 +41,13 @@ def test_non_dataset_inputs_are_rejected():
 )
 def test_dimensions_need_unique_nonmissing_labels(ds):
     with pytest.raises(ValueError, match="geo"):
+        validate_dataset(ds)
+
+
+def test_dimensions_need_nonempty_string_names():
+    ds = xr.Dataset({"y": (("",), [1.0, 2.0])}, coords={"": ["a", "b"]})
+
+    with pytest.raises(ValueError):
         validate_dataset(ds)
 
 

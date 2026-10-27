@@ -35,7 +35,7 @@
 
 ## Experimental graph-first terms
 
-`pymc_marketing.experimental.terms` provides graph-first generalized additive models and term-first optimization.
+`pymc_marketing.experimental.terms` provides graph-first Structural Causal Models (SCMs) and term-first optimization.
 Shared primitives remain in `pymc_marketing.terms`, and MMM components remain in `pymc_marketing.mmm`.
 These APIs are under active development and do not replace the stable `MMM` optimizer.
 See the [term-first optimization guide](../guide/mmm/experimental_optimizer.md) for the `Problem` → `evaluate` → `solve` workflow.
@@ -45,7 +45,7 @@ See the [term-first optimization guide](../guide/mmm/experimental_optimizer.md) 
 .. autosummary::
   :toctree: generated/
 
-  GAM
+  SCM
   Data
   Equation
   MediaTransform

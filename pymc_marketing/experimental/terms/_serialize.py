@@ -55,12 +55,12 @@ from pymc_marketing.terms import (
     _serialize_child,
 )
 
-FORMAT = "pymc_marketing.experimental.GAM/1"
+FORMAT = "pymc_marketing.experimental.SCM/1"
 
 
 def _standalone(*_: Any) -> Any:
     raise SerializationError(
-        "Experimental graph terms are saved only as part of a model; use GAM.save."
+        "Experimental graph terms are saved only as part of a model; use SCM.save."
     )
 
 

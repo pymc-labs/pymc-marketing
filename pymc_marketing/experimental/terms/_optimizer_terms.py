@@ -50,13 +50,13 @@ from pymc_marketing.experimental.terms._data import (
     _dates,
     validate_dataset,
 )
-from pymc_marketing.experimental.terms._gam import GAM
 from pymc_marketing.experimental.terms._graph import (
     BuildContext,
     Data,
     Equation,
     walk,
 )
+from pymc_marketing.experimental.terms._scm import SCM
 from pymc_marketing.experimental.terms._terms import MediaTransform
 from pymc_marketing.mmm.components.adstock import (
     AdstockTransformation,
@@ -95,17 +95,17 @@ def _input_provenance(
     return result
 
 
-def _fitted_inputs(gam: GAM) -> dict[Variable, str]:
+def _fitted_inputs(scm: SCM) -> dict[Variable, str]:
     """Recover fitted raw input provenance, including shared-term data aliases."""
     return _input_provenance(
-        cast(BuildContext, gam._context),
-        _data_dependencies({"equations": gam.equations}),
+        cast(BuildContext, scm._context),
+        _data_dependencies({"equations": scm.equations}),
     )
 
 
-def _fitted_graphs(terms: Mapping[str, Any], gam: GAM) -> list[Variable]:
+def _fitted_graphs(terms: Mapping[str, Any], scm: SCM) -> list[Variable]:
     """Resolve fitted identities and explicit references without rebuilding equations."""
-    context = cast(BuildContext, gam._context)
+    context = cast(BuildContext, scm._context)
     result = []
     for node in walk(
         terms, stop=lambda node: id(node) in context.variables or isinstance(node, Ref)
@@ -125,12 +125,12 @@ def _fitted_graphs(terms: Mapping[str, Any], gam: GAM) -> list[Variable]:
     return result
 
 
-def _data_dependencies(terms: Mapping[str, Any], gam: GAM | None = None) -> set[str]:
+def _data_dependencies(terms: Mapping[str, Any], scm: SCM | None = None) -> set[str]:
     """Find every declared input and, when fitted, inputs hidden behind named references."""
     context = None
-    if gam is not None:
-        gam._check_fitted()
-        context = cast(BuildContext, gam._context)
+    if scm is not None:
+        scm._check_fitted()
+        context = cast(BuildContext, scm._context)
     required: set[str] = set()
     for node in walk(
         terms,
@@ -148,19 +148,19 @@ def _data_dependencies(terms: Mapping[str, Any], gam: GAM | None = None) -> set[
             required.add(node.var_name)
         elif isinstance(node, ModelTerm):
             required.update(node.data_vars)
-    if gam is not None and context is not None:
-        inputs = _fitted_inputs(gam)
+    if scm is not None and context is not None:
+        inputs = _fitted_inputs(scm)
         blockers = set(context.model.free_RVs) | set(context.model.observed_RVs)
         required.update(
             inputs[node]
-            for node in ancestors(_fitted_graphs(terms, gam), blockers=blockers)
+            for node in ancestors(_fitted_graphs(terms, scm), blockers=blockers)
             if node in inputs
         )
     return required
 
 
 def _scenario_data(
-    gam: GAM, required: set[str], data: xr.Dataset
+    scm: SCM, required: set[str], data: xr.Dataset
 ) -> tuple[xr.Dataset, dict[str, xr.DataArray]]:
     """Align scenario inputs, retaining fitted dimension and nondate label order."""
     if not isinstance(data, xr.Dataset):
@@ -168,10 +168,10 @@ def _scenario_data(
     missing = required.difference(data.data_vars)
     if missing:
         raise ValueError(f"Required optimizer data are missing: {sorted(missing)}.")
-    data = gam._prediction_data(
+    data = scm._prediction_data(
         xr.Dataset({name: data[name] for name in sorted(required)}, coords=data.coords)
     )
-    training = cast(xr.Dataset, gam._training_data)
+    training = cast(xr.Dataset, scm._training_data)
     templates = {}
     for name in sorted(required):
         value = data[name]
@@ -192,9 +192,9 @@ def _scenario_data(
     return xr.Dataset(templates, coords=data.coords), templates
 
 
-def _fitted_cadence(gam: GAM) -> str | pd.Timedelta:
+def _fitted_cadence(scm: SCM) -> str | pd.Timedelta:
     """Infer a regular cadence from the fitted dates, including a two-date fit."""
-    training = cast(xr.Dataset, gam._training_data)
+    training = cast(xr.Dataset, scm._training_data)
     if "date" not in training.dims or training.sizes["date"] < 2:
         raise ValueError(
             "Temporal scenarios require at least two training dates to infer the fitted cadence."
@@ -206,7 +206,7 @@ def _fitted_cadence(gam: GAM) -> str | pd.Timedelta:
     return frequency
 
 
-def _check_cadence(gam: GAM, data: xr.Dataset, frequency: str | pd.Timedelta) -> None:
+def _check_cadence(scm: SCM, data: xr.Dataset, frequency: str | pd.Timedelta) -> None:
     """Require consecutive scenario rows in the fitted cadence's original phase."""
     if "date" not in data.dims:
         raise ValueError("Temporal scenarios require labeled date coordinates.")
@@ -216,7 +216,7 @@ def _check_cadence(gam: GAM, data: xr.Dataset, frequency: str | pd.Timedelta) ->
         raise ValueError(
             "Temporal history, decided, and carryover dates must be consecutive at the fitted cadence."
         )
-    training = cast(xr.Dataset, gam._training_data)
+    training = cast(xr.Dataset, scm._training_data)
     anchor = _dates(training.get_index("date")).as_unit("us")[0]
     start, end = sorted((anchor, dates[0]))
     phase = pd.date_range(start, end, freq=frequency).as_unit("us")
@@ -225,7 +225,7 @@ def _check_cadence(gam: GAM, data: xr.Dataset, frequency: str | pd.Timedelta) ->
 
 
 def _append_carryover(
-    gam: GAM,
+    scm: SCM,
     scenario: xr.Dataset,
     templates: Mapping[str, xr.DataArray],
     carryover: int | xr.Dataset,
@@ -243,7 +243,7 @@ def _append_carryover(
         tail = validate_dataset(carryover)
         if "date" not in tail.dims:
             raise ValueError("Carryover data must contain labeled tail dates.")
-        frequency = _fitted_cadence(gam)
+        frequency = _fitted_cadence(scm)
     else:
         if (
             isinstance(carryover, bool)
@@ -255,7 +255,7 @@ def _append_carryover(
             )
         if not carryover:
             return scenario, {}
-        frequency = _fitted_cadence(gam)
+        frequency = _fitted_cadence(scm)
         if "date" not in scenario.dims:
             raise ValueError("Carryover requires labeled decided dates.")
         dates = pd.date_range(
@@ -312,7 +312,7 @@ def _append_carryover(
         [scenario.coords["date"].values, tail.coords["date"].values]
     )
     combined = xr.Dataset(arrays, coords=coords)
-    _check_cadence(gam, combined, frequency)
+    _check_cadence(scm, combined, frequency)
     return combined, fixed
 
 
@@ -628,7 +628,7 @@ def _date_axis_proof(
 
 
 def _check_history_dates(
-    gam: GAM,
+    scm: SCM,
     terms: Mapping[str, Any],
     context: BuildContext,
     built: Mapping[str, XTensorVariable],
@@ -639,7 +639,7 @@ def _check_history_dates(
     history: bool = True,
 ) -> None:
     """Prove ordered combined axes, retaining stricter measured-history semantics."""
-    fitted_model = cast(BuildContext, gam._context).model
+    fitted_model = cast(BuildContext, scm._context).model
     blockers = set(fitted_model.free_RVs) | set(fitted_model.observed_RVs)
     sources = {
         value
@@ -660,7 +660,7 @@ def _check_history_dates(
     }
     sources.update(fourier_outputs)
     adstock_inputs: dict[Variable, Variable] = {}
-    for node in walk([terms, gam.equations]):
+    for node in walk([terms, scm.equations]):
         if not isinstance(node, MediaTransform) or type(node.transformation) not in (
             BinomialAdstock,
             DelayedAdstock,
@@ -712,17 +712,17 @@ def _check_history_dates(
 
 
 def _check_temporal_dates(
-    gam: GAM,
+    scm: SCM,
     terms: Mapping[str, Any],
     context: BuildContext,
     built: Mapping[str, XTensorVariable],
 ) -> None:
     """Validate selected temporal cadence even when history and carryover are absent."""
-    fitted = cast(BuildContext, gam._context)
+    fitted = cast(BuildContext, scm._context)
     blockers = set(fitted.model.free_RVs) | set(fitted.model.observed_RVs)
     selected = set(ancestors(list(built.values()), blockers=blockers))
     temporal = False
-    for node in walk([terms, gam.equations]):
+    for node in walk([terms, scm.equations]):
         value = context.variables.get(id(node))
         if not isinstance(value, Variable) or value not in selected:
             continue
@@ -741,11 +741,11 @@ def _check_temporal_dates(
             raise ValueError("Term required_history must be a nonnegative integer.")
         temporal |= bool(lookback)
     if temporal:
-        _check_cadence(gam, context.ds, _fitted_cadence(gam))
+        _check_cadence(scm, context.ds, _fitted_cadence(scm))
 
 
 def _check_history_inputs(
-    gam: GAM,
+    scm: SCM,
     terms: Mapping[str, Any],
     context: BuildContext,
     built: Mapping[str, XTensorVariable],
@@ -753,10 +753,10 @@ def _check_history_inputs(
     dated_constants: Mapping[Variable, Variable],
 ) -> None:
     """Validate full date provenance and immutable temporal history."""
-    fitted = cast(BuildContext, gam._context)
+    fitted = cast(BuildContext, scm._context)
     blockers = set(fitted.model.free_RVs) | set(fitted.model.observed_RVs)
     selected = set(ancestors(list(built.values()), blockers=blockers))
-    inputs = _fitted_inputs(gam)
+    inputs = _fitted_inputs(scm)
     inputs.update(_input_provenance(context, templates))
 
     fourier_outputs = {
@@ -774,7 +774,7 @@ def _check_history_inputs(
         and isinstance(value.owner.op, (Shape, Shape_i))
         and has_fixed_shape(value.owner.inputs[0])
     }
-    _check_history_dates(gam, terms, context, built, inputs, templates, dated_constants)
+    _check_history_dates(scm, terms, context, built, inputs, templates, dated_constants)
     dated_inputs = {
         value
         for value, raw in inputs.items()
@@ -789,7 +789,7 @@ def _check_history_inputs(
             return False
         return any(depends_on_dated_decisions(item) for item in value.owner.inputs)
 
-    for node in walk([terms, gam.equations]):
+    for node in walk([terms, scm.equations]):
         value = context.variables.get(id(node))
         if not isinstance(value, Variable) or value not in selected:
             continue
@@ -825,16 +825,16 @@ def _check_history_inputs(
 
 
 def _freeze_posterior_shapes(
-    gam: GAM,
+    scm: SCM,
     context: BuildContext,
     built: dict[str, XTensorVariable],
 ) -> dict[str, XTensorVariable]:
     """Freeze proven shape metadata before adding a posterior sample axis."""
-    fitted = cast(BuildContext, gam._context)
+    fitted = cast(BuildContext, scm._context)
     free = set(fitted.model.free_RVs)
     blockers = free | set(fitted.model.observed_RVs)
     nodes = set(ancestors(list(built.values()), blockers=blockers))
-    inputs = _fitted_inputs(gam)
+    inputs = _fitted_inputs(scm)
     inputs.update(_input_provenance(context, context.data_variables))
     fourier = {
         value
@@ -897,13 +897,13 @@ def _freeze_posterior_shapes(
 
 
 def _condition_outputs(
-    gam: GAM,
+    scm: SCM,
     built: dict[str, XTensorVariable],
     data: xr.Dataset,
     shape_context: BuildContext,
 ) -> tuple[dict[str, XTensorVariable], pd.Index | None]:
     """Condition actual fitted RV identities, rejecting stochastic outcomes and foreign RVs."""
-    context = cast(BuildContext, gam._context)
+    context = cast(BuildContext, scm._context)
     model = context.model
     free = set(model.free_RVs)
     blockers = free | set(model.observed_RVs)
@@ -921,12 +921,12 @@ def _condition_outputs(
             "Selected terms contain stochastic variables not bound to this fitted model; "
             "use its actual fitted parameter objects, not new parameters with matching names."
         )
-    built = _freeze_posterior_shapes(gam, shape_context, built)
+    built = _freeze_posterior_shapes(scm, shape_context, built)
     nodes = set(ancestors(list(built.values()), blockers=blockers))
     needed = nodes.intersection(free)
     if not needed:
         return built, None
-    posterior = cast(xr.DataTree, gam.idata)["posterior"].to_dataset()
+    posterior = cast(xr.DataTree, scm.idata)["posterior"].to_dataset()
     indexers = {}
     for rv in needed:
         if rv.name not in posterior:
@@ -957,7 +957,7 @@ def _condition_outputs(
                     f"Posterior parameter {rv.name!r} has no fitted draws for the requested {dim!r} labels."
                 )
             indexers[dim] = data.coords[dim]
-    # This is a labeled, read-only view of the actual joint draws, not an assignment to the GAM.
+    # This is a labeled, read-only view of the actual joint draws, not an assignment to the SCM.
     posterior = posterior[sorted(cast(str, rv.name) for rv in needed)].sel(indexers)
     idata = xr.DataTree.from_dict({"posterior": posterior})
     sampled = [
@@ -1216,23 +1216,23 @@ class _Evaluator:
 
 
 def _bind_terms(
-    gam: GAM,
+    scm: SCM,
     terms: Mapping[str, Any],
     data: xr.Dataset,
     history: xr.Dataset | None = None,
     carryover: int | xr.Dataset = 0,
 ) -> _Evaluator:
     """Reuse fitted term provenance, freeze the joint posterior, and bind only selected inputs."""
-    gam._check_fitted()
-    fitted = cast(BuildContext, gam._context)
+    scm._check_fitted()
+    fitted = cast(BuildContext, scm._context)
     admitted = tuple(walk(terms, stop=lambda node: id(node) in fitted.variables))
     if any(isinstance(node, Equation) for node in admitted):
         raise ValueError(
             "Optimizer targets and dependencies must be deterministic terms, not stochastic Equations."
         )
-    required = _data_dependencies(terms, gam)
-    scenario, templates = _scenario_data(gam, required, data)
-    output_scenario, tail = _append_carryover(gam, scenario, templates, carryover)
+    required = _data_dependencies(terms, scm)
+    scenario, templates = _scenario_data(scm, required, data)
+    output_scenario, tail = _append_carryover(scm, scenario, templates, carryover)
     combined, fixed, history_length = _prepend_history(
         output_scenario,
         {name: output_scenario[name] for name in templates},
@@ -1253,7 +1253,7 @@ def _bind_terms(
     ) as model:
         context = BuildContext(
             combined,
-            bindings=gam._bindings,
+            bindings=scm._bindings,
             prediction=True,
             allow_constant_date_subset=True,
         )
@@ -1274,7 +1274,7 @@ def _bind_terms(
     selected = set(ancestors(list(built.values()), blockers=blockers))
     legacy_inputs = sorted(
         f"{raw!r} ({getattr(value, 'dtype', None)})"
-        for value, raw in _fitted_inputs(gam).items()
+        for value, raw in _fitted_inputs(scm).items()
         if value in selected and getattr(value, "dtype", None) != "float64"
     )
     if legacy_inputs:
@@ -1284,14 +1284,14 @@ def _bind_terms(
             "graphs use float64 before optimizing."
         )
     dated_constants = _dated_constant_replacements(context, built, blockers)
-    _check_temporal_dates(gam, terms, context, built)
+    _check_temporal_dates(scm, terms, context, built)
     if history_length or (history is not None and history.sizes.get("date", 0) > 0):
-        _check_history_inputs(gam, terms, context, built, templates, dated_constants)
+        _check_history_inputs(scm, terms, context, built, templates, dated_constants)
     else:
-        inputs = _fitted_inputs(gam)
+        inputs = _fitted_inputs(scm)
         inputs.update(_input_provenance(context, templates))
         _check_history_dates(
-            gam,
+            scm,
             terms,
             context,
             built,
@@ -1322,10 +1322,10 @@ def _bind_terms(
             value = context.variables.get(key)
             if isinstance(value, XTensorVariable) and value in memo:
                 context.variables[key] = memo[value]
-    built, samples = _condition_outputs(gam, built, combined, context)
+    built, samples = _condition_outputs(scm, built, combined, context)
     replacements: dict[Variable, Variable] = {
         original: containers[raw]
-        for original, raw in _fitted_inputs(gam).items()
+        for original, raw in _fitted_inputs(scm).items()
         if raw in containers
     }
     replacements.update(

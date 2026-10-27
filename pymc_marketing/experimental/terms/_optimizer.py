@@ -49,7 +49,6 @@ from pymc_marketing.experimental.terms._data import (
     _align_labels,
     _dates,
 )
-from pymc_marketing.experimental.terms._gam import GAM
 from pymc_marketing.experimental.terms._graph import BuildContext
 from pymc_marketing.experimental.terms._optimizer_terms import (
     _bind_terms,
@@ -58,6 +57,7 @@ from pymc_marketing.experimental.terms._optimizer_terms import (
     _fitted_inputs,
     _tensor_date_axis,
 )
+from pymc_marketing.experimental.terms._scm import SCM
 from pymc_marketing.terms import ModelTerm, Product, Sum
 
 type _Term = ModelTerm | Product | Sum
@@ -490,7 +490,7 @@ class _SolveState:
 
 
 def _construction_data(
-    model: GAM, required: set[str], dates: pd.DatetimeIndex
+    model: SCM, required: set[str], dates: pd.DatetimeIndex
 ) -> xr.Dataset:
     """Recover fitted raw input shapes without evaluating selected value graphs."""
     training = model._training_data
@@ -641,7 +641,7 @@ class Problem:
 
     Parameters
     ----------
-    model : GAM
+    model : SCM
         Fitted source of parameter bindings and joint posterior draws, never mutated.
     terms : term or mapping of str to term
         One deterministic expression, available as ``evaluate(u)["term"]``, or
@@ -710,7 +710,7 @@ class Problem:
     def __init__(
         self,
         *,
-        model: GAM,
+        model: SCM,
         terms: _Term | Mapping[str, _Term],
         dates: pd.DatetimeIndex,
         objective: _Callback,

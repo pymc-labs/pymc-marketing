@@ -25,7 +25,7 @@ from pymc_extras.prior import Prior
 from pytensor.xtensor.type import XTensorVariable
 
 from pymc_marketing.experimental.terms import (
-    GAM,
+    SCM,
     Data,
     Equation,
     OptimizationResult,
@@ -86,7 +86,7 @@ REFIT_CASES = [
 
 @dataclass
 class FittedUnits:
-    model: GAM
+    model: SCM
     spend: Data
     sales_beta: Parameter
     leads_beta: Parameter
@@ -168,7 +168,7 @@ def _fit(train: xr.Dataset, seed: int) -> FittedUnits:
         "leads_beta", Prior("LogNormal", mu=0, sigma=0.7, dims="channel")
     )
     terms = _terms(spend, sales_beta, leads_beta, train)
-    model = GAM(
+    model = SCM(
         Equation(
             observed="sales",
             mu=terms["sales"].sum("channel").named("sales_mean"),

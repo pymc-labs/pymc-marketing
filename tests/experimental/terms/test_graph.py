@@ -27,6 +27,7 @@ from numpy.testing import assert_allclose
 from pymc_extras.prior import Prior
 from scipy.special import gammaln
 
+from pymc_marketing.experimental.terms import SCM
 from pymc_marketing.experimental.terms._graph import (
     BuildContext,
     Data,
@@ -488,3 +489,193 @@ def test_integer_inputs_cannot_lose_units_during_float_conversion(value):
     )
     with pm.Model(), pytest.raises(ValueError):
         BuildContext(ds).build(Data("x"))
+
+
+@pytest.mark.parametrize(
+    ("kwargs", "error", "match"),
+    [
+        pytest.param({"name": ""}, ValueError, "name", id="empty-name"),
+        pytest.param({"dims": ("",)}, ValueError, "Dimensions", id="empty-dimension"),
+        pytest.param(
+            {"dims": ("geo", "geo")},
+            ValueError,
+            "unique",
+            id="duplicate-dimensions",
+        ),
+        pytest.param(
+            {"parameters": [("mu", 0)]},
+            TypeError,
+            "mapping",
+            id="nonmapping-parameters",
+        ),
+        pytest.param(
+            {"likelihood": object()},
+            TypeError,
+            "Prior",
+            id="nonrecipe-likelihood",
+        ),
+        pytest.param(
+            {"parameters": {"observed": [1.0]}},
+            ValueError,
+            "observations",
+            id="observations-in-parameters",
+        ),
+    ],
+)
+def test_invalid_equation_configuration(
+    kwargs: dict[str, Any], error: type[Exception], match: str
+) -> None:
+    with pytest.raises(error, match=match):
+        Equation(**kwargs)
+
+
+def test_mu_setter_cannot_overwrite_a_likelihood_parameter() -> None:
+    likelihood = Prior("Normal", mu=1.0, sigma=2.0)
+    equation = Equation(observed="y", likelihood=likelihood)
+    before = specification_key(equation)
+
+    with pytest.raises(ValueError, match="mu"):
+        equation.mu = 3.0
+
+    assert equation.mu is None
+    assert equation.dependencies() == ()
+    assert specification_key(equation) == before
+    assert likelihood.parameters["mu"] == 1.0
+
+
+def test_numpy_and_symbolic_parameters_keep_their_values_and_recipes() -> None:
+    scale = pmd.as_xtensor(np.asarray(2.0))
+    likelihood = Prior("Normal", sigma=scale)
+    equation = Equation(mu=0.0, observed="y", likelihood=likelihood)
+    equation.mu = np.float32(1.25)
+    symbolic = Equation(mu=scale, observed="z", likelihood=Prior("Normal", sigma=1.0))
+    data = xr.Dataset(
+        {"y": ("geo", [0.0, 2.0]), "z": ("geo", [1.0, 3.0])},
+        coords={"geo": ["a", "b"]},
+    )
+    before = specification_key(equation, symbolic)
+
+    model = SCM(equation, symbolic).build_model(data)
+
+    expected = _normal_logp(data["y"].values, 1.25, 2.0).sum()
+    expected += _normal_logp(data["z"].values, 2.0, 1.0).sum()
+    assert_allclose(model.compile_logp()({}), expected)
+    assert equation.mu == 1.25
+    assert symbolic.mu is scale
+    assert likelihood.parameters["sigma"] is scale
+    assert specification_key(equation, symbolic) == before
+
+
+@pytest.mark.parametrize(
+    "likelihood",
+    [
+        pytest.param(
+            Prior("Normal", mu=0.0, sigma=1.0, transform="exp"),
+            id="transformed",
+        ),
+        pytest.param(
+            Prior("Normal", mu=0.0, sigma=1.0, centered=False),
+            id="noncentered",
+        ),
+    ],
+)
+def test_observed_equations_require_direct_centered_likelihoods(
+    likelihood: Prior,
+) -> None:
+    data = xr.Dataset({"y": ("geo", [1.0])}, coords={"geo": ["a"]})
+    equation = Equation(observed="y", likelihood=likelihood)
+    before = specification_key(equation)
+
+    with pytest.raises(ValueError, match="likelihood recipes"):
+        SCM(equation).build_model(data)
+
+    assert specification_key(equation) == before
+
+
+def test_equation_dimensions_must_match_observation_dimensions() -> None:
+    data = xr.Dataset(
+        {"y": ("geo", [1.0, 2.0])},
+        coords={"geo": ["a", "b"], "target": ["units", "revenue"]},
+    )
+    equation = Equation(observed="y", mu=0.0, dims="target")
+
+    with pytest.raises(ValueError, match="Observation dimensions"):
+        SCM(equation).build_model(data)
+
+
+def test_nonnumeric_observations_are_rejected_before_sampling() -> None:
+    data = xr.Dataset({"y": ("geo", ["one", "two"])}, coords={"geo": ["a", "b"]})
+    with pytest.raises(ValueError, match="finite numeric"):
+        SCM(Equation(observed="y", mu=0.0)).build_model(data)
+
+
+@pytest.mark.parametrize(
+    "predictor",
+    [
+        pytest.param(Data("missing"), id="raw-data"),
+        pytest.param(
+            Dot(var_name="missing", prior=Prior("Normal", dims="feature")),
+            id="dot-data",
+        ),
+    ],
+)
+def test_missing_predictors_are_not_silently_ignored(predictor: ModelTerm) -> None:
+    data = xr.Dataset(
+        {"y": ("geo", [1.0, 2.0])},
+        coords={"geo": ["a", "b"], "feature": ["x"]},
+    )
+    with pytest.raises(ValueError, match="Required data variable 'missing'"):
+        SCM(Equation(observed="y", mu=predictor)).build_model(data)
+
+
+def test_parameters_need_a_model_name() -> None:
+    data = xr.Dataset({"y": ("geo", [1.0])}, coords={"geo": ["a"]})
+    equation = Equation(observed="y", mu=Parameter(None, Prior("Normal")))
+    with pytest.raises(ValueError, match="must have names"):
+        SCM(equation).build_model(data)
+
+
+@pytest.mark.parametrize("conflict", ["name", "coordinates"])
+def test_build_context_respects_existing_model_metadata(conflict: str) -> None:
+    data = xr.Dataset({"y": ("geo", [1.0, 2.0])}, coords={"geo": ["a", "b"]})
+    labels = ["b", "a"] if conflict == "coordinates" else ["a", "b"]
+    equation = Equation(observed="y", mu=0.0)
+
+    with pm.Model(coords={"geo": labels}) as model:
+        if conflict == "name":
+            pm.Normal("y")
+        variables_before = tuple(model.named_vars)
+        with pytest.raises(ValueError):
+            BuildContext(data).build(equation)
+
+    assert tuple(model.named_vars) == variables_before
+    assert model.coords["geo"] == tuple(labels)
+
+
+def test_build_context_cannot_register_inputs_in_another_model() -> None:
+    data = xr.Dataset({"x": ("geo", [1.0, 2.0])}, coords={"geo": ["a", "b"]})
+    with pm.Model() as owner:
+        context = BuildContext(data)
+    with pm.Model() as other:
+        with pytest.raises(RuntimeError, match="model where it was created"):
+            context.build(Data("x"))
+    assert not owner.named_vars
+    assert not other.named_vars
+
+    with owner:
+        context.build(Data("x"))
+    assert_allclose(owner["x"].get_value(), data["x"].values)
+
+
+def test_exact_integer_input_boundaries_preserve_units_and_source_dtype() -> None:
+    values = np.asarray([-(2**53), 2**53], dtype="int64")
+    data = xr.Dataset({"x": ("geo", values)}, coords={"geo": ["a", "b"]})
+    before = data.copy(deep=True)
+
+    with pm.Model() as model:
+        BuildContext(data).build(Data("x"))
+
+    registered = model["x"].get_value()
+    assert registered.dtype == np.dtype("float64")
+    np.testing.assert_array_equal(registered, values)
+    xr.testing.assert_identical(data, before)
