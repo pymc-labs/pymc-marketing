@@ -531,7 +531,7 @@ class MVITS(RegressionModelBuilder):
             The variable to compare. Either "mu" or "y".
         plot_total_sales : bool, optional
             Whether to plot the total sales or not.
-        axes : plt.Axes, optional
+        ax : plt.Axes, optional
             The matplotlib axes.
 
         Returns
