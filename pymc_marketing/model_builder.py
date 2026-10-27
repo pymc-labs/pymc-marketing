@@ -394,7 +394,10 @@ class ModelIO:
         back to tuples (for ``dims``) or numpy arrays (everything else) to undo
         the JSON round-trip.
         """
-        from pymc_marketing.serialization import serialization
+        from pymc_marketing.serialization import (
+            merge_shared_decompositions,
+            serialization,
+        )
 
         def _looks_like_prior_spec(value: Any) -> bool:
             return isinstance(value, dict) and (
@@ -432,7 +435,7 @@ class ModelIO:
                         d[key] = np.array(value)
             return d
 
-        return _format(model_config.copy())
+        return merge_shared_decompositions(_format(model_config.copy()))
 
     @classmethod
     def attrs_to_init_kwargs(cls, attrs) -> dict[str, Any]:
