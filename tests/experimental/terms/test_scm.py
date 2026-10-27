@@ -13,6 +13,10 @@
 #   limitations under the License.
 """Behavioral contracts of the experimental SCM: fitting, prior checks, and forecasting."""
 
+from collections.abc import Callable
+from copy import copy
+from typing import Any
+
 import numpy as np
 import pandas as pd
 import pymc.dims as pmd
@@ -239,31 +243,66 @@ def test_forecast_without_history_pads_with_zeros(multi_target):
 
 
 @pytest.mark.parametrize(
-    ("alter", "match"),
+    ("alter", "error", "match"),
     [
         pytest.param(
             lambda future: future.assign_coords(
                 date=future["date"] + pd.Timedelta(weeks=1)
             ),
+            ValueError,
             "immediately follow training",
             id="shifted-dates",
         ),
         pytest.param(
             lambda future: future.assign_coords(target=TARGETS[:1]),
+            ValueError,
             "labels for 'target' must match training",
             id="target-subset",
         ),
         pytest.param(
             lambda future: future.drop_vars("channel"),
+            ValueError,
             "'channel' must provide coordinate labels",
             id="unlabeled-channel",
         ),
+        pytest.param(
+            lambda future: future["price"],
+            TypeError,
+            "xarray.Dataset",
+            id="dataarray-instead-of-dataset",
+        ),
+        pytest.param(
+            lambda future: future.assign_coords(
+                target=("date", [TARGETS[0]] * future.sizes["date"])
+            ),
+            ValueError,
+            "'target' must label its own dimension",
+            id="coordinate-on-wrong-dimension",
+        ),
+        pytest.param(
+            lambda future: future.rename(date="period"),
+            ValueError,
+            "requires a date dimension",
+            id="missing-date-dimension",
+        ),
     ],
 )
-def test_forecast_rejects_inconsistent_future_data(multi_target, alter, match):
+def test_forecast_rejects_inconsistent_future_data(
+    multi_target: tuple[SCM, xr.Dataset, xr.Dataset],
+    alter: Callable[[xr.Dataset], Any],
+    error: type[Exception],
+    match: str,
+) -> None:
     scm, _, future = multi_target
-    with pytest.raises(ValueError, match=match):
+    fitted_model, fitted_idata = scm.model, scm.idata
+    future_before = future.copy(deep=True)
+    posterior_before = scm.idata["posterior"].to_dataset().copy(deep=True)
+    with pytest.raises(error, match=match):
         _forecast_mean(scm, alter(future))
+    assert scm.model is fitted_model
+    assert scm.idata is fitted_idata
+    xr.testing.assert_identical(future, future_before)
+    xr.testing.assert_identical(scm.idata["posterior"].to_dataset(), posterior_before)
 
 
 def test_build_model_requires_every_observation_variable():
@@ -313,6 +352,21 @@ def test_prior_predictive_requires_observations():
     train = _multi_target_training().drop_vars("sales")
     with pytest.raises(ValueError, match="missing observations 'sales'"):
         SCM(_multi_target_recipe()).sample_prior_predictive(train, draws=5)
+
+
+def test_prior_sampling_rejects_managed_arguments_without_changing_fit(
+    multi_target: tuple[SCM, xr.Dataset, xr.Dataset],
+) -> None:
+    scm, train, _ = multi_target
+    fitted_model, fitted_idata = scm.model, scm.idata
+    posterior_before = scm.idata["posterior"].to_dataset().copy(deep=True)
+
+    with pytest.raises(ValueError, match="manages"):
+        scm.sample_prior_predictive(train, draws=1, return_inferencedata=False)
+
+    assert scm.model is fitted_model
+    assert scm.idata is fitted_idata
+    xr.testing.assert_identical(scm.idata["posterior"].to_dataset(), posterior_before)
 
 
 DRIVER = np.array([0.5, 1.0, 1.5, 2.0, 2.5])
@@ -461,7 +515,7 @@ def test_condition_on_holds_supplied_observations_fixed(conditioning):
     scm, future = conditioning
 
     conditioned = scm.sample_posterior_predictive(
-        future, condition_on=["search"], **PREDICT_KWARGS
+        future.drop_vars("tv"), condition_on=["search"], **PREDICT_KWARGS
     )
     generated = scm.sample_posterior_predictive(
         future, condition_on=(), **PREDICT_KWARGS
@@ -479,6 +533,7 @@ def test_condition_on_holds_supplied_observations_fixed(conditioning):
     [
         pytest.param("search", TypeError, id="bare-string"),
         pytest.param(["clicks"], ValueError, id="unknown-name"),
+        pytest.param([42], TypeError, id="nonstring-selector"),
     ],
 )
 def test_condition_on_rejects_invalid_selectors(conditioning, condition_on, error):
@@ -487,6 +542,60 @@ def test_condition_on_rejects_invalid_selectors(conditioning, condition_on, erro
         scm.sample_posterior_predictive(
             future, condition_on=condition_on, **PREDICT_KWARGS
         )
+
+
+def test_condition_on_requires_the_selected_observations(
+    conditioning: tuple[SCM, xr.Dataset],
+) -> None:
+    scm, future = conditioning
+    fitted_model, fitted_idata = scm.model, scm.idata
+    with pytest.raises(ValueError, match="Required observations 'search'"):
+        scm.sample_posterior_predictive(
+            future.drop_vars("search"), condition_on=["search"], **PREDICT_KWARGS
+        )
+    assert scm.model is fitted_model
+    assert scm.idata is fitted_idata
+
+
+def test_prediction_rejects_managed_arguments_without_changing_fit(
+    conditioning: tuple[SCM, xr.Dataset],
+) -> None:
+    scm, future = conditioning
+    fitted_model, fitted_idata = scm.model, scm.idata
+    posterior_before = scm.idata["posterior"].to_dataset().copy(deep=True)
+
+    with pytest.raises(ValueError, match="manages"):
+        scm.sample_posterior_predictive(future, freeze_vars=[], **PREDICT_KWARGS)
+
+    assert scm.model is fitted_model
+    assert scm.idata is fitted_idata
+    xr.testing.assert_identical(scm.idata["posterior"].to_dataset(), posterior_before)
+
+
+def test_prediction_requires_requested_variables_to_exist(
+    conditioning: tuple[SCM, xr.Dataset],
+) -> None:
+    scm, future = conditioning
+    with pytest.raises(ValueError, match="prediction variable"):
+        scm.sample_posterior_predictive(
+            future, var_names="misspelled_output", **PREDICT_KWARGS
+        )
+
+
+def test_prediction_cannot_resample_a_missing_fitted_parameter(
+    shared_slope: SCM,
+) -> None:
+    scm = copy(shared_slope)
+    posterior_before = shared_slope.idata["posterior"].to_dataset().copy(deep=True)
+    scm.idata = shared_slope.idata.copy(deep=True)
+    scm.idata["posterior"] = posterior_before.drop_vars("slope")
+
+    with pytest.raises(ValueError, match="slope"):
+        scm.sample_posterior_predictive(_shared_slope_training(), **PREDICT_KWARGS)
+
+    xr.testing.assert_identical(
+        shared_slope.idata["posterior"].to_dataset(), posterior_before
+    )
 
 
 def test_scm_rejects_invalid_equation_sets():
@@ -559,3 +668,24 @@ def test_failed_rebuild_clears_previous_fit():
     assert scm.idata is None
     with pytest.raises(RuntimeError, match="fit before"):
         scm.sample_posterior_predictive(train, **PREDICT_KWARGS)
+
+
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        pytest.param({"model": None}, id="external-model"),
+        pytest.param({"return_inferencedata": False}, id="non-inferencedata-result"),
+    ],
+)
+def test_fit_rejects_arguments_that_bypass_its_model_or_posterior(
+    kwargs: dict[str, Any],
+) -> None:
+    data = _scalar_training()
+    scm = SCM(Equation(observed="y", mu=Parameter("level", Prior("Normal"))))
+
+    with pytest.raises(ValueError, match="return_inferencedata"):
+        scm.fit(data, **kwargs)
+
+    assert scm.idata is None
+    with pytest.raises(RuntimeError, match="fit before"):
+        scm.sample_posterior_predictive(data, **PREDICT_KWARGS)

@@ -44,6 +44,13 @@ def test_dimensions_need_unique_nonmissing_labels(ds):
         validate_dataset(ds)
 
 
+def test_dimensions_need_nonempty_string_names():
+    ds = xr.Dataset({"y": (("",), [1.0, 2.0])}, coords={"": ["a", "b"]})
+
+    with pytest.raises(ValueError):
+        validate_dataset(ds)
+
+
 def test_string_dates_become_a_datetime_index_in_the_given_order():
     labels = ["2025-01-01", "2025-01-08", "2025-01-15"]
     ds = xr.Dataset({"y": ("date", [1.0, 2.0, 3.0])}, coords={"date": labels})

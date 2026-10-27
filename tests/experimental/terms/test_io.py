@@ -220,3 +220,95 @@ def test_save_rejects_unsaveable_terms_and_paths(fitted, tmp_path):
         serialization.serialize(Sum([Data("spend")]))
     with pytest.raises(ValueError, match="zarr"):
         fitted.save(tmp_path / "model.nc")
+
+
+def test_numpy_prior_arrays_survive_json_round_trip_with_their_log_density():
+    location = Parameter(
+        "location",
+        Prior("Normal", mu=np.asarray(1.5), sigma=np.asarray(0.5)),
+    )
+    roots = (
+        Equation(
+            observed="y",
+            mu=location + 0.25,
+            likelihood=Prior("Normal", sigma=1),
+        ),
+    )
+    restored = spec_from_dict(json.loads(json.dumps(spec_to_dict(roots))))
+    data = xr.Dataset({"y": 0.4})
+    point = {"location": 1.1}
+    expected = (
+        -0.5 * ((1.1 - 1.5) / 0.5) ** 2
+        - np.log(0.5)
+        - 0.5 * np.log(2 * np.pi)
+        - 0.5 * (0.4 - 1.35) ** 2
+        - 0.5 * np.log(2 * np.pi)
+    )
+
+    for equations in (roots, restored):
+        model = SCM(*equations).build_model(data)
+        np.testing.assert_allclose(model.compile_logp()(point), expected, rtol=1e-12)
+
+
+@pytest.mark.parametrize(
+    "invalid_value",
+    [
+        pytest.param(lambda spec: {"$ref": spec["roots"][0]}, id="dependency-cycle"),
+        pytest.param(lambda spec: {"$ref": "missing-node"}, id="missing-node"),
+        pytest.param(lambda spec: {"$unknown": None}, id="unknown-value-tag"),
+        pytest.param(
+            lambda spec: {"$ref": spec["roots"][0], "$map": {}},
+            id="ambiguous-value-tags",
+        ),
+    ],
+)
+def test_spec_rejects_corrupted_parameter_references(invalid_value):
+    spec = spec_to_dict((Equation(observed="y", mu=Parameter("location")),))
+    root = spec["nodes"][spec["roots"][0]]
+    root["fields"]["parameters"]["$map"]["mu"] = invalid_value(spec)
+
+    with pytest.raises(SerializationError):
+        spec_from_dict(spec)
+
+
+def test_spec_rejects_a_registered_non_term_class():
+    spec = spec_to_dict((Equation(observed="y", mu=Parameter("location")),))
+    spec["nodes"][spec["roots"][0]]["__type__"] = (
+        "pymc_marketing.special_priors.LaplacePrior"
+    )
+
+    with pytest.raises(SerializationError):
+        spec_from_dict(spec)
+
+
+def test_spec_rejects_a_non_equation_root():
+    spec = spec_to_dict((Equation(observed="y", mu=Data("x")),))
+    root = spec["nodes"][spec["roots"][0]]
+    spec["roots"] = [root["fields"]["parameters"]["$map"]["mu"]["$ref"]]
+
+    with pytest.raises(SerializationError):
+        spec_from_dict(spec)
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        pytest.param({1: 2.0}, id="non-string-mapping-key"),
+        pytest.param(object(), id="unsupported-value"),
+    ],
+)
+def test_spec_rejects_values_without_a_lossless_representation(value):
+    with pytest.raises(SerializationError):
+        spec_to_dict((Equation(observed="y", mu=value),))
+
+
+def test_load_rejects_a_zarr_store_without_a_model_spec(fitted, tmp_path):
+    path = tmp_path / "model.zarr"
+    fitted.save(path)
+    metadata = path / "zarr.json"
+    content = json.loads(metadata.read_text())
+    del content["attributes"]["spec"]
+    metadata.write_text(json.dumps(content))
+
+    with pytest.raises(ValueError):
+        SCM.load(path)
