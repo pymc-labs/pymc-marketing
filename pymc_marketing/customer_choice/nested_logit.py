@@ -772,7 +772,9 @@ class NestedLogit(ChoiceDataMixin, ModelBuilder):
         # I_nest[i] = λ * log(Σ_j exp(U_ij / λ))
         # The log-sum-exp trick: log(Σ exp(x)) = max(x) + log(Σ exp(x - max(x)))
         lsexp = pm.math.logsumexp((y_nest - max_y_nest) / lambdas[nest_idx], axis=1)
-        I_nest = pm.Deterministic(f"I_{nest_name}", lambdas[nest_idx] * lsexp)
+        I_nest = pm.Deterministic(
+            f"I_{nest_name}", max_y_nest[:, 0] + lambdas[nest_idx] * lsexp
+        )
 
         # Exponentiated inclusive value for nest probability calculation
         exp_W_nest = pm.math.exp(alphas_nest[nest_idx] + I_nest)
