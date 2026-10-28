@@ -636,7 +636,8 @@ def test_autolog_mmm(idata_format, mmm, toy_X, toy_y) -> None:
         expected_features_shape["target"] = [135]
     elif "target_data" in idata.constant_data:
         expected_features_shape["target_data"] = [135]
-        expected_features_shape["target_scale"] = []
+        # scalars are logged as 1-d so MLflow can infer a schema
+        expected_features_shape["target_scale"] = [1]
 
     # Include channel scaling variables if present (new scaling approach)
     if "channel_scale" in idata.constant_data:
