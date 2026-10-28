@@ -25,7 +25,7 @@ from sklearn.preprocessing import MaxAbsScaler
 
 from pymc_marketing.mmm.additive_effect import IncrementalitySpec
 from pymc_marketing.mmm.utils import (
-    _convert_frequency_to_timedelta,
+    _shift_by_periods,
     add_noise_to_channel_allocation,
     align_planned_controls,
     apply_sklearn_transformer_across_dim,
@@ -328,74 +328,92 @@ class TestInferFrequency:
             infer_frequency(pd.DatetimeIndex(["2024-01-01", "2024-01-08"]))
 
 
-class TestConvertFrequencyToTimedelta:
-    """Test cases for _convert_frequency_to_timedelta function."""
+class TestShiftByPeriods:
+    """``_shift_by_periods`` moves a date by whole steps of its frequency (#3204)."""
 
     @pytest.mark.parametrize(
-        "periods, freq, expected",
+        "date, periods, freq, expected",
         [
-            # Daily frequencies
-            (1, "D", pd.Timedelta(days=1)),
-            (7, "D", pd.Timedelta(days=7)),
-            (0, "D", pd.Timedelta(days=0)),
-            # Weekly frequencies
-            (1, "W", pd.Timedelta(weeks=1)),
-            (4, "W", pd.Timedelta(weeks=4)),
-            (1, "W-MON", pd.Timedelta(weeks=1)),  # Complex frequency string
-            (2, "W-SUN", pd.Timedelta(weeks=2)),
-            # Monthly frequencies (approximated as 30 days)
-            (1, "M", pd.Timedelta(days=30)),
-            (3, "M", pd.Timedelta(days=90)),
-            (12, "M", pd.Timedelta(days=360)),
-            # Yearly frequencies (approximated as 365 days)
-            (1, "Y", pd.Timedelta(days=365)),
-            (2, "Y", pd.Timedelta(days=730)),
-            # Hourly frequencies
-            (1, "H", pd.Timedelta(hours=1)),
-            (24, "H", pd.Timedelta(hours=24)),
-            # Minute frequencies
-            (1, "T", pd.Timedelta(minutes=1)),
-            (60, "T", pd.Timedelta(minutes=60)),
-            # Second frequencies
-            (1, "S", pd.Timedelta(seconds=1)),
-            (3600, "S", pd.Timedelta(seconds=3600)),
+            ("2024-01-01", 7, "D", "2024-01-08"),
+            ("2024-01-07", 2, "W-SUN", "2024-01-21"),
+            # Months are calendar months, not 30 days: Mar 1 + 4 months.
+            ("2025-03-01", 4, "MS", "2025-07-01"),
+            ("2025-01-31", 1, "ME", "2025-02-28"),
+            ("2024-01-01", 2, "QS-OCT", "2024-07-01"),
+            ("2024-01-01", 1, "YS-JAN", "2025-01-01"),
+            # The lower-case aliases pandas 2.2+ infers.
+            ("2024-01-01 00:00", 3, "h", "2024-01-01 03:00"),
+            ("2024-01-01 00:00", 15, "min", "2024-01-01 00:15"),
+            ("2024-01-01 00:00:00", 30, "s", "2024-01-01 00:00:30"),
+            ("2024-01-05", 1, "B", "2024-01-08"),  # Friday -> Monday
+            ("2024-01-07", 2, "2W-SUN", "2024-02-04"),
+            ("2025-07-01", -4, "MS", "2025-03-01"),
         ],
     )
-    def test_supported_frequencies(self, periods, freq, expected):
-        """Test conversion of supported frequency strings."""
-        result = _convert_frequency_to_timedelta(periods, freq)
-        assert result == expected
+    def test_shifts_by_whole_steps_of_the_frequency(
+        self, date, periods, freq, expected
+    ):
+        assert _shift_by_periods(pd.Timestamp(date), periods, freq) == pd.Timestamp(
+            expected
+        )
 
-    def test_unrecognized_frequency_with_warning(self):
-        """Test that unrecognized frequencies default to weeks and issue a warning."""
-        with pytest.warns(
-            UserWarning, match=r"Unrecognized frequency 'XYZ'. Defaulting to weeks."
-        ):
-            result = _convert_frequency_to_timedelta(2, "XYZ")
-            expected = pd.Timedelta(weeks=2)
-            assert result == expected
+    def test_zero_periods_leaves_an_unanchored_date_as_it_is(self):
+        date = pd.Timestamp("2025-05-15")
+        assert _shift_by_periods(date, 0, "MS") == date
 
-    def test_single_character_frequencies(self):
-        """Test single character frequency strings."""
-        assert _convert_frequency_to_timedelta(5, "D") == pd.Timedelta(days=5)
-        assert _convert_frequency_to_timedelta(3, "W") == pd.Timedelta(weeks=3)
-        assert _convert_frequency_to_timedelta(2, "M") == pd.Timedelta(days=60)
 
-    def test_complex_frequency_strings(self):
-        """Test that complex frequency strings are parsed correctly."""
-        # Should extract base frequency 'W' from 'W-MON', 'W-TUE', etc.
-        assert _convert_frequency_to_timedelta(1, "W-MON") == pd.Timedelta(weeks=1)
-        assert _convert_frequency_to_timedelta(1, "W-TUE") == pd.Timedelta(weeks=1)
-        assert _convert_frequency_to_timedelta(1, "W-WED") == pd.Timedelta(weeks=1)
-        assert _convert_frequency_to_timedelta(1, "W-THU") == pd.Timedelta(weeks=1)
-        assert _convert_frequency_to_timedelta(1, "W-FRI") == pd.Timedelta(weeks=1)
-        assert _convert_frequency_to_timedelta(1, "W-SAT") == pd.Timedelta(weeks=1)
-        assert _convert_frequency_to_timedelta(1, "W-SUN") == pd.Timedelta(weeks=1)
+@pytest.mark.parametrize(
+    "freq, start, periods, window_start, window_end, decisions",
+    [
+        ("MS", "2023-03-01", 24, "2025-03-01", "2025-05-01", 3),
+        ("MS", "2023-03-01", 24, "2025-03-01", "2025-03-01", 1),
+        ("h", "2023-01-01", 48, "2023-01-03 00:00", "2023-01-03 02:00", 3),
+        ("QS-OCT", "2020-01-01", 16, "2024-01-01", "2024-07-01", 3),
+    ],
+)
+def test_create_zero_dataset_carryover_counts_whole_periods(
+    freq, start, periods, window_start, window_end, decisions
+):
+    """The carry-over block is exactly l_max dates, whatever the frequency (#3204).
 
-    def test_edge_cases(self):
-        """Test edge cases like zero periods and negative periods."""
-        assert _convert_frequency_to_timedelta(0, "D") == pd.Timedelta(days=0)
-        assert _convert_frequency_to_timedelta(0, "W") == pd.Timedelta(weeks=0)
+    Months used to be 30 days, so a window of 31-day months got fewer than
+    l_max carry-over dates and the last planned month was counted as
+    carry-over; 'h' and 'QS-OCT' fell back to weeks.
+    """
+    from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation
+    from pymc_marketing.mmm.mmm import MMM
+
+    rng = np.random.default_rng(0)
+    dates = pd.date_range(start, periods=periods, freq=freq)
+    X = pd.DataFrame(
+        {
+            "date": dates,
+            "c1": rng.uniform(1, 2, periods),
+            "c2": rng.uniform(1, 2, periods),
+        }
+    )
+    y = pd.Series(rng.uniform(5, 10, periods), name="y")
+    mmm = MMM(
+        date_column="date",
+        channel_columns=["c1", "c2"],
+        target_column="y",
+        adstock=GeometricAdstock(l_max=4),
+        saturation=LogisticSaturation(),
+    )
+    mmm.build_model(X, y)
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", UserWarning)  # no "Defaulting to weeks."
+        zeros = create_zero_dataset(mmm, window_start, window_end)
+
+    assert zeros.sizes["date"] == decisions + 4
+    expected = pd.date_range(window_start, periods=decisions + 4, freq=freq)
+    pd.testing.assert_index_equal(
+        pd.DatetimeIndex(zeros.coords["date"].values), expected, check_names=False
+    )
+
+    model = mmm.create_optimization_model(window_start, window_end)
+    assert mmm._window_layout(model, window_start).decisions == decisions
 
 
 class TestCreateZeroDataset:
