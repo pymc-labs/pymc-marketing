@@ -202,15 +202,16 @@ def basic_logging_checks(run_data: RunData) -> None:
     assert len(run_data.artifacts) > 0
 
 
-def test_log_with_data_in_likelihood(model_with_data_in_likelihood) -> None:
+def test_log_with_data_in_likelihood(model_with_data_in_likelihood, caplog) -> None:
     mlflow.set_experiment("pymc-marketing-test-suite-only-target")
-    with mlflow.start_run() as run:
-        pm.sample(
-            model=model_with_data_in_likelihood,
-            chains=1,
-            draws=25,
-            tune=10,
-        )
+    with caplog.at_level(logging.WARNING, logger="mlflow.data.numpy_dataset"):
+        with mlflow.start_run() as run:
+            pm.sample(
+                model=model_with_data_in_likelihood,
+                chains=1,
+                draws=25,
+                tune=10,
+            )
 
     run_id = run.info.run_id
     run_data = get_run_data(run_id)
@@ -222,17 +223,39 @@ def test_log_with_data_in_likelihood(model_with_data_in_likelihood) -> None:
     assert len(inputs) == 1
     profile = json.loads(inputs[0].dataset.profile)
 
-    expected_feature_shape = {}
-    expected_target_shape = {"obs": [15]}
-
-    assert profile["features_shape"] == expected_feature_shape
-    assert profile["targets_shape"] == expected_target_shape
+    # Without any pm.Data the observed data are logged on their own, as the
+    # dataset features, so that MLflow can infer a schema.
+    assert profile["features_shape"] == {"obs": [15]}
+    assert "targets_shape" not in profile
+    assert inputs[0].dataset.schema
+    assert "Failed to infer schema" not in caplog.text
 
     assert run_data.params["likelihood"] == "Normal"
     assert run_data.params["n_free_RVs"] == "2"
     assert run_data.params["n_observed_RVs"] == "1"
     assert run_data.params["n_deterministics"] == "0"
     assert run_data.params["n_potentials"] == "0"
+
+
+def test_log_with_scalar_data(caplog) -> None:
+    with pm.Model() as model:
+        pm.Data("n_obs", 5)
+        mean = pm.Normal("mean", 0, 1)
+        pm.Normal("obs", mean, 1, observed=rng.normal(size=5))
+
+    mlflow.set_experiment("pymc-marketing-test-suite-scalar-data")
+    with caplog.at_level(logging.WARNING, logger="mlflow.data.numpy_dataset"):
+        with mlflow.start_run() as run:
+            pm.sample(model=model, chains=1, draws=25, tune=10)
+
+    inputs = get_run_data(run.info.run_id).inputs
+
+    assert len(inputs) == 1
+    profile = json.loads(inputs[0].dataset.profile)
+    assert profile["features_shape"] == {"n_obs": [1]}
+    assert profile["targets_shape"] == {"obs": [5]}
+    assert inputs[0].dataset.schema
+    assert "Failed to infer schema" not in caplog.text
 
 
 def no_input_model_checks(run_data: RunData) -> None:
