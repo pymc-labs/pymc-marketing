@@ -209,6 +209,7 @@ from pathlib import Path
 from typing import Any, Literal
 
 import arviz as az
+import numpy as np
 import numpy.typing as npt
 import pandas as pd
 import pymc as pm
@@ -715,9 +716,11 @@ def log_metadata(model: Model, idata: xr.DataTree) -> None:
     """
     data_vars: list[TensorVariable] = model.data_vars
 
+    # MLflow can't infer a schema for 0-d arrays (e.g. ``pm.Data("n", 5)``),
+    # so scalars are logged as 1-d. ``idata`` keeps the original shapes.
     if "constant_data" in idata:
         features = {
-            var.name: idata.constant_data[var.name].to_numpy()
+            var.name: np.atleast_1d(idata.constant_data[var.name].to_numpy())
             for var in data_vars
             if var.name in idata.constant_data
         }
@@ -725,7 +728,7 @@ def log_metadata(model: Model, idata: xr.DataTree) -> None:
         features = {}
 
     targets = {
-        var.name: idata.observed_data[var.name].to_numpy()
+        var.name: np.atleast_1d(idata.observed_data[var.name].to_numpy())
         for var in model.observed_RVs
         if var.name in idata.observed_data
     }
@@ -733,7 +736,13 @@ def log_metadata(model: Model, idata: xr.DataTree) -> None:
     if not features and not targets:
         return
 
-    data = mlflow.data.from_numpy(features=features, targets=targets)
+    # MLflow can't infer a schema from an empty mapping either, and the
+    # features are required. Without any pm.Data, the observed data are logged
+    # on their own.
+    if not features:
+        features, targets = targets, {}
+
+    data = mlflow.data.from_numpy(features=features, targets=targets or None)
     mlflow.log_input(data, context="sample")
 
 
