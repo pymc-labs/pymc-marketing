@@ -1,0 +1,60 @@
+name: Real multi-arm geolift notebook
+
+on:
+  pull_request:
+    paths:
+      - "docs/source/notebooks/mmm/mmm_multi_arm_geolift_calibration.ipynb"
+      - "pymc_marketing/mmm/**"
+      - "pymc_marketing/model_builder.py"
+      - "pyproject.toml"
+      - "uv.lock"
+      - "scripts/run_notebooks/**"
+      - ".github/workflows/test_notebook.yml"
+      - ".github/workflows/test_geolift_notebook.yml"
+  push:
+    branches: [main]
+    paths:
+      - "docs/source/notebooks/mmm/mmm_multi_arm_geolift_calibration.ipynb"
+      - "pymc_marketing/mmm/**"
+      - "pymc_marketing/model_builder.py"
+      - "pyproject.toml"
+      - "uv.lock"
+      - "scripts/run_notebooks/**"
+      - ".github/workflows/test_notebook.yml"
+      - ".github/workflows/test_geolift_notebook.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: geolift-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  real-geolift:
+    runs-on: ubuntu-latest
+    # Both 48-market fits learn a shared weekly baseline and response hierarchies.
+    # Allow installation, compilation, and slower two-core sampling at full settings.
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v8.3.2
+      - name: Install supported public dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y graphviz graphviz-dev
+          uv sync --locked --python 3.12 --extra docs --extra test --extra dag
+          uv pip list
+          uv run --no-sync python -m ipykernel install --prefix .venv --name python3
+      - name: Execute with real sampling and default notebook settings
+        shell: bash
+        run: |
+          mkdir -p notebook-artifacts
+          uv run --no-sync papermill \
+            docs/source/notebooks/mmm/mmm_multi_arm_geolift_calibration.ipynb \
+            notebook-artifacts/executed.ipynb \
+            --cwd docs/source/notebooks/mmm --execution-timeout 3600 \
+            --log-output --no-progress-bar 2>&1 | tee notebook-artifacts/execution.log
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: multi-arm-geolift-execution
+          path: notebook-artifacts/

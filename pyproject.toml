@@ -63,6 +63,7 @@ pie = ["pymc-bart>=0.13.0"]
 # zarr 3.0.0-3.0.7 are yanked; DataTree.to_zarr needs xarray>=2025.6.0 to write zarr-python 3 stores.
 zarr = ["zarr>=3.0.8", "xarray>=2025.6.0"]
 docs = [
+    "causalpy>=1.0.0rc1,<2",
     "blackjax<1.6",
     "fastprogress",
     "graphviz",
@@ -74,9 +75,10 @@ docs = [
     "numba",
     "numpydoc",
     "numpyro",
-    "nutpie>=0.16.7",
+    "nutpie>=0.16.11",
     "pylint",
-    "sphinx-autodoc-typehints",
+    # Use the tested 3.12 series; 3.16/3.17 emit invalid reST for our API docstrings.
+    "sphinx-autodoc-typehints>=3.12.1,<3.13",
     "sphinx-copybutton",
     "sphinx-design",
     "sphinx-notfound-page",
