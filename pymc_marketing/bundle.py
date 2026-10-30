@@ -814,16 +814,6 @@ def audit(model: pm.Model, *, fgraph: Any = None) -> AuditReport:
     report.fgraph = fgraph
     if fgraph is not None:
         report.n_nodes, report.depth = _stats(fgraph)
-    proxied = _ops_with_manager_proxy(model)
-    if proxied:
-        total = sum(len(getattr(op, "all_trees", []) or []) for op in proxied)
-        report.notes.append(
-            f"this model contains {len(proxied)} op(s) backed by a "
-            f"multiprocessing Manager proxy ({total} sampled entries); "
-            "serialize_model de-proxies them before writing so they travel "
-            "with the bundle"
-        )
-
     report.blockers.extend(_unserializable_logp_blockers(model))
     return report
 
