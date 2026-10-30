@@ -181,9 +181,11 @@ class TestCLVModel:
         assert idata["/posterior"].to_dataset().sizes["chain"] == 1
         assert idata["/posterior"].to_dataset().sizes["draw"] == 10
 
-    def test_fit_advi_with_wrong_chains_advi_kwargs(self, mocker):
+    def test_fit_advi_with_wrong_chains_advi_kwargs(self, mocker, mock_pymc_fit):
         model = CLVModelTest()
 
+        # The assertion is the config warning; the fit under it is incidental
+        # (#3061), so the sampling is mock-driven.
         with pytest.warns(
             UserWarning,
             match=r"The 'chains' parameter must be 1 with 'advi'. Sampling only 1 chain despite the provided parameter.",  # noqa: E501
