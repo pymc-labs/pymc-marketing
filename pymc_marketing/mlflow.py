@@ -500,7 +500,7 @@ def create_nutpie_log_callback(
     stats: list[str] | None = None,
     exclude_tuning: bool = True,
     take_every: int | None = None,
-    min_interval: float = 1.0,
+    min_interval: float = 1000.0,
     run_id: str | None = None,
 ) -> Callable[[list[Any]], None]:
     """Create a ``progress_callback`` that logs nutpie progress to MLflow.
@@ -544,7 +544,9 @@ def create_nutpie_log_callback(
         the writes. ``divergences_new`` ignores this, so a burst is never
         throttled away.
     min_interval : float, optional
-        Minimum number of seconds between rounds of writes. Defaults to 1.0.
+        Minimum number of milliseconds between rounds of writes. Defaults to
+        1000.0 (one second). Matches the units of ``progress_rate`` on
+        ``nutpie.sample``.
         Polls that write nothing, such as when every chain is still tuning,
         do not spend it. A failed write round does spend it, so a dead
         tracking server is retried at the poll rate but bounded to once per
@@ -634,7 +636,7 @@ def create_nutpie_log_callback(
                 )
                 # The final poll of the run is always logged: without this a
                 # coarse `min_interval` would drop each chain's end state.
-                if not finished and now - last_write < min_interval:
+                if not finished and (now - last_write) * 1000 < min_interval:
                     return
 
                 items: list[tuple[tuple[int, str], float, Any, str]] = []
