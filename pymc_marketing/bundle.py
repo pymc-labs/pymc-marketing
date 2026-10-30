@@ -814,6 +814,19 @@ def audit(model: pm.Model, *, fgraph: Any = None) -> AuditReport:
     report.fgraph = fgraph
     if fgraph is not None:
         report.n_nodes, report.depth = _stats(fgraph)
+    bart = _bart_ops(model)
+    if bart:
+        # The trees travel with the bundle only after de-proxying, which
+        # serialize_model does automatically. Note it so a reader knows the
+        # bundle will be larger and that the model must have been sampled.
+        total = sum(len(getattr(op, "all_trees", []) or []) for op in bart)
+        report.notes.append(
+            f"this model contains {len(bart)} BART ensemble(s) "
+            f"({total} sampled tree-batches); serialize_model de-proxies them "
+            "before writing, so the bundle carries the trees and out-of-sample "
+            "prediction works after load"
+        )
+
     report.blockers.extend(_unserializable_logp_blockers(model))
     return report
 
@@ -883,6 +896,46 @@ def _unserializable_logp_blockers(model: pm.Model) -> list[Blocker]:
     return found
 
 
+def _bart_ops(model: pm.Model) -> list[Any]:
+    """Return the BARTRV ops contained in ``model``, if pymc-bart is installed.
+
+    Returns an empty list when pymc-bart is unavailable, so the bundle module
+    never requires it as a dependency.
+    """
+    try:
+        from pymc_bart.bart import BARTRV
+    except ImportError:
+        return []
+    ops: list[Any] = []
+    seen: set[int] = set()
+    for rv in list(model.free_RVs) + list(model.observed_RVs):
+        if not rv.owner:
+            continue
+        op = rv.owner.op
+        if isinstance(op, BARTRV) and id(op) not in seen:
+            seen.add(id(op))
+            ops.append(op)
+    return ops
+
+
+def _deproxy_bart_trees(model: pm.Model) -> None:
+    """Convert Manager-backed ``all_trees`` proxies to plain lists.
+
+    pymc-bart stores the sampled ensembles in a multiprocessing ``Manager``
+    list whose manager is a local in ``BART.__new__`` and gets GC'd, so a
+    cloudpickle of the model would silently dump the proxy by reference and
+    fail at load with ``BrokenPipeError``. Converting to a plain list while the
+    manager is still alive makes the trees travel with the bundle.
+    """
+    for op in _bart_ops(model):
+        try:
+            trees = list(op.all_trees)
+        except (AttributeError, TypeError):
+            continue
+        if trees:
+            type(op).all_trees = trees
+
+
 def serialize_model(model: pm.Model) -> bytes:
     """Serialize the model, without deciding where it goes.
 
@@ -928,6 +981,7 @@ def serialize_model(model: pm.Model) -> bytes:
     # pyproject because this module imports it directly.
     import cloudpickle
 
+    _deproxy_bart_trees(model)
     return cloudpickle.dumps(model, protocol=-1)
 
 
