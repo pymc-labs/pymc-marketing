@@ -1,0 +1,49 @@
+README.md
+  s_50babd8139c679::t_6c6c8ce727453a 154-155
+docs/source/guide/clv/clv_intro.md
+  s_50babd8139c679::t_1e3af2055d5b4e 36-39
+docs/source/guide/mmm/mmm_intro.md
+  s_50babd8139c679::t_d62f73554ae7b6 183-186
+docs/source/guide/mmm/resources.md
+  s_50babd8139c679::t_119424e7d8ddb2 42,48
+docs/source/index.md
+  s_50babd8139c679::t_f17a745194d42f 286-287,290-293,296-298,302-306,308
+docs/source/notebooks/bass/bass_example.ipynb
+  s_50babd8139c679::t_316484dd6657f0 185-186
+docs/source/notebooks/mmm/mmm_counterfactuals.ipynb
+  s_50babd8139c679::t_aac9cfca9df289 32
+docs/source/notebooks/mmm/mmm_example.ipynb
+  s_50babd8139c679::t_089674ac96bedc 173-175
+docs/source/notebooks/mmm/mmm_time_varying_media_example.ipynb
+  s_50babd8139c679::t_a4eaed358d6fb5 306,344
+docs/source/project-brief.md
+  s_50babd8139c679::t_cf60c45899e1a6 52
+locales/es/LC_MESSAGES/guide/mmm/resources.po
+  s_50babd8139c679::t_645a15d42fb572 238,242,271,275
+locales/es/LC_MESSAGES/index.po
+  s_50babd8139c679::t_b252ecb0aad390 620,623,640,643,648,651,656,659,668,672,678,682,688,692,697,701,707,711,716,719
+locales/es/LC_MESSAGES/notebooks/mmm/mmm_counterfactuals.po
+  s_50babd8139c679::t_ece315bb8fa64d 160
+locales/es/LC_MESSAGES/notebooks/mmm/mmm_example.po
+  s_50babd8139c679::t_f997d3be1004b3 354,358,365,369
+locales/es/LC_MESSAGES/notebooks/mmm/mmm_time_varying_media_example.po
+  s_50babd8139c679::t_f72ccf5556c054 421,428
+locales/es/LC_MESSAGES/notebooks/mmm/mmm_tvp_example.po
+  s_50babd8139c679::t_528f8fc5f4164d 212,220
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "1bfe5e63e4d72d550600298bd95b39e377320900",
+  "prompts": {},
+  "sessions": {
+    "s_50babd8139c679": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8920d257-f365-420a-80fc-df30426f4856",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "root <root@e2b.local>"
+    }
+  }
+}
