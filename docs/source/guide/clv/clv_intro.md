@@ -33,3 +33,7 @@ By combining the purchasing behavior of each customer with the expected period o
 ## Putting it all together
 
 To see how all these different components come together, you can review the {ref}`CLV Quickstart <clv_quickstart>` or one of {ref}`specific CLV models <howto>` available within PyMC-Marketing.
+
+For worked examples and case studies, browse the [customer lifetime value posts](https://www.pymc-labs.com/blog-posts/filters/clv) on the PyMC Labs blog.
+
+PyMC-Marketing is built and maintained by [PyMC Labs](https://www.pymc-labs.com). If your team runs CLV models in production and wants a second opinion from the people who build the library, see the [Expert Access Program](https://www.pymc-labs.com/services/expert-access) or [get in touch](https://www.pymc-labs.com/contact).
