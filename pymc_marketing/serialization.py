@@ -239,6 +239,34 @@ class TypeRegistry:
                 "serialization.serialize() or a to_dict() that includes '__type__'."
             )
 
+        entry = self._entry(type_key)
+
+        if entry.deserializer is not None:
+            return entry.deserializer(data, context)
+
+        return entry.cls.from_dict(data)  # type: ignore[attr-defined]
+
+    def lookup(self, type_key: str) -> type:
+        """Return the class registered under ``type_key``.
+
+        Parameters
+        ----------
+        type_key : str
+            Fully qualified class path, as stored under ``__type__``.
+
+        Returns
+        -------
+        type
+            The registered class.
+
+        Raises
+        ------
+        SerializationError
+            If no class is registered under ``type_key``.
+        """
+        return self._entry(type_key).cls
+
+    def _entry(self, type_key: str) -> _RegistryEntry:
         if type_key not in self._registry:
             raise SerializationError(
                 f"Unknown type {type_key!r}. The class may not have been "
@@ -246,13 +274,7 @@ class TypeRegistry:
                 f"it may not have been imported. "
                 f"Registered types: {sorted(self._registry.keys())}"
             )
-
-        entry = self._registry[type_key]
-
-        if entry.deserializer is not None:
-            return entry.deserializer(data, context)
-
-        return entry.cls.from_dict(data)  # type: ignore[attr-defined]
+        return self._registry[type_key]
 
     def serialize_model_config(self, config: dict[str, Any]) -> dict[str, Any]:
         """Serialize a model_config dict to JSON-safe values.
@@ -290,18 +312,12 @@ class TypeRegistry:
         from pymc_extras.prior import Prior
 
         if isinstance(value, Prior):
-            result: dict[str, Any] = {
-                "dist": value.distribution,
-                "kwargs": {
-                    k: self._serialize_config_value(v)
-                    for k, v in value.parameters.items()
-                },
-            }
-            if value.dims is not None:
-                result["dims"] = value.dims
-            if not value.centered:
-                result["centered"] = False
-            return result
+            # ``Prior.to_dict`` writes every attribute (``dims``, ``centered``,
+            # ``transform``, ...) and encodes nested parameters in the format
+            # ``Prior.from_dict`` reads back. The model id uses the same encoding.
+            # Its output can still hold numpy scalars (for example ``np.int64``
+            # or ``np.float32``) that ``json`` cannot encode, so convert them.
+            return self._serialize_config_value(value.to_dict())
 
         type_key = f"{value.__class__.__module__}.{value.__class__.__qualname__}"
         if type_key in self._registry:

@@ -1785,6 +1785,222 @@ def test_budget_optimizer_new_api(dummy_df, fitted_mmm):
     assert result.success
 
 
+def _shared_spend_optimizer(mmm, last_date, idata, decision_dim="channel", **kwargs):
+    """Optimize one ``(date, decision_dim)`` spend broadcast over every geo (#3213).
+
+    The pattern of the Pareto optimization notebook: the decision variable is a
+    shared container with fewer dims than the model's own ``channel_data``,
+    which is replaced by its broadcast.  A *decision_dim* other than
+    ``"channel"`` labels the same channels under another dim name.
+    """
+    num_periods = 4
+    opt_model = mmm.create_optimization_model(
+        start_date=last_date + pd.Timedelta(weeks=1),
+        end_date=last_date + pd.Timedelta(weeks=num_periods),
+    )
+    channels = list(opt_model.coords["channel"])
+    if decision_dim != "channel":
+        opt_model.add_coord(decision_dim, channels)
+    with opt_model:
+        shared = pmd.Data(
+            "shared_channel_data",
+            np.zeros((len(opt_model.coords["date"]), len(channels))),
+            dims=("date", decision_dim),
+        )
+        broadcast = (
+            shared.rename({decision_dim: "channel"})
+            .expand_dims(geo=len(opt_model.coords["geo"]))
+            .transpose("date", "geo", "channel")
+        )
+    lags = mmm.effective_carryover_lags()
+    return BudgetOptimizer(
+        model=pm.do(opt_model, {"channel_data": broadcast}),
+        idata=idata,
+        num_periods=num_periods,
+        carry_in_periods=lags,
+        adstock_periods=lags,
+        channel_data_var="shared_channel_data",
+        **kwargs,
+    )
+
+
+def _with_dark_cells(mmm, informed):
+    """``mmm``'s posterior with ``channel_contribution`` zeroed where *informed* is 0.
+
+    *informed* is indexed ``(geo, channel)``; a zeroed cell is one the posterior
+    has no information about, as if it never had spend.
+    """
+    posterior = mmm.idata["posterior"].to_dataset()
+    factor = xr.DataArray(
+        informed,
+        dims=("geo", "channel"),
+        coords={"geo": posterior["geo"].values, "channel": posterior["channel"].values},
+    )
+    contribution = posterior["channel_contribution"] * factor
+    return xr.DataTree.from_dict(
+        {"/posterior": posterior.assign(channel_contribution=contribution)}
+    )
+
+
+DARK_B_CHANNEL_2 = "cells [('B', 'channel_2')] (dims ['geo', 'channel'])"
+"""How the uninformed-reach warning names the one dark cell of ``[[1, 1], [1, 0]]``."""
+
+
+def _uninformed_reach_warnings(build):
+    """Run *build*, returning its result and the uninformed-reach warnings it raised.
+
+    Each is blamed on the line in this file that built or rebound the optimizer,
+    past the ``pymc_marketing`` and pydantic frames in between.
+    """
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        result = build()
+    reach = [
+        w for w in caught if "have no information in the posterior" in str(w.message)
+    ]
+    assert [w.filename for w in reach] == [__file__] * len(reach)
+    return result, [str(w.message) for w in reach]
+
+
+@pytest.mark.parametrize(
+    "informed, expected, uninformed_reach",
+    [
+        pytest.param([[1, 1], [1, 1]], [True, True], None, id="every-cell-informed"),
+        pytest.param(
+            [[1, 1], [1, 0]], [True, True], DARK_B_CHANNEL_2, id="dark-in-one-geo"
+        ),
+        pytest.param([[1, 0], [1, 0]], [True, False], None, id="dark-in-every-geo"),
+    ],
+)
+def test_a_shared_spend_container_gets_an_auto_mask_over_its_own_dims(
+    dummy_df, fitted_mmm, informed, expected, uninformed_reach
+):
+    """Without ``budgets_to_optimize`` the mask is the posterior's, over the decision dims.
+
+    The contribution is ``(geo, channel)`` and the decision ``(channel,)``, which
+    used to fail on a transpose (#3213).  A shared channel feeds every geo, so it
+    is informed when any geo is, with a warning naming the geo it reaches
+    without information; only a channel dark everywhere is left out of the
+    decision vector, at zero.
+    """
+    _df_kwargs, X_dummy, _y_dummy = dummy_df
+    optimizer, reach = _uninformed_reach_warnings(
+        lambda: _shared_spend_optimizer(
+            fitted_mmm,
+            X_dummy["date_week"].max(),
+            _with_dark_cells(fitted_mmm, informed),
+        )
+    )
+
+    assert optimizer.budgets_to_optimize.dims == ("channel",)
+    assert optimizer.budgets_to_optimize.values.tolist() == expected
+    if uninformed_reach is None:
+        assert reach == []
+    else:
+        assert len(reach) == 1
+        assert uninformed_reach in reach[0]
+
+    allocation, result = optimizer.allocate_budget(total_budget=100.0)
+    assert result.success
+    assert allocation.dims == ("channel",)
+    np.testing.assert_allclose(float(allocation.sum()), 100.0)
+    assert (allocation.values[~np.array(expected)] == 0).all()
+
+
+def test_a_shared_spend_container_accepts_a_mask_its_posterior_informs(
+    dummy_df, fitted_mmm
+):
+    """A user mask is checked against the same projection the auto mask uses.
+
+    A shared channel dark in one geo is still informed by the other, so asking
+    to optimize it is accepted, with the same warning; leaving it out raises no
+    warning, and a channel dark in every geo is still refused.
+    """
+    _df_kwargs, X_dummy, _y_dummy = dummy_df
+    channels = list(fitted_mmm.channel_columns)
+
+    def build(informed, selected):
+        mask = xr.DataArray(selected, dims="channel", coords={"channel": channels})
+        return _uninformed_reach_warnings(
+            lambda: _shared_spend_optimizer(
+                fitted_mmm,
+                X_dummy["date_week"].max(),
+                _with_dark_cells(fitted_mmm, informed),
+                budgets_to_optimize=mask,
+            )
+        )
+
+    optimizer, reach = build([[1, 1], [1, 0]], [True, True])
+    assert optimizer.budgets_to_optimize.values.tolist() == [True, True]
+    assert len(reach) == 1
+    assert DARK_B_CHANNEL_2 in reach[0]
+
+    _, reach = build([[1, 1], [1, 0]], [True, False])
+    assert reach == []
+
+    with pytest.raises(ValueError, match="no information"):
+        build([[1, 0], [1, 0]], [True, True])
+
+
+def test_a_rebind_checks_a_shared_spend_mask_like_construction(dummy_df, fitted_mmm):
+    """``set_posterior`` holds a user mask to the same projection.
+
+    New draws where the shared channel is dark in one geo are bound, with the
+    warning; draws where it is dark in every geo are refused.
+    """
+    _df_kwargs, X_dummy, _y_dummy = dummy_df
+    mask = xr.DataArray(
+        [True, True],
+        dims="channel",
+        coords={"channel": list(fitted_mmm.channel_columns)},
+    )
+    optimizer = _shared_spend_optimizer(
+        fitted_mmm,
+        X_dummy["date_week"].max(),
+        fitted_mmm.idata,
+        budgets_to_optimize=mask,
+    )
+    dark_in_one_geo = _with_dark_cells(fitted_mmm, [[1, 1], [1, 0]])
+
+    _, reach = _uninformed_reach_warnings(
+        lambda: optimizer.set_posterior(dark_in_one_geo)
+    )
+
+    assert optimizer.idata is dark_in_one_geo
+    assert len(reach) == 1
+    assert DARK_B_CHANNEL_2 in reach[0]
+    with pytest.raises(ValueError, match="no information"):
+        optimizer.set_posterior(_with_dark_cells(fitted_mmm, [[1, 0], [1, 0]]))
+
+
+def test_a_decision_variable_on_other_dims_needs_an_explicit_mask(dummy_df, fitted_mmm):
+    """No broadcast relates a ``(media,)`` decision to a ``(geo, channel)`` contribution.
+
+    The auto mask is refused with an error naming the fix, rather than a
+    transpose failure, and an explicit mask is still checked against every
+    contribution cell, as it was before the projection existed.
+    """
+    _df_kwargs, X_dummy, _y_dummy = dummy_df
+    last_date = X_dummy["date_week"].max()
+
+    with pytest.raises(ValueError, match=r"Pass budgets_to_optimize over \['media'\]"):
+        _shared_spend_optimizer(
+            fitted_mmm, last_date, fitted_mmm.idata, decision_dim="media"
+        )
+
+    mask = xr.DataArray(
+        [True, True], dims="media", coords={"media": list(fitted_mmm.channel_columns)}
+    )
+    with pytest.raises(ValueError, match="no information"):
+        _shared_spend_optimizer(
+            fitted_mmm,
+            last_date,
+            _with_dark_cells(fitted_mmm, [[1, 0], [1, 0]]),
+            decision_dim="media",
+            budgets_to_optimize=mask,
+        )
+
+
 def test_wrapper_optimize_budget_forwards_price_response(dummy_df, fitted_mmm):
     """The issue's suggested API is wrapper.optimize_budget(..., price_response=...), and
     a curved, attested response with a (geo, channel) reference goes through the panel
@@ -2012,8 +2228,11 @@ class TestDefaultObjectiveWarning:
         with pytest.warns(UserWarning, match="undercounts that path") as record:
             call_entry_point(fitted_mmm_mediated)
 
-        assert record[0].filename == __file__, (
-            f"warning blamed {record[0].filename}, not the caller"
+        # pytest.warns records every warning of the call, not only the one it
+        # matched, so pick ours out rather than trusting the first record.
+        ours = next(w for w in record if "undercounts that path" in str(w.message))
+        assert ours.filename == __file__, (
+            f"warning blamed {ours.filename}, not the caller"
         )
 
     def test_explicit_none_resolves_rather_than_failing_validation(

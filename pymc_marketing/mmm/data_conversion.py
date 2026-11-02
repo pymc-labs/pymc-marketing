@@ -35,10 +35,17 @@ Public vs. internal variable names
       - ``_control``
       - Control variable data
 
-The names ``channel`` and ``control`` **cannot** be used as data variable names
-because xarray promotes them to dimension coordinates when the variable and
-dimension share a name. Use ``media`` instead of ``channel``, and use
-``_control`` for control data.
+The media and the controls **cannot** be named ``channel`` or ``control``:
+xarray stores a variable that shares its name with one of its dimensions as a
+coordinate (and raises if labels for that dimension are also passed in
+``coords``), so the model never sees it. Use ``media`` (or ``_channel``) for
+the media and ``_control`` for the controls.
+
+The dims of each variable may be in any order. The output lays out
+``_channel`` as ``("date", *dims, "channel")``, ``_control`` as
+``("date", *dims, "control")`` and ``_target`` as ``("date", *dims)``; a
+variable that lacks one of these dims, or carries another, keeps its other
+dims in place. Other data variables keep their own layout.
 
 Examples
 --------
@@ -96,7 +103,14 @@ def to_mmm_dataset(
     Parameters
     ----------
     X
-        Feature data.
+        Feature data.  A ``pd.DataFrame`` is wide: the *date_column*, a column
+        per entry in *dims*, and one per channel, control and extra variable.
+        An ``xr.Dataset`` holds the variables listed in
+        :mod:`~pymc_marketing.mmm.data_conversion` on a ``date`` coordinate:
+        ``media`` (or ``_channel``), ``target`` (or ``_target``) and
+        ``_control``; any other data variable is passed through.  An
+        ``xr.DataArray`` holds the media alone, unnamed or named ``media`` or
+        ``_channel``.
     y
         Target variable.  When *X* is already an ``xr.Dataset`` that contains
         a ``target`` / ``_target`` data variable this may be omitted.
@@ -125,7 +139,11 @@ def to_mmm_dataset(
     xr.Dataset
         Dataset with variables ``_channel``, (optional) ``_target``,
         (optional) ``_control``, any ``extra_vars``, and coordinates for
-        each dimension.
+        each dimension.  Whatever the dim order of the input, ``_channel``
+        is laid out ``("date", *dims, "channel")``, ``_control``
+        ``("date", *dims, "control")`` and ``_target`` ``("date", *dims)``
+        (a variable lacking one of these dims, or carrying another, keeps its
+        other dims in place); other variables keep their own layout.
 
     Raises
     ------
@@ -136,7 +154,10 @@ def to_mmm_dataset(
     ValueError
         If an ``xr.Dataset`` input lacks a required variable or coordinate:
         ``_channel``, ``date`` and ``channel`` always, and ``_control`` with a
-        labelled ``control`` coordinate when *control_columns* is set.
+        labelled ``control`` coordinate when *control_columns* is set; if *y*
+        is passed and *X* already has a ``target`` / ``_target`` data variable;
+        or if *y* has no ``date`` coordinate for a panel ``xr.Dataset`` or
+        ``xr.DataArray`` *X*.
     """
     # 1. Coerce date column to datetime for DataFrame inputs.
     if isinstance(X, pd.DataFrame) and date_column in X.columns:
@@ -152,7 +173,7 @@ def to_mmm_dataset(
         extra_vars=extra_vars,
     )
 
-    # 2. Normalise y and merge into the dataset.
+    # 3. Normalise y and merge into the dataset.
     if y is not None:
         if _dataset_has_target(ds):
             raise ValueError(
@@ -187,11 +208,36 @@ def to_mmm_dataset(
                 )
             ds["_target"] = y_da
 
-    return ds
+    return _to_canonical_layout(ds, dims)
 
 
 def _dataset_has_target(ds: xr.Dataset) -> bool:
     return "_target" in ds.data_vars or "target" in ds.data_vars
+
+
+def has_embedded_target(
+    X: pd.DataFrame | xr.Dataset | xr.DataArray, target_column: str | None
+) -> bool:
+    """Return whether ``X`` carries the target, so that ``y`` may be omitted.
+
+    Parameters
+    ----------
+    X : pd.DataFrame or xr.Dataset or xr.DataArray
+        Feature data.
+    target_column : str or None
+        Name of the target column in a ``pd.DataFrame``.
+
+    Returns
+    -------
+    bool
+        ``True`` for an ``xr.Dataset`` with a ``target`` / ``_target`` data
+        variable, or a ``pd.DataFrame`` with a *target_column* column.
+    """
+    if isinstance(X, xr.Dataset):
+        return _dataset_has_target(X)
+    if isinstance(X, pd.DataFrame):
+        return bool(target_column) and target_column in X.columns
+    return False
 
 
 @singledispatch
@@ -441,6 +487,21 @@ def _reindex_to_user_order(
     if control_columns is not None:
         dataset = dataset.reindex(control=control_columns)
     return dataset
+
+
+def _to_canonical_layout(ds: xr.Dataset, dims: tuple[str, ...]) -> xr.Dataset:
+    # The model registers these variables with the layout they have here, and
+    # prediction writes new data into them by position in this layout, so the
+    # two have to agree whatever order the input's dims are in (#3224).
+    lead = ("date", *dims)
+    for var, tail in (
+        ("_channel", ("channel",)),
+        ("_control", ("control",)),
+        ("_target", ()),
+    ):
+        if var in ds.data_vars:
+            ds[var] = ds[var].transpose(*lead, ..., *tail, missing_dims="ignore")
+    return ds
 
 
 def _pandas_to_xarray_dataarray(

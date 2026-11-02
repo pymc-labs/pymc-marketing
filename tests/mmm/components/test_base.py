@@ -750,3 +750,32 @@ def test_call_fallback_creates_distributions(new_transformation) -> None:
 def test_call_outside_model_raises(new_transformation) -> None:
     with pytest.raises(TypeError, match=r"on context stack"):
         new_transformation(as_xtensor(np.array([1, 2, 3]), dims=("time",)))
+
+
+@pytest.mark.parametrize("model_name", ["", "mmm"], ids=["root", "with-prefix"])
+@pytest.mark.parametrize(
+    "constant, expected",
+    [
+        (2.0, [6.0, 12.0, 18.0]),
+        (np.asarray(2.0), [6.0, 12.0, 18.0]),
+        (as_xtensor(np.array([2.0, 4.0, 6.0]), dims=("time",)), [6.0, 24.0, 54.0]),
+    ],
+)
+def test_call_reuses_existing_vars_with_constant_parameter(
+    new_transformation_class, constant, expected, model_name
+) -> None:
+    transformation = new_transformation_class(priors={"a": constant})
+    x = as_xtensor(np.array([1.0, 2.0, 3.0]), dims=("time",))
+    with pm.Model(name=model_name, coords={"time": range(3)}) as model:
+        baseline = transformation.apply(x)
+        original = dict(model.named_vars)
+        treatment = transformation(2 * x)
+        assert model.named_vars.keys() == original.keys()
+        assert all(model[name] is variable for name, variable in original.items())
+        pmd.Deterministic("baseline", baseline)
+        pmd.Deterministic("treatment", treatment)
+    fixed = pm.do(model, {model.name_for("new_b"): 3.0})
+    np.testing.assert_allclose(fixed[model.name_for("baseline")].eval(), expected)
+    np.testing.assert_allclose(
+        fixed[model.name_for("treatment")].eval(), 2 * np.asarray(expected)
+    )

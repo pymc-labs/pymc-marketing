@@ -61,10 +61,42 @@ _POSITIVE_SUPPORT_RV_OPS = {
 }
 
 
+def _validate_measurement_values(values: npt.NDArray, column: str) -> None:
+    """Check normalized measurement values before adding calibration variables."""
+    if not np.isfinite(values).all():
+        raise ValueError(
+            f"Calibration column '{column}' must contain finite real numeric values."
+        )
+    if column == "sigma" and (values <= 0).any():
+        raise ValueError("Calibration column 'sigma' must be strictly positive.")
+
+
+def _validate_measurement_data(df: pd.DataFrame, columns: Sequence[str]) -> None:
+    """Reject undefined observations and invalid measurement uncertainties."""
+    for column in columns:
+        dtype = df[column].dtype
+        if (
+            not pd.api.types.is_numeric_dtype(dtype)
+            or pd.api.types.is_complex_dtype(dtype)
+            or pd.api.types.is_bool_dtype(dtype)
+        ):
+            raise ValueError(
+                f"Calibration column '{column}' must contain finite real numeric values."
+            )
+        try:
+            values = df[column].to_numpy(dtype=float, na_value=np.nan)
+        except (TypeError, ValueError) as error:
+            raise ValueError(
+                f"Calibration column '{column}' must contain finite real numeric values."
+            ) from error
+        _validate_measurement_values(values, column)
+
+
 def _validate_lift_likelihood_data(
     df_lift_test: pd.DataFrame, likelihood: Prior
 ) -> None:
     """Validate observations against known likelihood support constraints."""
+    _validate_measurement_data(df_lift_test, ["x", "delta_x", "delta_y", "sigma"])
     if "sigma" in likelihood.parameters:
         raise ValueError(
             "The lift-test `sigma` is taken from the `sigma` column. Do not pass "
@@ -372,6 +404,9 @@ def add_saturation_observations(
         * ``delta_y``: change in y axis value of the lift test.
         * ``sigma``: standard deviation of the lift test.
 
+        Measurement columns must contain finite real numeric values, and
+        ``sigma`` must be strictly positive. Invalid measurements raise
+        ``ValueError`` before calibration variables are added.
         Any additional columns are assumed to be coordinates in the model.
     variable_mapping : dict[str, str]
         Dictionary of variable names to dimensions.
@@ -811,6 +846,10 @@ def add_lift_measurements_to_likelihood_from_saturation(
             * `delta_x`: change in x axis value of the lift test.
             * `delta_y`: change in y axis value of the lift test.
             * `sigma`: standard deviation of the lift test.
+
+        Measurement columns must contain finite real numeric values, and
+        ``sigma`` must be strictly positive. Invalid measurements raise
+        ``ValueError`` before calibration variables are added.
     saturation : SaturationTransformation
         Any SaturationTransformation instance.
     time_varying_var_name : str, optional
@@ -889,7 +928,8 @@ def validate_cost_per_target_rows(
         If a ``channel`` or dim label is not a model coordinate (with the
         default *get_indices*).
     ValueError
-        If *target_column* or ``sigma`` holds non-numeric values.
+        If *target_column* or ``sigma`` cannot be converted to finite float
+        values, or if ``sigma`` is not strictly positive.
     """
     required_cols = {"channel", target_column, "sigma"}
     missing = required_cols - set(calibration_df.columns)
@@ -908,6 +948,8 @@ def validate_cost_per_target_rows(
     indices = get_indices(calibration_df[non_date_dims], model)
     targets = calibration_df[target_column].to_numpy(dtype=float)
     sigmas = calibration_df["sigma"].to_numpy(dtype=float)
+    _validate_measurement_values(targets, target_column)
+    _validate_measurement_values(sigmas, "sigma")
     return indices, targets, sigmas
 
 

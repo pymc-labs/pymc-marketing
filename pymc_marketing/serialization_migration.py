@@ -22,12 +22,15 @@ Usage:
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import sys
-import tempfile
+from pathlib import Path
 from typing import Any
 
 import xarray as xr
+
+from pymc_marketing.data.idata.io import load_idata, remove_idata, save_idata
 
 CURRENT_VERSION = 1
 
@@ -150,28 +153,48 @@ def migrate_idata(idata: xr.DataTree) -> xr.DataTree:
     return idata
 
 
+def _replace_with(idata: xr.DataTree, target: Path) -> None:
+    """Write ``idata`` next to ``target`` in the same format, then swap it into place.
+
+    ``idata`` may be lazily backed by ``target``; it is closed once the copy is written.
+    """
+    staged = target.with_name(f"migrating-{target.name}")
+    remove_idata(staged)
+    if target.is_dir():
+        staged.mkdir()  # an existing directory is written as a Zarr store, whatever its name
+    save_idata(idata, staged)
+    idata.close()
+    if not target.is_dir():
+        os.replace(staged, target)
+        return
+    # A directory cannot be replaced atomically: move the original aside first, so a
+    # crash leaves a complete store under its name or under ``replaced-<name>``.
+    replaced = target.with_name(f"replaced-{target.name}")
+    remove_idata(replaced)
+    target.rename(replaced)
+    staged.rename(target)
+    shutil.rmtree(replaced)
+
+
 def main() -> None:
-    """CLI entry point: ``python -m pymc_marketing.serialization_migration <file.nc>``."""
+    """CLI entry point: ``python -m pymc_marketing.serialization_migration <model.nc|model.zarr>``."""
     if len(sys.argv) != 2:
-        print("Usage: python -m pymc_marketing.serialization_migration <model.nc>")
+        print(
+            "Usage: python -m pymc_marketing.serialization_migration <model.nc|model.zarr>"
+        )
         sys.exit(1)
 
-    fname = sys.argv[1]
+    fname = Path(sys.argv[1])
     print(f"Loading {fname}...")
-    idata = xr.open_datatree(fname)
+    with load_idata(fname) as idata:
+        version = idata.attrs.get("__serialization_version__", "0")
+        if int(version) >= CURRENT_VERSION:
+            print(f"Already at version {version}, nothing to do.")
+            return
 
-    version = idata.attrs.get("__serialization_version__", "0")
-    if int(version) >= CURRENT_VERSION:
-        print(f"Already at version {version}, nothing to do.")
-        return
-
-    print(f"Migrating from v{version} to v{CURRENT_VERSION}...")
-    migrate_idata(idata)
-
-    with tempfile.NamedTemporaryFile(suffix=".nc", delete=False) as tmp:
-        tmp_path = tmp.name
-    idata.to_netcdf(tmp_path)
-    shutil.move(tmp_path, fname)
+        print(f"Migrating from v{version} to v{CURRENT_VERSION}...")
+        migrate_idata(idata)
+        _replace_with(idata, fname)
     print(f"Done. Saved migrated model to {fname}", file=sys.stderr)
 
 
