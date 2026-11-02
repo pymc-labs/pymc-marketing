@@ -36,6 +36,7 @@ PyTensor-compatible transformation will work the same way.
 
     import numpy as np
     import pymc as pm
+    import pymc.dims as pmd
     from pymc_marketing.mmm.sensitivity_analysis import SensitivityAnalysis
 
 
@@ -45,18 +46,18 @@ PyTensor-compatible transformation will work the same way.
 
     coords = {"date": np.arange(52), "channel": list("abcde")}
     with pm.Model(coords=coords) as m:
-        X = pm.Data(
+        X = pmd.Data(
             "channel_data",
-            np.random.Gamma(13, 12, size=(52, 5)),
+            np.random.gamma(13, 12, size=(52, 5)),
             dims=("date", "channel"),
         )
-        alpha = pm.Gamma("alpha", 1, 1, dims="channel")
-        lam = pm.Gamma("lam", 1, 1, dims="channel")
-        contrib = pm.Deterministic(
+        alpha = pmd.Gamma("alpha", 1, 1, dims="channel")
+        lam = pmd.Gamma("lam", 1, 1, dims="channel")
+        contrib = pmd.Deterministic(
             "channel_contribution", saturation(X, alpha, lam), dims=("date", "channel")
         )
-        mu = pm.Normal("intercept", 0.0, 1.0) + contrib.sum(axis=-1)
-        pm.Normal("likelihood", mu=mu, sigma=1.0, dims=("date",))
+        mu = pmd.Normal("intercept", 0.0, 1.0) + contrib.sum("channel")
+        pmd.Normal("likelihood", mu=mu, sigma=1.0, dims="date")
         idata = pm.sample(1000, tune=500, chains=2, target_accept=0.95, random_seed=42)
 
     sa = SensitivityAnalysis(m, idata)
@@ -101,10 +102,12 @@ from xarray import DataArray
 
 from pymc_marketing.mmm.sweep_cache import (
     SweepCache,
-    SweepCacheKey,
     SweepCloneError,
-    SweepEntry,
     SweepLease,
+)
+from pymc_marketing.mmm.sweep_graph import (
+    SweepCacheKey,
+    SweepEntry,
     apply_response_mask,
     build_sweep_response,
 )
@@ -116,7 +119,13 @@ from pymc_marketing.pytensor_utils import (
 
 
 class SensitivityAnalysis:
-    """SensitivityAnalysis class is used to perform counterfactual analysis on MMM's."""
+    """Run counterfactual sweeps over a fitted model's response.
+
+    The compiled-sweep cache belongs to the owning MMM when the instance comes
+    from :attr:`MMM.sensitivity`: every access shares one cache, one per model.
+    A separately constructed instance keeps a private cache.  The cache key
+    describes the sweep graph only; the source model is checked separately.
+    """
 
     def __init__(
         self,
@@ -124,7 +133,7 @@ class SensitivityAnalysis:
         idata: xr.DataTree,
         dims: tuple[str, ...] = (),
         *,
-        cache: SweepCache | None = None,
+        _cache: SweepCache | None = None,
     ):
         """Initialize the analysis.
 
@@ -136,38 +145,15 @@ class SensitivityAnalysis:
             Fitted inference data holding the posterior draws.
         dims : tuple of str, default ()
             Extra non-date dims of the model, in order.
-        cache : SweepCache, optional
-            Compiled-sweep cache to use, a
-            :class:`~pymc_marketing.mmm.sweep_cache.SweepCache`.  Without one the instance keeps a
-            private cache, so repeated calls on the instance compile once.
+        _cache : SweepCache, optional
+            Internal cache supplied by :attr:`MMM.sensitivity`.  Without one
+            the instance keeps a private cache, so repeated calls on the
+            instance compile once.
         """
         self.model = pymc_model
         self.idata = idata
         self.dims = dims
-        self._cache = SweepCache() if cache is None else cache
-
-    def _compute_dims_order_from_varinput(self, var_input: str) -> list[str]:
-        """Compute non-date dims order directly from the model's var_input dims.
-
-        The var_input dims convention is ``(date, *dims, arbitrary_last_dim_name)``.
-        We drop any occurrence of 'date' and preserve the remaining order as-is.
-        """
-        var_dims = tuple(self.model.named_vars_to_dims.get(var_input, ()))
-        if not var_dims:
-            # Fallback: try to infer from the shared variable shape and model coords order
-            # This is a best-effort path; in practice PyMC populates named_vars_to_dims
-            return list(self.dims)
-        non_date_dims = [d for d in var_dims if d != "date"]
-        return non_date_dims
-
-    def _coord_to_index(self, dims_order: list[str]) -> dict[str, dict]:
-        """Map model coordinate labels to integer indices for all dims in order."""
-        mapping: dict[str, dict] = {}
-        for dim_name in dims_order:
-            if dim_name in self.model.coords:
-                coords = list(self.model.coords[dim_name])
-                mapping[dim_name] = {label: idx for idx, label in enumerate(coords)}
-        return mapping
+        self._cache = SweepCache() if _cache is None else _cache
 
     def _draw_indices_for_percentage(
         self, posterior_sample_fraction: float
@@ -328,7 +314,6 @@ class SensitivityAnalysis:
         var_input: str,
         var_names: str,
         sweep_type: str,
-        response_dims: tuple[str, ...],
         mask_values: np.ndarray | None,
     ) -> SweepCacheKey:
         """Return the structure a compiled sweep is cached under."""
@@ -337,8 +322,6 @@ class SensitivityAnalysis:
             var_names=var_names,
             sweep_type=sweep_type,
             mask_shape=None if mask_values is None else tuple(mask_values.shape),
-            response_dims=tuple(response_dims),
-            dims_order=tuple(self._compute_dims_order_from_varinput(var_input)),
         )
 
     def _run_sweep_cached(
@@ -494,10 +477,13 @@ class SensitivityAnalysis:
         Run sweeps by forward-evaluating the response graph (no Jacobian).
 
         Repeated calls on the same structure reuse a compiled sweep from this
-        instance's cache.  Only the sweep values, the mask values and the
-        posterior draws change between calls, and those are a function argument
-        or a posterior rebind, so a repeat call does not compile unless the posterior
-        layout changed, which rebuilds the entry once.
+        instance's cache.  On an instance reached through ``mmm.sensitivity``
+        that cache belongs to the MMM and is shared by every access, one cache
+        per model; the model is not part of the key.  Only the sweep values,
+        the mask values and the posterior draws change between calls, and those
+        are a function argument or a posterior rebind, so a repeat call does not
+        compile unless the posterior layout changed, which rebuilds the entry
+        once.
 
         Parameters
         ----------
@@ -507,7 +493,9 @@ class SensitivityAnalysis:
         sweep_values : np.ndarray
             Values to sweep over.
         var_names : str
-            The deterministic variable of interest.
+            The deterministic variable of interest.  It must carry named
+            dimensions, for example a ``pmd.Deterministic`` built with
+            ``dims=(...)``; a plain ``pm.Deterministic`` has none.
         sweep_type : {"multiplicative","additive","absolute"}
             Type of sweep to apply.
         posterior_sample_fraction : float
@@ -524,9 +512,9 @@ class SensitivityAnalysis:
         -------
         xarray.DataArray | None
             If extend_idata is False, returns an xarray.DataArray with shape
-            ``(sample, sweep, *dims_order)``, where ``dims_order`` are the non-date
-            dims of `var_input` in the same order as in the model. The response
-            is averaged over the `date` axis as in the draft example. If
+            ``(sample, sweep, *response_dims)``, where ``response_dims`` are the
+            non-date dims of ``var_names`` in model order.  The response is
+            averaged over the `date` axis as in the draft example. If
             extend_idata is True, stores the result under
             `idata.sensitivity_analysis` and returns None.
 
@@ -536,6 +524,8 @@ class SensitivityAnalysis:
             If the posterior in ``idata`` lacks a posterior variable the model reads.
         ValueError
             If ``posterior_sample_fraction`` is outside ``(0, 1]``.
+            If ``var_names`` has no named dimensions, or if ``response_mask``
+            is given for a scalar response.
             If the posterior in ``idata`` no longer matches the model's
             posterior variables in their non-sample dimension names, lengths or
             coordinate labels, for example after assigning a different
@@ -546,8 +536,22 @@ class SensitivityAnalysis:
             path but reads renamed or unlabeled coords by position, without
             checking them.
         """
+        response = self.model[var_names]
+        response_dims = getattr(response, "dims", None)
+        if response_dims is None:
+            raise ValueError(
+                f"{var_names!r} has no dimensions. Sensitivity sweeps require a "
+                "response with named dimensions, for example one built with "
+                "pmd.Deterministic(..., dims=(...))."
+            )
+        response_dims = tuple(response_dims)
+        if response_mask is not None and not response_dims:
+            raise ValueError(
+                "response_mask cannot be applied to a scalar response; "
+                f"{var_names!r} has no dimensions."
+            )
+
         idata = self._selected_idata(var_names, posterior_sample_fraction)
-        response_dims = tuple(getattr(self.model[var_names], "dims", ()))
         mask_values = (
             None
             if response_mask is None
@@ -555,9 +559,7 @@ class SensitivityAnalysis:
                 response_mask, response_dims, var_names=var_names
             )
         )
-        key = self._sweep_key(
-            var_input, var_names, sweep_type, response_dims, mask_values
-        )
+        key = self._sweep_key(var_input, var_names, sweep_type, mask_values)
 
         dims, result = self._run_sweep_cached(key, idata, sweep_values, mask_values)
         xr_result = self._sweep_dataarray(dims, result, sweep_values)

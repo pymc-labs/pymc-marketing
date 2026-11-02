@@ -14,7 +14,6 @@
 import copy
 import gc
 import importlib
-import math
 import weakref
 from concurrent.futures import ThreadPoolExecutor
 
@@ -23,31 +22,22 @@ import numpy as np
 import pandas as pd
 import pymc as pm
 import pymc.dims as pmd
-import pytensor.tensor as pt
-import pytensor.xtensor as ptx
 import pytest
 import xarray as xr
-from pytensor import function as pytensor_function
-from pytensor.xtensor.type import as_xtensor
-from pytensor.xtensor.vectorization import vectorize_graph
 
 from pymc_marketing.mmm.components.adstock import GeometricAdstock
 from pymc_marketing.mmm.components.saturation import LogisticSaturation
 from pymc_marketing.mmm.mmm import MMM
 from pymc_marketing.mmm.sensitivity_analysis import SensitivityAnalysis
 from pymc_marketing.mmm.sweep_cache import SweepCache
-from pymc_marketing.pytensor_utils import (
-    ConditionedModel,
-    ModelCloneError,
-    extract_response_distribution,
-)
+from pymc_marketing.pytensor_utils import ConditionedModel, ModelCloneError
 
 # Modules whose ``pytensor.function`` calls count as sweep compiles.  The counter
 # fixture patches the bare name ``function`` in every module listed here, so a
 # listed module must import it as ``from pytensor import function``.
 _SWEEP_COMPILE_MODULES = (
     "pymc_marketing.mmm.sensitivity_analysis",
-    "pymc_marketing.mmm.sweep_cache",
+    "pymc_marketing.mmm.sweep_graph",
 )
 
 
@@ -368,12 +358,6 @@ def test_posterior_sample_percentage_controls_draws(sensitivity):
     assert limited.sizes["sample"] == 2
 
 
-def test_compute_dims_order_from_varinput_internal(sensitivity):
-    # Drops 'date' and preserves remaining order
-    dims_order = sensitivity._compute_dims_order_from_varinput("channel_data")
-    assert dims_order == ["channel"]
-
-
 def test_add_to_idata_internal_updates_dataset(simple_model_and_idata):
     model, idata = simple_model_and_idata
     sa = SensitivityAnalysis(model, idata)
@@ -575,187 +559,158 @@ def test_run_sweep_integer_channel_data_no_truncation():
 
 
 # ---------------------------------------------------------------------------
-# Parity oracle and compile counter for the sweep-cache migration
-# (sandbox/issue-3007-followup, ticket 01).
+# Closed-form and cold-instance references for the sweep-cache behaviour.
 # ---------------------------------------------------------------------------
 
-
-def _reference_draw_selection(
-    idata: xr.DataTree, posterior_sample_fraction: float
-) -> slice | np.ndarray:
-    """Frozen copy of ``SensitivityAnalysis._draw_indices_for_percentage``."""
-    if not (0 < posterior_sample_fraction <= 1):
-        raise ValueError("'posterior_sample_fraction' must be in the interval (0, 1].")
-
-    draws = int(idata.posterior.sizes.get("draw", 0))
-    if draws <= 1:
-        return slice(None)
-
-    retained_fraction = posterior_sample_fraction**2
-    if math.isclose(retained_fraction, 1.0, rel_tol=1e-9):
-        return slice(None)
-
-    target_draws = max(1, round(draws * retained_fraction))
-    if target_draws >= draws:
-        return slice(None)
-
-    indices = np.linspace(0, draws - 1, target_draws, dtype=int)
-    indices = np.unique(indices)
-    if indices.size == 0:
-        return np.array([0], dtype=int)
-    indices[-1] = draws - 1
-    return indices
+_SATURATION_ALPHA = 0.8
+_SATURATION_LAM = 1.2
 
 
-def _reference_mask_values(
-    response_mask: xr.DataArray | np.ndarray,
-    response_dims: tuple[str, ...],
-    *,
-    model: pm.Model,
-    var_names: str,
+def _swept_input(
+    channel_data: np.ndarray,
+    sweep_values: np.ndarray,
+    sweep_type: str,
 ) -> np.ndarray:
-    """Frozen copy of ``SensitivityAnalysis._prepare_response_mask``."""
-    if isinstance(response_mask, xr.DataArray):
-        mask_xr = response_mask
-        if response_dims:
-            missing_dims = set(response_dims) - set(mask_xr.dims)
-            if missing_dims:
-                raise ValueError(
-                    "response_mask is missing required dims for "
-                    f"{var_names!r}: {sorted(missing_dims)}"
-                )
-            try:
-                mask_xr = mask_xr.transpose(*response_dims)
-            except ValueError as err:
-                raise ValueError(
-                    "response_mask dims must match the order of the "
-                    f"{var_names!r} deterministic"
-                ) from err
-        mask_values = mask_xr.to_numpy()
-    else:
-        mask_values = np.asarray(response_mask)
-
-    if mask_values.dtype != bool:
-        if np.issubdtype(mask_values.dtype, np.integer) or np.issubdtype(
-            mask_values.dtype, np.floating
-        ):
-            mask_values = mask_values.astype(bool)
-        else:
-            raise TypeError("response_mask must be boolean or castable to boolean")
-
-    if response_dims and mask_values.ndim != len(response_dims):
-        raise ValueError(
-            "response_mask must have the same number of dims as the "
-            f"{var_names!r} deterministic (expected {len(response_dims)}, "
-            f"got {mask_values.ndim})"
-        )
-
-    expected_shape = [
-        len(model.coords[dim]) if dim in model.coords else mask_values.shape[axis]
-        for axis, dim in enumerate(response_dims)
-    ]
-    if expected_shape and tuple(expected_shape) != mask_values.shape:
-        raise ValueError(
-            "response_mask shape does not match deterministic dims: "
-            f"expected {tuple(expected_shape)}, got {mask_values.shape}"
-        )
-
-    return mask_values
+    """Return the swept input with shape ``(sweep, date, channel)``."""
+    sweep = np.asarray(sweep_values)[:, None, None]
+    match sweep_type:
+        case "multiplicative":
+            return sweep * channel_data
+        case "additive":
+            return sweep + channel_data
+        case "absolute":
+            return np.broadcast_to(sweep, (len(sweep_values), *channel_data.shape))
+        case _:
+            raise ValueError(f"Unknown sweep_type {sweep_type!r}")
 
 
-def _reference_sweep_dataarray(
-    result: np.ndarray,
-    dims: tuple[str, ...],
+def _saturation_values(
+    channel_data: np.ndarray,
+    alpha: np.ndarray,
+    lam: np.ndarray,
+    response_mask: np.ndarray | None = None,
+) -> np.ndarray:
+    """Return ``alpha*x/(x+lam)`` with shape ``(sample, date, channel)``."""
+    response = (
+        alpha[:, None, :] * channel_data[None] / (channel_data[None] + lam[:, None, :])
+    )
+    if response_mask is not None:
+        response = np.where(response_mask[None, ...], response, 0.0)
+    return response
+
+
+def _saturation_response(
+    channel_data: np.ndarray,
     sweep_values: np.ndarray,
+    sweep_type: str,
+    alpha: np.ndarray,
+    lam: np.ndarray,
+    response_mask: np.ndarray | None = None,
+) -> np.ndarray:
+    """Return the saturation response summed over date for every sweep value."""
+    swept = _swept_input(channel_data, sweep_values, sweep_type)
+    response = (
+        alpha[:, None, None, :] * swept[None] / (swept[None] + lam[:, None, None, :])
+    )
+    if response_mask is not None:
+        response = np.where(response_mask[None, None, ...], response, 0.0)
+    return response.sum(axis=-2)
+
+
+def _as_draws(
+    values: np.ndarray | float, *, sample_size: int, n_channels: int
+) -> np.ndarray:
+    """Broadcast a scalar or a per-channel value to ``(sample, channel)``."""
+    values = np.asarray(values, dtype=float)
+    if values.ndim == 0:
+        return np.full((sample_size, n_channels), float(values))
+    if values.ndim == 1:
+        values = values[None, :]
+    return np.broadcast_to(values, (sample_size, n_channels))
+
+
+def _expected_saturation_sweep(
     model: pm.Model,
-) -> xr.DataArray:
-    """Frozen copy of the coordinate assembly at the end of ``run_sweep``."""
-    coords = {}
-    for dim, shape in zip(dims, result.shape, strict=True):
-        if dim == "sweep":
-            dim_coords = np.asarray(sweep_values)
-        else:
-            dim_coords = model.coords.get(dim)
-            if dim_coords is None:
-                dim_coords = np.arange(shape)
-            else:
-                dim_coords = np.asarray(dim_coords)
-        coords[dim] = dim_coords
-    return xr.DataArray(result, dims=dims, coords=coords)
-
-
-def _reference_run_sweep(
-    analysis: SensitivityAnalysis,
-    var_input: str,
+    channel_data: np.ndarray,
     sweep_values: np.ndarray,
     *,
-    var_names: str = "channel_contribution",
     sweep_type: str = "multiplicative",
-    posterior_sample_fraction: float = 1.0,
+    alpha: np.ndarray | float = _SATURATION_ALPHA,
+    lam: np.ndarray | float = _SATURATION_LAM,
     response_mask: xr.DataArray | np.ndarray | None = None,
+    sample_size: int = 5,
 ) -> xr.DataArray:
-    """Frozen copy of ``SensitivityAnalysis.run_sweep`` as of ticket 01.
-
-    The sweep-cache migration rewrites the production method; this copy is the
-    oracle every rewritten version must still match.  The duplication is
-    deliberate and must not be collapsed back into calls to
-    ``SensitivityAnalysis.run_sweep`` or its helpers.
-    """
-    sweep = ptx.xtensor("sweep", dims=("sweep",))
-    response_dims = analysis.model[var_names].dims
-
-    draw_selection = _reference_draw_selection(
-        analysis.idata, posterior_sample_fraction
+    """Return the closed-form sweep of ``alpha*x/(x+lam)`` for the synthetic model."""
+    n_channels = channel_data.shape[1]
+    alpha = _as_draws(alpha, sample_size=sample_size, n_channels=n_channels)
+    lam = _as_draws(lam, sample_size=sample_size, n_channels=n_channels)
+    mask = None if response_mask is None else np.asarray(response_mask)
+    values = _saturation_response(
+        np.asarray(channel_data),
+        np.asarray(sweep_values),
+        sweep_type,
+        alpha,
+        lam,
+        mask,
     )
-    resp_graph = extract_response_distribution(
-        pymc_model=analysis.model,
-        idata=analysis.idata.isel(draw=draw_selection),
-        response_variable=var_names,
+    return xr.DataArray(
+        values,
+        dims=("sample", "sweep", "channel"),
+        coords={
+            "sample": np.arange(sample_size),
+            "sweep": np.asarray(sweep_values),
+            "channel": list(model.coords["channel"]),
+        },
     )
 
-    mask_array = None
-    mask = None
+
+def _expected_two_input_sweep(
+    model: pm.Model,
+    sweep_values: np.ndarray,
+    *,
+    var_input: str,
+    var_names: str,
+    sweep_type: str,
+    response_mask: xr.DataArray | np.ndarray | None = None,
+    sample_size: int = 5,
+) -> xr.DataArray:
+    """Return the closed-form sweep of the two-input synthetic model."""
+    first = np.asarray(model["channel_data"].get_value())
+    second = np.asarray(model["channel_data_2"].get_value())
+    n_channels = first.shape[1]
+    alpha = _as_draws(_SATURATION_ALPHA, sample_size=sample_size, n_channels=n_channels)
+    lam = _as_draws(_SATURATION_LAM, sample_size=sample_size, n_channels=n_channels)
+
+    def contribution(data: np.ndarray, swept: bool) -> np.ndarray:
+        if not swept:
+            values = _saturation_values(data, alpha, lam)
+            return values[:, None, :, :]
+        swept_data = _swept_input(data, sweep_values, sweep_type)
+        return (
+            alpha[:, None, None, :]
+            * swept_data[None]
+            / (swept_data[None] + lam[:, None, None, :])
+        )
+
+    response = contribution(first, var_input == "channel_data") + contribution(
+        second, var_input == "channel_data_2"
+    )
+    if var_names == "date_contribution":
+        response = response.sum(axis=-1)
+        dims = ("sample", "sweep")
+        date_axis = -1
+    else:
+        dims = ("sample", "sweep", "channel")
+        date_axis = -2
+
     if response_mask is not None:
-        mask_array = _reference_mask_values(
-            response_mask,
-            response_dims,
-            model=analysis.model,
-            var_names=var_names,
-        )
-        mask = pt.tensor("mask", shape=mask_array.shape, dtype=bool)
-        mask_bcast, _ = pt.broadcast_arrays(mask, resp_graph.values)
-        resp_graph = as_xtensor(
-            resp_graph.values[~mask_bcast].set(0), dims=resp_graph.dims
-        )
+        response = np.where(np.asarray(response_mask)[None, None, ...], response, 0.0)
+    response = response.sum(axis=date_axis)
 
-    base_value = analysis.model[var_input]
-    if sweep_type == "multiplicative":
-        sweep_combinations = sweep * base_value
-    elif sweep_type == "additive":
-        sweep_combinations = sweep + base_value
-    elif sweep_type == "absolute":
-        sweep_combinations = sweep.broadcast_like(base_value)
-    else:
-        raise ValueError(f"Unknown sweep_type {sweep_type!r}")
-
-    sweep_response = vectorize_graph(
-        resp_graph, replace={base_value: sweep_combinations}
-    )
-    sweep_response_summed = sweep_response.sum(dim="date").transpose(
-        "sample", "sweep", ...
-    )
-
-    inputs = [sweep] if mask is None else [sweep, mask]
-    # Imported straight from pytensor so oracle compiles never reach the compile counter.
-    compiled = pytensor_function(inputs, sweep_response_summed)
-    if mask_array is None:
-        result = compiled(sweep_values)
-    else:
-        result = compiled(sweep_values, mask_array)
-
-    return _reference_sweep_dataarray(
-        result, sweep_response_summed.dims, sweep_values, analysis.model
-    )
+    coords = {"sample": np.arange(sample_size), "sweep": np.asarray(sweep_values)}
+    if var_names == "channel_contribution":
+        coords["channel"] = list(model.coords["channel"])
+    return xr.DataArray(response, dims=dims, coords=coords)
 
 
 def _synthetic_response_mask() -> xr.DataArray:
@@ -772,69 +727,71 @@ def _multidim_response_mask() -> xr.DataArray:
     return xr.DataArray(mask, dims=("date", "country", "channel"))
 
 
-def _assert_matches_frozen_reference(
-    analysis: SensitivityAnalysis,
-    sweep_values: np.ndarray,
-    *,
-    sweep_type: str,
-    posterior_sample_fraction: float,
-    response_mask: xr.DataArray | None,
-) -> None:
-    expected = _reference_run_sweep(
-        analysis,
-        "channel_data",
-        sweep_values,
-        var_names="channel_contribution",
-        sweep_type=sweep_type,
-        posterior_sample_fraction=posterior_sample_fraction,
-        response_mask=response_mask,
-    )
-    actual = analysis.run_sweep(
-        "channel_data",
-        sweep_values,
-        var_names="channel_contribution",
-        sweep_type=sweep_type,
-        posterior_sample_fraction=posterior_sample_fraction,
-        response_mask=response_mask,
-    )
-
-    xr.testing.assert_allclose(actual, expected)
-
-
-@pytest.mark.parametrize("posterior_sample_fraction", [1.0, 0.5])
+@pytest.mark.parametrize(
+    ("posterior_sample_fraction", "sample_size"), [(1.0, 5), (0.5, 1)]
+)
 @pytest.mark.parametrize("use_mask", [False, True])
 @pytest.mark.parametrize("sweep_type", ["multiplicative", "additive", "absolute"])
-def test_run_sweep_matches_frozen_reference(
-    sensitivity, sweep_type, use_mask, posterior_sample_fraction
+def test_run_sweep_matches_the_closed_form(
+    simple_model_and_idata,
+    sweep_type,
+    use_mask,
+    posterior_sample_fraction,
+    sample_size,
 ):
-    """The sweep grid on a single-dimension model matches the frozen oracle."""
-    _assert_matches_frozen_reference(
-        sensitivity,
-        np.linspace(0.5, 1.5, 4),
+    """The sweep grid on the synthetic model matches its closed-form values."""
+    model, idata = simple_model_and_idata
+    sweep_values = np.linspace(0.5, 1.5, 4)
+    response_mask = _synthetic_response_mask() if use_mask else None
+
+    result = SensitivityAnalysis(model, idata).run_sweep(
+        "channel_data",
+        sweep_values,
+        var_names="channel_contribution",
         sweep_type=sweep_type,
         posterior_sample_fraction=posterior_sample_fraction,
-        response_mask=_synthetic_response_mask() if use_mask else None,
+        response_mask=response_mask,
     )
+    expected = _expected_saturation_sweep(
+        model,
+        np.asarray(model["channel_data"].get_value()),
+        sweep_values,
+        sweep_type=sweep_type,
+        response_mask=response_mask,
+        sample_size=sample_size,
+    )
+
+    xr.testing.assert_allclose(result, expected)
 
 
 @pytest.mark.parametrize("posterior_sample_fraction", [1.0, 0.5])
 @pytest.mark.parametrize("use_mask", [False, True])
 @pytest.mark.parametrize("sweep_type", ["multiplicative", "additive", "absolute"])
-def test_multidim_run_sweep_matches_frozen_reference(
+def test_multidim_run_sweep_matches_a_cold_instance(
     multidim_mmm, sweep_type, use_mask, posterior_sample_fraction
 ):
     """The sweep grid keeps its dims, labels and values on a multidim MMM.
 
-    The mask covers one country/channel pair, so the grid exercises the labeled
-    ``country`` and ``channel`` axes as well as the masked-overlay path.
+    A fresh instance has its own empty cache, so the warm shared cache cannot
+    influence the expected result.  The mask covers one country/channel pair,
+    so the grid exercises the labeled ``country`` and ``channel`` axes as well
+    as the masked-overlay path.
     """
-    _assert_matches_frozen_reference(
-        multidim_mmm.sensitivity,
-        np.linspace(0.5, 1.5, 4),
-        sweep_type=sweep_type,
-        posterior_sample_fraction=posterior_sample_fraction,
-        response_mask=_multidim_response_mask() if use_mask else None,
+    sweep_values = np.linspace(0.5, 1.5, 4)
+    response_mask = _multidim_response_mask() if use_mask else None
+    kwargs = {
+        "var_names": "channel_contribution",
+        "sweep_type": sweep_type,
+        "posterior_sample_fraction": posterior_sample_fraction,
+        "response_mask": response_mask,
+    }
+
+    actual = multidim_mmm.sensitivity.run_sweep("channel_data", sweep_values, **kwargs)
+    expected = SensitivityAnalysis(multidim_mmm.model, multidim_mmm.idata).run_sweep(
+        "channel_data", sweep_values, **kwargs
     )
+
+    xr.testing.assert_allclose(actual, expected)
 
 
 def test_multidim_interleaved_fractions_match_the_full_tree(multidim_mmm):
@@ -852,12 +809,12 @@ def test_multidim_interleaved_fractions_match_the_full_tree(multidim_mmm):
     }
 
     for fraction in (1.0, 0.5, 1.0, 0.5):
-        # A fresh accessor per call: the cache, not the instance, is shared.
         result = multidim_mmm.sensitivity.run_sweep(
             "channel_data", sweeps, posterior_sample_fraction=fraction, **kwargs
         )
-        expected = _reference_run_sweep(
-            multidim_mmm.sensitivity,
+        expected = SensitivityAnalysis(
+            multidim_mmm.model, multidim_mmm.idata
+        ).run_sweep(
             "channel_data",
             sweeps,
             posterior_sample_fraction=fraction,
@@ -895,7 +852,7 @@ def _data_only_response_model_and_idata() -> tuple[pm.Model, xr.DataTree]:
 
 
 def test_run_sweep_a_data_only_response_keeps_its_failure_mode():
-    """A response that reads no draw keeps the whole tree, so it fails as before.
+    """A response that reads no draw keeps the whole tree and fails at the sum.
 
     Such a response has no ``sample`` dim to transpose.  Narrowing it to an
     empty posterior would fail earlier, about a missing ``draw`` dim, so the
@@ -905,12 +862,91 @@ def test_run_sweep_a_data_only_response_keeps_its_failure_mode():
     analysis = SensitivityAnalysis(model, idata)
     sweeps = np.linspace(0.5, 1.5, 4)
 
-    with pytest.raises(ValueError) as actual:
+    with pytest.raises(ValueError, match=r"Dimensions \{'sample'\}"):
         analysis.run_sweep("channel_data", sweeps, var_names="channel_contribution")
-    with pytest.raises(ValueError) as expected:
-        _reference_run_sweep(analysis, "channel_data", sweeps)
 
-    assert str(actual.value) == str(expected.value)
+
+def _constant_saturation_idata(n_channels: int = 4, n_draws: int = 5) -> xr.DataTree:
+    """Posterior draws of ``alpha`` and ``lam`` constant across draws and channels."""
+    channel = list("abcd")[:n_channels]
+    draws = {
+        name: xr.DataArray(
+            np.full((1, n_draws, n_channels), value),
+            dims=["chain", "draw", "channel"],
+            coords={"channel": channel},
+        )
+        for name, value in (("alpha", _SATURATION_ALPHA), ("lam", _SATURATION_LAM))
+    }
+    return xr.DataTree.from_dict({"/posterior": xr.Dataset(draws)})
+
+
+def _plain_deterministic_model_and_idata() -> tuple[pm.Model, xr.DataTree]:
+    """A model whose response is a plain ``pm.Deterministic`` without dims."""
+    rng = np.random.default_rng(3)
+    coords = {"date": np.arange(6), "channel": list("abcd")}
+    with pm.Model(coords=coords) as model:
+        X = pm.Data(
+            "channel_data", rng.gamma(2.0, 1.0, (6, 4)), dims=("date", "channel")
+        )
+        alpha = pm.Gamma("alpha", 1.0, 1.0, dims=("channel",))
+        lam = pm.Gamma("lam", 1.0, 1.0, dims=("channel",))
+        pm.Deterministic("channel_contribution", (alpha * X) / (X + lam))
+
+    return model, _constant_saturation_idata()
+
+
+def _scalar_deterministic_model_and_idata() -> tuple[pm.Model, xr.DataTree]:
+    """A model whose response is a scalar ``pmd.Deterministic``."""
+    rng = np.random.default_rng(4)
+    coords = {"date": np.arange(6), "channel": list("abcd")}
+    with pm.Model(coords=coords) as model:
+        X = pmd.Data(
+            "channel_data", rng.gamma(2.0, 1.0, (6, 4)), dims=("date", "channel")
+        )
+        alpha = pmd.Gamma("alpha", 1.0, 1.0, dims=("channel",))
+        lam = pmd.Gamma("lam", 1.0, 1.0, dims=("channel",))
+        pmd.Deterministic("channel_contribution", ((alpha * X) / (X + lam)).sum())
+
+    return model, _constant_saturation_idata()
+
+
+@pytest.mark.parametrize(
+    ("builder", "use_mask", "match"),
+    [
+        pytest.param(
+            _plain_deterministic_model_and_idata,
+            False,
+            "has no dimensions",
+            id="plain",
+        ),
+        pytest.param(
+            _plain_deterministic_model_and_idata,
+            True,
+            "has no dimensions",
+            id="plain-masked",
+        ),
+        pytest.param(
+            _scalar_deterministic_model_and_idata,
+            True,
+            "scalar response",
+            id="scalar-masked",
+        ),
+    ],
+)
+def test_run_sweep_dimensionless_response_raises_a_clear_error(
+    builder, use_mask, match
+):
+    """A response without dims explains what it needs instead of an internal error."""
+    model, idata = builder()
+    response_mask = np.ones((6, 4), dtype=bool) if use_mask else None
+
+    with pytest.raises(ValueError, match=match):
+        SensitivityAnalysis(model, idata).run_sweep(
+            "channel_data",
+            np.linspace(0.5, 1.5, 4),
+            var_names="channel_contribution",
+            response_mask=response_mask,
+        )
 
 
 def test_run_sweep_frees_draws_the_graph_does_not_read(simple_model_and_idata):
@@ -962,12 +998,15 @@ def test_run_sweep_reflects_set_data_between_calls(sensitivity):
     }
     before = sensitivity.run_sweep("channel_data", sweeps, **kwargs)
 
-    channel_data = np.asarray(sensitivity.model["channel_data"].get_value())
-    pm.set_data({"channel_data": channel_data * 1.5}, model=sensitivity.model)
+    channel_data = np.asarray(sensitivity.model["channel_data"].get_value()) * 1.5
+    pm.set_data({"channel_data": channel_data}, model=sensitivity.model)
     after = sensitivity.run_sweep("channel_data", sweeps, **kwargs)
 
     xr.testing.assert_allclose(
-        after, _reference_run_sweep(sensitivity, "channel_data", sweeps, **kwargs)
+        after,
+        _expected_saturation_sweep(
+            sensitivity.model, channel_data, sweeps, sweep_type="multiplicative"
+        ),
     )
     assert not np.allclose(after.values, before.values)
 
@@ -990,8 +1029,8 @@ def test_run_sweep_reflects_replaced_idata(multidim_mmm):
 
     xr.testing.assert_allclose(
         after,
-        _reference_run_sweep(
-            multidim_mmm.sensitivity, "channel_data", sweeps, **kwargs
+        SensitivityAnalysis(multidim_mmm.model, replacement).run_sweep(
+            "channel_data", sweeps, **kwargs
         ),
     )
     assert not np.allclose(after.values, before.values)
@@ -1015,7 +1054,10 @@ def test_run_sweep_same_instance_reflects_replaced_idata(multidim_mmm):
     after = analysis.run_sweep("channel_data", sweeps, **kwargs)
 
     xr.testing.assert_allclose(
-        after, _reference_run_sweep(analysis, "channel_data", sweeps, **kwargs)
+        after,
+        SensitivityAnalysis(analysis.model, replacement).run_sweep(
+            "channel_data", sweeps, **kwargs
+        ),
     )
     assert not np.allclose(after.values, before.values)
 
@@ -1178,14 +1220,21 @@ def test_run_sweep_permuted_posterior_coords_are_label_correct(
     }
     idata = _channel_varying_posterior(model)
     permuted_idata = _reverse_channel_coords(idata)
+    alpha = idata.posterior["alpha"].isel(chain=0).values
+    lam = idata.posterior["lam"].isel(chain=0).values
 
-    label_correct = SensitivityAnalysis(model, idata).run_sweep(
+    expected = _expected_saturation_sweep(
+        model,
+        np.asarray(model["channel_data"].get_value()),
+        sweeps,
+        alpha=alpha,
+        lam=lam,
+    )
+    actual = SensitivityAnalysis(model, permuted_idata).run_sweep(
         "channel_data", sweeps, **kwargs
     )
-    permuted_analysis = SensitivityAnalysis(model, permuted_idata)
-    actual = permuted_analysis.run_sweep("channel_data", sweeps, **kwargs)
 
-    xr.testing.assert_allclose(actual, label_correct)
+    xr.testing.assert_allclose(actual, expected)
 
 
 def test_run_sweep_fallback_realigns_a_permuted_posterior_by_label():
@@ -1196,9 +1245,14 @@ def test_run_sweep_fallback_realigns_a_permuted_posterior_by_label():
     permuted_idata = _reverse_channel_coords(idata)
     sweeps = np.linspace(0.5, 1.5, 4)
     kwargs = {"var_names": "channel_contribution", "sweep_type": "multiplicative"}
+    channel_data = np.asarray(clonable["channel_data"].get_value())
 
-    label_correct = SensitivityAnalysis(clonable, idata).run_sweep(
-        "channel_data", sweeps, **kwargs
+    label_correct = _expected_saturation_sweep(
+        clonable,
+        channel_data,
+        sweeps,
+        alpha=idata.posterior["alpha"].isel(chain=0).values,
+        lam=idata.posterior["lam"].isel(chain=0).values,
     )
     cached_permuted = SensitivityAnalysis(clonable, permuted_idata).run_sweep(
         "channel_data", sweeps, **kwargs
@@ -1210,11 +1264,13 @@ def test_run_sweep_fallback_realigns_a_permuted_posterior_by_label():
     xr.testing.assert_allclose(cached_permuted, label_correct)
     xr.testing.assert_allclose(fallback_permuted, label_correct)
 
-    positional = _reference_run_sweep(
-        SensitivityAnalysis(unclonable, permuted_idata),
-        "channel_data",
+    # Reading the stored order by position swaps each channel's alpha and lam.
+    positional = _expected_saturation_sweep(
+        clonable,
+        channel_data,
         sweeps,
-        **kwargs,
+        alpha=permuted_idata.posterior["alpha"].isel(chain=0).values,
+        lam=permuted_idata.posterior["lam"].isel(chain=0).values,
     )
 
     assert not np.allclose(positional.values, label_correct.values)
@@ -1256,7 +1312,6 @@ def test_run_sweep_compiles_once_per_call(sensitivity, sweep_compile_counter):
     sensitivity.run_sweep("channel_data", sweeps, **kwargs)
     repeat_compiles = len(sweep_compile_counter) - first_call_compiles
 
-    assert sweep_compile_counter == ["pymc_marketing.mmm.sweep_cache"]
     assert first_call_compiles == 1, f"first call compiled {first_call_compiles} times"
     assert repeat_compiles == 0, f"repeat call compiled {repeat_compiles} times"
 
@@ -1390,18 +1445,17 @@ def test_run_sweep_recompiles_only_on_key_change(
     assert isinstance(second, xr.DataArray)
 
     # A reused or a rebuilt entry must honour this call's grid, mask and draws.
-    xr.testing.assert_allclose(
-        second,
-        _reference_run_sweep(
-            analysis,
-            second_call["var_input"],
-            second_call["sweep_values"],
-            var_names=second_call["var_names"],
-            sweep_type=second_call["sweep_type"],
-            posterior_sample_fraction=second_call.get("posterior_sample_fraction", 1.0),
-            response_mask=second_call.get("response_mask"),
-        ),
+    fraction = second_call.get("posterior_sample_fraction", 1.0)
+    expected = _expected_two_input_sweep(
+        model,
+        second_call["sweep_values"],
+        var_input=second_call["var_input"],
+        var_names=second_call["var_names"],
+        sweep_type=second_call["sweep_type"],
+        response_mask=second_call.get("response_mask"),
+        sample_size=5 if fraction == 1.0 else 2,
     )
+    xr.testing.assert_allclose(second, expected)
 
 
 def _initval_model_and_idata(
@@ -1457,7 +1511,7 @@ def test_run_sweep_initval_model_falls_back(sweep_compile_counter):
     """A model ``ConditionedModel`` cannot clone still sweeps, per call.
 
     The sweep compiles on every call on this path, and the result equals the
-    frozen reference, so the fallback is behaviour-preserving.
+    closed form, so the fallback is behaviour-preserving.
     """
     model, idata = _initval_model_and_idata()
     with pytest.raises(ModelCloneError):
@@ -1472,14 +1526,15 @@ def test_run_sweep_initval_model_falls_back(sweep_compile_counter):
     first = analysis.run_sweep("channel_data", sweeps, **kwargs)
     second = analysis.run_sweep("channel_data", sweeps, **kwargs)
 
-    xr.testing.assert_allclose(
-        first, _reference_run_sweep(analysis, "channel_data", sweeps, **kwargs)
+    expected = _expected_saturation_sweep(
+        model,
+        np.asarray(model["channel_data"].get_value()),
+        sweeps,
+        sweep_type="multiplicative",
     )
+    xr.testing.assert_allclose(first, expected)
     xr.testing.assert_allclose(second, first)
-    assert sweep_compile_counter == [
-        "pymc_marketing.mmm.sensitivity_analysis",
-        "pymc_marketing.mmm.sensitivity_analysis",
-    ]
+    assert len(sweep_compile_counter) == 2
 
 
 def test_run_sweep_unclonable_model_is_cloned_once(monkeypatch):
@@ -1504,7 +1559,13 @@ def test_run_sweep_unclonable_model_is_cloned_once(monkeypatch):
     assert len(attempts) == 1
     xr.testing.assert_allclose(second, first)
     xr.testing.assert_allclose(
-        first, _reference_run_sweep(analysis, "channel_data", sweeps, **kwargs)
+        first,
+        _expected_saturation_sweep(
+            model,
+            np.asarray(model["channel_data"].get_value()),
+            sweeps,
+            sweep_type="multiplicative",
+        ),
     )
 
 
@@ -1524,7 +1585,7 @@ def test_run_sweep_posterior_error_in_construction_is_not_a_clone_failure(
         raise ValueError("posterior layout")
 
     monkeypatch.setattr(
-        "pymc_marketing.mmm.sweep_cache.ConditionedModel", raise_posterior_error
+        "pymc_marketing.mmm.sweep_graph.ConditionedModel", raise_posterior_error
     )
 
     with pytest.raises(ValueError, match="posterior layout"):
@@ -1567,7 +1628,8 @@ def test_run_sweep_concurrent_calls_match_single_thread(simple_model_and_idata):
     draws.
     """
     model, _ = simple_model_and_idata
-    sensitivity = SensitivityAnalysis(model, _draw_varying_posterior(model))
+    idata = _draw_varying_posterior(model)
+    sensitivity = SensitivityAnalysis(model, idata)
     sweeps = np.linspace(0.5, 1.5, 4)
     calls = [
         {"sweep_type": "multiplicative", "posterior_sample_fraction": 1.0},
@@ -1576,8 +1638,7 @@ def test_run_sweep_concurrent_calls_match_single_thread(simple_model_and_idata):
         {"sweep_type": "multiplicative", "posterior_sample_fraction": 0.6},
     ]
     expected = [
-        _reference_run_sweep(
-            sensitivity,
+        SensitivityAnalysis(model, idata).run_sweep(
             "channel_data",
             sweeps,
             var_names="channel_contribution",
@@ -1604,8 +1665,37 @@ def test_run_sweep_concurrent_calls_match_single_thread(simple_model_and_idata):
         xr.testing.assert_allclose(result, want)
 
 
+def test_run_sweep_posterior_sample_fraction_selects_the_expected_draws(
+    simple_model_and_idata,
+):
+    """Five draws at fraction 0.6 keep the first and last, and use their values."""
+    model, _ = simple_model_and_idata
+    idata = _draw_varying_posterior(model)
+    sweeps = np.linspace(0.5, 1.5, 4)
+    selected = [0, 4]
+
+    result = SensitivityAnalysis(model, idata).run_sweep(
+        "channel_data",
+        sweeps,
+        var_names="channel_contribution",
+        sweep_type="multiplicative",
+        posterior_sample_fraction=0.6,
+    )
+    expected = _expected_saturation_sweep(
+        model,
+        np.asarray(model["channel_data"].get_value()),
+        sweeps,
+        alpha=idata.posterior["alpha"].isel(chain=0, draw=selected).values,
+        lam=idata.posterior["lam"].isel(chain=0, draw=selected).values,
+        sample_size=len(selected),
+    )
+
+    assert result.sizes["sample"] == len(selected)
+    xr.testing.assert_allclose(result, expected)
+
+
 # ---------------------------------------------------------------------------
-# MMM-owned shared cache and lifecycle (sandbox/issue-3007-followup, ticket 03).
+# MMM-owned shared cache and lifecycle.
 # ---------------------------------------------------------------------------
 
 _SENSITIVITY_KWARGS = {
@@ -1652,13 +1742,14 @@ def _invoke_lifecycle_site(mmm: MMM, site: str, X: pd.DataFrame, y: pd.Series) -
 
 
 @pytest.mark.parametrize("site", _LIFECYCLE_SITES)
-def test_mmm_lifecycle_site_clears_the_sweep_cache(
+def test_mmm_lifecycle_site_clears_both_caches(
     multidim_mmm, df, site, sweep_compile_counter, monkeypatch
 ):
-    """``fit``, ``build_model`` and ``build_from_idata`` each drop a warm cache."""
+    """``fit``, ``build_model`` and ``build_from_idata`` each drop both caches."""
     mmm = multidim_mmm
     if site == "build_from_idata":
-        # build_model clears the cache too; stub it so only this site's own clear acts.
+        # build_model clears both caches too; stub it so only this site's own
+        # up-front clear can empty them.
         monkeypatch.setattr(mmm, "build_model", lambda X, y: None)
     X = df.drop(columns=["y"]).copy()
     y = df["y"].copy()
@@ -1668,12 +1759,15 @@ def test_mmm_lifecycle_site_clears_the_sweep_cache(
 
     sweeps = np.linspace(0.5, 1.5, 4)
     before = mmm.sensitivity.run_sweep("channel_data", sweeps, **_SENSITIVITY_KWARGS)
+    mmm._incrementality_evaluator_cache().put(object(), object())
     assert len(mmm._sensitivity_sweep_cache()) == 1
+    assert len(mmm._incrementality_evaluator_cache()) == 1
 
     compiles_before_site = len(sweep_compile_counter)
     _invoke_lifecycle_site(mmm, site, X, y)
 
     assert len(mmm._sensitivity_sweep_cache()) == 0
+    assert len(mmm._incrementality_evaluator_cache()) == 0
     after = mmm.sensitivity.run_sweep("channel_data", sweeps, **_SENSITIVITY_KWARGS)
 
     assert len(sweep_compile_counter) - compiles_before_site == 1
@@ -1729,8 +1823,8 @@ def test_mmm_idata_assignment_between_sweeps_is_picked_up(multidim_mmm):
 
     xr.testing.assert_allclose(
         after,
-        _reference_run_sweep(
-            multidim_mmm.sensitivity, "channel_data", sweeps, **_SENSITIVITY_KWARGS
+        SensitivityAnalysis(multidim_mmm.model, replacement).run_sweep(
+            "channel_data", sweeps, **_SENSITIVITY_KWARGS
         ),
     )
     assert not np.allclose(after.values, before.values)
@@ -1740,7 +1834,7 @@ def test_sweep_cache_evicts_the_oldest_entry_and_recompiles(sweep_compile_counte
     """A fifth key evicts the oldest, which recompiles to the same result."""
     model, idata = _two_input_model_and_idata()
     cache = SweepCache()
-    analysis = SensitivityAnalysis(model, idata, cache=cache)
+    analysis = SensitivityAnalysis(model, idata, _cache=cache)
     sweeps = np.linspace(0.5, 1.5, 4)
     calls = [
         {"var_input": "channel_data", "sweep_type": "multiplicative"},

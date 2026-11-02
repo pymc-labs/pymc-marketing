@@ -3988,8 +3988,10 @@ class MMM(RegressionModelBuilder):
 
         Repeated sweeps on the same model reuse compiled work, so only the first
         call for a given ``var_input``, ``var_names``, ``sweep_type`` and mask
-        shape pays the compilation cost.  A model that cannot be cloned compiles
-        on every call.  Rebuilding or refitting the model drops that cache.
+        shape pays the compilation cost.  The cache belongs to this MMM: every
+        access shares it, one cache per model, and the model is not part of the
+        key.  A model that cannot be cloned compiles on every call.  Rebuilding
+        or refitting the model drops that cache.
 
         """
         # Provide the underlying PyMC model, the model's inference data, and dims
@@ -3997,7 +3999,7 @@ class MMM(RegressionModelBuilder):
             pymc_model=self.model,
             idata=self.idata,
             dims=self.dims,
-            cache=self._sensitivity_sweep_cache(),
+            _cache=self._sensitivity_sweep_cache(),
         )
 
     @property
@@ -4918,8 +4920,10 @@ class MMM(RegressionModelBuilder):
             mmm.build_from_idata(idata)
 
         """
-        # The rebuild below replaces the graph the sweeps were compiled from. Clear up front
-        # so a failure before it cannot leave them behind (build_model clears both caches again).
+        # The rebuild below replaces the graph every compiled evaluator and sweep
+        # was built from.  Clear both up front so a failure before it cannot leave
+        # them behind (build_model clears both caches again).
+        self._clear_incrementality_evaluator_cache()
         self._clear_sensitivity_sweep_cache()
         self.idata = idata
         if "mu_effects" in idata.attrs:
