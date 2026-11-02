@@ -210,7 +210,8 @@ coefficients.
 """
 
 from abc import ABC, abstractmethod
-from typing import Annotated, Any, Literal, Protocol
+from collections.abc import Iterable
+from typing import Annotated, Any, ClassVar, Literal, Protocol
 
 import numpy as np
 import numpy.typing as npt
@@ -442,7 +443,21 @@ class MuEffect(SerializableBaseModel, ABC):
 
     All mu_effects must inherit from this Pydantic BaseModel to ensure proper
     serialization and deserialization when saving/loading MMM models.
+
+    Attributes
+    ----------
+    supports_new_dates : bool
+        Whether the effect can be evaluated on dates other than the ones the MMM was
+        fitted on. ``True`` by default. An effect whose contribution exists only on
+        the fitted dates sets it to ``False`` as a class variable. Each of these
+        then raises a ``NotImplementedError`` naming the effect:
+        :meth:`MMM.sample_posterior_predictive` and :meth:`MMM.predict` on any other
+        set of dates, the budget optimizer with an objective that includes the
+        effect's contribution, such as ``total_response_original_scale``, and
+        time-slice cross-validation, before it fits the first fold.
     """
+
+    supports_new_dates: ClassVar[bool] = True
 
     @abstractmethod
     def create_data(self, mmm: Model) -> None:
@@ -527,6 +542,33 @@ class MuEffect(SerializableBaseModel, ABC):
             Group name to xarray Dataset mapping.
         """
         return {}
+
+
+def fitted_dates_only_effects(effects: Iterable[Any]) -> list[tuple[str, Any]]:
+    """Return the effects that take only the dates the MMM was fitted on, with names.
+
+    Such an effect sets ``supports_new_dates`` to ``False``. A duck-typed effect that
+    does not declare it takes any dates.
+
+    Parameters
+    ----------
+    effects : iterable
+        The MMM's mu effects.
+
+    Returns
+    -------
+    list of tuple of (str, object)
+        A name and the effect, for each such effect in ``effects``. The name is the
+        effect's class, followed by its ``prefix`` when it has one.
+    """
+    named = []
+    for effect in effects:
+        if getattr(effect, "supports_new_dates", True):
+            continue
+        name = type(effect).__name__
+        prefix = getattr(effect, "prefix", None)
+        named.append((name if prefix is None else f"{name} {prefix!r}", effect))
+    return named
 
 
 class DataVarMuEffect(MuEffect, ABC):

@@ -34,6 +34,7 @@ from pymc_marketing.mmm import (
     GeometricAdstock,
     LogisticSaturation,
     SoftPlusHSGP,
+    TimeSliceCrossValidator,
     VARBaselineEffect,
 )
 from pymc_marketing.mmm.scaling import FixedScaling
@@ -1644,3 +1645,110 @@ def test_effects_compare_brand_data_with_pandas(
 
     assert (effect == other) is equal
     assert (make_mmm(effect) == make_mmm(other)) is equal
+
+
+MEASUREMENT_ONLY = (
+    rf"VARBaselineEffect '{PREFIX}' takes only the 30 dates the MMM was fitted on, "
+    "2024-01-01 to 2024-07-22, so prediction on any other set of dates is not "
+    "supported"
+)
+
+
+def later_dates(X: pd.DataFrame) -> pd.DataFrame:
+    """``X`` moved to as many dates right after the MMM's."""
+    return X.assign(date=X["date"] + pd.Timedelta(weeks=len(X)))
+
+
+@pytest.mark.parametrize("method", ["sample_posterior_predictive", "predict"])
+@pytest.mark.parametrize(
+    "arrange, kwargs",
+    [
+        pytest.param(later_dates, {}, id="later-dates"),
+        pytest.param(lambda X: X.iloc[10:20], {}, id="subset-of-training-dates"),
+        pytest.param(
+            later_dates,
+            {"include_last_observations": True},
+            id="include-last-observations",
+        ),
+        pytest.param(later_dates, {"clone_model": False}, id="no-clone"),
+    ],
+)
+def test_prediction_on_new_dates_raises(
+    fitted_mmm, brand_mmm_data, method, arrange, kwargs
+):
+    """The MMM refuses before it sets the new data, so its model keeps its dates."""
+    X = brand_mmm_data["X"]
+
+    with pytest.raises(NotImplementedError, match=MEASUREMENT_ONLY):
+        getattr(fitted_mmm, method)(arrange(X), progressbar=False, **kwargs)
+
+    np.testing.assert_array_equal(
+        np.asarray(fitted_mmm.model.coords["date"]), X["date"].to_numpy()
+    )
+
+
+BUDGET_WINDOWS = [
+    pytest.param("2024-07-29", "2024-09-16", id="later-dates"),
+    pytest.param("2024-03-11", "2024-04-29", id="fitted-dates"),
+]
+
+
+@pytest.mark.parametrize("start_date, end_date", BUDGET_WINDOWS)
+def test_budget_optimizer_ignores_the_baseline(fitted_mmm, start_date, end_date):
+    """The optimizer sets its own window, but the default objective is the channels'.
+
+    The baseline does not enter their contributions, so the window's dates need no
+    brand data.
+    """
+    optimizer = fitted_mmm.budget_optimizer(start_date=start_date, end_date=end_date)
+
+    result = optimizer.allocate_budget(total_budget=10.0)
+
+    assert result.scipy_result.success
+    np.testing.assert_allclose(result.budgets.sum(), 10.0)
+
+
+@pytest.mark.parametrize("start_date, end_date", BUDGET_WINDOWS)
+def test_budget_objective_with_the_baseline_raises(fitted_mmm, start_date, end_date):
+    """The baseline is a path over all of the MMM's dates, so it fits no window.
+
+    Not even one within those dates.
+    """
+    with pytest.raises(
+        NotImplementedError,
+        match="'total_response_original_scale' is not supported, because it "
+        rf"includes the contribution of VARBaselineEffect '{PREFIX}', which exists "
+        r"only on the dates the MMM was fitted on\. The default objective",
+    ):
+        fitted_mmm.budget_optimizer(
+            start_date=start_date,
+            end_date=end_date,
+            response_variable="total_response_original_scale",
+        )
+
+
+def test_time_slice_cross_validation_raises_before_fitting(brand_mmm_data):
+    """Each fold predicts on its test dates, so the first fold is not fitted at all."""
+    mmm = make_mmm(make_effect(brand_mmm_data["brand_data"]))
+    cv = TimeSliceCrossValidator(n_init=20, forecast_horizon=4, date_column="date")
+
+    with (
+        patch.object(pm, "sample", wraps=mock_sample) as sample,
+        pytest.raises(
+            NotImplementedError,
+            match="each fold's test dates, but the contribution of "
+            rf"VARBaselineEffect '{PREFIX}' exists only",
+        ),
+    ):
+        cv.run(brand_mmm_data["X"], brand_mmm_data["y"], mmm=mmm)
+
+    sample.assert_not_called()
+
+
+def test_do_on_the_channel_data(fitted_mmm):
+    """``pm.do`` clones the MMM's model, VAR included."""
+    channel_data = fitted_mmm.xarray_dataset["_channel"]
+
+    model = pm.do(fitted_mmm.model, {"channel_data": np.zeros(channel_data.shape)})
+
+    assert f"{PREFIX}_effect_contribution" in model.named_vars

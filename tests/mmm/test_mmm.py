@@ -42,6 +42,7 @@ from pymc_marketing.mmm import (
     LogisticSaturation,
     RootSaturation,
     SoftPlusHSGP,
+    TimeSliceCrossValidator,
 )
 from pymc_marketing.mmm.additive_effect import (
     DataVarMuEffect,
@@ -2343,6 +2344,266 @@ def test_sample_posterior_predictive_clone_model(
     np.testing.assert_array_equal(
         np.asarray(mmm.model.coords["date"]), expected_dates.to_numpy()
     )
+
+
+class _ZeroEffect(MuEffect):
+    """A zero contribution on any dates, with no data of its own."""
+
+    prefix: str = "zero"
+
+    def create_data(self, mmm) -> None:
+        """No data of its own."""
+
+    def create_effect(self, mmm):
+        """Zero on every date of the model."""
+        return as_xtensor(pt.zeros(mmm.model.dim_lengths["date"]), dims=("date",))
+
+    def set_data(self, mmm, model, X) -> None:
+        """No data of its own."""
+
+
+class _FittedDatesOnlyEffect(_ZeroEffect):
+    """``_ZeroEffect``, declared to take only the dates the MMM was fitted on."""
+
+    prefix: str = "fitted_dates_only"
+    supports_new_dates = False
+
+
+class _UnprefixedFittedDatesOnlyEffect(MuEffect):
+    """``_FittedDatesOnlyEffect`` without a prefix."""
+
+    supports_new_dates = False
+
+    def create_data(self, mmm) -> None:
+        """No data of its own."""
+
+    def create_effect(self, mmm):
+        """Zero on every date of the model."""
+        return as_xtensor(pt.zeros(mmm.model.dim_lengths["date"]), dims=("date",))
+
+    def set_data(self, mmm, model, X) -> None:
+        """No data of its own."""
+
+
+class _DuckTypedZeroEffect:
+    """``_ZeroEffect`` without ``MuEffect``, as the additive-effect module allows.
+
+    It does not declare ``supports_new_dates``.
+    """
+
+    prefix = "duck"
+
+    def to_dict(self) -> dict:
+        """Serialize the effect, which fitting insists on."""
+        return {}
+
+    def create_data(self, mmm) -> None:
+        """No data of its own."""
+
+    def create_effect(self, mmm):
+        """Zero on every date of the model."""
+        return as_xtensor(pt.zeros(mmm.model.dim_lengths["date"]), dims=("date",))
+
+    def set_data(self, mmm, model, X) -> None:
+        """No data of its own."""
+
+
+serialization.register(
+    f"{_DuckTypedZeroEffect.__module__}.{_DuckTypedZeroEffect.__qualname__}",
+    _DuckTypedZeroEffect,
+    deserializer=lambda data: _DuckTypedZeroEffect(),
+)
+
+
+@pytest.mark.parametrize(
+    "effects, refused",
+    [
+        pytest.param(
+            [_FittedDatesOnlyEffect(), _ZeroEffect(), _DuckTypedZeroEffect()],
+            "_FittedDatesOnlyEffect 'fitted_dates_only' takes",
+            id="one-effect",
+        ),
+        pytest.param(
+            [_FittedDatesOnlyEffect(), _UnprefixedFittedDatesOnlyEffect()],
+            "_FittedDatesOnlyEffect 'fitted_dates_only', "
+            "_UnprefixedFittedDatesOnlyEffect take",
+            id="two-effects",
+        ),
+    ],
+)
+def test_sample_posterior_predictive_refuses_new_dates_for_effects_without_them(
+    single_dim_data, mock_pymc_sample, effects, refused
+):
+    """Effects with ``supports_new_dates=False`` take only the fitted dates.
+
+    The error names each of them, by class and prefix when it has one, and no
+    other effect.
+    """
+    X, y = single_dim_data
+    X_train, y_train = X.iloc[:-5], y.iloc[:-5]
+    mmm = MMM(
+        date_column="date",
+        target_column="target",
+        channel_columns=["channel_1", "channel_2", "channel_3"],
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+    )
+    for effect in effects:
+        mmm.add_mu_effect(effect)
+    mmm.fit(X_train, y_train, draws=50, chains=1, random_seed=42)
+
+    in_sample = mmm.sample_posterior_predictive(
+        X_train, extend_idata=False, random_seed=42
+    )
+
+    assert in_sample.sizes["date"] == len(X_train)
+    with pytest.raises(
+        NotImplementedError,
+        match=rf"^{refused} only the 9 dates the MMM was fitted on, 2023-01-01 to "
+        r"2023-01-09, so prediction on any other set of dates is not supported\.$",
+    ):
+        mmm.sample_posterior_predictive(X.iloc[-5:], extend_idata=False)
+
+
+def _mmm_with_effects(*effects) -> MMM:
+    mmm = MMM(
+        date_column="date",
+        target_column="target",
+        channel_columns=["channel_1", "channel_2"],
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+    )
+    for effect in effects:
+        mmm.add_mu_effect(effect)
+    return mmm
+
+
+def _optimize_budget(
+    entry_point: str, mmm: MMM, start_date: str, end_date: str, **kwargs
+):
+    """Allocate a budget of 10 through either public entry point."""
+    if entry_point == "budget_optimizer":
+        optimizer = mmm.budget_optimizer(start_date, end_date, **kwargs)
+        return optimizer.allocate_budget(total_budget=10.0)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", DeprecationWarning)
+        wrapper = BudgetOptimizerWrapper(
+            model=mmm, start_date=start_date, end_date=end_date
+        )
+    return wrapper.optimize_budget(budget=10.0, **kwargs)
+
+
+@pytest.mark.parametrize("entry_point", ["budget_optimizer", "optimize_budget"])
+@pytest.mark.parametrize(
+    "start_date, end_date",
+    [
+        pytest.param("2023-01-10", "2023-01-14", id="later-dates"),
+        pytest.param("2023-01-03", "2023-01-06", id="fitted-dates"),
+    ],
+)
+def test_budget_objective_with_an_effect_on_the_fitted_dates_only_raises(
+    single_dim_data, mock_pymc_sample, entry_point, start_date, end_date
+):
+    """The total response is built from ``mu``, which the effect enters.
+
+    The effect does not register its contribution, so it is found through ``mu``.
+    The objective is refused on any window, including one within the fitted dates.
+    """
+    X, y = single_dim_data
+    mmm = _mmm_with_effects(_FittedDatesOnlyEffect())
+    mmm.fit(X.iloc[:9], y.iloc[:9], draws=50, chains=1, random_seed=42)
+
+    with pytest.raises(
+        NotImplementedError,
+        match=r"^Budget optimization against 'total_response_original_scale' is not "
+        r"supported, because it includes the contribution of _FittedDatesOnlyEffect "
+        r"'fitted_dates_only', which exists only on the dates the MMM was fitted on\. "
+        r"The default objective, 'total_media_contribution_original_scale', does not "
+        r"include that contribution\.$",
+    ):
+        _optimize_budget(
+            entry_point,
+            mmm,
+            start_date,
+            end_date,
+            response_variable="total_response_original_scale",
+        )
+
+
+@pytest.mark.parametrize("entry_point", ["budget_optimizer", "optimize_budget"])
+@pytest.mark.parametrize(
+    "effects, response_variable",
+    [
+        pytest.param(
+            [_FittedDatesOnlyEffect()],
+            "total_media_contribution_original_scale",
+            id="default-objective",
+        ),
+        pytest.param(
+            [_ZeroEffect()], "total_response_original_scale", id="effect-on-any-dates"
+        ),
+    ],
+)
+def test_budget_objectives_without_an_effect_on_the_fitted_dates_only(
+    single_dim_data, mock_pymc_sample, entry_point, effects, response_variable
+):
+    """Only an objective that includes an effect on the fitted dates only is refused.
+
+    The default objective is built from the channel contribution alone, and an
+    effect that takes any dates can be evaluated on the optimizer's window.
+    """
+    X, y = single_dim_data
+    mmm = _mmm_with_effects(*effects)
+    mmm.fit(X.iloc[:9], y.iloc[:9], draws=50, chains=1, random_seed=42)
+
+    result = _optimize_budget(
+        entry_point,
+        mmm,
+        "2023-01-10",
+        "2023-01-14",
+        response_variable=response_variable,
+    )
+
+    np.testing.assert_allclose(result.budgets.sum(), 10.0)
+
+
+class _BuildPerFold:
+    """Return a built copy of an MMM for each fold, as a model factory does."""
+
+    def __init__(self, mmm: MMM) -> None:
+        self.mmm = mmm
+
+    def build_model(self, X, y) -> MMM:
+        mmm = copy.deepcopy(self.mmm)
+        mmm.build_model(X, y)
+        return mmm
+
+
+@pytest.mark.parametrize(
+    "as_passed",
+    [
+        pytest.param(lambda mmm: mmm, id="mmm"),
+        pytest.param(_BuildPerFold, id="factory"),
+    ],
+)
+def test_time_slice_cross_validation_refuses_an_effect_on_the_fitted_dates_only(
+    single_dim_data, monkeypatch, as_passed
+):
+    """Each fold predicts on its test dates, so the validator refuses before fitting."""
+    X, y = single_dim_data
+    fitted = []
+    monkeypatch.setattr(MMM, "fit", lambda self, *args, **kwargs: fitted.append(self))
+    cv = TimeSliceCrossValidator(n_init=9, forecast_horizon=2, date_column="date")
+
+    with pytest.raises(
+        NotImplementedError,
+        match=r"^Time-slice cross-validation predicts on each fold's test dates, but "
+        r"the contribution of _FittedDatesOnlyEffect 'fitted_dates_only' exists only "
+        r"on the dates each fold's MMM is fitted on\.$",
+    ):
+        cv.run(X, y, mmm=as_passed(_mmm_with_effects(_FittedDatesOnlyEffect())))
+
+    assert fitted == []
 
 
 def test_sample_posterior_predictive_same_data_with_include_last_observations(

@@ -22,7 +22,7 @@ used, so PyMC-Marketing imports without it.
 from collections import Counter
 from importlib import metadata
 from types import ModuleType
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any, ClassVar, cast
 
 import numpy as np
 import pandas as pd
@@ -281,10 +281,14 @@ class VARBaselineEffect(MuEffect):
     fitting, the contribution decomposition, the MMM's summaries, :meth:`fitted_var`
     and posterior predictive sampling work. Saving and loading the MMM work, and so
     does posterior predictive sampling after loading. Channel incrementality is not
-    supported yet. The budget optimizer runs on any window but ignores the baseline,
-    as it should: brand spend is an exogenous input of the VAR, not a channel.
-    Posterior predictive sampling and ``predict`` on other dates are not supported,
-    and they fail inside PyTensor with an error that does not name the effect.
+    supported yet. The budget optimizer runs on any window with the default
+    objective, which ignores the baseline, as it should: brand spend is an exogenous
+    input of the VAR, not a channel. An objective that includes the baseline, such as
+    ``response_variable="total_response_original_scale"``, raises a
+    ``NotImplementedError``. So do posterior predictive sampling and ``predict`` on
+    any other set of dates, including a subset of the fitted ones or with
+    ``include_last_observations=True``, and time-slice cross-validation, which
+    predicts on each fold's test dates.
 
     The MMM must have no ``dims``, ``time_varying_intercept=False`` and
     ``link="identity"``, and building any other MMM raises. The VAR has no
@@ -389,6 +393,7 @@ class VARBaselineEffect(MuEffect):
     var: Any
     baseline_own_lag_mean: float = Field(0.0, gt=-1, lt=1)
     baseline_innovation_sd: float | None = Field(None, gt=0, allow_inf_nan=False)
+    supports_new_dates: ClassVar[bool] = False
 
     @field_validator("brand_data")
     @classmethod
@@ -722,8 +727,10 @@ class VARBaselineEffect(MuEffect):
 
         The baseline exists only on the dates the MMM was fitted on, yet this does
         not raise on other dates. The budget optimizer calls it with its own window
-        and evaluates only the channel contributions, which do not depend on the
-        baseline.
+        and, with the default objective, evaluates only the channel contributions,
+        which do not depend on the baseline. The MMM refuses prediction on any other
+        set of dates instead, and objectives that include the baseline, because the
+        effect sets ``supports_new_dates`` to ``False``.
 
         Parameters
         ----------
