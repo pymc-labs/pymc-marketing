@@ -179,6 +179,7 @@ Notes
 
 from __future__ import annotations
 
+import functools
 import io
 import json
 import warnings
@@ -210,6 +211,7 @@ from pymc_marketing.data.idata.utils import (
 from pymc_marketing.hsgp_kwargs import HSGPKwargs
 from pymc_marketing.mmm import SoftPlusHSGP
 from pymc_marketing.mmm.additive_effect import (
+    DataVarMuEffect,
     EventAdditiveEffect,
     MuEffect,
     safe_to_datetime,
@@ -321,6 +323,52 @@ class _WindowLayout(NamedTuple):
     carry_in: int
     decisions: int
     carry_over: int
+
+
+# What `MMM.build_model` assigns on the instance. `X`, the dataset, the coords and
+# the scales are set before the target checks and the graph are finished.
+_BUILD_STATE = (
+    "X",
+    "xarray_dataset",
+    "model_coords",
+    "scalers",
+    "_time_index",
+    "_time_resolution",
+    "model",
+    "channel_data_scaled",
+    "target_data_scaled",
+    "_library_data_names",
+    "_lift_test_calibrations",
+    "_built_dataset",
+    "_built_var_names",
+)
+
+
+def _restore_build_state_on_error(
+    build: Callable[..., None],
+) -> Callable[..., None]:
+    """Leave the instance as it was when ``build`` raises.
+
+    A build that fails would otherwise leave a new dataset and coords next to
+    the old graph, or a graph with no free variables in place of a fitted one.
+    """
+
+    @functools.wraps(build)
+    def wrapper(self: MMM, *args: Any, **kwargs: Any) -> None:
+        before = {
+            name: getattr(self, name) for name in _BUILD_STATE if hasattr(self, name)
+        }
+        try:
+            build(self, *args, **kwargs)
+        except BaseException:
+            for name in _BUILD_STATE:
+                if name in before:
+                    setattr(self, name, before[name])
+                else:
+                    self.__dict__.pop(name, None)
+            raise
+
+    return wrapper
 
 
 class MMM(RegressionModelBuilder):
@@ -2477,19 +2525,24 @@ class MMM(RegressionModelBuilder):
         ------
         ValueError
             If the model must be rebuilt for a new ``X`` but variables, such as
-            calibrations, were added to it after it was built, or if the target
-            changes the target scale of a model with lift tests.
+            calibrations, were added to it after it was built, or the mu effects
+            read variables that ``X`` does not carry, or if the target changes
+            the target scale of a model with lift tests.
 
         Notes
         -----
         If the model was already built, for example by
         :meth:`sample_prior_predictive` or an earlier ``fit``, it is rebuilt
-        when the data in ``X`` differs from the data it was built on.
+        when the data in ``X`` differs from the data it was built on. A rebuild
+        clears ``idata``, since the prior was sampled from the old model, and
+        warns when that drops a prior group.
+
         Otherwise, the target passed here, as ``y`` or inside ``X``, replaces
-        the observed target and its scale. If that changes the target scale, the
-        ``*_original_scale`` variables are dropped from the prior and prior
-        predictive groups of ``idata`` with a warning. The rest of the prior is
-        on the scaled space and is kept.
+        the observed target and its scale, and the data of the model is set back
+        to the data it was built on. If that changes the target scale, the prior
+        variables built on it, such as the ``*_original_scale`` ones, are
+        dropped from the prior and prior predictive groups of ``idata`` with a
+        warning. The rest of the prior is on the scaled space and is kept.
         """
         # A refit replaces the posterior and can move its coordinate labels, which
         # the evaluator's shared binding would refuse; build against it from scratch.
@@ -2530,6 +2583,18 @@ class MMM(RegressionModelBuilder):
         checked_X, checked_y = self._validate_fit_inputs(X, y)
         dataset = self._to_xarray_dataset(X, y)
         built = self._built_dataset
+        if built is not None:
+            # `pm.set_data` assigns by position. A DataFrame comes out of
+            # `_to_xarray_dataset` with sorted custom-dim labels while a Dataset
+            # keeps its own order, so put the labels in the order of the build.
+            dataset = dataset.reindex(
+                {
+                    dim: built.indexes[dim]
+                    for dim in self.dims
+                    if dim in dataset.indexes
+                    and set(dataset.indexes[dim]) == set(built.indexes[dim])
+                }
+            )
         X_vars = [name for name in dataset.data_vars if name != "_target"]
         same_X = (
             built is not None
@@ -2541,9 +2606,8 @@ class MMM(RegressionModelBuilder):
         target_scale = self._compute_scale_for_variable(target, self.scaling.target)
         self._validate_observed_target(target, target_scale)
 
-        if not same_X:
-            # Without `built`, the last build raised partway and left nothing
-            # worth keeping.
+        if built is None or not same_X:
+            # Without `built` there is nothing to compare `X` with, so rebuild.
             if built is not None and (
                 added := sorted(set(self.model.named_vars) - self._built_var_names)
             ):
@@ -2553,8 +2617,41 @@ class MMM(RegressionModelBuilder):
                     "`build_model` with this data, add them again, and then "
                     "call `fit`."
                 )
+            # The rebuild reads these from `X`, which a DataFrame cannot carry.
+            # Fail here: inside `build_model` the old model is already gone.
+            if missing := sorted(
+                {
+                    name
+                    for effect in self.mu_effects
+                    if isinstance(effect, DataVarMuEffect)
+                    for name in effect.data_vars
+                }
+                - set(dataset.data_vars)
+            ):
+                raise ValueError(
+                    "`fit` got a new `X`, which rebuilds the model, but the mu "
+                    f"effects read {missing} and `X` does not carry them. Pass "
+                    "`X` as a Dataset with these variables."
+                )
+            prior_groups = (
+                []
+                if self.idata is None
+                else [
+                    group
+                    for group in ("prior", "prior_predictive")
+                    if group in self.idata.children
+                ]
+            )
             self.build_model(checked_X, checked_y)
-            # Groups such as the prior were sampled from the old model.
+            if prior_groups:
+                warnings.warn(
+                    "`fit` got a new `X`, so the model was rebuilt and the "
+                    f"{prior_groups} groups of `idata` were dropped, since they "
+                    "were sampled from the old model. Call "
+                    "`sample_prior_predictive` again to get them.",
+                    UserWarning,
+                    stacklevel=3,
+                )
             self.idata = None
             return
 
@@ -2568,28 +2665,45 @@ class MMM(RegressionModelBuilder):
                     "with this data, add the lift tests again, and then call "
                     "`fit`."
                 )
-            self._drop_original_scale_variables_from_prior()
+            self._drop_target_scale_variables_from_prior()
 
         self.xarray_dataset["_target"] = target
         self.scalers["_target"] = target_scale
-        self._set_xarray_data(dataset, model=self.model)
+        # Write back everything `build_model` saw, not only what `X` carries:
+        # a posterior predictive on new dates with `clone_model=False` also
+        # moved the data the mu effects read.
+        restored = built.assign(_target=target)
+        self._set_xarray_data(restored, model=self.model)
+        for effect in self.mu_effects:
+            effect.set_data(self, self.model, restored)
         pm.set_data({"target_scale": target_scale}, model=self.model)
 
-    def _drop_original_scale_variables_from_prior(self) -> None:
-        """Drop the ``*_original_scale`` variables from the prior in ``idata``.
+    def _drop_target_scale_variables_from_prior(self) -> None:
+        """Drop the prior variables built on ``target_scale`` from ``idata``.
 
-        Those variables multiply by the target scale, so a fit that changes the
-        scale leaves them wrong. The other prior variables are on the scaled
-        space and stay valid. A group left with no variables is removed.
+        A fit that changes the scale leaves them on the old one. The graph says
+        which they are, so none is missed for its name: the ``*_original_scale``
+        variables, the cost-per-target calibration, the increment under the log
+        link and the variables a user defined from ``target_scale``. The other
+        prior variables are on the scaled space and stay valid. A group left
+        with no variables is removed.
         """
         if self.idata is None:
             return
+        scale = self.model["target_scale"]
+        roots = {scale, *(scale.owner.inputs if scale.owner else [])}
+        built_on_scale = {
+            str(name)
+            for name, var in self.model.named_vars.items()
+            if var not in self.model.data_vars
+            and not roots.isdisjoint(ancestors([var]))
+        }
         dropped: list[str] = []
         for group in ("prior", "prior_predictive"):
             if group not in self.idata.children:
                 continue
             ds = self.idata[group].to_dataset()
-            stale = [n for n in ds.data_vars if str(n).endswith("_original_scale")]
+            stale = [n for n in ds.data_vars if str(n) in built_on_scale]
             if not stale:
                 continue
             dropped.extend(str(n) for n in stale)
@@ -2640,6 +2754,7 @@ class MMM(RegressionModelBuilder):
             target_scale=target_scale.values,
         )
 
+    @_restore_build_state_on_error
     def build_model(  # type: ignore[override]
         self,
         X: pd.DataFrame | xr.Dataset | xr.DataArray,
@@ -2747,7 +2862,6 @@ class MMM(RegressionModelBuilder):
         # Calibration rows belong to a particular graph. A rebuild creates a
         # fresh graph, so callers must re-add any lift tests they want to use.
         self._lift_test_calibrations = []
-        self._built_dataset = None
         self._generate_and_preprocess_model_data(
             X=X,
             y=y,

@@ -8648,8 +8648,8 @@ def test_sample_prior_predictive_lognormal_likelihood_without_target(
     # Regression: the base class defaults a missing y to zeros, which
     # validate_observed rejects, breaking the standard pre-fit
     # prior-predictive call for this likelihood. The ones placeholder that
-    # replaces them must be announced, since a later fit on the same
-    # instance without y would train on it.
+    # replaces them must be announced, since the prior is sampled against it
+    # and a later fit observes the target it is given instead.
     X, _ = lognormal_likelihood_data
     mmm = lognormal_likelihood_mmm
 
@@ -9163,27 +9163,36 @@ def test_fit_after_prior_predictive_without_y_keeps_the_prior(
     mmm.data.get_predictive_target("prior")
 
 
-def test_prior_without_original_scale_vars_survives_a_scale_change():
+def test_prior_without_target_scale_variables_survives_a_scale_change(
+    lognormal_likelihood_data,
+):
+    X, y = lognormal_likelihood_data
     mmm = _two_channel_mmm()
+    mmm.build_model(X, y)
     mmm.idata = xr.DataTree.from_dict(
-        {"prior": xr.Dataset({"intercept": ("sample", np.zeros(3))})}
+        {"prior": xr.Dataset({"channel_contribution": ("sample", np.zeros(3))})}
     )
 
     with warnings.catch_warnings():
         warnings.simplefilter("error")
-        mmm._drop_original_scale_variables_from_prior()
+        mmm._drop_target_scale_variables_from_prior()
 
     assert "prior" in mmm.idata.children
 
 
-def test_group_left_without_variables_is_removed_when_original_scale_variables_drop():
+def test_group_left_without_variables_is_removed_when_target_scale_variables_drop(
+    lognormal_likelihood_data,
+):
+    X, y = lognormal_likelihood_data
     mmm = _two_channel_mmm()
+    mmm.build_model(X, y)
+    mmm.add_original_scale_contribution_variable(var=["channel_contribution", "y"])
     mmm.idata = xr.DataTree.from_dict(
         {
             "prior": xr.Dataset(
                 {
-                    "intercept": ("sample", np.zeros(3)),
-                    "mu_original_scale": ("sample", np.zeros(3)),
+                    "channel_contribution": ("sample", np.zeros(3)),
+                    "channel_contribution_original_scale": ("sample", np.zeros(3)),
                 }
             ),
             "prior_predictive": xr.Dataset(
@@ -9192,10 +9201,12 @@ def test_group_left_without_variables_is_removed_when_original_scale_variables_d
         }
     )
 
-    with pytest.warns(UserWarning, match="mu_original_scale.*y_original_scale"):
-        mmm._drop_original_scale_variables_from_prior()
+    with pytest.warns(
+        UserWarning, match="channel_contribution_original_scale.*y_original_scale"
+    ):
+        mmm._drop_target_scale_variables_from_prior()
 
-    assert list(mmm.idata.prior.data_vars) == ["intercept"]
+    assert list(mmm.idata.prior.data_vars) == ["channel_contribution"]
     assert "prior_predictive" not in mmm.idata.children
 
 
@@ -9214,3 +9225,309 @@ def test_fit_with_new_X_and_no_y_raises_and_keeps_the_model(
 
     assert mmm.model is model
     np.testing.assert_array_equal(mmm.xarray_dataset.date, X["date"])
+
+
+def _prior_variable_names(mmm: MMM) -> set[str]:
+    return {
+        str(name)
+        for group in ("prior", "prior_predictive")
+        if group in mmm.idata.children
+        for name in mmm.idata[group].data_vars
+    }
+
+
+@pytest.mark.parametrize(
+    "link, expected",
+    [
+        ("identity", {"cpt_calibration"}),
+        ("log", {"cpt_calibration", "channel_incremental_contribution"}),
+    ],
+)
+def test_refit_that_changes_target_scale_drops_every_variable_built_on_it(
+    mock_pymc_sample, link, expected
+):
+    # Variables built on `target_scale` are found in the graph. The
+    # `_original_scale` suffix misses the cost-per-target calibration, the
+    # increment under the log link and variables the user added.
+    expected = {
+        *expected,
+        "media_in_y_units",
+        "total_media_contribution_original_scale",
+    }
+    mmm, X, y = _mmm_for_calibration(link=link)
+    mmm.add_cost_per_target_calibration(
+        data=X,
+        calibration_data=_roas_rows(),
+        name_prefix="cpt_calibration",
+        target_column="roas",
+        target_per_cost=True,
+    )
+    with mmm.model:
+        pmd.Deterministic(
+            "media_in_y_units",
+            mmm.model["channel_contribution"] * mmm.model["target_scale"],
+        )
+    mmm.sample_prior_predictive(X, y, samples=10, random_seed=7)
+    assert expected <= _prior_variable_names(mmm)
+
+    with pytest.warns(UserWarning, match="target scale") as record:
+        mmm.fit(X, 2 * y, random_seed=1)
+
+    message = " ".join(str(w.message) for w in record)
+    assert all(name in message for name in expected)
+    assert not expected & _prior_variable_names(mmm)
+    assert "channel_contribution" in mmm.idata.prior
+
+
+def _panel_mmm() -> MMM:
+    return MMM(
+        date_column="date",
+        channel_columns=["C1", "C2"],
+        dims=("geo",),
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+    )
+
+
+def test_fit_with_frame_after_building_from_dataset_with_unsorted_labels_keeps_model(
+    mock_pymc_sample,
+):
+    # A DataFrame comes out of `to_mmm_dataset` with sorted custom-dim labels,
+    # while a Dataset keeps its own order. The same data in another label
+    # order is not a new X, and the target must land on the right geo.
+    from pymc_marketing.mmm.data_conversion import to_mmm_dataset
+
+    _, X, y = _mmm_for_calibration()
+    dataset = to_mmm_dataset(
+        X,
+        y,
+        date_column="date",
+        dims=("geo",),
+        channel_columns=["C1", "C2"],
+        target_column="y",
+    ).reindex(geo=["b", "a"])
+    mmm = _panel_mmm()
+    mmm.build_model(dataset)
+    mmm.add_original_scale_contribution_variable(var=["channel_contribution"])
+    model = mmm.model
+
+    mmm.fit(X, y, random_seed=1)
+
+    assert mmm.model is model
+    assert list(mmm.model.coords["geo"]) == ["b", "a"]
+    assert "channel_contribution_original_scale" in mmm.idata.posterior
+    np.testing.assert_allclose(
+        mmm.model["target_data"].eval(),
+        dataset["_target"].transpose("date", "geo").to_numpy(),
+    )
+
+
+def test_refit_with_a_new_target_on_unsorted_labels_sets_it_by_label(mock_pymc_sample):
+    from pymc_marketing.mmm.data_conversion import to_mmm_dataset
+
+    _, X, y = _mmm_for_calibration()
+    dataset = to_mmm_dataset(
+        X,
+        y,
+        date_column="date",
+        dims=("geo",),
+        channel_columns=["C1", "C2"],
+        target_column="y",
+    ).reindex(geo=["b", "a"])
+    mmm = _panel_mmm()
+    mmm.build_model(dataset)
+
+    mmm.fit(X, 2 * y, random_seed=1)
+
+    expected = 2 * dataset["_target"].transpose("date", "geo").to_numpy()
+    np.testing.assert_allclose(mmm.model["target_data"].eval(), expected)
+
+
+class _RefitExtraEffect(DataVarMuEffect):
+    data_vars: list[str] = ["extra"]
+    prefix: str = "extra"
+
+    def create_effect(self, mmm):
+        beta = pmd.Normal("extra_beta", 0, 1)
+        return pmd.Deterministic("extra_effect_contribution", beta * mmm.model["extra"])
+
+
+def test_fit_on_new_X_without_the_data_a_mu_effect_reads_raises_and_keeps_the_model(
+    lognormal_likelihood_data, mock_pymc_sample
+):
+    # A DataFrame cannot carry `extra`, so the rebuild would fail inside
+    # `build_model` and leave a model with no free variables in place of the
+    # fitted one.
+    from pymc_marketing.mmm.data_conversion import to_mmm_dataset
+
+    X, y = lognormal_likelihood_data
+    dataset = to_mmm_dataset(
+        X, None, date_column="date", channel_columns=["channel_1", "channel_2"]
+    )
+    dataset["extra"] = dataset["_channel"].sum("channel")
+    y_da = xr.DataArray(y.to_numpy(), dims=("date",), coords={"date": dataset.date})
+    mmm = _two_channel_mmm()
+    mmm.add_mu_effect(_RefitExtraEffect())
+    _fit(mmm, dataset, y_da)
+    model, idata = mmm.model, mmm.idata
+
+    with pytest.raises(ValueError, match="extra"):
+        _fit(mmm, X.iloc[5:], y.iloc[5:])
+
+    assert mmm.model is model
+    assert mmm.idata is idata
+    assert mmm.model.free_RVs
+    np.testing.assert_array_equal(mmm.xarray_dataset.date, X["date"])
+    assert mmm._built_dataset is not None
+
+
+def test_fit_on_new_X_warns_when_the_rebuild_drops_the_prior(
+    lognormal_likelihood_data, mock_pymc_sample
+):
+    X, y = lognormal_likelihood_data
+    mmm = _two_channel_mmm()
+    mmm.sample_prior_predictive(X, y, samples=10, random_seed=42)
+
+    with pytest.warns(UserWarning, match="prior.*prior_predictive"):
+        _fit(mmm, X.iloc[5:], y.iloc[5:])
+
+    assert "prior" not in mmm.idata.children
+    assert "prior_predictive" not in mmm.idata.children
+
+
+def test_fit_on_new_X_without_a_prior_does_not_warn(
+    lognormal_likelihood_data, mock_pymc_sample
+):
+    X, y = lognormal_likelihood_data
+    mmm = _two_channel_mmm()
+    _fit(mmm, X, y)
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", UserWarning)
+        _fit(mmm, X.iloc[5:], y.iloc[5:])
+
+
+def test_refit_on_the_same_X_restores_the_mu_effect_data(
+    lognormal_likelihood_data, mock_pymc_sample
+):
+    # `sample_posterior_predictive(clone_model=False)` writes the future dates
+    # into the model, mu-effect data included. The refit on the training data
+    # must put all of it back, not only the channels and the target.
+    X, y = lognormal_likelihood_data
+    mmm = _two_channel_mmm()
+    mmm.add_mu_effect(
+        LinearTrendEffect(
+            trend=LinearTrend(n_changepoints=2, include_intercept=False),
+            prefix="trend",
+        )
+    )
+    _fit(mmm, X, y)
+    trend_t = mmm.model["trend_t"].eval().copy()
+
+    X_future = X.assign(date=X["date"] + pd.Timedelta(weeks=60))
+    mmm.sample_posterior_predictive(X_future, clone_model=False, random_seed=1)
+    assert not np.allclose(mmm.model["trend_t"].eval(), trend_t)
+
+    _fit(mmm, X, y)
+
+    np.testing.assert_allclose(mmm.model["trend_t"].eval(), trend_t)
+
+
+def test_refit_with_new_dates_rebuilds_time_varying_intercept(
+    lognormal_likelihood_data, mock_pymc_sample
+):
+    # The rebuild recomputes the time index the HSGP reads from the new dates.
+    X, y = lognormal_likelihood_data
+    mmm = MMM(
+        date_column="date",
+        channel_columns=["channel_1", "channel_2"],
+        target_column="y",
+        adstock=GeometricAdstock(l_max=4),
+        saturation=LogisticSaturation(),
+        time_varying_intercept=True,
+    )
+    _fit(mmm, X, y)
+
+    _fit(mmm, X.iloc[5:], y.iloc[5:])
+
+    assert len(mmm.model.coords["date"]) == len(X) - 5
+    np.testing.assert_array_equal(mmm.model["time_index"].eval(), np.arange(len(X) - 5))
+
+
+def test_build_model_that_raises_leaves_the_instance_as_it_was(
+    lognormal_likelihood_data,
+):
+    # `build_model` stores the new data before its target checks run. A
+    # rejected build must not leave it next to the old graph.
+    X, y = lognormal_likelihood_data
+    mmm = _two_channel_mmm(
+        {
+            "likelihood": LogNormalPrior(
+                std=Prior("HalfNormal", sigma=0.5), dims=("date",)
+            )
+        }
+    )
+    mmm.build_model(X, y)
+    names = (
+        "X",
+        "xarray_dataset",
+        "model_coords",
+        "scalers",
+        "model",
+        "_built_dataset",
+    )
+    before = {name: getattr(mmm, name) for name in names}
+    y_bad = y.iloc[5:].copy()
+    y_bad.iloc[0] = -1.0
+
+    with pytest.raises(ValueError, match="strictly positive"):
+        mmm.build_model(X.iloc[5:], y_bad)
+
+    assert all(getattr(mmm, name) is before[name] for name in names)
+    assert len(mmm.model_coords["date"]) == len(X)
+
+
+def test_first_build_that_raises_leaves_no_model_behind(lognormal_likelihood_data):
+    X, y = lognormal_likelihood_data
+    mmm = _two_channel_mmm(
+        {
+            "likelihood": LogNormalPrior(
+                std=Prior("HalfNormal", sigma=0.5), dims=("date",)
+            )
+        }
+    )
+    y_bad = y.copy()
+    y_bad.iloc[0] = -1.0
+
+    with pytest.raises(ValueError, match="strictly positive"):
+        mmm.build_model(X, y_bad)
+
+    assert not hasattr(mmm, "model")
+    assert not hasattr(mmm, "xarray_dataset")
+
+
+def test_fit_on_new_X_whose_rebuild_fails_keeps_the_fitted_model(
+    lognormal_likelihood_data, mock_pymc_sample, monkeypatch
+):
+    # Whatever makes the rebuild fail, the fitted model and its posterior stay,
+    # and the next fit on the training data still reuses that model.
+    X, y = lognormal_likelihood_data
+    mmm = _two_channel_mmm()
+    _fit(mmm, X, y)
+    model, idata = mmm.model, mmm.idata
+
+    def fail(*args, **kwargs):
+        raise RuntimeError("likelihood failed")
+
+    with monkeypatch.context() as m:
+        m.setattr(Prior, "create_likelihood_variable", fail)
+        with pytest.raises(RuntimeError, match="likelihood failed"):
+            _fit(mmm, X.iloc[5:], y.iloc[5:])
+
+    assert mmm.model is model
+    assert mmm.idata is idata
+    assert len(mmm.model_coords["date"]) == len(X)
+
+    _fit(mmm, X, y)
+
+    assert mmm.model is model
