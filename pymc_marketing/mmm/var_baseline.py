@@ -37,6 +37,11 @@ from scipy.stats import halfnorm
 
 from pymc_marketing.mmm.additive_effect import MuEffect, safe_to_datetime
 from pymc_marketing.mmm.link import LinkFunction
+from pymc_marketing.serialization import (
+    DeserializationContext,
+    SerializationError,
+    serialization,
+)
 
 if TYPE_CHECKING:
     from impulso import VAR, FittedVAR, VARData
@@ -176,7 +181,8 @@ class VARBaselineEffect(MuEffect):
     often cover other periods than the MMM, or come at another cadence, so they stay
     out of ``X``, and the effect matches their rows to the MMM's dates. A forecast of
     the baseline would need new brand data anyway. The brand data are therefore
-    constants in the graph, not data in the MMM's ``constant_data``.
+    constants in the graph, not data in the MMM's ``constant_data``. Saving the MMM
+    stores them in an idata group of their own.
 
     The VAR runs on the baseline in the target's original units and on the brand
     columns in their own units, centered on their means over the MMM's dates. The
@@ -224,8 +230,8 @@ class VARBaselineEffect(MuEffect):
         checks that, on the MMM's dates, those columns are finite and vary, and that
         there is exactly one row per MMM date. Rows on other dates are neither used
         nor checked, so they may hold NaN or repeat a date. The dates must match the
-        MMM's in time-zone awareness: both naive or both aware. The effect keeps a
-        copy of the frame.
+        MMM's in time-zone awareness: both naive or both aware. The index is not
+        used. The effect keeps a copy of the frame.
     baseline_name : str
         Name of the latent baseline in the VAR. It must not be a column of
         ``brand_data``.
@@ -241,15 +247,20 @@ class VARBaselineEffect(MuEffect):
         contribution is ``{prefix}_effect_contribution``.
     var : impulso.VAR
         The VAR specification, with an integer ``lags``, constant volatility and
-        Gaussian errors. It is not modified.
+        Gaussian errors. It is not modified. Its volatility and error distribution
+        must be Impulso's own, since the fitted MMM stores the spec and no other
+        volatility or error distribution loads back as it was saved. For now, its
+        prior must be a ``MinnesotaPrior`` or the ``"minnesota"`` shorthand, since
+        Impulso does not yet load other priors back as they were saved, see
+        https://github.com/QuantClimate/Impulso/issues/379.
     baseline_own_lag_mean : float, default 0.0
         Prior mean of the baseline's own first-lag coefficient, strictly between -1
         and 1 because the baseline is a stationary deviation. The effect sets the
-        baseline's entry of a Minnesota prior's ``own_lag_mean`` to it. A scalar
+        baseline's entry of the Minnesota prior's ``own_lag_mean`` to it. A scalar
         ``own_lag_mean`` applies to every brand metric. A per-series
-        ``own_lag_mean`` must start with this value, or construction raises. Any
-        other prior keeps its own-lag means. When the target does not vary, it also
-        sets the standard deviation of the start of the baseline's path.
+        ``own_lag_mean`` must start with this value, or construction raises. When the
+        target does not vary, it also sets the standard deviation of the start of the
+        baseline's path.
     baseline_innovation_sd : float, optional
         U, the bound on the baseline's innovation standard deviation, in the target's
         original units. It must be positive and finite. By default, U is the residual
@@ -268,11 +279,12 @@ class VARBaselineEffect(MuEffect):
     -----
     The baseline exists only on the dates the MMM is fitted on. On those dates,
     fitting, the contribution decomposition, the MMM's summaries, :meth:`fitted_var`
-    and posterior predictive sampling work. Channel incrementality is not supported
-    yet. The budget optimizer runs on any window but ignores the baseline, as it
-    should: brand spend is an exogenous input of the VAR, not a channel. Posterior
-    predictive sampling and ``predict`` on other dates are not supported, and they
-    fail inside PyTensor with an error that does not name the effect.
+    and posterior predictive sampling work. Saving and loading the MMM work, and so
+    does posterior predictive sampling after loading. Channel incrementality is not
+    supported yet. The budget optimizer runs on any window but ignores the baseline,
+    as it should: brand spend is an exogenous input of the VAR, not a channel.
+    Posterior predictive sampling and ``predict`` on other dates are not supported,
+    and they fail inside PyTensor with an error that does not name the effect.
 
     The MMM must have no ``dims``, ``time_varying_intercept=False`` and
     ``link="identity"``, and building any other MMM raises. The VAR has no
@@ -315,6 +327,12 @@ class VARBaselineEffect(MuEffect):
     twice, so put every brand series in one VAR.
 
     Impulso adds a positional ``time`` coordinate that no variable uses.
+
+    Saving the MMM stores ``brand_data``, with its column dtypes but not its index,
+    in the idata group ``supplementary_data_{prefix}_brand_data``. netCDF has no
+    missing text value, so missing values in a text column load as empty strings.
+    Columns that netCDF cannot store, such as time-zone-aware dates and
+    categoricals, make saving fail, so convert or drop them first.
 
     References
     ----------
@@ -391,7 +409,8 @@ class VARBaselineEffect(MuEffect):
         Raises
         ------
         TypeError
-            If ``var`` is not an Impulso ``VAR`` specification.
+            If ``var`` is not an Impulso ``VAR`` specification, if its prior is not a
+            ``MinnesotaPrior``, or if it does not load back as it was saved.
         ValueError
             If ``endog_names`` does not start with ``baseline_name`` or has nothing
             after it, if ``baseline_name`` is a column of ``brand_data``, if a name
@@ -407,18 +426,43 @@ class VARBaselineEffect(MuEffect):
         self._check_baseline_entries()
 
     def _check_var(self) -> None:
-        """Check that ``var`` is an Impulso ``VAR`` specification.
+        """Check that ``var`` is an Impulso ``VAR`` that the fitted MMM can store.
 
         Raises
         ------
         TypeError
-            If ``var`` is not an Impulso ``VAR`` specification.
+            If ``var`` is not an Impulso ``VAR`` specification, if its prior is not a
+            ``MinnesotaPrior``, or if it does not load back as it was saved.
         """
         impulso = _import_impulso()
         if not isinstance(self.var, impulso.VAR):
             raise TypeError(
                 "var must be an impulso.VAR specification, "
                 f"got {type(self.var).__name__}."
+            )
+        prior = self.var.resolved_prior
+        if not isinstance(prior, impulso.MinnesotaPrior):
+            raise TypeError(
+                "var's prior must be a MinnesotaPrior or 'minnesota', got "
+                f"{type(prior).__name__}: only a MinnesotaPrior is supported for now, "
+                "since the fitted MMM stores var and Impulso does not yet load other "
+                "priors back as they were saved, see "
+                "https://github.com/QuantClimate/Impulso/issues/379."
+            )
+        # Fitting serializes the effect after sampling and loading validates it back,
+        # so check both before the fit.
+        try:
+            loaded = impulso.VAR.model_validate(self.var.model_dump(mode="json"))
+        except ValueError as exc:
+            raise TypeError(
+                "var must survive saving and loading, since the fitted MMM stores it: "
+                f"{exc}."
+            ) from exc
+        if loaded != self.var:
+            raise TypeError(
+                "var must survive saving and loading, since the fitted MMM stores it, "
+                "but it loads back as a different spec: a volatility or error "
+                "distribution from outside Impulso does not survive."
             )
 
     def _check_names(self) -> None:
@@ -478,9 +522,62 @@ class VARBaselineEffect(MuEffect):
         ]:
             raise ValueError(f"Columns {non_numeric} of brand_data are not numeric.")
 
+    def __eq__(self, other: object) -> bool:
+        """Compare with another effect, comparing ``brand_data`` with pandas.
+
+        ``brand_data`` is equal when it has the same columns, dtypes and rows, in the
+        same order. Its index is not compared, since the effect does not use it.
+
+        Parameters
+        ----------
+        other : object
+            The object to compare with.
+
+        Returns
+        -------
+        bool
+            Whether ``other`` is a ``VARBaselineEffect`` with equal fields.
+        """
+        if not isinstance(other, VARBaselineEffect):
+            return NotImplemented
+        return self.model_dump(exclude={"brand_data"}) == other.model_dump(
+            exclude={"brand_data"}
+        ) and self.brand_data.reset_index(drop=True).equals(
+            other.brand_data.reset_index(drop=True)
+        )
+
     def to_dict(self) -> dict[str, Any]:
-        """Serialize to a dict, without ``brand_data``."""
-        return self.model_dump(mode="json", exclude={"brand_data"})
+        """Serialize to a dict, without ``brand_data``.
+
+        ``brand_data`` is stored in the idata group named by ``brand_data_group``, see
+        :meth:`idata_groups`. Its column dtypes are stored here, since not all of them
+        survive netCDF: dates load in nanoseconds and object columns as strings.
+        ``format_version`` numbers the dict's layout, so that loading can tell a
+        layout it does not read.
+        """
+        return {
+            **self.model_dump(mode="json", exclude={"brand_data"}),
+            "format_version": _FORMAT_VERSION,
+            "brand_data_group": self._brand_data_group,
+            "brand_data_dtypes": self.brand_data.dtypes.astype(str).to_dict(),
+        }
+
+    def idata_groups(self) -> dict[str, xr.Dataset]:
+        """Return ``brand_data``, without its index, as a supplementary idata group."""
+        return {
+            self._brand_data_group: xr.Dataset.from_dataframe(
+                self.brand_data.reset_index(drop=True)
+            ),
+        }
+
+    @property
+    def _brand_data_group(self) -> str:
+        """The idata group of ``brand_data``.
+
+        It is named after the data as well as the prefix, so it differs from the
+        ``supplementary_data_{prefix}`` group of an ``EventAdditiveEffect``.
+        """
+        return f"supplementary_data_{self.prefix}_brand_data"
 
     def create_data(self, mmm: "MMM") -> None:  # type: ignore[override]
         """Check the MMM, and ``brand_data`` on the MMM's dates.
@@ -1046,7 +1143,7 @@ class VARBaselineEffect(MuEffect):
     def _check_baseline_entries(self) -> None:
         """Check that ``var`` leaves the baseline's prior entries to the effect.
 
-        The effect sets the baseline's entry, the first, of a Minnesota prior's
+        The effect sets the baseline's entry, the first, of the Minnesota prior's
         ``own_lag_mean`` from ``baseline_own_lag_mean``, and of a ``Constant``
         volatility's ``innovation_scale_priors`` from U. A per-series
         ``own_lag_mean`` must therefore start with ``baseline_own_lag_mean``, and
@@ -1062,10 +1159,7 @@ class VARBaselineEffect(MuEffect):
             ``InnovationScalePrior(family="halfcauchy", scale=sigma_sd_beta)``.
         """
         impulso = _import_impulso()
-        prior = self.var.resolved_prior
-        own_lag_mean = (
-            prior.own_lag_mean if isinstance(prior, impulso.MinnesotaPrior) else None
-        )
+        own_lag_mean = self.var.resolved_prior.own_lag_mean
         baseline_mean = self.baseline_own_lag_mean
         if isinstance(own_lag_mean, tuple) and own_lag_mean[:1] != (baseline_mean,):
             raise ValueError(
@@ -1094,10 +1188,9 @@ class VARBaselineEffect(MuEffect):
     def _build_spec(self, baseline_scale: float) -> "VAR":
         """Return ``var`` with the baseline's own-lag mean and innovation prior set.
 
-        A scalar ``own_lag_mean`` of a Minnesota prior becomes one entry per series,
-        with ``baseline_own_lag_mean`` as the baseline's. A per-series one already
-        starts with it, as construction checks. Only a ``MinnesotaPrior`` has an
-        own-lag mean, so any other prior is used unchanged. The baseline's
+        A scalar ``own_lag_mean`` of the Minnesota prior becomes one entry per
+        series, with ``baseline_own_lag_mean`` as the baseline's. A per-series one
+        already starts with it, as construction checks. The baseline's
         innovation-scale prior, the first entry of a ``Constant`` volatility's
         ``innovation_scale_priors``, becomes the half-normal whose 95th percentile
         is U. Any other volatility is used unchanged, and Impulso refuses it when
@@ -1118,9 +1211,7 @@ class VARBaselineEffect(MuEffect):
         update: dict[str, Any] = {}
 
         prior = self.var.resolved_prior
-        if isinstance(prior, impulso.MinnesotaPrior) and not isinstance(
-            prior.own_lag_mean, tuple
-        ):
+        if not isinstance(prior.own_lag_mean, tuple):
             observed_means = (prior.own_lag_mean,) * n_observed
             update["prior"] = prior.model_copy(
                 update={"own_lag_mean": (self.baseline_own_lag_mean, *observed_means)}
@@ -1145,3 +1236,83 @@ class VARBaselineEffect(MuEffect):
             )
 
         return self.var.model_copy(update=update)
+
+
+# The layout of the dict `VARBaselineEffect.to_dict` writes. Raise it when the layout
+# changes, and have the deserializer migrate the older layouts it still reads.
+_FORMAT_VERSION = 1
+
+
+def _deserialize_var_baseline_effect(
+    data: dict[str, Any], context: DeserializationContext | None
+) -> VARBaselineEffect:
+    """Rebuild a ``VARBaselineEffect`` from its dict and its supplementary idata group.
+
+    Parameters
+    ----------
+    data : dict[str, Any]
+        The dict that :meth:`VARBaselineEffect.to_dict` returned.
+    context : DeserializationContext or None
+        The context holding the idata the MMM is loaded from.
+
+    Returns
+    -------
+    VARBaselineEffect
+        The effect, with ``brand_data`` read from the idata.
+
+    Raises
+    ------
+    ImportError
+        If Impulso is not installed.
+    SerializationError
+        If the dict has a format version other than the one this module reads, if
+        there is no idata, or if it has no ``brand_data``.
+    """
+    version = data.get("format_version")
+    if version != _FORMAT_VERSION:
+        raise SerializationError(
+            f"Cannot deserialize VARBaselineEffect saved in format version {version}: "
+            f"this version of PyMC-Marketing reads only format version "
+            f"{_FORMAT_VERSION}, so load it with the version that saved it."
+        )
+
+    impulso = _import_impulso()
+    group_name = data["brand_data_group"]
+
+    if context is None or context.idata is None:
+        raise SerializationError(
+            "Cannot deserialize VARBaselineEffect: no DataTree provided. The "
+            f"brand_data DataFrame is stored in idata group '{group_name}' and "
+            "requires a DeserializationContext with idata."
+        )
+
+    dtypes = data["brand_data_dtypes"]
+    try:
+        group = context.idata[group_name]
+        # Read column by column: `to_dataframe` would make a column named like the
+        # group's dimension the index.
+        columns = {name: group[name].to_numpy() for name in dtypes}
+    except KeyError as e:
+        raise SerializationError(
+            f"Cannot read supplementary data group '{group_name}' from DataTree: {e}"
+        ) from e
+
+    brand_data = pd.DataFrame(columns).astype(dtypes)
+    var = impulso.VAR.model_validate(data["var"])
+    fields = {
+        name: value
+        for name, value in data.items()
+        if name in VARBaselineEffect.model_fields
+    }
+    return VARBaselineEffect(**(fields | {"brand_data": brand_data, "var": var}))
+
+
+def _register_var_baseline_effect() -> None:
+    serialization.register(
+        f"{VARBaselineEffect.__module__}.{VARBaselineEffect.__qualname__}",
+        VARBaselineEffect,
+        deserializer=_deserialize_var_baseline_effect,
+    )
+
+
+_register_var_baseline_effect()

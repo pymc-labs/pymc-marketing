@@ -5613,6 +5613,40 @@ def test_mmm_equality():
     assert mmm18 != mmm20
 
 
+def test_mmm_equality_compares_mu_effects_with_their_own_eq():
+    """A mu effect that defines ``__eq__`` is compared with it, not ``model_dump()``."""
+
+    class CaseInsensitiveEffect(MuEffect):
+        name: str
+
+        def create_data(self, mmm):
+            pass
+
+        def create_effect(self, mmm):
+            raise NotImplementedError
+
+        def set_data(self, mmm, model, X):
+            pass
+
+        def __eq__(self, other):
+            return (
+                isinstance(other, CaseInsensitiveEffect)
+                and self.name.lower() == other.name.lower()
+            )
+
+    def mmm_with_effect(name):
+        return MMM(
+            date_column="date",
+            channel_columns=["channel_1", "channel_2"],
+            target_column="sales",
+            adstock=GeometricAdstock(l_max=8),
+            saturation=LogisticSaturation(),
+        ).add_mu_effect(CaseInsensitiveEffect(name=name))
+
+    assert mmm_with_effect("TV") == mmm_with_effect("tv")
+    assert mmm_with_effect("TV") != mmm_with_effect("radio")
+
+
 class TestPydanticValidation:
     """Test suite specifically for Pydantic validation in multidimensional MMM."""
 

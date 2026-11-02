@@ -13,8 +13,10 @@
 #   limitations under the License.
 """Tests for the VAR baseline effect and its optional Impulso dependency."""
 
+import json
 import sys
 from functools import partial
+from pathlib import Path
 from unittest.mock import patch
 
 import arviz as az
@@ -23,7 +25,7 @@ import pandas as pd
 import pymc as pm
 import pytest
 import xarray as xr
-from pydantic import ValidationError
+from pydantic import BaseModel, ValidationError
 from pymc.testing import mock_sample
 from scipy import stats
 
@@ -35,15 +37,18 @@ from pymc_marketing.mmm import (
     VARBaselineEffect,
 )
 from pymc_marketing.mmm.scaling import FixedScaling
+from pymc_marketing.serialization import DeserializationContext, serialization
 
 pytest.importorskip("impulso")
 
 from impulso import (
     VAR,
     Constant,
+    Gaussian,
     InnovationScalePrior,
     MinnesotaPrior,
     NUTSSampler,
+    SVDefaultPrior,
     VARData,
     ar1_residual_sd,
 )
@@ -147,18 +152,50 @@ def fitted_mmm(brand_mmm_data) -> MMM:
     return fit_mmm(brand_mmm_data, make_effect(brand_mmm_data["brand_data"]))
 
 
-class OwnLagPrior:
-    """A lag-coefficient prior that is not a ``MinnesotaPrior``.
+class PlainPrior:
+    """A lag-coefficient prior from outside Impulso that pydantic cannot serialize.
 
-    Every own first lag has prior mean 0.9.
+    Constructing the effect refuses it, so ``build_priors`` is never called.
     """
 
-    def build_priors(
-        self, n_vars: int, n_lags: int, *, sigma: np.ndarray
-    ) -> dict[str, np.ndarray]:
-        B_mu = np.zeros((n_vars, n_vars * n_lags))
-        B_mu[:, :n_vars] = 0.9 * np.eye(n_vars)
-        return {"B_mu": B_mu, "B_sigma": np.full_like(B_mu, 0.1)}
+    def build_priors(self, *args, **kwargs):
+        raise NotImplementedError
+
+
+class PydanticPrior(PlainPrior, BaseModel):
+    """``PlainPrior`` as a pydantic model, which serializes to an empty dict.
+
+    Impulso loads the empty dict back as a default ``MinnesotaPrior``.
+    """
+
+
+class PlainErrors:
+    """Observation errors from outside Impulso that pydantic cannot serialize.
+
+    Constructing the effect refuses them, so no method is ever called.
+    """
+
+    name = "plain"
+    is_heavy_tailed = False
+
+    def build_likelihood(self, *args, **kwargs):
+        raise NotImplementedError
+
+    def logp(self, *args, **kwargs):
+        raise NotImplementedError
+
+    def draw_standardised_innovations(self, *args, **kwargs):
+        raise NotImplementedError
+
+    def variance_inflation(self, *args, **kwargs):
+        raise NotImplementedError
+
+
+class ForeignGaussian(Gaussian):
+    """Impulso's Gaussian errors, subclassed outside Impulso.
+
+    It serializes as a ``Gaussian`` does, so it loads back as one.
+    """
 
 
 def test_constructing_the_effect_without_impulso_raises(brand_mmm_data, monkeypatch):
@@ -172,6 +209,52 @@ def test_constructing_the_effect_without_impulso_raises(brand_mmm_data, monkeypa
 def test_var_must_be_an_impulso_var_spec(brand_mmm_data):
     with pytest.raises(TypeError, match=r"impulso\.VAR"):
         make_effect(brand_mmm_data["brand_data"], var=MinnesotaPrior())
+
+
+@pytest.mark.parametrize(
+    "prior",
+    [PlainPrior(), PydanticPrior(), SVDefaultPrior()],
+    ids=lambda prior: type(prior).__name__,
+)
+def test_prior_other_than_minnesota_raises_at_construction(brand_mmm_data, prior):
+    """No other prior loads back as it was saved, and the fitted MMM stores the spec."""
+    spec = VAR(lags=1, prior=prior)
+
+    with pytest.raises(
+        TypeError,
+        match=rf"prior must be a MinnesotaPrior.*got {type(prior).__name__}.*only a "
+        r"MinnesotaPrior is supported for now.*QuantClimate/Impulso/issues/379",
+    ):
+        make_effect(brand_mmm_data["brand_data"], var=spec)
+
+
+@pytest.mark.parametrize(
+    "error_dist, match",
+    [
+        pytest.param(
+            PlainErrors(), "Unable to serialize.*PlainErrors", id="not-serializable"
+        ),
+        pytest.param(
+            ForeignGaussian(),
+            "loads back as a different spec",
+            id="loads-back-different",
+        ),
+    ],
+)
+def test_var_that_does_not_survive_saving_raises_at_construction(
+    brand_mmm_data, error_dist, match
+):
+    """Fitting serializes the spec after sampling, and loading validates it back.
+
+    Were loading to build a different spec, the reloaded MMM would silently be
+    another model.
+    """
+    spec = VAR(lags=1, error_dist=error_dist)
+
+    with pytest.raises(
+        TypeError, match=rf"var must survive saving and loading.*{match}"
+    ):
+        make_effect(brand_mmm_data["brand_data"], var=spec)
 
 
 @pytest.mark.parametrize("baseline_own_lag_mean", [np.nan, 1.0, -1.0])
@@ -356,12 +439,6 @@ def test_fit_with_any_brand_column_names(brand_mmm_data, exog_names):
             {"baseline_own_lag_mean": 0.3},
             [0.3, 0.9, 0.8],
             id="per-variable",
-        ),
-        pytest.param(
-            OwnLagPrior(),
-            {"baseline_own_lag_mean": 0.3},
-            [0.9, 0.9, 0.9],
-            id="not-minnesota",
         ),
     ],
 )
@@ -1347,3 +1424,223 @@ def test_uncentering_maps_var_fit_on_centered_data_onto_var_fit_on_raw_data(
         np.testing.assert_allclose(
             uncentered[name].std(("chain", "draw")), sd, rtol=0.1
         )
+
+
+def save_and_load_effect(
+    effect: VARBaselineEffect, path: Path, **changes
+) -> VARBaselineEffect:
+    """``effect`` through the JSON and netCDF that saving and loading an MMM use.
+
+    ``changes`` replace entries of the saved dict.
+    """
+    xr.DataTree.from_dict(effect.idata_groups()).to_netcdf(path)
+    data = json.loads(json.dumps(serialization.serialize(effect))) | changes
+    with xr.open_datatree(path) as idata:
+        return serialization.deserialize(data, DeserializationContext(idata=idata))
+
+
+@pytest.mark.parametrize(
+    "arrange",
+    [
+        pytest.param(lambda df: df, id="dates"),
+        pytest.param(
+            lambda df: df.assign(date=df["date"].dt.strftime("%Y-%m-%d")),
+            id="string-dates",
+        ),
+        pytest.param(
+            lambda df: df.assign(source="survey", wave=np.arange(len(df)), panel=True),
+            id="other-columns",
+        ),
+        pytest.param(
+            lambda df: df.assign(note=pd.Series("n/a", index=df.index, dtype=object)),
+            id="object-column",
+        ),
+        pytest.param(lambda df: df.set_axis(df.index * 2 + 100), id="index"),
+        pytest.param(lambda df: df.reset_index(), id="index-column"),
+    ],
+)
+def test_brand_data_is_saved_and_loaded(brand_mmm_data, tmp_path, arrange):
+    """Its columns, dtypes and rows come back in order, but not its index."""
+    brand_data = arrange(brand_mmm_data["brand_data"])
+    effect = make_effect(brand_data)
+
+    loaded = save_and_load_effect(effect, tmp_path / "effect.nc")
+
+    pd.testing.assert_frame_equal(loaded.brand_data, brand_data.reset_index(drop=True))
+    assert loaded == effect
+
+
+def test_missing_text_loads_as_an_empty_string(brand_mmm_data, tmp_path):
+    """netCDF has no missing text value."""
+    brand_data = brand_mmm_data["brand_data"].assign(source="survey")
+    brand_data.loc[3, "source"] = None
+    effect = make_effect(brand_data)
+
+    loaded = save_and_load_effect(effect, tmp_path / "effect.nc")
+
+    pd.testing.assert_frame_equal(loaded.brand_data, brand_data.fillna({"source": ""}))
+
+
+def test_saved_effect_records_its_format_version(brand_mmm_data):
+    effect = make_effect(brand_mmm_data["brand_data"])
+
+    assert serialization.serialize(effect)["format_version"] == 1
+
+
+def test_loading_a_newer_format_version_raises(brand_mmm_data, tmp_path):
+    """A layout this version does not read is refused rather than misread."""
+    from pymc_marketing.serialization import SerializationError
+
+    effect = make_effect(brand_mmm_data["brand_data"])
+
+    with pytest.raises(
+        SerializationError, match=r"format version 2: .* reads only format version 1"
+    ):
+        save_and_load_effect(effect, tmp_path / "effect.nc", format_version=2)
+
+
+@pytest.fixture(scope="module")
+def saved_mmm(brand_mmm_data, tmp_path_factory) -> tuple[MMM, Path]:
+    """A fitted MMM carrying the effect, and the file it is saved to.
+
+    The effect sets every field but ``baseline_innovation_sd``, so U comes from the
+    target. Its brand data have a text column the effect does not use and a
+    non-default index.
+    """
+    spec = VAR(
+        lags=2,
+        prior=MinnesotaPrior(own_lag_mean=(0.3, 0.9, 0.8)),
+        volatility=Constant(
+            tril_offdiag_sigma=0.2,
+            innovation_scale_priors=[
+                InnovationScalePrior(family="halfcauchy", scale=2.5),
+                InnovationScalePrior(family="halfnormal", scale=0.3),
+                InnovationScalePrior(family="exponential", scale=0.1),
+            ],
+        ),
+        error_dist=Gaussian(),
+    )
+    brand_data = brand_mmm_data["brand_data"].assign(source="survey")
+    effect = make_effect(
+        brand_data.set_axis(brand_data.index + 100),
+        var=spec,
+        baseline_own_lag_mean=0.3,
+    )
+    mmm = fit_mmm(brand_mmm_data, effect)
+    path = tmp_path_factory.mktemp("var_baseline") / "mmm.nc"
+    mmm.save(str(path))
+    return mmm, path
+
+
+@pytest.fixture(scope="module")
+def loaded_mmm(saved_mmm) -> MMM:
+    return MMM.load(str(saved_mmm[1]))
+
+
+def test_loaded_effect_equals_the_saved_one(saved_mmm, loaded_mmm):
+    """``==`` compares every field, the VAR spec included, and brand_data's rows."""
+    effect = saved_mmm[0].mu_effects[0]
+    loaded = loaded_mmm.mu_effects[0]
+
+    assert isinstance(loaded, VARBaselineEffect)
+    assert loaded == effect
+
+
+def test_fitted_var_is_unchanged_by_loading(saved_mmm, loaded_mmm):
+    """It recomputes the centering means from brand_data and U from the target."""
+    mmm = saved_mmm[0]
+    fitted = mmm.mu_effects[0].fitted_var(mmm)
+
+    loaded = loaded_mmm.mu_effects[0].fitted_var(loaded_mmm)
+
+    xr.testing.assert_equal(
+        loaded.idata.posterior.to_dataset(), fitted.idata.posterior.to_dataset()
+    )
+    np.testing.assert_array_equal(loaded.data.endog, fitted.data.endog)
+    np.testing.assert_array_equal(loaded.data.exog, fitted.data.exog)
+    assert loaded.data.index.equals(fitted.data.index)
+    assert loaded.n_lags == fitted.n_lags
+    assert loaded.volatility == fitted.volatility
+    assert loaded.error_dist == fitted.error_dist
+
+
+def test_loaded_mmm_equals_the_saved_one(saved_mmm, loaded_mmm):
+    assert loaded_mmm == saved_mmm[0]
+
+
+def test_posterior_predictive_is_unchanged_by_loading(
+    brand_mmm_data, saved_mmm, loaded_mmm
+):
+    """On the training dates, through the graph that loading rebuilds and clones."""
+    X = brand_mmm_data["X"]
+    kwargs = {"extend_idata": False, "random_seed": seed, "progressbar": False}
+
+    loaded = loaded_mmm.sample_posterior_predictive(X, **kwargs)
+
+    saved = saved_mmm[0].sample_posterior_predictive(X, **kwargs)
+    assert loaded["date"].to_index().equals(pd.DatetimeIndex(X["date"]))
+    xr.testing.assert_equal(loaded, saved)
+
+
+def test_loading_without_impulso_raises(saved_mmm, monkeypatch):
+    monkeypatch.setitem(sys.modules, "impulso", None)
+
+    with pytest.raises(ImportError, match=r"pip install 'pymc-marketing\[var\]'"):
+        MMM.load(str(saved_mmm[1]))
+
+
+def test_mmm_with_events_of_the_same_prefix_saves_and_loads(brand_mmm_data, tmp_path):
+    """The brand data and the events are saved in different idata groups."""
+    from pymc_extras.prior import Prior
+
+    from pymc_marketing.mmm.events import EventEffect, GaussianBasis
+
+    df_events = pd.DataFrame(
+        {
+            "name": ["launch", "summer"],
+            "start_date": ["2024-02-05", "2024-06-03"],
+            "end_date": ["2024-02-19", "2024-06-17"],
+        }
+    )
+    effect = make_effect(brand_mmm_data["brand_data"])
+    events = EventEffect(
+        basis=GaussianBasis(), effect_size=Prior("Normal"), dims=(PREFIX,)
+    )
+    mmm = make_mmm(effect).add_events(df_events, prefix=PREFIX, effect=events)
+    with patch.object(pm, "sample", mock_sample):
+        mmm.fit(brand_mmm_data["X"], brand_mmm_data["y"], draws=20, random_seed=seed)
+    mmm.save(str(tmp_path / "mmm.nc"))
+
+    loaded_effect, loaded_events = MMM.load(str(tmp_path / "mmm.nc")).mu_effects
+
+    assert loaded_effect == effect
+    # MMM == raises: EventAdditiveEffect reloads df_events with an extra `index` column.
+    pd.testing.assert_frame_equal(loaded_events.df_events[df_events.columns], df_events)
+
+
+@pytest.mark.parametrize(
+    "arrange, effect_kwargs, equal",
+    [
+        pytest.param(lambda df: df.copy(), {}, True, id="copy"),
+        pytest.param(
+            lambda df: df.set_axis(df.index + 100), {}, True, id="other-index"
+        ),
+        pytest.param(
+            lambda df: df.assign(awareness=df["awareness"] + 1.0),
+            {},
+            False,
+            id="other-values",
+        ),
+        pytest.param(lambda df: df, {"var": VAR(lags=2)}, False, id="other-var"),
+    ],
+)
+def test_effects_compare_brand_data_with_pandas(
+    brand_mmm_data, arrange, effect_kwargs, equal
+):
+    """Its index is ignored. MMMs carrying the effects compare as the effects do."""
+    brand_data = brand_mmm_data["brand_data"]
+    effect = make_effect(brand_data)
+    other = make_effect(arrange(brand_data), **effect_kwargs)
+
+    assert (effect == other) is equal
+    assert (make_mmm(effect) == make_mmm(other)) is equal

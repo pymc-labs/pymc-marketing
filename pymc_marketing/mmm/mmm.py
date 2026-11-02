@@ -193,7 +193,7 @@ import pandas as pd
 import pymc as pm
 import pymc.dims as pmd
 import xarray as xr
-from pydantic import ConfigDict, Field, InstanceOf, StrictBool, validate_call
+from pydantic import BaseModel, ConfigDict, Field, InstanceOf, StrictBool, validate_call
 from pymc.model.transform.optimization import freeze_dims_and_data
 from pymc.util import RandomState
 from pymc_extras.prior import Prior
@@ -989,7 +989,12 @@ class MMM(RegressionModelBuilder):
             if hasattr(self_effect, "model_dump") and hasattr(
                 other_effect, "model_dump"
             ):
-                if self_effect.model_dump() != other_effect.model_dump():
+                # An effect that defines its own __eq__ is compared with it, and any
+                # other through model_dump().
+                if type(self_effect).__eq__ is not BaseModel.__eq__:
+                    if self_effect != other_effect:
+                        return False
+                elif self_effect.model_dump() != other_effect.model_dump():
                     return False
 
         # Causal graph
