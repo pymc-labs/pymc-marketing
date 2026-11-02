@@ -1,0 +1,103 @@
+name: Refresh lift notebook outputs
+
+on:
+  push:
+    branches:
+      - docs/refresh-lift-calibration-results
+    paths:
+      - .github/workflows/refresh-lift-notebooks.yml
+
+permissions:
+  contents: write
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - name: Check out the PR branch
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: true
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v8.3.2
+
+      - name: Install notebook dependencies
+        run: |
+          uv venv --python 3.12
+          uv pip install -e '.[docs,test,dag]'
+
+      - name: Re-execute both notebooks without changing their source
+        env:
+          PYTHONUNBUFFERED: '1'
+        run: |
+          uv run python - <<'PY'
+          from pathlib import Path
+
+          import nbformat
+          import papermill
+
+          notebook_dir = Path("docs/source/notebooks/mmm")
+          names = ("mmm_prior_sensitivity", "mmm_roas")
+          refreshed = []
+
+          for name in names:
+              path = notebook_dir / f"{name}.ipynb"
+              original = nbformat.read(path, as_version=4)
+              executed_path = Path("/tmp") / f"{name}.executed.ipynb"
+
+              papermill.execute_notebook(
+                  input_path=str(path),
+                  output_path=str(executed_path),
+                  cwd=str(path.parent),
+                  kernel_name="python3",
+                  progress_bar=False,
+              )
+              executed = nbformat.read(executed_path, as_version=4)
+
+              if len(original.cells) != len(executed.cells):
+                  raise RuntimeError(f"{name}: cell count changed during execution")
+
+              code_cells = 0
+              output_cells = 0
+              for i, (before, after) in enumerate(zip(original.cells, executed.cells)):
+                  if before.cell_type != after.cell_type or before.source != after.source:
+                      raise RuntimeError(f"{name}: source changed in cell {i}")
+                  if before.cell_type != "code":
+                      continue
+                  code_cells += 1
+                  if after.execution_count is None:
+                      raise RuntimeError(f"{name}: code cell {i} was not executed")
+                  errors = [item for item in after.outputs if item.output_type == "error"]
+                  if errors:
+                      raise RuntimeError(f"{name}: execution errors in cell {i}")
+                  before.outputs = after.outputs
+                  before.execution_count = after.execution_count
+                  if after.outputs:
+                      output_cells += 1
+
+              nbformat.validate(original)
+              refreshed.append((path, original))
+              print(f"{name}: {code_cells} code cells executed, {output_cells} with outputs")
+
+          # Write only after both complete successfully.
+          for path, notebook in refreshed:
+              nbformat.write(notebook, path)
+          PY
+
+      - name: Verify changes are restricted to both notebooks
+        run: |
+          git diff --check
+          git diff --name-only | tee /tmp/changed-files.txt
+          test "$(wc -l < /tmp/changed-files.txt)" -eq 2
+          grep -Fqx "docs/source/notebooks/mmm/mmm_prior_sensitivity.ipynb" /tmp/changed-files.txt
+          grep -Fqx "docs/source/notebooks/mmm/mmm_roas.ipynb" /tmp/changed-files.txt
+
+      - name: Commit refreshed outputs
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/source/notebooks/mmm/mmm_prior_sensitivity.ipynb docs/source/notebooks/mmm/mmm_roas.ipynb
+          git commit -m "Refresh lift calibration notebook outputs"
+          git push origin HEAD:docs/refresh-lift-calibration-results
