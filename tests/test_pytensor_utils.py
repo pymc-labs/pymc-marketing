@@ -21,10 +21,11 @@ import numpy as np
 import pandas as pd
 import pymc as pm
 import pymc.dims as pmd
+import pytensor.xtensor as ptx
 import pytest
 import xarray as xr
-from pymc.model.fgraph import fgraph_from_model
-from pytensor import function
+from pymc.model.fgraph import clone_model, fgraph_from_model
+from pytensor import function, shared
 from pytensor.graph.traversal import ancestors
 
 from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation
@@ -34,12 +35,23 @@ from pymc_marketing.mmm.mmm import (
     BudgetOptimizerWrapper,
 )
 from pymc_marketing.pytensor_utils import (
+    ConditionedModel,
     ModelSamplerEstimator,
     SharedPosterior,
+    VariableLayout,
     _prefix_model,
+    align_posterior_dim,
+    aligned_posterior,
+    check_aligned_dims,
+    check_aligned_shape,
     extract_response_distribution,
     merge_models,
+    needed_posterior_names,
+    non_sample_dims,
+    reorder_to_model_coords,
+    transpose_to_model_dims,
     validate_unique_value_vars,
+    variable_layout,
 )
 
 
@@ -715,6 +727,371 @@ def test_extract_response_distribution_accepts_several_variables():
         extract_response_distribution(model, idata, [])
 
 
+def _channel_layout(dims=("channel",), *, shape=(2,), coords=None):
+    return VariableLayout(
+        dims=dims,
+        coords={} if coords is None else coords,
+        shape=shape,
+    )
+
+
+def test_non_sample_dims_keeps_storage_order_and_drops_samples():
+    posterior_da = xr.DataArray(np.ones((2, 3, 4)), dims=("chain", "channel", "draw"))
+    assert non_sample_dims(posterior_da, sample_dims=("chain", "draw")) == ("channel",)
+
+
+def test_check_aligned_dims_compares_the_dim_set_not_its_order():
+    layout = _channel_layout(dims=("channel", "date"), shape=(2, 3))
+
+    check_aligned_dims("beta", ("date", "channel"), layout)  # order is free
+
+    with pytest.raises(ValueError, match="has dims"):
+        check_aligned_dims("beta", ("channel",), layout)
+
+
+@pytest.mark.parametrize(
+    "given, bound, match",
+    [
+        pytest.param(
+            None,
+            pd.Index(["a", "b"]),
+            "labeled on one side only",
+            id="given-unlabeled",
+        ),
+        pytest.param(
+            pd.Index(["a", "b"]),
+            None,
+            "labeled on one side only",
+            id="bound-unlabeled",
+        ),
+        pytest.param(
+            pd.Index(["a", "b"]),
+            pd.Index(["a", "a"]),
+            "has duplicated channel labels",
+            id="duplicated-bound-labels",
+        ),
+        pytest.param(
+            pd.Index(["a", "c"]),
+            pd.Index(["a", "b"]),
+            "has different channel labels",
+            id="different-labels",
+        ),
+        pytest.param(
+            pd.Index(["a", "b", "c"]),
+            pd.Index(["a", "b"]),
+            "has different channel labels",
+            id="different-length",
+        ),
+        pytest.param(
+            pd.Index(["a", "a"]),
+            pd.Index(["a", "b"]),
+            "has different channel labels",
+            id="duplicated-given-labels",
+        ),
+    ],
+)
+def test_align_posterior_dim_refuses_unusable_labels(given, bound, match):
+    posterior_da = xr.DataArray(
+        np.ones((2 if given is None else len(given), 3)),
+        dims=("channel", "sample"),
+        coords={} if given is None else {"channel": given},
+    )
+
+    with pytest.raises(ValueError, match=match):
+        align_posterior_dim("beta", posterior_da, "channel", bound)
+
+
+def test_align_posterior_dim_reorders_the_axis_to_the_bound_labels():
+    posterior_da = xr.DataArray(
+        [1.0, 2.0], dims="channel", coords={"channel": ["b", "a"]}
+    )
+
+    aligned = align_posterior_dim("beta", posterior_da, "channel", pd.Index(["a", "b"]))
+
+    assert list(aligned.indexes["channel"]) == ["a", "b"]
+    np.testing.assert_allclose(aligned.values, [2.0, 1.0])
+    # The same array comes back when neither side is labeled.
+    unlabeled = xr.DataArray(np.ones((2, 3)), dims=("channel", "sample"))
+    assert align_posterior_dim("beta", unlabeled, "channel", None) is unlabeled
+
+
+def test_transpose_to_model_dims_moves_only_a_reordering_of_the_declared_dims():
+    """A variable over the declared dims in another order is transposed.
+
+    The sample dims stay in front, a variable already in order or over another
+    set of dims is left as given, and so is one the model does not declare.
+    """
+    model_dims = {
+        "lam": ("geo", "channel"),
+        "alpha": ("geo", "channel"),
+        "sigma": ("geo",),
+    }
+    rng = np.random.default_rng(0)
+    posterior = xr.Dataset(
+        {
+            "lam": (("chain", "draw", "channel", "geo"), rng.normal(size=(1, 2, 3, 3))),
+            "alpha": (
+                ("chain", "draw", "geo", "channel"),
+                rng.normal(size=(1, 2, 3, 3)),
+            ),
+            "sigma": (("chain", "draw", "geo", "extra"), rng.normal(size=(1, 2, 3, 2))),
+            "free": (
+                ("chain", "draw", "channel", "geo"),
+                rng.normal(size=(1, 2, 3, 3)),
+            ),
+        }
+    )
+
+    laid_out = transpose_to_model_dims(posterior, model_dims)
+
+    assert laid_out["lam"].dims == ("chain", "draw", "geo", "channel")
+    xr.testing.assert_identical(
+        laid_out["lam"], posterior["lam"].transpose(*laid_out["lam"].dims)
+    )
+    for name in ("alpha", "sigma", "free"):
+        assert laid_out[name].dims == posterior[name].dims
+    # Nothing to move returns the dataset itself.
+    assert transpose_to_model_dims(laid_out, model_dims) is laid_out
+
+
+def test_check_aligned_shape_allows_only_the_sample_length_to_change():
+    layout = _channel_layout(shape=(2,))
+
+    check_aligned_shape("beta", (2,), layout)
+
+    with pytest.raises(ValueError, match="Only the sample dimension may change"):
+        check_aligned_shape("beta", (3,), layout)
+
+
+def test_align_posterior_dim_compares_datetime_labels_by_value():
+    """Datetime labels stored in another unit are the same labels."""
+    dates = pd.DatetimeIndex(["2024-01-01", "2024-01-08"])
+    posterior_da = xr.DataArray(
+        [1.0, 2.0], dims="date", coords={"date": dates[::-1].as_unit("ns")}
+    )
+
+    aligned = align_posterior_dim("beta", posterior_da, "date", dates.as_unit("s"))
+
+    np.testing.assert_allclose(aligned.values, [2.0, 1.0])
+
+
+def test_variable_layout_records_the_non_sample_dims_labels_and_shape():
+    """Only a labeled dim carries labels, and the sample dims may have any names."""
+    posterior_da = xr.DataArray(
+        np.zeros((2, 4, 3, 5)),
+        dims=("chain", "draw", "channel", "lag"),
+        coords={"channel": ["a", "b", "c"]},
+    )
+
+    layout = variable_layout(posterior_da, sample_dims=("chain", "draw"))
+
+    assert layout.dims == ("channel", "lag")
+    assert list(layout.coords) == ["channel"]
+    assert list(layout.coords["channel"]) == ["a", "b", "c"]
+    assert layout.shape == (3, 5)
+    stacked = posterior_da.stack(sample=("chain", "draw")).transpose("sample", ...)
+    stacked_layout = variable_layout(stacked, sample_dims=("sample",))
+    assert stacked_layout.dims == layout.dims
+    assert stacked_layout.shape == layout.shape
+
+
+def _geo_lag_layout() -> VariableLayout:
+    """The layout of a ``(chain, draw, geo, lag)`` variable with labeled ``geo``."""
+    constructed = xr.DataArray(
+        np.zeros((1, 2, 2, 3)),
+        dims=("chain", "draw", "geo", "lag"),
+        coords={"geo": ["n", "s"]},
+    )
+    return variable_layout(constructed, sample_dims=("chain", "draw"))
+
+
+def test_aligned_posterior_lays_a_variable_out_like_its_layout():
+    """Labels are reordered and dims transposed to the layout, sample dims first.
+
+    The number of draws is free: only the non-sample geometry is checked.
+    """
+    values = np.arange(1 * 5 * 3 * 2, dtype=float).reshape(1, 5, 3, 2)
+    incoming = xr.DataArray(
+        values,
+        dims=("chain", "draw", "lag", "geo"),
+        coords={"geo": ["s", "n"]},
+    ).transpose("lag", "chain", "geo", "draw")
+
+    aligned = aligned_posterior(
+        "beta", incoming, _geo_lag_layout(), sample_dims=("chain", "draw")
+    )
+
+    assert aligned.dims == ("chain", "draw", "geo", "lag")
+    assert list(aligned.indexes["geo"]) == ["n", "s"]
+    # Position (0, 0) of the laid-out geo and lag is geo "n", stored second.
+    np.testing.assert_array_equal(aligned.values[0, :, 0, 0], values[0, :, 0, 1])
+
+
+@pytest.mark.parametrize(
+    "dims, geo, lag, match",
+    [
+        pytest.param(("chain", "draw", "geo"), ["n", "s"], None, "has dims", id="dims"),
+        pytest.param(
+            ("chain", "draw", "geo", "lag"),
+            ["n", "x"],
+            3,
+            "has different geo labels",
+            id="labels",
+        ),
+        pytest.param(
+            ("chain", "draw", "geo", "lag"),
+            None,
+            3,
+            "labeled on one side only",
+            id="one-sided-labels",
+        ),
+        pytest.param(
+            ("chain", "draw", "geo", "lag"),
+            ["n", "s"],
+            4,
+            "has shape",
+            id="non-sample-length",
+        ),
+    ],
+)
+def test_aligned_posterior_refuses_another_layout(dims, geo, lag, match):
+    """Another dim set, label set, one-sided labeling or non-sample length is refused."""
+    sizes = {"chain": 1, "draw": 2, "geo": 2, "lag": lag}
+    incoming = xr.DataArray(
+        np.zeros(tuple(sizes[dim] for dim in dims)),
+        dims=dims,
+        coords={} if geo is None else {"geo": geo},
+    )
+
+    with pytest.raises(ValueError, match=match):
+        aligned_posterior(
+            "beta", incoming, _geo_lag_layout(), sample_dims=("chain", "draw")
+        )
+
+
+def _scaled_response_model() -> pm.Model:
+    """``resp = scaled * gamma`` with ``scaled = beta * spend``, and an unused RV."""
+    with pm.Model(coords={"channel": ["a", "b"]}) as model:
+        spend = pmd.Data("spend", np.array([1.0, 2.0]), dims="channel")
+        beta = pmd.Normal("beta", dims="channel")
+        gamma = pmd.Normal("gamma")
+        pmd.Normal("unused")
+        scaled = pmd.Deterministic("scaled", beta * spend)
+        pmd.Deterministic("resp", scaled * gamma + beta)
+        pmd.Deterministic("resp_scaled", scaled * gamma)
+    return model
+
+
+def test_needed_posterior_names_lists_each_free_variable_a_response_reads_once():
+    """Data and the deterministics on the way are traversed, not listed."""
+    model = _scaled_response_model()
+
+    names = needed_posterior_names(model, [model["resp"]])
+
+    assert sorted(names) == ["beta", "gamma"]
+
+
+def test_needed_posterior_names_stops_at_a_frozen_deterministic():
+    """A frozen deterministic is listed instead of the variables behind it.
+
+    A frozen name the model does not have is ignored.
+    """
+    model = _scaled_response_model()
+
+    names = needed_posterior_names(
+        model, [model["resp_scaled"]], frozen_deterministics=["scaled", "missing"]
+    )
+
+    assert sorted(names) == ["gamma", "scaled"]
+
+
+def test_reorder_to_model_coords_puts_a_matching_label_set_in_the_model_order():
+    """Every labeled dim whose labels are the model's goes to the model's order.
+
+    ``chain`` and ``draw`` are never reordered, even when the model has coords
+    of that name, and a dataset already in order comes back as is.
+    """
+    values = np.arange(1 * 2 * 2 * 3, dtype=float).reshape(1, 2, 2, 3)
+    posterior = xr.Dataset(
+        {"beta": (("chain", "draw", "geo", "channel"), values)},
+        coords={
+            "chain": [0],
+            "draw": [1, 0],
+            "geo": ["s", "n"],
+            "channel": ["c", "a", "b"],
+        },
+    )
+    model_coords = {
+        "geo": ["n", "s"],
+        "channel": ["a", "b", "c"],
+        "draw": [0, 1],
+    }
+
+    reordered = reorder_to_model_coords(posterior, model_coords)
+
+    assert list(reordered.indexes["geo"]) == ["n", "s"]
+    assert list(reordered.indexes["channel"]) == ["a", "b", "c"]
+    assert list(reordered.indexes["draw"]) == [1, 0]
+    # Position (0, 0) is geo "n" and channel "a", both stored second.
+    np.testing.assert_array_equal(
+        reordered["beta"].values[0, :, 0, 0], values[0, :, 1, 1]
+    )
+    assert reorder_to_model_coords(reordered, model_coords) is reordered
+
+
+def test_reorder_to_model_coords_compares_datetime_labels_by_value():
+    """Model dates in another storage unit still reorder the posterior's."""
+    dates = pd.DatetimeIndex(["2024-01-01", "2024-01-08"])
+    posterior = xr.Dataset(
+        {"beta": (("chain", "draw", "date"), np.array([[[1.0, 2.0]]]))},
+        coords={"date": dates[::-1].as_unit("ns")},
+    )
+
+    reordered = reorder_to_model_coords(
+        posterior, {"date": dates.as_unit("s").to_numpy()}
+    )
+
+    np.testing.assert_allclose(reordered["beta"].values[0, 0], [2.0, 1.0])
+
+
+@pytest.mark.parametrize(
+    "labels, model_coords",
+    [
+        pytest.param(["s", "n"], {"geo": ["n", "x"]}, id="other-labels"),
+        pytest.param(["s", "n"], {"geo": ["n", "s", "e"]}, id="other-length"),
+        pytest.param(["s", "n"], {}, id="no-model-coords"),
+        pytest.param(None, {"geo": ["n", "s"]}, id="unlabeled"),
+        pytest.param(
+            ["n", "s", "n"], {"geo": ["s", "n", "n"]}, id="duplicated-model-labels"
+        ),
+    ],
+)
+def test_reorder_to_model_coords_leaves_a_dim_it_cannot_match_as_given(
+    labels, model_coords
+):
+    """A dim whose labels are not the model's (unique) labels is stored as given."""
+    size = 2 if labels is None else len(labels)
+    posterior = xr.Dataset(
+        {"beta": (("chain", "draw", "geo"), np.zeros((1, 1, size)))},
+        coords={} if labels is None else {"geo": labels},
+    )
+
+    assert reorder_to_model_coords(posterior, model_coords) is posterior
+
+
+def test_transpose_to_model_dims_keeps_a_stacked_sample_dim_in_front():
+    """Any sample dims can be named, and they stay in front."""
+    posterior = xr.Dataset(
+        {"lam": (("channel", "sample", "geo"), np.zeros((3, 4, 2)))},
+    )
+
+    laid_out = transpose_to_model_dims(
+        posterior, {"lam": ("geo", "channel")}, sample_dims=("sample",)
+    )
+
+    assert laid_out["lam"].dims == ("sample", "geo", "channel")
+
+
 def _slope_model_and_draws(draws: int, seed: int):
     """A tiny dims model plus a prior-predictive ``posterior`` to condition on."""
     data_values = np.array([1.0, 2.0, 3.0])
@@ -722,6 +1099,7 @@ def _slope_model_and_draws(draws: int, seed: int):
         data = pmd.Data("data", data_values, dims="d")
         slope = pmd.Normal("slope", mu=0.0, sigma=1.0)
         pmd.Deterministic("doubled", 2.0 * data * slope)
+        pmd.Deterministic("tripled", 3.0 * data * slope)
     with model:
         prior = pm.sample_prior_predictive(draws=draws, random_seed=seed)
     idata = xr.DataTree.from_dict({"/posterior": prior["/prior"].to_dataset()})
@@ -748,6 +1126,31 @@ def _two_channel_posterior(beta, gamma, channel=("a", "b")):
         },
         coords={"channel": list(channel)},
     )
+
+
+def _gamma_model():
+    """``base`` reads ``beta`` alone; ``resp`` reads both gammas, so either can be the missing one."""
+    spend = np.array([10.0, 20.0])
+    with pm.Model(coords={"channel": ["a", "b"]}) as model:
+        spend_var = pmd.Data("spend", spend, dims="channel")
+        beta = pmd.Normal("beta", dims="channel")
+        gamma1 = pmd.Normal("gamma1", dims="channel")
+        gamma2 = pmd.Normal("gamma2", dims="channel")
+        pmd.Deterministic("base", beta * spend_var)
+        pmd.Deterministic("resp", gamma2 + gamma1)
+    return model, spend
+
+
+def _gamma_posterior(beta=(1.0, 1.0), gamma1=None, gamma2=None, channel=("a", "b")):
+    """A channel posterior holding ``beta`` and whichever gammas are asked for."""
+    data = {"beta": (("chain", "draw", "channel"), np.asarray(beta, float)[None, None])}
+    for name, values in (("gamma1", gamma1), ("gamma2", gamma2)):
+        if values is not None:
+            data[name] = (
+                ("chain", "draw", "channel"),
+                np.asarray(values, float)[None, None],
+            )
+    return xr.Dataset(data, coords={"channel": list(channel)})
 
 
 def test_shared_posterior_rebinds_compiled_graph_without_recompile():
@@ -997,6 +1400,95 @@ def test_shared_posterior_refuses_duplicated_labels_at_bind_time():
         shared_posterior.set_posterior(duplicated)
 
 
+def test_shared_posterior_failed_extract_keeps_registries_consistent():
+    """A duplicated-label variable is refused before it is inserted.
+
+    The instance already binds a valid ``beta``; the extraction that adds a
+    ``gamma`` with duplicated labels must raise and leave ``_variables`` and
+    ``_layouts`` keyed alike, so the instance stays usable.
+    """
+    model = _two_channel_model()
+    shared_posterior = SharedPosterior()
+    extract_response_distribution(
+        model,
+        _two_channel_posterior([1.0, 2.0], [2.0, 2.0]),
+        "beta",
+        shared_posterior=shared_posterior,
+    )
+    assert set(shared_posterior.variables) == {"beta"}
+
+    duplicated_gamma = xr.Dataset(
+        {"gamma": (("chain", "draw", "channel"), np.ones((1, 1, 2)))},
+        coords={"channel": ["a", "a"]},
+    )
+    with pytest.raises(ValueError, match=r"duplicated channel labels: \['a'\]"):
+        extract_response_distribution(
+            model, duplicated_gamma, "gamma", shared_posterior=shared_posterior
+        )
+
+    registries = (
+        set(shared_posterior._variables),
+        set(shared_posterior._layouts),
+    )
+    assert registries == ({"beta"}, {"beta"})
+    # The instance still rebinds every graph it handed out.
+    shared_posterior.set_posterior(_two_channel_posterior([3.0, 4.0], [5.0, 6.0]))
+
+
+def _raise_from_vectorize(*_args, **_kwargs):
+    """Stand-in for ``vectorize_graph`` that fails the extraction."""
+    raise RuntimeError("vectorize failed")
+
+
+def _missing_gamma2_posterior(_monkeypatch):
+    """A posterior that fails in the loop, after ``gamma1`` has been registered."""
+    return _gamma_posterior(gamma1=(2.0, 2.0))
+
+
+def _vectorize_failing_posterior(monkeypatch):
+    """A valid posterior with ``vectorize_graph`` patched to fail after both gammas bind."""
+    monkeypatch.setattr(
+        "pymc_marketing.pytensor_utils.vectorize_graph", _raise_from_vectorize
+    )
+    return _gamma_posterior(gamma1=(2.0, 2.0), gamma2=(3.0, 3.0))
+
+
+@pytest.mark.parametrize(
+    "posterior_for_call, expected_error",
+    [
+        pytest.param(
+            _missing_gamma2_posterior, (KeyError, "gamma2"), id="missing-variable"
+        ),
+        pytest.param(
+            _vectorize_failing_posterior,
+            (RuntimeError, "vectorize failed"),
+            id="vectorize-fails",
+        ),
+    ],
+)
+def test_extract_response_distribution_failure_registers_nothing(
+    posterior_for_call, expected_error, monkeypatch
+):
+    """A shared extraction that fails at any point registers no variable.
+
+    ``resp`` reads ``gamma1`` then ``gamma2``, so ``gamma1`` is registered before
+    either failure: a missing variable in the placeholder loop, or an error while
+    vectorizing the graph afterwards.  The instance must be left as it began.
+    """
+    model, _ = _gamma_model()
+    shared_posterior = SharedPosterior()
+    posterior = posterior_for_call(monkeypatch)
+    error, match = expected_error
+
+    with pytest.raises(error, match=match):
+        extract_response_distribution(
+            model, posterior, "resp", shared_posterior=shared_posterior
+        )
+
+    assert set(shared_posterior._variables) == set()
+    assert set(shared_posterior._layouts) == set()
+
+
 def test_shared_posterior_coordinate_mismatch_message_stays_short():
     """A long labelled axis is reported by counts and a few examples, not in full."""
     dates = pd.date_range("2020-02-02", periods=208, freq="W").to_pydatetime()
@@ -1074,7 +1566,7 @@ def test_shared_posterior_refuses_labelled_against_unlabelled_dims():
             shared_posterior=with_labels,
         ),
     )
-    with pytest.raises(ValueError, match=r"'channel' is labelled on one side only"):
+    with pytest.raises(ValueError, match=r"'channel' is labeled on one side only"):
         with_labels.set_posterior(unlabelled([2.0, 1.0], [2.0, 2.0]))
     np.testing.assert_allclose(fn(), [[2.0, 4.0]])
 
@@ -1089,7 +1581,7 @@ def test_shared_posterior_refuses_labelled_against_unlabelled_dims():
             shared_posterior=without_labels,
         ),
     )
-    with pytest.raises(ValueError, match=r"'channel' is labelled on one side only"):
+    with pytest.raises(ValueError, match=r"'channel' is labeled on one side only"):
         without_labels.set_posterior(
             _two_channel_posterior([2.0, 1.0], [2.0, 2.0], channel=("b", "a"))
         )
@@ -1188,3 +1680,1054 @@ def test_extract_response_distribution_one_variable_posterior():
         model, xr.DataTree.from_dict({"/posterior": posterior}), "resp"
     )
     np.testing.assert_allclose(function([], graph)(), [[2.0, 6.0]])
+
+
+def test_shared_posterior_interrupted_write_keeps_the_previous_draws(monkeypatch):
+    """An interrupt partway through the write puts every variable back.
+
+    ``resp`` reads ``beta`` and ``gamma``, so a rebind writes two shared
+    variables.  An interrupt on the second write lands after the first was
+    swapped; every variable, and a function compiled over them, must still hold
+    the previous draws rather than a mix of two posteriors.
+    """
+    model = _two_channel_model()
+    shared_posterior = SharedPosterior()
+    fn = function(
+        [],
+        extract_response_distribution(
+            model,
+            _two_channel_posterior([1.0, 2.0], [3.0, 4.0]),
+            "resp",
+            shared_posterior=shared_posterior,
+        ),
+    )
+    variables = shared_posterior.variables
+    assert len(variables) == 2
+    before = {name: var.get_value().copy() for name, var in variables.items()}
+
+    second = list(variables.values())[1]
+    original_set_value = second.set_value
+    calls = []
+
+    def interrupted_once(*args, **kwargs):
+        calls.append(1)
+        if len(calls) == 1:
+            raise KeyboardInterrupt
+        return original_set_value(*args, **kwargs)
+
+    monkeypatch.setattr(second, "set_value", interrupted_once)
+
+    with pytest.raises(KeyboardInterrupt):
+        shared_posterior.set_posterior(
+            _two_channel_posterior([10.0, 20.0], [30.0, 40.0])
+        )
+
+    for name, var in shared_posterior.variables.items():
+        np.testing.assert_array_equal(var.get_value(), before[name])
+    np.testing.assert_allclose(fn(), [[3.0, 8.0]])
+
+    # The binding is intact: the next rebind writes both variables.
+    shared_posterior.set_posterior(_two_channel_posterior([10.0, 20.0], [30.0, 40.0]))
+    np.testing.assert_allclose(fn(), [[300.0, 800.0]])
+
+
+def _expected_doubled(idata, data_values) -> np.ndarray:
+    drawn = idata["posterior"]["slope"].values.reshape(-1)
+    return np.outer(drawn, 2.0 * data_values)
+
+
+@pytest.mark.parametrize(
+    "rebinder",
+    ["shared_posterior", "conditioned_model", "conditioned_model_before_extract"],
+)
+def test_a_rebind_ignores_an_unread_variable_it_could_not_stack(rebinder):
+    """A posterior variable no graph reads may change freely on a rebind.
+
+    Regression: a rebind stacked the whole posterior into one ``sample`` axis
+    before it picked the bound variables, so every rebind copied every
+    deterministic of a lazily loaded posterior.  An unread variable that could
+    not be stacked, here one that already has a ``sample`` dim of another
+    length, made the rebind fail, also before any graph was extracted.
+    """
+    model, first, data_values = _slope_model_and_draws(draws=4, seed=1)
+    _, second, _ = _slope_model_and_draws(draws=6, seed=2)
+    posterior = second["posterior"].to_dataset().assign(junk=("sample", np.zeros(5)))
+    if rebinder == "shared_posterior":
+        bound = SharedPosterior()
+        graph = extract_response_distribution(
+            model, first, "doubled", shared_posterior=bound
+        )
+    else:
+        bound = ConditionedModel(model, first, intervention={"data": data_values})
+        if rebinder == "conditioned_model_before_extract":
+            bound.set_posterior(posterior)
+        graph = bound.extract("doubled")
+    fn = function([], graph)
+
+    bound.set_posterior(posterior)
+
+    np.testing.assert_allclose(fn(), _expected_doubled(second, data_values))
+
+
+def test_a_rebind_with_nothing_bound_still_needs_chain_and_draw():
+    """With nothing bound a rebind writes nothing, but still refuses unindexed draws."""
+    shared_posterior = SharedPosterior()
+    unindexed = xr.Dataset({"slope": (("draw",), np.zeros(3))})
+
+    with pytest.raises(ValueError, match="indexed by 'chain' and 'draw'"):
+        shared_posterior.set_posterior(unindexed)
+
+
+def _channel_conditioned_model():
+    """A model with ``resp = beta * spend`` and ``resp_g = gamma * spend``."""
+    spend = np.array([10.0, 20.0])
+    with pm.Model(coords={"channel": ["a", "b"]}) as model:
+        spend_var = pmd.Data("spend", spend, dims="channel")
+        beta = pmd.Normal("beta", dims="channel")
+        gamma = pmd.Normal("gamma", dims="channel")
+        pmd.Deterministic("resp", beta * spend_var)
+        pmd.Deterministic("resp_g", gamma * spend_var)
+    return model, spend
+
+
+def _channel_posterior(beta, channel=("a", "b"), *, gamma=None):
+    data_vars = {
+        "beta": (("chain", "draw", "channel"), np.asarray(beta, float)[None, None])
+    }
+    if gamma is not None:
+        data_vars["gamma"] = (
+            ("chain", "draw", "channel"),
+            np.asarray(gamma, float)[None, None],
+        )
+    return xr.Dataset(data_vars, coords={"channel": list(channel)})
+
+
+@pytest.fixture
+def slope_posteriors():
+    """A ``doubled = 2 * data * slope`` model, its data, and three posteriors."""
+    model, first, data_values = _slope_model_and_draws(draws=4, seed=1)
+    _, second, _ = _slope_model_and_draws(draws=6, seed=2)
+    _, third, _ = _slope_model_and_draws(draws=2, seed=3)
+    return model, data_values, first, second, third
+
+
+@pytest.fixture
+def conditioned_slope(slope_posteriors):
+    """The conditioned model, intervening on ``data``, not yet rebound."""
+    model, data_values, first, _, _ = slope_posteriors
+    return ConditionedModel(model, first, intervention={"data": data_values})
+
+
+def test_conditioned_model_extract_is_cached_by_key(conditioned_slope):
+    graph = conditioned_slope.extract("doubled")
+    assert conditioned_slope.extract("doubled") is graph
+    # A one-element sequence shares the extraction but keeps the list form.
+    assert conditioned_slope.extract(["doubled"])[0] is graph
+    # A second response name keys a separate extraction.
+    other_graph = conditioned_slope.extract("tripled")
+    assert other_graph is not graph
+    assert conditioned_slope.extract("tripled") is other_graph
+
+
+def _derived_responses(conditioned, *factors):
+    """Distinct derived nodes over the clone, one per factor."""
+    return [conditioned.model["doubled"] * factor for factor in factors]
+
+
+def test_conditioned_model_cache_keeps_a_hit_and_evicts_the_least_recent(
+    conditioned_slope, monkeypatch
+):
+    """A hit keeps its graph, and an insert evicts the least recent key.
+
+    An evicted key re-extracts to a new graph.  A hit makes its key the most
+    recent, so the next insert evicts the other one instead.
+    """
+    monkeypatch.setattr("pymc_marketing.pytensor_utils._GRAPH_CACHE_SIZE", 2)
+    first, second, third = _derived_responses(conditioned_slope, 2.0, 3.0, 4.0)
+
+    first_graph = conditioned_slope.extract(first)
+    conditioned_slope.extract(second)
+    conditioned_slope.extract(third)  # the third key evicts the least recent, ``first``
+    assert conditioned_slope.extract(first) is not first_graph
+
+    first_graph = conditioned_slope.extract(
+        first
+    )  # cached again, so the next call hits
+    conditioned_slope.extract(second)
+    # A hit moves ``first`` to the most recent position.
+    assert conditioned_slope.extract(first) is first_graph
+    conditioned_slope.extract(third)  # evicts ``second``, not the just-used ``first``
+    assert conditioned_slope.extract(first) is first_graph
+
+
+def test_conditioned_model_evicted_key_reextracts_and_follows_a_later_rebind(
+    slope_posteriors, monkeypatch
+):
+    """An evicted key is a miss, so it re-extracts onto the shared posterior.
+
+    Eviction drops the cache entry only: the graph handed out before it still
+    reads the shared variables, so a function compiled from it before a later
+    rebind follows that rebind, and so does the re-extracted graph.
+    """
+    model, data_values, _, second, third = slope_posteriors
+    conditioned = ConditionedModel(model, second, intervention={"data": data_values})
+    monkeypatch.setattr("pymc_marketing.pytensor_utils._GRAPH_CACHE_SIZE", 1)
+    kept, evicting = _derived_responses(conditioned, 2.0, 3.0)
+
+    kept_graph = conditioned.extract(kept)
+    evicted_fn = function([], kept_graph)
+    conditioned.extract(evicting)  # the cap of one evicts ``kept``
+
+    re_extracted = conditioned.extract(kept)
+    assert re_extracted is not kept_graph
+    np.testing.assert_allclose(
+        evicted_fn(), 2.0 * _expected_doubled(second, data_values)
+    )
+
+    conditioned.set_posterior(third)
+    expected = 2.0 * _expected_doubled(third, data_values)
+    np.testing.assert_allclose(evicted_fn(), expected)
+    np.testing.assert_allclose(function([], re_extracted)(), expected)
+
+
+def test_conditioned_model_evicted_graph_still_requires_its_variables(monkeypatch):
+    """An evicted graph keeps reading its variables, so a rebind must supply them.
+
+    ``resp_g`` is evicted by ``resp``, but a function compiled from it still
+    reads ``gamma``: a posterior without ``gamma`` is refused, and that
+    function keeps the previous draws.
+    """
+    model, spend = _channel_conditioned_model()
+    conditioned = ConditionedModel(
+        model,
+        _channel_posterior([1.0, 2.0], gamma=[3.0, 4.0]),
+        intervention={"spend": spend},
+    )
+    monkeypatch.setattr("pymc_marketing.pytensor_utils._GRAPH_CACHE_SIZE", 1)
+    evicted_fn = function([], conditioned.extract("resp_g"))
+    conditioned.extract("resp")  # the cap of one evicts ``resp_g``
+
+    with pytest.raises(KeyError, match="gamma"):
+        conditioned.set_posterior(_channel_posterior([5.0, 6.0]))
+
+    np.testing.assert_allclose(evicted_fn(), [[30.0, 80.0]])
+    conditioned.set_posterior(_channel_posterior([5.0, 6.0], gamma=[7.0, 8.0]))
+    np.testing.assert_allclose(evicted_fn(), [[70.0, 160.0]])
+
+
+def test_conditioned_model_names_distinguish_shared_name(
+    conditioned_slope, slope_posteriors
+):
+    """Two nodes that share a name key apart in the cache.
+
+    An anonymous intermediate of the clone is renamed to the registered node's name.
+    The two return different graphs that each evaluate to their own expected values and stay cached separately.
+    """
+    _first_model, data_values, first, _, _ = slope_posteriors
+    registered = conditioned_slope.model["doubled"]
+    anonymous = next(
+        node
+        for node in ancestors([registered])
+        if getattr(node, "name", None) is None
+        and getattr(node, "owner", None) is not None
+    )
+    anonymous.name = "doubled"
+
+    registered_graph = conditioned_slope.extract(registered)
+    anonymous_graph = conditioned_slope.extract(anonymous)
+
+    assert registered_graph is not anonymous_graph
+    assert conditioned_slope.extract(registered) is registered_graph
+    assert conditioned_slope.extract(anonymous) is anonymous_graph
+
+    np.testing.assert_allclose(
+        function([], registered_graph)(), _expected_doubled(first, data_values)
+    )
+    np.testing.assert_allclose(function([], anonymous_graph)(), 2.0 * data_values)
+
+
+def test_conditioned_model_rebind_with_an_empty_cache_writes_and_requires_bound_variables(
+    monkeypatch,
+):
+    """An empty cache means no graph is cached, not that no draws are bound.
+
+    With a cache size of zero nothing stays cached, yet the graph handed out
+    reads the shared variables: a rebind still writes ``beta``, so the compiled
+    function follows it, and a rebind that lacks ``beta`` raises ``KeyError``
+    and leaves the draws and ``posterior`` as they were.
+    """
+    model, spend = _channel_conditioned_model()
+    conditioned = ConditionedModel(
+        model, _channel_posterior([1.0, 2.0]), intervention={"spend": spend}
+    )
+    monkeypatch.setattr("pymc_marketing.pytensor_utils._GRAPH_CACHE_SIZE", 0)
+    graph = conditioned.extract("resp")
+    assert conditioned.extract("resp") is not graph  # nothing was cached
+    fn = function([], graph)
+
+    conditioned.set_posterior(_channel_posterior([7.0, 8.0]))
+    np.testing.assert_allclose(fn(), [[70.0, 160.0]])
+
+    posterior = conditioned.posterior
+    without_beta = xr.Dataset({"gamma": (("chain", "draw"), np.zeros((1, 1)))})
+    with pytest.raises(KeyError, match="beta"):
+        conditioned.set_posterior(without_beta)
+    assert conditioned.posterior is posterior
+    np.testing.assert_allclose(fn(), [[70.0, 160.0]])
+
+
+def test_conditioned_model_later_rebind_reuses_graph_and_follows_new_draws(
+    conditioned_slope, slope_posteriors
+):
+    """Every rebind swaps draws in the one shared posterior, whatever the draw count."""
+    _, data_values, _, second, third = slope_posteriors
+    shared = conditioned_slope.shared_posterior
+    assert isinstance(shared, SharedPosterior)
+    graph = conditioned_slope.extract("doubled")
+    fn = function([], graph)
+
+    conditioned_slope.set_posterior(second)  # four draws to six
+    np.testing.assert_allclose(fn(), _expected_doubled(second, data_values))
+    conditioned_slope.set_posterior(third)  # six draws to two
+
+    assert conditioned_slope.shared_posterior is shared
+    # No re-extraction: the same compiled function follows the new draw count.
+    assert conditioned_slope.extract("doubled") is graph
+    np.testing.assert_allclose(fn(), _expected_doubled(third, data_values))
+
+
+def test_conditioned_model_graph_extracted_at_construction_follows_a_rebind(
+    conditioned_slope, slope_posteriors
+):
+    """A graph handed out before the first rebind follows it.
+
+    Regression: a graph extracted before the first ``set_posterior`` was
+    conditioned on constant draws, so a function compiled from it silently kept
+    the construction draws after the rebind.
+    """
+    _, data_values, first, second, _ = slope_posteriors
+    graph = conditioned_slope.extract("doubled")
+    fn = function([], graph)
+    np.testing.assert_allclose(fn(), _expected_doubled(first, data_values))
+
+    conditioned_slope.set_posterior(second)  # four draws to six
+
+    assert conditioned_slope.extract("doubled") is graph
+    np.testing.assert_allclose(fn(), _expected_doubled(second, data_values))
+
+
+def test_conditioned_model_failed_rebind_keeps_the_previous_binding(
+    conditioned_slope, slope_posteriors
+):
+    _, data_values, first, second, _ = slope_posteriors
+    fn = function([], conditioned_slope.extract("doubled"))
+    posterior = conditioned_slope.posterior
+
+    # A posterior the shared variables cannot be rebound to is refused atomically,
+    # so the previous draws and ``posterior`` stay in place.
+    without_slope = second["posterior"].to_dataset().drop_vars("slope")
+    with pytest.raises(KeyError, match="missing variables"):
+        conditioned_slope.set_posterior(without_slope)
+
+    assert conditioned_slope.posterior is posterior
+    np.testing.assert_allclose(fn(), _expected_doubled(first, data_values))
+
+
+def test_conditioned_model_interrupted_rebind_keeps_the_previous_draws(monkeypatch):
+    """An interrupt partway through a rebind leaves every graph on the previous draws.
+
+    ``resp`` and ``resp_g`` read ``beta`` and ``gamma``, so a rebind writes two
+    shared variables.  An interrupt on the second write lands after the first
+    was swapped; the compiled function and ``posterior`` must still be on the
+    previous posterior rather than on a mix of two.
+    """
+    model, spend = _channel_conditioned_model()
+    conditioned = ConditionedModel(
+        model,
+        _channel_posterior([1.0, 2.0], gamma=[3.0, 4.0]),
+        intervention={"spend": spend},
+    )
+    fn = function([], conditioned.extract(["resp", "resp_g"]))
+    posterior = conditioned.posterior
+    variables = conditioned.shared_posterior.variables
+    assert list(variables) == ["beta", "gamma"]
+
+    second = variables["gamma"]
+    original_set_value = second.set_value
+    calls = []
+
+    def interrupted_once(*args, **kwargs):
+        calls.append(1)
+        if len(calls) == 1:
+            raise KeyboardInterrupt
+        return original_set_value(*args, **kwargs)
+
+    monkeypatch.setattr(second, "set_value", interrupted_once)
+
+    with pytest.raises(KeyboardInterrupt):
+        conditioned.set_posterior(_channel_posterior([5.0, 6.0], gamma=[7.0, 8.0]))
+
+    assert conditioned.posterior is posterior
+    resp, resp_g = fn()
+    np.testing.assert_allclose(resp, [[10.0, 40.0]])
+    np.testing.assert_allclose(resp_g, [[30.0, 80.0]])
+
+    # The binding is intact: the next rebind writes both variables.
+    conditioned.set_posterior(_channel_posterior([5.0, 6.0], gamma=[7.0, 8.0]))
+    resp, resp_g = fn()
+    np.testing.assert_allclose(resp, [[50.0, 120.0]])
+    np.testing.assert_allclose(resp_g, [[70.0, 160.0]])
+
+
+def test_conditioned_model_failed_extract_leaves_the_binding_unchanged():
+    """An extract that fails on a missing variable leaves no trace.
+
+    The shared posterior binds ``beta`` only.  Extracting ``resp``, which reads
+    ``gamma2 + gamma1``, fails on the missing ``gamma2``; nothing new may be
+    bound, so a rebind without either gamma still succeeds and is followed.
+    """
+    model, spend = _gamma_model()
+    conditioned = ConditionedModel(
+        model,
+        _gamma_posterior(gamma1=(2.0, 2.0), gamma2=(3.0, 3.0)),
+        intervention={"spend": spend},
+    )
+    fn = function([], conditioned.extract("base"))
+    conditioned.set_posterior(_gamma_posterior(gamma1=(2.0, 2.0)))
+    assert set(conditioned.shared_posterior.variables) == {"beta"}
+
+    with pytest.raises(KeyError, match="gamma2"):
+        conditioned.extract("resp")
+
+    assert set(conditioned.shared_posterior.variables) == {"beta"}
+    # A rebind that satisfies every handed-out graph is accepted.
+    conditioned.set_posterior(_gamma_posterior(beta=(2.0, 3.0)))
+    np.testing.assert_allclose(fn(), [[20.0, 60.0]])
+
+
+def test_conditioned_model_refuses_pre_intervention_variable(
+    conditioned_slope, slope_posteriors
+):
+    model, *_ = slope_posteriors
+    with pytest.raises(ValueError, match="reads inputs of the source model"):
+        conditioned_slope.extract(model["doubled"])
+
+
+@pytest.mark.parametrize(
+    "intervention, expected",
+    [
+        (None, 50.0),
+        ({"spend": np.array([30.0, 40.0])}, 110.0),
+    ],
+    ids=["no-intervention", "with-intervention"],
+)
+def test_conditioned_model_accepts_a_derived_expression_over_the_clone(
+    intervention, expected
+):
+    """A graph built on the clone resolves, with or without an intervention."""
+    model, _ = _channel_conditioned_model()
+    conditioned = ConditionedModel(
+        model, _channel_posterior([1.0, 2.0]), intervention=intervention
+    )
+
+    graph = conditioned.extract(conditioned.model["resp"].sum("channel"))
+
+    np.testing.assert_allclose(function([], graph)(), expected)
+
+
+def test_conditioned_model_accepts_a_free_symbolic_input():
+    """A free input is a function argument, not a pre-intervention value."""
+    model, spend = _channel_conditioned_model()
+    conditioned = ConditionedModel(
+        model, _channel_posterior([1.0, 2.0]), intervention={"spend": spend}
+    )
+    price = ptx.xtensor("price", dims=())
+
+    graph = conditioned.extract(conditioned.model["resp"] * price)
+
+    np.testing.assert_allclose(function([price], graph)(2.0), [[20.0, 80.0]])
+
+
+def test_conditioned_model_without_an_intervention_keeps_the_construction_data():
+    """Without an intervention the model is still cloned, so its data stay fixed.
+
+    Regression: ``intervention=None`` used the source model itself, so a
+    ``pm.set_data`` on it after construction reached every compiled graph,
+    while the same object built with an intervention kept the construction
+    data.
+    """
+    model, _ = _channel_conditioned_model()
+    conditioned = ConditionedModel(model, _channel_posterior([1.0, 2.0]))
+    fn = function([], conditioned.extract("resp"))
+
+    pm.set_data({"spend": np.array([100.0, 200.0])}, model=model)
+
+    np.testing.assert_allclose(fn(), [[10.0, 40.0]])
+    # A graph first extracted after the change reads the clone's data too.
+    later = conditioned.extract(conditioned.model["resp"] * 2.0)
+    np.testing.assert_allclose(function([], later)(), [[20.0, 80.0]])
+
+
+@pytest.mark.parametrize(
+    "with_intervention", [False, True], ids=["no-intervention", "with-intervention"]
+)
+@pytest.mark.parametrize(
+    "build_response",
+    [
+        pytest.param(lambda model: model["resp"], id="source-node"),
+        pytest.param(lambda model: model["resp"].sum("channel"), id="source-derived"),
+    ],
+)
+def test_conditioned_model_refuses_a_source_model_graph(
+    build_response, with_intervention
+):
+    """A source-model node and a graph derived over it are refused.
+
+    The clone holds its own copy of every input, so a graph over the source
+    model would read the source's live data, and no intervention.
+    """
+    model, spend = _channel_conditioned_model()
+    conditioned = ConditionedModel(
+        model,
+        _channel_posterior([1.0, 2.0]),
+        intervention={"spend": spend} if with_intervention else None,
+    )
+
+    with pytest.raises(ValueError, match="reads inputs of the source model"):
+        conditioned.extract(build_response(model))
+
+
+def test_conditioned_model_refusal_names_the_node_itself():
+    """The refusal prints the offending node, even when it is anonymous."""
+    model, spend = _channel_conditioned_model()
+    conditioned = ConditionedModel(
+        model, _channel_posterior([1.0, 2.0]), intervention={"spend": spend}
+    )
+    response = model["resp"].sum("channel")
+    assert response.name is None
+
+    with pytest.raises(ValueError) as excinfo:
+        conditioned.extract(response)
+
+    message = str(excinfo.value)
+    assert repr(response) in message
+    assert "None" not in message
+    # The named inputs are listed; the source model's anonymous RNG is not.
+    assert "'spend'" in message
+    assert "<RandomGeneratorSharedVariable>" not in message
+
+
+def test_conditioned_model_refusal_names_the_outside_input():
+    """A named input from the source model is named, not just the response."""
+    model, spend = _channel_conditioned_model()
+    conditioned = ConditionedModel(
+        model, _channel_posterior([1.0, 2.0]), intervention={"spend": spend}
+    )
+
+    with pytest.raises(ValueError) as excinfo:
+        conditioned.extract(conditioned.model["beta"] * model["spend"])
+
+    assert "'spend'" in str(excinfo.value)
+
+
+def test_conditioned_model_refusal_names_a_source_random_variable_not_its_size():
+    """A source random variable is named itself, not the dim length that sizes it."""
+    model, spend = _channel_conditioned_model()
+    conditioned = ConditionedModel(
+        model, _channel_posterior([1.0, 2.0]), intervention={"spend": spend}
+    )
+
+    with pytest.raises(ValueError, match="reads inputs of the source model") as excinfo:
+        conditioned.extract(conditioned.model["resp"] + model["beta"].sum())
+
+    message = str(excinfo.value)
+    assert "'beta'" in message
+    assert "'channel'" not in message
+
+
+def test_conditioned_model_refusal_names_a_source_dim_length_as_a_dim():
+    """A dim length read directly is named as a dim, not as a data variable."""
+    model, spend = _channel_conditioned_model()
+    conditioned = ConditionedModel(
+        model, _channel_posterior([1.0, 2.0]), intervention={"spend": spend}
+    )
+    channels = ptx.as_xtensor(model.dim_lengths["channel"], dims=())
+
+    with pytest.raises(ValueError, match="reads inputs of the source model") as excinfo:
+        conditioned.extract(conditioned.model["resp"] * channels)
+
+    assert "the length of dim 'channel'" in str(excinfo.value)
+
+
+@pytest.mark.parametrize(
+    "build_response, named",
+    [
+        pytest.param(
+            lambda other, resp: resp + other["spend"].sum(),
+            "'spend'",
+            id="other-model-data",
+        ),
+        pytest.param(
+            lambda other, resp: (
+                resp * ptx.as_xtensor(shared(np.array(2.0), name="price"), dims=())
+            ),
+            "'price'",
+            id="model-less-shared",
+        ),
+        pytest.param(
+            lambda other, resp: resp + other["beta"].sum(),
+            "'beta'",
+            id="other-model-random-variable",
+        ),
+        pytest.param(
+            lambda other, resp: resp + pmd.Normal.dist(),
+            "<XTensorVariable>",
+            id="model-less-random-variable",
+        ),
+    ],
+)
+def test_conditioned_model_refuses_an_outside_shared_or_random_variable(
+    build_response, named
+):
+    """A shared or random variable from outside the clone is refused, by name.
+
+    Regression: another model's data was embedded in the graph and read live,
+    so a later ``pm.set_data`` on that model changed every compiled function,
+    against the promise that the data are fixed at construction.  A random
+    variable from outside reached the generic "RVs found ... likely a bug"
+    ``RuntimeError``.
+    """
+    model, spend = _channel_conditioned_model()
+    conditioned = ConditionedModel(
+        model, _channel_posterior([1.0, 2.0]), intervention={"spend": spend}
+    )
+    other = clone_model(model)
+
+    with pytest.raises(
+        ValueError, match="from outside the model this object holds"
+    ) as excinfo:
+        conditioned.extract(build_response(other, conditioned.model["resp"]))
+
+    message = str(excinfo.value)
+    assert named in message
+    # A random variable is named itself, not by the inputs that size it.
+    assert "'channel'" not in message
+
+
+def test_conditioned_model_accepts_the_clones_own_unused_dim_length():
+    """A dim no variable is sized by is still an input of the clone.
+
+    Its length is an ancestor of no named variable, so a graph that reads it
+    must not be taken for one that reads from outside the clone.
+    """
+    with pm.Model(coords={"channel": ["a", "b"], "week": [0, 1, 2]}) as model:
+        spend = pmd.Data("spend", np.array([10.0, 20.0]), dims="channel")
+        beta = pmd.Normal("beta", dims="channel")
+        pmd.Deterministic("resp", beta * spend)
+    conditioned = ConditionedModel(model, _channel_posterior([1.0, 2.0]))
+    weeks = ptx.as_xtensor(conditioned.model.dim_lengths["week"], dims=())
+
+    graph = conditioned.extract(conditioned.model["resp"] * weeks)
+
+    np.testing.assert_allclose(function([], graph)(), [[30.0, 120.0]])
+
+
+def test_conditioned_model_accepts_a_node_added_to_the_clone_after_construction():
+    """A variable added to the clone later, and a graph over it, are the clone's own."""
+    model, spend = _channel_conditioned_model()
+    conditioned = ConditionedModel(
+        model, _channel_posterior([1.0, 2.0]), intervention={"spend": spend}
+    )
+    with conditioned.model:
+        weight = pmd.Data("weight", np.array([2.0, 3.0]), dims="channel")
+        late = pmd.Deterministic("late", conditioned.model["resp"] * weight)
+
+    graph = conditioned.extract(late)
+
+    np.testing.assert_allclose(function([], graph)(), [[20.0, 120.0]])
+
+
+@pytest.mark.parametrize(
+    "build_response",
+    [
+        pytest.param(
+            lambda model, resp: (
+                resp
+                + model["beta"].sum()
+                + ptx.as_xtensor(shared(np.array(1.0), name="price"), dims=())
+            ),
+            id="source-and-outside-shared",
+        ),
+        pytest.param(
+            lambda model, resp: resp + pmd.Normal.dist(mu=model["beta"].sum()),
+            id="outside-random-variable-over-the-source",
+        ),
+    ],
+)
+def test_conditioned_model_source_refusal_comes_before_the_outside_one(build_response):
+    """A graph that reads the source model is refused as such, whatever else it reads.
+
+    The source refusal says what to pass instead, a node of the clone, so it
+    comes first, also when the source variable sits behind a random variable
+    from outside both models.
+    """
+    model, spend = _channel_conditioned_model()
+    conditioned = ConditionedModel(
+        model, _channel_posterior([1.0, 2.0]), intervention={"spend": spend}
+    )
+
+    with pytest.raises(ValueError, match="reads inputs of the source model") as excinfo:
+        conditioned.extract(build_response(model, conditioned.model["resp"]))
+
+    assert "'beta'" in str(excinfo.value)
+
+
+def test_describe_outside_inputs_names_an_anonymous_input_by_type():
+    """An anonymous input is named by its type, never by a repr with an address."""
+    message = ConditionedModel._describe_outside_inputs([shared(np.array(1.0))])
+
+    assert "<TensorSharedVariable>" in message
+    assert "0x" not in message
+
+
+def test_describe_outside_inputs_deduplicates_named_inputs():
+    """The same name reached through two roots is listed once."""
+    first = shared(np.array(1.0), name="spend")
+    second = shared(np.array(2.0), name="spend")
+
+    message = ConditionedModel._describe_outside_inputs([first, second])
+
+    assert message.count("'spend'") == 1
+
+
+def test_describe_outside_inputs_caps_the_named_inputs():
+    """Only five names are shown, followed by the number left out."""
+    outside = [shared(np.array(1.0), name=f"outside{index}") for index in range(6)]
+
+    message = ConditionedModel._describe_outside_inputs(outside)
+
+    assert sum(f"'outside{index}'" in message for index in range(6)) == 5
+    assert "and 1 more" in message
+
+
+def test_conditioned_model_rebind_realigns_labels_and_refuses_a_resized_axis():
+    model, spend = _channel_conditioned_model()
+
+    # Reordered labels are realigned against the construction layout, not bound
+    # by position, so a function compiled before the rebind reads ``a=1, b=2``.
+    reordered = ConditionedModel(
+        model, _channel_posterior([1.0, 2.0]), intervention={"spend": spend}
+    )
+    fn = function([], reordered.extract("resp"))
+    reordered.set_posterior(_channel_posterior([2.0, 1.0], channel=("b", "a")))
+    np.testing.assert_allclose(fn(), [[10.0, 40.0]])
+
+    # A resized axis on a bound variable is refused before anything is written,
+    # so the graph, its draws and ``posterior`` are kept.
+    conditioned = ConditionedModel(
+        model, _channel_posterior([1.0, 2.0]), intervention={"spend": spend}
+    )
+    graph = conditioned.extract("resp")
+    fn = function([], graph)
+    resized = xr.Dataset(
+        {"beta": (("chain", "draw", "channel"), np.ones((1, 1, 3)))},
+        coords={"channel": ["a", "b", "c"]},
+    )
+    with pytest.raises(ValueError, match=r"'beta' has different channel labels"):
+        conditioned.set_posterior(resized)
+    assert conditioned.posterior.indexes["channel"].tolist() == ["a", "b"]
+    assert conditioned.extract("resp") is graph
+    np.testing.assert_allclose(fn(), [[10.0, 40.0]])
+
+
+def test_conditioned_model_reordered_rebind_realigns_handed_out_and_new_keys():
+    """A rebind realigns at the door, so every later read sees model order.
+
+    A posterior stored as ``(b, a)`` used to give ``[[20, 20]]`` from a graph
+    extracted after the rebind, and a new ``resp_g`` key gave ``[[40, 60]]``
+    instead of ``[[30, 80]]``.
+    """
+    model, spend = _channel_conditioned_model()
+    conditioned = ConditionedModel(
+        model,
+        _channel_posterior([1.0, 2.0], gamma=[3.0, 4.0]),
+        intervention={"spend": spend},
+    )
+    fn = function([], conditioned.extract("resp"))  # handed out before the rebind
+
+    conditioned.set_posterior(
+        _channel_posterior([20.0, 10.0], channel=("b", "a"), gamma=[4.0, 3.0])
+    )
+
+    # The stored posterior has the construction layout, not the incoming one.
+    assert conditioned.posterior.indexes["channel"].tolist() == ["a", "b"]
+    np.testing.assert_allclose(fn(), [[100.0, 400.0]])
+    np.testing.assert_allclose(
+        function([], conditioned.extract("resp_g"))(), [[30.0, 80.0]]
+    )
+
+
+def test_conditioned_model_rebind_before_any_extract_realigns_and_defers_validation():
+    """A rebind before any extraction realigns the labels and validates nothing.
+
+    Nothing is bound yet, so the next ``extract`` builds its graph on the
+    model's label order and a later rebind is followed.  A resized axis is
+    stored as given at the door and refused when a graph reads it.
+    """
+    model, spend = _channel_conditioned_model()
+    conditioned = ConditionedModel(
+        model, _channel_posterior([1.0, 2.0]), intervention={"spend": spend}
+    )
+
+    conditioned.set_posterior(_channel_posterior([2.0, 1.0], channel=("b", "a")))
+
+    assert conditioned.posterior.indexes["channel"].tolist() == ["a", "b"]
+    fn = function([], conditioned.extract("resp"))
+    np.testing.assert_allclose(fn(), [[10.0, 40.0]])
+    conditioned.set_posterior(_channel_posterior([3.0, 4.0]))
+    np.testing.assert_allclose(fn(), [[30.0, 80.0]])
+
+    # The door stores a resized axis as given; the read against the
+    # construction layout is what refuses it.
+    resized = ConditionedModel(
+        model, _channel_posterior([1.0, 2.0]), intervention={"spend": spend}
+    )
+    resized.set_posterior(_channel_posterior([1.0, 2.0, 3.0], channel=("a", "b", "c")))
+    with pytest.raises(ValueError, match="different channel labels"):
+        resized.extract("resp")
+    resized.set_posterior(_channel_posterior([1.0, 2.0]))
+    np.testing.assert_allclose(function([], resized.extract("resp"))(), [[10.0, 40.0]])
+
+
+def test_conditioned_model_empty_cache_refuses_a_one_sided_labeling():
+    """An unlabeled dim cannot be read by position once the construction draws are labeled.
+
+    The door stores it as given; the read against the construction layout is
+    what refuses it.  The error mirrors ``SharedPosterior``'s wording.
+    """
+    model, spend = _channel_conditioned_model()
+    conditioned = ConditionedModel(
+        model, _channel_posterior([1.0, 2.0]), intervention={"spend": spend}
+    )
+
+    conditioned.set_posterior(_channel_posterior([2.0, 1.0]).drop_vars("channel"))
+    with pytest.raises(ValueError, match="labeled on one side only"):
+        conditioned.extract("resp")
+
+    # The refusal wrote nothing: a labeled rebind still reads the construction order.
+    conditioned.set_posterior(_channel_posterior([2.0, 1.0], channel=("b", "a")))
+    fn = function([], conditioned.extract("resp"))
+    np.testing.assert_allclose(fn(), [[10.0, 40.0]])
+
+    # Once bound, the same one-sided rebind is refused at the door.
+    with pytest.raises(ValueError, match="labeled on one side only"):
+        conditioned.set_posterior(_channel_posterior([2.0, 1.0]).drop_vars("channel"))
+    np.testing.assert_allclose(fn(), [[10.0, 40.0]])
+
+
+def test_conditioned_model_empty_cache_accepts_a_subsample_shaped_posterior():
+    """``subsample_draws`` drops the ``chain``/``draw`` labels but keeps ``channel``.
+
+    The skipped sample dims must not be mistaken for the one-sided case.
+    """
+    model, spend = _channel_conditioned_model()
+    conditioned = ConditionedModel(
+        model,
+        _channel_posterior([1.0, 2.0]).assign_coords(chain=[0], draw=[0]),
+        intervention={"spend": spend},
+    )
+    subsampled = (
+        _channel_posterior([2.0, 1.0], channel=("b", "a"))
+        .assign_coords(chain=[0], draw=[0])
+        .drop_vars(["chain", "draw"])
+    )
+    assert "chain" not in subsampled.indexes and "channel" in subsampled.indexes
+
+    conditioned.set_posterior(subsampled)
+
+    assert conditioned.posterior.indexes["channel"].tolist() == ["a", "b"]
+    np.testing.assert_allclose(
+        function([], conditioned.extract("resp"))(), [[10.0, 40.0]]
+    )
+
+
+def test_conditioned_model_empty_cache_skips_a_missing_dimension():
+    """A thinned posterior that drops a variable and its dimension is accepted.
+
+    A dimension is realigned only when both posteriors label it.
+    """
+    model, spend = _channel_conditioned_model()
+    conditioned = ConditionedModel(
+        model, _channel_posterior([1.0, 2.0]), intervention={"spend": spend}
+    )
+    thinned = xr.Dataset({"gamma": (("chain", "draw"), np.zeros((1, 1)))})
+
+    conditioned.set_posterior(thinned)
+    assert "channel" not in conditioned.posterior.sizes
+
+    # The construction layout survives the thinned rebind, so a reordered channel is still realigned.
+    conditioned.set_posterior(_channel_posterior([2.0, 1.0], channel=("b", "a")))
+    np.testing.assert_allclose(
+        function([], conditioned.extract("resp"))(), [[10.0, 40.0]]
+    )
+
+
+@pytest.mark.parametrize(
+    ("replaced", "incoming", "message"),
+    [
+        (["a", "a"], ["a", "b"], "duplicated channel labels"),
+        (["a", "b"], ["a", "a"], "different channel labels"),
+    ],
+)
+def test_conditioned_model_refuses_duplicated_labels(replaced, incoming, message):
+    """A duplicated label would make ``sel`` drop a column instead of realigning.
+
+    Incoming duplicates surface as a different label set.
+    Duplicates on the reference side pass that check, so they are refused separately.
+    """
+    model, spend = _channel_conditioned_model()
+    conditioned = ConditionedModel(
+        model,
+        _channel_posterior([1.0, 2.0], channel=replaced),
+        intervention={"spend": spend},
+    )
+
+    conditioned.set_posterior(_channel_posterior([1.0, 2.0], channel=incoming))
+    with pytest.raises(ValueError, match=message):
+        conditioned.extract("resp")
+
+
+def _dated_conditioned_model() -> pm.Model:
+    """``resp`` reads ``beta``; ``channel_contribution`` is date-indexed but unread."""
+    dates = pd.date_range("2025-01-06", periods=3, freq="W-MON")
+    spend = np.tile([1.0, 2.0], (3, 1))
+    with pm.Model(coords={"date": dates, "channel": ["a", "b"]}) as model:
+        spend_var = pmd.Data("spend", spend, dims=("date", "channel"))
+        pmd.Normal("beta", dims="channel")
+        pmd.Normal("gamma", dims="channel")
+        pmd.Deterministic(
+            "channel_contribution",
+            spend_var * model["gamma"],
+            dims=("date", "channel"),
+        )
+        pmd.Deterministic("resp", (spend_var * model["beta"]).sum())
+    return model
+
+
+def _dated_posterior(dates, beta, channel=("a", "b")):
+    size = len(dates)
+    return xr.Dataset(
+        {
+            "beta": (
+                ("chain", "draw", "channel"),
+                np.asarray(beta, float)[None, None],
+            ),
+            "gamma": (("chain", "draw", "channel"), np.ones((1, 1, 2))),
+            "channel_contribution": (
+                ("chain", "draw", "date", "channel"),
+                np.ones((1, 1, size, 2)),
+            ),
+        },
+        coords={"channel": list(channel), "date": list(dates)},
+    )
+
+
+def test_conditioned_model_ignores_unread_date_labels_on_rebind():
+    """A refit date window on an unread deterministic is accepted.
+
+    ``resp`` reads only ``beta``, so the newer ``date`` labels of the unread
+    ``channel_contribution`` must not refuse the rebind.  A reordered
+    ``channel`` is still realigned, so the new draws are not permuted.
+    """
+    model = _dated_conditioned_model()
+    construction = pd.date_range("2025-01-06", periods=3, freq="W-MON")
+    refit = pd.date_range("2025-02-03", periods=4, freq="W-MON")
+    conditioned = ConditionedModel(model, _dated_posterior(construction, [1.0, 2.0]))
+    fn = function([], conditioned.extract("resp"))
+
+    conditioned.set_posterior(_dated_posterior(refit, [20.0, 10.0], channel=("b", "a")))
+
+    assert conditioned.posterior.indexes["date"].tolist() == list(refit)
+    np.testing.assert_allclose(fn(), [150.0])
+
+
+def test_conditioned_model_first_read_after_reordered_rebind():
+    """A variable first read after a reordered rebind is read in the model's order.
+
+    The construction posterior carries no ``channel`` labels (a thinned
+    posterior), so only the model's coords can order the rebind.  ``gamma`` is
+    absent from it and arrives stored as ``(b, a)``; it must be read as the
+    model's ``(a, b)``: ``a=40`` and ``b=30``.
+    """
+    model, spend = _channel_conditioned_model()
+    conditioned = ConditionedModel(
+        model,
+        _channel_posterior([1.0, 2.0]).drop_vars("channel"),
+        intervention={"spend": spend},
+    )
+
+    conditioned.set_posterior(
+        _channel_posterior([10.0, 20.0], channel=("b", "a"), gamma=[30.0, 40.0])
+    )
+
+    np.testing.assert_allclose(
+        function([], conditioned.extract("resp_g"))(), [[400.0, 600.0]]
+    )
+    assert conditioned.posterior.indexes["channel"].tolist() == ["a", "b"]
+
+
+def test_conditioned_model_construction_posterior_in_non_model_order():
+    """Draws stored in another label order are read in the model's order.
+
+    The model's coords are ``(a, b)``; the construction posterior stores
+    ``(b, a)`` with ``beta=[2, 1]`` and ``gamma=[4, 3]``.  The stored dataset is
+    reordered on the way in, so ``posterior`` is in the model's order and the
+    graphs read ``a=1`` and ``b=2``.
+    """
+    model, spend = _channel_conditioned_model()
+    conditioned = ConditionedModel(
+        model,
+        _channel_posterior([2.0, 1.0], channel=("b", "a"), gamma=[4.0, 3.0]),
+        intervention={"spend": spend},
+    )
+
+    assert conditioned.posterior.indexes["channel"].tolist() == ["a", "b"]
+    np.testing.assert_allclose(
+        function([], conditioned.extract("resp"))(), [[10.0, 40.0]]
+    )
+    np.testing.assert_allclose(
+        function([], conditioned.extract("resp_g"))(), [[30.0, 80.0]]
+    )
+
+
+def test_conditioned_model_refuses_a_per_variable_dim_change_at_the_read():
+    """``beta`` gaining a dimension is refused when a graph reads it, not at the door."""
+    model, spend = _channel_conditioned_model()
+    conditioned = ConditionedModel(
+        model, _channel_posterior([1.0, 2.0]), intervention={"spend": spend}
+    )
+    gained = xr.Dataset(
+        {"beta": (("chain", "draw", "channel", "geo"), np.ones((1, 1, 2, 3)))},
+        coords={"channel": ["a", "b"], "geo": ["x", "y", "z"]},
+    )
+
+    conditioned.set_posterior(gained)
+
+    with pytest.raises(ValueError, match=r"beta.*has dims"):
+        conditioned.extract("resp")
+
+
+def test_conditioned_model_takes_a_variable_missing_at_construction_as_given():
+    """A variable thinned out of the construction posterior has no known layout."""
+    model, spend = _channel_conditioned_model()
+    conditioned = ConditionedModel(
+        model, _channel_posterior([1.0, 2.0]), intervention={"spend": spend}
+    )
+
+    conditioned.set_posterior(_channel_posterior([1.0, 2.0], gamma=[3.0, 4.0]))
+
+    fn = function([], conditioned.extract("resp_g"))
+    np.testing.assert_allclose(fn(), [[30.0, 80.0]])
+    # Once read, it is bound like any other variable and follows a rebind.
+    conditioned.set_posterior(_channel_posterior([1.0, 2.0], gamma=[5.0, 6.0]))
+    np.testing.assert_allclose(fn(), [[50.0, 120.0]])

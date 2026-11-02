@@ -480,3 +480,94 @@ class TestSerializeModelConfig:
 
         np.testing.assert_array_equal(restored["arr"], [1.0, 2.0, 3.0])
         assert restored["scalar"] == 4.0
+
+    @pytest.mark.parametrize(
+        "case",
+        [
+            "no-transform",
+            "transform",
+            "nested-transform",
+            "non-centered-transform",
+            "array-parameter",
+            "censored-parameter",
+        ],
+    )
+    def test_prior_survives_json_round_trip(self, case):
+        """Regression test for #3225: a ``Prior`` and its ``transform`` survive save and load."""
+        import json
+
+        import numpy as np
+        from pymc_extras.prior import Censored, Prior
+
+        prior = {
+            "no-transform": Prior("Normal", mu=0, sigma=1, dims="channel"),
+            "transform": Prior(
+                "Normal", mu=0, sigma=1, dims="channel", transform="abs"
+            ),
+            "nested-transform": Prior(
+                "Normal", mu=Prior("Normal", transform="exp"), sigma=1, dims="channel"
+            ),
+            "non-centered-transform": Prior(
+                "Normal",
+                mu=0,
+                sigma=Prior("HalfNormal"),
+                dims=("geo", "channel"),
+                centered=False,
+                transform="abs",
+            ),
+            "array-parameter": Prior(
+                "Normal",
+                mu=np.array([1.0, 2.0]),
+                sigma=1,
+                dims="channel",
+                transform="exp",
+            ),
+            "censored-parameter": Prior(
+                "Normal",
+                mu=0,
+                sigma=Censored(Prior("Normal", sigma=1), lower=0),
+                transform="exp",
+            ),
+        }[case]
+
+        serialized = json.loads(
+            json.dumps(serialization.serialize_model_config({"prior": prior}))
+        )
+        restored = serialization.deserialize_model_config(serialized)["prior"]
+
+        assert restored == prior
+
+    @pytest.mark.parametrize("factor_dtype", ["float64", "float32", "int64"])
+    def test_prior_with_scaled_parameter_survives_json_round_trip(self, factor_dtype):
+        """A ``Scaled`` parameter is written in the format ``Prior.from_dict`` reads.
+
+        ``float32`` and ``int64`` factors are numpy scalars that ``json`` cannot encode.
+        """
+        import json
+
+        import numpy as np
+        from pymc_extras.prior import Prior, Scaled
+
+        inner = Prior("HalfNormal", sigma=1, transform="exp")
+        factor = np.dtype(factor_dtype).type(2)
+        prior = Prior("Normal", mu=0, sigma=Scaled(inner, factor=factor))
+
+        serialized = json.loads(
+            json.dumps(serialization.serialize_model_config({"prior": prior}))
+        )
+        restored = serialization.deserialize_model_config(serialized)["prior"]
+
+        restored_sigma = restored.parameters["sigma"]
+        assert isinstance(restored_sigma, Scaled)
+        assert restored_sigma.dist == inner
+        assert restored_sigma.factor == 2.0
+
+    def test_prior_without_transform_writes_no_transform_key(self):
+        """A ``Prior`` without a transform is written without a ``transform`` key."""
+        from pymc_extras.prior import Prior
+
+        serialized = serialization.serialize_model_config(
+            {"prior": Prior("Normal", mu=0, sigma=1, dims="channel")}
+        )
+
+        assert "transform" not in serialized["prior"]

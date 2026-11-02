@@ -44,7 +44,7 @@ from pymc import Model
 from pytensor import In, function
 from pytensor.xtensor import as_xtensor
 from pytensor.xtensor.type import XTensorVariable
-from xarray import DataArray
+from xarray import DataArray, Dataset
 
 if TYPE_CHECKING:
     from pymc_marketing.mmm.price_response import PriceResponse, ResolvedPriceResponse
@@ -56,6 +56,8 @@ __all__ = [
     "OptimizationVariable",
     "OptimizationVariables",
     "align_to_model_coords",
+    "reject_missing_coords",
+    "reject_unknown_coords",
 ]
 
 #: Name of the flat decision vector's dimension, shared by every variable and
@@ -63,8 +65,8 @@ __all__ = [
 FLAT_DIM = "budgets_flat"
 
 
-def _reject_unknown_coords(
-    da: DataArray,
+def reject_unknown_coords(
+    da: DataArray | Dataset,
     coords: Mapping[str, list],
     *,
     label: str,
@@ -83,7 +85,7 @@ def _reject_unknown_coords(
 
     Parameters
     ----------
-    da : DataArray
+    da : DataArray or Dataset
         User-supplied input carrying some or all of the budget dims.
     coords : Mapping[str, list]
         The model's coordinates for the budget dims.
@@ -107,6 +109,42 @@ def _reject_unknown_coords(
         raise ValueError(
             f"{label} has coordinates the model does not have: {unknown}. "
             "They would be dropped silently, so the input is rejected instead."
+        )
+
+
+def reject_missing_coords(
+    da: DataArray | Dataset,
+    coords: Mapping[str, list],
+    *,
+    label: str,
+) -> None:
+    """Refuse an input that does not cover every coordinate the model has.
+
+    Parameters
+    ----------
+    da : DataArray or Dataset
+        User-supplied input carrying some or all of the model's dims.
+    coords : Mapping[str, list]
+        The model's coordinates for those dims.
+    label : str
+        Name of the input, used in the error message.
+
+    Raises
+    ------
+    ValueError
+        If the input lacks coordinates the model has, on a dim it carries.
+    """
+    missing = {
+        dim: sorted(
+            set(values) - set(np.asarray(da.coords[dim].values).ravel().tolist())
+        )
+        for dim, values in coords.items()
+        if dim in da.coords
+    }
+    missing = {dim: labels for dim, labels in missing.items() if labels}
+    if missing:
+        raise ValueError(
+            f"{label} does not cover every model coordinate; missing {missing}."
         )
 
 
@@ -148,23 +186,12 @@ def align_to_model_coords(
         If the input carries coordinates the model does not have, or does not
         cover every coordinate the model does.
     """
-    _reject_unknown_coords(da, coords, label=label)
+    reject_unknown_coords(da, coords, label=label)
 
     aligned = da.reindex(coords)
     if bool(aligned.isnull().any()):
-        missing = {
-            dim: sorted(
-                set(values) - set(np.asarray(da.coords[dim].values).ravel().tolist())
-            )
-            for dim, values in coords.items()
-            if dim in da.coords
-        }
-        missing = {dim: labels for dim, labels in missing.items() if labels}
-        raise ValueError(
-            f"{label} does not cover every model coordinate; missing {missing}."
-            if missing
-            else f"{label} contains missing values (NaN) after alignment."
-        )
+        reject_missing_coords(da, coords, label=label)
+        raise ValueError(f"{label} contains missing values (NaN) after alignment.")
     return aligned
 
 
@@ -740,7 +767,7 @@ class MediaVariable(OptimizationVariable):
         # check below cannot catch it -- dropping a label leaves no NaN -- and
         # stays scoped to the mask, because a cell outside the optimization
         # may legitimately be omitted.
-        _reject_unknown_coords(da, self.coords, label=self.name)
+        reject_unknown_coords(da, self.coords, label=self.name)
         aligned = da.reindex(self.coords).transpose(*self.dims)
         values = aligned.values[self._bool_mask]
         if np.isnan(values).any():

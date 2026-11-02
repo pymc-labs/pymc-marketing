@@ -15,9 +15,9 @@
 
 from __future__ import annotations
 
-import functools
-from pathlib import Path
-from typing import Literal
+import importlib
+import warnings
+from typing import Any, Literal
 
 import numpy as np
 import pandas as pd
@@ -26,47 +26,19 @@ from numpy.random import Generator, RandomState
 
 from pymc_marketing.data.idata.schema import Frequency
 
-
-def idata_to_zarr(
-    idata: xr.DataTree,
-    store: str | Path,
-    groups: list[str] | None = None,
-) -> None:
-    """Save a DataTree to a Zarr store.
-
-    Parameters
-    ----------
-    idata : xr.DataTree
-        The DataTree to save.
-    store : str or Path
-        Path to the Zarr store directory.
-    groups : list of str, optional
-        Groups to save. If None, all groups are saved.
-    """
-    if groups is not None:
-        attrs = idata.attrs.copy()
-        idata = idata.filter(lambda g: g.name in groups)
-        idata.attrs = attrs
-
-    idata.to_zarr(store)
+_MOVED_TO_IO = ("idata_to_zarr", "idata_from_zarr")
 
 
-_open_datatree_zarr = functools.partial(xr.open_datatree, engine="zarr")
-
-
-def idata_from_zarr(store: str | Path) -> xr.DataTree:
-    """Load a DataTree from a Zarr store.
-
-    Parameters
-    ----------
-    store : str or Path
-        Path to the Zarr store directory written by :func:`idata_to_zarr`.
-
-    Returns
-    -------
-    xr.DataTree
-    """
-    return _open_datatree_zarr(store)
+def __getattr__(name: str) -> Any:
+    """Keep the import path used up to 1.2 working, with a warning."""
+    if name in _MOVED_TO_IO:
+        warnings.warn(
+            f"{__name__}.{name} moved to pymc_marketing.data.idata.io; update the import.",
+            FutureWarning,
+            stacklevel=2,
+        )
+        return getattr(importlib.import_module("pymc_marketing.data.idata.io"), name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 def filter_idata_by_dates(
