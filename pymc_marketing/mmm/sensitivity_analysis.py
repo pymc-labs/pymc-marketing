@@ -341,8 +341,9 @@ class SensitivityAnalysis:
         on the same key build their own instead of rebinding each other's
         draws.  Every call rebinds the entry to this call's draws, which covers
         ``posterior_sample_fraction`` and a replaced ``mmm.idata``; one that
-        cannot be rebound is dropped and rebuilt, so the result never depends
-        on what the cache already held (see :meth:`_lease_bound_to`).
+        cannot be rebound is dropped and rebuilt, so the result does not depend
+        on what the cache already held, except for a replacement posterior
+        whose labels are renamed and reordered (see :meth:`_lease_bound_to`).
 
         A model :class:`~pymc_marketing.pytensor_utils.ConditionedModel` cannot
         clone falls back to :meth:`_run_sweep_per_call`.  Only the clone step
@@ -531,14 +532,15 @@ class SensitivityAnalysis:
             If ``var_names`` has no named dimensions, or if ``response_mask``
             is given for a scalar response.
             If the posterior in ``idata`` no longer matches the model's
-            posterior variables in their non-sample dimension names, lengths or
-            coordinate labels, for example after assigning a different
-            posterior to ``mmm.idata``.  Reordered labels are realigned and
-            the number of draws may change.  Values are cast to the dtype the
-            model expects.  A model that cannot be cloned uses the per-call
-            path, which realigns a permuted posterior by label like the cached
-            path but reads renamed or unlabeled coords by position, without
-            checking them.
+            posterior variables in their non-sample dimension names or
+            lengths, for example after assigning a different posterior to
+            ``mmm.idata``.  Coordinate labels are not checked: reordered labels
+            are realigned, while renamed or unlabeled coords are bound by
+            position.  The number of draws may change.  Values are cast to the
+            dtype the model expects.  A model that cannot be cloned uses the
+            per-call path, which realigns a permuted posterior by label like
+            the cached path and binds renamed or unlabeled coords by position
+            in the same way.
         """
         response = self.model[var_names]
         response_dims = getattr(response, "dims", None)
