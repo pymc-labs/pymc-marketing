@@ -58,6 +58,7 @@ from pymc_marketing.mmm.lift_test import (
 from pymc_marketing.mmm.linear_trend import LinearTrend
 from pymc_marketing.mmm.media_transformation import MediaTransformation
 from pymc_marketing.mmm.mmm import (
+    COST_PER_TARGET_SPEND_GROUP,
     MMM,
     BudgetOptimizerWrapper,
     _calibration_frame_from_record,
@@ -8827,21 +8828,22 @@ def test_fit_after_prior_predictive_with_target_does_not_warn(
 
 # Calibration round trips exercise the rebuilt numerical graph, not sampling
 # convergence. The mocked sampling fixture supplies valid parameter draws.
-def _cpt_persistence_inputs(link="identity", labeled=False):
+def _cpt_persistence_inputs(link="identity", labeled=False, dims=("geo",)):
     from pymc_marketing.mmm.data_conversion import to_mmm_dataset
 
     dates = pd.date_range("2025-01-05", periods=6, freq="W")
+    geos = ["001", "002"] if dims else ["001"]
     X = pd.concat(
         [
             pd.DataFrame(
                 {
                     "week": dates,
-                    "geo": geo,
+                    **({"geo": geo} if dims else {}),
                     "zeta": np.arange(1, 7, dtype=float) + i,
                     "alpha": np.arange(6, 0, -1, dtype=float) + i,
                 }
             )
-            for i, geo in enumerate(["001", "002"])
+            for i, geo in enumerate(geos)
         ],
         ignore_index=True,
     )
@@ -8851,22 +8853,23 @@ def _cpt_persistence_inputs(link="identity", labeled=False):
         date_column="week",
         target_column="target",
         channel_columns=["zeta", "alpha"],
-        dims=("geo",),
+        dims=dims,
         adstock=GeometricAdstock(l_max=2),
         saturation=LogisticSaturation(),
         link=link,
     )
     if labeled:
-        options = dict(
-            date_column="week", dims=("geo",), channel_columns=["zeta", "alpha"]
-        )
-        X = to_mmm_dataset(X, y, **options).sel(geo=["002", "001"])
-        spend = to_mmm_dataset(spend, **options).sel(geo=["002", "001"])
+        options = dict(date_column="week", dims=dims, channel_columns=["zeta", "alpha"])
+        X = to_mmm_dataset(X, y, **options)
+        spend = to_mmm_dataset(spend, **options)
+        if dims:
+            X = X.sel(geo=["002", "001"])
+            spend = spend.sel(geo=["002", "001"])
         y = None
     mmm.build_model(X, y)
     rows = pd.DataFrame(
         {
-            "geo": ["002", "001"],
+            **({"geo": ["002", "001"]} if dims else {}),
             "channel": ["alpha", "zeta"],
             "estimate": [2.0, 1.2345678901234567],
             "sigma": [0.3, 0.4],
@@ -8932,16 +8935,17 @@ def test_add_cost_per_target_calibration_reorders_spend_by_label():
 
 
 @pytest.mark.parametrize(
-    "link,central,roas,mixed,labeled,prefix,suffix",
+    "link,central,roas,mixed,labeled,prefix,suffix,dims",
     [
-        ("identity", "mean", False, False, False, "external", ".nc"),
-        ("identity", "mean", True, False, False, "external", ".nc"),
-        ("identity", "mean", False, True, False, "external", ".nc"),
-        ("log", "mean", True, False, False, "external", ".nc"),
-        ("log", "median", True, False, False, "external", ".nc"),
-        ("identity", "mean", False, False, True, "external", ".nc"),
-        ("identity", "mean", False, False, False, "y_original_scale", ".nc"),
-        ("identity", "mean", True, False, False, "external", ".zarr"),
+        ("identity", "mean", False, False, False, "external", ".nc", ("geo",)),
+        ("identity", "mean", True, False, False, "external", ".nc", ("geo",)),
+        ("identity", "mean", False, True, False, "external", ".nc", ("geo",)),
+        ("log", "mean", True, False, False, "external", ".nc", ("geo",)),
+        ("log", "median", True, False, False, "external", ".nc", ("geo",)),
+        ("identity", "mean", False, False, True, "external", ".nc", ("geo",)),
+        ("identity", "mean", False, False, False, "y_original_scale", ".nc", ("geo",)),
+        ("identity", "mean", True, False, False, "external", ".zarr", ("geo",)),
+        ("identity", "mean", False, False, False, "external", ".nc", ()),
     ],
     ids=[
         "cpt",
@@ -8952,12 +8956,22 @@ def test_add_cost_per_target_calibration_reorders_spend_by_label():
         "label-order",
         "suffix-prefix",
         "zarr",
+        "no-dims",
     ],
 )
 def test_cost_per_target_persistence_roundtrip(
-    mock_pymc_sample, tmp_path, link, central, roas, mixed, labeled, prefix, suffix
+    mock_pymc_sample,
+    tmp_path,
+    link,
+    central,
+    roas,
+    mixed,
+    labeled,
+    prefix,
+    suffix,
+    dims,
 ):
-    mmm, X, y, spend, rows = _cpt_persistence_inputs(link, labeled)
+    mmm, X, y, spend, rows = _cpt_persistence_inputs(link, labeled, dims)
     _attach_cpt(mmm, spend, rows, prefix, roas, central)
     if mixed:
         _attach_cpt(mmm, spend, rows, "second", True)
@@ -8985,11 +8999,23 @@ def test_cost_per_target_persistence_roundtrip(
         warnings.simplefilter("always")
         loaded = MMM.load(path)
     assert not any("already in the model, skipping" in str(w.message) for w in caught)
+    assert not [
+        w
+        for w in caught
+        if "rebuilt model lacks" in str(w.message)
+        or COST_PER_TARGET_SPEND_GROUP in str(w.message)
+    ]
     assert {v.name for v in loaded.model.observed_RVs} == {
         v.name for v in mmm.model.observed_RVs
     }
     assert loaded._cost_per_target_calibrations == mmm._cost_per_target_calibrations
-    assert loaded.model.coords["geo"] == mmm.model.coords["geo"]
+    assert set(mmm.idata[COST_PER_TARGET_SPEND_GROUP].data_vars) == {
+        r["spend_var"] for r in mmm._cost_per_target_calibrations
+    }
+    for key, stored in mmm._cost_per_target_spend.items():
+        assert loaded._cost_per_target_spend[key].equals(stored)
+    for dim in mmm.dims:
+        assert loaded.model.coords[dim] == mmm.model.coords[dim]
     assert loaded.model.coords["channel"] == ("zeta", "alpha")
     restored_logp = loaded.model.compile_logp()
     restored_grad = loaded.model.compile_dlogp()
@@ -9058,21 +9084,35 @@ def test_cost_per_target_persistence_fit_snapshot(mock_pymc_sample, tmp_path):
     _attach_cpt(mmm, spend, rows)
     mmm.fit(X, y)
     fitted_metadata = mmm.idata.attrs["cost_per_target_calibrations"]
-    _attach_cpt(mmm, spend, rows, "late")
+    assert list(mmm.idata[COST_PER_TARGET_SPEND_GROUP].data_vars) == ["external"]
+    _attach_cpt(mmm, spend.assign(zeta=spend.zeta + 1), rows, "late")
     path = str(tmp_path / "snapshot.nc")
-    mmm.save(path)
+    with pytest.warns(
+        UserWarning, match="differs from the calibration recorded at fit time"
+    ):
+        mmm.save(path)
     assert mmm.idata.attrs["cost_per_target_calibrations"] == fitted_metadata
+    assert list(mmm.idata[COST_PER_TARGET_SPEND_GROUP].data_vars) == ["external"]
     assert "late" not in MMM.load(path).model
     mmm.fit(X, y)
+    assert list(mmm.idata[COST_PER_TARGET_SPEND_GROUP].data_vars) == [
+        "external",
+        "late",
+    ]
     path = str(tmp_path / "refitted.nc")
     mmm.save(path)
     loaded = MMM.load(path)
     assert "late" in loaded.model
     assert len(loaded._cost_per_target_calibrations) == 2
-    legacy = copy.deepcopy(mmm.idata)
+    mmm.build_model(X, y)
+    mmm.fit(X, y)
+    assert COST_PER_TARGET_SPEND_GROUP not in mmm.idata.children
+    legacy = copy.deepcopy(loaded.idata)
     del legacy.attrs["cost_per_target_calibrations"]
-    assert MMM.load_from_idata(legacy)._cost_per_target_calibrations == []
-    bad = copy.deepcopy(mmm.idata)
+    del legacy[COST_PER_TARGET_SPEND_GROUP]
+    with pytest.warns(UserWarning, match="external"):
+        assert MMM.load_from_idata(legacy)._cost_per_target_calibrations == []
+    bad = copy.deepcopy(loaded.idata)
     records = json.loads(bad.attrs["cost_per_target_calibrations"])
     records[0]["format_version"] = 99
     bad.attrs["cost_per_target_calibrations"] = json.dumps(records)
@@ -9082,11 +9122,58 @@ def test_cost_per_target_persistence_fit_snapshot(mock_pymc_sample, tmp_path):
         MMM.load_from_idata(bad)
 
 
-@pytest.mark.parametrize("payload", ["{}", "[{}]", "[1]", "not json"])
+_CPT_RECORD_WITHOUT_SPEND_VAR = json.dumps(
+    [
+        {
+            "format_version": 1,
+            "name_prefix": "a",
+            "target_column": "t",
+            "target_per_cost": False,
+            "central_tendency": "mean",
+            "data": "{}",
+            "dtypes": {},
+        }
+    ]
+)
+_CPT_RECORD_WITH_UNKNOWN_SPEND_VAR = json.dumps(
+    [
+        {
+            "format_version": 1,
+            "name_prefix": "a",
+            "target_column": "estimate",
+            "target_per_cost": False,
+            "central_tendency": "mean",
+            "spend_var": "ghost",
+            "data": json.dumps(
+                {
+                    "columns": ["channel", "geo", "estimate", "sigma"],
+                    "index": [0],
+                    "data": [["zeta", "001", 1.0, 0.1]],
+                }
+            ),
+            "dtypes": {},
+        }
+    ]
+)
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        "{}",
+        "[{}]",
+        "[1]",
+        "not json",
+        _CPT_RECORD_WITHOUT_SPEND_VAR,
+        _CPT_RECORD_WITH_UNKNOWN_SPEND_VAR,
+    ],
+    ids=["dict", "empty-record", "scalar", "not-json", "no-spend-var", "ghost-spend"],
+)
 def test_cost_per_target_persistence_rejects_malformed_metadata(
     mock_pymc_sample, payload
 ):
-    mmm, X, y, _, _ = _cpt_persistence_inputs()
+    mmm, X, y, spend, rows = _cpt_persistence_inputs()
+    _attach_cpt(mmm, spend, rows)
     mmm.fit(X, y)
     idata = copy.deepcopy(mmm.idata)
     idata.attrs["cost_per_target_calibrations"] = payload
@@ -9094,6 +9181,35 @@ def test_cost_per_target_persistence_rejects_malformed_metadata(
         ValueError, match="Invalid cost-per-target calibration metadata"
     ):
         MMM.load_from_idata(idata)
+
+
+def test_cost_per_target_persistence_missing_spend_group_warns(
+    mock_pymc_sample, tmp_path
+):
+    mmm, X, y, spend, rows = _cpt_persistence_inputs()
+    _attach_cpt(mmm, spend, rows)
+    mmm.fit(X, y)
+    path = str(tmp_path / "slim.nc")
+    mmm.save(path, groups=["posterior", "fit_data", "constant_data", "observed_data"])
+    with pytest.warns(UserWarning, match=COST_PER_TARGET_SPEND_GROUP):
+        loaded = MMM.load(path)
+    assert "external" not in loaded.model.named_vars
+    assert loaded._cost_per_target_calibrations == []
+
+
+def test_cost_per_target_persistence_loaded_model_posterior_predictive(
+    mock_pymc_sample, tmp_path
+):
+    mmm, X, y, spend, rows = _cpt_persistence_inputs()
+    _attach_cpt(mmm, spend, rows)
+    mmm.fit(X, y)
+    path = str(tmp_path / "calibrated.nc")
+    mmm.save(path)
+    loaded = MMM.load(path)
+    X_new = X.assign(week=X.week + pd.Timedelta(weeks=6))
+    predictive = loaded.sample_posterior_predictive(X_new, extend_idata=False)
+    assert "y" in predictive.data_vars
+    assert predictive.sizes["date"] == 6
 
 
 def test_cost_per_target_persistence_normalizes_numeric_objects():

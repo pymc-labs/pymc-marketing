@@ -337,47 +337,73 @@ def _calibration_frame_from_record(record: dict[str, Any]) -> pd.DataFrame:
     return df
 
 
-def _calibration_array_to_dict(values: npt.NDArray) -> dict[str, Any]:
-    """Snapshot calibration values, retaining dtype and temporal precision."""
-    array = np.asarray(values)
-    if array.dtype.kind == "O":
-        array = array.copy()
-        for index, value in np.ndenumerate(array):
-            if isinstance(value, pd.Timestamp):
-                array[index] = {"timestamp": value.isoformat()}
-            elif isinstance(value, (np.datetime64, np.timedelta64)):
-                array[index] = {
-                    "temporal_dtype": str(value.dtype),
-                    "ticks": int(value.astype("int64")),
-                }
-            elif isinstance(value, np.generic):
-                array[index] = value.item()
+COST_PER_TARGET_SPEND_GROUP = "cost_per_target_spend"
+"""DataTree group holding the spend arrays of cost-per-target calibrations.
+
+One data variable per distinct spend array, named by the ``name_prefix`` of the
+first calibration that used it; the records in
+``idata.attrs["cost_per_target_calibrations"]`` point at them via ``spend_var``.
+"""
+
+
+def _parse_cost_per_target_record(
+    record: dict[str, Any], dims: tuple[str, ...]
+) -> dict[str, Any]:
+    """Validate one saved calibration record; see :func:`_parse_cost_per_target_records`."""
+    if record.get("format_version") != 1:
+        raise ValueError(
+            "Unsupported cost-per-target calibration format version: "
+            f"{record.get('format_version')!r}"
+        )
+    name_prefix, target_column, spend_var = (
+        record["name_prefix"],
+        record["target_column"],
+        record["spend_var"],
+    )
+    if not all(isinstance(v, str) for v in (name_prefix, target_column, spend_var)):
+        raise ValueError("name_prefix, target_column and spend_var must be strings")
+    if not isinstance(record["target_per_cost"], bool):
+        raise ValueError("target_per_cost must be a boolean")
+    if record["central_tendency"] not in ("mean", "median"):
+        raise ValueError(
+            "central_tendency must be 'mean' or 'median', got "
+            f"{record['central_tendency']!r}"
+        )
+    rows = _calibration_frame_from_record(record)
+    if missing := {"channel", "sigma", target_column, *dims} - set(rows.columns):
+        raise ValueError(f"measurement rows lack columns {sorted(missing)}")
     return {
-        "dtype": str(array.dtype),
-        "values": (
-            array.astype("int64").tolist()
-            if array.dtype.kind in "mM"
-            else array.tolist()
-        ),
+        "name_prefix": name_prefix,
+        "target_column": target_column,
+        "target_per_cost": record["target_per_cost"],
+        "central_tendency": record["central_tendency"],
+        "spend_var": spend_var,
+        "rows": rows,
     }
 
 
-def _calibration_array_from_dict(record: dict[str, Any]) -> npt.NDArray:
-    """Restore arrays written by :func:`_calibration_array_to_dict`."""
-    dtype = np.dtype(record["dtype"])
-    if dtype.kind in "mM":
-        return np.asarray(record["values"], dtype="int64").astype(dtype)
-    array = np.asarray(record["values"], dtype=dtype)
-    if dtype.kind == "O":
-        for index, value in np.ndenumerate(array):
-            if isinstance(value, dict):
-                if "timestamp" in value:
-                    array[index] = pd.Timestamp(value["timestamp"])
-                else:
-                    array[index] = np.asarray(value["ticks"], dtype="int64").astype(
-                        value["temporal_dtype"]
-                    )[()]
-    return array
+def _parse_cost_per_target_records(
+    raw: str, dims: tuple[str, ...]
+) -> list[dict[str, Any]]:
+    """Validate the ``cost_per_target_calibrations`` attribute of a saved model.
+
+    Returns one dict per calibration with the keyword arguments of
+    :meth:`MMM.add_cost_per_target_calibration` other than the spend
+    (``name_prefix``, ``target_column``, ``target_per_cost``,
+    ``central_tendency``), the ``spend_var`` naming the spend array in the
+    :data:`COST_PER_TARGET_SPEND_GROUP` group, and the measurement ``rows``.
+    Everything derived from the attribute string is checked here, so the
+    caller only sees ``ValueError`` for corrupt metadata.
+    """
+    try:
+        records = json.loads(raw)
+        if not isinstance(records, list):
+            raise ValueError("expected a list of calibration records")
+        return [_parse_cost_per_target_record(record, dims) for record in records]
+    except (KeyError, TypeError, AttributeError, ValueError) as error:
+        raise ValueError(
+            f"Invalid cost-per-target calibration metadata: {error}"
+        ) from error
 
 
 _EVALUATOR_CACHE_ATTR = "_incrementality_evaluators"
@@ -2528,6 +2554,11 @@ class MMM(RegressionModelBuilder):
             and control for xarray input) plus the target under
             ``target_column``, on ``(date_column, *dims)``. See
             :meth:`create_fit_data`.
+
+            Spend supplied to :meth:`add_cost_per_target_calibration` is stored
+            in the ``cost_per_target_spend`` group, one variable per distinct
+            spend array; the calibration rows and options are stored in
+            ``idata.attrs``.
         y : pd.Series or xr.DataArray or np.ndarray or None
             Target values. Required unless ``X`` carries the target.
         method : str
@@ -2571,6 +2602,16 @@ class MMM(RegressionModelBuilder):
             sample_kwargs=sample_kwargs,
             **kwargs,
         )
+        # Snapshot the calibration spend alongside the records that
+        # ``set_idata_attrs`` just wrote, replacing any group left by an
+        # earlier fit so the file never carries spend of a calibration that is
+        # no longer in the graph.
+        if COST_PER_TARGET_SPEND_GROUP in idata.children:
+            del idata[COST_PER_TARGET_SPEND_GROUP]
+        if self._cost_per_target_spend:
+            idata[f"/{COST_PER_TARGET_SPEND_GROUP}"] = xr.Dataset(
+                self._cost_per_target_spend
+            )
         if self._cost_per_unit_input is not None:
             self.set_cost_per_unit(self._cost_per_unit_input)
         return idata
@@ -4592,10 +4633,11 @@ class MMM(RegressionModelBuilder):
         Every error is raised before the increment node is registered, so a
         refused call leaves the model unchanged.
 
-        Calibration inputs and options are saved with the inference data when
-        fitting, and restored by :meth:`load`. Adding calibration after a fit
-        changes the graph but does not update the saved posterior or its
-        calibration metadata; refit before saving that change.
+        Calibration rows and options are saved in ``idata.attrs`` and the spend
+        in the ``cost_per_target_spend`` group when fitting, and restored by
+        :meth:`load`. Adding calibration after a fit changes the graph but not
+        the saved posterior or these records; refit before saving that change
+        (:meth:`save` warns when they differ).
 
         Examples
         --------
@@ -5014,9 +5056,11 @@ class MMM(RegressionModelBuilder):
             the posterior. Posterior draws are matched to the model by position,
             and a model fit from an ``xr.Dataset`` keeps the Dataset's order,
             while the DataFrame built from ``fit_data`` is sorted.
-        - Restores lift-test and cost-per-target/ROAS calibration when their
-            input records are present. Older files without those records cannot
-            reconstruct the missing calibration likelihoods.
+        - Restores lift-test calibration from ``idata.attrs`` and
+            cost-per-target/ROAS calibration from ``idata.attrs`` plus the
+            ``cost_per_target_spend`` group. Files written before these records
+            existed, or saved with ``groups=`` that drops the spend group, load
+            without those likelihoods and emit a ``UserWarning``.
 
         Examples
         --------
@@ -5070,45 +5114,46 @@ class MMM(RegressionModelBuilder):
                     name=calibration["name"],
                 )
 
-        try:
-            calibrations = json.loads(
-                idata.attrs.get("cost_per_target_calibrations", "[]")
+        # Cost-per-target rows and options live in attrs, the spend in its own
+        # group. Metadata errors are raised by the parser; the replay below goes
+        # through the public method so model-state errors keep their messages.
+        records = _parse_cost_per_target_records(
+            idata.attrs.get("cost_per_target_calibrations", "[]"), self.dims
+        )
+        unrestored_cpt: set[str] = set()
+        if records and COST_PER_TARGET_SPEND_GROUP not in idata.children:
+            unrestored_cpt = {record["name_prefix"] for record in records}
+            warnings.warn(
+                "The saved model records cost-per-target calibration "
+                f"{sorted(unrestored_cpt)} but the {COST_PER_TARGET_SPEND_GROUP!r} "
+                "group holding its spend is missing (for example dropped through "
+                "`save(groups=...)`); those likelihoods are not restored.",
+                UserWarning,
+                stacklevel=2,
             )
-            if not isinstance(calibrations, list):
-                raise ValueError("Expected a list of calibration records")
-            for calibration in calibrations:
-                if calibration.get("format_version") != 1:
-                    raise ValueError(
-                        "Unsupported cost-per-target calibration format version: "
-                        f"{calibration.get('format_version')!r}"
-                    )
-                spend = calibration["spend"]
-                spend_array = xr.DataArray(
-                    _calibration_array_from_dict(spend["data"]),
-                    dims=spend["dims"],
-                    coords={
-                        dim: _calibration_array_from_dict(coord)
-                        for dim, coord in spend["coords"].items()
-                    },
+            records = []
+        if records:
+            spend_group = idata[COST_PER_TARGET_SPEND_GROUP].to_dataset()
+            missing_spend = [
+                record["spend_var"]
+                for record in records
+                if record["spend_var"] not in spend_group
+            ]
+            if missing_spend:
+                raise ValueError(
+                    "Invalid cost-per-target calibration metadata: spend variables "
+                    f"{missing_spend} are not in the {COST_PER_TARGET_SPEND_GROUP!r} "
+                    "group"
                 )
+            for record in records:
                 self.add_cost_per_target_calibration(
-                    data=spend_array.to_dataset(name="_channel"),
-                    calibration_data=pd.DataFrame(
-                        {
-                            column: _calibration_array_from_dict(values)
-                            for column, values in calibration["measurements"].items()
-                        }
-                    ),
-                    name_prefix=calibration["name_prefix"],
-                    target_column=calibration["target_column"],
-                    target_per_cost=calibration["target_per_cost"],
-                    central_tendency=calibration["central_tendency"],
+                    data=spend_group[record["spend_var"]].to_dataset(name="_channel"),
+                    calibration_data=record["rows"],
+                    name_prefix=record["name_prefix"],
+                    target_column=record["target_column"],
+                    target_per_cost=record["target_per_cost"],
+                    central_tendency=record["central_tendency"],
                 )
-
-        except (KeyError, TypeError, ValueError, AttributeError) as error:
-            raise ValueError(
-                f"Invalid cost-per-target calibration metadata: {error}"
-            ) from error
 
         # Re-add any *_original_scale Deterministics that were present when the
         # model was saved.  These are added by add_original_scale_contribution_variable
