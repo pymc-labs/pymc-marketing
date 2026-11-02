@@ -29,6 +29,7 @@ from pymc.util import RandomState
 from pymc_extras.prior import Prior
 
 from pymc_marketing.customer_choice._choice_data_mixin import ChoiceDataMixin
+from pymc_marketing.customer_choice.names import Dim, Var
 from pymc_marketing.model_builder import (
     ModelBuilder,
     SamplingMethod,
@@ -148,7 +149,7 @@ class MNLogit(ChoiceDataMixin, ModelBuilder):
     version = "0.2.0"
 
     #: Name of the ``pm.Data`` container holding the fixed covariates.
-    _fixed_data_name = "F"
+    _fixed_data_name = Var.F
 
     #: Attribute holding the design matrix stored by :meth:`build_model`.
     _X_data_name = "X"
@@ -206,9 +207,11 @@ class MNLogit(ChoiceDataMixin, ModelBuilder):
             The default model configuration.
 
         """
-        alphas = Prior("Normal", mu=0, sigma=5, dims="alts")
-        betas = Prior("Normal", mu=0, sigma=1, dims="alt_covariates")
-        betas_fixed = Prior("Normal", mu=0, sigma=1, dims=("alts", "fixed_covariates"))
+        alphas = Prior("Normal", mu=0, sigma=5, dims=Dim.ALTS)
+        betas = Prior("Normal", mu=0, sigma=1, dims=Dim.ALT_COVARIATES)
+        betas_fixed = Prior(
+            "Normal", mu=0, sigma=1, dims=(Dim.ALTS, Dim.FIXED_COVARIATES)
+        )
 
         return {
             "alphas_": alphas,
@@ -217,7 +220,7 @@ class MNLogit(ChoiceDataMixin, ModelBuilder):
             "likelihood": Prior(
                 "Categorical",
                 p=0,
-                dims="obs",
+                dims=Dim.OBS,
             ),
         }
 
@@ -229,7 +232,7 @@ class MNLogit(ChoiceDataMixin, ModelBuilder):
     @property
     def output_var(self) -> str:
         """The output variable of the model."""
-        return "y"
+        return Var.Y
 
     @property
     def _serializable_model_config(self) -> dict[str, int | float | dict]:  # type: ignore
@@ -356,11 +359,11 @@ class MNLogit(ChoiceDataMixin, ModelBuilder):
         else:
             f_cov = []
         coords = {
-            "alts": alternatives,
+            Dim.ALTS: alternatives,
             "alts_probs": alternatives[:-1],
-            "alt_covariates": covariates,
-            "fixed_covariates": f_cov,
-            "obs": range(len(df)),
+            Dim.ALT_COVARIATES: covariates,
+            Dim.FIXED_COVARIATES: f_cov,
+            Dim.OBS: range(len(df)),
         }
         return coords
 
@@ -460,7 +463,7 @@ class MNLogit(ChoiceDataMixin, ModelBuilder):
         """
         alphas_ = self.model_config["alphas_"].create_variable(name="alphas_")
         alphas = pm.Deterministic(
-            "alphas", pt.set_subtensor(alphas_[-1], 0), dims="alts"
+            "alphas", pt.set_subtensor(alphas_[-1], 0), dims=Dim.ALTS
         )
         return alphas
 
@@ -498,14 +501,14 @@ class MNLogit(ChoiceDataMixin, ModelBuilder):
         if X_fixed is None or len(X_fixed) == 0:
             F = pt.zeros((n_obs, n_alts))
         else:
-            X_fixed_data = pm.Data("F", X_fixed)
+            X_fixed_data = pm.Data(Var.F, X_fixed)
             betas_fixed_ = self.model_config["betas_fixed_"].create_variable(
                 name="betas_fixed_"
             )
             betas_fixed = pm.Deterministic(
                 "betas_fixed",
                 pt.set_subtensor(betas_fixed_[-1, :], 0),
-                dims=("alts", "fixed_covariates"),
+                dims=(Dim.ALTS, Dim.FIXED_COVARIATES),
             )
             F = pm.Deterministic(
                 "F_interaction", pm.math.dot(X_fixed_data, betas_fixed.T)
@@ -538,7 +541,7 @@ class MNLogit(ChoiceDataMixin, ModelBuilder):
             Systematic utility, shape (n_obs, n_alts)
         """
         U = pm.math.dot(X_data, betas)  # (n_obs, n_alts)
-        U = pm.Deterministic("U", F + U + alphas, dims=("obs", "alts"))
+        U = pm.Deterministic(Var.U, F + U + alphas, dims=(Dim.OBS, Dim.ALTS))
         return U
 
     def make_choice_prob(self, U: pt.TensorVariable) -> pt.TensorVariable:
@@ -554,7 +557,9 @@ class MNLogit(ChoiceDataMixin, ModelBuilder):
         p : TensorVariable
             Choice probabilities, shape (n_obs, n_alts)
         """
-        p = pm.Deterministic("p", pm.math.softmax(U, axis=1), dims=("obs", "alts"))
+        p = pm.Deterministic(
+            Var.P, pm.math.softmax(U, axis=1), dims=(Dim.OBS, Dim.ALTS)
+        )
         return p
 
     def make_model(
@@ -593,8 +598,8 @@ class MNLogit(ChoiceDataMixin, ModelBuilder):
             betas = self.make_alt_coefs()
 
             # Instantiate data
-            X_data = pm.Data("X", X, dims=("obs", "alts", "alt_covariates"))
-            observed = pm.Data("y", y, dims="obs")
+            X_data = pm.Data(Var.X, X, dims=(Dim.OBS, Dim.ALTS, Dim.ALT_COVARIATES))
+            observed = pm.Data(Var.Y, y, dims=Dim.OBS)
 
             # Handle fixed covariates. The row count is taken from the data
             # container so a swapped data set with a different number of rows
@@ -606,7 +611,7 @@ class MNLogit(ChoiceDataMixin, ModelBuilder):
             p = self.make_choice_prob(U)
 
             # Likelihood
-            _ = pm.Categorical("likelihood", p=p, observed=observed, dims="obs")
+            _ = pm.Categorical(Var.LIKELIHOOD, p=p, observed=observed, dims=Dim.OBS)
 
         return model
 
@@ -765,7 +770,7 @@ class MNLogit(ChoiceDataMixin, ModelBuilder):
         with self._prediction_model_data(choice_df):
             with self.model:
                 post_pred = pm.sample_posterior_predictive(
-                    self.idata, var_names=["likelihood", "p"], **kwargs
+                    self.idata, var_names=[Var.LIKELIHOOD, Var.P], **kwargs
                 )
 
         if extend_idata:
@@ -851,7 +856,7 @@ class MNLogit(ChoiceDataMixin, ModelBuilder):
                     # use the updated values and predict outcomes and probabilities:
                     idata_new_policy = pm.sample_posterior_predictive(
                         self.idata,
-                        var_names=["p", "likelihood"],
+                        var_names=[Var.P, Var.LIKELIHOOD],
                         return_inferencedata=True,
                         extend_inferencedata=False,
                         random_seed=100,
@@ -873,7 +878,7 @@ class MNLogit(ChoiceDataMixin, ModelBuilder):
                 )
                 idata_new_policy.update(
                     pm.sample_posterior_predictive(
-                        idata_new_policy, var_names=["p", "likelihood"]
+                        idata_new_policy, var_names=[Var.P, Var.LIKELIHOOD]
                     ),
                 )
 
@@ -884,15 +889,14 @@ class MNLogit(ChoiceDataMixin, ModelBuilder):
     @staticmethod
     def calculate_share_change(idata, new_idata) -> pd.DataFrame:
         """Calculate difference in market share due to market intervention."""
-        expected = idata["posterior_predictive"].mean(dim=("chain", "draw", "obs"))["p"]
-        expected_new = new_idata["posterior_predictive"].mean(
-            dim=("chain", "draw", "obs")
-        )["p"]
+        mean_dims = ("chain", "draw", Dim.OBS)
+        expected = idata["posterior_predictive"].mean(dim=mean_dims)[Var.P]
+        expected_new = new_idata["posterior_predictive"].mean(dim=mean_dims)[Var.P]
         shares_df = pd.DataFrame(
-            {"product": expected["alts"], "policy_share": expected}
+            {"product": expected[Dim.ALTS], "policy_share": expected}
         )
         shares_df_new = pd.DataFrame(
-            {"product": expected_new["alts"], "new_policy_share": expected_new}
+            {"product": expected_new[Dim.ALTS], "new_policy_share": expected_new}
         )
         shares_df = shares_df.merge(
             shares_df_new, left_on="product", right_on="product", how="left"

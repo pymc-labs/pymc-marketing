@@ -24,6 +24,9 @@ import pandas as pd
 import pymc as pm
 import xarray as xr
 
+from pymc_marketing.customer_choice.names import Dim, Var
+from pymc_marketing.names import Attr, Group
+
 
 class ChoiceDataMixin:
     """Choice-data and settings lifecycle shared by the logit models.
@@ -91,14 +94,14 @@ class ChoiceDataMixin:
         y : np.ndarray
             Encoded observed choices, shape ``(n_obs,)``.
         """
-        data: dict[str, Any] = {"X": X, "y": y}
+        data: dict[str, Any] = {Var.X: X, Var.Y: y}
         if F is not None and len(F) > 0:
             data[self._fixed_data_name] = F
 
         n_obs = len(X)
         coords = None
-        if len(self.model.coords["obs"]) != n_obs:
-            coords = {"obs": range(n_obs)}
+        if len(self.model.coords[Dim.OBS]) != n_obs:
+            coords = {Dim.OBS: range(n_obs)}
 
         with self.model:
             pm.set_data(data, coords=coords)
@@ -319,9 +322,9 @@ class ChoiceDataMixin:
             "depvar": json.loads(attrs["depvar"]),
             "covariates": json.loads(attrs["covariates"]),
             "model_config": cls._model_config_formatting(
-                json.loads(attrs["model_config"])
+                json.loads(attrs[Attr.MODEL_CONFIG])
             ),
-            "sampler_config": json.loads(attrs["sampler_config"]),
+            "sampler_config": json.loads(attrs[Attr.SAMPLER_CONFIG]),
         }
 
     def create_fit_data_group(self) -> xr.Dataset:
@@ -344,13 +347,13 @@ class ChoiceDataMixin:
             if isinstance(dtype, pd.CategoricalDtype)
         }
         if not categorical_dtypes:
-            return choice_df.rename_axis("obs").to_xarray()
+            return choice_df.rename_axis(Dim.OBS).to_xarray()
 
         encoded_df = choice_df.copy()
         for name in categorical_dtypes:
             encoded_df[name] = choice_df[name].cat.codes
 
-        dataset = encoded_df.rename_axis("obs").to_xarray()
+        dataset = encoded_df.rename_axis(Dim.OBS).to_xarray()
         for name, dtype in categorical_dtypes.items():
             dataset[name].attrs = {
                 "categories": json.dumps(dtype.categories.tolist()),
@@ -369,7 +372,7 @@ class ChoiceDataMixin:
         idata : xr.DataTree
             Loaded inference data.
         """
-        dataset = idata["fit_data"].dataset
+        dataset = idata[Group.FIT_DATA].dataset
         choice_df = dataset.to_dataframe().rename_axis(None)
         for name, variable in dataset.data_vars.items():
             categories = variable.attrs.get("categories")
