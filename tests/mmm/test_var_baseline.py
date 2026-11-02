@@ -23,6 +23,7 @@ import pytest
 import xarray as xr
 from pydantic import ValidationError
 from pymc.testing import mock_sample
+from scipy import stats
 
 from pymc_marketing.mmm import (
     MMM,
@@ -31,14 +32,17 @@ from pymc_marketing.mmm import (
     SoftPlusHSGP,
     VARBaselineEffect,
 )
+from pymc_marketing.mmm.scaling import FixedScaling
 
 pytest.importorskip("impulso")
 
-from impulso import VAR, MinnesotaPrior, ar1_residual_sd
+from impulso import VAR, Constant, InnovationScalePrior, MinnesotaPrior, ar1_residual_sd
 
 seed: int = sum(map(ord, "VARBaselineEffect"))
 PREFIX = "brand_var"
 ENDOG_NAMES = ["baseline", "awareness", "consideration"]
+QUARTILES = [0.25, 0.5, 0.75]
+FIXED_TARGET_SCALING = {"target": FixedScaling(dims=(), value=6.0)}
 
 
 def make_brand_mmm_data(n_weeks: int = 30) -> dict:
@@ -161,6 +165,16 @@ def test_baseline_own_lag_mean_must_keep_the_baseline_stationary(
         )
 
 
+@pytest.mark.parametrize("baseline_innovation_sd", [0.0, -0.1, np.nan, np.inf])
+def test_baseline_innovation_sd_must_be_positive_and_finite(
+    brand_mmm_data, baseline_innovation_sd
+):
+    with pytest.raises(ValidationError, match="baseline_innovation_sd"):
+        make_effect(
+            brand_mmm_data["brand_data"], baseline_innovation_sd=baseline_innovation_sd
+        )
+
+
 @pytest.mark.parametrize(
     "brand_columns, effect_kwargs, match",
     [
@@ -240,6 +254,9 @@ def test_fit_adds_the_var_and_the_baseline_to_the_posterior(fitted_mmm):
         "B",
         "B_exog",
         "intercept",
+        "sigma_sd_0",
+        "sigma_sd_1",
+        "sigma_sd_2",
         "L",
         "Sigma",
         "tril_offdiag",
@@ -377,29 +394,26 @@ def test_own_lag_mean_for_the_baseline_raises_at_construction(
         )
 
 
-def sample_path_start(data: dict, effect) -> np.ndarray:
+def sample_path_start(
+    data: dict, effect: VARBaselineEffect, **mmm_kwargs
+) -> np.ndarray:
     """Prior draws of the baseline's first two values, for an effect with two lags."""
-    mmm = make_mmm(effect)
-    mmm.build_model(data["X"], data["y"])
-    latent = pm.sample_prior_predictive(
-        draws=10_000,
-        var_names=[f"{PREFIX}::latent"],
-        model=mmm.model,
-        random_seed=seed,
-    ).prior[f"{PREFIX}::latent"]
+    latent = sample_prior(data, effect, [f"{PREFIX}::latent"], **mmm_kwargs)[
+        f"{PREFIX}::latent"
+    ]
     return latent.to_numpy()[:, :, :2, 0]
 
 
 @pytest.mark.parametrize(
     "effect_kwargs",
-    [{}, {"baseline_own_lag_mean": 0.6}],
-    ids=["default", "own-lag-mean"],
+    [{}, {"baseline_own_lag_mean": 0.6, "baseline_innovation_sd": 0.1}],
+    ids=["default", "own-lag-mean-and-u"],
 )
 def test_baseline_starts_at_the_targets_sd(brand_mmm_data, effect_kwargs):
     """The baseline's first ``n_lags`` values have the target's sd.
 
     That is the sd in the target's original units, with ``ddof=0``, whatever
-    ``baseline_own_lag_mean`` is.
+    ``baseline_own_lag_mean`` and U are.
     """
     effect = make_effect(brand_mmm_data["brand_data"], var=VAR(lags=2), **effect_kwargs)
     start = sample_path_start(brand_mmm_data, effect)
@@ -409,38 +423,265 @@ def test_baseline_starts_at_the_targets_sd(brand_mmm_data, effect_kwargs):
     )
 
 
-@pytest.fixture(scope="module")
-def prior_draws(brand_mmm_data) -> xr.DataTree:
-    """Prior draws of ``B_exog`` from an MMM whose effect has two lags."""
-    effect = make_effect(brand_mmm_data["brand_data"], var=VAR(lags=2))
-    mmm = make_mmm(effect)
-    mmm.build_model(brand_mmm_data["X"], brand_mmm_data["y"])
+@pytest.mark.parametrize(
+    "baseline_own_lag_mean", [0.0, 0.6], ids=["default", "own-lag-mean"]
+)
+def test_baseline_starts_at_its_stationary_sd_on_a_target_that_does_not_vary(
+    brand_mmm_data, baseline_own_lag_mean
+):
+    """On the all-zero target, the start's sd falls back to the stationary sd.
+
+    That is the sd of an AR(1) with the baseline's own-lag prior mean and innovation
+    sd U: U itself at the default mean of 0.
+    """
+    effect = make_effect(
+        brand_mmm_data["brand_data"],
+        var=VAR(lags=2),
+        baseline_own_lag_mean=baseline_own_lag_mean,
+        baseline_innovation_sd=0.1,
+    )
+    zero_target = brand_mmm_data | {"y": 0.0 * brand_mmm_data["y"]}
+    start = sample_path_start(zero_target, effect, scaling=FIXED_TARGET_SCALING)
+
+    np.testing.assert_allclose(
+        start.std(axis=(0, 1)), 0.1 / np.sqrt(1 - baseline_own_lag_mean**2), rtol=0.05
+    )
+
+
+def sample_prior(
+    data: dict, effect: VARBaselineEffect, var_names: list[str], **mmm_kwargs
+) -> xr.DataTree:
+    """Prior draws of ``var_names`` from an MMM with ``effect``, built on ``data``."""
+    mmm = make_mmm(effect, **mmm_kwargs)
+    mmm.build_model(data["X"], data["y"])
     return pm.sample_prior_predictive(
-        draws=4000,
-        var_names=[f"{PREFIX}::B_exog"],
-        model=mmm.model,
-        random_seed=seed,
+        draws=10_000, var_names=var_names, model=mmm.model, random_seed=seed
     ).prior
 
 
-def test_exog_prior_scales_with_each_series(brand_mmm_data, prior_draws):
+def assert_draws_follow(draws: xr.DataArray, dist) -> None:
+    """The draws have the quartiles of the frozen scipy distribution ``dist``."""
+    np.testing.assert_allclose(draws.quantile(QUARTILES), dist.ppf(QUARTILES), rtol=0.1)
+
+
+@pytest.mark.parametrize(
+    "baseline_innovation_sd", [None, 0.1], ids=["from-target", "override"]
+)
+def test_baseline_innovation_sd_prior_is_half_normal_below_u(
+    brand_mmm_data, baseline_innovation_sd
+):
+    """The baseline's innovation sd is HalfNormal(U / 1.96): P(sd > U) = 0.05.
+
+    U is ``baseline_innovation_sd`` or, by default, the AR(1) residual sd of the
+    target in its original units.
+    """
+    u = baseline_innovation_sd or ar1_residual_sd(brand_mmm_data["y"].to_frame())[0]
+    effect = make_effect(
+        brand_mmm_data["brand_data"], baseline_innovation_sd=baseline_innovation_sd
+    )
+    sigma = sample_prior(brand_mmm_data, effect, [f"{PREFIX}::sigma_sd_0"])[
+        f"{PREFIX}::sigma_sd_0"
+    ]
+
+    np.testing.assert_allclose((sigma > u).mean(), 0.05, atol=0.01)
+    assert_draws_follow(sigma, stats.halfnorm(scale=u / 1.96))
+
+
+@pytest.mark.parametrize(
+    "baseline_innovation_sd", [None, 0.1], ids=["from-target", "override"]
+)
+def test_exog_prior_scales_with_each_series(brand_mmm_data, baseline_innovation_sd):
     """Each equation's exog prior sd is proportional to its series' scale.
 
-    The baseline's scale is the AR(1) residual sd of the target, and each brand
-    metric's is its own, so the ratios pin the scales the VAR is built with.
+    Each brand metric's scale is its AR(1) residual sd, and the baseline's is the
+    target's, whatever ``baseline_innovation_sd`` is: U sets only the baseline's
+    innovation prior, ``HalfNormal(U / 1.96)``. So the ratios pin the scales the VAR
+    is built with, and overriding U moves the innovation prior but neither the
+    baseline's exog prior nor its Minnesota cross-lag prior, whose sd on brand metric
+    ``j``'s lag is its own-lag sd times the cross shrinkage times the baseline's scale
+    over ``j``'s.
     """
     brand_data = brand_mmm_data["brand_data"]
-    scales = ar1_residual_sd(
-        np.column_stack([brand_mmm_data["y"], brand_data[ENDOG_NAMES[1:]]])
+    target_scale = ar1_residual_sd(brand_mmm_data["y"].to_frame())[0]
+    u = baseline_innovation_sd or target_scale
+    observed_names = ENDOG_NAMES[1:]
+    observed_scales = ar1_residual_sd(brand_data[observed_names])
+    effect = make_effect(brand_data, baseline_innovation_sd=baseline_innovation_sd)
+    draws = sample_prior(
+        brand_mmm_data,
+        effect,
+        [f"{PREFIX}::sigma_sd_0", f"{PREFIX}::B", f"{PREFIX}::B_exog"],
     )
-    B_exog = prior_draws[f"{PREFIX}::B_exog"].sel(exog="brand_spend")
-    sd = B_exog.std(("chain", "draw"))
+    prior = draws.std(("chain", "draw"))
+    sd = prior[f"{PREFIX}::B_exog"].sel(exog="brand_spend")
+    cross_lag_sd = prior[f"{PREFIX}::B"].sel(
+        var="baseline", coeff=[f"L1.{name}" for name in observed_names]
+    )
+    own_lag_sd = prior[f"{PREFIX}::B"].sel(var="baseline", coeff="L1.baseline")
 
+    assert_draws_follow(draws[f"{PREFIX}::sigma_sd_0"], stats.halfnorm(scale=u / 1.96))
     np.testing.assert_allclose(
-        sd.sel(var="baseline") / sd.sel(var=ENDOG_NAMES[1:]),
-        scales[0] / scales[1:],
+        sd.sel(var="baseline") / sd.sel(var=observed_names),
+        target_scale / observed_scales,
         rtol=0.1,
     )
+    np.testing.assert_allclose(
+        cross_lag_sd / own_lag_sd,
+        MinnesotaPrior().cross_shrinkage * target_scale / observed_scales,
+        rtol=0.1,
+    )
+
+
+@pytest.mark.parametrize(
+    "volatility, observed_dists, tril_offdiag_sigma",
+    [
+        pytest.param(
+            "constant",
+            [stats.halfcauchy(scale=2.5)] * 2,
+            0.5,
+            id="shorthand",
+        ),
+        pytest.param(
+            Constant(sigma_sd_beta=0.5, tril_offdiag_sigma=0.2),
+            [stats.halfcauchy(scale=0.5)] * 2,
+            0.2,
+            id="sigma-sd-beta",
+        ),
+        pytest.param(
+            Constant(
+                tril_offdiag_sigma=0.2,
+                innovation_scale_priors=[
+                    InnovationScalePrior(family="halfcauchy", scale=2.5),
+                    InnovationScalePrior(family="halfnormal", scale=0.3),
+                    InnovationScalePrior(family="exponential", scale=0.1),
+                ],
+            ),
+            [stats.halfnorm(scale=0.3), stats.expon(scale=0.1)],
+            0.2,
+            id="per-variable",
+        ),
+    ],
+)
+def test_brand_metrics_keep_the_analysts_volatility_prior(
+    brand_mmm_data, volatility, observed_dists, tril_offdiag_sigma
+):
+    """Only the baseline's innovation-scale prior is the effect's own."""
+    u = ar1_residual_sd(brand_mmm_data["y"].to_frame())[0]
+    effect = make_effect(
+        brand_mmm_data["brand_data"], var=VAR(lags=1, volatility=volatility)
+    )
+    var_names = [f"{PREFIX}::sigma_sd_{i}" for i in range(3)]
+    prior = sample_prior(
+        brand_mmm_data, effect, [*var_names, f"{PREFIX}::tril_offdiag"]
+    )
+
+    assert_draws_follow(prior[var_names[0]], stats.halfnorm(scale=u / 1.96))
+    for name, dist in zip(var_names[1:], observed_dists, strict=True):
+        assert_draws_follow(prior[name], dist)
+    np.testing.assert_allclose(
+        prior[f"{PREFIX}::tril_offdiag"].std(), tril_offdiag_sigma, rtol=0.1
+    )
+
+
+@pytest.mark.parametrize(
+    "sigma_sd_beta, baseline_prior",
+    [
+        pytest.param(
+            2.5,
+            InnovationScalePrior(family="exponential", scale=5.0),
+            id="other-family",
+        ),
+        pytest.param(
+            0.5,
+            InnovationScalePrior(family="halfcauchy", scale=2.5),
+            id="other-sigma-sd-beta",
+        ),
+    ],
+)
+def test_innovation_scale_prior_for_the_baseline_raises_at_construction(
+    brand_mmm_data, sigma_sd_beta, baseline_prior
+):
+    """The effect sets the baseline's entry from U, so the analyst's is the default.
+
+    Impulso's default, ``HalfCauchy(sigma_sd_beta)``, is the one the effect replaces.
+    """
+    volatility = Constant(
+        sigma_sd_beta=sigma_sd_beta,
+        innovation_scale_priors=[
+            baseline_prior,
+            *[InnovationScalePrior(family="halfnormal", scale=0.3)] * 2,
+        ],
+    )
+
+    with pytest.raises(
+        ValueError,
+        match=r"innovation_scale_priors.*sets the baseline's entry.*from "
+        r"baseline_innovation_sd.*Impulso's default, InnovationScalePrior\("
+        rf"family='halfcauchy', scale={sigma_sd_beta}\)",
+    ):
+        make_effect(
+            brand_mmm_data["brand_data"], var=VAR(lags=1, volatility=volatility)
+        )
+
+
+def test_volatility_other_than_constant_is_refused_by_impulso(brand_mmm_data):
+    """The effect leaves any other volatility to Impulso, which names the reason."""
+    effect = make_effect(brand_mmm_data["brand_data"], var=VAR(lags=1, volatility="sv"))
+    mmm = make_mmm(effect)
+
+    with pytest.raises(
+        ValueError, match=r"volatility=StochasticVolatility.*latent series"
+    ):
+        mmm.build_model(brand_mmm_data["X"], brand_mmm_data["y"])
+
+
+@pytest.mark.parametrize(
+    "mmm_kwargs, baseline_innovation_sd, match",
+    [
+        pytest.param({}, None, r"target scale.*pass y", id="default"),
+        pytest.param({}, 0.1, r"target scale.*pass y", id="baseline-innovation-sd"),
+        pytest.param(
+            {"scaling": FIXED_TARGET_SCALING},
+            None,
+            r"AR\(1\).*set baseline_innovation_sd",
+            id="fixed-target-scale",
+        ),
+    ],
+)
+def test_building_without_a_target_raises(
+    brand_mmm_data, mmm_kwargs, baseline_innovation_sd, match
+):
+    """Without ``y`` the MMM builds on an all-zero target.
+
+    Its data-derived scale is 0, and its AR(1) residual sd cannot set U.
+    """
+    effect = make_effect(
+        brand_mmm_data["brand_data"], baseline_innovation_sd=baseline_innovation_sd
+    )
+    mmm = make_mmm(effect, **mmm_kwargs)
+
+    with pytest.raises(ValueError, match=rf"'{PREFIX}'.*{match}"):
+        mmm.sample_prior_predictive(brand_mmm_data["X"])
+
+
+def test_prior_predictive_without_a_target(brand_mmm_data):
+    """A fixed target scale and ``baseline_innovation_sd`` replace ``y``.
+
+    The all-zero target does not vary, so the baseline starts at sd U, in the
+    target's original units, and its contribution is in units of the fixed target
+    scale.
+    """
+    effect = make_effect(brand_mmm_data["brand_data"], baseline_innovation_sd=0.1)
+    mmm = make_mmm(effect, scaling=FIXED_TARGET_SCALING)
+    mmm.sample_prior_predictive(brand_mmm_data["X"], samples=4000, random_seed=seed)
+    prior = mmm.idata.prior
+
+    start = prior[f"{PREFIX}_effect_contribution"].isel(date=0)
+    np.testing.assert_allclose(
+        start.std(), 0.1 / FIXED_TARGET_SCALING["target"].value, rtol=0.05
+    )
+    sigma = prior[f"{PREFIX}::sigma_sd_0"]
+    np.testing.assert_allclose((sigma > 0.1).mean(), 0.05, atol=0.02)
 
 
 @pytest.fixture(scope="module")
@@ -608,14 +849,6 @@ def test_bad_brand_data_raises_at_build(shorter_mmm_data, date_column, arrange, 
         mmm.build_model(
             shorter_mmm_data["X"].rename(columns=rename), shorter_mmm_data["y"]
         )
-
-
-def test_building_without_a_target_raises(brand_mmm_data):
-    """Without ``y`` the MMM builds on an all-zero target, which cannot scale it."""
-    mmm = make_mmm(make_effect(brand_mmm_data["brand_data"]))
-
-    with pytest.raises(ValueError, match=rf"{PREFIX}.*target"):
-        mmm.sample_prior_predictive(brand_mmm_data["X"])
 
 
 def as_panel(data: dict, geos: tuple[str, ...] = ("north", "south")) -> dict:
