@@ -8885,6 +8885,51 @@ def _attach_cpt(mmm, spend, rows, name="external", roas=False, central="mean"):
     )
 
 
+def test_add_cost_per_target_calibration_rejects_label_target_column():
+    mmm, _, _, spend, rows = _cpt_persistence_inputs()
+    rows["geo"] = [2.0, 1.5]
+    names = set(mmm.model.named_vars)
+    with pytest.raises(ValueError, match="target_column 'geo' collides"):
+        mmm.add_cost_per_target_calibration(
+            data=spend, calibration_data=rows, target_column="geo"
+        )
+    assert set(mmm.model.named_vars) == names
+
+
+def test_add_cost_per_target_calibration_rejects_non_finite_spend():
+    mmm, _, _, spend, rows = _cpt_persistence_inputs()
+    spend.loc[0, "zeta"] = np.inf
+    names = set(mmm.model.named_vars)
+    coords = dict(mmm.model.coords)
+    with pytest.raises(ValueError, match="Spend data must contain finite values"):
+        _attach_cpt(mmm, spend, rows)
+    assert set(mmm.model.named_vars) == names
+    assert mmm.model.coords == coords
+
+
+def test_add_cost_per_target_calibration_reorders_spend_by_label():
+    from pymc_marketing.mmm.data_conversion import to_mmm_dataset
+
+    mmm, _, _, spend, rows = _cpt_persistence_inputs()
+    options = dict(date_column="week", dims=("geo",), channel_columns=["zeta", "alpha"])
+    reordered = (
+        to_mmm_dataset(spend, **options)
+        .isel(date=slice(None, None, -1))
+        .sel(geo=["002", "001"])
+    )
+    # `to_mmm_dataset` lays channels out in `channel_columns` order already, so
+    # only the date and geo reorders are exercised here.
+    _attach_cpt(mmm, reordered, rows)
+    reference, _, _, spend, rows = _cpt_persistence_inputs()
+    _attach_cpt(reference, spend, rows)
+    point = reference.model.initial_point()
+    np.testing.assert_allclose(
+        mmm.model.compile_logp()(point),
+        reference.model.compile_logp()(point),
+        rtol=1e-11,
+    )
+
+
 @pytest.mark.parametrize(
     "link,central,roas,mixed,labeled,prefix,suffix",
     [

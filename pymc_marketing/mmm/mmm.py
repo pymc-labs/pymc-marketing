@@ -4514,9 +4514,9 @@ class MMM(RegressionModelBuilder):
         ----------
         data : pd.DataFrame | xr.Dataset | xr.DataArray
             Feature-like input with columns matching training ``X`` but with
-            channel values representing spend (original units). Must include the
-            same dates and model dimension labels as the training data.
-            Labeled xarray input preserves its coordinate order.
+            channel values representing spend (original units). Its dates,
+            dimension labels and channels must be exactly the model's; they are
+            matched by label and reordered to the model's coordinate order.
         calibration_data : pd.DataFrame
             DataFrame with rows specifying calibration targets. Must include:
 
@@ -4576,10 +4576,11 @@ class MMM(RegressionModelBuilder):
             (:class:`~pymc_marketing.mmm.lift_test.UnalignedValuesError`).
         ValueError
             If ``central_tendency`` is not ``"mean"`` or ``"median"``; if
+            ``target_column`` is ``"channel"``, ``"sigma"`` or a model dim; if
             ``name_prefix`` is the name of the increment node or of any model
             variable other than a prior calibration with that prefix; if a
             calibration value or ``sigma`` is not numeric; if the spend
-            coordinates do not match the model's; or if
+            labels differ from the model's or the spend is not finite; or if
             ``central_tendency="mean"`` with a wrapped likelihood, or under
             the log link with a likelihood scale that is fixed rather than a
             model variable.
@@ -4647,6 +4648,12 @@ class MMM(RegressionModelBuilder):
             raise ValueError(
                 f"central_tendency must be 'median' or 'mean', got {central_tendency!r}"
             )
+        if target_column in {"channel", "sigma", *self.dims}:
+            raise ValueError(
+                f"target_column {target_column!r} collides with a label or sigma "
+                "column of calibration_data; use a distinct column for the "
+                "calibration values."
+            )
 
         # A name that is, or will be, a model variable is refused before any
         # graph change. Only a prior calibration with the same prefix -- its
@@ -4707,14 +4714,27 @@ class MMM(RegressionModelBuilder):
 
         spend_xarray = spend_ds._channel
 
+        # The spend is combined with model tensors by dimension name, not by
+        # label, so it is aligned to the model's coordinate order here. Labels
+        # must match exactly; only their order may differ.
         for dim in channel_data_dims:
-            spend_labels = np.asarray(spend_xarray.coords[dim].values)
-            model_labels = np.asarray(self.model.coords[dim])
-            if not np.array_equal(spend_labels, model_labels):
-                raise ValueError(
-                    f"Spend data coordinates for dim {dim!r} do not match model coords: "
-                    f"expected {model_labels.tolist()}, got {spend_labels.tolist()}"
-                )
+            model_labels = pd.Index(self.model.coords[dim])
+            spend_labels = pd.Index(spend_xarray.coords[dim].values)
+            mismatch = ValueError(
+                f"Spend data coordinates for dim {dim!r} do not match model coords: "
+                f"expected {model_labels.tolist()}, got {spend_labels.tolist()}"
+            )
+            if len(spend_labels) != len(model_labels) or not spend_labels.is_unique:
+                raise mismatch
+            indexer = spend_labels.get_indexer(model_labels)
+            if (indexer < 0).any():
+                raise mismatch
+            spend_xarray = spend_xarray.isel({dim: indexer})
+        if not np.isfinite(spend_xarray.values).all():
+            raise ValueError(
+                "Spend data must contain finite values after missing entries are "
+                "filled with 0."
+            )
 
         # Snapshot only inputs consumed by this likelihood. Check serialization
         # before registering nodes, and retain canonical spend so xarray label
