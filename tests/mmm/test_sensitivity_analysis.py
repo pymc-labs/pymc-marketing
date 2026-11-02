@@ -12,8 +12,10 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 import copy
+import gc
 import importlib
 import math
+import weakref
 from concurrent.futures import ThreadPoolExecutor
 
 import cloudpickle
@@ -835,6 +837,122 @@ def test_multidim_run_sweep_matches_frozen_reference(
     )
 
 
+def test_multidim_interleaved_fractions_match_the_full_tree(multidim_mmm):
+    """One shared cache serves both draw fractions without mixing their draws.
+
+    ``posterior_sample_fraction`` is not part of the cache key, so a call at
+    another fraction rebinds the entry the previous call warmed.  Each result
+    must still equal the full-tree result for its own fraction, mask included.
+    """
+    sweeps = np.linspace(0.5, 1.5, 4)
+    kwargs = {
+        "var_names": "channel_contribution",
+        "sweep_type": "multiplicative",
+        "response_mask": _multidim_response_mask(),
+    }
+
+    for fraction in (1.0, 0.5, 1.0, 0.5):
+        # A fresh accessor per call: the cache, not the instance, is shared.
+        result = multidim_mmm.sensitivity.run_sweep(
+            "channel_data", sweeps, posterior_sample_fraction=fraction, **kwargs
+        )
+        expected = _reference_run_sweep(
+            multidim_mmm.sensitivity,
+            "channel_data",
+            sweeps,
+            posterior_sample_fraction=fraction,
+            **kwargs,
+        )
+        xr.testing.assert_allclose(result, expected)
+
+
+def _data_only_response_model_and_idata() -> tuple[pm.Model, xr.DataTree]:
+    """A model whose response reads no posterior variable, only ``pm.Data``."""
+    rng = np.random.default_rng(7)
+    coords = {"date": np.arange(6), "channel": list("abcd")}
+    with pm.Model(coords=coords) as model:
+        X = pmd.Data(
+            "channel_data", rng.gamma(2.0, 1.0, (6, 4)), dims=("date", "channel")
+        )
+        # A free RV the response does not read, so the posterior has a draw set.
+        pmd.Gamma("alpha", 1.0, 1.0, dims=("channel",))
+        pmd.Deterministic("channel_contribution", 2.0 * X, dims=("date", "channel"))
+
+    idata = xr.DataTree.from_dict(
+        {
+            "/posterior": xr.Dataset(
+                {
+                    "alpha": xr.DataArray(
+                        np.full((1, 5, 4), 0.8),
+                        dims=["chain", "draw", "channel"],
+                        coords={"channel": list("abcd")},
+                    )
+                }
+            )
+        }
+    )
+    return model, idata
+
+
+def test_run_sweep_a_data_only_response_keeps_its_failure_mode():
+    """A response that reads no draw keeps the whole tree, so it fails as before.
+
+    Such a response has no ``sample`` dim to transpose.  Narrowing it to an
+    empty posterior would fail earlier, about a missing ``draw`` dim, so the
+    tree is used whole and the error stays the one the uncached path raises.
+    """
+    model, idata = _data_only_response_model_and_idata()
+    analysis = SensitivityAnalysis(model, idata)
+    sweeps = np.linspace(0.5, 1.5, 4)
+
+    with pytest.raises(ValueError) as actual:
+        analysis.run_sweep("channel_data", sweeps, var_names="channel_contribution")
+    with pytest.raises(ValueError) as expected:
+        _reference_run_sweep(analysis, "channel_data", sweeps)
+
+    assert str(actual.value) == str(expected.value)
+
+
+def test_run_sweep_frees_draws_the_graph_does_not_read(simple_model_and_idata):
+    """A cached entry pins only the posterior draws its graph reads.
+
+    The warmed entry is never rebound: the second call asks a different
+    structure, so it builds its own entry and the first one stays cached.  A
+    posterior variable no graph reads must be collectable once the tree that
+    carried it is gone, which a full-posterior entry would prevent.
+    """
+    model, _ = simple_model_and_idata
+    posterior = _channel_varying_posterior(model).posterior.to_dataset()
+    posterior["unused"] = xr.DataArray(
+        np.full((1, 5, 4), 3.0),
+        dims=["chain", "draw", "channel"],
+        coords={"channel": list(model.coords["channel"])},
+    )
+    idata = xr.DataTree.from_dict({"/posterior": posterior})
+    freed = weakref.ref(idata.posterior["unused"].values)
+    sweeps = np.linspace(0.5, 1.5, 4)
+
+    analysis = SensitivityAnalysis(model, idata)
+    analysis.run_sweep(
+        "channel_data",
+        sweeps,
+        var_names="channel_contribution",
+        sweep_type="multiplicative",
+    )
+    assert freed() is not None
+
+    analysis.idata = xr.DataTree.from_dict(
+        {"/posterior": posterior.drop_vars("unused")}
+    )
+    analysis.run_sweep(
+        "channel_data", sweeps, var_names="channel_contribution", sweep_type="additive"
+    )
+    del posterior, idata
+    gc.collect()
+
+    assert freed() is None
+
+
 def test_run_sweep_reflects_set_data_between_calls(sensitivity):
     """``pm.set_data`` between calls must change the sweep, as it does today."""
     sweeps = np.linspace(0.5, 1.5, 4)
@@ -1022,6 +1140,25 @@ def test_run_sweep_a_posterior_missing_a_variable_keeps_the_cached_entry(
         analysis.run_sweep("channel_data", sweeps, **kwargs), first
     )
     assert len(sweep_compile_counter) == 1
+
+
+def test_run_sweep_a_posterior_missing_a_variable_names_it_on_a_cold_cache(
+    simple_model_and_idata,
+):
+    """Narrowing the posterior leaves the missing-variable error as it was."""
+    model, _ = simple_model_and_idata
+    posterior = _channel_varying_posterior(model).posterior.to_dataset()
+    analysis = SensitivityAnalysis(
+        model, xr.DataTree.from_dict({"posterior": posterior.drop_vars("alpha")})
+    )
+
+    with pytest.raises(KeyError, match=r"missing variables.*alpha"):
+        analysis.run_sweep(
+            "channel_data",
+            np.linspace(0.5, 1.5, 4),
+            var_names="channel_contribution",
+            sweep_type="multiplicative",
+        )
 
 
 def test_run_sweep_permuted_posterior_coords_are_label_correct(

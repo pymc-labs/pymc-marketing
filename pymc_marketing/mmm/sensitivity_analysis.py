@@ -110,6 +110,7 @@ from pymc_marketing.mmm.sweep_cache import (
 )
 from pymc_marketing.pytensor_utils import (
     extract_response_distribution,
+    needed_posterior_names,
     reorder_to_model_coords,
 )
 
@@ -297,10 +298,30 @@ class SensitivityAnalysis:
         else:
             self.idata["/sensitivity_analysis"] = dataset
 
-    def _selected_idata(self, posterior_sample_fraction: float) -> xr.DataTree:
-        """Return the inference data narrowed to the retained posterior draws."""
+    def _selected_idata(
+        self, var_names: str, posterior_sample_fraction: float
+    ) -> xr.DataTree:
+        """Return the posterior the sweep reads, narrowed to the retained draws.
+
+        A cache entry keeps the posterior it was built on, so handing it the
+        whole tree would pin every group and every variable for as long as the
+        entry lives.  Only the posterior variables the response graph reads are
+        kept, and only the ``posterior`` group: the sweep reads nothing else.
+
+        A response that reads no posterior variable -- a pure function of
+        ``pm.Data`` -- keeps the whole tree, as it did before the narrowing,
+        because an empty posterior has no ``chain`` or ``draw`` dims to select.
+        So does a posterior that lacks a variable the response reads, so the
+        conditioned model reports the missing names itself.
+        """
         draw_selection = self._draw_indices_for_percentage(posterior_sample_fraction)
-        return self.idata.isel(draw=draw_selection)
+        read_names = needed_posterior_names(self.model, [self.model[var_names]])
+        posterior = self.idata.posterior.to_dataset()
+        if not read_names or any(name not in posterior for name in read_names):
+            return self.idata.isel(draw=draw_selection)
+        # Selecting names on a DataTree raises, so narrow the dataset.
+        narrowed = xr.Dataset({name: posterior[name] for name in read_names})
+        return xr.DataTree.from_dict({"/posterior": narrowed.isel(draw=draw_selection)})
 
     def _sweep_key(
         self,
@@ -525,7 +546,7 @@ class SensitivityAnalysis:
             path but reads renamed or unlabeled coords by position, without
             checking them.
         """
-        idata = self._selected_idata(posterior_sample_fraction)
+        idata = self._selected_idata(var_names, posterior_sample_fraction)
         response_dims = tuple(getattr(self.model[var_names], "dims", ()))
         mask_values = (
             None
