@@ -23,6 +23,7 @@ import xarray as xr
 from pymc_extras.prior import Prior
 
 from pymc_marketing.data.idata.io import load_idata
+from pymc_marketing.data.idata.names import Dim
 from pymc_marketing.mmm.builders.factories import build, naming, resolve
 from pymc_marketing.mmm.builders.schema import CalibrationStep, MMMYamlConfig
 from pymc_marketing.mmm.data_conversion import (
@@ -160,7 +161,7 @@ def build_mmm_from_yaml(
                 f"Date column '{date_column}' specified in config not found "
                 f"in either X or y data."
             )
-    elif isinstance(X, xr.Dataset) and date_column and "date" not in X.coords:
+    elif isinstance(X, xr.Dataset) and date_column and Dim.DATE not in X.coords:
         raise ValueError(
             f"Date column '{date_column}' specified in config but Dataset "
             f"input is missing a 'date' coordinate."

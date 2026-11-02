@@ -28,6 +28,7 @@ from matplotlib.figure import Figure
 from numpy.typing import NDArray
 
 from pymc_marketing.data.idata import MMMIDataWrapper
+from pymc_marketing.data.idata.names import Dim
 from pymc_marketing.mmm.plotting._helpers import (
     _extract_matplotlib_result,
     _plot_timeseries_channel,
@@ -311,7 +312,7 @@ class DecompositionPlots:
                 continue
             da = _select_dims(contributions_ds[ds_key], dims, allow_missing=True)
             # mean over whichever of chain/draw/date are present (baseline has no date dim)
-            mean_dims = [d for d in ("chain", "draw", "date") if d in da.dims]
+            mean_dims = [d for d in ("chain", "draw", Dim.DATE) if d in da.dims]
             if coord_dim is not None:
                 for val in da.coords[coord_dim].values:
                     entries.append(

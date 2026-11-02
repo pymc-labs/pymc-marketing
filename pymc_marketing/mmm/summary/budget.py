@@ -30,6 +30,7 @@ from typing import Any
 
 import xarray as xr
 
+from pymc_marketing.data.idata.names import Dim, Var
 from pymc_marketing.mmm.summary.helpers import (
     DataFrameType,
     OutputFormat,
@@ -56,23 +57,23 @@ def prepare_allocation_roas(
     dims: dict[str, Any] | None = None,
 ) -> xr.DataArray:
     """Prepare per-channel ROAS DataArray from budget allocation samples."""
-    if "channel_contribution_original_scale" not in samples:
+    if Var.CHANNEL_CONTRIBUTION_ORIGINAL_SCALE not in samples:
         raise ValueError(
             "Expected 'channel_contribution_original_scale' variable in samples, "
             "but none found."
         )
-    if "allocation" not in samples:
+    if Var.ALLOCATION not in samples:
         raise ValueError("Expected 'allocation' variable in samples, but none found.")
-    if "channel" not in samples.dims:
+    if Dim.CHANNEL not in samples.dims:
         raise ValueError("Expected 'channel' dimension in samples, but none found.")
-    if "total_allocation" not in samples:
+    if Var.TOTAL_ALLOCATION not in samples:
         raise ValueError(
             "Expected 'total_allocation' variable in samples, but none found."
         )
 
     roas_da = (
-        samples["channel_contribution_original_scale"].sum("date")
-        / samples["total_allocation"]
+        samples[Var.CHANNEL_CONTRIBUTION_ORIGINAL_SCALE].sum("date")
+        / samples[Var.TOTAL_ALLOCATION]
     )
     roas_da.name = "roas"
     roas_da = _select_dims(roas_da, dims)
@@ -84,7 +85,7 @@ def prepare_contribution_over_time(
     dims: dict[str, Any] | None = None,
 ) -> xr.DataArray:
     """Prepare channel contribution time series from budget allocation samples."""
-    da = _select_dims(samples["channel_contribution_original_scale"], dims)
+    da = _select_dims(samples[Var.CHANNEL_CONTRIBUTION_ORIGINAL_SCALE], dims)
     return _ensure_chain_draw_dims(da)
 
 
@@ -165,7 +166,7 @@ class BudgetSummaryFactory:
         pd.DataFrame or pl.DataFrame
             Summary with date, channel, mean, median, and HDI columns.
         """
-        for dim in ("channel", "date"):
+        for dim in (Dim.CHANNEL, Dim.DATE):
             if dim not in samples.dims:
                 raise ValueError(
                     f"Expected '{dim}' dimension in samples, but none found."
@@ -177,7 +178,7 @@ class BudgetSummaryFactory:
             raise ValueError(
                 "Expected 'sample' or ('chain', 'draw') dimensions in samples."
             )
-        if "channel_contribution_original_scale" not in samples.data_vars:
+        if Var.CHANNEL_CONTRIBUTION_ORIGINAL_SCALE not in samples.data_vars:
             raise ValueError(
                 "Expected 'channel_contribution_original_scale' variable in samples, "
                 "but none found."

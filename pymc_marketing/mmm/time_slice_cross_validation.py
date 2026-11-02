@@ -33,6 +33,7 @@ import xarray as xr
 from pymc_extras.prior import Prior
 from tqdm.auto import tqdm
 
+from pymc_marketing.data.idata.names import Group, Var, original_scale
 from pymc_marketing.mmm.builders.yaml import build_mmm_from_yaml
 from pymc_marketing.mmm.link import LinkFunction
 from pymc_marketing.mmm.plot import MMMPlotSuite
@@ -87,7 +88,7 @@ def _add_original_scale_predictions(idata: xr.DataTree, output_var: str) -> None
     output_var : str
         Name of the observed variable (``MMM.output_var``).
     """
-    name = f"{output_var}_original_scale"
+    name = original_scale(output_var)
     pp = None
     target_scale = None
     if isinstance(idata, xr.DataTree):
@@ -97,7 +98,7 @@ def _add_original_scale_predictions(idata: xr.DataTree, output_var: str) -> None
             return
         if "posterior_predictive_constant_data" in idata.children:
             target_scale = idata["posterior_predictive_constant_data"].dataset.get(
-                "target_scale"
+                Var.TARGET_SCALE
             )
 
     if not isinstance(idata, xr.DataTree):
@@ -450,7 +451,7 @@ class TimeSliceCrossValidator:
 
             # Build a cv_metadata Dataset that stores per-fold metadata
             ds_meta = self._create_metadata(cv_coord)
-            combined_kwargs["cv_metadata"] = ds_meta
+            combined_kwargs[Group.CV_METADATA] = ds_meta
 
             if combined_kwargs:
                 cv_idata = xr.DataTree.from_dict(
@@ -639,7 +640,7 @@ class TimeSliceCrossValidator:
         )
         if mmm.idata is not None:
             _add_original_scale_predictions(
-                mmm.idata, output_var=getattr(mmm, "output_var", "y")
+                mmm.idata, output_var=getattr(mmm, "output_var", Var.Y)
             )
 
         return TimeSliceCrossValidationResult(

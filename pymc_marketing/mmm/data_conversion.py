@@ -81,6 +81,8 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 
+from pymc_marketing.data.idata.names import Dim
+
 
 def to_mmm_dataset(
     X: pd.DataFrame | xr.Dataset | xr.DataArray,
@@ -181,7 +183,7 @@ def to_mmm_dataset(
                 "pass either a Dataset with a target or a separate y, not both."
             )
         y_da = _to_mmm_target(y)
-        if "date" not in y_da.coords:
+        if Dim.DATE not in y_da.coords:
             if isinstance(X, pd.DataFrame):
                 y_da = _reshape_flat_target(
                     y_da,
@@ -199,7 +201,7 @@ def to_mmm_dataset(
     elif not _dataset_has_target(ds) and isinstance(X, pd.DataFrame):
         if target_column and target_column in X.columns:
             y_da = _to_mmm_target(X[target_column])
-            if "date" not in y_da.coords:
+            if Dim.DATE not in y_da.coords:
                 y_da = _reshape_flat_target(
                     y_da,
                     X,
@@ -396,10 +398,10 @@ def _validate_mmm_structure(X: xr.Dataset, **params) -> None:
             "xarray promotes it to a dimension coordinate."
         )
 
-    if "date" not in X.coords:
+    if Dim.DATE not in X.coords:
         raise ValueError("Dataset missing required coordinate 'date'.")
 
-    if "channel" not in X.indexes:
+    if Dim.CHANNEL not in X.indexes:
         raise ValueError(
             "Dataset missing required coordinate 'channel'. "
             "Ensure your media variable has a 'channel' dimension."
@@ -414,7 +416,7 @@ def _validate_mmm_structure(X: xr.Dataset, **params) -> None:
             f"coordinate. Use '_control' instead."
         )
 
-    if control_columns and "control" not in X.indexes:
+    if control_columns and Dim.CONTROL not in X.indexes:
         raise ValueError(
             "Dataset missing required coordinate 'control'. Ensure your "
             "'_control' variable has a 'control' dimension labelled with the "
@@ -493,10 +495,10 @@ def _to_canonical_layout(ds: xr.Dataset, dims: tuple[str, ...]) -> xr.Dataset:
     # The model registers these variables with the layout they have here, and
     # prediction writes new data into them by position in this layout, so the
     # two have to agree whatever order the input's dims are in (#3224).
-    lead = ("date", *dims)
+    lead = (Dim.DATE, *dims)
     for var, tail in (
-        ("_channel", ("channel",)),
-        ("_control", ("control",)),
+        ("_channel", (Dim.CHANNEL,)),
+        ("_control", (Dim.CONTROL,)),
         ("_target", ()),
     ):
         if var in ds.data_vars:

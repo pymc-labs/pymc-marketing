@@ -77,6 +77,7 @@ from pytensor.graph.traversal import ancestors
 from pytensor.xtensor.type import XTensorVariable
 from pytensor.xtensor.vectorization import vectorize_graph
 
+from pymc_marketing.data.idata.names import Dim, Var
 from pymc_marketing.mmm.transformers import ConvMode
 from pymc_marketing.pytensor_utils import ConditionedModel
 
@@ -809,8 +810,8 @@ class CounterfactualEvaluator:
         mutated after fitting.
     """
 
-    CHANNEL_DATA = "channel_data"
-    TIME_INDEX = "time_index"
+    CHANNEL_DATA = Var.CHANNEL_DATA
+    TIME_INDEX = Var.TIME_INDEX
     BATCH_DIM = "__batch__"
     """Dimension the scenario axis is carried on through the vectorized graph."""
 
@@ -1300,7 +1301,7 @@ class CounterfactualEvaluator:
                 f"of float type, got {target_var.dtype}"
             )
         dims = getattr(target_var.type, "dims", None)
-        if not dims or dims[0] != "date":
+        if not dims or dims[0] != Dim.DATE:
             raise ValueError(
                 f"Intervention target {target!r} must carry a leading 'date' "
                 f"dimension, got dims {dims}.  Windowed evaluation cuts the "
@@ -1423,7 +1424,7 @@ class CounterfactualEvaluator:
         tuple of str
             The remaining dimensions, in the graph's own order.
         """
-        return tuple(d for d in graph.type.dims if d not in ("sample", "date"))
+        return tuple(d for d in graph.type.dims if d not in ("sample", Dim.DATE))
 
     @staticmethod
     def _batched(variable, name: str):
@@ -1503,7 +1504,7 @@ class CounterfactualEvaluator:
             for data in pymc_model.data_vars
             if data in graph_ancestors
             and data.name not in handled
-            and "date" in pymc_model.named_vars_to_dims.get(data.name, ())
+            and Dim.DATE in pymc_model.named_vars_to_dims.get(data.name, ())
         ]
 
     def evaluate_baseline(self, target_values: np.ndarray) -> dict[str, np.ndarray]:
