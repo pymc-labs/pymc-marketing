@@ -12,7 +12,10 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 import warnings
+from collections.abc import Callable
+from typing import Any
 
+import narwhals.stable.v2 as nw
 import numpy as np
 import pandas as pd
 import pymc as pm
@@ -28,6 +31,40 @@ from pymc_marketing.clv.models import (
     ModifiedBetaGeoModel,
     ParetoNBDModel,
 )
+
+# Dataframe libraries the Narwhals-based CLV utilities are tested against.
+BACKENDS = ["pandas", "polars", "polars_lazy", "pyarrow", "duckdb"]
+
+
+@pytest.fixture(params=BACKENDS)
+def to_backend(request) -> Callable[[pd.DataFrame], Any]:
+    """Convert a pandas frame into the native frame of the parametrised backend."""
+    name = request.param
+
+    def convert(df: pd.DataFrame):
+        if name == "pandas":
+            return df
+        if name in ("polars", "polars_lazy"):
+            pl = pytest.importorskip("polars")
+            out = pl.from_pandas(df)
+            return out.lazy() if name == "polars_lazy" else out
+        pa = pytest.importorskip("pyarrow")
+        table = pa.Table.from_pandas(df, preserve_index=False)
+        if name == "pyarrow":
+            return table
+        duckdb = pytest.importorskip("duckdb")
+        return duckdb.from_arrow(table)
+
+    convert.backend_name = name  # type: ignore[attr-defined]
+    return convert
+
+
+def collect_sorted(result, by: str | list[str] = "customer_id") -> pd.DataFrame:
+    """Materialise any native frame into a pandas frame sorted by ``by``."""
+    frame = nw.from_native(result)
+    if isinstance(frame, nw.LazyFrame):
+        frame = frame.collect()
+    return frame.sort(by).to_pandas().reset_index(drop=True)
 
 
 @pytest.fixture(scope="module")
