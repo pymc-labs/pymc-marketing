@@ -9212,6 +9212,22 @@ def test_cost_per_target_persistence_loaded_model_posterior_predictive(
     assert predictive.sizes["date"] == 6
 
 
+def test_build_from_idata_warns_on_unrestored_observed_terms(mock_pymc_sample):
+    mmm, X, y, spend, rows = _cpt_persistence_inputs()
+    _attach_cpt(mmm, spend, rows, "cpt")
+    mmm.fit(X, y)
+    legacy = copy.deepcopy(mmm.idata)
+    del legacy.attrs["cost_per_target_calibrations"]
+    del legacy[COST_PER_TARGET_SPEND_GROUP]
+    with pytest.warns(UserWarning, match=r"\['cpt'\]"):
+        loaded = MMM.load_from_idata(legacy)
+    assert "cpt" not in loaded.model.named_vars
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        MMM.load_from_idata(copy.deepcopy(mmm.idata))
+    assert not [w for w in caught if "rebuilt model lacks" in str(w.message)]
+
+
 def test_cost_per_target_persistence_normalizes_numeric_objects():
     from decimal import Decimal
 

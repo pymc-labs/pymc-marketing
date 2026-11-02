@@ -5185,6 +5185,10 @@ class MMM(RegressionModelBuilder):
         else:
             vars_to_restore = []
 
+        # Cost-per-target restoration under the identity link already registered
+        # ``channel_contribution_original_scale`` (and a calibration may itself be
+        # named ``<var>_original_scale``); skip those so the call below does not
+        # warn about them.
         vars_to_restore = [
             var
             for var in vars_to_restore
@@ -5192,6 +5196,26 @@ class MMM(RegressionModelBuilder):
         ]
         if vars_to_restore:
             self.add_original_scale_contribution_variable(var=vars_to_restore)
+
+        # Every observed term of the fitted graph should be back. Anything left
+        # over is calibration whose inputs the file does not carry (saved before
+        # calibration persistence, or with `groups=` that dropped them).
+        if "observed_data" in idata.children:
+            missing_terms = sorted(
+                set(idata.observed_data.data_vars)
+                - {rv.name for rv in self.model.observed_RVs}
+                - unrestored_cpt
+            )
+            if missing_terms:
+                warnings.warn(
+                    f"The saved observed data has likelihood terms {missing_terms} "
+                    "that the rebuilt model lacks. They came from calibration whose "
+                    "inputs were not stored with the model (files saved before "
+                    "calibration persistence, or saved with `groups=` that dropped "
+                    "them); those likelihoods are not restored.",
+                    UserWarning,
+                    stacklevel=2,
+                )
 
     def set_cost_per_unit(
         self,
