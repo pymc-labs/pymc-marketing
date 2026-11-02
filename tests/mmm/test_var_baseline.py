@@ -14,8 +14,10 @@
 """Tests for the VAR baseline effect and its optional Impulso dependency."""
 
 import sys
+from functools import partial
 from unittest.mock import patch
 
+import arviz as az
 import numpy as np
 import pandas as pd
 import pymc as pm
@@ -36,7 +38,15 @@ from pymc_marketing.mmm.scaling import FixedScaling
 
 pytest.importorskip("impulso")
 
-from impulso import VAR, Constant, InnovationScalePrior, MinnesotaPrior, ar1_residual_sd
+from impulso import (
+    VAR,
+    Constant,
+    InnovationScalePrior,
+    MinnesotaPrior,
+    NUTSSampler,
+    VARData,
+    ar1_residual_sd,
+)
 
 seed: int = sum(map(ord, "VARBaselineEffect"))
 PREFIX = "brand_var"
@@ -117,15 +127,24 @@ def make_mmm(effect, date_column: str = "date", **kwargs) -> MMM:
     ).add_mu_effect(effect)
 
 
-@pytest.fixture(scope="module")
-def fitted_mmm(brand_mmm_data) -> MMM:
-    mmm = make_mmm(make_effect(brand_mmm_data["brand_data"]))
+def fit_mmm(data: dict, effect: VARBaselineEffect) -> MMM:
+    """An MMM with ``effect``, fitted to ``data`` with prior draws in place of NUTS.
+
+    The fit has a ``diverging`` sampler statistic, as a NUTS fit would.
+    """
+    mmm = make_mmm(effect)
     # Patched for this fit only: the module-scoped `mock_pymc_sample` would stay
     # active for the rest of the module and turn the slow NUTS test into prior
     # draws.
-    with patch.object(pm, "sample", mock_sample):
-        mmm.fit(brand_mmm_data["X"], brand_mmm_data["y"], draws=20, random_seed=seed)
+    sample = partial(mock_sample, sample_stats={"diverging": np.zeros})
+    with patch.object(pm, "sample", sample):
+        mmm.fit(data["X"], data["y"], draws=20, random_seed=seed)
     return mmm
+
+
+@pytest.fixture(scope="module")
+def fitted_mmm(brand_mmm_data) -> MMM:
+    return fit_mmm(brand_mmm_data, make_effect(brand_mmm_data["brand_data"]))
 
 
 class OwnLagPrior:
@@ -315,11 +334,9 @@ def test_fit_with_any_brand_column_names(brand_mmm_data, exog_names):
         endog_names=endog_names,
         exog_names=exog_names,
     )
-    mmm = make_mmm(effect)
-    with patch.object(pm, "sample", mock_sample):
-        mmm.fit(brand_mmm_data["X"], brand_mmm_data["y"], draws=20, random_seed=seed)
 
-    posterior = mmm.idata.posterior
+    posterior = fit_mmm(brand_mmm_data, effect).idata.posterior
+
     assert posterior[f"{PREFIX}::B"].coords["var"].values.tolist() == endog_names
     assert list(posterior.indexes.get("exog", [])) == exog_names
 
@@ -1022,3 +1039,311 @@ def test_nuts_recovers_the_baseline(nuts_fitted_mmm, long_brand_mmm_data):
     assert correlation > 0.95
     error = np.abs((baseline - baseline.mean()) - (truth - truth.mean()))
     assert error[:4].mean() < 2 * error[26:].mean()
+
+
+@pytest.mark.parametrize(
+    "prepare",
+    [
+        pytest.param(lambda mmm, data: None, id="not-built"),
+        pytest.param(
+            lambda mmm, data: mmm.sample_prior_predictive(
+                data["X"], data["y"], samples=10, random_seed=seed
+            ),
+            id="prior-only",
+        ),
+    ],
+)
+def test_fitted_var_before_fit_raises(brand_mmm_data, prepare):
+    effect = make_effect(brand_mmm_data["brand_data"])
+    mmm = make_mmm(effect)
+    prepare(mmm, brand_mmm_data)
+
+    with pytest.raises(
+        RuntimeError, match=rf"'{PREFIX}'.*hasn't been fit yet, call \.fit\(\) first"
+    ):
+        effect.fitted_var(mmm)
+
+
+@pytest.mark.parametrize(
+    "effect_kwargs, match",
+    [
+        pytest.param(
+            {"prefix": "tv_var"},
+            r"'tv_var'.*no 'tv_var::' variables",
+            id="other-prefix",
+        ),
+        pytest.param(
+            {"endog_names": ["baseline", "consideration", "awareness"]},
+            rf"'{PREFIX}'.*\['baseline', 'awareness', 'consideration'\]",
+            id="other-endog-order",
+        ),
+        pytest.param(
+            {"exog_names": []},
+            rf"'{PREFIX}'.*\['brand_spend'\]",
+            id="exog-dropped",
+        ),
+    ],
+)
+def test_fitted_var_on_an_mmm_fitted_with_another_effect_raises(
+    fitted_mmm, brand_mmm_data, effect_kwargs, match
+):
+    """The effect must be the one the MMM was fitted with, with the same series."""
+    effect = make_effect(brand_mmm_data["brand_data"], **effect_kwargs)
+
+    with pytest.raises(ValueError, match=match):
+        effect.fitted_var(fitted_mmm)
+
+
+def test_fitted_var_holds_the_var_parameters(fitted_mmm):
+    """The VAR's parameters and the sampler statistics, without the baseline path.
+
+    Everything but the intercept passes through unchanged, under Impulso's names.
+    """
+    fitted = fitted_mmm.mu_effects[0].fitted_var(fitted_mmm)
+    posterior = fitted.idata.posterior
+    passed_through = [
+        "B",
+        "B_exog",
+        "L",
+        "Sigma",
+        "tril_offdiag",
+        "sigma_sd_0",
+        "sigma_sd_1",
+        "sigma_sd_2",
+    ]
+
+    assert set(fitted.idata.children) == {"posterior", "sample_stats"}
+    assert set(posterior.data_vars) == {"intercept", *passed_through}
+    for name in passed_through:
+        np.testing.assert_array_equal(
+            posterior[name], fitted_mmm.idata.posterior[f"{PREFIX}::{name}"]
+        )
+    assert posterior["intercept"].coords["var"].values.tolist() == ENDOG_NAMES
+    assert "diverging" in fitted.idata.sample_stats
+
+
+def test_fitted_var_data_are_the_raw_brand_data_on_the_mmm_dates(shorter_mmm_data):
+    """The baseline is its posterior mean path; the brand columns are not centered."""
+    effect = make_effect(shorter_mmm_data["brand_data"])
+    mmm = fit_mmm(shorter_mmm_data, effect)
+    mmm_dates = shorter_mmm_data["X"]["date"]
+    brand_data = shorter_mmm_data["brand_data"]
+    brand_data = brand_data[brand_data["date"].isin(mmm_dates)]
+    baseline = mmm.idata.posterior[f"{PREFIX}::latent"].mean(("chain", "draw"))
+
+    data = effect.fitted_var(mmm).data
+
+    assert data.index.equals(pd.DatetimeIndex(mmm_dates))
+    np.testing.assert_array_equal(
+        data.endog, np.column_stack([baseline, brand_data[ENDOG_NAMES[1:]]])
+    )
+    np.testing.assert_array_equal(data.exog, brand_data[["brand_spend"]])
+
+
+def one_step_mean(
+    intercept: np.ndarray,
+    B: np.ndarray,
+    B_exog: np.ndarray | None,
+    endog: np.ndarray,
+    exog: np.ndarray | None,
+) -> np.ndarray:
+    """A VAR's mean at each date from ``n_lags`` on, given the data before it.
+
+    The coefficients have dims ``(chain, draw, var, ...)``, with ``B``'s columns
+    lag-major. ``endog`` is ``(date, var)``, or ``(chain, draw, date, var)`` for
+    data that differ by draw. The mean has dims ``(chain, draw, time, var)``.
+    """
+    n_dates, n_vars = endog.shape[-2:]
+    n_lags = B.shape[-1] // n_vars
+    mean = intercept[..., None, :]
+    for lag in range(1, n_lags + 1):
+        A = B[..., (lag - 1) * n_vars : lag * n_vars]
+        lagged = endog[..., n_lags - lag : n_dates - lag, :]
+        mean = mean + np.einsum("...ij,...tj->...ti", A, lagged)
+    if B_exog is not None:
+        mean = mean + np.einsum("...ij,tj->...ti", B_exog, exog[n_lags:])
+    return mean
+
+
+def obs_potential(mmm: MMM) -> np.ndarray:
+    """The graph's ``{prefix}::obs`` potential at each posterior draw.
+
+    It is the log-likelihood of the brand metrics given the baseline's innovations.
+    """
+    model = mmm.model
+    names = [rv.name for rv in model.free_RVs if rv.name.startswith(f"{PREFIX}::")]
+    potential = model.compile_fn(
+        model[f"{PREFIX}::obs"],
+        inputs=[model[name] for name in names],
+        on_unused_input="ignore",
+    )
+    draws = mmm.idata.posterior.to_dataset()[names]
+    sizes = (draws.sizes["chain"], draws.sizes["draw"])
+    values = [
+        potential({name: draws[name].to_numpy()[index] for name in names})
+        for index in np.ndindex(sizes)
+    ]
+    return np.reshape(values, sizes)
+
+
+@pytest.mark.parametrize("lags", [1, 2])
+@pytest.mark.parametrize("exog_names", [["brand_spend"], []], ids=["exog", "no-exog"])
+def test_fitted_var_reproduces_the_mmm_graph(shorter_mmm_data, lags, exog_names):
+    """At each draw, the ``FittedVAR`` on the raw data gives what the graph gave.
+
+    The raw data take each draw's own baseline path. The baseline's one-step-ahead
+    mean plus its scaled innovation is the path the graph generated, and the brand
+    metrics' residuals from their one-step-ahead means, less the baseline
+    innovation's share, have the log-likelihood the graph's potential gives them.
+    """
+    effect = make_effect(
+        shorter_mmm_data["brand_data"], var=VAR(lags=lags), exog_names=exog_names
+    )
+    mmm = fit_mmm(shorter_mmm_data, effect)
+    posterior = mmm.idata.posterior
+    brand_data = shorter_mmm_data["brand_data"]
+    brand_data = brand_data[brand_data["date"].isin(shorter_mmm_data["X"]["date"])]
+    latent = posterior[f"{PREFIX}::latent"].to_numpy()
+    innovations = posterior[f"{PREFIX}::latent_innovations"].to_numpy()[..., 0]
+    observed = brand_data[ENDOG_NAMES[1:]].to_numpy()
+    endog = np.concatenate(
+        [latent, np.broadcast_to(observed, (*latent.shape[:2], *observed.shape))],
+        axis=-1,
+    )
+
+    fitted = effect.fitted_var(mmm).idata.posterior
+    mean = one_step_mean(
+        fitted["intercept"].to_numpy(),
+        fitted["B"].to_numpy(),
+        fitted["B_exog"].to_numpy() if exog_names else None,
+        endog,
+        brand_data[exog_names].to_numpy() if exog_names else None,
+    )
+    L = fitted["L"].to_numpy()
+    baseline = mean[..., 0] + L[:, :, None, 0, 0] * innovations
+    residuals = (
+        endog[..., lags:, 1:]
+        - mean[..., 1:]
+        - L[:, :, None, 1:, 0] * innovations[..., None]
+    )
+    loglik = [
+        stats.multivariate_normal(cov=chol[1:, 1:] @ chol[1:, 1:].T).logpdf(resid).sum()
+        for chol, resid in zip(
+            L.reshape(-1, *L.shape[2:]),
+            residuals.reshape(-1, *residuals.shape[2:]),
+            strict=True,
+        )
+    ]
+
+    np.testing.assert_allclose(baseline, latent[:, :, lags:, 0], rtol=1e-12, atol=1e-12)
+    np.testing.assert_allclose(
+        np.reshape(loglik, L.shape[:2]), obs_potential(mmm), rtol=1e-12
+    )
+
+
+def test_dynamic_multiplier_runs_on_the_fitted_var(fitted_mmm):
+    """On impact, the multiplier is ``B_exog``, and a week later ``A_1 B_exog``."""
+    posterior = fitted_mmm.idata.posterior
+    A_1 = posterior[f"{PREFIX}::B"].to_numpy()[..., : len(ENDOG_NAMES)]
+    B_exog = posterior[f"{PREFIX}::B_exog"].to_numpy()
+    fitted = fitted_mmm.mu_effects[0].fitted_var(fitted_mmm)
+
+    multiplier = fitted.dynamic_multiplier(horizon=4)
+
+    draws = multiplier.idata.posterior_predictive["dynamic_multiplier"]
+    assert draws.sizes["horizon"] == 5
+    np.testing.assert_allclose(draws.sel(horizon=0), B_exog)
+    np.testing.assert_allclose(draws.sel(horizon=1), A_1 @ B_exog)
+
+
+def true_cumulative_multiplier(horizon: int) -> float:
+    """The true baseline's cumulative response to a unit of brand spend.
+
+    It sums ``A^h b`` over ``h = 0, ..., horizon``, where ``A`` is the lag matrix
+    of ``make_brand_mmm_data`` and ``b`` its brand spend loadings, in the order of
+    ``ENDOG_NAMES``.
+    """
+    A = np.array([[0.5, 0.0, 0.6], [0.0, 0.9, 0.0], [0.0, 0.4, 0.8]])
+    b = np.array([0.0, 0.25, 0.0])
+    response = [np.linalg.matrix_power(A, h) @ b for h in range(horizon + 1)]
+    return float(np.sum(response, axis=0)[0])
+
+
+@pytest.mark.slow
+def test_cumulative_multiplier_recovers_the_truth(nuts_fitted_mmm):
+    """The 26-week cumulative multiplier of brand spend on the baseline is recovered.
+
+    Its 94% HDI holds the true multiplier and excludes zero.
+    """
+    fitted = nuts_fitted_mmm.mu_effects[0].fitted_var(nuts_fitted_mmm)
+
+    multiplier = fitted.dynamic_multiplier(horizon=26)
+
+    cumulative = (
+        multiplier.idata.posterior_predictive["dynamic_multiplier"]
+        .sel(response="baseline", exog="brand_spend")
+        .sum("horizon")
+    )
+    lower, upper = az.hdi(cumulative, prob=0.94).to_numpy()
+    assert 0 < lower < true_cumulative_multiplier(26) < upper
+
+
+@pytest.mark.slow
+def test_uncentering_maps_var_fit_on_centered_data_onto_var_fit_on_raw_data(
+    brand_mmm_data,
+):
+    """Uncentering ``VAR.fit`` on centered data gives ``VAR.fit`` on the raw data.
+
+    This checks the uncentering against Impulso's own estimator, with the true
+    baseline observed, and does not run the effect's model. The effect's baseline
+    equation has no free intercept and its own priors, so the effect's posterior is
+    not expected to match ``VAR.fit``; ``test_fitted_var_reproduces_the_mmm_graph``
+    checks ``fitted_var`` against the effect's graph instead.
+
+    The brand columns are centered as the effect centers them and the baseline not
+    at all. The two fits' priors differ only in where the standard normal intercept
+    prior sits, on the centered or the raw intercept, which at these posterior scales
+    is far below Monte Carlo error. With over 1,000 effective draws per fit, the
+    Monte Carlo error of a difference of means is about 0.04 posterior sd, so the
+    means must agree within 0.2 posterior sd and the sds within 10%. Uncentering
+    moves the intercepts by more than a posterior sd, far outside that tolerance.
+    """
+    from pymc_marketing.mmm.var_baseline import _uncenter
+
+    brand_data = brand_mmm_data["brand_data"]
+    endog = np.column_stack([brand_mmm_data["baseline"], brand_data[ENDOG_NAMES[1:]]])
+    exog = brand_data[["brand_spend"]].to_numpy()
+    endog_mean = np.concatenate([[0.0], endog[:, 1:].mean(axis=0)])
+    exog_mean = exog.mean(axis=0)
+    sampler = NUTSSampler(
+        chains=4,
+        cores=4,
+        target_accept=0.95,
+        random_seed=seed,
+        nuts_sampler="pymc",
+        progressbar=False,
+    )
+
+    def fit(endog: np.ndarray, exog: np.ndarray) -> xr.Dataset:
+        data = VARData(
+            endog=endog,
+            endog_names=ENDOG_NAMES,
+            exog=exog,
+            exog_names=["brand_spend"],
+            index=pd.DatetimeIndex(brand_data["date"]),
+        )
+        return VAR(lags=2).fit(data, sampler).idata.posterior.to_dataset()
+
+    uncentered = _uncenter(
+        fit(endog - endog_mean, exog - exog_mean), endog_mean, exog_mean
+    )
+    raw = fit(endog, exog)
+
+    for name in ["intercept", "B", "B_exog"]:
+        mean, sd = raw[name].mean(("chain", "draw")), raw[name].std(("chain", "draw"))
+        np.testing.assert_array_less(
+            abs(uncentered[name].mean(("chain", "draw")) - mean), 0.2 * sd
+        )
+        np.testing.assert_allclose(
+            uncentered[name].std(("chain", "draw")), sd, rtol=0.1
+        )

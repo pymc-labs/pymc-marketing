@@ -22,7 +22,7 @@ used, so PyMC-Marketing imports without it.
 from collections import Counter
 from importlib import metadata
 from types import ModuleType
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 import numpy as np
 import pandas as pd
@@ -39,7 +39,7 @@ from pymc_marketing.mmm.additive_effect import MuEffect, safe_to_datetime
 from pymc_marketing.mmm.link import LinkFunction
 
 if TYPE_CHECKING:
-    from impulso import VAR
+    from impulso import VAR, FittedVAR, VARData
 
     from pymc_marketing.mmm.mmm import MMM
 
@@ -96,6 +96,48 @@ def _import_impulso() -> ModuleType:
     return impulso
 
 
+def _uncenter(
+    posterior: xr.Dataset, endog_mean: np.ndarray, exog_mean: np.ndarray | None
+) -> xr.Dataset:
+    """Return the posterior of a VAR fitted to centered data, on the raw data.
+
+    A VAR fitted to ``y - mu_y`` and ``x - mu_x`` with intercept ``c``, lag
+    coefficients ``A_1, ..., A_p`` and exogenous coefficients ``B_exog`` is, on ``y``
+    and ``x``, the VAR with the same coefficients and the intercept
+    ``c + (I - A_1 - ... - A_p) mu_y - B_exog mu_x``. It is computed for every draw.
+
+    Parameters
+    ----------
+    posterior : xr.Dataset
+        Draws of Impulso's ``intercept``, ``B`` and, with exogenous data, ``B_exog``.
+    endog_mean : np.ndarray
+        ``mu_y``, in the order of the posterior's ``var`` coordinate.
+    exog_mean : np.ndarray or None
+        ``mu_x``, in the order of the posterior's ``exog`` coordinate, or ``None``
+        without exogenous data.
+
+    Returns
+    -------
+    xr.Dataset
+        ``posterior`` with the intercept on the raw data.
+    """
+    n_lags = posterior.sizes["coeff"] // posterior.sizes["var"]
+    # `B`'s columns are lag-major, so `B` times `mu_y` repeated once per lag is
+    # the sum of `A_l mu_y` over the lags.
+    lagged_mean = xr.DataArray(np.tile(endog_mean, n_lags), dims="coeff")
+    intercept = (
+        posterior["intercept"]
+        + xr.DataArray(endog_mean, dims="var")
+        - xr.dot(posterior["B"], lagged_mean, dim="coeff")
+    )
+    if exog_mean is not None:
+        intercept = intercept - xr.dot(
+            posterior["B_exog"], xr.DataArray(exog_mean, dims="exog"), dim="exog"
+        )
+    # Impulso reads the intercept's draws by position.
+    return posterior.assign(intercept=intercept.transpose("chain", "draw", "var"))
+
+
 def _format_dates(dates: pd.DatetimeIndex, limit: int = 5) -> str:
     """Return the first ``limit`` dates, and how many more there are, for a message.
 
@@ -147,7 +189,9 @@ class VARBaselineEffect(MuEffect):
     raises sales, such as consideration, is below its mean, as between brand
     flights, it pushes the baseline below zero. The ``{prefix}_effect`` column of
     ``mmm.compute_mean_contributions_over_time()`` is therefore a deviation, not the
-    sales the brand caused, and it sums to about zero over time.
+    sales the brand caused, and it sums to about zero over time. The brand's return
+    comes from ``fitted_var(mmm).dynamic_multiplier(...)`` instead, see
+    :meth:`fitted_var`.
 
     The baseline's innovation standard deviation, ``{prefix}::sigma_sd_0``, has a
     half-normal prior with scale U / 1.96, so it exceeds U with prior probability
@@ -223,12 +267,12 @@ class VARBaselineEffect(MuEffect):
     Notes
     -----
     The baseline exists only on the dates the MMM is fitted on. On those dates,
-    fitting, the contribution decomposition, the MMM's summaries and posterior
-    predictive sampling work. Channel incrementality is not supported yet. The
-    budget optimizer runs on any window but ignores the baseline, as it should: brand
-    spend is an exogenous input of the VAR, not a channel. Posterior predictive
-    sampling and ``predict`` on other dates are not supported, and they fail inside
-    PyTensor with an error that does not name the effect.
+    fitting, the contribution decomposition, the MMM's summaries, :meth:`fitted_var`
+    and posterior predictive sampling work. Channel incrementality is not supported
+    yet. The budget optimizer runs on any window but ignores the baseline, as it
+    should: brand spend is an exogenous input of the VAR, not a channel. Posterior
+    predictive sampling and ``predict`` on other dates are not supported, and they
+    fail inside PyTensor with an error that does not name the effect.
 
     The MMM must have no ``dims``, ``time_varying_intercept=False`` and
     ``link="identity"``, and building any other MMM raises. The VAR has no
@@ -311,6 +355,11 @@ class VARBaselineEffect(MuEffect):
         # The baseline, a deviation in the target's units, next to the other
         # components
         mmm.compute_mean_contributions_over_time()["brand_var_effect"]
+
+        # The VAR in the data's units, as an Impulso FittedVAR whose baseline is a
+        # deviation around the MMM's intercept: the response of the baseline and
+        # the brand metrics to a unit of brand spend
+        brand_var.fitted_var(mmm).dynamic_multiplier(horizon=26).median()
     """
 
     brand_data: InstanceOf[pd.DataFrame]
@@ -328,7 +377,8 @@ class VARBaselineEffect(MuEffect):
     def _copy_brand_data(cls, brand_data: pd.DataFrame) -> pd.DataFrame:
         """Copy ``brand_data``.
 
-        Without the copy, later edits to the caller's frame would bypass the checks.
+        Without the copy, later edits to the caller's frame would bypass the checks
+        and change the centering means of :meth:`fitted_var`.
         """
         return brand_data.copy()
 
@@ -488,15 +538,15 @@ class VARBaselineEffect(MuEffect):
                 "link."
             )
 
-        named_data = self._brand_data_on_mmm_dates(mmm)[self._column_names]
-        finite = np.isfinite(named_data.to_numpy(dtype=float)).all(axis=0)
-        if non_finite := named_data.columns[~finite].tolist():
+        columns, _ = self._brand_columns(mmm)
+        finite = np.isfinite(columns.to_numpy()).all(axis=0)
+        if non_finite := columns.columns[~finite].tolist():
             raise ValueError(
                 f"VARBaselineEffect {self.prefix!r} needs finite brand data: columns "
                 f"{non_finite} of brand_data contain NaN or infinite values on the "
                 "MMM's dates."
             )
-        if constant_columns := named_data.columns[named_data.nunique() == 1].tolist():
+        if constant_columns := columns.columns[columns.nunique() == 1].tolist():
             raise ValueError(
                 f"VARBaselineEffect {self.prefix!r} needs brand data that vary over "
                 f"the MMM's dates: columns {constant_columns} of brand_data are "
@@ -528,12 +578,9 @@ class VARBaselineEffect(MuEffect):
             given.
         """
         impulso = _import_impulso()
-        brand_data = self._brand_data_on_mmm_dates(mmm)
-        observed = brand_data[self._observed_names].to_numpy(dtype=float)
-        exog = None
-        if self.exog_names:
-            exog = brand_data[self.exog_names].to_numpy(dtype=float)
-            exog = exog - exog.mean(axis=0)
+        columns, means = self._brand_columns(mmm)
+        centered = columns - means
+        exog = centered[self.exog_names].to_numpy() if self.exog_names else None
 
         target_scale = mmm.model["target_scale"]
         target_scale_value = float(target_scale.get_value())
@@ -552,14 +599,14 @@ class VARBaselineEffect(MuEffect):
         spec = self._build_spec(baseline_scale)
         with pm.Model(name=self.prefix):
             handles = spec.build_in_model(
-                endog=observed - observed.mean(axis=0),
+                endog=centered[self._observed_names].to_numpy(),
                 exog=exog,
                 n_lags=spec.lags,
                 endog_names=self.endog_names,
                 exog_names=self.exog_names or None,
                 endog_scales=[
                     self._baseline_endog_scale(mmm),
-                    *impulso.ar1_residual_sd(observed),
+                    *impulso.ar1_residual_sd(columns[self._observed_names].to_numpy()),
                 ],
                 intercept_equations=self._observed_names,
                 latent_names=[self.baseline_name],
@@ -590,6 +637,216 @@ class VARBaselineEffect(MuEffect):
         X : xr.Dataset
             The new data.
         """
+
+    def fitted_var(self, mmm: "MMM") -> "FittedVAR":
+        """Return the fitted VAR as an Impulso ``FittedVAR`` in the data's units.
+
+        The effect fits the VAR to the brand columns centered on their means over the
+        MMM's dates. This method undoes the centering for every posterior draw, so the
+        result reads as a VAR fitted to the baseline and the raw brand columns. With
+        ``c`` the fitted intercept, ``A_l`` the lag-``l`` coefficients, ``B_exog``
+        the exogenous coefficients, and ``mu_y`` and ``mu_x`` the means of the
+        endogenous and exogenous columns, the intercept on the raw data is
+        ``c + (I - A_1 - ... - A_p) mu_y - B_exog mu_x``. The baseline is not
+        centered and its equation has no intercept, so it takes 0 in ``mu_y`` and in
+        ``c``: its intercept here follows from the coefficients rather than being
+        estimated. The coefficients and the innovation covariance are unchanged.
+
+        The means are recomputed from ``brand_data``, so it must hold the data the
+        MMM was fitted with.
+
+        Parameters
+        ----------
+        mmm : MMM
+            The fitted MMM that carries this effect.
+
+        Returns
+        -------
+        impulso.FittedVAR
+            The VAR over ``endog_names``, with ``exog_names`` as its exogenous
+            inputs. Its posterior holds the VAR's coefficients, intercept and
+            innovation covariance under Impulso's names, without the prefix, and it
+            carries the MMM's sampler statistics. Its data are the brand columns on
+            the MMM's dates and, for the baseline, the posterior mean of its path in
+            the target's units, as a zero-mean deviation around the MMM's intercept:
+            add ``intercept_contribution_original_scale`` for the level.
+
+        Raises
+        ------
+        RuntimeError
+            If the MMM has not been fitted.
+        ValueError
+            If the MMM's posterior has no VAR named ``prefix``, or one over other
+            series than ``endog_names`` and ``exog_names``, if ``brand_data`` no
+            longer covers the MMM's dates, if U comes from the target and is not
+            positive, or if Impulso rejects the posterior or the data.
+
+        Notes
+        -----
+        Each posterior draw has its own baseline path, but a ``FittedVAR`` holds one
+        data set, so its data hold the paths' posterior mean. The draws themselves
+        are ``{prefix}::latent`` in the MMM's posterior. The path is a deviation
+        around the MMM's intercept, so a ``forecast`` or ``historical_decomposition``
+        of the baseline is one too, not a level of the target.
+
+        Methods that read only the posterior are exact: ``dynamic_multiplier``,
+        ``sigma`` and, since the effect's volatility is constant, the
+        ``impulse_response`` and ``fevd`` of the ``IdentifiedVAR`` that
+        ``set_identification_strategy`` returns, with any identification scheme but
+        ``ProxySVAR``, which identifies from the residuals.
+
+        Methods that read ``data.endog`` are plug-in approximations: they use the
+        posterior mean path in every draw, so their uncertainty leaves out the
+        baseline's, and a quantity that depends on the path non-linearly, such as
+        the standardized Granger scale, can also be biased. They are ``forecast``,
+        ``conditional_forecast``, ``posterior_predictive``, ``granger_causality``
+        with ``standardize=True``, and the ``IdentifiedVAR``'s
+        ``historical_decomposition``, ``counterfactual`` and ``structural_scenario``.
+
+        Examples
+        --------
+        With ``brand_var`` and the fitted ``mmm`` of the class example, the response
+        of the baseline and the brand metrics to a unit of brand spend over the
+        following 26 weeks:
+
+        .. code-block:: python
+
+            fitted = brand_var.fitted_var(mmm)
+            fitted.dynamic_multiplier(horizon=26).median()
+        """
+        posterior = self._effect_posterior(mmm)
+        impulso = _import_impulso()
+        columns, means = self._brand_columns(mmm)
+        posterior = _uncenter(
+            posterior,
+            np.concatenate([[0.0], means[self._observed_names]]),
+            means[self.exog_names].to_numpy() if self.exog_names else None,
+        )
+
+        groups = {"/posterior": posterior}
+        idata = cast(xr.DataTree, mmm.idata)
+        if "sample_stats" in idata:
+            groups["/sample_stats"] = idata["sample_stats"].to_dataset()
+        data = self._fitted_var_data(mmm, columns)
+        spec = self._build_spec(self._baseline_scale(mmm))
+        return impulso.FittedVAR.from_posterior(
+            xr.DataTree.from_dict(groups),
+            data,
+            spec.lags,
+            volatility=spec.resolved_volatility,
+            error_dist=spec.resolved_error_dist,
+        )
+
+    def _effect_posterior(self, mmm: "MMM") -> xr.Dataset:
+        """Return the posterior of the VAR fitted to the centered data.
+
+        The variables keep Impulso's names, without the prefix, and the baseline's
+        path is left out. The intercept takes 0 for the baseline, whose equation has
+        none, so it covers every endogenous series as Impulso's does.
+
+        Parameters
+        ----------
+        mmm : MMM
+            The fitted MMM that carries this effect.
+
+        Returns
+        -------
+        xr.Dataset
+            The draws of the VAR's coefficients, intercept and innovation scales.
+
+        Raises
+        ------
+        RuntimeError
+            If the MMM has not been fitted.
+        ValueError
+            If the MMM's posterior has no VAR named ``prefix``, or one over other
+            series than ``endog_names`` and ``exog_names``.
+        """
+        if mmm.idata is None or "posterior" not in mmm.idata:
+            raise RuntimeError(
+                f"VARBaselineEffect {self.prefix!r} reads its VAR from the MMM's "
+                "posterior, but the model hasn't been fit yet, call .fit() first."
+            )
+
+        var_prefix = f"{self.prefix}::"
+        posterior = mmm.idata["posterior"].to_dataset()
+        if f"{var_prefix}B" not in posterior:
+            raise ValueError(
+                f"VARBaselineEffect {self.prefix!r} found no '{var_prefix}' variables "
+                "in the MMM's posterior: was the MMM fitted with this effect?"
+            )
+        fitted_endog = posterior[f"{var_prefix}B"].coords["var"].values.tolist()
+        fitted_exog = []
+        if f"{var_prefix}B_exog" in posterior:
+            fitted_exog = (
+                posterior[f"{var_prefix}B_exog"].coords["exog"].values.tolist()
+            )
+        if (fitted_endog, fitted_exog) != (self.endog_names, self.exog_names):
+            raise ValueError(
+                f"VARBaselineEffect {self.prefix!r} has endog_names "
+                f"{self.endog_names} and exog_names {self.exog_names}, but the MMM "
+                f"was fitted with {fitted_endog} and {fitted_exog}: fit the MMM again "
+                "after changing the effect."
+            )
+
+        # The baseline's path is data to Impulso, see `_fitted_var_data`.
+        path_names = [
+            f"{var_prefix}{name}"
+            for name in ("latent", "latent_init", "latent_innovations")
+        ]
+        posterior = posterior[
+            [
+                name
+                for name in map(str, posterior.data_vars)
+                if name.startswith(var_prefix) and name not in path_names
+            ]
+        ]
+        posterior = posterior.rename(
+            {
+                name: name.removeprefix(var_prefix)
+                for name in map(str, [*posterior.data_vars, *posterior.dims])
+                if name.startswith(var_prefix)
+            }
+        )
+        # Only the brand metrics' equations have an intercept in the graph.
+        intercept = (
+            posterior["intercept"]
+            .rename(var_intercept="var")
+            .reindex(var=self.endog_names, fill_value=0.0)
+        )
+        return posterior.drop_dims("var_intercept").assign(intercept=intercept)
+
+    def _fitted_var_data(self, mmm: "MMM", columns: pd.DataFrame) -> "VARData":
+        """Return the data of the fitted VAR, on the MMM's dates.
+
+        A ``VARData`` holds one data set, so the baseline takes the posterior mean of
+        its path, in the target's units.
+
+        Parameters
+        ----------
+        mmm : MMM
+            The fitted MMM that carries this effect.
+        columns : pd.DataFrame
+            The brand columns on the MMM's dates, as :meth:`_brand_columns` returns
+            them.
+
+        Returns
+        -------
+        impulso.VARData
+            The baseline and the raw brand metrics as the endogenous series, and the
+            raw exogenous columns.
+        """
+        impulso = _import_impulso()
+        latent = mmm.fit_result[f"{self.prefix}::latent"]
+        baseline = latent.mean(("chain", "draw")).to_numpy()
+        observed = columns[self._observed_names].to_numpy()
+        return impulso.VARData(
+            endog=np.column_stack([baseline, observed]),
+            endog_names=self.endog_names,
+            exog=columns[self.exog_names].to_numpy() if self.exog_names else None,
+            exog_names=self.exog_names or None,
+            index=safe_to_datetime(mmm.model.coords["date"], "date"),
+        )
 
     @property
     def _observed_names(self) -> list[str]:
@@ -671,6 +928,28 @@ class VARBaselineEffect(MuEffect):
                 )
             raise ValueError(message)
         return self.brand_data[on_mmm_dates].iloc[rows]
+
+    def _brand_columns(self, mmm: "MMM") -> tuple[pd.DataFrame, pd.Series]:
+        """Return the VAR's brand columns on the MMM's dates and their means.
+
+        The VAR is fitted to the columns centered on these means.
+
+        Parameters
+        ----------
+        mmm : MMM
+            The MMM model instance.
+
+        Returns
+        -------
+        columns : pd.DataFrame
+            The observed endogenous columns, then the exogenous ones, one row per
+            MMM date.
+        means : pd.Series
+            The mean of each column over the MMM's dates.
+        """
+        brand_data = self._brand_data_on_mmm_dates(mmm)
+        columns = brand_data[self._column_names].astype(float)
+        return columns, columns.mean()
 
     def _baseline_scale(self, mmm: "MMM") -> float:
         """Return U, the bound on the baseline's innovation standard deviation.
