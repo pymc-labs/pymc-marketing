@@ -1163,9 +1163,7 @@ def log_mmm(
     mmm : MMM
         The MMM to be logged.
     artifact_path : str, optional
-        The path to the artifact to be logged. Defaults to "mmm_model".
-    conda_env : dict, optional
-        A dictionary representation of a Conda environment. Defaults to the default conda environment.
+        The path to the artifact to be logged. Defaults to "model".
     registered_model_name : str, optional
         The name of the registered model to be logged. Defaults to None.
         If specified, the model will be registered under this name, otherwise it will not be registered.
