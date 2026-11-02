@@ -14,7 +14,6 @@
 """Modified Beta-Geometric Negative Binomial Distribution (MBG/NBD) model for a non-contractual customer population across continuous time."""  # noqa: E501
 
 from collections.abc import Sequence
-from typing import Literal
 
 import numpy as np
 import pandas as pd
@@ -25,6 +24,7 @@ from scipy.special import hyp2f1
 
 from pymc_marketing.clv.distributions import ModifiedBetaGeoNBD
 from pymc_marketing.clv.models import BetaGeoModel
+from pymc_marketing.clv.names import NEW_CUSTOMER_VARS, Col, Dim, NewCustomerVar, Var
 
 
 class ModifiedBetaGeoModel(BetaGeoModel):
@@ -154,10 +154,10 @@ class ModifiedBetaGeoModel(BetaGeoModel):
         self.data = data
 
         coords = {
-            "purchase_covariate": self.purchase_covariate_cols,
-            "dropout_covariate": self.dropout_covariate_cols,
-            "customer_id": self.data["customer_id"],
-            "obs_var": ["recency", "frequency"],
+            Dim.PURCHASE_COVARIATE: self.purchase_covariate_cols,
+            Dim.DROPOUT_COVARIATE: self.dropout_covariate_cols,
+            Dim.CUSTOMER_ID: self.data[Col.CUSTOMER_ID],
+            Dim.OBS_VAR: [Col.RECENCY, Col.FREQUENCY],
         }
         with pm.Model(coords=coords) as self.model:
             # purchase rate priors
@@ -165,14 +165,16 @@ class ModifiedBetaGeoModel(BetaGeoModel):
                 purchase_data = pm.Data(
                     "purchase_data",
                     self.data[self.purchase_covariate_cols],
-                    dims=["customer_id", "purchase_covariate"],
+                    dims=[Dim.CUSTOMER_ID, Dim.PURCHASE_COVARIATE],
                 )
-                self.model_config["purchase_coefficient"].dims = "purchase_covariate"
+                self.model_config["purchase_coefficient"].dims = Dim.PURCHASE_COVARIATE
                 purchase_coefficient_alpha = self.model_config[
                     "purchase_coefficient"
-                ].create_variable("purchase_coefficient_alpha")
+                ].create_variable(Var.PURCHASE_COEFFICIENT_ALPHA)
 
-                alpha_scale = self.model_config["alpha"].create_variable("alpha_scale")
+                alpha_scale = self.model_config["alpha"].create_variable(
+                    Var.ALPHA_SCALE
+                )
                 alpha = pm.Deterministic(
                     "alpha",
                     (
@@ -181,7 +183,7 @@ class ModifiedBetaGeoModel(BetaGeoModel):
                             -pm.math.dot(purchase_data, purchase_coefficient_alpha)
                         )
                     ),
-                    dims="customer_id",
+                    dims=Dim.CUSTOMER_ID,
                 )
             else:
                 alpha = self.model_config["alpha"].create_variable("alpha")
@@ -192,30 +194,32 @@ class ModifiedBetaGeoModel(BetaGeoModel):
                     dropout_data = pm.Data(
                         "dropout_data",
                         self.data[self.dropout_covariate_cols],
-                        dims=["customer_id", "dropout_covariate"],
+                        dims=[Dim.CUSTOMER_ID, Dim.DROPOUT_COVARIATE],
                     )
 
-                    self.model_config["dropout_coefficient"].dims = "dropout_covariate"
+                    self.model_config[
+                        "dropout_coefficient"
+                    ].dims = Dim.DROPOUT_COVARIATE
                     dropout_coefficient_a = self.model_config[
                         "dropout_coefficient"
-                    ].create_variable("dropout_coefficient_a")
+                    ].create_variable(Var.DROPOUT_COEFFICIENT_A)
                     dropout_coefficient_b = self.model_config[
                         "dropout_coefficient"
-                    ].create_variable("dropout_coefficient_b")
+                    ].create_variable(Var.DROPOUT_COEFFICIENT_B)
 
-                    a_scale = self.model_config["a"].create_variable("a_scale")
-                    b_scale = self.model_config["b"].create_variable("b_scale")
+                    a_scale = self.model_config["a"].create_variable(Var.A_SCALE)
+                    b_scale = self.model_config["b"].create_variable(Var.B_SCALE)
                     a = pm.Deterministic(
                         "a",
                         a_scale
                         * pm.math.exp(pm.math.dot(dropout_data, dropout_coefficient_a)),
-                        dims="customer_id",
+                        dims=Dim.CUSTOMER_ID,
                     )
                     b = pm.Deterministic(
                         "b",
                         b_scale
                         * pm.math.exp(pm.math.dot(dropout_data, dropout_coefficient_b)),
-                        dims="customer_id",
+                        dims=Dim.CUSTOMER_ID,
                     )
                 else:
                     a = self.model_config["a"].create_variable("a")
@@ -226,16 +230,18 @@ class ModifiedBetaGeoModel(BetaGeoModel):
                     dropout_data = pm.Data(
                         "dropout_data",
                         self.data[self.dropout_covariate_cols],
-                        dims=["customer_id", "dropout_covariate"],
+                        dims=[Dim.CUSTOMER_ID, Dim.DROPOUT_COVARIATE],
                     )
 
-                    self.model_config["dropout_coefficient"].dims = "dropout_covariate"
+                    self.model_config[
+                        "dropout_coefficient"
+                    ].dims = Dim.DROPOUT_COVARIATE
                     dropout_coefficient_a = self.model_config[
                         "dropout_coefficient"
-                    ].create_variable("dropout_coefficient_a")
+                    ].create_variable(Var.DROPOUT_COEFFICIENT_A)
                     dropout_coefficient_b = self.model_config[
                         "dropout_coefficient"
-                    ].create_variable("dropout_coefficient_b")
+                    ].create_variable(Var.DROPOUT_COEFFICIENT_B)
 
                     phi_dropout = self.model_config["phi_dropout"].create_variable(
                         "phi_dropout"
@@ -245,11 +251,11 @@ class ModifiedBetaGeoModel(BetaGeoModel):
                     )
 
                     a_scale = pm.Deterministic(
-                        "a_scale",
+                        Var.A_SCALE,
                         phi_dropout * kappa_dropout,
                     )
                     b_scale = pm.Deterministic(
-                        "b_scale",
+                        Var.B_SCALE,
                         (1.0 - phi_dropout) * kappa_dropout,
                     )
 
@@ -257,13 +263,13 @@ class ModifiedBetaGeoModel(BetaGeoModel):
                         "a",
                         a_scale
                         * pm.math.exp(pm.math.dot(dropout_data, dropout_coefficient_a)),
-                        dims="customer_id",
+                        dims=Dim.CUSTOMER_ID,
                     )
                     b = pm.Deterministic(
                         "b",
                         b_scale
                         * pm.math.exp(pm.math.dot(dropout_data, dropout_coefficient_b)),
-                        dims="customer_id",
+                        dims=Dim.CUSTOMER_ID,
                     )
 
                 else:
@@ -281,16 +287,16 @@ class ModifiedBetaGeoModel(BetaGeoModel):
             r = self.model_config["r"].create_variable("r")
 
             ModifiedBetaGeoNBD(
-                name="recency_frequency",
+                name=Var.RECENCY_FREQUENCY,
                 a=a,
                 b=b,
                 r=r,
                 alpha=alpha,
-                T=self.data["T"],
+                T=self.data[Col.T],
                 observed=np.stack(
-                    (self.data["recency"], self.data["frequency"]), axis=1
+                    (self.data[Col.RECENCY], self.data[Col.FREQUENCY]), axis=1
                 ),
-                dims=["customer_id", "obs_var"],
+                dims=[Dim.CUSTOMER_ID, Dim.OBS_VAR],
             )
 
     def expected_purchases(
@@ -330,19 +336,19 @@ class ModifiedBetaGeoModel(BetaGeoModel):
             data = self.data
 
         if future_t is not None:
-            data = data.assign(future_t=future_t)
+            data = data.assign(**{Col.FUTURE_T: future_t})
 
         dataset = self._extract_predictive_variables(
-            data, customer_varnames=["frequency", "recency", "T", "future_t"]
+            data, customer_varnames=[Col.FREQUENCY, Col.RECENCY, Col.T, Col.FUTURE_T]
         )
         a = dataset["a"]
         b = dataset["b"]
         alpha = dataset["alpha"]
         r = dataset["r"]
-        x = dataset["frequency"]
-        t_x = dataset["recency"]
-        T = dataset["T"]
-        t = dataset["future_t"]
+        x = dataset[Col.FREQUENCY]
+        t_x = dataset[Col.RECENCY]
+        T = dataset[Col.T]
+        t = dataset[Col.FUTURE_T]
 
         hyp_term = hyp2f1(r + x, b + x + 1, a + b + x, t / (alpha + T + t))
         first_term = (a + b + x) / (a - 1)
@@ -351,7 +357,7 @@ class ModifiedBetaGeoModel(BetaGeoModel):
         denominator = 1 + (a / (b + x)) * ((alpha + T) / (alpha + t_x)) ** (r + x)
 
         return (numerator / denominator).transpose(
-            "chain", "draw", "customer_id", missing_dims="ignore"
+            "chain", "draw", Dim.CUSTOMER_ID, missing_dims="ignore"
         )
 
     def expected_purchases_new_customer(
@@ -382,21 +388,23 @@ class ModifiedBetaGeoModel(BetaGeoModel):
             data = self.data
 
         if t is not None:
-            data = data.assign(t=t)
+            data = data.assign(**{Col.NEW_CUSTOMER_T: t})
 
-        dataset = self._extract_predictive_variables(data, customer_varnames=["t"])
+        dataset = self._extract_predictive_variables(
+            data, customer_varnames=[Col.NEW_CUSTOMER_T]
+        )
         a = dataset["a"]
         b = dataset["b"]
         alpha = dataset["alpha"]
         r = dataset["r"]
-        t = dataset["t"]
+        t = dataset[Col.NEW_CUSTOMER_T]
 
         hyp_term = hyp2f1(r, b + 1, a + b, t / (alpha + t))
         first_term = b / (a - 1)
         second_term = 1 - hyp_term * (alpha / (alpha + t)) ** (r)
 
         return (first_term * second_term).transpose(
-            "chain", "draw", "customer_id", missing_dims="ignore"
+            "chain", "draw", Dim.CUSTOMER_ID, missing_dims="ignore"
         )
 
     def expected_probability_alive(
@@ -431,20 +439,20 @@ class ModifiedBetaGeoModel(BetaGeoModel):
             data = self.data
 
         dataset = self._extract_predictive_variables(
-            data, customer_varnames=["frequency", "recency", "T"]
+            data, customer_varnames=[Col.FREQUENCY, Col.RECENCY, Col.T]
         )
 
         a = dataset["a"]
         b = dataset["b"]
         alpha = dataset["alpha"]
         r = dataset["r"]
-        x = dataset["frequency"]
-        t_x = dataset["recency"]
-        T = dataset["T"]
+        x = dataset[Col.FREQUENCY]
+        t_x = dataset[Col.RECENCY]
+        T = dataset[Col.T]
 
         proba = 1.0 / (1 + (a / (b + x)) * ((alpha + T) / (alpha + t_x)) ** (r + x))
 
-        return proba.transpose("chain", "draw", "customer_id", missing_dims="ignore")
+        return proba.transpose("chain", "draw", Dim.CUSTOMER_ID, missing_dims="ignore")
 
     def expected_probability_no_purchase(
         self,
@@ -463,9 +471,7 @@ class ModifiedBetaGeoModel(BetaGeoModel):
         *,
         T: int | np.ndarray | pd.Series | None = None,
         random_seed: RandomState | None = None,
-        var_names: Sequence[
-            Literal["dropout", "purchase_rate", "recency_frequency"]
-        ] = ("dropout", "purchase_rate", "recency_frequency"),
+        var_names: Sequence[NewCustomerVar] = NEW_CUSTOMER_VARS,
         n_samples: int = 1000,
     ) -> xarray.Dataset:
         """Compute posterior predictive samples of dropout, purchase rate and frequency/recency of new customers."""
@@ -473,29 +479,29 @@ class ModifiedBetaGeoModel(BetaGeoModel):
             data = self.data
 
         if T is not None:
-            data = data.assign(T=T)
+            data = data.assign(**{Col.T: T})
 
-        dataset = self._extract_predictive_variables(data, customer_varnames=["T"])
-        T = dataset["T"].values  # type: ignore
+        dataset = self._extract_predictive_variables(data, customer_varnames=[Col.T])
+        T = dataset[Col.T].values  # type: ignore
         # Delete "T" so we can pass dataset directly to `sample_posterior_predictive`
-        del dataset["T"]
+        del dataset[Col.T]
 
         if dataset.sizes["chain"] == 1 and dataset.sizes["draw"] == 1:
             # For map fit add a dummy draw dimension
             dataset = dataset.squeeze("draw").expand_dims(draw=range(n_samples))  # type: ignore
 
         coords = self.model.coords.copy()  # type: ignore
-        coords["customer_id"] = data["customer_id"]
+        coords[Dim.CUSTOMER_ID] = data[Col.CUSTOMER_ID]
 
         with pm.Model(coords=coords) as pred_model:
             if self.purchase_covariate_cols:
-                alpha = pm.Flat("alpha", dims=["customer_id"])
+                alpha = pm.Flat("alpha", dims=[Dim.CUSTOMER_ID])
             else:
                 alpha = pm.Flat("alpha")
 
             if self.dropout_covariate_cols:
-                a = pm.Flat("a", dims=["customer_id"])
-                b = pm.Flat("b", dims=["customer_id"])
+                a = pm.Flat("a", dims=[Dim.CUSTOMER_ID])
+                b = pm.Flat("b", dims=[Dim.CUSTOMER_ID])
             else:
                 a = pm.Flat("a")
                 b = pm.Flat("b")
@@ -503,23 +509,26 @@ class ModifiedBetaGeoModel(BetaGeoModel):
             r = pm.Flat("r")
 
             pm.Beta(
-                "dropout", alpha=a, beta=b, dims=pred_model.named_vars_to_dims.get("a")
+                Var.DROPOUT,
+                alpha=a,
+                beta=b,
+                dims=pred_model.named_vars_to_dims.get("a"),
             )
             pm.Gamma(
-                "purchase_rate",
+                Var.PURCHASE_RATE,
                 alpha=r,
                 beta=alpha,
                 dims=pred_model.named_vars_to_dims.get("alpha"),
             )
 
             ModifiedBetaGeoNBD(
-                name="recency_frequency",
+                name=Var.RECENCY_FREQUENCY,
                 a=a,
                 b=b,
                 r=r,
                 alpha=alpha,
                 T=T,
-                dims=["customer_id", "obs_var"],
+                dims=[Dim.CUSTOMER_ID, Dim.OBS_VAR],
             )
 
             return pm.sample_posterior_predictive(
