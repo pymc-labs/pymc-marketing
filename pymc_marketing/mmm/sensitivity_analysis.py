@@ -104,10 +104,14 @@ from pymc_marketing.mmm.sweep_cache import (
     SweepCacheKey,
     SweepCloneError,
     SweepEntry,
+    SweepLease,
     apply_response_mask,
     build_sweep_response,
 )
-from pymc_marketing.pytensor_utils import extract_response_distribution
+from pymc_marketing.pytensor_utils import (
+    extract_response_distribution,
+    reorder_to_model_coords,
+)
 
 
 class SensitivityAnalysis:
@@ -194,10 +198,20 @@ class SensitivityAnalysis:
     def _extract_response_distribution(
         self, response_variable: str, idata: xr.DataTree
     ):
-        """Extract response distribution graph conditioned on posterior samples."""
+        """Extract the response graph conditioned on draws in the model's order.
+
+        :class:`~pymc_marketing.pytensor_utils.ConditionedModel` realigns every
+        posterior to the model's coords by label; the per-call path does the
+        same here so a label-permuted posterior gives the cached path's
+        numbers.  Renamed or unlabeled coords keep their given order and are
+        read by position.
+        """
+        posterior = reorder_to_model_coords(
+            idata["/posterior"].to_dataset(), self.model.coords
+        )
         return extract_response_distribution(
             pymc_model=self.model,
-            idata=idata,
+            idata=posterior,
             response_variable=response_variable,
         )
 
@@ -318,27 +332,78 @@ class SensitivityAnalysis:
         The entry is leased for the duration of the call, so concurrent callers
         on the same key build their own instead of rebinding each other's
         draws.  Every call rebinds the entry to this call's draws, which covers
-        ``posterior_sample_fraction`` and a replaced ``mmm.idata``.
+        ``posterior_sample_fraction`` and a replaced ``mmm.idata``; one that
+        cannot be rebound is dropped and rebuilt, so the result never depends
+        on what the cache already held (see :meth:`_lease_bound_to`).
 
         A model :class:`~pymc_marketing.pytensor_utils.ConditionedModel` cannot
         clone falls back to :meth:`_run_sweep_per_call`.  Only the clone step
-        falls back, so an error raised while binding or evaluating an entry
-        propagates.
+        falls back, so an error that is not a layout mismatch raised while
+        binding or evaluating an entry propagates.
+        """
+        lease = self._lease_bound_to(key, idata)
+        if lease is None:
+            return self._run_sweep_per_call(key, idata, sweep_values, mask_values)
+        try:
+            return lease.entry.output_dims, lease.entry.evaluate(
+                sweep_values, mask_values
+            )
+        finally:
+            lease.release()
+
+    def _lease(self, key: SweepCacheKey, idata: xr.DataTree) -> SweepLease | None:
+        """Lease an entry for this call, or ``None`` if the model cannot be cloned.
+
+        ``None`` means the per-call path handles the question.  The cache
+        remembers an unclonable model, so the clone is attempted once per
+        model rather than once per call.
         """
         try:
-            lease = self._cache.lease(
+            return self._cache.lease(
                 key, self.model, lambda: SweepEntry.build(self.model, idata, key)
             )
         except SweepCloneError:
-            return self._run_sweep_per_call(key, idata, sweep_values, mask_values)
+            return None
+
+    def _lease_bound_to(
+        self, key: SweepCacheKey, idata: xr.DataTree
+    ) -> SweepLease | None:
+        """Lease an entry whose graphs read the draws in ``idata``.
+
+        A cached entry that cannot be rebound was built on another posterior
+        layout -- renamed or unlabeled coords, another dim set -- which an
+        empty cache would accept.  It is dropped and this call's entry is
+        leased in its place, once: a second cached entry that cannot take the
+        draws is dropped too, and the error propagates rather than rebuilding
+        forever.  ``None`` when the model cannot be cloned.
+        """
+        lease = self._lease(key, idata)
+        if lease is None or not lease.cached:
+            return lease
         try:
-            entry = lease.entry
-            if lease.cached:
-                # A freshly built entry is already conditioned on ``idata``.
-                entry.set_posterior(idata)
-            return entry.output_dims, entry.evaluate(sweep_values, mask_values)
-        finally:
+            lease.entry.set_posterior(idata)
+        except ValueError:
+            lease.discard()
+            rebuilt = self._lease(key, idata)
+            if rebuilt is None or not rebuilt.cached:
+                return rebuilt
+            # Another call released an entry for this key in between; it may
+            # be built on yet another layout, and this is the last attempt.
+            try:
+                rebuilt.entry.set_posterior(idata)
+            except ValueError:
+                rebuilt.discard()
+                raise
+            except BaseException:
+                rebuilt.release()
+                raise
+            return rebuilt
+        except BaseException:
+            # Any other failure leaves the atomic rebind untouched, so the
+            # entry is still good for the next call.
             lease.release()
+            raise
+        return lease
 
     def _run_sweep_per_call(
         self,
@@ -351,7 +416,9 @@ class SensitivityAnalysis:
 
         This is the path for models :class:`ConditionedModel` cannot clone, and
         it reads the source model's live data, as every call did before the
-        cache existed.
+        cache existed.  The draws are realigned to the model's coords by label,
+        as the cached path does, so a permuted posterior gives the same
+        numbers; renamed or unlabeled coords are read by position.
         """
         sweep = ptx.xtensor("sweep", dims=("sweep",))
         response = self._extract_response_distribution(key.var_names, idata)
@@ -408,7 +475,8 @@ class SensitivityAnalysis:
         Repeated calls on the same structure reuse a compiled sweep from this
         instance's cache.  Only the sweep values, the mask values and the
         posterior draws change between calls, and those are a function argument
-        or a posterior rebind, so a repeat call does not compile.
+        or a posterior rebind, so a repeat call does not compile unless the posterior
+        layout changed, which rebuilds the entry once.
 
         Parameters
         ----------
@@ -453,7 +521,9 @@ class SensitivityAnalysis:
             posterior to ``mmm.idata``.  Reordered labels are realigned and
             the number of draws may change.  Values are cast to the dtype the
             model expects.  A model that cannot be cloned uses the per-call
-            path, which binds the draws by position and does not check this.
+            path, which realigns a permuted posterior by label like the cached
+            path but reads renamed or unlabeled coords by position, without
+            checking them.
         """
         idata = self._selected_idata(posterior_sample_fraction)
         response_dims = tuple(getattr(self.model[var_names], "dims", ()))

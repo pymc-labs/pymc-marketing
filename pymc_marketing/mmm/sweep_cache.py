@@ -31,6 +31,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from typing import NamedTuple
+from weakref import WeakKeyDictionary
 
 import numpy as np
 import pytensor.tensor as pt
@@ -48,7 +49,7 @@ from pymc_marketing.mmm.leased_cache import (
     buffers_replaced,
     watched_source_buffers,
 )
-from pymc_marketing.pytensor_utils import ConditionedModel
+from pymc_marketing.pytensor_utils import ConditionedModel, ModelCloneError
 
 SWEEP_DIM = "sweep"
 """Name of the dimension the sweep grid is vectorized over."""
@@ -67,10 +68,10 @@ class SweepCloneError(Exception):
     """The source model cannot be cloned into a cache entry.
 
     :class:`~pymc_marketing.pytensor_utils.ConditionedModel` raises
-    ``NotImplementedError`` or ``ValueError`` when PyMC cannot clone a model,
-    as for custom initial values or nested sub-models.  Only that step is
-    wrapped, so the caller can fall back to compiling per call without also
-    catching errors raised while binding or evaluating an entry.
+    :class:`~pymc_marketing.pytensor_utils.ModelCloneError` when PyMC cannot
+    clone a model, as for custom initial values or a nested sub-model, and
+    only the clone step raises it.  The caller falls back to compiling per
+    call, which raises any error that was really about the posterior.
     """
 
 
@@ -234,12 +235,12 @@ class SweepEntry:
         ------
         SweepCloneError
             If PyMC cannot clone ``model``, as for a model with custom initial
-            values or nested sub-models.  The caller falls back to compiling
+            values or a nested sub-model.  The caller falls back to compiling
             per call, which raises any error that was really about ``idata``.
         """
         try:
             conditioned = ConditionedModel(model, idata)
-        except (NotImplementedError, ValueError) as err:
+        except ModelCloneError as err:
             raise SweepCloneError(str(err)) from err
         sweep = ptx.xtensor(SWEEP_NAME, dims=(SWEEP_DIM,))
         mask = (
@@ -329,7 +330,8 @@ class SweepLease:
     A leased entry belongs to the call until :meth:`release`: nothing else can
     rebind the shared draws under it, so a concurrent call on the same key
     misses the cache and builds its own entry.  The entry is returned to the
-    cache when the call is done, also when it raises.
+    cache when the call is done, also when it raises, unless the call
+    drops it with :meth:`discard`.
 
     Parameters
     ----------
@@ -375,6 +377,16 @@ class SweepLease:
         self._released = True
         self._cache.put(self._key, self._entry)
 
+    def discard(self) -> None:
+        """Drop the entry instead of returning it to the cache.
+
+        A cached entry that cannot be rebound to this call's draws was built on
+        another posterior layout, so keeping it would make every later call
+        fail the same way.  A later :meth:`release` is a no-op; the caller
+        leases a fresh entry in place of this one.
+        """
+        self._released = True
+
 
 class SweepCache(LeasedLRUCache[SweepCacheKey, SweepEntry]):
     """Bounded LRU cache of compiled sweeps, leased for the duration of a call.
@@ -398,6 +410,10 @@ class SweepCache(LeasedLRUCache[SweepCacheKey, SweepEntry]):
     therefore rebuild each other's entry on every call, which gives correct
     results but no reuse.
 
+    A model PyMC cannot clone is remembered, so later calls go straight to the
+    per-call path instead of retrying the clone.  The memory is keyed by model
+    identity and dropped when the model is, and it is never serialized.
+
     Parameters
     ----------
     max_entries : int, default 4
@@ -407,6 +423,12 @@ class SweepCache(LeasedLRUCache[SweepCacheKey, SweepEntry]):
 
     def __init__(self, max_entries: int = DEFAULT_MAX_ENTRIES) -> None:
         super().__init__(max_entries)
+        self._unclonable: WeakKeyDictionary[Model, str] = WeakKeyDictionary()
+
+    def __setstate__(self, state: dict[str, int]) -> None:
+        """Restore ``max_entries`` with no entries and no clone failures."""
+        super().__setstate__(state)
+        self._unclonable = WeakKeyDictionary()
 
     def lease(
         self,
@@ -444,9 +466,28 @@ class SweepCache(LeasedLRUCache[SweepCacheKey, SweepEntry]):
         Raises
         ------
         SweepCloneError
-            If the factory cannot clone ``source_model``.
+            If the factory cannot clone ``source_model``.  The model is
+            remembered, so a later lease raises this without trying again.
         """
         entry = self._take(key)
         if entry is not None and not entry.is_stale(source_model):
             return SweepLease(self, key, entry, cached=True)
-        return SweepLease(self, key, factory(), cached=False)
+        self._raise_if_unclonable(source_model)
+        try:
+            built = factory()
+        except SweepCloneError as err:
+            self._remember_unclonable(source_model, err)
+            raise
+        return SweepLease(self, key, built, cached=False)
+
+    def _raise_if_unclonable(self, source_model: Model) -> None:
+        """Raise if a previous build could not clone ``source_model``."""
+        with self._lock:
+            message = self._unclonable.get(source_model)
+        if message is not None:
+            raise SweepCloneError(message)
+
+    def _remember_unclonable(self, source_model: Model, error: SweepCloneError) -> None:
+        """Record that ``source_model`` cannot be cloned, for this cache's lifetime."""
+        with self._lock:
+            self._unclonable[source_model] = str(error)

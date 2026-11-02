@@ -24,7 +24,7 @@ import pickle
 import pytest
 
 from pymc_marketing.mmm.evaluator_cache import EvaluatorCache
-from pymc_marketing.mmm.sweep_cache import SweepCache
+from pymc_marketing.mmm.sweep_cache import SweepCache, SweepCloneError
 
 CACHE_TYPES = pytest.mark.parametrize(
     "cache_type", [EvaluatorCache, SweepCache], ids=["evaluator", "sweep"]
@@ -51,11 +51,15 @@ class _FakeSweepEntry:
         return source_model is not self.source_model
 
 
+class _FakeModel:
+    """Only what the cache asks of a model: weak-referenceable identity."""
+
+
 def test_a_leased_sweep_is_out_of_the_cache_until_released():
     """A second lease on a held key misses and builds, without threads."""
     cache = SweepCache()
     key = object()
-    model = object()
+    model = _FakeModel()
     built: list[_FakeSweepEntry] = []
 
     def factory() -> _FakeSweepEntry:
@@ -86,7 +90,7 @@ def test_a_sweep_entry_built_on_another_model_is_not_leased():
     """Only an entry built on the call's own source model is reused."""
     cache = SweepCache()
     key = object()
-    built_on, other = object(), object()
+    built_on, other = _FakeModel(), _FakeModel()
     cached = _FakeSweepEntry(built_on)
     cache.put(key, cached)
 
@@ -148,3 +152,43 @@ def test_a_copy_starts_empty_and_keeps_its_bound(cache_type, duplicate):
         copied.put(object(), object())
 
     assert len(copied) == 2
+
+
+def _failing_factory(attempts: list[int]):
+    """A sweep factory that records the attempt and reports an unclonable model."""
+
+    def factory() -> object:
+        attempts.append(1)
+        raise SweepCloneError("Cannot convert models with non-default initial_values")
+
+    return factory
+
+
+def test_an_unclonable_model_is_not_retried():
+    """The cache remembers a model it could not clone and raises without retrying."""
+    cache = SweepCache()
+    model = _FakeModel()
+    attempts: list[int] = []
+
+    for _ in range(2):
+        with pytest.raises(SweepCloneError):
+            cache.lease(object(), model, _failing_factory(attempts))
+
+    assert len(attempts) == 1
+
+
+@COPY_METHODS
+def test_the_unclonable_memo_does_not_survive_a_copy(duplicate):
+    """A pickle or deepcopy of the cache starts with no remembered failures."""
+    cache = SweepCache()
+    model = _FakeModel()
+    with pytest.raises(SweepCloneError):
+        cache.lease(object(), model, _failing_factory([]))
+
+    copied = duplicate(cache)
+    attempts: list[int] = []
+
+    with pytest.raises(SweepCloneError):
+        copied.lease(object(), model, _failing_factory(attempts))
+
+    assert len(attempts) == 1

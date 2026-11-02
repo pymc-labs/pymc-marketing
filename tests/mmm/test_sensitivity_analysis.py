@@ -36,6 +36,7 @@ from pymc_marketing.mmm.sensitivity_analysis import SensitivityAnalysis
 from pymc_marketing.mmm.sweep_cache import SweepCache
 from pymc_marketing.pytensor_utils import (
     ConditionedModel,
+    ModelCloneError,
     extract_response_distribution,
 )
 
@@ -927,6 +928,102 @@ def _reverse_channel_coords(idata: xr.DataTree) -> xr.DataTree:
     return xr.DataTree.from_dict({"/posterior": xr.Dataset(reversed_vars)})
 
 
+def _with_renamed_channel_labels(idata: xr.DataTree) -> xr.DataTree:
+    """Give the ``channel`` dim fresh labels, keeping every value in place."""
+    labels = [f"renamed-{index}" for index in range(idata.posterior.sizes["channel"])]
+    posterior = idata.posterior.to_dataset().assign_coords(channel=labels)
+    return xr.DataTree.from_dict({"/posterior": posterior})
+
+
+def _without_channel_labels(idata: xr.DataTree) -> xr.DataTree:
+    """Drop the ``channel`` labels, keeping every value in place."""
+    posterior = idata.posterior.to_dataset().drop_vars("channel")
+    return xr.DataTree.from_dict({"/posterior": posterior})
+
+
+@pytest.mark.parametrize(
+    "replace",
+    [_with_renamed_channel_labels, _without_channel_labels],
+    ids=["relabelled", "unlabeled"],
+)
+def test_run_sweep_replacement_posterior_matches_an_empty_cache(
+    simple_model_and_idata, replace
+):
+    """Draws the warm entry cannot be rebound to give an empty cache's result.
+
+    A renamed or unlabeled channel axis cannot be checked against the cached
+    entry's construction layout, so the entry is dropped and rebuilt for this
+    posterior.  A later call with the original posterior must still work.
+    """
+    model, _ = simple_model_and_idata
+    original = _channel_varying_posterior(model)
+    replacement = replace(original)
+    sweeps = np.linspace(0.5, 1.5, 4)
+    kwargs = {"var_names": "channel_contribution", "sweep_type": "multiplicative"}
+
+    analysis = SensitivityAnalysis(model, original)
+    first = analysis.run_sweep("channel_data", sweeps, **kwargs)
+
+    analysis.idata = replacement
+    warm = analysis.run_sweep("channel_data", sweeps, **kwargs)
+    empty = SensitivityAnalysis(model, replacement).run_sweep(
+        "channel_data", sweeps, **kwargs
+    )
+
+    xr.testing.assert_allclose(warm, empty)
+
+    analysis.idata = original
+    again = analysis.run_sweep("channel_data", sweeps, **kwargs)
+
+    xr.testing.assert_allclose(again, first)
+
+
+def test_run_sweep_a_failed_rebind_is_not_kept_in_the_cache(
+    simple_model_and_idata, sweep_compile_counter
+):
+    """The entry rebuilt after a failed rebind is cached, not rebuilt every call."""
+    model, _ = simple_model_and_idata
+    original = _channel_varying_posterior(model)
+    replacement = _with_renamed_channel_labels(original)
+    sweeps = np.linspace(0.5, 1.5, 4)
+    kwargs = {"var_names": "channel_contribution", "sweep_type": "multiplicative"}
+
+    analysis = SensitivityAnalysis(model, original)
+    analysis.run_sweep("channel_data", sweeps, **kwargs)
+    analysis.idata = replacement
+    analysis.run_sweep("channel_data", sweeps, **kwargs)
+
+    assert len(sweep_compile_counter) == 2  # the first build and the rebuild
+
+    analysis.run_sweep("channel_data", sweeps, **kwargs)
+
+    assert len(sweep_compile_counter) == 2
+
+
+def test_run_sweep_a_posterior_missing_a_variable_keeps_the_cached_entry(
+    simple_model_and_idata, sweep_compile_counter
+):
+    """A missing variable fails as on a fresh build and leaves the entry cached."""
+    model, _ = simple_model_and_idata
+    original = _channel_varying_posterior(model)
+    sweeps = np.linspace(0.5, 1.5, 4)
+    kwargs = {"var_names": "channel_contribution", "sweep_type": "multiplicative"}
+
+    analysis = SensitivityAnalysis(model, original)
+    first = analysis.run_sweep("channel_data", sweeps, **kwargs)
+    analysis.idata = xr.DataTree.from_dict(
+        {"posterior": original.posterior.to_dataset().drop_vars("alpha")}
+    )
+    with pytest.raises(KeyError):
+        analysis.run_sweep("channel_data", sweeps, **kwargs)
+    analysis.idata = original
+
+    xr.testing.assert_allclose(
+        analysis.run_sweep("channel_data", sweeps, **kwargs), first
+    )
+    assert len(sweep_compile_counter) == 1
+
+
 def test_run_sweep_permuted_posterior_coords_are_label_correct(
     simple_model_and_idata,
 ):
@@ -952,6 +1049,38 @@ def test_run_sweep_permuted_posterior_coords_are_label_correct(
     actual = permuted_analysis.run_sweep("channel_data", sweeps, **kwargs)
 
     xr.testing.assert_allclose(actual, label_correct)
+
+
+def test_run_sweep_fallback_realigns_a_permuted_posterior_by_label():
+    """The per-call path reads a permuted posterior by label, like the cached path."""
+    unclonable, _ = _initval_model_and_idata()
+    clonable, _ = _initval_model_and_idata(with_initval=False)
+    idata = _channel_varying_posterior(clonable)
+    permuted_idata = _reverse_channel_coords(idata)
+    sweeps = np.linspace(0.5, 1.5, 4)
+    kwargs = {"var_names": "channel_contribution", "sweep_type": "multiplicative"}
+
+    label_correct = SensitivityAnalysis(clonable, idata).run_sweep(
+        "channel_data", sweeps, **kwargs
+    )
+    cached_permuted = SensitivityAnalysis(clonable, permuted_idata).run_sweep(
+        "channel_data", sweeps, **kwargs
+    )
+    fallback_permuted = SensitivityAnalysis(unclonable, permuted_idata).run_sweep(
+        "channel_data", sweeps, **kwargs
+    )
+
+    xr.testing.assert_allclose(cached_permuted, label_correct)
+    xr.testing.assert_allclose(fallback_permuted, label_correct)
+
+    positional = _reference_run_sweep(
+        SensitivityAnalysis(unclonable, permuted_idata),
+        "channel_data",
+        sweeps,
+        **kwargs,
+    )
+
+    assert not np.allclose(positional.values, label_correct.values)
 
 
 @pytest.fixture
@@ -1138,8 +1267,14 @@ def test_run_sweep_recompiles_only_on_key_change(
     )
 
 
-def _initval_model_and_idata() -> tuple[pm.Model, xr.DataTree]:
-    """A model with a non-default ``initval``, which ``clone_model`` refuses."""
+def _initval_model_and_idata(
+    *, with_initval: bool = True
+) -> tuple[pm.Model, xr.DataTree]:
+    """A model with a non-default ``initval``, which ``clone_model`` refuses.
+
+    With ``with_initval=False`` the same model is clonable, so a test can
+    compare the per-call path against the cached path on the same graph.
+    """
     rng = np.random.default_rng(11)
     coords = {"date": np.arange(6), "channel": list("abcd")}
     channel_data = rng.gamma(2.0, 1.0, size=(6, 4)).astype(np.float64)
@@ -1151,7 +1286,7 @@ def _initval_model_and_idata() -> tuple[pm.Model, xr.DataTree]:
             1.0,
             1.0,
             dims=("channel",),
-            initval=np.full(4, 0.5),
+            initval=np.full(4, 0.5) if with_initval else None,
         )
         lam = pmd.Gamma("lam", 1.0, 1.0, dims=("channel",))
         pmd.Deterministic(
@@ -1188,7 +1323,7 @@ def test_run_sweep_initval_model_falls_back(sweep_compile_counter):
     frozen reference, so the fallback is behaviour-preserving.
     """
     model, idata = _initval_model_and_idata()
-    with pytest.raises(NotImplementedError):
+    with pytest.raises(ModelCloneError):
         ConditionedModel(model, idata)
     analysis = SensitivityAnalysis(model, idata)
     sweeps = np.linspace(0.5, 1.5, 4)
@@ -1208,6 +1343,59 @@ def test_run_sweep_initval_model_falls_back(sweep_compile_counter):
         "pymc_marketing.mmm.sensitivity_analysis",
         "pymc_marketing.mmm.sensitivity_analysis",
     ]
+
+
+def test_run_sweep_unclonable_model_is_cloned_once(monkeypatch):
+    """A model PyMC cannot clone is remembered, not retried on every call."""
+    model, idata = _initval_model_and_idata()
+    attempts: list[pm.Model] = []
+
+    def unable_to_clone(source: pm.Model) -> pm.Model:
+        attempts.append(source)
+        raise NotImplementedError(
+            "Cannot convert models with non-default initial_values"
+        )
+
+    monkeypatch.setattr("pymc_marketing.pytensor_utils.clone_model", unable_to_clone)
+    analysis = SensitivityAnalysis(model, idata)
+    sweeps = np.linspace(0.5, 1.5, 4)
+    kwargs = {"var_names": "channel_contribution", "sweep_type": "multiplicative"}
+
+    first = analysis.run_sweep("channel_data", sweeps, **kwargs)
+    second = analysis.run_sweep("channel_data", sweeps, **kwargs)
+
+    assert len(attempts) == 1
+    xr.testing.assert_allclose(second, first)
+    xr.testing.assert_allclose(
+        first, _reference_run_sweep(analysis, "channel_data", sweeps, **kwargs)
+    )
+
+
+def test_run_sweep_posterior_error_in_construction_is_not_a_clone_failure(
+    monkeypatch,
+):
+    """A ``ValueError`` raised while conditioning is not a clone failure.
+
+    Only :class:`~pymc_marketing.pytensor_utils.ModelCloneError` sends a call
+    to the per-call path; anything else raised while building the entry
+    propagates.
+    """
+    model, idata = _two_input_model_and_idata()
+    analysis = SensitivityAnalysis(model, idata)
+
+    def raise_posterior_error(*args: object, **kwargs: object) -> None:
+        raise ValueError("posterior layout")
+
+    monkeypatch.setattr(
+        "pymc_marketing.mmm.sweep_cache.ConditionedModel", raise_posterior_error
+    )
+
+    with pytest.raises(ValueError, match="posterior layout"):
+        analysis.run_sweep(
+            "channel_data",
+            np.linspace(0.5, 1.5, 4),
+            var_names="channel_contribution",
+        )
 
 
 def _draw_varying_posterior(model: pm.Model, n_draws: int = 5) -> xr.DataTree:

@@ -47,6 +47,7 @@ from pytensor.xtensor.vectorization import vectorize_graph
 
 __all__ = [
     "ConditionedModel",
+    "ModelCloneError",
     "ModelSamplerEstimator",
     "SharedPosterior",
     "VariableLayout",
@@ -66,6 +67,15 @@ __all__ = [
 
 _GRAPH_CACHE_SIZE = 32
 """Number of extractions a :class:`ConditionedModel` caches before evicting the least recent."""
+
+CLONE_FAILURES = (NotImplementedError, ValueError, TypeError)
+"""Exceptions PyMC's clone step raises for a model it cannot clone.
+
+``pymc.model.fgraph`` raises ``NotImplementedError`` for non-default initial
+values and ``ValueError`` for a nested sub-model.  Its ``TypeError`` for an
+unrecognised model variable is defensive and unreachable from a valid model,
+but a caller must not read it as an error about the posterior.
+"""
 
 
 def _rebuild_model_var(var, *, name: str, dims: tuple[str, ...]):
@@ -1087,6 +1097,40 @@ def _posterior_dataset(idata: xr.DataTree | xr.Dataset) -> xr.Dataset:
     )
 
 
+class ModelCloneError(Exception):
+    """PyMC cannot clone a model into a conditioned copy.
+
+    Only the clone step of :class:`ConditionedModel` raises this, so a caller
+    that falls back on it never mistakes an error raised while reading the
+    posterior for a model it cannot clone.
+    """
+
+
+def _clone_model(model: Model) -> Model:
+    """Clone ``model``, naming the failure as a clone failure.
+
+    Parameters
+    ----------
+    model : pm.Model
+        The model to clone.  Never modified.
+
+    Returns
+    -------
+    pm.Model
+        The clone.
+
+    Raises
+    ------
+    ModelCloneError
+        If PyMC cannot clone ``model``, as for a model with custom initial
+        values or a nested sub-model.
+    """
+    try:
+        return clone_model(model)
+    except CLONE_FAILURES as err:
+        raise ModelCloneError(str(err)) from err
+
+
 def _apply_intervention(
     model: Model,
     intervention: Mapping[str, Variable | np.ndarray | float] | None,
@@ -1106,9 +1150,14 @@ def _apply_intervention(
     pm.Model
         The intervened clone, whose data no later ``pm.set_data`` on ``model``
         reaches.
+
+    Raises
+    ------
+    ModelCloneError
+        If ``intervention`` is ``None`` and PyMC cannot clone ``model``.
     """
     if intervention is None:
-        return clone_model(model)
+        return _clone_model(model)
     with warnings.catch_warnings():
         # The ``scale`` intervention references the target on purpose:
         # ``target * mask`` is what holds the factual value in the graph.
@@ -1174,9 +1223,13 @@ class ConditionedModel:
 
     Raises
     ------
-    NotImplementedError, ValueError
+    ModelCloneError
         If PyMC cannot clone ``model``, as for a model with custom initial
-        values or nested sub-models.
+        values or a nested sub-model.  Only the clone step raises this; an
+        error raised while reading the posterior keeps its own type.
+    NotImplementedError, ValueError
+        If ``intervention`` is given and :func:`pymc.do` cannot apply it,
+        cloning included.
 
     Notes
     -----
