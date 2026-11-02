@@ -9228,6 +9228,48 @@ def test_build_from_idata_warns_on_unrestored_observed_terms(mock_pymc_sample):
     assert not [w for w in caught if "rebuilt model lacks" in str(w.message)]
 
 
+def _late_lift_rows():
+    return pd.DataFrame(
+        {
+            "geo": ["001"],
+            "channel": ["zeta"],
+            "x": [1.0],
+            "delta_x": [1.0],
+            "delta_y": [0.5],
+            "sigma": [0.3],
+        }
+    )
+
+
+def test_save_warns_when_calibration_changed_since_fit(mock_pymc_sample, tmp_path):
+    mmm, X, y, spend, rows = _cpt_persistence_inputs()
+    mmm.fit(X, y)
+    _attach_cpt(mmm, spend, rows)
+    mmm.add_lift_test_measurements(_late_lift_rows(), name="late_lift")
+    with pytest.warns(
+        UserWarning, match="lift-test and cost-per-target calibration differs"
+    ):
+        mmm.save(str(tmp_path / "late.nc"))
+    mmm.fit(X, y)
+    mmm.build_model(X, y)
+    with pytest.warns(
+        UserWarning, match="differs from the calibration recorded at fit time"
+    ):
+        mmm.save(str(tmp_path / "rebuilt.nc"))
+
+
+def test_save_does_not_warn_after_load(mock_pymc_sample, tmp_path):
+    mmm, X, y, spend, rows = _cpt_persistence_inputs()
+    _attach_cpt(mmm, spend, rows)
+    mmm.add_lift_test_measurements(_late_lift_rows(), name="lift_external")
+    mmm.fit(X, y)
+    first = str(tmp_path / "first.nc")
+    with warnings.catch_warnings():
+        warnings.filterwarnings("error", message=".*recorded at fit time.*")
+        mmm.save(first)
+        MMM.load(first).save(str(tmp_path / "second.nc"))
+
+
 def test_cost_per_target_persistence_normalizes_numeric_objects():
     from decimal import Decimal
 

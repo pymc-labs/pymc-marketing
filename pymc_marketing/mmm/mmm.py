@@ -1263,10 +1263,51 @@ class MMM(RegressionModelBuilder):
 
         return attrs
 
+    def _warn_if_calibration_changed_since_fit(self, attrs: dict[str, Any]) -> None:
+        """Warn when the live calibration differs from the records in ``attrs``.
+
+        ``attrs`` are the fit-time ``idata.attrs``. Compares calibration names, so
+        a model restored by :meth:`build_from_idata` never warns on re-save; a
+        same-name calibration re-added with different inputs is not detected.
+        """
+        changed = [
+            label
+            for label, attr, key, records in (
+                (
+                    "lift-test",
+                    "lift_test_calibrations",
+                    "name",
+                    self._lift_test_calibrations,
+                ),
+                (
+                    "cost-per-target",
+                    "cost_per_target_calibrations",
+                    "name_prefix",
+                    self._cost_per_target_calibrations,
+                ),
+            )
+            if sorted(record[key] for record in records)
+            != sorted(record[key] for record in json.loads(attrs.get(attr, "[]")))
+        ]
+        if changed:
+            warnings.warn(
+                f"The model's {' and '.join(changed)} calibration differs from the "
+                "calibration recorded at fit time; the saved file carries the "
+                "fit-time records. Refit before saving to persist the current "
+                "calibration.",
+                UserWarning,
+                stacklevel=3,
+            )
+
     def save(self, fname: str, **kwargs) -> None:
-        """Save the model, including supplementary idata groups from mu_effects."""
+        """Save the model, including supplementary idata groups from mu_effects.
+
+        Warns when calibration was added or removed since the last fit, because
+        the file carries the calibration recorded at fit time.
+        """
         if self.idata is None or "posterior" not in self.idata:
             raise RuntimeError("The model hasn't been fit yet, call .fit() first")
+        self._warn_if_calibration_changed_since_fit(self.idata.attrs)
 
         for effect in self.mu_effects:
             for group_name, ds in effect.idata_groups().items():
