@@ -19,6 +19,7 @@ PyMC-Marketing, and the VAR baseline needs ``impulso>=0.1.3``. Install it with
 used, so PyMC-Marketing imports without it.
 """
 
+from collections import Counter
 from importlib import metadata
 from types import ModuleType
 from typing import TYPE_CHECKING, Any
@@ -30,7 +31,7 @@ import pymc.dims as pmd
 import pytensor.xtensor as ptx
 import xarray as xr
 from packaging.version import Version
-from pydantic import Field, InstanceOf
+from pydantic import Field, InstanceOf, field_validator
 from pytensor.xtensor.type import XTensorVariable
 
 from pymc_marketing.mmm.additive_effect import Model, MuEffect
@@ -131,16 +132,18 @@ class VARBaselineEffect(MuEffect):
     ----------
     brand_data : pd.DataFrame
         The brand metrics and exogenous inputs, one row per MMM date and in date
-        order. Rows are matched to the MMM's dates by position.
+        order. Rows are matched to the MMM's dates by position. The columns named in
+        ``endog_names`` and ``exog_names`` must be numeric and finite, and vary. The
+        effect keeps a copy of the frame.
     baseline_name : str
         Name of the latent baseline in the VAR. It must not be a column of
         ``brand_data``.
     endog_names : list[str]
-        The VAR's endogenous series in order: ``baseline_name`` first, then columns
-        of ``brand_data``.
+        The VAR's endogenous series in order: ``baseline_name`` first, then at least
+        one column of ``brand_data``.
     exog_names : list[str]
         Columns of ``brand_data`` that enter the VAR as exogenous regressors. May be
-        empty.
+        empty. No name may appear twice across ``endog_names`` and ``exog_names``.
     prefix : str
         Prefix for the effect's variables. The VAR's variables are named
         ``{prefix}::B``, ``{prefix}::latent`` and so on, and the baseline's
@@ -235,16 +238,43 @@ class VARBaselineEffect(MuEffect):
     var: Any
     baseline_own_lag_mean: float = Field(0.0, gt=-1, lt=1)
 
+    @field_validator("brand_data")
+    @classmethod
+    def _copy_brand_data(cls, brand_data: pd.DataFrame) -> pd.DataFrame:
+        """Copy ``brand_data``.
+
+        Without the copy, later edits to the caller's frame would bypass the checks.
+        """
+        return brand_data.copy()
+
     def model_post_init(self, context: Any, /) -> None:
-        """Check ``var``.
+        """Check ``var``, the names, and the columns of ``brand_data`` they name.
 
         Raises
         ------
         TypeError
             If ``var`` is not an Impulso ``VAR`` specification.
         ValueError
-            If ``var``'s prior has a per-series ``own_lag_mean`` whose first entry is
-            not ``baseline_own_lag_mean``.
+            If ``endog_names`` does not start with ``baseline_name`` or has nothing
+            after it, if ``baseline_name`` is a column of ``brand_data``, if a name
+            appears more than once across ``endog_names`` and ``exog_names``, if a
+            column named in them is missing from ``brand_data``, is not numeric, has
+            a NaN or infinite value or is constant, or if ``var``'s prior has a
+            per-series ``own_lag_mean`` whose first entry is not
+            ``baseline_own_lag_mean``.
+        """
+        self._check_var()
+        self._check_names()
+        self._check_brand_columns()
+        self._check_baseline_entries()
+
+    def _check_var(self) -> None:
+        """Check that ``var`` is an Impulso ``VAR`` specification.
+
+        Raises
+        ------
+        TypeError
+            If ``var`` is not an Impulso ``VAR`` specification.
         """
         impulso = _import_impulso()
         if not isinstance(self.var, impulso.VAR):
@@ -252,7 +282,72 @@ class VARBaselineEffect(MuEffect):
                 "var must be an impulso.VAR specification, "
                 f"got {type(self.var).__name__}."
             )
-        self._check_baseline_entries()
+
+    def _check_names(self) -> None:
+        """Check ``baseline_name``, ``endog_names`` and ``exog_names``.
+
+        Raises
+        ------
+        ValueError
+            If ``endog_names`` does not start with ``baseline_name`` or has nothing
+            after it, if ``baseline_name`` is a column of ``brand_data``, or if a name
+            appears more than once across ``endog_names`` and ``exog_names``.
+        """
+        if self.endog_names[:1] != [self.baseline_name]:
+            raise ValueError(
+                f"endog_names must start with baseline_name {self.baseline_name!r}, "
+                f"got {self.endog_names}."
+            )
+        if self.baseline_name in self.brand_data.columns:
+            raise ValueError(
+                f"baseline_name {self.baseline_name!r} must not be a column of "
+                "brand_data: the baseline is latent."
+            )
+        if not self._observed_names:
+            raise ValueError(
+                "endog_names must name at least one column of brand_data after "
+                f"baseline_name {self.baseline_name!r}."
+            )
+        name_counts = Counter([*self.endog_names, *self.exog_names])
+        if repeated := [name for name, count in name_counts.items() if count > 1]:
+            raise ValueError(
+                f"Names {repeated} appear more than once in endog_names and exog_names."
+            )
+
+    def _check_brand_columns(self) -> None:
+        """Check the columns of ``brand_data`` that the VAR uses.
+
+        Raises
+        ------
+        ValueError
+            If a column named in ``endog_names`` or ``exog_names`` is missing from
+            ``brand_data``, is not numeric, has a NaN or infinite value or is
+            constant.
+        """
+        named_columns = {
+            "endog_names": self._observed_names,
+            "exog_names": self.exog_names,
+        }
+        for field, names in named_columns.items():
+            if missing := [n for n in names if n not in self.brand_data.columns]:
+                raise ValueError(
+                    f"Columns {missing} of {field} are missing in brand_data."
+                )
+
+        named_data = self.brand_data[self._column_names]
+        if non_numeric := [
+            name
+            for name, dtype in named_data.dtypes.items()
+            if not pd.api.types.is_numeric_dtype(dtype)
+        ]:
+            raise ValueError(f"Columns {non_numeric} of brand_data are not numeric.")
+        finite = np.isfinite(named_data.to_numpy(dtype=float)).all(axis=0)
+        if non_finite := named_data.columns[~finite].tolist():
+            raise ValueError(
+                f"Columns {non_finite} of brand_data contain NaN or infinite values."
+            )
+        if constant_columns := named_data.columns[named_data.nunique() == 1].tolist():
+            raise ValueError(f"Columns {constant_columns} of brand_data are constant.")
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize to a dict, without ``brand_data``."""
@@ -365,6 +460,11 @@ class VARBaselineEffect(MuEffect):
     def _observed_names(self) -> list[str]:
         """The endogenous series observed in ``brand_data``: all but the baseline."""
         return self.endog_names[1:]
+
+    @property
+    def _column_names(self) -> list[str]:
+        """The columns of ``brand_data`` the VAR uses, observed series first."""
+        return [*self._observed_names, *self.exog_names]
 
     def _baseline_start_sd(self, mmm: Model, baseline_scale: float) -> float:
         """Return the standard deviation of the baseline's first ``lags`` values.

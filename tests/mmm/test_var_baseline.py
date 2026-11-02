@@ -159,6 +159,96 @@ def test_baseline_own_lag_mean_must_keep_the_baseline_stationary(
         )
 
 
+@pytest.mark.parametrize(
+    "brand_columns, effect_kwargs, match",
+    [
+        pytest.param(
+            {},
+            {"endog_names": ["baseline", "awareness", "intent"]},
+            r"\['intent'\] of endog_names are missing in brand_data",
+            id="missing-column",
+        ),
+        pytest.param(
+            {"awareness": lambda df: df["awareness"].map("{:.0%}".format)},
+            {},
+            r"\['awareness'\] of brand_data are not numeric",
+            id="text",
+        ),
+        pytest.param(
+            {"consideration": lambda df: df["consideration"].mask(df.index == 3)},
+            {},
+            r"\['consideration'\] of brand_data contain NaN",
+            id="nan",
+        ),
+        pytest.param(
+            {"awareness": lambda df: df["awareness"].mask(df.index == 7, np.inf)},
+            {},
+            r"\['awareness'\] of brand_data contain NaN or infinite",
+            id="inf",
+        ),
+        pytest.param(
+            {"brand_spend": 0.0},
+            {},
+            r"\['brand_spend'\] of brand_data are constant",
+            id="constant",
+        ),
+        pytest.param(
+            {"baseline": 0.0},
+            {},
+            "baseline_name 'baseline' must not be a column of brand_data",
+            id="baseline-is-a-column",
+        ),
+        pytest.param(
+            {},
+            {"endog_names": ["awareness", "baseline", "consideration"]},
+            "endog_names must start with baseline_name 'baseline'",
+            id="baseline-not-first",
+        ),
+        pytest.param(
+            {},
+            {"endog_names": ["baseline"]},
+            "endog_names must name at least one column of brand_data",
+            id="no-observed-endog",
+        ),
+        pytest.param(
+            {},
+            {"endog_names": [*ENDOG_NAMES, "awareness"]},
+            r"\['awareness'\] appear more than once in endog_names and exog_names",
+            id="repeated-endog",
+        ),
+        pytest.param(
+            {},
+            {"exog_names": ["brand_spend", "brand_spend"]},
+            r"\['brand_spend'\] appear more than once in endog_names and exog_names",
+            id="repeated-exog",
+        ),
+        pytest.param(
+            {},
+            {"exog_names": ["brand_spend", "consideration"]},
+            r"\['consideration'\] appear more than once in endog_names and exog_names",
+            id="endog-and-exog",
+        ),
+    ],
+)
+def test_bad_brand_data_raises_at_construction(
+    brand_mmm_data, brand_columns, effect_kwargs, match
+):
+    brand_data = brand_mmm_data["brand_data"].assign(**brand_columns)
+
+    with pytest.raises(ValueError, match=match):
+        make_effect(brand_data, **effect_kwargs)
+
+
+def test_brand_data_is_copied_at_construction(brand_mmm_data):
+    """Later edits to the caller's frame leave the effect's copy unchanged."""
+    brand_data = brand_mmm_data["brand_data"].copy()
+    effect = make_effect(brand_data)
+
+    brand_data.loc[3, "awareness"] = np.nan
+
+    pd.testing.assert_frame_equal(effect.brand_data, brand_mmm_data["brand_data"])
+
+
 def test_fit_adds_the_var_and_the_baseline_to_the_posterior(fitted_mmm):
     posterior = fitted_mmm.idata.posterior
     var_names = [
@@ -204,6 +294,32 @@ def test_in_sample_posterior_predictive(fitted_mmm, brand_mmm_data):
     assert draws.indexes["date"].equals(pd.DatetimeIndex(X["date"]))
     assert draws[fitted_mmm.output_var].dims == ("date", "sample")
     assert np.isfinite(draws[fitted_mmm.output_var]).all()
+
+
+@pytest.mark.parametrize("exog_names", [["tv_spend"], []], ids=["exog", "no-exog"])
+def test_fit_with_any_brand_column_names(brand_mmm_data, exog_names):
+    """No column name is assumed, and exogenous columns are optional."""
+    brand_data = brand_mmm_data["brand_data"].rename(
+        columns={
+            "awareness": "Aided awareness (%)",
+            "consideration": "purchase_intent",
+            "brand_spend": "tv_spend",
+        }
+    )
+    endog_names = ["demand", "Aided awareness (%)", "purchase_intent"]
+    effect = make_effect(
+        brand_data,
+        baseline_name="demand",
+        endog_names=endog_names,
+        exog_names=exog_names,
+    )
+    mmm = make_mmm(effect)
+    with patch.object(pm, "sample", mock_sample):
+        mmm.fit(brand_mmm_data["X"], brand_mmm_data["y"], draws=20, random_seed=seed)
+
+    posterior = mmm.idata.posterior
+    assert posterior[f"{PREFIX}::B"].coords["var"].values.tolist() == endog_names
+    assert list(posterior.indexes.get("exog", [])) == exog_names
 
 
 @pytest.mark.parametrize(
