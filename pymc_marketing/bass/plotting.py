@@ -35,6 +35,8 @@ import xarray as xr
 from matplotlib.axes import Axes
 from matplotlib.lines import Line2D
 
+from pymc_marketing.bass.names import Dim, Var
+from pymc_marketing.names import Group
 from pymc_marketing.plot import plot_curve
 
 if TYPE_CHECKING:
@@ -57,7 +59,7 @@ def _facet_dim(da: xr.DataArray, dim: str | None) -> str | None:
     """
     if dim is not None:
         return dim
-    extra = [d for d in da.dims if d not in ("chain", "draw", "T")]
+    extra = [d for d in da.dims if d not in ("chain", "draw", Dim.T)]
     return extra[0] if extra else None
 
 
@@ -78,9 +80,13 @@ def _get_observed(
     model: "BassModel", dim: str | None, coord: str | None
 ) -> xr.DataArray | None:
     idata = model.idata
-    if idata is None or "fit_data" not in idata or "observed" not in idata.fit_data:
+    if (
+        idata is None
+        or Group.FIT_DATA not in idata
+        or Var.OBSERVED not in idata.fit_data
+    ):
         return None
-    return _select(idata.fit_data["observed"], dim, coord)
+    return _select(idata.fit_data[Var.OBSERVED], dim, coord)
 
 
 def _overlay_observed(
@@ -91,7 +97,7 @@ def _overlay_observed(
 ) -> None:
     """Plot observed data on each axes, one coordinate per axes."""
     plot_kwargs = {"color": "black", **plot_kwargs}
-    t = observed.coords["T"].values
+    t = observed.coords[Dim.T].values
     if dim is not None and dim in observed.dims:
         for ax, coord in zip(axes.flat, observed.coords[dim].values, strict=False):
             ax.plot(t, observed.sel({dim: coord}).values, **plot_kwargs)
@@ -154,12 +160,12 @@ def plot_adoption_curve(
         fig, axes = model.plot_adoption_curve()
     """
     posterior = model.posterior
-    dim = _facet_dim(posterior["adopters"], dim)
-    curve = _select(posterior["adopters"], dim, coord)
+    dim = _facet_dim(posterior[Var.ADOPTERS], dim)
+    curve = _select(posterior[Var.ADOPTERS], dim, coord)
 
     fig, axes = plot_curve(
         curve,
-        {"T"},
+        {Dim.T},
         n_samples=n_samples,
         hdi_probs=hdi_probs,
         random_seed=random_seed,
@@ -221,12 +227,12 @@ def plot_cumulative(
         Figure and the axes.
     """
     posterior = model.posterior
-    dim = _facet_dim(posterior["adopters"], dim)
-    curve = _select(posterior["adopters"], dim, coord).cumsum(dim="T")
+    dim = _facet_dim(posterior[Var.ADOPTERS], dim)
+    curve = _select(posterior[Var.ADOPTERS], dim, coord).cumsum(dim=Dim.T)
 
     fig, axes = plot_curve(
         curve,
-        {"T"},
+        {Dim.T},
         n_samples=n_samples,
         hdi_probs=hdi_probs,
         random_seed=random_seed,
@@ -236,7 +242,7 @@ def plot_cumulative(
 
     observed = _get_observed(model, dim, coord)
     if observed is not None:
-        _overlay_observed(observed.cumsum(dim="T"), axes, dim)
+        _overlay_observed(observed.cumsum(dim=Dim.T), axes, dim)
 
     for ax in axes.flat:
         ax.set_xlabel("T")
@@ -290,15 +296,15 @@ def plot_decomposition(
         accessible through ``fig.axes``.
     """
     posterior = model.posterior
-    dim = _facet_dim(posterior["innovators"], dim)
-    innovators = _select(posterior["innovators"], dim, coord)
-    imitators = _select(posterior["imitators"], dim, coord)
-    cumulative = _select(posterior["adopters"], dim, coord).cumsum(dim="T")
+    dim = _facet_dim(posterior[Var.INNOVATORS], dim)
+    innovators = _select(posterior[Var.INNOVATORS], dim, coord)
+    imitators = _select(posterior[Var.IMITATORS], dim, coord)
+    cumulative = _select(posterior[Var.ADOPTERS], dim, coord).cumsum(dim=Dim.T)
 
     n_axes = innovators.coords[dim].size if dim in innovators.dims else 1
     fig, axes = plot_curve(
         innovators,
-        {"T"},
+        {Dim.T},
         n_samples=n_samples,
         hdi_probs=hdi_probs,
         random_seed=random_seed,
@@ -309,7 +315,7 @@ def plot_decomposition(
     )
     plot_curve(
         imitators,
-        {"T"},
+        {Dim.T},
         n_samples=n_samples,
         hdi_probs=hdi_probs,
         random_seed=random_seed,
@@ -321,7 +327,7 @@ def plot_decomposition(
     twin_axes = np.array([ax.twinx() for ax in axes.flat]).reshape(axes.shape)
     plot_curve(
         cumulative,
-        {"T"},
+        {Dim.T},
         n_samples=n_samples,
         hdi_probs=hdi_probs,
         random_seed=random_seed,
@@ -332,7 +338,7 @@ def plot_decomposition(
 
     observed = _get_observed(model, dim, coord)
     if observed is not None:
-        _overlay_observed(observed.cumsum(dim="T"), twin_axes, dim, linestyle="--")
+        _overlay_observed(observed.cumsum(dim=Dim.T), twin_axes, dim, linestyle="--")
 
     for ax, twin_ax in zip(axes.flat, twin_axes.flat, strict=True):
         ax.set_xlabel("T")
@@ -385,8 +391,8 @@ def plot_peak(
         Figure and the axes.
     """
     posterior = model.posterior
-    dim = _facet_dim(posterior["peak"], dim)
-    peak = _select(posterior["peak"], dim, coord)
+    dim = _facet_dim(posterior[Var.PEAK], dim)
+    peak = _select(posterior[Var.PEAK], dim, coord)
 
     # One facet column per coordinate for a multi-series model; plot_dist
     # otherwise overlays them on a single axis.
