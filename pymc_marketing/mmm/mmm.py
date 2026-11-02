@@ -182,7 +182,7 @@ from __future__ import annotations
 import io
 import json
 import warnings
-from collections.abc import Callable, Hashable, Sequence
+from collections.abc import Callable, Hashable, Mapping, Sequence
 from copy import deepcopy
 from typing import TYPE_CHECKING, Annotated, Any, Literal, NamedTuple, Self, cast
 
@@ -337,6 +337,54 @@ def _calibration_frame_from_record(record: dict[str, Any]) -> pd.DataFrame:
     return df
 
 
+def _canonical_calibration_records(
+    records: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Return calibration records in a form that compares by content.
+
+    JSON turns tuples into lists, and earlier releases wrote lift-test dates
+    in milliseconds rather than nanoseconds, so the rows are re-encoded: two
+    records holding the same calibration compare equal.
+    """
+    return [
+        {
+            **record,
+            **_calibration_frame_to_record(_calibration_frame_from_record(record)),
+        }
+        for record in json.loads(json.dumps(records))
+    ]
+
+
+def _label_indexer(labels: pd.Index, reference: pd.Index) -> np.ndarray | None:
+    """Return the position in ``labels`` of each label of ``reference``.
+
+    ``None`` unless ``labels`` holds exactly the labels of ``reference``,
+    each once, in any order.
+    """
+    if len(labels) != len(reference) or not labels.is_unique:
+        return None
+    indexer = labels.get_indexer(reference)
+    return None if (indexer < 0).any() else indexer
+
+
+def _calibrations_by_name(
+    records: list[dict[str, Any]], key: str, spend: Mapping[Any, xr.DataArray]
+) -> dict[str, tuple[dict[str, Any], xr.DataArray | None]]:
+    """Key calibration records by name, each with the spend array it points to.
+
+    A shared spend array is named after the first calibration that used it, so
+    ``spend_var`` depends on the order calibrations were added in; the array
+    itself is what the likelihood consumes and takes its place here.
+    """
+    return {
+        record[key]: (
+            {field: value for field, value in record.items() if field != "spend_var"},
+            spend.get(record["spend_var"]) if "spend_var" in record else None,
+        )
+        for record in _canonical_calibration_records(records)
+    }
+
+
 COST_PER_TARGET_SPEND_GROUP = "cost_per_target_spend"
 """DataTree group holding the spend arrays of cost-per-target calibrations.
 
@@ -344,6 +392,13 @@ One data variable per distinct spend array, named by the ``name_prefix`` of the
 first calibration that used it; the records in
 ``idata.attrs["cost_per_target_calibrations"]`` point at them via ``spend_var``.
 """
+
+_CPT_METADATA_RECOVERY_HINT = (
+    "To reach the posterior anyway, open the file with "
+    "`pymc_marketing.data.idata.load_idata`, repair or delete "
+    "`idata.attrs['cost_per_target_calibrations']`, and pass the result to "
+    "`MMM.load_from_idata`; a deleted record loads without its likelihood."
+)
 
 
 def _parse_cost_per_target_record(
@@ -402,7 +457,8 @@ def _parse_cost_per_target_records(
         return [_parse_cost_per_target_record(record, dims) for record in records]
     except (KeyError, TypeError, AttributeError, ValueError) as error:
         raise ValueError(
-            f"Invalid cost-per-target calibration metadata: {error}"
+            f"Invalid cost-per-target calibration metadata: {error}. "
+            f"{_CPT_METADATA_RECOVERY_HINT}"
         ) from error
 
 
@@ -1263,32 +1319,48 @@ class MMM(RegressionModelBuilder):
 
         return attrs
 
-    def _warn_if_calibration_changed_since_fit(self, attrs: dict[str, Any]) -> None:
-        """Warn when the live calibration differs from the records in ``attrs``.
+    def _warn_if_calibration_changed_since_fit(self, idata: xr.DataTree) -> None:
+        """Warn when the live calibration differs from the one recorded at fit time.
 
-        ``attrs`` are the fit-time ``idata.attrs``. Compares calibration names, so
-        a model restored by :meth:`build_from_idata` never warns on re-save; a
-        same-name calibration re-added with different inputs is not detected.
+        Compares each lift-test and cost-per-target record of the model with the
+        record of the same name in the fit-time ``idata.attrs``, and each
+        cost-per-target spend array with the one its record points to in the
+        ``cost_per_target_spend`` group, so a calibration re-added under the
+        same name with other inputs is caught. A model restored by
+        :meth:`build_from_idata` replays those inputs and does not warn on
+        re-save.
         """
-        changed = [
-            label
-            for label, attr, key, records in (
-                (
-                    "lift-test",
-                    "lift_test_calibrations",
-                    "name",
-                    self._lift_test_calibrations,
-                ),
-                (
-                    "cost-per-target",
-                    "cost_per_target_calibrations",
-                    "name_prefix",
-                    self._cost_per_target_calibrations,
-                ),
+        saved_spend = (
+            idata[COST_PER_TARGET_SPEND_GROUP].to_dataset()
+            if COST_PER_TARGET_SPEND_GROUP in idata.children
+            else xr.Dataset()
+        )
+        changed = []
+        for label, attr, key, records in (
+            (
+                "lift-test",
+                "lift_test_calibrations",
+                "name",
+                self._lift_test_calibrations,
+            ),
+            (
+                "cost-per-target",
+                "cost_per_target_calibrations",
+                "name_prefix",
+                self._cost_per_target_calibrations,
+            ),
+        ):
+            live = _calibrations_by_name(records, key, self._cost_per_target_spend)
+            saved = _calibrations_by_name(
+                json.loads(idata.attrs.get(attr, "[]")), key, saved_spend
             )
-            if sorted(record[key] for record in records)
-            != sorted(record[key] for record in json.loads(attrs.get(attr, "[]")))
-        ]
+            if live.keys() != saved.keys() or any(
+                record != saved[name][0]
+                or (spend is None) != (saved[name][1] is None)
+                or (spend is not None and not spend.equals(saved[name][1]))
+                for name, (record, spend) in live.items()
+            ):
+                changed.append(label)
         if changed:
             warnings.warn(
                 f"The model's {' and '.join(changed)} calibration differs from the "
@@ -1302,12 +1374,12 @@ class MMM(RegressionModelBuilder):
     def save(self, fname: str, **kwargs) -> None:
         """Save the model, including supplementary idata groups from mu_effects.
 
-        Warns when calibration was added or removed since the last fit, because
-        the file carries the calibration recorded at fit time.
+        Warns when calibration was added, removed or changed since the last fit,
+        because the file carries the calibration recorded at fit time.
         """
         if self.idata is None or "posterior" not in self.idata:
             raise RuntimeError("The model hasn't been fit yet, call .fit() first")
-        self._warn_if_calibration_changed_since_fit(self.idata.attrs)
+        self._warn_if_calibration_changed_since_fit(self.idata)
 
         for effect in self.mu_effects:
             for group_name, ds in effect.idata_groups().items():
@@ -2614,6 +2686,13 @@ class MMM(RegressionModelBuilder):
         -------
         xr.DataTree
             Inference data of the fitted model.
+
+        Raises
+        ------
+        ValueError
+            If the model carries cost-per-target calibration and ``X`` has dates
+            or dimension labels other than those the model was built with; the
+            built model is reused, and its calibration spend covers only those.
 
         Notes
         -----
@@ -4600,10 +4679,15 @@ class MMM(RegressionModelBuilder):
         Parameters
         ----------
         data : pd.DataFrame | xr.Dataset | xr.DataArray
-            Feature-like input with columns matching training ``X`` but with
-            channel values representing spend (original units). Its dates,
-            dimension labels and channels must be exactly the model's; they are
-            matched by label and reordered to the model's coordinate order.
+            Spend in original units, laid out like the training ``X``: a
+            DataFrame with the ``date_column``, one column per model dim and one
+            per channel; an ``xr.Dataset`` with the spend in a ``_channel`` (or
+            ``media``) variable; or an ``xr.DataArray`` of the spend alone. An
+            xarray input is on ``date``, the model ``dims`` and ``channel``.
+            Its dates and dimension labels must be exactly the model's and it
+            must hold every model channel; labels are matched by value and
+            reordered to the model's coordinate order. Missing values count as
+            zero spend.
         calibration_data : pd.DataFrame
             DataFrame with rows specifying calibration targets. Must include:
 
@@ -4682,6 +4766,12 @@ class MMM(RegressionModelBuilder):
         :meth:`load`. Adding calibration after a fit changes the graph but not
         the saved posterior or these records; refit before saving that change
         (:meth:`save` warns when they differ).
+
+        The spend covers the model's dates and dimension labels. :meth:`fit`
+        reuses a built model, so it refuses ``X`` with other dates or labels
+        while this calibration is present; to fit new data, call
+        :meth:`build_model` with it, re-add the calibration with spend for its
+        dates, and fit.
 
         Examples
         --------
@@ -4811,12 +4901,8 @@ class MMM(RegressionModelBuilder):
         for dim in channel_data_dims:
             model_labels = pd.Index(self.model.coords[dim])
             spend_labels = pd.Index(spend_xarray.coords[dim].values)
-            indexer = (
-                spend_labels.get_indexer(model_labels)
-                if len(spend_labels) == len(model_labels) and spend_labels.is_unique
-                else None
-            )
-            if indexer is None or (indexer < 0).any():
+            indexer = _label_indexer(spend_labels, model_labels)
+            if indexer is None:
                 raise ValueError(
                     f"Spend data coordinates for dim {dim!r} do not match model "
                     f"coords: expected {model_labels.tolist()}, got "
@@ -4893,6 +4979,36 @@ class MMM(RegressionModelBuilder):
         self._cost_per_target_calibrations.append(calibration)
 
         return self
+
+    def _prepare_fit(self, data: Any = None) -> None:
+        """Refuse fit data whose labels the cost-per-target spend does not cover.
+
+        :meth:`fit` reuses a built model, and the cost-per-target spend of that
+        model covers the dates and dimension labels it was built with. The fit
+        data is what :meth:`build_from_idata` rebuilds the model from on load,
+        where spend for other labels could not be replayed, so such data is
+        refused before sampling.
+
+        Raises
+        ------
+        ValueError
+            If the model carries cost-per-target calibration and the fit data
+            has dates or dimension labels other than the model's.
+        """
+        super()._prepare_fit(data)
+        fit_data = self.create_fit_data_group()
+        if not self._cost_per_target_calibrations or fit_data is None:
+            return
+        for dim, coord in (("date", self.date_column), *((d, d) for d in self.dims)):
+            fit_labels = pd.Index(fit_data[coord].values)
+            if _label_indexer(fit_labels, pd.Index(self.model.coords[dim])) is None:
+                raise ValueError(
+                    f"X has {dim!r} labels other than those the model was built "
+                    "with. fit reuses the built model, whose cost-per-target "
+                    "calibration spend covers its labels only, so a model saved "
+                    "from this fit could not be loaded. Call `build_model(X, y)`, "
+                    "re-add the calibration with spend for X, then fit."
+                )
 
     def _validate_fit_inputs(
         self,
@@ -5176,8 +5292,10 @@ class MMM(RegressionModelBuilder):
                 "The saved model records cost-per-target calibration "
                 f"{sorted(unrestored_cpt)} but the {COST_PER_TARGET_SPEND_GROUP!r} "
                 "group holding its spend is missing (for example dropped through "
-                "`save(groups=...)`); those likelihoods are not restored. Refit "
-                "to make the saved records match the rebuilt model.",
+                "`save(groups=...)`); those likelihoods are not restored. Re-save "
+                "the fitted model including the "
+                f"{COST_PER_TARGET_SPEND_GROUP!r} group, or re-add the calibration "
+                "and refit.",
                 UserWarning,
                 stacklevel=2,
             )
@@ -5192,7 +5310,7 @@ class MMM(RegressionModelBuilder):
                 raise ValueError(
                     "Invalid cost-per-target calibration metadata: spend variables "
                     f"{missing_spend} are not in the {COST_PER_TARGET_SPEND_GROUP!r} "
-                    "group"
+                    f"group. {_CPT_METADATA_RECOVERY_HINT}"
                 )
             for record in records:
                 self.add_cost_per_target_calibration(
@@ -5247,8 +5365,9 @@ class MMM(RegressionModelBuilder):
             self.add_original_scale_contribution_variable(var=vars_to_restore)
 
         # Every observed term of the fitted graph should be back. Anything left
-        # over is calibration whose inputs the file does not carry (saved before
-        # calibration persistence, or with `groups=` that dropped them).
+        # over is most likely calibration whose inputs the file does not carry
+        # (saved before calibration persistence, or with `groups=` that dropped
+        # them), though an observed variable added by hand looks the same.
         if "observed_data" in idata.children:
             missing_terms = sorted(
                 set(idata.observed_data.data_vars)
@@ -5258,10 +5377,11 @@ class MMM(RegressionModelBuilder):
             if missing_terms:
                 warnings.warn(
                     f"The saved observed data has likelihood terms {missing_terms} "
-                    "that the rebuilt model lacks. They came from calibration whose "
-                    "inputs were not stored with the model (files saved before "
-                    "calibration persistence, or saved with `groups=` that dropped "
-                    "them); those likelihoods are not restored.",
+                    "that the rebuilt model lacks. These are likely calibration "
+                    "terms whose inputs were not stored with the model (files "
+                    "saved before calibration persistence, or saved with "
+                    "`groups=` that dropped them); those likelihoods are not "
+                    "restored.",
                     UserWarning,
                     stacklevel=2,
                 )

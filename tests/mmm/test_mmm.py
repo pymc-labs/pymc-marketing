@@ -8828,7 +8828,9 @@ def test_fit_after_prior_predictive_with_target_does_not_warn(
 
 # Calibration round trips exercise the rebuilt numerical graph, not sampling
 # convergence. The mocked sampling fixture supplies valid parameter draws.
-def _cpt_persistence_inputs(link="identity", labeled=False, dims=("geo",)):
+def _cpt_persistence_inputs(
+    link="identity", labeled=False, dims=("geo",), extras=False
+):
     from pymc_marketing.mmm.data_conversion import to_mmm_dataset
 
     dates = pd.date_range("2025-01-05", periods=6, freq="W")
@@ -8841,6 +8843,7 @@ def _cpt_persistence_inputs(link="identity", labeled=False, dims=("geo",)):
                     **({"geo": geo} if dims else {}),
                     "zeta": np.arange(1, 7, dtype=float) + i,
                     "alpha": np.arange(6, 0, -1, dtype=float) + i,
+                    **({"promo": np.tile([0.0, 1.0], 3) + i} if extras else {}),
                 }
             )
             for i, geo in enumerate(geos)
@@ -8849,17 +8852,28 @@ def _cpt_persistence_inputs(link="identity", labeled=False, dims=("geo",)):
     )
     y = pd.Series(30 + 2 * X.zeta + X.alpha, name="target")
     spend = X.assign(zeta=11 * X.zeta, alpha=7 * X.alpha)
+    control_columns = ["promo"] if extras else None
     mmm = MMM(
         date_column="week",
         target_column="target",
         channel_columns=["zeta", "alpha"],
+        control_columns=control_columns,
         dims=dims,
         adstock=GeometricAdstock(l_max=2),
         saturation=LogisticSaturation(),
         link=link,
     )
+    if extras:
+        mmm.add_mu_effect(
+            LinearTrendEffect(trend=LinearTrend(n_changepoints=2), prefix="trend")
+        )
     if labeled:
-        options = dict(date_column="week", dims=dims, channel_columns=["zeta", "alpha"])
+        options = dict(
+            date_column="week",
+            dims=dims,
+            channel_columns=["zeta", "alpha"],
+            control_columns=control_columns,
+        )
         X = to_mmm_dataset(X, y, **options)
         spend = to_mmm_dataset(spend, **options)
         if dims:
@@ -8934,6 +8948,50 @@ def test_add_cost_per_target_calibration_reorders_spend_by_label():
     )
 
 
+def _assert_cpt_roundtrip(mmm, path):
+    """Save and load a fitted model; assert the rebuilt graph matches the original."""
+    point = mmm.model.initial_point()
+    points = [point, {k: np.asarray(v) + 0.17 for k, v in point.items()}]
+    original_logp = mmm.model.compile_logp()
+    original_grad = mmm.model.compile_dlogp()
+    mmm.save(path)
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        loaded = MMM.load(path)
+    assert not any("already in the model, skipping" in str(w.message) for w in caught)
+    assert not [
+        w
+        for w in caught
+        if "rebuilt model lacks" in str(w.message)
+        or COST_PER_TARGET_SPEND_GROUP in str(w.message)
+    ]
+    assert {v.name for v in loaded.model.observed_RVs} == {
+        v.name for v in mmm.model.observed_RVs
+    }
+    assert loaded._cost_per_target_calibrations == mmm._cost_per_target_calibrations
+    for key, stored in mmm._cost_per_target_spend.items():
+        assert loaded._cost_per_target_spend[key].equals(stored)
+    restored_logp = loaded.model.compile_logp()
+    restored_grad = loaded.model.compile_dlogp()
+    observed_logps = [
+        (
+            loaded.model.compile_logp(vars=[loaded.model[rv.name]]),
+            mmm.model.compile_logp(vars=[rv]),
+        )
+        for rv in mmm.model.observed_RVs
+    ]
+    for p in points:
+        np.testing.assert_allclose(
+            restored_logp(p), original_logp(p), rtol=1e-11, atol=1e-8
+        )
+        np.testing.assert_allclose(
+            restored_grad(p), original_grad(p), rtol=1e-11, atol=1e-8
+        )
+        for restored, original in observed_logps:
+            np.testing.assert_allclose(restored(p), original(p), rtol=1e-11, atol=1e-8)
+    return loaded
+
+
 @pytest.mark.parametrize(
     "link,central,roas,mixed,labeled,prefix,suffix,dims",
     [
@@ -8989,57 +9047,26 @@ def test_cost_per_target_persistence_roundtrip(
             name="lift_external",
         )
     mmm.fit(X, y)
-    point = mmm.model.initial_point()
-    points = [point, {k: np.asarray(v) + 0.17 for k, v in point.items()}]
-    original_logp = mmm.model.compile_logp()
-    original_grad = mmm.model.compile_dlogp()
-    path = str(tmp_path / f"calibrated{suffix}")
-    mmm.save(path)
-    with warnings.catch_warnings(record=True) as caught:
-        warnings.simplefilter("always")
-        loaded = MMM.load(path)
-    assert not any("already in the model, skipping" in str(w.message) for w in caught)
-    assert not [
-        w
-        for w in caught
-        if "rebuilt model lacks" in str(w.message)
-        or COST_PER_TARGET_SPEND_GROUP in str(w.message)
-    ]
-    assert {v.name for v in loaded.model.observed_RVs} == {
-        v.name for v in mmm.model.observed_RVs
-    }
-    assert loaded._cost_per_target_calibrations == mmm._cost_per_target_calibrations
+    loaded = _assert_cpt_roundtrip(mmm, str(tmp_path / f"calibrated{suffix}"))
     assert set(mmm.idata[COST_PER_TARGET_SPEND_GROUP].data_vars) == {
         r["spend_var"] for r in mmm._cost_per_target_calibrations
     }
-    for key, stored in mmm._cost_per_target_spend.items():
-        assert loaded._cost_per_target_spend[key].equals(stored)
     for dim in mmm.dims:
         assert loaded.model.coords[dim] == mmm.model.coords[dim]
     assert loaded.model.coords["channel"] == ("zeta", "alpha")
-    restored_logp = loaded.model.compile_logp()
-    restored_grad = loaded.model.compile_dlogp()
-    observed_logps = [
-        (
-            loaded.model.compile_logp(vars=[loaded.model[rv.name]]),
-            mmm.model.compile_logp(vars=[rv]),
-        )
-        for rv in mmm.model.observed_RVs
-    ]
-    for p in points:
-        np.testing.assert_allclose(
-            restored_logp(p), original_logp(p), rtol=1e-11, atol=1e-8
-        )
-        np.testing.assert_allclose(
-            restored_grad(p), original_grad(p), rtol=1e-11, atol=1e-8
-        )
-        for restored, original in observed_logps:
-            np.testing.assert_allclose(
-                restored(p),
-                original(p),
-                rtol=1e-11,
-                atol=1e-8,
-            )
+
+
+@pytest.mark.parametrize("method", ["mcmc", "map"])
+def test_cost_per_target_persistence_roundtrip_with_controls_and_mu_effect(
+    mock_pymc_sample, tmp_path, method
+):
+    mmm, X, y, spend, rows = _cpt_persistence_inputs(extras=True)
+    _attach_cpt(mmm, spend, rows, roas=True)
+    mmm.fit(X, y, method=method)
+    loaded = _assert_cpt_roundtrip(mmm, str(tmp_path / "calibrated.nc"))
+    assert {"control_contribution", "trend_effect_contribution"} <= set(
+        loaded.model.named_vars
+    )
 
 
 def test_cost_per_target_persistence_owns_inputs_and_resets():
@@ -9291,6 +9318,80 @@ def test_save_does_not_warn_after_load(mock_pymc_sample, tmp_path):
         warnings.filterwarnings("error", message=".*recorded at fit time.*")
         mmm.save(first)
         MMM.load(first).save(str(tmp_path / "second.nc"))
+
+
+def test_save_warns_when_same_name_calibration_changed(mock_pymc_sample, tmp_path):
+    mmm, X, y, spend, rows = _cpt_persistence_inputs()
+    _attach_cpt(mmm, spend, rows, "cpt")
+    _attach_cpt(mmm, spend, rows, "roas", roas=True)
+    mmm.fit(X, y)
+    # Re-added in the other order, the shared spend is stored under "roas"
+    # rather than "cpt"; the calibration itself is unchanged.
+    mmm.build_model(X, y)
+    _attach_cpt(mmm, spend, rows, "roas", roas=True)
+    _attach_cpt(mmm, spend, rows, "cpt")
+    with warnings.catch_warnings():
+        warnings.filterwarnings("error", message=".*recorded at fit time.*")
+        mmm.save(str(tmp_path / "reordered.nc"))
+    changes = {
+        "spend": (spend.assign(zeta=spend.zeta + 1), rows),
+        "rows": (spend, rows.assign(estimate=rows.estimate + 1)),
+    }
+    for change, (cpt_spend, cpt_rows) in changes.items():
+        mmm.build_model(X, y)
+        _attach_cpt(mmm, cpt_spend, cpt_rows, "cpt")
+        _attach_cpt(mmm, spend, rows, "roas", roas=True)
+        with pytest.warns(UserWarning, match="cost-per-target calibration differs"):
+            mmm.save(str(tmp_path / f"{change}.nc"))
+
+
+def test_save_does_not_warn_after_load_of_millisecond_lift_dates(
+    mock_pymc_sample, tmp_path
+):
+    mmm, X, y, _, _ = _cpt_persistence_inputs()
+    mmm.add_lift_test_measurements(
+        _late_lift_rows().assign(date=pd.Timestamp("2025-01-05")), name="lift"
+    )
+    mmm.fit(X, y)
+    legacy = copy.deepcopy(mmm.idata)
+    records = json.loads(legacy.attrs["lift_test_calibrations"])
+    # Earlier releases wrote lift-test dates in pandas' default milliseconds.
+    records[0]["data"] = _calibration_frame_from_record(records[0]).to_json(
+        orient="split", date_format="iso", double_precision=15
+    )
+    legacy.attrs["lift_test_calibrations"] = json.dumps(records)
+    loaded = MMM.load_from_idata(legacy)
+    with warnings.catch_warnings():
+        warnings.filterwarnings("error", message=".*recorded at fit time.*")
+        loaded.save(str(tmp_path / "resaved.nc"))
+
+
+def test_fit_refuses_new_dates_with_cost_per_target_calibration(
+    mock_pymc_sample, tmp_path
+):
+    mmm, X, y, spend, rows = _cpt_persistence_inputs()
+    _attach_cpt(mmm, spend, rows)
+    mmm.fit(X, y)
+    path = str(tmp_path / "calibrated.nc")
+    mmm.save(path)
+    loaded = MMM.load(path)
+    shift = pd.Timedelta(weeks=6)
+    X_new = X.assign(week=X.week + shift)
+    fitted = loaded.idata
+    # fit reuses the loaded graph, whose spend covers the old dates only; a
+    # model saved from such a fit could not be loaded again.
+    with pytest.raises(ValueError, match="X has 'date' labels other than"):
+        loaded.fit(X_new, y)
+    assert loaded.idata is fitted
+    loaded.build_model(X_new, y)
+    _attach_cpt(loaded, spend.assign(week=spend.week + shift), rows)
+    loaded.fit(X_new, y)
+    path = str(tmp_path / "refitted.nc")
+    loaded.save(path)
+    refitted = MMM.load(path)
+    assert "external" in refitted.model
+    assert refitted.model.coords["date"] == loaded.model.coords["date"]
+    assert refitted.model.coords["date"] != mmm.model.coords["date"]
 
 
 def test_cost_per_target_persistence_normalizes_numeric_objects():

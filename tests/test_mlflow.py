@@ -57,6 +57,7 @@ from pymc_marketing.mlflow import (
     log_versions,
 )
 from pymc_marketing.mmm import MMM, GeometricAdstock, LogisticSaturation
+from pymc_marketing.mmm.mmm import _calibration_frame_to_record
 from pymc_marketing.version import __version__
 
 seed = sum(map(ord, "mlflow-with-pymc"))
@@ -1697,7 +1698,34 @@ def test_mlflow_docstrings_have_no_removed_methods(doc_source):
     assert "plot_components_contributions" not in doc_source
 
 
-@pytest.mark.parametrize("records", ["[]", '[{"spend": "' + "x" * 10000 + '"}]'])
+# One record in the format `MMM.add_cost_per_target_calibration` writes; the
+# spend itself lives in the `cost_per_target_spend` group, not in attrs.
+_COST_PER_TARGET_RECORDS = json.dumps(
+    [
+        {
+            "format_version": 1,
+            "name_prefix": "cpt_calibration",
+            "target_column": "cost_per_target",
+            "target_per_cost": False,
+            "central_tendency": "mean",
+            "spend_var": "cpt_calibration",
+            **_calibration_frame_to_record(
+                pd.DataFrame(
+                    {
+                        "channel": ["channel_1", "channel_2"],
+                        "cost_per_target": [30.0, 45.0],
+                        "sigma": [2.0, 3.0],
+                    }
+                )
+            ),
+        }
+    ]
+)
+
+
+@pytest.mark.parametrize(
+    "records", ["[]", _COST_PER_TARGET_RECORDS], ids=["empty", "record"]
+)
 def test_log_mmm_configuration_cost_per_target_artifact(mmm, mocker, records):
     mocker.patch.object(
         mmm,
