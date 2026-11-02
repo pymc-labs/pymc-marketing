@@ -24,6 +24,7 @@ from scipy.special import gammaln, hyp2f1
 
 from pymc_marketing.clv.distributions import ShiftedBetaGeometric
 from pymc_marketing.clv.models import CLVModel
+from pymc_marketing.clv.names import Col, Dim, Var
 from pymc_marketing.clv.utils import to_xarray
 from pymc_marketing.model_config import ModelConfig
 
@@ -191,7 +192,7 @@ class ShiftedBetaGeoModel(CLVModel):
         """Validate cohort parameter dims, T homogeneity, and if provided in external data."""
         if check_pred_data:
             # Validate cohorts in external prediction data match any or all cohorts used to fix model.
-            cohorts_present = pd.Index(data["cohort"].unique())
+            cohorts_present = pd.Index(data[Col.COHORT].unique())
             cohorts_present = cohorts_present.intersection(pd.Index(self.cohorts))
             if len(cohorts_present) == 0:
                 raise ValueError(
@@ -200,7 +201,7 @@ class ShiftedBetaGeoModel(CLVModel):
             return cohorts_present
         else:
             # Validate T is homogeneous within each cohort
-            t_per_cohort = data.groupby("cohort")["T"].nunique()
+            t_per_cohort = data.groupby(Col.COHORT)[Col.T].nunique()
             non_homogeneous_cohorts = t_per_cohort[t_per_cohort > 1]
             if len(non_homogeneous_cohorts) > 0:
                 cohort_names = ", ".join(
@@ -222,7 +223,7 @@ class ShiftedBetaGeoModel(CLVModel):
                         else:
                             dims_tuple = tuple(dims) if dims is not None else tuple()
 
-                        if "cohort" not in dims_tuple:
+                        if Dim.COHORT not in dims_tuple:
                             raise ValueError(
                                 f"ModelConfig Prior for '{key}' must include dims=\"cohort\". "
                                 f'Got dims={prior.dims!r}. Example: Prior("HalfFlat", dims="cohort").'
@@ -233,8 +234,8 @@ class ShiftedBetaGeoModel(CLVModel):
         """Default model configuration."""
         return {
             # Cohort-level hierarchical defaults (no covariates)
-            "phi": Prior("Uniform", lower=0, upper=1, dims="cohort"),
-            "kappa": Prior("Pareto", alpha=1, m=1, dims="cohort"),
+            "phi": Prior("Uniform", lower=0, upper=1, dims=Dim.COHORT),
+            "kappa": Prior("Pareto", alpha=1, m=1, dims=Dim.COHORT),
             "dropout_coefficient": Prior("Normal", mu=0, sigma=1),
             "dropout_covariate_cols": [],
         }
@@ -251,7 +252,7 @@ class ShiftedBetaGeoModel(CLVModel):
             raise AttributeError(
                 "cohorts not available. Call build_model(data=...) first."
             )
-        return self.data["cohort"].unique()
+        return self.data[Col.COHORT].unique()
 
     @property
     def cohort_idx(self):
@@ -260,27 +261,27 @@ class ShiftedBetaGeoModel(CLVModel):
             raise AttributeError(
                 "cohort_idx not available. Call build_model(data=...) first."
             )
-        return pd.Categorical(self.data["cohort"], categories=self.cohorts).codes
+        return pd.Categorical(self.data[Col.COHORT], categories=self.cohorts).codes
 
     def _validate_data(self, data: pd.DataFrame) -> None:
         """Validate Shifted Beta-Geometric-specific data requirements."""
         self._validate_cols(
             data,
             required_cols=[
-                "customer_id",
-                "recency",
-                "T",
-                "cohort",
+                Col.CUSTOMER_ID,
+                Col.RECENCY,
+                Col.T,
+                Col.COHORT,
                 *self.dropout_covariate_cols,
             ],
-            must_be_unique=["customer_id"],
+            must_be_unique=[Col.CUSTOMER_ID],
         )
 
-        if (data["recency"] < 1).any():
+        if (data[Col.RECENCY] < 1).any():
             raise ValueError("Column recency must be at least 1")
-        if (data["recency"] > data["T"]).any():
+        if (data[Col.RECENCY] > data[Col.T]).any():
             raise ValueError("recency cannot be greater than T")
-        if (data["T"] < 2).any():
+        if (data[Col.T] < 2).any():
             raise ValueError("Column T must be at least 2")
 
         self._validate_cohorts(data, check_param_dims=("alpha", "beta"))
@@ -297,9 +298,9 @@ class ShiftedBetaGeoModel(CLVModel):
         self.data = data
 
         coords = {
-            "customer_id": self.data["customer_id"],
-            "cohort": self.cohorts,
-            "dropout_covariate": self.dropout_covariate_cols,
+            Dim.CUSTOMER_ID: self.data[Col.CUSTOMER_ID],
+            Dim.COHORT: self.cohorts,
+            Dim.DROPOUT_COVARIATE: self.dropout_covariate_cols,
         }
         with pm.Model(coords=coords) as self.model:
             if self.dropout_covariate_cols:
@@ -307,35 +308,37 @@ class ShiftedBetaGeoModel(CLVModel):
                 dropout_data = pm.Data(
                     "dropout_data",
                     self.data[self.dropout_covariate_cols],
-                    dims=["customer_id", "dropout_covariate"],
+                    dims=[Dim.CUSTOMER_ID, Dim.DROPOUT_COVARIATE],
                 )
 
                 # Get scale parameters (cohort-level baseline)
                 if "alpha" in self.model_config and "beta" in self.model_config:
                     alpha_scale = self.model_config["alpha"].create_variable(
-                        "alpha_scale"
+                        Var.ALPHA_SCALE
                     )
-                    beta_scale = self.model_config["beta"].create_variable("beta_scale")
+                    beta_scale = self.model_config["beta"].create_variable(
+                        Var.BETA_SCALE
+                    )
                 else:
                     # hierarchical pooling of dropout rate priors
                     phi = self.model_config["phi"].create_variable("phi")
                     kappa = self.model_config["kappa"].create_variable("kappa")
 
                     alpha_scale = pm.Deterministic(
-                        "alpha_scale", phi * kappa, dims="cohort"
+                        Var.ALPHA_SCALE, phi * kappa, dims=Dim.COHORT
                     )
                     beta_scale = pm.Deterministic(
-                        "beta_scale", (1.0 - phi) * kappa, dims="cohort"
+                        Var.BETA_SCALE, (1.0 - phi) * kappa, dims=Dim.COHORT
                     )
 
                 # Get covariate coefficients
-                self.model_config["dropout_coefficient"].dims = "dropout_covariate"
+                self.model_config["dropout_coefficient"].dims = Dim.DROPOUT_COVARIATE
                 dropout_coefficient_alpha = self.model_config[
                     "dropout_coefficient"
-                ].create_variable("dropout_coefficient_alpha")
+                ].create_variable(Var.DROPOUT_COEFFICIENT_ALPHA)
                 dropout_coefficient_beta = self.model_config[
                     "dropout_coefficient"
-                ].create_variable("dropout_coefficient_beta")
+                ].create_variable(Var.DROPOUT_COEFFICIENT_BETA)
 
                 # Apply covariate effects to get customer-level parameters
                 # expressions adapted from BG/NBD covariate extensions on p2 of [3]_:
@@ -346,13 +349,13 @@ class ShiftedBetaGeoModel(CLVModel):
                     * pm.math.exp(
                         -pm.math.dot(dropout_data, dropout_coefficient_alpha)
                     ),
-                    dims="customer_id",
+                    dims=Dim.CUSTOMER_ID,
                 )
                 beta = pm.Deterministic(
                     "beta",
                     beta_scale[self.cohort_idx]
                     * pm.math.exp(-pm.math.dot(dropout_data, dropout_coefficient_beta)),
-                    dims="customer_id",
+                    dims=Dim.CUSTOMER_ID,
                 )
 
                 dropout = ShiftedBetaGeometric.dist(alpha, beta)
@@ -366,8 +369,10 @@ class ShiftedBetaGeoModel(CLVModel):
                     phi = self.model_config["phi"].create_variable("phi")
                     kappa = self.model_config["kappa"].create_variable("kappa")
 
-                    alpha = pm.Deterministic("alpha", phi * kappa, dims="cohort")
-                    beta = pm.Deterministic("beta", (1.0 - phi) * kappa, dims="cohort")
+                    alpha = pm.Deterministic("alpha", phi * kappa, dims=Dim.COHORT)
+                    beta = pm.Deterministic(
+                        "beta", (1.0 - phi) * kappa, dims=Dim.COHORT
+                    )
 
                 dropout = ShiftedBetaGeometric.dist(
                     alpha[self.cohort_idx],
@@ -378,12 +383,12 @@ class ShiftedBetaGeoModel(CLVModel):
             # with integer bounds (pymc-devs/pymc#8386, fixed in pymc 6.3). The cast
             # also keeps ``dropout`` float64 across pymc versions; do not remove casually.
             pm.Censored(
-                "dropout",
+                Var.DROPOUT,
                 dropout,
                 lower=None,
-                upper=self.data["T"].to_numpy(dtype="float64"),
-                observed=self.data["recency"],
-                dims=("customer_id",),
+                upper=self.data[Col.T].to_numpy(dtype="float64"),
+                observed=self.data[Col.RECENCY],
+                dims=(Dim.CUSTOMER_ID,),
             )
 
     def _extract_predictive_variables(
@@ -400,15 +405,15 @@ class ShiftedBetaGeoModel(CLVModel):
         self._validate_cols(
             pred_data,
             required_cols=[
-                "customer_id",
+                Col.CUSTOMER_ID,
                 *customer_varnames,
                 *self.dropout_covariate_cols,
             ],
-            must_be_unique=["customer_id"],
+            must_be_unique=[Col.CUSTOMER_ID],
         )
 
         # Validate T requirements for predictions (T>=2 only required for fit data)
-        if np.any(pred_data["T"] <= 0):
+        if np.any(pred_data[Col.T] <= 0):
             raise ValueError(
                 "T must be a non-zero, positive whole number.",
             )
@@ -419,29 +424,29 @@ class ShiftedBetaGeoModel(CLVModel):
         # Use cohorts in prediction data to extract only cohort-level parameters
         pred_cohorts = xarray.DataArray(
             cohorts_present.values,
-            dims=("cohort",),
-            coords={"cohort": cohorts_present.values},
+            dims=(Dim.COHORT,),
+            coords={Dim.COHORT: cohorts_present.values},
         )
 
         # Create a cohort-by-customer array to map cohort parameters to each customer
-        customer_cohort_map = pred_data.set_index("customer_id")["cohort"]
+        customer_cohort_map = pred_data.set_index(Col.CUSTOMER_ID)[Col.COHORT]
 
         # Use consistent customer_id coordinate source for all xarrays
-        customer_ids = np.asarray(pred_data["customer_id"])
+        customer_ids = np.asarray(pred_data[Col.CUSTOMER_ID])
 
         if self.dropout_covariate_cols:
             # Get alpha and beta scale parameters for each cohort
-            alpha_cohort = self.fit_result["alpha_scale"].sel(cohort=pred_cohorts)
-            beta_cohort = self.fit_result["beta_scale"].sel(cohort=pred_cohorts)
+            alpha_cohort = self.fit_result[Var.ALPHA_SCALE].sel(cohort=pred_cohorts)
+            beta_cohort = self.fit_result[Var.BETA_SCALE].sel(cohort=pred_cohorts)
             # Get dropout covariate coefficients
-            dropout_coefficient_alpha = self.fit_result["dropout_coefficient_alpha"]
-            dropout_coefficient_beta = self.fit_result["dropout_coefficient_beta"]
+            dropout_coefficient_alpha = self.fit_result[Var.DROPOUT_COEFFICIENT_ALPHA]
+            dropout_coefficient_beta = self.fit_result[Var.DROPOUT_COEFFICIENT_BETA]
 
             # Create customer-cohort mapping
             customer_cohort_mapping = xarray.DataArray(
                 customer_cohort_map.values,
-                dims=("customer_id",),
-                coords={"customer_id": customer_ids},
+                dims=(Dim.CUSTOMER_ID,),
+                coords={Dim.CUSTOMER_ID: customer_ids},
                 name="customer_cohort_mapping",
             )
 
@@ -452,22 +457,22 @@ class ShiftedBetaGeoModel(CLVModel):
             # Create covariate xarray with same customer_id coordinates
             dropout_xarray = xarray.DataArray(
                 pred_data[self.dropout_covariate_cols].values,
-                dims=["customer_id", "dropout_covariate"],
+                dims=[Dim.CUSTOMER_ID, Dim.DROPOUT_COVARIATE],
                 coords={
-                    "customer_id": customer_ids,
-                    "dropout_covariate": self.dropout_covariate_cols,
+                    Dim.CUSTOMER_ID: customer_ids,
+                    Dim.DROPOUT_COVARIATE: self.dropout_covariate_cols,
                 },
             )
 
             # Apply covariate effects
             covariate_effect_alpha = np.exp(
                 -xarray.dot(
-                    dropout_xarray, dropout_coefficient_alpha, dim="dropout_covariate"
+                    dropout_xarray, dropout_coefficient_alpha, dim=Dim.DROPOUT_COVARIATE
                 )
             )
             covariate_effect_beta = np.exp(
                 -xarray.dot(
-                    dropout_xarray, dropout_coefficient_beta, dim="dropout_covariate"
+                    dropout_xarray, dropout_coefficient_beta, dim=Dim.DROPOUT_COVARIATE
                 )
             )
 
@@ -485,8 +490,8 @@ class ShiftedBetaGeoModel(CLVModel):
             # Map cohorts to customer_id for alpha and beta
             customer_cohort_mapping = xarray.DataArray(
                 customer_cohort_map.values,
-                dims=("customer_id",),
-                coords={"customer_id": customer_ids},
+                dims=(Dim.CUSTOMER_ID,),
+                coords={Dim.CUSTOMER_ID: customer_ids},
                 name="customer_cohort_mapping",
             )
             alpha_pred = alpha_cohort.sel(cohort=customer_cohort_mapping)
@@ -494,15 +499,15 @@ class ShiftedBetaGeoModel(CLVModel):
 
         # Add cohorts as non-dimensional coordinates to merge with predictive variables
         alpha_pred = alpha_pred.assign_coords(
-            cohort=("customer_id", customer_cohort_map.values)
+            {Dim.COHORT: (Dim.CUSTOMER_ID, customer_cohort_map.values)}
         )
         beta_pred = beta_pred.assign_coords(
-            cohort=("customer_id", customer_cohort_map.values)
+            {Dim.COHORT: (Dim.CUSTOMER_ID, customer_cohort_map.values)}
         )
 
         # Filter out cohort from customer_varnames to avoid coord mismatch error
         # (it's already added as a coordinate above)
-        customer_varnames_filtered = [v for v in customer_varnames if v != "cohort"]
+        customer_varnames_filtered = [v for v in customer_varnames if v != Col.COHORT]
 
         if customer_varnames_filtered:
             customer_vars = to_xarray(
@@ -517,7 +522,9 @@ class ShiftedBetaGeoModel(CLVModel):
 
             # Add cohort coordinate to customer_vars for consistent swap_dims behavior
             customer_vars = [
-                cv.assign_coords(cohort=("customer_id", customer_cohort_map.values))
+                cv.assign_coords(
+                    {Dim.COHORT: (Dim.CUSTOMER_ID, customer_cohort_map.values)}
+                )
                 for cv in customer_vars
             ]
 
@@ -532,7 +539,7 @@ class ShiftedBetaGeoModel(CLVModel):
             ),
             compat="override",
         ).swap_dims(
-            {"customer_id": "cohort"}
+            {Dim.CUSTOMER_ID: Dim.COHORT}
         )  # swap dims to enable cohort selection for predictions
 
     def expected_retention_rate(
@@ -571,20 +578,20 @@ class ShiftedBetaGeoModel(CLVModel):
             data = self.data.query("recency == T").copy()
 
         if future_t is not None:
-            data = data.assign(future_t=future_t)
+            data = data.assign(**{Col.FUTURE_T: future_t})
 
         dataset = self._extract_predictive_variables(
-            data, customer_varnames=["T", "future_t", "cohort"]
+            data, customer_varnames=[Col.T, Col.FUTURE_T, Col.COHORT]
         )
 
         alpha = dataset["alpha"]
         beta = dataset["beta"]
-        T = dataset["T"]
-        t = dataset["future_t"]
+        T = dataset[Col.T]
+        t = dataset[Col.FUTURE_T]
 
         retention_rate = (beta + T + t - 1) / (alpha + beta + T + t - 1)
         return retention_rate.transpose(
-            "chain", "draw", "customer_id", "cohort", missing_dims="ignore"
+            "chain", "draw", Dim.CUSTOMER_ID, Dim.COHORT, missing_dims="ignore"
         )
 
     def expected_probability_alive(
@@ -620,16 +627,16 @@ class ShiftedBetaGeoModel(CLVModel):
             data = self.data.query("recency == T").copy()
 
         if future_t is not None:
-            data = data.assign(future_t=future_t)
+            data = data.assign(**{Col.FUTURE_T: future_t})
 
         dataset = self._extract_predictive_variables(
-            data, customer_varnames=["T", "future_t", "cohort"]
+            data, customer_varnames=[Col.T, Col.FUTURE_T, Col.COHORT]
         )
 
         alpha = dataset["alpha"]
         beta = dataset["beta"]
-        T = dataset["T"]
-        t = dataset["future_t"]
+        T = dataset[Col.T]
+        t = dataset[Col.FUTURE_T]
 
         logS = (
             gammaln(beta + T + t)
@@ -640,7 +647,7 @@ class ShiftedBetaGeoModel(CLVModel):
         survival = np.exp(logS)
 
         return survival.transpose(
-            "chain", "draw", "customer_id", "cohort", missing_dims="ignore"
+            "chain", "draw", Dim.CUSTOMER_ID, Dim.COHORT, missing_dims="ignore"
         )
 
     def expected_residual_lifetime(
@@ -678,22 +685,22 @@ class ShiftedBetaGeoModel(CLVModel):
             data = self.data
 
         if discount_rate is not None:
-            data = data.assign(discount_rate=discount_rate)
+            data = data.assign(**{Col.DISCOUNT_RATE: discount_rate})
 
         dataset = self._extract_predictive_variables(
-            data, customer_varnames=["T", "discount_rate"]
+            data, customer_varnames=[Col.T, Col.DISCOUNT_RATE]
         )
         alpha = dataset["alpha"]
         beta = dataset["beta"]
-        T = dataset["T"]
-        d = dataset["discount_rate"]
+        T = dataset[Col.T]
+        d = dataset[Col.DISCOUNT_RATE]
 
         retention_rate = (beta + T - 1) / (alpha + beta + T - 1)
         retention_elasticity = hyp2f1(1, beta + T, alpha + beta + T, 1 / (1 + d))
         expected_lifetime_purchases = retention_rate * retention_elasticity
 
         return expected_lifetime_purchases.transpose(
-            "chain", "draw", "customer_id", "cohort", missing_dims="ignore"
+            "chain", "draw", Dim.CUSTOMER_ID, Dim.COHORT, missing_dims="ignore"
         )
 
     def expected_retention_elasticity(
@@ -731,20 +738,20 @@ class ShiftedBetaGeoModel(CLVModel):
             data = self.data
 
         if discount_rate is not None:
-            data = data.assign(discount_rate=discount_rate)
+            data = data.assign(**{Col.DISCOUNT_RATE: discount_rate})
 
         dataset = self._extract_predictive_variables(
-            data, customer_varnames=["T", "discount_rate"]
+            data, customer_varnames=[Col.T, Col.DISCOUNT_RATE]
         )
 
         alpha = dataset["alpha"]
         beta = dataset["beta"]
-        T = dataset["T"]
-        d = dataset["discount_rate"]
+        T = dataset[Col.T]
+        d = dataset[Col.DISCOUNT_RATE]
 
         retention_elasticity = hyp2f1(
             1, beta + T - 1, alpha + beta + T - 1, 1 / (1 + d)
         )
         return retention_elasticity.transpose(
-            "chain", "draw", "customer_id", "cohort", missing_dims="ignore"
+            "chain", "draw", Dim.CUSTOMER_ID, Dim.COHORT, missing_dims="ignore"
         )

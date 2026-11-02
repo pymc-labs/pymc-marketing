@@ -14,7 +14,6 @@
 """Beta-Geometric Negative Binomial Distribution (BG/NBD) model for a non-contractual customer population across continuous time."""  # noqa: E501
 
 from collections.abc import Sequence
-from typing import Literal
 
 import numpy as np
 import pandas as pd
@@ -26,6 +25,7 @@ from scipy.special import betaln, expit, hyp2f1
 
 from pymc_marketing.clv.distributions import BetaGeoNBD
 from pymc_marketing.clv.models.basic import CLVModel
+from pymc_marketing.clv.names import NEW_CUSTOMER_VARS, Col, Dim, NewCustomerVar, Var
 from pymc_marketing.clv.utils import to_xarray
 from pymc_marketing.model_config import ModelConfig
 
@@ -198,13 +198,13 @@ class BetaGeoModel(CLVModel):
         self._validate_cols(
             data,
             required_cols=[
-                "customer_id",
-                "frequency",
-                "recency",
-                "T",
+                Col.CUSTOMER_ID,
+                Col.FREQUENCY,
+                Col.RECENCY,
+                Col.T,
                 *self.covariate_cols,
             ],
-            must_be_unique=["customer_id"],
+            must_be_unique=[Col.CUSTOMER_ID],
         )
 
     def build_model(self, data: pd.DataFrame) -> None:  # type: ignore[override]
@@ -219,10 +219,10 @@ class BetaGeoModel(CLVModel):
         self.data = data
 
         coords = {
-            "purchase_covariate": self.purchase_covariate_cols,
-            "dropout_covariate": self.dropout_covariate_cols,
-            "customer_id": self.data["customer_id"],
-            "obs_var": ["recency", "frequency"],
+            Dim.PURCHASE_COVARIATE: self.purchase_covariate_cols,
+            Dim.DROPOUT_COVARIATE: self.dropout_covariate_cols,
+            Dim.CUSTOMER_ID: self.data[Col.CUSTOMER_ID],
+            Dim.OBS_VAR: [Col.RECENCY, Col.FREQUENCY],
         }
         with pm.Model(coords=coords) as self.model:
             # purchase rate priors
@@ -230,14 +230,16 @@ class BetaGeoModel(CLVModel):
                 purchase_data = pm.Data(
                     "purchase_data",
                     self.data[self.purchase_covariate_cols],
-                    dims=["customer_id", "purchase_covariate"],
+                    dims=[Dim.CUSTOMER_ID, Dim.PURCHASE_COVARIATE],
                 )
-                self.model_config["purchase_coefficient"].dims = "purchase_covariate"
+                self.model_config["purchase_coefficient"].dims = Dim.PURCHASE_COVARIATE
                 purchase_coefficient_alpha = self.model_config[
                     "purchase_coefficient"
-                ].create_variable("purchase_coefficient_alpha")
+                ].create_variable(Var.PURCHASE_COEFFICIENT_ALPHA)
 
-                alpha_scale = self.model_config["alpha"].create_variable("alpha_scale")
+                alpha_scale = self.model_config["alpha"].create_variable(
+                    Var.ALPHA_SCALE
+                )
                 alpha = pm.Deterministic(
                     "alpha",
                     (
@@ -246,7 +248,7 @@ class BetaGeoModel(CLVModel):
                             -pm.math.dot(purchase_data, purchase_coefficient_alpha)
                         )
                     ),
-                    dims="customer_id",
+                    dims=Dim.CUSTOMER_ID,
                 )
             else:
                 alpha = self.model_config["alpha"].create_variable("alpha")
@@ -257,30 +259,32 @@ class BetaGeoModel(CLVModel):
                     dropout_data = pm.Data(
                         "dropout_data",
                         self.data[self.dropout_covariate_cols],
-                        dims=["customer_id", "dropout_covariate"],
+                        dims=[Dim.CUSTOMER_ID, Dim.DROPOUT_COVARIATE],
                     )
 
-                    self.model_config["dropout_coefficient"].dims = "dropout_covariate"
+                    self.model_config[
+                        "dropout_coefficient"
+                    ].dims = Dim.DROPOUT_COVARIATE
                     dropout_coefficient_a = self.model_config[
                         "dropout_coefficient"
-                    ].create_variable("dropout_coefficient_a")
+                    ].create_variable(Var.DROPOUT_COEFFICIENT_A)
                     dropout_coefficient_b = self.model_config[
                         "dropout_coefficient"
-                    ].create_variable("dropout_coefficient_b")
+                    ].create_variable(Var.DROPOUT_COEFFICIENT_B)
 
-                    a_scale = self.model_config["a"].create_variable("a_scale")
-                    b_scale = self.model_config["b"].create_variable("b_scale")
+                    a_scale = self.model_config["a"].create_variable(Var.A_SCALE)
+                    b_scale = self.model_config["b"].create_variable(Var.B_SCALE)
                     a = pm.Deterministic(
                         "a",
                         a_scale
                         * pm.math.exp(pm.math.dot(dropout_data, dropout_coefficient_a)),
-                        dims="customer_id",
+                        dims=Dim.CUSTOMER_ID,
                     )
                     b = pm.Deterministic(
                         "b",
                         b_scale
                         * pm.math.exp(pm.math.dot(dropout_data, dropout_coefficient_b)),
-                        dims="customer_id",
+                        dims=Dim.CUSTOMER_ID,
                     )
                 else:
                     a = self.model_config["a"].create_variable("a")
@@ -291,16 +295,18 @@ class BetaGeoModel(CLVModel):
                     dropout_data = pm.Data(
                         "dropout_data",
                         self.data[self.dropout_covariate_cols],
-                        dims=["customer_id", "dropout_covariate"],
+                        dims=[Dim.CUSTOMER_ID, Dim.DROPOUT_COVARIATE],
                     )
 
-                    self.model_config["dropout_coefficient"].dims = "dropout_covariate"
+                    self.model_config[
+                        "dropout_coefficient"
+                    ].dims = Dim.DROPOUT_COVARIATE
                     dropout_coefficient_a = self.model_config[
                         "dropout_coefficient"
-                    ].create_variable("dropout_coefficient_a")
+                    ].create_variable(Var.DROPOUT_COEFFICIENT_A)
                     dropout_coefficient_b = self.model_config[
                         "dropout_coefficient"
-                    ].create_variable("dropout_coefficient_b")
+                    ].create_variable(Var.DROPOUT_COEFFICIENT_B)
 
                     phi_dropout = self.model_config["phi_dropout"].create_variable(
                         "phi_dropout"
@@ -310,11 +316,11 @@ class BetaGeoModel(CLVModel):
                     )
 
                     a_scale = pm.Deterministic(
-                        "a_scale",
+                        Var.A_SCALE,
                         phi_dropout * kappa_dropout,
                     )
                     b_scale = pm.Deterministic(
-                        "b_scale",
+                        Var.B_SCALE,
                         (1.0 - phi_dropout) * kappa_dropout,
                     )
 
@@ -322,13 +328,13 @@ class BetaGeoModel(CLVModel):
                         "a",
                         a_scale
                         * pm.math.exp(pm.math.dot(dropout_data, dropout_coefficient_a)),
-                        dims="customer_id",
+                        dims=Dim.CUSTOMER_ID,
                     )
                     b = pm.Deterministic(
                         "b",
                         b_scale
                         * pm.math.exp(pm.math.dot(dropout_data, dropout_coefficient_b)),
-                        dims="customer_id",
+                        dims=Dim.CUSTOMER_ID,
                     )
 
                 else:
@@ -346,16 +352,16 @@ class BetaGeoModel(CLVModel):
             r = self.model_config["r"].create_variable("r")
 
             BetaGeoNBD(
-                name="recency_frequency",
+                name=Var.RECENCY_FREQUENCY,
                 a=a,
                 b=b,
                 r=r,
                 alpha=alpha,
-                T=self.data["T"],
+                T=self.data[Col.T],
                 observed=np.stack(
-                    (self.data["recency"], self.data["frequency"]), axis=1
+                    (self.data[Col.RECENCY], self.data[Col.FREQUENCY]), axis=1
                 ),
-                dims=["customer_id", "obs_var"],
+                dims=[Dim.CUSTOMER_ID, Dim.OBS_VAR],
             )
 
     def _extract_predictive_variables(
@@ -371,29 +377,29 @@ class BetaGeoModel(CLVModel):
         self._validate_cols(
             data,
             required_cols=[
-                "customer_id",
+                Col.CUSTOMER_ID,
                 *customer_varnames,
                 *self.purchase_covariate_cols,
                 *self.dropout_covariate_cols,
             ],
-            must_be_unique=["customer_id"],
+            must_be_unique=[Col.CUSTOMER_ID],
         )
 
-        customer_id = data["customer_id"]
+        customer_id = data[Col.CUSTOMER_ID]
         model_coords = self.model.coords
         if self.purchase_covariate_cols:
             purchase_xarray = xarray.DataArray(
                 data[self.purchase_covariate_cols],
-                dims=["customer_id", "purchase_covariate"],
-                coords=[customer_id, list(model_coords["purchase_covariate"])],
+                dims=[Dim.CUSTOMER_ID, Dim.PURCHASE_COVARIATE],
+                coords=[customer_id, list(model_coords[Dim.PURCHASE_COVARIATE])],
             )
-            alpha_scale = self.fit_result["alpha_scale"]
-            purchase_coefficient_alpha = self.fit_result["purchase_coefficient_alpha"]
+            alpha_scale = self.fit_result[Var.ALPHA_SCALE]
+            purchase_coefficient_alpha = self.fit_result[Var.PURCHASE_COEFFICIENT_ALPHA]
             alpha = alpha_scale * np.exp(
                 -xarray.dot(
                     purchase_xarray,
                     purchase_coefficient_alpha,
-                    dim="purchase_covariate",
+                    dim=Dim.PURCHASE_COVARIATE,
                 )
             )
             alpha.name = "alpha"
@@ -403,23 +409,23 @@ class BetaGeoModel(CLVModel):
         if self.dropout_covariate_cols:
             dropout_xarray = xarray.DataArray(
                 data[self.dropout_covariate_cols],
-                dims=["customer_id", "dropout_covariate"],
-                coords=[customer_id, list(model_coords["dropout_covariate"])],
+                dims=[Dim.CUSTOMER_ID, Dim.DROPOUT_COVARIATE],
+                coords=[customer_id, list(model_coords[Dim.DROPOUT_COVARIATE])],
             )
-            a_scale = self.fit_result["a_scale"]
-            dropout_coefficient_a = self.fit_result["dropout_coefficient_a"]
+            a_scale = self.fit_result[Var.A_SCALE]
+            dropout_coefficient_a = self.fit_result[Var.DROPOUT_COEFFICIENT_A]
             a = a_scale * np.exp(
                 xarray.dot(
-                    dropout_xarray, dropout_coefficient_a, dim="dropout_covariate"
+                    dropout_xarray, dropout_coefficient_a, dim=Dim.DROPOUT_COVARIATE
                 )
             )
             a.name = "a"
 
-            dropout_coefficient_b = self.fit_result["dropout_coefficient_b"]
-            b_scale = self.fit_result["b_scale"]
+            dropout_coefficient_b = self.fit_result[Var.DROPOUT_COEFFICIENT_B]
+            b_scale = self.fit_result[Var.B_SCALE]
             b = b_scale * np.exp(
                 xarray.dot(
-                    dropout_xarray, dropout_coefficient_b, dim="dropout_covariate"
+                    dropout_xarray, dropout_coefficient_b, dim=Dim.DROPOUT_COVARIATE
                 )
             )
             b.name = "b"
@@ -430,7 +436,7 @@ class BetaGeoModel(CLVModel):
         r = self.fit_result["r"]
 
         customer_vars = to_xarray(
-            data["customer_id"],
+            data[Col.CUSTOMER_ID],
             *[data[customer_varname] for customer_varname in customer_varnames],
         )
         if len(customer_varnames) == 1:
@@ -484,19 +490,19 @@ class BetaGeoModel(CLVModel):
             data = self.data
 
         if future_t is not None:
-            data = data.assign(future_t=future_t)
+            data = data.assign(**{Col.FUTURE_T: future_t})
 
         dataset = self._extract_predictive_variables(
-            data, customer_varnames=["frequency", "recency", "T", "future_t"]
+            data, customer_varnames=[Col.FREQUENCY, Col.RECENCY, Col.T, Col.FUTURE_T]
         )
         a = dataset["a"]
         b = dataset["b"]
         alpha = dataset["alpha"]
         r = dataset["r"]
-        x = dataset["frequency"]
-        t_x = dataset["recency"]
-        T = dataset["T"]
-        t = dataset["future_t"]
+        x = dataset[Col.FREQUENCY]
+        t_x = dataset[Col.RECENCY]
+        T = dataset[Col.T]
+        t = dataset[Col.FUTURE_T]
 
         numerator = 1 - ((alpha + T) / (alpha + T + t)) ** (r + x) * hyp2f1(
             r + x,
@@ -510,7 +516,7 @@ class BetaGeoModel(CLVModel):
         ) ** (r + x)
 
         return (numerator / denominator).transpose(
-            "chain", "draw", "customer_id", missing_dims="ignore"
+            "chain", "draw", Dim.CUSTOMER_ID, missing_dims="ignore"
         )
 
     def expected_probability_alive(
@@ -544,22 +550,22 @@ class BetaGeoModel(CLVModel):
             data = self.data
 
         dataset = self._extract_predictive_variables(
-            data, customer_varnames=["frequency", "recency", "T"]
+            data, customer_varnames=[Col.FREQUENCY, Col.RECENCY, Col.T]
         )
         a = dataset["a"]
         b = dataset["b"]
         alpha = dataset["alpha"]
         r = dataset["r"]
-        x = dataset["frequency"]
-        t_x = dataset["recency"]
-        T = dataset["T"]
+        x = dataset[Col.FREQUENCY]
+        t_x = dataset[Col.RECENCY]
+        T = dataset[Col.T]
 
         log_div = (r + x) * np.log((alpha + T) / (alpha + t_x)) + np.log(
             a / (b + np.maximum(x, 1) - 1)
         )
 
         return xarray.where(x == 0, 1.0, expit(-log_div)).transpose(
-            "chain", "draw", "customer_id", missing_dims="ignore"
+            "chain", "draw", Dim.CUSTOMER_ID, missing_dims="ignore"
         )
 
     def expected_probability_no_purchase(
@@ -596,15 +602,15 @@ class BetaGeoModel(CLVModel):
             data = self.data
 
         dataset = self._extract_predictive_variables(
-            data, customer_varnames=["frequency", "recency", "T"]
+            data, customer_varnames=[Col.FREQUENCY, Col.RECENCY, Col.T]
         )
         a = dataset["a"]
         b = dataset["b"]
         alpha = dataset["alpha"]
         r = dataset["r"]
-        x = dataset["frequency"]
-        t_x = dataset["recency"]
-        T = dataset["T"]
+        x = dataset[Col.FREQUENCY]
+        t_x = dataset[Col.RECENCY]
+        T = dataset[Col.T]
 
         E = alpha + t_x
         F = alpha + T + t
@@ -624,7 +630,7 @@ class BetaGeoModel(CLVModel):
         prob_no_deposits = np.exp(K1 - K2) * numer / denom
 
         return prob_no_deposits.transpose(
-            "chain", "draw", "customer_id", missing_dims="ignore"
+            "chain", "draw", Dim.CUSTOMER_ID, missing_dims="ignore"
         )
 
     def expected_purchases_new_customer(
@@ -656,14 +662,16 @@ class BetaGeoModel(CLVModel):
             data = self.data
 
         if t is not None:
-            data = data.assign(t=t)
+            data = data.assign(**{Col.NEW_CUSTOMER_T: t})
 
-        dataset = self._extract_predictive_variables(data, customer_varnames=["t"])
+        dataset = self._extract_predictive_variables(
+            data, customer_varnames=[Col.NEW_CUSTOMER_T]
+        )
         a = dataset["a"]
         b = dataset["b"]
         alpha = dataset["alpha"]
         r = dataset["r"]
-        t = dataset["t"]
+        t = dataset[Col.NEW_CUSTOMER_T]
 
         first_term = (a + b - 1) / (a - 1)
         second_term = 1 - (alpha / (alpha + t)) ** r * hyp2f1(
@@ -671,7 +679,7 @@ class BetaGeoModel(CLVModel):
         )
 
         return (first_term * second_term).transpose(
-            "chain", "draw", "customer_id", missing_dims="ignore"
+            "chain", "draw", Dim.CUSTOMER_ID, missing_dims="ignore"
         )
 
     def distribution_new_customer(
@@ -680,9 +688,7 @@ class BetaGeoModel(CLVModel):
         *,
         T: int | np.ndarray | pd.Series | None = None,
         random_seed: RandomState | None = None,
-        var_names: Sequence[
-            Literal["dropout", "purchase_rate", "recency_frequency"]
-        ] = ("dropout", "purchase_rate", "recency_frequency"),
+        var_names: Sequence[NewCustomerVar] = NEW_CUSTOMER_VARS,
         n_samples: int = 1000,
     ) -> xarray.Dataset:
         """Compute posterior predictive samples of dropout, purchase rate and frequency/recency of new customers.
@@ -715,29 +721,29 @@ class BetaGeoModel(CLVModel):
             data = self.data
 
         if T is not None:
-            data = data.assign(T=T)
+            data = data.assign(**{Col.T: T})
 
-        dataset = self._extract_predictive_variables(data, customer_varnames=["T"])
-        T = dataset["T"].values
+        dataset = self._extract_predictive_variables(data, customer_varnames=[Col.T])
+        T = dataset[Col.T].values
         # Delete "T" so we can pass dataset directly to `sample_posterior_predictive`
-        del dataset["T"]
+        del dataset[Col.T]
 
         if dataset.sizes["chain"] == 1 and dataset.sizes["draw"] == 1:
             # For map fit add a dummy draw dimension
             dataset = dataset.squeeze("draw").expand_dims(draw=range(n_samples))
 
         coords = self.model.coords.copy()  # type: ignore
-        coords["customer_id"] = data["customer_id"]
+        coords[Dim.CUSTOMER_ID] = data[Col.CUSTOMER_ID]
 
         with pm.Model(coords=coords) as pred_model:
             if self.purchase_covariate_cols:
-                alpha = pm.Flat("alpha", dims=["customer_id"])
+                alpha = pm.Flat("alpha", dims=[Dim.CUSTOMER_ID])
             else:
                 alpha = pm.Flat("alpha")
 
             if self.dropout_covariate_cols:
-                a = pm.Flat("a", dims=["customer_id"])
-                b = pm.Flat("b", dims=["customer_id"])
+                a = pm.Flat("a", dims=[Dim.CUSTOMER_ID])
+                b = pm.Flat("b", dims=[Dim.CUSTOMER_ID])
             else:
                 a = pm.Flat("a")
                 b = pm.Flat("b")
@@ -745,23 +751,26 @@ class BetaGeoModel(CLVModel):
             r = pm.Flat("r")
 
             pm.Beta(
-                "dropout", alpha=a, beta=b, dims=pred_model.named_vars_to_dims.get("a")
+                Var.DROPOUT,
+                alpha=a,
+                beta=b,
+                dims=pred_model.named_vars_to_dims.get("a"),
             )
             pm.Gamma(
-                "purchase_rate",
+                Var.PURCHASE_RATE,
                 alpha=r,
                 beta=alpha,
                 dims=pred_model.named_vars_to_dims.get("alpha"),
             )
 
             BetaGeoNBD(
-                name="recency_frequency",
+                name=Var.RECENCY_FREQUENCY,
                 a=a,
                 b=b,
                 r=r,
                 alpha=alpha,
                 T=T,
-                dims=["customer_id", "obs_var"],
+                dims=[Dim.CUSTOMER_ID, Dim.OBS_VAR],
             )
 
             return pm.sample_posterior_predictive(
@@ -795,8 +804,8 @@ class BetaGeoModel(CLVModel):
         return self.distribution_new_customer(
             data=data,
             random_seed=random_seed,
-            var_names=["dropout"],
-        )["dropout"]
+            var_names=[Var.DROPOUT.value],
+        )[Var.DROPOUT]
 
     def distribution_new_customer_purchase_rate(
         self,
@@ -823,8 +832,8 @@ class BetaGeoModel(CLVModel):
         return self.distribution_new_customer(
             data=data,
             random_seed=random_seed,
-            var_names=["purchase_rate"],
-        )["purchase_rate"]
+            var_names=[Var.PURCHASE_RATE.value],
+        )[Var.PURCHASE_RATE]
 
     def distribution_new_customer_recency_frequency(
         self,
@@ -866,6 +875,6 @@ class BetaGeoModel(CLVModel):
             data=data,
             T=T,
             random_seed=random_seed,
-            var_names=["recency_frequency"],
+            var_names=[Var.RECENCY_FREQUENCY.value],
             n_samples=n_samples,
-        )["recency_frequency"]
+        )[Var.RECENCY_FREQUENCY]

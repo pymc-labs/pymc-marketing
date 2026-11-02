@@ -22,6 +22,7 @@ from pymc.util import RandomState
 from pymc_extras.prior import Prior
 
 from pymc_marketing.clv.models import CLVModel
+from pymc_marketing.clv.names import Col, Dim
 from pymc_marketing.clv.utils import customer_lifetime_value, to_xarray
 from pymc_marketing.model_config import ModelConfig
 
@@ -58,18 +59,18 @@ class BaseGammaGammaModel(CLVModel):
             Optional random seed to fix sampling results.
 
         """
-        x = data["frequency"]
-        z_mean = data["monetary_value"]
+        x = data[Col.FREQUENCY]
+        z_mean = data[Col.MONETARY_VALUE]
 
-        coords = {"customer_id": np.unique(data["customer_id"])}
+        coords = {Dim.CUSTOMER_ID: np.unique(data[Col.CUSTOMER_ID])}
         with pm.Model(coords=coords):
             p = pm.HalfFlat("p")
             q = pm.HalfFlat("q")
             v = pm.HalfFlat("v")
 
             # Eq 5 from [1], p.3
-            nu = pm.Gamma("nu", p * x + q, v + x * z_mean, dims=("customer_id",))
-            pm.Deterministic("mean_spend", p / nu, dims=("customer_id",))
+            nu = pm.Gamma("nu", p * x + q, v + x * z_mean, dims=(Dim.CUSTOMER_ID,))
+            pm.Deterministic("mean_spend", p / nu, dims=(Dim.CUSTOMER_ID,))
 
             return pm.sample_posterior_predictive(
                 self.idata,
@@ -102,9 +103,9 @@ class BaseGammaGammaModel(CLVModel):
 
         """
         mean_transaction_value, frequency = to_xarray(
-            data["customer_id"],
-            data["monetary_value"],
-            data["frequency"],
+            data[Col.CUSTOMER_ID],
+            data[Col.MONETARY_VALUE],
+            data[Col.FREQUENCY],
         )
         posterior = self.fit_result
 
@@ -213,9 +214,8 @@ class BaseGammaGammaModel(CLVModel):
         """
         # Use Gamma-Gamma estimates for the expected_spend values
         predicted_monetary_value = self.expected_customer_spend(data=data)
-        data = data.assign(
-            future_spend=predicted_monetary_value.mean(("chain", "draw")).to_numpy()
-        )
+        future_spend = predicted_monetary_value.mean(("chain", "draw")).to_numpy()
+        data = data.assign(**{Col.FUTURE_SPEND: future_spend})
 
         return customer_lifetime_value(
             transaction_model=transaction_model,
@@ -331,11 +331,11 @@ class GammaGammaModel(BaseGammaGammaModel):
         """Validate Gamma-Gamma-specific data requirements."""
         self._validate_cols(
             data,
-            required_cols=["customer_id", "monetary_value", "frequency"],
-            must_be_unique=["customer_id"],
+            required_cols=[Col.CUSTOMER_ID, Col.MONETARY_VALUE, Col.FREQUENCY],
+            must_be_unique=[Col.CUSTOMER_ID],
         )
         self._validate_frequency(data)
-        if (data["monetary_value"] <= 0).any():
+        if (data[Col.MONETARY_VALUE] <= 0).any():
             raise ValueError("Column monetary_value contains zeroes or negative values")
 
     def build_model(self, data: pandas.DataFrame) -> None:  # type: ignore[override]
@@ -349,10 +349,10 @@ class GammaGammaModel(BaseGammaGammaModel):
         self._validate_data(data)
         self.data = data
 
-        z_mean = pt.as_tensor_variable(self.data["monetary_value"])
-        x = pt.as_tensor_variable(self.data["frequency"])
+        z_mean = pt.as_tensor_variable(self.data[Col.MONETARY_VALUE])
+        x = pt.as_tensor_variable(self.data[Col.FREQUENCY])
 
-        coords = {"customer_id": self.data["customer_id"]}
+        coords = {Dim.CUSTOMER_ID: self.data[Col.CUSTOMER_ID]}
         with pm.Model(coords=coords) as self.model:
             p = self.model_config["p"].create_variable("p")
             q = self.model_config["q"].create_variable("q")
@@ -475,9 +475,9 @@ class GammaGammaModelIndividual(BaseGammaGammaModel):
     def _validate_data(self, data: pandas.DataFrame) -> None:
         """Validate Gamma-Gamma Individual-specific data requirements."""
         self._validate_cols(
-            data, required_cols=["customer_id", "individual_transaction_value"]
+            data, required_cols=[Col.CUSTOMER_ID, Col.INDIVIDUAL_TRANSACTION_VALUE]
         )
-        if (data["individual_transaction_value"] <= 0).any():
+        if (data[Col.INDIVIDUAL_TRANSACTION_VALUE] <= 0).any():
             raise ValueError(
                 "Column individual_transaction_value contains zeroes or negative values"
             )
@@ -493,18 +493,18 @@ class GammaGammaModelIndividual(BaseGammaGammaModel):
         self._validate_data(data)
         self.data = data
 
-        z = self.data["individual_transaction_value"]
+        z = self.data[Col.INDIVIDUAL_TRANSACTION_VALUE]
 
         coords = {
-            "customer_id": np.unique(self.data["customer_id"]),
-            "obs": range(self.data.shape[0]),
+            Dim.CUSTOMER_ID: np.unique(self.data[Col.CUSTOMER_ID]),
+            Dim.OBS: range(self.data.shape[0]),
         }
         with pm.Model(coords=coords) as self.model:
             p = self.model_config["p"].create_variable("p")
             q = self.model_config["q"].create_variable("q")
             v = self.model_config["v"].create_variable("v")
 
-            nu = pm.Gamma("nu", q, v, dims=("customer_id",))
+            nu = pm.Gamma("nu", q, v, dims=(Dim.CUSTOMER_ID,))
             pm.Gamma(
-                "spend", p, nu[self.data["customer_id"]], observed=z, dims=("obs",)
+                "spend", p, nu[self.data[Col.CUSTOMER_ID]], observed=z, dims=(Dim.OBS,)
             )
