@@ -2595,11 +2595,6 @@ class MMM(RegressionModelBuilder):
             and control for xarray input) plus the target under
             ``target_column``, on ``(date_column, *dims)``. See
             :meth:`create_fit_data`.
-
-            Spend supplied to :meth:`add_cost_per_target_calibration` is stored
-            in the ``cost_per_target_spend`` group, one variable per distinct
-            spend array; the calibration rows and options are stored in
-            ``idata.attrs``.
         y : pd.Series or xr.DataArray or np.ndarray or None
             Target values. Required unless ``X`` carries the target.
         method : str
@@ -2619,6 +2614,14 @@ class MMM(RegressionModelBuilder):
         -------
         xr.DataTree
             Inference data of the fitted model.
+
+        Notes
+        -----
+        Calibration added with :meth:`add_lift_test_measurements` or
+        :meth:`add_cost_per_target_calibration` is recorded with the posterior:
+        the rows and options in ``idata.attrs``, and the cost-per-target spend
+        in the ``cost_per_target_spend`` group, one variable per distinct spend
+        array. :meth:`build_from_idata` replays them when the model is loaded.
         """
         # A refit replaces the posterior and can move its coordinate labels, which
         # the evaluator's shared binding would refuse; build against it from scratch.
@@ -4797,7 +4800,10 @@ class MMM(RegressionModelBuilder):
             .fillna(0)
         )
 
-        spend_xarray = spend_ds._channel
+        # Only the dimension coordinates take part in the likelihood or in the
+        # saved spend group; auxiliary coordinates would make value-identical
+        # spend arrays look different and could not share one Dataset.
+        spend_xarray = spend_ds._channel.reset_coords(drop=True)
 
         # The spend is combined with model tensors by dimension name, not by
         # label, so it is aligned to the model's coordinate order here. Labels
@@ -4805,15 +4811,17 @@ class MMM(RegressionModelBuilder):
         for dim in channel_data_dims:
             model_labels = pd.Index(self.model.coords[dim])
             spend_labels = pd.Index(spend_xarray.coords[dim].values)
-            mismatch = ValueError(
-                f"Spend data coordinates for dim {dim!r} do not match model coords: "
-                f"expected {model_labels.tolist()}, got {spend_labels.tolist()}"
+            indexer = (
+                spend_labels.get_indexer(model_labels)
+                if len(spend_labels) == len(model_labels) and spend_labels.is_unique
+                else None
             )
-            if len(spend_labels) != len(model_labels) or not spend_labels.is_unique:
-                raise mismatch
-            indexer = spend_labels.get_indexer(model_labels)
-            if (indexer < 0).any():
-                raise mismatch
+            if indexer is None or (indexer < 0).any():
+                raise ValueError(
+                    f"Spend data coordinates for dim {dim!r} do not match model "
+                    f"coords: expected {model_labels.tolist()}, got "
+                    f"{spend_labels.tolist()}"
+                )
             spend_xarray = spend_xarray.isel({dim: indexer})
         if not np.isfinite(spend_xarray.values).all():
             raise ValueError(
@@ -5168,12 +5176,12 @@ class MMM(RegressionModelBuilder):
                 "The saved model records cost-per-target calibration "
                 f"{sorted(unrestored_cpt)} but the {COST_PER_TARGET_SPEND_GROUP!r} "
                 "group holding its spend is missing (for example dropped through "
-                "`save(groups=...)`); those likelihoods are not restored.",
+                "`save(groups=...)`); those likelihoods are not restored. Refit "
+                "to make the saved records match the rebuilt model.",
                 UserWarning,
                 stacklevel=2,
             )
-            records = []
-        if records:
+        elif records:
             spend_group = idata[COST_PER_TARGET_SPEND_GROUP].to_dataset()
             missing_spend = [
                 record["spend_var"]

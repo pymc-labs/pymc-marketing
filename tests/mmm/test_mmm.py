@@ -9079,6 +9079,23 @@ def test_cost_per_target_persistence_dedupes_equal_spend():
     ]
 
 
+def test_cost_per_target_persistence_ignores_auxiliary_spend_coords(mock_pymc_sample):
+    from pymc_marketing.mmm.data_conversion import to_mmm_dataset
+
+    mmm, X, y, spend, rows = _cpt_persistence_inputs()
+    options = dict(date_column="week", dims=("geo",), channel_columns=["zeta", "alpha"])
+    plain = to_mmm_dataset(spend, **options)
+    north = plain.assign_coords(region=("geo", ["north", "north"]))
+    south = plain.assign_coords(region=("geo", ["south", "south"]))
+    _attach_cpt(mmm, north, rows, "north")
+    _attach_cpt(mmm, south, rows, "south", roas=True)
+    # Value-identical spend is one array regardless of auxiliary coordinates.
+    assert list(mmm._cost_per_target_spend) == ["north"]
+    assert set(mmm._cost_per_target_spend["north"].coords) == {"date", "geo", "channel"}
+    mmm.fit(X, y)
+    assert list(mmm.idata[COST_PER_TARGET_SPEND_GROUP].data_vars) == ["north"]
+
+
 def test_cost_per_target_persistence_fit_snapshot(mock_pymc_sample, tmp_path):
     mmm, X, y, spend, rows = _cpt_persistence_inputs()
     _attach_cpt(mmm, spend, rows)
@@ -9110,7 +9127,9 @@ def test_cost_per_target_persistence_fit_snapshot(mock_pymc_sample, tmp_path):
     legacy = copy.deepcopy(loaded.idata)
     del legacy.attrs["cost_per_target_calibrations"]
     del legacy[COST_PER_TARGET_SPEND_GROUP]
-    with pytest.warns(UserWarning, match="external"):
+    with pytest.warns(
+        UserWarning, match=r"terms \['external', 'late'\] that the rebuilt model lacks"
+    ):
         assert MMM.load_from_idata(legacy)._cost_per_target_calibrations == []
     bad = copy.deepcopy(loaded.idata)
     records = json.loads(bad.attrs["cost_per_target_calibrations"])
@@ -9191,8 +9210,12 @@ def test_cost_per_target_persistence_missing_spend_group_warns(
     mmm.fit(X, y)
     path = str(tmp_path / "slim.nc")
     mmm.save(path, groups=["posterior", "fit_data", "constant_data", "observed_data"])
-    with pytest.warns(UserWarning, match=COST_PER_TARGET_SPEND_GROUP):
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
         loaded = MMM.load(path)
+    messages = [str(w.message) for w in caught if w.category is UserWarning]
+    assert [m for m in messages if COST_PER_TARGET_SPEND_GROUP in m]
+    assert not [m for m in messages if "rebuilt model lacks" in m]
     assert "external" not in loaded.model.named_vars
     assert loaded._cost_per_target_calibrations == []
 
