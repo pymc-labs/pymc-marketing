@@ -125,6 +125,10 @@ class SensitivityAnalysis:
     from :attr:`MMM.sensitivity`: every access shares one cache, one per model.
     A separately constructed instance keeps a private cache.  The cache key
     describes the sweep graph only; the source model is checked separately.
+    Replacing a data buffer with ``pm.set_data`` rebuilds the affected entry;
+    writing into a data buffer in place is not detected, the same as for the
+    incrementality evaluator.  Rebuilding or refitting the model clears the
+    cache.
     """
 
     def __init__(

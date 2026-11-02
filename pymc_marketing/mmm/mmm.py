@@ -3990,8 +3990,11 @@ class MMM(RegressionModelBuilder):
         call for a given ``var_input``, ``var_names``, ``sweep_type`` and mask
         shape pays the compilation cost.  The cache belongs to this MMM: every
         access shares it, one cache per model, and the model is not part of the
-        key.  A model that cannot be cloned compiles on every call.  Rebuilding
-        or refitting the model drops that cache.
+        key.  Replacing a data buffer with ``pm.set_data`` rebuilds the
+        affected entry; writing into a data buffer in place is not detected,
+        the same as for the incrementality evaluator.  A model that cannot be
+        cloned compiles on every call.  Rebuilding or refitting the model
+        drops that cache.
 
         """
         # Provide the underlying PyMC model, the model's inference data, and dims
