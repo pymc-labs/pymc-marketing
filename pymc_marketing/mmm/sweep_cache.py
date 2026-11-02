@@ -29,8 +29,6 @@ uncached path.
 
 from __future__ import annotations
 
-import threading
-from collections import OrderedDict
 from collections.abc import Callable
 from typing import NamedTuple
 
@@ -40,13 +38,16 @@ import pytensor.xtensor as ptx
 import xarray as xr
 from pymc import Model
 from pytensor import function
-from pytensor.compile.sharedvalue import SharedVariable
 from pytensor.graph.basic import Variable
-from pytensor.graph.traversal import ancestors
 from pytensor.tensor import TensorVariable
 from pytensor.xtensor.type import XTensorVariable, as_xtensor
 from pytensor.xtensor.vectorization import vectorize_graph
 
+from pymc_marketing.mmm.leased_cache import (
+    LeasedLRUCache,
+    buffers_replaced,
+    watched_source_buffers,
+)
 from pymc_marketing.pytensor_utils import ConditionedModel
 
 SWEEP_DIM = "sweep"
@@ -159,38 +160,6 @@ def build_sweep_response(
     return sweep_response.sum(dim="date").transpose("sample", "sweep", ...)
 
 
-def watched_source_buffers(model: Model, graph: Variable) -> dict[str, np.ndarray]:
-    """Record the source-model data buffers ``graph`` reads, keyed by name.
-
-    :class:`~pymc_marketing.pytensor_utils.ConditionedModel` clones the model,
-    so the graph reads the clone's copies of the data variables, which never
-    change again.  The source model, which ``pm.set_data`` mutates, is matched
-    by name.  A graph node with no source-model counterpart, such as the shared
-    posterior variables or an anonymous symbolic input, is not recorded.
-
-    Parameters
-    ----------
-    model : Model
-        The source model a caller hands to the analysis.
-    graph : Variable
-        The composed sweep graph to watch.
-
-    Returns
-    -------
-    dict of str to np.ndarray
-        The borrowed buffer of each source data variable the graph reads.
-    """
-    watched: dict[str, np.ndarray] = {}
-    for node in ancestors([graph]):
-        name = node.name
-        if name is None or name in watched:
-            continue
-        source_var = model.named_vars.get(name)
-        if isinstance(source_var, SharedVariable):
-            watched[name] = source_var.get_value(borrow=True)
-    return watched
-
-
 class SweepEntry:
     """One compiled sweep graph, conditioned on its own clone of the model.
 
@@ -291,7 +260,7 @@ class SweepEntry:
             sweep_input=sweep,
             mask_input=mask,
             output_dims=graph.dims,
-            watched_buffers=watched_source_buffers(model, graph),
+            watched_buffers=watched_source_buffers(model, [graph]),
         )
 
     def is_stale(self, source_model: Model) -> bool:
@@ -315,13 +284,7 @@ class SweepEntry:
         """
         if source_model is not self._source_model:
             return True
-        for name, buffer in self._watched_buffers.items():
-            source_var = self._source_model.named_vars.get(name)
-            if not isinstance(source_var, SharedVariable):
-                return True
-            if source_var.get_value(borrow=True) is not buffer:
-                return True
-        return False
+        return buffers_replaced(self._source_model, self._watched_buffers)
 
     def set_posterior(self, idata: xr.DataTree | xr.Dataset) -> None:
         """Rebind the compiled function to the draws in ``idata``.
@@ -413,7 +376,7 @@ class SweepLease:
         self._cache.put(self._key, self._entry)
 
 
-class SweepCache:
+class SweepCache(LeasedLRUCache[SweepCacheKey, SweepEntry]):
     """Bounded LRU cache of compiled sweeps, leased for the duration of a call.
 
     A :class:`~pymc_marketing.mmm.sensitivity_analysis.SensitivityAnalysis`
@@ -443,31 +406,7 @@ class SweepCache:
     """
 
     def __init__(self, max_entries: int = DEFAULT_MAX_ENTRIES) -> None:
-        self._max_entries = max_entries
-        self._entries: OrderedDict[SweepCacheKey, SweepEntry] = OrderedDict()
-        # Guards only the dictionary bookkeeping, never a call: a release must
-        # not fail because another thread evicted its key between two dict
-        # operations.
-        self._lock = threading.Lock()
-
-    def put(self, key: SweepCacheKey, entry: SweepEntry) -> None:
-        """Store ``entry`` under ``key``, evicting the least recent entry.
-
-        An entry already cached under ``key`` is replaced, so the cache never
-        holds more than ``max_entries`` entries.
-
-        Parameters
-        ----------
-        key : SweepCacheKey
-            Identity to store it under.
-        entry : SweepEntry
-            The compiled sweep.
-        """
-        with self._lock:
-            self._entries[key] = entry
-            self._entries.move_to_end(key)
-            while len(self._entries) > self._max_entries:
-                self._entries.popitem(last=False)
+        super().__init__(max_entries)
 
     def lease(
         self,
@@ -507,23 +446,7 @@ class SweepCache:
         SweepCloneError
             If the factory cannot clone ``source_model``.
         """
-        with self._lock:
-            entry = self._entries.pop(key, None)
+        entry = self._take(key)
         if entry is not None and not entry.is_stale(source_model):
             return SweepLease(self, key, entry, cached=True)
         return SweepLease(self, key, factory(), cached=False)
-
-    def __len__(self) -> int:
-        """Return the number of cached entries."""
-        with self._lock:
-            return len(self._entries)
-
-    def __getstate__(self) -> dict[str, int]:
-        """Skip the compiled sweeps when the owning analysis is pickled."""
-        return {"_max_entries": self._max_entries}
-
-    def __setstate__(self, state: dict[str, int]) -> None:
-        """Restore ``max_entries`` with an empty cache."""
-        self._max_entries = state["_max_entries"]
-        self._entries = OrderedDict()
-        self._lock = threading.Lock()

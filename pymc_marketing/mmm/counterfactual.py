@@ -77,6 +77,10 @@ from pytensor.graph.traversal import ancestors
 from pytensor.xtensor.type import XTensorVariable
 from pytensor.xtensor.vectorization import vectorize_graph
 
+from pymc_marketing.mmm.leased_cache import (
+    buffers_replaced,
+    watched_source_buffers,
+)
 from pymc_marketing.mmm.transformers import ConvMode
 from pymc_marketing.pytensor_utils import ConditionedModel
 
@@ -928,7 +932,17 @@ class CounterfactualEvaluator:
                 f"depend on the intervention target {self.intervention_target!r}; "
                 "every counterfactual would equal the baseline."
             )
-        self._watched_sources = self._watched_source_buffers(graph_ancestors)
+        # ``time_index`` is a batched input of the compiled function, so nothing
+        # reads a frozen copy of it.  Under ``replace`` the graphs read the
+        # placeholder, not the target's data, so the target is left out; the
+        # exclusion is defensive, as the target is not an ancestor there.  Under
+        # ``scale`` the graph reads the target's own data, so it stays in.
+        exclude = {self.TIME_INDEX}
+        if self.intervention_mode == "replace":
+            exclude.add(self.intervention_target)
+        self._watched_sources = watched_source_buffers(
+            self._source_model, graphs, exclude=exclude
+        )
 
         self.non_date_dims = {
             name: self._non_date_dims(graph)
@@ -1017,35 +1031,6 @@ class CounterfactualEvaluator:
             )
         ]
         self._evaluator = function(func_inputs, outputs)
-
-    def _watched_source_buffers(self, graph_ancestors: set) -> dict[str, np.ndarray]:
-        """Record the source model's shared buffers the graphs read, keyed by name.
-
-        ``pm.do`` clones the model, so the graphs read the clone's own data
-        variables, which never change again.  The source model, which
-        ``pm.set_data`` mutates, is matched by name.  Posterior shared variables
-        are not recorded: they live in the clone, and the source model holds a
-        random variable under their name.  ``time_index`` is a batched input of
-        the compiled function, so nothing reads a frozen copy of it.  Under
-        ``replace`` the graphs read the placeholder, not the target's data, so
-        the target is left out; the exclusion is defensive, as the target is not
-        an ancestor there.  Under ``scale`` the graph reads the target's own
-        data, so it stays in.
-        """
-        source = self._source_model
-        watched: dict[str, np.ndarray] = {}
-        for node in graph_ancestors:
-            name = node.name
-            if name is None or name in watched:
-                continue
-            if name == self.TIME_INDEX or (
-                name == self.intervention_target and self.intervention_mode == "replace"
-            ):
-                continue
-            source_var = source.named_vars.get(name)
-            if isinstance(source_var, SharedVariable):
-                watched[name] = source_var.get_value(borrow=True)
-        return watched
 
     def _sync_sample_markers(self) -> None:
         """Point every sample marker at the draw count of the bound posterior.
@@ -1156,14 +1141,7 @@ class CounterfactualEvaluator:
             ``True`` when a watched source variable no longer holds the buffer
             recorded at build time, so the compiled graphs read stale values.
         """
-        source = self._source_model
-        for name, buffer in self._watched_sources.items():
-            source_var = source.named_vars.get(name)
-            if not isinstance(source_var, SharedVariable):
-                return True
-            if source_var.get_value(borrow=True) is not buffer:
-                return True
-        return False
+        return buffers_replaced(self._source_model, self._watched_sources)
 
     def set_posterior(self, idata: xr.DataTree | xr.Dataset) -> None:
         """Re-point the evaluator at a new posterior.

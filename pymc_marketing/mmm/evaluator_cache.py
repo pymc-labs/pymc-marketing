@@ -25,13 +25,13 @@ model creates and clears the cache itself; a user does not call it directly.
 from __future__ import annotations
 
 import hashlib
-import threading
-from collections import OrderedDict
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, NamedTuple
 
 import numpy as np
 import xarray as xr
+
+from pymc_marketing.mmm.leased_cache import LeasedLRUCache
 
 if TYPE_CHECKING:
     from pymc_marketing.mmm.counterfactual import CounterfactualEvaluator
@@ -160,7 +160,7 @@ class EvaluatorLease:
         self._cache.put(self._key, self._evaluator)
 
 
-class EvaluatorCache:
+class EvaluatorCache(LeasedLRUCache[EvaluatorCacheKey, "CounterfactualEvaluator"]):
     """Bounded LRU cache of compiled counterfactual evaluators.
 
     A fitted MMM keeps one so its ``Incrementality`` objects reuse compiled evaluators, keyed by graph shape and
@@ -178,55 +178,6 @@ class EvaluatorCache:
     max_entries : int, default 4
         Number of evaluators kept before the least recently used is evicted.
     """
-
-    def __init__(self, max_entries: int = 4) -> None:
-        self._max_entries = max_entries
-        self._entries: OrderedDict[EvaluatorCacheKey, CounterfactualEvaluator] = (
-            OrderedDict()
-        )
-        # Guards only the dictionary bookkeeping, never a request: a release must not
-        # fail because another thread evicted its key between two dict operations.
-        self._lock = threading.Lock()
-
-    def get(self, key: EvaluatorCacheKey) -> CounterfactualEvaluator | None:
-        """Return the evaluator cached under ``key``, marking it most recent.
-
-        Parameters
-        ----------
-        key : EvaluatorCacheKey
-            Identity to look up.
-
-        Returns
-        -------
-        CounterfactualEvaluator or None
-            The cached evaluator, which stays in the cache, or ``None`` when
-            ``key`` is absent.  A request takes an evaluator out with
-            :meth:`lease` instead.
-        """
-        with self._lock:
-            evaluator = self._entries.get(key)
-            if evaluator is not None:
-                self._entries.move_to_end(key)
-            return evaluator
-
-    def put(self, key: EvaluatorCacheKey, evaluator: CounterfactualEvaluator) -> None:
-        """Store ``evaluator`` under ``key``, evicting the least recent entry.
-
-        An evaluator already cached under ``key`` is replaced, so the cache
-        never holds more than ``max_entries`` evaluators.
-
-        Parameters
-        ----------
-        key : EvaluatorCacheKey
-            Identity to store it under.
-        evaluator : CounterfactualEvaluator
-            The compiled evaluator.
-        """
-        with self._lock:
-            self._entries[key] = evaluator
-            self._entries.move_to_end(key)
-            while len(self._entries) > self._max_entries:
-                self._entries.popitem(last=False)
 
     def lease(
         self,
@@ -257,22 +208,7 @@ class EvaluatorCache:
             difference: a freshly built one is already conditioned on the draws
             it was asked for.
         """
-        with self._lock:
-            evaluator = self._entries.pop(key, None)
+        evaluator = self._take(key)
         if evaluator is not None and not evaluator.is_stale():
             return EvaluatorLease(self, key, evaluator, cached=True)
         return EvaluatorLease(self, key, factory(), cached=False)
-
-    def __len__(self) -> int:
-        """Return the number of cached evaluators."""
-        return len(self._entries)
-
-    def __getstate__(self) -> dict[str, int]:
-        """Skip the compiled evaluators when the owning model is pickled."""
-        return {"_max_entries": self._max_entries}
-
-    def __setstate__(self, state: dict[str, int]) -> None:
-        """Restore `max_entries` with an empty cache."""
-        self._max_entries = state["_max_entries"]
-        self._entries = OrderedDict()
-        self._lock = threading.Lock()

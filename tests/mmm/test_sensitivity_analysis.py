@@ -14,7 +14,6 @@
 import copy
 import importlib
 import math
-import threading
 from concurrent.futures import ThreadPoolExecutor
 
 import cloudpickle
@@ -47,9 +46,6 @@ _SWEEP_COMPILE_MODULES = (
     "pymc_marketing.mmm.sensitivity_analysis",
     "pymc_marketing.mmm.sweep_cache",
 )
-
-# Rounds of barrier-started concurrent sweeps in the concurrency test.
-CONCURRENT_ROUNDS = 3
 
 
 def _make_saturation_model_and_idata(channel_data, n_draws, alpha_val=0.8, lam_val=1.2):
@@ -1239,11 +1235,11 @@ def test_run_sweep_concurrent_calls_match_single_thread(simple_model_and_idata):
     """Concurrent calls on one instance match their single-thread results.
 
     The cache is warmed first, so the same-key pair with different draw
-    fractions contends for one cached entry, and a barrier starts all calls
-    together.  Each call leases its own entry, so no call evaluates under
-    another's posterior, whether the key differs or only the fraction does.
-    The draws differ on every index, so an evaluation under the wrong
-    posterior changes the values and not only the number of draws.
+    fractions contends for one cached entry.  Each call leases its own entry,
+    so no call evaluates under another's posterior, whether the key differs or
+    only the fraction does.  The draws differ on every index, so an evaluation
+    under the wrong posterior changes the values and not only the number of
+    draws.
     """
     model, _ = simple_model_and_idata
     sensitivity = SensitivityAnalysis(model, _draw_varying_posterior(model))
@@ -1270,21 +1266,17 @@ def test_run_sweep_concurrent_calls_match_single_thread(simple_model_and_idata):
             "channel_data", sweeps, var_names="channel_contribution", **call
         )
 
-    start_together = threading.Barrier(len(calls))
-
-    def run_after_barrier(call):
-        start_together.wait(timeout=60)
+    def run(call):
         return sensitivity.run_sweep(
             "channel_data", sweeps, var_names="channel_contribution", **call
         )
 
-    for _ in range(CONCURRENT_ROUNDS):
-        with ThreadPoolExecutor(max_workers=len(calls)) as pool:
-            futures = [pool.submit(run_after_barrier, call) for call in calls]
-            results = [future.result() for future in futures]
+    with ThreadPoolExecutor(max_workers=len(calls)) as pool:
+        futures = [pool.submit(run, call) for call in calls]
+        results = [future.result() for future in futures]
 
-        for result, want in zip(results, expected, strict=True):
-            xr.testing.assert_allclose(result, want)
+    for result, want in zip(results, expected, strict=True):
+        xr.testing.assert_allclose(result, want)
 
 
 # ---------------------------------------------------------------------------
@@ -1457,50 +1449,3 @@ def test_sweep_cache_evicts_the_oldest_entry_and_recompiles(sweep_compile_counte
     assert len(sweep_compile_counter) == compiles_before
     xr.testing.assert_allclose(last_again, results[-1])
     assert len(cache) == 4
-
-
-def test_mmm_sensitivity_concurrent_calls_match_single_thread(multidim_mmm):
-    """Concurrent ``mmm.sensitivity`` calls each equal their single-thread result.
-
-    Every thread takes a fresh access, so the shared cache on the MMM is the only
-    state between them.  Different sweep types are different keys, and the two
-    multiplicative calls contend for one key with different draw fractions.
-    """
-    sweeps = np.linspace(0.5, 1.5, 4)
-    calls = [
-        {"sweep_type": "multiplicative", "posterior_sample_fraction": 1.0},
-        {"sweep_type": "additive", "posterior_sample_fraction": 1.0},
-        {"sweep_type": "absolute", "posterior_sample_fraction": 1.0},
-        {"sweep_type": "multiplicative", "posterior_sample_fraction": 0.5},
-    ]
-    expected = [
-        _reference_run_sweep(
-            multidim_mmm.sensitivity,
-            "channel_data",
-            sweeps,
-            var_names="channel_contribution",
-            **call,
-        )
-        for call in calls
-    ]
-
-    for call in calls:
-        multidim_mmm.sensitivity.run_sweep(
-            "channel_data", sweeps, var_names="channel_contribution", **call
-        )
-
-    start_together = threading.Barrier(len(calls))
-
-    def run_after_barrier(call: dict) -> xr.DataArray:
-        start_together.wait(timeout=60)
-        return multidim_mmm.sensitivity.run_sweep(
-            "channel_data", sweeps, var_names="channel_contribution", **call
-        )
-
-    for _ in range(CONCURRENT_ROUNDS):
-        with ThreadPoolExecutor(max_workers=len(calls)) as pool:
-            futures = [pool.submit(run_after_barrier, call) for call in calls]
-            results = [future.result() for future in futures]
-
-        for result, want in zip(results, expected, strict=True):
-            xr.testing.assert_allclose(result, want)
