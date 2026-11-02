@@ -35,6 +35,7 @@ from pydantic import Field, InstanceOf, field_validator
 from pytensor.xtensor.type import XTensorVariable
 
 from pymc_marketing.mmm.additive_effect import MuEffect, safe_to_datetime
+from pymc_marketing.mmm.link import LinkFunction
 
 if TYPE_CHECKING:
     from impulso import VAR
@@ -197,6 +198,13 @@ class VARBaselineEffect(MuEffect):
     sampling and ``predict`` on other dates are not supported, and they fail inside
     PyTensor with an error that does not name the effect.
 
+    The MMM must have no ``dims``, ``time_varying_intercept=False`` and
+    ``link="identity"``, and building any other MMM raises. The VAR has no
+    cross-sectional dimension, so it models a single panel. A time-varying intercept
+    would compete with the baseline, which is a deviation around a constant
+    intercept. The baseline enters the MMM's mean additively in the target's units,
+    which holds only on the identity link.
+
     The brand metrics' likelihood and the constraint that keeps the baseline
     stationary are potentials, which prior and posterior predictive sampling ignore.
     Prior predictive baseline paths therefore come from the untruncated prior and can
@@ -212,9 +220,12 @@ class VARBaselineEffect(MuEffect):
     treats as a constant. The fix belongs in Impulso, see
     https://github.com/QuantClimate/Impulso/issues/378.
 
-    Impulso's coordinates, such as ``var``, ``coeff`` and ``exog``, are not
-    prefixed, so every ``VARBaselineEffect`` in one MMM must name the same series.
-    Impulso also adds a positional ``time`` coordinate that no variable uses.
+    An MMM takes at most one ``VARBaselineEffect``, and building an MMM with two
+    raises. Two baselines in one mean would be identified only through their sum,
+    and two VARs over the same brand series would count those series' likelihood
+    twice, so put every brand series in one VAR.
+
+    Impulso adds a positional ``time`` coordinate that no variable uses.
 
     References
     ----------
@@ -375,7 +386,7 @@ class VARBaselineEffect(MuEffect):
         return self.model_dump(mode="json", exclude={"brand_data"})
 
     def create_data(self, mmm: "MMM") -> None:  # type: ignore[override]
-        """Check ``brand_data`` on the MMM's dates.
+        """Check the MMM, and ``brand_data`` on the MMM's dates.
 
         The brand data enter the graph as constants in :meth:`create_effect`, so no
         data variable is registered.
@@ -388,10 +399,48 @@ class VARBaselineEffect(MuEffect):
         Raises
         ------
         ValueError
-            If ``brand_data`` cannot be matched to the MMM's dates, or if a column
-            named in ``endog_names`` or ``exog_names`` has a NaN or infinite value on
-            them or is constant on them.
+            If the MMM has more than one ``VARBaselineEffect``, ``dims``, a
+            time-varying intercept or a link other than the identity, if
+            ``brand_data`` cannot be matched to the MMM's dates, or if a column named
+            in ``endog_names`` or ``exog_names`` has a NaN or infinite value on them
+            or is constant on them.
         """
+        effects = [
+            effect for effect in mmm.mu_effects if isinstance(effect, VARBaselineEffect)
+        ]
+        if len(effects) > 1:
+            others = [effect.prefix for effect in effects if effect is not self]
+            found = (
+                f"found others with prefixes {others}. Put every brand series in one "
+                "VAR."
+                if others
+                else "but this one was added more than once. Add it once."
+            )
+            raise ValueError(
+                f"VARBaselineEffect {self.prefix!r}: an MMM takes at most one "
+                f"VARBaselineEffect, {found}"
+            )
+        if mmm.dims:
+            raise ValueError(
+                f"VARBaselineEffect {self.prefix!r} needs an MMM without dims, got "
+                f"dims={mmm.dims}: the VAR has no cross-sectional dimension, so it "
+                "models a single panel."
+            )
+        if mmm.time_varying_intercept:
+            raise ValueError(
+                f"VARBaselineEffect {self.prefix!r} needs an MMM with "
+                "time_varying_intercept=False: the baseline is a zero-mean deviation "
+                "around a constant intercept, and a time-varying intercept would "
+                "compete with it for the same movement in the target."
+            )
+        if mmm.link != LinkFunction.IDENTITY:
+            raise ValueError(
+                f"VARBaselineEffect {self.prefix!r} needs an MMM with link='identity', "
+                f"got link={mmm.link.value!r}: the baseline enters the MMM's mean "
+                "additively in the target's units, which holds only on the identity "
+                "link."
+            )
+
         named_data = self._brand_data_on_mmm_dates(mmm)[self._column_names]
         finite = np.isfinite(named_data.to_numpy(dtype=float)).all(axis=0)
         if non_finite := named_data.columns[~finite].tolist():

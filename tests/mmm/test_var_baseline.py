@@ -28,6 +28,7 @@ from pymc_marketing.mmm import (
     MMM,
     GeometricAdstock,
     LogisticSaturation,
+    SoftPlusHSGP,
     VARBaselineEffect,
 )
 
@@ -101,13 +102,14 @@ def make_effect(brand_data: pd.DataFrame, **kwargs) -> VARBaselineEffect:
     return VARBaselineEffect(**(params | kwargs))
 
 
-def make_mmm(effect, date_column: str = "date") -> MMM:
+def make_mmm(effect, date_column: str = "date", **kwargs) -> MMM:
     return MMM(
         date_column=date_column,
         channel_columns=["x1", "x2"],
         target_column="sales",
         adstock=GeometricAdstock(l_max=2),
         saturation=LogisticSaturation(),
+        **kwargs,
     ).add_mu_effect(effect)
 
 
@@ -614,6 +616,113 @@ def test_building_without_a_target_raises(brand_mmm_data):
 
     with pytest.raises(ValueError, match=rf"{PREFIX}.*target"):
         mmm.sample_prior_predictive(brand_mmm_data["X"])
+
+
+def as_panel(data: dict, geos: tuple[str, ...] = ("north", "south")) -> dict:
+    """The same data for each geo, stacked as a panel MMM takes it."""
+    return {
+        "X": pd.concat([data["X"].assign(geo=geo) for geo in geos], ignore_index=True),
+        "y": pd.concat([data["y"]] * len(geos), ignore_index=True),
+        "brand_data": pd.concat(
+            [data["brand_data"].assign(geo=geo) for geo in geos], ignore_index=True
+        ),
+    }
+
+
+@pytest.mark.parametrize(
+    "mmm_kwargs, arrange, match",
+    [
+        pytest.param(
+            {"dims": ("geo",)},
+            as_panel,
+            rf"'{PREFIX}'.*dims=\('geo',\).*cross-sectional",
+            id="extra-dims",
+        ),
+        pytest.param(
+            {"time_varying_intercept": True},
+            lambda data: data,
+            rf"'{PREFIX}'.*time_varying_intercept.*compete",
+            id="time-varying-intercept",
+        ),
+        pytest.param(
+            {
+                "time_varying_intercept": SoftPlusHSGP.parameterize_from_data(
+                    X=np.arange(30), dims=("date",)
+                )
+            },
+            lambda data: data,
+            rf"'{PREFIX}'.*time_varying_intercept.*compete",
+            id="hsgp-intercept",
+        ),
+        pytest.param(
+            {"link": "log"},
+            lambda data: data,
+            rf"'{PREFIX}'.*link='log'.*additively",
+            id="log-link",
+            marks=pytest.mark.filterwarnings(
+                "ignore:The 'log' link is experimental", "ignore:With link='log'"
+            ),
+        ),
+    ],
+)
+def test_unsupported_mmm_raises_at_build(brand_mmm_data, mmm_kwargs, arrange, match):
+    """The MMM's configuration is refused before its data is matched."""
+    data = arrange(brand_mmm_data)
+    mmm = make_mmm(make_effect(data["brand_data"]), **mmm_kwargs)
+
+    with pytest.raises(ValueError, match=match):
+        mmm.build_model(data["X"], data["y"])
+
+
+@pytest.mark.parametrize(
+    "make_other, match",
+    [
+        pytest.param(
+            lambda effect, data: make_effect(data, prefix="tv_var"),
+            r"others with prefixes \['tv_var'\]",
+            id="same-series",
+        ),
+        pytest.param(
+            lambda effect, data: make_effect(data, prefix="tv_var", exog_names=[]),
+            r"others with prefixes \['tv_var'\]",
+            id="no-exog",
+        ),
+        pytest.param(
+            lambda effect, data: make_effect(
+                data, prefix="tv_var", endog_names=["baseline", "awareness", "intent"]
+            ),
+            r"others with prefixes \['tv_var'\]",
+            id="other-endog",
+        ),
+        pytest.param(
+            lambda effect, data: make_effect(
+                data, prefix="tv_var", exog_names=["tv_spend"]
+            ),
+            r"others with prefixes \['tv_var'\]",
+            id="other-exog",
+        ),
+        pytest.param(
+            lambda effect, data: effect, "added more than once", id="same-instance"
+        ),
+    ],
+)
+def test_second_var_baseline_effect_raises(brand_mmm_data, make_other, match):
+    """Over the same series, a second VAR would count the brand data twice.
+
+    Over any series, only the sum of the two baselines would be identified. The
+    same effect added twice is refused too.
+    """
+    brand_data = brand_mmm_data["brand_data"].assign(
+        intent=lambda df: 2 * df["consideration"],
+        tv_spend=lambda df: 1 - df["brand_spend"],
+    )
+    effect = make_effect(brand_data)
+    mmm = make_mmm(effect).add_mu_effect(make_other(effect, brand_data))
+
+    with pytest.raises(
+        ValueError, match=rf"'{PREFIX}'.*at most one VARBaselineEffect.*{match}"
+    ):
+        mmm.build_model(brand_mmm_data["X"], brand_mmm_data["y"])
 
 
 @pytest.mark.slow
