@@ -1356,10 +1356,14 @@ def log_versions() -> None:
 def log_mmm_configuration(mmm: MMM) -> None:
     """Log the configuration of the MMM model to MLflow."""
     attrs = mmm.create_idata_attrs()
-    lift_test_calibrations = attrs.pop("lift_test_calibrations", None)
+    calibrations = {
+        name: attrs.pop(name, None)
+        for name in ("lift_test_calibrations", "cost_per_target_calibrations")
+    }
     mlflow.log_params(attrs)
-    if lift_test_calibrations not in (None, "[]"):
-        mlflow.log_text(lift_test_calibrations, "lift_test_calibrations.json")
+    for name, records in calibrations.items():
+        if records not in (None, "[]"):
+            mlflow.log_text(records, f"{name}.json")
 
     adstock_name = type(mmm.adstock).__name__.removesuffix("Adstock")
     saturation_name = type(mmm.saturation).__name__.removesuffix("Saturation")
