@@ -62,6 +62,7 @@ import xarray as xr
 from pytensor.graph.basic import Variable
 from pytensor.graph.traversal import ancestors
 
+from pymc_marketing.data.idata.names import Dim, Var
 from pymc_marketing.mmm.counterfactual import CounterfactualEvaluator, find_named_node
 
 if TYPE_CHECKING:
@@ -91,10 +92,10 @@ __all__ = [
     "resolve_channel_dependent_effects",
 ]
 
-CHANNEL_CONTRIBUTION = "channel_contribution"
+CHANNEL_CONTRIBUTION = Var.CHANNEL_CONTRIBUTION
 """Response variable holding the per-channel linear-predictor contribution."""
 
-LINEAR_PREDICTOR = "mu"
+LINEAR_PREDICTOR = Var.MU
 """Name the MMM gives its linear predictor, registered or not."""
 
 COMPLETENESS_ACCUMULATION_SAFETY_FACTOR = 100
@@ -202,8 +203,8 @@ def resolve_channel_dependent_effects(
         mistaken for an absent attribute.
     """
     pymc_model = model.model
-    channel_data = pymc_model[CounterfactualEvaluator.CHANNEL_DATA]
-    allowed_dims = {"date", *model.dims}
+    channel_data = pymc_model[Var.CHANNEL_DATA]
+    allowed_dims = {Dim.DATE, *model.dims}
     resolved: list[ChannelDependentEffect] = []
 
     for effect in model.mu_effects:
@@ -292,12 +293,12 @@ def linear_predictor(model: MMM) -> Variable | None:
         enforced that the name is unique.
     """
     pymc_model = model.model
-    if LINEAR_PREDICTOR in pymc_model.named_vars:
-        if LINEAR_PREDICTOR in model.frozen_deterministics:
+    if Var.MU in pymc_model.named_vars:
+        if Var.MU in model.frozen_deterministics:
             # Frozen at its posterior value, so it would not respond to the
             # probe and the completeness check would compare zero to zero.
             return None
-        return pymc_model[LINEAR_PREDICTOR]
+        return pymc_model[Var.MU]
 
     output_var = model.output_var
     if output_var not in pymc_model.named_vars:
@@ -309,7 +310,7 @@ def linear_predictor(model: MMM) -> Variable | None:
     # observed either way, so the wider roots cannot lose it.
     return find_named_node(
         [observed, *pymc_model.deterministics],
-        LINEAR_PREDICTOR,
+        Var.MU,
         exclude=[observed],
     )
 
@@ -967,13 +968,13 @@ class SpendProbe:
                 for probe_index, probed in self.probes.items()
             )
             for name in (
-                CHANNEL_CONTRIBUTION,
+                Var.CHANNEL_CONTRIBUTION,
                 *(effect.contribution_var for effect in effects),
             )
         }
         combined = TemporalReach.widest(
             [
-                measured[CHANNEL_CONTRIBUTION],
+                measured[Var.CHANNEL_CONTRIBUTION],
                 *self._reconcile_declarations(effects, measured),
             ]
         )
@@ -1233,8 +1234,8 @@ class SpendProbe:
             return True
 
         # `+ 2` for the sample and date axes the evaluations carry in front.
-        channel_axis = non_date_dims[CHANNEL_CONTRIBUTION].index("channel") + 2
-        baseline = self.baseline[CHANNEL_CONTRIBUTION]
+        channel_axis = non_date_dims[Var.CHANNEL_CONTRIBUTION].index("channel") + 2
+        baseline = self.baseline[Var.CHANNEL_CONTRIBUTION]
         for channel, probe_index in placements.items():
             probed = self._evaluator.evaluate_baseline(
                 self._perturb(
@@ -1244,8 +1245,8 @@ class SpendProbe:
                     dtype=self._evaluator.channel_dtype,
                     channel=channel,
                 )
-            )[CHANNEL_CONTRIBUTION]
-            self._assert_finite(CHANNEL_CONTRIBUTION, probed)
+            )[Var.CHANNEL_CONTRIBUTION]
+            self._assert_finite(Var.CHANNEL_CONTRIBUTION, probed)
 
             moved = np.abs(probed - baseline)
             # Scaled by the largest move this probe made anywhere, mirroring
@@ -1305,7 +1306,7 @@ class SpendProbe:
         NotImplementedError
             If the accounted nodes do not reproduce the predictor's move.
         """
-        if LINEAR_PREDICTOR not in self.baseline:
+        if Var.MU not in self.baseline:
             return
 
         # Every probe has to satisfy the identity: an unattributed path from one
@@ -1322,11 +1323,11 @@ class SpendProbe:
 
             # channel_contribution carries a channel dimension the predictor does
             # not: it enters mu summed over channels.
-            accounted = moved(CHANNEL_CONTRIBUTION).sum("channel")
+            accounted = moved(Var.CHANNEL_CONTRIBUTION).sum("channel")
             for effect in effects:
                 accounted = accounted + moved(effect.contribution_var)
 
-            expected = moved(LINEAR_PREDICTOR)
+            expected = moved(Var.MU)
             expected, accounted = xr.broadcast(expected, accounted)
             # Scaled by whichever side moved more, so that a predictor which did
             # not move cannot excuse accounted nodes that did.  Taking the
@@ -1349,8 +1350,8 @@ class SpendProbe:
             # when large terms offset -- the predictor alone would understate
             # it.
             compared_names = (
-                LINEAR_PREDICTOR,
-                CHANNEL_CONTRIBUTION,
+                Var.MU,
+                Var.CHANNEL_CONTRIBUTION,
                 *(effect.contribution_var for effect in effects),
             )
             compared_arrays = [
@@ -1384,7 +1385,10 @@ class SpendProbe:
                 continue
 
             accounted_names = ", ".join(
-                [CHANNEL_CONTRIBUTION, *(effect.contribution_var for effect in effects)]
+                [
+                    Var.CHANNEL_CONTRIBUTION,
+                    *(effect.contribution_var for effect in effects),
+                ]
             )
             largest = float(np.abs(accounted - expected).max()) / scale
             raise NotImplementedError(

@@ -26,6 +26,7 @@ from pytensor import xtensor as ptx
 from pytensor.graph.basic import Variable
 from pytensor.graph.replace import graph_replace
 
+from pymc_marketing.data.idata.names import ORIGINAL_SCALE_SUFFIX, Dim
 from pymc_marketing.mmm.optimization_variables import align_to_model_coords
 
 logger = logging.getLogger(__name__)
@@ -528,7 +529,7 @@ def create_zero_dataset(
                 f"{sorted(invalid_dims)}"
             )
 
-        if "date" in channel_xr.dims:
+        if Dim.DATE in channel_xr.dims:
             raise ValueError("`channel_xr` must NOT include the date dimension.")
 
         coords = {dim: list(dim_coords[dim]) for dim in dim_cols}
@@ -600,7 +601,7 @@ def create_zero_dataset(
         # -- a population, a per-channel rate -- already has the right shape, so
         # `set_data` has nothing to correct and zero-filling would overwrite a
         # constant with zeros.
-        if "date" in template.dims:
+        if Dim.DATE in template.dims:
             # `reindex` alone keeps the observed value on every date the
             # training data covers and fills 0 on the rest, which is exactly
             # the carry-in rule. Zeroing first drops the observed part.
@@ -671,8 +672,8 @@ def _planned_controls_from_frame(
         .to_xarray()
         .to_dataarray(dim="control")
     )
-    if date_column != "date":
-        planned = planned.rename({date_column: "date"})
+    if date_column != Dim.DATE:
+        planned = planned.rename({date_column: Dim.DATE})
     return planned
 
 
@@ -828,7 +829,7 @@ def align_planned_controls(
         If *planned* has dim labels the window does not, or no value (or NaN)
         on one of *future_dates*.
     """
-    label_dims = [d for d in window_controls.dims if d != "date"]
+    label_dims = [d for d in window_controls.dims if d != Dim.DATE]
     for dim in label_dims:
         extra = set(planned.coords[dim].values) - set(
             window_controls.coords[dim].values
@@ -872,7 +873,7 @@ def add_noise_to_channel_allocation(
 
     if isinstance(df, xr.Dataset):
         da = df["_channel"]
-        non_channel_dims = tuple(d for d in da.dims if d != "channel")
+        non_channel_dims = tuple(d for d in da.dims if d != Dim.CHANNEL)
         ch_scale = rel_std * da.mean(dim=non_channel_dims)
         # Align by dimension name before NumPy applies positional broadcasting.
         noise = rng.normal(
@@ -983,9 +984,9 @@ def build_contributions(
     if agg_dims is None:
         agg_dims = ("chain", "draw")
     if index_dims is None:
-        index_dims = ("date",)
+        index_dims = (Dim.DATE,)
     if expand_dims is None:
-        expand_dims = ("channel", "control")
+        expand_dims = (Dim.CHANNEL, Dim.CONTROL)
 
     # Select and validate variables
     present = [v for v in var if v in idata.posterior]
@@ -1044,7 +1045,7 @@ def build_contributions(
             ds = ds.rename({v: f"{exp_dim}__{v}" for v in ds.data_vars})
             datasets.append(ds)
         else:
-            short_name = name.removesuffix("_original_scale").removesuffix(
+            short_name = name.removesuffix(ORIGINAL_SCALE_SUFFIX).removesuffix(
                 "_contribution"
             )
             datasets.append(da_b.to_dataset(name=short_name))

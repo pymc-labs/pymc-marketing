@@ -24,6 +24,7 @@ import pandas as pd
 import xarray as xr
 
 from pymc_marketing.data.idata import MMMIDataWrapper
+from pymc_marketing.data.idata.names import Dim
 from pymc_marketing.mmm.xarray_utils import (
     _apply_aggregation,
     _ensure_chain_draw_dims,
@@ -113,7 +114,7 @@ def compute_waterfall_components(
         if ds_key not in contributions_ds:
             continue
         da = _select_dims(contributions_ds[ds_key], dims, allow_missing=True)
-        mean_dims = [d for d in ("date",) if d in da.dims]
+        mean_dims = [d for d in (Dim.DATE,) if d in da.dims]
         if coord_dim is not None:
             for val in da.coords[coord_dim].values:
                 component_da = da.sel({coord_dim: val}, drop=True)
@@ -203,7 +204,7 @@ def prepare_sensitivity_data(
         else:
             channel_scale = data.get_channel_data().sum("date")
 
-        if "channel" in channel_scale.dims and "channel" not in sa_da.dims:
+        if Dim.CHANNEL in channel_scale.dims and Dim.CHANNEL not in sa_da.dims:
             channel_scale = channel_scale.sum("channel")
 
         sweep_x = sweep_coords * channel_scale

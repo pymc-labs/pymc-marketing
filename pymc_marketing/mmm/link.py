@@ -36,6 +36,8 @@ from pytensor.xtensor.type import XTensorVariable
 from scipy.special import erfcx
 from scipy.stats import truncnorm
 
+from pymc_marketing.data.idata.names import Var
+
 if TYPE_CHECKING:
     import pymc as pm
 
@@ -108,7 +110,7 @@ BASELINE_PART = "intercept"
 #: ``MMM.build_model`` registers it.  It is a prediction without observation
 #: noise; the predictive draws of the target on the original scale are
 #: ``y_original_scale = y * target_scale`` under every link (issue #3132).
-MU_ORIGINAL_SCALE = "mu_original_scale"
+MU_ORIGINAL_SCALE = Var.MU_ORIGINAL_SCALE
 
 #: Prior wrappers that hold another distribution and move its mean off ``mu``,
 #: so no identity-link mean correction is defined for them.  Matched by type
@@ -545,7 +547,7 @@ class LinkSpec(ABC):
         self,
         model: pm.Model,
         likelihood: Prior,
-        output_var: str = "y",
+        output_var: str = Var.Y,
     ) -> XTensorVariable | None:
         """Graph counterpart of :meth:`_mean_ratio` for a channel increment.
 
@@ -642,7 +644,7 @@ class LinkSpec(ABC):
         expected response is off by it.
         """
         pmd.Deterministic(
-            "total_response_original_scale",
+            Var.TOTAL_RESPONSE_ORIGINAL_SCALE,
             self.original_scale_transform(mu_var, target_scale).sum(),
         )
 
@@ -653,7 +655,7 @@ class LinkSpec(ABC):
         posterior: xr.Dataset,
         likelihood: Prior,
         target_scale: xr.DataArray,
-        output_var: str = "y",
+        output_var: str = Var.Y,
     ) -> xr.Dataset:
         """Rescale a median-scale contribution dataset to the response mean.
 
@@ -695,7 +697,7 @@ class LinkSpec(ABC):
     def mean_correction(
         self,
         posterior: xr.Dataset,
-        output_var: str = "y",
+        output_var: str = Var.Y,
     ) -> xr.DataArray:
         """Per-draw factor converting median-scale outputs to the response mean.
 
@@ -740,7 +742,7 @@ class LinkSpec(ABC):
         self,
         posterior: xr.Dataset,
         likelihood: Prior,
-        output_var: str = "y",
+        output_var: str = Var.Y,
     ) -> xr.DataArray:
         """Return the mean correction as a multiplicative factor.
 
@@ -816,7 +818,7 @@ class LinkSpec(ABC):
     def _mean_ratio(
         self,
         posterior: xr.Dataset,
-        output_var: str = "y",
+        output_var: str = Var.Y,
     ) -> xr.DataArray:
         """Return the mean/median ratio, ``1`` unless a link overrides it."""
         return xr.DataArray(1.0)
@@ -1001,7 +1003,7 @@ class IdentityLinkSpec(LinkSpec):
     # The increment is channel_contribution * target_scale, exactly what
     # add_original_scale_contribution_variable registers under this name, so
     # the two share one node and the name is rebuilt on load.
-    channel_increment_var = "channel_contribution_original_scale"
+    channel_increment_var = Var.CHANNEL_CONTRIBUTION_ORIGINAL_SCALE
 
     def inverse_link(self, mu: XTensorVariable) -> XTensorVariable:
         """Return *mu* unchanged (identity transform)."""
@@ -1038,7 +1040,7 @@ class IdentityLinkSpec(LinkSpec):
     ) -> None:
         """Register additive ``total_media_contribution_original_scale``."""
         pmd.Deterministic(
-            "total_media_contribution_original_scale",
+            Var.TOTAL_MEDIA_CONTRIBUTION_ORIGINAL_SCALE,
             (channel_contribution.sum(dim="date") * target_scale).sum(),
         )
 
@@ -1063,7 +1065,7 @@ class IdentityLinkSpec(LinkSpec):
         posterior: xr.Dataset,
         likelihood: Prior,
         target_scale: xr.DataArray,
-        output_var: str = "y",
+        output_var: str = Var.Y,
     ) -> xr.Dataset:
         """Apply the identity-link mean correction, which depends on *likelihood*.
 
@@ -1182,7 +1184,7 @@ class IdentityLinkSpec(LinkSpec):
     def mean_correction(
         self,
         posterior: xr.Dataset,
-        output_var: str = "y",
+        output_var: str = Var.Y,
     ) -> xr.DataArray:
         """Refuse: the identity-link correction needs the likelihood.
 
@@ -1240,7 +1242,7 @@ class IdentityLinkSpec(LinkSpec):
         expression directly, since the ratio loses all precision far from the
         bound.  The value is the same.
         """
-        if "mu" not in posterior:
+        if Var.MU not in posterior:
             raise ValueError(
                 "Mean-scale contributions under link='identity' with a "
                 "TruncatedNormal likelihood need 'mu' in the posterior, which "
@@ -1277,7 +1279,7 @@ class IdentityLinkSpec(LinkSpec):
                 )
             bounds[bound] = _label_parameter(value, likelihood, bound)
 
-        mu = posterior["mu"]
+        mu = posterior[Var.MU]
         alpha = (bounds["lower"] - mu) / sigma
         beta = (bounds["upper"] - mu) / sigma
 
@@ -1333,7 +1335,7 @@ class LogLinkSpec(LinkSpec):
     # No _original_scale suffix: under this link that suffix means
     # exp(variable) * target_scale, and there is no variable whose transform
     # the increment is, so build_from_idata could not rebuild it.
-    channel_increment_var = "channel_incremental_contribution"
+    channel_increment_var = Var.CHANNEL_INCREMENTAL_CONTRIBUTION
 
     def inverse_link(self, mu: XTensorVariable) -> XTensorVariable:
         """Return ``exp(mu)`` (the conditional median of the LogNormal response)."""
@@ -1406,11 +1408,11 @@ class LogLinkSpec(LinkSpec):
         y_hat_no_media = ptxm.exp(mu_var - mu_media) * target_scale
 
         pmd.Deterministic(
-            "total_media_contribution_original_scale",
+            Var.TOTAL_MEDIA_CONTRIBUTION_ORIGINAL_SCALE,
             (y_hat - y_hat_no_media).sum(dim="date").sum(),
         )
 
-        pmd.Deterministic(MU_ORIGINAL_SCALE, y_hat.transpose("date", ...))
+        pmd.Deterministic(Var.MU_ORIGINAL_SCALE, y_hat.transpose("date", ...))
 
     def channel_incremental_contribution(
         self,
@@ -1441,7 +1443,7 @@ class LogLinkSpec(LinkSpec):
         posterior: xr.Dataset,
         likelihood: Prior,
         target_scale: xr.DataArray,
-        output_var: str = "y",
+        output_var: str = Var.Y,
     ) -> xr.Dataset:
         """Multiply by the LogNormal mean/median ratio.
 
@@ -1489,7 +1491,7 @@ class LogLinkSpec(LinkSpec):
     def _mean_ratio(
         self,
         posterior: xr.Dataset,
-        output_var: str = "y",
+        output_var: str = Var.Y,
     ) -> xr.DataArray:
         r"""Return ``exp(sigma**2 / 2)``, the LogNormal mean/median ratio.
 
@@ -1519,7 +1521,7 @@ class LogLinkSpec(LinkSpec):
         self,
         model: pm.Model,
         likelihood: Prior,
-        output_var: str = "y",
+        output_var: str = Var.Y,
     ) -> XTensorVariable | None:
         r"""Return ``exp(sigma**2 / 2)`` built from *model*'s likelihood scale.
 

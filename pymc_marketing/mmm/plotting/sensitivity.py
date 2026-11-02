@@ -76,6 +76,7 @@ from matplotlib.figure import Figure
 from numpy.typing import NDArray
 
 from pymc_marketing.data.idata import MMMIDataWrapper
+from pymc_marketing.data.idata.names import Dim, Group
 from pymc_marketing.mmm.plotting._helpers import (
     _apply_aggregation,
     _ensure_chain_draw_dims,
@@ -163,7 +164,7 @@ class SensitivityPlots:
             if idata is not None
             else self._data
         )
-        if not hasattr(data.idata, "sensitivity_analysis"):
+        if not hasattr(data.idata, Group.SENSITIVITY_ANALYSIS):
             raise ValueError(
                 "idata has no 'sensitivity_analysis' group. "
                 "Run SensitivityAnalysis.run_sweep() with extend_idata=True first."
@@ -257,7 +258,7 @@ class SensitivityPlots:
             if idata is not None
             else self._data
         )
-        if not hasattr(data.idata, "sensitivity_analysis"):
+        if not hasattr(data.idata, Group.SENSITIVITY_ANALYSIS):
             raise ValueError(
                 "idata has no 'sensitivity_analysis' group. "
                 "Run SensitivityAnalysis and compute_uplift_curve_respect_to_base() first."
@@ -311,8 +312,8 @@ class SensitivityPlots:
                     sa_group["uplift_curve"], aggregation
                 )
                 if (
-                    "channel" in channel_scale.dims
-                    and "channel" not in sa_da_for_check.dims
+                    Dim.CHANNEL in channel_scale.dims
+                    and Dim.CHANNEL not in sa_da_for_check.dims
                 ):
                     channel_scale = channel_scale.sum("channel")
 
@@ -386,7 +387,7 @@ class SensitivityPlots:
             if idata is not None
             else self._data
         )
-        if not hasattr(data.idata, "sensitivity_analysis"):
+        if not hasattr(data.idata, Group.SENSITIVITY_ANALYSIS):
             raise ValueError(
                 "idata has no 'sensitivity_analysis' group. "
                 "Run SensitivityAnalysis and compute_marginal_effects() first."
@@ -451,7 +452,7 @@ class SensitivityPlots:
         cols = pc_kwargs.pop("cols", list(data.custom_dims))
         rows = pc_kwargs.pop("rows", [])
         hue_dims = [
-            d for d in sa_da.dims if d not in {"chain", "draw", "sweep", *cols, *rows}
+            d for d in sa_da.dims if d not in {"chain", "draw", Dim.SWEEP, *cols, *rows}
         ]
 
         # Step 5: Compute sweep x-values
@@ -465,7 +466,7 @@ class SensitivityPlots:
                 channel_scale = data.get_channel_data().sum("date")
 
             # If channel dimension was aggregated away, aggregate channel_scale too
-            if "channel" in channel_scale.dims and "channel" not in sa_da.dims:
+            if Dim.CHANNEL in channel_scale.dims and Dim.CHANNEL not in sa_da.dims:
                 channel_scale = channel_scale.sum("channel")
 
             sweep_x = sweep_coords * channel_scale
