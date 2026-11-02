@@ -526,6 +526,36 @@ class MuEffect(SerializableBaseModel, ABC):
         """
         return None
 
+    def frozen_deterministics(self) -> list[str]:
+        """Return the deterministics to take from the posterior rather than recompute.
+
+        :attr:`MMM.frozen_deterministics` collects them from every effect. Posterior
+        predictive sampling, incrementality and budget optimization then substitute
+        the posterior draws of these deterministics instead of recomputing them from
+        the graph.
+
+        The default is empty, which is right for an effect whose contribution is a
+        function of its parameters and data. Override it for a contribution that is
+        a latent path over the fitted dates, such as a random walk or a Gaussian
+        process, which should be taken from the posterior as the MMM's HSGP terms
+        are. A frozen deterministic no longer responds to the channel data, so never
+        freeze one that depends on them.
+
+        A frozen deterministic with a ``date`` dimension is a path over the fitted
+        dates. Posterior predictive sampling handles it on those dates, and
+        incrementality on any window, because the counterfactual evaluation cuts it
+        to each period's window as it cuts the data. The budget optimizer does not
+        cut it, so an effect that freezes one should set ``supports_new_dates`` to
+        ``False``. The MMM then refuses both prediction on other dates and any
+        budget objective that reaches the effect.
+
+        Returns
+        -------
+        list[str]
+            Names of deterministics the effect registers in the model.
+        """
+        return []
+
     def idata_groups(self) -> dict[str, xr.Dataset]:
         """Return supplementary data groups to store in DataTree.
 

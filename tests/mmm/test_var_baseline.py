@@ -1752,3 +1752,87 @@ def test_do_on_the_channel_data(fitted_mmm):
     model = pm.do(fitted_mmm.model, {"channel_data": np.zeros(channel_data.shape)})
 
     assert f"{PREFIX}_effect_contribution" in model.named_vars
+
+
+def contribution_lost(mmm: MMM, X: pd.DataFrame, period: pd.Series) -> xr.DataArray:
+    """Each channel's contribution lost without spend over ``period``.
+
+    In the target's units, summed over all of the MMM's dates, so it carries the
+    adstock's carryover past the period.
+    """
+    without_spend = X.assign(
+        **{channel: X[channel].where(~period, 0.0) for channel in mmm.channel_columns}
+    )
+    contribution = mmm.sample_posterior_predictive(
+        without_spend,
+        var_names=["channel_contribution"],
+        extend_idata=False,
+        combined=False,
+        progressbar=False,
+    )["channel_contribution"]
+    lost = mmm.idata.posterior["channel_contribution"] - contribution
+    return (lost * mmm.idata.constant_data["target_scale"]).sum("date")
+
+
+@pytest.mark.parametrize("mmm_name", ["fitted_mmm", "loaded_mmm"])
+@pytest.mark.parametrize(
+    "kwargs, frequency",
+    [
+        pytest.param({"frequency": "all_time"}, None, id="all-time"),
+        pytest.param({"frequency": "monthly"}, "M", id="monthly"),
+        pytest.param({"frequency": "quarterly"}, "Q", id="quarterly"),
+        pytest.param(
+            {
+                "frequency": "all_time",
+                "start_date": "2024-03-04",
+                "end_date": "2024-05-27",
+            },
+            None,
+            id="window",
+        ),
+    ],
+)
+def test_incremental_contribution_is_the_channel_contribution(
+    request, brand_mmm_data, mmm_name, kwargs, frequency
+):
+    """The baseline does not depend on spend, so it adds nothing to the increment.
+
+    Without spend over a period, each channel's increment on it is the contribution
+    it loses, in the target's units. Periods are calendar periods, labeled by their
+    last day.
+    """
+    mmm = request.getfixturevalue(mmm_name)
+    X = brand_mmm_data["X"]
+    dates = X["date"]
+    in_range = dates.between(
+        kwargs.get("start_date", dates.min()), kwargs.get("end_date", dates.max())
+    )
+
+    incremental = mmm.incrementality.compute_incremental_contribution(**kwargs)
+
+    if frequency is None:
+        expected = contribution_lost(mmm, X, in_range)
+    else:
+        ends = dates.dt.to_period(frequency).dt.end_time.dt.normalize()
+        expected = xr.concat(
+            [
+                contribution_lost(mmm, X, in_range & (ends == end)).assign_coords(
+                    date=end
+                )
+                for end in ends.unique()
+            ],
+            dim="date",
+        )
+    xr.testing.assert_allclose(incremental, expected.transpose(*incremental.dims))
+
+
+@pytest.mark.parametrize("mmm_name", ["fitted_mmm", "loaded_mmm"])
+def test_monthly_contribution_over_spend(request, mmm_name):
+    """Each channel's contribution per unit of spend is finite in each of 7 months."""
+    mmm = request.getfixturevalue(mmm_name)
+
+    over_spend = mmm.incrementality.contribution_over_spend(frequency="monthly")
+
+    assert over_spend.dims == ("chain", "draw", "date", "channel")
+    assert over_spend.sizes["date"] == 7
+    assert np.isfinite(over_spend).all()

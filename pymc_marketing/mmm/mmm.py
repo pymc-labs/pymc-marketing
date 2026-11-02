@@ -2097,6 +2097,9 @@ class MMM(RegressionModelBuilder):
         evaluation.  Recomputing them with a different dimension size would
         give wrong results; instead their posterior values should be
         substituted directly.
+
+        They include the names each mu effect declares through
+        :meth:`MuEffect.frozen_deterministics`.
         """
         names: list[str] = []
         if self.time_varying_intercept:
@@ -2109,6 +2112,10 @@ class MMM(RegressionModelBuilder):
                     "media_temporal_latent_multiplier"
                 )
             )
+        for effect in self.mu_effects:
+            # A duck-typed effect, which the additive-effect module allows, may not
+            # define the hook.
+            names.extend(getattr(effect, "frozen_deterministics", list)())
         return names
 
     def _validate_idata_exists(self) -> None:
