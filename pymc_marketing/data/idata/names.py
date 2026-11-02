@@ -92,6 +92,7 @@ class Attr(names.Attr):
     ORIGINAL_SCALE_VARS: Final = "original_scale_vars"
     TIME_AGGREGATION: Final = "time_aggregation"
     LIFT_TEST_CALIBRATIONS: Final = "lift_test_calibrations"
+    COST_PER_TARGET_CALIBRATIONS: Final = "cost_per_target_calibrations"
 
 
 class Group(names.Group):
