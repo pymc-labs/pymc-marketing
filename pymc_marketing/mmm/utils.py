@@ -873,8 +873,11 @@ def add_noise_to_channel_allocation(
     if isinstance(df, xr.Dataset):
         da = df["_channel"]
         non_channel_dims = tuple(d for d in da.dims if d != "channel")
-        ch_scale = (rel_std * da.mean(dim=non_channel_dims)).values
-        noise = rng.normal(loc=0.0, scale=ch_scale, size=da.shape)
+        ch_scale = rel_std * da.mean(dim=non_channel_dims)
+        # Align by dimension name before NumPy applies positional broadcasting.
+        noise = rng.normal(
+            loc=0.0, scale=ch_scale.broadcast_like(da).values, size=da.shape
+        )
         noisy = xr.where(da == 0, 0.0, da + noise).clip(min=0.0)
         result = df.copy()
         result["_channel"] = noisy

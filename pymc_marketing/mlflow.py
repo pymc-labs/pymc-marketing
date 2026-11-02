@@ -1163,9 +1163,7 @@ def log_mmm(
     mmm : MMM
         The MMM to be logged.
     artifact_path : str, optional
-        The path to the artifact to be logged. Defaults to "mmm_model".
-    conda_env : dict, optional
-        A dictionary representation of a Conda environment. Defaults to the default conda environment.
+        The path to the artifact to be logged. Defaults to "model".
     registered_model_name : str, optional
         The name of the registered model to be logged. Defaults to None.
         If specified, the model will be registered under this name, otherwise it will not be registered.
@@ -1358,10 +1356,14 @@ def log_versions() -> None:
 def log_mmm_configuration(mmm: MMM) -> None:
     """Log the configuration of the MMM model to MLflow."""
     attrs = mmm.create_idata_attrs()
-    lift_test_calibrations = attrs.pop("lift_test_calibrations", None)
+    calibrations = {
+        name: attrs.pop(name, None)
+        for name in ("lift_test_calibrations", "cost_per_target_calibrations")
+    }
     mlflow.log_params(attrs)
-    if lift_test_calibrations not in (None, "[]"):
-        mlflow.log_text(lift_test_calibrations, "lift_test_calibrations.json")
+    for name, records in calibrations.items():
+        if records not in (None, "[]"):
+            mlflow.log_text(records, f"{name}.json")
 
     adstock_name = type(mmm.adstock).__name__.removesuffix("Adstock")
     saturation_name = type(mmm.saturation).__name__.removesuffix("Saturation")
