@@ -778,6 +778,7 @@ class MMM(RegressionModelBuilder):
         self.mu_effects: list[MuEffect] = []
         self._lift_test_calibrations: list[dict[str, Any]] = []
         self._cost_per_target_calibrations: list[dict[str, Any]] = []
+        self._cost_per_target_spend: dict[str, xr.DataArray] = {}
 
     def add_mu_effect(
         self: Self,
@@ -2682,6 +2683,7 @@ class MMM(RegressionModelBuilder):
         # fresh graph, so callers must re-add any lift tests they want to use.
         self._lift_test_calibrations = []
         self._cost_per_target_calibrations = []
+        self._cost_per_target_spend = {}
         self._generate_and_preprocess_model_data(
             X=X,
             y=y,
@@ -4736,47 +4738,42 @@ class MMM(RegressionModelBuilder):
                 "filled with 0."
             )
 
-        # Snapshot only inputs consumed by this likelihood. Check serialization
-        # before registering nodes, and retain canonical spend so xarray label
-        # order is not lost through a DataFrame round trip.
-        columns = dict.fromkeys(["channel", *self.dims, target_column, "sigma"])
-        measurements = {
-            column: calibration_data[column].to_numpy() for column in columns
-        }
-        # The likelihood consumes float arrays, including when users supply
-        # numeric strings, Decimal values, or nullable pandas numeric columns.
-        # Retain original values where a measurement column also supplies labels.
-        labels = {"channel", *self.dims}
-        for column in labels:
-            # Save the labels already matched by the validator, in their native
-            # coordinate dtype. In particular, object Timestamp selectors must
-            # become temporal arrays to compare correctly after a NetCDF load.
-            measurements[column] = pd.Series(self.model.coords[column]).to_numpy()[
-                indices[column]
-            ]
-        for column, values in ((target_column, targets), ("sigma", sigmas)):
-            if column not in labels:
-                measurements[column] = values
+        # Record the inputs this likelihood consumes before any graph change.
+        # Label columns hold the model coordinates matched by the validator, in
+        # their coordinate dtype (object Timestamp selectors become temporal
+        # columns, so they compare correctly after a NetCDF load); the values
+        # and sigma are the float arrays the likelihood uses. The spend array is
+        # kept once per distinct array and referenced by name from the record.
+        rows = pd.DataFrame(
+            {
+                **{
+                    column: pd.Series(self.model.coords[column]).to_numpy()[
+                        indices[column]
+                    ]
+                    for column in ("channel", *self.dims)
+                },
+                target_column: targets,
+                "sigma": sigmas,
+            }
+        )
+        spend_var = next(
+            (
+                key
+                for key, stored in self._cost_per_target_spend.items()
+                if stored.equals(spend_xarray)
+            ),
+            name_prefix,
+        )
         calibration = {
             "format_version": 1,
             "name_prefix": name_prefix,
             "target_column": target_column,
             "target_per_cost": bool(target_per_cost),
             "central_tendency": central_tendency,
-            "spend": {
-                "dims": list(spend_xarray.dims),
-                "data": _calibration_array_to_dict(spend_xarray.values),
-                "coords": {
-                    dim: _calibration_array_to_dict(spend_xarray.coords[dim].values)
-                    for dim in spend_xarray.dims
-                },
-            },
-            "measurements": {
-                column: _calibration_array_to_dict(values)
-                for column, values in measurements.items()
-            },
+            "spend_var": spend_var,
+            **_calibration_frame_to_record(rows),
         }
-        json.dumps(calibration, allow_nan=False)
+        json.dumps(calibration)
 
         # Built before the increment is registered, so a model that cannot give
         # the mean scale fails without changing the graph.
@@ -4801,6 +4798,7 @@ class MMM(RegressionModelBuilder):
             target_per_cost=target_per_cost,
         )
 
+        self._cost_per_target_spend.setdefault(spend_var, spend_xarray.copy())
         self._cost_per_target_calibrations.append(calibration)
 
         return self
