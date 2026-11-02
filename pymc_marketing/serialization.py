@@ -31,6 +31,8 @@ from typing import Any, Protocol, Self, runtime_checkable
 
 from pydantic import BaseModel, Field
 
+from pymc_marketing.names import Key
+
 
 class SerializationError(Exception):
     """Raised when serialization or deserialization fails."""
@@ -97,7 +99,7 @@ class DeferredFactory(BaseModel):
     def to_dict(self) -> dict[str, Any]:
         """Serialize the deferred factory to a dict."""
         return {
-            "__deferred__": True,
+            Key.DEFERRED: True,
             "factory": self.factory,
             "kwargs": self.kwargs,
         }
@@ -186,7 +188,7 @@ class TypeRegistry:
                     type_key = (
                         f"{self.__class__.__module__}.{self.__class__.__qualname__}"
                     )
-                    return {"__type__": type_key, **_orig(self)}
+                    return {Key.TYPE: type_key, **_orig(self)}
 
                 _wrapped_to_dict._type_injected = True  # type: ignore[attr-defined]
                 actual_cls.to_dict = _wrapped_to_dict  # type: ignore[attr-defined]
@@ -228,10 +230,10 @@ class TypeRegistry:
                 f"Expected a dict for deserialization, got {type(data).__name__}"
             )
 
-        if data.get("__deferred__"):
+        if data.get(Key.DEFERRED):
             return DeferredFactory.from_dict(data)
 
-        type_key = data.get("__type__")
+        type_key = data.get(Key.TYPE)
         if type_key is None:
             raise SerializationError(
                 "Dict is missing '__type__' key. Cannot determine which class "
@@ -353,7 +355,7 @@ class TypeRegistry:
         import numpy as np
 
         if isinstance(value, dict):
-            if "__type__" in value:
+            if Key.TYPE in value:
                 return self.deserialize(value)
 
             if isinstance(value.get("dist"), str):
@@ -467,5 +469,5 @@ class SerializableBaseModel(BaseModel):
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> Self:
         """Reconstruct from a dict via Pydantic model_validate."""
-        filtered = {k: v for k, v in data.items() if k != "__type__"}
+        filtered = {k: v for k, v in data.items() if k != Key.TYPE}
         return cls.model_validate(filtered)
