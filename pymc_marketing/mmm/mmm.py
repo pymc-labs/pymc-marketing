@@ -300,6 +300,43 @@ def _deserialize_cost_per_unit(json_str: str) -> pd.DataFrame:
     return df
 
 
+def _calibration_frame_to_record(df: pd.DataFrame) -> dict[str, Any]:
+    """Persist calibration rows as the ``data``/``dtypes`` pair of a calibration record.
+
+    This is the convention of the lift-test records in ``idata.attrs``; the
+    ``dtypes`` map restores column dtypes that JSON cannot carry.
+    """
+    return {
+        "data": df.to_json(
+            orient="split", date_format="iso", date_unit="ns", double_precision=15
+        ),
+        "dtypes": {column: str(dtype) for column, dtype in df.dtypes.items()},
+    }
+
+
+def _calibration_frame_from_record(record: dict[str, Any]) -> pd.DataFrame:
+    """Rebuild the rows written by :func:`_calibration_frame_to_record`."""
+    df = pd.read_json(
+        io.StringIO(record["data"]),
+        orient="split",
+        dtype=False,
+        convert_dates=False,
+        precise_float=True,
+    )
+    for column, dtype in record["dtypes"].items():
+        if dtype.startswith("datetime64"):
+            if "," in dtype:
+                timezone = dtype.split(",", maxsplit=1)[1].strip(" ]")
+                df[column] = pd.to_datetime(df[column], utc=True).dt.tz_convert(
+                    timezone
+                )
+            else:
+                df[column] = pd.to_datetime(df[column]).astype(dtype)
+        else:
+            df[column] = df[column].astype(dtype)
+    return df
+
+
 def _calibration_array_to_dict(values: npt.NDArray) -> dict[str, Any]:
     """Snapshot calibration values, retaining dtype and temporal precision."""
     array = np.asarray(values)
@@ -4327,15 +4364,9 @@ class MMM(RegressionModelBuilder):
                 + (["date"] if "date" in df_lift_test.columns else [])
             )
         )
-        persisted_df = df_lift_test.loc[:, columns]
         calibration = {
             "format_version": 1,
-            "data": persisted_df.to_json(
-                orient="split", date_format="iso", double_precision=15
-            ),
-            "dtypes": {
-                column: str(dtype) for column, dtype in persisted_df.dtypes.items()
-            },
+            **_calibration_frame_to_record(df_lift_test.loc[:, columns]),
             "likelihood": serialization.serialize_model_config(
                 {"likelihood": likelihood}
             )["likelihood"],
@@ -5011,26 +5042,7 @@ class MMM(RegressionModelBuilder):
         # model-implied-lift diagnostic are present again.
         if "lift_test_calibrations" in idata.attrs:
             for calibration in json.loads(idata.attrs["lift_test_calibrations"]):
-                df_lift_test = pd.read_json(
-                    io.StringIO(calibration["data"]),
-                    orient="split",
-                    dtype=False,
-                    convert_dates=False,
-                    precise_float=True,
-                )
-                for column, dtype in calibration["dtypes"].items():
-                    if dtype.startswith("datetime64"):
-                        if "," in dtype:
-                            timezone = dtype.split(",", maxsplit=1)[1].strip(" ]")
-                            df_lift_test[column] = pd.to_datetime(
-                                df_lift_test[column], utc=True
-                            ).dt.tz_convert(timezone)
-                        else:
-                            df_lift_test[column] = pd.to_datetime(
-                                df_lift_test[column]
-                            ).astype(dtype)
-                    else:
-                        df_lift_test[column] = df_lift_test[column].astype(dtype)
+                df_lift_test = _calibration_frame_from_record(calibration)
                 likelihood = serialization.deserialize_model_config(
                     {"likelihood": calibration["likelihood"]}
                 )["likelihood"]
