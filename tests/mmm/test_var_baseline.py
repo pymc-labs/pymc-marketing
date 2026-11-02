@@ -101,9 +101,9 @@ def make_effect(brand_data: pd.DataFrame, **kwargs) -> VARBaselineEffect:
     return VARBaselineEffect(**(params | kwargs))
 
 
-def make_mmm(effect) -> MMM:
+def make_mmm(effect, date_column: str = "date") -> MMM:
     return MMM(
-        date_column="date",
+        date_column=date_column,
         channel_columns=["x1", "x2"],
         target_column="sales",
         adstock=GeometricAdstock(l_max=2),
@@ -175,24 +175,6 @@ def test_baseline_own_lag_mean_must_keep_the_baseline_stationary(
             id="text",
         ),
         pytest.param(
-            {"consideration": lambda df: df["consideration"].mask(df.index == 3)},
-            {},
-            r"\['consideration'\] of brand_data contain NaN",
-            id="nan",
-        ),
-        pytest.param(
-            {"awareness": lambda df: df["awareness"].mask(df.index == 7, np.inf)},
-            {},
-            r"\['awareness'\] of brand_data contain NaN or infinite",
-            id="inf",
-        ),
-        pytest.param(
-            {"brand_spend": 0.0},
-            {},
-            r"\['brand_spend'\] of brand_data are constant",
-            id="constant",
-        ),
-        pytest.param(
             {"baseline": 0.0},
             {},
             "baseline_name 'baseline' must not be a column of brand_data",
@@ -233,6 +215,7 @@ def test_baseline_own_lag_mean_must_keep_the_baseline_stationary(
 def test_bad_brand_data_raises_at_construction(
     brand_mmm_data, brand_columns, effect_kwargs, match
 ):
+    """Construction checks the names and columns; the values are checked at build."""
     brand_data = brand_mmm_data["brand_data"].assign(**brand_columns)
 
     with pytest.raises(ValueError, match=match):
@@ -458,12 +441,171 @@ def test_exog_prior_scales_with_each_series(brand_mmm_data, prior_draws):
     )
 
 
-def test_brand_data_needs_one_row_per_mmm_date(brand_mmm_data):
-    effect = make_effect(brand_mmm_data["brand_data"].iloc[:-1])
-    mmm = make_mmm(effect)
+@pytest.fixture(scope="module")
+def shorter_mmm_data(brand_mmm_data) -> dict:
+    """The brand data's 30 weeks, and ``X`` and ``y`` on weeks 4 to 25."""
+    mmm_weeks = slice(4, 26)
+    return {
+        "X": brand_mmm_data["X"].iloc[mmm_weeks],
+        "y": brand_mmm_data["y"].iloc[mmm_weeks],
+        "brand_data": brand_mmm_data["brand_data"],
+    }
 
-    with pytest.raises(ValueError, match=r"29 rows of brand_data for 30 MMM dates"):
-        mmm.build_model(brand_mmm_data["X"], brand_mmm_data["y"])
+
+def initial_logp(mmm: MMM, X: pd.DataFrame, y: pd.Series) -> float:
+    mmm.build_model(X, y)
+    return mmm.model.compile_logp()(mmm.model.initial_point())
+
+
+@pytest.fixture(scope="module")
+def logp_on_mmm_dates(shorter_mmm_data) -> float:
+    """The initial logp of an MMM whose brand data hold exactly its dates, in order."""
+    X, y = shorter_mmm_data["X"], shorter_mmm_data["y"]
+    brand_data = shorter_mmm_data["brand_data"]
+    on_mmm_dates = brand_data[brand_data["date"].isin(X["date"])]
+    return initial_logp(make_mmm(make_effect(on_mmm_dates)), X, y)
+
+
+@pytest.mark.parametrize(
+    "date_column, arrange",
+    [
+        pytest.param("date", lambda df: df, id="longer-period"),
+        pytest.param(
+            "date", lambda df: df.sample(frac=1, random_state=seed), id="any-row-order"
+        ),
+        pytest.param(
+            "date",
+            lambda df: df.assign(date=df["date"].dt.strftime("%Y-%m-%d")),
+            id="string-dates",
+        ),
+        pytest.param("week", lambda df: df, id="date-column-name"),
+    ],
+)
+def test_brand_data_is_matched_to_the_mmm_on_dates(
+    shorter_mmm_data, logp_on_mmm_dates, date_column, arrange
+):
+    """Rows of brand_data are matched to the MMM by date, not by position."""
+    rename = {"date": date_column}
+    effect = make_effect(arrange(shorter_mmm_data["brand_data"]).rename(columns=rename))
+    mmm = make_mmm(effect, date_column=date_column)
+    X = shorter_mmm_data["X"].rename(columns=rename)
+
+    np.testing.assert_allclose(
+        initial_logp(mmm, X, shorter_mmm_data["y"]), logp_on_mmm_dates
+    )
+
+
+@pytest.mark.parametrize(
+    "arrange",
+    [
+        pytest.param(
+            lambda df: df.assign(awareness=df["awareness"].mask(df.index == 2)),
+            id="nan",
+        ),
+        pytest.param(
+            lambda df: df.assign(
+                consideration=df["consideration"].mask(df.index == 28, np.inf)
+            ),
+            id="inf",
+        ),
+        pytest.param(lambda df: pd.concat([df, df.iloc[[0, 29]]]), id="repeated-date"),
+    ],
+)
+def test_brand_data_off_the_mmm_dates_is_not_checked(
+    shorter_mmm_data, logp_on_mmm_dates, arrange
+):
+    """Rows on dates the MMM does not have are not used, so they may hold anything."""
+    effect = make_effect(arrange(shorter_mmm_data["brand_data"]))
+    X, y = shorter_mmm_data["X"], shorter_mmm_data["y"]
+
+    np.testing.assert_allclose(initial_logp(make_mmm(effect), X, y), logp_on_mmm_dates)
+
+
+@pytest.mark.parametrize(
+    "date_column, arrange, match",
+    [
+        pytest.param(
+            "week",
+            lambda df: df,
+            rf"'{PREFIX}'.*date column 'week'",
+            id="no-date-column",
+        ),
+        pytest.param(
+            "date",
+            lambda df: df.drop(index=[6, 13]),
+            rf"'{PREFIX}'.*MMM dates 2024-02-12, 2024-04-01\.$",
+            id="missing-dates",
+        ),
+        pytest.param(
+            "date",
+            lambda df: df.assign(date=df["date"] + pd.Timedelta(days=6)),
+            rf"'{PREFIX}'.*MMM dates 2024-01-29, 2024-02-05, 2024-02-12, 2024-02-19, "
+            r"2024-02-26 and 17 more\. None of the MMM's dates is in brand_data: "
+            "check that brand_data uses the same frequency and weekly anchor",
+            id="every-date-missing",
+        ),
+        pytest.param(
+            "date",
+            lambda df: df.assign(date=df["date"].dt.tz_localize("UTC")),
+            rf"'{PREFIX}'.*brand_data's dates are time-zone aware and the MMM's are "
+            r"naive.*\.dt\.tz_localize\(None\)",
+            id="time-zone-aware",
+        ),
+        pytest.param(
+            "date",
+            lambda df: pd.concat([df, df.iloc[[8]]]),
+            rf"'{PREFIX}'.*dates 2024-02-26 appear more than once",
+            id="repeated-date",
+        ),
+        pytest.param(
+            "date",
+            lambda df: pd.concat([df, df]),
+            rf"'{PREFIX}'.*dates 2024-01-29, 2024-02-05, 2024-02-12, 2024-02-19, "
+            "2024-02-26 and 17 more appear more than once",
+            id="many-repeated-dates",
+        ),
+        pytest.param(
+            "date",
+            lambda df: df.assign(awareness=df["awareness"].mask(df.index == 10)),
+            rf"'{PREFIX}'.*\['awareness'\] of brand_data contain NaN or infinite "
+            "values on the MMM's dates",
+            id="nan-on-mmm-dates",
+        ),
+        pytest.param(
+            "date",
+            lambda df: df.assign(
+                consideration=df["consideration"].mask(df.index == 12, np.inf)
+            ),
+            rf"'{PREFIX}'.*\['consideration'\] of brand_data contain NaN or infinite "
+            "values on the MMM's dates",
+            id="inf-on-mmm-dates",
+        ),
+        pytest.param(
+            "date",
+            lambda df: df.assign(
+                brand_spend=df["brand_spend"].mask(df.index == 20, -np.inf)
+            ),
+            rf"'{PREFIX}'.*\['brand_spend'\] of brand_data contain NaN or infinite "
+            "values on the MMM's dates",
+            id="minus-inf-on-mmm-dates",
+        ),
+        pytest.param(
+            "date",
+            lambda df: df.assign(brand_spend=(df.index < 4).astype(float)),
+            rf"'{PREFIX}'.*\['brand_spend'\].*constant",
+            id="constant-on-mmm-dates",
+        ),
+    ],
+)
+def test_bad_brand_data_raises_at_build(shorter_mmm_data, date_column, arrange, match):
+    rename = {"date": date_column}
+    effect = make_effect(arrange(shorter_mmm_data["brand_data"]))
+    mmm = make_mmm(effect, date_column=date_column)
+
+    with pytest.raises(ValueError, match=match):
+        mmm.build_model(
+            shorter_mmm_data["X"].rename(columns=rename), shorter_mmm_data["y"]
+        )
 
 
 def test_building_without_a_target_raises(brand_mmm_data):
