@@ -134,11 +134,13 @@ class SweepCache(LeasedLRUCache[SweepCacheKey, SweepEntry]):
     ) -> Lease[SweepEntry]:
         """Build an entry, ignoring whatever the cache holds under ``key``.
 
-        This is what a call does in place of a cached entry it had to discard:
+        This is what a call does in place of a cached entry it cannot rebind:
         the entry is not taken from the cache, so another call's release in
         between cannot hand it a layout it would refuse again.  The factory
         builds the entry already conditioned on the draws this call asked for,
-        so the returned lease is never rebound.
+        so the returned lease is never rebound; the caller drops the entry it
+        replaces once this one has evaluated and puts it back if this one
+        fails.
 
         Parameters
         ----------

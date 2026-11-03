@@ -26,11 +26,9 @@ from pytensor.compile.maker import FunctionMaker
 
 from pymc_marketing.mmm.components.adstock import GeometricAdstock
 from pymc_marketing.mmm.components.saturation import LogisticSaturation
-from pymc_marketing.mmm.leased_cache import Lease
 from pymc_marketing.mmm.mmm import MMM
 from pymc_marketing.mmm.sensitivity_analysis import SensitivityAnalysis
 from pymc_marketing.mmm.sweep_cache import SweepCache
-from pymc_marketing.mmm.sweep_graph import SweepEntry
 from pymc_marketing.pytensor_utils import ConditionedModel, ModelCloneError
 
 _SENSITIVITY_KWARGS = {
@@ -1102,6 +1100,14 @@ def _without_channel_labels(idata: xr.DataTree) -> xr.DataTree:
     return xr.DataTree.from_dict({"/posterior": posterior})
 
 
+def _with_duplicated_channel_labels(idata: xr.DataTree) -> xr.DataTree:
+    """Repeat the first ``channel`` label, keeping every value in place."""
+    labels = [str(label) for label in idata.posterior["channel"].values]
+    labels[1] = labels[0]
+    posterior = idata.posterior.to_dataset().assign_coords(channel=labels)
+    return xr.DataTree.from_dict({"/posterior": posterior})
+
+
 def _as_float32(idata: xr.DataTree) -> xr.DataTree:
     """Cast every posterior variable to ``float32``."""
     posterior = idata.posterior.to_dataset().astype("float32")
@@ -1188,40 +1194,79 @@ def test_run_sweep_renamed_then_reversed_posterior_matches_an_empty_cache(
     xr.testing.assert_allclose(warm, empty)
 
 
-def test_run_sweep_an_entry_released_after_a_discard_is_not_reused(
-    simple_model_and_idata, monkeypatch
+def test_run_sweep_a_replacement_that_fails_to_evaluate_keeps_the_cached_entry(
+    simple_model_and_idata, sweep_compile_counter
 ):
-    """A discard is not followed by a second look in the cache.
+    """A posterior the model cannot evaluate leaves the cached entry in place.
 
-    Another call can release an entry for the key between the discard and the
-    rebuild.  Consulting it again would answer with its layout or fail, while
-    an empty cache builds the entry this call asked for.
+    Three channel labels on a four-channel model build an entry and then fail
+    when it is evaluated, so the failure comes after the cached entry was taken
+    out of the cache.  It must go back: the next call with the right posterior
+    reuses it and compiles nothing, and the failed call raises what an empty
+    cache raises.
     """
     model, _ = simple_model_and_idata
     original = _channel_varying_posterior(model)
-    unlabeled = _without_channel_labels(original)
+    broken = _three_channel_posterior()
     sweeps = np.linspace(0.5, 1.5, 4)
     kwargs = dict(_SENSITIVITY_KWARGS)
     cache = SweepCache()
     analysis = SensitivityAnalysis(model, original, _cache=cache)
     analysis.run_sweep("channel_data", sweeps, **kwargs)
-    key = next(iter(cache._entries))
-    discard = Lease.discard
+    assert len(cache) == 1
+    compiles = len(sweep_compile_counter)
 
-    def discard_then_another_call_releases(lease: Lease[SweepEntry]) -> None:
-        discard(lease)
-        # A concurrent call on the fitted posterior finishes right here.
-        cache.put(key, SweepEntry.build(model, original, key))
+    analysis.idata = broken
+    with pytest.raises(ValueError) as warm:
+        analysis.run_sweep("channel_data", sweeps, **kwargs)
 
-    monkeypatch.setattr(Lease, "discard", discard_then_another_call_releases)
-    analysis.idata = unlabeled
-    warm = analysis.run_sweep("channel_data", sweeps, **kwargs)
-    monkeypatch.setattr(Lease, "discard", discard)
-    empty = SensitivityAnalysis(model, unlabeled).run_sweep(
-        "channel_data", sweeps, **kwargs
-    )
+    # Only the replacement compiled, and the cached entry survived it.
+    assert len(sweep_compile_counter) - compiles == 1
+    assert len(cache) == 1
 
-    xr.testing.assert_allclose(warm, empty)
+    analysis.idata = original
+    analysis.run_sweep("channel_data", sweeps, **kwargs)
+
+    assert len(sweep_compile_counter) - compiles == 1
+
+    with pytest.raises(ValueError) as empty:
+        SensitivityAnalysis(model, broken).run_sweep("channel_data", sweeps, **kwargs)
+
+    assert warm.type is empty.type
+    assert warm.value.args == empty.value.args
+
+
+def test_run_sweep_a_replacement_that_fails_to_build_keeps_the_cached_entry(
+    simple_model_and_idata, sweep_compile_counter
+):
+    """A posterior that fails both the rebind and the rebuild keeps the entry.
+
+    Duplicated channel labels are refused by the rebind and again when the
+    replacement is built, so the rebuild raises.  The entry this call retired
+    is put back and answers the next call with the right posterior without
+    compiling.
+    """
+    model, _ = simple_model_and_idata
+    original = _channel_varying_posterior(model)
+    duplicated = _with_duplicated_channel_labels(original)
+    sweeps = np.linspace(0.5, 1.5, 4)
+    kwargs = dict(_SENSITIVITY_KWARGS)
+    cache = SweepCache()
+    analysis = SensitivityAnalysis(model, original, _cache=cache)
+    analysis.run_sweep("channel_data", sweeps, **kwargs)
+    compiles = len(sweep_compile_counter)
+
+    analysis.idata = duplicated
+    with pytest.raises(ValueError, match="duplicated"):
+        analysis.run_sweep("channel_data", sweeps, **kwargs)
+
+    assert len(cache) == 1
+    assert len(sweep_compile_counter) == compiles
+
+    analysis.idata = original
+    analysis.run_sweep("channel_data", sweeps, **kwargs)
+
+    assert len(sweep_compile_counter) == compiles
 
 
 def test_run_sweep_a_failed_rebind_is_not_kept_in_the_cache(

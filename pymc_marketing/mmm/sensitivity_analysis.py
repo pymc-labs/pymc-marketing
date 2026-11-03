@@ -345,31 +345,44 @@ class SensitivityAnalysis:
         The entry is leased for the duration of the call, so concurrent callers
         on the same key build their own instead of rebinding each other's
         draws.  Every call rebinds the entry to this call's draws, which covers
-        ``posterior_sample_fraction`` and a replaced ``mmm.idata``; one that
-        cannot be rebound is dropped and this call's entry is built in its
-        place, so the result does not depend on what the cache already held.
+        ``posterior_sample_fraction`` and a replaced ``mmm.idata``.  An entry
+        that cannot be rebound is replaced by one built for this call, and the
+        entry it replaces stays out of the cache until the replacement has
+        evaluated: only then is the replacement cached and the old entry
+        dropped.  A replacement that fails is dropped while the old entry goes
+        back, so one posterior the model cannot evaluate cannot empty the
+        cache.
 
         A model :class:`~pymc_marketing.pytensor_utils.ConditionedModel` cannot
         clone falls back to :meth:`_run_sweep_per_call`.  Only the clone step
         falls back, so an error that is not a layout mismatch raised while
         binding or evaluating an entry propagates.  An entry built for this
-        call that fails to evaluate is dropped before the error propagates, so
-        it cannot evict a good entry from the cache; a cached entry that fails
-        stays cached, because the failure is about this call's arguments.
+        call that fails to evaluate is dropped before the error propagates; a
+        cached entry that fails stays cached, because the failure is about this
+        call's arguments.
         """
-        lease = self._lease_bound_to(key, idata)
+        lease, retired = self._lease_bound_to(key, idata)
         if lease is None:
             return self._run_sweep_per_call(key, idata, sweep_values, mask_values)
         try:
-            return lease.value.output_dims, lease.value.evaluate(
-                sweep_values, mask_values
+            result = (
+                lease.value.output_dims,
+                lease.value.evaluate(sweep_values, mask_values),
             )
         except BaseException:
+            if retired is not None:
+                retired.release()
             if not lease.cached:
                 lease.discard()
             raise
+        else:
+            if retired is not None:
+                retired.discard()
+            return result
         finally:
             lease.release()
+            if retired is not None:
+                retired.release()
 
     def _lease(
         self, key: SweepCacheKey, idata: xr.DataTree
@@ -405,29 +418,45 @@ class SensitivityAnalysis:
 
     def _lease_bound_to(
         self, key: SweepCacheKey, idata: xr.DataTree
-    ) -> Lease[SweepEntry] | None:
+    ) -> tuple[Lease[SweepEntry] | None, Lease[SweepEntry] | None]:
         """Lease an entry whose graphs read the draws in ``idata``.
+
+        Returns the lease to evaluate and, when a cached entry had to be
+        replaced, the lease it retires.  The caller drops the retired entry once
+        the replacement has evaluated and puts it back if the replacement does
+        not, so one bad posterior cannot empty the cache.
 
         A cached entry that cannot be rebound was built on another posterior
         layout -- renamed or unlabeled coords, another dim set, or labels
-        reordered -- which an empty cache would accept.  It is dropped and this
-        call's entry is built in its place, without consulting the cache again.
-        ``None`` when the model cannot be cloned.
+        reordered -- which an empty cache would accept.  This call's entry is
+        built in its place, without consulting the cache again; a rebuild that
+        raises leaves the retired entry untouched, and one that cannot clone the
+        model discards it and sends the call to the per-call path.  Both leases
+        are ``None`` when the model cannot be cloned.
         """
         lease = self._lease(key, idata)
         if lease is None or not lease.cached:
-            return lease
+            return lease, None
         try:
             lease.value.set_posterior(idata)
         except ValueError:
-            lease.discard()
-            return self._rebuild(key, idata)
+            try:
+                replacement = self._rebuild(key, idata)
+            except BaseException:
+                # The rebind is atomic, so the entry is untouched and still
+                # good for the next call.
+                lease.release()
+                raise
+            if replacement is None:
+                lease.discard()
+                return None, None
+            return replacement, lease
         except BaseException:
             # Any other failure leaves the atomic rebind untouched, so the
             # entry is still good for the next call.
             lease.release()
             raise
-        return lease
+        return lease, None
 
     def _run_sweep_per_call(
         self,

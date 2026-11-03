@@ -108,6 +108,8 @@ def test_a_sweep_entry_built_on_another_model_is_not_leased():
     assert not lease.cached
     assert lease.value is fresh
 
+    """A call that replaces an entry builds one instead of looking again."""
+
 
 def test_a_rebuild_ignores_the_entry_cached_under_the_key():
     """A call that dropped its entry builds one instead of looking again."""
