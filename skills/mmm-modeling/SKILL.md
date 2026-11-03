@@ -238,8 +238,11 @@ mmm.fit(X=X, y=y, nuts_sampler="nutpie", ...)
 
 The lift test DataFrame requires columns: `channel`, `x`, `delta_x`, `delta_y`, `sigma` (plus `geo` for geo-level).
 When `time_varying_media=True`, include `date` so each lift measurement maps to the correct `media_temporal_latent_multiplier` time coordinate.
+The term is a signed `Normal` on `delta_y` by default; `likelihood=Prior("StudentT", nu=...)` or `Prior("Gamma")` are opt-in.
 
-See [references/liftest_calibration.md](references/liftest_calibration.md) for data format, calibrated vs uncalibrated comparison, geo-level patterns, and sigma estimation.
+When all you have is a ROAS or cost-per-acquisition estimate per channel, `mmm.add_cost_per_target_calibration(data=X, calibration_data=df, target_column="roas", target_per_cost=True, likelihood=Prior("LogNormal"))` calibrates the whole-period ratio instead; `Normal` is its default too, and it is capped on one side, which `LogNormal` is not.
+
+See [references/liftest_calibration.md](references/liftest_calibration.md) for data format, calibrated vs uncalibrated comparison, geo-level patterns, sigma estimation, the likelihood families, and cost-per-target calibration.
 
 ## Saving, Loading, and YAML Specification
 
