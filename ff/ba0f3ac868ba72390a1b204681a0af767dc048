@@ -1,0 +1,14 @@
+skills/mmm-modeling/references/liftest_calibration.md
+  h_63db634213747e 180,183-186,189-202,204
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "ffba0f3ac868ba72390a1b204681a0af767dc048",
+  "prompts": {},
+  "humans": {
+    "h_63db634213747e": {
+      "author": "Benjamin T. Vincent <inferencelab@gmail.com>"
+    }
+  }
+}
