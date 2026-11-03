@@ -127,8 +127,9 @@ class SensitivityAnalysis:
     describes the sweep graph only; the source model is checked separately.
     Replacing a data buffer with ``pm.set_data`` rebuilds the affected entry;
     writing into a data buffer in place is not detected, the same as for the
-    incrementality evaluator.  Rebuilding or refitting the model clears the
-    cache.
+    incrementality evaluator, and neither is a change to the source model's
+    coords that leaves its buffers in place.  Rebuilding or refitting the model
+    clears the cache.
     """
 
     def __init__(
@@ -341,14 +342,16 @@ class SensitivityAnalysis:
         on the same key build their own instead of rebinding each other's
         draws.  Every call rebinds the entry to this call's draws, which covers
         ``posterior_sample_fraction`` and a replaced ``mmm.idata``; one that
-        cannot be rebound is dropped and rebuilt, so the result does not depend
-        on what the cache already held, except for a replacement posterior
-        whose labels are renamed and reordered (see :meth:`_lease_bound_to`).
+        cannot be rebound is dropped and this call's entry is built in its
+        place, so the result does not depend on what the cache already held.
 
         A model :class:`~pymc_marketing.pytensor_utils.ConditionedModel` cannot
         clone falls back to :meth:`_run_sweep_per_call`.  Only the clone step
         falls back, so an error that is not a layout mismatch raised while
-        binding or evaluating an entry propagates.
+        binding or evaluating an entry propagates.  An entry built for this
+        call that fails to evaluate is dropped before the error propagates, so
+        it cannot evict a good entry from the cache; a cached entry that fails
+        stays cached, because the failure is about this call's arguments.
         """
         lease = self._lease_bound_to(key, idata)
         if lease is None:
@@ -357,6 +360,10 @@ class SensitivityAnalysis:
             return lease.entry.output_dims, lease.entry.evaluate(
                 sweep_values, mask_values
             )
+        except BaseException:
+            if not lease.cached:
+                lease.discard()
+            raise
         finally:
             lease.release()
 
@@ -374,17 +381,30 @@ class SensitivityAnalysis:
         except ModelCloneError:
             return None
 
+    def _rebuild(self, key: SweepCacheKey, idata: xr.DataTree) -> SweepLease | None:
+        """Build this call's entry, or ``None`` if the model cannot be cloned.
+
+        The entry is conditioned on ``idata`` when it is built, so it never
+        needs a rebind and whatever the cache holds in the meantime is not
+        consulted.
+        """
+        try:
+            return self._cache.rebuild(
+                key, self.model, lambda: SweepEntry.build(self.model, idata, key)
+            )
+        except ModelCloneError:
+            return None
+
     def _lease_bound_to(
         self, key: SweepCacheKey, idata: xr.DataTree
     ) -> SweepLease | None:
         """Lease an entry whose graphs read the draws in ``idata``.
 
         A cached entry that cannot be rebound was built on another posterior
-        layout -- renamed or unlabeled coords, another dim set -- which an
-        empty cache would accept.  It is dropped and this call's entry is
-        leased in its place, once: a second cached entry that cannot take the
-        draws is dropped too, and the error propagates rather than rebuilding
-        forever.  ``None`` when the model cannot be cloned.
+        layout -- renamed or unlabeled coords, another dim set, or labels
+        reordered -- which an empty cache would accept.  It is dropped and this
+        call's entry is built in its place, without consulting the cache again.
+        ``None`` when the model cannot be cloned.
         """
         lease = self._lease(key, idata)
         if lease is None or not lease.cached:
@@ -393,20 +413,7 @@ class SensitivityAnalysis:
             lease.entry.set_posterior(idata)
         except ValueError:
             lease.discard()
-            rebuilt = self._lease(key, idata)
-            if rebuilt is None or not rebuilt.cached:
-                return rebuilt
-            # Another call released an entry for this key in between; it may
-            # be built on yet another layout, and this is the last attempt.
-            try:
-                rebuilt.entry.set_posterior(idata)
-            except ValueError:
-                rebuilt.discard()
-                raise
-            except BaseException:
-                rebuilt.release()
-                raise
-            return rebuilt
+            return self._rebuild(key, idata)
         except BaseException:
             # Any other failure leaves the atomic rebind untouched, so the
             # entry is still good for the next call.
@@ -534,13 +541,15 @@ class SensitivityAnalysis:
             If the posterior in ``idata`` no longer matches the model's
             posterior variables in their non-sample dimension names or
             lengths, for example after assigning a different posterior to
-            ``mmm.idata``.  Coordinate labels are not checked: reordered labels
-            are realigned, while renamed or unlabeled coords are bound by
-            position.  The number of draws may change.  Values are cast to the
-            dtype the model expects.  A model that cannot be cloned uses the
-            per-call path, which realigns a permuted posterior by label like
-            the cached path and binds renamed or unlabeled coords by position
-            in the same way.
+            ``mmm.idata``.  Coordinate labels are not refused: labels that
+            permute the model's own are realigned by label, while renamed or
+            unlabeled coords are bound by position, rebuilding a cached entry
+            that was built on another layout so a warm cache answers what an
+            empty one would.  The number of draws may change.  Values are cast
+            to the dtype the model expects.  A model that cannot be cloned uses
+            the per-call path, which realigns a permuted posterior by label
+            like the cached path and binds renamed or unlabeled coords by
+            position in the same way.
         """
         response = self.model[var_names]
         response_dims = getattr(response, "dims", None)

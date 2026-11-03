@@ -98,7 +98,7 @@ class SweepLease:
         A cached entry that cannot be rebound to this call's draws was built on
         another posterior layout, so keeping it would make every later call
         fail the same way.  A later :meth:`release` is a no-op; the caller
-        leases a fresh entry in place of this one.
+        builds a fresh entry in place of this one.
         """
         self._released = True
 
@@ -184,11 +184,49 @@ class SweepCache(LeasedLRUCache[SweepCacheKey, SweepEntry]):
         ------
         ModelCloneError
             If the factory cannot clone ``source_model``.  The model is
-            remembered, so a later lease raises this without trying again.
+            remembered, so a later lease or rebuild raises this without trying
+            again.
         """
         entry = self._take(key)
         if entry is not None and not entry.is_stale(source_model):
             return SweepLease(self, key, entry, cached=True)
+        return self.rebuild(key, source_model, factory)
+
+    def rebuild(
+        self,
+        key: SweepCacheKey,
+        source_model: Model,
+        factory: Callable[[], SweepEntry],
+    ) -> SweepLease:
+        """Build an entry, ignoring whatever the cache holds under ``key``.
+
+        This is what a call does in place of a cached entry it had to discard:
+        the entry is not taken from the cache, so another call's release in
+        between cannot hand it a layout it would refuse again.  The factory
+        builds the entry already conditioned on the draws this call asked for,
+        so the returned lease is never rebound.
+
+        Parameters
+        ----------
+        key : SweepCacheKey
+            Identity the built entry will be cached under when released.
+        source_model : Model
+            The model the call is about to use.
+        factory : callable
+            Builds the entry from the live data.
+
+        Returns
+        -------
+        SweepLease
+            The freshly built entry, marked as not cached.
+
+        Raises
+        ------
+        ModelCloneError
+            If the factory cannot clone ``source_model``.  The model is
+            remembered, so a later lease or rebuild raises this without trying
+            again.
+        """
         self._raise_if_unclonable(source_model)
         try:
             built = factory()

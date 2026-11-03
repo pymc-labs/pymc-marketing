@@ -107,6 +107,40 @@ def test_a_sweep_entry_built_on_another_model_is_not_leased():
     assert lease.entry is fresh
 
 
+def test_a_rebuild_ignores_the_entry_cached_under_the_key():
+    """A call that dropped its entry builds one instead of looking again."""
+    cache = SweepCache()
+    key = object()
+    model = _FakeModel()
+    cached = _FakeSweepEntry(model)
+    cache.put(key, cached)
+    built = _FakeSweepEntry(model)
+
+    lease = cache.rebuild(key, model, lambda: built)
+
+    assert not lease.cached
+    assert lease.entry is built
+    assert cache.get(key) is cached
+
+
+def test_a_plain_value_error_from_the_factory_is_not_a_clone_failure():
+    """Only ``ModelCloneError`` is remembered; another error propagates untouched."""
+    cache = SweepCache()
+    model = _FakeModel()
+    attempts: list[int] = []
+
+    def factory() -> object:
+        attempts.append(1)
+        raise ValueError("posterior layout")
+
+    for _ in range(2):
+        with pytest.raises(ValueError, match="posterior layout") as error:
+            cache.lease(object(), model, factory)
+        assert not isinstance(error.value, ModelCloneError)
+
+    assert len(attempts) == 2
+
+
 @CACHE_TYPES
 def test_a_negative_max_entries_is_refused(cache_type):
     with pytest.raises(ValueError, match="max_entries"):

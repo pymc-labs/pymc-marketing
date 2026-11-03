@@ -38,7 +38,7 @@ from pytensor.xtensor.type import XTensorVariable, as_xtensor
 from pytensor.xtensor.vectorization import vectorize_graph
 
 from pymc_marketing.mmm.leased_cache import buffers_replaced, watched_source_buffers
-from pymc_marketing.pytensor_utils import ConditionedModel
+from pymc_marketing.pytensor_utils import ConditionedModel, posterior_in_model_coords
 
 SWEEP_DIM = "sweep"
 """Name of the dimension the sweep grid is vectorized over."""
@@ -179,6 +179,18 @@ class SweepEntry:
         self._mask_input = mask_input
         self.output_dims = output_dims
         self._watched_buffers = watched_buffers
+        # The labels each read variable was built on, by dimension.  A rebind
+        # must land on these, not merely on the same set of labels: realigning
+        # a permutation of them would read the new draws by position while an
+        # entry built on them read by position too, and the two orders differ.
+        self._built_on_labels = {
+            name: {
+                str(dim): index
+                for dim, index in conditioned.posterior[name].indexes.items()
+                if dim not in ("chain", "draw")
+            }
+            for name in conditioned.shared_posterior.variables
+        }
 
     @classmethod
     def build(
@@ -263,14 +275,45 @@ class SweepEntry:
         The shared draws are swapped in place, so the number of draws may
         change and the function is not recompiled.  Everything the graphs read
         is validated against the construction layout, with coordinates
-        realigned by label.
+        realigned by label, and each variable must keep the labels this entry
+        was built on.  A posterior whose labels are renamed, reordered or
+        dropped on one side is refused rather than bound by position, so the
+        caller rebuilds and answers what an empty cache would.
 
         Parameters
         ----------
         idata : xr.DataTree or xr.Dataset
             The posterior draws to evaluate under.
+
+        Raises
+        ------
+        KeyError
+            If the posterior lacks a variable the compiled graph reads.
+        ValueError
+            If a variable the compiled graph reads differs in its non-sample
+            dimensions, their lengths or their labels from the ones this entry
+            was built on.
         """
-        self._conditioned.set_posterior(idata)
+        posterior = posterior_in_model_coords(idata, self._conditioned.model.coords)
+        self._raise_if_relabelled(posterior)
+        self._conditioned.set_posterior(posterior)
+
+    def _raise_if_relabelled(self, posterior: xr.Dataset) -> None:
+        """Refuse a posterior that reorders or renames a label of a read variable.
+
+        A variable missing from ``posterior`` is skipped, so
+        :meth:`ConditionedModel.set_posterior` reports it in its own words.
+        """
+        for name, built_on in self._built_on_labels.items():
+            if name not in posterior.data_vars:
+                continue
+            for dim, labels in built_on.items():
+                given = posterior[name].indexes.get(dim)
+                if given is not None and not given.equals(labels):
+                    raise ValueError(
+                        f"Posterior variable {name!r}: dimension {dim!r} labels "
+                        "differ from the ones this entry was built on."
+                    )
 
     def evaluate(
         self, sweep_values: np.ndarray, mask_values: np.ndarray | None
