@@ -38,7 +38,7 @@ from pytensor.xtensor.type import XTensorVariable, as_xtensor
 from pytensor.xtensor.vectorization import vectorize_graph
 
 from pymc_marketing.mmm.leased_cache import buffers_replaced, watched_source_buffers
-from pymc_marketing.pytensor_utils import ConditionedModel, ModelCloneError
+from pymc_marketing.pytensor_utils import ConditionedModel
 
 SWEEP_DIM = "sweep"
 """Name of the dimension the sweep grid is vectorized over."""
@@ -48,17 +48,6 @@ SWEEP_NAME = "sweep"
 
 MASK_NAME = "mask"
 """Name of the symbolic response-mask input an entry with a mask takes."""
-
-
-class SweepCloneError(Exception):
-    """The source model cannot be cloned into a cache entry.
-
-    :class:`~pymc_marketing.pytensor_utils.ConditionedModel` raises
-    :class:`~pymc_marketing.pytensor_utils.ModelCloneError` when PyMC cannot
-    clone a model, as for custom initial values or a nested sub-model, and
-    only the clone step raises it.  The caller falls back to compiling per
-    call, which raises any error that was really about the posterior.
-    """
 
 
 class SweepCacheKey(NamedTuple):
@@ -217,15 +206,12 @@ class SweepEntry:
 
         Raises
         ------
-        SweepCloneError
+        ModelCloneError
             If PyMC cannot clone ``model``, as for a model with custom initial
             values or a nested sub-model.  The caller falls back to compiling
             per call, which raises any error that was really about ``idata``.
         """
-        try:
-            conditioned = ConditionedModel(model, idata)
-        except ModelCloneError as err:
-            raise SweepCloneError(str(err)) from err
+        conditioned = ConditionedModel(model, idata)
         sweep = ptx.xtensor(SWEEP_NAME, dims=(SWEEP_DIM,))
         mask = (
             None

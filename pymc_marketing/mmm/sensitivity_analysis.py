@@ -102,7 +102,6 @@ from xarray import DataArray
 
 from pymc_marketing.mmm.sweep_cache import (
     SweepCache,
-    SweepCloneError,
     SweepLease,
 )
 from pymc_marketing.mmm.sweep_graph import (
@@ -112,6 +111,7 @@ from pymc_marketing.mmm.sweep_graph import (
     build_sweep_response,
 )
 from pymc_marketing.pytensor_utils import (
+    ModelCloneError,
     extract_response_distribution,
     needed_posterior_names,
     reorder_to_model_coords,
@@ -371,7 +371,7 @@ class SensitivityAnalysis:
             return self._cache.lease(
                 key, self.model, lambda: SweepEntry.build(self.model, idata, key)
             )
-        except SweepCloneError:
+        except ModelCloneError:
             return None
 
     def _lease_bound_to(

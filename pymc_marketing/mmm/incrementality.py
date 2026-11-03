@@ -5576,7 +5576,10 @@ class Incrementality:
 
         Raises
         ------
-        ValueError, NotImplementedError
+        ValueError
+            Delegates to :meth:`contribution_over_spend`; see there for the
+            full list.
+        NotImplementedError
             Delegates to :meth:`contribution_over_spend`; see there for the
             full list.
 

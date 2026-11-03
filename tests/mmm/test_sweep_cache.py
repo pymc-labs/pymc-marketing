@@ -24,7 +24,8 @@ import pickle
 import pytest
 
 from pymc_marketing.mmm.evaluator_cache import EvaluatorCache
-from pymc_marketing.mmm.sweep_cache import SweepCache, SweepCloneError
+from pymc_marketing.mmm.sweep_cache import SweepCache
+from pymc_marketing.pytensor_utils import ModelCloneError
 
 CACHE_TYPES = pytest.mark.parametrize(
     "cache_type", [EvaluatorCache, SweepCache], ids=["evaluator", "sweep"]
@@ -159,7 +160,7 @@ def _failing_factory(attempts: list[int]):
 
     def factory() -> object:
         attempts.append(1)
-        raise SweepCloneError("Cannot convert models with non-default initial_values")
+        raise ModelCloneError("Cannot convert models with non-default initial_values")
 
     return factory
 
@@ -171,7 +172,7 @@ def test_an_unclonable_model_is_not_retried():
     attempts: list[int] = []
 
     for _ in range(2):
-        with pytest.raises(SweepCloneError):
+        with pytest.raises(ModelCloneError):
             cache.lease(object(), model, _failing_factory(attempts))
 
     assert len(attempts) == 1
@@ -182,13 +183,13 @@ def test_the_unclonable_memo_does_not_survive_a_copy(duplicate):
     """A pickle or deepcopy of the cache starts with no remembered failures."""
     cache = SweepCache()
     model = _FakeModel()
-    with pytest.raises(SweepCloneError):
+    with pytest.raises(ModelCloneError):
         cache.lease(object(), model, _failing_factory([]))
 
     copied = duplicate(cache)
     attempts: list[int] = []
 
-    with pytest.raises(SweepCloneError):
+    with pytest.raises(ModelCloneError):
         copied.lease(object(), model, _failing_factory(attempts))
 
     assert len(attempts) == 1

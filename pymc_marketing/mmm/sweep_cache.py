@@ -31,9 +31,9 @@ from pymc import Model
 from pymc_marketing.mmm.leased_cache import LeasedLRUCache
 from pymc_marketing.mmm.sweep_graph import (
     SweepCacheKey,
-    SweepCloneError,
     SweepEntry,
 )
+from pymc_marketing.pytensor_utils import ModelCloneError
 
 DEFAULT_MAX_ENTRIES = 4
 """Number of compiled sweeps a cache keeps before evicting the least recent."""
@@ -182,7 +182,7 @@ class SweepCache(LeasedLRUCache[SweepCacheKey, SweepEntry]):
 
         Raises
         ------
-        SweepCloneError
+        ModelCloneError
             If the factory cannot clone ``source_model``.  The model is
             remembered, so a later lease raises this without trying again.
         """
@@ -192,7 +192,7 @@ class SweepCache(LeasedLRUCache[SweepCacheKey, SweepEntry]):
         self._raise_if_unclonable(source_model)
         try:
             built = factory()
-        except SweepCloneError as err:
+        except ModelCloneError as err:
             self._remember_unclonable(source_model, err)
             raise
         return SweepLease(self, key, built, cached=False)
@@ -202,9 +202,9 @@ class SweepCache(LeasedLRUCache[SweepCacheKey, SweepEntry]):
         with self._lock:
             message = self._unclonable.get(source_model)
         if message is not None:
-            raise SweepCloneError(message)
+            raise ModelCloneError(message)
 
-    def _remember_unclonable(self, source_model: Model, error: SweepCloneError) -> None:
+    def _remember_unclonable(self, source_model: Model, error: ModelCloneError) -> None:
         """Record that ``source_model`` cannot be cloned, for this cache's lifetime."""
         with self._lock:
             self._unclonable[source_model] = str(error)

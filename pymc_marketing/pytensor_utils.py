@@ -68,13 +68,13 @@ __all__ = [
 _GRAPH_CACHE_SIZE = 32
 """Number of extractions a :class:`ConditionedModel` caches before evicting the least recent."""
 
-CLONE_FAILURES = (NotImplementedError, ValueError, TypeError)
+_CLONE_FAILURES = (NotImplementedError, ValueError)
 """Exceptions PyMC's clone step raises for a model it cannot clone.
 
 ``pymc.model.fgraph`` raises ``NotImplementedError`` for non-default initial
-values and ``ValueError`` for a nested sub-model.  Its ``TypeError`` for an
-unrecognised model variable is defensive and unreachable from a valid model,
-but a caller must not read it as an error about the posterior.
+values and ``ValueError`` for a nested sub-model.  Its ``TypeError`` -- raised
+while converting a free variable whose transform is not a ``Transform`` -- is
+not one of them, and it propagates unchanged.
 """
 
 
@@ -1097,13 +1097,36 @@ def _posterior_dataset(idata: xr.DataTree | xr.Dataset) -> xr.Dataset:
     )
 
 
-class ModelCloneError(Exception):
+class ModelCloneError(NotImplementedError, ValueError):
     """PyMC cannot clone a model into a conditioned copy.
 
-    Only the clone step of :class:`ConditionedModel` raises this, so a caller
-    that falls back on it never mistakes an error raised while reading the
-    posterior for a model it cannot clone.
+    The model is cloned with or without an ``intervention`` -- :func:`pymc.do`
+    clones it too -- and a clone refusal is raised as this error either way.
+    It is both a ``NotImplementedError`` and a ``ValueError``, the types the
+    clone step raised before this error existed, so a caller that catches
+    either of them keeps working.
     """
+
+
+def _clone_refusal(model: Model) -> str | None:
+    """Return why PyMC's clone step refuses ``model``, or ``None``.
+
+    ``pymc.model.fgraph.fgraph_from_model`` is the step :func:`pymc.do` and
+    :func:`clone_model` share.  The refusal checks come before the model is
+    copied, so asking it on a failure tells a clone failure apart from an
+    error about the intervention.
+    """
+    with warnings.catch_warnings():
+        # This only classifies a failure that was already raised.
+        warnings.simplefilter("ignore")
+        try:
+            fgraph_from_model(model)
+        except _CLONE_FAILURES as err:
+            return str(err)
+        except Exception:
+            # Not a refusal: keep the error that was being classified.
+            return None
+    return None
 
 
 def _clone_model(model: Model) -> Model:
@@ -1127,7 +1150,7 @@ def _clone_model(model: Model) -> Model:
     """
     try:
         return clone_model(model)
-    except CLONE_FAILURES as err:
+    except _CLONE_FAILURES as err:
         raise ModelCloneError(str(err)) from err
 
 
@@ -1154,7 +1177,8 @@ def _apply_intervention(
     Raises
     ------
     ModelCloneError
-        If ``intervention`` is ``None`` and PyMC cannot clone ``model``.
+        If PyMC cannot clone ``model``.  :func:`pymc.do` clones the model too,
+        so this covers the intervention path as well.
     """
     if intervention is None:
         return _clone_model(model)
@@ -1168,7 +1192,16 @@ def _apply_intervention(
             message="Intervention expression references the variable "
             "that is being intervened",
         )
-        return do(model, dict(intervention))
+        try:
+            return do(model, dict(intervention))
+        except _CLONE_FAILURES as err:
+            # ``do`` clones the model before it applies the intervention, so a
+            # clone failure arrives with the raw exception.  Only that failure
+            # is renamed: an error about the intervention keeps its own type.
+            reason = _clone_refusal(model)
+            if reason is None:
+                raise
+            raise ModelCloneError(reason) from err
 
 
 def _model_nodes(model: Model) -> frozenset[Variable]:
@@ -1224,12 +1257,13 @@ class ConditionedModel:
     Raises
     ------
     ModelCloneError
-        If PyMC cannot clone ``model``, as for a model with custom initial
-        values or a nested sub-model.  Only the clone step raises this; an
-        error raised while reading the posterior keeps its own type.
-    NotImplementedError, ValueError
-        If ``intervention`` is given and :func:`pymc.do` cannot apply it,
-        cloning included.
+        If PyMC cannot clone ``model``, with or without ``intervention``:
+        :func:`pymc.do` clones the model too.  A model with custom initial
+        values or a nested sub-model cannot be cloned.
+    NotImplementedError
+        If ``intervention`` is given and :func:`pymc.do` cannot apply it.
+    ValueError
+        If ``intervention`` is given and :func:`pymc.do` cannot apply it.
 
     Notes
     -----
