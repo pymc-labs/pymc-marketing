@@ -93,7 +93,7 @@ Apply the media transformation to media data in PyMC model:
 
 from __future__ import annotations
 
-from copy import deepcopy
+from copy import copy
 from dataclasses import dataclass, replace
 from typing import cast
 
@@ -284,7 +284,9 @@ class MediaConfig:
         MediaTransformation
             A copy whose adstock and saturation prefixes are the group name
             followed by ``_`` and each configured component prefix. The original
-            transformation and its priors remain unchanged.
+            transformation is not modified. The copy shares its prior objects
+            with the original, so changing a prior in place on the copy (for
+            example with ``set_dims_for_all_priors``) also changes the configuration.
 
         Notes
         -----
@@ -297,9 +299,9 @@ class MediaConfig:
         not retrieve a fitted transformation or resolve PyMC model namespaces.
         """
         transformation = self.media_transformation
-        adstock = deepcopy(transformation.adstock)
+        adstock = copy(transformation.adstock)
         adstock.prefix = f"{self.name}_{adstock.prefix}"
-        saturation = deepcopy(transformation.saturation)
+        saturation = copy(transformation.saturation)
         saturation.prefix = f"{self.name}_{saturation.prefix}"
         return replace(transformation, adstock=adstock, saturation=saturation)
 
@@ -402,12 +404,11 @@ class MediaConfigList:
 
     .. warning::
 
-        Building a model leaves ``online.media_transformation`` unchanged; it no
-        longer adds group prefixes to that object in place. For per-group curves,
-        replace ``online.media_transformation.saturation.sample_curve(...)`` with
-        the prefixed-component workflow above. The original component's names do
-        not match the group's posterior variables, so it may sample fresh priors
-        instead of using the supplied posterior values.
+        Building a model does not modify ``online.media_transformation``. Its
+        components do not carry the group prefix. Use
+        ``prefixed_media_transformation()`` for per-group curves: the original
+        component's names do not match the group's posterior variables, so it
+        may sample fresh priors instead of using the supplied posterior values.
 
     """
 
