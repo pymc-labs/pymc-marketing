@@ -1101,8 +1101,16 @@ def add_cost_per_target_observations(
 
     Raises
     ------
-    TypeError, KeyError, UnalignedValuesError, ValueError
-        As :func:`validate_cost_per_target_rows`, before any graph change.
+    TypeError
+        If *likelihood* is not a :class:`~pymc_extras.prior.Prior`.
+    KeyError
+        If a required column or dim column is missing.
+    UnalignedValuesError
+        If a ``channel`` or dim label is not a model coordinate.
+    ValueError
+        As :func:`validate_cost_per_target_rows` (likelihood contents, values
+        that are not finite, non-positive ``sigma``, non-positive values under
+        ``LogNormal``), before any graph change.
     ValueError
         Under ``LogNormal``, if the model ratio of a calibrated row is not
         positive at the model's initial point (a row whose spend is zero over
