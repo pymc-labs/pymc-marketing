@@ -1113,6 +1113,59 @@ class TestMultidimMMMEdgeCases:
         zero_geo_idx = int(np.argmax(target_scaler == 0))
         np.testing.assert_array_equal(scaled_target[:, zero_geo_idx], 0.0)
 
+    @staticmethod
+    def _build_geo_mmm_with_target_b(y_b):
+        dates = pd.date_range("2024-01-01", periods=6, freq="W-MON")
+        df = pd.DataFrame(
+            [
+                {
+                    "date": date,
+                    "geo": geo,
+                    "channel_1": 1.0,
+                    "channel_2": 2.0,
+                    "y": 3.0 if geo == "A" else y_b[i],
+                }
+                for i, date in enumerate(dates)
+                for geo in ("A", "B")
+            ]
+        )
+        mmm = MMM(
+            date_column="date",
+            channel_columns=["channel_1", "channel_2"],
+            dims=("geo",),
+            target_column="y",
+            adstock=GeometricAdstock(l_max=2),
+            saturation=LogisticSaturation(),
+            scaling=Scaling(
+                target=DataDerivedScaling(dims=(), method="max"),
+                channel=DataDerivedScaling(dims=(), method="max"),
+            ),
+        )
+        return mmm, df[["date", "geo", "channel_1", "channel_2"]], df["y"]
+
+    def test_zero_target_scale_over_non_zero_slice_warns(self):
+        """A slice whose signed max is 0 but holds negatives is zeroed: warn.
+
+        Under the default ``Normal`` likelihood nothing else reports that
+        the clamp in ``build_model`` replaced the slice with zeros (#2973).
+        """
+        mmm, X, y = self._build_geo_mmm_with_target_b([0.0, -1.0, 0.0, -2.0, 0.0, -1.0])
+
+        with pytest.warns(UserWarning, match="target scale is 0 for geo='B'"):
+            mmm.build_model(X, y)
+
+        np.testing.assert_array_equal(fast_eval(mmm.target_data_scaled)[:, 1], 0.0)
+
+    def test_all_zero_target_slice_does_not_warn(self):
+        """An all-zero slice loses nothing to the clamp, so it is not reported."""
+        mmm, X, y = self._build_geo_mmm_with_target_b([0.0] * 6)
+
+        with warnings.catch_warnings():
+            warnings.filterwarnings("error", message=".*target scale is 0")
+            mmm.build_model(X, y)
+
+        assert (np.asarray(mmm.scalers["_target"].values) == 0).any()
+
     def test_nan_in_channel_is_handled_without_non_finite_scales(self, simple_mmm_data):
         X = simple_mmm_data["X"].copy()
         y = simple_mmm_data["y"].copy()
