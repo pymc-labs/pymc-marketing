@@ -236,9 +236,12 @@ from pymc_marketing.mmm.hsgp import HSGPBase
 from pymc_marketing.mmm.incrementality import Incrementality
 from pymc_marketing.mmm.lift_test import (
     _COST_PER_TARGET_LIKELIHOODS,
+    _LIFT_LIKELIHOODS,
+    _add_cost_per_target_likelihood,
+    _gather_cost_per_target_means,
     _resolve_likelihood,
     _validate_likelihood_prior,
-    add_cost_per_target_observations,
+    _validate_positive_cost_per_target_means,
     add_lift_measurements_to_likelihood_from_saturation,
     scale_lift_measurements,
     validate_cost_per_target_rows,
@@ -404,6 +407,13 @@ _CPT_METADATA_RECOVERY_HINT = (
     "To reach the posterior anyway, open the file with "
     "`pymc_marketing.data.idata.load_idata`, repair or delete "
     "`idata.attrs['cost_per_target_calibrations']`, and pass the result to "
+    "`MMM.load_from_idata`; a deleted record loads without its likelihood."
+)
+
+_LIFT_METADATA_RECOVERY_HINT = (
+    "To reach the posterior anyway, open the file with "
+    "`pymc_marketing.data.idata.load_idata`, repair or delete the record in "
+    "`idata.attrs['lift_test_calibrations']`, and pass the result to "
     "`MMM.load_from_idata`; a deleted record loads without its likelihood."
 )
 
@@ -4444,8 +4454,10 @@ class MMM(RegressionModelBuilder):
             Use ``Prior("StudentT", nu=...)`` for a heavier-tailed sampling
             model. A Prior-valued ``nu`` adds a free variable named from ``name``
             (for example ``lift_measurements_nu``) to the posterior. Lift
-            estimates retain their signs; custom ``sigma``, ``mu``, and ``dims``
-            are rejected because they are determined by the lift data and model.
+            estimates retain their signs. ``nu`` is the only parameter the
+            ``Prior`` takes, since the lift data and model determine the
+            others; they, ``dims`` (on the ``Prior`` or inside ``nu``), a
+            ``transform`` and ``centered=False`` are rejected.
         dist : pymc.dims.DimDistribution, optional
             Deprecated alias for selecting a distribution by class. Prefer a
             ``Prior`` passed to ``likelihood``.
@@ -4609,9 +4621,9 @@ class MMM(RegressionModelBuilder):
         is ``channel_contribution_original_scale``, the same tensor
         :meth:`add_original_scale_contribution_variable` builds, the log
         link's is ``channel_incremental_contribution`` on the median scale.
-        :meth:`_register_channel_increment` registers it once the calibration
-        that needs it has been accepted, so a refused calibration leaves no
-        node behind; later calibrations share the node.
+        A calibration checks what it can on this tensor and registers it with
+        :meth:`_register_channel_increment` only once nothing is left to
+        refuse, so a refused calibration leaves no node behind.
         """
         name = self._link_spec.channel_increment_var
         if name in self.model.named_vars:
@@ -4622,13 +4634,19 @@ class MMM(RegressionModelBuilder):
             target_scale=self.model["target_scale"],
         ).transpose("date", ...)
 
-    def _register_channel_increment(self, increment: XTensorVariable) -> None:
-        """Register *increment* from :meth:`_channel_increment` unless it already is."""
+    def _register_channel_increment(
+        self, increment: XTensorVariable
+    ) -> XTensorVariable:
+        """Register *increment* from :meth:`_channel_increment` and return the node.
+
+        Returns the node already registered under the same name, if any, so
+        that every calibration's likelihood depends on that one node.
+        """
         name = self._link_spec.channel_increment_var
         if name in self.model.named_vars:
-            return
+            return self.model[name]
         with self.model:
-            pmd.Deterministic(name, increment)
+            return pmd.Deterministic(name, increment)
 
     def add_cost_per_target_calibration(
         self: Self,
@@ -4667,10 +4685,32 @@ class MMM(RegressionModelBuilder):
         lower on purpose; it is the choice when the experiment itself may be
         wrong.  ``LogNormal`` measures the error on the log scale, so a 2x
         miss costs the same in either direction and the cost keeps growing
-        as :math:`(\log(r/t))^2`.  Its log-scale width :math:`\sigma / t` is
-        the first-order delta method applied to the table's standard error;
-        near the target the families agree (a 25% miss costs 0.3 to 0.5
-        nats), only the tails differ.
+        as :math:`(\log(r/t))^2`.
+
+        Near the target the families charge similar amounts: at
+        :math:`\sigma = t/4` a 25% miss costs 0.50 nats under ``Normal``,
+        0.56 under ``StudentT(nu=4)`` and 0.40 (over) or 0.66 (under) under
+        ``LogNormal``.  At the same width the ``Normal`` charges more than
+        ``LogNormal`` for every ratio above the target and less for every
+        ratio below it, since :math:`\log x \le x - 1`.
+
+        Pick the family by the error the experiment reports.  A ROAS read off
+        a lift test, an incremental outcome with a Normal standard error over
+        a spend the test knows, has an additive error: the ``Normal`` on a
+        ROAS table is then the sampling model, it pulls harder than
+        ``LogNormal`` against an overstated channel, and its cap as the ROAS
+        goes to zero is what the experiment says about zero.  ``LogNormal`` is
+        the model for a value reported with a relative, asymmetric or
+        log-scale interval; for a test-window value carried to the fitted
+        window by a multiplicative correction (see "Full window" below); and
+        for a CPA table, whose ``Normal`` is capped where an overstated
+        channel goes.  Its width :math:`\sigma / t` is the first-order
+        translation of the table's standard error into a relative one,
+        accurate while :math:`\sigma / t` is about 0.3 or less: at 0.5 the
+        ratios within 1.96 widths of the target run from :math:`0.38\,t` to
+        :math:`2.66\,t`, against :math:`0.02\,t` to :math:`1.98\,t` under the
+        ``Normal``.  A log-scale standard error :math:`s` is entered exactly
+        as :math:`\sigma = s\,t`.
 
         Set ``target_per_cost=True`` to flip the ratio to
         ``mean(contribution) / mean(spend)``, which is ROAS when the target is
@@ -4790,9 +4830,10 @@ class MMM(RegressionModelBuilder):
         likelihood : Prior, optional
             Family of the calibration term, by default ``Prior("Normal")``;
             ``Prior("StudentT", nu=...)`` and ``Prior("LogNormal")`` are the
-            alternatives (see the table above). ``mu``, ``sigma`` and ``dims``
-            come from the model and the table and are refused inside the
-            Prior. A Prior-valued ``nu`` adds a free variable named
+            alternatives (see the table above). ``nu`` is the only parameter
+            it takes: the others come from the model and the table, and they,
+            ``dims``, a ``transform`` and ``centered=False`` are refused. A
+            Prior-valued ``nu`` (without dims) adds a free variable named
             ``{name_prefix}_nu`` to the posterior. The family is saved with
             the calibration record and restored by :meth:`load`.
 
@@ -4809,8 +4850,10 @@ class MMM(RegressionModelBuilder):
             (:class:`~pymc_marketing.mmm.lift_test.UnalignedValuesError`).
         ValueError
             If ``central_tendency`` is not ``"mean"`` or ``"median"``; if
-            ``likelihood`` sets ``mu``, ``sigma`` or ``dims``, is a
-            ``StudentT`` without ``nu`` or is not one of the three families;
+            ``likelihood`` sets any parameter other than ``StudentT``'s
+            ``nu``, ``dims``, a ``transform`` or ``centered=False``, is a
+            ``StudentT`` without ``nu`` or with a ``nu`` that carries dims or
+            is not a positive number, or is not one of the three families;
             if ``target_column`` is ``"channel"``, ``"sigma"`` or a model dim;
             if ``name_prefix`` is the name of the increment node or of any
             model variable other than a prior calibration with that prefix;
@@ -4819,9 +4862,10 @@ class MMM(RegressionModelBuilder):
             spend labels differ from the model's or the spend is not finite;
             if ``central_tendency="mean"`` with a wrapped likelihood, or under
             the log link with a likelihood scale that is fixed rather than a
-            model variable; or if, under ``LogNormal``, the model ratio of a
-            calibrated row is not positive at the model's initial point (a
-            row whose spend is zero over the dates, for example).
+            model variable; or if, under ``LogNormal``, a calibrated row does
+            not have a positive mean spend and a positive mean contribution at
+            the model's initial point (a channel with no spend over the dates,
+            or whose contribution is zero there).
         TypeError
             If ``likelihood`` is not a :class:`~pymc_extras.prior.Prior`.
 
@@ -4868,7 +4912,9 @@ class MMM(RegressionModelBuilder):
                 name_prefix="cpt_calibration",
             )
 
-        Calibrate ROAS instead, using experiment-derived estimates:
+        Calibrate ROAS instead. For a ROAS read off a lift test, with a Normal
+        standard error on the incremental outcome, the default ``Normal`` is
+        the sampling model:
 
         .. code-block:: python
 
@@ -4889,9 +4935,9 @@ class MMM(RegressionModelBuilder):
                 target_per_cost=True,
             )
 
-        Measure the error on the log scale, so that the pull keeps growing
-        however far the model ratio moves from the experiment, in either
-        direction:
+        For a CPA table, measure the error on the log scale instead, so that
+        the pull keeps growing however far the channel's ROAS moves from the
+        experiment:
 
         .. code-block:: python
 
@@ -4899,10 +4945,8 @@ class MMM(RegressionModelBuilder):
 
             mmm.add_cost_per_target_calibration(
                 data=spend_df,
-                calibration_data=roas_df,
-                name_prefix="roas_calibration",
-                target_column="roas",
-                target_per_cost=True,
+                calibration_data=calibration_df,
+                name_prefix="cpa_lognormal",
                 likelihood=Prior("LogNormal"),
             )
         """
@@ -4955,10 +4999,10 @@ class MMM(RegressionModelBuilder):
                 raise KeyError(
                     f"The {dim} column is required in calibration_data to map to model dims."
                 )
-        # The checks add_cost_per_target_observations makes (sigma column,
-        # channel and dim labels, numeric values, likelihood contents), run
-        # here first so a bad table is refused before the increment node is
-        # registered.
+        # The table and likelihood checks (sigma column, channel and dim
+        # labels, numeric values, likelihood contents) run before anything
+        # touches the graph, so a bad table is refused before the increment
+        # node is registered.
         indices, targets, sigmas, likelihood = validate_cost_per_target_rows(
             calibration_data,
             self.model,
@@ -5054,23 +5098,35 @@ class MMM(RegressionModelBuilder):
             if central_tendency == "mean"
             else None
         )
-        # The increment is registered after the observations are accepted:
-        # under LogNormal they can still be refused on the model ratio at the
-        # initial point, and a refused call leaves no node behind.
+        # Under LogNormal the calibration can still be refused on the model
+        # ratio at the initial point, so that check runs on the unregistered
+        # increment and a refused call leaves no node behind. The likelihood
+        # is then built on the registered node, so every calibration depends
+        # on it.
+        cost_value = as_xtensor(spend_xarray)
         increment = self._channel_increment()
-        target_value = increment if mean_ratio is None else increment * mean_ratio
-
-        add_cost_per_target_observations(
-            calibration_df=calibration_data,
-            model=self.model,
-            cost_value=as_xtensor(spend_xarray),
-            target_value=target_value,
-            target_column=target_column,
+        if likelihood.distribution == "LogNormal":
+            _validate_positive_cost_per_target_means(
+                self.model,
+                *_gather_cost_per_target_means(
+                    cost_value,
+                    increment if mean_ratio is None else increment * mean_ratio,
+                    indices,
+                    dim=f"_{name_prefix}",
+                ),
+            )
+        increment = self._register_channel_increment(increment)
+        _add_cost_per_target_likelihood(
+            self.model,
+            cost_value,
+            increment if mean_ratio is None else increment * mean_ratio,
+            indices,
+            targets,
+            sigmas,
+            likelihood,
             name_prefix=name_prefix,
             target_per_cost=target_per_cost,
-            likelihood=likelihood,
         )
-        self._register_channel_increment(increment)
 
         self._cost_per_target_spend.setdefault(spend_var, spend_xarray.copy())
         self._cost_per_target_calibrations.append(calibration)
@@ -5370,6 +5426,17 @@ class MMM(RegressionModelBuilder):
                 likelihood = serialization.deserialize_model_config(
                     {"likelihood": calibration["likelihood"]}
                 )["likelihood"]
+                # A record saved before the likelihood checks tightened can
+                # hold a Prior they now refuse; name the record, not the call.
+                if isinstance(likelihood, Prior):
+                    try:
+                        _validate_likelihood_prior(likelihood, _LIFT_LIKELIHOODS)
+                    except ValueError as error:
+                        raise ValueError(
+                            "Invalid lift-test calibration metadata for "
+                            f"{calibration['name']!r}: {error} "
+                            f"{_LIFT_METADATA_RECOVERY_HINT}"
+                        ) from error
                 self.add_lift_test_measurements(
                     df_lift_test,
                     likelihood=likelihood,

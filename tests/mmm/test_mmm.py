@@ -29,6 +29,7 @@ import xarray as xr
 from pydantic import ValidationError
 from pymc.model_graph import fast_eval
 from pymc_extras.prior import Censored, Prior
+from pytensor.graph.traversal import ancestors
 from pytensor.xtensor.type import XTensorVariable, as_xtensor
 from scipy import stats
 from scipy.optimize import OptimizeResult
@@ -4257,10 +4258,18 @@ def test_log_link_cost_per_target_calibration_matches_incrementality(
     np.testing.assert_allclose(loglik.values, expected, rtol=1e-8)
 
 
+@pytest.mark.parametrize(
+    "likelihood", [None, Prior("LogNormal")], ids=["normal", "lognormal"]
+)
 def test_log_link_cost_per_target_calibration_registers_increment_once(
-    mock_pymc_sample, tmp_path
+    mock_pymc_sample, tmp_path, likelihood
 ) -> None:
-    """Two calibrations share one increment node, which survives save/load."""
+    """Two calibrations share one increment node, which survives save/load.
+
+    Both likelihoods depend on that registered node, the first one included:
+    the LogNormal check runs before it is registered, and the term is built
+    on it afterwards.
+    """
     mmm, X, y = _mmm_for_calibration()
     rows = _roas_rows()
     cpt_rows = rows.assign(cost_per_target=1 / rows["roas"])
@@ -4271,6 +4280,7 @@ def test_log_link_cost_per_target_calibration_registers_increment_once(
         name_prefix="roas_calibration",
         target_column="roas",
         target_per_cost=True,
+        likelihood=likelihood,
     )
     increment = mmm.model["channel_incremental_contribution"]
     mmm.add_cost_per_target_calibration(
@@ -4278,12 +4288,15 @@ def test_log_link_cost_per_target_calibration_registers_increment_once(
         calibration_data=cpt_rows,
         name_prefix="cpt_calibration",
         central_tendency="median",
+        likelihood=likelihood,
     )
 
     assert mmm.model["channel_incremental_contribution"] is increment
     assert {"roas_calibration", "cpt_calibration"} <= {
         rv.name for rv in mmm.model.observed_RVs
     }
+    for name in ("roas_calibration", "cpt_calibration"):
+        assert increment in set(ancestors([mmm.model[name]]))
 
     mmm.fit(X, y, random_seed=1)
     assert "channel_incremental_contribution" in mmm.idata.posterior
@@ -4479,6 +4492,24 @@ def test_add_cost_per_target_calibration_lognormal_matches_density(
             _roas_rows().assign(roas=[2.0, 0.0, 1.5]),
             "LogNormal calibration requires positive calibration values",
             id="lognormal-zero-target",
+        ),
+        pytest.param(
+            Prior("Normal", tau=4.0),
+            _roas_rows(),
+            "Do not pass `tau` in `likelihood`",
+            id="tau-in-prior",
+        ),
+        pytest.param(
+            Prior("StudentT", nu=4, centered=False),
+            _roas_rows(),
+            "Do not pass `centered=False` in `likelihood`",
+            id="non-centered",
+        ),
+        pytest.param(
+            Prior("StudentT", nu=Prior("Gamma", alpha=2, beta=0.1, dims="geo")),
+            _roas_rows(),
+            "Do not pass `dims` or arrays in `nu`",
+            id="nu-dims",
         ),
         pytest.param(
             Prior("LogNormal"),
@@ -9383,6 +9414,47 @@ def test_cost_per_target_persistence_rejects_malformed_metadata(
     idata.attrs["cost_per_target_calibrations"] = payload
     with pytest.raises(
         ValueError, match="Invalid cost-per-target calibration metadata"
+    ):
+        MMM.load_from_idata(idata)
+
+
+@pytest.mark.parametrize(
+    "likelihood",
+    [Prior("StudentT", nu=4, centered=False), Prior("Normal", transform="log")],
+    ids=["non-centered", "transform"],
+)
+def test_lift_test_persistence_names_a_refused_saved_likelihood(
+    mock_pymc_sample, likelihood
+):
+    """A saved lift record whose Prior the checks now refuse fails as metadata.
+
+    The record names the calibration and points at the attribute to repair,
+    instead of telling the caller to stop passing an argument they never
+    passed.
+    """
+    mmm, X, y, _, _ = _cpt_persistence_inputs()
+    mmm.add_lift_test_measurements(
+        pd.DataFrame(
+            {
+                "geo": ["001"],
+                "channel": ["zeta"],
+                "x": [1.0],
+                "delta_x": [1.0],
+                "delta_y": [0.5],
+                "sigma": [0.3],
+            }
+        ),
+        name="lift_external",
+    )
+    mmm.fit(X, y)
+    idata = copy.deepcopy(mmm.idata)
+    records = json.loads(idata.attrs["lift_test_calibrations"])
+    records[0]["likelihood"] = likelihood.to_dict()
+    idata.attrs["lift_test_calibrations"] = json.dumps(records)
+    with pytest.raises(
+        ValueError,
+        match=r"Invalid lift-test calibration metadata for 'lift_external'.*"
+        r"lift_test_calibrations",
     ):
         MMM.load_from_idata(idata)
 
