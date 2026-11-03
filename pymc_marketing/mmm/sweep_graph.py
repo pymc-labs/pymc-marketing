@@ -37,7 +37,7 @@ from pytensor.tensor import TensorVariable
 from pytensor.xtensor.type import XTensorVariable, as_xtensor
 from pytensor.xtensor.vectorization import vectorize_graph
 
-from pymc_marketing.mmm.leased_cache import buffers_replaced, watched_source_buffers
+from pymc_marketing.mmm.source_buffers import buffers_replaced, watched_source_buffers
 from pymc_marketing.pytensor_utils import ConditionedModel, posterior_in_model_coords
 
 SWEEP_DIM = "sweep"
@@ -131,16 +131,66 @@ def build_sweep_response(
             raise ValueError(f"Unknown sweep_type {sweep_type!r}")
 
     sweep_response = vectorize_graph(response, replace={base_value: sweep_combinations})
-    return sweep_response.sum(dim="date").transpose("sample", "sweep", ...)
+    return sweep_response.sum(dim="date").transpose("sample", SWEEP_DIM, ...)
+
+
+def compose_sweep(
+    *,
+    response: XTensorVariable,
+    base_value: XTensorVariable,
+    sweep_type: str,
+    has_mask: bool,
+    mask_shape: tuple[int, ...] | None = None,
+) -> tuple[list[Variable], XTensorVariable]:
+    """Compose the symbolic inputs and graph of one compiled sweep.
+
+    The cached and the per-call path build the same graph here and differ only
+    in where ``response`` and ``base_value`` come from: the clone's own input in
+    a cached entry, the source model's in the per-call path.
+
+    Parameters
+    ----------
+    response : XTensorVariable
+        The extracted response graph, with a leading ``sample`` dimension.
+    base_value : XTensorVariable
+        The input the sweep replaces.
+    sweep_type : str
+        One of ``"multiplicative"``, ``"additive"`` or ``"absolute"``.
+    has_mask : bool
+        Whether the graph takes a symbolic response mask.
+    mask_shape : tuple of int, optional
+        Shape of the mask input, required when ``has_mask`` is true.
+
+    Returns
+    -------
+    list of Variable
+        The compiled function's inputs: the sweep grid and, with a mask, the
+        mask.
+    XTensorVariable
+        The sweep graph.
+
+    Raises
+    ------
+    ValueError
+        If ``has_mask`` is true and ``mask_shape`` is not given.
+    """
+    if has_mask and mask_shape is None:
+        raise ValueError("mask_shape is required when has_mask is true.")
+    sweep = ptx.xtensor(SWEEP_NAME, dims=(SWEEP_DIM,))
+    inputs: list[Variable] = [sweep]
+    if has_mask:
+        mask = pt.tensor(MASK_NAME, shape=mask_shape, dtype=bool)
+        response = apply_response_mask(response, mask)
+        inputs.append(mask)
+    return inputs, build_sweep_response(base_value, response, sweep, sweep_type)
 
 
 class SweepEntry:
     """One compiled sweep graph, conditioned on its own clone of the model.
 
     The entry holds the clone, so a rebind cannot touch another entry's draws,
-    and the symbolic ``sweep`` and ``mask`` inputs, because the compiled
-    function only accepts the handles it was built with.  The sweep values and
-    the mask values stay plain function arguments.
+    and whether the compiled function takes a response mask alongside the sweep
+    grid.  The sweep values and the mask values stay plain function arguments.
 
     Parameters
     ----------
@@ -151,10 +201,9 @@ class SweepEntry:
     compiled : callable
         The compiled sweep function, taking the sweep grid and, when present,
         the mask.
-    sweep_input : XTensorVariable
-        The symbolic sweep grid the compiled function was built with.
-    mask_input : Variable or None
-        The symbolic mask the compiled function was built with, when one is used.
+    has_mask : bool
+        Whether the compiled function takes the symbolic mask as its second
+        argument.
     output_dims : tuple of str
         Dimension order of the compiled output.
     watched_buffers : dict of str to np.ndarray
@@ -167,16 +216,14 @@ class SweepEntry:
         source_model: Model,
         conditioned: ConditionedModel,
         compiled: Callable,
-        sweep_input: XTensorVariable,
-        mask_input: Variable | None,
+        has_mask: bool,
         output_dims: tuple[str, ...],
         watched_buffers: dict[str, np.ndarray],
     ) -> None:
         self._source_model = source_model
         self._conditioned = conditioned
         self._compiled: Callable[..., np.ndarray] = compiled
-        self._sweep_input = sweep_input
-        self._mask_input = mask_input
+        self.has_mask = has_mask
         self.output_dims = output_dims
         self._watched_buffers = watched_buffers
         # The labels each read variable was built on, by dimension.  A rebind
@@ -224,24 +271,21 @@ class SweepEntry:
             per call, which raises any error that was really about ``idata``.
         """
         conditioned = ConditionedModel(model, idata)
-        sweep = ptx.xtensor(SWEEP_NAME, dims=(SWEEP_DIM,))
-        mask = (
-            None
-            if key.mask_shape is None
-            else pt.tensor(MASK_NAME, shape=key.mask_shape, dtype=bool)
-        )
         response = conditioned.extract(key.var_names)
-        if mask is not None:
-            response = apply_response_mask(response, mask)
         base_value: XTensorVariable = conditioned.model[key.var_input]
-        graph = build_sweep_response(base_value, response, sweep, key.sweep_type)
-        inputs = [sweep] if mask is None else [sweep, mask]
+        has_mask = key.mask_shape is not None
+        inputs, graph = compose_sweep(
+            response=response,
+            base_value=base_value,
+            sweep_type=key.sweep_type,
+            has_mask=has_mask,
+            mask_shape=key.mask_shape,
+        )
         return cls(
             source_model=model,
             conditioned=conditioned,
             compiled=function(inputs, graph),
-            sweep_input=sweep,
-            mask_input=mask,
+            has_mask=has_mask,
             output_dims=graph.dims,
             watched_buffers=watched_source_buffers(model, [graph]),
         )
@@ -332,6 +376,6 @@ class SweepEntry:
         np.ndarray
             The sweep result, with the entry's ``output_dims`` layout.
         """
-        if self._mask_input is None:
+        if not self.has_mask:
             return self._compiled(sweep_values)
         return self._compiled(sweep_values, mask_values)

@@ -263,9 +263,9 @@ from pymc_marketing.mmm.counterfactual import (
 )
 from pymc_marketing.mmm.evaluator_cache import (
     EvaluatorCacheKey,
-    EvaluatorLease,
     constant_data_fingerprint,
 )
+from pymc_marketing.mmm.leased_cache import Lease
 from pymc_marketing.mmm.link import MU_ORIGINAL_SCALE, LinkFunction
 from pymc_marketing.mmm.spend_reach import (
     _PKG_PREFIX,
@@ -972,7 +972,7 @@ class ProbedReach:
 
     Parameters
     ----------
-    lease : EvaluatorLease
+    lease : Lease[CounterfactualEvaluator]
         The compiled batched evaluator, held for the duration of the request.
     baseline : dict
         The factual evaluation of every node, per node
@@ -991,7 +991,7 @@ class ProbedReach:
         ``channel_data``'s declared axis order.
     """
 
-    lease: EvaluatorLease
+    lease: Lease[CounterfactualEvaluator]
     baseline: dict
     baseline_array: np.ndarray
     probe: SpendProbe
@@ -1003,7 +1003,7 @@ class ProbedReach:
     @property
     def evaluator(self) -> CounterfactualEvaluator:
         """The compiled batched evaluator this request holds."""
-        return self.lease.evaluator
+        return self.lease.value
 
     def release(self) -> None:
         """Return the evaluator to the cache, also when the request raised."""
@@ -4495,7 +4495,7 @@ class Incrementality:
         )
         cache = self.model._incrementality_evaluator_cache()
         lease = cache.lease(self._evaluator_cache_key(response_vars), build_evaluator)
-        evaluator = lease.evaluator
+        evaluator = lease.value
         # A hit carries the draws of the request that built it; a miss was just
         # conditioned on this request's posterior, so rebinding it would copy the
         # same draws a second time.

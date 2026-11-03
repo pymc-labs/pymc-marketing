@@ -70,13 +70,13 @@ def test_a_leased_sweep_is_out_of_the_cache_until_released():
     lease = cache.lease(key, model, factory)
 
     assert not lease.cached
-    assert lease.entry is built[0]
+    assert lease.value is built[0]
     assert len(cache) == 0
 
     concurrent = cache.lease(key, model, factory)
 
     assert not concurrent.cached
-    assert concurrent.entry is not lease.entry
+    assert concurrent.value is not lease.value
     assert len(built) == 2
 
     lease.release()
@@ -84,7 +84,7 @@ def test_a_leased_sweep_is_out_of_the_cache_until_released():
     concurrent.release()
 
     assert len(cache) == 1
-    assert cache.get(key) is concurrent.entry
+    assert cache.get(key) is concurrent.value
 
 
 def test_a_sweep_entry_built_on_another_model_is_not_leased():
@@ -97,14 +97,14 @@ def test_a_sweep_entry_built_on_another_model_is_not_leased():
 
     same_model = cache.lease(key, built_on, lambda: pytest.fail("expected a hit"))
     assert same_model.cached
-    assert same_model.entry is cached
+    assert same_model.value is cached
     same_model.release()
 
     fresh = _FakeSweepEntry(other)
     lease = cache.lease(key, other, lambda: fresh)
 
     assert not lease.cached
-    assert lease.entry is fresh
+    assert lease.value is fresh
 
 
 def test_a_rebuild_ignores_the_entry_cached_under_the_key():
@@ -119,7 +119,7 @@ def test_a_rebuild_ignores_the_entry_cached_under_the_key():
     lease = cache.rebuild(key, model, lambda: built)
 
     assert not lease.cached
-    assert lease.entry is built
+    assert lease.value is built
     assert cache.get(key) is cached
 
 

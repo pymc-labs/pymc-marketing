@@ -92,23 +92,18 @@ import warnings
 from typing import Literal
 
 import numpy as np
-import pytensor.tensor as pt
-import pytensor.xtensor as ptx
 import xarray as xr
 from pymc import Model
 from pytensor import function
-from pytensor.xtensor.type import XTensorVariable
 from xarray import DataArray
 
-from pymc_marketing.mmm.sweep_cache import (
-    SweepCache,
-    SweepLease,
-)
+from pymc_marketing.mmm.leased_cache import Lease
+from pymc_marketing.mmm.sweep_cache import SweepCache
 from pymc_marketing.mmm.sweep_graph import (
+    SWEEP_DIM,
     SweepCacheKey,
     SweepEntry,
-    apply_response_mask,
-    build_sweep_response,
+    compose_sweep,
 )
 from pymc_marketing.pytensor_utils import (
     ModelCloneError,
@@ -357,7 +352,7 @@ class SensitivityAnalysis:
         if lease is None:
             return self._run_sweep_per_call(key, idata, sweep_values, mask_values)
         try:
-            return lease.entry.output_dims, lease.entry.evaluate(
+            return lease.value.output_dims, lease.value.evaluate(
                 sweep_values, mask_values
             )
         except BaseException:
@@ -367,7 +362,9 @@ class SensitivityAnalysis:
         finally:
             lease.release()
 
-    def _lease(self, key: SweepCacheKey, idata: xr.DataTree) -> SweepLease | None:
+    def _lease(
+        self, key: SweepCacheKey, idata: xr.DataTree
+    ) -> Lease[SweepEntry] | None:
         """Lease an entry for this call, or ``None`` if the model cannot be cloned.
 
         ``None`` means the per-call path handles the question.  The cache
@@ -381,7 +378,9 @@ class SensitivityAnalysis:
         except ModelCloneError:
             return None
 
-    def _rebuild(self, key: SweepCacheKey, idata: xr.DataTree) -> SweepLease | None:
+    def _rebuild(
+        self, key: SweepCacheKey, idata: xr.DataTree
+    ) -> Lease[SweepEntry] | None:
         """Build this call's entry, or ``None`` if the model cannot be cloned.
 
         The entry is conditioned on ``idata`` when it is built, so it never
@@ -397,7 +396,7 @@ class SensitivityAnalysis:
 
     def _lease_bound_to(
         self, key: SweepCacheKey, idata: xr.DataTree
-    ) -> SweepLease | None:
+    ) -> Lease[SweepEntry] | None:
         """Lease an entry whose graphs read the draws in ``idata``.
 
         A cached entry that cannot be rebound was built on another posterior
@@ -410,7 +409,7 @@ class SensitivityAnalysis:
         if lease is None or not lease.cached:
             return lease
         try:
-            lease.entry.set_posterior(idata)
+            lease.value.set_posterior(idata)
         except ValueError:
             lease.discard()
             return self._rebuild(key, idata)
@@ -436,16 +435,14 @@ class SensitivityAnalysis:
         as the cached path does, so a permuted posterior gives the same
         numbers; renamed or unlabeled coords are read by position.
         """
-        sweep = ptx.xtensor("sweep", dims=("sweep",))
         response = self._extract_response_distribution(key.var_names, idata)
-        mask = None
-        if mask_values is not None:
-            mask = pt.tensor("mask", shape=mask_values.shape, dtype=bool)
-            response = apply_response_mask(response, mask)
-
-        base_value: XTensorVariable = self.model[key.var_input]
-        graph = build_sweep_response(base_value, response, sweep, key.sweep_type)
-        inputs = [sweep] if mask is None else [sweep, mask]
+        inputs, graph = compose_sweep(
+            response=response,
+            base_value=self.model[key.var_input],
+            sweep_type=key.sweep_type,
+            has_mask=mask_values is not None,
+            mask_shape=None if mask_values is None else mask_values.shape,
+        )
         compiled = function(inputs, graph)
         if mask_values is None:
             return graph.dims, compiled(sweep_values)
@@ -460,7 +457,7 @@ class SensitivityAnalysis:
         """Label the compiled output with the sweep grid and the model coords."""
         coords = {}
         for dim, shape in zip(dims, result.shape, strict=True):
-            if dim == "sweep":
+            if dim == SWEEP_DIM:
                 dim_coords = np.asarray(sweep_values)
             else:
                 dim_coords = self.model.coords.get(dim)
@@ -536,8 +533,8 @@ class SensitivityAnalysis:
             If the posterior in ``idata`` lacks a posterior variable the model reads.
         ValueError
             If ``posterior_sample_fraction`` is outside ``(0, 1]``.
-            If ``var_names`` has no named dimensions, or if ``response_mask``
-            is given for a scalar response.
+            If ``var_names`` has no named dimensions, or its dimensions do not
+            include ``date``.
             If the posterior in ``idata`` no longer matches the model's
             posterior variables in their non-sample dimension names or
             lengths, for example after assigning a different posterior to
@@ -560,10 +557,11 @@ class SensitivityAnalysis:
                 "pmd.Deterministic(..., dims=(...))."
             )
         response_dims = tuple(response_dims)
-        if response_mask is not None and not response_dims:
+        if "date" not in response_dims:
             raise ValueError(
-                "response_mask cannot be applied to a scalar response; "
-                f"{var_names!r} has no dimensions."
+                f"{var_names!r} has no 'date' dimension. Sensitivity sweeps "
+                "require a response with a 'date' dimension, for example one "
+                "built with pmd.Deterministic(..., dims=(...))."
             )
 
         idata = self._selected_idata(var_names, posterior_sample_fraction)
@@ -657,7 +655,7 @@ class SensitivityAnalysis:
         xr.DataArray
             The input ``results`` unchanged.
         """
-        xr_result = results.differentiate(coord="sweep")
+        xr_result = results.differentiate(coord=SWEEP_DIM)
         if extend_idata:
             if not hasattr(self.idata, "sensitivity_analysis"):
                 raise ValueError(

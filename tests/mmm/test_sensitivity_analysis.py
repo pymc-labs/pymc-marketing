@@ -13,7 +13,6 @@
 #   limitations under the License.
 import copy
 import gc
-import importlib
 import weakref
 from concurrent.futures import ThreadPoolExecutor
 
@@ -24,22 +23,16 @@ import pymc as pm
 import pymc.dims as pmd
 import pytest
 import xarray as xr
+from pytensor.compile.maker import FunctionMaker
 
 from pymc_marketing.mmm.components.adstock import GeometricAdstock
 from pymc_marketing.mmm.components.saturation import LogisticSaturation
+from pymc_marketing.mmm.leased_cache import Lease
 from pymc_marketing.mmm.mmm import MMM
 from pymc_marketing.mmm.sensitivity_analysis import SensitivityAnalysis
-from pymc_marketing.mmm.sweep_cache import SweepCache, SweepLease
+from pymc_marketing.mmm.sweep_cache import SweepCache
 from pymc_marketing.mmm.sweep_graph import SweepEntry
 from pymc_marketing.pytensor_utils import ConditionedModel, ModelCloneError
-
-# Modules whose ``pytensor.function`` calls count as sweep compiles.  The counter
-# fixture patches the bare name ``function`` in every module listed here, so a
-# listed module must import it as ``from pytensor import function``.
-_SWEEP_COMPILE_MODULES = (
-    "pymc_marketing.mmm.sensitivity_analysis",
-    "pymc_marketing.mmm.sweep_graph",
-)
 
 
 def _make_saturation_model_and_idata(channel_data, n_draws, alpha_val=0.8, lam_val=1.2):
@@ -911,6 +904,25 @@ def _scalar_deterministic_model_and_idata() -> tuple[pm.Model, xr.DataTree]:
     return model, _constant_saturation_idata()
 
 
+def _date_less_deterministic_model_and_idata() -> tuple[pm.Model, xr.DataTree]:
+    """A model whose response has named dimensions but no ``date`` dimension."""
+    rng = np.random.default_rng(5)
+    coords = {"date": np.arange(6), "channel": list("abcd")}
+    with pm.Model(coords=coords) as model:
+        X = pmd.Data(
+            "channel_data", rng.gamma(2.0, 1.0, (6, 4)), dims=("date", "channel")
+        )
+        alpha = pmd.Gamma("alpha", 1.0, 1.0, dims=("channel",))
+        lam = pmd.Gamma("lam", 1.0, 1.0, dims=("channel",))
+        pmd.Deterministic(
+            "channel_contribution",
+            ((alpha * X) / (X + lam)).sum(dim="date"),
+            dims=("channel",),
+        )
+
+    return model, _constant_saturation_idata()
+
+
 @pytest.mark.parametrize(
     ("builder", "use_mask", "match"),
     [
@@ -928,9 +940,21 @@ def _scalar_deterministic_model_and_idata() -> tuple[pm.Model, xr.DataTree]:
         ),
         pytest.param(
             _scalar_deterministic_model_and_idata,
+            False,
+            "no 'date' dimension",
+            id="scalar",
+        ),
+        pytest.param(
+            _scalar_deterministic_model_and_idata,
             True,
-            "scalar response",
+            "no 'date' dimension",
             id="scalar-masked",
+        ),
+        pytest.param(
+            _date_less_deterministic_model_and_idata,
+            False,
+            "no 'date' dimension",
+            id="date-less",
         ),
     ],
 )
@@ -1206,17 +1230,17 @@ def test_run_sweep_an_entry_released_after_a_discard_is_not_reused(
     analysis = SensitivityAnalysis(model, original, _cache=cache)
     analysis.run_sweep("channel_data", sweeps, **kwargs)
     key = next(iter(cache._entries))
-    discard = SweepLease.discard
+    discard = Lease.discard
 
-    def discard_then_another_call_releases(lease: SweepLease) -> None:
+    def discard_then_another_call_releases(lease: Lease[SweepEntry]) -> None:
         discard(lease)
         # A concurrent call on the fitted posterior finishes right here.
         cache.put(key, SweepEntry.build(model, original, key))
 
-    monkeypatch.setattr(SweepLease, "discard", discard_then_another_call_releases)
+    monkeypatch.setattr(Lease, "discard", discard_then_another_call_releases)
     analysis.idata = unlabeled
     warm = analysis.run_sweep("channel_data", sweeps, **kwargs)
-    monkeypatch.setattr(SweepLease, "discard", discard)
+    monkeypatch.setattr(Lease, "discard", discard)
     empty = SensitivityAnalysis(model, unlabeled).run_sweep(
         "channel_data", sweeps, **kwargs
     )
@@ -1235,15 +1259,17 @@ def test_run_sweep_a_failed_rebind_is_not_kept_in_the_cache(
     kwargs = {"var_names": "channel_contribution", "sweep_type": "multiplicative"}
 
     analysis = SensitivityAnalysis(model, original)
+    compiles_before = len(sweep_compile_counter)
     analysis.run_sweep("channel_data", sweeps, **kwargs)
     analysis.idata = replacement
     analysis.run_sweep("channel_data", sweeps, **kwargs)
 
-    assert len(sweep_compile_counter) == 2  # the first build and the rebuild
+    # the first build and the rebuild
+    assert len(sweep_compile_counter) - compiles_before == 2
 
     analysis.run_sweep("channel_data", sweeps, **kwargs)
 
-    assert len(sweep_compile_counter) == 2
+    assert len(sweep_compile_counter) - compiles_before == 2
 
 
 def test_run_sweep_a_posterior_missing_a_variable_keeps_the_cached_entry(
@@ -1256,6 +1282,7 @@ def test_run_sweep_a_posterior_missing_a_variable_keeps_the_cached_entry(
     kwargs = {"var_names": "channel_contribution", "sweep_type": "multiplicative"}
 
     analysis = SensitivityAnalysis(model, original)
+    compiles_before = len(sweep_compile_counter)
     first = analysis.run_sweep("channel_data", sweeps, **kwargs)
     analysis.idata = xr.DataTree.from_dict(
         {"posterior": original.posterior.to_dataset().drop_vars("alpha")}
@@ -1267,7 +1294,7 @@ def test_run_sweep_a_posterior_missing_a_variable_keeps_the_cached_entry(
     xr.testing.assert_allclose(
         analysis.run_sweep("channel_data", sweeps, **kwargs), first
     )
-    assert len(sweep_compile_counter) == 1
+    assert len(sweep_compile_counter) - compiles_before == 1
 
 
 def test_run_sweep_a_posterior_missing_a_variable_names_it_warm_and_cold(
@@ -1374,25 +1401,22 @@ def test_run_sweep_fallback_realigns_a_permuted_posterior_by_label():
 
 @pytest.fixture
 def sweep_compile_counter(monkeypatch):
-    """Record every ``pytensor.function`` call made through a listed module."""
-    compiled_at: list[str] = []
+    """Record every PyTensor compilation made while the test runs.
 
-    for module_name in _SWEEP_COMPILE_MODULES:
-        module = importlib.import_module(module_name)
-        real_function = getattr(module, "function", None)
-        if real_function is None:
-            # The module no longer imports ``function``, so it cannot compile.
-            continue
+    ``pytensor.function`` builds exactly one
+    :class:`~pytensor.compile.maker.FunctionMaker`, so counting the maker's
+    constructions counts compiles without patching each module that imports
+    ``function``.
+    """
+    compiles: list[int] = []
+    real_init = FunctionMaker.__init__
 
-        def counting_function(
-            *args, _module_name=module_name, _real=real_function, **kwargs
-        ):
-            compiled_at.append(_module_name)
-            return _real(*args, **kwargs)
+    def counting_init(self, *args, **kwargs):
+        compiles.append(1)
+        return real_init(self, *args, **kwargs)
 
-        monkeypatch.setattr(module, "function", counting_function)
-
-    return compiled_at
+    monkeypatch.setattr(FunctionMaker, "__init__", counting_init)
+    return compiles
 
 
 def test_run_sweep_compiles_once_per_call(sensitivity, sweep_compile_counter):
@@ -1403,10 +1427,11 @@ def test_run_sweep_compiles_once_per_call(sensitivity, sweep_compile_counter):
         "sweep_type": "multiplicative",
     }
 
+    compiles_before = len(sweep_compile_counter)
     sensitivity.run_sweep("channel_data", sweeps, **kwargs)
-    first_call_compiles = len(sweep_compile_counter)
+    first_call_compiles = len(sweep_compile_counter) - compiles_before
     sensitivity.run_sweep("channel_data", sweeps, **kwargs)
-    repeat_compiles = len(sweep_compile_counter) - first_call_compiles
+    repeat_compiles = len(sweep_compile_counter) - compiles_before - first_call_compiles
 
     assert first_call_compiles == 1, f"first call compiled {first_call_compiles} times"
     assert repeat_compiles == 0, f"repeat call compiled {repeat_compiles} times"
@@ -1531,12 +1556,15 @@ def test_run_sweep_recompiles_only_on_key_change(
     analysis = SensitivityAnalysis(model, idata)
     first_call, second_call = _key_change_calls(case)
 
+    compiles_before = len(sweep_compile_counter)
     first = analysis.run_sweep(**first_call)
-    compiles_after_first = len(sweep_compile_counter)
+    compiles_after_first = len(sweep_compile_counter) - compiles_before
     second = analysis.run_sweep(**second_call)
 
     assert compiles_after_first == 1
-    assert len(sweep_compile_counter) - compiles_after_first == expected_compiles
+    assert len(sweep_compile_counter) - compiles_before - compiles_after_first == (
+        expected_compiles
+    )
     assert isinstance(first, xr.DataArray)
     assert isinstance(second, xr.DataArray)
 
@@ -1619,6 +1647,7 @@ def test_run_sweep_initval_model_falls_back(sweep_compile_counter):
         "sweep_type": "multiplicative",
     }
 
+    compiles_before = len(sweep_compile_counter)
     first = analysis.run_sweep("channel_data", sweeps, **kwargs)
     second = analysis.run_sweep("channel_data", sweeps, **kwargs)
 
@@ -1630,7 +1659,7 @@ def test_run_sweep_initval_model_falls_back(sweep_compile_counter):
     )
     xr.testing.assert_allclose(first, expected)
     xr.testing.assert_allclose(second, first)
-    assert len(sweep_compile_counter) == 2
+    assert len(sweep_compile_counter) - compiles_before == 2
 
 
 def test_run_sweep_unclonable_model_is_cloned_once(monkeypatch):
@@ -1902,14 +1931,15 @@ def test_mmm_sensitivity_run_sweep_compiles_once_across_accesses(
     """Two accesses to ``mmm.sensitivity`` share one compiled sweep."""
     sweeps = np.linspace(0.5, 1.5, 4)
 
+    compiles_before = len(sweep_compile_counter)
     first = multidim_mmm.sensitivity.run_sweep(
         "channel_data", sweeps, **_SENSITIVITY_KWARGS
     )
-    first_call_compiles = len(sweep_compile_counter)
+    first_call_compiles = len(sweep_compile_counter) - compiles_before
     second = multidim_mmm.sensitivity.run_sweep(
         "channel_data", sweeps, **_SENSITIVITY_KWARGS
     )
-    repeat_compiles = len(sweep_compile_counter) - first_call_compiles
+    repeat_compiles = len(sweep_compile_counter) - compiles_before - first_call_compiles
 
     assert first_call_compiles == 1, f"first call compiled {first_call_compiles} times"
     assert repeat_compiles == 0, f"repeat call compiled {repeat_compiles} times"
@@ -1955,14 +1985,14 @@ def test_mmm_lifecycle_site_clears_both_caches(
     assert len(mmm._sensitivity_sweep_cache()) == 1
     assert len(mmm._incrementality_evaluator_cache()) == 1
 
-    compiles_before_site = len(sweep_compile_counter)
     _invoke_lifecycle_site(mmm, site, X, y)
 
     assert len(mmm._sensitivity_sweep_cache()) == 0
     assert len(mmm._incrementality_evaluator_cache()) == 0
+    compiles_before_sweep = len(sweep_compile_counter)
     after = mmm.sensitivity.run_sweep("channel_data", sweeps, **_SENSITIVITY_KWARGS)
 
-    assert len(sweep_compile_counter) - compiles_before_site == 1
+    assert len(sweep_compile_counter) - compiles_before_sweep == 1
     xr.testing.assert_allclose(after, before)
 
 

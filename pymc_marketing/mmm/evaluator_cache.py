@@ -31,7 +31,7 @@ from typing import TYPE_CHECKING, Any, NamedTuple
 import numpy as np
 import xarray as xr
 
-from pymc_marketing.mmm.leased_cache import LeasedLRUCache
+from pymc_marketing.mmm.leased_cache import Lease, LeasedLRUCache
 
 if TYPE_CHECKING:
     from pymc_marketing.mmm.counterfactual import CounterfactualEvaluator
@@ -107,59 +107,6 @@ def constant_data_fingerprint(idata: xr.DataTree) -> tuple | None:
     return variables + coords
 
 
-class EvaluatorLease:
-    """One request's hold on a compiled evaluator, taken out of the cache.
-
-    A leased evaluator belongs to the request until :meth:`release`: nothing
-    else can rebind the shared draws under it, so a concurrent request misses
-    the cache and compiles or leases a copy of its own.  The evaluator is
-    returned to the cache when the request is done, also when it raises.
-
-    Parameters
-    ----------
-    cache : EvaluatorCache
-        The cache it was taken from and is returned to.
-    key : EvaluatorCacheKey
-        The identity it is cached under.
-    evaluator : CounterfactualEvaluator
-        The compiled evaluator.
-    cached : bool
-        Whether it was taken from the cache rather than built for this request.
-    """
-
-    def __init__(
-        self,
-        cache: EvaluatorCache,
-        key: EvaluatorCacheKey,
-        evaluator: CounterfactualEvaluator,
-        *,
-        cached: bool,
-    ) -> None:
-        self._cache = cache
-        self._key = key
-        self._evaluator = evaluator
-        self.cached = cached
-        self._released = False
-
-    @property
-    def evaluator(self) -> CounterfactualEvaluator:
-        """The compiled evaluator this lease holds."""
-        return self._evaluator
-
-    def release(self) -> None:
-        """Return the evaluator to the cache, once.
-
-        Releasing twice is a no-op, so both a failure path and the caller's
-        ``finally`` may release.  If the cache already holds an evaluator for
-        this key -- another request finished first -- one is kept and the LRU
-        stays bounded.
-        """
-        if self._released:
-            return
-        self._released = True
-        self._cache.put(self._key, self._evaluator)
-
-
 class EvaluatorCache(LeasedLRUCache[EvaluatorCacheKey, "CounterfactualEvaluator"]):
     """Bounded LRU cache of compiled counterfactual evaluators.
 
@@ -183,7 +130,7 @@ class EvaluatorCache(LeasedLRUCache[EvaluatorCacheKey, "CounterfactualEvaluator"
         self,
         key: EvaluatorCacheKey,
         factory: Callable[[], CounterfactualEvaluator],
-    ) -> EvaluatorLease:
+    ) -> Lease[CounterfactualEvaluator]:
         """Take the evaluator cached under ``key``, building one on a miss.
 
         The entry is removed from the cache and stays out until the lease is
@@ -202,7 +149,7 @@ class EvaluatorCache(LeasedLRUCache[EvaluatorCacheKey, "CounterfactualEvaluator"
 
         Returns
         -------
-        EvaluatorLease
+        Lease[CounterfactualEvaluator]
             The evaluator and whether it came from the cache.  A caller that
             rebinds a cached evaluator to new draws needs to know the
             difference: a freshly built one is already conditioned on the draws
@@ -210,5 +157,5 @@ class EvaluatorCache(LeasedLRUCache[EvaluatorCacheKey, "CounterfactualEvaluator"
         """
         evaluator = self._take(key)
         if evaluator is not None and not evaluator.is_stale():
-            return EvaluatorLease(self, key, evaluator, cached=True)
-        return EvaluatorLease(self, key, factory(), cached=False)
+            return Lease(self, key, evaluator, cached=True)
+        return Lease(self, key, factory(), cached=False)

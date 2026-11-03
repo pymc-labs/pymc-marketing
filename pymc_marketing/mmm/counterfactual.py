@@ -77,7 +77,7 @@ from pytensor.graph.traversal import ancestors
 from pytensor.xtensor.type import XTensorVariable
 from pytensor.xtensor.vectorization import vectorize_graph
 
-from pymc_marketing.mmm.leased_cache import (
+from pymc_marketing.mmm.source_buffers import (
     buffers_replaced,
     watched_source_buffers,
 )

@@ -16,22 +16,82 @@
 
 The compiled-evaluator cache and the compiled-sweep cache differ in what they
 lease and in how they decide an entry is stale, so each keeps its own
-:meth:`lease` signature and lease class.  They share the storage in
-:class:`LeasedLRUCache` and the buffer checks a leased entry uses to notice that
-the model data it was built on was replaced.
+:meth:`lease` signature.  They share the storage in :class:`LeasedLRUCache`
+and the lease a request holds in :class:`Lease`.
 """
 
 from __future__ import annotations
 
 import threading
 from collections import OrderedDict
-from collections.abc import Collection, Iterable, Mapping
+from typing import Any
 
-import numpy as np
-from pymc.model.core import Model
-from pytensor.compile.sharedvalue import SharedVariable
-from pytensor.graph.basic import Variable
-from pytensor.graph.traversal import ancestors
+DEFAULT_MAX_ENTRIES = 4
+"""Number of entries a leased cache keeps before evicting the least recent."""
+
+
+class Lease[V]:
+    """One request's hold on a cached entry, taken out of the cache.
+
+    A leased entry belongs to the request until :meth:`release`: nothing else
+    can use it while it is out, so a concurrent request on the same key misses
+    the cache and builds or leases a copy of its own.  The entry is returned to
+    the cache when the request is done, also when it raises, unless the request
+    drops it with :meth:`discard`.
+
+    Parameters
+    ----------
+    cache : LeasedLRUCache
+        The cache it was taken from and is returned to.
+    key : object
+        The identity it is cached under.
+    value : V
+        The cached entry it holds.
+    cached : bool
+        Whether it was taken from the cache rather than built for this request.
+    """
+
+    def __init__(
+        self,
+        cache: LeasedLRUCache[Any, V],
+        key: Any,
+        value: V,
+        *,
+        cached: bool,
+    ) -> None:
+        self._cache = cache
+        self._key = key
+        self._value = value
+        self.cached = cached
+        self._released = False
+
+    @property
+    def value(self) -> V:
+        """The cached entry this lease holds."""
+        return self._value
+
+    def release(self) -> None:
+        """Return the entry to the cache, once.
+
+        Releasing twice is a no-op, so both a failure path and the caller's
+        ``finally`` may release.  If the cache already holds an entry for this
+        key -- another request finished first -- one is kept and the LRU stays
+        bounded.
+        """
+        if self._released:
+            return
+        self._released = True
+        self._cache.put(self._key, self._value)
+
+    def discard(self) -> None:
+        """Drop the entry instead of returning it to the cache.
+
+        An entry that cannot answer this request was built for another
+        structure, so keeping it would make every later request fail the same
+        way.  A later :meth:`release` is a no-op; the caller builds a fresh
+        entry in place of this one.
+        """
+        self._released = True
 
 
 class LeasedLRUCache[K, V]:
@@ -55,7 +115,7 @@ class LeasedLRUCache[K, V]:
         If ``max_entries`` is negative.
     """
 
-    def __init__(self, max_entries: int = 4) -> None:
+    def __init__(self, max_entries: int = DEFAULT_MAX_ENTRIES) -> None:
         if max_entries < 0:
             raise ValueError(f"max_entries must be non-negative, got {max_entries}.")
         self._max_entries = max_entries
@@ -128,73 +188,3 @@ class LeasedLRUCache[K, V]:
         self._max_entries = state["_max_entries"]
         self._entries = OrderedDict()
         self._lock = threading.Lock()
-
-
-def watched_source_buffers(
-    source_model: Model,
-    graphs: Iterable[Variable],
-    *,
-    exclude: Collection[str] = (),
-) -> dict[str, np.ndarray]:
-    """Record the source-model data buffers ``graphs`` read, keyed by name.
-
-    :class:`~pymc_marketing.pytensor_utils.ConditionedModel` clones the model,
-    so the graphs read the clone's copies of the data variables, which never
-    change again.  The source model, which ``pm.set_data`` mutates, is matched
-    by name.  A graph node with no source-model counterpart, such as the shared
-    posterior variables or an anonymous symbolic input, is not recorded.
-
-    Parameters
-    ----------
-    source_model : Model
-        The model the graphs were cloned from.
-    graphs : iterable of Variable
-        Graph outputs whose ancestors are scanned.
-    exclude : collection of str, default ()
-        Names never to record, for inputs a caller reads another way.
-
-    Returns
-    -------
-    dict of str to np.ndarray
-        The borrowed buffer of each source data variable the graphs read.
-    """
-    watched: dict[str, np.ndarray] = {}
-    for node in ancestors(graphs):
-        name = node.name
-        if name is None or name in watched or name in exclude:
-            continue
-        source_var = source_model.named_vars.get(name)
-        if isinstance(source_var, SharedVariable):
-            watched[name] = source_var.get_value(borrow=True)
-    return watched
-
-
-def buffers_replaced(source_model: Model, watched: Mapping[str, np.ndarray]) -> bool:
-    """Whether a source-model data buffer changed since it was recorded.
-
-    Each watched variable costs one borrowed-buffer identity check and no value
-    comparison.  ``pm.set_data`` replaces the buffer, which is what this sees;
-    an in-place write to the buffer itself is not detected.  A buffer replaced
-    by equal values still counts as a change, and a variable that is no longer
-    a shared input counts as one too.
-
-    Parameters
-    ----------
-    source_model : Model
-        The model a call is about to use.
-    watched : dict of str to np.ndarray
-        Buffers recorded by :func:`watched_source_buffers`.
-
-    Returns
-    -------
-    bool
-        ``True`` when a watched source variable no longer holds the buffer
-        recorded at build time, so the compiled graphs read stale values.
-    """
-    for name, buffer in watched.items():
-        source_var = source_model.named_vars.get(name)
-        if not isinstance(source_var, SharedVariable):
-            return True
-        if source_var.get_value(borrow=True) is not buffer:
-            return True
-    return False

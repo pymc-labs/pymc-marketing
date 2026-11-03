@@ -28,79 +28,12 @@ from weakref import WeakKeyDictionary
 
 from pymc import Model
 
-from pymc_marketing.mmm.leased_cache import LeasedLRUCache
+from pymc_marketing.mmm.leased_cache import DEFAULT_MAX_ENTRIES, Lease, LeasedLRUCache
 from pymc_marketing.mmm.sweep_graph import (
     SweepCacheKey,
     SweepEntry,
 )
 from pymc_marketing.pytensor_utils import ModelCloneError
-
-DEFAULT_MAX_ENTRIES = 4
-"""Number of compiled sweeps a cache keeps before evicting the least recent."""
-
-
-class SweepLease:
-    """One call's hold on a compiled sweep, taken out of the cache.
-
-    A leased entry belongs to the call until :meth:`release`: nothing else can
-    rebind the shared draws under it, so a concurrent call on the same key
-    misses the cache and builds its own entry.  The entry is returned to the
-    cache when the call is done, also when it raises, unless the call
-    drops it with :meth:`discard`.
-
-    Parameters
-    ----------
-    cache : SweepCache
-        The cache it was taken from and is returned to.
-    key : SweepCacheKey
-        The identity it is cached under.
-    entry : SweepEntry
-        The compiled sweep.
-    cached : bool
-        Whether it was taken from the cache rather than built for this call.
-    """
-
-    def __init__(
-        self,
-        cache: SweepCache,
-        key: SweepCacheKey,
-        entry: SweepEntry,
-        *,
-        cached: bool,
-    ) -> None:
-        self._cache = cache
-        self._key = key
-        self._entry = entry
-        self.cached = cached
-        self._released = False
-
-    @property
-    def entry(self) -> SweepEntry:
-        """The compiled sweep this lease holds."""
-        return self._entry
-
-    def release(self) -> None:
-        """Return the entry to the cache, once.
-
-        Releasing twice is a no-op, so both a failure path and the caller's
-        ``finally`` may release.  If the cache already holds an entry for this
-        key -- another call finished first -- one is kept and the LRU stays
-        bounded.
-        """
-        if self._released:
-            return
-        self._released = True
-        self._cache.put(self._key, self._entry)
-
-    def discard(self) -> None:
-        """Drop the entry instead of returning it to the cache.
-
-        A cached entry that cannot be rebound to this call's draws was built on
-        another posterior layout, so keeping it would make every later call
-        fail the same way.  A later :meth:`release` is a no-op; the caller
-        builds a fresh entry in place of this one.
-        """
-        self._released = True
 
 
 class SweepCache(LeasedLRUCache[SweepCacheKey, SweepEntry]):
@@ -152,7 +85,7 @@ class SweepCache(LeasedLRUCache[SweepCacheKey, SweepEntry]):
         key: SweepCacheKey,
         source_model: Model,
         factory: Callable[[], SweepEntry],
-    ) -> SweepLease:
+    ) -> Lease[SweepEntry]:
         """Take the entry cached under ``key``, building one on a miss.
 
         The entry is removed from the cache and stays out until the lease is
@@ -174,7 +107,7 @@ class SweepCache(LeasedLRUCache[SweepCacheKey, SweepEntry]):
 
         Returns
         -------
-        SweepLease
+        Lease[SweepEntry]
             The entry and whether it came from the cache.  A caller that
             rebinds a cached entry to new draws needs to know the difference: a
             freshly built one is already conditioned on the draws it was asked
@@ -189,7 +122,7 @@ class SweepCache(LeasedLRUCache[SweepCacheKey, SweepEntry]):
         """
         entry = self._take(key)
         if entry is not None and not entry.is_stale(source_model):
-            return SweepLease(self, key, entry, cached=True)
+            return Lease(self, key, entry, cached=True)
         return self.rebuild(key, source_model, factory)
 
     def rebuild(
@@ -197,7 +130,7 @@ class SweepCache(LeasedLRUCache[SweepCacheKey, SweepEntry]):
         key: SweepCacheKey,
         source_model: Model,
         factory: Callable[[], SweepEntry],
-    ) -> SweepLease:
+    ) -> Lease[SweepEntry]:
         """Build an entry, ignoring whatever the cache holds under ``key``.
 
         This is what a call does in place of a cached entry it had to discard:
@@ -217,7 +150,7 @@ class SweepCache(LeasedLRUCache[SweepCacheKey, SweepEntry]):
 
         Returns
         -------
-        SweepLease
+        Lease[SweepEntry]
             The freshly built entry, marked as not cached.
 
         Raises
@@ -233,7 +166,7 @@ class SweepCache(LeasedLRUCache[SweepCacheKey, SweepEntry]):
         except ModelCloneError as err:
             self._remember_unclonable(source_model, err)
             raise
-        return SweepLease(self, key, built, cached=False)
+        return Lease(self, key, built, cached=False)
 
     def _raise_if_unclonable(self, source_model: Model) -> None:
         """Raise if a previous build could not clone ``source_model``."""
