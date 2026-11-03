@@ -4397,6 +4397,125 @@ def test_add_cost_per_target_calibration_bad_rows_fail_before_graph_changes(
     assert mmm.model.coords == initial_coords
 
 
+@pytest.mark.parametrize("link", ["identity", "log"])
+def test_add_cost_per_target_calibration_lognormal_matches_density(
+    mock_pymc_sample, link
+) -> None:
+    """``likelihood=Prior("LogNormal")`` observes the table value in ROAS units.
+
+    The term is centred on ``log`` of the same ratio the ``Normal`` default
+    uses, with the table's ``sigma / roas`` as the log-scale width, so the
+    log likelihood is the LogNormal density of ``observed_data`` at that
+    centre.
+    """
+    mmm, X, y = _mmm_for_calibration(
+        link=link,
+        model_config=(
+            {
+                "likelihood": Prior(
+                    "LogNormal",
+                    sigma=Prior("HalfNormal", sigma=0.5, dims=("geo",)),
+                    dims=("date", "geo"),
+                )
+            }
+            if link == "log"
+            else None
+        ),
+    )
+    rows = _roas_rows()
+    mmm.add_cost_per_target_calibration(
+        data=X,
+        calibration_data=rows,
+        name_prefix="roas_calibration",
+        target_column="roas",
+        target_per_cost=True,
+        likelihood=Prior("LogNormal"),
+    )
+    mmm.fit(X, y, random_seed=1)
+
+    np.testing.assert_allclose(
+        mmm.idata.observed_data["roas_calibration"].values, rows["roas"].to_numpy()
+    )
+    loglik = pm.compute_log_likelihood(
+        mmm.idata.copy(),
+        var_names=["roas_calibration"],
+        model=mmm.model,
+        progressbar=False,
+    )["log_likelihood"]["roas_calibration"]
+    roas = mmm.incrementality.contribution_over_spend(
+        frequency="all_time", central_tendency="mean"
+    )
+    centre = roas.sel(
+        channel=xr.DataArray(rows["channel"].to_numpy(), dims="row"),
+        geo=xr.DataArray(rows["geo"].to_numpy(), dims="row"),
+    ).transpose("chain", "draw", "row")
+    observed = rows["roas"].to_numpy()
+    expected = stats.lognorm.logpdf(
+        observed, s=rows["sigma"].to_numpy() / observed, scale=centre.values
+    )
+    np.testing.assert_allclose(loglik.values, expected, rtol=1e-8)
+
+
+@pytest.mark.parametrize(
+    ("likelihood", "rows", "match"),
+    [
+        pytest.param(
+            Prior("Gamma"),
+            _roas_rows(),
+            "Gamma distribution is not supported",
+            id="gamma",
+        ),
+        pytest.param(
+            Prior("StudentT"), _roas_rows(), "requires a `nu` parameter", id="no-nu"
+        ),
+        pytest.param(
+            Prior("Normal", sigma=1.0),
+            _roas_rows(),
+            "Do not pass `sigma` in `likelihood`",
+            id="sigma-in-prior",
+        ),
+        pytest.param(
+            Prior("LogNormal"),
+            _roas_rows().assign(roas=[2.0, 0.0, 1.5]),
+            "LogNormal calibration requires positive calibration values",
+            id="lognormal-zero-target",
+        ),
+        pytest.param(
+            Prior("LogNormal"),
+            _roas_rows(),
+            "positive model-implied ratio.*initial point",
+            id="lognormal-zero-spend",
+        ),
+    ],
+)
+@pytest.mark.parametrize("link", ["identity", "log"])
+def test_add_cost_per_target_calibration_bad_likelihood_fails_before_graph_changes(
+    likelihood, rows, match, link
+) -> None:
+    """A refused likelihood leaves the model untouched, increment node included.
+
+    The zero-spend case rebuilds the model on a channel with no spend, so its
+    contribution, and with it the ROAS ratio, is zero at the initial point.
+    """
+    mmm, X, y = _mmm_for_calibration(link=link)
+    if "initial point" in match:
+        X = X.assign(C2=0.0)
+        mmm.build_model(X, y)
+    initial_vars = set(mmm.model.named_vars)
+    initial_coords = dict(mmm.model.coords)
+    with pytest.raises(ValueError, match=match):
+        mmm.add_cost_per_target_calibration(
+            data=X,
+            calibration_data=rows,
+            name_prefix="roas_calibration",
+            target_column="roas",
+            target_per_cost=True,
+            likelihood=likelihood,
+        )
+    assert set(mmm.model.named_vars) == initial_vars
+    assert mmm.model.coords == initial_coords
+
+
 def test_log_link_censored_likelihood_refuses_mean_scale_calibration(
     mock_pymc_sample,
 ) -> None:
@@ -8892,7 +9011,9 @@ def _cpt_persistence_inputs(
     return mmm, X, y, spend, rows
 
 
-def _attach_cpt(mmm, spend, rows, name="external", roas=False, central="mean"):
+def _attach_cpt(
+    mmm, spend, rows, name="external", roas=False, central="mean", likelihood=None
+):
     return mmm.add_cost_per_target_calibration(
         data=spend,
         calibration_data=rows,
@@ -8900,6 +9021,7 @@ def _attach_cpt(mmm, spend, rows, name="external", roas=False, central="mean"):
         target_column="estimate",
         target_per_cost=roas,
         central_tendency=central,
+        likelihood=likelihood,
     )
 
 
@@ -9069,6 +9191,32 @@ def test_cost_per_target_persistence_roundtrip_with_controls_and_mu_effect(
     )
 
 
+@pytest.mark.parametrize(
+    "likelihood",
+    [
+        Prior("LogNormal"),
+        Prior("StudentT", nu=4),
+        Prior("StudentT", nu=Prior("Gamma", alpha=2, beta=0.1)),
+    ],
+    ids=["lognormal", "studentt", "studentt-prior-nu"],
+)
+def test_cost_per_target_persistence_roundtrip_likelihood(
+    mock_pymc_sample, tmp_path, likelihood
+):
+    """The calibration family is recorded with the model and rebuilt on load."""
+    mmm, X, y, spend, rows = _cpt_persistence_inputs()
+    _attach_cpt(mmm, spend, rows, roas=True, likelihood=likelihood)
+    mmm.fit(X, y)
+    (record,) = mmm._cost_per_target_calibrations
+    assert record["format_version"] == 2
+    assert record["likelihood"] == likelihood.to_dict()
+    if isinstance(likelihood.parameters.get("nu"), Prior):
+        assert "external_nu" in mmm.idata.posterior
+
+    loaded = _assert_cpt_roundtrip(mmm, str(tmp_path / "calibrated.nc"))
+    assert loaded._cost_per_target_calibrations == mmm._cost_per_target_calibrations
+
+
 def test_cost_per_target_persistence_owns_inputs_and_resets():
     mmm, X, y, spend, rows = _cpt_persistence_inputs()
     # Irrelevant, non-serializable values must not enter the persisted inputs.
@@ -9168,39 +9316,32 @@ def test_cost_per_target_persistence_fit_snapshot(mock_pymc_sample, tmp_path):
         MMM.load_from_idata(bad)
 
 
-_CPT_RECORD_WITHOUT_SPEND_VAR = json.dumps(
-    [
-        {
-            "format_version": 1,
-            "name_prefix": "a",
-            "target_column": "t",
-            "target_per_cost": False,
-            "central_tendency": "mean",
-            "data": "{}",
-            "dtypes": {},
-        }
-    ]
-)
-_CPT_RECORD_WITH_UNKNOWN_SPEND_VAR = json.dumps(
-    [
-        {
-            "format_version": 1,
-            "name_prefix": "a",
-            "target_column": "estimate",
-            "target_per_cost": False,
-            "central_tendency": "mean",
-            "spend_var": "ghost",
-            "data": json.dumps(
-                {
-                    "columns": ["channel", "geo", "estimate", "sigma"],
-                    "index": [0],
-                    "data": [["zeta", "001", 1.0, 0.1]],
-                }
-            ),
-            "dtypes": {},
-        }
-    ]
-)
+_ABSENT = object()
+
+
+def _cpt_record(**overrides):
+    """A valid record of the format ``add_cost_per_target_calibration`` writes, with overrides."""
+    record = {
+        "format_version": 2,
+        "name_prefix": "a",
+        "target_column": "estimate",
+        "target_per_cost": False,
+        "central_tendency": "mean",
+        "likelihood": {"dist": "Normal"},
+        "spend_var": "external",
+        "data": json.dumps(
+            {
+                "columns": ["channel", "geo", "estimate", "sigma"],
+                "index": [0],
+                "data": [["zeta", "001", 1.0, 0.1]],
+            }
+        ),
+        "dtypes": {},
+    }
+    record.update(overrides)
+    for key in [key for key, value in record.items() if value is _ABSENT]:
+        del record[key]
+    return json.dumps([record])
 
 
 @pytest.mark.parametrize(
@@ -9210,10 +9351,27 @@ _CPT_RECORD_WITH_UNKNOWN_SPEND_VAR = json.dumps(
         "[{}]",
         "[1]",
         "not json",
-        _CPT_RECORD_WITHOUT_SPEND_VAR,
-        _CPT_RECORD_WITH_UNKNOWN_SPEND_VAR,
+        _cpt_record(format_version=1, likelihood=_ABSENT),
+        _cpt_record(spend_var=_ABSENT),
+        _cpt_record(spend_var="ghost"),
+        _cpt_record(likelihood=_ABSENT),
+        _cpt_record(likelihood={"dist": "Garbage"}),
+        _cpt_record(likelihood="x"),
+        _cpt_record(likelihood={"dist": "Gamma"}),
     ],
-    ids=["dict", "empty-record", "scalar", "not-json", "no-spend-var", "ghost-spend"],
+    ids=[
+        "dict",
+        "empty-record",
+        "scalar",
+        "not-json",
+        "format-1",
+        "no-spend-var",
+        "ghost-spend",
+        "no-likelihood",
+        "unknown-likelihood",
+        "non-prior-likelihood",
+        "unsupported-likelihood",
+    ],
 )
 def test_cost_per_target_persistence_rejects_malformed_metadata(
     mock_pymc_sample, payload

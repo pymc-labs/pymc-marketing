@@ -19,6 +19,7 @@ import pytest
 from pymc.model_graph import fast_eval
 from pymc_extras.prior import Prior
 from pytensor.xtensor import as_xtensor
+from scipy import stats
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import MaxAbsScaler
 from xarray import DataArray
@@ -882,10 +883,21 @@ def test_add_cost_per_target_observations(dummy_mmm_model):
 
 
 @pytest.mark.parametrize("target_per_cost", [False, True])
+@pytest.mark.parametrize(
+    "likelihood",
+    [None, Prior("StudentT", nu=4), Prior("LogNormal")],
+    ids=["normal", "studentt", "lognormal"],
+)
 def test_add_cost_per_target_observations_ratio_direction(
-    dummy_mmm_model, target_per_cost
+    dummy_mmm_model, target_per_cost, likelihood
 ):
-    """`target_per_cost` flips mean(cost)/mean(target) to mean(target)/mean(cost)."""
+    """`target_per_cost` flips mean(cost)/mean(target) to mean(target)/mean(cost).
+
+    Every family is centred on that ratio with ``sigma`` read as the standard
+    error of the table value: ``Normal`` and ``StudentT`` take it as is,
+    ``LogNormal`` as the log-scale width ``sigma / target`` (the table's
+    target, not the model ratio).
+    """
     model = dummy_mmm_model.model
 
     dates = model.coords["date"]
@@ -920,6 +932,7 @@ def test_add_cost_per_target_observations_ratio_direction(
         target_column=target_column,
         name_prefix="ratio_calibration",
         target_per_cost=target_per_cost,
+        likelihood=likelihood,
     )
 
     # Ratio of means over dates for the two calibrated channels, not the mean
@@ -938,12 +951,192 @@ def test_add_cost_per_target_observations_ratio_direction(
             as_xtensor(observed, dims=("_ratio_calibration",)),
         )
     )
-    expected_logp = (
-        -0.5 * ((observed - expected_mu) / sigma) ** 2
-        - np.log(sigma)
-        - 0.5 * np.log(2 * np.pi)
-    )
+    if likelihood is None:
+        expected_logp = stats.norm.logpdf(observed, loc=expected_mu, scale=sigma)
+    elif likelihood.distribution == "StudentT":
+        expected_logp = stats.t.logpdf(observed, df=4, loc=expected_mu, scale=sigma)
+    else:
+        expected_logp = stats.lognorm.logpdf(
+            observed, s=sigma / observed, scale=expected_mu
+        )
     np.testing.assert_allclose(logp, expected_logp, rtol=1e-6)
+
+
+def _constant_cost_and_target(model, cost_level=30.0, target_level=1.0):
+    shape = (len(model.coords["date"]), len(model.coords["channel"]))
+    cost = as_xtensor(np.full(shape, cost_level), dims=("date", "channel"))
+    target = as_xtensor(np.full(shape, target_level), dims=("date", "channel"))
+    return cost, target
+
+
+@pytest.mark.parametrize(
+    ("likelihood", "match"),
+    [
+        pytest.param(
+            Prior("Normal", sigma=1.0),
+            "Do not pass `sigma` in `likelihood`",
+            id="sigma",
+        ),
+        pytest.param(
+            Prior("Normal", mu=0.0), "Do not pass `mu` in `likelihood`", id="mu"
+        ),
+        pytest.param(
+            Prior("Normal", dims="channel"),
+            "Do not pass `dims` in `likelihood`",
+            id="dims",
+        ),
+        pytest.param(Prior("StudentT"), "requires a `nu` parameter", id="no-nu"),
+        pytest.param(
+            Prior("Gamma"),
+            "Gamma distribution is not supported as a calibration likelihood",
+            id="gamma",
+        ),
+        pytest.param(
+            Prior("HalfNormal"),
+            "HalfNormal distribution is not supported",
+            id="halfnormal",
+        ),
+        pytest.param(
+            Prior("Normal", transform="log"),
+            "Do not pass `transform` in `likelihood`",
+            id="transform",
+        ),
+    ],
+)
+def test_add_cost_per_target_observations_refuses_bad_likelihood(
+    dummy_mmm_model, likelihood, match
+):
+    """A likelihood whose contents the table decides is refused before any graph change."""
+    model = dummy_mmm_model.model
+    cost, target = _constant_cost_and_target(model)
+    calibration_df = pd.DataFrame(
+        {
+            "channel": [model.coords["channel"][0]],
+            "cost_per_target": [30.0],
+            "sigma": [2.0],
+        }
+    )
+    names, coords = set(model.named_vars), dict(model.coords)
+    with pytest.raises(ValueError, match=match):
+        add_cost_per_target_observations(
+            calibration_df,
+            model=model,
+            cost_value=cost,
+            target_value=target,
+            likelihood=likelihood,
+        )
+    assert set(model.named_vars) == names
+    assert model.coords == coords
+
+
+def test_add_cost_per_target_observations_rejects_non_prior_likelihood(
+    dummy_mmm_model,
+):
+    model = dummy_mmm_model.model
+    cost, target = _constant_cost_and_target(model)
+    calibration_df = pd.DataFrame(
+        {
+            "channel": [model.coords["channel"][0]],
+            "cost_per_target": [30.0],
+            "sigma": [2.0],
+        }
+    )
+    with pytest.raises(TypeError, match=r"must be a pymc_extras\.prior\.Prior"):
+        add_cost_per_target_observations(
+            calibration_df,
+            model=model,
+            cost_value=cost,
+            target_value=target,
+            likelihood=pmd.LogNormal,
+        )
+
+
+@pytest.mark.parametrize("target", [0.0, -2.0])
+def test_add_cost_per_target_observations_lognormal_refuses_nonpositive_target(
+    dummy_mmm_model, target
+):
+    """LogNormal needs a positive table value; the real-line families accept it."""
+    model = dummy_mmm_model.model
+    cost, target_value = _constant_cost_and_target(model)
+    calibration_df = pd.DataFrame(
+        {
+            "channel": [model.coords["channel"][0]],
+            "cost_per_target": [target],
+            "sigma": [2.0],
+        }
+    )
+    names, coords = set(model.named_vars), dict(model.coords)
+    with pytest.raises(ValueError, match=r"LogNormal.*positive calibration values"):
+        add_cost_per_target_observations(
+            calibration_df,
+            model=model,
+            cost_value=cost,
+            target_value=target_value,
+            likelihood=Prior("LogNormal"),
+        )
+    assert set(model.named_vars) == names
+    assert model.coords == coords
+
+    add_cost_per_target_observations(
+        calibration_df,
+        model=model,
+        cost_value=cost,
+        target_value=target_value,
+        likelihood=Prior("Normal"),
+    )
+    assert "cpt_calibration" in {rv.name for rv in model.observed_RVs}
+
+
+@pytest.mark.parametrize("target_per_cost", [False, True])
+def test_add_cost_per_target_observations_lognormal_refuses_nonpositive_ratio(
+    target_per_cost,
+):
+    """Zero spend on a calibrated row gives a zero ratio, which LogNormal refuses.
+
+    The check runs on the model-implied ratio at the initial point, before the
+    coordinate and the observed variable are added; ``Normal`` accepts the
+    same table.
+    """
+    spend_values = np.array([[0.0, 2.0], [0.0, 3.0], [0.0, 4.0]])
+    coords = {"date": [0, 1, 2], "channel": ["a", "b"]}
+    with pm.Model(coords=coords) as model:
+        spend = pmd.Data("channel_data", spend_values, dims=("date", "channel"))
+        beta = pmd.HalfNormal("beta", dims="channel")
+        contribution = spend * beta
+    cost = as_xtensor(spend_values, dims=("date", "channel"))
+    target_column = "roas" if target_per_cost else "cost_per_target"
+    calibration_df = pd.DataFrame(
+        {"channel": ["a", "b"], target_column: [1.0, 2.0], "sigma": [0.1, 0.2]}
+    )
+    kwargs = dict(
+        model=model,
+        cost_value=cost,
+        target_value=contribution,
+        target_column=target_column,
+        target_per_cost=target_per_cost,
+    )
+
+    names, model_coords = set(model.named_vars), dict(model.coords)
+    with pytest.raises(
+        ValueError, match=r"positive model-implied ratio.*initial point"
+    ):
+        add_cost_per_target_observations(
+            calibration_df, likelihood=Prior("LogNormal"), **kwargs
+        )
+    assert set(model.named_vars) == names
+    assert model.coords == model_coords
+    assert not model.observed_RVs
+
+    add_cost_per_target_observations(
+        calibration_df.iloc[[1]], likelihood=Prior("LogNormal"), **kwargs
+    )
+    assert "cpt_calibration" in {rv.name for rv in model.observed_RVs}
+    assert np.isfinite(model.compile_logp()(model.initial_point()))
+
+    add_cost_per_target_observations(
+        calibration_df, name_prefix="normal", likelihood=Prior("Normal"), **kwargs
+    )
+    assert "normal" in {rv.name for rv in model.observed_RVs}
 
 
 def test_add_cost_per_target_observations_missing_columns(dummy_mmm_model):
@@ -1117,10 +1310,21 @@ def test_add_cost_per_target_potentials_emits_deprecation_warning(dummy_mmm_mode
             cost_value=cost,
             target_value=target,
             name_prefix="cpt_calibration",
+            likelihood=Prior("LogNormal"),
         )
 
-    obs_names = [rv.name for rv in model.model.observed_RVs]
-    assert "cpt_calibration" in obs_names
+    observed = model.model["cpt_calibration"]
+    assert observed in model.model.observed_RVs
+    # The alias forwards `likelihood`: a LogNormal is centred on log(30 / 1).
+    logp = fast_eval(
+        pm.logp(
+            observed, as_xtensor(np.array([30.0, 45.0]), dims=("_cpt_calibration",))
+        )
+    )
+    expected = stats.lognorm.logpdf(
+        [30.0, 45.0], s=np.array([2.0, 3.0]) / np.array([30.0, 45.0]), scale=30.0
+    )
+    np.testing.assert_allclose(logp, expected, rtol=1e-6)
 
 
 @pytest.mark.parametrize("column", ["x", "delta_x", "delta_y", "sigma"])
@@ -1312,6 +1516,7 @@ def test_cost_per_target_preserves_numeric_string_conversion(dummy_mmm_model):
             "sigma": ["0.2"],
         }
     )
-    _, targets, sigmas = validate_cost_per_target_rows(frame, model)
+    _, targets, sigmas, likelihood = validate_cost_per_target_rows(frame, model)
     np.testing.assert_allclose(targets, [-2.0])
     np.testing.assert_allclose(sigmas, [0.2])
+    assert likelihood == Prior("Normal")
