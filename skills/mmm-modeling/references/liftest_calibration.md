@@ -196,7 +196,7 @@ mmm.add_lift_test_measurements(df_lift_test, likelihood=Prior("Gamma"))         
 
 - `StudentT` needs `nu`; it lets the model walk away from an experiment that may itself be wrong.
 - `Gamma` is only valid when every `delta_y` and `delta_x` in the table is strictly positive, and the model-implied lift must be positive as well: every free variable upstream of it needs a positive-support prior and the lift must be positive at the initial point. A spend decrease or a null result is refused under `Gamma` and accepted under the default `Normal`.
-- `mu`, `sigma`, `dims` and `transform` are refused inside the `Prior`: the model, the `sigma` column and the rows decide them. A `Prior`-valued `nu` adds a free variable named `{name}_nu`.
+- `StudentT`'s `nu` is the only parameter the `Prior` takes: the model, the `sigma` column and the rows decide the others, so they, `dims` (also inside `nu`), `transform` and `centered=False` are refused. A `Prior`-valued `nu` adds a free variable named `{name}_nu`.
 
 ## Geo-Level Lift Tests
 
@@ -242,28 +242,47 @@ calibration_data = pd.DataFrame({
     "sigma": [5.0, 3.0],               # its standard error, in the same units
 })
 
+# A second experiment, on another channel
+roas_data = pd.DataFrame({
+    "channel": ["search"],
+    "roas": [3.5],                     # ROAS read off a lift test
+    "sigma": [0.5],
+})
+
 mmm.build_model(X, y)
+# A CPA table: under the default Normal it is capped where an overstated
+# channel goes, so measure the error on the log scale.
 mmm.add_cost_per_target_calibration(
     data=X,                        # spend in original units, same layout as X
     calibration_data=calibration_data,
+    likelihood=Prior("LogNormal"),
 )
-mmm.fit(X=X, y=y, nuts_sampler="nutpie", target_accept=0.9, random_seed=rng)
-
-# ROAS table: value column of your choice, direction flipped
-roas_data = pd.DataFrame({"channel": ["tv"], "roas": [3.5], "sigma": [0.5]})
+# A ROAS read off a lift test: value column of your choice, direction
+# flipped, default Normal (the experiment's sampling model).
 mmm.add_cost_per_target_calibration(
     data=X,
     calibration_data=roas_data,
     name_prefix="roas_calibration",
     target_column="roas",
     target_per_cost=True,
-    likelihood=Prior("LogNormal"),
 )
+mmm.fit(X=X, y=y, nuts_sampler="nutpie", target_accept=0.9, random_seed=rng)
 ```
 
 The `calibration_data` DataFrame requires `channel`, the value column (`cost_per_target` by default, or `target_column`), `sigma`, plus one column per model dimension (e.g., `geo`). `sigma` is the standard error of the value in the table's units under every family.
 
-`likelihood` picks the family of the term; `Normal` is the default. A Normal on a ratio is capped on one side: its penalty tends to `t**2 / (2 * sigma**2)` as the ratio goes to zero (8 nats at `sigma = t / 4`), so a CPA table is a floor on ROAS but not a ceiling, and a ROAS table is the reverse. Once the sales likelihood gains more than the cap from inflating a channel, the calibration no longer holds it, and tightening `sigma` only raises the cap. `Prior("LogNormal")` measures the error on the log scale (`mu = log(ratio)`, `sigma / target` as the log-scale width), so a 2x miss costs the same in either direction and the penalty keeps growing; under it the table direction only decides how the table is written. `Prior("StudentT", nu=...)` caps lower on purpose, for an experiment that may itself be wrong. `LogNormal` requires positive values and a positive model ratio at the initial point (a channel with zero spend over the dates is refused). The family is saved with the model and restored on load.
+`likelihood` picks the family of the term; `Normal` is the default. A Normal on a ratio is capped on one side: its penalty tends to `t**2 / (2 * sigma**2)` as the ratio goes to zero (8 nats at `sigma = t / 4`), so a CPA table is a floor on ROAS but not a ceiling, and a ROAS table is the reverse. `Prior("LogNormal")` measures the error on the log scale (`mu = log(ratio)`, `sigma / target` as the log-scale width), so a 2x miss costs the same in either direction and the penalty keeps growing; under it the table direction only decides how the table is written. `Prior("StudentT", nu=...)` caps lower on purpose, for an experiment that may itself be wrong.
+
+Pick the family by the error the experiment reports:
+
+| Calibration value | Family |
+|---|---|
+| ROAS read off a lift test (Normal standard error on the incremental outcome, known spend) | `Normal` on a ROAS table (`target_per_cost=True`): it is the sampling model, and it pulls harder than `LogNormal` against an overstated channel |
+| CPA or cost per conversion | `LogNormal`: the CPA-table `Normal` is capped where an overstated channel goes |
+| Value reported with a relative, asymmetric or log-scale interval | `LogNormal`; a log-scale standard error `s` goes in as `sigma = s * target` |
+| Experiment you only partly trust | `StudentT` |
+
+`LogNormal`'s `sigma / target` width translates an additive standard error to first order, which is accurate while `sigma / target` is about 0.3 or less; at 0.5 it allows ratios from 0.38x to 2.66x the target where the Normal allows 0.02x to 1.98x. It requires positive values, and a positive mean spend and mean contribution for every calibrated row at the initial point (a channel with no spend over the dates is refused). The family is saved with the model and restored on load.
 
 Use the mean scale (`central_tendency="mean"`, the default) when the values come from an experiment; see the [ROAS calibration notebook](https://www.pymc-marketing.io/en/stable/notebooks/mmm/mmm_roas_calibration.html) for the full argument, including a comparison of the families on a confounded dataset.
 
