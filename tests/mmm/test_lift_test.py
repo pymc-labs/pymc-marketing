@@ -18,7 +18,7 @@ import pymc.dims as pmd
 import pytensor.tensor as pt
 import pytest
 from pymc.model_graph import fast_eval
-from pymc_extras.prior import Prior, Scaled
+from pymc_extras.prior import Censored, Prior, Scaled
 from pytensor.xtensor import as_xtensor
 from scipy import stats
 from sklearn.pipeline import Pipeline
@@ -236,6 +236,37 @@ def test_lift_likelihood_rejects_user_sigma_parameter() -> None:
             "Do not pass `dims` or arrays in `nu`",
         ),
         (Prior("StudentT", nu=-1), "`nu` must be a positive finite number"),
+        (
+            Prior("StudentT", nu=pt.constant(-2.0)),
+            "`nu` must be a positive finite number",
+        ),
+        (
+            Prior("StudentT", nu=Prior("Normal", mu=1, sigma=2)),
+            "a Normal prior on it can be negative",
+        ),
+        (
+            Prior("StudentT", nu=Scaled(Prior("StudentT", nu=3), factor=2.0)),
+            "a StudentT prior on it can be negative",
+        ),
+        (
+            Prior(
+                "StudentT",
+                nu=Scaled(Prior("Gamma", alpha=2, beta=1), factor=-1.0),
+            ),
+            "a Scaled prior with a negative factor on it can be negative",
+        ),
+        (
+            Prior("StudentT", nu=Prior("Uniform", lower=-5, upper=5)),
+            "a Uniform prior with a lower bound below zero",
+        ),
+        (
+            Prior("StudentT", nu=Prior("TruncatedNormal", mu=5, sigma=10, upper=9)),
+            "a TruncatedNormal prior with a lower bound below zero",
+        ),
+        (
+            Prior("StudentT", nu=Censored(Prior("Normal"), upper=1)),
+            "a Normal prior on it can be negative",
+        ),
     ],
 )
 def test_lift_likelihood_rejects_model_determined_parameters(
@@ -264,6 +295,88 @@ def test_lift_likelihood_rejects_model_determined_parameters(
         )
     assert set(model.named_vars) == names
     assert model.coords == coords
+
+
+@pytest.mark.parametrize(
+    "nu",
+    [
+        Prior("Gamma", alpha=2, beta=0.1),
+        Prior("HalfStudentT", nu=4, sigma=10),
+        Prior("Uniform", lower=1, upper=50),
+        Prior("TruncatedNormal", mu=5, sigma=10, lower=1),
+        Prior("Gamma", mu=Prior("HalfNormal", sigma=10), sigma=1),
+        Prior("Normal", mu=1, sigma=1, transform="exp"),
+        Censored(Prior("Normal", mu=5, sigma=2), lower=1),
+        Scaled(Prior("Gamma", alpha=2, beta=1), factor=2.0),
+    ],
+    ids=[
+        "gamma",
+        "halfstudentt",
+        "uniform",
+        "truncated-normal",
+        "hierarchical",
+        "exp-transform",
+        "censored-above-zero",
+        "scaled",
+    ],
+)
+def test_lift_likelihood_accepts_positive_nu_priors(nu: Prior) -> None:
+    """A ``nu`` prior that cannot go negative is accepted and sampled."""
+    with pm.Model(coords={"channel": ["one"]}) as model:
+        pmd.HalfNormal("beta", sigma=1.0, dims="channel")
+    lift = pd.DataFrame(
+        {
+            "channel": ["one"],
+            "x": [0.0],
+            "delta_x": [1.0],
+            "delta_y": [1.0],
+            "sigma": [0.5],
+        }
+    )
+    add_saturation_observations(
+        lift,
+        variable_mapping={"beta": "beta"},
+        saturation_function=lambda x, beta: beta * x,
+        model=model,
+        likelihood=Prior("StudentT", nu=nu),
+    )
+    assert "lift_measurements_nu" in model.named_vars
+    assert np.isfinite(model.compile_logp()(model.initial_point()))
+
+
+def test_lift_likelihood_transform_keeps_the_observed_density() -> None:
+    """A ``transform`` renames the observed variable and leaves its density alone.
+
+    Lift tests have accepted it since before the calibration likelihoods
+    became configurable, so records saved with one keep loading.
+    """
+    lift = pd.DataFrame(
+        {
+            "channel": ["one"],
+            "x": [1.0],
+            "delta_x": [0.2],
+            "delta_y": [0.3],
+            "sigma": [0.05],
+        }
+    )
+    logps = {}
+    for likelihood in (Prior("Normal"), Prior("Normal", transform="exp")):
+        with pm.Model(coords={"channel": ["one"]}) as model:
+            pmd.HalfNormal("beta", sigma=1.0, dims="channel")
+        add_saturation_observations(
+            lift,
+            variable_mapping={"beta": "beta"},
+            saturation_function=lambda x, beta: beta * x,
+            model=model,
+            likelihood=likelihood,
+        )
+        (observed,) = model.observed_RVs
+        point = {"beta_log__": np.array([0.7])}
+        logps[observed.name] = model.compile_logp()(point)
+    assert set(logps) == {"lift_measurements", "lift_measurements_raw"}
+    np.testing.assert_allclose(
+        logps["lift_measurements_raw"], logps["lift_measurements"], rtol=1e-12
+    )
 
 
 def test_student_t_likelihood_requires_degrees_of_freedom() -> None:
@@ -1080,6 +1193,16 @@ def _constant_cost_and_target(model, cost_level=30.0, target_level=1.0):
             "`nu` must be a positive finite number",
             id="nu-zero",
         ),
+        pytest.param(
+            Prior("StudentT", nu=pt.constant(-2.0)),
+            "`nu` must be a positive finite number",
+            id="nu-negative-tensor",
+        ),
+        pytest.param(
+            Prior("StudentT", nu=Prior("Normal", mu=1, sigma=2)),
+            "a Normal prior on it can be negative",
+            id="nu-real-line-prior",
+        ),
     ],
 )
 def test_add_cost_per_target_observations_refuses_bad_likelihood(
@@ -1164,6 +1287,48 @@ def test_add_cost_per_target_observations_lognormal_refuses_nonpositive_target(
         likelihood=Prior("Normal"),
     )
     assert "cpt_calibration" in {rv.name for rv in model.observed_RVs}
+
+
+def test_add_cost_per_target_observations_lognormal_floor_is_the_same_both_ways():
+    """A negative contribution gets a finite LogNormal penalty in either direction.
+
+    With a real-line channel prior the initial point can be positive and the
+    sampler still reach a negative contribution. Each mean is floored before
+    the log, so a CPA table and the ROAS table holding its reciprocals give
+    the same term there, as they do for positive contributions.
+    """
+    spend_values = np.array([[1.0, 2.0], [2.0, 3.0], [3.0, 4.0]])
+    logps = {}
+    for target_per_cost in (False, True):
+        with pm.Model(coords={"date": [0, 1, 2], "channel": ["a", "b"]}) as model:
+            pmd.Data("channel_data", spend_values, dims=("date", "channel"))
+            beta = pmd.Normal("beta", mu=1.0, sigma=1.0, dims="channel")
+        cost = as_xtensor(spend_values, dims=("date", "channel"))
+        column = "roas" if target_per_cost else "cost_per_target"
+        values = np.array([1.0, 2.0])
+        add_cost_per_target_observations(
+            pd.DataFrame(
+                {
+                    "channel": ["a", "b"],
+                    column: values if target_per_cost else 1 / values,
+                    "sigma": 0.1 * (values if target_per_cost else 1 / values),
+                }
+            ),
+            model=model,
+            cost_value=cost,
+            target_value=cost * beta,
+            target_column=column,
+            target_per_cost=target_per_cost,
+            likelihood=Prior("LogNormal"),
+        )
+        logp = model.compile_logp(vars=[model["cpt_calibration"]], sum=False)
+        logps[target_per_cost] = [
+            float(np.sum(logp({"beta": np.array([b, 1.0])})))
+            for b in (1.0, 0.001, -0.5)
+        ]
+    assert np.isfinite(logps[True]).all()
+    # The two tables differ by a constant (the log-Jacobian of the reciprocal).
+    np.testing.assert_allclose(np.diff(logps[False]), np.diff(logps[True]), rtol=1e-9)
 
 
 @pytest.mark.parametrize("target_per_cost", [False, True])

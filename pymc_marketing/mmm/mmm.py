@@ -235,11 +235,11 @@ from pymc_marketing.mmm.fourier import YearlyFourier
 from pymc_marketing.mmm.hsgp import HSGPBase
 from pymc_marketing.mmm.incrementality import Incrementality
 from pymc_marketing.mmm.lift_test import (
-    _COST_PER_TARGET_LIKELIHOODS,
     _LIFT_LIKELIHOODS,
     _add_cost_per_target_likelihood,
     _gather_cost_per_target_means,
     _resolve_likelihood,
+    _validate_cost_per_target_likelihood,
     _validate_likelihood_prior,
     _validate_positive_cost_per_target_means,
     add_lift_measurements_to_likelihood_from_saturation,
@@ -449,7 +449,7 @@ def _parse_cost_per_target_record(
         raise ValueError(f"likelihood: {error}") from error
     if not isinstance(likelihood, Prior):
         raise ValueError(f"likelihood must be a Prior, got {record['likelihood']!r}")
-    _validate_likelihood_prior(likelihood, _COST_PER_TARGET_LIKELIHOODS)
+    _validate_cost_per_target_likelihood(likelihood)
     rows = _calibration_frame_from_record(record)
     if missing := {"channel", "sigma", target_column, *dims} - set(rows.columns):
         raise ValueError(f"measurement rows lack columns {sorted(missing)}")
@@ -4456,8 +4456,10 @@ class MMM(RegressionModelBuilder):
             (for example ``lift_measurements_nu``) to the posterior. Lift
             estimates retain their signs. ``nu`` is the only parameter the
             ``Prior`` takes, since the lift data and model determine the
-            others; they, ``dims`` (on the ``Prior`` or inside ``nu``), a
-            ``transform`` and ``centered=False`` are rejected.
+            others; they, ``dims`` (on the ``Prior`` or inside ``nu``) and
+            ``centered=False`` are rejected, as is a ``nu`` that is a
+            non-positive constant or has a prior that can go negative. A ``transform``
+            only renames the observed variable to ``<name>_raw``.
         dist : pymc.dims.DimDistribution, optional
             Deprecated alias for selecting a distribution by class. Prefer a
             ``Prior`` passed to ``likelihood``.
@@ -4673,7 +4675,7 @@ class MMM(RegressionModelBuilder):
         ==============  =================  ================  ============  ==================================
         ``Normal``      :math:`r`          :math:`\sigma`    :math:`t`     capped at :math:`t^2 / (2\sigma^2)`
         ``StudentT``    :math:`r`          :math:`\sigma`    :math:`t`     capped lower; needs ``nu``
-        ``LogNormal``   :math:`\log r`     :math:`\sigma/t`  :math:`t`     unbounded, symmetric in :math:`r/t`
+        ``LogNormal``   :math:`\log r`     :math:`\sigma/t`  :math:`t`     grows as :math:`(\log(r/t))^2`
         ==============  =================  ================  ============  ==================================
 
         A ``Normal`` on a ratio is bounded on one side.  Its negative log
@@ -4699,26 +4701,38 @@ class MMM(RegressionModelBuilder):
         a spend the test knows, has an additive error: the ``Normal`` on a
         ROAS table is then the sampling model, it pulls harder than
         ``LogNormal`` against an overstated channel, and its cap as the ROAS
-        goes to zero is what the experiment says about zero.  ``LogNormal`` is
-        the model for a value reported with a relative, asymmetric or
-        log-scale interval; for a test-window value carried to the fitted
-        window by a multiplicative correction (see "Full window" below); and
-        for a CPA table, whose ``Normal`` is capped where an overstated
-        channel goes.  Its width :math:`\sigma / t` is the first-order
-        translation of the table's standard error into a relative one,
-        accurate while :math:`\sigma / t` is about 0.3 or less: at 0.5 the
-        ratios within 1.96 widths of the target run from :math:`0.38\,t` to
-        :math:`2.66\,t`, against :math:`0.02\,t` to :math:`1.98\,t` under the
-        ``Normal``.  A log-scale standard error :math:`s` is entered exactly
-        as :math:`\sigma = s\,t`.
+        goes to zero is what the experiment says about zero.  A CPA :math:`t`
+        from such a test has the same error on the ROAS scale, so invert it
+        to a ROAS :math:`1/t` with standard error :math:`\sigma / t^2` and
+        calibrate that with the ``Normal``; see the examples.  The
+        conversion is exact for the delta-method standard error of
+        :math:`\text{spend} / \Delta y` with :math:`\Delta y` Normal and the
+        spend known, and close while :math:`\sigma / t` is about 0.3 or less;
+        a CPA reported as bootstrap replicates or posterior draws is inverted
+        draw by draw (the mean and standard deviation of the reciprocals).
+        ``LogNormal`` is the model for a value reported with a relative,
+        asymmetric or log-scale interval, a CPA included, where a CPA-table
+        ``Normal`` would be capped on the side an overstated channel moves
+        toward.  Its width :math:`\sigma / t` is the first-order translation
+        of the table's standard error into a relative one, accurate while
+        :math:`\sigma / t` is about 0.3 or less: at 0.5 the ratios within 1.96
+        widths of the target run from :math:`0.38\,t` to :math:`2.66\,t`,
+        against :math:`0.02\,t` to :math:`1.98\,t` under the ``Normal``.  A
+        log-scale standard error :math:`s` is entered exactly as
+        :math:`\sigma = s\,t`.  ``LogNormal`` also assumes contributions that
+        stay positive, as positive-support channel priors keep them: each
+        mean is floored at :math:`10^{-12}` before the log, so the log-scale
+        penalty keeps growing until a mean reaches that floor, and a negative
+        contribution costs a large finite penalty with no gradient.
 
         Set ``target_per_cost=True`` to flip the ratio to
         ``mean(contribution) / mean(spend)``, which is ROAS when the target is
         revenue (or conversions per dollar when the target is conversions).
         Under ``Normal`` and ``StudentT`` the direction decides which side is
         capped (a ROAS table is a ceiling without a floor); under
-        ``LogNormal`` the two directions give the same term, so the flag only
-        says how the table is written.
+        ``LogNormal`` the two directions give the same term while the
+        contributions stay positive, so the flag only says how the table is
+        written.
 
         The numerator and denominator are meaned separately because the ratio of
         means is the definition of the aggregate cost-per-target (or ROAS) over
@@ -4792,7 +4806,8 @@ class MMM(RegressionModelBuilder):
 
             and one column per dimension in ``self.dims``.
         name_prefix : str
-            Prefix to use for generated potential names.
+            Name of the observed likelihood variable; its rows sit on the
+            ``_<name_prefix>`` coordinate.
         target_column : str
             Column in ``calibration_data`` holding the calibration values.
             Defaults to ``"cost_per_target"``.
@@ -4832,7 +4847,9 @@ class MMM(RegressionModelBuilder):
             ``Prior("StudentT", nu=...)`` and ``Prior("LogNormal")`` are the
             alternatives (see the table above). ``nu`` is the only parameter
             it takes: the others come from the model and the table, and they,
-            ``dims``, a ``transform`` and ``centered=False`` are refused. A
+            ``dims``, a ``transform`` and ``centered=False`` are refused.
+            ``nu`` must be positive: a non-positive constant, or a prior that
+            can go negative (``Normal``, ``StudentT``, ...), is refused. A
             Prior-valued ``nu`` (without dims) adds a free variable named
             ``{name_prefix}_nu`` to the posterior. The family is saved with
             the calibration record and restored by :meth:`load`.
@@ -4853,7 +4870,8 @@ class MMM(RegressionModelBuilder):
             ``likelihood`` sets any parameter other than ``StudentT``'s
             ``nu``, ``dims``, a ``transform`` or ``centered=False``, is a
             ``StudentT`` without ``nu`` or with a ``nu`` that carries dims or
-            is not a positive number, or is not one of the three families;
+            arrays, is a non-positive constant or a prior that can go
+            negative, or is not one of the three families;
             if ``target_column`` is ``"channel"``, ``"sigma"`` or a model dim;
             if ``name_prefix`` is the name of the increment node or of any
             model variable other than a prior calibration with that prefix;
@@ -4888,7 +4906,9 @@ class MMM(RegressionModelBuilder):
 
         Examples
         --------
-        Build a model and calibrate CPT for selected (dims, channel):
+        Build a model and calibrate CPT for selected (dims, channel) with the
+        default ``Normal``, which reads ``sigma`` as an additive error on the
+        CPA scale:
 
         .. code-block:: python
 
@@ -4935,9 +4955,27 @@ class MMM(RegressionModelBuilder):
                 target_per_cost=True,
             )
 
-        For a CPA table, measure the error on the log scale instead, so that
-        the pull keeps growing however far the channel's ROAS moves from the
-        experiment:
+        A CPA from a lift test is calibrated as the ROAS it inverts to, with
+        the default ``Normal``:
+
+        .. code-block:: python
+
+            cpa = calibration_df["cost_per_target"]
+            roas_from_cpa = calibration_df.assign(
+                roas=1 / cpa, sigma=calibration_df["sigma"] / cpa**2
+            )
+
+            mmm.add_cost_per_target_calibration(
+                data=spend_df,
+                calibration_data=roas_from_cpa,
+                name_prefix="cpa_as_roas",
+                target_column="roas",
+                target_per_cost=True,
+            )
+
+        For a CPA reported with a relative or log-scale interval, measure the
+        error on the log scale instead, so that the pull keeps growing however
+        far the channel's ROAS moves from the experiment:
 
         .. code-block:: python
 
@@ -5102,7 +5140,9 @@ class MMM(RegressionModelBuilder):
         # ratio at the initial point, so that check runs on the unregistered
         # increment and a refused call leaves no node behind. The likelihood
         # is then built on the registered node, so every calibration depends
-        # on it.
+        # on it. These are the steps of add_cost_per_target_observations with
+        # the registration in between; a new family-specific check belongs in
+        # both places.
         cost_value = as_xtensor(spend_xarray)
         increment = self._channel_increment()
         if likelihood.distribution == "LogNormal":

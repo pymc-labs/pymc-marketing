@@ -9389,6 +9389,8 @@ def _cpt_record(**overrides):
         _cpt_record(likelihood={"dist": "Garbage"}),
         _cpt_record(likelihood="x"),
         _cpt_record(likelihood={"dist": "Gamma"}),
+        _cpt_record(likelihood={"dist": "Normal", "transform": "exp"}),
+        _cpt_record(likelihood=Prior("StudentT", nu=Prior("Normal")).to_dict()),
     ],
     ids=[
         "dict",
@@ -9402,6 +9404,8 @@ def _cpt_record(**overrides):
         "unknown-likelihood",
         "non-prior-likelihood",
         "unsupported-likelihood",
+        "transformed-likelihood",
+        "real-line-nu",
     ],
 )
 def test_cost_per_target_persistence_rejects_malformed_metadata(
@@ -9418,10 +9422,25 @@ def test_cost_per_target_persistence_rejects_malformed_metadata(
         MMM.load_from_idata(idata)
 
 
+_LIFT_ROW = pd.DataFrame(
+    {
+        "geo": ["001"],
+        "channel": ["zeta"],
+        "x": [1.0],
+        "delta_x": [1.0],
+        "delta_y": [0.5],
+        "sigma": [0.3],
+    }
+)
+
+
 @pytest.mark.parametrize(
     "likelihood",
-    [Prior("StudentT", nu=4, centered=False), Prior("Normal", transform="log")],
-    ids=["non-centered", "transform"],
+    [
+        Prior("StudentT", nu=4, centered=False),
+        Prior("StudentT", nu=Prior("Normal", mu=5, sigma=1)),
+    ],
+    ids=["non-centered", "real-line-nu"],
 )
 def test_lift_test_persistence_names_a_refused_saved_likelihood(
     mock_pymc_sample, likelihood
@@ -9433,19 +9452,7 @@ def test_lift_test_persistence_names_a_refused_saved_likelihood(
     passed.
     """
     mmm, X, y, _, _ = _cpt_persistence_inputs()
-    mmm.add_lift_test_measurements(
-        pd.DataFrame(
-            {
-                "geo": ["001"],
-                "channel": ["zeta"],
-                "x": [1.0],
-                "delta_x": [1.0],
-                "delta_y": [0.5],
-                "sigma": [0.3],
-            }
-        ),
-        name="lift_external",
-    )
+    mmm.add_lift_test_measurements(_LIFT_ROW, name="lift_external")
     mmm.fit(X, y)
     idata = copy.deepcopy(mmm.idata)
     records = json.loads(idata.attrs["lift_test_calibrations"])
@@ -9457,6 +9464,24 @@ def test_lift_test_persistence_names_a_refused_saved_likelihood(
         r"lift_test_calibrations",
     ):
         MMM.load_from_idata(idata)
+
+
+def test_lift_test_persistence_restores_a_transformed_likelihood(
+    mock_pymc_sample, tmp_path
+):
+    """A lift likelihood with a ``transform`` saves and loads with its density.
+
+    Files saved before the calibration likelihoods became configurable can
+    hold one; it only renames the observed variable to ``<name>_raw``.
+    """
+    mmm, X, y, _, _ = _cpt_persistence_inputs()
+    mmm.add_lift_test_measurements(
+        _LIFT_ROW, likelihood=Prior("Normal", transform="exp"), name="lift_external"
+    )
+    assert "lift_external_raw" in {rv.name for rv in mmm.model.observed_RVs}
+    mmm.fit(X, y)
+    loaded = _assert_cpt_roundtrip(mmm, str(tmp_path / "lift_transform.nc"))
+    assert "lift_external_raw" in {rv.name for rv in loaded.model.observed_RVs}
 
 
 def test_cost_per_target_persistence_missing_spend_group_warns(
