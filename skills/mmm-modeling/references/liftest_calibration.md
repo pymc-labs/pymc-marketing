@@ -177,15 +177,31 @@ axes[1].set_title("Adstock Alpha")
 
 ## How It Works Internally
 
-The `add_lift_test_measurements()` method adds a Gamma likelihood that constrains the saturation curve:
+By default, `add_lift_test_measurements()` adds a signed Normal likelihood. The observation is the signed `delta_y`, and `sigma` comes from the data column:
 
 ```
-saturation(x + delta_x) - saturation(x) ~ Gamma(mu=delta_y, sigma=sigma)
+delta_y ~ Normal(
+    mu=saturation(x + delta_x) - saturation(x),
+    sigma=sigma,
+)
 ```
 
-This means: the model's predicted incremental effect of changing spend from `x` to `x + delta_x` must be consistent with the experimentally observed lift `delta_y`, within uncertainty `sigma`.
+The mean is the model's predicted change from spend `x` to `x + delta_x`. It must agree with the observed lift within `sigma`. That lift may be negative, so a spend decrease is accepted under the default. With time-varying media, the saturation difference is multiplied by `media_temporal_latent_multiplier` at the experiment date.
 
-The Gamma distribution is used because lift effects are non-negative (more spend should not decrease the target).
+`Prior("Gamma")` is opt-in. It is not the default, and non-negativity is not why the method exists. Pass it explicitly, and only when every `delta_y` and every `delta_x` is strictly positive. A spend decrease is refused under Gamma and accepted under the default Normal. Gamma is also refused when an upstream saturation parameter is not a positive-support distribution, or when the model-implied lift is not positive at the model's initial point. Hierarchical or time-varying saturation can fail that check because those terms may include real-line effects.
+
+```python
+from pymc_extras.prior import Prior
+
+mmm.add_lift_test_measurements(df_lift_test)  # signed Normal
+mmm.add_lift_test_measurements(
+    df_positive_lifts,
+    name="gamma_lift_measurements",
+    likelihood=Prior("Gamma"),
+)
+```
+
+`Prior("StudentT", nu=...)` is the other explicit real-valued option and also accepts signed lifts. Supported likelihoods are `Normal`, `StudentT`, and `Gamma`. Do not pass `sigma`, `mu`, or `dims` on the likelihood: scale, mean, and row dimension come from the lift data and the model.
 
 ## Geo-Level Lift Tests
 
