@@ -2470,9 +2470,10 @@ class MMM(RegressionModelBuilder):
         xr.DataTree
             Inference data of the fitted model.
         """
-        # A refit replaces the posterior and can move its coordinate labels, which
-        # the shared bindings of the evaluators and sweeps would refuse; build both
-        # against it from scratch.
+        # A refit replaces the posterior.  Both caches are dropped so nothing
+        # built on the previous fit stays alive.  A sweep would rebind or rebuild
+        # against the new posterior anyway, so for sweeps this only frees the
+        # compiled functions and the draws of the previous fit.
         self._clear_incrementality_evaluator_cache()
         self._clear_sensitivity_sweep_cache()
         if hasattr(self, "model") and self._target_is_placeholder:
@@ -2601,7 +2602,9 @@ class MMM(RegressionModelBuilder):
             )
 
         """
-        # A rebuild replaces the graph every compiled evaluator and sweep was built from, so none is reusable.
+        # A rebuild replaces the graph every compiled evaluator was built from.
+        # A sweep entry would detect the new model and rebuild against it, so it is
+        # dropped only to free its compiled function and the old model's buffers.
         self._clear_incrementality_evaluator_cache()
         self._clear_sensitivity_sweep_cache()
         # Calibration rows belong to a particular graph. A rebuild creates a
@@ -3992,7 +3995,8 @@ class MMM(RegressionModelBuilder):
         access shares it, one cache per model, and the model is not part of the
         key.  Replacing a data buffer with ``pm.set_data`` rebuilds the
         affected entry; writing into a data buffer in place is not detected,
-        the same as for the incrementality evaluator.  A model that cannot be
+        the same as for the incrementality evaluator, and neither is a change to
+        the model's coords that leaves its buffers in place.  A model that cannot be
         cloned compiles on every call.  Rebuilding or refitting the model
         drops that cache.
 
@@ -4036,8 +4040,9 @@ class MMM(RegressionModelBuilder):
         """Return the cache of compiled incrementality evaluators, creating it on first use.
 
         Every :class:`~pymc_marketing.mmm.incrementality.Incrementality` built on
-        this model shares it.  It is never serialized, starts empty on a deep
-        copy (a shallow copy shares it, as it shares the PyMC model), and
+        this model shares it.  The cache pickles and copies as an empty cache, so it
+        starts empty on a deep copy (a shallow copy shares it, as it shares the
+        PyMC model), and
         :meth:`_clear_incrementality_evaluator_cache` drops it.  Creation
         goes through ``dict.setdefault``, so two threads making the first call
         at once still share one cache.
@@ -4059,11 +4064,11 @@ class MMM(RegressionModelBuilder):
         """Return the cache of compiled sensitivity sweeps, creating it on first use.
 
         Every :class:`~pymc_marketing.mmm.sensitivity_analysis.SensitivityAnalysis`
-        built on this model shares it.  Its entries are never serialized, so it starts empty on a
-        deep copy (a shallow copy shares it, as it shares the PyMC model), and
-        :meth:`_clear_sensitivity_sweep_cache` drops it.  Creation goes through
-        ``dict.setdefault``, so two threads making the first call at once still
-        share one cache.
+        built on this model shares it.  The cache pickles and copies as an empty
+        cache, so it starts empty on a deep copy of the MMM (a shallow copy shares
+        it, as it shares the PyMC model), and :meth:`_clear_sensitivity_sweep_cache` drops it.
+        Creation goes through ``dict.setdefault``, so two threads making the
+        first call at once still share one cache.
         """
         cache = self.__dict__.get(_SWEEP_CACHE_ATTR)
         if cache is None:
@@ -4073,9 +4078,10 @@ class MMM(RegressionModelBuilder):
     def _clear_sensitivity_sweep_cache(self) -> None:
         """Drop every compiled sensitivity sweep.
 
-        A rebuild or refit invalidates the compiled graphs and the fit-time
-        values they were built against.  A later sensitivity call then compiles
-        a fresh sweep.
+        Correctness does not depend on this: an entry detects a rebuilt model and
+        rebuilds against it, and a refit's changed posterior is rebound or makes the
+        entry rebuild.  Dropping the cache frees the compiled functions and the
+        draws of the previous fit; a later sensitivity call compiles a fresh sweep.
         """
         self.__dict__.pop(_SWEEP_CACHE_ATTR, None)
 
@@ -4923,9 +4929,10 @@ class MMM(RegressionModelBuilder):
             mmm.build_from_idata(idata)
 
         """
-        # The rebuild below replaces the graph every compiled evaluator and sweep
-        # was built from.  Clear both up front so a failure before it cannot leave
-        # them behind (build_model clears both caches again).
+        # The rebuild below replaces the model graph every compiled evaluator was
+        # built from.  A sweep would rebuild against the new model; both caches are
+        # cleared up front so a failure before the rebuild cannot leave them behind
+        # (build_model clears both again).
         self._clear_incrementality_evaluator_cache()
         self._clear_sensitivity_sweep_cache()
         self.idata = idata

@@ -62,29 +62,30 @@ PyTensor-compatible transformation will work the same way.
 
     sa = SensitivityAnalysis(m, idata)
     sweeps = np.linspace(0.2, 3.0, 8)
-    # Jacobian-based marginal effects with respect to the input; shape: (sample, sweep, channel)
+    # Response summed over `date`; shape: (sample, sweep, channel)
     result = sa.run_sweep(
         sweep_values=sweeps,
         var_input="channel_data",
         var_names="channel_contribution",
         sweep_type="multiplicative",
     )
-    # Optional (backwards-compatibility): returns `result` unchanged because `run_sweep`
-    # already yields marginal effects. Kept to avoid breaking older code.
-    me = SensitivityAnalysis.compute_marginal_effects(result, sweeps)
+    # Marginal effects: the derivative of the response with respect to the sweep
+    # grid.
+    marginal_effects = sa.compute_marginal_effects(result)
 
 Notes
 -----
 - Arbitrary models: As long as the response graph depends (directly or indirectly)
   on the `pm.Data` provided via `var_input`, and you pass the name of the
-  deterministic/response via `var_names`, the class builds the Jacobian and
-  evaluates it across sweeps automatically.
-- Multi-dimensional inputs: If `var_input` has dims like `(date, country, channel)`,
-  the output shape is `(sample, sweep, country, channel)`. You can subset with
-  `var_names_filter={"country": ["usa"], "channel": ["a", "b"]}`.
+  deterministic/response via `var_names`, the class evaluates the response graph
+  across the sweep grid automatically.
+- Multi-dimensional responses: If the response has dims like
+  `(date, country, channel)`, the output shape is
+  `(sample, sweep, country, channel)`.
 - Sweep types: `"multiplicative"`, `"additive"`, and `"absolute"` are supported.
-- To persist results, pass `extend_idata=True` to store them under
-  `idata.sensitivity_analysis`.
+- To persist results, pass `extend_idata=True` to `run_sweep` to store them under
+  `idata.sensitivity_analysis`.  `compute_marginal_effects(..., extend_idata=True)`
+  adds to that group, so it needs an earlier `run_sweep(..., extend_idata=True)`.
 """
 
 import math
@@ -117,14 +118,19 @@ class SensitivityAnalysis:
     """Run counterfactual sweeps over a fitted model's response.
 
     The compiled-sweep cache belongs to the owning MMM when the instance comes
-    from :attr:`MMM.sensitivity`: every access shares one cache, one per model.
+    from :attr:`~pymc_marketing.mmm.mmm.MMM.sensitivity`: every access shares
+    one cache, one per model.
     A separately constructed instance keeps a private cache.  The cache key
     describes the sweep graph only; the source model is checked separately.
     Replacing a data buffer with ``pm.set_data`` rebuilds the affected entry;
     writing into a data buffer in place is not detected, the same as for the
     incrementality evaluator, and neither is a change to the source model's
     coords that leaves its buffers in place.  Rebuilding or refitting the model
-    clears the cache.
+    clears the cache an :class:`~pymc_marketing.mmm.mmm.MMM` owns; a private
+    cache instead detects the new model and rebuilds its entries.
+
+    ``dims`` is accepted for backwards compatibility and ignored: the response's
+    own dims decide the output axes.
     """
 
     def __init__(
@@ -144,9 +150,12 @@ class SensitivityAnalysis:
         idata : xr.DataTree
             Fitted inference data holding the posterior draws.
         dims : tuple of str, default ()
-            Extra non-date dims of the model, in order.
+            Accepted for backwards compatibility and ignored.  The response's
+            own dims decide the output axes, so passing the model's extra dims
+            here is harmless but unnecessary.
         _cache : SweepCache, optional
-            Internal cache supplied by :attr:`MMM.sensitivity`.  Without one
+            Internal cache supplied by
+            :attr:`~pymc_marketing.mmm.mmm.MMM.sensitivity`.  Without one
             the instance keeps a private cache, so repeated calls on the
             instance compile once.
         """
@@ -523,30 +532,31 @@ class SensitivityAnalysis:
             If extend_idata is False, returns an xarray.DataArray with shape
             ``(sample, sweep, *response_dims)``, where ``response_dims`` are the
             non-date dims of ``var_names`` in model order.  The response is
-            averaged over the `date` axis as in the draft example. If
-            extend_idata is True, stores the result under
-            `idata.sensitivity_analysis` and returns None.
+            summed over the `date` axis. If extend_idata is True, stores the
+            result under `idata.sensitivity_analysis` and returns None.
 
         Raises
         ------
         KeyError
-            If the posterior in ``idata`` lacks a posterior variable the model reads.
+            If ``var_names`` is not in the model, or ``idata`` lacks a posterior
+            variable the response reads.
         ValueError
             If ``posterior_sample_fraction`` is outside ``(0, 1]``.
-            If ``var_names`` has no named dimensions, or its dimensions do not
-            include ``date``.
-            If the posterior in ``idata`` no longer matches the model's
-            posterior variables in their non-sample dimension names or
-            lengths, for example after assigning a different posterior to
-            ``mmm.idata``.  Coordinate labels are not refused: labels that
-            permute the model's own are realigned by label, while renamed or
-            unlabeled coords are bound by position, rebuilding a cached entry
-            that was built on another layout so a warm cache answers what an
-            empty one would.  The number of draws may change.  Values are cast
-            to the dtype the model expects.  A model that cannot be cloned uses
-            the per-call path, which realigns a permuted posterior by label
-            like the cached path and binds renamed or unlabeled coords by
-            position in the same way.
+            If ``var_names`` has no named dimensions, or no ``date`` dimension.
+            If ``response_mask`` does not match the response's dimensions.
+            If the posterior cannot be evaluated by the model, for example one
+            with a different number of channels than the model has.
+        TypeError
+            If ``response_mask`` cannot be cast to boolean.
+
+        Notes
+        -----
+        The posterior in ``idata`` may be replaced between calls, for example by
+        assigning ``mmm.idata``.  A posterior stored in another order of the
+        model's own labels is realigned by label; renamed or unlabeled coords are
+        bound by position.  The number of draws may change, and values are cast
+        to the dtype the model expects.  A call answers what an empty cache
+        would answer, whether or not it reuses a compiled sweep.
         """
         response = self.model[var_names]
         response_dims = getattr(response, "dims", None)
@@ -649,11 +659,21 @@ class SensitivityAnalysis:
         ----------
         results : xr.DataArray
             The output from ``run_sweep``.
+        extend_idata : bool, default False
+            When ``True``, the effects are also stored under
+            ``idata.sensitivity_analysis["marginal_effects"]``.
 
         Returns
         -------
         xr.DataArray
-            The input ``results`` unchanged.
+            The derivative of ``results`` with respect to the ``sweep`` grid.
+
+        Raises
+        ------
+        ValueError
+            If ``extend_idata`` is ``True`` and ``idata`` has no
+            ``sensitivity_analysis`` group yet; ``run_sweep(...,
+            extend_idata=True)`` creates it.
         """
         xr_result = results.differentiate(coord=SWEEP_DIM)
         if extend_idata:

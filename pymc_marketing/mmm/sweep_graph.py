@@ -188,9 +188,10 @@ def compose_sweep(
 class SweepEntry:
     """One compiled sweep graph, conditioned on its own clone of the model.
 
-    The entry holds the clone, so a rebind cannot touch another entry's draws,
-    and whether the compiled function takes a response mask alongside the sweep
-    grid.  The sweep values and the mask values stay plain function arguments.
+    The entry holds the clone, so a rebind cannot touch another entry's draws.
+    It also records whether the compiled function takes a response mask
+    alongside the sweep grid.  The sweep values and the mask values stay plain
+    function arguments.
 
     Parameters
     ----------

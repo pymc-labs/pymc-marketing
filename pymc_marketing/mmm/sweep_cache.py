@@ -43,8 +43,8 @@ class SweepCache(LeasedLRUCache[SweepCacheKey, SweepEntry]):
     :class:`~pymc_marketing.mmm.sensitivity_analysis.SensitivityAnalysis`
     reached through ``mmm.sensitivity`` leases from it, so one cache serves one
     model.  The cache is bounded so a model cannot pin an unbounded number of
-    compiled functions, and it is never serialized because compiled functions
-    only make sense in-process.
+    compiled functions, and it pickles and copies as an empty cache because
+    compiled functions only make sense in-process.
 
     A call leases an entry for its duration: :meth:`lease` takes the entry out
     of the cache and the call returns it in a ``finally``.  Concurrent calls on
@@ -62,7 +62,8 @@ class SweepCache(LeasedLRUCache[SweepCacheKey, SweepEntry]):
 
     A model PyMC cannot clone is remembered, so later calls go straight to the
     per-call path instead of retrying the clone.  The memory is keyed by model
-    identity and dropped when the model is, and it is never serialized.
+    identity and dropped when the model is; a pickle or a copy starts without
+    it.
 
     Parameters
     ----------

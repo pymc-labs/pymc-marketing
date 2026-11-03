@@ -86,10 +86,11 @@ class Lease[V]:
     def discard(self) -> None:
         """Drop the entry instead of returning it to the cache.
 
-        An entry that cannot answer this request was built for another
-        structure, so keeping it would make every later request fail the same
-        way.  A later :meth:`release` is a no-op; the caller builds a fresh
-        entry in place of this one.
+        Use it for an entry that must not serve later requests, such as one
+        built for another structure, which would make every later request fail
+        the same way.  An entry that failed only because of this request's
+        arguments should be released instead.  A later :meth:`release` is a
+        no-op; the caller builds a fresh entry in place of this one.
         """
         self._released = True
 
@@ -100,7 +101,7 @@ class LeasedLRUCache[K, V]:
     A cache takes an entry out with its own ``lease`` method and the request
     returns it in a ``finally``, so this class only stores entries and bounds
     how many are kept.  The lock guards the dictionary bookkeeping, never an
-    evaluation.  A cache is never serialized with its entries, because compiled
+    evaluation.  A cache pickles and copies as an empty cache, because compiled
     functions only make sense in-process; the bound is kept across a pickle or
     a deepcopy.
 

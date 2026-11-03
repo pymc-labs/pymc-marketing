@@ -112,8 +112,8 @@ class EvaluatorCache(LeasedLRUCache[EvaluatorCacheKey, "CounterfactualEvaluator"
 
     A fitted MMM keeps one so its ``Incrementality`` objects reuse compiled evaluators, keyed by graph shape and
     dataset, so repeated questions pay one compile.
-    The cache is bounded so a model cannot pin an unbounded number of compiled functions, and it is never serialized
-    because compiled functions only make sense in-process.
+    The cache is bounded so a model cannot pin an unbounded number of compiled functions, and it pickles and copies
+    as an empty cache because compiled functions only make sense in-process.
     A request leases an evaluator for its duration: :meth:`lease` takes the entry out of the cache and the request
     returns it in a ``finally``.  Concurrent requests on one model never share the shared draws an evaluator
     is rebound to -- one of them misses the cache and compiles or leases its own -- and no request waits on another.

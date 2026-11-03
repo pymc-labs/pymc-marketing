@@ -1318,6 +1318,11 @@ class ConditionedModel:
         If ``intervention`` is given and :func:`pymc.do` cannot apply it.
     ValueError
         If ``intervention`` is given and :func:`pymc.do` cannot apply it.
+    KeyError
+        If ``intervention`` names a variable that is not in the model.
+    TypeError
+        If a replacement in ``intervention`` has a type :func:`pymc.do` cannot
+        use.
 
     Notes
     -----
