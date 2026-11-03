@@ -186,17 +186,17 @@ delta_y ~ Normal(
 )
 ```
 
-The mean is the model's predicted change from spend `x` to `x + delta_x`. It must agree with the observed lift within `sigma`. That lift may be negative, so a spend decrease is accepted under the default. With time-varying media, the saturation difference is multiplied by `media_temporal_latent_multiplier` at the experiment date.
+The mean is the model's predicted change from spend `x` to `x + delta_x`. It must agree with the observed lift within `sigma`. The signs of `delta_x` and `delta_y` are independent. A negative `delta_y` is accepted under the default even when spend increased. A negative `delta_x` is accepted under the default even when `delta_y` is positive. With time-varying media, the saturation difference is multiplied by `media_temporal_latent_multiplier` at the experiment date.
 
-`Prior("Gamma")` is opt-in. It is not the default, and non-negativity is not why the method exists. Pass it explicitly, and only when every `delta_y` and every `delta_x` is strictly positive. A spend decrease is refused under Gamma and accepted under the default Normal. Gamma is also refused when an upstream saturation parameter is not a positive-support distribution, or when the model-implied lift is not positive at the model's initial point. Hierarchical or time-varying saturation can fail that check because those terms may include real-line effects.
+`Prior("Gamma")` is opt-in. It is not the default, and non-negativity is not why the method exists. Pass it explicitly only when every `delta_x` and every `delta_y` is strictly positive. Gamma refuses the call if any value in either column is not strictly positive, including a spend decrease or a negative observed lift. The default Normal accepts both. Gamma is also refused when an upstream saturation parameter is not a positive-support distribution, or when the model-implied lift is not positive at the model's initial point. Hierarchical or time-varying saturation can fail that check because those terms may include real-line effects.
+
+The call below is the alternative to omitting `likelihood`. It is not a second calibration. Do not add both for the same rows: each call adds a likelihood term, so a second call counts those experiments again.
 
 ```python
 from pymc_extras.prior import Prior
 
-mmm.add_lift_test_measurements(df_lift_test)  # signed Normal
 mmm.add_lift_test_measurements(
-    df_positive_lifts,
-    name="gamma_lift_measurements",
+    df_lift_test,
     likelihood=Prior("Gamma"),
 )
 ```
