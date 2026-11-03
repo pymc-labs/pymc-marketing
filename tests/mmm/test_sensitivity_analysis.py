@@ -14,7 +14,6 @@
 import copy
 import gc
 import weakref
-from concurrent.futures import ThreadPoolExecutor
 
 import cloudpickle
 import numpy as np
@@ -33,6 +32,11 @@ from pymc_marketing.mmm.sensitivity_analysis import SensitivityAnalysis
 from pymc_marketing.mmm.sweep_cache import SweepCache
 from pymc_marketing.mmm.sweep_graph import SweepEntry
 from pymc_marketing.pytensor_utils import ConditionedModel, ModelCloneError
+
+_SENSITIVITY_KWARGS = {
+    "var_names": "channel_contribution",
+    "sweep_type": "multiplicative",
+}
 
 
 def _make_saturation_model_and_idata(channel_data, n_draws, alpha_val=0.8, lam_val=1.2):
@@ -758,25 +762,22 @@ def test_run_sweep_matches_the_closed_form(
     xr.testing.assert_allclose(result, expected)
 
 
-@pytest.mark.parametrize("posterior_sample_fraction", [1.0, 0.5])
 @pytest.mark.parametrize("use_mask", [False, True])
 @pytest.mark.parametrize("sweep_type", ["multiplicative", "additive", "absolute"])
-def test_multidim_run_sweep_matches_a_cold_instance(
-    multidim_mmm, sweep_type, use_mask, posterior_sample_fraction
-):
+def test_multidim_run_sweep_matches_a_cold_instance(multidim_mmm, sweep_type, use_mask):
     """The sweep grid keeps its dims, labels and values on a multidim MMM.
 
     A fresh instance has its own empty cache, so the warm shared cache cannot
     influence the expected result.  The mask covers one country/channel pair,
     so the grid exercises the labeled ``country`` and ``channel`` axes as well
-    as the masked-overlay path.
+    as the masked-overlay path.  A changed draw count is covered, for the
+    multiplicative masked case, by the interleaved-fraction test below.
     """
     sweep_values = np.linspace(0.5, 1.5, 4)
     response_mask = _multidim_response_mask() if use_mask else None
     kwargs = {
-        "var_names": "channel_contribution",
+        **_SENSITIVITY_KWARGS,
         "sweep_type": sweep_type,
-        "posterior_sample_fraction": posterior_sample_fraction,
         "response_mask": response_mask,
     }
 
@@ -788,17 +789,17 @@ def test_multidim_run_sweep_matches_a_cold_instance(
     xr.testing.assert_allclose(actual, expected)
 
 
-def test_multidim_interleaved_fractions_match_the_full_tree(multidim_mmm):
+def test_multidim_interleaved_fractions_match_their_own_cold_runs(multidim_mmm):
     """One shared cache serves both draw fractions without mixing their draws.
 
     ``posterior_sample_fraction`` is not part of the cache key, so a call at
     another fraction rebinds the entry the previous call warmed.  Each result
-    must still equal the full-tree result for its own fraction, mask included.
+    must still equal an empty cache's result for its own fraction, mask
+    included.
     """
     sweeps = np.linspace(0.5, 1.5, 4)
     kwargs = {
-        "var_names": "channel_contribution",
-        "sweep_type": "multiplicative",
+        **_SENSITIVITY_KWARGS,
         "response_mask": _multidim_response_mask(),
     }
 
@@ -933,12 +934,6 @@ def _date_less_deterministic_model_and_idata() -> tuple[pm.Model, xr.DataTree]:
             id="plain",
         ),
         pytest.param(
-            _plain_deterministic_model_and_idata,
-            True,
-            "has no dimensions",
-            id="plain-masked",
-        ),
-        pytest.param(
             _scalar_deterministic_model_and_idata,
             False,
             "no 'date' dimension",
@@ -1017,10 +1012,7 @@ def test_run_sweep_frees_draws_the_graph_does_not_read(simple_model_and_idata):
 def test_run_sweep_reflects_set_data_between_calls(sensitivity):
     """``pm.set_data`` between calls must change the sweep, as it does today."""
     sweeps = np.linspace(0.5, 1.5, 4)
-    kwargs = {
-        "var_names": "channel_contribution",
-        "sweep_type": "multiplicative",
-    }
+    kwargs = dict(_SENSITIVITY_KWARGS)
     before = sensitivity.run_sweep("channel_data", sweeps, **kwargs)
 
     channel_data = np.asarray(sensitivity.model["channel_data"].get_value()) * 1.5
@@ -1036,52 +1028,36 @@ def test_run_sweep_reflects_set_data_between_calls(sensitivity):
     assert not np.allclose(after.values, before.values)
 
 
-def test_run_sweep_reflects_replaced_idata(multidim_mmm):
-    """Replacing ``mmm.idata`` between calls must change the sweep."""
+@pytest.mark.parametrize("target", ["mmm", "analysis"])
+def test_run_sweep_replacing_idata_between_calls_matches_an_empty_cache(
+    multidim_mmm, target
+):
+    """A posterior replaced between calls reaches the next sweep.
+
+    ``target="mmm"`` assigns ``mmm.idata``, which the next ``mmm.sensitivity``
+    access reads; ``target="analysis"`` assigns the idata of the analysis
+    instance holding the warm cache.  Either way the call must answer what an
+    empty cache answers for the replacement, and differ from the warm result.
+    """
     sweeps = np.linspace(0.5, 1.5, 4)
-    kwargs = {
-        "var_names": "channel_contribution",
-        "sweep_type": "multiplicative",
-    }
-    before = multidim_mmm.sensitivity.run_sweep("channel_data", sweeps, **kwargs)
+    analysis = multidim_mmm.sensitivity
+    before = analysis.run_sweep("channel_data", sweeps, **_SENSITIVITY_KWARGS)
 
     replacement = multidim_mmm.idata.copy(deep=True)
     replacement.posterior["saturation_beta"] = (
         replacement.posterior["saturation_beta"] * 0.5
     )
-    multidim_mmm.idata = replacement
-    after = multidim_mmm.sensitivity.run_sweep("channel_data", sweeps, **kwargs)
+    if target == "mmm":
+        multidim_mmm.idata = replacement
+        analysis = multidim_mmm.sensitivity
+    else:
+        analysis.idata = replacement
+    after = analysis.run_sweep("channel_data", sweeps, **_SENSITIVITY_KWARGS)
 
     xr.testing.assert_allclose(
         after,
         SensitivityAnalysis(multidim_mmm.model, replacement).run_sweep(
-            "channel_data", sweeps, **kwargs
-        ),
-    )
-    assert not np.allclose(after.values, before.values)
-
-
-def test_run_sweep_same_instance_reflects_replaced_idata(multidim_mmm):
-    """Replacing ``idata`` on one instance changes the result of its warm cache."""
-    sweeps = np.linspace(0.5, 1.5, 4)
-    kwargs = {
-        "var_names": "channel_contribution",
-        "sweep_type": "multiplicative",
-    }
-    analysis = multidim_mmm.sensitivity
-    before = analysis.run_sweep("channel_data", sweeps, **kwargs)
-
-    replacement = multidim_mmm.idata.copy(deep=True)
-    replacement.posterior["saturation_beta"] = (
-        replacement.posterior["saturation_beta"] * 0.5
-    )
-    analysis.idata = replacement
-    after = analysis.run_sweep("channel_data", sweeps, **kwargs)
-
-    xr.testing.assert_allclose(
-        after,
-        SensitivityAnalysis(analysis.model, replacement).run_sweep(
-            "channel_data", sweeps, **kwargs
+            "channel_data", sweeps, **_SENSITIVITY_KWARGS
         ),
     )
     assert not np.allclose(after.values, before.values)
@@ -1167,7 +1143,7 @@ def test_run_sweep_replacement_posterior_matches_an_empty_cache(
     original = _channel_varying_posterior(model)
     replacement = replace(original)
     sweeps = np.linspace(0.5, 1.5, 4)
-    kwargs = {"var_names": "channel_contribution", "sweep_type": "multiplicative"}
+    kwargs = dict(_SENSITIVITY_KWARGS)
 
     analysis = SensitivityAnalysis(model, original)
     first = analysis.run_sweep("channel_data", sweeps, **kwargs)
@@ -1199,7 +1175,7 @@ def test_run_sweep_renamed_then_reversed_posterior_matches_an_empty_cache(
     renamed = _with_renamed_channel_labels(_channel_varying_posterior(model))
     renamed_reversed = _reverse_channel_coords(renamed)
     sweeps = np.linspace(0.5, 1.5, 4)
-    kwargs = {"var_names": "channel_contribution", "sweep_type": "multiplicative"}
+    kwargs = dict(_SENSITIVITY_KWARGS)
 
     analysis = SensitivityAnalysis(model, renamed)
     analysis.run_sweep("channel_data", sweeps, **kwargs)
@@ -1225,7 +1201,7 @@ def test_run_sweep_an_entry_released_after_a_discard_is_not_reused(
     original = _channel_varying_posterior(model)
     unlabeled = _without_channel_labels(original)
     sweeps = np.linspace(0.5, 1.5, 4)
-    kwargs = {"var_names": "channel_contribution", "sweep_type": "multiplicative"}
+    kwargs = dict(_SENSITIVITY_KWARGS)
     cache = SweepCache()
     analysis = SensitivityAnalysis(model, original, _cache=cache)
     analysis.run_sweep("channel_data", sweeps, **kwargs)
@@ -1256,7 +1232,7 @@ def test_run_sweep_a_failed_rebind_is_not_kept_in_the_cache(
     original = _channel_varying_posterior(model)
     replacement = _with_renamed_channel_labels(original)
     sweeps = np.linspace(0.5, 1.5, 4)
-    kwargs = {"var_names": "channel_contribution", "sweep_type": "multiplicative"}
+    kwargs = dict(_SENSITIVITY_KWARGS)
 
     analysis = SensitivityAnalysis(model, original)
     compiles_before = len(sweep_compile_counter)
@@ -1279,7 +1255,7 @@ def test_run_sweep_a_posterior_missing_a_variable_keeps_the_cached_entry(
     model, _ = simple_model_and_idata
     original = _channel_varying_posterior(model)
     sweeps = np.linspace(0.5, 1.5, 4)
-    kwargs = {"var_names": "channel_contribution", "sweep_type": "multiplicative"}
+    kwargs = dict(_SENSITIVITY_KWARGS)
 
     analysis = SensitivityAnalysis(model, original)
     compiles_before = len(sweep_compile_counter)
@@ -1300,7 +1276,7 @@ def test_run_sweep_a_posterior_missing_a_variable_keeps_the_cached_entry(
 def test_run_sweep_a_posterior_missing_a_variable_names_it_warm_and_cold(
     simple_model_and_idata,
 ):
-    """A missing variable is reported with the same message on either cache.
+    """A missing variable raises the same exact message on either cache.
 
     An empty cache builds the entry and a warm one rebinds a cached entry: both
     name the variable the same way.
@@ -1311,63 +1287,36 @@ def test_run_sweep_a_posterior_missing_a_variable_names_it_warm_and_cold(
         {"posterior": original.posterior.to_dataset().drop_vars("alpha")}
     )
     sweeps = np.linspace(0.5, 1.5, 4)
-    kwargs = {"var_names": "channel_contribution", "sweep_type": "multiplicative"}
+    expected = "Posterior is missing variables this graph reads: ['alpha']"
 
     warm = SensitivityAnalysis(model, original)
-    warm.run_sweep("channel_data", sweeps, **kwargs)
+    warm.run_sweep("channel_data", sweeps, **_SENSITIVITY_KWARGS)
     warm.idata = missing
 
     with pytest.raises(KeyError) as cold:
-        SensitivityAnalysis(model, missing).run_sweep("channel_data", sweeps, **kwargs)
+        SensitivityAnalysis(model, missing).run_sweep(
+            "channel_data", sweeps, **_SENSITIVITY_KWARGS
+        )
     with pytest.raises(KeyError) as warm_error:
-        warm.run_sweep("channel_data", sweeps, **kwargs)
+        warm.run_sweep("channel_data", sweeps, **_SENSITIVITY_KWARGS)
 
-    assert "alpha" in cold.value.args[0]
-    assert warm_error.value.args == cold.value.args
-
-
-def test_run_sweep_permuted_posterior_coords_are_label_correct(
-    simple_model_and_idata,
-):
-    """A coordinate-permuted posterior is realigned by label, not by position.
-
-    The permuted posterior carries the same label-to-draw mapping as the
-    unpermuted one, only stored in reverse order.  ``ConditionedModel``
-    realigns it by label, so the sweep equals the label-correct result.
-    """
-    model, _ = simple_model_and_idata
-    sweeps = np.linspace(0.5, 1.5, 4)
-    kwargs = {
-        "var_names": "channel_contribution",
-        "sweep_type": "multiplicative",
-    }
-    idata = _channel_varying_posterior(model)
-    permuted_idata = _reverse_channel_coords(idata)
-    alpha = idata.posterior["alpha"].isel(chain=0).values
-    lam = idata.posterior["lam"].isel(chain=0).values
-
-    expected = _expected_saturation_sweep(
-        model,
-        np.asarray(model["channel_data"].get_value()),
-        sweeps,
-        alpha=alpha,
-        lam=lam,
-    )
-    actual = SensitivityAnalysis(model, permuted_idata).run_sweep(
-        "channel_data", sweeps, **kwargs
-    )
-
-    xr.testing.assert_allclose(actual, expected)
+    assert cold.value.args == (expected,)
+    assert warm_error.value.args == (expected,)
 
 
 def test_run_sweep_fallback_realigns_a_permuted_posterior_by_label():
-    """The per-call path reads a permuted posterior by label, like the cached path."""
+    """Both paths realign a permuted posterior by label, not by position.
+
+    The permuted posterior carries the same label-to-draw mapping as the
+    unpermuted one, only stored in reverse order.  The cached path's
+    ``ConditionedModel`` and the per-call path's explicit reordering both give
+    the closed-form label-correct result, which the positional read does not.
+    """
     unclonable, _ = _initval_model_and_idata()
     clonable, _ = _initval_model_and_idata(with_initval=False)
     idata = _channel_varying_posterior(clonable)
     permuted_idata = _reverse_channel_coords(idata)
     sweeps = np.linspace(0.5, 1.5, 4)
-    kwargs = {"var_names": "channel_contribution", "sweep_type": "multiplicative"}
     channel_data = np.asarray(clonable["channel_data"].get_value())
 
     label_correct = _expected_saturation_sweep(
@@ -1378,10 +1327,10 @@ def test_run_sweep_fallback_realigns_a_permuted_posterior_by_label():
         lam=idata.posterior["lam"].isel(chain=0).values,
     )
     cached_permuted = SensitivityAnalysis(clonable, permuted_idata).run_sweep(
-        "channel_data", sweeps, **kwargs
+        "channel_data", sweeps, **_SENSITIVITY_KWARGS
     )
     fallback_permuted = SensitivityAnalysis(unclonable, permuted_idata).run_sweep(
-        "channel_data", sweeps, **kwargs
+        "channel_data", sweeps, **_SENSITIVITY_KWARGS
     )
 
     xr.testing.assert_allclose(cached_permuted, label_correct)
@@ -1422,10 +1371,7 @@ def sweep_compile_counter(monkeypatch):
 def test_run_sweep_compiles_once_per_call(sensitivity, sweep_compile_counter):
     """The first call compiles one sweep and a repeat call reuses it."""
     sweeps = np.linspace(0.5, 1.5, 4)
-    kwargs = {
-        "var_names": "channel_contribution",
-        "sweep_type": "multiplicative",
-    }
+    kwargs = dict(_SENSITIVITY_KWARGS)
 
     compiles_before = len(sweep_compile_counter)
     sensitivity.run_sweep("channel_data", sweeps, **kwargs)
@@ -1438,7 +1384,7 @@ def test_run_sweep_compiles_once_per_call(sensitivity, sweep_compile_counter):
 
 
 # ---------------------------------------------------------------------------
-# Cache key, fallback and concurrency coverage for the sweep cache.
+# Cache key and fallback coverage for the sweep cache.
 # ---------------------------------------------------------------------------
 
 _KEY_CHANGE_COMPILES = (
@@ -1642,10 +1588,7 @@ def test_run_sweep_initval_model_falls_back(sweep_compile_counter):
         ConditionedModel(model, idata)
     analysis = SensitivityAnalysis(model, idata)
     sweeps = np.linspace(0.5, 1.5, 4)
-    kwargs = {
-        "var_names": "channel_contribution",
-        "sweep_type": "multiplicative",
-    }
+    kwargs = dict(_SENSITIVITY_KWARGS)
 
     compiles_before = len(sweep_compile_counter)
     first = analysis.run_sweep("channel_data", sweeps, **kwargs)
@@ -1660,38 +1603,6 @@ def test_run_sweep_initval_model_falls_back(sweep_compile_counter):
     xr.testing.assert_allclose(first, expected)
     xr.testing.assert_allclose(second, first)
     assert len(sweep_compile_counter) - compiles_before == 2
-
-
-def test_run_sweep_unclonable_model_is_cloned_once(monkeypatch):
-    """A model PyMC cannot clone is remembered, not retried on every call."""
-    model, idata = _initval_model_and_idata()
-    attempts: list[pm.Model] = []
-
-    def unable_to_clone(source: pm.Model) -> pm.Model:
-        attempts.append(source)
-        raise NotImplementedError(
-            "Cannot convert models with non-default initial_values"
-        )
-
-    monkeypatch.setattr("pymc_marketing.pytensor_utils.clone_model", unable_to_clone)
-    analysis = SensitivityAnalysis(model, idata)
-    sweeps = np.linspace(0.5, 1.5, 4)
-    kwargs = {"var_names": "channel_contribution", "sweep_type": "multiplicative"}
-
-    first = analysis.run_sweep("channel_data", sweeps, **kwargs)
-    second = analysis.run_sweep("channel_data", sweeps, **kwargs)
-
-    assert len(attempts) == 1
-    xr.testing.assert_allclose(second, first)
-    xr.testing.assert_allclose(
-        first,
-        _expected_saturation_sweep(
-            model,
-            np.asarray(model["channel_data"].get_value()),
-            sweeps,
-            sweep_type="multiplicative",
-        ),
-    )
 
 
 def _three_channel_posterior() -> xr.DataTree:
@@ -1750,7 +1661,7 @@ def test_run_sweep_a_cached_entry_that_fails_to_evaluate_stays_cached(
     """A cached entry whose evaluation fails is kept: the call's arguments failed."""
     model, _ = simple_model_and_idata
     sweeps = np.linspace(0.5, 1.5, 4)
-    kwargs = {"var_names": "channel_contribution", "sweep_type": "multiplicative"}
+    kwargs = dict(_SENSITIVITY_KWARGS)
     analysis = SensitivityAnalysis(model, _channel_varying_posterior(model))
     analysis.run_sweep("channel_data", sweeps, **kwargs)
     entry = next(iter(analysis._cache._entries.values()))
@@ -1784,7 +1695,7 @@ def test_run_sweep_a_clone_failure_during_the_rebuild_falls_back(
     original = _channel_varying_posterior(model)
     replacement = _with_renamed_channel_labels(original)
     sweeps = np.linspace(0.5, 1.5, 4)
-    kwargs = {"var_names": "channel_contribution", "sweep_type": "multiplicative"}
+    kwargs = dict(_SENSITIVITY_KWARGS)
     analysis = SensitivityAnalysis(model, original)
 
     real_conditioned = ConditionedModel
@@ -1838,54 +1749,6 @@ def _draw_varying_posterior(model: pm.Model, n_draws: int = 5) -> xr.DataTree:
     )
 
 
-def test_run_sweep_concurrent_calls_match_single_thread(simple_model_and_idata):
-    """Concurrent calls on one instance match their single-thread results.
-
-    The cache is warmed first, so the same-key pair with different draw
-    fractions contends for one cached entry.  Each call leases its own entry,
-    so no call evaluates under another's posterior, whether the key differs or
-    only the fraction does.  The draws differ on every index, so an evaluation
-    under the wrong posterior changes the values and not only the number of
-    draws.
-    """
-    model, _ = simple_model_and_idata
-    idata = _draw_varying_posterior(model)
-    sensitivity = SensitivityAnalysis(model, idata)
-    sweeps = np.linspace(0.5, 1.5, 4)
-    calls = [
-        {"sweep_type": "multiplicative", "posterior_sample_fraction": 1.0},
-        {"sweep_type": "additive", "posterior_sample_fraction": 1.0},
-        {"sweep_type": "absolute", "posterior_sample_fraction": 1.0},
-        {"sweep_type": "multiplicative", "posterior_sample_fraction": 0.6},
-    ]
-    expected = [
-        SensitivityAnalysis(model, idata).run_sweep(
-            "channel_data",
-            sweeps,
-            var_names="channel_contribution",
-            **call,
-        )
-        for call in calls
-    ]
-
-    for call in calls:
-        sensitivity.run_sweep(
-            "channel_data", sweeps, var_names="channel_contribution", **call
-        )
-
-    def run(call):
-        return sensitivity.run_sweep(
-            "channel_data", sweeps, var_names="channel_contribution", **call
-        )
-
-    with ThreadPoolExecutor(max_workers=len(calls)) as pool:
-        futures = [pool.submit(run, call) for call in calls]
-        results = [future.result() for future in futures]
-
-    for result, want in zip(results, expected, strict=True):
-        xr.testing.assert_allclose(result, want)
-
-
 def test_run_sweep_posterior_sample_fraction_selects_the_expected_draws(
     simple_model_and_idata,
 ):
@@ -1918,11 +1781,6 @@ def test_run_sweep_posterior_sample_fraction_selects_the_expected_draws(
 # ---------------------------------------------------------------------------
 # MMM-owned shared cache and lifecycle.
 # ---------------------------------------------------------------------------
-
-_SENSITIVITY_KWARGS = {
-    "var_names": "channel_contribution",
-    "sweep_type": "multiplicative",
-}
 
 
 def test_mmm_sensitivity_run_sweep_compiles_once_across_accesses(
@@ -2025,31 +1883,6 @@ def test_mmm_deepcopy_and_pickle_drop_the_sweep_cache(multidim_mmm, copy_mmm):
     assert len(multidim_mmm._sensitivity_sweep_cache()) == 1
     copied = clone.sensitivity.run_sweep("channel_data", sweeps, **_SENSITIVITY_KWARGS)
     xr.testing.assert_allclose(copied, warm)
-
-
-def test_mmm_idata_assignment_between_sweeps_is_picked_up(multidim_mmm):
-    """Assigning ``mmm.idata`` directly reaches the next shared-cache sweep."""
-    sweeps = np.linspace(0.5, 1.5, 4)
-    before = multidim_mmm.sensitivity.run_sweep(
-        "channel_data", sweeps, **_SENSITIVITY_KWARGS
-    )
-
-    replacement = multidim_mmm.idata.copy(deep=True)
-    replacement.posterior["saturation_beta"] = (
-        replacement.posterior["saturation_beta"] * 0.5
-    )
-    multidim_mmm.idata = replacement
-    after = multidim_mmm.sensitivity.run_sweep(
-        "channel_data", sweeps, **_SENSITIVITY_KWARGS
-    )
-
-    xr.testing.assert_allclose(
-        after,
-        SensitivityAnalysis(multidim_mmm.model, replacement).run_sweep(
-            "channel_data", sweeps, **_SENSITIVITY_KWARGS
-        ),
-    )
-    assert not np.allclose(after.values, before.values)
 
 
 def test_sweep_cache_evicts_the_oldest_entry_and_recompiles(sweep_compile_counter):

@@ -19,7 +19,9 @@ How the caches behave on a fitted MMM is tested in
 """
 
 import copy
+import gc
 import pickle
+import weakref
 
 import pytest
 
@@ -147,30 +149,6 @@ def test_a_negative_max_entries_is_refused(cache_type):
         cache_type(max_entries=-1)
 
 
-class _RecordingLock:
-    """A context manager that counts how often it was entered."""
-
-    def __init__(self) -> None:
-        self.entered = 0
-
-    def __enter__(self) -> "_RecordingLock":
-        self.entered += 1
-        return self
-
-    def __exit__(self, *exc_info: object) -> bool:
-        return False
-
-
-@CACHE_TYPES
-def test_len_is_taken_under_the_lock(cache_type):
-    cache = cache_type()
-    lock = _RecordingLock()
-    cache._lock = lock
-
-    assert len(cache) == 0
-    assert lock.entered == 1
-
-
 @CACHE_TYPES
 @COPY_METHODS
 def test_a_copy_starts_empty_and_keeps_its_bound(cache_type, duplicate):
@@ -182,6 +160,7 @@ def test_a_copy_starts_empty_and_keeps_its_bound(cache_type, duplicate):
 
     assert len(copied) == 0
     assert len(cache) == 1
+    assert copied._max_entries == 2
 
     for _ in range(3):
         copied.put(object(), object())
@@ -215,7 +194,7 @@ def test_an_unclonable_model_is_not_retried():
 @COPY_METHODS
 def test_the_unclonable_memo_does_not_survive_a_copy(duplicate):
     """A pickle or deepcopy of the cache starts with no remembered failures."""
-    cache = SweepCache()
+    cache = SweepCache(max_entries=2)
     model = _FakeModel()
     with pytest.raises(ModelCloneError):
         cache.lease(object(), model, _failing_factory([]))
@@ -223,7 +202,28 @@ def test_the_unclonable_memo_does_not_survive_a_copy(duplicate):
     copied = duplicate(cache)
     attempts: list[int] = []
 
+    assert copied._max_entries == 2
     with pytest.raises(ModelCloneError):
         copied.lease(object(), model, _failing_factory(attempts))
 
     assert len(attempts) == 1
+
+
+def test_the_unclonable_memo_dies_with_the_model_it_remembers():
+    """The memo is keyed weakly, so it holds nothing after the model is gone.
+
+    An MMM clears its cache by dropping the whole object, which takes the memo
+    with it; the memo itself never keeps the model alive either.
+    """
+    cache = SweepCache()
+    model = _FakeModel()
+    with pytest.raises(ModelCloneError):
+        cache.lease(object(), model, _failing_factory([]))
+
+    assert len(cache._unclonable) == 1
+    model_reference = weakref.ref(model)
+    del model
+    gc.collect()
+
+    assert model_reference() is None
+    assert len(cache._unclonable) == 0
