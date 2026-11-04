@@ -281,6 +281,26 @@ def test_baseline_innovation_sd_must_be_positive_and_finite(
         )
 
 
+@pytest.mark.parametrize("baseline_exog_prior_scale", [0.0, -1.0, np.nan, np.inf])
+def test_baseline_exog_prior_scale_must_be_positive_and_finite(
+    brand_mmm_data, baseline_exog_prior_scale
+):
+    with pytest.raises(ValidationError, match="baseline_exog_prior_scale"):
+        make_effect(
+            brand_mmm_data["brand_data"],
+            baseline_exog_prior_scale=baseline_exog_prior_scale,
+        )
+
+
+def test_var_lags_must_be_an_integer(brand_mmm_data):
+    """Impulso selects the lag order only when it fits a VAR on its own."""
+    with pytest.raises(
+        TypeError,
+        match=r"var\.lags must be an integer, got 'aic'.*lag selection cannot run",
+    ):
+        make_effect(brand_mmm_data["brand_data"], var=VAR(lags="aic", max_lags=4))
+
+
 @pytest.mark.parametrize(
     "brand_columns, effect_kwargs, match",
     [
@@ -718,21 +738,24 @@ def test_baseline_innovation_sd_prior_is_half_normal_below_u(
     "baseline_innovation_sd", [None, 0.1], ids=["from-target", "override"]
 )
 def test_exog_prior_scales_with_each_series(brand_mmm_data, baseline_innovation_sd):
-    """Each equation's exog prior sd is proportional to its series' scale.
+    """Each equation's exog prior sd is its scale entry times its series' scale.
 
-    Each brand metric's scale is its AR(1) residual sd, and the baseline's is the
-    target's, whatever ``baseline_innovation_sd`` is: U sets only the baseline's
-    innovation prior, ``HalfNormal(U / 1.96)``. So the ratios pin the scales the VAR
-    is built with, and overriding U moves the innovation prior but neither the
-    baseline's exog prior nor its Minnesota cross-lag prior, whose sd on brand metric
-    ``j``'s lag is its own-lag sd times the cross shrinkage times the baseline's scale
-    over ``j``'s.
+    It is divided by the sd of brand spend on the dates after the first lag, which
+    the likelihood sees. The baseline's entry is ``baseline_exog_prior_scale``, 1,
+    and the brand metrics keep ``var.exog_prior_scale``, Impulso's 100. Each brand
+    metric's scale is its AR(1) residual sd, and the baseline's is the target's,
+    whatever ``baseline_innovation_sd`` is: U sets only the baseline's innovation
+    prior, ``HalfNormal(U / 1.96)``. So overriding U moves the innovation prior but
+    neither the baseline's exog prior nor its Minnesota cross-lag prior, whose sd on
+    brand metric ``j``'s lag is its own-lag sd times the cross shrinkage times the
+    baseline's scale over ``j``'s.
     """
     brand_data = brand_mmm_data["brand_data"]
     target_scale = ar1_residual_sd(brand_mmm_data["y"].to_frame())[0]
     u = baseline_innovation_sd or target_scale
     observed_names = ENDOG_NAMES[1:]
     observed_scales = ar1_residual_sd(brand_data[observed_names])
+    exog_sd = brand_data["brand_spend"].iloc[1:].std()
     effect = make_effect(brand_data, baseline_innovation_sd=baseline_innovation_sd)
     draws = sample_prior(
         brand_mmm_data,
@@ -747,16 +770,87 @@ def test_exog_prior_scales_with_each_series(brand_mmm_data, baseline_innovation_
     own_lag_sd = prior[f"{PREFIX}::B"].sel(var="baseline", coeff="L1.baseline")
 
     assert_draws_follow(draws[f"{PREFIX}::sigma_sd_0"], stats.halfnorm(scale=u / 1.96))
+    np.testing.assert_allclose(sd.sel(var="baseline"), target_scale / exog_sd, rtol=0.1)
     np.testing.assert_allclose(
-        sd.sel(var="baseline") / sd.sel(var=observed_names),
-        target_scale / observed_scales,
-        rtol=0.1,
+        sd.sel(var=observed_names), 100 * observed_scales / exog_sd, rtol=0.1
     )
     np.testing.assert_allclose(
         cross_lag_sd / own_lag_sd,
         MinnesotaPrior().cross_shrinkage * target_scale / observed_scales,
         rtol=0.1,
     )
+
+
+def test_per_series_exog_prior_scale_is_used(brand_mmm_data):
+    """One that starts with ``baseline_exog_prior_scale`` scales each equation."""
+    brand_data = brand_mmm_data["brand_data"]
+    scales = [
+        ar1_residual_sd(brand_mmm_data["y"].to_frame())[0],
+        *ar1_residual_sd(brand_data[ENDOG_NAMES[1:]]),
+    ]
+    spec = VAR(lags=1, exog_prior_scale=(0.5, 50.0, 20.0))
+    effect = make_effect(brand_data, var=spec, baseline_exog_prior_scale=0.5)
+
+    B_exog = sample_prior(brand_mmm_data, effect, [f"{PREFIX}::B_exog"])[
+        f"{PREFIX}::B_exog"
+    ]
+
+    np.testing.assert_allclose(
+        B_exog.std(("chain", "draw")).sel(exog="brand_spend"),
+        np.array([0.5, 50.0, 20.0]) * scales / brand_data["brand_spend"].iloc[1:].std(),
+        rtol=0.1,
+    )
+    assert effect.var is spec
+
+
+@pytest.mark.parametrize(
+    "exog_prior_scale, baseline_exog_prior_scale",
+    [
+        pytest.param((100.0, 100.0, 100.0), 1.0, id="default-baseline-scale"),
+        pytest.param((1.0, 50.0, 20.0), 0.5, id="set-baseline-scale"),
+    ],
+)
+def test_exog_prior_scale_for_the_baseline_raises_at_construction(
+    brand_mmm_data, exog_prior_scale, baseline_exog_prior_scale
+):
+    """The effect sets the baseline's entry, so the analyst's must not differ."""
+    spec = VAR(lags=1, exog_prior_scale=exog_prior_scale)
+
+    with pytest.raises(
+        ValueError,
+        match=rf"exog_prior_scale \({exog_prior_scale[0]}, .*sets the baseline's "
+        rf"entry.*baseline_exog_prior_scale, which is {baseline_exog_prior_scale}",
+    ):
+        make_effect(
+            brand_mmm_data["brand_data"],
+            var=spec,
+            baseline_exog_prior_scale=baseline_exog_prior_scale,
+        )
+
+
+def test_prior_predictive_baseline_is_on_the_targets_scale(long_brand_mmm_data):
+    """Prior-predictive baselines stay within a few of the target's sds.
+
+    Over 2,000 prior draws on the 150 weeks, the largest absolute value of the
+    baseline over the dates has a median of 1.5 of the target's sds (1.1, with an sd
+    of 0.73) and a 90% quantile of 2.9 (2.1). With Impulso's exog prior scale of 100
+    on the baseline's equation they are 99 and 245 sds (72 and 179), so the bounds of
+    2 and 5 sds separate the two scales by more than an order of magnitude.
+    """
+    data = long_brand_mmm_data
+    mmm = make_mmm(make_effect(data["brand_data"]))
+    mmm.build_model(data["X"], data["y"])
+
+    latent = pm.sample_prior_predictive(
+        draws=2000,
+        var_names=[f"{PREFIX}::latent"],
+        model=mmm.model,
+        random_seed=seed,
+    ).prior[f"{PREFIX}::latent"]
+
+    peak = np.abs(latent.to_numpy()[..., 0]).max(axis=-1)
+    assert np.median(peak) < 2 * data["y"].std()
+    assert np.quantile(peak, 0.9) < 5 * data["y"].std()
 
 
 @pytest.mark.parametrize(

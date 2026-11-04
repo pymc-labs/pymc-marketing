@@ -249,7 +249,9 @@ class VARBaselineEffect(MuEffect):
     ``baseline_own_lag_mean`` rather than the Minnesota prior's random walk.
 
     The baseline responds to the centered brand metrics and exogenous inputs, so the
-    MMM's intercept absorbs the brand's average effect. When a brand metric that
+    MMM's intercept absorbs the brand's average effect. The prior on its exogenous
+    coefficients has its own scale, ``baseline_exog_prior_scale``, which by default
+    keeps prior-predictive baselines on the target's scale. When a brand metric that
     raises sales, such as consideration, is below its mean, as between brand
     flights, it pushes the baseline below zero. The ``{prefix}_effect`` column of
     ``mmm.compute_mean_contributions_over_time()`` is therefore a deviation, not the
@@ -335,6 +337,16 @@ class VARBaselineEffect(MuEffect):
         ``InnovationScalePrior(family="halfcauchy", scale=sigma_sd_beta)``, which the
         effect replaces, or construction raises. The brand metrics keep their
         entries, or Impulso's default when there are none.
+    baseline_exog_prior_scale : float, default 1.0
+        Scale of the prior on the baseline's exogenous coefficients, in the units of
+        ``VAR.exog_prior_scale``: one prior standard deviation of a coefficient moves
+        the baseline by this many of the target's AR(1) residual standard deviations
+        when the input moves by one of its own. The default, 1, keeps
+        prior-predictive baselines on the target's scale; Impulso's default of 100
+        is meant for observed series. The analyst's ``var.exog_prior_scale`` applies
+        to the brand metrics' equations. It must be positive and finite. A
+        per-series ``exog_prior_scale`` must start with this value, or construction
+        raises.
 
     Notes
     -----
@@ -372,12 +384,18 @@ class VARBaselineEffect(MuEffect):
     take their scale from the target, and so does the start of the baseline's path
     unless the target does not vary.
 
-    The brand metrics' likelihood and the constraint that keeps the baseline
-    stationary are potentials, which prior and posterior predictive sampling ignore.
-    Prior predictive baseline paths therefore come from the untruncated prior and can
-    explode, and the brand metrics are never drawn. Posterior predictive sampling
-    warns that it ignores them, which is harmless here: it draws from the posterior,
-    which the potentials shaped.
+    The brand metrics' likelihood is a potential, which prior and posterior
+    predictive sampling ignore, so the brand metrics are never drawn. With
+    ``lags=1`` the baseline's own lag has a prior truncated to the stationary
+    region, so prior-predictive baselines are stationary. For ``lags > 1`` the
+    constraint that keeps the baseline stationary is a potential too, so
+    prior-predictive baselines come from the untruncated prior. With the default
+    tightness the own lag stays far inside the stationary region, so this matters
+    only for a loose ``tightness`` or an own-lag mean near 1. The size of
+    prior-predictive baselines is set by ``baseline_exog_prior_scale`` and
+    ``baseline_innovation_sd``. Posterior predictive sampling warns that it ignores
+    the potentials, which is harmless: it draws from the posterior, which they
+    shaped.
 
     PyMC's NUTS sampler and nutpie work with any ``lags``, and so do
     ``nuts_sampler="numpyro"`` and ``nuts_sampler="blackjax"`` with ``lags=1``. With
@@ -465,6 +483,7 @@ class VARBaselineEffect(MuEffect):
     var: Any
     baseline_own_lag_mean: float = Field(0.0, gt=-1, lt=1)
     baseline_innovation_sd: float | None = Field(None, gt=0, allow_inf_nan=False)
+    baseline_exog_prior_scale: float = Field(1.0, gt=0, allow_inf_nan=False)
 
     @field_validator("brand_data")
     @classmethod
@@ -536,15 +555,18 @@ class VARBaselineEffect(MuEffect):
         Raises
         ------
         TypeError
-            If ``var`` is not an Impulso ``VAR`` specification, if its prior is not a
-            ``MinnesotaPrior``, or if it does not load back as it was saved.
+            If ``var`` is not an Impulso ``VAR`` specification, if its ``lags`` is not
+            an integer, if its prior is not a ``MinnesotaPrior``, or if it does not
+            load back as it was saved.
         ValueError
             If ``endog_names`` does not start with ``baseline_name`` or has nothing
             after it, if ``baseline_name`` is a column of ``brand_data``, if a name
             appears more than once across ``endog_names`` and ``exog_names``, if a
             column named in them is missing from ``brand_data`` or is not numeric, if
             ``var``'s prior has a per-series ``own_lag_mean`` whose first entry is not
-            ``baseline_own_lag_mean``, or if its volatility has
+            ``baseline_own_lag_mean``, if ``var`` has a per-series
+            ``exog_prior_scale`` whose first entry is not
+            ``baseline_exog_prior_scale``, or if its volatility has
             ``innovation_scale_priors`` whose first entry is not Impulso's default.
         """
         self._check_var()
@@ -559,14 +581,20 @@ class VARBaselineEffect(MuEffect):
         Raises
         ------
         TypeError
-            If ``var`` is not an Impulso ``VAR`` specification, if its prior is not a
-            ``MinnesotaPrior``, or if it does not load back as it was saved.
+            If ``var`` is not an Impulso ``VAR`` specification, if its ``lags`` is not
+            an integer, if its prior is not a ``MinnesotaPrior``, or if it does not
+            load back as it was saved.
         """
         impulso = _import_impulso()
         if not isinstance(self.var, impulso.VAR):
             raise TypeError(
                 "var must be an impulso.VAR specification, "
                 f"got {type(self.var).__name__}."
+            )
+        if not isinstance(self.var.lags, int):
+            raise TypeError(
+                f"var.lags must be an integer, got {self.var.lags!r}: the effect builds "
+                "the VAR inside the MMM, where Impulso's lag selection cannot run."
             )
         prior = self.var.resolved_prior
         if not isinstance(prior, impulso.MinnesotaPrior):
@@ -1331,9 +1359,10 @@ class VARBaselineEffect(MuEffect):
         """Check that ``var`` leaves the baseline's prior entries to the effect.
 
         The effect sets the baseline's entry, the first, of the Minnesota prior's
-        ``own_lag_mean`` from ``baseline_own_lag_mean``, and of a ``Constant``
-        volatility's ``innovation_scale_priors`` from U. A per-series
-        ``own_lag_mean`` must therefore start with ``baseline_own_lag_mean``, and
+        ``own_lag_mean`` from ``baseline_own_lag_mean``, of ``exog_prior_scale`` from
+        ``baseline_exog_prior_scale``, and of a ``Constant`` volatility's
+        ``innovation_scale_priors`` from U. A per-series ``own_lag_mean`` or
+        ``exog_prior_scale`` must therefore start with the effect's value, and
         ``innovation_scale_priors`` with Impulso's default, which the effect
         replaces.
 
@@ -1341,7 +1370,9 @@ class VARBaselineEffect(MuEffect):
         ------
         ValueError
             If ``var``'s prior has a per-series ``own_lag_mean`` whose first entry is
-            not ``baseline_own_lag_mean``, or if its volatility has
+            not ``baseline_own_lag_mean``, if ``var`` has a per-series
+            ``exog_prior_scale`` whose first entry is not
+            ``baseline_exog_prior_scale``, or if its volatility has
             ``innovation_scale_priors`` whose first entry is not Impulso's default,
             ``InnovationScalePrior(family="halfcauchy", scale=sigma_sd_beta)``.
         """
@@ -1354,6 +1385,16 @@ class VARBaselineEffect(MuEffect):
                 "baseline's entry, the first, from baseline_own_lag_mean, which is "
                 f"{baseline_mean}. Set baseline_own_lag_mean to the baseline's prior "
                 "mean, and give the same value as the first entry."
+            )
+
+        exog_scale = self.var.exog_prior_scale
+        baseline_exog_scale = self.baseline_exog_prior_scale
+        if isinstance(exog_scale, tuple) and exog_scale[:1] != (baseline_exog_scale,):
+            raise ValueError(
+                f"var has exog_prior_scale {exog_scale}, but the effect sets the "
+                "baseline's entry, the first, from baseline_exog_prior_scale, which is "
+                f"{baseline_exog_scale}. Set baseline_exog_prior_scale to the "
+                "baseline's scale, and give the same value as the first entry."
             )
 
         volatility = self.var.resolved_volatility
@@ -1373,15 +1414,17 @@ class VARBaselineEffect(MuEffect):
             )
 
     def _build_spec(self, baseline_scale: float) -> "VAR":
-        """Return ``var`` with the baseline's own-lag mean and innovation prior set.
+        """Return ``var`` with the baseline's prior entries set.
 
         A scalar ``own_lag_mean`` of the Minnesota prior becomes one entry per
         series, with ``baseline_own_lag_mean`` as the baseline's. A per-series one
-        already starts with it, as construction checks. The baseline's
-        innovation-scale prior, the first entry of a ``Constant`` volatility's
-        ``innovation_scale_priors``, becomes the half-normal whose 95th percentile
-        is U. Any other volatility is used unchanged, and Impulso refuses it when
-        building.
+        already starts with it, as construction checks. ``exog_prior_scale`` becomes
+        one entry per series, ``baseline_exog_prior_scale`` and then the analyst's
+        scale for each brand metric, or the rest of their per-series one. The
+        baseline's innovation-scale prior, the first entry of a ``Constant``
+        volatility's ``innovation_scale_priors``, becomes the half-normal whose 95th
+        percentile is U. Any other volatility is used unchanged, and Impulso refuses
+        it when building.
 
         Parameters
         ----------
@@ -1403,6 +1446,14 @@ class VARBaselineEffect(MuEffect):
             update["prior"] = prior.model_copy(
                 update={"own_lag_mean": (self.baseline_own_lag_mean, *observed_means)}
             )
+
+        exog_scale = self.var.exog_prior_scale
+        observed_scales = (
+            exog_scale[1:]
+            if isinstance(exog_scale, tuple)
+            else (exog_scale,) * n_observed
+        )
+        update["exog_prior_scale"] = (self.baseline_exog_prior_scale, *observed_scales)
 
         volatility = self.var.resolved_volatility
         if isinstance(volatility, impulso.Constant):
