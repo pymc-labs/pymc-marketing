@@ -332,16 +332,110 @@ def test_baseline_innovation_sd_must_be_positive_and_finite(
             r"\['consideration'\] appear more than once in endog_names and exog_names",
             id="endog-and-exog",
         ),
+        pytest.param(
+            {0: 1.0},
+            {},
+            r"Column names \[0\] of brand_data are not strings",
+            id="integer-column-name",
+        ),
+        pytest.param(
+            {"date": lambda df: df["date"].dt.tz_localize("UTC")},
+            {},
+            r"Columns \['date'\] of brand_data hold time-zone-aware dates: drop the "
+            r"time zone with \.dt\.tz_localize\(None\)",
+            id="time-zone-aware-dates",
+        ),
+        pytest.param(
+            {
+                "source": lambda df: pd.Series(
+                    ["survey", 1, 2.5] * 10, index=df.index, dtype=object
+                )
+            },
+            {},
+            r"Object columns of brand_data must hold only strings and missing values.*"
+            r"'source' holds float, int",
+            id="mixed-object",
+        ),
     ],
 )
 def test_bad_brand_data_raises_at_construction(
     brand_mmm_data, brand_columns, effect_kwargs, match
 ):
-    """Construction checks the names and columns; the values are checked at build."""
-    brand_data = brand_mmm_data["brand_data"].assign(**brand_columns)
+    """Construction checks the names and columns; the values are checked at build.
+
+    Every column must be one that saving the MMM can store, used by the VAR or not.
+    """
+    brand_data = brand_mmm_data["brand_data"].copy()
+    for name, column in brand_columns.items():
+        brand_data[name] = column(brand_data) if callable(column) else column
 
     with pytest.raises(ValueError, match=match):
         make_effect(brand_data, **effect_kwargs)
+
+
+@pytest.mark.parametrize(
+    "arrange, dtypes",
+    [
+        pytest.param(
+            lambda df: df.astype({"awareness": "Float64"}),
+            {"awareness": "float64"},
+            id="Float64",
+        ),
+        pytest.param(
+            lambda df: df.assign(
+                wave=pd.array([0.5, None, *[1.0] * 28], dtype="Float64")
+            ),
+            {"wave": "float64"},
+            id="Float64-with-missing",
+        ),
+        pytest.param(
+            lambda df: df.astype({"brand_spend": "Int64"}),
+            {"brand_spend": "int64"},
+            id="Int64",
+        ),
+        pytest.param(
+            lambda df: df.assign(
+                panel=pd.array([True, False, None, *[True] * 27], dtype="boolean")
+            ),
+            {"panel": "float64"},
+            id="boolean",
+        ),
+        pytest.param(
+            lambda df: df.assign(consideration=pd.Categorical(df["consideration"])),
+            {"consideration": "float64"},
+            id="categorical",
+        ),
+        pytest.param(
+            lambda df: df.convert_dtypes(),
+            {
+                "awareness": "float64",
+                "consideration": "float64",
+                "brand_spend": "int64",
+            },
+            id="convert-dtypes",
+        ),
+    ],
+)
+def test_brand_data_saving_could_not_store_is_converted(
+    brand_mmm_data, tmp_path, arrange, dtypes
+):
+    """Nullable and categorical columns become NumPy columns, with the same values.
+
+    So the fitted MMM saves and loads, and gives the same fitted VAR after loading.
+    """
+    brand_data = arrange(brand_mmm_data["brand_data"])
+    effect = make_effect(brand_data)
+    mmm = fit_mmm(brand_mmm_data, effect)
+    mmm.save(str(tmp_path / "mmm.nc"))
+
+    loaded = MMM.load(str(tmp_path / "mmm.nc"))
+
+    pd.testing.assert_frame_equal(effect.brand_data, brand_data.astype(dtypes))
+    loaded_effect = loaded.mu_effects[0]
+    pd.testing.assert_frame_equal(loaded_effect.brand_data, effect.brand_data)
+    np.testing.assert_array_equal(
+        loaded_effect.fitted_var(loaded).data.endog, effect.fitted_var(mmm).data.endog
+    )
 
 
 def test_brand_data_is_copied_at_construction(brand_mmm_data):
@@ -887,10 +981,12 @@ def test_brand_data_off_the_mmm_dates_is_not_checked(
         ),
         pytest.param(
             "date",
-            lambda df: df.assign(date=df["date"].dt.tz_localize("UTC")),
-            rf"'{PREFIX}'.*brand_data's dates are time-zone aware and the MMM's are "
-            r"naive.*\.dt\.tz_localize\(None\)",
-            id="time-zone-aware",
+            lambda df: df.assign(
+                date=df["date"].dt.tz_localize("UTC").dt.strftime("%Y-%m-%dT%H:%M%z")
+            ),
+            rf"'{PREFIX}'.*brand_data's dates are time-zone aware, but the MMM stores "
+            r"naive dates; drop the time zone with \.dt\.tz_localize\(None\)",
+            id="time-zone-aware-text",
         ),
         pytest.param(
             "date",

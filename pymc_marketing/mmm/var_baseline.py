@@ -20,6 +20,7 @@ used, so PyMC-Marketing imports without it.
 """
 
 from collections import Counter
+from collections.abc import Hashable
 from importlib import metadata
 from types import ModuleType
 from typing import TYPE_CHECKING, Any, cast
@@ -143,6 +144,43 @@ def _uncenter(
     return posterior.assign(intercept=intercept.transpose("chain", "draw", "var"))
 
 
+def _numpy_column(column: pd.Series) -> pd.Series:
+    """Return ``column`` with a categorical or nullable dtype made a NumPy one.
+
+    A categorical column takes its categories' dtype, or ``float64`` when it has a
+    missing value that integer or boolean categories cannot hold. A nullable numeric
+    or boolean column takes ``float64`` when it has a missing value or holds floats,
+    and its NumPy dtype otherwise. Any other column is returned as it is.
+
+    Parameters
+    ----------
+    column : pd.Series
+        A column of ``brand_data``.
+
+    Returns
+    -------
+    pd.Series
+        The column, with a dtype netCDF can store if it had one of these.
+    """
+    dtype = column.dtype
+    if isinstance(dtype, pd.CategoricalDtype):
+        categories = dtype.categories.dtype
+        if column.isna().any() and (
+            pd.api.types.is_integer_dtype(categories)
+            or pd.api.types.is_bool_dtype(categories)
+        ):
+            return column.astype("float64")
+        column = column.astype(categories)
+        dtype = column.dtype
+    if isinstance(dtype, pd.api.extensions.ExtensionDtype) and (
+        pd.api.types.is_numeric_dtype(dtype) or pd.api.types.is_bool_dtype(dtype)
+    ):
+        if column.isna().any() or pd.api.types.is_float_dtype(dtype):
+            return column.astype("float64")
+        return column.astype(column.to_numpy().dtype)
+    return column
+
+
 def _format_dates(dates: pd.DatetimeIndex, limit: int = 5) -> str:
     """Return the first ``limit`` dates, and how many more there are, for a message.
 
@@ -225,13 +263,15 @@ class VARBaselineEffect(MuEffect):
     brand_data : pd.DataFrame
         The brand metrics and exogenous inputs, with the MMM's date column. Rows are
         matched to the MMM's dates on that column, so they can be in any order and
-        cover other dates too. Construction checks only that the columns named in
-        ``endog_names`` and ``exog_names`` exist and are numeric. Building the MMM
-        checks that, on the MMM's dates, those columns are finite and vary, and that
-        there is exactly one row per MMM date. Rows on other dates are neither used
-        nor checked, so they may hold NaN or repeat a date. The dates must match the
-        MMM's in time-zone awareness: both naive or both aware. The index is not
-        used. The effect keeps a copy of the frame.
+        cover other dates too. Construction checks that the columns named in
+        ``endog_names`` and ``exog_names`` exist and are numeric, and converts or
+        refuses the columns that saving the MMM could not store, see the Notes.
+        Building the MMM checks that, on the MMM's dates, those columns are finite
+        and vary, and that there is exactly one row per MMM date. Rows on other dates
+        are neither used nor checked, so they may hold NaN or repeat a date. The MMM
+        stores naive dates, so the dates must be naive too; drop a time zone with
+        ``.dt.tz_localize(None)``. The index is not used. The effect keeps a copy of
+        the frame.
     baseline_name : str
         Name of the latent baseline in the VAR. It must not be a column of
         ``brand_data``.
@@ -338,8 +378,13 @@ class VARBaselineEffect(MuEffect):
     Saving the MMM stores ``brand_data``, with its column dtypes but not its index,
     in the idata group ``supplementary_data_{prefix}_brand_data``. netCDF has no
     missing text value, so missing values in a text column load as empty strings.
-    Columns that netCDF cannot store, such as time-zone-aware dates and
-    categoricals, make saving fail, so convert or drop them first.
+    So that saving cannot fail, construction converts every column netCDF cannot
+    store, used by the VAR or not, or refuses it. Nullable numeric and boolean
+    columns, such as ``Float64``, ``Int64`` and ``boolean``, become NumPy columns:
+    ``float64`` if they hold a missing value or floats, and their NumPy dtype
+    otherwise. Categorical columns take their categories' dtype, and then the same
+    conversion. Column names that are not strings, time-zone-aware date columns and
+    object columns that hold anything but strings and missing values are refused.
 
     References
     ----------
@@ -399,13 +444,56 @@ class VARBaselineEffect(MuEffect):
 
     @field_validator("brand_data")
     @classmethod
-    def _copy_brand_data(cls, brand_data: pd.DataFrame) -> pd.DataFrame:
-        """Copy ``brand_data``.
+    def _normalize_brand_data(cls, brand_data: pd.DataFrame) -> pd.DataFrame:
+        """Copy ``brand_data`` and make every column one the saved MMM can store.
 
         Without the copy, later edits to the caller's frame would bypass the checks
-        and change the centering means of :meth:`fitted_var`.
+        and change the centering means of :meth:`fitted_var`. Saving the MMM writes
+        the frame to netCDF, so categorical and nullable columns become NumPy
+        columns, and what netCDF cannot store is refused here rather than when
+        saving.
+
+        Raises
+        ------
+        ValueError
+            If a column name is not a string, if a column holds time-zone-aware
+            dates, or if an object column holds anything but strings and missing
+            values.
         """
-        return brand_data.copy()
+        if names := [name for name in brand_data.columns if not isinstance(name, str)]:
+            raise ValueError(
+                f"Column names {names} of brand_data are not strings: saving the MMM "
+                "stores each column as a netCDF variable, whose name is a string."
+            )
+        brand_data = brand_data.copy()
+        aware: list[Hashable] = []
+        mixed: dict[Hashable, list[str]] = {}
+        for position, (name, original) in enumerate(brand_data.items()):
+            column = _numpy_column(original)
+            if column is not original:
+                brand_data.isetitem(position, column.array)
+            if isinstance(column.dtype, pd.DatetimeTZDtype):
+                aware.append(name)
+            elif column.dtype == object and pd.api.types.infer_dtype(
+                column, skipna=True
+            ) not in ("string", "empty"):
+                mixed[name] = sorted(
+                    {type(value).__name__ for value in column.dropna()} - {"str"}
+                )
+        if aware:
+            raise ValueError(
+                f"Columns {aware} of brand_data hold time-zone-aware dates: drop the "
+                "time zone with .dt.tz_localize(None); the MMM stores naive dates."
+            )
+        if mixed:
+            held = "; ".join(
+                f"{name!r} holds {', '.join(types)}" for name, types in mixed.items()
+            )
+            raise ValueError(
+                "Object columns of brand_data must hold only strings and missing "
+                f"values, since saving the MMM stores them as netCDF text: {held}."
+            )
+        return brand_data
 
     def model_post_init(self, context: Any, /) -> None:
         """Check ``var``, the names, and the columns of ``brand_data`` they name.
@@ -999,9 +1087,9 @@ class VARBaselineEffect(MuEffect):
         Raises
         ------
         ValueError
-            If ``brand_data`` has no column named like the MMM's date column, if
-            exactly one of its dates and the MMM's has a time zone, or if it misses
-            an MMM date or has one more than once.
+            If ``brand_data`` has no column named like the MMM's date column, if its
+            dates are time-zone aware, or if it misses an MMM date or has one more
+            than once.
         """
         date_column = mmm.date_column
         if date_column not in self.brand_data.columns:
@@ -1011,19 +1099,16 @@ class VARBaselineEffect(MuEffect):
             )
 
         brand_dates = safe_to_datetime(self.brand_data[date_column], date_column)
-        mmm_dates = safe_to_datetime(mmm.model.coords["date"], "date")
-        if (brand_dates.tz is None) != (mmm_dates.tz is None):
-            brand_kind, mmm_kind = (
-                ("naive", "time-zone aware")
-                if brand_dates.tz is None
-                else ("time-zone aware", "naive")
-            )
+        # Construction refuses an aware date column, but text dates with an offset
+        # parse as aware, and the frame can be changed in place afterwards.
+        if brand_dates.tz is not None:
             raise ValueError(
                 f"VARBaselineEffect {self.prefix!r} cannot match brand_data to the MMM "
-                f"on {date_column!r}: brand_data's dates are {brand_kind} and the "
-                f"MMM's are {mmm_kind}. Convert one of them, e.g. drop the time zone "
-                "with .dt.tz_localize(None)."
+                f"on {date_column!r}: brand_data's dates are time-zone aware, but the "
+                "MMM stores naive dates; drop the time zone with "
+                ".dt.tz_localize(None)."
             )
+        mmm_dates = safe_to_datetime(mmm.model.coords["date"], "date")
 
         # Rows on other dates may repeat a date, which `get_indexer` refuses, so they
         # are dropped first.
