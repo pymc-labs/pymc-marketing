@@ -1089,7 +1089,7 @@ class ClosedFormInputs:
 
     prepared: PreparedEvaluation
     saturated: xr.DataArray
-    labels: dict
+    labels: Mapping[str, np.ndarray]
 
 
 class Incrementality:
