@@ -246,7 +246,6 @@ from pydantic import ConfigDict, validate_call
 
 from pymc_marketing.data.idata.mmm_wrapper import MMMIDataWrapper
 from pymc_marketing.data.idata.schema import Frequency
-from pymc_marketing.data.idata.utils import subsample_draws
 from pymc_marketing.mmm.components.adstock import (
     BinomialAdstock,
     DelayedAdstock,
@@ -765,6 +764,53 @@ def _transformation_parameters(
     return posterior.drop_vars(
         [name for name in posterior.data_vars if name not in needed]
     )
+
+
+# shortcut: duplicates subsample_draws with per-chain semantics; merge once the
+# MMM curve methods move to them (follow-up in the PR closing #3297).
+def _subsample_draws(
+    dataset: xr.Dataset,
+    *,
+    num_samples: int | None,
+    random_state: RandomState | Generator | None = None,
+) -> xr.Dataset:
+    """Subsample draws from a Dataset with chain and draw dimensions.
+
+    Keeps the same randomly chosen draw positions in every chain, so the
+    subsample is a block of *dataset* under its own ``chain`` and ``draw``
+    labels: a result computed from it lines up with *dataset* by label.
+
+    Parameters
+    ----------
+    dataset : xr.Dataset
+        Dataset with ``chain`` and ``draw`` dimensions.
+    num_samples : int or None
+        Total number of draws to keep, rounded up to a multiple of the number
+        of chains.  If ``None``, or if that leaves no draw out, returns
+        *dataset* unchanged.
+    random_state : RandomState, Generator, or None, optional
+        Seed or random state for reproducibility.
+
+    Returns
+    -------
+    xr.Dataset
+        *dataset* unchanged when nothing is subsampled (see *num_samples*).
+        Otherwise *dataset* at ``ceil(num_samples / n_chains)`` draws per
+        chain, in their original order, with every chain kept.
+    """
+    if num_samples is None:
+        return dataset
+
+    n_chains, n_draws = dataset.sizes["chain"], dataset.sizes["draw"]
+    # Same draws in every chain: stratified by chain, so each keeps its weight.
+    per_chain = -(-num_samples // n_chains)
+
+    if per_chain >= n_draws:
+        return dataset
+
+    rng = np.random.default_rng(random_state)
+    positions = np.sort(rng.choice(n_draws, size=per_chain, replace=False))
+    return dataset.isel(draw=positions)
 
 
 def _missing_variables(
@@ -1346,8 +1392,9 @@ class Incrementality:
             before it for ``Before``, and on both sides for ``Overlap``.
         num_samples : int or None, optional
             Number of posterior samples to use. If None, all samples are used.
-            If less than total available (chain × draw), a random subset is
-            drawn.
+            Otherwise the same randomly chosen draws are kept in every chain,
+            ``ceil(num_samples / n_chains)`` of them, under the posterior's
+            ``chain`` and ``draw`` labels.
         random_state : RandomState or Generator or None, optional
             Random state for reproducible subsampling.
             Only used when ``num_samples`` is not None.
@@ -2204,7 +2251,7 @@ class Incrementality:
         # One subset for both computations below: drawing twice from a
         # Generator would give each a different one.
         posterior_sub = self._posterior_in_data_order(
-            subsample_draws(
+            _subsample_draws(
                 self.idata.posterior.dataset,
                 num_samples=num_samples,
                 random_state=random_state,
@@ -4289,11 +4336,11 @@ class Incrementality:
 
         start_ts, end_ts = self._validate_input(start_date, end_date)
 
-        # Subsample the posterior across chain x draw, unless the caller did.
+        # Subsample the posterior's draws, unless the caller did.
         posterior_sub = self._posterior_in_data_order(
             posterior
             if posterior is not None
-            else subsample_draws(
+            else _subsample_draws(
                 self.idata.posterior.dataset,
                 num_samples=num_samples,
                 random_state=random_state,
