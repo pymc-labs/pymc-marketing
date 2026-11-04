@@ -842,10 +842,10 @@ class CounterfactualEvaluator:
     BATCH_DIM = "__batch__"
     """Dimension the scenario axis is carried on through the vectorized graph."""
 
-    MAX_BATCH_ELEMENTS = 32_000_000
+    MAX_BATCH_ELEMENTS = 64_000_000
     """Output elements one evaluation may produce before it is split in two.
 
-    Roughly a quarter of a gigabyte in float64, which leaves room for the
+    Roughly half a gigabyte in float64, which leaves room for the
     intermediates a batch of that size implies while keeping the number of
     evaluations -- and so the per-call overhead -- small for everything but the
     largest runs.  Not a hard memory bound, which cannot be had without knowing
