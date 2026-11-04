@@ -1589,6 +1589,20 @@ class TestStackSamples:
         np.testing.assert_allclose(stacked.values, [0.0, 1.0, 2.0, 3.0, 4.0, 5.0])
 
 
+class TestSubsampleDraws:
+    """Choosing the posterior draws a subsampled result is computed from."""
+
+    def test_rounding_up_to_every_draw_returns_the_posterior(self):
+        """Five of six draws round up to three per chain, which is all of them."""
+        posterior = xr.Dataset(
+            {"x": (("chain", "draw"), np.arange(2 * 3, dtype=float).reshape(2, 3))}
+        )
+
+        assert incrementality_module._subsample_draws(posterior, num_samples=5) is (
+            posterior
+        )
+
+
 class TestIncrementalReducers:
     """Unit tests for the link-specific reduction, without a fitted model.
 
