@@ -1074,7 +1074,7 @@ class ClosedFormInputs:
         :math:`\beta g(x_t) - \beta g(f x_t)` in original scale, per date and
         draw, signed like the pipeline's increments.
     labels : dict
-        ``chain`` and ``draw`` coordinates of the pipeline's results.
+        ``chain`` and ``draw`` coordinates of the (subsampled) posterior.
     """
 
     prepared: PreparedEvaluation
@@ -1596,6 +1596,8 @@ class Incrementality:
             Include adstock carryover effects.
         num_samples : int or None, optional
             Number of posterior samples to use.
+            Rounded up to a multiple of the number of chains; see
+            :meth:`compute_incremental_contribution`.
         random_state : RandomState or Generator or None, optional
             Random state for reproducible subsampling.
         counterfactual_spend_factor : float, default=0.0
@@ -1737,6 +1739,8 @@ class Incrementality:
               other than ``0``.
         num_samples : int or None, optional
             Number of posterior samples to use; all of them when None.
+            Rounded up to a multiple of the number of chains; see
+            :meth:`compute_incremental_contribution`.
         random_state : RandomState or Generator or None, optional
             Seed for the subsample.
         counterfactual_spend_factor : float, default=0.0
@@ -3378,6 +3382,8 @@ class Incrementality:
             other than ``0`` works here.
         num_samples : int or None, optional
             Number of posterior samples to use; all of them when None.
+            Rounded up to a multiple of the number of chains; see
+            :meth:`compute_incremental_contribution`.
         random_state : RandomState or Generator or None, optional
             Seed for the subsample.
         counterfactual_spend_factor : float, default=0.0
@@ -5490,6 +5496,8 @@ class Incrementality:
             Include adstock carryover effects.
         num_samples : int or None, optional
             Number of posterior samples to use. If None, all samples are used.
+            Rounded up to a multiple of the number of chains; see
+            :meth:`compute_incremental_contribution`.
         random_state : RandomState or Generator or None, optional
             Random state for reproducible subsampling.
         central_tendency : {"median", "mean"}, default="median"
@@ -5582,6 +5590,8 @@ class Incrementality:
             Include adstock carryover effects.
         num_samples : int or None, optional
             Number of posterior samples to use. If None, all samples are used.
+            Rounded up to a multiple of the number of chains; see
+            :meth:`compute_incremental_contribution`.
         random_state : RandomState or Generator or None, optional
             Random state for reproducible subsampling.
         central_tendency : {"median", "mean"}, default="median"
@@ -5658,6 +5668,8 @@ class Incrementality:
             Include adstock carryover effects.
         num_samples : int or None, optional
             Number of posterior samples to use. If None, all samples are used.
+            Rounded up to a multiple of the number of chains; see
+            :meth:`compute_incremental_contribution`.
         random_state : RandomState or Generator or None, optional
             Random state for reproducible subsampling.
         spend_increase_pct : float, default=0.01
