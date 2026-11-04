@@ -3211,7 +3211,7 @@ class Incrementality:
         # one its values and the matrix's coordinates are laid out in: a labeled
         # product keeps its first operand's order, and the masks below pair
         # cells exactly.  The posterior and ``constant_data`` may store others.
-        # A draw of the contribution missing from the kernel raises here.
+        # A draw of the contribution missing from the kernel raises a KeyError here.
         in_total_order = {dim: total[dim].values for dim in out_dims}
         weights = weights.sel(
             {
