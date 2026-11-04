@@ -1093,7 +1093,7 @@ class ClosedFormInputs:
     saturated : xr.DataArray
         :math:`\beta g(x_t) - \beta g(f x_t)` in original scale, per date and
         draw, signed like the pipeline's increments.
-    labels : dict
+    labels : mapping
         ``chain`` and ``draw`` coordinates of the (subsampled) posterior.
     """
 
