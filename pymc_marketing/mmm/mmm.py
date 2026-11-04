@@ -4356,6 +4356,7 @@ class MMM(RegressionModelBuilder):
             pymc_model=self.model,
             idata=self.idata,
             dims=self.dims,
+            frozen_deterministics=self.frozen_deterministics,
         )
 
     @property

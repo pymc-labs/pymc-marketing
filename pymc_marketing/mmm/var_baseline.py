@@ -278,8 +278,8 @@ class VARBaselineEffect(MuEffect):
     Notes
     -----
     The baseline exists only on the dates the MMM is fitted on. On those dates,
-    fitting, the contribution decomposition, the MMM's summaries, :meth:`fitted_var`
-    and posterior predictive sampling work. Saving and loading the MMM work, and so
+    fitting, the contribution decomposition, the MMM's summaries, sensitivity
+    sweeps, :meth:`fitted_var` and posterior predictive sampling work. Saving and loading the MMM work, and so
     does posterior predictive sampling after loading. Channel incrementality works on
     any window and frequency: the baseline does not depend on spend, so it adds
     nothing to a channel's increment. The budget optimizer runs on any window with

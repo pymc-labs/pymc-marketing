@@ -1749,6 +1749,41 @@ def test_time_slice_cross_validation_raises_before_fitting(brand_mmm_data):
     sample.assert_not_called()
 
 
+def test_sensitivity_sweep_keeps_the_posterior_baseline(fitted_mmm):
+    """Sweeping the channel data moves ``mu`` by the channels' sweep alone.
+
+    The baseline does not depend on spend, so it keeps its posterior draws in every
+    sweep: summed over dates, the swept ``mu`` is the swept channel contributions
+    plus the posterior intercept and baseline. Freezing the baseline leaves the
+    channels' sweep as a sweep that does not freeze it gives.
+    """
+    from pymc_marketing.mmm.sensitivity_analysis import SensitivityAnalysis
+
+    sweep = {"var_input": "channel_data", "sweep_values": np.array([0.5, 1.0, 1.5])}
+    posterior = fitted_mmm.idata.posterior
+    fixed = (
+        posterior["intercept_contribution"] * posterior.sizes["date"]
+        + posterior[f"{PREFIX}_effect_contribution"].sum("date")
+    ).stack(sample=("chain", "draw"))
+
+    mu = fitted_mmm.sensitivity.run_sweep(var_names="mu", **sweep)
+
+    channels = fitted_mmm.sensitivity.run_sweep(
+        var_names="channel_contribution", **sweep
+    )
+    assert np.isfinite(mu).all()
+    np.testing.assert_allclose(
+        mu.transpose("sample", "sweep"),
+        channels.sum("channel").transpose("sample", "sweep")
+        + fixed.to_numpy()[:, None],
+    )
+    unfrozen = SensitivityAnalysis(fitted_mmm.model, fitted_mmm.idata, fitted_mmm.dims)
+    xr.testing.assert_allclose(
+        channels,
+        unfrozen.run_sweep(var_names="channel_contribution", **sweep),
+    )
+
+
 def test_do_on_the_channel_data(fitted_mmm):
     """``pm.do`` clones the MMM's model, VAR included."""
     channel_data = fitted_mmm.xarray_dataset["_channel"]

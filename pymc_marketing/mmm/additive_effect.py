@@ -531,9 +531,9 @@ class MuEffect(SerializableBaseModel, ABC):
         """Names of deterministics to take from the posterior rather than recompute.
 
         :attr:`MMM.frozen_deterministics` collects them from every effect. Posterior
-        predictive sampling, incrementality and budget optimization then substitute
-        the posterior draws of these deterministics instead of recomputing them from
-        the graph.
+        predictive sampling, incrementality, sensitivity sweeps and budget
+        optimization then substitute the posterior draws of these deterministics
+        instead of recomputing them from the graph.
 
         The default is empty, which is right for an effect whose contribution is a
         function of its parameters and data. Override the property for a
@@ -543,8 +543,8 @@ class MuEffect(SerializableBaseModel, ABC):
         channel data, so never freeze one that depends on them.
 
         A frozen deterministic with a ``date`` dimension is a path over the fitted
-        dates. Posterior predictive sampling handles it on those dates, and
-        incrementality on any window, because the counterfactual evaluation cuts it
+        dates. Posterior predictive sampling and sensitivity sweeps handle it on
+        those dates, and incrementality on any window, because the counterfactual evaluation cuts it
         to each period's window as it cuts the data. The budget optimizer does not
         cut it, so an effect that freezes one should set ``supports_new_dates`` to
         ``False``. The MMM then refuses both prediction on other dates and any

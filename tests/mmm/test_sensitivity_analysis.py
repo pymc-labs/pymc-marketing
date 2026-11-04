@@ -15,8 +15,10 @@ import numpy as np
 import pandas as pd
 import pymc as pm
 import pymc.dims as pmd
+import pytensor.tensor as pt
 import pytest
 import xarray as xr
+from pytensor.xtensor import as_xtensor
 
 from pymc_marketing.mmm.components.adstock import GeometricAdstock
 from pymc_marketing.mmm.components.saturation import LogisticSaturation
@@ -181,6 +183,56 @@ def test_extend_idata_stores_results(simple_model_and_idata):
     assert out is None
     # Ensure results are attached; InferenceData stores arbitrary groups as attributes
     assert hasattr(idata, "sensitivity_analysis")
+
+
+def test_run_sweep_takes_frozen_deterministics_from_the_posterior():
+    """A latent path over ``date`` in the response is taken from its posterior draws.
+
+    The path is a random walk built from plain PyTensor variables and wrapped as an
+    xtensor, as a latent path from a library outside ``pymc.dims`` is, and the sweep
+    cannot recompute it. Frozen, it keeps its posterior draws in every sweep, so the
+    swept response is the path summed over dates plus the swept saturation term.
+    The path's draws are not the cumulative sum of the steps' draws, so a recomputed
+    path would differ.
+    """
+    rng = np.random.default_rng(123)
+    channel_data = rng.gamma(2.0, 1.0, size=(6, 4))
+    model, idata = _make_saturation_model_and_idata(channel_data, n_draws=5)
+    with model:
+        steps = pm.Normal("path_steps", sigma=0.1, dims="date")
+        path = pmd.Deterministic("path", as_xtensor(pt.cumsum(steps), dims=("date",)))
+        contribution = as_xtensor(
+            model["channel_contribution"], dims=("date", "channel")
+        )
+        pmd.Deterministic("mu", path + contribution.sum("channel"))
+    path_draws = rng.normal(0.0, 0.1, size=(1, 5, 6)).cumsum(axis=-1)
+    sample_dims = ["chain", "draw", "date"]
+    idata = xr.DataTree.from_dict(
+        {
+            "/posterior": idata.posterior.to_dataset().assign(
+                path_steps=(sample_dims, rng.normal(0.0, 0.1, size=(1, 5, 6))),
+                path=(sample_dims, path_draws),
+            )
+        }
+    )
+    sweep_values = np.linspace(0.5, 1.5, 3)
+    sweep = {
+        "var_input": "channel_data",
+        "var_names": "mu",
+        "sweep_values": sweep_values,
+    }
+
+    with pytest.raises(AttributeError, match="'TensorType' object has no attribute"):
+        SensitivityAnalysis(model, idata).run_sweep(**sweep)
+
+    results = SensitivityAnalysis(
+        model, idata, frozen_deterministics=["path"]
+    ).run_sweep(**sweep)
+
+    swept = sweep_values[:, None, None] * channel_data
+    saturation = (0.8 * swept / (swept + 1.2)).sum(axis=(1, 2))
+    expected = path_draws[0].sum(axis=-1)[:, None] + saturation
+    np.testing.assert_allclose(results.transpose("sample", "sweep"), expected)
 
 
 @pytest.fixture

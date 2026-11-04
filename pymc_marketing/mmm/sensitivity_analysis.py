@@ -88,6 +88,7 @@ Notes
 
 import math
 import warnings
+from collections.abc import Sequence
 from typing import Literal
 
 import numpy as np
@@ -104,14 +105,35 @@ from pymc_marketing.pytensor_utils import extract_response_distribution
 
 
 class SensitivityAnalysis:
-    """SensitivityAnalysis class is used to perform counterfactual analysis on MMM's."""
+    """SensitivityAnalysis class is used to perform counterfactual analysis on MMM's.
+
+    Parameters
+    ----------
+    pymc_model : Model
+        The PyMC model whose response is swept.
+    idata : xr.DataTree
+        The inference data holding the model's posterior.
+    dims : tuple of str, default ()
+        The non-date dims of the swept input, used when the model does not record
+        that input's dims.
+    frozen_deterministics : sequence of str, default ()
+        Deterministics taken from the posterior rather than recomputed, such as a
+        latent path over the dates the model was fitted on. A sweep keeps those
+        dates, so their posterior draws hold in every sweep.
+        :attr:`MMM.frozen_deterministics` lists an MMM's.
+    """
 
     def __init__(
-        self, pymc_model: Model, idata: xr.DataTree, dims: tuple[str, ...] = ()
+        self,
+        pymc_model: Model,
+        idata: xr.DataTree,
+        dims: tuple[str, ...] = (),
+        frozen_deterministics: Sequence[str] = (),
     ):
         self.model = pymc_model
         self.idata = idata
         self.dims = dims
+        self.frozen_deterministics = tuple(frozen_deterministics)
 
     def _compute_dims_order_from_varinput(self, var_input: str) -> list[str]:
         """Compute non-date dims order directly from the model's var_input dims.
@@ -172,6 +194,7 @@ class SensitivityAnalysis:
             pymc_model=self.model,
             idata=self.idata.isel(draw=draw_selection),
             response_variable=response_variable,
+            frozen_deterministics=list(self.frozen_deterministics),
         )
 
     def _prepare_response_mask(
