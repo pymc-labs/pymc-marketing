@@ -1383,8 +1383,11 @@ class Incrementality:
         num_samples : int or None, optional
             Number of posterior samples to use. If None, all samples are used.
             Otherwise the same randomly chosen draws are kept in every chain,
-            ``ceil(num_samples / n_chains)`` of them, under the posterior's
-            ``chain`` and ``draw`` labels.
+            ``ceil(num_samples / n_chains)`` of them (all of them if that is
+            as many as each chain has), under the posterior's ``chain`` and
+            ``draw`` labels.  Every chain keeps at least one
+            draw, so with many chains (as from ensemble samplers) the call
+            can use far more than ``num_samples`` draws.
         random_state : RandomState or Generator or None, optional
             Random state for reproducible subsampling.
             Only used when ``num_samples`` is not None.
