@@ -207,6 +207,7 @@ from functools import wraps
 from importlib import metadata
 from pathlib import Path
 from typing import Any, Literal
+from urllib.parse import urlparse
 
 import arviz as az
 import numpy.typing as npt
@@ -247,6 +248,13 @@ logger = logging.getLogger(__name__)
 _MLFLOW_SUPPORTS_NAME_PARAM = version.parse(mlflow.__version__) >= version.parse(
     "3.0.0"
 )
+
+# Before MLflow 3.18.0, downloads through a proxied artifact server skip a file named like
+# its directory (mlflow/mlflow#27189), such as the Zarr chunk ``c/0/0``.
+_MLFLOW_PROXY_DROPS_ZARR_CHUNKS = version.parse(mlflow.__version__) < version.parse(
+    "3.18.0"
+)
+_PROXIED_ARTIFACT_SCHEMES = frozenset({"mlflow-artifacts", "http", "https"})
 
 FLAVOR_NAME = "pymc"
 
@@ -435,6 +443,24 @@ def _idata_artifact_name(idata_format: IdataFormat | str) -> str:
     return f"idata{IdataFormat(idata_format).suffix}"
 
 
+def _warn_if_zarr_download_may_drop_chunks(run_id: str, artifact: str) -> None:
+    """Warn when an affected MLflow would download a Zarr store through a proxied server."""
+    if not (
+        _MLFLOW_PROXY_DROPS_ZARR_CHUNKS and artifact.endswith(IdataFormat.ZARR.suffix)
+    ):
+        return
+    scheme = urlparse(mlflow.get_run(run_id).info.artifact_uri).scheme
+    if scheme in _PROXIED_ARTIFACT_SCHEMES:
+        warnings.warn(
+            f"MLflow {mlflow.__version__} can silently skip Zarr chunks when downloading "
+            f"through a proxied artifact server ({scheme}:), so the loaded inference data "
+            "may hold NaN in place of the missing values. Upgrade to mlflow>=3.18.0 "
+            "(mlflow/mlflow#27189).",
+            UserWarning,
+            skip_file_prefixes=(os.path.dirname(__file__) + os.sep,),
+        )
+
+
 def _download_and_load_mmm(
     run_id: str, artifact: str, dst_path: str, keep_idata: bool
 ) -> MMM:
@@ -445,6 +471,7 @@ def _download_and_load_mmm(
     # MLflow downloads file by file and never clears the target, so a stale
     # Zarr store from an earlier keep_idata=True load would be merged into the new one.
     remove_idata(Path(dst_path) / artifact)
+    _warn_if_zarr_download_may_drop_chunks(run_id, artifact)
     idata_path = mlflow.artifacts.download_artifacts(
         run_id=run_id, artifact_path=artifact, dst_path=dst_path
     )
@@ -1163,9 +1190,7 @@ def log_mmm(
     mmm : MMM
         The MMM to be logged.
     artifact_path : str, optional
-        The path to the artifact to be logged. Defaults to "mmm_model".
-    conda_env : dict, optional
-        A dictionary representation of a Conda environment. Defaults to the default conda environment.
+        The path to the artifact to be logged. Defaults to "model".
     registered_model_name : str, optional
         The name of the registered model to be logged. Defaults to None.
         If specified, the model will be registered under this name, otherwise it will not be registered.
@@ -1358,10 +1383,14 @@ def log_versions() -> None:
 def log_mmm_configuration(mmm: MMM) -> None:
     """Log the configuration of the MMM model to MLflow."""
     attrs = mmm.create_idata_attrs()
-    lift_test_calibrations = attrs.pop("lift_test_calibrations", None)
+    calibrations = {
+        name: attrs.pop(name, None)
+        for name in ("lift_test_calibrations", "cost_per_target_calibrations")
+    }
     mlflow.log_params(attrs)
-    if lift_test_calibrations not in (None, "[]"):
-        mlflow.log_text(lift_test_calibrations, "lift_test_calibrations.json")
+    for name, records in calibrations.items():
+        if records not in (None, "[]"):
+            mlflow.log_text(records, f"{name}.json")
 
     adstock_name = type(mmm.adstock).__name__.removesuffix("Adstock")
     saturation_name = type(mmm.saturation).__name__.removesuffix("Saturation")
@@ -1498,6 +1527,14 @@ def autolog(
     writes string coordinates with an encoding that is not yet in the Zarr
     specification, so stores with string coordinates may need re-encoding for a
     later zarr-python release.
+
+    Reading a Zarr store back through a proxied artifact server
+    (``mlflow-artifacts:``, ``http:`` or ``https:`` artifact URIs) needs
+    ``mlflow>=3.18.0`` on the reading side. Older releases silently skip chunks
+    such as ``c/0/0`` on download (mlflow/mlflow#27189), so the loaded inference
+    data holds NaN in their place. :func:`load_mmm` and :func:`load_mmm_from_run`
+    warn about this; other downloads, such as
+    ``mlflow.artifacts.download_artifacts``, do not. Logging is not affected.
 
     Calling ``autolog`` again replaces its earlier patches instead of stacking
     them, so the last call decides what is logged, and ``autolog(disable=True)``
