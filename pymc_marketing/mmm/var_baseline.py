@@ -246,7 +246,8 @@ class VARBaselineEffect(MuEffect):
     columns in their own units, centered on their means over the MMM's dates. The
     baseline equation has no intercept, so the baseline is a zero-mean deviation
     around the MMM's intercept. Its own first-lag coefficient has prior mean
-    ``baseline_own_lag_mean`` rather than the Minnesota prior's random walk.
+    ``baseline_own_lag_mean``, a persistent but stationary 0.8 by default, rather
+    than the Minnesota prior's random walk.
 
     The baseline responds to the centered brand metrics and exogenous inputs, so the
     MMM's intercept absorbs the brand's average effect. The prior on its exogenous
@@ -317,10 +318,20 @@ class VARBaselineEffect(MuEffect):
         prior must be a ``MinnesotaPrior`` or the ``"minnesota"`` shorthand, since
         Impulso does not yet load other priors back as they were saved, see
         https://github.com/QuantClimate/Impulso/issues/379.
-    baseline_own_lag_mean : float, default 0.0
+    baseline_own_lag_mean : float, default 0.8
         Prior mean of the baseline's own first-lag coefficient, strictly between -1
-        and 1 because the baseline is a stationary deviation. The effect sets the
-        baseline's entry of the Minnesota prior's ``own_lag_mean`` to it. A scalar
+        and 1 because the baseline is a stationary deviation. The default makes the
+        baseline persistent, as a baseline that carries brand effects over time is.
+        With an own lag near 0 the baseline is white noise, which the data cannot
+        tell from the likelihood's noise, and the sampler diverges on the ridge
+        between the two standard deviations: in a calibration study on simulated
+        data, up to 13% of draws diverged at 0, and under half a percent at 0.8.
+        With ``lags=1`` the own lag's prior is truncated to the stationary region,
+        which keeps a mean this close to 1 smooth to sample. The prior is
+        informative where the data hold little brand signal, since the posterior own
+        lag then stays near its prior mean; lower it if you believe the baseline is
+        not persistent. The effect sets the baseline's entry of the Minnesota
+        prior's ``own_lag_mean`` to it. A scalar
         ``own_lag_mean`` applies to every brand metric. A per-series
         ``own_lag_mean`` must start with this value, or construction raises. When the
         target does not vary, it also sets the standard deviation of the start of the
@@ -483,7 +494,7 @@ class VARBaselineEffect(MuEffect):
     prefix: str
     # Impulso is optional, so the spec's type is checked in `_check_fields`.
     var: Any
-    baseline_own_lag_mean: float = Field(0.0, gt=-1, lt=1)
+    baseline_own_lag_mean: float = Field(0.8, gt=-1, lt=1)
     baseline_innovation_sd: float | None = Field(None, gt=0, allow_inf_nan=False)
     baseline_exog_prior_scale: float = Field(1.0, gt=0, allow_inf_nan=False)
 

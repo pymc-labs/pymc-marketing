@@ -588,7 +588,7 @@ def test_fit_with_any_brand_column_names(brand_mmm_data, exog_names):
 @pytest.mark.parametrize(
     "prior, effect_kwargs, expected",
     [
-        pytest.param("minnesota", {}, [0.0, 1.0, 1.0], id="shorthand"),
+        pytest.param("minnesota", {}, [0.8, 1.0, 1.0], id="shorthand"),
         pytest.param(
             MinnesotaPrior(own_lag_mean=0.5),
             {"baseline_own_lag_mean": 0.3},
@@ -627,7 +627,7 @@ def test_own_lag_prior_means(brand_mmm_data, prior, effect_kwargs, expected):
 @pytest.mark.parametrize(
     "own_lag_mean, baseline_own_lag_mean",
     [
-        pytest.param((0.5, 0.9, 0.8), 0.0, id="default-baseline-mean"),
+        pytest.param((0.5, 0.9, 0.8), 0.8, id="default-baseline-mean"),
         pytest.param((0.0, 0.9, 0.8), 0.3, id="set-baseline-mean"),
     ],
 )
@@ -679,7 +679,7 @@ def test_baseline_starts_at_the_targets_sd(brand_mmm_data, effect_kwargs):
 
 
 @pytest.mark.parametrize(
-    "baseline_own_lag_mean", [0.0, 0.6], ids=["default", "own-lag-mean"]
+    "baseline_own_lag_mean", [0.0, 0.6], ids=["white-noise", "own-lag-mean"]
 )
 def test_baseline_starts_at_its_stationary_sd_on_a_target_that_does_not_vary(
     brand_mmm_data, baseline_own_lag_mean
@@ -687,7 +687,7 @@ def test_baseline_starts_at_its_stationary_sd_on_a_target_that_does_not_vary(
     """On the all-zero target, the start's sd falls back to the stationary sd.
 
     That is the sd of an AR(1) with the baseline's own-lag prior mean and innovation
-    sd U: U itself at the default mean of 0.
+    sd U: U itself at a mean of 0.
     """
     effect = make_effect(
         brand_mmm_data["brand_data"],
@@ -756,7 +756,8 @@ def test_exog_prior_scales_with_each_series(brand_mmm_data, baseline_innovation_
     prior, ``HalfNormal(U / 1.96)``. So overriding U moves the innovation prior but
     neither the baseline's exog prior nor its Minnesota cross-lag prior, whose sd on
     brand metric ``j``'s lag is its own-lag sd times the cross shrinkage times the
-    baseline's scale over ``j``'s.
+    baseline's scale over ``j``'s. The own-lag mean is 0, so truncating the own lag's
+    prior to the stationary region does not narrow it.
     """
     brand_data = brand_mmm_data["brand_data"]
     target_scale = ar1_residual_sd(brand_mmm_data["y"].to_frame())[0]
@@ -764,7 +765,11 @@ def test_exog_prior_scales_with_each_series(brand_mmm_data, baseline_innovation_
     observed_names = ENDOG_NAMES[1:]
     observed_scales = ar1_residual_sd(brand_data[observed_names])
     exog_sd = brand_data["brand_spend"].iloc[1:].std()
-    effect = make_effect(brand_data, baseline_innovation_sd=baseline_innovation_sd)
+    effect = make_effect(
+        brand_data,
+        baseline_innovation_sd=baseline_innovation_sd,
+        baseline_own_lag_mean=0.0,
+    )
     draws = sample_prior(
         brand_mmm_data,
         effect,
@@ -840,10 +845,13 @@ def test_prior_predictive_baseline_is_on_the_targets_scale(long_brand_mmm_data):
     """Prior-predictive baselines stay within a few of the target's sds.
 
     Over 2,000 prior draws on the 150 weeks, where the target's sd is 0.73, the
-    median over draws of the baseline's largest absolute value is 1.1, or 1.5 target
-    sds, and its 90% quantile 2.1, or 2.9 sds. At Impulso's default scale of 100 on
-    the baseline's equation they are 72 and 179, or 99 and 245 sds, so the bounds of
-    2 and 5 sds separate the two scales by more than an order of magnitude.
+    median over draws of the baseline's largest absolute value is 3.0, or 4.1 target
+    sds, and its 90% quantile 6.9, or 9.5 sds; over eight seeds they range over 4.1
+    to 4.2 and 9.1 to 9.8 sds. A persistent baseline has a larger stationary sd than
+    its innovations, by 1 / sqrt(1 - 0.8**2) = 1.67 at the default own-lag mean. At
+    Impulso's default scale of 100 on the baseline's equation they are 234 and 643,
+    or 321 and 883 sds, so the bounds of 6 and 15 sds sit above every seed and far
+    below that scale.
     """
     data = long_brand_mmm_data
     mmm = make_mmm(make_effect(data["brand_data"]))
@@ -857,8 +865,8 @@ def test_prior_predictive_baseline_is_on_the_targets_scale(long_brand_mmm_data):
     ).prior[f"{PREFIX}::latent"]
 
     peak = np.abs(latent.to_numpy()[..., 0]).max(axis=-1)
-    assert np.median(peak) < 2 * data["y"].std()
-    assert np.quantile(peak, 0.9) < 5 * data["y"].std()
+    assert np.median(peak) < 6 * data["y"].std()
+    assert np.quantile(peak, 0.9) < 15 * data["y"].std()
 
 
 @pytest.mark.parametrize(
@@ -996,7 +1004,8 @@ def test_building_without_a_target_raises(
 def test_prior_predictive_without_a_target(brand_mmm_data):
     """A fixed target scale and ``baseline_innovation_sd`` replace ``y``.
 
-    The all-zero target does not vary, so the baseline starts at sd U, in the
+    The all-zero target does not vary, so the baseline starts at the stationary sd
+    of an AR(1) with the default own-lag mean of 0.8 and innovation sd U, in the
     target's original units, and its contribution is in units of the fixed target
     scale.
     """
@@ -1007,7 +1016,9 @@ def test_prior_predictive_without_a_target(brand_mmm_data):
 
     start = prior[f"{PREFIX}_effect_contribution"].isel(date=0)
     np.testing.assert_allclose(
-        start.std(), 0.1 / FIXED_TARGET_SCALING["target"].value, rtol=0.05
+        start.std(),
+        0.1 / np.sqrt(1 - 0.8**2) / FIXED_TARGET_SCALING["target"].value,
+        rtol=0.05,
     )
     sigma = prior[f"{PREFIX}::sigma_sd_0"]
     np.testing.assert_allclose((sigma > 0.1).mean(), 0.05, atol=0.02)
