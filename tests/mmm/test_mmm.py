@@ -1156,6 +1156,19 @@ class TestMultidimMMMEdgeCases:
 
         np.testing.assert_array_equal(fast_eval(mmm.target_data_scaled)[:, 1], 0.0)
 
+    def test_zero_target_scale_without_dims_names_the_whole_target(
+        self, simple_mmm_data
+    ):
+        """Without dims the scale is a scalar, so the warning names the target."""
+        X = simple_mmm_data["X"].copy()
+        y = simple_mmm_data["y"].copy()
+        y[:] = -1.0
+        y.iloc[::2] = 0.0
+        mmm = self._build_basic_mmm()
+
+        with pytest.warns(UserWarning, match="target scale is 0 for the whole target"):
+            mmm.build_model(X, y)
+
     def test_all_zero_target_slice_does_not_warn(self):
         """An all-zero slice loses nothing to the clamp, so it is not reported."""
         mmm, X, y = self._build_geo_mmm_with_target_b([0.0] * 6)
