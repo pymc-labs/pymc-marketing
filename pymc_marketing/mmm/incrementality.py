@@ -766,9 +766,9 @@ def _transformation_parameters(
     )
 
 
-# shortcut: duplicates subsample_draws with per-chain semantics; merge once the
-# MMM curve methods move to them (follow-up in the PR closing #3297).
-def _subsample_draws(
+# Differs from the public subsample_draws, which the MMM curve methods still use;
+# moving them to this scheme would leave one subsampler (#3305).
+def _subsample_draws_per_chain(
     dataset: xr.Dataset,
     *,
     num_samples: int | None,
@@ -2221,7 +2221,7 @@ class Incrementality:
         # One subset for both computations below: drawing twice from a
         # Generator would give each a different one.
         posterior_sub = self._posterior_in_data_order(
-            _subsample_draws(
+            _subsample_draws_per_chain(
                 self.idata.posterior.dataset,
                 num_samples=num_samples,
                 random_state=random_state,
@@ -4310,7 +4310,7 @@ class Incrementality:
         posterior_sub = self._posterior_in_data_order(
             posterior
             if posterior is not None
-            else _subsample_draws(
+            else _subsample_draws_per_chain(
                 self.idata.posterior.dataset,
                 num_samples=num_samples,
                 random_state=random_state,

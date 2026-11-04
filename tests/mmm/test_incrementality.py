@@ -1599,13 +1599,15 @@ class TestSubsampleDraws:
             {"x": (("chain", "draw"), np.arange(2 * 3, dtype=float).reshape(2, 3))}
         )
 
-        assert incrementality_module._subsample_draws(posterior, num_samples=5) is (
-            posterior
+        subsample = incrementality_module._subsample_draws_per_chain(
+            posterior, num_samples=5
         )
+
+        assert subsample is posterior
 
     @pytest.mark.parametrize(
         "subsample",
-        [incrementality_module._subsample_draws, subsample_draws],
+        [incrementality_module._subsample_draws_per_chain, subsample_draws],
         ids=["per_chain", "flattened"],
     )
     @pytest.mark.parametrize("num_samples", [0, -1])
