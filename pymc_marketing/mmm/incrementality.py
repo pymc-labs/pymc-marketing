@@ -800,14 +800,11 @@ def _relabel_draws(sampled: xr.DataArray, labels: Mapping[str, Any]) -> xr.DataA
 
     ``pm.sample_posterior_predictive`` returns the draws in the order of the
     posterior it is given, under that posterior's ``chain`` and ``draw``
-    labels.  Those are not the pipeline's: the pipeline labels its results
-    with ``np.arange``, while :func:`~pymc_marketing.data.idata.utils.subsample_draws`
-    drops the coordinates of a subsample and a full posterior keeps whatever
-    labels it was given.  Relabeling by position is right only while the order
-    holds: nothing between the subsample and the sampling may reorder or drop
-    draws.  The sizes are checked here: a draw lost or added on the way would
-    pair draw *i* of one array with draw *j* of another, so it raises.  The
-    parity tests pin the order itself.
+    labels, which the pipeline's results carry too.  Relabeling by position
+    is right only while the order holds: nothing between the subsample and
+    the sampling may reorder or drop draws.  The sizes are checked here: a
+    draw lost or added on the way would pair draw *i* of one array with draw
+    *j* of another, so it raises.  The parity tests pin the order itself.
 
     Parameters
     ----------
@@ -2461,10 +2458,7 @@ class Incrementality:
             # The identity link is one of the guards, so the reducer only rescales.
             reducer = cast(IdentityLinkReducer, prepared.reducer)
             posterior = prepared.posterior
-            labels = {
-                "chain": np.arange(posterior.sizes["chain"]),
-                "draw": np.arange(posterior.sizes["draw"]),
-            }
+            labels = {dim: posterior[dim].values for dim in ("chain", "draw")}
             saturated = _relabel_draws(
                 self._saturated_media(posterior, counterfactual_spend_factor)
                 * reducer.scale,
@@ -3291,8 +3285,8 @@ class Incrementality:
         xr.DataArray
             The adstock of a unit impulse, with a ``"time since exposure"`` lag
             dimension of length ``l_max`` and the parameters' other dimensions.
-            The draws are in the posterior's order and under its labels, which
-            need not be the pipeline's; see :func:`_relabel_draws`.
+            The draws are in the posterior's order and under its labels; see
+            :func:`_relabel_draws`.
 
         Raises
         ------
@@ -4667,8 +4661,7 @@ class Incrementality:
         # computed, and returned also when that raises.
         try:
             posterior_sub = prepared.posterior
-            n_chains = posterior_sub.sizes["chain"]
-            n_draws = posterior_sub.sizes["draw"]
+            labels = {dim: posterior_sub[dim].values for dim in ("chain", "draw")}
             reducer = prepared.reducer
             effects = prepared.effects
             freq_offset = prepared.freq_offset
@@ -4730,8 +4723,7 @@ class Incrementality:
                 non_date_dims=evaluator.non_date_dims,
                 effect_names=effect_names,
                 counterfactual_spend_factor=counterfactual_spend_factor,
-                n_chains=n_chains,
-                n_draws=n_draws,
+                labels=labels,
                 reducer=reducer,
                 scope=scope,
                 dedicated_channel_rows=channel_axis is not None,
@@ -4986,8 +4978,7 @@ class Incrementality:
         non_date_dims: dict[str, tuple[str, ...]],
         effect_names: Sequence[str],
         counterfactual_spend_factor: float,
-        n_chains: int,
-        n_draws: int,
+        labels: Mapping[str, np.ndarray],
         reducer: IncrementalReducer,
         scope: Estimand,
         dedicated_channel_rows: bool,
@@ -5024,10 +5015,9 @@ class Incrementality:
             the evaluated nodes.
         counterfactual_spend_factor : float
             Multiplicative factor used for sign convention.
-        n_chains : int
-            Number of MCMC chains in the posterior.
-        n_draws : int
-            Number of draws per chain.
+        labels : mapping
+            ``chain`` and ``draw`` coordinates of the posterior the evaluator
+            was bound to, in its chain-major order.
         reducer : IncrementalReducer
             Link-specific reduction from a linear-predictor perturbation to a
             response-scale increment.  It owns the rescaling to original
@@ -5151,11 +5141,13 @@ class Incrementality:
             # Shape: (n_samples, [date,] *out_dims), n_samples = n_chains * n_draws
 
             # Reshape flattened sample → (chain, draw) to preserve MCMC structure
-            reshaped = increment.values.reshape(n_chains, n_draws, *increment.shape[1:])
+            reshaped = increment.values.reshape(
+                len(labels["chain"]), len(labels["draw"]), *increment.shape[1:]
+            )
 
             coords: dict = {
-                "chain": np.arange(n_chains),
-                "draw": np.arange(n_draws),
+                "chain": labels["chain"],
+                "draw": labels["draw"],
                 # A labeled product keeps its first operand's order, which may
                 # be the reducer input's, so the labels are read off the result.
                 **{dim: increment.coords[dim].values for dim in out_dims},

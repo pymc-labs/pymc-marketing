@@ -1118,14 +1118,19 @@ class TestIncrementality:
         The second chain gets a rescaled ``saturation_beta`` so every
         ``(chain, draw)`` pair yields a distinct increment.  Duplicating the
         posterior instead would let a chain-major/draw-major mix-up pass
-        unnoticed, since both orderings would then select equal values.
+        unnoticed, since both orderings would then select equal values.  The
+        labels are not ``0..n-1``, so a result relabeled by position would
+        fail to line up with the posterior.
         """
         mmm = simple_fitted_mmm
         posterior = mmm.idata.posterior
         if hasattr(posterior, "dataset"):
             posterior = posterior.dataset
 
-        chain2 = posterior.assign_coords(chain=[posterior.chain.values[0] + 1])
+        posterior = posterior.assign_coords(
+            chain=[7], draw=posterior.draw.values + 1000
+        )
+        chain2 = posterior.assign_coords(chain=[9])
         chain2["saturation_beta"] = chain2["saturation_beta"] * 0.5
         multi_chain = xr.concat([posterior, chain2], dim="chain")
         mmm.idata["posterior"] = multi_chain
@@ -1142,6 +1147,8 @@ class TestIncrementality:
             random_state=42,
         )
 
+        for dim in ("chain", "draw"):
+            np.testing.assert_array_equal(full[dim], multi_chain[dim])
         # num_samples is a total, not a per-chain count.
         assert subset.sizes["chain"] == 1
         assert subset.sizes["draw"] == num_samples
@@ -5572,21 +5579,13 @@ class TestClosedFormMatrix:
         )
         incrementality = mmm.incrementality
         posterior = mmm.idata.posterior.dataset
-        labels = {
-            "chain": np.arange(posterior.sizes["chain"]),
-            "draw": np.arange(posterior.sizes["draw"]),
-        }
 
-        saturated = incrementality._saturated_media(posterior, 0.0).assign_coords(
-            labels
-        )
+        saturated = incrementality._saturated_media(posterior, 0.0)
         saturated = saturated * float(mmm.data.get_target_scale())
-        weights = incrementality._adstock_kernel(
-            posterior, divides=False
-        ).assign_coords(labels)
+        weights = incrementality._adstock_kernel(posterior, divides=False)
         rebuilt = sum(incrementality_module._adstock_terms(weights, saturated))
 
-        stored = posterior["channel_contribution_original_scale"].assign_coords(labels)
+        stored = posterior["channel_contribution_original_scale"]
         np.testing.assert_allclose(
             rebuilt.transpose(*stored.dims).values, stored.values, rtol=1e-9, atol=1e-9
         )
@@ -5885,7 +5884,7 @@ class TestClosedFormCurrentFuture:
             mmm.incrementality._adstock_parameters(mmm.idata.posterior.dataset),
             horizon,
             progressbar=False,
-        ).assign_coords(chain=closed.chain, draw=closed.draw)
+        )
 
         assert complete.sizes["spend_date"] > 0
         np.testing.assert_allclose(
@@ -5911,13 +5910,9 @@ class TestClosedFormCurrentFuture:
             frequency="original", method="closed_form"
         )
         row = closed.sel(spend_date=closed.complete).isel(spend_date=3, channel=0)
-        share = (
-            adstock.cumulative_weights(
-                mmm.idata.posterior.dataset, 0, progressbar=False
-            )
-            .assign_coords(chain=closed.chain, draw=closed.draw)
-            .isel(channel=0)
-        )
+        share = adstock.cumulative_weights(
+            mmm.idata.posterior.dataset, 0, progressbar=False
+        ).isel(channel=0)
         total = row.current + row.future
 
         per_draw = float((share * total).mean())
