@@ -234,9 +234,10 @@ import logging
 import warnings
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Iterator, Mapping, Sequence
-from contextlib import contextmanager
+from contextlib import closing, contextmanager
 from dataclasses import dataclass
 from functools import cached_property, partial
+from itertools import groupby
 from typing import TYPE_CHECKING, Literal, cast
 
 import numpy as np
@@ -421,6 +422,26 @@ class IncrementalReducer(ABC):
         """
         return self.per_date_increment(delta).sum(dim="date")
 
+    def for_samples(self, samples: slice) -> IncrementalReducer:
+        """Restrict the reducer to a block of the flat ``sample`` axis.
+
+        :class:`Incrementality` reduces the counterfactual one block of
+        posterior samples at a time, and a *delta* then carries only that
+        block's samples.  A reducer holding nothing per sample is returned as
+        is, which is the default.
+
+        Parameters
+        ----------
+        samples : slice
+            The block's positions on the ``sample`` axis.
+
+        Returns
+        -------
+        IncrementalReducer
+            A reducer whose per-sample inputs are views of the block.
+        """
+        return self
+
 
 class IdentityLinkReducer(IncrementalReducer):
     r"""Increment reducer for an additive response (``link="identity"``).
@@ -499,6 +520,12 @@ class LogLinkReducer(IncrementalReducer):
         """See :meth:`IncrementalReducer.per_date_increment`."""
         baseline = self.baseline_response.sel(date=delta.coords["date"])
         return baseline * np.expm1(delta)
+
+    def for_samples(self, samples: slice) -> IncrementalReducer:
+        """See :meth:`IncrementalReducer.for_samples`."""
+        return LogLinkReducer(
+            baseline_response=self.baseline_response.isel(sample=samples)
+        )
 
 
 def kernel_trailing_lags(l_max: int, mode: ConvMode) -> int:
@@ -4755,31 +4782,62 @@ class Incrementality:
                 estimand=scope,
             )
 
-            counterfactual = evaluator.evaluate_counterfactual(
-                scenarios, windows=windows
-            )
-            # Per node: (n_scenarios, n_samples, max_window, *non_date_dims)
+            # The counterfactual arrives one block of samples at a time, and each
+            # block is reduced before the next is evaluated, so at most one block
+            # of it is held.  Closed on the way out, so an error leaves the
+            # evaluator bound to the request's draws before it goes back.
+            n_draws = len(labels["draw"])
+            # Per period, each block's (positions, result).
+            per_period: list[list[tuple[Mapping[str, slice], xr.DataArray]]] = [
+                [] for _ in windows.windows
+            ]
+            with closing(
+                evaluator.iter_counterfactual(scenarios, windows=windows)
+            ) as chunks:
+                for chunk in chunks:
+                    chain, draw = chunk.isel["chain"], chunk.isel["draw"]
+                    # A block is contiguous on the chain-major sample axis, so the
+                    # baseline's share of it is a view.
+                    samples = slice(
+                        chain.start * n_draws + draw.start,
+                        (chain.stop - 1) * n_draws + draw.stop,
+                    )
+                    periods = self._compute_period_increments(
+                        windows=windows,
+                        scenarios=scenarios,
+                        baseline={
+                            name: values[samples] for name, values in baseline.items()
+                        },
+                        counterfactual=chunk.outputs,
+                        non_date_dims=evaluator.non_date_dims,
+                        effect_names=effect_names,
+                        counterfactual_spend_factor=counterfactual_spend_factor,
+                        labels={dim: labels[dim][s] for dim, s in chunk.isel.items()},
+                        reducer=reducer.for_samples(samples),
+                        scope=scope,
+                        dedicated_channel_rows=channel_axis is not None,
+                        freq_offset=freq_offset,
+                        # How far past a period's last spend date its carryover is
+                        # known to land: the measured reach, or under full-axis
+                        # evaluation the kernel's own trailing lags, which bound it
+                        # from below.
+                        tail_lags=(
+                            reach.max_lag
+                            if reach.max_lag is not None
+                            else trailing_lags
+                        ),
+                        keep_date_axis=keep_date_axis,
+                    )
+                    for parts, result in zip(per_period, periods, strict=True):
+                        parts.append((chunk.isel, result))
+                    del chunk, periods
 
-            # Assemble results
-            period_results = self._compute_period_increments(
-                windows=windows,
-                scenarios=scenarios,
-                baseline=baseline,
-                counterfactual=counterfactual,
-                non_date_dims=evaluator.non_date_dims,
-                effect_names=effect_names,
-                counterfactual_spend_factor=counterfactual_spend_factor,
-                labels=labels,
-                reducer=reducer,
-                scope=scope,
-                dedicated_channel_rows=channel_axis is not None,
-                freq_offset=freq_offset,
-                # How far past a period's last spend date its carryover is known to
-                # land: the measured reach, or under full-axis evaluation the
-                # kernel's own trailing lags, which bound it from below.
-                tail_lags=reach.max_lag if reach.max_lag is not None else trailing_lags,
-                keep_date_axis=keep_date_axis,
-            )
+            # Each period's blocks are released once joined, so the joined
+            # results and the blocks are not both held in full.
+            period_results = []
+            for idx, parts in enumerate(per_period):
+                period_results.append(self._join_sample_blocks(parts))
+                per_period[idx] = []
             return PeriodIncrements(
                 periods=period_results,
                 windows=windows,
@@ -4788,6 +4846,36 @@ class Incrementality:
             )
         finally:
             prepared.release()
+
+    @staticmethod
+    def _join_sample_blocks(
+        blocks: Sequence[tuple[Mapping[str, slice], xr.DataArray]],
+    ) -> xr.DataArray:
+        """Join one period's result over the sample blocks it was computed in.
+
+        Parameters
+        ----------
+        blocks : sequence of (isel, xr.DataArray)
+            Each block's positions in the posterior and its result, in the
+            chain-major order :meth:`CounterfactualEvaluator.iter_counterfactual`
+            yields them: runs of whole chains, or runs of draws within a chain.
+
+        Returns
+        -------
+        xr.DataArray
+            The blocks joined over ``draw`` within a chain, then over ``chain``.
+            Each block carries its own ``chain`` and ``draw`` labels, so the
+            result keeps the posterior's.
+        """
+        if len(blocks) == 1:
+            return blocks[0][1]
+        # Blocks are disjoint and agree on every other dim by construction.
+        join = partial(xr.concat, join="exact", coords="minimal", compat="override")
+        chains = [
+            join([result for _, result in run], dim="draw")
+            for _, run in groupby(blocks, key=lambda block: block[0]["chain"])
+        ]
+        return join(chains, dim="chain")
 
     @staticmethod
     def _stack_periods(
