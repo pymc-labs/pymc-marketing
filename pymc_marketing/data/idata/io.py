@@ -26,12 +26,16 @@ import os
 import shutil
 import tempfile
 import warnings
+from collections.abc import Iterator
 from enum import StrEnum
 from pathlib import Path, PurePosixPath
 from typing import Any
 
+import numpy as np
 import xarray as xr
 from packaging.version import Version
+
+from pymc_marketing.names import Name
 
 
 class IdataFormat(StrEnum):
@@ -105,6 +109,61 @@ def idata_format_from_path(path: str | Path) -> IdataFormat:
         if path.name.endswith(fmt.suffix):
             return fmt
     return IdataFormat.NETCDF
+
+
+def _has_name(value: Any) -> bool:
+    """Return whether ``value`` is, or holds, a :class:`~pymc_marketing.names.Name` member."""
+    if isinstance(value, Name):
+        return True
+    if isinstance(value, list | tuple):
+        return any(_has_name(item) for item in value)
+    if isinstance(value, np.ndarray) and value.dtype.kind == "O":
+        return any(_has_name(item) for item in value.flat)
+    return False
+
+
+def _plain_attr_value(value: Any) -> Any:
+    """Return ``value`` with :class:`~pymc_marketing.names.Name` members as plain ``str``."""
+    if isinstance(value, Name):
+        return value.value
+    if isinstance(value, list | tuple):
+        return type(value)(_plain_attr_value(item) for item in value)
+    if isinstance(value, np.ndarray) and value.dtype.kind == "O":
+        return np.vectorize(_plain_attr_value, otypes=[object])(value)
+    return value
+
+
+def _plain_name_attrs(idata: xr.DataTree) -> xr.DataTree:
+    """Return ``idata`` with :class:`~pymc_marketing.names.Name` attribute values as plain ``str``.
+
+    h5py chooses the type of a netCDF attribute from the exact Python type of its
+    value and cannot write a ``str`` subclass, so a name stored as an attribute
+    value (``attrs["output_var"] = Var.Y``) must be converted before writing.
+    Attribute keys, variable names and dims are written as strings already. The
+    input tree is left unchanged; a shallow copy is returned only when needed.
+    """
+
+    def all_attrs(tree: xr.DataTree) -> Iterator[dict[Any, Any]]:
+        for node in tree.subtree:
+            yield node.attrs
+            for var in node.variables.values():
+                yield var.attrs
+
+    if not any(
+        _has_name(value) for attrs in all_attrs(idata) for value in attrs.values()
+    ):
+        return idata
+
+    plain = idata.copy(deep=False)
+    for node in plain.subtree:
+        node.attrs = {
+            key: _plain_attr_value(value) for key, value in node.attrs.items()
+        }
+        for var in node.variables.values():
+            var.attrs = {
+                key: _plain_attr_value(value) for key, value in var.attrs.items()
+            }
+    return plain
 
 
 def _select_groups(idata: xr.DataTree, groups: list[str]) -> xr.DataTree:
@@ -321,6 +380,12 @@ def save_idata(
         If a Zarr store cannot hold names that differ only by letter case on
         this filesystem; see :func:`idata_to_zarr`.
 
+    Notes
+    -----
+    For netCDF, :class:`~pymc_marketing.names.Name` members used as attribute
+    values are written as their plain string, because h5py cannot write a
+    ``str`` subclass. ``idata`` itself is not modified.
+
     Examples
     --------
     .. code-block:: python
@@ -336,7 +401,7 @@ def save_idata(
     if idata_format_from_path(path) is IdataFormat.ZARR:
         idata_to_zarr(idata, path, **kwargs)
     else:
-        idata.to_netcdf(str(path), **kwargs)
+        _plain_name_attrs(idata).to_netcdf(str(path), **kwargs)
     return path
 
 

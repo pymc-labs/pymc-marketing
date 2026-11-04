@@ -24,6 +24,7 @@ import pandas as pd
 import xarray as xr
 from numpy.random import Generator, RandomState
 
+from pymc_marketing.data.idata.names import Attr, Dim
 from pymc_marketing.data.idata.schema import Frequency
 
 _MOVED_TO_IO = ("idata_to_zarr", "idata_from_zarr")
@@ -74,7 +75,7 @@ def filter_idata_by_dates(
     filtered_groups = {}
     for name, child in idata.children.items():
         ds = child.dataset
-        if "date" in ds.dims:
+        if Dim.DATE in ds.dims:
             ds = ds.sel(**date_slice)
         filtered_groups[name] = ds
 
@@ -190,7 +191,7 @@ def _aggregate_over_time[XarrayT: (xr.Dataset, xr.DataArray)](
     xr.Dataset or xr.DataArray
         Aggregated object, of the same type as ``data``.
     """
-    if period == "original" or "date" not in data.dims:
+    if period == "original" or Dim.DATE not in data.dims:
         return data
 
     reducible = (
@@ -274,14 +275,14 @@ def sum_contributions_over_time(
     xr.Dataset
         The contributions of each period.
     """
-    if period == "original" or "date" not in contributions.dims:
+    if period == "original" or Dim.DATE not in contributions.dims:
         return contributions
 
     date = contributions["date"]
     per_date = contributions.map(
         lambda component: (
             component
-            if "date" in component.dims
+            if Dim.DATE in component.dims
             else broadcast_over_date(component, date)
         )
     )
@@ -339,7 +340,7 @@ def aggregate_idata_time(
             if path != "/"
         }
     )
-    result.attrs = {**idata.attrs, "time_aggregation": period}
+    result.attrs = {**idata.attrs, Attr.TIME_AGGREGATION: period}
     return result
 
 

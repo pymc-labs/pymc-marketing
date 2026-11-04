@@ -34,6 +34,7 @@ from pytensor.graph.traversal import ancestors
 from pytensor.xtensor import as_xtensor
 from pytensor.xtensor.type import XTensorVariable
 
+from pymc_marketing.data.idata.names import Dim, Var
 from pymc_marketing.mmm.components.saturation import SaturationTransformation
 
 Index = Sequence[int] | npt.NDArray[np.integer]
@@ -936,8 +937,8 @@ def validate_cost_per_target_rows(
     if missing:
         raise KeyError(f"Missing required columns in calibration_df: {sorted(missing)}")
 
-    cpt_dims = tuple(model.named_vars_to_dims["channel_data"])
-    non_date_dims = [d for d in cpt_dims if d != "date"]
+    cpt_dims = tuple(model.named_vars_to_dims[Var.CHANNEL_DATA])
+    non_date_dims = [d for d in cpt_dims if d != Dim.DATE]
 
     missing_dims = [d for d in non_date_dims if d not in calibration_df.columns]
     if missing_dims:

@@ -15,7 +15,6 @@
 """Beta-Geometric/Beta-Binomial Model."""
 
 from collections.abc import Sequence
-from typing import Literal
 
 import numpy as np
 import pandas as pd
@@ -30,6 +29,7 @@ from scipy.special import betaln, gammaln
 
 from pymc_marketing.clv.distributions import BetaGeoBetaBinom
 from pymc_marketing.clv.models.basic import CLVModel
+from pymc_marketing.clv.names import NEW_CUSTOMER_VARS, Col, Dim, NewCustomerVar, Var
 from pymc_marketing.clv.utils import to_xarray
 from pymc_marketing.model_config import ModelConfig
 
@@ -173,13 +173,13 @@ class BetaGeoBetaBinomModel(CLVModel):
         self._validate_cols(
             data,
             required_cols=[
-                "customer_id",
-                "frequency",
-                "recency",
-                "T",
+                Col.CUSTOMER_ID,
+                Col.FREQUENCY,
+                Col.RECENCY,
+                Col.T,
             ],
-            must_be_unique=["customer_id"],
-            must_be_homogenous=["T"],
+            must_be_unique=[Col.CUSTOMER_ID],
+            must_be_homogenous=[Col.T],
         )
 
     def build_model(self, data: pd.DataFrame) -> None:  # type: ignore[override]
@@ -194,8 +194,8 @@ class BetaGeoBetaBinomModel(CLVModel):
         self.data = data
 
         coords = {
-            "obs_var": ["recency", "frequency"],
-            "customer_id": self.data["customer_id"],
+            Dim.OBS_VAR: [Col.RECENCY, Col.FREQUENCY],
+            Dim.CUSTOMER_ID: self.data[Col.CUSTOMER_ID],
         }
         with pm.Model(coords=coords) as self.model:
             # purchase rate priors
@@ -231,16 +231,16 @@ class BetaGeoBetaBinomModel(CLVModel):
                 delta = pm.Deterministic("delta", (1.0 - phi_dropout) * kappa_dropout)
 
             BetaGeoBetaBinom(
-                name="recency_frequency",
+                name=Var.RECENCY_FREQUENCY,
                 alpha=alpha,
                 beta=beta,
                 delta=delta,
                 gamma=gamma,
-                T=self.data["T"],
+                T=self.data[Col.T],
                 observed=np.stack(
-                    (self.data["recency"], self.data["frequency"]), axis=1
+                    (self.data[Col.RECENCY], self.data[Col.FREQUENCY]), axis=1
                 ),
-                dims=["customer_id", "obs_var"],
+                dims=[Dim.CUSTOMER_ID, Dim.OBS_VAR],
             )
 
     # TODO: cache this as a property
@@ -283,7 +283,7 @@ class BetaGeoBetaBinomModel(CLVModel):
         loglike = np.moveaxis(
             loglike.reshape((-1, alpha.sizes["chain"], alpha.sizes["draw"])), 0, -1
         )
-        return xarray.DataArray(data=loglike, dims=("chain", "draw", "customer_id"))
+        return xarray.DataArray(data=loglike, dims=("chain", "draw", Dim.CUSTOMER_ID))
 
     # TODO: move this into BaseModel
     def _extract_predictive_variables(
@@ -300,11 +300,11 @@ class BetaGeoBetaBinomModel(CLVModel):
         self._validate_cols(
             data,
             required_cols=[
-                "customer_id",
+                Col.CUSTOMER_ID,
                 *customer_varnames,
             ],
-            must_be_unique=["customer_id"],
-            must_be_homogenous=["T"],
+            must_be_unique=[Col.CUSTOMER_ID],
+            must_be_homogenous=[Col.T],
         )
 
         alpha = self.fit_result["alpha"]
@@ -313,7 +313,7 @@ class BetaGeoBetaBinomModel(CLVModel):
         delta = self.fit_result["delta"]
 
         customer_vars = to_xarray(
-            data["customer_id"],
+            data[Col.CUSTOMER_ID],
             *[data[customer_varname] for customer_varname in customer_varnames],
         )
         if len(customer_varnames) == 1:
@@ -373,19 +373,19 @@ class BetaGeoBetaBinomModel(CLVModel):
             data = self.data
 
         if future_t is not None:
-            data = data.assign(future_t=future_t)
+            data = data.assign(**{Col.FUTURE_T: future_t})
 
         dataset = self._extract_predictive_variables(
-            data, customer_varnames=["frequency", "recency", "T", "future_t"]
+            data, customer_varnames=[Col.FREQUENCY, Col.RECENCY, Col.T, Col.FUTURE_T]
         )
         alpha = dataset["alpha"]
         beta = dataset["beta"]
         gamma = dataset["gamma"]
         delta = dataset["delta"]
-        x = dataset["frequency"]
-        t_x = dataset["recency"]
-        T = dataset["T"]
-        future_t = dataset["future_t"]
+        x = dataset[Col.FREQUENCY]
+        t_x = dataset[Col.RECENCY]
+        T = dataset[Col.T]
+        future_t = dataset[Col.FUTURE_T]
 
         loglike = self._logp(alpha, beta, gamma, delta, x, t_x, T)
 
@@ -404,7 +404,7 @@ class BetaGeoBetaBinomModel(CLVModel):
         )
 
         return exp_purchases.transpose(
-            "chain", "draw", "customer_id", missing_dims="ignore"
+            "chain", "draw", Dim.CUSTOMER_ID, missing_dims="ignore"
         )
 
     def expected_probability_alive(
@@ -450,19 +450,19 @@ class BetaGeoBetaBinomModel(CLVModel):
             data = self.data
 
         if future_t is not None:
-            data = data.assign(future_t=future_t)
+            data = data.assign(**{Col.FUTURE_T: future_t})
 
         dataset = self._extract_predictive_variables(
-            data, customer_varnames=["frequency", "recency", "T", "future_t"]
+            data, customer_varnames=[Col.FREQUENCY, Col.RECENCY, Col.T, Col.FUTURE_T]
         )
         alpha = dataset["alpha"]
         beta = dataset["beta"]
         gamma = dataset["gamma"]
         delta = dataset["delta"]
-        x = dataset["frequency"]
-        t_x = dataset["recency"]
-        T = dataset["T"]
-        future_t = dataset["future_t"]
+        x = dataset[Col.FREQUENCY]
+        t_x = dataset[Col.RECENCY]
+        T = dataset[Col.T]
+        future_t = dataset[Col.FUTURE_T]
 
         loglike = self._logp(alpha, beta, gamma, delta, x, t_x, T)
 
@@ -472,7 +472,7 @@ class BetaGeoBetaBinomModel(CLVModel):
         prob_alive = exp(term1 + term2) / exp(loglike)
 
         return prob_alive.transpose(
-            "chain", "draw", "customer_id", missing_dims="ignore"
+            "chain", "draw", Dim.CUSTOMER_ID, missing_dims="ignore"
         )
 
     def expected_purchases_new_customer(
@@ -501,14 +501,16 @@ class BetaGeoBetaBinomModel(CLVModel):
             data = self.data
 
         if t is not None:
-            data = data.assign(t=t)
+            data = data.assign(**{Col.NEW_CUSTOMER_T: t})
 
-        dataset = self._extract_predictive_variables(data, customer_varnames=["t"])
+        dataset = self._extract_predictive_variables(
+            data, customer_varnames=[Col.NEW_CUSTOMER_T]
+        )
         alpha = dataset["alpha"]
         beta = dataset["beta"]
         gamma = dataset["gamma"]
         delta = dataset["delta"]
-        t = dataset["t"]
+        t = dataset[Col.NEW_CUSTOMER_T]
 
         first_term = alpha / (alpha + beta) * delta / (gamma - 1)
         second_term = 1 - exp(
@@ -519,7 +521,7 @@ class BetaGeoBetaBinomModel(CLVModel):
         )
 
         return (first_term * second_term).transpose(
-            "chain", "draw", "customer_id", missing_dims="ignore"
+            "chain", "draw", Dim.CUSTOMER_ID, missing_dims="ignore"
         )
 
     def _distribution_new_customers(
@@ -528,13 +530,7 @@ class BetaGeoBetaBinomModel(CLVModel):
         *,
         T: int | np.ndarray | pd.Series | None = None,
         random_seed: RandomState | None = None,
-        var_names: Sequence[
-            Literal["dropout", "purchase_rate", "recency_frequency"]
-        ] = (
-            "dropout",
-            "purchase_rate",
-            "recency_frequency",
-        ),
+        var_names: Sequence[NewCustomerVar] = NEW_CUSTOMER_VARS,
         n_samples: int = 1000,
     ) -> xarray.Dataset:
         """Compute posterior predictive samples of dropout, purchase rate and frequency/recency of new customers.
@@ -562,19 +558,19 @@ class BetaGeoBetaBinomModel(CLVModel):
             data = self.data
 
         if T is not None:
-            data = data.assign(T=T)
+            data = data.assign(**{Col.T: T})
 
-        dataset = self._extract_predictive_variables(data, customer_varnames=["T"])
-        T = dataset["T"].values
+        dataset = self._extract_predictive_variables(data, customer_varnames=[Col.T])
+        T = dataset[Col.T].values
         # Delete "T" so we can pass dataset directly to `sample_posterior_predictive`
-        del dataset["T"]
+        del dataset[Col.T]
 
         if dataset.sizes["chain"] == 1 and dataset.sizes["draw"] == 1:
             # For map fit add a dummy draw dimension
             dataset = dataset.squeeze("draw").expand_dims(draw=range(n_samples))
 
         coords = self.model.coords.copy()  # type: ignore
-        coords["customer_id"] = data["customer_id"]
+        coords[Dim.CUSTOMER_ID] = data[Col.CUSTOMER_ID]
         with pm.Model(coords=coords):
             alpha = pm.Flat("alpha")
             beta = pm.Flat("beta")
@@ -582,24 +578,24 @@ class BetaGeoBetaBinomModel(CLVModel):
             delta = pm.Flat("delta")
 
             pm.Beta(
-                "purchase_rate",
+                Var.PURCHASE_RATE,
                 alpha=alpha,
                 beta=beta,
             )
             pm.Beta(
-                "dropout",
+                Var.DROPOUT,
                 alpha=gamma,
                 beta=delta,
             )
 
             BetaGeoBetaBinom(
-                name="recency_frequency",
+                name=Var.RECENCY_FREQUENCY,
                 alpha=alpha,
                 beta=beta,
                 gamma=gamma,
                 delta=delta,
                 T=T,
-                dims=["customer_id", "obs_var"],
+                dims=[Dim.CUSTOMER_ID, Dim.OBS_VAR],
             )
 
             return pm.sample_posterior_predictive(
@@ -639,8 +635,8 @@ class BetaGeoBetaBinomModel(CLVModel):
         return self._distribution_new_customers(
             data=data,
             random_seed=random_seed,
-            var_names=["dropout"],
-        )["dropout"]
+            var_names=[Var.DROPOUT.value],
+        )[Var.DROPOUT]
 
     # TODO: Move into BaseModel?
     def distribution_new_customer_purchase_rate(
@@ -672,8 +668,8 @@ class BetaGeoBetaBinomModel(CLVModel):
         return self._distribution_new_customers(
             data=data,
             random_seed=random_seed,
-            var_names=["purchase_rate"],
-        )["purchase_rate"]
+            var_names=[Var.PURCHASE_RATE.value],
+        )[Var.PURCHASE_RATE]
 
     # TODO: This is quite slow due to sampling far more than necessary. Same for other CLV models.
     def distribution_new_customer_recency_frequency(
@@ -714,6 +710,6 @@ class BetaGeoBetaBinomModel(CLVModel):
             data=data,
             T=T,
             random_seed=random_seed,
-            var_names=["recency_frequency"],
+            var_names=[Var.RECENCY_FREQUENCY.value],
             n_samples=n_samples,
-        )["recency_frequency"]
+        )[Var.RECENCY_FREQUENCY]

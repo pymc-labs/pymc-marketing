@@ -25,6 +25,7 @@ from pymc_extras.prior import Prior
 from pytensor.tensor.variable import TensorVariable
 
 from pymc_marketing.customer_choice.mixed_logit import MixedLogit
+from pymc_marketing.customer_choice.names import Dim, Var
 
 
 class _ConsiderationInstrumentsRequired(TypedDict):
@@ -187,21 +188,21 @@ class ConsiderationSetMixedLogit(MixedLogit):
             # gamma_z: (alts, z_instruments) — each mode has its own
             # sensitivity to each instrument
             config["gamma_z"] = Prior(
-                "Normal", mu=0, sigma=2, dims=("alts", "z_instruments")
+                "Normal", mu=0, sigma=2, dims=(Dim.ALTS, "z_instruments")
             )
         else:
             # gamma_z: (alts,) — one slope per alternative
-            config["gamma_z"] = Prior("Normal", mu=0, sigma=2, dims="alts")
+            config["gamma_z"] = Prior("Normal", mu=0, sigma=2, dims=Dim.ALTS)
 
         # Optional consideration intercepts (one per alternative)
         if self.consideration_intercept:
-            config["gamma_0"] = Prior("Normal", mu=0, sigma=2, dims="alts")
+            config["gamma_0"] = Prior("Normal", mu=0, sigma=2, dims=Dim.ALTS)
 
         # Random consideration intercept priors
         if self.random_consideration:
             config["sigma_consider_eta"] = Prior("HalfNormal", sigma=2)
             config["z_consider_eta"] = Prior(
-                "Normal", mu=0, sigma=1, dims="individuals"
+                "Normal", mu=0, sigma=1, dims=Dim.INDIVIDUALS
             )
 
         return config
@@ -275,14 +276,14 @@ class ConsiderationSetMixedLogit(MixedLogit):
                     "z_consider_eta"
                 )
                 eta_individual = pm.Deterministic(
-                    "eta_consider", z_eta * sigma_eta, dims="individuals"
+                    "eta_consider", z_eta * sigma_eta, dims=Dim.INDIVIDUALS
                 )
             else:
                 eta_individual = pm.Normal(
                     "eta_consider",
                     mu=0,
                     sigma=sigma_eta,
-                    dims="individuals",
+                    dims=Dim.INDIVIDUALS,
                 )
 
             # Map individuals to observations
@@ -293,7 +294,7 @@ class ConsiderationSetMixedLogit(MixedLogit):
 
             log_odds = log_odds + eta[:, None]  # (N, J)
 
-        pi = pm.Deterministic("pi", pm.math.sigmoid(log_odds), dims=("obs", "alts"))
+        pi = pm.Deterministic("pi", pm.math.sigmoid(log_odds), dims=(Dim.OBS, Dim.ALTS))
         # Use log-sigmoid identity: log(sigmoid(x)) = x - softplus(x)
         # This is numerically superior to log(sigmoid(x) + eps)
         log_pi = log_odds - pt.softplus(log_odds)
@@ -324,15 +325,17 @@ class ConsiderationSetMixedLogit(MixedLogit):
 
         with pm.Model(coords=self.coords) as model:
             # --- Data ---
-            X_data = pm.Data("X", X, dims=("obs", "alts", "covariates"))
+            X_data = pm.Data(Var.X, X, dims=(Dim.OBS, Dim.ALTS, Dim.COVARIATES))
             if self._multi_instrument:
-                Z_data = pm.Data("Z", Z_tilde, dims=("obs", "alts", "z_instruments"))
+                Z_data = pm.Data(
+                    "Z", Z_tilde, dims=(Dim.OBS, Dim.ALTS, "z_instruments")
+                )
             else:
-                Z_data = pm.Data("Z", Z_tilde, dims=("obs", "alts"))
-            observed_data = pm.Data("y", y, dims="obs")
+                Z_data = pm.Data("Z", Z_tilde, dims=(Dim.OBS, Dim.ALTS))
+            observed_data = pm.Data(Var.Y, y, dims=Dim.OBS)
 
             if self.grp_idx is not None:
-                grp_idx_data = pm.Data("grp_idx", self.grp_idx, dims="obs")
+                grp_idx_data = pm.Data("grp_idx", self.grp_idx, dims=Dim.OBS)
             else:
                 grp_idx_data = self.grp_idx
 
@@ -360,16 +363,16 @@ class ConsiderationSetMixedLogit(MixedLogit):
             U_avail = U + log_pi
             U_c = U_avail - U_avail.max(axis=1, keepdims=True)
             p = pm.Deterministic(
-                "p", pm.math.softmax(U_c, axis=1), dims=("obs", "alts")
+                Var.P, pm.math.softmax(U_c, axis=1), dims=(Dim.OBS, Dim.ALTS)
             )
 
             # --- Likelihood ---
             if observed:
                 _ = pm.Categorical(
-                    "likelihood", p=p, observed=observed_data, dims="obs"
+                    Var.LIKELIHOOD, p=p, observed=observed_data, dims=Dim.OBS
                 )
             else:
-                _ = pm.Categorical("likelihood", p=p, dims="obs")
+                _ = pm.Categorical(Var.LIKELIHOOD, p=p, dims=Dim.OBS)
 
         return model
 
@@ -465,10 +468,10 @@ class ConsiderationSetMixedLogit(MixedLogit):
         """
         data_dict: dict[str, np.ndarray] = {}
         if new_X is not None and new_y is not None:
-            data_dict["X"] = new_X
-            data_dict["y"] = new_y
+            data_dict[Var.X] = new_X
+            data_dict[Var.Y] = new_y
             if new_F is not None and len(new_F) > 0:
-                data_dict["W"] = new_F
+                data_dict[Var.W] = new_F
         data_dict["Z"] = self.consideration_instruments["Z_tilde"]
         return data_dict
 
@@ -532,7 +535,7 @@ class ConsiderationSetMixedLogit(MixedLogit):
 
         with self.model:
             post_pred = pm.sample_posterior_predictive(
-                self.idata, var_names=["likelihood", "p"], **kwargs
+                self.idata, var_names=[Var.LIKELIHOOD, Var.P], **kwargs
             )
 
         if extend_idata:
@@ -602,7 +605,7 @@ class ConsiderationSetMixedLogit(MixedLogit):
 
                 idata_new_policy = pm.sample_posterior_predictive(
                     self.idata,
-                    var_names=["p", "likelihood"],
+                    var_names=[Var.P, Var.LIKELIHOOD],
                     return_inferencedata=True,
                     extend_inferencedata=False,
                     random_seed=random_seed,
@@ -620,7 +623,7 @@ class ConsiderationSetMixedLogit(MixedLogit):
                 idata_new_policy.update(pm.sample(**fit_kwargs))
                 idata_new_policy.update(
                     pm.sample_posterior_predictive(
-                        idata_new_policy, var_names=["p", "likelihood"]
+                        idata_new_policy, var_names=[Var.P, Var.LIKELIHOOD]
                     ),
                 )
 

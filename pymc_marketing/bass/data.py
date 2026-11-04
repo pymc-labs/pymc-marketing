@@ -24,6 +24,8 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 
+from pymc_marketing.bass.names import Col, Dim, Var
+
 
 @singledispatch
 def to_bass_dataset(data):
@@ -102,17 +104,21 @@ def to_bass_dataset(data):
 @to_bass_dataset.register(xr.Dataset)
 def _from_xarray(data: xr.Dataset) -> xr.Dataset:
     """Preserve an ``xr.Dataset``, adding ``T`` when missing."""
-    if "observed" in data:
-        obs_dims = data["observed"].dims
-        if "T" in obs_dims and obs_dims[0] != "T":
+    if Var.OBSERVED in data:
+        obs_dims = data[Var.OBSERVED].dims
+        if Dim.T in obs_dims and obs_dims[0] != Dim.T:
             # Keep ``T`` as the leading dim so ``y_obs`` matches the model layout
             # regardless of the order the user passed (e.g. a (product, T) Dataset).
             # Transpose before adding the coord so the ``T`` length is read from the
             # ``T`` dim, not whichever dim happens to come first.
-            data = data.transpose("T", ...)
-    if "T" not in data.coords:
-        n = data.sizes["T"] if "T" in data.sizes else next(iter(data.sizes.values()))
-        data = data.assign_coords(T=np.arange(n))
+            data = data.transpose(Dim.T, ...)
+    if Dim.T not in data.coords:
+        n = (
+            data.sizes[Dim.T]
+            if Dim.T in data.sizes
+            else next(iter(data.sizes.values()))
+        )
+        data = data.assign_coords({Dim.T: np.arange(n)})
     return data
 
 
@@ -124,7 +130,7 @@ def _from_dataframe(data: pd.DataFrame) -> xr.Dataset:
       columns are kept as data variables).
     * Otherwise → wide multi-product format (column names → product labels).
     """
-    if "observed" in data.columns:
+    if Col.OBSERVED in data.columns:
         return _dataframe_single_product(data)
 
     numeric_cols = _get_numeric_columns(data)
@@ -139,24 +145,24 @@ def _from_dataframe(data: pd.DataFrame) -> xr.Dataset:
     matrix = np.column_stack([data[c].to_numpy() for c in cols])
 
     return xr.Dataset(
-        {"observed": (("T", "product"), matrix)},
-        coords={"T": t, "product": cols},
+        {Var.OBSERVED: ((Dim.T, "product"), matrix)},
+        coords={Dim.T: t, "product": cols},
     )
 
 
 def _dataframe_single_product(data: pd.DataFrame) -> xr.Dataset:
     """Convert a DataFrame that has an ``"observed"`` column."""
-    obs = data["observed"].to_numpy()
-    remaining = data.drop(columns=["observed"])
+    obs = data[Col.OBSERVED].to_numpy()
+    remaining = data.drop(columns=[Col.OBSERVED])
     t, _ = _extract_t_column(remaining, list(remaining.columns))
 
-    ds = xr.Dataset({"observed": ("T", obs)}, coords={"T": t})
+    ds = xr.Dataset({Var.OBSERVED: (Dim.T, obs)}, coords={Dim.T: t})
 
     for col in remaining.columns:
-        if col == "T":
+        if col == Col.T:
             continue
         if not _is_non_numeric(remaining[col]):
-            ds[col] = ("T", remaining[col].to_numpy())
+            ds[col] = (Dim.T, remaining[col].to_numpy())
 
     return ds
 
@@ -165,8 +171,8 @@ def _dataframe_single_product(data: pd.DataFrame) -> xr.Dataset:
 def _from_series(data: pd.Series) -> xr.Dataset:
     """Convert a ``pd.Series`` to a single-product Dataset."""
     return xr.Dataset(
-        {"observed": ("T", data.to_numpy())},
-        coords={"T": np.arange(len(data))},
+        {Var.OBSERVED: (Dim.T, data.to_numpy())},
+        coords={Dim.T: np.arange(len(data))},
     )
 
 
@@ -175,15 +181,15 @@ def _from_array(data: np.ndarray) -> xr.Dataset:
     """Convert a ``np.ndarray`` to a Dataset."""
     if data.ndim == 1:
         return xr.Dataset(
-            {"observed": ("T", data)},
-            coords={"T": np.arange(len(data))},
+            {Var.OBSERVED: (Dim.T, data)},
+            coords={Dim.T: np.arange(len(data))},
         )
     elif data.ndim == 2:
         n_products = data.shape[1]
         return xr.Dataset(
-            {"observed": (("T", "product"), data)},
+            {Var.OBSERVED: ((Dim.T, "product"), data)},
             coords={
-                "T": np.arange(data.shape[0]),
+                Dim.T: np.arange(data.shape[0]),
                 "product": [f"P{i}" for i in range(n_products)],
             },
         )
@@ -206,9 +212,9 @@ def _extract_t_column(
 
     Returns ``(t_values, remaining_column_names)``.
     """
-    if "T" in candidates:
-        t = data["T"].to_numpy()
-        remaining = [c for c in candidates if c != "T"]
+    if Col.T in candidates:
+        t = data[Col.T].to_numpy()
+        remaining = [c for c in candidates if c != Col.T]
     else:
         t = np.arange(len(data))
         remaining = list(candidates)

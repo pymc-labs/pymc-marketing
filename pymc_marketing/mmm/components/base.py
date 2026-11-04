@@ -41,8 +41,10 @@ from pytensor.graph.basic import Variable
 from pytensor.xtensor import as_xtensor
 from pytensor.xtensor.type import XTensorVariable
 
+from pymc_marketing.data.idata.names import Dim
 from pymc_marketing.mmm.dims import XTensorLike
 from pymc_marketing.model_config import parse_model_config
+from pymc_marketing.names import Key
 from pymc_marketing.plot import (
     SelToString,
     plot_curve,
@@ -51,7 +53,7 @@ from pymc_marketing.plot import (
 )
 
 # "x" for saturation, "time since exposure" for adstock
-NON_GRID_NAMES: frozenset[str] = frozenset({"x", "time since exposure"})
+NON_GRID_NAMES: frozenset[str] = frozenset({"x", Dim.TIME_SINCE_EXPOSURE})
 
 type SupportedPrior = (
     InstanceOf[Prior]
@@ -187,7 +189,7 @@ class Transformation:
     def from_dict(cls, data: dict) -> Self:
         """Reconstruct a transformation from a dict."""
         data = data.copy()
-        data.pop("__type__", None)
+        data.pop(Key.TYPE, None)
 
         if "priors" in data:
             data["priors"] = {

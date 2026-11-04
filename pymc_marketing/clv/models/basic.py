@@ -23,12 +23,14 @@ import pandas as pd
 import xarray as xr
 from pydantic import ConfigDict, InstanceOf, validate_call
 
+from pymc_marketing.clv.names import Col
 from pymc_marketing.model_builder import DifferentModelError, ModelBuilder
 from pymc_marketing.model_config import (
     ModelConfig,
     _reject_removed_parameters,
     parse_model_config,
 )
+from pymc_marketing.names import Attr
 
 
 class CLVModel(ModelBuilder):
@@ -81,29 +83,29 @@ class CLVModel(ModelBuilder):
 
     def _validate_frequency(self, data: pd.DataFrame) -> None:
         """Validate frequency column values shared across BTYD and Gamma-Gamma models."""
-        if (data["frequency"] < 0).any():
+        if (data[Col.FREQUENCY] < 0).any():
             raise ValueError("Column frequency has negative values")
 
-        if not (np.mod(data["frequency"], 1) == 0).all():
+        if not (np.mod(data[Col.FREQUENCY], 1) == 0).all():
             raise ValueError("frequency column must contain only integer values")
 
     def _validate_rfm_data(self, data: pd.DataFrame) -> None:
         """Validate frequency, recency, and T columns shared by BTYD transaction models."""
-        self._validate_cols(data, required_cols=["frequency", "recency", "T"])
+        self._validate_cols(data, required_cols=[Col.FREQUENCY, Col.RECENCY, Col.T])
         self._validate_frequency(data)
 
-        if (data["recency"] < 0).any():
+        if (data[Col.RECENCY] < 0).any():
             raise ValueError("Column recency has negative values")
-        if (data["T"] < 0).any():
+        if (data[Col.T] < 0).any():
             raise ValueError("Column T has negative values")
 
-        if ((data["frequency"] == 0) & (data["recency"] > 0)).any():
+        if ((data[Col.FREQUENCY] == 0) & (data[Col.RECENCY] > 0)).any():
             raise ValueError("recency cannot be greater than 0 if frequency is 0")
 
-        if (data["recency"] > data["T"]).any():
+        if (data[Col.RECENCY] > data[Col.T]).any():
             raise ValueError("recency cannot be greater than T")
 
-        if (data["T"] == 0).any():
+        if (data[Col.T] == 0).any():
             warnings.warn(
                 "T=0 is uninformative for model fitting. This occurs when a customer "
                 "makes a purchase in the final observed time period.",
@@ -151,7 +153,7 @@ class CLVModel(ModelBuilder):
         model.data = idata.fit_data.dataset.to_dataframe()
 
         model.build_model(model.data)  # type: ignore
-        if model.id != idata.attrs["id"]:
+        if model.id != idata.attrs[Attr.ID]:
             msg = (
                 "The model id in the DataTree does not match the model id. "
                 "There was no error loading the inference data, but the model may "

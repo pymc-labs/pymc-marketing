@@ -7,6 +7,10 @@
 - Temporary or test scripts that are not meant to be committed should be created in the `sandbox/` folder.
 - Do not insert hard line breaks inside a sentence; let the editor handle word wrap. Line breaks between sentences are fine.
 
+## Code conventions
+
+- Library-owned names (model variables, dims, fixed DataFrame columns, InferenceData groups, `idata.attrs` keys, serialization keys such as `__type__`) are members of `@unique` `pymc_marketing.names.Name` subclasses (`StrEnum`) in the package `names.py` (`pymc_marketing/data/idata/names.py` for the MMM). Use the member, not the string literal, and add new names there. Tests keep the literal strings.
+
 ## Skills (shared with Cursor)
 
 Read the relevant skill entry listed below **before** starting work in that domain.

@@ -18,6 +18,7 @@ from typing import Annotated, Any
 
 from pydantic import BaseModel, Field
 
+from pymc_marketing.names import Key
 from pymc_marketing.serialization import serialization
 
 
@@ -80,5 +81,5 @@ class HSGPKwargs(BaseModel):
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "HSGPKwargs":
         """Reconstruct from a dict."""
-        filtered = {k: v for k, v in data.items() if k != "__type__"}
+        filtered = {k: v for k, v in data.items() if k != Key.TYPE}
         return cls.model_validate(filtered)

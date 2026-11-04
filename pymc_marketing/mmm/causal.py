@@ -34,6 +34,8 @@ import pytensor.tensor as pt
 from pydantic import ConfigDict, Field, InstanceOf, validate_call
 from pymc_extras.prior import Prior
 
+from pymc_marketing.data.idata.names import Dim
+
 try:
     from dowhy import CausalModel
 except ImportError:
@@ -215,7 +217,7 @@ class BuildModelFromDAG:
             mapping to ``Prior`` instances with dims derived from
             :py:attr:`dims`.
         """
-        slope_dims = tuple(dim for dim in (self.dims or ()) if dim != "date")
+        slope_dims = tuple(dim for dim in (self.dims or ()) if dim != Dim.DATE)
         return {
             "intercept": Prior("Normal", mu=0, sigma=2, dims=slope_dims),
             "slope": Prior("Normal", mu=0, sigma=2, dims=slope_dims),
@@ -303,7 +305,7 @@ class BuildModelFromDAG:
         if like_dims is None:
             expected_slope_dims = ()
         else:
-            expected_slope_dims = tuple(dim for dim in like_dims if dim != "date")
+            expected_slope_dims = tuple(dim for dim in like_dims if dim != Dim.DATE)
 
         slope_dims = getattr(slope_prior, "dims", None)
         if slope_dims is None or not isinstance(slope_dims, tuple):

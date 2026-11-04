@@ -37,6 +37,7 @@ from pymc_extras.printing import model_table
 from rich.table import Table
 
 from pymc_marketing.data.idata.io import load_idata, save_idata
+from pymc_marketing.names import Attr, Group, Key
 from pymc_marketing.version import __version__
 
 # If scikit-learn is available, use its data validator
@@ -250,11 +251,13 @@ class ModelIO:
 
         attrs: dict[str, str] = {}
 
-        attrs["id"] = self.id
-        attrs["model_type"] = self._model_type
-        attrs["version"] = self.version
-        attrs["sampler_config"] = json.dumps(self.sampler_config, default=_json_default)
-        attrs["model_config"] = json.dumps(
+        attrs[Attr.ID] = self.id
+        attrs[Attr.MODEL_TYPE] = self._model_type
+        attrs[Attr.VERSION] = self.version
+        attrs[Attr.SAMPLER_CONFIG] = json.dumps(
+            self.sampler_config, default=_json_default
+        )
+        attrs[Attr.MODEL_CONFIG] = json.dumps(
             self._serializable_model_config, default=_json_default
         )
 
@@ -297,12 +300,12 @@ class ModelIO:
 
         attrs = self.create_idata_attrs()
         attrs_keys = set(attrs.keys())
-        required_keys = {
-            "id",
-            "model_type",
-            "version",
-            "sampler_config",
-            "model_config",
+        required_keys: set[str] = {
+            Attr.ID,
+            Attr.MODEL_TYPE,
+            Attr.VERSION,
+            Attr.SAMPLER_CONFIG,
+            Attr.MODEL_CONFIG,
         }
         if missing_keys := required_keys - attrs_keys:
             msg = (
@@ -404,7 +407,7 @@ class ModelIO:
 
         def _format(d: dict) -> dict:
             for key, value in d.items():
-                if isinstance(value, dict) and "__type__" in value:
+                if isinstance(value, dict) and Key.TYPE in value:
                     d[key] = serialization.deserialize(value)
                 # Must precede the generic dict branch: recursing first would
                 # rebuild the nested ``dist`` and leave the wrapper unreadable.
@@ -442,9 +445,9 @@ class ModelIO:
         """
         return {
             "model_config": cls._model_config_formatting(
-                json.loads(attrs["model_config"])
+                json.loads(attrs[Attr.MODEL_CONFIG])
             ),
-            "sampler_config": json.loads(attrs["sampler_config"]),
+            "sampler_config": json.loads(attrs[Attr.SAMPLER_CONFIG]),
         }
 
     @classmethod
@@ -545,7 +548,7 @@ class ModelIO:
         model = cls(**init_kwargs)
 
         model.idata = idata
-        if "fit_data" in idata:
+        if Group.FIT_DATA in idata:
             # TODO: Overriding method in CLVModel requires this; revise/remove for v1.0
             built = model.build_from_idata(idata)
             if built is not None:
@@ -563,7 +566,7 @@ class ModelIO:
             return model
 
         if (model_version := model.version) != (
-            loaded_version := idata.attrs["version"]
+            loaded_version := idata.attrs[Attr.VERSION]
         ):
             msg = (
                 f"The model version ({loaded_version}) in the DataTree does not "
@@ -573,7 +576,7 @@ class ModelIO:
             )
             raise DifferentModelError(msg)
 
-        if model.id != idata.attrs["id"]:
+        if model.id != idata.attrs[Attr.ID]:
             msg = (
                 "The model id in the DataTree does not match the model id. "
                 "There was no error loading the inference data, but the model may "
@@ -1091,8 +1094,8 @@ class ModelFitter:
 
         self.idata["/posterior"].attrs["pymc_marketing_version"] = __version__
 
-        if "fit_data" in self.idata.children:
-            self.idata = self.idata.drop_nodes("fit_data")
+        if Group.FIT_DATA in self.idata.children:
+            self.idata = self.idata.drop_nodes(Group.FIT_DATA)
 
         fit_data = self.create_fit_data_group()
         if fit_data is not None:
@@ -1102,7 +1105,7 @@ class ModelFitter:
                     category=UserWarning,
                     message="The group fit_data is not defined in the DataTree scheme",
                 )
-                self.idata["/fit_data"] = fit_data
+                self.idata[f"/{Group.FIT_DATA}"] = fit_data
 
         self.set_idata_attrs(self.idata)  # type: ignore[attr-defined]
         self.is_fitted_ = True

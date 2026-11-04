@@ -31,6 +31,8 @@ from typing import Any
 import xarray as xr
 
 from pymc_marketing.data.idata.io import load_idata, remove_idata, save_idata
+from pymc_marketing.data.idata.names import Attr
+from pymc_marketing.names import Key
 
 CURRENT_VERSION = 1
 
@@ -78,45 +80,41 @@ def _migrate_v0_to_v1(attrs: dict[str, Any]) -> dict[str, Any]:
         if (
             isinstance(adstock, dict)
             and "lookup_name" in adstock
-            and "__type__" not in adstock
+            and Key.TYPE not in adstock
         ):
             lookup = adstock.pop("lookup_name")
-            adstock["__type__"] = _ADSTOCK_TYPE_MAP.get(lookup, lookup)
+            adstock[Key.TYPE] = _ADSTOCK_TYPE_MAP.get(lookup, lookup)
             attrs["adstock"] = json.dumps(adstock)
 
     if "saturation" in attrs:
         sat = json.loads(attrs["saturation"])
-        if isinstance(sat, dict) and "lookup_name" in sat and "__type__" not in sat:
+        if isinstance(sat, dict) and "lookup_name" in sat and Key.TYPE not in sat:
             lookup = sat.pop("lookup_name")
-            sat["__type__"] = _SATURATION_TYPE_MAP.get(lookup, lookup)
+            sat[Key.TYPE] = _SATURATION_TYPE_MAP.get(lookup, lookup)
             attrs["saturation"] = json.dumps(sat)
 
     for key in ("time_varying_intercept", "time_varying_media"):
         if key in attrs:
             data = json.loads(attrs[key])
-            if (
-                isinstance(data, dict)
-                and "hsgp_class" in data
-                and "__type__" not in data
-            ):
+            if isinstance(data, dict) and "hsgp_class" in data and Key.TYPE not in data:
                 cls_name = data.pop("hsgp_class")
-                data["__type__"] = _HSGP_CLASS_MAP.get(cls_name, cls_name)
+                data[Key.TYPE] = _HSGP_CLASS_MAP.get(cls_name, cls_name)
                 attrs[key] = json.dumps(data)
 
-    if "mu_effects" in attrs:
-        effects = json.loads(attrs["mu_effects"])
+    if Attr.MU_EFFECTS in attrs:
+        effects = json.loads(attrs[Attr.MU_EFFECTS])
         for effect in effects:
             if (
                 isinstance(effect, dict)
                 and "class" in effect
-                and "__type__" not in effect
+                and Key.TYPE not in effect
             ):
                 cls_name = effect.pop("class")
-                effect["__type__"] = _MUEFFECT_CLASS_MAP.get(cls_name, cls_name)
-        attrs["mu_effects"] = json.dumps(effects)
+                effect[Key.TYPE] = _MUEFFECT_CLASS_MAP.get(cls_name, cls_name)
+        attrs[Attr.MU_EFFECTS] = json.dumps(effects)
 
-    attrs.pop("id", None)
-    attrs["__serialization_version__"] = str(CURRENT_VERSION)
+    attrs.pop(Attr.ID, None)
+    attrs[Attr.SERIALIZATION_VERSION] = str(CURRENT_VERSION)
 
     return attrs
 
@@ -134,7 +132,7 @@ def migrate_idata(idata: xr.DataTree) -> xr.DataTree:
     xr.DataTree
         The same object, with attrs updated to current version.
     """
-    version_str = idata.attrs.get("__serialization_version__", "0")
+    version_str = idata.attrs.get(Attr.SERIALIZATION_VERSION, "0")
     version = int(version_str)
 
     if version >= CURRENT_VERSION:
@@ -187,7 +185,7 @@ def main() -> None:
     fname = Path(sys.argv[1])
     print(f"Loading {fname}...")
     with load_idata(fname) as idata:
-        version = idata.attrs.get("__serialization_version__", "0")
+        version = idata.attrs.get(Attr.SERIALIZATION_VERSION, "0")
         if int(version) >= CURRENT_VERSION:
             print(f"Already at version {version}, nothing to do.")
             return

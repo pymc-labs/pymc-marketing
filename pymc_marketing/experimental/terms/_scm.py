@@ -38,6 +38,7 @@ from pymc_marketing.experimental.terms._graph import (
     walk,
 )
 from pymc_marketing.experimental.terms._serialize import spec_from_dict, spec_to_dict
+from pymc_marketing.names import Group
 from pymc_marketing.version import __version__
 
 _LOGP_DRAWS = 3
@@ -302,7 +303,9 @@ class SCM:
         idata = cast(xr.DataTree, self.idata)
         tree = xr.DataTree.from_dict(
             {
-                "/fit_data": _portable_strings(cast(xr.Dataset, self._training_data)),
+                f"/{Group.FIT_DATA}": _portable_strings(
+                    cast(xr.Dataset, self._training_data)
+                ),
                 **{
                     f"/{name}": _portable_strings(node.to_dataset())
                     for name, node in idata.children.items()
@@ -359,15 +362,15 @@ class SCM:
             engine="zarr",
             consolidated=False,
         )
-        if "spec" not in tree.attrs or "fit_data" not in tree.children:
+        if "spec" not in tree.attrs or Group.FIT_DATA not in tree.children:
             raise ValueError(f"{str(path)!r} is not a model saved by SCM.save.")
         scm = cls(*spec_from_dict(tree.attrs["spec"]))
-        model = scm.build_model(_native_strings(tree["fit_data"].to_dataset()))
+        model = scm.build_model(_native_strings(tree[Group.FIT_DATA].to_dataset()))
         scm.idata = xr.DataTree.from_dict(
             {
                 f"/{name}": _native_strings(node.to_dataset())
                 for name, node in tree.children.items()
-                if name != "fit_data"
+                if name != Group.FIT_DATA
             }
         )
         scm._fitted_key = scm._key()

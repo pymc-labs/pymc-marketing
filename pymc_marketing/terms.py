@@ -291,6 +291,7 @@ from pymc_extras.prior import (
 )
 from pytensor.xtensor.type import as_xtensor
 
+from pymc_marketing.names import Key
 from pymc_marketing.serialization import (
     DeferredFactory,
     SerializationError,
@@ -409,7 +410,7 @@ def _deserialize_child(value: Any) -> Any:
     if isinstance(value, dict):
         if "__literal__" in value:
             return value["__literal__"]
-        if value.get("__deferred__") or "__type__" in value:
+        if value.get(Key.DEFERRED) or Key.TYPE in value:
             return serialization.deserialize(value)
         try:
             return pymc_extras_deserialize(value)

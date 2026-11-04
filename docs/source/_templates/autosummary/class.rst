@@ -38,14 +38,24 @@
     "model_fields", "model_fields_set", "model_extra", "model_computed_fields",
     "predict_stream", "load_context",
 ] %}
+{#- The name enums in ``names`` modules are listed on the class page with their
+    values instead of getting one stub page per member (and one per method).
+    ``:inherited-members:`` is left out on purpose: it would list every ``str``
+    method of a ``StrEnum``. #}
+{% set inline_members = module.endswith(".names") %}
 {{ name | escape | underline}}
 
 .. currentmodule:: {{ module }}
 
 .. autoclass:: {{ objname }}
+{%- if inline_members %}
+   :members:
+   :undoc-members:
+   :member-order: bysource
+{%- endif %}
 
    {% block methods %}
-   {% if methods %}
+   {% if methods and not inline_members %}
 
    .. rubric:: Methods
 
@@ -61,7 +71,7 @@
    {% endblock %}
 
    {% block attributes %}
-   {% if attributes %}
+   {% if attributes and not inline_members %}
    .. rubric:: Attributes
 
    .. autosummary::
