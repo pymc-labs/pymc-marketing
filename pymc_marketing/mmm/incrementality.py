@@ -4972,7 +4972,20 @@ class Incrementality:
         posterior stored otherwise, such as a reordered, transposed or reloaded
         ``idata``, is laid out here.  The evaluator binds its own copy by dim
         name in the model's order, and the reducer pairs by label.
+
+        Raises
+        ------
+        ValueError
+            If the ``chain`` or ``draw`` labels repeat, so a draw cannot be
+            found by label, as when two runs are concatenated along ``draw``.
         """
+        for dim in ("chain", "draw"):
+            if dim in posterior.indexes and not posterior.indexes[dim].is_unique:
+                raise ValueError(
+                    f"The posterior's {dim!r} labels are not unique, so its draws "
+                    "cannot be matched by label. Relabel them first, e.g. "
+                    f"posterior.assign_coords({dim}=np.arange(posterior.sizes[{dim!r}]))."
+                )
         channel_data = self.data.get_channel_data()
         in_data_order = reorder_to_model_coords(
             posterior,
