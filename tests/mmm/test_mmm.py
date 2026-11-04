@@ -1114,7 +1114,7 @@ class TestMultidimMMMEdgeCases:
         np.testing.assert_array_equal(scaled_target[:, zero_geo_idx], 0.0)
 
     @pytest.mark.parametrize("bad_value", [np.inf, -np.inf], ids=["+inf", "-inf"])
-    @pytest.mark.parametrize("source", ["y", "X column"])
+    @pytest.mark.parametrize("source", ["y", "X column", "X Dataset"])
     def test_infinite_target_raises(self, simple_mmm_data, bad_value, source):
         """An infinite target is rejected rather than fitted as zeros.
 
@@ -1130,8 +1130,18 @@ class TestMultidimMMMEdgeCases:
         with pytest.raises(ValueError, match="1 infinite value"):
             if source == "y":
                 mmm.build_model(X, y)
-            else:
+            elif source == "X column":
                 mmm.build_model(X.assign(target=y.to_numpy()))
+            else:
+                channels = ["channel_1", "channel_2", "channel_3"]
+                X_ds = xr.Dataset(
+                    {
+                        "media": (["date", "channel"], X[channels].to_numpy()),
+                        "target": (["date"], y.to_numpy()),
+                    },
+                    coords={"date": pd.DatetimeIndex(X["date"]), "channel": channels},
+                )
+                mmm.build_model(X_ds)
 
     def test_nan_in_channel_is_handled_without_non_finite_scales(self, simple_mmm_data):
         X = simple_mmm_data["X"].copy()

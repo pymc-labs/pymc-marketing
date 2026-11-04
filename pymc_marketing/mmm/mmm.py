@@ -2186,14 +2186,11 @@ class MMM(RegressionModelBuilder):
         # which zeroes its whole slice. NaN is not checked here: ``fillna(0)``
         # below also fills the cells a sparse panel leaves empty, and those
         # come back as NaN when a saved model is rebuilt from ``fit_data``.
-        if y is not None:
-            raw_target = y
-        elif isinstance(X, pd.DataFrame) and self.target_column in X.columns:
-            raw_target = X[self.target_column]
-        elif isinstance(X, xr.Dataset):
+        raw_target = y
+        if raw_target is None and isinstance(X, pd.DataFrame):
+            raw_target = X.get(self.target_column)
+        if raw_target is None and isinstance(X, xr.Dataset):
             raw_target = X.get("_target", X.get("target"))
-        else:
-            raw_target = None
         if raw_target is not None:
             values = np.asarray(raw_target)
             if np.issubdtype(values.dtype, np.number):
