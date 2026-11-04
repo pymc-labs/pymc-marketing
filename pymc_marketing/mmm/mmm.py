@@ -2181,6 +2181,32 @@ class MMM(RegressionModelBuilder):
                 f"it to '{self.target_column}'."
             )
 
+        # An infinite target reaches the clamp in ``build_model``, which
+        # rewrites it to 0, and ``+inf`` also makes a ``max`` scale infinite,
+        # which zeroes its whole slice. NaN is not checked here: ``fillna(0)``
+        # below also fills the cells a sparse panel leaves empty, and those
+        # come back as NaN when a saved model is rebuilt from ``fit_data``.
+        if y is not None:
+            raw_target = y
+        elif isinstance(X, pd.DataFrame) and self.target_column in X.columns:
+            raw_target = X[self.target_column]
+        elif isinstance(X, xr.Dataset):
+            raw_target = X.get("_target", X.get("target"))
+        else:
+            raw_target = None
+        if raw_target is not None:
+            values = np.asarray(raw_target)
+            if np.issubdtype(values.dtype, np.number):
+                n_infinite = int(np.count_nonzero(np.isinf(values)))
+                if n_infinite:
+                    raise ValueError(
+                        f"The target has {n_infinite} infinite value(s). "
+                        "build_model would fit each of them as 0, and +inf "
+                        "also makes a 'max' target scale infinite, which "
+                        "zeroes its whole slice. Drop or replace them before "
+                        "fitting."
+                    )
+
         self.X = X
 
         self.xarray_dataset = to_mmm_dataset(
