@@ -448,6 +448,41 @@ def test_brand_data_is_copied_at_construction(brand_mmm_data):
     pd.testing.assert_frame_equal(effect.brand_data, brand_mmm_data["brand_data"])
 
 
+@pytest.mark.parametrize(
+    "field, value, match",
+    [
+        pytest.param(
+            "brand_data",
+            lambda df: df.drop(columns="consideration"),
+            r"\['consideration'\] of endog_names are missing in brand_data",
+            id="brand-data-without-a-column",
+        ),
+        pytest.param(
+            "endog_names",
+            lambda df: ["awareness", "baseline"],
+            "endog_names must start with baseline_name 'baseline'",
+            id="endog-names",
+        ),
+    ],
+)
+def test_reassigning_a_field_runs_the_construction_checks(
+    brand_mmm_data, field, value, match
+):
+    effect = make_effect(brand_mmm_data["brand_data"])
+
+    with pytest.raises(ValidationError, match=match):
+        setattr(effect, field, value(brand_mmm_data["brand_data"]))
+
+
+def test_reassigned_brand_data_is_normalized(brand_mmm_data):
+    """Reassigning runs the conversion that construction does."""
+    effect = make_effect(brand_mmm_data["brand_data"])
+
+    effect.brand_data = brand_mmm_data["brand_data"].astype({"awareness": "Float64"})
+
+    pd.testing.assert_frame_equal(effect.brand_data, brand_mmm_data["brand_data"])
+
+
 def test_fit_adds_the_var_and_the_baseline_to_the_posterior(fitted_mmm):
     posterior = fitted_mmm.idata.posterior
     var_names = [
@@ -1303,6 +1338,54 @@ def test_fitted_var_holds_the_var_parameters(fitted_mmm):
     assert "diverging" in fitted.idata.sample_stats
 
 
+def test_fit_stores_the_brand_data(fitted_mmm):
+    """The idata holds the brand data from the fit on, before any saving."""
+    name = f"supplementary_data_{PREFIX}_brand_data"
+    group = fitted_mmm.idata[name]
+
+    xr.testing.assert_equal(
+        group.to_dataset(), fitted_mmm.mu_effects[0].idata_groups()[name]
+    )
+
+
+def test_fitted_var_reads_the_brand_data_the_mmm_was_fitted_with(brand_mmm_data):
+    """Changing ``brand_data`` after the fit leaves the fitted VAR as it was.
+
+    Whether it is edited in place or reassigned, the centering means and the VAR's
+    data come from the brand data stored at fit.
+    """
+    effect = make_effect(brand_mmm_data["brand_data"])
+    mmm = fit_mmm(brand_mmm_data, effect)
+    fitted = effect.fitted_var(mmm)
+
+    effect.brand_data.loc[:, "awareness"] += 1.0
+    edited = effect.fitted_var(mmm)
+    effect.brand_data = brand_mmm_data["brand_data"].assign(
+        consideration=lambda df: df["consideration"] + 1.0
+    )
+    reassigned = effect.fitted_var(mmm)
+
+    for other in (edited, reassigned):
+        xr.testing.assert_equal(
+            other.idata.posterior.to_dataset(), fitted.idata.posterior.to_dataset()
+        )
+        np.testing.assert_array_equal(other.data.endog, fitted.data.endog)
+        np.testing.assert_array_equal(other.data.exog, fitted.data.exog)
+
+
+def test_fitted_var_without_the_stored_brand_data_raises(brand_mmm_data):
+    effect = make_effect(brand_mmm_data["brand_data"])
+    mmm = fit_mmm(brand_mmm_data, effect)
+    del mmm.idata[f"supplementary_data_{PREFIX}_brand_data"]
+
+    with pytest.raises(
+        RuntimeError,
+        match=rf"'{PREFIX}'.*idata has no brand data for this effect: was the MMM "
+        "fitted with it",
+    ):
+        effect.fitted_var(mmm)
+
+
 def test_fitted_var_data_are_the_raw_brand_data_on_the_mmm_dates(shorter_mmm_data):
     """The baseline is its posterior mean path; the brand columns are not centered."""
     effect = make_effect(shorter_mmm_data["brand_data"])
@@ -1651,7 +1734,7 @@ def test_loaded_effect_equals_the_saved_one(saved_mmm, loaded_mmm):
 
 
 def test_fitted_var_is_unchanged_by_loading(saved_mmm, loaded_mmm):
-    """It recomputes the centering means from brand_data and U from the target."""
+    """The centering means come from the stored brand data, and U from the target."""
     mmm = saved_mmm[0]
     fitted = mmm.mu_effects[0].fitted_var(mmm)
 
@@ -1670,6 +1753,22 @@ def test_fitted_var_is_unchanged_by_loading(saved_mmm, loaded_mmm):
 
 def test_loaded_mmm_equals_the_saved_one(saved_mmm, loaded_mmm):
     assert loaded_mmm == saved_mmm[0]
+
+
+def test_saving_keeps_the_brand_data_the_mmm_was_fitted_with(brand_mmm_data, tmp_path):
+    """Brand data reassigned after the fit are not what the file holds."""
+    effect = make_effect(brand_mmm_data["brand_data"])
+    mmm = fit_mmm(brand_mmm_data, effect)
+    effect.brand_data = brand_mmm_data["brand_data"].assign(
+        awareness=lambda df: df["awareness"] + 1.0
+    )
+    mmm.save(str(tmp_path / "mmm.nc"))
+
+    loaded = MMM.load(str(tmp_path / "mmm.nc"))
+
+    pd.testing.assert_frame_equal(
+        loaded.mu_effects[0].brand_data, brand_mmm_data["brand_data"]
+    )
 
 
 def test_posterior_predictive_is_unchanged_by_loading(

@@ -1377,9 +1377,35 @@ class MMM(RegressionModelBuilder):
                 stacklevel=3,
             )
 
+    def _store_effect_idata_groups(self, idata: xr.DataTree, *, replace: bool) -> None:
+        """Write each mu effect's supplementary groups, from ``idata_groups``, to idata.
+
+        Parameters
+        ----------
+        idata : xr.DataTree
+            The idata the groups are written to.
+        replace : bool
+            Whether a group already in ``idata`` is replaced. Fitting replaces an
+            earlier fit's groups. Saving writes only the missing ones, so the file
+            holds the data the effects were fitted with even if it has changed since.
+        """
+        for effect in self.mu_effects:
+            # A duck-typed effect, which the additive-effect module allows, may not
+            # define the hook.
+            for group_name, ds in getattr(effect, "idata_groups", dict)().items():
+                if group_name in idata.children:
+                    if not replace:
+                        continue
+                    del idata[group_name]
+                # A group built from an effect's frame can share its memory, and an
+                # edit of the frame in place would then change what was fitted.
+                idata[f"/{group_name}"] = ds.copy(deep=True)
+
     def save(self, fname: str, **kwargs) -> None:
         """Save the model, including supplementary idata groups from mu_effects.
 
+        The groups that fitting stored are saved as they are, so they hold the data
+        the effects were fitted with; a missing one is taken from its effect now.
         Warns when calibration was added, removed or changed since the last fit,
         because the file carries the calibration recorded at fit time.
         """
@@ -1387,10 +1413,7 @@ class MMM(RegressionModelBuilder):
             raise RuntimeError("The model hasn't been fit yet, call .fit() first")
         self._warn_if_calibration_changed_since_fit(self.idata)
 
-        for effect in self.mu_effects:
-            for group_name, ds in effect.idata_groups().items():
-                if not hasattr(self.idata, group_name):
-                    self.idata["/" + group_name] = ds
+        self._store_effect_idata_groups(self.idata, replace=False)
 
         # Persist the base names of any *_original_scale Deterministics so they
         # can be faithfully re-added by build_from_idata on load.
@@ -2714,6 +2737,10 @@ class MMM(RegressionModelBuilder):
         the rows and options in ``idata.attrs``, and the cost-per-target spend
         in the ``cost_per_target_spend`` group, one variable per distinct spend
         array. :meth:`build_from_idata` replays them when the model is loaded.
+
+        Each mu effect's supplementary groups, from its ``idata_groups``, are stored
+        too, replacing those of an earlier fit, so the idata holds the data the
+        effects were fitted with.
         """
         # A refit replaces the posterior and can move its coordinate labels, which
         # the evaluator's shared binding would refuse; build against it from scratch.
@@ -2748,6 +2775,7 @@ class MMM(RegressionModelBuilder):
             idata[f"/{COST_PER_TARGET_SPEND_GROUP}"] = xr.Dataset(
                 self._cost_per_target_spend
             )
+        self._store_effect_idata_groups(idata, replace=True)
         if self._cost_per_unit_input is not None:
             self.set_cost_per_unit(self._cost_per_unit_input)
         return idata

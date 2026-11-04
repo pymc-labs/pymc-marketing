@@ -20,10 +20,10 @@ used, so PyMC-Marketing imports without it.
 """
 
 from collections import Counter
-from collections.abc import Hashable
+from collections.abc import Hashable, Iterable
 from importlib import metadata
 from types import ModuleType
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any, Self, cast
 
 import numpy as np
 import pandas as pd
@@ -32,7 +32,7 @@ import pymc.dims as pmd
 import pytensor.xtensor as ptx
 import xarray as xr
 from packaging.version import Version
-from pydantic import Field, InstanceOf, field_validator
+from pydantic import ConfigDict, Field, InstanceOf, field_validator, model_validator
 from pytensor.xtensor.type import XTensorVariable
 from scipy.stats import halfnorm
 
@@ -181,6 +181,26 @@ def _numpy_column(column: pd.Series) -> pd.Series:
     return column
 
 
+def _read_columns(group: xr.DataTree, names: Iterable[str]) -> pd.DataFrame:
+    """Return the columns ``names`` of a brand data idata group as a frame.
+
+    Parameters
+    ----------
+    group : xr.DataTree
+        The idata group that :meth:`VARBaselineEffect.idata_groups` wrote.
+    names : iterable of str
+        The columns to read.
+
+    Returns
+    -------
+    pd.DataFrame
+        The columns, in the order of ``names``, with the dtypes the group holds.
+    """
+    # Read column by column: `to_dataframe` would make a column named like the
+    # group's dimension the index.
+    return pd.DataFrame({name: group[name].to_numpy() for name in names})
+
+
 def _format_dates(dates: pd.DatetimeIndex, limit: int = 5) -> str:
     """Return the first ``limit`` dates, and how many more there are, for a message.
 
@@ -219,7 +239,7 @@ class VARBaselineEffect(MuEffect):
     often cover other periods than the MMM, or come at another cadence, so they stay
     out of ``X``, and the effect matches their rows to the MMM's dates. A forecast of
     the baseline would need new brand data anyway. The brand data are therefore
-    constants in the graph, not data in the MMM's ``constant_data``. Saving the MMM
+    constants in the graph, not data in the MMM's ``constant_data``. Fitting the MMM
     stores them in an idata group of their own.
 
     The VAR runs on the baseline in the target's original units and on the brand
@@ -271,7 +291,8 @@ class VARBaselineEffect(MuEffect):
         are neither used nor checked, so they may hold NaN or repeat a date. The MMM
         stores naive dates, so the dates must be naive too; drop a time zone with
         ``.dt.tz_localize(None)``. The index is not used. The effect keeps a copy of
-        the frame.
+        the frame, and reassigning it, or any other field, runs the construction
+        checks again.
     baseline_name : str
         Name of the latent baseline in the VAR. It must not be a column of
         ``brand_data``.
@@ -375,8 +396,9 @@ class VARBaselineEffect(MuEffect):
 
     Impulso adds a positional ``time`` coordinate that no variable uses.
 
-    Saving the MMM stores ``brand_data``, with its column dtypes but not its index,
-    in the idata group ``supplementary_data_{prefix}_brand_data``. netCDF has no
+    Fitting the MMM stores ``brand_data``, without its index, in the idata group
+    ``supplementary_data_{prefix}_brand_data``, and saving writes it with its column
+    dtypes, so a saved MMM holds the brand data it was fitted with. netCDF has no
     missing text value, so missing values in a text column load as empty strings.
     So that saving cannot fail, construction converts every column netCDF cannot
     store, used by the VAR or not, or refuses it. Nullable numeric and boolean
@@ -432,12 +454,14 @@ class VARBaselineEffect(MuEffect):
         brand_var.fitted_var(mmm).dynamic_multiplier(horizon=26).median()
     """
 
+    model_config = ConfigDict(validate_assignment=True)
+
     brand_data: InstanceOf[pd.DataFrame]
     baseline_name: str
     endog_names: list[str]
     exog_names: list[str]
     prefix: str
-    # Impulso is optional, so the spec's type is checked in `model_post_init`.
+    # Impulso is optional, so the spec's type is checked in `_check_fields`.
     var: Any
     baseline_own_lag_mean: float = Field(0.0, gt=-1, lt=1)
     baseline_innovation_sd: float | None = Field(None, gt=0, allow_inf_nan=False)
@@ -495,11 +519,19 @@ class VARBaselineEffect(MuEffect):
             )
         return brand_data
 
-    def model_post_init(self, context: Any, /) -> None:
+    @model_validator(mode="after")
+    def _check_fields(self) -> Self:
         """Check ``var``, the names, and the columns of ``brand_data`` they name.
 
-        Only the columns' presence and dtypes are checked here. Their values matter
-        only on the MMM's dates, so :meth:`create_data` checks them there.
+        This runs at construction and, since assignment is validated, whenever a
+        field is reassigned. Only the columns' presence and dtypes are checked here.
+        Their values matter only on the MMM's dates, so :meth:`create_data` checks
+        them there.
+
+        Returns
+        -------
+        Self
+            The effect.
 
         Raises
         ------
@@ -519,6 +551,7 @@ class VARBaselineEffect(MuEffect):
         self._check_names()
         self._check_brand_columns()
         self._check_baseline_entries()
+        return self
 
     def _check_var(self) -> None:
         """Check that ``var`` is an Impulso ``VAR`` that the fitted MMM can store.
@@ -730,7 +763,7 @@ class VARBaselineEffect(MuEffect):
                 "link."
             )
 
-        columns, _ = self._brand_columns(mmm)
+        columns, _ = self._brand_columns(mmm, self.brand_data)
         finite = np.isfinite(columns.to_numpy()).all(axis=0)
         if non_finite := columns.columns[~finite].tolist():
             raise ValueError(
@@ -770,7 +803,7 @@ class VARBaselineEffect(MuEffect):
             given.
         """
         impulso = _import_impulso()
-        columns, means = self._brand_columns(mmm)
+        columns, means = self._brand_columns(mmm, self.brand_data)
         centered = columns - means
         exog = centered[self.exog_names].to_numpy() if self.exog_names else None
 
@@ -863,8 +896,8 @@ class VARBaselineEffect(MuEffect):
         ``c``: its intercept here follows from the coefficients rather than being
         estimated. The coefficients and the innovation covariance are unchanged.
 
-        The means are recomputed from ``brand_data``, so it must hold the data the
-        MMM was fitted with.
+        The means are taken from the brand data the MMM was fitted with, stored in
+        its idata.
 
         Parameters
         ----------
@@ -885,12 +918,13 @@ class VARBaselineEffect(MuEffect):
         Raises
         ------
         RuntimeError
-            If the MMM has not been fitted.
+            If the MMM has not been fitted, or if its idata has no brand data for
+            this effect.
         ValueError
             If the MMM's posterior has no VAR named ``prefix``, or one over other
-            series than ``endog_names`` and ``exog_names``, if ``brand_data`` no
-            longer covers the MMM's dates, if U comes from the target and is not
-            positive, or if Impulso rejects the posterior or the data.
+            series than ``endog_names`` and ``exog_names``, if U comes from the
+            target and is not positive, or if Impulso rejects the posterior or the
+            data.
 
         Notes
         -----
@@ -927,7 +961,7 @@ class VARBaselineEffect(MuEffect):
         """
         posterior = self._effect_posterior(mmm)
         impulso = _import_impulso()
-        columns, means = self._brand_columns(mmm)
+        columns, means = self._brand_columns(mmm, self._fitted_brand_data(mmm))
         posterior = _uncenter(
             posterior,
             np.concatenate([[0.0], means[self._observed_names]]),
@@ -1027,6 +1061,40 @@ class VARBaselineEffect(MuEffect):
         )
         return posterior.drop_dims("var_intercept").assign(intercept=intercept)
 
+    def _fitted_brand_data(self, mmm: "MMM") -> pd.DataFrame:
+        """Return the brand data the MMM was fitted with, from its idata.
+
+        Only the date column and the VAR's columns are read: they are all
+        :meth:`_brand_columns` uses, and it parses the dates and casts the columns
+        to floats, so their dtypes after saving and loading do not matter.
+
+        Parameters
+        ----------
+        mmm : MMM
+            The fitted MMM that carries this effect.
+
+        Returns
+        -------
+        pd.DataFrame
+            The date column and the VAR's columns of the brand data.
+
+        Raises
+        ------
+        RuntimeError
+            If the MMM's idata has no brand data group for this effect.
+        """
+        idata = cast(xr.DataTree, mmm.idata)
+        if self._brand_data_group not in idata.children:
+            raise RuntimeError(
+                f"VARBaselineEffect {self.prefix!r} reads the brand data the MMM was "
+                f"fitted with from the idata group {self._brand_data_group!r}, but "
+                "the MMM's idata has no brand data for this effect: was the MMM "
+                "fitted with it?"
+            )
+        return _read_columns(
+            idata[self._brand_data_group], [mmm.date_column, *self._column_names]
+        )
+
     def _fitted_var_data(self, mmm: "MMM", columns: pd.DataFrame) -> "VARData":
         """Return the data of the fitted VAR, on the MMM's dates.
 
@@ -1069,7 +1137,9 @@ class VARBaselineEffect(MuEffect):
         """The columns of ``brand_data`` the VAR uses, observed series first."""
         return [*self._observed_names, *self.exog_names]
 
-    def _brand_data_on_mmm_dates(self, mmm: "MMM") -> pd.DataFrame:
+    def _brand_data_on_mmm_dates(
+        self, mmm: "MMM", brand_data: pd.DataFrame
+    ) -> pd.DataFrame:
         """Return the rows of ``brand_data`` on the MMM's dates, in the MMM's order.
 
         Rows on other dates are not used, so they may repeat a date.
@@ -1078,6 +1148,8 @@ class VARBaselineEffect(MuEffect):
         ----------
         mmm : MMM
             The MMM model instance.
+        brand_data : pd.DataFrame
+            The brand data, ``self.brand_data`` or the data the MMM was fitted with.
 
         Returns
         -------
@@ -1092,13 +1164,13 @@ class VARBaselineEffect(MuEffect):
             than once.
         """
         date_column = mmm.date_column
-        if date_column not in self.brand_data.columns:
+        if date_column not in brand_data.columns:
             raise ValueError(
                 f"VARBaselineEffect {self.prefix!r} matches brand_data to the MMM on "
                 f"its date column {date_column!r}, which is missing in brand_data."
             )
 
-        brand_dates = safe_to_datetime(self.brand_data[date_column], date_column)
+        brand_dates = safe_to_datetime(brand_data[date_column], date_column)
         # Construction refuses an aware date column, but text dates with an offset
         # parse as aware, and the frame can be changed in place afterwards.
         if brand_dates.tz is not None:
@@ -1135,9 +1207,11 @@ class VARBaselineEffect(MuEffect):
                     "W-SUN dates, for example, never match W-MON ones."
                 )
             raise ValueError(message)
-        return self.brand_data[on_mmm_dates].iloc[rows]
+        return brand_data[on_mmm_dates].iloc[rows]
 
-    def _brand_columns(self, mmm: "MMM") -> tuple[pd.DataFrame, pd.Series]:
+    def _brand_columns(
+        self, mmm: "MMM", brand_data: pd.DataFrame
+    ) -> tuple[pd.DataFrame, pd.Series]:
         """Return the VAR's brand columns on the MMM's dates and their means.
 
         The VAR is fitted to the columns centered on these means.
@@ -1146,6 +1220,8 @@ class VARBaselineEffect(MuEffect):
         ----------
         mmm : MMM
             The MMM model instance.
+        brand_data : pd.DataFrame
+            The brand data, ``self.brand_data`` or the data the MMM was fitted with.
 
         Returns
         -------
@@ -1155,8 +1231,8 @@ class VARBaselineEffect(MuEffect):
         means : pd.Series
             The mean of each column over the MMM's dates.
         """
-        brand_data = self._brand_data_on_mmm_dates(mmm)
-        columns = brand_data[self._column_names].astype(float)
+        on_mmm_dates = self._brand_data_on_mmm_dates(mmm, brand_data)
+        columns = on_mmm_dates[self._column_names].astype(float)
         return columns, columns.mean()
 
     def _baseline_scale(self, mmm: "MMM") -> float:
@@ -1399,16 +1475,13 @@ def _deserialize_var_baseline_effect(
 
     dtypes = data["brand_data_dtypes"]
     try:
-        group = context.idata[group_name]
-        # Read column by column: `to_dataframe` would make a column named like the
-        # group's dimension the index.
-        columns = {name: group[name].to_numpy() for name in dtypes}
+        columns = _read_columns(context.idata[group_name], dtypes)
     except KeyError as e:
         raise SerializationError(
             f"Cannot read supplementary data group '{group_name}' from DataTree: {e}"
         ) from e
 
-    brand_data = pd.DataFrame(columns).astype(dtypes)
+    brand_data = columns.astype(dtypes)
     var = impulso.VAR.model_validate(data["var"])
     fields = {
         name: value
