@@ -34,7 +34,16 @@ closed PR or newly ineligible PR fails before publication.
 PR output must contain exactly one approved release-note category and optional
 approved module labels. The bot posts a fixed sticky summary of those labels.
 No arbitrary model prose is published. The workflow tests verify analysis/write
-job isolation and the trusted checkout refs for all three workflows.
+job isolation and the trusted checkout refs for all four workflows.
+
+The monthly stale-issue summary (`stale_summary.py`) makes no model call and
+reuses only the `github()` helper from `issue_automation.py`. Its analysis job reads open
+issues, open PRs and merged PRs through fixed GraphQL queries with a read-only
+token, and checks code names cited in issues against the checked-out
+`pymc_marketing` package. The artifact holds only issue and PR numbers, dates,
+branch names and code tokens matching a strict pattern; no titles, logins or
+comment text. The publishing job revalidates it, renders fixed text, and creates
+or updates one bot-authored issue per month. It never closes or labels other issues.
 
 All seven former Claude workflows were disabled operationally during incident
 mitigation. After merge and credential rotation, re-enable only Triage, Duplicate
@@ -45,7 +54,7 @@ their original code: do not rerun historical runs to verify the fix.
 Run the offline regression suite with:
 
 ```sh
-uv run --no-project --with PyYAML==6.0.3 python -m unittest discover -s .github/scripts -p test_issue_automation.py -v
+uv run --no-project --with PyYAML==6.0.3 python -m unittest discover -s .github/scripts -p "test_*.py" -v
 ```
 
 Deployment requires merging the workflow changes. Rotate the previously exposed
