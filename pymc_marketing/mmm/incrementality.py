@@ -797,9 +797,16 @@ def _subsample_draws(
         *dataset* unchanged when nothing is subsampled (see *num_samples*).
         Otherwise *dataset* at ``ceil(num_samples / n_chains)`` draws per
         chain, in their original order, with every chain kept.
+
+    Raises
+    ------
+    ValueError
+        If *num_samples* is less than 1.
     """
     if num_samples is None:
         return dataset
+    if num_samples < 1:
+        raise ValueError(f"num_samples must be at least 1, got {num_samples}.")
 
     n_chains, n_draws = dataset.sizes["chain"], dataset.sizes["draw"]
     # Same draws in every chain: stratified by chain, so each keeps its weight.

@@ -33,6 +33,7 @@ from pydantic import ValidationError
 from pymc_extras.prior import Prior
 
 import pymc_marketing
+from pymc_marketing.data.idata.utils import subsample_draws
 from pymc_marketing.mmm import (
     MMM,
     BinomialAdstock,
@@ -1601,6 +1602,21 @@ class TestSubsampleDraws:
         assert incrementality_module._subsample_draws(posterior, num_samples=5) is (
             posterior
         )
+
+    @pytest.mark.parametrize(
+        "subsample",
+        [incrementality_module._subsample_draws, subsample_draws],
+        ids=["per_chain", "flattened"],
+    )
+    @pytest.mark.parametrize("num_samples", [0, -1])
+    def test_refuses_fewer_than_one_draw(self, subsample, num_samples):
+        """Zero would return an empty ``draw`` dimension instead of failing."""
+        posterior = xr.Dataset(
+            {"x": (("chain", "draw"), np.arange(2 * 3, dtype=float).reshape(2, 3))}
+        )
+
+        with pytest.raises(ValueError, match="num_samples must be at least 1"):
+            subsample(posterior, num_samples=num_samples)
 
 
 class TestIncrementalReducers:
