@@ -255,6 +255,162 @@ class TestDateIndexedInputs:
         for name, values in one_shot.items():
             np.testing.assert_array_equal(values, batched[name])
 
+    def _streamed(self):
+        """An evaluator bound to three relabeled chains of five draws, and five scenarios.
+
+        One draw's outputs over every scenario are 40 elements (2 countries x
+        1 channel x 4 dates x 5 scenarios), so the posterior holds 600.
+        """
+        evaluator, _ = self._evaluator(("date", "country"), n_country=2)
+        rng = np.random.default_rng(20261104)
+        evaluator.set_posterior(
+            xr.Dataset(
+                {
+                    name: (("chain", "draw"), rng.normal(size=(3, 5)))
+                    for name in ("beta", "alpha")
+                },
+                coords={"chain": [7, 8, 9], "draw": np.arange(5) + 100},
+            )
+        )
+        windows = self._windows(slice(0, 4), slice(2, 6), max_window=4)
+        scenarios = CounterfactualScenarios(
+            spend=rng.normal(size=(5, 4, 2, 1)),
+            period_index=np.array([0, 0, 1, 1, 1]),
+            rows={(0, None): 1, (1, None): 4},
+        )
+        return evaluator, scenarios, windows
+
+    @pytest.mark.parametrize(
+        ("max_elements", "blocks"),
+        [
+            (600, [(slice(0, 3), slice(0, 5))]),
+            # Two chains fit, so whole chains, the last run short.
+            (400, [(slice(0, 2), slice(0, 5)), (slice(2, 3), slice(0, 5))]),
+            # Not even one chain fits: three draws at a time, the last run short.
+            (
+                120,
+                [
+                    (slice(chain, chain + 1), draws)
+                    for chain in range(3)
+                    for draws in (slice(0, 3), slice(3, 5))
+                ],
+            ),
+            # Not even one draw fits: one draw at a time, its scenarios one by one.
+            (
+                1,
+                [
+                    (slice(chain, chain + 1), slice(draw, draw + 1))
+                    for chain in range(3)
+                    for draw in range(5)
+                ],
+            ),
+        ],
+    )
+    def test_streaming_does_not_change_the_result(self, max_elements, blocks):
+        """The blocks tile the posterior chain-major and join into the eager result exactly."""
+        evaluator, scenarios, windows = self._streamed()
+        eager = evaluator.evaluate_counterfactual(scenarios, windows=windows)
+
+        chunks = list(
+            evaluator.iter_counterfactual(
+                scenarios, windows=windows, max_elements=max_elements
+            )
+        )
+
+        assert [(c.isel["chain"], c.isel["draw"]) for c in chunks] == blocks
+        for name, values in eager.items():
+            joined = np.concatenate([c.outputs[name] for c in chunks], axis=1)
+            np.testing.assert_array_equal(joined, values)
+
+    def test_the_bound_posterior_is_restored(self):
+        """After the last block, after closing early, and after a rebind before the
+        first block, the posterior bound at the call is bound again."""
+        evaluator, scenarios, windows = self._streamed()
+        bound = evaluator._conditioned.posterior
+
+        for _ in evaluator.iter_counterfactual(
+            scenarios, windows=windows, max_elements=1
+        ):
+            assert evaluator._n_samples() == 1
+        xr.testing.assert_identical(evaluator._conditioned.posterior, bound)
+
+        chunks = evaluator.iter_counterfactual(
+            scenarios, windows=windows, max_elements=1
+        )
+        next(chunks)
+        chunks.close()
+        xr.testing.assert_identical(evaluator._conditioned.posterior, bound)
+
+        # The blocks were planned from the posterior at the call, so they are
+        # taken from it even if another is bound before the first block, whether
+        # there are many blocks or one.
+        for max_elements, n_blocks in [(1, 15), (600, 1)]:
+            chunks = evaluator.iter_counterfactual(
+                scenarios, windows=windows, max_elements=max_elements
+            )
+            evaluator.set_posterior(bound.isel(chain=[0]))
+            # Per block: samples its isel names, and samples it was evaluated on.
+            evaluated = [
+                (
+                    bound.isel(chunk.isel).sizes["chain"]
+                    * bound.isel(chunk.isel).sizes["draw"],
+                    next(iter(chunk.outputs.values())).shape[1],
+                )
+                for chunk in chunks
+            ]
+            assert len(evaluated) == n_blocks
+            assert all(named == used for named, used in evaluated)
+            xr.testing.assert_identical(evaluator._conditioned.posterior, bound)
+
+    def test_a_yielded_block_is_not_kept_alive(self, monkeypatch):
+        """A block the caller dropped is already gone while the next is evaluated."""
+        evaluator, scenarios, windows = self._streamed()
+        refs = []
+        alive_at_evaluation = []
+        evaluate = evaluator._evaluate_scenarios
+
+        def recorded(*args, **kwargs):
+            gc.collect()
+            alive_at_evaluation.append([ref() is not None for ref in refs])
+            return evaluate(*args, **kwargs)
+
+        monkeypatch.setattr(evaluator, "_evaluate_scenarios", recorded)
+        for chunk in evaluator.iter_counterfactual(
+            scenarios, windows=windows, max_elements=120
+        ):
+            refs.append(weakref.ref(chunk.outputs["channel_contribution"]))
+            del chunk
+
+        assert len(alive_at_evaluation) == 6
+        assert not any(any(alive) for alive in alive_at_evaluation)
+
+    def test_a_mutated_input_is_refused_before_the_first_block(self):
+        """The stale-data check runs at the call, not when the first block is asked for."""
+        model, posterior, aux_values = build_aux_dims_model(
+            ("date", "country"), n_dates=len(self.dates), n_country=2
+        )
+        evaluator = CounterfactualEvaluator(
+            pymc_model=model,
+            posterior=posterior,
+            response_vars=["channel_contribution"],
+            frozen_deterministics=[],
+            dates=self.dates,
+            expected_aux_values={
+                "aux_input": xr.DataArray(aux_values, dims=("date", "country"))
+            },
+        )
+        windows = self._windows(slice(0, 4), max_window=4)
+        scenarios = CounterfactualScenarios(
+            spend=np.ones((1, 4, 2, 1)),
+            period_index=np.array([0]),
+            rows={(0, None): 0},
+        )
+        with model:
+            pm.set_data({"aux_input": aux_values + 1.0})
+
+        with pytest.raises(ValueError, match=r"'aux_input'.*changed since"):
+            evaluator.iter_counterfactual(scenarios, windows=windows)
+
     def test_the_batch_size_falls_back_to_one_scenario(self):
         """An output too large for the budget still gets evaluated, alone."""
         evaluator, _ = self._evaluator(("date", "country"), n_country=2)
