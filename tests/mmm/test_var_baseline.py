@@ -15,6 +15,7 @@
 
 import json
 import sys
+import warnings
 from functools import partial
 from pathlib import Path
 from unittest.mock import patch
@@ -37,6 +38,8 @@ from pymc_marketing.mmm import (
     TimeSliceCrossValidator,
     VARBaselineEffect,
 )
+from pymc_marketing.mmm.budget_optimizer import BudgetOptimizer
+from pymc_marketing.mmm.mmm import BudgetOptimizerWrapper
 from pymc_marketing.mmm.scaling import FixedScaling
 from pymc_marketing.serialization import DeserializationContext, serialization
 
@@ -1712,21 +1715,59 @@ def test_budget_optimizer_ignores_the_baseline(fitted_mmm, start_date, end_date)
     np.testing.assert_allclose(result.budgets.sum(), 10.0)
 
 
+def budget_optimizer(
+    entry_point: str, mmm: MMM, start_date: str, end_date: str, **kwargs
+) -> BudgetOptimizer:
+    """An optimizer for the window, built through ``entry_point``.
+
+    ``"wrapper"`` and ``"create_optimization_model"`` build the ``BudgetOptimizer``
+    directly, from a ``BudgetOptimizerWrapper`` or from the optimization model and
+    the MMM's frozen deterministics.
+    """
+    if entry_point == "budget_optimizer":
+        return mmm.budget_optimizer(start_date, end_date, **kwargs)
+    if entry_point == "wrapper":
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            wrapper = BudgetOptimizerWrapper(
+                model=mmm, start_date=start_date, end_date=end_date
+            )
+        return BudgetOptimizer(model=wrapper, num_periods=wrapper.num_periods, **kwargs)
+    lags = mmm.effective_carryover_lags()
+    model = mmm.create_optimization_model(start_date, end_date)
+    return BudgetOptimizer(
+        model=model,
+        idata=mmm.idata,
+        num_periods=len(model.coords["date"]) - 2 * lags,
+        carry_in_periods=lags,
+        adstock_periods=lags,
+        frozen_deterministics=mmm.frozen_deterministics,
+        **kwargs,
+    )
+
+
+@pytest.mark.parametrize(
+    "entry_point", ["budget_optimizer", "wrapper", "create_optimization_model"]
+)
 @pytest.mark.parametrize("start_date, end_date", BUDGET_WINDOWS)
-def test_budget_objective_with_the_baseline_raises(fitted_mmm, start_date, end_date):
+def test_budget_objective_with_the_baseline_raises(
+    fitted_mmm, entry_point, start_date, end_date
+):
     """The baseline is a path over all of the MMM's dates, so it fits no window.
 
-    Not even one within those dates.
+    Not even one within those dates, however the optimizer is built.
     """
     with pytest.raises(
         NotImplementedError,
-        match="'total_response_original_scale' is not supported, because it "
-        rf"includes the contribution of VARBaselineEffect '{PREFIX}', which exists "
-        r"only on the dates the MMM was fitted on\. The default objective",
+        match="response_variable 'total_response_original_scale' includes "
+        rf"'{PREFIX}_effect_contribution', a frozen path over 'date' that exists "
+        r"only on the dates the model was fitted on.*The default objective",
     ):
-        fitted_mmm.budget_optimizer(
-            start_date=start_date,
-            end_date=end_date,
+        budget_optimizer(
+            entry_point,
+            fitted_mmm,
+            start_date,
+            end_date,
             response_variable="total_response_original_scale",
         )
 

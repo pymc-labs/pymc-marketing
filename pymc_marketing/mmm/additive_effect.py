@@ -453,9 +453,9 @@ class MuEffect(SerializableBaseModel, ABC):
         the MMM was fitted on overrides this property to return ``False``. Each of
         these then raises a ``NotImplementedError`` naming the effect:
         :meth:`MMM.sample_posterior_predictive` and :meth:`MMM.predict` on any other
-        set of dates, the budget optimizer with an objective that includes the
-        effect's contribution, such as ``total_response_original_scale``, and
-        time-slice cross-validation, before it fits the first fold.
+        set of dates, and time-slice cross-validation, before it fits the first
+        fold. The budget optimizer refuses an objective that reaches a frozen path
+        over ``date`` instead, see :attr:`frozen_deterministics`.
         """
         return True
 
@@ -544,11 +544,11 @@ class MuEffect(SerializableBaseModel, ABC):
 
         A frozen deterministic with a ``date`` dimension is a path over the fitted
         dates. Posterior predictive sampling and sensitivity sweeps handle it on
-        those dates, and incrementality on any window, because the counterfactual evaluation cuts it
-        to each period's window as it cuts the data. The budget optimizer does not
-        cut it, so an effect that freezes one should set ``supports_new_dates`` to
-        ``False``. The MMM then refuses both prediction on other dates and any
-        budget objective that reaches the effect.
+        those dates, and incrementality on any window, because the counterfactual
+        evaluation cuts it to each period's window as it cuts the data. The budget
+        optimizer refuses any objective that reaches a frozen path over ``date``; an
+        effect that freezes one should also set ``supports_new_dates`` to ``False``
+        so that prediction on other dates is refused.
         """
         return []
 

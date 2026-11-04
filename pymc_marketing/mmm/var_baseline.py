@@ -731,8 +731,9 @@ class VARBaselineEffect(MuEffect):
         not raise on other dates. The budget optimizer calls it with its own window
         and, with the default objective, evaluates only the channel contributions,
         which do not depend on the baseline. The MMM refuses prediction on any other
-        set of dates instead, and objectives that include the baseline, because the
-        effect sets ``supports_new_dates`` to ``False``.
+        set of dates instead, because the effect sets ``supports_new_dates`` to
+        ``False``, and the optimizer refuses objectives that include the baseline, a
+        frozen path over ``date``.
 
         Parameters
         ----------

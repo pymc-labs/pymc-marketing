@@ -51,6 +51,7 @@ from pymc_marketing.mmm.additive_effect import (
     MediaMuEffect,
     MuEffect,
 )
+from pymc_marketing.mmm.budget_optimizer import BudgetOptimizer
 from pymc_marketing.mmm.events import EventEffect, GaussianBasis, HalfGaussianBasis
 from pymc_marketing.mmm.lift_test import (
     UnalignedValuesError,
@@ -2363,7 +2364,11 @@ class _ZeroEffect(MuEffect):
 
 
 class _FittedDatesOnlyEffect(_ZeroEffect):
-    """``_ZeroEffect``, declared to take only the dates the MMM was fitted on."""
+    """``_ZeroEffect``, declared to take only the dates the MMM was fitted on.
+
+    Its contribution is registered and taken from the posterior, a frozen path over
+    ``date`` as a latent baseline's is.
+    """
 
     prefix: str = "fitted_dates_only"
 
@@ -2371,6 +2376,15 @@ class _FittedDatesOnlyEffect(_ZeroEffect):
     def supports_new_dates(self) -> bool:
         """Only the fitted dates."""
         return False
+
+    @property
+    def frozen_deterministics(self) -> list[str]:
+        """The contribution."""
+        return [self.contribution_var_name]
+
+    def create_effect(self, mmm):
+        """Zero on every date of the model, registered as the contribution."""
+        return pmd.Deterministic(self.contribution_var_name, super().create_effect(mmm))
 
 
 class _UnprefixedFittedDatesOnlyEffect(MuEffect):
@@ -2494,22 +2508,52 @@ def _mmm_with_effects(*effects) -> MMM:
     return mmm
 
 
+BUDGET_ENTRY_POINTS = [
+    "budget_optimizer",
+    "optimize_budget",
+    "wrapper",
+    "create_optimization_model",
+]
+
+
 def _optimize_budget(
     entry_point: str, mmm: MMM, start_date: str, end_date: str, **kwargs
 ):
-    """Allocate a budget of 10 through either public entry point."""
+    """Allocate a budget of 10 through any of the ways to build an optimizer.
+
+    ``"wrapper"`` and ``"create_optimization_model"`` build the ``BudgetOptimizer``
+    directly, from a ``BudgetOptimizerWrapper`` or from the optimization model and
+    the MMM's frozen deterministics.
+    """
     if entry_point == "budget_optimizer":
         optimizer = mmm.budget_optimizer(start_date, end_date, **kwargs)
-        return optimizer.allocate_budget(total_budget=10.0)
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore", DeprecationWarning)
-        wrapper = BudgetOptimizerWrapper(
-            model=mmm, start_date=start_date, end_date=end_date
+    elif entry_point == "create_optimization_model":
+        lags = mmm.effective_carryover_lags()
+        model = mmm.create_optimization_model(start_date, end_date)
+        optimizer = BudgetOptimizer(
+            model=model,
+            idata=mmm.idata,
+            num_periods=len(model.coords["date"]) - 2 * lags,
+            carry_in_periods=lags,
+            adstock_periods=lags,
+            frozen_deterministics=mmm.frozen_deterministics,
+            **kwargs,
         )
-    return wrapper.optimize_budget(budget=10.0, **kwargs)
+    else:
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            wrapper = BudgetOptimizerWrapper(
+                model=mmm, start_date=start_date, end_date=end_date
+            )
+        if entry_point == "optimize_budget":
+            return wrapper.optimize_budget(budget=10.0, **kwargs)
+        optimizer = BudgetOptimizer(
+            model=wrapper, num_periods=wrapper.num_periods, **kwargs
+        )
+    return optimizer.allocate_budget(total_budget=10.0)
 
 
-@pytest.mark.parametrize("entry_point", ["budget_optimizer", "optimize_budget"])
+@pytest.mark.parametrize("entry_point", BUDGET_ENTRY_POINTS)
 @pytest.mark.parametrize(
     "start_date, end_date",
     [
@@ -2520,10 +2564,10 @@ def _optimize_budget(
 def test_budget_objective_with_an_effect_on_the_fitted_dates_only_raises(
     single_dim_data, mock_pymc_sample, entry_point, start_date, end_date
 ):
-    """The total response is built from ``mu``, which the effect enters.
+    """The total response reaches the effect's contribution, a frozen path over dates.
 
-    The effect does not register its contribution, so it is found through ``mu``.
-    The objective is refused on any window, including one within the fitted dates.
+    The optimizer refuses the objective on any window, including one within the
+    fitted dates, however it is built.
     """
     X, y = single_dim_data
     mmm = _mmm_with_effects(_FittedDatesOnlyEffect())
@@ -2531,11 +2575,11 @@ def test_budget_objective_with_an_effect_on_the_fitted_dates_only_raises(
 
     with pytest.raises(
         NotImplementedError,
-        match=r"^Budget optimization against 'total_response_original_scale' is not "
-        r"supported, because it includes the contribution of _FittedDatesOnlyEffect "
-        r"'fitted_dates_only', which exists only on the dates the MMM was fitted on\. "
-        r"The default objective, 'total_media_contribution_original_scale', does not "
-        r"include that contribution\.$",
+        match=r"^response_variable 'total_response_original_scale' includes "
+        r"'fitted_dates_only_effect_contribution', a frozen path over 'date' that "
+        r"exists only on the dates the model was fitted on, so it cannot be "
+        r"optimized on a window\. The default objective, "
+        r"'total_media_contribution_original_scale', does not include it\.$",
     ):
         _optimize_budget(
             entry_point,
@@ -2546,7 +2590,7 @@ def test_budget_objective_with_an_effect_on_the_fitted_dates_only_raises(
         )
 
 
-@pytest.mark.parametrize("entry_point", ["budget_optimizer", "optimize_budget"])
+@pytest.mark.parametrize("entry_point", BUDGET_ENTRY_POINTS)
 @pytest.mark.parametrize(
     "effects, response_variable",
     [
