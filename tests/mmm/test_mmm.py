@@ -2382,7 +2382,7 @@ class _FittedDatesOnlyEffect(_ZeroEffect):
         """The contribution."""
         return [self.contribution_var_name]
 
-    def create_effect(self, mmm):
+    def create_effect(self, mmm) -> XTensorVariable:
         """Zero on every date of the model, registered as the contribution."""
         return pmd.Deterministic(self.contribution_var_name, super().create_effect(mmm))
 
@@ -2624,6 +2624,35 @@ def test_budget_objectives_without_an_effect_on_the_fitted_dates_only(
         response_variable=response_variable,
     )
 
+    np.testing.assert_allclose(result.budgets.sum(), 10.0)
+
+
+def test_budget_objective_through_an_hsgp_intercept_is_optimized(
+    single_dim_data, mock_pymc_sample
+):
+    """The HSGP intercept's frozen mean has no ``date`` dim, so it is not refused.
+
+    The total response reaches it through ``mu``, which the zero effect makes the
+    model register, but it is one value per draw rather than a path over dates.
+    """
+    X, y = single_dim_data
+    mmm = MMM(
+        date_column="date",
+        target_column="target",
+        channel_columns=["channel_1", "channel_2"],
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+        time_varying_intercept=True,
+    ).add_mu_effect(_ZeroEffect())
+    mmm.fit(X.iloc[:9], y.iloc[:9], draws=50, chains=1, random_seed=42)
+
+    result = mmm.budget_optimizer(
+        "2023-01-10", "2023-01-14", response_variable="total_response_original_scale"
+    ).allocate_budget(total_budget=10.0)
+
+    assert mmm.frozen_deterministics == SoftPlusHSGP.deterministics_to_replace(
+        "intercept_latent_process"
+    )
     np.testing.assert_allclose(result.budgets.sum(), 10.0)
 
 

@@ -41,6 +41,7 @@ from pymc_marketing.mmm import (
 from pymc_marketing.mmm.budget_optimizer import BudgetOptimizer
 from pymc_marketing.mmm.mmm import BudgetOptimizerWrapper
 from pymc_marketing.mmm.scaling import FixedScaling
+from pymc_marketing.mmm.sensitivity_analysis import SensitivityAnalysis
 from pymc_marketing.serialization import DeserializationContext, serialization
 
 pytest.importorskip("impulso")
@@ -415,10 +416,17 @@ def test_bad_brand_data_raises_at_construction(
         ),
         pytest.param(
             lambda df: df.assign(
+                panel=pd.array([True, False, *[True] * 28], dtype="boolean")
+            ),
+            {"panel": "bool"},
+            id="boolean",
+        ),
+        pytest.param(
+            lambda df: df.assign(
                 panel=pd.array([True, False, None, *[True] * 27], dtype="boolean")
             ),
             {"panel": "float64"},
-            id="boolean",
+            id="boolean-with-missing",
         ),
         pytest.param(
             lambda df: df.assign(consideration=pd.Categorical(df["consideration"])),
@@ -831,10 +839,10 @@ def test_exog_prior_scale_for_the_baseline_raises_at_construction(
 def test_prior_predictive_baseline_is_on_the_targets_scale(long_brand_mmm_data):
     """Prior-predictive baselines stay within a few of the target's sds.
 
-    Over 2,000 prior draws on the 150 weeks, the largest absolute value of the
-    baseline over the dates has a median of 1.5 of the target's sds (1.1, with an sd
-    of 0.73) and a 90% quantile of 2.9 (2.1). With Impulso's exog prior scale of 100
-    on the baseline's equation they are 99 and 245 sds (72 and 179), so the bounds of
+    Over 2,000 prior draws on the 150 weeks, where the target's sd is 0.73, the
+    median over draws of the baseline's largest absolute value is 1.1, or 1.5 target
+    sds, and its 90% quantile 2.1, or 2.9 sds. At Impulso's default scale of 100 on
+    the baseline's equation they are 72 and 179, or 99 and 245 sds, so the bounds of
     2 and 5 sds separate the two scales by more than an order of magnitude.
     """
     data = long_brand_mmm_data
@@ -1403,24 +1411,17 @@ def test_fitted_var_on_an_mmm_fitted_with_another_effect_raises(
 def test_fitted_var_holds_the_var_parameters(fitted_mmm):
     """The VAR's parameters and the sampler statistics, without the baseline path.
 
-    Everything but the intercept passes through unchanged, under Impulso's names.
-    With one lag, Impulso assembles ``B`` from ``B_free`` and the baseline's own lag,
-    ``latent_own_lag``, which pass through too.
+    Every variable of the VAR passes through unchanged, under Impulso's names, but
+    the baseline's path and its non-centred parts, which the effect leaves out, and
+    the intercept, which it uncenters.
     """
     fitted = fitted_mmm.mu_effects[0].fitted_var(fitted_mmm)
     posterior = fitted.idata.posterior
-    passed_through = [
-        "B",
-        "B_free",
-        "latent_own_lag",
-        "B_exog",
-        "L",
-        "Sigma",
-        "tril_offdiag",
-        "sigma_sd_0",
-        "sigma_sd_1",
-        "sigma_sd_2",
-    ]
+    passed_through = {
+        name.removeprefix(f"{PREFIX}::")
+        for name in map(str, fitted_mmm.idata.posterior.data_vars)
+        if name.startswith(f"{PREFIX}::")
+    } - {"latent", "latent_init", "latent_innovations", "intercept"}
 
     assert set(fitted.idata.children) == {"posterior", "sample_stats"}
     assert set(posterior.data_vars) == {"intercept", *passed_through}
@@ -2087,8 +2088,6 @@ def test_sensitivity_sweep_keeps_the_posterior_baseline(fitted_mmm):
     plus the posterior intercept and baseline. Freezing the baseline leaves the
     channels' sweep as a sweep that does not freeze it gives.
     """
-    from pymc_marketing.mmm.sensitivity_analysis import SensitivityAnalysis
-
     sweep = {"var_input": "channel_data", "sweep_values": np.array([0.5, 1.0, 1.5])}
     posterior = fitted_mmm.idata.posterior
     fixed = (

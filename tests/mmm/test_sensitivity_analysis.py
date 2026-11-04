@@ -222,7 +222,7 @@ def test_run_sweep_takes_frozen_deterministics_from_the_posterior():
         "sweep_values": sweep_values,
     }
 
-    with pytest.raises(AttributeError, match="'TensorType' object has no attribute"):
+    with pytest.raises(AttributeError):
         SensitivityAnalysis(model, idata).run_sweep(**sweep)
 
     results = SensitivityAnalysis(

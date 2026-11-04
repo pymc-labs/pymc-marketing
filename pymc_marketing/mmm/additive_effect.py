@@ -547,8 +547,8 @@ class MuEffect(SerializableBaseModel, ABC):
         those dates, and incrementality on any window, because the counterfactual
         evaluation cuts it to each period's window as it cuts the data. The budget
         optimizer refuses any objective that reaches a frozen path over ``date``; an
-        effect that freezes one should also set ``supports_new_dates`` to ``False``
-        so that prediction on other dates is refused.
+        effect that freezes one should also override ``supports_new_dates`` to
+        return ``False``, so that prediction on other dates is refused.
         """
         return []
 

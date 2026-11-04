@@ -2054,7 +2054,10 @@ class BudgetOptimizer(BaseModel):
                 and default in self._pymc_model.named_vars
                 and not self._frozen_date_paths(default)
             ):
-                message += f" The default objective, {default!r}, does not include it."
+                message += (
+                    f" The default objective, {default!r}, does not include "
+                    f"{'it' if len(reached) == 1 else 'them'}."
+                )
             raise NotImplementedError(message)
 
         # 9. Compile objective & gradient

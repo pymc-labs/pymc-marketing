@@ -129,7 +129,7 @@ class SensitivityAnalysis:
         idata: xr.DataTree,
         dims: tuple[str, ...] = (),
         frozen_deterministics: Sequence[str] = (),
-    ):
+    ) -> None:
         self.model = pymc_model
         self.idata = idata
         self.dims = dims

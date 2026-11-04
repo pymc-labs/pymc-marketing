@@ -20,7 +20,7 @@ used, so PyMC-Marketing imports without it.
 """
 
 from collections import Counter
-from collections.abc import Hashable, Iterable
+from collections.abc import Iterable
 from importlib import metadata
 from types import ModuleType
 from typing import TYPE_CHECKING, Any, Self, cast
@@ -144,7 +144,7 @@ def _uncenter(
     return posterior.assign(intercept=intercept.transpose("chain", "draw", "var"))
 
 
-def _numpy_column(column: pd.Series) -> pd.Series:
+def _with_numpy_dtype(column: pd.Series) -> pd.Series:
     """Return ``column`` with a categorical or nullable dtype made a NumPy one.
 
     A categorical column takes its categories' dtype, or ``float64`` when it has a
@@ -294,7 +294,8 @@ class VARBaselineEffect(MuEffect):
         stores naive dates, so the dates must be naive too; drop a time zone with
         ``.dt.tz_localize(None)``. The index is not used. The effect keeps a copy of
         the frame, and reassigning it, or any other field, runs the construction
-        checks again.
+        checks again. A reassignment they refuse raises, and the refused value stays
+        on the effect.
     baseline_name : str
         Name of the latent baseline in the VAR. It must not be a column of
         ``brand_data``.
@@ -352,14 +353,15 @@ class VARBaselineEffect(MuEffect):
     -----
     The baseline exists only on the dates the MMM is fitted on. On those dates,
     fitting, the contribution decomposition, the MMM's summaries, sensitivity
-    sweeps, :meth:`fitted_var` and posterior predictive sampling work. Saving and loading the MMM work, and so
-    does posterior predictive sampling after loading. Channel incrementality works on
-    any window and frequency: the baseline does not depend on spend, so it adds
-    nothing to a channel's increment. The budget optimizer runs on any window with
-    the default objective, which ignores the baseline, as it should: brand spend is
-    an exogenous input of the VAR, not a channel. An objective that includes the
-    baseline, such as ``response_variable="total_response_original_scale"``, raises
-    a ``NotImplementedError``. So do posterior predictive sampling and ``predict`` on
+    sweeps, :meth:`fitted_var` and posterior predictive sampling work. Saving and
+    loading the MMM work, and so does posterior predictive sampling after loading.
+    Channel incrementality works on any window and frequency: the baseline does not
+    depend on spend, so it adds nothing to a channel's increment. The budget
+    optimizer runs on any window with the default objective, which ignores the
+    baseline, as it should: brand spend is an exogenous input of the VAR, not a
+    channel. An objective that includes the baseline, such as
+    ``response_variable="total_response_original_scale"``, raises a
+    ``NotImplementedError``. So do posterior predictive sampling and ``predict`` on
     any other set of dates, including a subset of the fitted ones or with
     ``include_last_observations=True``, and time-slice cross-validation, which
     predicts on each fold's test dates.
@@ -509,10 +511,12 @@ class VARBaselineEffect(MuEffect):
                 "stores each column as a netCDF variable, whose name is a string."
             )
         brand_data = brand_data.copy()
-        aware: list[Hashable] = []
-        mixed: dict[Hashable, list[str]] = {}
-        for position, (name, original) in enumerate(brand_data.items()):
-            column = _numpy_column(original)
+        aware: list[str] = []
+        mixed: dict[str, list[str]] = {}
+        column_names: list[str] = brand_data.columns.tolist()
+        for position, name in enumerate(column_names):
+            original = brand_data.iloc[:, position]
+            column = _with_numpy_dtype(original)
             if column is not original:
                 brand_data.isetitem(position, column.array)
             if isinstance(column.dtype, pd.DatetimeTZDtype):
@@ -593,8 +597,9 @@ class VARBaselineEffect(MuEffect):
             )
         if not isinstance(self.var.lags, int):
             raise TypeError(
-                f"var.lags must be an integer, got {self.var.lags!r}: the effect builds "
-                "the VAR inside the MMM, where Impulso's lag selection cannot run."
+                f"var.lags must be an integer, got {self.var.lags!r}: the effect "
+                "builds the VAR inside the MMM, where Impulso's lag selection cannot "
+                "run."
             )
         prior = self.var.resolved_prior
         if not isinstance(prior, impulso.MinnesotaPrior):
@@ -880,9 +885,9 @@ class VARBaselineEffect(MuEffect):
         not raise on other dates. The budget optimizer calls it with its own window
         and, with the default objective, evaluates only the channel contributions,
         which do not depend on the baseline. The MMM refuses prediction on any other
-        set of dates instead, because the effect sets ``supports_new_dates`` to
-        ``False``, and the optimizer refuses objectives that include the baseline, a
-        frozen path over ``date``.
+        set of dates instead, because the effect overrides ``supports_new_dates`` to
+        return ``False``, and the optimizer refuses objectives that include the
+        baseline, a frozen path over ``date``.
 
         Parameters
         ----------
