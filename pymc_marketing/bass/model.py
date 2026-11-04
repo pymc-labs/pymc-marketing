@@ -166,8 +166,10 @@ from pytensor.xtensor.type import XTensorVariable
 
 from pymc_marketing.bass import plotting
 from pymc_marketing.bass.data import to_bass_dataset
+from pymc_marketing.bass.names import Dim, Var
 from pymc_marketing.model_builder import ModelBuilder, SamplingMethod
 from pymc_marketing.model_config import parse_model_config
+from pymc_marketing.names import Group
 from pymc_marketing.terms import (
     ModelTerm,
     Named,
@@ -556,7 +558,7 @@ def create_bass_model(
                     f"{type(spec).__name__}. Name the term {key!r} or wrap it "
                     f"in Named({key!r}, ...)."
                 )
-            if key in ("p", "q") and "T" in built.dims:
+            if key in ("p", "q") and Dim.T in built.dims:
                 # The closed form below is the solution for *constant* rates.
                 # A time-varying p/q builds and samples without error but the
                 # cumulative curve stops being cumulative, so refuse it.
@@ -569,7 +571,7 @@ def create_bass_model(
                 )
             return built
 
-        time = pmd.as_xtensor(t, dims=("T",))
+        time = pmd.as_xtensor(t, dims=(Dim.T,))
         # Build order matters: a recipe may reference an earlier coefficient
         # with `Ref`, so `m` must exist before `p`, and `p` before `q`.
         m = build("m")
@@ -589,8 +591,8 @@ def create_bass_model(
             *getattr(m, "dims", ()),
         )
         combined_dims = (
-            "T",
-            *(dim for dim in dict.fromkeys(declared_dims) if dim != "T"),
+            Dim.T,
+            *(dim for dim in dict.fromkeys(declared_dims) if dim != Dim.T),
         )
 
         def deterministic(name: str, value: XTensorVariable) -> XTensorVariable:
@@ -598,10 +600,10 @@ def create_bass_model(
             order = tuple(dim for dim in combined_dims if dim in value.dims)
             return pmd.Deterministic(name, value, dims=order)
 
-        adopters = deterministic("adopters", m * f(p, q, time))
-        deterministic("innovators", m * p * (1 - F(p, q, time)))
-        deterministic("imitators", m * q * F(p, q, time) * (1 - F(p, q, time)))
-        deterministic("peak", (pmd.math.log(q) - pmd.math.log(p)) / (p + q))
+        adopters = deterministic(Var.ADOPTERS, m * f(p, q, time))
+        deterministic(Var.INNOVATORS, m * p * (1 - F(p, q, time)))
+        deterministic(Var.IMITATORS, m * q * F(p, q, time) * (1 - F(p, q, time)))
+        deterministic(Var.PEAK, (pmd.math.log(q) - pmd.math.log(p)) / (p + q))
 
         observed_xt = (
             None
@@ -613,7 +615,7 @@ def create_bass_model(
         with _borrow_dims(priors["likelihood"], combined_dims) as likelihood:
             _create_likelihood_variable(
                 likelihood,
-                "y",
+                Var.Y,
                 mu=adopters,
                 observed=observed_xt,
             )
@@ -858,7 +860,7 @@ class BassModel(ModelBuilder):
     @property
     def output_var(self) -> str:
         """Return the name of the output variable."""
-        return "y"
+        return Var.Y
 
     @property
     def _serializable_model_config(self) -> dict:
@@ -881,7 +883,7 @@ class BassModel(ModelBuilder):
             Ignored; included for compatibility with ModelBuilder API.
         """
         ds = to_bass_dataset(X)
-        new_t = ds.coords["T"].values
+        new_t = ds.coords[Dim.T].values
         set_data: dict[str, Any] = {"t": new_t}
         # Refresh any covariate the recipes registered, so an out-of-sample
         # call uses the new covariate values rather than the fitted ones.
@@ -891,18 +893,18 @@ class BassModel(ModelBuilder):
             for var_name in data_vars(spec):
                 if var_name in self.model and var_name in ds:
                     set_data[var_name] = ds[var_name].values
-        if "observed" in ds:
-            set_data["y_obs"] = ds["observed"].values
-        elif "y_obs" in self.model:
-            old_value = self.model["y_obs"].get_value()
-            dims = self.model.named_vars_to_dims["y_obs"]
+        if Var.OBSERVED in ds:
+            set_data[Var.Y_OBS] = ds[Var.OBSERVED].values
+        elif Var.Y_OBS in self.model:
+            old_value = self.model[Var.Y_OBS].get_value()
+            dims = self.model.named_vars_to_dims[Var.Y_OBS]
             new_shape = tuple(
-                len(new_t) if d == "T" else size
+                len(new_t) if d == Dim.T else size
                 for d, size in zip(dims, old_value.shape, strict=True)
             )
-            set_data["y_obs"] = np.zeros(new_shape, dtype=old_value.dtype)
+            set_data[Var.Y_OBS] = np.zeros(new_shape, dtype=old_value.dtype)
         with self.model:
-            pm.set_data(set_data, coords={"T": new_t})
+            pm.set_data(set_data, coords={Dim.T: new_t})
 
     def sample_posterior_predictive(
         self,
@@ -994,7 +996,7 @@ class BassModel(ModelBuilder):
         """
         if data is not None:
             ds = to_bass_dataset(data)
-        elif self.idata is not None and "fit_data" in self.idata:
+        elif self.idata is not None and Group.FIT_DATA in self.idata:
             ds = self.idata.fit_data
         else:
             raise ValueError(
@@ -1002,8 +1004,8 @@ class BassModel(ModelBuilder):
                 "Pass data directly or call build_model(data=...) first."
             )
 
-        t = ds.coords["T"].values
-        observed = ds.get("observed")
+        t = ds.coords[Dim.T].values
+        observed = ds.get(Var.OBSERVED)
 
         # `m` is the market potential -- the total number of eventual adopters -- so a
         # fixed-scale default prior is wrong for almost every dataset. When the user has
@@ -1029,9 +1031,9 @@ class BassModel(ModelBuilder):
         self.model = pm.Model(coords=coords)
 
         with self.model:
-            t_data = pm.Data("t", t, dims="T")
+            t_data = pm.Data("t", t, dims=Dim.T)
             if observed is not None:
-                y_obs = pm.Data("y_obs", observed.values, dims=observed.dims)
+                y_obs = pm.Data(Var.Y_OBS, observed.values, dims=observed.dims)
             else:
                 y_obs = None
 

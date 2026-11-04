@@ -270,6 +270,7 @@ from pytensor.xtensor.type import XTensorVariable
 
 from pymc_marketing.constants import DAYS_IN_MONTH, DAYS_IN_WEEK, DAYS_IN_YEAR
 from pymc_marketing.mmm.dims import XTensorLike
+from pymc_marketing.names import Key
 from pymc_marketing.plot import (
     SelToString,
     plot_curve,
@@ -891,8 +892,8 @@ class FourierBase(BaseModel):
 
         """
         inner = data.get("data", data)
-        if "__type__" in inner:
-            inner = {k: v for k, v in inner.items() if k != "__type__"}
+        if Key.TYPE in inner:
+            inner = {k: v for k, v in inner.items() if k != Key.TYPE}
         inner["prior"] = deserialize(inner["prior"])
         return cls(**inner)
 

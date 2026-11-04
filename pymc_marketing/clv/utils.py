@@ -22,6 +22,9 @@ import pandas
 import xarray
 from numpy import datetime64
 
+from pymc_marketing.clv.names import Col, Dim
+from pymc_marketing.constants import DAYS_IN_MONTH, DAYS_IN_WEEK
+
 __all__ = [
     "customer_lifetime_value",
     "rfm_segments",
@@ -29,11 +32,6 @@ __all__ = [
     "rfm_train_test_split",
     "to_xarray",
 ]
-
-# Average length of a calendar month: 365.25 / 12, where 365.25 accounts for
-# leap years. Using a flat 30 here understates a year by 5.25 days and inflates
-# CLV estimates for the "D", "W" and "h" time units.
-_DAYS_PER_MONTH = 30.4375
 
 # pandas 3 removed the "H" period alias ("h" replaces it) and numpy never
 # accepted "H" as a datetime unit. Normalise once at the public entry points.
@@ -73,7 +71,7 @@ def _resolve_dims(ndim: int, dims: tuple[str, ...]) -> tuple[str, ...]:
 def to_xarray(
     customer_id,
     *arrays,
-    dim: str = "customer_id",
+    dim: str = Dim.CUSTOMER_ID,
     extra_dims: Sequence[str] | None = None,
 ):
     """Convert arrays to xarray objects sharing a common dim (default "customer_id").
@@ -210,7 +208,7 @@ def customer_lifetime_value(
 
     """
     time_unit = _normalize_time_unit(time_unit)
-    if "future_spend" not in data.columns:
+    if Col.FUTURE_SPEND not in data.columns:
         raise ValueError("Required column future_spend missing")
 
     def _squeeze_dims(x: xarray.DataArray):
@@ -243,14 +241,16 @@ def customer_lifetime_value(
     else:
         steps = np.arange(1, future_t + 1)
 
+    # DAYS_IN_MONTH is the average calendar month (365.25 / 12). A flat 30 days
+    # understates a year by 5.25 days and inflates CLV for the "D", "W" and "h" units.
     factor = {
-        "W": _DAYS_PER_MONTH / 7,
+        "W": DAYS_IN_MONTH / DAYS_IN_WEEK,
         "M": 1.0,
-        "D": _DAYS_PER_MONTH,
-        "h": _DAYS_PER_MONTH * 24,
+        "D": DAYS_IN_MONTH,
+        "h": DAYS_IN_MONTH * 24,
     }[time_unit]
 
-    monetary_value = to_xarray(data["customer_id"], data["future_spend"])
+    monetary_value = to_xarray(data[Col.CUSTOMER_ID], data[Col.FUTURE_SPEND])
 
     clv = xarray.DataArray(0.0)
 
@@ -279,7 +279,7 @@ def customer_lifetime_value(
     if "chain" not in clv.dims:
         clv = clv.expand_dims({"chain": 1})
 
-    return clv.transpose("chain", "draw", "customer_id")
+    return clv.transpose("chain", "draw", Dim.CUSTOMER_ID)
 
 
 def _find_first_transactions(
@@ -504,7 +504,7 @@ def rfm_summary(
     ].agg(["min", "max", "count"])
 
     # subtract 1 from count, as we ignore the first order.
-    customers["frequency"] = customers["count"] - 1
+    customers[Col.FREQUENCY] = customers["count"] - 1
 
     # Count recency and T in calendar periods, like the frequency column does.
     # Every timestamp here is already aligned to a period start, so this equals
@@ -514,20 +514,20 @@ def rfm_summary(
     last_period = customers["max"].dt.to_period(time_unit).array.asi8
     end_period = observation_period_end_ts.to_period(time_unit).ordinal
 
-    customers["recency"] = (last_period - first_period) / time_scaler
-    customers["T"] = (end_period - first_period) / time_scaler
+    customers[Col.RECENCY] = (last_period - first_period) / time_scaler
+    customers[Col.T] = (end_period - first_period) / time_scaler
 
-    summary_columns = ["frequency", "recency", "T"]
+    summary_columns = [Col.FREQUENCY, Col.RECENCY, Col.T]
 
     if include_first_transaction:
         # add the first order back to the frequency count
-        customers["frequency"] = customers["frequency"] + 1
+        customers[Col.FREQUENCY] = customers[Col.FREQUENCY] + 1
 
         # change recency to segmentation definition
-        customers["recency"] = customers["T"] - customers["recency"]
+        customers[Col.RECENCY] = customers[Col.T] - customers[Col.RECENCY]
 
         # T column is not used for segmentation
-        summary_columns = ["frequency", "recency"]
+        summary_columns = [Col.FREQUENCY, Col.RECENCY]
 
     if monetary_value_col:
         if not include_first_transaction:
@@ -538,16 +538,16 @@ def rfm_summary(
             # by setting the monetary_value cells of all the first purchases to NaN,
             # those values will be excluded from the mean value calculation
             repeated_transactions.loc[first_purchases, monetary_value_col] = np.nan
-        customers["monetary_value"] = (
+        customers[Col.MONETARY_VALUE] = (
             repeated_transactions.groupby(customer_id_col)[monetary_value_col]
             .mean()
             .fillna(0)
         )
-        summary_columns.append("monetary_value")
+        summary_columns.append(Col.MONETARY_VALUE)
 
     summary_df = customers[summary_columns].astype(float)
     summary_df = summary_df.reset_index().rename(
-        columns={customer_id_col: "customer_id"}
+        columns={customer_id_col: Col.CUSTOMER_ID}
     )
 
     return summary_df
@@ -684,7 +684,7 @@ def rfm_train_test_split(
     ).reset_index()
 
     test_rfm_data = test_rfm_data.rename(
-        columns={customer_id_col: "customer_id", datetime_col: "test_frequency"}
+        columns={customer_id_col: Col.CUSTOMER_ID, datetime_col: "test_frequency"}
     )
 
     if monetary_value_col:
@@ -699,7 +699,7 @@ def rfm_train_test_split(
 
         test_rfm_data = test_rfm_data.merge(
             test_monetary_value,
-            left_on="customer_id",
+            left_on=Col.CUSTOMER_ID,
             right_on=customer_id_col,
             how="inner",
         )
@@ -708,7 +708,7 @@ def rfm_train_test_split(
         )
 
     train_test_rfm_data = training_rfm_data.merge(
-        test_rfm_data, on="customer_id", how="left"
+        test_rfm_data, on=Col.CUSTOMER_ID, how="left"
     )
     train_test_rfm_data.fillna(0, inplace=True)
 
@@ -812,7 +812,7 @@ def rfm_segments(
     # iteratively assign quartile labels for each row/variable
     for column_name in zip(
         ["r_quartile", "f_quartile", "m_quartile"],
-        ["recency", "frequency", "monetary_value"],
+        [Col.RECENCY, Col.FREQUENCY, Col.MONETARY_VALUE],
         strict=False,
     ):
         # If data has many repeat values, fewer than 4 bins will be returned.
@@ -1036,8 +1036,8 @@ def _expected_cumulative_transactions(
             # create arbitrary dataframe from array of n time periods for predictions
             pred_data = pandas.DataFrame(
                 {
-                    "customer_id": times,
-                    "t": times,
+                    Col.CUSTOMER_ID: times,
+                    Col.NEW_CUSTOMER_T: times,
                 }
             )
 

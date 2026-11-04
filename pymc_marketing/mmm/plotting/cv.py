@@ -27,6 +27,7 @@ from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 from numpy.typing import NDArray
 
+from pymc_marketing.data.idata.names import Dim, Group, Var
 from pymc_marketing.mmm.plotting._helpers import (
     _extract_matplotlib_result,
     _process_plot_params,
@@ -146,19 +147,19 @@ class MMMCVPlotSuite:
         if cv_data is not None:
             _validate_cv_results(data)
 
-        if not hasattr(data, "cv_metadata") or "metadata" not in data.cv_metadata:
+        if not hasattr(data, Group.CV_METADATA) or "metadata" not in data.cv_metadata:
             raise ValueError(
                 "cv_data must have a cv_metadata group containing a 'metadata' variable."
             )
         if (
             not hasattr(data, "posterior_predictive")
-            or "y_original_scale" not in data.posterior_predictive
+            or Var.Y_ORIGINAL_SCALE not in data.posterior_predictive
         ):
             raise ValueError(
                 "cv_data must have posterior_predictive['y_original_scale']."
             )
 
-        pp = data.posterior_predictive["y_original_scale"]
+        pp = data.posterior_predictive[Var.Y_ORIGINAL_SCALE]
         y_train_da, y_test_da, y_obs_da, train_end_da = _build_predictions_arrays(
             data, pp
         )
@@ -168,7 +169,7 @@ class MMMCVPlotSuite:
             y_test_da = _select_dims(y_test_da, dims)
             y_obs_da = _select_dims(y_obs_da, dims)
 
-        standard_dims = {"cv", "chain", "draw", "date"}
+        standard_dims = {Dim.CV, "chain", "draw", Dim.DATE}
         custom_dims = [d for d in y_train_da.dims if d not in standard_dims]
 
         split_ds = xr.Dataset({"train": y_train_da, "test": y_test_da})
@@ -273,7 +274,7 @@ class MMMCVPlotSuite:
 
         if not hasattr(data, "posterior"):
             raise ValueError("cv_data has no 'posterior' group.")
-        if "cv" not in data.posterior.dims:
+        if Dim.CV not in data.posterior.dims:
             raise ValueError(
                 "No 'cv' coordinate found in cv_data.posterior. "
                 "Ensure the DataTree was produced by TimeSliceCrossValidator.run()."
@@ -285,7 +286,7 @@ class MMMCVPlotSuite:
 
         # Move labelled dims to the end so the forest plot reads naturally.
         # Guard: only include dims that actually exist after optional filtering.
-        dims_to_end = [d for d in ("channel", "cv") if d in posterior.dims]
+        dims_to_end = [d for d in (Dim.CHANNEL, Dim.CV) if d in posterior.dims]
         if dims_to_end:
             posterior = posterior.transpose(..., *dims_to_end)
 
@@ -370,20 +371,20 @@ class MMMCVPlotSuite:
         if cv_data is not None:
             _validate_cv_results(data)
 
-        if not hasattr(data, "cv_metadata"):
+        if not hasattr(data, Group.CV_METADATA):
             raise ValueError("cv_data must have a 'cv_metadata' group.")
         if (
             not hasattr(data, "posterior_predictive")
-            or "y_original_scale" not in data.posterior_predictive
+            or Var.Y_ORIGINAL_SCALE not in data.posterior_predictive
         ):
             raise ValueError(
                 "cv_data must have posterior_predictive['y_original_scale']."
             )
 
-        pp = data.posterior_predictive["y_original_scale"]
+        pp = data.posterior_predictive[Var.Y_ORIGINAL_SCALE]
         cv_labels = _extract_cv_labels(data)
 
-        base_dims = {"cv", "chain", "draw", "date"}
+        base_dims = {Dim.CV, "chain", "draw", Dim.DATE}
         extra_dims = [d for d in pp.dims if d not in base_dims]
 
         combo_coords: dict[str, list[Any]] = {

@@ -16,7 +16,7 @@
 
 import warnings
 from collections.abc import Sequence
-from typing import Literal, cast
+from typing import cast
 
 import numpy as np
 import pandas as pd
@@ -36,6 +36,7 @@ from xarray_einstats.stats import logsumexp as xr_logsumexp
 
 from pymc_marketing.clv.distributions import ParetoNBD
 from pymc_marketing.clv.models.basic import CLVModel
+from pymc_marketing.clv.names import NEW_CUSTOMER_VARS, Col, Dim, NewCustomerVar, Var
 from pymc_marketing.clv.utils import to_xarray
 from pymc_marketing.model_builder import SamplingMethod
 from pymc_marketing.model_config import ModelConfig
@@ -242,13 +243,13 @@ class ParetoNBDModel(CLVModel):
         self._validate_cols(
             data,
             required_cols=[
-                "customer_id",
-                "frequency",
-                "recency",
-                "T",
+                Col.CUSTOMER_ID,
+                Col.FREQUENCY,
+                Col.RECENCY,
+                Col.T,
                 *self.covariate_cols,
             ],
-            must_be_unique=["customer_id"],
+            must_be_unique=[Col.CUSTOMER_ID],
         )
 
     def build_model(self, data: pd.DataFrame) -> None:  # type: ignore[override]
@@ -263,32 +264,34 @@ class ParetoNBDModel(CLVModel):
         self.data = data
 
         coords = {
-            "purchase_covariate": self.purchase_covariate_cols,
-            "dropout_covariate": self.dropout_covariate_cols,
-            "obs_var": ["recency", "frequency"],
-            "customer_id": self.data["customer_id"],
+            Dim.PURCHASE_COVARIATE: self.purchase_covariate_cols,
+            Dim.DROPOUT_COVARIATE: self.dropout_covariate_cols,
+            Dim.OBS_VAR: [Col.RECENCY, Col.FREQUENCY],
+            Dim.CUSTOMER_ID: self.data[Col.CUSTOMER_ID],
         }
         with pm.Model(coords=coords) as self.model:
             if self.purchase_covariate_cols:
                 purchase_data = pm.Data(
                     "purchase_data",
                     self.data[self.purchase_covariate_cols],
-                    dims=["customer_id", "purchase_covariate"],
+                    dims=[Dim.CUSTOMER_ID, Dim.PURCHASE_COVARIATE],
                 )
 
-                self.model_config["purchase_coefficient"].dims = "purchase_covariate"
+                self.model_config["purchase_coefficient"].dims = Dim.PURCHASE_COVARIATE
                 purchase_coefficient = self.model_config[
                     "purchase_coefficient"
-                ].create_variable("purchase_coefficient")
+                ].create_variable(Var.PURCHASE_COEFFICIENT)
 
-                alpha_scale = self.model_config["alpha"].create_variable("alpha_scale")
+                alpha_scale = self.model_config["alpha"].create_variable(
+                    Var.ALPHA_SCALE
+                )
                 alpha = pm.Deterministic(
                     "alpha",
                     (
                         alpha_scale
                         * pm.math.exp(-pm.math.dot(purchase_data, purchase_coefficient))
                     ),
-                    dims="customer_id",
+                    dims=Dim.CUSTOMER_ID,
                 )
             else:
                 alpha = self.model_config["alpha"].create_variable("alpha")
@@ -298,24 +301,24 @@ class ParetoNBDModel(CLVModel):
                 dropout_data = pm.Data(
                     "dropout_data",
                     self.data[self.dropout_covariate_cols],
-                    dims=["customer_id", "dropout_covariate"],
+                    dims=[Dim.CUSTOMER_ID, Dim.DROPOUT_COVARIATE],
                 )
 
-                self.model_config["dropout_coefficient"].dims = "dropout_covariate"
+                self.model_config["dropout_coefficient"].dims = Dim.DROPOUT_COVARIATE
                 dropout_coefficient = self.model_config[
                     "dropout_coefficient"
                 ].create_variable(
-                    "dropout_coefficient",
+                    Var.DROPOUT_COEFFICIENT,
                 )
 
-                beta_scale = self.model_config["beta"].create_variable("beta_scale")
+                beta_scale = self.model_config["beta"].create_variable(Var.BETA_SCALE)
                 beta = pm.Deterministic(
                     "beta",
                     (
                         beta_scale
                         * pm.math.exp(-pm.math.dot(dropout_data, dropout_coefficient))
                     ),
-                    dims="customer_id",
+                    dims=Dim.CUSTOMER_ID,
                 )
             else:
                 beta = self.model_config["beta"].create_variable("beta")
@@ -324,16 +327,16 @@ class ParetoNBDModel(CLVModel):
             s = self.model_config["s"].create_variable("s")
 
             ParetoNBD(
-                name="recency_frequency",
+                name=Var.RECENCY_FREQUENCY,
                 r=r,
                 alpha=alpha,
                 s=s,
                 beta=beta,
-                T=self.data["T"],
+                T=self.data[Col.T],
                 observed=np.stack(
-                    (self.data["recency"], self.data["frequency"]), axis=1
+                    (self.data[Col.RECENCY], self.data[Col.FREQUENCY]), axis=1
                 ),
-                dims=["customer_id", "obs_var"],
+                dims=[Dim.CUSTOMER_ID, Dim.OBS_VAR],
             )
 
     def fit(  # type: ignore[override]
@@ -393,11 +396,11 @@ class ParetoNBDModel(CLVModel):
         # Add one dummy dimension to the right of the scalar parameters, so they broadcast with the `T` vector
         pareto_dist = ParetoNBD.dist(
             alpha=alpha.values[..., None]
-            if "customer_id" not in alpha.dims
+            if Dim.CUSTOMER_ID not in alpha.dims
             else alpha.values,
             r=r.values[..., None],
             beta=beta.values[..., None]
-            if "customer_id" not in beta.dims
+            if Dim.CUSTOMER_ID not in beta.dims
             else beta.values,
             s=s.values[..., None],
             T=T.values,
@@ -406,7 +409,7 @@ class ParetoNBDModel(CLVModel):
         # TODO: Instead of compiling this function everytime this method is called
         #  we could compile it once (with mutable inputs) and cache it for reuse with new inputs.
         loglike = pm.logp(pareto_dist, values).eval()
-        return xarray.DataArray(data=loglike, dims=("chain", "draw", "customer_id"))
+        return xarray.DataArray(data=loglike, dims=("chain", "draw", Dim.CUSTOMER_ID))
 
     def _extract_predictive_variables(
         self,
@@ -422,27 +425,27 @@ class ParetoNBDModel(CLVModel):
         self._validate_cols(
             data,
             required_cols=[
-                "customer_id",
+                Col.CUSTOMER_ID,
                 *customer_varnames,
                 *self.purchase_covariate_cols,
                 *self.dropout_covariate_cols,
             ],
-            must_be_unique=["customer_id"],
+            must_be_unique=[Col.CUSTOMER_ID],
         )
 
-        customer_id = data["customer_id"]
+        customer_id = data[Col.CUSTOMER_ID]
         model_coords = self.model.coords  # type: ignore
         if self.purchase_covariate_cols:
             purchase_xarray = xarray.DataArray(
                 data[self.purchase_covariate_cols],
-                dims=["customer_id", "purchase_covariate"],
-                coords=[customer_id, list(model_coords["purchase_covariate"])],
+                dims=[Dim.CUSTOMER_ID, Dim.PURCHASE_COVARIATE],
+                coords=[customer_id, list(model_coords[Dim.PURCHASE_COVARIATE])],
             )
-            alpha_scale = self.fit_result["alpha_scale"]
-            purchase_coefficient = self.fit_result["purchase_coefficient"]
+            alpha_scale = self.fit_result[Var.ALPHA_SCALE]
+            purchase_coefficient = self.fit_result[Var.PURCHASE_COEFFICIENT]
             alpha = alpha_scale * np.exp(
                 -xarray.dot(
-                    purchase_coefficient, purchase_xarray, dim="purchase_covariate"
+                    purchase_coefficient, purchase_xarray, dim=Dim.PURCHASE_COVARIATE
                 )
             )
             alpha.name = "alpha"
@@ -452,14 +455,14 @@ class ParetoNBDModel(CLVModel):
         if self.dropout_covariate_cols:
             dropout_xarray = xarray.DataArray(
                 data[self.dropout_covariate_cols],
-                dims=["customer_id", "dropout_covariate"],
-                coords=[customer_id, list(model_coords["dropout_covariate"])],
+                dims=[Dim.CUSTOMER_ID, Dim.DROPOUT_COVARIATE],
+                coords=[customer_id, list(model_coords[Dim.DROPOUT_COVARIATE])],
             )
-            beta_scale = self.fit_result["beta_scale"]
-            dropout_coefficient = self.fit_result["dropout_coefficient"]
+            beta_scale = self.fit_result[Var.BETA_SCALE]
+            dropout_coefficient = self.fit_result[Var.DROPOUT_COEFFICIENT]
             beta = beta_scale * np.exp(
                 -xarray.dot(
-                    dropout_coefficient, dropout_xarray, dim="dropout_covariate"
+                    dropout_coefficient, dropout_xarray, dim=Dim.DROPOUT_COVARIATE
                 )
             )
             beta.name = "beta"
@@ -470,7 +473,7 @@ class ParetoNBDModel(CLVModel):
         s = self.fit_result["s"]
 
         customer_vars = to_xarray(
-            data["customer_id"],
+            data[Col.CUSTOMER_ID],
             *[data[customer_varname] for customer_varname in customer_varnames],
         )
         if len(customer_varnames) == 1:
@@ -531,19 +534,19 @@ class ParetoNBDModel(CLVModel):
             data = self.data
 
         if future_t is not None:
-            data = data.assign(future_t=future_t)
+            data = data.assign(**{Col.FUTURE_T: future_t})
 
         dataset = self._extract_predictive_variables(
-            data, customer_varnames=["frequency", "recency", "T", "future_t"]
+            data, customer_varnames=[Col.FREQUENCY, Col.RECENCY, Col.T, Col.FUTURE_T]
         )
         r = dataset["r"]
         alpha = dataset["alpha"]
         s = dataset["s"]
         beta = dataset["beta"]
-        x = dataset["frequency"]
-        t_x = dataset["recency"]
-        T = dataset["T"]
-        future_t = dataset["future_t"]
+        x = dataset[Col.FREQUENCY]
+        t_x = dataset[Col.RECENCY]
+        T = dataset[Col.T]
+        future_t = dataset[Col.FUTURE_T]
 
         loglike = self._logp(r, alpha, s, beta, x, t_x, T)
 
@@ -563,7 +566,7 @@ class ParetoNBDModel(CLVModel):
         exp_purchases = exp(first_term + second_term + third_term - loglike)
 
         return exp_purchases.transpose(
-            "chain", "draw", "customer_id", missing_dims="ignore"
+            "chain", "draw", Dim.CUSTOMER_ID, missing_dims="ignore"
         )
 
     def expected_probability_alive(
@@ -610,22 +613,22 @@ class ParetoNBDModel(CLVModel):
             data = self.data
 
         if future_t is not None:
-            data = data.assign(future_t=future_t)
+            data = data.assign(**{Col.FUTURE_T: future_t})
 
-        if "future_t" not in data:
-            data = data.assign(future_t=0)
+        if Col.FUTURE_T not in data:
+            data = data.assign(**{Col.FUTURE_T: 0})
 
         dataset = self._extract_predictive_variables(
-            data, customer_varnames=["frequency", "recency", "T", "future_t"]
+            data, customer_varnames=[Col.FREQUENCY, Col.RECENCY, Col.T, Col.FUTURE_T]
         )
         r = dataset["r"]
         alpha = dataset["alpha"]
         s = dataset["s"]
         beta = dataset["beta"]
-        x = dataset["frequency"]
-        t_x = dataset["recency"]
-        T = dataset["T"]
-        future_t = dataset["future_t"]
+        x = dataset[Col.FREQUENCY]
+        t_x = dataset[Col.RECENCY]
+        T = dataset[Col.T]
+        future_t = dataset[Col.FUTURE_T]
 
         loglike = self._logp(r, alpha, s, beta, x, t_x, T)
 
@@ -637,7 +640,7 @@ class ParetoNBDModel(CLVModel):
         prob_alive = exp(term1 + term2 + term3 + term4 - loglike)
 
         return prob_alive.transpose(
-            "chain", "draw", "customer_id", missing_dims="ignore"
+            "chain", "draw", Dim.CUSTOMER_ID, missing_dims="ignore"
         )
 
     def expected_purchase_probability(
@@ -694,25 +697,31 @@ class ParetoNBDModel(CLVModel):
             data = self.data
 
         if n_purchases is not None:
-            data = data.assign(n_purchases=n_purchases)
+            data = data.assign(**{Col.N_PURCHASES: n_purchases})
 
         if future_t is not None:
-            data = data.assign(future_t=future_t)
+            data = data.assign(**{Col.FUTURE_T: future_t})
 
         dataset = self._extract_predictive_variables(
             data,
-            customer_varnames=["frequency", "recency", "T", "future_t", "n_purchases"],
+            customer_varnames=[
+                Col.FREQUENCY,
+                Col.RECENCY,
+                Col.T,
+                Col.FUTURE_T,
+                Col.N_PURCHASES,
+            ],
         )
         r = dataset["r"]
         alpha = dataset["alpha"]
         s = dataset["s"]
         beta = dataset["beta"]
-        x = dataset["frequency"]
-        t_x = dataset["recency"]
-        T = dataset["T"]
-        future_t = cast(xarray.DataArray, dataset["future_t"])
-        n_purchases = cast(int, dataset["n_purchases"].values[0].item())
-        if not np.all(n_purchases == dataset["n_purchases"].values):
+        x = dataset[Col.FREQUENCY]
+        t_x = dataset[Col.RECENCY]
+        T = dataset[Col.T]
+        future_t = cast(xarray.DataArray, dataset[Col.FUTURE_T])
+        n_purchases = cast(int, dataset[Col.N_PURCHASES].values[0].item())
+        if not np.all(n_purchases == dataset[Col.N_PURCHASES].values):
             raise NotImplementedError(
                 "expected_purchase_probability with distinct numbers of `n_purchases` not implemented"
             )
@@ -821,7 +830,7 @@ class ParetoNBDModel(CLVModel):
         )
 
         return purchase_prob.transpose(
-            "chain", "draw", "customer_id", missing_dims="ignore"
+            "chain", "draw", Dim.CUSTOMER_ID, missing_dims="ignore"
         )
 
     def expected_purchases_new_customer(
@@ -864,20 +873,22 @@ class ParetoNBDModel(CLVModel):
             data = self.data
 
         if t is not None:
-            data = data.assign(t=t)
+            data = data.assign(**{Col.NEW_CUSTOMER_T: t})
 
-        dataset = self._extract_predictive_variables(data, customer_varnames=["t"])
+        dataset = self._extract_predictive_variables(
+            data, customer_varnames=[Col.NEW_CUSTOMER_T]
+        )
         r = dataset["r"]
         alpha = dataset["alpha"]
         s = dataset["s"]
         beta = dataset["beta"]
-        t = dataset["t"]
+        t = dataset[Col.NEW_CUSTOMER_T]
 
         first_term = r * beta / alpha / (s - 1)
         second_term = 1 - (beta / (beta + t)) ** (s - 1)
 
         return (first_term * second_term).transpose(
-            "chain", "draw", "customer_id", missing_dims="ignore"
+            "chain", "draw", Dim.CUSTOMER_ID, missing_dims="ignore"
         )
 
     def distribution_new_customer(
@@ -886,13 +897,7 @@ class ParetoNBDModel(CLVModel):
         *,
         T: int | np.ndarray | pd.Series | None = None,
         random_seed: RandomState | None = None,
-        var_names: Sequence[
-            Literal["dropout", "purchase_rate", "recency_frequency"]
-        ] = (
-            "dropout",
-            "purchase_rate",
-            "recency_frequency",
-        ),
+        var_names: Sequence[NewCustomerVar] = NEW_CUSTOMER_VARS,
         n_samples: int = 1000,
     ) -> xarray.Dataset:
         """Compute posterior predictive samples of dropout, purchase rate and frequency/recency of new customers.
@@ -926,52 +931,52 @@ class ParetoNBDModel(CLVModel):
             data = self.data
 
         if T is not None:
-            data = data.assign(T=T)
+            data = data.assign(**{Col.T: T})
 
-        dataset = self._extract_predictive_variables(data, customer_varnames=["T"])
-        T = dataset["T"].values
+        dataset = self._extract_predictive_variables(data, customer_varnames=[Col.T])
+        T = dataset[Col.T].values
         # Delete "T" so we can pass dataset directly to `sample_posterior_predictive`
-        del dataset["T"]
+        del dataset[Col.T]
 
         if dataset.sizes["chain"] == 1 and dataset.sizes["draw"] == 1:
             # For map fit add a dummy draw dimension
             dataset = dataset.squeeze("draw").expand_dims(draw=range(n_samples))
 
         coords = self.model.coords.copy()  # type: ignore
-        coords["customer_id"] = data["customer_id"]
+        coords[Dim.CUSTOMER_ID] = data[Col.CUSTOMER_ID]
         with pm.Model(coords=coords) as pred_model:
             if self.purchase_covariate_cols:
-                alpha = pm.Flat("alpha", dims=["customer_id"])
+                alpha = pm.Flat("alpha", dims=[Dim.CUSTOMER_ID])
             else:
                 alpha = pm.Flat("alpha")
             if self.dropout_covariate_cols:
-                beta = pm.Flat("beta", dims=["customer_id"])
+                beta = pm.Flat("beta", dims=[Dim.CUSTOMER_ID])
             else:
                 beta = pm.Flat("beta")
             r = pm.Flat("r")
             s = pm.Flat("s")
 
             pm.Gamma(
-                "purchase_rate",
+                Var.PURCHASE_RATE,
                 alpha=r,
                 beta=alpha,
                 dims=pred_model.named_vars_to_dims.get("alpha"),
             )
             pm.Gamma(
-                "dropout",
+                Var.DROPOUT,
                 alpha=s,
                 beta=beta,
                 dims=pred_model.named_vars_to_dims.get("beta"),
             )
 
             ParetoNBD(
-                name="recency_frequency",
+                name=Var.RECENCY_FREQUENCY,
                 r=r,
                 alpha=alpha,
                 s=s,
                 beta=beta,
                 T=T,
-                dims=["customer_id", "obs_var"],
+                dims=[Dim.CUSTOMER_ID, Dim.OBS_VAR],
             )
 
             return pm.sample_posterior_predictive(
@@ -1012,8 +1017,8 @@ class ParetoNBDModel(CLVModel):
         return self.distribution_new_customer(
             data=data,
             random_seed=random_seed,
-            var_names=["dropout"],
-        )["dropout"]
+            var_names=[Var.DROPOUT],
+        )[Var.DROPOUT]
 
     def distribution_new_customer_purchase_rate(
         self,
@@ -1047,8 +1052,8 @@ class ParetoNBDModel(CLVModel):
         return self.distribution_new_customer(
             data=data,
             random_seed=random_seed,
-            var_names=["purchase_rate"],
-        )["purchase_rate"]
+            var_names=[Var.PURCHASE_RATE],
+        )[Var.PURCHASE_RATE]
 
     def distribution_new_customer_recency_frequency(
         self,
@@ -1090,6 +1095,6 @@ class ParetoNBDModel(CLVModel):
             data=data,
             T=T,
             random_seed=random_seed,
-            var_names=["recency_frequency"],
+            var_names=[Var.RECENCY_FREQUENCY],
             n_samples=n_samples,
-        )["recency_frequency"]
+        )[Var.RECENCY_FREQUENCY]

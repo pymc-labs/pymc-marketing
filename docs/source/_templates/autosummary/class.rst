@@ -38,14 +38,23 @@
     "model_fields", "model_fields_set", "model_extra", "model_computed_fields",
     "predict_stream", "load_context",
 ] %}
+{#- The name-constant classes in ``names`` modules hold only ``Final`` string
+    attributes. They are listed on the class page instead of getting one stub
+    page per attribute (and one for ``__init__``). #}
+{% set inline_members = module.endswith(".names") %}
 {{ name | escape | underline}}
 
 .. currentmodule:: {{ module }}
 
 .. autoclass:: {{ objname }}
+{%- if inline_members %}
+   :members:
+   :undoc-members:
+   :inherited-members:
+{%- endif %}
 
    {% block methods %}
-   {% if methods %}
+   {% if methods and not inline_members %}
 
    .. rubric:: Methods
 
@@ -61,7 +70,7 @@
    {% endblock %}
 
    {% block attributes %}
-   {% if attributes %}
+   {% if attributes and not inline_members %}
    .. rubric:: Attributes
 
    .. autosummary::

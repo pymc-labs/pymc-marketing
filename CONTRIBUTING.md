@@ -111,6 +111,8 @@ We recommend that your contribution complies with the following guidelines befor
 
 - Documentation follows [NumPy style guide](https://numpydoc.readthedocs.io/en/latest/format.html)
 
+- Names that the library creates in one place and reads in another (model variables, dimensions, fixed DataFrame columns, InferenceData groups, `idata.attrs` keys, serialization keys such as `__type__`) are `Final` constants in the package `names.py`: `pymc_marketing/names.py` for the names all models share, `pymc_marketing/data/idata/names.py` for the MMM, and `names.py` in `clv/`, `customer_choice/` and `bass/`. Add a new name there and use the constant instead of the string literal, so that `mypy` catches a typo. Tests keep the literal strings: if a constant's value changes, the tests fail and show the breaking change.
+
 - Run any of the pre-existing examples in `pymc-marketing/docs/source/*` that contain analyses that would be affected by your changes to ensure that nothing breaks. This is a useful opportunity to not only check your work for bugs that might not be revealed by unit test, but also to show how your contribution improves PyMC-Marketing for end users.
 
 - Your code passes linting tests. Run the line below to check linting errors:
