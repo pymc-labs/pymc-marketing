@@ -48,13 +48,13 @@ def test_import_impulso_too_old_raises(monkeypatch):
         _import_impulso()
 
     message = str(excinfo.value)
-    assert "impulso>=0.1.3" in message
+    assert "impulso>=0.1.4" in message
     assert "0.0.14" in message
     assert "pip install -U 'pymc-marketing[var]'" in message
     assert "Pre-releases" not in message
 
 
-@pytest.mark.parametrize("installed", ["0.1.3.dev4", "0.1.3rc1"])
+@pytest.mark.parametrize("installed", ["0.1.4.dev4", "0.1.4rc1"])
 def test_import_impulso_prerelease_of_the_minimum_raises(monkeypatch, installed):
     """A pre-release of the minimum is refused, and the message says why.
 
@@ -70,7 +70,7 @@ def test_import_impulso_prerelease_of_the_minimum_raises(monkeypatch, installed)
 
     message = str(excinfo.value)
     assert f"impulso {installed} is installed" in message
-    assert "Pre-releases of 0.1.3 are refused." in message
+    assert "Pre-releases of 0.1.4 are refused." in message
     assert "pip install -U 'pymc-marketing[var]'" in message
 
 

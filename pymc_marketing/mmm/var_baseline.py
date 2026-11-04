@@ -14,7 +14,7 @@
 """Vector autoregression (VAR) baseline support, built on Impulso.
 
 `Impulso <https://github.com/QuantClimate/Impulso>`_ is an optional dependency of
-PyMC-Marketing, and the VAR baseline needs ``impulso>=0.1.3``. Install it with
+PyMC-Marketing, and the VAR baseline needs ``impulso>=0.1.4``. Install it with
 ``pip install 'pymc-marketing[var]'``. This module imports Impulso only when it is
 used, so PyMC-Marketing imports without it.
 """
@@ -49,7 +49,7 @@ if TYPE_CHECKING:
     from pymc_marketing.mmm.mmm import MMM
 
 # The lower bound of the impulso pins in pyproject.toml; a test keeps them in step.
-_MIN_IMPULSO = "0.1.3"
+_MIN_IMPULSO = "0.1.4"
 
 # A half-normal with scale U / _HALFNORMAL_Q95 exceeds U with probability 0.05.
 _HALFNORMAL_Q95 = float(halfnorm.ppf(0.95))
@@ -318,13 +318,15 @@ class VARBaselineEffect(MuEffect):
     warns that it ignores them, which is harmless here: it draws from the posterior,
     which the potentials shaped.
 
-    PyMC's NUTS sampler and nutpie work. ``nuts_sampler="numpyro"`` and
-    ``nuts_sampler="blackjax"`` fail at the first gradient evaluation with JAX's
+    PyMC's NUTS sampler and nutpie work with any ``lags``, and so do
+    ``nuts_sampler="numpyro"`` and ``nuts_sampler="blackjax"`` with ``lags=1``. With
+    ``lags > 1`` the JAX samplers fail at the first gradient evaluation with JAX's
     ``NotImplementedError``: "Derivatives of non-symmetric eigenvectors are only
     valid under assumptions on the input that JAX cannot check". JAX differentiates
     the eigendecomposition in the stationarity constraint, which PyTensor's gradient
-    treats as a constant. The fix belongs in Impulso, see
-    https://github.com/QuantClimate/Impulso/issues/378.
+    treats as a constant. With ``lags=1`` the constraint is a truncated prior on the
+    baseline's own lag instead, with no eigendecomposition. The fix for ``lags > 1``
+    belongs in Impulso, see https://github.com/QuantClimate/Impulso/issues/378.
 
     An MMM takes at most one ``VARBaselineEffect``, and building an MMM with two
     raises. Two baselines in one mean would be identified only through their sum,

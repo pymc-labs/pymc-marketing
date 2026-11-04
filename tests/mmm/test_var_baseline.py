@@ -1176,11 +1176,15 @@ def test_fitted_var_holds_the_var_parameters(fitted_mmm):
     """The VAR's parameters and the sampler statistics, without the baseline path.
 
     Everything but the intercept passes through unchanged, under Impulso's names.
+    With one lag, Impulso assembles ``B`` from ``B_free`` and the baseline's own lag,
+    ``latent_own_lag``, which pass through too.
     """
     fitted = fitted_mmm.mu_effects[0].fitted_var(fitted_mmm)
     posterior = fitted.idata.posterior
     passed_through = [
         "B",
+        "B_free",
+        "latent_own_lag",
         "B_exog",
         "L",
         "Sigma",
