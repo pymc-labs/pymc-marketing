@@ -521,8 +521,10 @@ class MMM(RegressionModelBuilder):
     Notes
     -----
     1. Before fitting, the target variable and media channels are scaled
-       (by default using max-absolute scaling).  Control variables are **not**
-       scaled automatically — apply your own preprocessing if needed.
+       (by default dividing by the signed per-slice maximum, see
+       :class:`~pymc_marketing.mmm.scaling.DataDerivedScaling`).  Control
+       variables are **not** scaled automatically — apply your own
+       preprocessing if needed.
 
     2. Yearly seasonality can be added as Fourier modes via the
        ``yearly_seasonality`` parameter.
@@ -562,7 +564,8 @@ class MMM(RegressionModelBuilder):
         dates for every combination).
     scaling : Scaling or dict or None
         Scaling methods for the target variable and the marketing channels.
-        Defaults to max-absolute scaling for both.
+        Defaults to ``DataDerivedScaling(method="max")`` for both, a signed
+        maximum rather than a maximum of absolute values.
     model_config : dict or None
         Configuration settings for the model priors and likelihood.
     sampler_config : dict or None
@@ -3725,7 +3728,7 @@ class MMM(RegressionModelBuilder):
         ):
             # The base class only builds when no model exists, so the
             # placeholder is needed only then. Observed values enter prior
-            # sampling only through the max-abs target scale, so ones
+            # sampling only through the max target scale, so ones
             # (scale = 1) is an inert placeholder.
             if isinstance(X, xr.Dataset | xr.DataArray):
                 target_dims = ("date", *self.dims)
