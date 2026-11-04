@@ -21,10 +21,12 @@ import pandas as pd
 import pymc as pm
 import xarray
 from pymc.util import RandomState
+from pymc_extras.prior import Prior
 from scipy.special import hyp2f1
 
 from pymc_marketing.clv.distributions import ModifiedBetaGeoNBD
 from pymc_marketing.clv.models import BetaGeoModel
+from pymc_marketing.model_config import ModelConfig
 
 
 class ModifiedBetaGeoModel(BetaGeoModel):
@@ -141,6 +143,20 @@ class ModifiedBetaGeoModel(BetaGeoModel):
     """  # noqa: E501
 
     _model_type = "MBG/NBD"
+
+    @property
+    def default_model_config(self) -> ModelConfig:
+        """Default model configuration.
+
+        The MBG/NBD build path still reads the covariate coefficient priors
+        from ``model_config``; the keys are deprecated in favor of term
+        recipes as part of the BG/NBD terms port (issue #2962).
+        """
+        return {
+            **super().default_model_config,
+            "purchase_coefficient": Prior("Normal", mu=0, sigma=1),
+            "dropout_coefficient": Prior("Normal", mu=0, sigma=1),
+        }
 
     def build_model(self, data: pd.DataFrame) -> None:  # type: ignore[override]
         """Build the model.
