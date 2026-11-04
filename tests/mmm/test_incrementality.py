@@ -5600,6 +5600,26 @@ class TestClosedFormMatrix:
         )
 
     @pytest.mark.parametrize("method", ["closed_form", "pipeline"])
+    def test_a_subsample_of_a_posterior_without_labels_keeps_their_positions(
+        self, simple_mmm_data, method
+    ):
+        """Without ``chain``/``draw`` coordinates, the positions are the labels."""
+        mmm = _fit_custom_mmm(
+            simple_mmm_data, adstock=GeometricAdstock(l_max=4), adstock_first=False
+        )
+        mmm.idata["posterior"] = mmm.idata.posterior.dataset.drop_vars(
+            ["chain", "draw"]
+        )
+
+        call = mmm.incrementality.split_incremental_contribution_over_time
+        full = call(frequency="monthly", method=method)
+        subset = call(frequency="monthly", method=method, num_samples=4, random_state=0)
+
+        xr.testing.assert_allclose(
+            subset, full.sel(chain=subset.chain, draw=subset.draw), rtol=1e-9
+        )
+
+    @pytest.mark.parametrize("method", ["closed_form", "pipeline"])
     @pytest.mark.parametrize("num_samples", [None, 4])
     def test_refuses_repeated_draw_labels(self, simple_mmm_data, method, num_samples):
         """Two runs concatenated along ``draw`` cannot be matched by label."""

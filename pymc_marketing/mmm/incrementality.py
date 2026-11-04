@@ -796,7 +796,9 @@ def _subsample_draws_per_chain(
     xr.Dataset
         *dataset* unchanged when nothing is subsampled (see *num_samples*).
         Otherwise *dataset* at ``ceil(num_samples / n_chains)`` draws per
-        chain, in their original order, with every chain kept.
+        chain, in their original order, with every chain kept.  A ``chain``
+        or ``draw`` dimension without coordinates gets its positions as
+        labels, so each kept draw is labeled with its position in *dataset*.
 
     Raises
     ------
@@ -827,6 +829,14 @@ def _subsample_draws_per_chain(
 
     rng = np.random.default_rng(random_state)
     positions = np.sort(rng.choice(n_draws, size=per_chain, replace=False))
+    # A dimension without an index would read back as 0..k-1 after isel.
+    dataset = dataset.assign_coords(
+        {
+            dim: np.arange(dataset.sizes[dim])
+            for dim in ("chain", "draw")
+            if dim not in dataset.indexes
+        }
+    )
     return dataset.isel(draw=positions)
 
 
