@@ -5600,7 +5600,8 @@ class TestClosedFormMatrix:
         )
 
     @pytest.mark.parametrize("method", ["closed_form", "pipeline"])
-    def test_refuses_repeated_draw_labels(self, simple_mmm_data, method):
+    @pytest.mark.parametrize("num_samples", [None, 4])
+    def test_refuses_repeated_draw_labels(self, simple_mmm_data, method, num_samples):
         """Two runs concatenated along ``draw`` cannot be matched by label."""
         mmm = _fit_custom_mmm(
             simple_mmm_data, adstock=GeometricAdstock(l_max=4), adstock_first=False
@@ -5610,7 +5611,10 @@ class TestClosedFormMatrix:
 
         with pytest.raises(ValueError, match="'draw' labels are not unique"):
             mmm.incrementality.split_incremental_contribution_over_time(
-                frequency="monthly", method=method
+                frequency="monthly",
+                method=method,
+                num_samples=num_samples,
+                random_state=0,
             )
 
     def test_no_period_is_evaluated(self, simple_mmm_data, monkeypatch):

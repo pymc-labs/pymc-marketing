@@ -801,8 +801,18 @@ def _subsample_draws_per_chain(
     Raises
     ------
     ValueError
-        If *num_samples* is less than 1.
+        If *num_samples* is less than 1, or if the ``chain`` or ``draw``
+        labels repeat, so a draw cannot be found by label, as when two runs
+        are concatenated along ``draw``.
     """
+    # Checked on the whole posterior: a subsample rarely keeps a repeat.
+    for dim in ("chain", "draw"):
+        if dim in dataset.indexes and not dataset.indexes[dim].is_unique:
+            raise ValueError(
+                f"The posterior's {dim!r} labels are not unique, so its draws "
+                "cannot be matched by label. Relabel them first, e.g. "
+                f"posterior.assign_coords({dim}=np.arange(posterior.sizes[{dim!r}]))."
+            )
     if num_samples is None:
         return dataset
     if num_samples < 1:
@@ -4978,20 +4988,7 @@ class Incrementality:
         posterior stored otherwise, such as a reordered, transposed or reloaded
         ``idata``, is laid out here.  The evaluator binds its own copy by dim
         name in the model's order, and the reducer pairs by label.
-
-        Raises
-        ------
-        ValueError
-            If the ``chain`` or ``draw`` labels repeat, so a draw cannot be
-            found by label, as when two runs are concatenated along ``draw``.
         """
-        for dim in ("chain", "draw"):
-            if dim in posterior.indexes and not posterior.indexes[dim].is_unique:
-                raise ValueError(
-                    f"The posterior's {dim!r} labels are not unique, so its draws "
-                    "cannot be matched by label. Relabel them first, e.g. "
-                    f"posterior.assign_coords({dim}=np.arange(posterior.sizes[{dim!r}]))."
-                )
         channel_data = self.data.get_channel_data()
         in_data_order = reorder_to_model_coords(
             posterior,
