@@ -237,7 +237,7 @@ from collections.abc import Callable, Iterator, Mapping, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass
 from functools import cached_property, partial
-from typing import TYPE_CHECKING, Any, Literal, cast
+from typing import TYPE_CHECKING, Literal, cast
 
 import numpy as np
 import pandas as pd
@@ -839,43 +839,6 @@ def _missing_variables(
         if hasattr(transformation.function_priors[parameter], "create_variable")
         and name not in posterior
     ]
-
-
-def _relabel_draws(sampled: xr.DataArray, labels: Mapping[str, Any]) -> xr.DataArray:
-    """Label a posterior-predictive sample with the draws it was computed at.
-
-    ``pm.sample_posterior_predictive`` returns the draws in the order of the
-    posterior it is given, under that posterior's ``chain`` and ``draw``
-    labels, which the pipeline's results carry too.  Relabeling by position
-    is right only while the order holds: nothing between the subsample and
-    the sampling may reorder or drop draws.  The sizes are checked here: a
-    draw lost or added on the way would pair draw *i* of one array with draw
-    *j* of another, so it raises.  The parity tests pin the order itself.
-
-    Parameters
-    ----------
-    sampled : xr.DataArray
-        The sample, with ``chain`` and ``draw`` dimensions.
-    labels : mapping
-        The ``chain`` and ``draw`` coordinates to give it.
-
-    Returns
-    -------
-    xr.DataArray
-        *sampled* under *labels*.
-
-    Raises
-    ------
-    ValueError
-        If the sample does not have as many chains and draws as *labels*.
-    """
-    for dim in ("chain", "draw"):
-        if sampled.sizes[dim] != len(labels[dim]):
-            raise ValueError(
-                f"The sample has {sampled.sizes[dim]} {dim}s where the posterior "
-                f"it was computed at has {len(labels[dim])}."
-            )
-    return sampled.assign_coords(chain=labels["chain"], draw=labels["draw"])
 
 
 def _adstock_terms(
@@ -2506,11 +2469,10 @@ class Incrementality:
             reducer = cast(IdentityLinkReducer, prepared.reducer)
             posterior = prepared.posterior
             labels = {dim: posterior[dim].values for dim in ("chain", "draw")}
-            saturated = _relabel_draws(
+            saturated = (
                 self._saturated_media(posterior, counterfactual_spend_factor)
-                * reducer.scale,
-                labels,
-            )
+                * reducer.scale
+            ).sel(labels)
         finally:
             prepared.release()
         return ClosedFormInputs(prepared=prepared, saturated=saturated, labels=labels)
@@ -2621,7 +2583,7 @@ class Incrementality:
         weights = self._adstock_kernel(prepared.posterior, divides=False)
         matrix = self._closed_form_matrix(
             inputs.saturated,
-            _relabel_draws(weights, inputs.labels),
+            weights.sel(inputs.labels),
             periods=prepared.periods,
             windows=windows,
             tail_lags=probed.reach.max_lag,
@@ -3224,21 +3186,21 @@ class Incrementality:
             .rename(realization_date="date")
         )
         dates = pd.DatetimeIndex(total["date"].values)
-        # The share tests pin the allocation's columns to the contribution draw
-        # by draw, on a subsample too, so a change in the order fails them.
-        weights = _relabel_draws(
-            weights, {"chain": total["chain"].values, "draw": total["draw"].values}
-        )
         # The kernel and the spend go into the contribution's label order, the
         # one its values and the matrix's coordinates are laid out in: a labeled
         # product keeps its first operand's order, and the masks below pair
         # cells exactly.  The posterior and ``constant_data`` may store others.
+        # A draw of the contribution missing from the kernel raises here.
         in_total_order = {dim: total[dim].values for dim in out_dims}
         weights = weights.sel(
             {
-                dim: labels
-                for dim, labels in in_total_order.items()
-                if dim in weights.dims
+                "chain": total["chain"].values,
+                "draw": total["draw"].values,
+                **{
+                    dim: labels
+                    for dim, labels in in_total_order.items()
+                    if dim in weights.dims
+                },
             }
         )
         spend = self.data.get_channel_data().sel(in_total_order)
@@ -3332,8 +3294,7 @@ class Incrementality:
         xr.DataArray
             The adstock of a unit impulse, with a ``"time since exposure"`` lag
             dimension of length ``l_max`` and the parameters' other dimensions.
-            The draws are in the posterior's order and under its labels; see
-            :func:`_relabel_draws`.
+            The draws are in the posterior's order and under its labels.
 
         Raises
         ------
@@ -3660,9 +3621,11 @@ class Incrementality:
         # The kernel's weight within each lag, W C(m), read off one sampling of
         # the kernel.  Its last entry is the whole kernel, so the future part is
         # exactly zero for a date whose window covers it.
-        cumulative = _relabel_draws(
-            self._adstock_kernel(prepared.posterior, divides=False), inputs.labels
-        ).cumsum(LAG_DIM)
+        cumulative = (
+            self._adstock_kernel(prepared.posterior, divides=False)
+            .sel(inputs.labels)
+            .cumsum(LAG_DIM)
+        )
 
         dates = self.data.dates
         offset = prepared.freq_offset
