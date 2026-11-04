@@ -2099,7 +2099,7 @@ class MMM(RegressionModelBuilder):
         substituted directly.
 
         They include the names each mu effect declares through
-        :meth:`MuEffect.frozen_deterministics`.
+        :attr:`MuEffect.frozen_deterministics`.
         """
         names: list[str] = []
         if self.time_varying_intercept:
@@ -2115,7 +2115,7 @@ class MMM(RegressionModelBuilder):
         for effect in self.mu_effects:
             # A duck-typed effect, which the additive-effect module allows, may not
             # define the hook.
-            names.extend(getattr(effect, "frozen_deterministics", list)())
+            names.extend(getattr(effect, "frozen_deterministics", []))
         return names
 
     def _validate_idata_exists(self) -> None:

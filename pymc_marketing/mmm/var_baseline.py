@@ -22,7 +22,7 @@ used, so PyMC-Marketing imports without it.
 from collections import Counter
 from importlib import metadata
 from types import ModuleType
-from typing import TYPE_CHECKING, Any, ClassVar, cast
+from typing import TYPE_CHECKING, Any, cast
 
 import numpy as np
 import pandas as pd
@@ -396,7 +396,6 @@ class VARBaselineEffect(MuEffect):
     var: Any
     baseline_own_lag_mean: float = Field(0.0, gt=-1, lt=1)
     baseline_innovation_sd: float | None = Field(None, gt=0, allow_inf_nan=False)
-    supports_new_dates: ClassVar[bool] = False
 
     @field_validator("brand_data")
     @classmethod
@@ -745,18 +744,19 @@ class VARBaselineEffect(MuEffect):
             The new data.
         """
 
+    @property
+    def supports_new_dates(self) -> bool:
+        """``False``: the baseline exists only on the dates the MMM was fitted on."""
+        return False
+
+    @property
     def frozen_deterministics(self) -> list[str]:
-        """Return the baseline's contribution, which is taken from the posterior.
+        """The baseline's contribution, which is taken from the posterior.
 
         The contribution is a latent path over the MMM's dates, so its posterior
         draws are used as they are, as for the MMM's HSGP terms. Recomputing it would
         fail in incrementality, which swaps in posterior draws only for ``pymc.dims``
         variables, and Impulso's variables are not.
-
-        Returns
-        -------
-        list[str]
-            The name of the baseline's contribution.
         """
         return [self.contribution_var_name]
 

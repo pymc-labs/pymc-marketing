@@ -2366,13 +2366,20 @@ class _FittedDatesOnlyEffect(_ZeroEffect):
     """``_ZeroEffect``, declared to take only the dates the MMM was fitted on."""
 
     prefix: str = "fitted_dates_only"
-    supports_new_dates = False
+
+    @property
+    def supports_new_dates(self) -> bool:
+        """Only the fitted dates."""
+        return False
 
 
 class _UnprefixedFittedDatesOnlyEffect(MuEffect):
     """``_FittedDatesOnlyEffect`` without a prefix."""
 
-    supports_new_dates = False
+    @property
+    def supports_new_dates(self) -> bool:
+        """Only the fitted dates."""
+        return False
 
     def create_data(self, mmm) -> None:
         """No data of its own."""
@@ -2418,6 +2425,7 @@ serialization.register(
 class _FrozenZeroEffect(_ZeroEffect):
     """``_ZeroEffect`` whose contribution is taken from the posterior."""
 
+    @property
     def frozen_deterministics(self) -> list[str]:
         """The contribution."""
         return [self.contribution_var_name]

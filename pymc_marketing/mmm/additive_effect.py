@@ -211,7 +211,7 @@ coefficients.
 
 from abc import ABC, abstractmethod
 from collections.abc import Iterable
-from typing import Annotated, Any, ClassVar, Literal, Protocol
+from typing import Annotated, Any, Literal, Protocol
 
 import numpy as np
 import numpy.typing as npt
@@ -443,21 +443,21 @@ class MuEffect(SerializableBaseModel, ABC):
 
     All mu_effects must inherit from this Pydantic BaseModel to ensure proper
     serialization and deserialization when saving/loading MMM models.
+    """
 
-    Attributes
-    ----------
-    supports_new_dates : bool
-        Whether the effect can be evaluated on dates other than the ones the MMM was
-        fitted on. ``True`` by default. An effect whose contribution exists only on
-        the fitted dates sets it to ``False`` as a class variable. Each of these
-        then raises a ``NotImplementedError`` naming the effect:
+    @property
+    def supports_new_dates(self) -> bool:
+        """Whether the effect can be evaluated on dates other than the fitted ones.
+
+        ``True`` by default. An effect whose contribution exists only on the dates
+        the MMM was fitted on overrides this property to return ``False``. Each of
+        these then raises a ``NotImplementedError`` naming the effect:
         :meth:`MMM.sample_posterior_predictive` and :meth:`MMM.predict` on any other
         set of dates, the budget optimizer with an objective that includes the
         effect's contribution, such as ``total_response_original_scale``, and
         time-slice cross-validation, before it fits the first fold.
-    """
-
-    supports_new_dates: ClassVar[bool] = True
+        """
+        return True
 
     @abstractmethod
     def create_data(self, mmm: Model) -> None:
@@ -526,8 +526,9 @@ class MuEffect(SerializableBaseModel, ABC):
         """
         return None
 
+    @property
     def frozen_deterministics(self) -> list[str]:
-        """Return the deterministics to take from the posterior rather than recompute.
+        """Names of deterministics to take from the posterior rather than recompute.
 
         :attr:`MMM.frozen_deterministics` collects them from every effect. Posterior
         predictive sampling, incrementality and budget optimization then substitute
@@ -535,11 +536,11 @@ class MuEffect(SerializableBaseModel, ABC):
         the graph.
 
         The default is empty, which is right for an effect whose contribution is a
-        function of its parameters and data. Override it for a contribution that is
-        a latent path over the fitted dates, such as a random walk or a Gaussian
-        process, which should be taken from the posterior as the MMM's HSGP terms
-        are. A frozen deterministic no longer responds to the channel data, so never
-        freeze one that depends on them.
+        function of its parameters and data. Override the property for a
+        contribution that is a latent path over the fitted dates, such as a random
+        walk or a Gaussian process, which should be taken from the posterior as the
+        MMM's HSGP terms are. A frozen deterministic no longer responds to the
+        channel data, so never freeze one that depends on them.
 
         A frozen deterministic with a ``date`` dimension is a path over the fitted
         dates. Posterior predictive sampling handles it on those dates, and
@@ -548,11 +549,6 @@ class MuEffect(SerializableBaseModel, ABC):
         cut it, so an effect that freezes one should set ``supports_new_dates`` to
         ``False``. The MMM then refuses both prediction on other dates and any
         budget objective that reaches the effect.
-
-        Returns
-        -------
-        list[str]
-            Names of deterministics the effect registers in the model.
         """
         return []
 
