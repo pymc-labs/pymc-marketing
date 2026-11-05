@@ -844,7 +844,7 @@ class CounterfactualEvaluator:
     """Dimension the scenario axis is carried on through the vectorized graph."""
 
     MAX_BATCH_ELEMENTS = 64_000_000
-    """Output elements one evaluation may produce before it is split in two.
+    """Output elements one evaluation may produce before it is split into batches.
 
     Roughly half a gigabyte in float64, which leaves room for the
     intermediates a batch of that size implies while keeping the number of
