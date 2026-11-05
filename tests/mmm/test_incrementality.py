@@ -6843,6 +6843,16 @@ class TestSampleBlocks:
             ("compute_incremental_contribution", {"frequency": "monthly"}),
             ("compute_joint_incremental_contribution", {"frequency": "monthly"}),
             ("split_incremental_contribution_over_time", {"frequency": "monthly"}),
+            # Pairs the joined result with each date's shares by label.
+            (
+                "split_incremental_contribution_over_time",
+                {"frequency": "monthly", "estimand": "allocation"},
+            ),
+            # Scattered draw labels, which each block has to keep.
+            (
+                "compute_incremental_contribution",
+                {"frequency": "monthly", "num_samples": 7, "random_state": 0},
+            ),
             (
                 "split_incremental_contribution_current_future",
                 {"frequency": "monthly"},
