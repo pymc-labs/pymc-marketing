@@ -241,19 +241,15 @@ class BetaGeoBetaBinomRV(RandomVariable):
             active = True
             recency = 0
 
-            while t_x <= T and active:
+            # Simulate opportunities 1, ..., T; recency stays 0 without purchases.
+            while t_x < T and active:
                 t_x += 1
                 active = rng.binomial(1, churn_prob)
                 purchase = rng.binomial(1, purchase_prob)
                 if active and purchase:
                     recency = t_x
                     x += 1
-            return np.array(
-                [
-                    recency if x > 0 else T,
-                    x,
-                ],
-            )
+            return np.array([recency, x])
 
         for index in np.ndindex(*size):
             output[index] = sim_data(purchase_prob[index], churn_prob[index], T[index])
