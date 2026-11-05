@@ -385,41 +385,21 @@ def _calibrations_by_name(
     }
 
 
-def _raw_target(
-    X: pd.DataFrame | xr.Dataset | xr.DataArray,
-    y: pd.Series | xr.DataArray | np.ndarray | None,
-    target_column: str,
-) -> Any | None:
-    """Return the target as passed to the model, before any conversion.
+def _reject_infinite_target(target: npt.NDArray) -> None:
+    """Raise if the canonical ``_target`` holds an infinite value.
 
-    ``y`` when given, else the ``target_column`` of a DataFrame ``X``, else the
-    ``_target`` (or ``target``) variable of a Dataset ``X``; ``None`` if there
-    is no target.
-    """
-    if y is not None:
-        return y
-    if isinstance(X, pd.DataFrame):
-        return X.get(target_column)
-    if isinstance(X, xr.Dataset):
-        return X.get("_target", X.get("target"))
-    return None
-
-
-def _check_target_is_not_infinite(target: Any | None) -> None:
-    """Raise if the raw target holds an infinite value.
-
+    Runs on ``xarray_dataset["_target"]``, which :func:`to_mmm_dataset` builds
+    from every place the target can come from (``y``, a ``target_column`` of a
+    DataFrame ``X``, a ``target`` / ``_target`` variable of a Dataset ``X``).
     An infinite target reaches the clamp in ``build_model``, which rewrites it
     to 0, and ``+inf`` also makes a ``max`` scale infinite, which zeroes its
-    whole slice. NaN is not checked here: the ``fillna(0)`` that follows also
-    fills the cells a sparse panel leaves empty, and those come back as NaN
-    when a saved model is rebuilt from ``fit_data``.
+    whole slice.
+
+    NaN is not rejected: ``fillna(0)`` has already run, and it also fills the
+    cells a sparse panel leaves empty, which come back as NaN when a saved
+    model is rebuilt from ``fit_data``.
     """
-    if target is None:
-        return
-    values = np.asarray(target)
-    if not np.issubdtype(values.dtype, np.number):
-        return
-    n_infinite = int(np.count_nonzero(np.isinf(values)))
+    n_infinite = int(np.count_nonzero(np.isinf(target)))
     if n_infinite:
         raise ValueError(
             f"The target has {n_infinite} infinite value(s). "
@@ -2226,8 +2206,6 @@ class MMM(RegressionModelBuilder):
                 f"it to '{self.target_column}'."
             )
 
-        _check_target_is_not_infinite(_raw_target(X, y, self.target_column))
-
         self.X = X
 
         self.xarray_dataset = to_mmm_dataset(
@@ -2906,6 +2884,9 @@ class MMM(RegressionModelBuilder):
 
         likelihood = self.model_config["likelihood"]
         if "_target" in self.xarray_dataset.data_vars:
+            # Link-independent: every link and likelihood would fit an
+            # infinite target as 0 after the clamp below.
+            _reject_infinite_target(self.xarray_dataset["_target"].values)
             self._link_spec.validate_target(self.xarray_dataset["_target"].values)
             # LogNormalPrior observes the raw target on the strictly positive
             # support, which the link-level validate_target cannot know about.
