@@ -80,6 +80,7 @@ from pymc_marketing.mmm.transformers import (
     logistic_saturation,
 )
 from pymc_marketing.model_graph import deterministics_to_flat
+from pymc_marketing.pytensor_utils import ConditionedModel
 from pymc_marketing.serialization import serialization
 from tests.mmm.test_spend_reach import (
     effective_l_max,
@@ -7105,13 +7106,14 @@ class TestEvaluatorCache:
     ):
         """Only a cache hit rebinds the draws; a miss is already conditioned on them."""
         rebinds = []
-        real = CounterfactualEvaluator.set_posterior
+        real = ConditionedModel.set_posterior
 
         def counting(self, idata):
             rebinds.append(1)
             return real(self, idata)
 
-        monkeypatch.setattr(CounterfactualEvaluator, "set_posterior", counting)
+        # The model the evaluator wraps, which sees the block loop's rebinds too.
+        monkeypatch.setattr(ConditionedModel, "set_posterior", counting)
 
         incr = simple_fitted_mmm.incrementality
         incr.compute_incremental_contribution(frequency="all_time")
@@ -7341,13 +7343,13 @@ class TestEvaluatorCache:
         """
         mmm = simple_fitted_mmm
         rebound = []
-        real = CounterfactualEvaluator.set_posterior
+        real = ConditionedModel.set_posterior
 
         def recording(self, idata):
             rebound.append(idata)
             return real(self, idata)
 
-        monkeypatch.setattr(CounterfactualEvaluator, "set_posterior", recording)
+        monkeypatch.setattr(ConditionedModel, "set_posterior", recording)
         for seed in (3, 4):
             mmm.incrementality.compute_incremental_contribution(
                 frequency="all_time",

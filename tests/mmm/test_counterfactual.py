@@ -398,6 +398,46 @@ class TestDateIndexedInputs:
             assert all(named == used for named, used in evaluated)
             xr.testing.assert_identical(evaluator._conditioned.posterior, bound)
 
+    def test_a_paused_iteration_refuses_calls_that_would_read_its_block(self):
+        """While a block it bound is bound, binding or evaluating draws raises.
+
+        Each of these would otherwise run on the block's draws, or plan a second
+        iteration from them, without an error.  One block needs no rebind while
+        the posterior bound at the call is still bound, so a paused single-block
+        iteration then refuses nothing.
+        """
+        evaluator, scenarios, windows = self._streamed()
+        bound = evaluator._conditioned.posterior
+        calls = {
+            "set_posterior": lambda: evaluator.set_posterior(bound),
+            "iter_counterfactual": lambda: evaluator.iter_counterfactual(
+                scenarios, windows=windows
+            ),
+            "evaluate_counterfactual": lambda: evaluator.evaluate_counterfactual(
+                scenarios, windows=windows
+            ),
+            "evaluate_baseline": lambda: evaluator.evaluate_baseline(
+                np.ones((len(self.dates), 2, 1))
+            ),
+        }
+
+        iteration = evaluator.iter_counterfactual(
+            scenarios, windows=windows, max_elements=120
+        )
+        next(iteration)
+        for call in calls.values():
+            with pytest.raises(RuntimeError, match="unfinished iter_counterfactual"):
+                call()
+        iteration.close()
+        for call in calls.values():
+            call()
+
+        single = evaluator.iter_counterfactual(scenarios, windows=windows)
+        next(single)
+        for call in calls.values():
+            call()
+        single.close()
+
     def test_a_yielded_block_is_not_kept_alive(self, monkeypatch):
         """A block the caller dropped is already gone while the next is evaluated."""
         evaluator, scenarios, windows = self._streamed()

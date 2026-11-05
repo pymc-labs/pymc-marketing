@@ -789,7 +789,8 @@ class CounterfactualEvaluator:
 
     Not thread-safe: an evaluation reads draws that :meth:`set_posterior` and
     :meth:`iter_counterfactual` rebind in place, so share an instance between
-    threads only behind a lock.  :class:`~pymc_marketing.mmm.incrementality.Incrementality`'s
+    threads only behind a lock, held for a whole iteration rather than around
+    each block.  :class:`~pymc_marketing.mmm.incrementality.Incrementality`'s
     evaluator cache lends each call its own instance.
 
     Parameters
@@ -936,6 +937,8 @@ class CounterfactualEvaluator:
             frozen_deterministics=frozen_deterministics,
         )
         self._do_model = self._conditioned.model
+        # Set while an iteration is paused with a block of its own bound.
+        self._bound_to_block = False
         self._build()
         self._prepare_expected_aux_values(expected_aux_values)
         self._check_expected_aux_values()
@@ -1234,8 +1237,24 @@ class CounterfactualEvaluator:
             A tree with a ``posterior`` group, or the posterior dataset itself,
             holding every variable the graphs read.
             Each is validated against its construction layout when a graph reads it.
+
+        Raises
+        ------
+        RuntimeError
+            While an iteration of :meth:`iter_counterfactual` is paused on a
+            block of its own.
         """
+        self._refuse_while_bound_to_block()
         self._conditioned.set_posterior(idata)
+
+    def _refuse_while_bound_to_block(self) -> None:
+        """Raise if a paused iteration has a block of its own bound."""
+        if self._bound_to_block:
+            raise RuntimeError(
+                "The evaluator is bound to one block of samples of an unfinished "
+                "iter_counterfactual, so this call would read that block's draws. "
+                "Finish the iteration or close() it first."
+            )
 
     @property
     def windowed_data_vars(self) -> tuple[str, ...]:
@@ -1582,7 +1601,11 @@ class CounterfactualEvaluator:
             the source model's current state, so a ``pm.set_data`` after
             construction fails here rather than being evaluated silently.
             An in-place mutation of a borrowed buffer is not detected.
+        RuntimeError
+            While an iteration of :meth:`iter_counterfactual` is paused on a
+            block of its own.
         """
+        self._refuse_while_bound_to_block()
         self._sync_sample_markers()
         self._check_expected_aux_values()
         args: list[np.ndarray] = [target_values[np.newaxis].astype(self.target_dtype)]
@@ -1646,6 +1669,9 @@ class CounterfactualEvaluator:
             the source model's current state, so a ``pm.set_data`` after
             construction fails here rather than being evaluated silently.
             An in-place mutation of a borrowed buffer is not detected.
+        RuntimeError
+            While an iteration of :meth:`iter_counterfactual` is paused on a
+            block of its own.
         """
         args = self._counterfactual_args(scenarios, windows)
         if batch_size is None:
@@ -1674,7 +1700,9 @@ class CounterfactualEvaluator:
         :meth:`set_posterior`, and the posterior bound at the call is restored
         when the iteration ends or is closed.  The generator keeps no reference
         to a block once it is yielded, so a caller that drops each block before
-        asking for the next holds one block at a time.
+        asking for the next holds one block at a time.  While the iteration is
+        paused on a block it bound, any other call that binds or evaluates
+        draws raises, since it would read that block's.
 
         Parameters
         ----------
@@ -1698,6 +1726,9 @@ class CounterfactualEvaluator:
             At the call rather than at the first block, if a value in
             *expected_aux_values* disagrees with the source model's current
             state.
+        RuntimeError
+            At the call, while another iteration is paused on a block of its
+            own.
         """
         args = self._counterfactual_args(scenarios, windows)
         if max_elements is None:
@@ -1734,8 +1765,8 @@ class CounterfactualEvaluator:
                 # A single block is already bound, unless another posterior was
                 # bound since the call.
                 if len(blocks) > 1 or self._conditioned.posterior is not posterior:
-                    self.set_posterior(posterior.isel(isel))
-                    rebound = True
+                    self._conditioned.set_posterior(posterior.isel(isel))
+                    rebound = self._bound_to_block = True
                 # Yielded without a local name, so the generator does not keep
                 # this block alive while the next one is evaluated.
                 chain, draw = isel["chain"], isel["draw"]
@@ -1756,12 +1787,14 @@ class CounterfactualEvaluator:
                 )
         finally:
             if rebound:
-                self.set_posterior(posterior)
+                self._conditioned.set_posterior(posterior)
+                self._bound_to_block = False
 
     def _counterfactual_args(
         self, scenarios: CounterfactualScenarios, windows: EvaluationWindows
     ) -> list[np.ndarray]:
-        """Check the source model, then lay out the compiled function's inputs per scenario."""
+        """Check the evaluator and the source model, then lay out the inputs per scenario."""
+        self._refuse_while_bound_to_block()
         self._check_expected_aux_values()
         args: list[np.ndarray] = [scenarios.spend]
         if self.time_dtype is not None:
