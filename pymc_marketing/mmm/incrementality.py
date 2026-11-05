@@ -4794,8 +4794,10 @@ class Incrementality:
 
             # The counterfactual arrives one block of samples at a time, and each
             # block is reduced before the next is evaluated, so at most one block
-            # of it is held.  Closed on the way out, so an error leaves the
-            # evaluator bound to the request's draws before it goes back.
+            # of it is held.  Closed on the way out, so even after an error the
+            # evaluator is bound to the request's draws again, as
+            # iter_counterfactual promises.  The cache does not rely on that:
+            # _probe_reach rebinds on every hit.
             n_draws = len(labels["draw"])
             # Per period, each block's (positions, result).
             per_period: list[list[tuple[Mapping[str, slice], xr.DataArray]]] = [
