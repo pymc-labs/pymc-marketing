@@ -1727,11 +1727,12 @@ def test_mlflow_docstrings_have_no_removed_methods(doc_source):
 _COST_PER_TARGET_RECORDS = json.dumps(
     [
         {
-            "format_version": 1,
+            "format_version": 2,
             "name_prefix": "cpt_calibration",
             "target_column": "cost_per_target",
             "target_per_cost": False,
             "central_tendency": "mean",
+            "likelihood": {"dist": "Normal"},
             "spend_var": "cpt_calibration",
             **_calibration_frame_to_record(
                 pd.DataFrame(
