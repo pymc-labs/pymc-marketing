@@ -1751,6 +1751,21 @@ class TestIncrementalReducers:
         with pytest.raises(TypeError):
             IncrementalReducer()
 
+    def test_a_reducer_must_decide_how_to_restrict_to_samples(self):
+        """A reducer without ``for_samples`` cannot be instantiated.
+
+        Inheriting ``return self`` while holding a per-sample input would pass
+        every test small enough to be one block, and fail only on a posterior
+        large enough to be split.
+        """
+
+        class Undecided(IncrementalReducer):
+            def per_date_increment(self, delta):
+                return delta
+
+        with pytest.raises(TypeError, match="for_samples"):
+            Undecided()
+
 
 class TestLogLinkIncrementality:
     """Incrementality for multiplicative (log-link) models."""

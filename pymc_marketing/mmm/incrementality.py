@@ -422,13 +422,16 @@ class IncrementalReducer(ABC):
         """
         return self.per_date_increment(delta).sum(dim="date")
 
+    @abstractmethod
     def for_samples(self, samples: slice) -> IncrementalReducer:
         """Restrict the reducer to a block of the flat ``sample`` axis.
 
         :class:`Incrementality` reduces the counterfactual one block of
         posterior samples at a time, and a *delta* then carries only that
-        block's samples.  A reducer holding nothing per sample is returned as
-        is, which is the default.
+        block's samples.  Abstract, so that every reducer decides: one
+        holding nothing per sample returns itself, and one that inherited
+        that default while holding a per-sample input would fail only on a
+        posterior large enough to be split.
 
         Parameters
         ----------
@@ -440,7 +443,6 @@ class IncrementalReducer(ABC):
         IncrementalReducer
             A reducer whose per-sample inputs are views of the block.
         """
-        return self
 
 
 class IdentityLinkReducer(IncrementalReducer):
@@ -471,6 +473,14 @@ class IdentityLinkReducer(IncrementalReducer):
     def per_date_increment(self, delta: xr.DataArray) -> xr.DataArray:
         """See :meth:`IncrementalReducer.per_date_increment`."""
         return delta * self.scale
+
+    def for_samples(self, samples: slice) -> IncrementalReducer:
+        """See :meth:`IncrementalReducer.for_samples`.
+
+        The scale holds nothing per sample: the identity link's mean
+        correction is ``1``, so the reducer is returned as is.
+        """
+        return self
 
 
 class LogLinkReducer(IncrementalReducer):
