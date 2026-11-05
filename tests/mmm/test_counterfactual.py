@@ -331,7 +331,11 @@ class TestDateIndexedInputs:
         ],
     )
     def test_streaming_does_not_change_the_result(self, max_elements, blocks):
-        """The blocks tile the posterior chain-major and join into the eager result exactly."""
+        """The blocks tile the posterior chain-major and join into the eager result.
+
+        Up to rounding: the compiled graph may round differently for a
+        different number of draws.
+        """
         evaluator, scenarios, windows = self._streamed()
         eager = evaluator.evaluate_counterfactual(scenarios, windows=windows)
 
@@ -352,7 +356,7 @@ class TestDateIndexedInputs:
             )
         for name, values in eager.items():
             joined = np.concatenate([c.outputs[name] for c in yielded], axis=1)
-            np.testing.assert_array_equal(joined, values)
+            np.testing.assert_allclose(joined, values, rtol=1e-12, atol=1e-12)
 
     def test_the_bound_posterior_is_restored(self):
         """After the last block, after closing early, and after a rebind before the

@@ -6828,8 +6828,12 @@ class TestSampleBlocks:
     """Reducing the counterfactual one block of draws at a time changes no result.
 
     Draws are independent and no block splits the date axis, so a blocked call
-    computes the same numbers as an unblocked one, and joins them back under
-    the posterior's labels.
+    computes the same numbers as an unblocked one, up to rounding, and joins
+    them back under the posterior's labels.  Up to rounding because the
+    compiled graph may round differently for a different number of draws:
+    whether a case comes out bit for bit equal depends on the posterior and the
+    backend, so the values are compared with a tolerance and the labels
+    exactly.
     """
 
     @pytest.mark.parametrize(
@@ -6861,7 +6865,9 @@ class TestSampleBlocks:
 
         assert blocks_per_call and min(blocks_per_call) > 2
         np.testing.assert_array_equal(blocked["chain"], [7, 9])
-        xr.testing.assert_identical(blocked, whole)
+        for dim in ("chain", "draw"):
+            np.testing.assert_array_equal(blocked[dim], whole[dim])
+        xr.testing.assert_allclose(blocked, whole, rtol=1e-12)
 
     @pytest.mark.parametrize(
         ("frequency", "central_tendency"),
@@ -6874,9 +6880,10 @@ class TestSampleBlocks:
 
         The log link's baseline response, and the mean correction, carry a value
         per sample, so each block has to read its own.  Equal to rounding rather
-        than exactly: the compiled graph rounds the mediated effect differently
-        for a different number of draws, by one ulp, and a few totals differ by
-        up to 3e-15 relative.
+        than exactly: on the Numba backend the compiled graph can round the
+        mediated effect differently for a different number of draws, by one
+        ulp, and a few entries then differ by up to 3e-15 relative.  The C
+        backend gives identical results.
         """
         incrementality = funnel_log_link_fitted_mmm.incrementality
         kwargs = {"frequency": frequency, "central_tendency": central_tendency}
@@ -6885,7 +6892,7 @@ class TestSampleBlocks:
         blocked = incrementality.compute_incremental_contribution(**kwargs)
 
         assert blocks_per_call and min(blocks_per_call) > 2
-        xr.testing.assert_allclose(blocked, whole, rtol=1e-12)
+        xr.testing.assert_allclose(blocked, whole, rtol=1e-12, atol=0)
 
 
 class TestEvaluatorCache:
