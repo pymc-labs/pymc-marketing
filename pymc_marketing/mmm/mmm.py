@@ -385,6 +385,51 @@ def _calibrations_by_name(
     }
 
 
+def _raw_target(
+    X: pd.DataFrame | xr.Dataset | xr.DataArray,
+    y: pd.Series | xr.DataArray | np.ndarray | None,
+    target_column: str,
+) -> Any | None:
+    """Return the target as passed to the model, before any conversion.
+
+    ``y`` when given, else the ``target_column`` of a DataFrame ``X``, else the
+    ``_target`` (or ``target``) variable of a Dataset ``X``; ``None`` if there
+    is no target.
+    """
+    if y is not None:
+        return y
+    if isinstance(X, pd.DataFrame):
+        return X.get(target_column)
+    if isinstance(X, xr.Dataset):
+        return X.get("_target", X.get("target"))
+    return None
+
+
+def _check_target_is_not_infinite(target: Any | None) -> None:
+    """Raise if the raw target holds an infinite value.
+
+    An infinite target reaches the clamp in ``build_model``, which rewrites it
+    to 0, and ``+inf`` also makes a ``max`` scale infinite, which zeroes its
+    whole slice. NaN is not checked here: the ``fillna(0)`` that follows also
+    fills the cells a sparse panel leaves empty, and those come back as NaN
+    when a saved model is rebuilt from ``fit_data``.
+    """
+    if target is None:
+        return
+    values = np.asarray(target)
+    if not np.issubdtype(values.dtype, np.number):
+        return
+    n_infinite = int(np.count_nonzero(np.isinf(values)))
+    if n_infinite:
+        raise ValueError(
+            f"The target has {n_infinite} infinite value(s). "
+            "build_model would fit each of them as 0, and +inf "
+            "also makes a 'max' target scale infinite, which "
+            "zeroes its whole slice. Drop or replace them before "
+            "fitting."
+        )
+
+
 COST_PER_TARGET_SPEND_GROUP = "cost_per_target_spend"
 """DataTree group holding the spend arrays of cost-per-target calibrations.
 
@@ -2181,28 +2226,7 @@ class MMM(RegressionModelBuilder):
                 f"it to '{self.target_column}'."
             )
 
-        # An infinite target reaches the clamp in ``build_model``, which
-        # rewrites it to 0, and ``+inf`` also makes a ``max`` scale infinite,
-        # which zeroes its whole slice. NaN is not checked here: ``fillna(0)``
-        # below also fills the cells a sparse panel leaves empty, and those
-        # come back as NaN when a saved model is rebuilt from ``fit_data``.
-        raw_target = y
-        if raw_target is None and isinstance(X, pd.DataFrame):
-            raw_target = X.get(self.target_column)
-        if raw_target is None and isinstance(X, xr.Dataset):
-            raw_target = X.get("_target", X.get("target"))
-        if raw_target is not None:
-            values = np.asarray(raw_target)
-            if np.issubdtype(values.dtype, np.number):
-                n_infinite = int(np.count_nonzero(np.isinf(values)))
-                if n_infinite:
-                    raise ValueError(
-                        f"The target has {n_infinite} infinite value(s). "
-                        "build_model would fit each of them as 0, and +inf "
-                        "also makes a 'max' target scale infinite, which "
-                        "zeroes its whole slice. Drop or replace them before "
-                        "fitting."
-                    )
+        _check_target_is_not_infinite(_raw_target(X, y, self.target_column))
 
         self.X = X
 

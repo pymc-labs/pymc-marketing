@@ -62,6 +62,8 @@ from pymc_marketing.mmm.mmm import (
     MMM,
     BudgetOptimizerWrapper,
     _calibration_frame_from_record,
+    _check_target_is_not_infinite,
+    _raw_target,
 )
 from pymc_marketing.mmm.plot import MMMPlotSuite
 from pymc_marketing.mmm.plotting import MMMPlotSuiteFacade
@@ -1142,6 +1144,52 @@ class TestMultidimMMMEdgeCases:
                     coords={"date": pd.DatetimeIndex(X["date"]), "channel": channels},
                 )
                 mmm.build_model(X_ds)
+
+    @pytest.mark.parametrize(
+        "X, y, expected",
+        [
+            (pd.DataFrame({"target": [1.0]}), pd.Series([2.0]), [2.0]),
+            (pd.DataFrame({"target": [1.0]}), None, [1.0]),
+            (pd.DataFrame({"other": [1.0]}), None, None),
+            (xr.Dataset({"_target": ("date", [3.0])}), None, [3.0]),
+            (xr.Dataset({"target": ("date", [4.0])}), None, [4.0]),
+            (
+                xr.Dataset({"_target": ("date", [5.0]), "target": ("date", [6.0])}),
+                None,
+                [5.0],
+            ),
+            (xr.Dataset({"media": ("date", [1.0])}), None, None),
+            (xr.DataArray([1.0], dims="date"), None, None),
+        ],
+        ids=[
+            "y wins",
+            "DataFrame column",
+            "DataFrame without target",
+            "Dataset _target",
+            "Dataset target",
+            "Dataset prefers _target",
+            "Dataset without target",
+            "DataArray",
+        ],
+    )
+    def test_raw_target(self, X, y, expected):
+        raw = _raw_target(X, y, "target")
+        if expected is None:
+            assert raw is None
+        else:
+            np.testing.assert_array_equal(np.asarray(raw), expected)
+
+    @pytest.mark.parametrize(
+        "target",
+        [None, np.array([1.0, np.nan, 0.0]), np.array(["a", "b"]), pd.Series([1, 2])],
+        ids=["None", "NaN only", "non-numeric", "finite"],
+    )
+    def test_check_target_is_not_infinite_accepts(self, target):
+        _check_target_is_not_infinite(target)
+
+    def test_check_target_is_not_infinite_counts_infinities(self):
+        with pytest.raises(ValueError, match="2 infinite value"):
+            _check_target_is_not_infinite(np.array([np.inf, 1.0, -np.inf]))
 
     def test_nan_in_channel_is_handled_without_non_finite_scales(self, simple_mmm_data):
         X = simple_mmm_data["X"].copy()
