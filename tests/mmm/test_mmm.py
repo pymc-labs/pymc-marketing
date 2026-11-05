@@ -1169,6 +1169,43 @@ class TestMultidimMMMEdgeCases:
         with pytest.warns(UserWarning, match="target scale is 0 for the whole target"):
             mmm.build_model(X, y)
 
+    def test_zero_target_scale_warning_lists_at_most_ten_slices(self):
+        """With many zero-scale slices the message lists ten and counts the rest."""
+        dates = pd.date_range("2024-01-01", periods=6, freq="W-MON")
+        geos = ["A", *(f"Z{k:02d}" for k in range(12))]
+        df = pd.DataFrame(
+            [
+                {
+                    "date": date,
+                    "geo": geo,
+                    "channel_1": 1.0,
+                    "y": 3.0 if geo == "A" else -float(i % 2),
+                }
+                for i, date in enumerate(dates)
+                for geo in geos
+            ]
+        )
+        mmm = MMM(
+            date_column="date",
+            channel_columns=["channel_1"],
+            dims=("geo",),
+            target_column="y",
+            adstock=GeometricAdstock(l_max=2),
+            saturation=LogisticSaturation(),
+            scaling=Scaling(
+                target=DataDerivedScaling(dims=(), method="max"),
+                channel=DataDerivedScaling(dims=(), method="max"),
+            ),
+        )
+
+        with pytest.warns(UserWarning, match="target scale is 0") as record:
+            mmm.build_model(df[["date", "geo", "channel_1"]], df["y"])
+
+        message = str(record[0].message)
+        assert "geo='Z09'" in message
+        assert "geo='Z10'" not in message
+        assert "... and 2 more" in message
+
     def test_all_zero_target_slice_does_not_warn(self):
         """An all-zero slice loses nothing to the clamp, so it is not reported."""
         mmm, X, y = self._build_geo_mmm_with_target_b([0.0] * 6)

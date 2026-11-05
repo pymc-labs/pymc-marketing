@@ -2309,7 +2309,8 @@ class MMM(RegressionModelBuilder):
         support check raises on those zeros, but under the default ``Normal``
         the model fits on them with nothing else reporting it.  A slice that
         is all zeros, such as the placeholder used when no ``y`` is given,
-        loses nothing and is not reported.
+        loses nothing and is not reported.  The message names at most the first
+        10 such slices.
         """
         target = self.xarray_dataset["_target"]
         scale = self.scalers["_target"]
@@ -2321,13 +2322,23 @@ class MMM(RegressionModelBuilder):
         if lost.ndim == 0:
             where = "the whole target"
         else:
-            where = "; ".join(
+            max_listed = 10
+            flags = lost.to_series()
+            slices = flags[flags].index
+            labels = [
                 ", ".join(
-                    f"{dim}={lost[dim].values.tolist()[i]!r}"
-                    for dim, i in zip(lost.dims, idx, strict=True)
+                    f"{dim}={label!r}"
+                    for dim, label in zip(
+                        lost.dims,
+                        key if isinstance(key, tuple) else (key,),
+                        strict=True,
+                    )
                 )
-                for idx in np.argwhere(lost.values)
-            )
+                for key in slices[:max_listed]
+            ]
+            if len(slices) > max_listed:
+                labels.append(f"... and {len(slices) - max_listed} more")
+            where = "; ".join(labels)
         warnings.warn(
             f"The target scale is 0 for {where}, where the target is not all "
             "zeros, so build_model replaces those values with zeros rather "
