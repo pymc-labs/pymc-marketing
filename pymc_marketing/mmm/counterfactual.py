@@ -82,6 +82,7 @@ from pymc_marketing.mmm.transformers import ConvMode
 from pymc_marketing.pytensor_utils import ConditionedModel
 
 __all__ = [
+    "CounterfactualBlock",
     "CounterfactualEvaluator",
     "CounterfactualScenarios",
     "DateIndexedInput",
@@ -709,7 +710,7 @@ class CounterfactualScenarios:
 
 
 @dataclass(frozen=True)
-class CounterfactualChunk:
+class CounterfactualBlock:
     """Every scenario, evaluated on one block of posterior samples.
 
     Yielded by :meth:`CounterfactualEvaluator.iter_counterfactual`.  A block is
@@ -1637,7 +1638,7 @@ class CounterfactualEvaluator:
         *,
         windows: EvaluationWindows,
         max_elements: int | None = None,
-    ) -> Generator[CounterfactualChunk, None, None]:
+    ) -> Generator[CounterfactualBlock, None, None]:
         """Evaluate every node on all scenarios, one block of samples at a time.
 
         Draws are independent, so a block of them gives the values it would
@@ -1668,7 +1669,7 @@ class CounterfactualEvaluator:
 
         Returns
         -------
-        Generator of CounterfactualChunk
+        Generator of CounterfactualBlock
             The blocks in chain-major order; their ``isel`` tile the posterior.
 
         Raises
@@ -1704,7 +1705,7 @@ class CounterfactualEvaluator:
         *,
         max_window: int,
         max_elements: int,
-    ) -> Generator[CounterfactualChunk, None, None]:
+    ) -> Generator[CounterfactualBlock, None, None]:
         """Rebind to each block of *posterior* and evaluate it; restore *posterior* after."""
         rebound = False
         try:
@@ -1716,7 +1717,7 @@ class CounterfactualEvaluator:
                     rebound = True
                 # Yielded without a local name, so the generator does not keep
                 # this block alive while the next one is evaluated.
-                yield CounterfactualChunk(
+                yield CounterfactualBlock(
                     isel=isel,
                     outputs=self._evaluate_scenarios(
                         args,

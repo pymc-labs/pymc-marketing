@@ -4803,9 +4803,9 @@ class Incrementality:
             ]
             with closing(
                 evaluator.iter_counterfactual(scenarios, windows=windows)
-            ) as chunks:
-                for chunk in chunks:
-                    chain, draw = chunk.isel["chain"], chunk.isel["draw"]
+            ) as blocks:
+                for block in blocks:
+                    chain, draw = block.isel["chain"], block.isel["draw"]
                     # A block is contiguous on the chain-major sample axis, so the
                     # baseline's share of it is a view.
                     samples = slice(
@@ -4818,11 +4818,11 @@ class Incrementality:
                         baseline={
                             name: values[samples] for name, values in baseline.items()
                         },
-                        counterfactual=chunk.outputs,
+                        counterfactual=block.outputs,
                         non_date_dims=evaluator.non_date_dims,
                         effect_names=effect_names,
                         counterfactual_spend_factor=counterfactual_spend_factor,
-                        labels={dim: labels[dim][s] for dim, s in chunk.isel.items()},
+                        labels={dim: labels[dim][s] for dim, s in block.isel.items()},
                         reducer=reducer.for_samples(samples),
                         scope=scope,
                         dedicated_channel_rows=channel_axis is not None,
@@ -4839,8 +4839,8 @@ class Incrementality:
                         keep_date_axis=keep_date_axis,
                     )
                     for parts, result in zip(per_period, periods, strict=True):
-                        parts.append((chunk.isel, result))
-                    del chunk, periods
+                        parts.append((block.isel, result))
+                    del block, periods
 
             # Each period's blocks are released once joined, so the joined
             # results and the blocks are not both held in full.

@@ -311,15 +311,15 @@ class TestDateIndexedInputs:
         evaluator, scenarios, windows = self._streamed()
         eager = evaluator.evaluate_counterfactual(scenarios, windows=windows)
 
-        chunks = list(
+        yielded = list(
             evaluator.iter_counterfactual(
                 scenarios, windows=windows, max_elements=max_elements
             )
         )
 
-        assert [(c.isel["chain"], c.isel["draw"]) for c in chunks] == blocks
+        assert [(c.isel["chain"], c.isel["draw"]) for c in yielded] == blocks
         for name, values in eager.items():
-            joined = np.concatenate([c.outputs[name] for c in chunks], axis=1)
+            joined = np.concatenate([c.outputs[name] for c in yielded], axis=1)
             np.testing.assert_array_equal(joined, values)
 
     def test_the_bound_posterior_is_restored(self):
@@ -334,29 +334,29 @@ class TestDateIndexedInputs:
             assert evaluator._n_samples() == 1
         xr.testing.assert_identical(evaluator._conditioned.posterior, bound)
 
-        chunks = evaluator.iter_counterfactual(
+        iteration = evaluator.iter_counterfactual(
             scenarios, windows=windows, max_elements=1
         )
-        next(chunks)
-        chunks.close()
+        next(iteration)
+        iteration.close()
         xr.testing.assert_identical(evaluator._conditioned.posterior, bound)
 
         # The blocks were planned from the posterior at the call, so they are
         # taken from it even if another is bound before the first block, whether
         # there are many blocks or one.
         for max_elements, n_blocks in [(1, 15), (600, 1)]:
-            chunks = evaluator.iter_counterfactual(
+            iteration = evaluator.iter_counterfactual(
                 scenarios, windows=windows, max_elements=max_elements
             )
             evaluator.set_posterior(bound.isel(chain=[0]))
             # Per block: samples its isel names, and samples it was evaluated on.
             evaluated = [
                 (
-                    bound.isel(chunk.isel).sizes["chain"]
-                    * bound.isel(chunk.isel).sizes["draw"],
-                    next(iter(chunk.outputs.values())).shape[1],
+                    bound.isel(block.isel).sizes["chain"]
+                    * bound.isel(block.isel).sizes["draw"],
+                    next(iter(block.outputs.values())).shape[1],
                 )
-                for chunk in chunks
+                for block in iteration
             ]
             assert len(evaluated) == n_blocks
             assert all(named == used for named, used in evaluated)
@@ -375,11 +375,11 @@ class TestDateIndexedInputs:
             return evaluate(*args, **kwargs)
 
         monkeypatch.setattr(evaluator, "_evaluate_scenarios", recorded)
-        for chunk in evaluator.iter_counterfactual(
+        for block in evaluator.iter_counterfactual(
             scenarios, windows=windows, max_elements=120
         ):
-            refs.append(weakref.ref(chunk.outputs["channel_contribution"]))
-            del chunk
+            refs.append(weakref.ref(block.outputs["channel_contribution"]))
+            del block
 
         assert len(alive_at_evaluation) == 6
         assert not any(any(alive) for alive in alive_at_evaluation)
