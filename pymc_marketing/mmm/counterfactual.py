@@ -61,8 +61,10 @@ in spend while the mask is linear in contribution.
 
 from __future__ import annotations
 
+import math
 from collections.abc import Generator, Iterable, Mapping, Sequence
 from dataclasses import dataclass
+from itertools import pairwise
 from typing import Literal, NamedTuple
 
 import numpy as np
@@ -734,6 +736,19 @@ class CounterfactualBlock:
     isel: Mapping[str, slice]
     samples: slice
     outputs: dict[str, np.ndarray]
+
+
+def _even_runs(n: int, size: int) -> list[slice]:
+    """Split ``range(n)`` into as few runs of at most *size* as possible.
+
+    The runs differ in length by at most one, longest first, so the largest,
+    which sets the peak, is as small as their count allows.
+    """
+    n_runs = math.ceil(n / size)
+    q, r = divmod(n, n_runs)
+    # The first r runs hold q + 1, the rest q.
+    starts = [i * q + min(i, r) for i in range(n_runs + 1)]
+    return [slice(start, stop) for start, stop in pairwise(starts)]
 
 
 class CounterfactualEvaluator:
@@ -1792,6 +1807,10 @@ class CounterfactualEvaluator:
             ``isel`` positions per block, in chain-major order: one block when
             everything fits, runs of whole chains when a chain fits, and
             otherwise runs of draws within one chain, at least one draw each.
+            Runs are as few as fit and differ in length by at most one, see
+            :func:`_even_runs`.  Splitting within each chain keeps every block
+            a rectangle in ``(chain, draw)``, for at most one block per chain
+            more than splitting the flat ``sample`` axis would take.
         """
         posterior = self._conditioned.posterior
         n_chains, n_draws = int(posterior.sizes["chain"]), int(posterior.sizes["draw"])
@@ -1799,22 +1818,15 @@ class CounterfactualEvaluator:
         if n_chains * n_draws * per_draw <= max_elements:
             return [{"chain": slice(0, n_chains), "draw": slice(0, n_draws)}]
         if n_draws * per_draw <= max_elements:
-            step = max_elements // (n_draws * per_draw)
             return [
-                {
-                    "chain": slice(start, min(start + step, n_chains)),
-                    "draw": slice(0, n_draws),
-                }
-                for start in range(0, n_chains, step)
+                {"chain": chains, "draw": slice(0, n_draws)}
+                for chains in _even_runs(n_chains, max_elements // (n_draws * per_draw))
             ]
-        step = max(1, max_elements // per_draw)
+        runs = _even_runs(n_draws, max(1, max_elements // per_draw))
         return [
-            {
-                "chain": slice(chain, chain + 1),
-                "draw": slice(start, min(start + step, n_draws)),
-            }
+            {"chain": slice(chain, chain + 1), "draw": draws}
             for chain in range(n_chains)
-            for start in range(0, n_draws, step)
+            for draws in runs
         ]
 
     def _batch_size(

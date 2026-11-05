@@ -6801,7 +6801,7 @@ class TestSplitIncrementalContributionHelpers:
 
 
 def _three_draws_per_block(monkeypatch):
-    """From here on, evaluate the counterfactual three draws of a chain at a time.
+    """From here on, evaluate the counterfactual at most three draws of a chain at a time.
 
     The budget is set from a draw's own size, so every chain is split whatever
     the model; the number of blocks each call made is recorded.
@@ -6848,7 +6848,7 @@ class TestSampleBlocks:
     def test_blocks_join_back_under_the_posterior_labels(
         self, simple_mmm_data, monkeypatch, method, kwargs
     ):
-        """Two relabeled chains, split into blocks of three draws, give the same result."""
+        """Two relabeled chains, split into blocks of up to three draws, give the same result."""
         mmm = _two_relabeled_chains(
             _fit_custom_mmm(
                 simple_mmm_data, adstock=GeometricAdstock(l_max=4), adstock_first=False

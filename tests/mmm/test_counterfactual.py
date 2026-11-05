@@ -14,6 +14,7 @@
 """Tests for the counterfactual evaluation machinery: windows, scenarios, inputs."""
 
 import gc
+import math
 import warnings
 import weakref
 
@@ -30,6 +31,7 @@ from pymc_marketing.mmm.counterfactual import (
     CounterfactualScenarios,
     EvaluationWindows,
     PeriodWindow,
+    _even_runs,
 )
 from pymc_marketing.mmm.spend_reach import linear_predictor
 from pymc_marketing.mmm.transformers import ConvMode, batched_convolution
@@ -280,6 +282,19 @@ class TestDateIndexedInputs:
         )
         return evaluator, scenarios, windows
 
+    def test_runs_are_as_few_as_fit_and_as_even_as_their_count_allows(self):
+        """Each split covers every position, longest runs first, one apart at most."""
+        for n in range(1, 50):
+            for size in range(1, n + 2):
+                runs = _even_runs(n, size)
+                lengths = [run.stop - run.start for run in runs]
+                assert [run.start for run in runs] == [0, *np.cumsum(lengths[:-1])]
+                assert sum(lengths) == n
+                assert len(runs) == math.ceil(n / size)
+                assert max(lengths) <= size
+                assert max(lengths) - min(lengths) <= 1
+                assert lengths == sorted(lengths, reverse=True)
+
     @pytest.mark.parametrize(
         ("max_elements", "blocks"),
         [
@@ -289,6 +304,15 @@ class TestDateIndexedInputs:
             # Not even one chain fits: three draws at a time, the last run short.
             (
                 120,
+                [
+                    (slice(chain, chain + 1), draws)
+                    for chain in range(3)
+                    for draws in (slice(0, 3), slice(3, 5))
+                ],
+            ),
+            # Four draws fit, but two runs of three and two beat four and one.
+            (
+                160,
                 [
                     (slice(chain, chain + 1), draws)
                     for chain in range(3)
