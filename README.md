@@ -62,6 +62,7 @@ Some features are available as optional extras:
 ```bash
 pip install pymc-marketing[dag]  # causal identification tooling
 pip install pymc-marketing[pie]  # Predicted Incrementality by Experimentation (PIE), requires pymc-bart
+pip install pymc-marketing[var]  # VAR baseline for long-term brand effects, requires impulso
 ```
 
 For a comprehensive installation guide, refer to the [installation documentation](https://www.pymc-marketing.io/en/stable/getting_started/installation/index.html).

@@ -97,6 +97,7 @@ from pymc_marketing.mmm.time_slice_cross_validation import (
 )
 from pymc_marketing.mmm.types import MMMBuilder
 from pymc_marketing.mmm.validating import validation_method_X, validation_method_y
+from pymc_marketing.mmm.var_baseline import VARBaselineEffect
 
 __all__ = [
     "HSGP",
@@ -148,6 +149,7 @@ __all__ = [
     "TanhSaturationBaselined",
     "TimeSliceCrossValidationResult",
     "TimeSliceCrossValidator",
+    "VARBaselineEffect",
     "VariableScaling",
     "WeeklyFourier",
     "WeibullCDFAdstock",
