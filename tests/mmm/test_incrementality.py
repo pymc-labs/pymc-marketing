@@ -80,6 +80,7 @@ from pymc_marketing.mmm.transformers import (
     logistic_saturation,
 )
 from pymc_marketing.model_graph import deterministics_to_flat
+from pymc_marketing.pytensor_utils import ConditionedModel
 from pymc_marketing.serialization import serialization
 from tests.mmm.test_spend_reach import (
     effective_l_max,
@@ -1750,6 +1751,21 @@ class TestIncrementalReducers:
         """The base class cannot be instantiated without a reduction."""
         with pytest.raises(TypeError):
             IncrementalReducer()
+
+    def test_a_reducer_must_decide_how_to_restrict_to_samples(self):
+        """A reducer without ``for_samples`` cannot be instantiated.
+
+        Inheriting ``return self`` while holding a per-sample input would pass
+        every test small enough to be one block, and fail only on a posterior
+        large enough to be split.
+        """
+
+        class Undecided(IncrementalReducer):
+            def per_date_increment(self, delta):
+                return delta
+
+        with pytest.raises(TypeError, match="for_samples"):
+            Undecided()
 
 
 class TestLogLinkIncrementality:
@@ -3714,6 +3730,23 @@ def _fit_custom_mmm(data, **kwargs):
     return mmm
 
 
+def _two_relabeled_chains(mmm):
+    """Lay *mmm*'s posterior out as two chains under non-default labels.
+
+    The second chain has its own ``saturation_beta`` and ``adstock_alpha``, so
+    pairing a draw of one array with another draw of the other gives a
+    different number.
+    """
+    posterior = mmm.idata.posterior.dataset.assign_coords(
+        chain=[7], draw=mmm.idata.posterior.draw.values + 1000
+    )
+    chain2 = posterior.assign_coords(chain=[9])
+    chain2["saturation_beta"] = chain2["saturation_beta"] * 0.5
+    chain2["adstock_alpha"] = chain2["adstock_alpha"] * 0.7
+    mmm.idata["posterior"] = xr.concat([posterior, chain2], dim="chain")
+    return mmm
+
+
 @pytest.fixture
 def adstock_last_fitted_mmm(simple_mmm_data):
     """An ``adstock_first=False`` model, where saturation runs before carryover."""
@@ -3767,9 +3800,7 @@ class TestSplitIncrementalContribution:
         def evaluated(*args, **kwargs):
             raise AssertionError("the periods were evaluated")
 
-        monkeypatch.setattr(
-            CounterfactualEvaluator, "evaluate_counterfactual", evaluated
-        )
+        monkeypatch.setattr(CounterfactualEvaluator, "iter_counterfactual", evaluated)
 
     @pytest.mark.parametrize(
         "model_fixture, frequency, counterfactual_spend_factor",
@@ -5566,22 +5597,12 @@ class TestClosedFormMatrix:
     def test_a_subsample_lines_up_with_the_posterior_by_label(
         self, simple_mmm_data, split, method, estimand
     ):
-        """The kernel and saturated spend are paired with the draws by label.
-
-        The posterior has two chains under non-default labels, the second with
-        its own ``saturation_beta`` and ``adstock_alpha``, so pairing a draw of
-        one array with another draw of the other gives a different number.
-        """
-        mmm = _fit_custom_mmm(
-            simple_mmm_data, adstock=GeometricAdstock(l_max=4), adstock_first=False
+        """The kernel and saturated spend are paired with the draws by label."""
+        mmm = _two_relabeled_chains(
+            _fit_custom_mmm(
+                simple_mmm_data, adstock=GeometricAdstock(l_max=4), adstock_first=False
+            )
         )
-        posterior = mmm.idata.posterior.dataset.assign_coords(
-            chain=[7], draw=mmm.idata.posterior.draw.values + 1000
-        )
-        chain2 = posterior.assign_coords(chain=[9])
-        chain2["saturation_beta"] = chain2["saturation_beta"] * 0.5
-        chain2["adstock_alpha"] = chain2["adstock_alpha"] * 0.7
-        mmm.idata["posterior"] = xr.concat([posterior, chain2], dim="chain")
 
         incrementality = mmm.incrementality
         kwargs = {"frequency": "monthly", "method": method}
@@ -5643,13 +5664,13 @@ class TestClosedFormMatrix:
             simple_mmm_data, adstock=GeometricAdstock(l_max=4), adstock_first=False
         )
         calls = {"n": 0}
-        original = CounterfactualEvaluator.evaluate_counterfactual
+        original = CounterfactualEvaluator.iter_counterfactual
 
         def counted(self, *args, **kwargs):
             calls["n"] += 1
             return original(self, *args, **kwargs)
 
-        monkeypatch.setattr(CounterfactualEvaluator, "evaluate_counterfactual", counted)
+        monkeypatch.setattr(CounterfactualEvaluator, "iter_counterfactual", counted)
 
         mmm.incrementality.split_incremental_contribution_over_time(
             frequency="monthly", method="closed_form"
@@ -6780,6 +6801,111 @@ class TestSplitIncrementalContributionHelpers:
         assert bool(result.coords["complete"])
 
 
+def _three_draws_per_block(monkeypatch):
+    """From here on, evaluate the counterfactual at most three draws of a chain at a time.
+
+    The budget is set from a draw's own size, so every chain is split whatever
+    the model; the number of blocks each call made is recorded.
+    """
+    blocks_per_call = []
+    sample_blocks = CounterfactualEvaluator._sample_blocks
+
+    def three_draws(self, *, n_scenarios, max_window, max_elements):
+        per_draw = self._elements_per_date * max_window * n_scenarios
+        blocks = sample_blocks(
+            self,
+            n_scenarios=n_scenarios,
+            max_window=max_window,
+            max_elements=3 * per_draw,
+        )
+        blocks_per_call.append(len(blocks))
+        return blocks
+
+    monkeypatch.setattr(CounterfactualEvaluator, "_sample_blocks", three_draws)
+    return blocks_per_call
+
+
+class TestSampleBlocks:
+    """Reducing the counterfactual one block of draws at a time changes no result.
+
+    Draws are independent and no block splits the date axis, so a blocked call
+    computes the same numbers as an unblocked one, up to rounding, and joins
+    them back under the posterior's labels.  Up to rounding because the
+    compiled graph may round differently for a different number of draws:
+    whether a case comes out bit for bit equal depends on the posterior and the
+    backend, so the values are compared with a tolerance and the labels
+    exactly.
+    """
+
+    @pytest.mark.parametrize(
+        ("method", "kwargs"),
+        [
+            ("compute_incremental_contribution", {"frequency": "all_time"}),
+            ("compute_incremental_contribution", {"frequency": "monthly"}),
+            ("compute_joint_incremental_contribution", {"frequency": "monthly"}),
+            ("split_incremental_contribution_over_time", {"frequency": "monthly"}),
+            # Pairs the joined result with each date's shares by label.
+            (
+                "split_incremental_contribution_over_time",
+                {"frequency": "monthly", "estimand": "allocation"},
+            ),
+            # Scattered draw labels, which each block has to keep.
+            (
+                "compute_incremental_contribution",
+                {"frequency": "monthly", "num_samples": 7, "random_state": 0},
+            ),
+            (
+                "split_incremental_contribution_current_future",
+                {"frequency": "monthly"},
+            ),
+        ],
+    )
+    def test_blocks_join_back_under_the_posterior_labels(
+        self, simple_mmm_data, monkeypatch, method, kwargs
+    ):
+        """Two relabeled chains, split into blocks of up to three draws, give the same result."""
+        mmm = _two_relabeled_chains(
+            _fit_custom_mmm(
+                simple_mmm_data, adstock=GeometricAdstock(l_max=4), adstock_first=False
+            )
+        )
+        call = getattr(mmm.incrementality, method)
+        whole = call(**kwargs)
+        blocks_per_call = _three_draws_per_block(monkeypatch)
+        blocked = call(**kwargs)
+
+        assert blocks_per_call and min(blocks_per_call) > 2
+        np.testing.assert_array_equal(blocked["chain"], [7, 9])
+        for dim in ("chain", "draw"):
+            np.testing.assert_array_equal(blocked[dim], whole[dim])
+        xr.testing.assert_allclose(blocked, whole, rtol=1e-12)
+
+    @pytest.mark.parametrize(
+        ("frequency", "central_tendency"),
+        [("monthly", "median"), ("all_time", "median"), ("monthly", "mean")],
+    )
+    def test_blocks_with_a_mediated_effect(
+        self, funnel_log_link_fitted_mmm, monkeypatch, frequency, central_tendency
+    ):
+        """A dedicated row per channel, a log link and a mean correction are blocked too.
+
+        The log link's baseline response, and the mean correction, carry a value
+        per sample, so each block has to read its own.  Equal to rounding rather
+        than exactly: on the Numba backend the compiled graph can round the
+        mediated effect differently for a different number of draws, by one
+        ulp, and a few entries then differ by up to 3e-15 relative.  The C
+        backend gives identical results.
+        """
+        incrementality = funnel_log_link_fitted_mmm.incrementality
+        kwargs = {"frequency": frequency, "central_tendency": central_tendency}
+        whole = incrementality.compute_incremental_contribution(**kwargs)
+        blocks_per_call = _three_draws_per_block(monkeypatch)
+        blocked = incrementality.compute_incremental_contribution(**kwargs)
+
+        assert blocks_per_call and min(blocks_per_call) > 2
+        xr.testing.assert_allclose(blocked, whole, rtol=1e-12, atol=0)
+
+
 class TestEvaluatorCache:
     """The MMM-level cache that lets Incrementality reuse compiled evaluators.
 
@@ -6980,13 +7106,14 @@ class TestEvaluatorCache:
     ):
         """Only a cache hit rebinds the draws; a miss is already conditioned on them."""
         rebinds = []
-        real = CounterfactualEvaluator.set_posterior
+        real = ConditionedModel.set_posterior
 
         def counting(self, idata):
             rebinds.append(1)
             return real(self, idata)
 
-        monkeypatch.setattr(CounterfactualEvaluator, "set_posterior", counting)
+        # The model the evaluator wraps, which sees the block loop's rebinds too.
+        monkeypatch.setattr(ConditionedModel, "set_posterior", counting)
 
         incr = simple_fitted_mmm.incrementality
         incr.compute_incremental_contribution(frequency="all_time")
@@ -7216,13 +7343,13 @@ class TestEvaluatorCache:
         """
         mmm = simple_fitted_mmm
         rebound = []
-        real = CounterfactualEvaluator.set_posterior
+        real = ConditionedModel.set_posterior
 
         def recording(self, idata):
             rebound.append(idata)
             return real(self, idata)
 
-        monkeypatch.setattr(CounterfactualEvaluator, "set_posterior", recording)
+        monkeypatch.setattr(ConditionedModel, "set_posterior", recording)
         for seed in (3, 4):
             mmm.incrementality.compute_incremental_contribution(
                 frequency="all_time",
@@ -7286,7 +7413,7 @@ class TestEvaluatorCache:
 
     @pytest.mark.parametrize(
         "failing_method",
-        ["set_posterior", "evaluate_baseline", "evaluate_counterfactual"],
+        ["set_posterior", "evaluate_baseline", "iter_counterfactual"],
     )
     def test_a_failed_call_returns_the_evaluator_to_the_cache(
         self, simple_fitted_mmm, monkeypatch, failing_method, constructed
