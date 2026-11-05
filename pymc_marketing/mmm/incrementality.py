@@ -4697,7 +4697,7 @@ class Incrementality:
         keep_date_axis : bool, default=False
             Return each period's increment per realization date instead of
             summed over its evaluation window; see
-            :meth:`_compute_period_increments`.
+            :meth:`_finish_period`.
         validate_reach : callable, optional
             Called with the measured :class:`~pymc_marketing.mmm.spend_reach.SpendReach`
             before any period is evaluated, so that a request the reach rules
@@ -4798,6 +4798,21 @@ class Incrementality:
             # evaluator is bound to the request's draws again, as
             # iter_counterfactual promises.  The cache does not rely on that:
             # _probe_reach rebinds on every hit.
+            #
+            # The evaluator computed every node in the model's label order, so
+            # the change in the linear predictor is labeled with the model's
+            # coords: the channel data the baseline was evaluated on is in that
+            # order.  Each period goes back to the order of ``constant_data``
+            # once its blocks are joined, which is the order callers see.  Both
+            # are read once per call rather than once per block.
+            custom_dims = list(self.model.dims)
+            channel_data = self._channel_data_in_model_order()
+            model_coords = {
+                dim: channel_data.coords[dim].values
+                for dim in ["channel", *custom_dims]
+            }
+            data_order = self.data.get_channel_data()
+            reported_order = {dim: data_order.coords[dim].values for dim in custom_dims}
             # Per period, each block's (positions, result).
             per_period: list[list[tuple[Mapping[str, slice], xr.DataArray]]] = [
                 [] for _ in windows.windows
@@ -4822,16 +4837,7 @@ class Incrementality:
                         reducer=reducer.for_samples(samples),
                         scope=scope,
                         dedicated_channel_rows=channel_axis is not None,
-                        freq_offset=freq_offset,
-                        # How far past a period's last spend date its carryover is
-                        # known to land: the measured reach, or under full-axis
-                        # evaluation the kernel's own trailing lags, which bound it
-                        # from below.
-                        tail_lags=(
-                            reach.max_lag
-                            if reach.max_lag is not None
-                            else trailing_lags
-                        ),
+                        model_coords=model_coords,
                         keep_date_axis=keep_date_axis,
                     )
                     for parts, result in zip(per_period, periods, strict=True):
@@ -4839,10 +4845,30 @@ class Incrementality:
                     del block, periods
 
             # Each period's blocks are released once joined, so the joined
-            # results and the blocks are not both held in full.
+            # results and the blocks are not both held in full.  What depends on
+            # the period alone is done once, on the joined result.
             period_results = []
-            for idx, parts in enumerate(per_period):
-                period_results.append(self._join_sample_blocks(parts))
+            for idx, (window, parts) in enumerate(
+                zip(windows.windows, per_period, strict=True)
+            ):
+                period_results.append(
+                    self._finish_period(
+                        self._join_sample_blocks(parts),
+                        window=window,
+                        reported_order=reported_order,
+                        keep_date_axis=keep_date_axis,
+                        freq_offset=freq_offset,
+                        # How far past a period's last spend date its carryover
+                        # is known to land: the measured reach, or under
+                        # full-axis evaluation the kernel's own trailing lags,
+                        # which bound it from below.
+                        tail_lags=(
+                            reach.max_lag
+                            if reach.max_lag is not None
+                            else trailing_lags
+                        ),
+                    )
+                )
                 per_period[idx] = []
             return PeriodIncrements(
                 periods=period_results,
@@ -5122,17 +5148,18 @@ class Incrementality:
         reducer: IncrementalReducer,
         scope: Estimand,
         dedicated_channel_rows: bool,
-        freq_offset: BaseOffset,
-        tail_lags: int,
+        model_coords: Mapping[str, np.ndarray],
         keep_date_axis: bool = False,
     ) -> list[xr.DataArray]:
-        """Compute each period's incremental result.
+        """Compute each period's incremental result on one block of samples.
 
         For each period, forms the per-date change in the linear predictor over
         the evaluation window, hands it to *reducer* to be converted into a
         response-scale increment, applies the sign convention, and reshapes the
-        flattened sample dimension back to ``(chain, draw)``.  Laying the
-        periods out together is left to the caller.
+        flattened sample dimension back to ``(chain, draw)``.  Everything that
+        depends on the period alone, such as its date label and the order of
+        the custom dims, is left to :meth:`_finish_period`, so that it runs once
+        per period rather than once per block.
 
         Parameters
         ----------
@@ -5173,49 +5200,27 @@ class Incrementality:
             ``channel_contribution`` delta belongs to the perturbed channel,
             while a shared all-channels row has to be read column by column,
             since summing it would hand every channel the joint delta.
-        freq_offset : BaseOffset
-            The data's date frequency, to label the carryover dates that fall
-            past the fitted axis when *keep_date_axis* is set.
-        tail_lags : int
-            Lags after a period's last fitted spend date that its carryover is
-            known to reach: the measured
-            :attr:`~pymc_marketing.mmm.spend_reach.SpendReach.max_lag`, or under
-            full-axis evaluation the kernel's own trailing lags.  Required, so
-            that no caller gets a band without its unobserved tail by leaving it
-            out; it goes unused when *keep_date_axis* is not set.
+        model_coords : mapping
+            ``channel`` and custom-dim coordinates in the model's label order,
+            the order the evaluator computed every node in.
         keep_date_axis : bool, default=False
-            Keep the per-date increment instead of summing it over the window,
-            and extend it past the fitted axis as far as the carryover reaches;
-            see :meth:`_append_unobserved_tail`.
+            Keep the per-date increment instead of summing it over the window.
 
         Returns
         -------
         list of xr.DataArray
             One per period, in period order, in original scale.  Dims
-            ``(date, chain, draw, *out_dims)`` with ``date`` of length one, the
-            period end; ``out_dims`` is ``(channel, *custom_dims)`` for
-            ``"per_channel"`` and ``custom_dims`` for ``"joint"``.  With
-            *keep_date_axis*, ``(chain, draw, realization_date, *out_dims)``
-            over the period's evaluated dates and its unobserved tail, with a
-            boolean ``observed`` coordinate on ``realization_date``.
+            ``(chain, draw, *out_dims)``; ``out_dims`` is
+            ``(channel, *custom_dims)`` for ``"per_channel"`` and
+            ``custom_dims`` for ``"joint"``.  With *keep_date_axis*,
+            ``(chain, draw, realization_date, *out_dims)`` over the period's
+            evaluated dates.
         """
-        dates = self.data.dates
         custom_dims = list(self.model.dims)
-        # The evaluator computed every node in the model's label order, so the
-        # change in the linear predictor is labeled with the model's coords:
-        # the channel data the baseline was evaluated on is in that order.  The
-        # reducer's inputs come from ``idata`` in whatever order it stores them,
-        # and xarray pairs them with the change by label.  The result then takes
-        # its labels from the reduced increment itself, never by position, and
-        # the custom dims go back to the order of ``constant_data`` below, which
-        # is the order callers see.
-        channel_data = self._channel_data_in_model_order()
-        model_coords = {
-            dim: channel_data.coords[dim].values for dim in ["channel", *custom_dims]
-        }
+        # The reducer's inputs come from ``idata`` in whatever order it stores
+        # them, and xarray pairs them with the change by label.  The result then
+        # takes its labels from the reduced increment itself, never by position.
         channels = model_coords["channel"].tolist()
-        data_order = self.data.get_channel_data()
-        reported_order = {dim: data_order.coords[dim].values for dim in custom_dims}
         out_dims = ["channel", *custom_dims] if scope == "per_channel" else custom_dims
         results = []
 
@@ -5294,26 +5299,77 @@ class Incrementality:
             }
 
             if keep_date_axis:
-                band = xr.DataArray(
-                    reshaped,
-                    dims=("chain", "draw", "realization_date", *out_dims),
-                    coords={**coords, "realization_date": window.eval_dates},
-                )
-                period_result = self._append_unobserved_tail(
-                    band,
-                    window=window,
-                    dates=dates,
-                    tail_lags=tail_lags,
-                    freq_offset=freq_offset,
+                results.append(
+                    xr.DataArray(
+                        reshaped,
+                        dims=("chain", "draw", "realization_date", *out_dims),
+                        coords={**coords, "realization_date": window.eval_dates},
+                    )
                 )
             else:
-                total = xr.DataArray(
-                    reshaped, dims=("chain", "draw", *out_dims), coords=coords
+                results.append(
+                    xr.DataArray(
+                        reshaped, dims=("chain", "draw", *out_dims), coords=coords
+                    )
                 )
-                period_result = total.assign_coords(date=window.end).expand_dims("date")
-            results.append(period_result.sel(reported_order))
 
         return results
+
+    def _finish_period(
+        self,
+        result: xr.DataArray,
+        *,
+        window: PeriodWindow,
+        reported_order: Mapping[str, np.ndarray],
+        keep_date_axis: bool,
+        freq_offset: BaseOffset,
+        tail_lags: int,
+    ) -> xr.DataArray:
+        """Label one period's result, joined over its sample blocks, as callers see it.
+
+        Parameters
+        ----------
+        result : xr.DataArray
+            The period's result from :meth:`_compute_period_increments`, joined
+            over the sample blocks.
+        window : PeriodWindow
+            The period's window.
+        reported_order : mapping
+            Custom-dim coordinates in the order of ``constant_data``, which is
+            the order callers see.
+        keep_date_axis : bool
+            Whether *result* is a per-date band rather than a period total.
+        freq_offset : BaseOffset
+            The data's date frequency, to label the carryover dates that fall
+            past the fitted axis when *keep_date_axis* is set.
+        tail_lags : int
+            Lags after a period's last fitted spend date that its carryover is
+            known to reach: the measured
+            :attr:`~pymc_marketing.mmm.spend_reach.SpendReach.max_lag`, or under
+            full-axis evaluation the kernel's own trailing lags.  Required, so
+            that no caller gets a band without its unobserved tail by leaving it
+            out; it goes unused when *keep_date_axis* is not set.
+
+        Returns
+        -------
+        xr.DataArray
+            A total gets dims ``(date, chain, draw, *out_dims)`` with ``date``
+            of length one, the period end.  A band is extended past the fitted
+            axis as far as the carryover reaches, with a boolean ``observed``
+            coordinate on ``realization_date``; see
+            :meth:`_append_unobserved_tail`.
+        """
+        if keep_date_axis:
+            result = self._append_unobserved_tail(
+                result,
+                window=window,
+                dates=self.data.dates,
+                tail_lags=tail_lags,
+                freq_offset=freq_offset,
+            )
+        else:
+            result = result.assign_coords(date=window.end).expand_dims("date")
+        return result.sel(reported_order)
 
     @staticmethod
     def _tail_dates(
