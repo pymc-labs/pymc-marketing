@@ -4798,7 +4798,6 @@ class Incrementality:
             # evaluator is bound to the request's draws again, as
             # iter_counterfactual promises.  The cache does not rely on that:
             # _probe_reach rebinds on every hit.
-            n_draws = len(labels["draw"])
             # Per period, each block's (positions, result).
             per_period: list[list[tuple[Mapping[str, slice], xr.DataArray]]] = [
                 [] for _ in windows.windows
@@ -4807,13 +4806,8 @@ class Incrementality:
                 evaluator.iter_counterfactual(scenarios, windows=windows)
             ) as blocks:
                 for block in blocks:
-                    chain, draw = block.isel["chain"], block.isel["draw"]
-                    # A block is contiguous on the chain-major sample axis, so the
-                    # baseline's share of it is a view.
-                    samples = slice(
-                        chain.start * n_draws + draw.start,
-                        (chain.stop - 1) * n_draws + draw.stop,
-                    )
+                    # A slice, so the baseline's share of the block is a view.
+                    samples = block.samples
                     periods = self._compute_period_increments(
                         windows=windows,
                         scenarios=scenarios,

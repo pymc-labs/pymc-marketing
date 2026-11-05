@@ -722,12 +722,17 @@ class CounterfactualBlock:
     isel : mapping of str to slice
         Positions of the block in the bound posterior, per dimension
         (``chain`` and ``draw``), as ``posterior.isel(isel)`` takes them.
+    samples : slice
+        The same positions on the bound posterior's chain-major ``sample``
+        axis, so a caller holding per-sample arrays slices them without
+        knowing the layout.
     outputs : dict
         Per response variable, an array of shape
         ``(n_scenarios, n_block_samples, max_window, *non_date_dims)``.
     """
 
     isel: Mapping[str, slice]
+    samples: slice
     outputs: dict[str, np.ndarray]
 
 
@@ -1707,6 +1712,7 @@ class CounterfactualEvaluator:
         max_elements: int,
     ) -> Generator[CounterfactualBlock, None, None]:
         """Rebind to each block of *posterior* and evaluate it; restore *posterior* after."""
+        n_draws = int(posterior.sizes["draw"])
         rebound = False
         try:
             for isel in blocks:
@@ -1717,8 +1723,15 @@ class CounterfactualEvaluator:
                     rebound = True
                 # Yielded without a local name, so the generator does not keep
                 # this block alive while the next one is evaluated.
+                chain, draw = isel["chain"], isel["draw"]
                 yield CounterfactualBlock(
                     isel=isel,
+                    # Contiguous for the runs of whole chains, or of draws within
+                    # one chain, that _sample_blocks plans.
+                    samples=slice(
+                        chain.start * n_draws + draw.start,
+                        (chain.stop - 1) * n_draws + draw.stop,
+                    ),
                     outputs=self._evaluate_scenarios(
                         args,
                         self._batch_size(

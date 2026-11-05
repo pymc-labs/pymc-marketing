@@ -318,6 +318,14 @@ class TestDateIndexedInputs:
         )
 
         assert [(c.isel["chain"], c.isel["draw"]) for c in yielded] == blocks
+        # Each block's slice of the flat chain-major axis holds the samples its
+        # isel picks.
+        flat = np.arange(15).reshape(3, 5)
+        for c in yielded:
+            np.testing.assert_array_equal(
+                flat.ravel()[c.samples],
+                flat[c.isel["chain"], c.isel["draw"]].ravel(),
+            )
         for name, values in eager.items():
             joined = np.concatenate([c.outputs[name] for c in yielded], axis=1)
             np.testing.assert_array_equal(joined, values)
