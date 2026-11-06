@@ -16,6 +16,7 @@
 import numpy as np
 import pandas as pd
 import pytest
+from pymc_extras.prior import Prior
 
 from pymc_marketing.customer_choice.consideration_set_logit import (
     ConsiderationSetMixedLogit,
@@ -179,10 +180,12 @@ class TestConsiderationSetMixedLogitBuild:
         model.build_model()
 
         var_names = [v.name for v in model.model.free_RVs]
-        assert "gamma_0" in var_names
+        assert "gamma_consider_0" in var_names
         assert "gamma_z" in var_names
 
-    def test_no_gamma_0_by_default(self, hiring_df, Z_tilde, utility_equations):
+    def test_no_consideration_intercept_by_default(
+        self, hiring_df, Z_tilde, utility_equations
+    ):
         model = ConsiderationSetMixedLogit(
             choice_df=hiring_df,
             utility_equations=utility_equations,
@@ -193,7 +196,7 @@ class TestConsiderationSetMixedLogitBuild:
         model.build_model()
 
         var_names = [v.name for v in model.model.free_RVs]
-        assert "gamma_0" not in var_names
+        assert "gamma_consider_0" not in var_names
 
     def test_missing_Z_tilde_raises(self, hiring_df, utility_equations):
         with pytest.raises(ValueError, match="Z_tilde"):
@@ -204,6 +207,48 @@ class TestConsiderationSetMixedLogitBuild:
                 covariates=["age", "exp"],
                 consideration_instruments={"wrong_key": np.zeros((50, 3))},
             )
+
+
+@pytest.fixture
+def price_instruments(hiring_df):
+    """First-stage instruments for MixedLogit's price control function."""
+    local_rng = np.random.default_rng(1)
+    n = len(hiring_df)
+    return {
+        # Two instruments per alternative, three alternatives.
+        "X_instruments": local_rng.standard_normal((n, 6)),
+        "y_price": local_rng.standard_normal((n, 3)),
+        "diagonal": True,
+    }
+
+
+@pytest.mark.parametrize("random_consideration", [False, True])
+@pytest.mark.parametrize("z_rank", [2, 3], ids=["single-z", "multi-z"])
+def test_consideration_intercept_with_instrumental_vars(
+    hiring_df,
+    Z_tilde,
+    utility_equations,
+    price_instruments,
+    random_consideration,
+    z_rank,
+):
+    """The price and consideration intercepts no longer share the name gamma_0."""
+    if z_rank == 3:
+        Z_tilde = np.random.default_rng(2).standard_normal((len(hiring_df), 3, 2))
+    model = ConsiderationSetMixedLogit(
+        choice_df=hiring_df,
+        utility_equations=utility_equations,
+        depvar="choice",
+        covariates=["age", "exp"],
+        consideration_instruments={"Z_tilde": Z_tilde},
+        consideration_intercept=True,
+        random_consideration=random_consideration,
+        instrumental_vars=price_instruments,
+    )
+    model.build_model()
+
+    assert "gamma_0" in model.model.named_vars
+    assert "gamma_consider_0" in model.model.named_vars
 
 
 class TestConsiderationSetMixedLogitPrior:
@@ -292,10 +337,30 @@ class TestConsiderationSetMixedLogitConfig:
             consideration_instruments={"Z_tilde": Z_tilde},
             consideration_intercept=True,
         )
-        assert "gamma_0" in model.model_config
+        assert "gamma_consider_0" in model.model_config
         model.build_model()
         config = model._serializable_model_config
-        assert "gamma_0" in config
+        assert "gamma_consider_0" in config
+        assert "gamma_0" not in config
+
+    def test_legacy_gamma_0_key_sets_the_consideration_intercept(
+        self, hiring_df, Z_tilde, utility_equations
+    ):
+        custom_prior = Prior("Normal", mu=1, sigma=0.5, dims="alts")
+        with pytest.warns(DeprecationWarning, match="'gamma_consider_0'"):
+            model = ConsiderationSetMixedLogit(
+                choice_df=hiring_df,
+                utility_equations=utility_equations,
+                depvar="choice",
+                covariates=["age", "exp"],
+                consideration_instruments={"Z_tilde": Z_tilde},
+                consideration_intercept=True,
+                model_config={"gamma_0": custom_prior},
+            )
+        assert "gamma_0" not in model.model_config
+        assert (
+            model.model_config["gamma_consider_0"].to_dict() == custom_prior.to_dict()
+        )
 
 
 class TestConsiderationSetMixedLogitInference:
