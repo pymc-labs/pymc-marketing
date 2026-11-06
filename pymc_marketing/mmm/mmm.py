@@ -2352,6 +2352,56 @@ class MMM(RegressionModelBuilder):
                 )
             self.scalers["_channel"] = xr.ones_like(self.scalers["_channel"])
 
+    def _warn_on_zero_target_scale(self) -> None:
+        """Warn when a target slice with non-zero values has a zero scale.
+
+        ``build_model`` rewrites the NaN and infinite ratios a zero scale
+        produces to ``0.0``, so every value in that slice is replaced by zero
+        rather than scaled.  Under a likelihood with positive support the
+        support check raises on those zeros, but under the default ``Normal``
+        the model fits on them with nothing else reporting it.  A slice that
+        is all zeros, such as the placeholder used when no ``y`` is given,
+        loses nothing and is not reported.  The message names at most the first
+        10 such slices.
+        """
+        target = self.xarray_dataset["_target"]
+        scale = self.scalers["_target"]
+        lost = (target != 0) & (scale == 0)
+        lost = lost.any(dim=[d for d in lost.dims if d not in scale.dims])
+        if not lost.any():
+            return
+
+        if lost.ndim == 0:
+            where = "the whole target"
+        else:
+            max_listed = 10
+            flags = lost.to_series()
+            slices = flags[flags].index
+            labels = [
+                ", ".join(
+                    f"{dim}={label!r}"
+                    for dim, label in zip(
+                        lost.dims,
+                        key if isinstance(key, tuple) else (key,),
+                        strict=True,
+                    )
+                )
+                for key in slices[:max_listed]
+            ]
+            if len(slices) > max_listed:
+                labels.append(f"... and {len(slices) - max_listed} more")
+            where = "; ".join(labels)
+        warnings.warn(
+            f"The target scale is 0 for {where}, where the target is not all "
+            "zeros, so build_model replaces those values with zeros rather "
+            "than scaling them. "
+            "A DataDerivedScaling reduction is signed, so a slice whose max "
+            "(or mean) is exactly 0 gives this. Use a FixedScaling for the "
+            "target, or change the scaling dims so no slice reduces to 0.",
+            UserWarning,
+            stacklevel=3,
+        )
+
     def _compute_scale_for_variable(
         self,
         data: xr.DataArray,
@@ -2933,6 +2983,7 @@ class MMM(RegressionModelBuilder):
 
         # Compute and save scales
         self._compute_scales()
+        self._warn_on_zero_target_scale()
 
         with pm.Model(coords=self.model_coords) as self.model:
             if self.yearly_seasonality:

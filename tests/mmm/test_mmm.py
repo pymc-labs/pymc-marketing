@@ -1114,6 +1114,109 @@ class TestMultidimMMMEdgeCases:
         zero_geo_idx = int(np.argmax(target_scaler == 0))
         np.testing.assert_array_equal(scaled_target[:, zero_geo_idx], 0.0)
 
+    @staticmethod
+    def _build_geo_mmm_with_target_b(y_b):
+        dates = pd.date_range("2024-01-01", periods=6, freq="W-MON")
+        df = pd.DataFrame(
+            [
+                {
+                    "date": date,
+                    "geo": geo,
+                    "channel_1": 1.0,
+                    "channel_2": 2.0,
+                    "y": 3.0 if geo == "A" else y_b[i],
+                }
+                for i, date in enumerate(dates)
+                for geo in ("A", "B")
+            ]
+        )
+        mmm = MMM(
+            date_column="date",
+            channel_columns=["channel_1", "channel_2"],
+            dims=("geo",),
+            target_column="y",
+            adstock=GeometricAdstock(l_max=2),
+            saturation=LogisticSaturation(),
+            scaling=Scaling(
+                target=DataDerivedScaling(dims=(), method="max"),
+                channel=DataDerivedScaling(dims=(), method="max"),
+            ),
+        )
+        return mmm, df[["date", "geo", "channel_1", "channel_2"]], df["y"]
+
+    def test_zero_target_scale_over_non_zero_slice_warns(self):
+        """A slice whose signed max is 0 but holds negatives is zeroed: warn.
+
+        Under the default ``Normal`` likelihood nothing else reports that
+        the clamp in ``build_model`` replaced the slice with zeros (#2973).
+        """
+        mmm, X, y = self._build_geo_mmm_with_target_b([0.0, -1.0, 0.0, -2.0, 0.0, -1.0])
+
+        with pytest.warns(UserWarning, match="target scale is 0 for geo='B'"):
+            mmm.build_model(X, y)
+
+        np.testing.assert_array_equal(fast_eval(mmm.target_data_scaled)[:, 1], 0.0)
+
+    def test_zero_target_scale_without_dims_names_the_whole_target(
+        self, simple_mmm_data
+    ):
+        """Without dims the scale is a scalar, so the warning names the target."""
+        X = simple_mmm_data["X"].copy()
+        y = simple_mmm_data["y"].copy()
+        y[:] = -1.0
+        y.iloc[::2] = 0.0
+        mmm = self._build_basic_mmm()
+
+        with pytest.warns(UserWarning, match="target scale is 0 for the whole target"):
+            mmm.build_model(X, y)
+
+    def test_zero_target_scale_warning_lists_at_most_ten_slices(self):
+        """With many zero-scale slices the message lists ten and counts the rest."""
+        dates = pd.date_range("2024-01-01", periods=6, freq="W-MON")
+        geos = ["A", *(f"Z{k:02d}" for k in range(12))]
+        df = pd.DataFrame(
+            [
+                {
+                    "date": date,
+                    "geo": geo,
+                    "channel_1": 1.0,
+                    "y": 3.0 if geo == "A" else -float(i % 2),
+                }
+                for i, date in enumerate(dates)
+                for geo in geos
+            ]
+        )
+        mmm = MMM(
+            date_column="date",
+            channel_columns=["channel_1"],
+            dims=("geo",),
+            target_column="y",
+            adstock=GeometricAdstock(l_max=2),
+            saturation=LogisticSaturation(),
+            scaling=Scaling(
+                target=DataDerivedScaling(dims=(), method="max"),
+                channel=DataDerivedScaling(dims=(), method="max"),
+            ),
+        )
+
+        with pytest.warns(UserWarning, match="target scale is 0") as record:
+            mmm.build_model(df[["date", "geo", "channel_1"]], df["y"])
+
+        message = str(record[0].message)
+        assert "geo='Z09'" in message
+        assert "geo='Z10'" not in message
+        assert "... and 2 more" in message
+
+    def test_all_zero_target_slice_does_not_warn(self):
+        """An all-zero slice loses nothing to the clamp, so it is not reported."""
+        mmm, X, y = self._build_geo_mmm_with_target_b([0.0] * 6)
+
+        with warnings.catch_warnings():
+            warnings.filterwarnings("error", message=".*target scale is 0")
+            mmm.build_model(X, y)
+
+        assert (np.asarray(mmm.scalers["_target"].values) == 0).any()
+
     @pytest.mark.parametrize("bad_value", [np.inf, -np.inf], ids=["+inf", "-inf"])
     @pytest.mark.parametrize("source", ["y", "X column", "X Dataset"])
     def test_infinite_target_raises(self, simple_mmm_data, bad_value, source):
