@@ -395,6 +395,31 @@ def _calibrations_by_name(
     }
 
 
+def _reject_infinite_target(target: npt.NDArray) -> None:
+    """Raise if the canonical ``_target`` holds an infinite value.
+
+    Runs on ``xarray_dataset["_target"]``, which :func:`to_mmm_dataset` builds
+    from every place the target can come from (``y``, a ``target_column`` of a
+    DataFrame ``X``, a ``target`` / ``_target`` variable of a Dataset ``X``).
+    An infinite target reaches the clamp in ``build_model``, which rewrites it
+    to 0, and ``+inf`` also makes a ``max`` scale infinite, which zeroes its
+    whole slice.
+
+    NaN is not rejected: ``fillna(0)`` has already run, and it also fills the
+    cells a sparse panel leaves empty, which come back as NaN when a saved
+    model is rebuilt from ``fit_data``.
+    """
+    n_infinite = int(np.count_nonzero(np.isinf(target)))
+    if n_infinite:
+        raise ValueError(
+            f"The target has {n_infinite} infinite value(s). "
+            "build_model would fit each of them as 0, and +inf "
+            "also makes a 'max' target scale infinite, which "
+            "zeroes its whole slice. Drop or replace them before "
+            "fitting."
+        )
+
+
 COST_PER_TARGET_SPEND_GROUP = "cost_per_target_spend"
 """DataTree group holding the spend arrays of cost-per-target calibrations.
 
@@ -2886,6 +2911,9 @@ class MMM(RegressionModelBuilder):
 
         likelihood = self.model_config["likelihood"]
         if "_target" in self.xarray_dataset.data_vars:
+            # Link-independent: every link and likelihood would fit an
+            # infinite target as 0 after the clamp below.
+            _reject_infinite_target(self.xarray_dataset["_target"].values)
             self._link_spec.validate_target(self.xarray_dataset["_target"].values)
             # LogNormalPrior observes the raw target on the strictly positive
             # support, which the link-level validate_target cannot know about.
