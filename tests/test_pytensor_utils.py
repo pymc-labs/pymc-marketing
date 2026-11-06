@@ -15,6 +15,8 @@
 """Tests for pytensor_utils module."""
 
 import builtins as _builtins
+import copy
+import pickle
 import sys
 
 import numpy as np
@@ -36,6 +38,7 @@ from pymc_marketing.mmm.mmm import (
 )
 from pymc_marketing.pytensor_utils import (
     ConditionedModel,
+    ModelCloneError,
     ModelSamplerEstimator,
     SharedPosterior,
     VariableLayout,
@@ -2731,3 +2734,72 @@ def test_conditioned_model_takes_a_variable_missing_at_construction_as_given():
     # Once read, it is bound like any other variable and follows a rebind.
     conditioned.set_posterior(_channel_posterior([1.0, 2.0], gamma=[5.0, 6.0]))
     np.testing.assert_allclose(fn(), [[50.0, 120.0]])
+
+
+def test_model_clone_error_is_both_released_types_and_copies():
+    """The error stays catchable as ``NotImplementedError`` or ``ValueError``.
+
+    These are the exception types the clone step raised before
+    ``ModelCloneError`` existed, so an old ``except`` clause still catches it.
+    A copy keeps the type too, so the error survives a worker boundary.
+    """
+    error = ModelCloneError("Cannot convert models with non-default initial_values")
+
+    assert isinstance(error, NotImplementedError)
+    assert isinstance(error, ValueError)
+    for duplicate in (pickle.loads(pickle.dumps(error)), copy.deepcopy(error)):  # noqa: S301
+        assert type(duplicate) is ModelCloneError
+        assert str(duplicate) == str(error)
+        assert isinstance(duplicate, NotImplementedError)
+        assert isinstance(duplicate, ValueError)
+
+
+def _initval_conditioned_model():
+    """A model PyMC refuses to clone: a non-default initial value."""
+    with pm.Model(coords={"channel": ["a", "b"]}) as model:
+        spend = pmd.Data("spend", np.array([10.0, 20.0]), dims="channel")
+        beta = pmd.Normal("beta", dims="channel", initval=np.zeros(2))
+        pmd.Deterministic("resp", beta * spend)
+    return model
+
+
+@pytest.mark.parametrize(
+    "intervention",
+    [None, {"spend": np.array([30.0, 40.0])}],
+    ids=["no-intervention", "with-intervention"],
+)
+@pytest.mark.parametrize(
+    "exception_type",
+    [ModelCloneError, NotImplementedError, ValueError],
+    ids=["model-clone-error", "not-implemented", "value"],
+)
+def test_conditioned_model_clone_failure_keeps_the_released_exception_types(
+    intervention, exception_type
+):
+    """An unclonable model raises an error caught as either 1.3.0 type.
+
+    The model is cloned with or without an intervention (:func:`pymc.do`
+    clones too), so both paths raise the same error.
+    """
+    model = _initval_conditioned_model()
+
+    with pytest.raises(exception_type) as excinfo:
+        ConditionedModel(
+            model, _channel_posterior([1.0, 2.0]), intervention=intervention
+        )
+
+    assert type(excinfo.value) is ModelCloneError
+
+
+def test_conditioned_model_intervention_error_on_a_clonable_model_is_not_a_clone_error():
+    """An error about the intervention keeps its own type, not ModelCloneError."""
+    model, _ = _channel_conditioned_model()
+
+    with pytest.raises(Exception) as excinfo:
+        ConditionedModel(
+            model,
+            _channel_posterior([1.0, 2.0]),
+            intervention={"not_a_variable": np.array([1.0, 2.0])},
+        )
+
+    assert not isinstance(excinfo.value, ModelCloneError)

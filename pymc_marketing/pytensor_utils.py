@@ -17,7 +17,7 @@
 import contextlib
 import warnings
 from collections import Counter, OrderedDict
-from collections.abc import Iterator, Mapping, Sequence
+from collections.abc import Iterable, Iterator, Mapping, Sequence
 from typing import Any, NamedTuple, cast, overload
 
 import arviz as az
@@ -47,6 +47,7 @@ from pytensor.xtensor.vectorization import vectorize_graph
 
 __all__ = [
     "ConditionedModel",
+    "ModelCloneError",
     "ModelSamplerEstimator",
     "SharedPosterior",
     "VariableLayout",
@@ -58,6 +59,7 @@ __all__ = [
     "merge_models",
     "needed_posterior_names",
     "non_sample_dims",
+    "posterior_in_model_coords",
     "reorder_to_model_coords",
     "transpose_to_model_dims",
     "validate_unique_value_vars",
@@ -66,6 +68,15 @@ __all__ = [
 
 _GRAPH_CACHE_SIZE = 32
 """Number of extractions a :class:`ConditionedModel` caches before evicting the least recent."""
+
+_CLONE_FAILURES = (NotImplementedError, ValueError)
+"""Exceptions PyMC's clone step raises for a model it cannot clone.
+
+``pymc.model.fgraph`` raises ``NotImplementedError`` for non-default initial
+values and ``ValueError`` for a nested sub-model.  Its ``TypeError`` -- raised
+while converting a free variable whose transform is not a ``Transform`` -- is
+not one of them, and it propagates unchanged.
+"""
 
 
 def _rebuild_model_var(var, *, name: str, dims: tuple[str, ...]):
@@ -612,6 +623,34 @@ def reorder_to_model_coords(
     return posterior.sel(indexers) if indexers else posterior
 
 
+def posterior_in_model_coords(
+    idata: xr.DataTree | xr.Dataset, model_coords: Mapping[str, Any]
+) -> xr.Dataset:
+    """Return the posterior of ``idata`` reordered to the model's coords.
+
+    This is the one place a posterior is taken out of ``idata`` and realigned,
+    so every consumer reads the same coordinates:
+    :class:`ConditionedModel` on construction and on every rebind, and a
+    :class:`~pymc_marketing.mmm.sweep_graph.SweepEntry` when it checks that the
+    draws it is rebound to carry the labels it was built on.
+
+    Parameters
+    ----------
+    idata : xr.DataTree or xr.Dataset
+        A tree carrying the posterior under ``posterior``, or the posterior
+        dataset itself.
+    model_coords : mapping
+        The coordinates of the model, such as ``pm.Model.coords``.
+
+    Returns
+    -------
+    xr.Dataset
+        The posterior, in the model's label order on every dimension whose
+        labels are the model's own.
+    """
+    return reorder_to_model_coords(_posterior_dataset(idata), model_coords)
+
+
 def transpose_to_model_dims(
     posterior: xr.Dataset,
     model_dims: Mapping[str, Sequence[str | None]],
@@ -1087,6 +1126,88 @@ def _posterior_dataset(idata: xr.DataTree | xr.Dataset) -> xr.Dataset:
     )
 
 
+def _raise_for_missing_posterior_variables(
+    read_names: Iterable[str], posterior: xr.Dataset
+) -> None:
+    """Raise the one ``KeyError`` for a posterior missing a variable a graph reads.
+
+    Construction and rebinding go through this, so a missing variable is named
+    the same way when a graph is extracted and when it is rebound.
+
+    Parameters
+    ----------
+    read_names : iterable of str
+        The posterior variables the graphs read.
+    posterior : xr.Dataset
+        The posterior the graphs would read them from.
+
+    Raises
+    ------
+    KeyError
+        If ``posterior`` lacks one of ``read_names``.
+    """
+    missing = sorted(set(read_names) - set(posterior.data_vars))
+    if missing:
+        raise KeyError(f"Posterior is missing variables this graph reads: {missing}")
+
+
+class ModelCloneError(NotImplementedError, ValueError):
+    """PyMC cannot clone a model into a conditioned copy.
+
+    The model is cloned with or without an ``intervention`` -- :func:`pymc.do`
+    clones it too -- and a clone refusal is raised as this error either way.
+    It is both a ``NotImplementedError`` and a ``ValueError``, the types the
+    clone step raised before this error existed, so a caller that catches
+    either of them keeps working.
+    """
+
+
+def _clone_refusal(model: Model) -> str | None:
+    """Return why PyMC's clone step refuses ``model``, or ``None``.
+
+    ``pymc.model.fgraph.fgraph_from_model`` is the step :func:`pymc.do` and
+    :func:`clone_model` share.  The refusal checks come before the model is
+    copied, so asking it on a failure tells a clone failure apart from an
+    error about the intervention.
+    """
+    with warnings.catch_warnings():
+        # This only classifies a failure that was already raised.
+        warnings.simplefilter("ignore")
+        try:
+            fgraph_from_model(model)
+        except _CLONE_FAILURES as err:
+            return str(err)
+        except Exception:
+            # Not a refusal: keep the error that was being classified.
+            return None
+    return None
+
+
+def _clone_model(model: Model) -> Model:
+    """Clone ``model``, naming the failure as a clone failure.
+
+    Parameters
+    ----------
+    model : pm.Model
+        The model to clone.  Never modified.
+
+    Returns
+    -------
+    pm.Model
+        The clone.
+
+    Raises
+    ------
+    ModelCloneError
+        If PyMC cannot clone ``model``, as for a model with custom initial
+        values or a nested sub-model.
+    """
+    try:
+        return clone_model(model)
+    except _CLONE_FAILURES as err:
+        raise ModelCloneError(str(err)) from err
+
+
 def _apply_intervention(
     model: Model,
     intervention: Mapping[str, Variable | np.ndarray | float] | None,
@@ -1106,9 +1227,15 @@ def _apply_intervention(
     pm.Model
         The intervened clone, whose data no later ``pm.set_data`` on ``model``
         reaches.
+
+    Raises
+    ------
+    ModelCloneError
+        If PyMC cannot clone ``model``.  :func:`pymc.do` clones the model too,
+        so this covers the intervention path as well.
     """
     if intervention is None:
-        return clone_model(model)
+        return _clone_model(model)
     with warnings.catch_warnings():
         # The ``scale`` intervention references the target on purpose:
         # ``target * mask`` is what holds the factual value in the graph.
@@ -1119,7 +1246,16 @@ def _apply_intervention(
             message="Intervention expression references the variable "
             "that is being intervened",
         )
-        return do(model, dict(intervention))
+        try:
+            return do(model, dict(intervention))
+        except _CLONE_FAILURES as err:
+            # ``do`` clones the model before it applies the intervention, so a
+            # clone failure arrives with the raw exception.  Only that failure
+            # is renamed: an error about the intervention keeps its own type.
+            reason = _clone_refusal(model)
+            if reason is None:
+                raise
+            raise ModelCloneError(reason) from err
 
 
 def _model_nodes(model: Model) -> frozenset[Variable]:
@@ -1174,9 +1310,19 @@ class ConditionedModel:
 
     Raises
     ------
-    NotImplementedError, ValueError
-        If PyMC cannot clone ``model``, as for a model with custom initial
-        values or nested sub-models.
+    ModelCloneError
+        If PyMC cannot clone ``model``, with or without ``intervention``:
+        :func:`pymc.do` clones the model too.  A model with custom initial
+        values or a nested sub-model cannot be cloned.
+    NotImplementedError
+        If ``intervention`` is given and :func:`pymc.do` cannot apply it.
+    ValueError
+        If ``intervention`` is given and :func:`pymc.do` cannot apply it.
+    KeyError
+        If ``intervention`` names a variable that is not in the model.
+    TypeError
+        If a replacement in ``intervention`` has a type :func:`pymc.do` cannot
+        use.
 
     Notes
     -----
@@ -1225,9 +1371,7 @@ class ConditionedModel:
             for dim, length in model.dim_lengths.items()
             if not isinstance(length, Constant)
         }
-        self._posterior = reorder_to_model_coords(
-            _posterior_dataset(idata), self._model.coords
-        )
+        self._posterior = posterior_in_model_coords(idata, self._model.coords)
         # The layout each variable is validated against when a graph reads it,
         # taken once here.  It is metadata only; a variable no graph reads is
         # never checked, so a refit over a new date window is accepted.
@@ -1350,7 +1494,8 @@ class ConditionedModel:
         Raises
         ------
         KeyError
-            If the posterior lacks a variable a graph reads.
+            If the posterior lacks a variable a graph reads, named as
+            extraction names it.
         ValueError
             If a variable a graph reads differs from its construction layout in
             its non-sample dimensions, their lengths or their labels.
@@ -1360,8 +1505,9 @@ class ConditionedModel:
         A rebind is atomic: after any error, an interrupt included, every graph
         reads the previous draws and :attr:`posterior` is unchanged.
         """
-        posterior = reorder_to_model_coords(
-            _posterior_dataset(idata), self._model.coords
+        posterior = posterior_in_model_coords(idata, self._model.coords)
+        _raise_for_missing_posterior_variables(
+            self._shared_posterior.variables, posterior
         )
         previous = self._posterior
         self._posterior = posterior
@@ -1408,11 +1554,7 @@ class ConditionedModel:
         """
         if not read_names:
             return posterior
-        missing = sorted(set(read_names) - set(posterior.data_vars))
-        if missing:
-            raise KeyError(
-                f"Posterior is missing variables this graph reads: {missing}"
-            )
+        _raise_for_missing_posterior_variables(read_names, posterior)
         ordered = [name for name in self._layouts if name in read_names]
         ordered += [name for name in read_names if name not in self._layouts]
         selected: dict[str, xr.DataArray] = {}

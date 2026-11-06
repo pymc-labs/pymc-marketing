@@ -3525,10 +3525,8 @@ class MMMPlotSuite:
 
         .. code-block:: python
 
-            from pymc_marketing.mmm.sensitivity_analysis import SensitivityAnalysis
-
             sweeps = np.linspace(0.5, 1.5, 11)
-            sa = SensitivityAnalysis(mmm.model, mmm.idata)
+            sa = mmm.sensitivity
             results = sa.run_sweep(
                 var_input="channel_data",
                 sweep_values=sweeps,
@@ -3628,10 +3626,8 @@ class MMMPlotSuite:
 
         .. code-block:: python
 
-            from pymc_marketing.mmm.sensitivity_analysis import SensitivityAnalysis
-
             sweeps = np.linspace(0.5, 1.5, 11)
-            sa = SensitivityAnalysis(mmm.model, mmm.idata)
+            sa = mmm.sensitivity
             results = sa.run_sweep(
                 var_input="channel_data",
                 sweep_values=sweeps,

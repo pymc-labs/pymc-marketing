@@ -111,7 +111,7 @@ def test_a_miss_builds_with_the_factory_and_the_release_caches_it():
     lease = cache.lease(_key(), factory)
 
     assert not lease.cached
-    assert lease.evaluator is built[0]
+    assert lease.value is built[0]
     assert len(cache) == 0
 
     lease.release()
@@ -128,19 +128,19 @@ def test_a_leased_entry_is_out_of_the_cache_until_released():
 
     lease = cache.lease(key, lambda: pytest.fail("a cached entry is a hit"))
     assert lease.cached
-    assert lease.evaluator is evaluator
+    assert lease.value is evaluator
     assert len(cache) == 0
 
     concurrent = cache.lease(key, _FakeEvaluator)
     assert not concurrent.cached
-    assert concurrent.evaluator is not evaluator
+    assert concurrent.value is not evaluator
 
     lease.release()
     lease.release()  # releasing twice is a no-op
     concurrent.release()
 
     assert len(cache) == 1
-    assert cache.get(key) is concurrent.evaluator
+    assert cache.get(key) is concurrent.value
 
 
 def test_a_stale_entry_is_rebuilt_instead_of_leased():
@@ -152,7 +152,7 @@ def test_a_stale_entry_is_rebuilt_instead_of_leased():
     lease = cache.lease(_key(), lambda: fresh)
 
     assert not lease.cached
-    assert lease.evaluator is fresh
+    assert lease.value is fresh
 
     lease.release()
 
