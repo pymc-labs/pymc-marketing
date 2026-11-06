@@ -23,8 +23,8 @@ of the same methods.
 import copy
 import warnings
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
-from typing import Any
+from dataclasses import dataclass, field, fields
+from typing import Any, Self
 
 import numpy as np
 import pymc as pm
@@ -41,6 +41,7 @@ from pymc_extras.prior import (
     Prior,
     Scaled,
     VariableFactory,
+    _get_transform,
     _param_value_with_dims,
     sample_prior,
 )
@@ -1125,6 +1126,16 @@ def _as_prior(value: Any, field: str | None = None) -> Any:
     return value
 
 
+def _level_dim(dims: str | tuple[str, ...] | None, name: str) -> str:
+    """Return the one level dim of :class:`IndependentSigmas` or :class:`VarianceBudget`, or raise."""
+    if dims is None or len(dims) != 1:
+        raise ValueError(
+            f"{name}: `dims` must be one level dim, got {dims}; "
+            "a NestedZeroSumPrior sets it to `<name>_sigma_level`"
+        )
+    return dims[0]
+
+
 @serialization.register
 @dataclass
 class IndependentSigmas:
@@ -1136,8 +1147,19 @@ class IndependentSigmas:
         The prior of each level's scale, keyed by the term and interaction
         labels of the :class:`NestedZeroSumPrior` that uses it. Each prior must
         be a scalar (no dims). Level ``<level>`` of a prior named ``<name>``
-        creates ``<name>_sigma_<level>``; on the saturation ``beta``, that
-        is the variable ``saturation_beta_sigma_<level>``.
+        creates ``<name>_sigma_<level>``, and the levels are stacked into the
+        vector ``<name>_sigma`` on the dim ``<name>_sigma_level``; on the
+        saturation ``beta``, those are ``saturation_beta_sigma_<level>`` and
+        ``saturation_beta_sigma``.
+    dims : str or tuple[str], optional
+        The level dim, whose model coord gives the levels and their order. Leave
+        it unset in a :class:`NestedZeroSumPrior`, which sets it on a copy.
+
+    Notes
+    -----
+    A pymc_extras ``VariableFactory``: :meth:`create_variable` returns one
+    vector over the level dim, like a ``Prior`` with that dim, so it can also
+    be a parameter of a ``Prior``.
 
     Examples
     --------
@@ -1150,11 +1172,15 @@ class IndependentSigmas:
 
         from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation
         from pymc_marketing.mmm.mmm import MMM
-        from pymc_marketing.special_priors import IndependentSigmas, NestedZeroSumPrior
+        from pymc_marketing.special_priors import (
+            IndependentSigmas,
+            NestedZeroSumPrior,
+            Term,
+        )
 
         beta = NestedZeroSumPrior(
             mu=Prior("Normal", mu=0, sigma=0.5, dims="channel"),
-            terms={"brand": {}},
+            terms={"brand": Term()},
             sigma=IndependentSigmas(priors={"brand": Prior("HalfNormal", sigma=0.2)}),
         )
         mmm = MMM(
@@ -1189,10 +1215,12 @@ class IndependentSigmas:
     """
 
     priors: dict[str, Any]
+    dims: str | tuple[str, ...] | None = None
     levels: list[str] = field(init=False, repr=False, compare=False)
 
     def __post_init__(self) -> None:
-        """Deserialize the priors and record the level labels."""
+        """Deserialize the priors, normalize ``dims`` and record the level labels."""
+        self.dims = None if self.dims is None else _as_dims(self.dims)
         self.priors = {
             k: _as_prior(p, f"IndependentSigmas priors[{k!r}]")
             for k, p in self.priors.items()
@@ -1209,29 +1237,42 @@ class IndependentSigmas:
 
     def to_dict(self) -> dict:
         """Serialize to a dictionary."""
-        return {"priors": {k: p.to_dict() for k, p in self.priors.items()}}
+        return {
+            "priors": {k: p.to_dict() for k, p in self.priors.items()},
+            **({} if self.dims is None else {"dims": list(self.dims)}),
+        }
 
     @classmethod
     def from_dict(cls, data: dict) -> "IndependentSigmas":
         """Deserialize from a dictionary created by :meth:`to_dict`."""
         return cls(**{k: v for k, v in data.items() if k != "__type__"})
 
-    def create_variable(self, name: str, levels: list[str]) -> dict[str, Any]:
-        """Create one scalar scale per level.
+    def create_variable(
+        self, name: str, xdist: bool = False
+    ) -> TensorVariable | XTensorVariable:
+        """Create one scalar scale per level, stacked into one vector.
 
         Parameters
         ----------
         name : str
-            Prefix of the variable names: level ``<level>`` is ``<name>_<level>``.
-        levels : list[str]
-            The level labels, in the order of the terms then the interactions.
+            Name of the vector, on :attr:`dims`, and prefix of the scale of
+            each level, ``<name>_<level>``. The levels are matched to
+            ``priors`` by label.
+        xdist : bool, default False
+            Return the XTensorVariable instead of its tensor.
 
         Returns
         -------
-        dict[str, TensorVariable]
-            The scale of each level, keyed by level label.
+        TensorVariable or XTensorVariable
+            The scales, with dims :attr:`dims`.
         """
-        return {lv: self.priors[lv].create_variable(f"{name}_{lv}") for lv in levels}
+        dim = _level_dim(self.dims, name)
+        scales = [
+            self.priors[lv].create_variable(f"{name}_{lv}")
+            for lv in pm.modelcontext(None).coords[dim]
+        ]
+        sigma = pm.Deterministic(name, pt.stack(scales), dims=dim)
+        return as_xtensor(sigma, dims=(dim,)) if xdist else sigma
 
 
 @serialization.register
@@ -1260,13 +1301,16 @@ class VarianceBudget:
         ``share`` (1/L for each of L levels) with ``concentration=L`` is the flat
         Dirichlet; a small concentration around an uneven center is sparse, not
         flat.
+    dims : str or tuple[str], optional
+        The level dim, as for :class:`IndependentSigmas`. Leave it unset in a
+        :class:`NestedZeroSumPrior`, which sets it on a copy.
 
     Notes
     -----
     ``total`` is the scale *before* the zero-sum constraint. A zero-sum vector
     of J entries with scale σ has per-entry variance :math:`\sigma^2 (1 - 1/J)`,
-    so the per-cell variance of :math:`\eta` (the coefficient on the link
-    scale, :math:`\log\beta` by default) around ``mu`` is
+    so the per-cell variance of :math:`\eta` (the coefficient before the
+    ``transform``, :math:`\log\beta` by default) around ``mu`` is
     :math:`\text{total}^2 \sum_l c_l \, \text{share}_l`, with :math:`c_l = 1 - 1/J`
     for each zero-sum axis of level :math:`l`.
 
@@ -1274,7 +1318,9 @@ class VarianceBudget:
     (the Dirichlet), ``saturation_beta_sigma_total`` and
     ``saturation_beta_sigma`` (the scales), on the dim
     ``saturation_beta_sigma_level``. The dim is named per prior so it cannot
-    clash with a ``level`` coord in the model or with a second budget.
+    clash with a ``level`` coord in the model or with a second budget. Like
+    :class:`IndependentSigmas`, it is a pymc_extras ``VariableFactory`` over
+    the level dim ``dims``.
 
     :class:`pymc_marketing.r2d2.R2D2` uses the same Dirichlet split in a
     different direction: it splits the explained variance across the
@@ -1292,13 +1338,13 @@ class VarianceBudget:
 
         from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation
         from pymc_marketing.mmm.mmm import MMM
-        from pymc_marketing.special_priors import NestedZeroSumPrior, VarianceBudget
+        from pymc_marketing.special_priors import NestedZeroSumPrior, Term, VarianceBudget
 
         beta = NestedZeroSumPrior(
             mu=Prior("Normal", mu=0, sigma=0.5, dims="channel"),
             terms={
-                "family": {},
-                "brand": {"within": "family", "map": {"b0": "f0", "b1": "f0", "b2": "f1", "b3": "f1"}},
+                "family": Term(),
+                "brand": Term(within="family", map={"b0": "f0", "b1": "f0", "b2": "f1", "b3": "f1"}),
             },
             sigma=VarianceBudget(
                 total=Prior("HalfNormal", sigma=0.4),
@@ -1341,10 +1387,12 @@ class VarianceBudget:
     total: Any
     share: dict[str, float]
     concentration: float = 100
+    dims: str | tuple[str, ...] | None = None
     levels: list[str] = field(init=False, repr=False, compare=False)
 
     def __post_init__(self) -> None:
-        """Deserialize ``total``, validate ``share`` and record the level labels."""
+        """Deserialize ``total``, validate ``share``, normalize ``dims`` and record the level labels."""
+        self.dims = None if self.dims is None else _as_dims(self.dims)
         self.total = _as_prior(self.total, "VarianceBudget total")
         if getattr(self.total, "dims", None):
             raise ValueError(
@@ -1369,6 +1417,7 @@ class VarianceBudget:
             "total": self.total.to_dict(),
             "share": self.share,
             "concentration": self.concentration,
+            **({} if self.dims is None else {"dims": list(self.dims)}),
         }
 
     @classmethod
@@ -1376,38 +1425,167 @@ class VarianceBudget:
         """Deserialize from a dictionary created by :meth:`to_dict`."""
         return cls(**{k: v for k, v in data.items() if k != "__type__"})
 
-    def create_variable(self, name: str, levels: list[str]) -> dict[str, Any]:
+    def create_variable(
+        self, name: str, xdist: bool = False
+    ) -> TensorVariable | XTensorVariable:
         """Create the Dirichlet shares and the scale of each level.
 
         Parameters
         ----------
         name : str
-            Name of the scale variable, also the prefix of ``<name>_share``,
-            ``<name>_total`` and the dim ``<name>_level``.
-        levels : list[str]
-            The level labels, in the order of the terms then the interactions.
-            The shares are matched to them by label.
+            Name of the scale variable, on :attr:`dims`, and prefix of
+            ``<name>_share`` and ``<name>_total``. The shares are matched to the
+            levels by label.
+        xdist : bool, default False
+            Return the XTensorVariable instead of its tensor.
 
         Returns
         -------
-        dict[str, TensorVariable]
-            The scale of each level, keyed by level label.
+        TensorVariable or XTensorVariable
+            The scales, with dims :attr:`dims`.
         """
-        dim = f"{name}_level"
-        pm.modelcontext(None).add_coord(dim, levels)
-        concentration = self.concentration * np.array([self.share[lv] for lv in levels])
-        share = pm.Dirichlet(f"{name}_share", a=concentration, dims=dim)
+        dim = _level_dim(self.dims, name)
+        share = [self.share[lv] for lv in pm.modelcontext(None).coords[dim]]
+        share = pm.Dirichlet(
+            f"{name}_share", a=self.concentration * np.array(share), dims=dim
+        )
         total = self.total.create_variable(f"{name}_total")
         sigma = pm.Deterministic(name, total * pt.sqrt(share), dims=dim)
-        return {lv: sigma[i] for i, lv in enumerate(levels)}
+        return as_xtensor(sigma, dims=(dim,)) if xdist else sigma
 
 
-_TERM_KEYS = ("centered", "within", "map", "parent_effect")
-_INTERACTION_KEYS = ("dims", "centered")
+def _as_dims(dims: Any) -> tuple:
+    """Dims as a tuple: a str is one dim (not its characters), None is no dims."""
+    return () if dims is None else (dims,) if isinstance(dims, str) else tuple(dims)
+
+
+@dataclass
+class _Spec:
+    """Base of :class:`Term` and :class:`Interaction`: built from a plain dict, written back as one."""
+
+    @classmethod
+    def coerce(cls, label: str, spec: Any) -> Self:
+        """Return ``spec`` as a ``cls``, converting a plain dict and naming ``label`` in its errors."""
+        if isinstance(spec, cls):
+            return spec
+        spec = {} if spec is None else spec  # YAML `brand:` with no value
+        allowed = [f.name for f in fields(cls)]
+        if unknown := sorted(
+            set(spec) - set(allowed)
+        ):  # a typo would otherwise be ignored
+            raise ValueError(
+                f"{cls.__name__.lower()} {label}: unknown keys {unknown}; allowed: {allowed}"
+            )
+        try:
+            return cls(**spec)
+        except ValueError as err:
+            raise ValueError(f"{cls.__name__.lower()} {label}: {err}") from None
+
+    def to_dict(self) -> dict:
+        """Serialize to a plain dict, leaving out the fields at their default."""
+        return {
+            f.name: getattr(self, f.name)
+            for f in fields(self)
+            if getattr(self, f.name) != f.default
+        }
+
+
+@dataclass
+class Term(_Spec):
+    """A main effect of a :class:`NestedZeroSumPrior`, the value of one entry of its ``terms``.
+
+    A plain dict with the same keys is converted to a ``Term``, so YAML and
+    JSON configs stay plain dicts. A term with no value (YAML ``brand:``) is
+    ``Term()``.
+
+    Parameters
+    ----------
+    centered : bool, optional
+        Parameterization of this level. Unset, the ``centered`` of the prior.
+    within : str, optional
+        The label of the parent. The term is then zero-sum inside each parent.
+    map : dict, optional
+        Child label to parent label. Required with ``within``, and must cover
+        exactly the labels of the child coord. Keys are matched as ``str`` (a
+        JSON round trip turns int keys into ``str``), and the values must be
+        all ``str`` or all non-``str``.
+    parent_effect : bool, default True
+        False nests the child inside the parent without a parent effect. Only
+        allowed when the parent is not a term.
+    """
+
+    centered: bool | None = None
+    within: str | None = None
+    map: dict | None = None
+    parent_effect: bool = True
+
+    def __post_init__(self) -> None:
+        """Validate the term on its own; the checks across terms are in :class:`NestedZeroSumPrior`."""
+        if not (
+            isinstance(self.centered, bool | None)
+            and isinstance(self.within, str | None)
+            and isinstance(self.parent_effect, bool)
+        ):
+            raise ValueError(
+                "`centered` must be a bool or None, `within` a str or None and `parent_effect` a bool; got "
+                f"centered={self.centered!r}, within={self.within!r}, parent_effect={self.parent_effect!r}"
+            )
+        if self.within is None and (self.map is not None or not self.parent_effect):
+            raise ValueError("`map` and `parent_effect` need `within`")
+        if self.within is not None and self.map is None:
+            raise ValueError(
+                f"is `within: {self.within}` but has no `map` (child label -> {self.within} label)"
+            )
+        # In a new dict, so the caller's map is not mutated: JSON turns int child labels into str keys
+        self.map = (
+            None if self.map is None else {str(k): v for k, v in self.map.items()}
+        )
+        values = list((self.map or {}).values())
+        if None in values:
+            raise ValueError(f"`map` has a None {self.within} label")
+        if (
+            len({isinstance(v, str) for v in values}) > 1
+        ):  # np.unique would cast 0 and "0" to one parent
+            raise ValueError(
+                f"`map` mixes str and non-str {self.within} labels {sorted(set(map(repr, values)))}; use one type"
+            )
+
+
+@dataclass
+class Interaction(_Spec):
+    """An interaction of a :class:`NestedZeroSumPrior`, the value of one entry of its ``interactions``.
+
+    A plain dict with the same keys is converted to an ``Interaction``.
+    An interaction with no value (YAML ``brand_dma:``) has no ``dims`` and
+    raises.
+
+    Parameters
+    ----------
+    dims : list[str]
+        The terms it interacts, each a term that is a model coord. The offset
+        is zero-sum over every one of them.
+    centered : bool, optional
+        Parameterization of this level. Unset, the ``centered`` of the prior.
+    """
+
+    dims: list[str] = field(default_factory=list)
+    centered: bool | None = None
+
+    def __post_init__(self) -> None:
+        """Validate the interaction on its own."""
+        self.dims = [self.dims] if isinstance(self.dims, str) else list(self.dims or [])
+        if not self.dims or len(set(self.dims)) < len(self.dims):
+            raise ValueError(
+                f"`dims` must be non-empty, each dim once; got {self.dims}"
+            )
+        if not isinstance(self.centered, bool | None):
+            raise ValueError(
+                f"`centered` must be a bool or None, got {self.centered!r}"
+            )
 
 
 @serialization.register
-class NestedZeroSumPrior(SpecialPrior):
+class NestedZeroSumPrior:
     r"""Prior built from nested and crossed zero-sum offsets, for a coefficient over hierarchy dims.
 
     A general prior for any coefficient whose dims belong to hierarchies, for
@@ -1427,88 +1605,91 @@ class NestedZeroSumPrior(SpecialPrior):
     its parents, a parent or crossed term over its labels, and an interaction
     over each of its dims. The zero-sum constraints remove the ridge between
     levels (a parent and the mean of its children cannot trade a shared shift).
-    With ``link="log"``, ``exp`` is applied once, so the coefficient is
-    positive without stacking positive distributions; with
-    ``link="identity"`` it is :math:`\eta` itself, signed. Nothing is added
+    With the default ``transform="exp"``, ``exp`` is applied once, so the
+    coefficient is positive without stacking positive distributions; with
+    ``transform=None`` it is :math:`\eta` itself, signed. Nothing is added
     implicitly: :math:`\eta` is ``mu`` plus exactly the terms and
     interactions given.
+
+    A pymc_extras ``VariableFactory`` (``dims`` and :meth:`create_variable`).
 
     Parameters
     ----------
     mu : Prior, float or array-like
         Prior of the mean of :math:`\eta` over the hierarchy, with the base
-        dims (``("channel",)`` by default, see ``dims``). Creates
-        ``<name>_mu``. A constant (a float, or one value per base label) fixes
-        the mean and creates no variable.
-    terms : dict[str, dict]
-        The main effects, keyed by label. A spec takes the keys
-
-        - ``centered`` (bool): parameterization of this level. Defaults to
-          ``centered``.
-        - ``within`` (str): the label of the parent. The term is then zero-sum
-          inside each parent.
-        - ``map`` (dict): child label to parent label. Required with ``within``,
-          and must cover exactly the labels of the child coord. Keys are matched
-          as ``str`` (a JSON round trip turns int keys into ``str``), and the
-          values must be all ``str`` or all non-``str``.
-        - ``parent_effect`` (bool, default True): False nests the child inside
-          the parent without a parent effect. Only allowed when the parent is not
-          a term.
-
+        dim (see ``dims``) or none. Creates ``<name>_mu``. A constant (a float,
+        or one value per base label) fixes the mean and creates no variable.
+    terms : dict[str, Term or dict]
+        The main effects, keyed by label. Each is a :class:`Term`; a plain dict
+        with the same keys (``centered``, ``within``, ``map``,
+        ``parent_effect``) is also accepted, as YAML and JSON configs give it.
         A term is one of three kinds:
 
         - A model coord with ``within``: zero-sum inside each parent. Creates one
-          ``<name>_<term>_<parent label>`` per parent with at least two children;
-          a lone child has offset 0.
+          ``<name>_<term>_<parent label>`` per parent with at least two children,
+          on the coord ``<term>_<parent label>`` of its children (added to the
+          model); a lone child has offset 0.
         - A model coord without ``within``: zero-sum over the coord. Creates
           ``<name>_<term>``.
         - Not a model coord: a parent, zero-sum over its labels (the values of
           the child's ``map``). It enters through the one child that names it in
-          ``within``. Creates ``<name>_<term>``.
+          ``within``. Creates ``<name>_<term>``, on the coord ``<term>`` of its
+          labels (added to the model; an existing coord must have those labels).
 
         Nesting is at most two levels per tree: a ``within`` parent cannot
         itself be ``within`` another term, so region > tier > DMA raises.
     sigma : IndependentSigmas, VarianceBudget or Prior
-        The scales of the levels, keyed by exactly the term and interaction
-        labels. Terms carry no ``sigma`` of their own. Instead of the two
-        options, a single-variable factory such as a pymc_extras ``Prior``
-        (any object with ``dims`` and ``create_variable``) with the one dim
-        ``<name>_sigma_level`` gives the scales as one vector; its entries
-        are the levels, terms then interactions, in spec order. It creates
-        ``<name>_sigma``, and the coord ``<name>_sigma_level`` if the model
-        does not have it.
-    interactions : dict[str, dict], optional
-        Interactions, keyed by label: ``{"dims": [term, ...], "centered": bool}``.
-        Zero-sum over every listed dim; each dim must be a term that is a model
-        coord. Creates ``<name>_<label>``.
-    link : {"log", "identity"}, default "log"
-        The coefficient is ``exp`` of :math:`\eta` (positive) or :math:`\eta`
-        itself (signed, e.g. a control coefficient or an intercept). Identity
-        allows negative coefficients, so it does not suit a coefficient that
-        must be positive, such as the MMM saturation ``beta``, unless intended.
-    dims : tuple[str, ...], optional
-        The hierarchy dims (the model-coord terms, then the interaction dims),
-        then at most one base dim: a dim that is not a term, which every offset
-        and ``mu`` span. Unset, the base dim is ``"channel"``, as for the MMM
-        saturation ``beta``. Pass the hierarchy dims alone for no base dim
-        (``mu`` scalar), or with another base dim such as ``"control"``. Any
-        other dims raise.
+        The scales of the levels, the term and interaction labels. A
+        single-variable factory: called as ``<name>_sigma``, it returns one
+        vector on the dim ``<name>_sigma_level``, whose labels are the levels,
+        terms then interactions, in spec order. :class:`IndependentSigmas`
+        (one prior per level) and :class:`VarianceBudget` (one total split
+        across the levels) are keyed by exactly the level labels and leave
+        ``dims`` unset. Any other factory, such as a pymc_extras ``Prior``,
+        is given without dims (hyperpriors allowed): a copy of it gets the dim
+        ``<name>_sigma_level`` when the variable is created. The coord
+        ``<name>_sigma_level`` is added if the model does not have it.
+    interactions : dict[str, Interaction or dict], optional
+        Interactions, keyed by label. Each is an :class:`Interaction`; a plain
+        dict with the same keys, ``{"dims": [term, ...], "centered": bool}``,
+        is also accepted, as YAML and JSON configs give it. Zero-sum over every listed
+        dim; each dim must be a term that is a model coord. Creates
+        ``<name>_<label>``.
+    transform : str or None, default "exp"
+        Applied to :math:`\eta`: any transform name a pymc_extras ``Prior``
+        accepts (a ``pytensor.tensor`` or ``pymc.math`` function, or one
+        registered with ``pymc_extras.prior.register_tensor_transform``), or
+        None for :math:`\eta` itself (signed, e.g. a control coefficient or an
+        intercept). Unlike ``Prior``, whose default is None, the default is
+        ``"exp"``, so the coefficient is positive, as the MMM saturation
+        ``beta`` must be.
     centered : bool, default False
         Parameterization of the levels that do not set ``centered``. Centered is
         ``ZeroSumNormal(sigma)``, non-centered ``sigma * ZeroSumNormal(1)``.
+    dims : tuple[str, ...], optional
+        The dims of the coefficient, in any order: the hierarchy dims (the
+        model-coord terms and the interaction dims) and at most one base dim,
+        a dim that is not a term, which every offset and ``mu`` span. Inside
+        an MMM, leave it unset: the MMM sets it to ``(*mmm.dims, "channel")``,
+        and its dims must then be the hierarchy dims. Pass ``dims`` explicitly
+        for a hierarchy over only some of the MMM dims (the coefficient then
+        broadcasts over the others), and outside the MMM.
 
     Notes
     -----
-    The spec is checked when the prior is created, and against the model coords
-    in :meth:`create_variable`, before any variable exists: unknown spec keys,
-    a ``sigma`` keyed by other labels, a ``map`` that misses or adds data
-    labels, and colliding variable names the prior generates (the
-    coefficient, the offsets, ``<name>_mu`` and the scales) all raise a
-    ``ValueError`` naming the problem. A clash with a name created inside the
-    ``mu`` or ``sigma`` hyperpriors surfaces as PyMC's "already exists" error.
-    A level whose offsets are all 0 (every parent has one child, or a parent
-    term, a crossed term or an interaction dim has one label) warns that its
-    scale is unused.
+    The spec is checked when the prior is created, ``dims`` when they are set,
+    and the rest against the model coords in :meth:`create_variable`, before
+    any variable exists: unknown spec keys, a ``sigma`` keyed by other labels,
+    a ``map`` that misses or adds data labels, colliding variable and coord
+    names the prior generates (the coefficient, the offsets, ``<name>_mu``,
+    ``<name>_sigma`` and the coords it adds), and a model coord it adds that
+    already exists with other labels all raise a ``ValueError`` naming the
+    problem. A clash
+    with a name created inside the ``mu`` or ``sigma`` factories (such as the
+    ``<name>_sigma_<level>`` of :class:`IndependentSigmas`) surfaces as PyMC's
+    "already exists" error. A level whose offsets are all 0 (every parent has
+    one child, or a parent term, a crossed term or an interaction dim has one
+    label) warns that its scale is unused.
 
     Examples
     --------
@@ -1522,19 +1703,24 @@ class NestedZeroSumPrior(SpecialPrior):
 
         from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation
         from pymc_marketing.mmm.mmm import MMM
-        from pymc_marketing.special_priors import IndependentSigmas, NestedZeroSumPrior
+        from pymc_marketing.special_priors import (
+            IndependentSigmas,
+            Interaction,
+            NestedZeroSumPrior,
+            Term,
+        )
 
         beta = NestedZeroSumPrior(
             mu=Prior("Normal", mu=0, sigma=0.5, dims="channel"),
             terms={
-                "family": {"centered": True},
-                "brand": {
-                    "within": "family",
-                    "map": {"b0": "f0", "b1": "f0", "b2": "f1", "b3": "f1"},
-                },
-                "dma": {},
+                "family": Term(centered=True),
+                "brand": Term(
+                    within="family",
+                    map={"b0": "f0", "b1": "f0", "b2": "f1", "b3": "f1"},
+                ),
+                "dma": Term(),
             },
-            interactions={"brand_dma": {"dims": ["brand", "dma"]}},
+            interactions={"brand_dma": Interaction(dims=["brand", "dma"])},
             sigma=IndependentSigmas(
                 priors={
                     "family": Prior("HalfNormal", sigma=0.3),
@@ -1580,20 +1766,16 @@ class NestedZeroSumPrior(SpecialPrior):
                         dma: {distribution: HalfNormal, sigma: 0.1}
                         brand_dma: {distribution: HalfNormal, sigma: 0.05}
 
-    The scales as one ``Prior`` vector instead, with a shared hyperprior. On
-    the saturation ``beta`` the dim is ``saturation_beta_sigma_level``, here
-    with the labels ``brand, dma``:
+    The scales as one ``Prior`` vector instead, with a shared hyperprior. It is
+    given without dims; on the saturation ``beta`` it gets the dim
+    ``saturation_beta_sigma_level``, here with the labels ``brand, dma``:
 
     .. code-block:: python
 
         beta = NestedZeroSumPrior(
             mu=Prior("Normal", mu=0, sigma=0.5, dims="channel"),
-            terms={"brand": {}, "dma": {}},
-            sigma=Prior(
-                "HalfNormal",
-                sigma=Prior("HalfNormal", sigma=0.2),
-                dims="saturation_beta_sigma_level",
-            ),
+            terms={"brand": Term(), "dma": Term()},
+            sigma=Prior("HalfNormal", sigma=Prior("HalfNormal", sigma=0.2)),
         )
 
     Outside the MMM, a signed coefficient with no base dim: an intercept per
@@ -1606,11 +1788,11 @@ class NestedZeroSumPrior(SpecialPrior):
         intercept = NestedZeroSumPrior(
             mu=Prior("Normal", mu=0, sigma=1),
             terms={
-                "region": {},
-                "dma": {
-                    "within": "region",
-                    "map": {"d0": "r0", "d1": "r0", "d2": "r1", "d3": "r1"},
-                },
+                "region": Term(),
+                "dma": Term(
+                    within="region",
+                    map={"d0": "r0", "d1": "r0", "d2": "r1", "d3": "r1"},
+                ),
             },
             sigma=IndependentSigmas(
                 priors={
@@ -1618,166 +1800,130 @@ class NestedZeroSumPrior(SpecialPrior):
                     "dma": Prior("HalfNormal", sigma=0.2),
                 }
             ),
-            link="identity",
+            transform=None,
             dims=("dma",),
         )
         with pm.Model(coords={"dma": ["d0", "d1", "d2", "d3"]}):
             intercept.create_variable("intercept")  # dims ("dma",)
     """
 
-    def __init__(self, dims: tuple | None = None, centered: bool = False, **parameters):
-        super().__init__(dims=dims, centered=centered, **parameters)
-
-    def _checks(self) -> None:
-        # Only checks that need no model: MMM.__init__ reads the saturation dims before any model exists.
-        p = self.parameters
-        if (
-            not {"mu", "terms"}
-            <= set(p)
-            <= {"mu", "terms", "interactions", "sigma", "link"}
-        ):
-            raise ValueError(
-                f"Parameters must be mu, terms, sigma and optionally interactions and link, got {sorted(p)}"
-            )
-        if p.get("link", "log") not in ("log", "identity"):
-            raise ValueError(f"link must be 'log' or 'identity', got {p['link']!r}")
-        if p.get("link") == "log":  # the default, left out so eq and MMM ids match it
-            del p["link"]
-        sigma = p.get("sigma")
-        if isinstance(
-            sigma, dict
-        ):  # a Prior dict has no __type__, so go through pymc_extras deserialize
-            sigma = _as_prior(sigma, "sigma")
-        # Map keys as str, in new dicts so the caller's spec is not mutated: JSON turns int child labels into str keys
-        terms = {
-            c: {**t, "map": {str(k): v for k, v in t["map"].items()}}
-            if "map" in t
-            else dict(t)
-            for c, t in dict(p["terms"]).items()
+    def __init__(
+        self,
+        mu: VariableFactory | dict | float | list[float],
+        terms: dict[str, Term | dict],
+        sigma: VariableFactory | dict,
+        interactions: dict[str, Interaction | dict] | None = None,
+        transform: str | None = "exp",
+        centered: bool = False,
+        dims: str | tuple[str, ...] | None = None,
+    ) -> None:
+        # Checks that need no model or dims: MMM.__init__ sets the dims, and no model exists yet
+        if transform is not None:
+            _get_transform(
+                transform
+            )  # the lookup Prior uses; raises UnknownTransformError
+        if not isinstance(centered, bool):  # a quoted YAML "false" would be truthy
+            raise ValueError(f"`centered` must be a bool, got {centered!r}")
+        self.transform, self.centered = transform, centered
+        self.terms: dict[str, Term] = {
+            k: Term.coerce(k, t) for k, t in dict(terms).items()
         }
-        interactions = dict(p.get("interactions") or {})
-        p.update(
-            mu=_as_prior(p["mu"]), terms=terms, interactions=interactions, sigma=sigma
-        )
-        if clash := sorted(set(terms) & set(interactions)):
+        self.interactions: dict[str, Interaction] = {
+            k: Interaction.coerce(k, t) for k, t in dict(interactions or {}).items()
+        }
+        self.mu, self.sigma = _as_prior(mu), _as_prior(sigma)
+        if not hasattr(
+            self.mu, "create_variable"
+        ):  # a constant: one number, or one per base label
+            mu = np.asarray(self.mu)
+            if mu.dtype.kind not in "iuf" or mu.ndim > 1:
+                raise ValueError(
+                    f"constant mu must be a number, or a list with one number per label "
+                    f"of the base dim, got {self.mu!r}"
+                )
+            self.mu = (
+                mu.tolist()
+            )  # an ndarray as a list, so from_dict(to_dict()) == self
+        if clash := sorted(set(self.terms) & set(self.interactions)):
             raise ValueError(
                 f"interactions {clash} are named like terms; term and interaction names must be unique"
             )
-        specs = {**terms, **interactions}
-        if own_sigma := [k for k, t in specs.items() if "sigma" in t]:
-            raise ValueError(
-                f"terms {own_sigma} carry their own sigma; sigma priors go in the top-level `sigma` option only"
-            )
-        for (
-            k,
-            t,
-        ) in specs.items():  # a typo (`centered`, `whithin`) would otherwise be ignored
-            allowed = _INTERACTION_KEYS if k in interactions else _TERM_KEYS
-            if unknown := sorted(set(t) - set(allowed)):
-                raise ValueError(
-                    f"{k}: unknown keys {unknown}; allowed: {list(allowed)}"
-                )
-        if no_dims := [k for k, t in interactions.items() if "dims" not in t]:
-            raise ValueError(f"interactions {no_dims} have no `dims`")
-        # The prior's name, so the exact `<name>_sigma_level` dim, is only known in create_variable
-        sigma_dims = tuple(getattr(sigma, "dims", None) or ())
+        specs = [*self.terms, *self.interactions]
+        sigma_dims = _as_dims(getattr(self.sigma, "dims", None))
+        # Every option gets its level dim from create_variable; the options keyed by level are checked here
+        levels = getattr(self.sigma, "levels", None)
         if (
-            set(getattr(sigma, "levels", ())) != set(specs)
-            if isinstance(sigma, IndependentSigmas | VarianceBudget)
-            else not hasattr(sigma, "create_variable")
-            or len(sigma_dims) != 1
-            or not str(sigma_dims[0]).endswith("_sigma_level")
+            not isinstance(self.sigma, VariableFactory)
+            or sigma_dims
+            or (levels is not None and set(levels) != set(specs))
         ):
             raise ValueError(
                 f"`sigma` must be IndependentSigmas or VarianceBudget keyed by exactly {sorted(specs)}, "
-                f"or a prior with the single dim `<name>_sigma_level` (got dims {sigma_dims})"
+                f"or a prior with no dims, which gets the dim `<name>_sigma_level` (got dims {sigma_dims})"
             )
-        parents = [t["within"] for t in terms.values() if "within" in t]
-        if shared := sorted({q for q in parents if parents.count(q) > 1} & set(terms)):
+        parents = [t.within for t in self.terms.values() if t.within is not None]
+        if shared := sorted(
+            {q for q in parents if parents.count(q) > 1} & set(self.terms)
+        ):
             raise ValueError(
                 f"terms {shared} have more than one child `within` them; a parent term enters through one child only"
             )
-        for c, t in terms.items():
-            if "within" not in t:
+        for c, t in self.terms.items():
+            if t.within is None:
                 continue
-            parent = t["within"]
-            if "map" not in t:
+            if t.within in self.terms and self.terms[t.within].within is not None:
                 raise ValueError(
-                    f"term {c} is `within: {parent}` but has no `map` ({c} label -> {parent} label)"
-                )
-            if "within" in terms.get(parent, {}):
-                raise ValueError(
-                    f"term {c} is `within: {parent}`, which is `within: {terms[parent]['within']}`; "
+                    f"term {c} is `within: {t.within}`, which is `within: {self.terms[t.within].within}`; "
                     "nesting is at most two levels per tree: a `within` parent cannot have a parent"
                 )
-            if parent not in terms and t.get("parent_effect", True):
+            if t.within not in self.terms and t.parent_effect:
                 raise ValueError(
-                    f"term {c} is `within: {parent}`, which is not a term: "
-                    f"add {parent} to `terms`, or set `parent_effect: false` on {c}"
+                    f"term {c} is `within: {t.within}`, which is not a term: "
+                    f"add {t.within} to `terms`, or set `parent_effect: false` on {c}"
                 )
-            if parent in terms and not t.get(
-                "parent_effect", True
+            if (
+                t.within in self.terms and not t.parent_effect
             ):  # the parent would enter nowhere
                 raise ValueError(
-                    f"term {c} sets `parent_effect: false` but {parent} is a term: "
-                    f"drop {parent} from `terms` and `sigma`, or drop `parent_effect`"
+                    f"term {c} sets `parent_effect: false` but {t.within} is a term: "
+                    f"drop {t.within} from `terms` and `sigma`, or drop `parent_effect`"
                 )
-            values = list(t["map"].values())
-            if None in values:
-                raise ValueError(f"term {c}: `map` has a None {parent} label")
-            if (
-                len({isinstance(v, str) for v in values}) > 1
-            ):  # np.unique would cast 0 and "0" to one parent
-                raise ValueError(
-                    f"term {c}: `map` mixes str and non-str {parent} labels {sorted(set(map(repr, values)))}; "
-                    "use one type"
-                )
-        interaction_dims = [d for t in interactions.values() for d in t["dims"]]
-        if not_coords := sorted(set(interaction_dims) - (set(terms) - set(parents))):
+        interaction_dims = [d for t in self.interactions.values() for d in t.dims]
+        if not_coords := sorted(
+            set(interaction_dims) - (set(self.terms) - set(parents))
+        ):
             raise ValueError(
                 f"interaction dims {not_coords} are not terms that are model coords (`within` parents are not coords)"
             )
-        hierarchy = tuple(
-            dict.fromkeys([k for k in terms if k not in parents] + interaction_dims)
-        )
-        if self.dims is None and "channel" in terms:
-            raise ValueError(
-                "term 'channel' is named like the default base dim 'channel'; pass `dims` explicitly"
-            )
-        dims = (
-            (*hierarchy, "channel")
-            if self.dims is None
-            else (self.dims,)
-            if isinstance(self.dims, str)
-            else tuple(self.dims)
-        )
-        if len(base := [d for d in dims if d not in terms]) > 1:
-            raise ValueError(
-                f"dims {dims} have more than one base dim {base}; at most one dim may be outside the terms"
-            )
-        if dims != (*hierarchy, *base):
-            raise ValueError(
-                f"dims {dims} must be {hierarchy}, the dims the terms and interactions imply, "
-                f"then at most one base dim; or leave dims unset for {(*hierarchy, 'channel')}"
-            )
-        mu_dims = tuple(getattr(p["mu"], "dims", None) or ())
-        if hasattr(p["mu"], "create_variable") and mu_dims != tuple(base):
-            raise ValueError(
-                f"mu has dims {mu_dims}; it must have the base dims {tuple(base)}"
-            )
-        if not hasattr(
-            p["mu"], "create_variable"
-        ):  # a constant: one number, or one per base label
-            mu = np.asarray(p["mu"])
-            if mu.dtype.kind not in "iuf" or mu.ndim > len(base):
-                raise ValueError(
-                    f"constant mu must be a number, or a list with one number per label "
-                    f"of the base dims {tuple(base)}, got {p['mu']!r}"
-                )
-            p["mu"] = (
-                mu.tolist()
-            )  # an ndarray as a list, so from_dict(to_dict()) == self
         self.dims = dims
+
+    @property
+    def dims(self) -> tuple[str, ...] | None:
+        """The dims of the coefficient; None until set (by the MMM, or the caller)."""
+        return self._dims
+
+    @dims.setter
+    def dims(self, dims: str | tuple[str, ...] | None) -> None:
+        self._dims = None if dims is None else _as_dims(dims)
+        if self._dims is None:
+            return
+        parents = {t.within for t in self.terms.values()}
+        hierarchy = {k for k in self.terms if k not in parents}
+        hierarchy |= {d for t in self.interactions.values() for d in t.dims}
+        base = [d for d in self._dims if d not in self.terms]
+        if set(self._dims) - set(base) != hierarchy or len(base) > 1:
+            raise ValueError(
+                f"dims {self._dims} must be the hierarchy dims {sorted(hierarchy)} (the model-coord terms "
+                f"and the interaction dims), in any order, and at most one base dim, got base dims {base}. "
+                "For a hierarchy over only some of the MMM dims, pass `dims` explicitly"
+            )
+        is_prior = hasattr(self.mu, "create_variable")
+        mu_dims = _as_dims(getattr(self.mu, "dims", None)) if is_prior else ()
+        if mu_dims != tuple(base) if is_prior else np.ndim(self.mu) > len(base):
+            raise ValueError(
+                f"mu must have the base dims {tuple(base)}: a prior with those dims, a number, "
+                f"or one number per base label; got {self.mu!r}"
+            )
 
     def create_variable(
         self, name: str, xdist: bool = False
@@ -1797,103 +1943,107 @@ class NestedZeroSumPrior(SpecialPrior):
         TensorVariable or XTensorVariable
             The coefficient, with dims :attr:`dims`.
         """
-        mu, terms, interactions, sigma = (
-            self.parameters[k] for k in ("mu", "terms", "interactions", "sigma")
-        )
-        coords = pm.modelcontext(None).coords
+        if self.dims is None:
+            raise ValueError(
+                f"{name}: `dims` is unset; pass `dims`, or use the prior in an MMM, which sets it"
+            )
+        mu, terms, interactions = self.mu, self.terms, self.interactions
+        model = pm.modelcontext(None)
+        coords = model.coords
         specs = {**terms, **interactions}
-        base = tuple(d for d in self.dims if d not in terms)  # type: ignore[union-attr]  # set by _checks
+        base = tuple(d for d in self.dims if d not in terms)
         if missing := [d for d in base if d not in coords]:
             raise ValueError(
                 f"the model has no `{missing[0]}` coord; coords: {sorted(coords)}"
             )
         n_base = tuple(len(coords[d]) for d in base)
         levels, level_dim = list(specs), f"{name}_sigma_level"
-        is_option = isinstance(sigma, IndependentSigmas | VarianceBudget)
-        if not is_option and tuple(sigma.dims) != (level_dim,):
-            raise ValueError(
-                f"`sigma` has dims {tuple(sigma.dims)}; for {name} it must have the single dim {level_dim!r}"
-            )
-        if not is_option and level_dim in coords and list(coords[level_dim]) != levels:
-            raise ValueError(
-                f"model coord {level_dim!r} has labels {list(coords[level_dim])}, "
-                f"but the levels of {name} (terms, then interactions) are {levels}"
-            )
         # Data checks before any variable is created
         for c, t in terms.items():
-            if c not in coords and not any(
-                u.get("within") == c for u in terms.values()
-            ):
+            if c not in coords and not any(u.within == c for u in terms.values()):
                 raise ValueError(
                     f"term {c}: not a model coord {sorted(coords)} and no term is `within` it"
                 )
-            if "within" not in t:
+            # A term with a map (so `within`) is a model coord: the check above, as no term is `within` it (__init__)
+            if t.map is None:
                 continue
-            parent = t["within"]
-            if c not in coords:
+            if missing := [lab for lab in coords[c] if str(lab) not in t.map]:
                 raise ValueError(
-                    f"term {c} is `within: {parent}`, so it must be a model coord; coords: {sorted(coords)}"
+                    f"term {c}: `map` has no {t.within} for data labels {missing}"
                 )
-            if parent in coords:
-                raise ValueError(
-                    f"term {c} is `within: {parent}`, which is a model coord; "
-                    f"a `within` parent groups {c} labels, not a coord"
-                )
-            if missing := [lab for lab in coords[c] if str(lab) not in t["map"]]:
-                raise ValueError(
-                    f"term {c}: `map` has no {parent} for data labels {missing}"
-                )
-            if extra := sorted(set(t["map"]) - {str(lab) for lab in coords[c]}):
+            if extra := sorted(set(t.map) - {str(lab) for lab in coords[c]}):
                 raise ValueError(
                     f"term {c}: `map` keys {extra} are not {c} labels in the data {list(coords[c])}"
                 )
         # Per nested term: the parent labels, and the parent index of each child in the coord order
         groups = {
-            c: np.unique([t["map"][str(lab)] for lab in coords[c]], return_inverse=True)
+            c: np.unique([t.map[str(lab)] for lab in coords[c]], return_inverse=True)
             for c, t in terms.items()
-            if "within" in t
+            if t.map is not None
         }
         if not hasattr(mu, "create_variable") and np.shape(mu) not in ((), n_base):
             raise ValueError(
                 f"constant mu has shape {np.shape(mu)}; expected () or {n_base}, one value per {base} label"
             )
-        # The names this prior generates, checked before any exists; hyperprior names are left to pymc
+        parents = {t.within for t in terms.values()}
+        # The coords this prior adds: the levels, each parent term's labels, and the children of each parent
+        new_coords = [
+            (level_dim, levels),
+            *(
+                (t.within, groups[c][0].tolist())
+                for c, t in terms.items()
+                if t.within in terms
+            ),
+            *(
+                (f"{c}_{lab}", np.asarray(coords[c])[codes == p].tolist())
+                for c, (labels, codes) in groups.items()
+                for p, lab in enumerate(labels)
+                if np.sum(codes == p) > 1
+            ),
+        ]
+        for k, labs in new_coords:
+            if k in coords and not np.array_equal(labs, coords[k]):
+                raise ValueError(
+                    f"model coord {k!r} has labels {list(coords[k])}, but {name} needs the labels {labs} "
+                    "(the sigma levels: terms, then interactions; a `within` parent's labels; or one parent's children)"
+                )
+        # The RV and coord names this prior generates, checked before any exists; names in mu and sigma are pymc's
         names = [
             name,
-            *(f"{name}_{k}" for k, t in specs.items() if "within" not in t),
             *(
-                [f"{name}_sigma_{lv}" for lv in levels]
-                if isinstance(sigma, IndependentSigmas)
-                else [f"{name}_sigma"]
+                f"{name}_{k}"
+                for k, t in specs.items()
+                if getattr(t, "within", None) is None
             ),
+            f"{name}_sigma",
             *([f"{name}_mu"] if hasattr(mu, "create_variable") else []),
             *(
                 f"{name}_{c}_{lab}"
                 for c, (labels, codes) in groups.items()
                 for lab in labels[np.bincount(codes) > 1]
             ),
+            *(k for k, _ in new_coords),
         ]
         if duplicates := sorted({r for r in names if names.count(r) > 1}):
             raise ValueError(
-                f"RV names {duplicates} are generated twice: rename a term, interaction or parent label"
+                f"RV or coord names {duplicates} are generated twice: rename a term, interaction or parent label"
             )
         for c, (_, codes) in groups.items():  # a scale that only multiplies zeros
-            parent = terms[c]["within"]
             if np.bincount(codes).max() < 2:
                 warnings.warn(
-                    f"term {c}: every {parent} has one {c}, so all {c} offsets are 0 and its sigma is unused",
+                    f"term {c}: every {terms[c].within} has one {c}, so all {c} offsets are 0 and its sigma is unused",
                     stacklevel=2,
                 )
         one_label = [  # parent terms, then crossed terms
             *(
-                t["within"]
+                t.within
                 for c, t in terms.items()
-                if c in groups and t["within"] in terms and len(groups[c][0]) == 1
+                if c in groups and t.within in terms and len(groups[c][0]) == 1
             ),
             *(
                 c
                 for c, t in terms.items()
-                if "within" not in t and c in coords and len(coords[c]) == 1
+                if t.within is None and c not in parents and len(coords[c]) == 1
             ),
         ]
         for c in one_label:
@@ -1901,47 +2051,49 @@ class NestedZeroSumPrior(SpecialPrior):
                 f"term {c} has one label, so its effect is 0 and its sigma is unused",
                 stacklevel=2,
             )
-        for k, t in interactions.items():
-            if one := [d for d in t["dims"] if len(coords[d]) == 1]:
+        for k, x in interactions.items():
+            if one := [d for d in x.dims if len(coords[d]) == 1]:
                 warnings.warn(
                     f"interaction {k}: dims {one} have one label, so its offsets are 0 and its sigma is unused",
                     stacklevel=2,
                 )
-        if is_option:
-            scales = sigma.create_variable(f"{name}_sigma", levels)
-        else:
-            # A no-op when the labels match, e.g. when a lazily built R2D2 decomposition added the coord first
-            pm.modelcontext(None).add_coord(level_dim, levels)
-            sigma_var = sigma.create_variable(f"{name}_sigma")
-            sigma_var = getattr(
-                sigma_var, "values", sigma_var
-            )  # XTensorVariable -> TensorVariable
-            # A factory may ignore its dims, so check the length it actually returned
-            if (shape := tuple(sigma_var.shape.eval().tolist())) != (len(levels),):
-                raise ValueError(
-                    f"`sigma` returned shape {shape}; "
-                    f"expected ({len(levels)},), one scale per level {levels}"
-                )
-            scales = {lv: sigma_var[i] for i, lv in enumerate(levels)}
+        # A no-op when the labels match, e.g. when a lazily built R2D2 decomposition or another prior added it first
+        for k, labs in new_coords:
+            model.add_coord(k, labs)
+        sigma = copy.deepcopy(self.sigma)  # every sigma option: a copy on the level dim
+        sigma.dims = (level_dim,)
+        sigma = sigma.create_variable(f"{name}_sigma", xdist=True)
+        sigma = getattr(sigma, "values", sigma)  # XTensorVariable -> TensorVariable
+        # A factory may ignore its dims, so check the length it actually returned
+        if (shape := tuple(sigma.shape.eval().tolist())) != (len(levels),):
+            raise ValueError(
+                f"`sigma` returned shape {shape}; "
+                f"expected ({len(levels)},), one scale per level {levels}"
+            )
 
-        def zero_sum(level, rv_name, shape, n_zerosum_axes=1):
-            centered = specs[level].get("centered", self.centered)
+        def zero_sum(level, rv_name, dims, n_zerosum_axes=1):
+            centered = (
+                self.centered
+                if specs[level].centered is None
+                else specs[level].centered
+            )
+            scale = sigma[levels.index(level)]
             offset = pm.ZeroSumNormal(
                 f"{name}_{rv_name}",
-                sigma=scales[level] if centered else 1.0,
-                shape=shape,
+                sigma=scale if centered else 1.0,
+                dims=dims,
                 n_zerosum_axes=n_zerosum_axes,
             )
-            return offset if centered else scales[level] * offset
+            return offset if centered else scale * offset
 
-        mu = (  # a constant mu: a float or one value per base label
-            mu.create_variable(f"{name}_mu")
+        eta = as_xtensor(  # beta before the transform; a constant mu is a float or one value per base label
+            mu.create_variable(f"{name}_mu", xdist=True)
             if hasattr(mu, "create_variable")
-            else pt.broadcast_to(pt.as_tensor(mu), n_base)
+            else pt.broadcast_to(pt.as_tensor(mu), n_base),
+            dims=base,
         )
-        eta = as_xtensor(mu, dims=base)  # beta on the link scale
         for c, t in terms.items():
-            if "within" in t:
+            if t.within is not None:
                 labels, codes = groups[c]
                 offset = pt.zeros((len(codes), *n_base))
                 for p, label in enumerate(
@@ -1951,63 +2103,71 @@ class NestedZeroSumPrior(SpecialPrior):
                     if len(idx) > 1:
                         offset = pt.set_subtensor(
                             offset[idx],
-                            zero_sum(c, f"{c}_{label}", (*n_base, len(idx))).T,
+                            zero_sum(c, f"{c}_{label}", (*base, f"{c}_{label}")).T,
                         )
-                if t["within"] in terms:  # otherwise parent_effect is False (_checks)
+                if t.within in terms:  # otherwise parent_effect is False (__init__)
                     offset = (
                         offset
-                        + zero_sum(t["within"], t["within"], (*n_base, len(labels))).T[
-                            codes
-                        ]
+                        + zero_sum(t.within, t.within, (*base, t.within)).T[codes]
                     )
                 eta = eta + as_xtensor(offset, dims=(c, *base))
-            elif c in coords:
-                eta = eta + as_xtensor(
-                    zero_sum(c, c, (*n_base, len(coords[c]))), dims=(*base, c)
-                )
-        for k, t in interactions.items():
-            shape = (*n_base, *(len(coords[d]) for d in t["dims"]))
-            eta = eta + as_xtensor(
-                zero_sum(k, k, shape, len(t["dims"])), dims=(*base, *t["dims"])
+            elif c not in parents:
+                eta = eta + as_xtensor(zero_sum(c, c, (*base, c)), dims=(*base, c))
+        for k, x in interactions.items():
+            dims = (*base, *x.dims)
+            eta = eta + as_xtensor(zero_sum(k, k, dims, len(x.dims)), dims=dims)
+        beta = eta.transpose(*self.dims)
+        if (
+            self.transform is not None
+        ):  # on the tensor, the same lookup that validated it
+            beta = as_xtensor(
+                _get_transform(self.transform)(beta.values), dims=self.dims
             )
-        if self.parameters.get("link", "log") == "log":
-            eta = pmd.math.exp(eta)
-        beta = pmd.Deterministic(name, eta.transpose(*self.dims))  # type: ignore[misc]
+        beta = pmd.Deterministic(name, beta)
         return beta if xdist else beta.values
 
-    def to_dict(self):
-        """Convert the prior to a dictionary."""
-        # SpecialPrior.to_dict writes `centered` only when it is False and `dims` only when not empty,
-        # but here the default centered is False and empty dims are not the default
-        return super().to_dict() | {"centered": self.centered, "dims": self.dims}
+    def to_dict(self) -> dict:
+        """Serialize to a dictionary of plain values (terms and interactions as plain dicts)."""
+        return {
+            "mu": self.mu.to_dict() if hasattr(self.mu, "to_dict") else self.mu,
+            "terms": {k: t.to_dict() for k, t in self.terms.items()},
+            "interactions": {k: t.to_dict() for k, t in self.interactions.items()},
+            "sigma": self.sigma.to_dict()
+            if hasattr(self.sigma, "to_dict")
+            else self.sigma,
+            "transform": self.transform,
+            "centered": self.centered,
+            "dims": None if self.dims is None else list(self.dims),
+        }
 
-    def __hash__(self):
-        """Hash the parts __eq__ compares that are order-free (SpecialPrior hashes str(dict), so key order)."""
+    @classmethod
+    def from_dict(cls, data: dict) -> "NestedZeroSumPrior":
+        """Create the prior from a dictionary created by :meth:`to_dict`."""
+        return cls(**{k: v for k, v in data.items() if k != "__type__"})
+
+    def __eq__(self, other: object) -> bool:
+        """Equal when the serialized forms are: the order of map, sigma and spec keys does not matter."""
+        return (
+            isinstance(other, NestedZeroSumPrior) and self.to_dict() == other.to_dict()
+        )
+
+    def __hash__(self) -> int:
+        """Hash the parts :meth:`__eq__` compares that are order-free, so equal priors hash equal."""
         return hash(
             (
                 type(self).__name__,
                 self.dims,
+                self.transform,
                 self.centered,
-                frozenset(self.parameters["terms"]),
-                frozenset(self.parameters["interactions"]),
+                frozenset(self.terms),
+                frozenset(self.interactions),
             )
-        )
-
-    @classmethod
-    def from_dict(cls, data) -> "NestedZeroSumPrior":
-        """Create the prior from a dictionary created by :meth:`to_dict`."""
-        # SpecialPrior.from_dict would deserialize() every dict argument, `terms` and `interactions` included
-        return cls(
-            dims=data.get("dims"),
-            centered=data.get("centered", False),
-            **data["kwargs"],
         )
 
 
 # MMM.load reads the saturation priors back through pymc_extras.deserialize, which does not consult
-# pymc-marketing's registry. NestedZeroSumPrior is found by `_deserialize_special_prior`,
-# the sigma options by `__type__`.
-for _cls in (IndependentSigmas, VarianceBudget):
+# pymc-marketing's registry, so the classes are also found there by `__type__`.
+for _cls in (IndependentSigmas, VarianceBudget, NestedZeroSumPrior):
     register_deserialization(
         is_type=lambda d, _c=_cls: (
             isinstance(d, dict)
