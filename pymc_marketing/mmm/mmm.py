@@ -179,6 +179,7 @@ Notes
 
 from __future__ import annotations
 
+import functools
 import io
 import json
 import warnings
@@ -211,6 +212,7 @@ from pymc_marketing.data.idata.utils import (
 from pymc_marketing.hsgp_kwargs import HSGPKwargs
 from pymc_marketing.mmm import SoftPlusHSGP
 from pymc_marketing.mmm.additive_effect import (
+    DataVarMuEffect,
     EventAdditiveEffect,
     MuEffect,
     safe_to_datetime,
@@ -535,6 +537,54 @@ class _WindowLayout(NamedTuple):
     carry_in: int
     decisions: int
     carry_over: int
+
+
+# What `MMM.build_model` assigns on the instance. `X`, the dataset, the coords and
+# the scales are set before the target checks and the graph are finished.
+_BUILD_STATE = (
+    "X",
+    "xarray_dataset",
+    "model_coords",
+    "scalers",
+    "_time_index",
+    "_time_resolution",
+    "model",
+    "channel_data_scaled",
+    "target_data_scaled",
+    "_library_data_names",
+    "_lift_test_calibrations",
+    "_cost_per_target_calibrations",
+    "_cost_per_target_spend",
+    "_built_dataset",
+    "_built_var_names",
+)
+
+
+def _restore_build_state_on_error(
+    build: Callable[..., None],
+) -> Callable[..., None]:
+    """Leave the instance as it was when ``build`` raises.
+
+    A build that fails would otherwise leave a new dataset and coords next to
+    the old graph, or a graph with no free variables in place of a fitted one.
+    """
+
+    @functools.wraps(build)
+    def wrapper(self: MMM, *args: Any, **kwargs: Any) -> None:
+        before = {
+            name: getattr(self, name) for name in _BUILD_STATE if hasattr(self, name)
+        }
+        try:
+            build(self, *args, **kwargs)
+        except BaseException:
+            for name in _BUILD_STATE:
+                if name in before:
+                    setattr(self, name, before[name])
+                else:
+                    self.__dict__.pop(name, None)
+            raise
+
+    return wrapper
 
 
 class MMM(RegressionModelBuilder):
@@ -894,10 +944,6 @@ class MMM(RegressionModelBuilder):
         self._cost_per_unit_input = cost_per_unit
         self._plot_suite: Literal["legacy", "new"] = "legacy"
         self._plot_suite_warned: bool = False
-        # True only while the built model's observed target is the ones
-        # placeholder that `sample_prior_predictive` substitutes for a missing
-        # `y` under a LogNormalPrior likelihood; see `fit`.
-        self._target_is_placeholder: bool = False
         # Label order of custom dims that `build_from_idata` imposes on the
         # rebuilt data, so that the model matches the loaded posterior by label.
         self._custom_dim_order: dict[str, pd.Index] = {}
@@ -914,6 +960,11 @@ class MMM(RegressionModelBuilder):
 
         self.mu_effects: list[MuEffect] = []
         self._lift_test_calibrations: list[dict[str, Any]] = []
+        # Variables `build_model` creates; anything else was added afterwards.
+        self._built_var_names: frozenset[str] = frozenset()
+        # The data the current model was built on. None until a build
+        # finishes, so a build that raised partway is never reused by `fit`.
+        self._built_dataset: xr.Dataset | None = None
         self._cost_per_target_calibrations: list[dict[str, Any]] = []
         self._cost_per_target_spend: dict[str, xr.DataArray] = {}
 
@@ -2205,6 +2256,25 @@ class MMM(RegressionModelBuilder):
         X: pd.DataFrame | xr.Dataset | xr.DataArray,
         y: pd.Series | pd.DataFrame | xr.DataArray | np.ndarray | None = None,
     ):
+        self.X = X
+        self.xarray_dataset = self._to_xarray_dataset(X, y)
+
+        self.model_coords = {
+            dim: self.xarray_dataset.coords[dim].values
+            for dim in self.xarray_dataset.coords.dims
+        }
+
+        if bool(self.time_varying_intercept) or bool(self.time_varying_media):
+            dates = pd.DatetimeIndex(self.xarray_dataset.coords["date"].values)
+            self._time_index = xr.DataArray(np.arange(len(dates)), dims=("date",))
+            self._time_resolution = (dates[1] - dates[0]).days
+
+    def _to_xarray_dataset(
+        self,
+        X: pd.DataFrame | xr.Dataset | xr.DataArray,
+        y: pd.Series | pd.DataFrame | xr.DataArray | np.ndarray | None = None,
+    ) -> xr.Dataset:
+        """Convert ``X`` and ``y`` to the dataset :meth:`build_model` stores."""
         if isinstance(y, pd.DataFrame):
             if y.shape[1] != 1:
                 raise ValueError(
@@ -2233,9 +2303,7 @@ class MMM(RegressionModelBuilder):
                 f"it to '{self.target_column}'."
             )
 
-        self.X = X
-
-        self.xarray_dataset = to_mmm_dataset(
+        dataset = to_mmm_dataset(
             X,
             y,
             date_column=self.date_column,
@@ -2244,25 +2312,17 @@ class MMM(RegressionModelBuilder):
             control_columns=self.control_columns,
             target_column=self.target_column,
         ).fillna(0)
-        self.xarray_dataset = self._reindex_custom_dims(self.xarray_dataset)
+        dataset = self._reindex_custom_dims(dataset)
 
-        self.xarray_dataset["_channel"] = self.xarray_dataset["_channel"].astype(float)
-        # Integer control columns (0/1 flags) would otherwise make `control_data`
-        # an int node, and later values written into it would be truncated.
-        if "_control" in self.xarray_dataset:
-            self.xarray_dataset["_control"] = self.xarray_dataset["_control"].astype(
-                float
-            )
+        dataset["_channel"] = dataset["_channel"].astype(float)
+        # Integer control columns (0/1 flags) or targets (unit sales) would
+        # otherwise make an int node, and later values written into it would be
+        # truncated.
+        for name in ("_control", "_target"):
+            if name in dataset:
+                dataset[name] = dataset[name].astype(float)
 
-        self.model_coords = {
-            dim: self.xarray_dataset.coords[dim].values
-            for dim in self.xarray_dataset.coords.dims
-        }
-
-        if bool(self.time_varying_intercept) or bool(self.time_varying_media):
-            dates = pd.DatetimeIndex(self.xarray_dataset.coords["date"].values)
-            self._time_index = xr.DataArray(np.arange(len(dates)), dims=("date",))
-            self._time_resolution = (dates[1] - dates[0]).days
+        return dataset
 
     @property
     def y(self) -> npt.NDArray[np.floating]:
@@ -2745,12 +2805,30 @@ class MMM(RegressionModelBuilder):
         Raises
         ------
         ValueError
+            If the model must be rebuilt for a new ``X`` but variables, such as
+            calibrations, were added to it after it was built, or the mu effects
+            read variables that ``X`` does not carry, or if the target changes
+            the target scale of a model with lift tests.
+        ValueError
             If the model carries cost-per-target calibration and ``X`` has dates
             or dimension labels other than those the model was built with; the
             built model is reused, and its calibration spend covers only those.
 
         Notes
         -----
+        If the model was already built, for example by
+        :meth:`sample_prior_predictive` or an earlier ``fit``, it is rebuilt
+        when the data in ``X`` differs from the data it was built on. A rebuild
+        clears ``idata``, since the prior was sampled from the old model, and
+        warns when that drops a prior group.
+
+        Otherwise, the target passed here, as ``y`` or inside ``X``, replaces
+        the observed target and its scale, and the data of the model is set back
+        to the data it was built on. If that changes the target scale, the prior
+        variables built on it, such as the ``*_original_scale`` ones, are
+        dropped from the prior and prior predictive groups of ``idata`` with a
+        warning. The rest of the prior is on the scaled space and is kept.
+
         Calibration added with :meth:`add_lift_test_measurements` or
         :meth:`add_cost_per_target_calibration` is recorded with the posterior:
         the rows and options in ``idata.attrs``, and the cost-per-target spend
@@ -2760,17 +2838,8 @@ class MMM(RegressionModelBuilder):
         # A refit replaces the posterior and can move its coordinate labels, which
         # the evaluator's shared binding would refuse; build against it from scratch.
         self._clear_incrementality_evaluator_cache()
-        if hasattr(self, "model") and self._target_is_placeholder:
-            warnings.warn(
-                "The model was built by `sample_prior_predictive` with a "
-                "placeholder target of ones because no `y` was given, and "
-                "`fit` reuses an existing model without refreshing its observed "
-                "target (see issue #2956). The posterior will be fit to the "
-                "placeholder, not to `y`. Build the model with the real target "
-                "first, or fit a fresh instance.",
-                UserWarning,
-                stacklevel=2,
-            )
+        if hasattr(self, "model"):
+            self._update_model_for_fit(X, y)
         idata = super().fit(
             X,
             y,
@@ -2794,6 +2863,202 @@ class MMM(RegressionModelBuilder):
             self.set_cost_per_unit(self._cost_per_unit_input)
         return idata
 
+    def _update_model_for_fit(
+        self,
+        X: pd.DataFrame | xr.Dataset | xr.DataArray,
+        y: pd.Series | pd.DataFrame | xr.DataArray | np.ndarray | None,
+    ) -> None:
+        """Make the built model observe the data passed to :meth:`fit`.
+
+        A new ``X`` can change the coords and the channel scale, which the
+        built graph cannot take, so the model is rebuilt. With the same ``X``,
+        only the observed target and its scale are replaced, which keeps
+        anything added to the graph after it was built.
+
+        ``X`` is compared only on the variables it provides: a model built
+        from a ``Dataset`` with extra variables is fit with the equivalent
+        ``DataFrame``, which cannot carry them.
+        """
+        # Check every input before anything changes, so a raise leaves the
+        # model as it was.
+        checked_X, checked_y = self._validate_fit_inputs(X, y)
+        dataset = self._to_xarray_dataset(X, y)
+        built = self._built_dataset
+        if built is not None:
+            # `pm.set_data` assigns by position. A DataFrame comes out of
+            # `_to_xarray_dataset` with sorted custom-dim labels while a Dataset
+            # keeps its own order, so put the labels in the order of the build.
+            dataset = dataset.reindex(
+                {
+                    dim: built.indexes[dim]
+                    for dim in self.dims
+                    if dim in dataset.indexes
+                    and set(dataset.indexes[dim]) == set(built.indexes[dim])
+                }
+            )
+        X_vars = [name for name in dataset.data_vars if name != "_target"]
+        same_X = (
+            built is not None
+            and set(X_vars) <= set(built.data_vars)
+            and dataset[X_vars].equals(built[X_vars])
+        )
+        # `_validate_fit_inputs` guarantees a target: `y`, or the one `X` carries.
+        target = dataset["_target"]
+        target_scale = self._compute_scale_for_variable(target, self.scaling.target)
+        self._validate_observed_target(target, target_scale)
+
+        if built is None or not same_X:
+            # Without `built` there is nothing to compare `X` with, so rebuild.
+            if built is not None and (
+                added := sorted(set(self.model.named_vars) - self._built_var_names)
+            ):
+                raise ValueError(
+                    "`fit` got a new `X`, which rebuilds the model and drops "
+                    f"what was added to it after it was built: {added}. Call "
+                    "`build_model` with this data, add them again, and then "
+                    "call `fit`."
+                )
+            # The rebuild reads these from `X`, which a DataFrame cannot carry.
+            # Fail here: inside `build_model` the old model is already gone.
+            if missing := sorted(
+                {
+                    name
+                    for effect in self.mu_effects
+                    if isinstance(effect, DataVarMuEffect)
+                    for name in effect.data_vars
+                }
+                - set(dataset.data_vars)
+            ):
+                raise ValueError(
+                    "`fit` got a new `X`, which rebuilds the model, but the mu "
+                    f"effects read {missing} and `X` does not carry them. Pass "
+                    "`X` as a Dataset with these variables."
+                )
+            prior_groups = (
+                []
+                if self.idata is None
+                else [
+                    group
+                    for group in ("prior", "prior_predictive")
+                    if group in self.idata.children
+                ]
+            )
+            self.build_model(checked_X, checked_y)
+            if prior_groups:
+                warnings.warn(
+                    "`fit` got a new `X`, so the model was rebuilt and the "
+                    f"{prior_groups} groups of `idata` were dropped, since they "
+                    "were sampled from the old model. Call "
+                    "`sample_prior_predictive` again to get them.",
+                    UserWarning,
+                    stacklevel=3,
+                )
+            self.idata = None
+            return
+
+        if not target_scale.equals(self.scalers["_target"]):
+            # Lift-test rows are scaled once, with the target scale at the
+            # time they are added.
+            if self._lift_test_calibrations:
+                raise ValueError(
+                    "`fit` got a `y` that changes the target scale, but lift "
+                    "tests were added with the old scale. Call `build_model` "
+                    "with this data, add the lift tests again, and then call "
+                    "`fit`."
+                )
+            self._drop_target_scale_variables_from_prior()
+
+        self.xarray_dataset["_target"] = target
+        self.scalers["_target"] = target_scale
+        # Write back everything `build_model` saw, not only what `X` carries:
+        # a posterior predictive on new dates with `clone_model=False` also
+        # moved the data the mu effects read.
+        restored = built.assign(_target=target)
+        self._set_xarray_data(restored, model=self.model)
+        for effect in self.mu_effects:
+            effect.set_data(self, self.model, restored)
+        pm.set_data({"target_scale": target_scale}, model=self.model)
+
+    def _drop_target_scale_variables_from_prior(self) -> None:
+        """Drop the prior variables built on ``target_scale`` from ``idata``.
+
+        A fit that changes the scale leaves them on the old one. The graph says
+        which they are, so none is missed for its name: the ``*_original_scale``
+        variables, the cost-per-target calibration, the increment under the log
+        link and the variables a user defined from ``target_scale``. The other
+        prior variables are on the scaled space and stay valid. A group left
+        with no variables is removed.
+        """
+        if self.idata is None:
+            return
+        scale = self.model["target_scale"]
+        roots = {scale, *(scale.owner.inputs if scale.owner else [])}
+        built_on_scale = {
+            str(name)
+            for name, var in self.model.named_vars.items()
+            if var not in self.model.data_vars
+            and not roots.isdisjoint(ancestors([var]))
+        }
+        dropped: list[str] = []
+        for group in ("prior", "prior_predictive"):
+            if group not in self.idata.children:
+                continue
+            ds = self.idata[group].to_dataset()
+            stale = [n for n in ds.data_vars if str(n) in built_on_scale]
+            if not stale:
+                continue
+            dropped.extend(str(n) for n in stale)
+            remaining = ds.drop_vars(stale)
+            if remaining.data_vars:
+                self.idata[group] = remaining
+            else:
+                del self.idata[group]
+        if dropped:
+            warnings.warn(
+                "`fit` changed the target scale, so these variables were dropped "
+                f"from the prior in `idata`: {sorted(set(dropped))}. Call "
+                "`sample_prior_predictive` again to get them.",
+                UserWarning,
+                stacklevel=4,
+            )
+
+    def _validate_observed_target(
+        self, target: xr.DataArray, target_scale: xr.DataArray
+    ) -> None:
+        """Raise if the likelihood cannot observe ``target`` at ``target_scale``.
+
+        Shared by :meth:`build_model` and :meth:`fit`, so both run these checks
+        before the model changes.
+        """
+        likelihood = self.model_config["likelihood"]
+        # Link-independent: every link and likelihood would fit an infinite
+        # target as 0 after the clamp in `build_model`.
+        _reject_infinite_target(target.values)
+        self._link_spec.validate_target(target.values)
+        # LogNormalPrior observes the raw target on the strictly positive
+        # support, which the link-level validate_target cannot know about.
+        if isinstance(likelihood, LogNormalPrior):
+            likelihood.validate_observed(target.values)
+
+        # An all-zero target is the placeholder that `sample_prior_predictive`
+        # substitutes when no `y` is given (the zeros default in
+        # `model_builder.py`). It has no support to respect, and failing it
+        # would break building a model in order to look at its prior, so skip
+        # the check rather than reject the placeholder.
+        if not np.any(target.values != 0):
+            return
+        # The likelihood observes the target over its scale, with NaN/inf
+        # clamped to 0 as `target_data_scaled` does in `build_model`, not
+        # the raw target: the scale can be negative, so the raw values are
+        # not the ones being fitted.
+        scaled = (target / target_scale).transpose("date", *self.dims).values
+        LinkSpec.validate_likelihood_support(
+            likelihood,
+            np.where(np.isfinite(scaled), scaled, 0.0),
+            target_scale=target_scale.values,
+        )
+
+    @_restore_build_state_on_error
     def build_model(  # type: ignore[override]
         self,
         X: pd.DataFrame | xr.Dataset | xr.DataArray,
@@ -2907,19 +3172,15 @@ class MMM(RegressionModelBuilder):
             X=X,
             y=y,
         )
-        self._target_is_placeholder = False
 
         likelihood = self.model_config["likelihood"]
-        if "_target" in self.xarray_dataset.data_vars:
-            # Link-independent: every link and likelihood would fit an
-            # infinite target as 0 after the clamp below.
-            _reject_infinite_target(self.xarray_dataset["_target"].values)
-            self._link_spec.validate_target(self.xarray_dataset["_target"].values)
-            # LogNormalPrior observes the raw target on the strictly positive
-            # support, which the link-level validate_target cannot know about.
-            if isinstance(likelihood, LogNormalPrior):
-                likelihood.validate_observed(self.xarray_dataset["_target"].values)
         LinkSpec.validate_likelihood_compatibility(self.link, likelihood)
+
+        # Compute and save scales
+        self._compute_scales()
+        self._validate_observed_target(
+            self.xarray_dataset["_target"], self.scalers["_target"]
+        )
 
         if self.link == LinkFunction.LOG and self.mu_effects:
             warnings.warn(
@@ -2930,9 +3191,6 @@ class MMM(RegressionModelBuilder):
                 UserWarning,
                 stacklevel=2,
             )
-
-        # Compute and save scales
-        self._compute_scales()
 
         with pm.Model(coords=self.model_coords) as self.model:
             if self.yearly_seasonality:
@@ -2976,26 +3234,6 @@ class MMM(RegressionModelBuilder):
             target_data_scaled.name = "target_scaled"
             ## TODO: Find a better way to save it or access it in the pytensor graph.
             self.target_data_scaled = target_data_scaled
-
-            # The likelihood observes this, not `_target`, so the support check
-            # has to run here rather than next to `validate_target` above: the
-            # scale can be negative and the switch above rewrites NaN/inf to
-            # zero, so the raw target's values are not the ones being fitted.
-            # `validate_likelihood_support` evaluates the variable only if the
-            # likelihood has a support to check, so the default `Normal` pays
-            # nothing.
-            #
-            # An all-zero target is the placeholder that `fit` and
-            # `sample_prior_predictive` substitute when no `y` is given
-            # (`model_builder.py:1546`, `:1772`). It has no support to respect,
-            # and failing it would break building a model in order to look at
-            # its prior, so skip the check rather than reject the placeholder.
-            if np.any(self.xarray_dataset["_target"].values != 0):
-                LinkSpec.validate_likelihood_support(
-                    self.model_config["likelihood"],
-                    target_data_scaled,
-                    target_scale=self.scalers["_target"].values,
-                )
 
             # DataVarMuEffect inputs may be shared by several effects, but must
             # never reuse data nodes that MMM registered for its own internals.
@@ -3157,6 +3395,9 @@ class MMM(RegressionModelBuilder):
                 observed=target_data_scaled,
                 xdist=True,
             )
+
+        self._built_var_names = frozenset(self.model.named_vars)
+        self._built_dataset = self.xarray_dataset.copy()
 
     def _validate_date_overlap_with_include_last_observations(
         self, X: xr.Dataset, include_last_observations: bool
@@ -3767,12 +4008,9 @@ class MMM(RegressionModelBuilder):
         a strictly positive placeholder target of ones is used instead of
         the base class's zeros default, which the likelihood's
         ``validate_observed`` would reject before any draws are produced.
-        That path emits a ``UserWarning`` and marks the instance, so that a
-        later :meth:`fit` on it, which reuses the built model and would
-        train on the placeholder rather than the real target, warns again
-        (see issue #2956).
+        That path emits a ``UserWarning``; a later :meth:`fit` observes the
+        target it is given, not the placeholder.
         """
-        placeholder_target = False
         if y is None and has_embedded_target(X, self.target_column):
             if not hasattr(self, "model"):
                 self.build_model(X)
@@ -3794,14 +4032,11 @@ class MMM(RegressionModelBuilder):
                 )
             else:
                 y = np.ones(len(X))
-            placeholder_target = True
             warnings.warn(
                 "No target was provided, so the model is being built with a "
                 "placeholder target of ones to satisfy the LogNormalPrior "
-                "likelihood. A later `fit` on this instance reuses the built "
-                "model and would train on that placeholder instead of the real "
-                "target (see issue #2956). Pass `y` to `sample_prior_predictive`, "
-                "or create a fresh model before fitting.",
+                "likelihood. A later `fit` observes the target it is given, not "
+                "the placeholder.",
                 UserWarning,
                 stacklevel=2,
             )
@@ -3813,10 +4048,6 @@ class MMM(RegressionModelBuilder):
             combined=combined,
             **kwargs,
         )
-        if placeholder_target:
-            # Set after delegating: build_model, which runs inside the base
-            # call, resets the flag.
-            self._target_is_placeholder = True
         self._warn_on_degenerate_lognormal_draws(
             prior_predictive_samples, group_label="prior-predictive"
         )
