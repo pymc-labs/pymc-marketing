@@ -317,6 +317,11 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :link: ../notebooks/mmm/mmm_case_study2.html
 :::
 
+:::{grid-item-card} MMM Case Study III: Multiplicative Funnel Model, Channel Synergies, and Prior Sensitivity
+:img-top: ../gallery/images/mmm_case_study3.png
+:link: ../notebooks/mmm/mmm_case_study3.html
+:::
+
 :::{grid-item-card} Pareto Optimization Across Products with a Shared Media Budget
 :img-top: ../gallery/images/mmm_pareto_optimization_frontier.png
 :link: ../notebooks/mmm/mmm_pareto_optimization.html
