@@ -38,6 +38,7 @@ from pymc_marketing.clv.distributions import (
     ModifiedBetaGeoNBD,
     ParetoNBD,
     ShiftedBetaGeometric,
+    ShiftedBetaGeometricRV,
 )
 
 
@@ -869,8 +870,9 @@ class TestShiftedBetaGeometric:
                     draws = dist.eval()
 
                     # Check basic properties
+                    assert draws.dtype == np.float64
                     assert np.all(draws > 0)
-                    assert np.all(draws.astype(int) == draws)
+                    assert np.all(draws == np.floor(draws))
                     assert np.mean(draws) > 0
                     assert np.var(draws) >= 0
 
@@ -884,11 +886,51 @@ class TestShiftedBetaGeometric:
                     dist = self.pymc_dist.dist(alpha=alpha, beta=beta, size=1000)
                     draws = dist.eval()
 
-                    # Check basic properties
+                    # Check basic properties: the support is the positive
+                    # integers carried in float64, so the tail may overflow to
+                    # inf where int64 used to wrap at its max (#2018)
+                    assert draws.dtype == np.float64
                     assert np.all(draws > 0)
-                    assert np.all(draws.astype(int) == draws)
-                    assert np.mean(draws) >= 1
+                    finite = draws[np.isfinite(draws)]
+                    assert np.all(finite == np.floor(finite))
+                    assert np.all(np.isinf(draws) | (draws >= 1))
                     assert np.var(draws) >= 0
+
+        def test_rng_fn_extreme_tail_is_carried_not_wrapped(self):
+            """#2018: a clipped p of 1e-100 makes the geometric tail
+            unbounded. int64 wrapped those draws at its max; float64 carries
+            them (up to inf)."""
+
+            rng = np.random.default_rng(7)
+            # Beta(1e-300, 1e-300) underflows to 0.0 or 1.0, so every draw
+            # hits a clip boundary: p = 1e-100 or p = 1
+            draws = ShiftedBetaGeometricRV.rng_fn(
+                rng, np.array(1e-300), np.array(1e-300), size=10_000
+            )
+
+            assert draws.dtype == np.float64
+            finite = draws[np.isfinite(draws)]
+            assert np.all(finite >= 1)
+            assert np.all(finite == np.floor(finite))
+            # Both clip boundaries are exercised: p=1 draws exactly 1, and the
+            # p=1e-100 tail reaches values int64 would have wrapped at its max
+            assert np.any(draws == 1.0)
+            assert np.any(draws > np.iinfo(np.int64).max)
+
+        def test_rng_fn_matches_the_mixture_distribution(self):
+            """P(X <= 2) = 2E[p] - E[p^2] for p ~ Beta(alpha, beta): with
+            alpha = beta = 5 that is 2(1/2) - (5*6)/(10*11) = 0.7273. The old
+            rng.geometric draw satisfies it too, so this pins the replacement
+            draw to the same law (#2018)."""
+
+            rng = np.random.default_rng(11)
+            draws = ShiftedBetaGeometricRV.rng_fn(
+                rng, np.array(5.0), np.array(5.0), size=200_000
+            )
+
+            finite = draws[np.isfinite(draws)]
+            empirical = np.mean(finite <= 2)
+            assert abs(empirical - 0.7273) < 0.01
 
     def test_logp(self):
         alpha = pt.scalar("alpha")
