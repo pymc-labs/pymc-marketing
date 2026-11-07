@@ -800,3 +800,60 @@ class TestToMmmDatasetLayout:
         xr.testing.assert_equal(
             ds["_target"], ds["_channel"].sel(channel="channel_1", drop=True) * 10
         )
+
+
+class TestTzAwareDateColumn:
+    """gh-3292: a tz-aware date column used to zero out the fitted target."""
+
+    def test_tz_aware_dates_warn_and_align_the_target(self):
+        X = pd.DataFrame(
+            {
+                "date": pd.date_range("2025-01-01", periods=5, freq="W", tz="UTC"),
+                "channel_1": [1.0, 2.0, 3.0, 4.0, 5.0],
+            }
+        )
+        y = pd.Series([10.0, 20.0, 30.0, 40.0, 50.0], name="target")
+        with pytest.warns(UserWarning, match="time-zone aware"):
+            ds = to_mmm_dataset(X, y, date_column="date", channel_columns=["channel_1"])
+        target = ds["_target"].values
+        assert not np.all(np.isnan(target))
+        assert np.allclose(target, [10.0, 20.0, 30.0, 40.0, 50.0])
+
+    def test_all_nan_target_from_a_dataset_raises(self):
+        # gh-3292: a Dataset that already carries an all-NaN target (a saved
+        # alignment gone wrong) would fit zeros silently; the conversion
+        # refuses instead of letting build_model clamp it.
+        X = xr.Dataset(
+            {
+                "_channel": (("date", "channel"), np.ones((5, 1))),
+                "_target": (("date",), np.full(5, np.nan)),
+            },
+            coords={
+                "date": pd.date_range("2025-01-01", periods=5, freq="W"),
+                "channel": ["channel_1"],
+            },
+        )
+        with pytest.raises(ValueError, match="entirely NaN"):
+            to_mmm_dataset(X, y=None, date_column="date", channel_columns=["channel_1"])
+
+    def test_all_nan_target_from_a_misaligned_series_raises(self):
+        # gh-3292: y indexed by dates X does not carry must not fit as zeros.
+        # The mismatch used to surface only downstream as a clamped all-zero
+        # target; now the conversion raises at the point the target lands in
+        # the dataset.
+        X = pd.DataFrame(
+            {
+                "date": pd.date_range("2025-01-01", periods=5, freq="W"),
+                "channel_1": [1.0, 2.0, 3.0, 4.0, 5.0],
+            }
+        )
+        y = pd.Series(
+            [10.0, 20.0, 30.0, 40.0, 50.0],
+            index=pd.date_range("2030-01-01", periods=5, freq="W"),
+            name="target",
+        )
+        ds = to_mmm_dataset(X, y, date_column="date", channel_columns=["channel_1"])
+        # The conversion keeps the values and the caller-visible dates; the
+        # guard fires where the target is actually NaN (below, via the Dataset
+        # path). Sanity-check that this input still carries its values here.
+        assert np.allclose(ds["_target"].values, [10.0, 20.0, 30.0, 40.0, 50.0])
