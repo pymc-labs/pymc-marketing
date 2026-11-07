@@ -1226,6 +1226,46 @@ def test_save_load(fit_mmm: MMM):
     os.remove(file)
 
 
+class _NamedGroupEffect(MuEffect):
+    """A minimal effect that persists one named idata group."""
+
+    group_name: str
+
+    def create_data(self, mmm):
+        return None
+
+    def create_effect(self, mmm):
+        return None
+
+    def set_data(self, mmm, model, X):
+        return None
+
+    def idata_groups(self):
+        return {self.group_name: xr.Dataset({"value": ("x", [1.0])})}
+
+
+def test_save_refuses_duplicate_idata_group_names(fit_mmm: MMM, tmp_path):
+    # gh-3291: two effects returning the same group name used to save only the
+    # first, and on load one effect was rebuilt from the other's data.
+    fit_mmm.add_mu_effect(_NamedGroupEffect(group_name="supplementary"))
+    fit_mmm.add_mu_effect(_NamedGroupEffect(group_name="supplementary"))
+
+    with pytest.raises(ValueError, match="both return idata group 'supplementary'"):
+        fit_mmm.save(tmp_path / "clash.nc")
+
+
+def test_save_writes_distinct_effect_groups(fit_mmm: MMM, tmp_path):
+    fit_mmm.add_mu_effect(_NamedGroupEffect(group_name="supplementary_a"))
+    fit_mmm.add_mu_effect(_NamedGroupEffect(group_name="supplementary_b"))
+
+    file = tmp_path / "distinct.nc"
+    fit_mmm.save(file)
+
+    loaded = MMM.load(file)
+    assert "supplementary_a" in loaded.idata.children
+    assert "supplementary_b" in loaded.idata.children
+
+
 def test_save_load_roundtrip_with_unnamed_y_series(
     simple_mmm_data, mock_pymc_sample, tmp_path
 ):
