@@ -1039,13 +1039,8 @@ class MMM(RegressionModelBuilder):
             return False
         # Length check above ensures zip lengths match, suppressing B905 warning
         for self_effect, other_effect in zip(self.mu_effects, other.mu_effects):  # noqa: B905
-            if self_effect.__class__ is not other_effect.__class__:
+            if self_effect != other_effect:
                 return False
-            if hasattr(self_effect, "model_dump") and hasattr(
-                other_effect, "model_dump"
-            ):
-                if self_effect.model_dump() != other_effect.model_dump():
-                    return False
 
         # Causal graph
         if (
@@ -2242,6 +2237,7 @@ class MMM(RegressionModelBuilder):
             dims=self.dims,
             channel_columns=self.channel_columns,
             control_columns=self.control_columns,
+            extra_vars=self._effect_extra_vars(X),
             target_column=self.target_column,
         ).fillna(0)
         self.xarray_dataset = self._reindex_custom_dims(self.xarray_dataset)
@@ -3179,6 +3175,31 @@ class MMM(RegressionModelBuilder):
                 f"Either set include_last_observations=False or use input dates that don't overlap with training data."
             )
 
+    def _effect_extra_vars(
+        self, X: pd.DataFrame | xr.Dataset | xr.DataArray
+    ) -> list[str] | None:
+        """Columns of a DataFrame ``X`` that mu_effects read as data variables.
+
+        ``xr.Dataset`` inputs keep all their data variables, so this only
+        matters for DataFrames, whose extra columns are otherwise dropped.
+        """
+        if not isinstance(X, pd.DataFrame):
+            return None
+        reserved = {
+            self.date_column,
+            self.target_column,
+            *self.dims,
+            *self.channel_columns,
+            *(self.control_columns or []),
+        }
+        names = [
+            var_name
+            for effect in self.mu_effects
+            for var_name in getattr(effect, "data_vars", [])
+            if var_name in X.columns and var_name not in reserved
+        ]
+        return list(dict.fromkeys(names)) or None
+
     def _posterior_predictive_data_transformation(
         self,
         X: pd.DataFrame | xr.Dataset | xr.DataArray,
@@ -3192,6 +3213,7 @@ class MMM(RegressionModelBuilder):
             dims=self.dims,
             channel_columns=self.channel_columns,
             control_columns=self.control_columns,
+            extra_vars=self._effect_extra_vars(X),
             target_column=self.target_column,
         )
 
@@ -3589,6 +3611,7 @@ class MMM(RegressionModelBuilder):
         )
 
         for mu_effect in self.mu_effects:
+            mu_effect.check_scenario_use(self)
             mu_effect.set_data(self, pymc_model, dataset_xarray)
 
         return pymc_model
@@ -4601,6 +4624,9 @@ class MMM(RegressionModelBuilder):
             "name": name,
         }
         json.dumps(calibration)
+
+        for mu_effect in self.mu_effects:
+            mu_effect.check_lift_tests(self, df_lift_test)
 
         # Function to scale "delta_y", and "sigma" to same scale as target in model.
         target_transform = self._make_target_transform(df_lift_test)
@@ -5794,6 +5820,7 @@ class BudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
             model=self.model_class.model.copy(),
         )
         for mu_effect in self.model_class.mu_effects:
+            mu_effect.check_scenario_use(self.model_class)
             mu_effect.set_data(self.model_class, pymc_model, dataset_xarray)
         return pymc_model
 
