@@ -234,6 +234,10 @@ from pymc_marketing.mmm.events import EventEffect, days_from_reference
 from pymc_marketing.mmm.fourier import FourierBase
 from pymc_marketing.mmm.linear_trend import LinearTrend
 from pymc_marketing.mmm.media_transformation import MediaTransformation
+from pymc_marketing.mmm.optimization_variables import (
+    reject_missing_coords,
+    reject_unknown_coords,
+)
 from pymc_marketing.mmm.validating import _validate_non_numeric_dtype
 from pymc_marketing.serialization import SerializableBaseModel, serialization
 
@@ -642,6 +646,14 @@ class DataVarMuEffect(MuEffect, ABC):
     def set_data(self, mmm: Model, model: pm.Model, X: xr.Dataset) -> None:
         """Update ``pm.Data`` variables from a new prediction dataset.
 
+        Each variable of ``data_vars`` present in ``X`` is written in the dim
+        order of its ``pm.Data`` node, so the layout of the variable in *X* does
+        not matter; a node registered without ``dims`` is written as *X* lays it
+        out. On every dim other than ``date`` that carries labels in both ``X``
+        and the model, the values are matched to the model's coordinates by
+        label, so those labels may run in any order. Other dims are written by
+        position. Variables absent from ``X`` keep their current values.
+
         Parameters
         ----------
         mmm : Model
@@ -650,10 +662,29 @@ class DataVarMuEffect(MuEffect, ABC):
             The PyMC model.
         X : xr.Dataset
             The new prediction dataset.
+
+        Raises
+        ------
+        ValueError
+            If a variable in ``X`` has dim labels the model does not have, or
+            lacks labels the model has.
         """
         for var_name in self.data_vars:
-            if var_name in X.data_vars:
-                pm.set_data({var_name: X[var_name].values}, model=model)
+            if var_name not in X.data_vars:
+                continue
+            da = X[var_name]
+            if dims := model.named_vars_to_dims.get(var_name):
+                da = da.transpose(*dims)
+            coords = {
+                dim: np.asarray(model.coords[dim]).tolist()
+                for dim in da.dims
+                if dim != "date"
+                and dim in da.indexes
+                and model.coords.get(dim) is not None
+            }
+            reject_unknown_coords(da, coords, label=repr(var_name))
+            reject_missing_coords(da, coords, label=repr(var_name))
+            pm.set_data({var_name: da.reindex(coords).values}, model=model)
 
 
 class MediaMuEffect(DataVarMuEffect):
@@ -1044,6 +1075,7 @@ class LinearTrendEffect(MuEffect):
     prefix: str
     date_dim_name: str = Field("date")
     linear_trend_first_date: Any = Field(default=None, exclude=True)
+    linear_trend_last_date: Any = Field(default=None, exclude=True)
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize to a dict. ``__type__`` is injected by the registry wrapper."""
@@ -1092,6 +1124,7 @@ class LinearTrendEffect(MuEffect):
             model.coords[self.date_dim_name], self.date_dim_name
         )
         self.linear_trend_first_date = dates[0]
+        self.linear_trend_last_date = dates.max()
         t = (dates - self.linear_trend_first_date).days.astype(float)
 
         pmd.Data(f"{self.prefix}_t", t, dims=self.date_dim_name)
@@ -1115,9 +1148,13 @@ class LinearTrendEffect(MuEffect):
         t_name = f"{self.prefix}_t"
         t = model[t_name]
 
-        t_max = t.max()
-        t = t / ptx.math.switch(t_max > 0, t_max, 1)
-        trend_effect = self.trend.apply(t)
+        # Scale by the training span, fixed when the model is built. The
+        # maximum of the data would follow ``set_data`` to the prediction
+        # dates, which must instead map past 1 so that the trend continues
+        # from the last changepoint (#1569, #3298).
+        t_max = float((self.linear_trend_last_date - self.linear_trend_first_date).days)
+        scale = t_max if t_max > 0 else 1.0
+        trend_effect = self.trend.apply(t / scale, t_max=t_max / scale)
 
         return pmd.Deterministic(
             f"{self.prefix}_effect_contribution",

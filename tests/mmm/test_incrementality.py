@@ -13,9 +13,13 @@
 #   limitations under the License.
 """Tests for Incrementality module - counterfactual analysis with carryover."""
 
+import copy
 import json
 import logging
+import math
+import sys
 import warnings
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -76,6 +80,7 @@ from pymc_marketing.mmm.transformers import (
     logistic_saturation,
 )
 from pymc_marketing.model_graph import deterministics_to_flat
+from pymc_marketing.pytensor_utils import ConditionedModel
 from pymc_marketing.serialization import serialization
 from tests.mmm.test_spend_reach import (
     effective_l_max,
@@ -595,26 +600,32 @@ def non_after_fitted_mmm(request, simple_mmm_data):
     return mmm
 
 
-@pytest.fixture(scope="module")
-def dataset_ordered_panel_fitted_mmm():
-    """A panel MMM whose ``geo`` coordinate is not in sorted order (#3212).
+def _fit_dataset_ordered_panel_mmm(**model_kwargs):
+    """Fit a panel MMM whose ``geo`` coordinate is not in sorted order (#3212).
 
     A ``DataFrame`` input is sorted on the way into the model, so only a model
     built from an ``xr.Dataset`` keeps an unsorted coordinate, while
-    ``fit_data`` is sorted by ``create_fit_data`` regardless.  ``north`` spends
-    and sells ten times what ``east`` does, so a label paired with the other
-    geo's value is off by an order of magnitude rather than by rounding.
+    ``fit_data`` is sorted by ``create_fit_data`` regardless.  ``north``,
+    ``east`` and ``south`` are sized ``10 : 3 : 1`` and their spend and sales
+    scale with that size, so a label paired with another geo's value is off
+    by a factor of about two or more rather than by rounding.  Each axis has
+    three labels, so a test can permute an axis cyclically: a permutation of
+    two labels is a swap, its own inverse, and cannot tell a reorder from one
+    applied backwards.  ``channel`` is unsorted too, and no cyclic
+    permutation of either axis is its sorted order, the order an xarray
+    alignment can produce.
 
     Fitted like :func:`tests.mmm.conftest.mock_fit`, which cannot be reused
-    here: it builds the model and ``fit_data`` from the same ``X``, and
-    ``create_fit_data`` would flatten the Dataset's ``media`` variable into long
-    format rather than one column per channel.
+    here: it builds the model and ``fit_data`` from the same ``X``, while this
+    fixture needs a model built from the Dataset and a ``fit_data`` built from
+    the sorted DataFrame.  ``model_kwargs`` override the MMM's defaults (a
+    ``LogisticSaturation`` under the identity link).
     """
     rng = np.random.default_rng(3212)
     dates = pd.date_range("2024-01-01", periods=16, freq="W-MON")
-    geos = ["north", "east"]
-    channels = ["tv", "search"]
-    size = xr.DataArray([10.0, 1.0], dims="geo", coords={"geo": geos})
+    geos = ["north", "east", "south"]
+    channels = ["tv", "social", "search"]
+    size = xr.DataArray([10.0, 3.0, 1.0], dims="geo", coords={"geo": geos})
     unit_spend = xr.DataArray(
         rng.gamma(2.0, 1.0, size=(len(dates), len(geos), len(channels))),
         dims=("date", "geo", "channel"),
@@ -627,22 +638,29 @@ def dataset_ordered_panel_fitted_mmm():
             1.0
             + 0.3 * unit_spend.sel(channel="tv", drop=True)
             + 0.5 * unit_spend.sel(channel="search", drop=True)
+            + 0.2 * unit_spend.sel(channel="social", drop=True)
         )
     ).transpose("date", "geo")
     X = media.to_dataset("channel").to_dataframe().reset_index()
     y = target.rename("target").to_series()
 
-    mmm = MMM(
-        date_column="date",
-        channel_columns=channels,
-        target_column="target",
-        dims=("geo",),
-        adstock=GeometricAdstock(l_max=2),
-        saturation=LogisticSaturation(),
-    )
+    with warnings.catch_warnings():
+        # link="log" is flagged experimental.
+        warnings.simplefilter("ignore", UserWarning)
+        mmm = MMM(
+            date_column="date",
+            channel_columns=channels,
+            target_column="target",
+            dims=("geo",),
+            adstock=GeometricAdstock(l_max=2),
+            **{"saturation": LogisticSaturation(), **model_kwargs},
+        )
     mmm.build_model(X=xr.Dataset({"media": media, "target": target}))
     assert list(mmm.model.coords["geo"]) == geos
-    mmm.add_original_scale_contribution_variable(var=["channel_contribution"])
+    if mmm.link == "identity":
+        # Under the identity link the stored original-scale contribution
+        # summed over dates is the all-time zero-out increment.
+        mmm.add_original_scale_contribution_variable(var=["channel_contribution"])
     mmm._set_xarray_data(mmm.xarray_dataset, model=mmm.model)
     with mmm.model:
         idata = pm.sample_prior_predictive(draws=100, random_seed=rng)
@@ -658,6 +676,147 @@ def dataset_ordered_panel_fitted_mmm():
     mmm.idata = idata
     mmm.set_idata_attrs(idata=idata)
     return mmm
+
+
+@pytest.fixture(scope="module")
+def dataset_ordered_panel_fitted_mmm():
+    """A panel MMM with an unsorted ``geo`` coordinate and a scalar target scale."""
+    return _fit_dataset_ordered_panel_mmm()
+
+
+@pytest.fixture(scope="module")
+def per_geo_scaled_dataset_ordered_panel_fitted_mmm():
+    """The unsorted panel MMM with one target scale per geo.
+
+    The identity reducer multiplies every increment by the target scale, so
+    with a ``geo`` axis on the scale a geo paired with another's scale is off
+    by the size ratio, a factor of three or more.
+    """
+    mmm = _fit_dataset_ordered_panel_mmm(
+        scaling={
+            "target": {"method": "max", "dims": ()},
+            "channel": {"method": "max", "dims": ()},
+        }
+    )
+    assert mmm.model["target_scale"].type.ndim == 1
+    return mmm
+
+
+@pytest.fixture(scope="module")
+def log_link_dataset_ordered_panel_fitted_mmm():
+    """The unsorted panel MMM under a log link.
+
+    The log reducer weights every increment by the baseline response
+    ``mu_original_scale``, which carries a ``geo`` axis.
+    """
+    return _fit_dataset_ordered_panel_mmm(link="log", saturation=LogSaturation())
+
+
+@pytest.fixture(scope="module")
+def saturation_first_dataset_ordered_panel_fitted_mmm():
+    """The unsorted, per-geo-scaled panel MMM with saturation before the adstock.
+
+    The class of model the closed form is exact for, whose saturation stage is
+    evaluated through PyMC on the spend in ``constant_data``.
+    """
+    return _fit_dataset_ordered_panel_mmm(
+        adstock_first=False,
+        scaling={
+            "target": {"method": "max", "dims": ()},
+            "channel": {"method": "max", "dims": ()},
+        },
+    )
+
+
+# Every route that reduces an increment, by name, for the tests that store
+# ``idata`` in another layout and expect the same numbers.
+_INCREMENT_ROUTES = {
+    "per_channel": lambda incr: incr.compute_incremental_contribution(
+        frequency="all_time"
+    ),
+    "per_channel_mean": lambda incr: incr.compute_incremental_contribution(
+        frequency="all_time", central_tendency="mean"
+    ),
+    "marginal": lambda incr: incr.compute_incremental_contribution(
+        frequency="monthly", counterfactual_spend_factor=1.01
+    ),
+    "joint": lambda incr: incr.compute_joint_incremental_contribution(
+        frequency="all_time"
+    ),
+    "over_time": lambda incr: incr.split_incremental_contribution_over_time(
+        frequency="monthly"
+    ),
+    "current_future": (
+        lambda incr: incr.split_incremental_contribution_current_future(
+            frequency="monthly"
+        )
+    ),
+    "allocation": lambda incr: incr.split_incremental_contribution_over_time(
+        frequency="monthly", estimand="allocation"
+    ),
+    "closed_form_over_time": (
+        lambda incr: incr.split_incremental_contribution_over_time(
+            frequency="monthly", method="closed_form"
+        )
+    ),
+    "closed_form_allocation": (
+        lambda incr: incr.split_incremental_contribution_over_time(
+            frequency="monthly", estimand="allocation", method="closed_form"
+        )
+    ),
+    "closed_form_current_future": (
+        lambda incr: incr.split_incremental_contribution_current_future(
+            frequency="monthly", method="closed_form"
+        )
+    ),
+}
+
+# The routes each unsorted panel model is checked on: the log reducer's own
+# inputs, every identity route, and the closed form where it is exact.
+_ROUTES_BY_MODEL = {
+    "log_link_dataset_ordered_panel_fitted_mmm": (
+        "per_channel",
+        "per_channel_mean",
+        "marginal",
+        "joint",
+        "over_time",
+    ),
+    "per_geo_scaled_dataset_ordered_panel_fitted_mmm": (
+        "per_channel",
+        "joint",
+        "over_time",
+        "current_future",
+        "allocation",
+    ),
+    "saturation_first_dataset_ordered_panel_fitted_mmm": (
+        "closed_form_over_time",
+        "closed_form_allocation",
+        "closed_form_current_future",
+    ),
+}
+
+# A cyclic permutation of three labels and its inverse.  Unlike a swap, a
+# cycle is not its own inverse, so a reorder applied backwards shows.
+_CYCLE = [1, 2, 0]
+_INVERSE_CYCLE = [2, 0, 1]
+
+
+def _assert_same_increments(result, expected) -> None:
+    """Assert ``result`` holds ``expected``'s numbers under ``expected``'s labels.
+
+    The current/future split is a Dataset whose variables share one layout.
+    """
+    layout = (
+        expected["current"] if isinstance(expected, xr.Dataset) else expected
+    ).dims
+    labels = {
+        name: expected[name].values
+        for name in ("geo", "channel")
+        if name in expected.dims
+    }
+    xr.testing.assert_allclose(
+        result.sel(labels).transpose(*layout), expected, rtol=1e-8
+    )
 
 
 class TestIncrementality:
@@ -746,8 +905,9 @@ class TestIncrementality:
     ):
         """Per-geo ROAS pairs each geo's increment with that geo's spend (#3212).
 
-        The division aligns by label, so an increment labelled with the other
-        geo is divided by the other geo's spend, a tenfold error either way.
+        The division aligns by label, so an increment labeled with another
+        geo is divided by that geo's spend, an error of a factor of about two
+        or more.
         """
         mmm = dataset_ordered_panel_fitted_mmm
         spend = mmm.xarray_dataset["_channel"].sum("date")
@@ -760,19 +920,27 @@ class TestIncrementality:
 
         xr.testing.assert_allclose(roas, expected.transpose(*roas.dims), rtol=1e-8)
 
+    @pytest.mark.parametrize(
+        "model_fixture",
+        [
+            "dataset_ordered_panel_fitted_mmm",
+            "per_geo_scaled_dataset_ordered_panel_fitted_mmm",
+        ],
+    )
     def test_labels_pair_with_their_cells_after_save_and_load(
-        self, dataset_ordered_panel_fitted_mmm, tmp_path
+        self, request, model_fixture, tmp_path
     ):
         """A reloaded model labels each geo with its own increment (#3212).
 
-        ``MMM.load`` rebuilds the model from the sorted ``fit_data``, so the
-        reloaded model's coords are sorted while ``posterior`` and
-        ``constant_data`` keep the Dataset's order, which is the order the
-        increment is evaluated in.  Under this additive model the all-time
-        zero-out increment is the stored contribution summed over dates.
+        ``MMM.load`` rebuilds the model from ``fit_data``, whose labels are
+        sorted, while ``posterior`` and ``constant_data`` keep the Dataset's
+        order; the rebuilt model must read every draw and input with its own
+        geo, including a per-geo target scale.  Under this additive model the
+        all-time zero-out increment is the stored contribution summed over
+        dates.
         """
         path = tmp_path / "mmm.nc"
-        dataset_ordered_panel_fitted_mmm.save(str(path))
+        request.getfixturevalue(model_fixture).save(str(path))
         loaded = MMM.load(str(path))
         expected = loaded.idata.posterior["channel_contribution_original_scale"].sum(
             "date"
@@ -783,6 +951,107 @@ class TestIncrementality:
         )
 
         xr.testing.assert_allclose(result, expected.transpose(*result.dims), rtol=1e-8)
+
+    @pytest.mark.parametrize(
+        "group",
+        ["posterior", "constant_data", "both_same", "both_different", "mixed"],
+    )
+    @pytest.mark.parametrize(
+        "model_fixture, dim, route",
+        [
+            *[
+                ("log_link_dataset_ordered_panel_fitted_mmm", "geo", route)
+                for route in _ROUTES_BY_MODEL[
+                    "log_link_dataset_ordered_panel_fitted_mmm"
+                ]
+            ],
+            *[
+                (model_fixture, dim, route)
+                for model_fixture in (
+                    "per_geo_scaled_dataset_ordered_panel_fitted_mmm",
+                    "saturation_first_dataset_ordered_panel_fitted_mmm",
+                )
+                for dim in ("geo", "channel")
+                for route in _ROUTES_BY_MODEL[model_fixture]
+            ],
+        ],
+    )
+    def test_a_reordered_axis_in_idata_leaves_every_increment_unchanged(
+        self, request, model_fixture, dim, route, group
+    ):
+        """Storing ``geo`` or ``channel`` in another order in ``idata`` changes no number.
+
+        The evaluator computes the change in the linear predictor in the model's
+        order.  The reducer rescales it by inputs read from ``idata`` in the
+        order idata stores them: ``mu_original_scale`` and the mean-scale
+        correction under the log link, the per-geo target scale under the
+        identity link.  The closed form and the allocation shares evaluate the
+        posterior's transformations through PyMC on the spend in
+        ``constant_data``.  The axis is permuted cyclically in the posterior,
+        in ``constant_data``, in both the same way, in both in inverse orders
+        (so the model, the posterior and the data each have their own order),
+        or in the posterior while ``constant_data`` permutes the other axis.
+        Each cell must still meet its own draws and inputs on every route, and
+        the geos are sized ``10 : 3 : 1``, so a positional pairing shows.
+        """
+        mmm = request.getfixturevalue(model_fixture)
+        other = "channel" if dim == "geo" else "geo"
+        orders = {
+            "posterior": {"posterior": {dim: _CYCLE}},
+            "constant_data": {"constant_data": {dim: _CYCLE}},
+            "both_same": {"posterior": {dim: _CYCLE}, "constant_data": {dim: _CYCLE}},
+            "both_different": {
+                "posterior": {dim: _CYCLE},
+                "constant_data": {dim: _INVERSE_CYCLE},
+            },
+            "mixed": {"posterior": {dim: _CYCLE}, "constant_data": {other: _CYCLE}},
+        }[group]
+        reordered = mmm.idata.copy()
+        for name, indexers in orders.items():
+            reordered[name] = xr.DataTree(reordered[name].to_dataset().isel(indexers))
+
+        expected = _INCREMENT_ROUTES[route](mmm.incrementality)
+        result = _INCREMENT_ROUTES[route](Incrementality(model=mmm, idata=reordered))
+
+        _assert_same_increments(result, expected)
+
+    @pytest.mark.parametrize(
+        "model_fixture, route",
+        [
+            (model_fixture, route)
+            for model_fixture, routes in _ROUTES_BY_MODEL.items()
+            for route in routes
+        ],
+    )
+    def test_a_transposed_posterior_variable_leaves_every_increment_unchanged(
+        self, request, model_fixture, route
+    ):
+        """Storing a posterior variable's dims in another order changes no number.
+
+        Every variable with two or more non-sample dims is stored with them
+        reversed, so ``saturation_lam`` and ``adstock_alpha`` are stored as
+        ``(channel, geo)``: three by three, so a positional read is wrong
+        without an error.  The closed form and the allocation shares evaluate
+        those parameters through PyMC, which reads values in storage order
+        against the dims the model declares.
+        """
+        mmm = request.getfixturevalue(model_fixture)
+        posterior = mmm.idata["posterior"].to_dataset()
+        # Every variable is stored as (chain, draw, ...), so the rest is reversed.
+        transposed = posterior.assign(
+            {
+                name: var.transpose("chain", "draw", *reversed(var.dims[2:]))
+                for name, var in posterior.data_vars.items()
+                if var.ndim > 3
+            }
+        )
+        stored = mmm.idata.copy()
+        stored["posterior"] = xr.DataTree(transposed)
+
+        expected = _INCREMENT_ROUTES[route](mmm.incrementality)
+        result = _INCREMENT_ROUTES[route](Incrementality(model=mmm, idata=stored))
+
+        _assert_same_increments(result, expected)
 
     def test_non_after_convolution_matches_full_axis_oracle(self, non_after_fitted_mmm):
         """The public API retains all leading kernel mass for one-date periods."""
@@ -842,30 +1111,35 @@ class TestIncrementality:
             random_state=42,
         )
 
-        assert result_sub.sizes["chain"] == 1
-        assert result_sub.sizes["draw"] == 10
+        n_chains = simple_fitted_mmm.idata.posterior.sizes["chain"]
+        assert result_sub.sizes["chain"] == n_chains
+        assert result_sub.sizes["draw"] == math.ceil(10 / n_chains)
 
     def test_num_samples_selects_whole_draws_across_chains(self, simple_fitted_mmm):
-        """``num_samples`` counts across chains and carries whole draws through.
+        """``num_samples`` keeps whole draws, under the posterior's labels.
 
         The second chain gets a rescaled ``saturation_beta`` so every
         ``(chain, draw)`` pair yields a distinct increment.  Duplicating the
         posterior instead would let a chain-major/draw-major mix-up pass
-        unnoticed, since both orderings would then select equal values.
+        unnoticed, since both orderings would then select equal values.  The
+        labels are not ``0..n-1``, so a result relabeled by position would
+        fail to line up with the posterior.
         """
         mmm = simple_fitted_mmm
         posterior = mmm.idata.posterior
         if hasattr(posterior, "dataset"):
             posterior = posterior.dataset
 
-        chain2 = posterior.assign_coords(chain=[posterior.chain.values[0] + 1])
+        posterior = posterior.assign_coords(
+            chain=[7], draw=posterior.draw.values + 1000
+        )
+        chain2 = posterior.assign_coords(chain=[9])
         chain2["saturation_beta"] = chain2["saturation_beta"] * 0.5
         multi_chain = xr.concat([posterior, chain2], dim="chain")
         mmm.idata["posterior"] = multi_chain
 
         n_chains = multi_chain.sizes["chain"]
-        n_draws = multi_chain.sizes["draw"]
-        num_samples = 10
+        num_samples = 11  # not a multiple of n_chains, so rounding up is exercised
         assert n_chains == 2
 
         full = mmm.incrementality.compute_incremental_contribution(frequency="all_time")
@@ -875,27 +1149,17 @@ class TestIncrementality:
             random_state=42,
         )
 
-        # num_samples is a total, not a per-chain count.
-        assert subset.sizes["chain"] == 1
-        assert subset.sizes["draw"] == num_samples
+        for dim in ("chain", "draw"):
+            np.testing.assert_array_equal(full[dim], multi_chain[dim])
+        # num_samples is a total, kept as the same draws in every chain.
+        assert subset.sizes["chain"] == n_chains
+        assert subset.sizes["draw"] == math.ceil(num_samples / n_chains)
 
         # The premise: the chains genuinely disagree, so draw identity matters.
         assert not np.allclose(full.isel(chain=0).values, full.isel(chain=1).values)
 
-        # Same chain-major flat selection that subsample_draws makes.
-        flat_indices = np.random.default_rng(42).choice(
-            n_chains * n_draws, size=num_samples, replace=False
-        )
-        expected = (
-            full.stack(sample=("chain", "draw"))
-            .isel(sample=flat_indices)
-            .transpose("sample", ...)
-        )
-
-        np.testing.assert_allclose(
-            subset.squeeze("chain", drop=True).transpose("draw", ...).values,
-            expected.values,
-            rtol=1e-10,
+        xr.testing.assert_allclose(
+            subset, full.sel(chain=subset.chain, draw=subset.draw), rtol=1e-10
         )
 
     def test_random_state_makes_subsampling_reproducible(self, simple_fitted_mmm):
@@ -1327,6 +1591,37 @@ class TestStackSamples:
         np.testing.assert_allclose(stacked.values, [0.0, 1.0, 2.0, 3.0, 4.0, 5.0])
 
 
+class TestSubsampleDraws:
+    """Choosing the posterior draws a subsampled result is computed from."""
+
+    def test_rounding_up_to_every_draw_returns_the_posterior(self):
+        """Five of six draws round up to three per chain, which is all of them."""
+        posterior = xr.Dataset(
+            {"x": (("chain", "draw"), np.arange(2 * 3, dtype=float).reshape(2, 3))}
+        )
+
+        subsample = incrementality_module._subsample_draws_per_chain(
+            posterior, num_samples=5
+        )
+
+        assert subsample is posterior
+
+    @pytest.mark.parametrize(
+        "subsample",
+        [incrementality_module._subsample_draws_per_chain, subsample_draws],
+        ids=["per_chain", "flattened"],
+    )
+    @pytest.mark.parametrize("num_samples", [0, -1])
+    def test_refuses_fewer_than_one_draw(self, subsample, num_samples):
+        """Zero would return an empty ``draw`` dimension instead of failing."""
+        posterior = xr.Dataset(
+            {"x": (("chain", "draw"), np.arange(2 * 3, dtype=float).reshape(2, 3))}
+        )
+
+        with pytest.raises(ValueError, match="num_samples must be at least 1"):
+            subsample(posterior, num_samples=num_samples)
+
+
 class TestIncrementalReducers:
     """Unit tests for the link-specific reduction, without a fitted model.
 
@@ -1456,6 +1751,21 @@ class TestIncrementalReducers:
         """The base class cannot be instantiated without a reduction."""
         with pytest.raises(TypeError):
             IncrementalReducer()
+
+    def test_a_reducer_must_decide_how_to_restrict_to_samples(self):
+        """A reducer without ``for_samples`` cannot be instantiated.
+
+        Inheriting ``return self`` while holding a per-sample input would pass
+        every test small enough to be one block, and fail only on a posterior
+        large enough to be split.
+        """
+
+        class Undecided(IncrementalReducer):
+            def per_date_increment(self, delta):
+                return delta
+
+        with pytest.raises(TypeError, match="for_samples"):
+            Undecided()
 
 
 class TestLogLinkIncrementality:
@@ -1753,13 +2063,10 @@ class TestLogLinkIncrementality:
         subsample.  A draw misalignment between the two would weight deltas by
         the wrong draws' baselines -- a silently wrong number, not an error --
         and a self-consistency check cannot see it.  So the subsampled result is
-        compared against the full oracle restricted to the very draws
-        ``subsample_draws`` selects, on a two-chain posterior so the chain-major
-        flattening is observable too.
+        compared against the full oracle at the labels of the draws it reports,
+        on a two-chain posterior so the chain-major flattening is observable too.
         """
         mmm = log_link_two_chain_fitted_mmm
-        posterior = mmm.idata.posterior.dataset
-        n_chains, n_draws = posterior.sizes["chain"], posterior.sizes["draw"]
         num_samples = 10
 
         result = mmm.incrementality.compute_incremental_contribution(
@@ -1767,20 +2074,10 @@ class TestLogLinkIncrementality:
         )
 
         full = compute_log_link_ground_truth_by_period(mmm, frequency="all_time")
-        # Same chain-major flat selection that subsample_draws makes.
-        flat_indices = np.random.default_rng(123).choice(
-            n_chains * n_draws, size=num_samples, replace=False
-        )
-        expected = (
-            full.stack(sample=("chain", "draw"))
-            .isel(sample=flat_indices)
-            .transpose("sample", ...)
-        )
+        expected = full.sel(chain=result.chain, draw=result.draw)
 
         np.testing.assert_allclose(
-            result.squeeze("chain", drop=True).transpose("draw", ...).values,
-            expected.values,
-            rtol=1e-6,
+            result.transpose(*expected.dims).values, expected.values, rtol=1e-6
         )
 
     def test_mean_central_tendency_matches_the_corrected_oracle(
@@ -3433,6 +3730,23 @@ def _fit_custom_mmm(data, **kwargs):
     return mmm
 
 
+def _two_relabeled_chains(mmm):
+    """Lay *mmm*'s posterior out as two chains under non-default labels.
+
+    The second chain has its own ``saturation_beta`` and ``adstock_alpha``, so
+    pairing a draw of one array with another draw of the other gives a
+    different number.
+    """
+    posterior = mmm.idata.posterior.dataset.assign_coords(
+        chain=[7], draw=mmm.idata.posterior.draw.values + 1000
+    )
+    chain2 = posterior.assign_coords(chain=[9])
+    chain2["saturation_beta"] = chain2["saturation_beta"] * 0.5
+    chain2["adstock_alpha"] = chain2["adstock_alpha"] * 0.7
+    mmm.idata["posterior"] = xr.concat([posterior, chain2], dim="chain")
+    return mmm
+
+
 @pytest.fixture
 def adstock_last_fitted_mmm(simple_mmm_data):
     """An ``adstock_first=False`` model, where saturation runs before carryover."""
@@ -3486,9 +3800,7 @@ class TestSplitIncrementalContribution:
         def evaluated(*args, **kwargs):
             raise AssertionError("the periods were evaluated")
 
-        monkeypatch.setattr(
-            CounterfactualEvaluator, "evaluate_counterfactual", evaluated
-        )
+        monkeypatch.setattr(CounterfactualEvaluator, "iter_counterfactual", evaluated)
 
     @pytest.mark.parametrize(
         "model_fixture, frequency, counterfactual_spend_factor",
@@ -4395,7 +4707,7 @@ class TestAllocationEstimand:
         a_first = matrix.sel(spend_date=dates[first], realization_date=dates[landing])
         a_second = matrix.sel(spend_date=dates[second], realization_date=dates[landing])
 
-        posterior = subsample_draws(mmm.idata.posterior.dataset, **subsample())
+        posterior = mmm.idata.posterior.dataset.sel(chain=full.chain, draw=full.draw)
         alpha = posterior["adstock_alpha"].sel(channel="channel_1")
         expected = (alpha ** (landing - first) * 300.0) / (
             alpha ** (landing - second) * 900.0
@@ -4411,10 +4723,9 @@ class TestAllocationEstimand:
         # The ratio and the split hold whatever draws the contribution was
         # computed at.  This is what ties it to the draws the weights come from:
         # each column is the contribution of the very draw the subsample picked.
-        stored = subsample_draws(
-            mmm.idata.posterior.dataset[["channel_contribution_original_scale"]],
-            **subsample(),
-        )["channel_contribution_original_scale"]
+        stored = mmm.idata.posterior.dataset["channel_contribution_original_scale"].sel(
+            chain=full.chain, draw=full.draw
+        )
         expected = stored.rename(date="realization_date").transpose(*full.dims[:2], ...)
         np.testing.assert_allclose(
             full.sum("spend_date")
@@ -5274,19 +5585,92 @@ class TestClosedFormMatrix:
         assert closed.sizes["draw"] == 7
         _assert_same_matrix(closed, pipeline)
 
+    @pytest.mark.parametrize(
+        ("split", "method", "estimand"),
+        [
+            ("over_time", "closed_form", "counterfactual"),
+            ("over_time", "closed_form", "allocation"),
+            ("over_time", "pipeline", "allocation"),
+            ("current_future", "closed_form", None),
+        ],
+    )
+    def test_a_subsample_lines_up_with_the_posterior_by_label(
+        self, simple_mmm_data, split, method, estimand
+    ):
+        """The kernel and saturated spend are paired with the draws by label."""
+        mmm = _two_relabeled_chains(
+            _fit_custom_mmm(
+                simple_mmm_data, adstock=GeometricAdstock(l_max=4), adstock_first=False
+            )
+        )
+
+        incrementality = mmm.incrementality
+        kwargs = {"frequency": "monthly", "method": method}
+        if split == "over_time":
+            call = incrementality.split_incremental_contribution_over_time
+            kwargs["estimand"] = estimand
+        else:
+            call = incrementality.split_incremental_contribution_current_future
+        full = call(**kwargs)
+        subset = call(**kwargs, num_samples=11, random_state=3)
+
+        np.testing.assert_array_equal(subset["chain"], [7, 9])
+        assert subset.sizes["draw"] == math.ceil(11 / 2)
+        xr.testing.assert_allclose(
+            subset, full.sel(chain=subset.chain, draw=subset.draw), rtol=1e-9
+        )
+
+    @pytest.mark.parametrize("method", ["closed_form", "pipeline"])
+    def test_a_subsample_of_a_posterior_without_labels_keeps_their_positions(
+        self, simple_mmm_data, method
+    ):
+        """Without ``chain``/``draw`` coordinates, the positions are the labels."""
+        mmm = _fit_custom_mmm(
+            simple_mmm_data, adstock=GeometricAdstock(l_max=4), adstock_first=False
+        )
+        mmm.idata["posterior"] = mmm.idata.posterior.dataset.drop_vars(
+            ["chain", "draw"]
+        )
+
+        call = mmm.incrementality.split_incremental_contribution_over_time
+        full = call(frequency="monthly", method=method)
+        subset = call(frequency="monthly", method=method, num_samples=4, random_state=0)
+
+        xr.testing.assert_allclose(
+            subset, full.sel(chain=subset.chain, draw=subset.draw), rtol=1e-9
+        )
+
+    @pytest.mark.parametrize("method", ["closed_form", "pipeline"])
+    @pytest.mark.parametrize("num_samples", [None, 4])
+    def test_refuses_repeated_draw_labels(self, simple_mmm_data, method, num_samples):
+        """Two runs concatenated along ``draw`` cannot be matched by label."""
+        mmm = _fit_custom_mmm(
+            simple_mmm_data, adstock=GeometricAdstock(l_max=4), adstock_first=False
+        )
+        posterior = mmm.idata.posterior.dataset
+        mmm.idata["posterior"] = xr.concat([posterior, posterior], dim="draw")
+
+        with pytest.raises(ValueError, match="'draw' labels are not unique"):
+            mmm.incrementality.split_incremental_contribution_over_time(
+                frequency="monthly",
+                method=method,
+                num_samples=num_samples,
+                random_state=0,
+            )
+
     def test_no_period_is_evaluated(self, simple_mmm_data, monkeypatch):
         """The pipeline evaluates every period's scenario; the closed form none."""
         mmm = _fit_custom_mmm(
             simple_mmm_data, adstock=GeometricAdstock(l_max=4), adstock_first=False
         )
         calls = {"n": 0}
-        original = CounterfactualEvaluator.evaluate_counterfactual
+        original = CounterfactualEvaluator.iter_counterfactual
 
         def counted(self, *args, **kwargs):
             calls["n"] += 1
             return original(self, *args, **kwargs)
 
-        monkeypatch.setattr(CounterfactualEvaluator, "evaluate_counterfactual", counted)
+        monkeypatch.setattr(CounterfactualEvaluator, "iter_counterfactual", counted)
 
         mmm.incrementality.split_incremental_contribution_over_time(
             frequency="monthly", method="closed_form"
@@ -5305,21 +5689,13 @@ class TestClosedFormMatrix:
         )
         incrementality = mmm.incrementality
         posterior = mmm.idata.posterior.dataset
-        labels = {
-            "chain": np.arange(posterior.sizes["chain"]),
-            "draw": np.arange(posterior.sizes["draw"]),
-        }
 
-        saturated = incrementality._saturated_media(posterior, 0.0).assign_coords(
-            labels
-        )
+        saturated = incrementality._saturated_media(posterior, 0.0)
         saturated = saturated * float(mmm.data.get_target_scale())
-        weights = incrementality._adstock_kernel(
-            posterior, divides=False
-        ).assign_coords(labels)
+        weights = incrementality._adstock_kernel(posterior, divides=False)
         rebuilt = sum(incrementality_module._adstock_terms(weights, saturated))
 
-        stored = posterior["channel_contribution_original_scale"].assign_coords(labels)
+        stored = posterior["channel_contribution_original_scale"]
         np.testing.assert_allclose(
             rebuilt.transpose(*stored.dims).values, stored.values, rtol=1e-9, atol=1e-9
         )
@@ -5618,7 +5994,7 @@ class TestClosedFormCurrentFuture:
             mmm.incrementality._adstock_parameters(mmm.idata.posterior.dataset),
             horizon,
             progressbar=False,
-        ).assign_coords(chain=closed.chain, draw=closed.draw)
+        )
 
         assert complete.sizes["spend_date"] > 0
         np.testing.assert_allclose(
@@ -5644,13 +6020,9 @@ class TestClosedFormCurrentFuture:
             frequency="original", method="closed_form"
         )
         row = closed.sel(spend_date=closed.complete).isel(spend_date=3, channel=0)
-        share = (
-            adstock.cumulative_weights(
-                mmm.idata.posterior.dataset, 0, progressbar=False
-            )
-            .assign_coords(chain=closed.chain, draw=closed.draw)
-            .isel(channel=0)
-        )
+        share = adstock.cumulative_weights(
+            mmm.idata.posterior.dataset, 0, progressbar=False
+        ).isel(channel=0)
         total = row.current + row.future
 
         per_draw = float((share * total).mean())
@@ -6022,25 +6394,6 @@ class TestClosedFormGuards:
 
 class TestAllocationHelpers:
     """The pure pieces of the ``estimand="allocation"`` share split."""
-
-    def test_relabel_draws_takes_the_posterior_labels(self):
-        sampled = xr.DataArray(np.zeros((2, 3)), dims=("chain", "draw"))
-
-        relabeled = incrementality_module._relabel_draws(
-            sampled, {"chain": np.array([5, 6]), "draw": np.array([10, 11, 12])}
-        )
-
-        np.testing.assert_array_equal(relabeled["chain"], [5, 6])
-        np.testing.assert_array_equal(relabeled["draw"], [10, 11, 12])
-
-    def test_relabel_draws_refuses_a_sample_of_another_size(self):
-        """A draw lost on the way would pair draw i of one array with draw j."""
-        sampled = xr.DataArray(np.zeros((1, 3)), dims=("chain", "draw"))
-
-        with pytest.raises(ValueError, match="3 draws where the posterior"):
-            incrementality_module._relabel_draws(
-                sampled, {"chain": np.array([0]), "draw": np.arange(4)}
-            )
 
     def test_row_of_dates_maps_dates_to_periods(self):
         dates = pd.date_range("2024-01-01", periods=5, freq="W-MON")
@@ -6446,3 +6799,698 @@ class TestSplitIncrementalContributionHelpers:
         assert result.coords["spend_date"].values == np.datetime64("2023-04-02")
         assert result.coords["period_start"].values == np.datetime64("2023-01-01")
         assert bool(result.coords["complete"])
+
+
+def _three_draws_per_block(monkeypatch):
+    """From here on, evaluate the counterfactual at most three draws of a chain at a time.
+
+    The budget is set from a draw's own size, so every chain is split whatever
+    the model; the number of blocks each call made is recorded.
+    """
+    blocks_per_call = []
+    sample_blocks = CounterfactualEvaluator._sample_blocks
+
+    def three_draws(self, *, n_scenarios, max_window, max_elements):
+        per_draw = self._elements_per_date * max_window * n_scenarios
+        blocks = sample_blocks(
+            self,
+            n_scenarios=n_scenarios,
+            max_window=max_window,
+            max_elements=3 * per_draw,
+        )
+        blocks_per_call.append(len(blocks))
+        return blocks
+
+    monkeypatch.setattr(CounterfactualEvaluator, "_sample_blocks", three_draws)
+    return blocks_per_call
+
+
+class TestSampleBlocks:
+    """Reducing the counterfactual one block of draws at a time changes no result.
+
+    Draws are independent and no block splits the date axis, so a blocked call
+    computes the same numbers as an unblocked one, up to rounding, and joins
+    them back under the posterior's labels.  Up to rounding because the
+    compiled graph may round differently for a different number of draws:
+    whether a case comes out bit for bit equal depends on the posterior and the
+    backend, so the values are compared with a tolerance and the labels
+    exactly.
+    """
+
+    @pytest.mark.parametrize(
+        ("method", "kwargs"),
+        [
+            ("compute_incremental_contribution", {"frequency": "all_time"}),
+            ("compute_incremental_contribution", {"frequency": "monthly"}),
+            ("compute_joint_incremental_contribution", {"frequency": "monthly"}),
+            ("split_incremental_contribution_over_time", {"frequency": "monthly"}),
+            # Pairs the joined result with each date's shares by label.
+            (
+                "split_incremental_contribution_over_time",
+                {"frequency": "monthly", "estimand": "allocation"},
+            ),
+            # Scattered draw labels, which each block has to keep.
+            (
+                "compute_incremental_contribution",
+                {"frequency": "monthly", "num_samples": 7, "random_state": 0},
+            ),
+            (
+                "split_incremental_contribution_current_future",
+                {"frequency": "monthly"},
+            ),
+        ],
+    )
+    def test_blocks_join_back_under_the_posterior_labels(
+        self, simple_mmm_data, monkeypatch, method, kwargs
+    ):
+        """Two relabeled chains, split into blocks of up to three draws, give the same result."""
+        mmm = _two_relabeled_chains(
+            _fit_custom_mmm(
+                simple_mmm_data, adstock=GeometricAdstock(l_max=4), adstock_first=False
+            )
+        )
+        call = getattr(mmm.incrementality, method)
+        whole = call(**kwargs)
+        blocks_per_call = _three_draws_per_block(monkeypatch)
+        blocked = call(**kwargs)
+
+        assert blocks_per_call and min(blocks_per_call) > 2
+        np.testing.assert_array_equal(blocked["chain"], [7, 9])
+        for dim in ("chain", "draw"):
+            np.testing.assert_array_equal(blocked[dim], whole[dim])
+        xr.testing.assert_allclose(blocked, whole, rtol=1e-12)
+
+    @pytest.mark.parametrize(
+        ("frequency", "central_tendency"),
+        [("monthly", "median"), ("all_time", "median"), ("monthly", "mean")],
+    )
+    def test_blocks_with_a_mediated_effect(
+        self, funnel_log_link_fitted_mmm, monkeypatch, frequency, central_tendency
+    ):
+        """A dedicated row per channel, a log link and a mean correction are blocked too.
+
+        The log link's baseline response, and the mean correction, carry a value
+        per sample, so each block has to read its own.  Equal to rounding rather
+        than exactly: on the Numba backend the compiled graph can round the
+        mediated effect differently for a different number of draws, by one
+        ulp, and a few entries then differ by up to 3e-15 relative.  The C
+        backend gives identical results.
+        """
+        incrementality = funnel_log_link_fitted_mmm.incrementality
+        kwargs = {"frequency": frequency, "central_tendency": central_tendency}
+        whole = incrementality.compute_incremental_contribution(**kwargs)
+        blocks_per_call = _three_draws_per_block(monkeypatch)
+        blocked = incrementality.compute_incremental_contribution(**kwargs)
+
+        assert blocks_per_call and min(blocks_per_call) > 2
+        xr.testing.assert_allclose(blocked, whole, rtol=1e-12, atol=0)
+
+
+class TestEvaluatorCache:
+    """The MMM-level cache that lets Incrementality reuse compiled evaluators.
+
+    One compiled ``CounterfactualEvaluator`` is cached per graph shape and dataset.
+    Every ``Incrementality`` object a fitted MMM creates leases those evaluators.
+    That covers direct calls and the summary factory.
+    """
+
+    @pytest.fixture
+    def constructed(self, monkeypatch):
+        """Patch the evaluator global so each construction's arguments are recorded."""
+        calls = []
+        real = incrementality_module.CounterfactualEvaluator
+
+        class CountingEvaluator(real):
+            def __init__(self, *args, **kwargs):
+                calls.append(kwargs)
+                super().__init__(*args, **kwargs)
+
+        monkeypatch.setattr(
+            incrementality_module, "CounterfactualEvaluator", CountingEvaluator
+        )
+        return calls
+
+    @staticmethod
+    def _idata_with_offset(mmm, offset):
+        """A copy of the model's idata whose channel_data is shifted by ``offset``."""
+        original = mmm.idata.constant_data["channel_data"].values.copy()
+        idata = mmm.idata.copy()
+        node = idata["constant_data"]
+        node.dataset = node.dataset.assign(
+            channel_data=node.dataset["channel_data"] + offset
+        )
+        # The copy must not alias the original: shifting it leaves the source channel_data unchanged.
+        np.testing.assert_array_equal(
+            mmm.idata.constant_data["channel_data"].values, original
+        )
+        return idata
+
+    @staticmethod
+    def _idata_without_constant_data(mmm, name):
+        """A copy of the model's idata whose ``constant_data`` lacks ``name``.
+
+        A pre-``constant_data`` idata looks like this, and the name is then only
+        available from the model's live shared variable.
+        """
+        idata = mmm.idata.copy()
+        node = idata["constant_data"]
+        node.dataset = node.dataset.drop_vars(name)
+        return idata
+
+    @staticmethod
+    def _idata_with_reordered_dim(mmm, dim, order):
+        """A copy of the model's idata whose posterior stores ``dim`` in ``order``."""
+        idata = mmm.idata.copy()
+        posterior = idata["posterior"].to_dataset().isel({dim: order})
+        idata["posterior"] = xr.DataTree(posterior)
+        return idata
+
+    def test_same_shape_reuses_and_compiles_once(self, simple_fitted_mmm, monkeypatch):
+        """A miss compiles once, and a second same-shape call never recompiles."""
+        builds = []
+        real_build = CounterfactualEvaluator._build
+
+        def counting_build(self):
+            builds.append(1)
+            return real_build(self)
+
+        monkeypatch.setattr(CounterfactualEvaluator, "_build", counting_build)
+
+        incr = simple_fitted_mmm.incrementality
+        incr.compute_incremental_contribution(
+            frequency="all_time", num_samples=50, random_state=np.random.default_rng(7)
+        )
+        assert len(builds) == 1
+
+        incr.compute_incremental_contribution(
+            frequency="all_time", num_samples=20, random_state=np.random.default_rng(8)
+        )
+        incr.compute_incremental_contribution(frequency="all_time")
+
+        assert len(builds) == 1
+
+    def test_a_rebind_does_not_count_as_a_source_change(
+        self, simple_fitted_mmm, constructed
+    ):
+        """Only new draws arrive on a rebind, so the cache entry stays a hit."""
+        mmm = simple_fitted_mmm
+        incr = mmm.incrementality
+        incr.compute_incremental_contribution(
+            frequency="all_time", num_samples=50, random_state=np.random.default_rng(7)
+        )
+
+        # The second call is a hit and rebinds the cached evaluator to its draws.
+        incr.compute_incremental_contribution(
+            frequency="all_time", num_samples=20, random_state=np.random.default_rng(8)
+        )
+        incr.compute_incremental_contribution(
+            frequency="all_time", num_samples=20, random_state=np.random.default_rng(8)
+        )
+
+        assert len(constructed) == 1
+
+    @pytest.mark.parametrize(
+        ("variable", "fixture_name", "replacement", "drop_from_constant_data"),
+        [
+            (
+                "channel_scale",
+                "simple_fitted_mmm",
+                lambda values: values * 2.0,
+                False,
+            ),
+            (
+                "lf_budget",
+                "funnel_identity_fitted_mmm",
+                lambda values: values + 5.0,
+                True,
+            ),
+        ],
+    )
+    def test_a_replaced_source_input_matches_a_cold_cache(
+        self,
+        variable,
+        fixture_name,
+        replacement,
+        drop_from_constant_data,
+        request,
+        constructed,
+    ):
+        """A warm cache re-reads a replaced input instead of returning fit-time numbers.
+
+        ``channel_scale`` is in ``constant_data`` but is not date-indexed, so the
+        evaluate-time check does not cover it.  ``lf_budget`` is date-indexed but
+        dropped from the copy's ``constant_data``, so it is not covered either.
+        Both are otherwise read from the clone made at the first build.
+        """
+        mmm = request.getfixturevalue(fixture_name)
+        model = mmm.model
+        original = model[variable].get_value(borrow=False).copy()
+        assert variable in mmm.idata.constant_data.data_vars
+        idata = (
+            self._idata_without_constant_data(mmm, variable)
+            if drop_from_constant_data
+            else mmm.idata
+        )
+        kwargs = {"frequency": "all_time"}
+
+        held = Incrementality(model=mmm, idata=idata)
+        fit_time = held.compute_incremental_contribution(**kwargs)
+        try:
+            with model:
+                pm.set_data({variable: replacement(original)})
+
+            # A second instance finds the entry stale and rebuilds it once...
+            shared = Incrementality(
+                model=mmm, idata=idata
+            ).compute_incremental_contribution(**kwargs)
+            # ...and the held instance then hits the rebuilt entry.
+            warm = held.compute_incremental_contribution(**kwargs)
+            rebuilds = len(constructed)
+            mmm._clear_incrementality_evaluator_cache()
+            cold = Incrementality(
+                model=mmm, idata=idata
+            ).compute_incremental_contribution(**kwargs)
+        finally:
+            with model:
+                pm.set_data({variable: original})
+            mmm._clear_incrementality_evaluator_cache()
+
+        xr.testing.assert_allclose(warm, cold)
+        xr.testing.assert_allclose(shared, cold)
+        assert not np.allclose(warm, fit_time)
+        assert rebuilds == 2
+
+    def test_the_constant_data_fingerprint_is_computed_once_per_instance(
+        self, simple_fitted_mmm, monkeypatch
+    ):
+        """``idata`` is fixed for the instance, so two requests hash it once."""
+        calls = []
+        real = incrementality_module.constant_data_fingerprint
+
+        def counting(idata):
+            calls.append(1)
+            return real(idata)
+
+        monkeypatch.setattr(
+            incrementality_module, "constant_data_fingerprint", counting
+        )
+
+        incr = simple_fitted_mmm.incrementality
+        incr.compute_incremental_contribution(frequency="all_time")
+        incr.compute_incremental_contribution(frequency="all_time")
+
+        assert len(calls) == 1
+
+    def test_a_miss_does_not_rebind_the_posterior_it_was_built_on(
+        self, simple_fitted_mmm, monkeypatch
+    ):
+        """Only a cache hit rebinds the draws; a miss is already conditioned on them."""
+        rebinds = []
+        real = ConditionedModel.set_posterior
+
+        def counting(self, idata):
+            rebinds.append(1)
+            return real(self, idata)
+
+        # The model the evaluator wraps, which sees the block loop's rebinds too.
+        monkeypatch.setattr(ConditionedModel, "set_posterior", counting)
+
+        incr = simple_fitted_mmm.incrementality
+        incr.compute_incremental_contribution(frequency="all_time")
+        assert rebinds == []
+
+        incr.compute_incremental_contribution(frequency="all_time")
+        assert len(rebinds) == 1
+
+    @pytest.mark.parametrize("entry_point", ["incremental", "marginal"])
+    def test_reused_result_matches_a_fresh_build(
+        self, simple_fitted_mmm, constructed, entry_point
+    ):
+        """A reused evaluator matches a cleared-cache build for the call's own seed and draws."""
+        mmm = simple_fitted_mmm
+        incr = mmm.incrementality
+
+        def call(num_samples, seed):
+            kwargs = {
+                "frequency": "all_time",
+                "num_samples": num_samples,
+                "random_state": np.random.default_rng(seed),
+            }
+            if entry_point == "marginal":
+                return incr.marginal_contribution_over_spend(**kwargs)
+            return incr.compute_incremental_contribution(**kwargs)
+
+        call(num_samples=50, seed=7)
+        assert len(constructed) == 1
+
+        reused = call(num_samples=20, seed=8)
+        assert len(constructed) == 1
+        assert reused.sizes["draw"] == 20
+
+        mmm._clear_incrementality_evaluator_cache()
+        fresh = call(num_samples=20, seed=8)
+
+        xr.testing.assert_allclose(reused, fresh)
+
+    def test_summary_factory_shares_the_cache(self, simple_fitted_mmm, constructed):
+        """The summary factory reuses the evaluator mmm.incrementality built."""
+        mmm = simple_fitted_mmm
+        mmm.incrementality.compute_incremental_contribution(frequency="original")
+        assert len(constructed) == 1
+
+        mmm.summary.roas(method="incremental", frequency="original", num_samples=10)
+
+        assert len(constructed) == 1
+
+    def test_a_reordered_posterior_does_not_poison_the_evaluator_cache(
+        self, simple_fitted_mmm
+    ):
+        """A first call from a reordered posterior reads draws in the model's order.
+
+        The evaluator cache key does not include the posterior, so the first
+        call's label order used to be the reference for every later call: the
+        second call and ``summary.roas`` were wrong without an error.
+        """
+        mmm = simple_fitted_mmm
+        mmm._clear_incrementality_evaluator_cache()
+        clean = mmm.incrementality.compute_incremental_contribution(
+            frequency="all_time"
+        )
+        clean_roas = mmm.summary.roas(method="incremental", frequency="all_time")
+
+        mmm._clear_incrementality_evaluator_cache()
+        reordered = self._idata_with_reordered_dim(mmm, "channel", [2, 0, 1])
+        first = Incrementality(
+            model=mmm, idata=reordered
+        ).compute_incremental_contribution(frequency="all_time")
+        # The second call hits the evaluator the first one built.
+        second = mmm.incrementality.compute_incremental_contribution(
+            frequency="all_time"
+        )
+        roas = mmm.summary.roas(method="incremental", frequency="all_time")
+        mmm._clear_incrementality_evaluator_cache()
+
+        xr.testing.assert_allclose(first, clean)
+        xr.testing.assert_allclose(second, clean)
+        pd.testing.assert_frame_equal(roas, clean_roas)
+
+    @pytest.mark.parametrize("dim", ["country", "channel"])
+    def test_a_reordered_panel_axis_does_not_poison_the_evaluator_cache(
+        self, panel_fitted_mmm, dim
+    ):
+        """Reversing a panel axis in the first posterior leaves later calls correct."""
+        mmm = panel_fitted_mmm
+        mmm._clear_incrementality_evaluator_cache()
+        clean = mmm.incrementality.compute_incremental_contribution(
+            frequency="all_time"
+        )
+
+        mmm._clear_incrementality_evaluator_cache()
+        labels = mmm.idata["posterior"].to_dataset().indexes[dim]
+        reordered = self._idata_with_reordered_dim(
+            mmm, dim, list(reversed(range(len(labels))))
+        )
+        first = Incrementality(
+            model=mmm, idata=reordered
+        ).compute_incremental_contribution(frequency="all_time")
+        second = mmm.incrementality.compute_incremental_contribution(
+            frequency="all_time"
+        )
+        mmm._clear_incrementality_evaluator_cache()
+
+        xr.testing.assert_allclose(first, clean)
+        xr.testing.assert_allclose(second, clean)
+
+    def test_closed_form_and_pipeline_share_one_evaluator(
+        self, simple_mmm_data, constructed
+    ):
+        """The closed-form path builds its evaluator through the same cache as the pipeline."""
+        mmm = _fit_custom_mmm(
+            simple_mmm_data, adstock=GeometricAdstock(l_max=4), adstock_first=False
+        )
+        kwargs = {"frequency": "monthly"}
+
+        closed = mmm.incrementality.split_incremental_contribution_over_time(
+            method="closed_form", **kwargs
+        )
+        pipeline = mmm.incrementality.split_incremental_contribution_over_time(**kwargs)
+
+        assert len(constructed) == 1
+        mmm._clear_incrementality_evaluator_cache()
+        fresh = mmm.incrementality.split_incremental_contribution_over_time(**kwargs)
+        xr.testing.assert_allclose(pipeline, fresh)
+        xr.testing.assert_allclose(closed, pipeline)
+
+    def test_rebuild_clears_the_cache(
+        self, simple_fitted_mmm, simple_mmm_data, constructed
+    ):
+        """build_model drops the compiled evaluators, so the next call compiles again."""
+        mmm = simple_fitted_mmm
+        mmm.incrementality.compute_incremental_contribution(frequency="all_time")
+        mmm.incrementality.compute_incremental_contribution(frequency="all_time")
+        assert len(constructed) == 1
+
+        mmm.build_model(simple_mmm_data["X"], simple_mmm_data["y"])
+        mmm.incrementality.compute_incremental_contribution(frequency="all_time")
+
+        assert len(constructed) == 2
+
+    def test_deepcopy_drops_the_cache_and_still_computes(
+        self, simple_fitted_mmm, constructed
+    ):
+        """A deep-copied MMM compiles its own evaluator and recomputes the same increments."""
+        mmm = simple_fitted_mmm
+        result = mmm.incrementality.compute_incremental_contribution(
+            frequency="all_time", num_samples=50, random_state=np.random.default_rng(7)
+        )
+        assert len(constructed) == 1
+
+        clone = copy.deepcopy(mmm)
+        cloned = clone.incrementality.compute_incremental_contribution(
+            frequency="all_time", num_samples=50, random_state=np.random.default_rng(7)
+        )
+
+        assert len(constructed) == 2
+        xr.testing.assert_allclose(cloned, result)
+
+    def test_different_data_build_two_evaluators(self, simple_fitted_mmm, constructed):
+        """Two Incrementality objects over different data each build their own evaluator."""
+        mmm = simple_fitted_mmm
+        mmm.incrementality.compute_incremental_contribution(frequency="all_time")
+        assert len(constructed) == 1
+
+        other = Incrementality(model=mmm, idata=self._idata_with_offset(mmm, 1))
+        other.compute_incremental_contribution(frequency="all_time")
+
+        assert len(constructed) == 2
+
+    def test_relabeled_data_builds_its_own_evaluator(
+        self, panel_fitted_mmm, constructed
+    ):
+        """``constant_data`` with the same values under swapped labels is other data.
+
+        Swapping the ``country`` labels leaves every value array byte for byte
+        the same, so only the labels tell the two datasets apart, and the second
+        wrapper must not lease the evaluator built for the first.
+        """
+        mmm = panel_fitted_mmm
+        mmm._clear_incrementality_evaluator_cache()
+        mmm.incrementality.compute_incremental_contribution(frequency="all_time")
+        assert len(constructed) == 1
+
+        relabeled = mmm.idata.copy()
+        constant_data = relabeled["constant_data"].to_dataset()
+        swapped = constant_data["country"].values[::-1]
+        relabeled["constant_data"] = xr.DataTree(
+            constant_data.assign_coords(country=swapped)
+        )
+        Incrementality(model=mmm, idata=relabeled).compute_incremental_contribution(
+            frequency="all_time"
+        )
+
+        assert len(constructed) == 2
+
+    def test_a_mutation_after_the_first_call_is_still_refused(
+        self, funnel_identity_fitted_mmm
+    ):
+        """A pm.set_data mutation after a cached call makes the next call raise."""
+        mmm = funnel_identity_fitted_mmm
+        mmm.incrementality.compute_incremental_contribution(frequency="all_time")
+
+        model = mmm.model
+        original = model["lf_budget"].get_value(borrow=False).copy()
+        try:
+            with model:
+                pm.set_data({"lf_budget": original + 5.0})
+            with pytest.raises(ValueError, match=r"'lf_budget'.*changed since"):
+                mmm.incrementality.compute_incremental_contribution(
+                    frequency="all_time"
+                )
+        finally:
+            with model:
+                pm.set_data({"lf_budget": original})
+
+    def test_the_cached_evaluator_holds_only_the_variables_its_graphs_read(
+        self, simple_fitted_mmm, constructed, monkeypatch
+    ):
+        """A cached evaluator is handed the draws it reads, not the whole subsample.
+
+        The evaluator lives in the MMM's cache for as long as the entry survives,
+        so holding the subsample it was conditioned on would pin every large
+        deterministic -- ``channel_contribution`` among them -- although the
+        graphs are evaluated against it, not from it.  Both the posterior it is
+        built on and the one a cache hit rebinds it to are checked.
+        """
+        mmm = simple_fitted_mmm
+        rebound = []
+        real = ConditionedModel.set_posterior
+
+        def recording(self, idata):
+            rebound.append(idata)
+            return real(self, idata)
+
+        monkeypatch.setattr(ConditionedModel, "set_posterior", recording)
+        for seed in (3, 4):
+            mmm.incrementality.compute_incremental_contribution(
+                frequency="all_time",
+                num_samples=50,
+                random_state=np.random.default_rng(seed),
+            )
+
+        assert len(constructed) == 1
+        assert len(rebound) == 1
+        read = {rv.name for rv in mmm.model.free_RVs} | set(mmm.frozen_deterministics)
+        assert "channel_contribution" in mmm.idata.posterior.data_vars
+        for held in (constructed[0]["posterior"], rebound[0]):
+            assert set(held.data_vars) <= read
+            assert "channel_contribution" not in held.data_vars
+            assert held.sizes["draw"] == 50
+
+    @pytest.mark.parametrize(
+        "adstock",
+        [NoAdstock(l_max=1), GeometricAdstock(l_max=4, priors={"alpha": 0.5})],
+        ids=["no-adstock", "fixed-alpha"],
+    )
+    def test_a_graph_that_reads_no_draws_matches_the_oracle(
+        self, simple_mmm_data, adstock, constructed
+    ):
+        """Fixed channel parameters leave the evaluator no posterior variable to read.
+
+        The sample axis then has to come from the posterior itself, both on the
+        call that builds the evaluator and on a later call that rebinds it to a
+        smaller subsample, and the cached evaluator still pins no draws.
+        """
+        from tests.mmm.conftest import mock_fit
+
+        mmm = MMM(
+            channel_columns=["channel_1", "channel_2", "channel_3"],
+            date_column="date",
+            target_column="target",
+            adstock=adstock,
+            saturation=NoSaturation(priors={"beta": 2.0}),
+        )
+        mock_fit(mmm, simple_mmm_data["X"], simple_mmm_data["y"], random_seed=42)
+        expected = compute_ground_truth_incremental_by_period(mmm, frequency="all_time")
+
+        result = mmm.incrementality.compute_incremental_contribution(
+            frequency="all_time"
+        )
+        xr.testing.assert_allclose(result, expected, rtol=1e-8)
+
+        incr = mmm.incrementality
+        rebound = incr.compute_incremental_contribution(
+            frequency="all_time", num_samples=3, random_state=0
+        )
+        assert rebound.sizes["draw"] == 3
+        # No draw enters the media response, so every draw has the same increment.
+        np.testing.assert_allclose(
+            rebound.values,
+            np.broadcast_to(expected.isel(chain=0, draw=0).values, rebound.shape),
+            rtol=1e-8,
+        )
+        assert len(constructed) == 1
+        assert not constructed[0]["posterior"].data_vars
+
+    @pytest.mark.parametrize(
+        "failing_method",
+        ["set_posterior", "evaluate_baseline", "iter_counterfactual"],
+    )
+    def test_a_failed_call_returns_the_evaluator_to_the_cache(
+        self, simple_fitted_mmm, monkeypatch, failing_method, constructed
+    ):
+        """The lease ends in a ``finally``, so a raising call leaves a warm cache.
+
+        The call after the failure is a hit: nothing is compiled again.
+        """
+        mmm = simple_fitted_mmm
+        incr = mmm.incrementality
+        # Warm the cache, so the failing call below is a hit that rebinds.
+        expected = incr.compute_incremental_contribution(frequency="all_time")
+
+        def failing(*args, **kwargs):
+            raise RuntimeError("evaluation failed")
+
+        with monkeypatch.context() as patch:
+            patch.setattr(CounterfactualEvaluator, failing_method, failing)
+            with pytest.raises(RuntimeError, match="evaluation failed"):
+                incr.compute_incremental_contribution(frequency="all_time")
+
+        result = incr.compute_incremental_contribution(frequency="all_time")
+
+        assert len(constructed) == 1
+        xr.testing.assert_allclose(result, expected)
+
+
+@pytest.fixture
+def quick_thread_switching():
+    """Make the GIL change hands often, so calls issued together interleave.
+
+    A call on a mock-fit model is short enough to finish inside a default 5 ms
+    slice, which would let a concurrency test pass because of the scheduler
+    rather than because the calls do not share an evaluator.  The interval is
+    global to the process, so it is restored.
+    """
+    previous = sys.getswitchinterval()
+    sys.setswitchinterval(1e-4)
+    try:
+        yield
+    finally:
+        sys.setswitchinterval(previous)
+
+
+class TestConcurrentCalls:
+    """Several threads calling incrementality on one fitted MMM at the same time."""
+
+    @staticmethod
+    def _increment(mmm, seed, num_samples):
+        """One call's total incremental contribution, as a plain number."""
+        return float(
+            mmm.incrementality.compute_incremental_contribution(
+                frequency="monthly", num_samples=num_samples, random_state=seed
+            ).sum()
+        )
+
+    @pytest.mark.parametrize(
+        "requests",
+        [
+            [(seed, 50) for seed in range(8)],
+            [(seed, num_samples) for seed in range(6) for num_samples in (20, 50)],
+        ],
+        ids=["same-num-samples", "mixed-num-samples"],
+    )
+    def test_threaded_calls_return_their_own_numbers(
+        self, simple_fitted_mmm, quick_thread_switching, requests
+    ):
+        """A call in a thread pool returns the value it returns when run alone."""
+        mmm = simple_fitted_mmm
+        expected = {request: self._increment(mmm, *request) for request in requests}
+
+        with ThreadPoolExecutor(max_workers=4) as pool:
+            futures = {
+                request: pool.submit(self._increment, mmm, *request)
+                for request in requests
+            }
+            results = {request: future.result() for request, future in futures.items()}
+
+        for request, result in results.items():
+            np.testing.assert_allclose(result, expected[request], rtol=1e-8)

@@ -19,8 +19,8 @@ Use any of these methods directly while working with the `MMM` class.
 """
 
 import warnings
-from collections.abc import Callable, Sequence
-from typing import Concatenate, ParamSpec
+from collections.abc import Callable, Collection, Sequence
+from typing import Any, Concatenate, ParamSpec
 
 import numpy as np
 import pandas as pd
@@ -29,7 +29,8 @@ import pymc.dims as pmd
 import pytensor.xtensor as ptx
 from numpy import typing as npt
 from pymc import modelcontext
-from pymc_extras.prior import Prior
+from pymc_extras.prior import Censored, Prior, Scaled
+from pytensor.graph.basic import Constant, Variable
 from pytensor.graph.traversal import ancestors
 from pytensor.xtensor import as_xtensor
 from pytensor.xtensor.type import XTensorVariable
@@ -47,6 +48,28 @@ _REAL_LINE_LIKELIHOODS = {
     "Normal",
     "StudentT",
 }
+_LIFT_LIKELIHOODS = _POSITIVE_SUPPORT_DISTRIBUTIONS | _REAL_LINE_LIKELIHOODS
+_COST_PER_TARGET_LIKELIHOODS = {"Normal", "StudentT", "LogNormal"}
+_RATIO_DENOMINATOR_FLOOR = 1e-12
+"""Floor of a cost-per-target ratio's denominator, which keeps it finite.
+
+Under ``LogNormal`` both means are floored at it before the log."""
+_REAL_LINE_SUPPORT_PRIORS = {
+    "AsymmetricLaplace",
+    "Cauchy",
+    "ExGaussian",
+    "Flat",
+    "Gumbel",
+    "Laplace",
+    "Logistic",
+    "Moyal",
+    "Normal",
+    "SkewNormal",
+    "StudentT",
+}
+"""Priors whose support reaches below zero, refused on a StudentT likelihood's ``nu``."""
+_LOWER_BOUNDED_PRIORS = {"TruncatedNormal": -np.inf, "Uniform": 0.0}
+"""Priors whose support starts at their ``lower`` parameter, with PyMC's default for it."""
 _POSITIVE_SUPPORT_RV_OPS = {
     "beta",
     "exponential",
@@ -61,39 +84,193 @@ _POSITIVE_SUPPORT_RV_OPS = {
 }
 
 
-def _validate_lift_likelihood_data(
-    df_lift_test: pd.DataFrame, likelihood: Prior
-) -> None:
-    """Validate observations against known likelihood support constraints."""
+def _validate_measurement_values(values: npt.NDArray, column: str) -> None:
+    """Check normalized measurement values before adding calibration variables."""
+    if not np.isfinite(values).all():
+        raise ValueError(
+            f"Calibration column '{column}' must contain finite real numeric values."
+        )
+    if column == "sigma" and (values <= 0).any():
+        raise ValueError("Calibration column 'sigma' must be strictly positive.")
+
+
+def _validate_measurement_data(df: pd.DataFrame, columns: Sequence[str]) -> None:
+    """Reject undefined observations and invalid measurement uncertainties."""
+    for column in columns:
+        dtype = df[column].dtype
+        if (
+            not pd.api.types.is_numeric_dtype(dtype)
+            or pd.api.types.is_complex_dtype(dtype)
+            or pd.api.types.is_bool_dtype(dtype)
+        ):
+            raise ValueError(
+                f"Calibration column '{column}' must contain finite real numeric values."
+            )
+        try:
+            values = df[column].to_numpy(dtype=float, na_value=np.nan)
+        except (TypeError, ValueError) as error:
+            raise ValueError(
+                f"Calibration column '{column}' must contain finite real numeric values."
+            ) from error
+        _validate_measurement_values(values, column)
+
+
+_NESTED_PRIOR_ATTRIBUTES = ("distribution", "dist", "lower", "upper", "factor")
+"""Attributes of prior wrappers (``Censored``, ``Scaled``) that hold nested values."""
+
+
+def _has_extent(value: Any) -> bool:
+    """Whether *value*, or anything nested in it, has dims or is not a scalar.
+
+    Walks a prior's parameters and the inner distribution and bounds of a
+    wrapper such as ``Censored`` or ``Scaled``; a constant counts when it has
+    dims (a ``DataArray``) or at least one axis.
+    """
+    if getattr(value, "dims", None):
+        return True
+    if hasattr(value, "create_variable"):
+        parameters = getattr(value, "parameters", None)
+        nested = [
+            *(parameters.values() if isinstance(parameters, dict) else ()),
+            *(
+                getattr(value, name)
+                for name in _NESTED_PRIOR_ATTRIBUTES
+                if hasattr(value, name)
+            ),
+        ]
+        return any(_has_extent(item) for item in nested)
+    ndim = getattr(value, "ndim", None)
+    return bool(np.ndim(value) if ndim is None else ndim)
+
+
+def _is_number(value: Any) -> bool:
+    return np.ndim(value) == 0 and np.issubdtype(np.asarray(value).dtype, np.number)
+
+
+def _negative_support(prior: Any) -> str | None:
+    """Say why *prior* can draw a negative value, or ``None`` if it cannot or that is unknown.
+
+    Reads the support from the prior's own description: a family whose
+    support is the real line, a ``Uniform`` or ``TruncatedNormal`` whose lower
+    bound is below zero (``TruncatedNormal``'s default is minus infinity), the
+    inner prior of a ``Censored`` one not censored at or above zero, or a
+    ``Scaled`` prior with a negative factor. A ``transform`` sets the support
+    itself, and a prior of another kind is not read, so both count as unknown.
+    """
+    if isinstance(prior, Censored):
+        if _is_number(prior.lower) and prior.lower >= 0:
+            return None
+        return _negative_support(prior.distribution)
+    if isinstance(prior, Scaled):
+        if _is_number(prior.factor) and prior.factor < 0:
+            return "a Scaled prior with a negative factor"
+        return _negative_support(prior.dist)
+    if not isinstance(prior, Prior) or prior.transform is not None:
+        return None
+    if prior.distribution in _REAL_LINE_SUPPORT_PRIORS:
+        return f"a {prior.distribution} prior"
+    if (default := _LOWER_BOUNDED_PRIORS.get(prior.distribution)) is not None:
+        lower = prior.parameters.get("lower", default)
+        if _is_number(lower) and lower < 0:
+            return f"a {prior.distribution} prior with a lower bound below zero"
+    return None
+
+
+def _validate_likelihood_prior(likelihood: Prior, supported: Collection[str]) -> None:
+    """Refuse a calibration likelihood whose contents the calibration rows decide.
+
+    ``sigma`` comes from the ``sigma`` column, ``mu`` from the model and the
+    dims from the rows, so the only parameter a caller may set is
+    ``StudentT``'s ``nu``, which ``StudentT`` requires; the family must be
+    one of *supported*. Everything is checked here because a parameter that
+    slips through fails only once the calibration's coordinate is in the
+    model.
+    """
     if "sigma" in likelihood.parameters:
         raise ValueError(
-            "The lift-test `sigma` is taken from the `sigma` column. Do not pass "
+            "The calibration `sigma` is taken from the `sigma` column. Do not pass "
             "`sigma` in `likelihood`; use a supported likelihood parameter such "
             "as `nu` for StudentT."
         )
     if "mu" in likelihood.parameters:
         raise ValueError(
-            "The lift-test `mu` is determined by the model-implied lift. Do not "
-            "pass `mu` in `likelihood`."
+            "The calibration `mu` is the model-implied value. Do not pass `mu` in "
+            "`likelihood`."
         )
     if likelihood.dims is not None:
         raise ValueError(
-            "The lift-test dimensions are determined by the calibration rows. "
+            "The calibration dimensions are determined by the calibration rows. "
             "Do not pass `dims` in `likelihood`."
+        )
+    if not likelihood.centered:
+        raise ValueError(
+            "A non-centered calibration likelihood observes its standardized "
+            "offset, so the model-implied value would not enter it. Do not pass "
+            "`centered=False` in `likelihood`."
         )
     if likelihood.distribution == "StudentT" and "nu" not in likelihood.parameters:
         raise ValueError(
-            "The StudentT lift likelihood requires a `nu` parameter, for example "
-            "`Prior('StudentT', nu=4)`."
+            "The StudentT calibration likelihood requires a `nu` parameter, for "
+            "example `Prior('StudentT', nu=4)`."
         )
-    if likelihood.distribution not in (
-        _POSITIVE_SUPPORT_DISTRIBUTIONS | _REAL_LINE_LIKELIHOODS
-    ):
+    if likelihood.distribution not in supported:
         raise ValueError(
             f"The {likelihood.distribution} distribution is not supported as a "
-            "lift-test likelihood. Supported distributions are Normal, StudentT, "
-            "and Gamma."
+            "calibration likelihood. Supported distributions are "
+            f"{', '.join(sorted(supported))}."
         )
+    allowed = {"nu"} if likelihood.distribution == "StudentT" else set()
+    if extra := sorted(set(likelihood.parameters) - allowed):
+        raise ValueError(
+            "The calibration scale comes from the `sigma` column and its location "
+            "from the model, so StudentT's `nu` is the only parameter a "
+            f"calibration likelihood takes. Do not pass "
+            f"{', '.join(f'`{name}`' for name in extra)} in `likelihood`."
+        )
+    nu = likelihood.parameters.get("nu")
+    if _has_extent(nu):
+        raise ValueError(
+            "The calibration dimensions are determined by the calibration rows, "
+            "so `nu` must be a scalar. Do not pass `dims` or arrays in `nu` or in "
+            "the priors it is built from."
+        )
+    if hasattr(nu, "create_variable"):
+        if (reason := _negative_support(nu)) is not None:
+            raise ValueError(
+                f"StudentT's `nu` must be positive, but {reason} on it can be "
+                "negative. Give it a positive-support prior, for example "
+                "`Prior('Gamma', alpha=2, beta=0.1)`."
+            )
+    elif nu is not None and (not isinstance(nu, Variable) or isinstance(nu, Constant)):
+        value = np.asarray(nu.data if isinstance(nu, Constant) else nu)
+        if not (np.isfinite(value) and value > 0):
+            raise ValueError(
+                "StudentT's `nu` must be a positive finite number or a prior, "
+                f"got {nu!r}."
+            )
+
+
+def _validate_cost_per_target_likelihood(likelihood: Prior) -> None:
+    """Refuse a cost-per-target likelihood, on a call or in a saved record.
+
+    The checks shared with lift tests, plus a ``transform``: the observed
+    variable of a cost-per-target calibration must be named ``name_prefix``.
+    """
+    _validate_likelihood_prior(likelihood, _COST_PER_TARGET_LIKELIHOODS)
+    if likelihood.transform is not None:
+        raise ValueError(
+            "A calibration likelihood is observed, so it cannot be transformed; "
+            "the observed variable must be named `name_prefix`. Do not pass "
+            "`transform` in `likelihood`."
+        )
+
+
+def _validate_lift_likelihood_data(
+    df_lift_test: pd.DataFrame, likelihood: Prior
+) -> None:
+    """Validate observations against known likelihood support constraints."""
+    _validate_measurement_data(df_lift_test, ["x", "delta_x", "delta_y", "sigma"])
+    _validate_likelihood_prior(likelihood, _LIFT_LIKELIHOODS)
     if likelihood.distribution in _POSITIVE_SUPPORT_DISTRIBUTIONS:
         if (df_lift_test["delta_y"] <= 0).any():
             raise ValueError(
@@ -372,6 +549,9 @@ def add_saturation_observations(
         * ``delta_y``: change in y axis value of the lift test.
         * ``sigma``: standard deviation of the lift test.
 
+        Measurement columns must contain finite real numeric values, and
+        ``sigma`` must be strictly positive. Invalid measurements raise
+        ``ValueError`` before calibration variables are added.
         Any additional columns are assumed to be coordinates in the model.
     variable_mapping : dict[str, str]
         Dictionary of variable names to dimensions.
@@ -383,8 +563,12 @@ def add_saturation_observations(
         Serializable likelihood prior, by default ``Prior("Normal")``. Its
         ``sigma`` parameter is set from the lift-test standard errors. Choose a
         distribution that matches the estimator's sampling model. The supported
-        distributions are ``Normal``, ``StudentT``, and ``Gamma``; a custom
-        ``sigma`` parameter is not accepted because scale comes from the data.
+        distributions are ``Normal``, ``StudentT``, and ``Gamma``. ``StudentT``'s
+        ``nu`` is the only parameter accepted, since the data and the model
+        decide the others; ``dims`` and ``centered=False`` are refused too,
+        and ``nu`` must be positive (a non-positive constant or a prior that
+        can go negative is refused). A ``transform`` only renames the
+        observed variable to ``<name>_raw``; the observed density is the same.
     name : str, optional
         Name of the likelihood, by default "lift_measurements"
     get_indices : Callable[[pd.DataFrame, pm.Model], Indices], optional
@@ -811,6 +995,10 @@ def add_lift_measurements_to_likelihood_from_saturation(
             * `delta_x`: change in x axis value of the lift test.
             * `delta_y`: change in y axis value of the lift test.
             * `sigma`: standard deviation of the lift test.
+
+        Measurement columns must contain finite real numeric values, and
+        ``sigma`` must be strictly positive. Invalid measurements raise
+        ``ValueError`` before calibration variables are added.
     saturation : SaturationTransformation
         Any SaturationTransformation instance.
     time_varying_var_name : str, optional
@@ -856,8 +1044,9 @@ def validate_cost_per_target_rows(
     *,
     target_column: str = "cost_per_target",
     get_indices: Callable[[pd.DataFrame, pm.Model], Indices] = exact_row_indices,
-) -> tuple[Indices, np.ndarray, np.ndarray]:
-    """Check a cost-per-target table against *model* without touching the graph.
+    likelihood: Prior | None = None,
+) -> tuple[Indices, np.ndarray, np.ndarray, Prior]:
+    """Check a cost-per-target table and likelihood against *model* without touching the graph.
 
     Shared by :func:`add_cost_per_target_observations` and
     ``MMM.add_cost_per_target_calibration`` so that a table is refused by one
@@ -874,23 +1063,40 @@ def validate_cost_per_target_rows(
         Column holding the calibration values.
     get_indices : callable, default :func:`exact_row_indices`
         Maps the dim columns of *calibration_df* to model coordinate indices.
+    likelihood : Prior, optional
+        Calibration likelihood; ``None`` means ``Prior("Normal")``. See
+        :func:`add_cost_per_target_observations` for the supported families.
 
     Returns
     -------
-    tuple[Indices, np.ndarray, np.ndarray]
+    tuple[Indices, np.ndarray, np.ndarray, Prior]
         The row indices per dim, the calibration values and their ``sigma``
-        as float arrays.
+        as float arrays, and the resolved likelihood.
 
     Raises
     ------
+    TypeError
+        If *likelihood* is not a :class:`~pymc_extras.prior.Prior`.
     KeyError
         If a required column or dim column is missing.
     UnalignedValuesError
         If a ``channel`` or dim label is not a model coordinate (with the
         default *get_indices*).
     ValueError
-        If *target_column* or ``sigma`` holds non-numeric values.
+        If *likelihood* sets any parameter other than ``StudentT``'s ``nu``,
+        ``dims``, a ``transform`` or ``centered=False``, is a ``StudentT``
+        without ``nu`` or with a ``nu`` that carries dims or arrays, is a
+        non-positive constant or a prior that can go negative, or is not
+        ``Normal``, ``StudentT`` or ``LogNormal``; if
+        *target_column* or ``sigma`` cannot be converted to finite float
+        values; if ``sigma`` is not strictly positive; or if a calibration
+        value is not strictly positive under ``LogNormal``.
     """
+    likelihood = Prior("Normal") if likelihood is None else likelihood
+    if not isinstance(likelihood, Prior):
+        raise TypeError("`likelihood` must be a pymc_extras.prior.Prior.")
+    _validate_cost_per_target_likelihood(likelihood)
+
     required_cols = {"channel", target_column, "sigma"}
     missing = required_cols - set(calibration_df.columns)
     if missing:
@@ -908,7 +1114,53 @@ def validate_cost_per_target_rows(
     indices = get_indices(calibration_df[non_date_dims], model)
     targets = calibration_df[target_column].to_numpy(dtype=float)
     sigmas = calibration_df["sigma"].to_numpy(dtype=float)
-    return indices, targets, sigmas
+    _validate_measurement_values(targets, target_column)
+    _validate_measurement_values(sigmas, "sigma")
+    if likelihood.distribution == "LogNormal" and (targets <= 0).any():
+        raise ValueError(
+            "LogNormal calibration requires positive calibration values in "
+            f"column '{target_column}'; use Prior('Normal') or Prior('StudentT', "
+            "nu=...) for a value that can be zero or negative."
+        )
+    return indices, targets, sigmas, likelihood
+
+
+def _validate_positive_cost_per_target_means(
+    model: pm.Model, cost_rows: XTensorVariable, target_rows: XTensorVariable
+) -> None:
+    """Refuse a LogNormal calibration whose rows do not have a positive ratio to log.
+
+    Both the mean spend and the mean contribution of every calibrated row
+    must exceed :data:`_RATIO_DENOMINATOR_FLOOR` at the model's initial point,
+    in either direction of the ratio. A zero numerator puts ``log(0)`` in the
+    likelihood and stops the sampler with an opaque error; a denominator at
+    the floor turns the ratio into an artifact of the clip, with no gradient
+    through it. Both are named here, before the model changes.
+    """
+    cost_rows, target_rows = model.replace_rvs_by_values([cost_rows, target_rows])
+    initial_cost, initial_target = (
+        np.asarray(value)
+        for value in model.compile_fn(
+            [cost_rows, target_rows],
+            inputs=model.value_vars,
+            point_fn=True,
+            on_unused_input="ignore",
+        )(model.initial_point())
+    )
+    positive = (initial_cost > _RATIO_DENOMINATOR_FLOOR) & (
+        initial_target > _RATIO_DENOMINATOR_FLOOR
+    )
+    if bad_rows := np.flatnonzero(~positive).tolist():
+        raise ValueError(
+            "LogNormal calibration requires a positive model-implied ratio at the "
+            "model's initial point: a positive mean spend and a positive mean "
+            f"contribution on every calibration row. Rows {bad_rows} have mean "
+            f"spend {initial_cost[bad_rows].tolist()} and mean contribution "
+            f"{initial_target[bad_rows].tolist()}. A channel with no spend over "
+            "the model's dates, or whose contribution is zero or negative at the "
+            "initial point, has no positive ratio; drop the row or use "
+            "Prior('Normal')."
+        )
 
 
 def add_cost_per_target_observations(
@@ -921,16 +1173,71 @@ def add_cost_per_target_observations(
     name_prefix: str = "cpt_calibration",
     target_per_cost: bool = False,
     get_indices: Callable[[pd.DataFrame, pm.Model], Indices] = exact_row_indices,
+    likelihood: Prior | None = None,
 ) -> None:
-    """Add observed Normal likelihood to calibrate cost-per-target.
+    """Add an observed likelihood that calibrates a cost-per-target ratio.
 
     By default the ratio is ``mean(cost) / mean(target)`` (cost-per-target).
     Set ``target_per_cost=True`` to flip it to ``mean(target) / mean(cost)``
     (target-per-cost, e.g. conversions per dollar).
 
-    An observed ``Normal`` likelihood term is added for each calibration row:
+    One observed likelihood term is added per calibration row, centred on
+    the model ratio ``r`` and matched to the table's ``sigma``, which is the
+    standard error of the calibration value ``t`` in the units the table
+    states it in, under every family:
 
-    ``Normal(mu=ratio_mean, sigma=sigma, observed=target)``
+    ==============  ==============  ================  ============  =================================
+    ``likelihood``  ``mu``          ``sigma``         ``observed``  penalty as the ratio goes to zero
+    ==============  ==============  ================  ============  =================================
+    ``Normal``      ``r``           ``sigma``         ``t``         capped at ``t**2 / (2 sigma**2)``
+    ``StudentT``    ``r``           ``sigma``         ``t``         capped lower; needs ``nu``
+    ``LogNormal``   ``log(r)``      ``sigma / t``     ``t``         grows as ``log(r / t)**2``
+    ==============  ==============  ================  ============  =================================
+
+    A ``Normal`` on a ratio is bounded on one side: its negative log density
+    tends to ``t**2 / (2 sigma**2)`` as the ratio goes to zero (8 nats at
+    ``sigma = t / 4``), so under cost-per-target the calibration is a floor
+    on ROAS but not a ceiling, and under ``target_per_cost=True`` the cap
+    moves to the other side. ``StudentT`` caps lower on purpose, which is the
+    choice when the experiment itself may be wrong. ``LogNormal`` measures
+    the error on the log scale: a 2x miss costs the same in either direction
+    and the cost keeps growing as ``log(r / t)**2``, so while the
+    contributions stay positive ``target_per_cost`` only decides how the
+    table is written.
+
+    Near the target the families charge similar amounts: at
+    ``sigma = t / 4`` a 25% miss costs 0.50 nats under ``Normal``, 0.56 under
+    ``StudentT(nu=4)`` and 0.40 (over) or 0.66 (under) under ``LogNormal``.
+    At the same width the ``Normal`` charges more than ``LogNormal`` for
+    every ratio above the target and less for every ratio below it, since
+    ``log(x) <= x - 1``.
+
+    Pick the family by the error the experiment reports. A ROAS read off a
+    lift test, an incremental outcome with a Normal standard error over a
+    spend the test knows, has an additive error: the ``Normal`` on a ROAS
+    table is then the sampling model, it pulls harder than ``LogNormal``
+    against an overstated channel, and its cap as the ROAS goes to zero is
+    what the experiment says about zero. A CPA ``t`` from such a test has the
+    same error on the ROAS scale, so invert it to a ROAS ``1 / t`` with
+    standard error ``sigma / t**2`` and calibrate that with the ``Normal``
+    and ``target_per_cost=True``. The conversion is exact for the
+    delta-method standard error of ``spend / delta_y`` with ``delta_y``
+    Normal and the spend known, and close while ``sigma / t`` is about 0.3
+    or less; a CPA reported as bootstrap replicates or posterior draws is
+    inverted draw by draw (the mean and standard deviation of
+    ``1 / draws``). ``LogNormal`` is the model for a value reported with a
+    relative, asymmetric or log-scale interval, a CPA included, where a
+    CPA-table ``Normal`` would be capped on the side an overstated channel
+    moves toward. Its width ``sigma / t`` is the first-order translation of
+    the table's standard error into a relative one, accurate while
+    ``sigma / t`` is about 0.3 or less: at 0.5 the ratios within 1.96 widths
+    of the target run from 0.38 t to 2.66 t, against 0.02 t to 1.98 t under
+    the ``Normal``. A log-scale standard error ``s`` is entered exactly as
+    ``sigma = s * t``. ``LogNormal`` also assumes contributions that stay
+    positive, as positive-support channel priors keep them: each mean is
+    floored at ``1e-12`` before the log, so the log-scale penalty keeps
+    growing until a mean reaches that floor, and a negative contribution
+    costs a large finite penalty with no gradient.
 
     Using the mean of numerator and denominator separately avoids
     ``mean(cost / target)`` which is numerically unstable when spend is spiky
@@ -942,7 +1249,8 @@ def add_cost_per_target_observations(
         Must include columns ``channel``, ``sigma``, and a target column. By
         default the target column is assumed to be ``cost_per_target``. The
         DataFrame must also include one column per model dimension found in the
-        CPT variable (excluding ``date``).
+        CPT variable (excluding ``date``). ``sigma`` must be positive; under
+        ``LogNormal`` the target column must be positive too.
     model : pm.Model, optional
         Model containing the cost-per-target tensor. If None, uses the current model context.
     cost_value : XTensorVariable
@@ -960,9 +1268,42 @@ def add_cost_per_target_observations(
         If ``True``, computes ``mean(target) / mean(cost)``.
     get_indices : Callable[[pd.DataFrame, pm.Model], Indices]
         Alignment function mapping rows to model coordinate indices.
+    likelihood : Prior, optional
+        Family of the calibration term, by default ``Prior("Normal")``;
+        ``Prior("StudentT", nu=...)`` and ``Prior("LogNormal")`` are the
+        alternatives. ``nu`` is the only parameter it takes: the others come
+        from the model and the table, and they, ``dims``, a ``transform`` and
+        ``centered=False`` are refused. ``nu`` must be positive: a
+        non-positive constant, or a prior that can go negative (``Normal``,
+        ``StudentT``, a lower bound below zero, ...), is refused, and another
+        symbolic value is taken as given. A Prior-valued
+        ``nu`` (without dims) adds a free variable named
+        ``{name_prefix}_nu``.
+
+    Raises
+    ------
+    TypeError
+        If *likelihood* is not a :class:`~pymc_extras.prior.Prior`.
+    KeyError
+        If a required column or dim column is missing.
+    UnalignedValuesError
+        If a ``channel`` or dim label is not a model coordinate.
+    ValueError
+        As :func:`validate_cost_per_target_rows` (likelihood contents, values
+        that are not finite, non-positive ``sigma``, non-positive values under
+        ``LogNormal``), before any graph change.
+    ValueError
+        Under ``LogNormal``, if a calibrated row does not have a positive mean
+        spend and a positive mean contribution at the model's initial point (a
+        channel with no spend over the dates, or whose contribution is zero
+        there); raised before the coordinate and the observed variable are
+        added.
 
     Examples
     --------
+    Calibrate a CPA table with the default ``Normal``, which reads ``sigma``
+    as an additive error on the CPA scale:
+
     .. code-block:: python
 
         cost = as_xtensor(spend_array, dims=("date", "geo", "channel"))
@@ -984,40 +1325,130 @@ def add_cost_per_target_observations(
             target_value=target,
             name_prefix="cpt_calibration",
         )
+
+    For a CPA reported with a relative or log-scale interval, measure the
+    error on the log scale instead, so that the penalty keeps growing however
+    far the channel's ROAS moves from the table:
+
+    .. code-block:: python
+
+        add_cost_per_target_observations(
+            calibration_df=calibration_df,
+            model=mmm.model,
+            cost_value=cost,
+            target_value=target,
+            name_prefix="cpt_calibration",
+            likelihood=Prior("LogNormal"),
+        )
     """
-    cost_per_target_dim = f"_{name_prefix}"
     current_model: pm.Model = modelcontext(model)
 
-    indices, target_values, sigma_values = validate_cost_per_target_rows(
+    indices, target_values, sigma_values, likelihood = validate_cost_per_target_rows(
         calibration_df,
         current_model,
         target_column=target_column,
         get_indices=get_indices,
+        likelihood=likelihood,
     )
-    indices_xr = {
-        k: as_xtensor(v, dims=(cost_per_target_dim,)) for k, v in indices.items()
-    }
-    targets = as_xtensor(target_values, dims=(cost_per_target_dim,))
-    sigmas = as_xtensor(sigma_values, dims=(cost_per_target_dim,))
+    # MMM.add_cost_per_target_calibration runs the same three steps itself, so
+    # it can register its increment node between the check and the build; a
+    # new family-specific check belongs in both places.
+    if likelihood.distribution == "LogNormal":
+        _validate_positive_cost_per_target_means(
+            current_model,
+            *_gather_cost_per_target_means(
+                cost_value, target_value, indices, dim=f"_{name_prefix}"
+            ),
+        )
+    _add_cost_per_target_likelihood(
+        current_model,
+        cost_value,
+        target_value,
+        indices,
+        target_values,
+        sigma_values,
+        likelihood,
+        name_prefix=name_prefix,
+        target_per_cost=target_per_cost,
+    )
 
-    with current_model:
-        cost_mean = cost_value.mean(dim="date")
-        target_mean = target_value.mean(dim="date")
-        if target_per_cost:
-            numerator = target_mean
-            denominator = ptx.math.clip(cost_mean, 1e-12, np.inf)
-        else:
-            numerator = cost_mean
-            denominator = ptx.math.clip(target_mean, 1e-12, np.inf)
-        ratio_mean = numerator / denominator
-        gathered_cpt = ratio_mean.isel(indices_xr, missing_dims="raise")
 
-        current_model.add_coord(cost_per_target_dim, length=len(calibration_df))
-        pmd.Normal(
-            name_prefix,
-            mu=gathered_cpt,
-            sigma=sigmas,
-            observed=targets,
+def _gather_cost_per_target_means(
+    cost_value: XTensorVariable,
+    target_value: XTensorVariable,
+    indices: Indices,
+    *,
+    dim: str,
+) -> tuple[XTensorVariable, XTensorVariable]:
+    """Return ``mean(cost)`` and ``mean(target)`` over the dates at each calibration row.
+
+    Both come out on *dim*, one entry per row of the calibration table, in
+    the order of *indices*.
+    """
+    indices_xr = {k: as_xtensor(v, dims=(dim,)) for k, v in indices.items()}
+    return (
+        cost_value.mean(dim="date").isel(indices_xr, missing_dims="raise"),
+        target_value.mean(dim="date").isel(indices_xr, missing_dims="raise"),
+    )
+
+
+def _add_cost_per_target_likelihood(
+    model: pm.Model,
+    cost_value: XTensorVariable,
+    target_value: XTensorVariable,
+    indices: Indices,
+    target_values: np.ndarray,
+    sigma_values: np.ndarray,
+    likelihood: Prior,
+    *,
+    name_prefix: str,
+    target_per_cost: bool,
+) -> None:
+    """Add the observed term of a validated calibration table to *model*.
+
+    The ratio is ``mean(cost) / mean(target)`` over the dates
+    (``mean(target) / mean(cost)`` with *target_per_cost*), its denominator
+    clipped at :data:`_RATIO_DENOMINATOR_FLOOR`, taken at each row of
+    *indices*; under ``LogNormal`` both means are floored there before the
+    log. See :func:`add_cost_per_target_observations` for the family mapping.
+    """
+    dim = f"_{name_prefix}"
+    indices_xr = {k: as_xtensor(v, dims=(dim,)) for k, v in indices.items()}
+    targets = as_xtensor(target_values, dims=(dim,))
+    sigmas = as_xtensor(sigma_values, dims=(dim,))
+    cost_mean = cost_value.mean(dim="date")
+    target_mean = target_value.mean(dim="date")
+    numerator, denominator = (
+        (target_mean, cost_mean) if target_per_cost else (cost_mean, target_mean)
+    )
+
+    if likelihood.distribution == "LogNormal":
+        # First-order delta method: a standard error `sigma` on the table
+        # value `t` is a width `sigma / t` on the log scale. The divisor is
+        # the table's target, not the model ratio, so the penalty stays a
+        # quadratic in log(ratio / target) however far the ratio moves. Each
+        # mean is floored before the log, so a negative contribution (a
+        # channel prior with real-line support) costs a large finite penalty,
+        # the same in both directions of the table.
+        mu = (
+            ptx.math.log(ptx.math.clip(numerator, _RATIO_DENOMINATOR_FLOOR, np.inf))
+            - ptx.math.log(ptx.math.clip(denominator, _RATIO_DENOMINATOR_FLOOR, np.inf))
+        ).isel(indices_xr, missing_dims="raise")
+        sigma = sigmas / targets
+    else:
+        # Divided before the rows are gathered, so the default Normal term is
+        # the same computation as before the likelihood became configurable.
+        mu = (
+            numerator / ptx.math.clip(denominator, _RATIO_DENOMINATOR_FLOOR, np.inf)
+        ).isel(indices_xr, missing_dims="raise")
+        sigma = sigmas
+
+    with model:
+        model.add_coord(dim, length=len(target_values))
+        likelihood = likelihood.deepcopy()
+        likelihood.parameters["sigma"] = sigma
+        likelihood.create_likelihood_variable(
+            name=name_prefix, mu=mu, observed=targets, xdist=True
         )
 
 
@@ -1031,6 +1462,7 @@ def add_cost_per_target_potentials(
     name_prefix: str = "cpt_calibration",
     target_per_cost: bool = False,
     get_indices: Callable[[pd.DataFrame, pm.Model], Indices] = exact_row_indices,
+    likelihood: Prior | None = None,
 ) -> None:
     """Call :func:`add_cost_per_target_observations` with a deprecation warning.
 
@@ -1052,4 +1484,5 @@ def add_cost_per_target_potentials(
         name_prefix=name_prefix,
         target_per_cost=target_per_cost,
         get_indices=get_indices,
+        likelihood=likelihood,
     )

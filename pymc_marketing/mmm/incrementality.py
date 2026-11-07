@@ -234,10 +234,11 @@ import logging
 import warnings
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Iterator, Mapping, Sequence
-from contextlib import contextmanager
+from contextlib import closing, contextmanager
 from dataclasses import dataclass
-from functools import partial
-from typing import TYPE_CHECKING, Any, Literal, cast
+from functools import cached_property, partial
+from itertools import groupby
+from typing import TYPE_CHECKING, Literal, cast
 
 import numpy as np
 import pandas as pd
@@ -246,7 +247,6 @@ from pydantic import ConfigDict, validate_call
 
 from pymc_marketing.data.idata.mmm_wrapper import MMMIDataWrapper
 from pymc_marketing.data.idata.schema import Frequency
-from pymc_marketing.data.idata.utils import subsample_draws
 from pymc_marketing.mmm.components.adstock import (
     BinomialAdstock,
     DelayedAdstock,
@@ -261,6 +261,11 @@ from pymc_marketing.mmm.counterfactual import (
     Estimand,
     EvaluationWindows,
 )
+from pymc_marketing.mmm.evaluator_cache import (
+    EvaluatorCacheKey,
+    EvaluatorLease,
+    constant_data_fingerprint,
+)
 from pymc_marketing.mmm.link import MU_ORIGINAL_SCALE, LinkFunction
 from pymc_marketing.mmm.spend_reach import (
     _PKG_PREFIX,
@@ -270,10 +275,17 @@ from pymc_marketing.mmm.spend_reach import (
     resolve_channel_dependent_effects,
 )
 from pymc_marketing.mmm.transformers import ConvMode
+from pymc_marketing.mmm.utils import infer_frequency
+from pymc_marketing.pytensor_utils import (
+    needed_posterior_names,
+    reorder_to_model_coords,
+    transpose_to_model_dims,
+)
 
 if TYPE_CHECKING:
     from numpy.random import Generator, RandomState
     from pandas.tseries.offsets import BaseOffset
+    from pytensor.graph.basic import Variable
 
     from pymc_marketing.mmm.components.adstock import AdstockTransformation
     from pymc_marketing.mmm.components.saturation import SaturationTransformation
@@ -410,6 +422,28 @@ class IncrementalReducer(ABC):
         """
         return self.per_date_increment(delta).sum(dim="date")
 
+    @abstractmethod
+    def for_samples(self, samples: slice) -> IncrementalReducer:
+        """Restrict the reducer to a block of the flat ``sample`` axis.
+
+        :class:`Incrementality` reduces the counterfactual one block of
+        posterior samples at a time, and a *delta* then carries only that
+        block's samples.  Abstract, so that every reducer decides: one
+        holding nothing per sample returns itself, and one that inherited
+        that default while holding a per-sample input would fail only on a
+        posterior large enough to be split.
+
+        Parameters
+        ----------
+        samples : slice
+            The block's positions on the ``sample`` axis.
+
+        Returns
+        -------
+        IncrementalReducer
+            A reducer whose per-sample inputs are views of the block.
+        """
+
 
 class IdentityLinkReducer(IncrementalReducer):
     r"""Increment reducer for an additive response (``link="identity"``).
@@ -439,6 +473,14 @@ class IdentityLinkReducer(IncrementalReducer):
     def per_date_increment(self, delta: xr.DataArray) -> xr.DataArray:
         """See :meth:`IncrementalReducer.per_date_increment`."""
         return delta * self.scale
+
+    def for_samples(self, samples: slice) -> IncrementalReducer:
+        """See :meth:`IncrementalReducer.for_samples`.
+
+        The scale holds nothing per sample: the identity link's mean
+        correction is ``1``, so the reducer is returned as is.
+        """
+        return self
 
 
 class LogLinkReducer(IncrementalReducer):
@@ -488,6 +530,12 @@ class LogLinkReducer(IncrementalReducer):
         """See :meth:`IncrementalReducer.per_date_increment`."""
         baseline = self.baseline_response.sel(date=delta.coords["date"])
         return baseline * np.expm1(delta)
+
+    def for_samples(self, samples: slice) -> IncrementalReducer:
+        """See :meth:`IncrementalReducer.for_samples`."""
+        return LogLinkReducer(
+            baseline_response=self.baseline_response.isel(sample=samples)
+        )
 
 
 def kernel_trailing_lags(l_max: int, mode: ConvMode) -> int:
@@ -755,6 +803,80 @@ def _transformation_parameters(
     )
 
 
+# Differs from the public subsample_draws, which the MMM curve methods still use;
+# moving them to this scheme would leave one subsampler (#3305).
+def _subsample_draws_per_chain(
+    dataset: xr.Dataset,
+    *,
+    num_samples: int | None,
+    random_state: RandomState | Generator | None = None,
+) -> xr.Dataset:
+    """Subsample draws from a Dataset with chain and draw dimensions.
+
+    Keeps the same randomly chosen draw positions in every chain, so the
+    subsample is a block of *dataset* under its own ``chain`` and ``draw``
+    labels: a result computed from it lines up with *dataset* by label.
+
+    Parameters
+    ----------
+    dataset : xr.Dataset
+        Dataset with ``chain`` and ``draw`` dimensions.
+    num_samples : int or None
+        Total number of draws to keep, rounded up to a multiple of the number
+        of chains.  If ``None``, or if that leaves no draw out, returns
+        *dataset* unchanged.
+    random_state : RandomState, Generator, or None, optional
+        Seed or random state for reproducibility.
+
+    Returns
+    -------
+    xr.Dataset
+        *dataset* unchanged when nothing is subsampled (see *num_samples*).
+        Otherwise *dataset* at ``ceil(num_samples / n_chains)`` draws per
+        chain, in their original order, with every chain kept.  A ``chain``
+        or ``draw`` dimension without coordinates gets its positions as
+        labels, so each kept draw is labeled with its position in *dataset*.
+
+    Raises
+    ------
+    ValueError
+        If *num_samples* is less than 1, or if the ``chain`` or ``draw``
+        labels repeat, so a draw cannot be found by label, as when two runs
+        are concatenated along ``draw``.
+    """
+    # Checked on the whole posterior: a subsample rarely keeps a repeat.
+    for dim in ("chain", "draw"):
+        if dim in dataset.indexes and not dataset.indexes[dim].is_unique:
+            raise ValueError(
+                f"The posterior's {dim!r} labels are not unique, so its draws "
+                "cannot be matched by label. Relabel them first, e.g. "
+                f"posterior.assign_coords({dim}=np.arange(posterior.sizes[{dim!r}]))."
+            )
+    if num_samples is None:
+        return dataset
+    if num_samples < 1:
+        raise ValueError(f"num_samples must be at least 1, got {num_samples}.")
+
+    n_chains, n_draws = dataset.sizes["chain"], dataset.sizes["draw"]
+    # Same draws in every chain: stratified by chain, so each keeps its weight.
+    per_chain = -(-num_samples // n_chains)
+
+    if per_chain >= n_draws:
+        return dataset
+
+    rng = np.random.default_rng(random_state)
+    positions = np.sort(rng.choice(n_draws, size=per_chain, replace=False))
+    # A dimension without an index would read back as 0..k-1 after isel.
+    dataset = dataset.assign_coords(
+        {
+            dim: np.arange(dataset.sizes[dim])
+            for dim in ("chain", "draw")
+            if dim not in dataset.indexes
+        }
+    )
+    return dataset.isel(draw=positions)
+
+
 def _missing_variables(
     transformation: AdstockTransformation | SaturationTransformation,
     posterior: xr.Dataset,
@@ -781,46 +903,6 @@ def _missing_variables(
         if hasattr(transformation.function_priors[parameter], "create_variable")
         and name not in posterior
     ]
-
-
-def _relabel_draws(sampled: xr.DataArray, labels: Mapping[str, Any]) -> xr.DataArray:
-    """Label a posterior-predictive sample with the draws it was computed at.
-
-    ``pm.sample_posterior_predictive`` returns the draws in the order of the
-    posterior it is given, under that posterior's ``chain`` and ``draw``
-    labels.  Those are not the pipeline's: the pipeline labels its results
-    with ``np.arange``, while :func:`~pymc_marketing.data.idata.utils.subsample_draws`
-    drops the coordinates of a subsample and a full posterior keeps whatever
-    labels it was given.  Relabeling by position is right only while the order
-    holds: nothing between the subsample and the sampling may reorder or drop
-    draws.  The sizes are checked here: a draw lost or added on the way would
-    pair draw *i* of one array with draw *j* of another, so it raises.  The
-    parity tests pin the order itself.
-
-    Parameters
-    ----------
-    sampled : xr.DataArray
-        The sample, with ``chain`` and ``draw`` dimensions.
-    labels : mapping
-        The ``chain`` and ``draw`` coordinates to give it.
-
-    Returns
-    -------
-    xr.DataArray
-        *sampled* under *labels*.
-
-    Raises
-    ------
-    ValueError
-        If the sample does not have as many chains and draws as *labels*.
-    """
-    for dim in ("chain", "draw"):
-        if sampled.sizes[dim] != len(labels[dim]):
-            raise ValueError(
-                f"The sample has {sampled.sizes[dim]} {dim}s where the posterior "
-                f"it was computed at has {len(labels[dim])}."
-            )
-    return sampled.assign_coords(chain=labels["chain"], draw=labels["draw"])
 
 
 def _adstock_terms(
@@ -956,12 +1038,12 @@ class PeriodIncrements:
 
 @dataclass(frozen=True)
 class ProbedReach:
-    """Compiled evaluator, factual baseline and measured reach of one evaluation.
+    """Leased evaluator, factual baseline and measured reach of one evaluation.
 
     Parameters
     ----------
-    evaluator : CounterfactualEvaluator
-        The compiled batched evaluator.
+    lease : EvaluatorLease
+        The compiled batched evaluator, held for the duration of the request.
     baseline : dict
         The factual evaluation of every node, per node
         ``(n_samples, n_dates, *non_date_dims)``.
@@ -979,7 +1061,7 @@ class ProbedReach:
         ``channel_data``'s declared axis order.
     """
 
-    evaluator: CounterfactualEvaluator
+    lease: EvaluatorLease
     baseline: dict
     baseline_array: np.ndarray
     probe: SpendProbe
@@ -987,6 +1069,15 @@ class ProbedReach:
     effect_names: tuple[str, ...]
     trailing_lags: int
     channel_data_dims: list[str]
+
+    @property
+    def evaluator(self) -> CounterfactualEvaluator:
+        """The compiled batched evaluator this request holds."""
+        return self.lease.evaluator
+
+    def release(self) -> None:
+        """Return the evaluator to the cache, also when the request raised."""
+        self.lease.release()
 
 
 @dataclass(frozen=True)
@@ -1006,7 +1097,7 @@ class PreparedEvaluation:
     effects : tuple of ChannelDependentEffect
         The channel-dependent effects evaluated with ``channel_contribution``.
     probed : ProbedReach
-        The evaluator, the baseline and the measured reach.
+        The leased evaluator, the baseline and the measured reach.
     freq_offset : BaseOffset
         The data's date frequency.
     windows : EvaluationWindows
@@ -1023,6 +1114,10 @@ class PreparedEvaluation:
     freq_offset: BaseOffset
     windows: EvaluationWindows
 
+    def release(self) -> None:
+        """Return the leased evaluator to the model's cache."""
+        self.probed.release()
+
 
 @dataclass(frozen=True)
 class ClosedFormInputs:
@@ -1035,13 +1130,13 @@ class ClosedFormInputs:
     saturated : xr.DataArray
         :math:`\beta g(x_t) - \beta g(f x_t)` in original scale, per date and
         draw, signed like the pipeline's increments.
-    labels : dict
-        ``chain`` and ``draw`` coordinates of the pipeline's results.
+    labels : mapping
+        ``chain`` and ``draw`` coordinates of the (subsampled) posterior.
     """
 
     prepared: PreparedEvaluation
     saturated: xr.DataArray
-    labels: dict
+    labels: Mapping[str, np.ndarray]
 
 
 class Incrementality:
@@ -1079,6 +1174,14 @@ class Incrementality:
     ValueError
         If both ``idata`` and ``data`` are provided, or neither is; or if the
         idata coordinates do not match the fitted model's.
+
+    Notes
+    -----
+    Computation reuses compiled evaluators cached on the fitted model, so repeated calls do not recompile.  A call
+    leases the evaluator it uses and returns it when it finishes, so concurrent calls on one model each hold their own
+    evaluator -- a call that finds the cache empty compiles one -- rather than sharing the draws it is rebound to.
+    An in-place edit of ``idata.constant_data`` while an instance is held is not detected by that instance; a fresh
+    ``mmm.incrementality`` sees it.
 
     Examples
     --------
@@ -1316,8 +1419,12 @@ class Incrementality:
             before it for ``Before``, and on both sides for ``Overlap``.
         num_samples : int or None, optional
             Number of posterior samples to use. If None, all samples are used.
-            If less than total available (chain × draw), a random subset is
-            drawn.
+            Otherwise the same randomly chosen draws are kept in every chain,
+            ``ceil(num_samples / n_chains)`` of them (all of them if that is
+            as many as each chain has), under the posterior's ``chain`` and
+            ``draw`` labels.  Every chain keeps at least one
+            draw, so with many chains (as from ensemble samplers) the call
+            can use far more than ``num_samples`` draws.
         random_state : RandomState or Generator or None, optional
             Random state for reproducible subsampling.
             Only used when ``num_samples`` is not None.
@@ -1549,6 +1656,8 @@ class Incrementality:
             Include adstock carryover effects.
         num_samples : int or None, optional
             Number of posterior samples to use.
+            Rounded up to a multiple of the number of chains; see
+            :meth:`compute_incremental_contribution`.
         random_state : RandomState or Generator or None, optional
             Random state for reproducible subsampling.
         counterfactual_spend_factor : float, default=0.0
@@ -1690,6 +1799,8 @@ class Incrementality:
               other than ``0``.
         num_samples : int or None, optional
             Number of posterior samples to use; all of them when None.
+            Rounded up to a multiple of the number of chains; see
+            :meth:`compute_incremental_contribution`.
         random_state : RandomState or Generator or None, optional
             Seed for the subsample.
         counterfactual_spend_factor : float, default=0.0
@@ -2173,10 +2284,12 @@ class Incrementality:
 
         # One subset for both computations below: drawing twice from a
         # Generator would give each a different one.
-        posterior_sub = subsample_draws(
-            self.idata.posterior.dataset,
-            num_samples=num_samples,
-            random_state=random_state,
+        posterior_sub = self._posterior_in_data_order(
+            _subsample_draws_per_chain(
+                self.idata.posterior.dataset,
+                num_samples=num_samples,
+                random_state=random_state,
+            )
         )
 
         # The shares need c - c0 on every date, so adstock-first evaluates the
@@ -2342,7 +2455,7 @@ class Incrementality:
         ValueError
             If the frequency cannot be inferred from the date index.
         """
-        inferred_freq: str | None = pd.infer_freq(self.data.dates)
+        inferred_freq = infer_frequency(self.data.dates)
         if inferred_freq is None:
             raise ValueError(
                 "Could not infer frequency from the date index. "
@@ -2411,25 +2524,28 @@ class Incrementality:
                 lags=lags,
             ),
         )
-        # No channel-dependent effects reach this point: the guards refused them.
-        probed = prepared.probed
-        _refuse_dedicated_rows(
-            probed.probe.mixes_channels(non_date_dims=probed.evaluator.non_date_dims),
-            requirement=CLOSED_FORM_REQUIREMENT,
-        )
+        # The probe is the closed form's only use of the evaluator, so the lease
+        # ends with it rather than with the matrix the caller builds afterwards.
+        try:
+            # No channel-dependent effects reach this point: the guards refused them.
+            probed = prepared.probed
+            _refuse_dedicated_rows(
+                probed.probe.mixes_channels(
+                    non_date_dims=probed.evaluator.non_date_dims
+                ),
+                requirement=CLOSED_FORM_REQUIREMENT,
+            )
 
-        # The identity link is one of the guards, so the reducer only rescales.
-        reducer = cast(IdentityLinkReducer, prepared.reducer)
-        posterior = prepared.posterior
-        labels = {
-            "chain": np.arange(posterior.sizes["chain"]),
-            "draw": np.arange(posterior.sizes["draw"]),
-        }
-        saturated = _relabel_draws(
-            self._saturated_media(posterior, counterfactual_spend_factor)
-            * reducer.scale,
-            labels,
-        )
+            # The identity link is one of the guards, so the reducer only rescales.
+            reducer = cast(IdentityLinkReducer, prepared.reducer)
+            posterior = prepared.posterior
+            labels = {dim: posterior[dim].values for dim in ("chain", "draw")}
+            saturated = (
+                self._saturated_media(posterior, counterfactual_spend_factor)
+                * reducer.scale
+            ).sel(labels)
+        finally:
+            prepared.release()
         return ClosedFormInputs(prepared=prepared, saturated=saturated, labels=labels)
 
     @staticmethod
@@ -2538,7 +2654,7 @@ class Incrementality:
         weights = self._adstock_kernel(prepared.posterior, divides=False)
         matrix = self._closed_form_matrix(
             inputs.saturated,
-            _relabel_draws(weights, inputs.labels),
+            weights.sel(inputs.labels),
             periods=prepared.periods,
             windows=windows,
             tail_lags=probed.reach.max_lag,
@@ -3141,12 +3257,24 @@ class Incrementality:
             .rename(realization_date="date")
         )
         dates = pd.DatetimeIndex(total["date"].values)
-        # The share tests pin the allocation's columns to the contribution draw
-        # by draw, on a subsample too, so a change in the order fails them.
-        weights = _relabel_draws(
-            weights, {"chain": total["chain"].values, "draw": total["draw"].values}
+        # The kernel and the spend go into the contribution's label order, the
+        # one its values and the matrix's coordinates are laid out in: a labeled
+        # product keeps its first operand's order, and the masks below pair
+        # cells exactly.  The posterior and ``constant_data`` may store others.
+        # A draw of the contribution missing from the kernel raises a KeyError here.
+        in_total_order = {dim: total[dim].values for dim in out_dims}
+        weights = weights.sel(
+            {
+                "chain": total["chain"].values,
+                "draw": total["draw"].values,
+                **{
+                    dim: labels
+                    for dim, labels in in_total_order.items()
+                    if dim in weights.dims
+                },
+            }
         )
-        spend = self.data.get_channel_data()
+        spend = self.data.get_channel_data().sel(in_total_order)
 
         adstocked = sum(_adstock_terms(weights, spend))
         positive = adstocked > 0
@@ -3237,8 +3365,7 @@ class Incrementality:
         xr.DataArray
             The adstock of a unit impulse, with a ``"time since exposure"`` lag
             dimension of length ``l_max`` and the parameters' other dimensions.
-            The draws are in the posterior's order and under its labels, which
-            need not be the pipeline's; see :func:`_relabel_draws`.
+            The draws are in the posterior's order and under its labels.
 
         Raises
         ------
@@ -3315,6 +3442,8 @@ class Incrementality:
             other than ``0`` works here.
         num_samples : int or None, optional
             Number of posterior samples to use; all of them when None.
+            Rounded up to a multiple of the number of chains; see
+            :meth:`compute_incremental_contribution`.
         random_state : RandomState or Generator or None, optional
             Seed for the subsample.
         counterfactual_spend_factor : float, default=0.0
@@ -3565,9 +3694,11 @@ class Incrementality:
         # The kernel's weight within each lag, W C(m), read off one sampling of
         # the kernel.  Its last entry is the whole kernel, so the future part is
         # exactly zero for a date whose window covers it.
-        cumulative = _relabel_draws(
-            self._adstock_kernel(prepared.posterior, divides=False), inputs.labels
-        ).cumsum(LAG_DIM)
+        cumulative = (
+            self._adstock_kernel(prepared.posterior, divides=False)
+            .sel(inputs.labels)
+            .cumsum(LAG_DIM)
+        )
 
         dates = self.data.dates
         offset = prepared.freq_offset
@@ -4131,6 +4262,58 @@ class Incrementality:
         attrs["warnings"] = json.dumps(notes)
         return attrs
 
+    @cached_property
+    def _data_fingerprint(self) -> tuple | None:
+        """Content fingerprint of :attr:`idata`'s ``constant_data``, computed once.
+
+        ``idata`` is fixed for the life of an ``Incrementality`` object.
+        Hashing every variable on every request would only repeat the same work.
+        """
+        return constant_data_fingerprint(self.idata)
+
+    def _evaluator_cache_key(
+        self, response_vars: Sequence[str | Variable]
+    ) -> EvaluatorCacheKey:
+        """Return the cache identity of the evaluator :meth:`_compute_increments` needs.
+
+        The key mirrors what the evaluator bakes into its compiled graph (responses, target, mode, frozen
+        deterministics) and identifies the data by its dates and a ``constant_data`` fingerprint.
+
+        Parameters
+        ----------
+        response_vars : sequence of str or Variable
+            Responses in order.  A node is keyed by its name, which is how the
+            evaluator resolves it against its intervened clone.
+
+        Returns
+        -------
+        EvaluatorCacheKey
+            Identity the evaluator is cached under.
+
+        Raises
+        ------
+        ValueError
+            If a response node has no name, which the evaluator could not
+            resolve either.
+        """
+        names = tuple(
+            var if isinstance(var, str) else var.name for var in response_vars
+        )
+        unnamed = [position for position, name in enumerate(names) if name is None]
+        if unnamed:
+            raise ValueError(
+                f"Response variables at positions {unnamed} have no name; the "
+                "evaluator resolves responses by name."
+            )
+        return EvaluatorCacheKey(
+            response_vars=cast(tuple[str, ...], names),
+            intervention_target=CounterfactualEvaluator.CHANNEL_DATA,
+            intervention_mode="replace",
+            frozen_deterministics=tuple(self.model.frozen_deterministics),
+            dates=tuple(self.data.dates),
+            data_fingerprint=self._data_fingerprint,
+        )
+
     def _prepare_evaluation(
         self,
         *,
@@ -4189,11 +4372,11 @@ class Incrementality:
 
         start_ts, end_ts = self._validate_input(start_date, end_date)
 
-        # Subsample the posterior across chain x draw, unless the caller did.
-        posterior_sub = (
+        # Subsample the posterior's draws, unless the caller did.
+        posterior_sub = self._posterior_in_data_order(
             posterior
             if posterior is not None
-            else subsample_draws(
+            else _subsample_draws_per_chain(
                 self.idata.posterior.dataset,
                 num_samples=num_samples,
                 random_state=random_state,
@@ -4217,16 +4400,22 @@ class Incrementality:
         )
 
         # The stretch of dates each period is evaluated over, which of them enter
-        # the sum, and the length they all stack to.
-        windows = EvaluationWindows.build(
-            periods=periods,
-            dates=self.data.dates,
-            l_max=probed.reach.effective_l_max,
-            freq_offset=freq_offset,
-            full_axis=probed.reach.requires_full_axis,
-            include_carryover=include_carryover,
-            mode=self.model.adstock.mode,
-        )
+        # the sum, and the length they all stack to.  A failure here still has to
+        # return the leased evaluator; the caller only releases once it has a
+        # prepared evaluation.
+        try:
+            windows = EvaluationWindows.build(
+                periods=periods,
+                dates=self.data.dates,
+                l_max=probed.reach.effective_l_max,
+                freq_offset=freq_offset,
+                full_axis=probed.reach.requires_full_axis,
+                include_carryover=include_carryover,
+                mode=self.model.adstock.mode,
+            )
+        except BaseException:
+            probed.release()
+            raise
 
         return PreparedEvaluation(
             start_ts=start_ts,
@@ -4238,6 +4427,52 @@ class Incrementality:
             probed=probed,
             freq_offset=freq_offset,
             windows=windows,
+        )
+
+    def _evaluator_posterior(
+        self, posterior: xr.Dataset, response_vars: Sequence[str | Variable]
+    ) -> xr.Dataset:
+        """Return the posterior variables the evaluator's graphs read.
+
+        A compiled evaluator keeps the draws it was conditioned on for as long as
+        it lies in the cache, so handing it the whole subsample would pin every
+        large deterministic in the posterior -- ``channel_contribution`` among
+        them -- although the graphs read only the free RVs and the frozen
+        deterministics they are built over.  Narrowing here leaves the reducer,
+        which does want the whole subsample, untouched.
+
+        Parameters
+        ----------
+        posterior : xr.Dataset
+            The already subsampled posterior.
+        response_vars : sequence of str or Variable
+            Responses the evaluator is built for.  A response given as a raw node
+            is resolved against the model for the traversal only; the evaluator
+            still receives the node.
+
+        Returns
+        -------
+        xr.Dataset
+            The variables those responses read, in ``posterior``'s own order.  A
+            variable the posterior lacks is left out, so the evaluator raises its
+            usual error when the graph asks for it.  When none of the variables
+            they read is in ``posterior`` -- in particular when they read none,
+            every channel parameter being fixed in the model config -- the result
+            holds no variable, only the ``chain`` and ``draw`` coordinates the
+            evaluator still broadcasts over; an empty selection would drop them.
+        """
+        model = self.model.model
+        resolved = [
+            model[var] if isinstance(var, str) else var for var in response_vars
+        ]
+        read = set(
+            needed_posterior_names(model, resolved, self.model.frozen_deterministics)
+        )
+        names = [name for name in posterior.data_vars if name in read]
+        if names:
+            return posterior[names]
+        return xr.Dataset(
+            coords={"chain": posterior["chain"], "draw": posterior["draw"]}
         )
 
     def _probe_reach(
@@ -4312,14 +4547,21 @@ class Incrementality:
         # silently evaluating on whatever the live model happens to hold.
         # constant_data is missing only for idata built before this group was
         # recorded, and the evaluator falls back to the live snapshot then.
-        evaluator = CounterfactualEvaluator(
+        response_vars: list[str | Variable] = [
+            CHANNEL_CONTRIBUTION,
+            *effect_names,
+            *([predictor] if predictor is not None else []),
+        ]
+        # Reuse the compiled evaluator for this graph shape and dataset.  The
+        # evaluator is leased for the whole request: it leaves the cache here and
+        # comes back below, so a concurrent call misses and compiles its own
+        # rather than rebinding the draws under this one.
+        posterior_for_evaluator = self._evaluator_posterior(posterior, response_vars)
+        build_evaluator = partial(
+            CounterfactualEvaluator,
             pymc_model=posterior_predictive_model,
-            posterior=posterior,
-            response_vars=[
-                CHANNEL_CONTRIBUTION,
-                *effect_names,
-                *([predictor] if predictor is not None else []),
-            ],
+            posterior=posterior_for_evaluator,
+            response_vars=response_vars,
             frozen_deterministics=self.model.frozen_deterministics,
             dates=dates,
             expected_aux_values=(
@@ -4328,63 +4570,77 @@ class Incrementality:
                 else None
             ),
         )
+        cache = self.model._incrementality_evaluator_cache()
+        lease = cache.lease(self._evaluator_cache_key(response_vars), build_evaluator)
+        evaluator = lease.evaluator
+        # A hit carries the draws of the request that built it; a miss was just
+        # conditioned on this request's posterior, so rebinding it would copy the
+        # same draws a second time.
+        try:
+            if lease.cached:
+                evaluator.set_posterior(posterior_for_evaluator)
 
-        # channel_data's declared axis order, which the baseline array below and
-        # the per-channel scenarios further down are both read against.  Taken
-        # from the model rather than assumed: it is not always (date, channel),
-        # since panel models lay channel_data out as (date, *custom_dims,
-        # channel).
-        channel_data_dims = list(
-            posterior_predictive_model.named_vars_to_dims.get(
-                CounterfactualEvaluator.CHANNEL_DATA, ()
+            # channel_data's declared axis order, which the baseline array below and
+            # the per-channel scenarios further down are both read against.  Taken
+            # from the model rather than assumed: it is not always (date, channel),
+            # since panel models lay channel_data out as (date, *custom_dims,
+            # channel).
+            channel_data_dims = list(
+                posterior_predictive_model.named_vars_to_dims.get(
+                    CounterfactualEvaluator.CHANNEL_DATA, ()
+                )
             )
-        )
 
-        # Evaluate baseline on full dataset (once).  Comparable to the windowed
-        # counterfactuals because a window is clamped to the fitted dates and
-        # carries l_max of history, so every evaluated date sees the same inputs
-        # it would on the full axis.  Transposed into the declared order rather
-        # than trusting constant_data to already hold it, so date-first and the
-        # position of ``channel`` are both facts about the model here, not
-        # assumptions about the idata group.
-        channel_data = self.data.get_channel_data()
-        if channel_data_dims:
-            channel_data = channel_data.transpose(*channel_data_dims)
-        baseline_array = channel_data.values
-        baseline = evaluator.evaluate_baseline(baseline_array)
-        # Per node: (n_samples, n_dates, *non_date_dims)
+            # Evaluate baseline on full dataset (once).  Comparable to the windowed
+            # counterfactuals because a window is clamped to the fitted dates and
+            # carries l_max of history, so every evaluated date sees the same inputs
+            # it would on the full axis.  Transposed into the declared order rather
+            # than trusting constant_data to already hold it, so date-first and the
+            # position of ``channel`` are both facts about the model here, not
+            # assumptions about the idata group.
+            channel_data = self._channel_data_in_model_order()
+            if channel_data_dims:
+                channel_data = channel_data.transpose(*channel_data_dims)
+            baseline_array = channel_data.values
+            baseline = evaluator.evaluate_baseline(baseline_array)
+            # Per node: (n_samples, n_dates, *non_date_dims)
 
-        # What the window is allowed to assume, measured on the compiled graph
-        # rather than declared.  Unconditional: a mediated path that outlives the
-        # direct one is the obvious reason a window has to be widened, but it is
-        # not the only one -- a custom adstock or saturation that reduces over
-        # ``date`` is not a causal filter, and a plain MMM carrying one cannot be
-        # windowed at all.  Costs one more call to an already-compiled function.
-        probe = SpendProbe(
-            evaluator=evaluator,
-            baseline=baseline,
-            baseline_array=baseline_array,
-            counterfactual_spend_factor=counterfactual_spend_factor,
-        )
-        probe.assert_increment_is_complete(
-            effects=effects, non_date_dims=evaluator.non_date_dims
-        )
-        # The adstock kernel's own trailing lags: the floor under the measured
-        # horizon, and the lower bound on the unobserved tail when the probe
-        # sends every period to the full date axis.
-        trailing_lags = kernel_trailing_lags(
-            self.model.adstock.l_max, self.model.adstock.mode
-        )
-        reach = probe.measure(
-            effects=effects,
-            l_max=self.model.adstock.l_max,
-            trailing_lags=trailing_lags,
-        )
-        if validate_reach is not None:
-            validate_reach(reach)
+            # What the window is allowed to assume, measured on the compiled graph
+            # rather than declared.  Unconditional: a mediated path that outlives the
+            # direct one is the obvious reason a window has to be widened, but it is
+            # not the only one -- a custom adstock or saturation that reduces over
+            # ``date`` is not a causal filter, and a plain MMM carrying one cannot be
+            # windowed at all.  Costs one more call to an already-compiled function.
+            probe = SpendProbe(
+                evaluator=evaluator,
+                baseline=baseline,
+                baseline_array=baseline_array,
+                counterfactual_spend_factor=counterfactual_spend_factor,
+            )
+            probe.assert_increment_is_complete(
+                effects=effects, non_date_dims=evaluator.non_date_dims
+            )
+            # The adstock kernel's own trailing lags: the floor under the measured
+            # horizon, and the lower bound on the unobserved tail when the probe
+            # sends every period to the full date axis.
+            trailing_lags = kernel_trailing_lags(
+                self.model.adstock.l_max, self.model.adstock.mode
+            )
+            reach = probe.measure(
+                effects=effects,
+                l_max=self.model.adstock.l_max,
+                trailing_lags=trailing_lags,
+            )
+            if validate_reach is not None:
+                validate_reach(reach)
+        except BaseException:
+            # The request never got a prepared evaluation to release from, so the
+            # evaluator goes back here rather than being dropped with the frame.
+            lease.release()
+            raise
 
         return ProbedReach(
-            evaluator=evaluator,
+            lease=lease,
             baseline=baseline,
             baseline_array=baseline_array,
             probe=probe,
@@ -4441,7 +4697,7 @@ class Incrementality:
         keep_date_axis : bool, default=False
             Return each period's increment per realization date instead of
             summed over its evaluation window; see
-            :meth:`_compute_period_increments`.
+            :meth:`_finish_period`.
         validate_reach : callable, optional
             Called with the measured :class:`~pymc_marketing.mmm.spend_reach.SpendReach`
             before any period is evaluated, so that a request the reach rules
@@ -4484,86 +4740,174 @@ class Incrementality:
             validate_reach=validate_reach,
             posterior=posterior,
         )
-        posterior_sub = prepared.posterior
-        n_chains = posterior_sub.sizes["chain"]
-        n_draws = posterior_sub.sizes["draw"]
-        reducer = prepared.reducer
-        effects = prepared.effects
-        freq_offset = prepared.freq_offset
-        windows = prepared.windows
-        probed = prepared.probed
-        evaluator = probed.evaluator
-        baseline = probed.baseline
-        baseline_array = probed.baseline_array
-        probe = probed.probe
-        reach = probed.reach
-        effect_names = probed.effect_names
-        trailing_lags = probed.trailing_lags
-        channel_data_dims = probed.channel_data_dims
+        # The evaluator is held until the increments it was leased for are
+        # computed, and returned also when that raises.
+        try:
+            posterior_sub = prepared.posterior
+            labels = {dim: posterior_sub[dim].values for dim in ("chain", "draw")}
+            reducer = prepared.reducer
+            effects = prepared.effects
+            freq_offset = prepared.freq_offset
+            windows = prepared.windows
+            probed = prepared.probed
+            evaluator = probed.evaluator
+            baseline = probed.baseline
+            baseline_array = probed.baseline_array
+            probe = probed.probe
+            reach = probed.reach
+            effect_names = probed.effect_names
+            trailing_lags = probed.trailing_lags
+            channel_data_dims = probed.channel_data_dims
 
-        # Two ways a per-channel column can stop being channel m's unilateral
-        # counterfactual.  An effect can mix channels before reaching the
-        # response, so no per-channel column survives at all.  Failing that, the
-        # media transform itself can mix them -- ``forward_pass`` hands the
-        # saturation the whole (date, channel) tensor, so a shared denominator is
-        # expressible -- which is measured rather than assumed away, and only
-        # where a per-channel column is going to be read: the joint estimand sums
-        # over channels either way, and with effects the per-channel scenarios
-        # are already being built.
-        needs_dedicated_rows = bool(effects) or (
-            scope == "per_channel"
-            and probe.mixes_channels(non_date_dims=evaluator.non_date_dims)
-        )
-        if validate_dedicated_rows is not None:
-            validate_dedicated_rows(needs_dedicated_rows)
+            # Two ways a per-channel column can stop being channel m's unilateral
+            # counterfactual.  An effect can mix channels before reaching the
+            # response, so no per-channel column survives at all.  Failing that, the
+            # media transform itself can mix them -- ``forward_pass`` hands the
+            # saturation the whole (date, channel) tensor, so a shared denominator is
+            # expressible -- which is measured rather than assumed away, and only
+            # where a per-channel column is going to be read: the joint estimand sums
+            # over channels either way, and with effects the per-channel scenarios
+            # are already being built.
+            needs_dedicated_rows = bool(effects) or (
+                scope == "per_channel"
+                and probe.mixes_channels(non_date_dims=evaluator.non_date_dims)
+            )
+            if validate_dedicated_rows is not None:
+                validate_dedicated_rows(needs_dedicated_rows)
 
-        # Where a channel sits among channel_data's non-date axes.  Needed only
-        # in per-channel mode, and it is not always axis 0.
-        channel_axis = None
-        if needs_dedicated_rows:
-            channel_axis = [d for d in channel_data_dims if d != "date"].index(
-                "channel"
+            # Where a channel sits among channel_data's non-date axes.  Needed only
+            # in per-channel mode, and it is not always axis 0.
+            channel_axis = None
+            if needs_dedicated_rows:
+                channel_axis = [d for d in channel_data_dims if d != "date"].index(
+                    "channel"
+                )
+
+            scenarios = windows.build_scenarios(
+                baseline_array=baseline_array,
+                counterfactual_spend_factor=counterfactual_spend_factor,
+                dtype=evaluator.channel_dtype,
+                channel_axis=channel_axis,
+                n_channels=len(self.model.channel_columns),
+                estimand=scope,
             )
 
-        scenarios = windows.build_scenarios(
-            baseline_array=baseline_array,
-            counterfactual_spend_factor=counterfactual_spend_factor,
-            dtype=evaluator.channel_dtype,
-            channel_axis=channel_axis,
-            n_channels=len(self.model.channel_columns),
-            estimand=scope,
-        )
+            # The counterfactual arrives one block of samples at a time, and each
+            # block is reduced before the next is evaluated, so at most one block
+            # of it is held.  Closed on the way out, so even after an error the
+            # evaluator is bound to the request's draws again, as
+            # iter_counterfactual promises.  The cache does not rely on that:
+            # _probe_reach rebinds on every hit.
+            #
+            # The evaluator computed every node in the model's label order, so
+            # the change in the linear predictor is labeled with the model's
+            # coords: the channel data the baseline was evaluated on is in that
+            # order.  Each period goes back to the order of ``constant_data``
+            # once its blocks are joined, which is the order callers see.  Both
+            # are read once per call rather than once per block.
+            custom_dims = list(self.model.dims)
+            channel_data = self._channel_data_in_model_order()
+            model_coords = {
+                dim: channel_data.coords[dim].values
+                for dim in ["channel", *custom_dims]
+            }
+            data_order = self.data.get_channel_data()
+            reported_order = {dim: data_order.coords[dim].values for dim in custom_dims}
+            # Per period, each block's (positions, result).
+            per_period: list[list[tuple[Mapping[str, slice], xr.DataArray]]] = [
+                [] for _ in windows.windows
+            ]
+            with closing(
+                evaluator.iter_counterfactual(scenarios, windows=windows)
+            ) as blocks:
+                for block in blocks:
+                    # A slice, so the baseline's share of the block is a view.
+                    samples = block.samples
+                    periods = self._compute_period_increments(
+                        windows=windows,
+                        scenarios=scenarios,
+                        baseline={
+                            name: values[samples] for name, values in baseline.items()
+                        },
+                        counterfactual=block.outputs,
+                        non_date_dims=evaluator.non_date_dims,
+                        effect_names=effect_names,
+                        counterfactual_spend_factor=counterfactual_spend_factor,
+                        labels={dim: labels[dim][s] for dim, s in block.isel.items()},
+                        reducer=reducer.for_samples(samples),
+                        scope=scope,
+                        dedicated_channel_rows=channel_axis is not None,
+                        model_coords=model_coords,
+                        keep_date_axis=keep_date_axis,
+                    )
+                    for parts, result in zip(per_period, periods, strict=True):
+                        parts.append((block.isel, result))
+                    del block, periods
 
-        counterfactual = evaluator.evaluate_counterfactual(scenarios, windows=windows)
-        # Per node: (n_scenarios, n_samples, max_window, *non_date_dims)
+            # Each period's blocks are released once joined, so the joined
+            # results and the blocks are not both held in full.  What depends on
+            # the period alone is done once, on the joined result.
+            period_results = []
+            for idx, (window, parts) in enumerate(
+                zip(windows.windows, per_period, strict=True)
+            ):
+                period_results.append(
+                    self._finish_period(
+                        self._join_sample_blocks(parts),
+                        window=window,
+                        reported_order=reported_order,
+                        keep_date_axis=keep_date_axis,
+                        freq_offset=freq_offset,
+                        # How far past a period's last spend date its carryover
+                        # is known to land: the measured reach, or under
+                        # full-axis evaluation the kernel's own trailing lags,
+                        # which bound it from below.
+                        tail_lags=(
+                            reach.max_lag
+                            if reach.max_lag is not None
+                            else trailing_lags
+                        ),
+                    )
+                )
+                per_period[idx] = []
+            return PeriodIncrements(
+                periods=period_results,
+                windows=windows,
+                reach=reach,
+                freq_offset=freq_offset,
+            )
+        finally:
+            prepared.release()
 
-        # Assemble results
-        period_results = self._compute_period_increments(
-            windows=windows,
-            scenarios=scenarios,
-            baseline=baseline,
-            counterfactual=counterfactual,
-            non_date_dims=evaluator.non_date_dims,
-            effect_names=effect_names,
-            counterfactual_spend_factor=counterfactual_spend_factor,
-            n_chains=n_chains,
-            n_draws=n_draws,
-            reducer=reducer,
-            scope=scope,
-            dedicated_channel_rows=channel_axis is not None,
-            freq_offset=freq_offset,
-            # How far past a period's last spend date its carryover is known to
-            # land: the measured reach, or under full-axis evaluation the
-            # kernel's own trailing lags, which bound it from below.
-            tail_lags=reach.max_lag if reach.max_lag is not None else trailing_lags,
-            keep_date_axis=keep_date_axis,
-        )
-        return PeriodIncrements(
-            periods=period_results,
-            windows=windows,
-            reach=reach,
-            freq_offset=freq_offset,
-        )
+    @staticmethod
+    def _join_sample_blocks(
+        blocks: Sequence[tuple[Mapping[str, slice], xr.DataArray]],
+    ) -> xr.DataArray:
+        """Join one period's result over the sample blocks it was computed in.
+
+        Parameters
+        ----------
+        blocks : sequence of (isel, xr.DataArray)
+            Each block's positions in the posterior and its result, in the
+            chain-major order :meth:`CounterfactualEvaluator.iter_counterfactual`
+            yields them: runs of whole chains, or runs of draws within a chain.
+
+        Returns
+        -------
+        xr.DataArray
+            The blocks joined over ``draw`` within a chain, then over ``chain``.
+            Each block carries its own ``chain`` and ``draw`` labels, so the
+            result keeps the posterior's.
+        """
+        if len(blocks) == 1:
+            return blocks[0][1]
+        # Blocks are disjoint and agree on every other dim by construction.
+        join = partial(xr.concat, join="exact", coords="minimal", compat="override")
+        chains = [
+            join([result for _, result in run], dim="draw")
+            for _, run in groupby(blocks, key=lambda block: block[0]["chain"])
+        ]
+        return join(chains, dim="chain")
 
     @staticmethod
     def _stack_periods(
@@ -4655,6 +4999,7 @@ class Incrementality:
         baseline: dict[str, np.ndarray],
         counterfactual: dict[str, np.ndarray],
         non_date_dims: dict[str, tuple[str, ...]],
+        coords: Mapping[str, np.ndarray],
         effect_names: Sequence[str],
         channel: int | None,
     ) -> xr.DataArray:
@@ -4695,6 +5040,13 @@ class Incrementality:
             ``(n_scenarios, n_samples, max_window, *non_date_dims)``.
         non_date_dims : dict
             Per response variable, its dimensions with ``date`` removed.
+        coords : mapping
+            The labels of the non-date dimensions in the order the evaluator
+            computed them, the model's.  The change carries them so that xarray
+            pairs it with each reducer input by label: the target scale,
+            ``mu_original_scale`` and the mean-scale correction are read from
+            ``idata`` in whatever order it stores them.  A dimension without an
+            entry stays unlabeled.
         effect_names : sequence of str
             The included effects' contribution variables.  Passed in rather than
             read off the other arguments' keys, which also carry nodes evaluated
@@ -4715,14 +5067,19 @@ class Incrementality:
         Returns
         -------
         xr.DataArray
-            Dimensions ``("sample", "date", *custom_dims)``.
+            Dimensions ``("sample", "date", *custom_dims)``, labeled with
+            *coords*.
         """
 
         def delta(name: str) -> xr.DataArray:
+            dims = non_date_dims[name]
             return xr.DataArray(
                 counterfactual[name][row][:, cf_mask] - baseline[name],
-                dims=("sample", "date", *non_date_dims[name]),
-                coords={"date": window_dates},
+                dims=("sample", "date", *dims),
+                coords={
+                    "date": window_dates,
+                    **{dim: coords[dim] for dim in dims if dim in coords},
+                },
             )
 
         channel_delta = delta(CHANNEL_CONTRIBUTION)
@@ -4737,6 +5094,47 @@ class Incrementality:
             delta_mu = delta_mu + delta(name)
         return delta_mu
 
+    def _channel_data_in_model_order(self) -> xr.DataArray:
+        """Return the channel data with each labeled dim in the model's coord order.
+
+        The draws are read in the model's order, and a reloaded model's coords
+        can be sorted while ``constant_data`` keeps the order of the ``xr.Dataset``
+        it was built from.  The baseline is evaluated on this array, so its
+        positions pair with the draws'.
+        """
+        channel_data = self.data.get_channel_data()
+        name = channel_data.name or "channel_data"
+        ordered = reorder_to_model_coords(
+            channel_data.to_dataset(name=name), self.model.model.coords
+        )
+        return ordered[name]
+
+    def _posterior_in_data_order(self, posterior: xr.Dataset) -> xr.Dataset:
+        """Return ``posterior`` laid out as PyMC reads it next to ``constant_data``.
+
+        The closed form and the allocation shares evaluate the saturation and
+        the adstock kernel through PyMC, which pairs the draws with the channel
+        data by position, so the two must share one label order.  PyMC also
+        reads each parameter's values in storage order against the dims the
+        transformation's priors declare, which are the dims the model was built
+        with, so each variable is put in the model's dim order too.  A
+        posterior stored otherwise, such as a reordered, transposed or reloaded
+        ``idata``, is laid out here.  The evaluator binds its own copy by dim
+        name in the model's order, and the reducer pairs by label.
+        """
+        channel_data = self.data.get_channel_data()
+        in_data_order = reorder_to_model_coords(
+            posterior,
+            {
+                str(dim): channel_data.coords[dim].values
+                for dim in channel_data.dims
+                if dim != "date" and dim in channel_data.coords
+            },
+        )
+        return transpose_to_model_dims(
+            in_data_order, self.model.model.named_vars_to_dims
+        )
+
     def _compute_period_increments(
         self,
         windows: EvaluationWindows,
@@ -4746,22 +5144,22 @@ class Incrementality:
         non_date_dims: dict[str, tuple[str, ...]],
         effect_names: Sequence[str],
         counterfactual_spend_factor: float,
-        n_chains: int,
-        n_draws: int,
+        labels: Mapping[str, np.ndarray],
         reducer: IncrementalReducer,
         scope: Estimand,
         dedicated_channel_rows: bool,
-        freq_offset: BaseOffset,
-        tail_lags: int,
+        model_coords: Mapping[str, np.ndarray],
         keep_date_axis: bool = False,
     ) -> list[xr.DataArray]:
-        """Compute each period's incremental result.
+        """Compute each period's incremental result on one block of samples.
 
         For each period, forms the per-date change in the linear predictor over
         the evaluation window, hands it to *reducer* to be converted into a
         response-scale increment, applies the sign convention, and reshapes the
-        flattened sample dimension back to ``(chain, draw)``.  Laying the
-        periods out together is left to the caller.
+        flattened sample dimension back to ``(chain, draw)``.  Everything that
+        depends on the period alone, such as its date label and the order of
+        the custom dims, is left to :meth:`_finish_period`, so that it runs once
+        per period rather than once per block.
 
         Parameters
         ----------
@@ -4784,10 +5182,9 @@ class Incrementality:
             the evaluated nodes.
         counterfactual_spend_factor : float
             Multiplicative factor used for sign convention.
-        n_chains : int
-            Number of MCMC chains in the posterior.
-        n_draws : int
-            Number of draws per chain.
+        labels : mapping
+            ``chain`` and ``draw`` coordinates of the posterior the evaluator
+            was bound to, in its chain-major order.
         reducer : IncrementalReducer
             Link-specific reduction from a linear-predictor perturbation to a
             response-scale increment.  It owns the rescaling to original
@@ -4803,41 +5200,27 @@ class Incrementality:
             ``channel_contribution`` delta belongs to the perturbed channel,
             while a shared all-channels row has to be read column by column,
             since summing it would hand every channel the joint delta.
-        freq_offset : BaseOffset
-            The data's date frequency, to label the carryover dates that fall
-            past the fitted axis when *keep_date_axis* is set.
-        tail_lags : int
-            Lags after a period's last fitted spend date that its carryover is
-            known to reach: the measured
-            :attr:`~pymc_marketing.mmm.spend_reach.SpendReach.max_lag`, or under
-            full-axis evaluation the kernel's own trailing lags.  Required, so
-            that no caller gets a band without its unobserved tail by leaving it
-            out; it goes unused when *keep_date_axis* is not set.
+        model_coords : mapping
+            ``channel`` and custom-dim coordinates in the model's label order,
+            the order the evaluator computed every node in.
         keep_date_axis : bool, default=False
-            Keep the per-date increment instead of summing it over the window,
-            and extend it past the fitted axis as far as the carryover reaches;
-            see :meth:`_append_unobserved_tail`.
+            Keep the per-date increment instead of summing it over the window.
 
         Returns
         -------
         list of xr.DataArray
             One per period, in period order, in original scale.  Dims
-            ``(date, chain, draw, *out_dims)`` with ``date`` of length one, the
-            period end; ``out_dims`` is ``(channel, *custom_dims)`` for
-            ``"per_channel"`` and ``custom_dims`` for ``"joint"``.  With
-            *keep_date_axis*, ``(chain, draw, realization_date, *out_dims)``
-            over the period's evaluated dates and its unobserved tail, with a
-            boolean ``observed`` coordinate on ``realization_date``.
+            ``(chain, draw, *out_dims)``; ``out_dims`` is
+            ``(channel, *custom_dims)`` for ``"per_channel"`` and
+            ``custom_dims`` for ``"joint"``.  With *keep_date_axis*,
+            ``(chain, draw, realization_date, *out_dims)`` over the period's
+            evaluated dates.
         """
-        dates = self.data.dates
-        channels = list(self.model.channel_columns)
         custom_dims = list(self.model.dims)
-        # The values are laid out by position along the channel data the
-        # baseline was evaluated on, so its labels are the ones they carry.
-        # Not ``fit_data``'s: ``create_fit_data`` sorts those, while a model
-        # built from an ``xr.Dataset`` keeps the Dataset's order (#3212).
-        channel_data = self.data.get_channel_data()
-        custom_coords = {dim: channel_data.coords[dim].values for dim in custom_dims}
+        # The reducer's inputs come from ``idata`` in whatever order it stores
+        # them, and xarray pairs them with the change by label.  The result then
+        # takes its labels from the reduced increment itself, never by position.
+        channels = model_coords["channel"].tolist()
         out_dims = ["channel", *custom_dims] if scope == "per_channel" else custom_dims
         results = []
 
@@ -4872,6 +5255,7 @@ class Incrementality:
                     baseline=period_baseline,
                     counterfactual=counterfactual,
                     non_date_dims=non_date_dims,
+                    coords=model_coords,
                     effect_names=effect_names,
                     channel=channel,
                 )
@@ -4902,37 +5286,90 @@ class Incrementality:
             # Shape: (n_samples, [date,] *out_dims), n_samples = n_chains * n_draws
 
             # Reshape flattened sample → (chain, draw) to preserve MCMC structure
-            reshaped = increment.values.reshape(n_chains, n_draws, *increment.shape[1:])
+            reshaped = increment.values.reshape(
+                len(labels["chain"]), len(labels["draw"]), *increment.shape[1:]
+            )
 
             coords: dict = {
-                "chain": np.arange(n_chains),
-                "draw": np.arange(n_draws),
-                **custom_coords,
+                "chain": labels["chain"],
+                "draw": labels["draw"],
+                # A labeled product keeps its first operand's order, which may
+                # be the reducer input's, so the labels are read off the result.
+                **{dim: increment.coords[dim].values for dim in out_dims},
             }
-            if scope == "per_channel":
-                coords["channel"] = channels
 
             if keep_date_axis:
-                band = xr.DataArray(
-                    reshaped,
-                    dims=("chain", "draw", "realization_date", *out_dims),
-                    coords={**coords, "realization_date": window.eval_dates},
-                )
-                period_result = self._append_unobserved_tail(
-                    band,
-                    window=window,
-                    dates=dates,
-                    tail_lags=tail_lags,
-                    freq_offset=freq_offset,
+                results.append(
+                    xr.DataArray(
+                        reshaped,
+                        dims=("chain", "draw", "realization_date", *out_dims),
+                        coords={**coords, "realization_date": window.eval_dates},
+                    )
                 )
             else:
-                total = xr.DataArray(
-                    reshaped, dims=("chain", "draw", *out_dims), coords=coords
+                results.append(
+                    xr.DataArray(
+                        reshaped, dims=("chain", "draw", *out_dims), coords=coords
+                    )
                 )
-                period_result = total.assign_coords(date=window.end).expand_dims("date")
-            results.append(period_result)
 
         return results
+
+    def _finish_period(
+        self,
+        result: xr.DataArray,
+        *,
+        window: PeriodWindow,
+        reported_order: Mapping[str, np.ndarray],
+        keep_date_axis: bool,
+        freq_offset: BaseOffset,
+        tail_lags: int,
+    ) -> xr.DataArray:
+        """Label one period's result, joined over its sample blocks, as callers see it.
+
+        Parameters
+        ----------
+        result : xr.DataArray
+            The period's result from :meth:`_compute_period_increments`, joined
+            over the sample blocks.
+        window : PeriodWindow
+            The period's window.
+        reported_order : mapping
+            Custom-dim coordinates in the order of ``constant_data``, which is
+            the order callers see.
+        keep_date_axis : bool
+            Whether *result* is a per-date band rather than a period total.
+        freq_offset : BaseOffset
+            The data's date frequency, to label the carryover dates that fall
+            past the fitted axis when *keep_date_axis* is set.
+        tail_lags : int
+            Lags after a period's last fitted spend date that its carryover is
+            known to reach: the measured
+            :attr:`~pymc_marketing.mmm.spend_reach.SpendReach.max_lag`, or under
+            full-axis evaluation the kernel's own trailing lags.  Required, so
+            that no caller gets a band without its unobserved tail by leaving it
+            out; it goes unused when *keep_date_axis* is not set.
+
+        Returns
+        -------
+        xr.DataArray
+            A total gets dims ``(date, chain, draw, *out_dims)`` with ``date``
+            of length one, the period end.  A band is extended past the fitted
+            axis as far as the carryover reaches, with a boolean ``observed``
+            coordinate on ``realization_date``; see
+            :meth:`_append_unobserved_tail`.
+        """
+        if keep_date_axis:
+            result = self._append_unobserved_tail(
+                result,
+                window=window,
+                dates=self.data.dates,
+                tail_lags=tail_lags,
+                freq_offset=freq_offset,
+            )
+        else:
+            result = result.assign_coords(date=window.end).expand_dims("date")
+        return result.sel(reported_order)
 
     @staticmethod
     def _tail_dates(
@@ -5219,6 +5656,8 @@ class Incrementality:
             Include adstock carryover effects.
         num_samples : int or None, optional
             Number of posterior samples to use. If None, all samples are used.
+            Rounded up to a multiple of the number of chains; see
+            :meth:`compute_incremental_contribution`.
         random_state : RandomState or Generator or None, optional
             Random state for reproducible subsampling.
         central_tendency : {"median", "mean"}, default="median"
@@ -5311,6 +5750,8 @@ class Incrementality:
             Include adstock carryover effects.
         num_samples : int or None, optional
             Number of posterior samples to use. If None, all samples are used.
+            Rounded up to a multiple of the number of chains; see
+            :meth:`compute_incremental_contribution`.
         random_state : RandomState or Generator or None, optional
             Random state for reproducible subsampling.
         central_tendency : {"median", "mean"}, default="median"
@@ -5387,6 +5828,8 @@ class Incrementality:
             Include adstock carryover effects.
         num_samples : int or None, optional
             Number of posterior samples to use. If None, all samples are used.
+            Rounded up to a multiple of the number of chains; see
+            :meth:`compute_incremental_contribution`.
         random_state : RandomState or Generator or None, optional
             Random state for reproducible subsampling.
         spend_increase_pct : float, default=0.01
@@ -5497,7 +5940,7 @@ class Incrementality:
             dates = pd.date_range(
                 start,
                 end,
-                freq=pd.infer_freq(self.data.dates),
+                freq=infer_frequency(self.data.dates),
             )
             return [(d, d) for d in dates]
 

@@ -326,6 +326,14 @@ html_theme_options = {
     # navbar_persistent is the only header slot shown at every width. Setting
     # it replaces the theme default, so keep the search button first.
     "navbar_persistent": ["search-button-field", "navbar-contact-button.html"],
+    # Render only the path to the current page (plus siblings) in the primary
+    # sidebar instead of the whole expandable tree of the section. With the
+    # default, each of the ~4200 pages embeds every API entry of its section
+    # (1386 nav items on a method stub), so the write cost grows with
+    # pages x sidebar size: generate_toctree_html took 76 of 96 s of a profiled
+    # write and the RTD build hit its 40 min limit. Collapsed, writing all pages
+    # took 54 s instead of 406 s locally and the HTML shrank from 1.4 GB to 398 MB.
+    "collapse_navigation": True,
 }
 html_context = {
     "github_user": "pymc-labs",
@@ -345,10 +353,7 @@ html_context = {
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
 html_static_path = ["_static/"]
-html_css_files = ["custom.css", "fold-code-cells.css"]
-# Folds notebook code cells by default so example pages lead with narrative
-# and outputs instead of walls of code (#2926).
-html_js_files = ["fold-code-cells.js"]
+html_css_files = ["custom.css"]
 
 # -- Options for LaTeX output ---------------------------------------------
 

@@ -13,7 +13,10 @@
 #   limitations under the License.
 """Tests for the counterfactual evaluation machinery: windows, scenarios, inputs."""
 
+import gc
+import math
 import warnings
+import weakref
 
 import numpy as np
 import pandas as pd
@@ -28,6 +31,7 @@ from pymc_marketing.mmm.counterfactual import (
     CounterfactualScenarios,
     EvaluationWindows,
     PeriodWindow,
+    _even_runs,
 )
 from pymc_marketing.mmm.spend_reach import linear_predictor
 from pymc_marketing.mmm.transformers import ConvMode, batched_convolution
@@ -82,6 +86,47 @@ def build_aux_dims_model(aux_dims, n_dates, n_country):
     return model, posterior, aux_values
 
 
+def draws_posterior(draws: int, seed: int) -> xr.Dataset:
+    """A ``beta``/``alpha`` posterior for the aux model with a chosen draw count.
+
+    A different draw count across rebinds is the whole point of the sample-axis
+    work, so a test can hand the evaluator a posterior whose length it did not
+    compile against.
+    """
+    rng = np.random.default_rng(seed)
+    return xr.Dataset(
+        {
+            "beta": (("chain", "draw"), rng.normal(size=(1, draws))),
+            "alpha": (("chain", "draw"), rng.normal(size=(1, draws))),
+        },
+        coords={"chain": [0], "draw": list(range(draws))},
+    )
+
+
+REBIND_INTERVENTIONS = [
+    ("channel_data", "replace"),
+    ("channel_contribution", "replace"),
+    ("channel_contribution", "scale"),
+]
+"""Interventions the rebinding tests exercise: sample-bearing and sample-less."""
+
+
+def evaluator_kwargs(
+    dates: pd.DatetimeIndex,
+    *,
+    intervention_target: str = "channel_data",
+    intervention_mode: str = "replace",
+) -> dict:
+    """The keyword arguments shared by the evaluators the rebinding tests build."""
+    return {
+        "response_vars": ["channel_contribution"],
+        "frozen_deterministics": [],
+        "dates": dates,
+        "intervention_target": intervention_target,
+        "intervention_mode": intervention_mode,
+    }
+
+
 class TestDateIndexedInputs:
     """Auxiliary inputs are cut along the axis they call ``date``.
 
@@ -94,7 +139,7 @@ class TestDateIndexedInputs:
 
     dates = pd.date_range("2023-01-02", freq="W-MON", periods=6)
 
-    def _windows(self, *slices, max_window):
+    def _windows(self, *slices: slice, max_window: int) -> EvaluationWindows:
         """Build windows over ``self.dates`` directly, one per given slice."""
         windows = []
         for window_slice in slices:
@@ -211,6 +256,236 @@ class TestDateIndexedInputs:
         assert one_shot.keys() == batched.keys()
         for name, values in one_shot.items():
             np.testing.assert_array_equal(values, batched[name])
+
+    def _streamed(self):
+        """An evaluator bound to three relabeled chains of five draws, and five scenarios.
+
+        One draw's outputs over every scenario are 40 elements (2 countries x
+        1 channel x 4 dates x 5 scenarios), so the posterior holds 600.
+        """
+        evaluator, _ = self._evaluator(("date", "country"), n_country=2)
+        rng = np.random.default_rng(20261104)
+        evaluator.set_posterior(
+            xr.Dataset(
+                {
+                    name: (("chain", "draw"), rng.normal(size=(3, 5)))
+                    for name in ("beta", "alpha")
+                },
+                coords={"chain": [7, 8, 9], "draw": np.arange(5) + 100},
+            )
+        )
+        windows = self._windows(slice(0, 4), slice(2, 6), max_window=4)
+        scenarios = CounterfactualScenarios(
+            spend=rng.normal(size=(5, 4, 2, 1)),
+            period_index=np.array([0, 0, 1, 1, 1]),
+            rows={(0, None): 1, (1, None): 4},
+        )
+        return evaluator, scenarios, windows
+
+    def test_runs_are_as_few_as_fit_and_as_even_as_their_count_allows(self):
+        """Each split covers every position, longest runs first, one apart at most."""
+        for n in range(1, 50):
+            for size in range(1, n + 2):
+                runs = _even_runs(n, size)
+                lengths = [run.stop - run.start for run in runs]
+                assert [run.start for run in runs] == [0, *np.cumsum(lengths[:-1])]
+                assert sum(lengths) == n
+                assert len(runs) == math.ceil(n / size)
+                assert max(lengths) <= size
+                assert max(lengths) - min(lengths) <= 1
+                assert lengths == sorted(lengths, reverse=True)
+
+    @pytest.mark.parametrize(
+        ("max_elements", "blocks"),
+        [
+            (600, [(slice(0, 3), slice(0, 5))]),
+            # Two chains fit, so whole chains, the last run short.
+            (400, [(slice(0, 2), slice(0, 5)), (slice(2, 3), slice(0, 5))]),
+            # Not even one chain fits: three draws at a time, the last run short.
+            (
+                120,
+                [
+                    (slice(chain, chain + 1), draws)
+                    for chain in range(3)
+                    for draws in (slice(0, 3), slice(3, 5))
+                ],
+            ),
+            # Four draws fit, but two runs of three and two beat four and one.
+            (
+                160,
+                [
+                    (slice(chain, chain + 1), draws)
+                    for chain in range(3)
+                    for draws in (slice(0, 3), slice(3, 5))
+                ],
+            ),
+            # Not even one draw fits: one draw at a time, its scenarios one by one.
+            (
+                1,
+                [
+                    (slice(chain, chain + 1), slice(draw, draw + 1))
+                    for chain in range(3)
+                    for draw in range(5)
+                ],
+            ),
+        ],
+    )
+    def test_streaming_does_not_change_the_result(self, max_elements, blocks):
+        """The blocks tile the posterior chain-major and join into the eager result.
+
+        Up to rounding: the compiled graph may round differently for a
+        different number of draws.
+        """
+        evaluator, scenarios, windows = self._streamed()
+        eager = evaluator.evaluate_counterfactual(scenarios, windows=windows)
+
+        yielded = list(
+            evaluator.iter_counterfactual(
+                scenarios, windows=windows, max_elements=max_elements
+            )
+        )
+
+        assert [(c.isel["chain"], c.isel["draw"]) for c in yielded] == blocks
+        # Each block's slice of the flat chain-major axis holds the samples its
+        # isel picks.
+        flat = np.arange(15).reshape(3, 5)
+        for c in yielded:
+            np.testing.assert_array_equal(
+                flat.ravel()[c.samples],
+                flat[c.isel["chain"], c.isel["draw"]].ravel(),
+            )
+        for name, values in eager.items():
+            joined = np.concatenate([c.outputs[name] for c in yielded], axis=1)
+            np.testing.assert_allclose(joined, values, rtol=1e-12, atol=1e-12)
+
+    def test_the_bound_posterior_is_restored(self):
+        """After the last block, after closing early, and after a rebind before the
+        first block, the posterior bound at the call is bound again."""
+        evaluator, scenarios, windows = self._streamed()
+        bound = evaluator._conditioned.posterior
+
+        for _ in evaluator.iter_counterfactual(
+            scenarios, windows=windows, max_elements=1
+        ):
+            assert evaluator._n_samples() == 1
+        xr.testing.assert_identical(evaluator._conditioned.posterior, bound)
+
+        iteration = evaluator.iter_counterfactual(
+            scenarios, windows=windows, max_elements=1
+        )
+        next(iteration)
+        iteration.close()
+        xr.testing.assert_identical(evaluator._conditioned.posterior, bound)
+
+        # The blocks were planned from the posterior at the call, so they are
+        # taken from it even if another is bound before the first block, whether
+        # there are many blocks or one.
+        for max_elements, n_blocks in [(1, 15), (600, 1)]:
+            iteration = evaluator.iter_counterfactual(
+                scenarios, windows=windows, max_elements=max_elements
+            )
+            evaluator.set_posterior(bound.isel(chain=[0]))
+            # Per block: samples its isel names, and samples it was evaluated on.
+            evaluated = [
+                (
+                    bound.isel(block.isel).sizes["chain"]
+                    * bound.isel(block.isel).sizes["draw"],
+                    next(iter(block.outputs.values())).shape[1],
+                )
+                for block in iteration
+            ]
+            assert len(evaluated) == n_blocks
+            assert all(named == used for named, used in evaluated)
+            xr.testing.assert_identical(evaluator._conditioned.posterior, bound)
+
+    def test_a_paused_iteration_refuses_calls_that_would_read_its_block(self):
+        """While a block it bound is bound, binding or evaluating draws raises.
+
+        Each of these would otherwise run on the block's draws, or plan a second
+        iteration from them, without an error.  One block needs no rebind while
+        the posterior bound at the call is still bound, so a paused single-block
+        iteration then refuses nothing.
+        """
+        evaluator, scenarios, windows = self._streamed()
+        bound = evaluator._conditioned.posterior
+        calls = {
+            "set_posterior": lambda: evaluator.set_posterior(bound),
+            "iter_counterfactual": lambda: evaluator.iter_counterfactual(
+                scenarios, windows=windows
+            ),
+            "evaluate_counterfactual": lambda: evaluator.evaluate_counterfactual(
+                scenarios, windows=windows
+            ),
+            "evaluate_baseline": lambda: evaluator.evaluate_baseline(
+                np.ones((len(self.dates), 2, 1))
+            ),
+        }
+
+        iteration = evaluator.iter_counterfactual(
+            scenarios, windows=windows, max_elements=120
+        )
+        next(iteration)
+        for call in calls.values():
+            with pytest.raises(RuntimeError, match="unfinished iter_counterfactual"):
+                call()
+        iteration.close()
+        for call in calls.values():
+            call()
+
+        single = evaluator.iter_counterfactual(scenarios, windows=windows)
+        next(single)
+        for call in calls.values():
+            call()
+        single.close()
+
+    def test_a_yielded_block_is_not_kept_alive(self, monkeypatch):
+        """A block the caller dropped is already gone while the next is evaluated."""
+        evaluator, scenarios, windows = self._streamed()
+        refs = []
+        alive_at_evaluation = []
+        evaluate = evaluator._evaluate_scenarios
+
+        def recorded(*args, **kwargs):
+            gc.collect()
+            alive_at_evaluation.append([ref() is not None for ref in refs])
+            return evaluate(*args, **kwargs)
+
+        monkeypatch.setattr(evaluator, "_evaluate_scenarios", recorded)
+        for block in evaluator.iter_counterfactual(
+            scenarios, windows=windows, max_elements=120
+        ):
+            refs.append(weakref.ref(block.outputs["channel_contribution"]))
+            del block
+
+        assert len(alive_at_evaluation) == 6
+        assert not any(any(alive) for alive in alive_at_evaluation)
+
+    def test_a_mutated_input_is_refused_before_the_first_block(self):
+        """The stale-data check runs at the call, not when the first block is asked for."""
+        model, posterior, aux_values = build_aux_dims_model(
+            ("date", "country"), n_dates=len(self.dates), n_country=2
+        )
+        evaluator = CounterfactualEvaluator(
+            pymc_model=model,
+            posterior=posterior,
+            response_vars=["channel_contribution"],
+            frozen_deterministics=[],
+            dates=self.dates,
+            expected_aux_values={
+                "aux_input": xr.DataArray(aux_values, dims=("date", "country"))
+            },
+        )
+        windows = self._windows(slice(0, 4), max_window=4)
+        scenarios = CounterfactualScenarios(
+            spend=np.ones((1, 4, 2, 1)),
+            period_index=np.array([0]),
+            rows={(0, None): 0},
+        )
+        with model:
+            pm.set_data({"aux_input": aux_values + 1.0})
+
+        with pytest.raises(ValueError, match=r"'aux_input'.*changed since"):
+            evaluator.iter_counterfactual(scenarios, windows=windows)
 
     def test_the_batch_size_falls_back_to_one_scenario(self):
         """An output too large for the budget still gets evaluated, alone."""
@@ -400,6 +675,203 @@ class TestPostFitMutationGuard:
             checked.evaluate_baseline(values)["channel_contribution"],
             unchecked.evaluate_baseline(values)["channel_contribution"],
         )
+
+    def test_a_mutation_after_construction_is_caught_on_reuse(self):
+        """A reused evaluator re-reads the live input and refuses the mutation.
+
+        The evaluator snapshots the aux input it evaluates with at construction,
+        so a later ``pm.set_data`` on the model the caller holds would otherwise
+        go unnoticed.  Because the check runs on every evaluation, the reuse
+        still catches it instead of silently evaluating on the fitted snapshot.
+        """
+        model, posterior, aux_values = build_aux_dims_model(
+            ("date", "country"), n_dates=len(self.dates), n_country=2
+        )
+        evaluator = CounterfactualEvaluator(
+            pymc_model=model,
+            posterior=posterior,
+            response_vars=["channel_contribution"],
+            frozen_deterministics=[],
+            dates=self.dates,
+            expected_aux_values={
+                "aux_input": xr.DataArray(aux_values, dims=("date", "country"))
+            },
+        )
+        values = np.ones((len(self.dates), 2, 1))
+        evaluator.evaluate_baseline(values)  # Fine while nothing moved.
+
+        with model:
+            pm.set_data({"aux_input": aux_values + 1.0})
+
+        with pytest.raises(ValueError, match=r"'aux_input'.*changed since"):
+            evaluator.evaluate_baseline(values)
+
+    def test_an_unchanged_source_is_checked_by_identity_only(self, monkeypatch):
+        """A second unchanged call compares no values.
+
+        The per-call contract is kept, but a shared input is skipped when
+        ``get_value(borrow=True)`` returns the same buffer as the last full
+        check, so the steady state costs an identity comparison rather than a
+        full one.
+        """
+        model, posterior, aux_values = build_aux_dims_model(
+            ("date", "country"), n_dates=len(self.dates), n_country=2
+        )
+        evaluator = CounterfactualEvaluator(
+            pymc_model=model,
+            posterior=posterior,
+            response_vars=["channel_contribution"],
+            frozen_deterministics=[],
+            dates=self.dates,
+            expected_aux_values={
+                "aux_input": xr.DataArray(aux_values, dims=("date", "country"))
+            },
+        )
+        values = np.ones((len(self.dates), 2, 1))
+
+        comparisons = []
+        real_check = CounterfactualEvaluator._check_not_mutated
+
+        def counting_check(*args, **kwargs):
+            comparisons.append(1)
+            return real_check(*args, **kwargs)
+
+        monkeypatch.setattr(
+            CounterfactualEvaluator, "_check_not_mutated", staticmethod(counting_check)
+        )
+
+        # A new buffer holding the same values is the case a content check has
+        # to run for...
+        with model:
+            pm.set_data({"aux_input": aux_values.copy()})
+        evaluator.evaluate_baseline(values)
+        assert comparisons == [1]
+
+        # ...while the unchanged call after it compares nothing.
+        comparisons.clear()
+        evaluator.evaluate_baseline(values)
+        assert comparisons == []
+
+
+class TestSourceInputStaleness:
+    """A source shared input replaced after the build makes the evaluator stale.
+
+    The evaluator compiles against the ``pm.do`` clone, whose data variables
+    never change; the source model is what ``pm.set_data`` replaces.  A watcher
+    keyed by name and held by reference is what lets a cache rebuild instead of
+    returning fit-time numbers.
+    """
+
+    dates = pd.date_range("2023-01-02", freq="W-MON", periods=6)
+
+    def test_a_replaced_source_buffer_is_stale(self):
+        """``pm.set_data`` on a watched input turns an unchanged build stale."""
+        model, posterior, aux_values = build_aux_dims_model(
+            ("date", "country"), n_dates=len(self.dates), n_country=2
+        )
+        evaluator = CounterfactualEvaluator(
+            pymc_model=model,
+            posterior=posterior,
+            response_vars=["channel_contribution"],
+            frozen_deterministics=[],
+            dates=self.dates,
+            expected_aux_values={},
+        )
+        assert not evaluator.is_stale()
+
+        with model:
+            pm.set_data({"aux_input": aux_values + 1.0})
+
+        assert evaluator.is_stale()
+
+    def test_a_recorded_input_is_refused_rather_than_rebuilt(self):
+        """An input the fit-time record covers is not stale: it is refused on evaluation."""
+        model, posterior, aux_values = build_aux_dims_model(
+            ("date", "country"), n_dates=len(self.dates), n_country=2
+        )
+        evaluator = CounterfactualEvaluator(
+            pymc_model=model,
+            posterior=posterior,
+            response_vars=["channel_contribution"],
+            frozen_deterministics=[],
+            dates=self.dates,
+            expected_aux_values={
+                "aux_input": xr.DataArray(aux_values, dims=("date", "country"))
+            },
+        )
+
+        with model:
+            pm.set_data({"aux_input": aux_values + 1.0})
+
+        assert not evaluator.is_stale()
+        with pytest.raises(ValueError, match=r"'aux_input'.*changed since"):
+            evaluator.evaluate_baseline(np.ones((len(self.dates), 2, 1)))
+
+    def test_the_intervention_target_is_watched_under_scale(self):
+        """Under ``scale`` the target's own data is read, so replacing it makes the build stale."""
+        model, posterior, _ = build_aux_dims_model(
+            ("date", "country"), n_dates=len(self.dates), n_country=2
+        )
+        evaluator = CounterfactualEvaluator(
+            pymc_model=model,
+            posterior=posterior,
+            response_vars=["channel_contribution"],
+            frozen_deterministics=[],
+            dates=self.dates,
+            intervention_mode="scale",
+        )
+
+        with model:
+            pm.set_data({"channel_data": np.full((len(self.dates), 2, 1), 3.0)})
+
+        assert evaluator.is_stale()
+
+    def test_a_rebind_does_not_mark_the_build_stale(self):
+        """New draws swap posterior buffers, which the watch set never holds."""
+        model, posterior, _ = build_aux_dims_model(
+            ("date", "country"), n_dates=len(self.dates), n_country=2
+        )
+        evaluator = CounterfactualEvaluator(
+            pymc_model=model,
+            posterior=posterior,
+            response_vars=["channel_contribution"],
+            frozen_deterministics=[],
+            dates=self.dates,
+        )
+
+        evaluator.set_posterior(draws_posterior(3, seed=11))
+
+        assert set(evaluator._watched_sources) == {"aux_input"}
+        assert not evaluator.is_stale()
+
+    def test_the_fit_time_record_is_not_kept_alive(self):
+        """The evaluator keeps the arrays it checks, not the idata node that held them."""
+        model, posterior, aux_values = build_aux_dims_model(
+            ("date", "country"), n_dates=len(self.dates), n_country=2
+        )
+        tree = xr.DataTree.from_dict(
+            {
+                "constant_data": xr.Dataset(
+                    {"aux_input": xr.DataArray(aux_values, dims=("date", "country"))}
+                )
+            }
+        )
+        record = weakref.ref(tree)
+
+        evaluator = CounterfactualEvaluator(
+            pymc_model=model,
+            posterior=posterior,
+            response_vars=["channel_contribution"],
+            frozen_deterministics=[],
+            dates=self.dates,
+            expected_aux_values=tree.constant_data,
+        )
+
+        del tree
+        gc.collect()
+
+        assert record() is None
+        assert evaluator is not None
 
 
 class TestPeriodEdgeCases:
@@ -837,6 +1309,141 @@ class TestEndogenousIntervention:
         )
         # And the gap is aux + alpha: nonzero in every element for this posterior.
         assert (np.abs(mask_increment - spend_increment) > 0).all()
+
+
+class TestConditionedModelRebinding:
+    """The evaluator follows its conditioned model's posterior, draw count included.
+
+    The sample axis is derived from the bound posterior rather than fixed at construction.
+    A rebind to a different draw count stays correct.
+    The evaluator compiles once against a shared posterior, so every rebind reuses the compiled function.
+    A sample-bearing response and a sample-less one are both covered.
+    """
+
+    dates = pd.date_range("2023-01-02", freq="W-MON", periods=6)
+
+    @pytest.fixture
+    def model_and_posteriors(self):
+        model, _, _ = build_aux_dims_model(
+            ("date", "country"), n_dates=len(self.dates), n_country=2
+        )
+        return (
+            model,
+            draws_posterior(2, 1),
+            draws_posterior(4, 2),
+            draws_posterior(5, 3),
+        )
+
+    def _windows(self) -> EvaluationWindows:
+        window = PeriodWindow.build(
+            start=self.dates[0],
+            end=self.dates[-1],
+            dates=self.dates,
+            in_window=np.ones(len(self.dates), dtype=bool),
+            eval_start=self.dates[0],
+            eval_end=self.dates[-1],
+        )
+        return EvaluationWindows(
+            windows=[window], max_window=len(self.dates), dates=self.dates
+        )
+
+    def _scenarios(self) -> CounterfactualScenarios:
+        return CounterfactualScenarios(
+            spend=np.full((1, len(self.dates), 2, 1), 0.5),
+            period_index=np.array([0]),
+            rows={(0, None): 0},
+        )
+
+    @pytest.mark.parametrize(
+        "intervention_target, intervention_mode", REBIND_INTERVENTIONS
+    )
+    def test_a_rebind_to_a_new_draw_count_matches_a_fresh_evaluator(
+        self, model_and_posteriors, intervention_target, intervention_mode
+    ):
+        """Every rebind is correct and reuses the compiled function."""
+        model, first, second, third = model_and_posteriors
+        common = evaluator_kwargs(
+            self.dates,
+            intervention_target=intervention_target,
+            intervention_mode=intervention_mode,
+        )
+        reused = CounterfactualEvaluator(pymc_model=model, posterior=first, **common)
+        spend = np.ones((len(self.dates), 2, 1))
+        compiled = reused._evaluator
+
+        reused.set_posterior(second)
+        assert reused._evaluator is compiled
+        self._assert_same_as_fresh(
+            reused,
+            CounterfactualEvaluator(pymc_model=model, posterior=second, **common),
+            spend,
+        )
+
+        # A second rebind, to yet another draw count, also needs no new compile.
+        reused.set_posterior(third)
+        assert reused._evaluator is compiled
+        fresh = CounterfactualEvaluator(pymc_model=model, posterior=third, **common)
+        self._assert_same_as_fresh(reused, fresh, spend)
+        assert (
+            reused.evaluate_baseline(spend)["channel_contribution"].shape[0]
+            == third.sizes["draw"]
+        )
+        # A sample-less response is broadcast over a marker, which a rebind can stale and evaluation resyncs.
+        # A sample-bearing response has a sample axis of its own and needs no marker.
+        markers = reused._sample_markers
+        sample_less = "sample" not in reused._extract_graphs()[0].type.dims
+        assert bool(markers) == sample_less
+        assert all(
+            marker.get_value(borrow=True).shape[0] == third.sizes["draw"]
+            for marker in markers.values()
+        )
+
+    def test_a_failed_rebind_leaves_the_old_binding_evaluable(
+        self, model_and_posteriors
+    ):
+        """A rebind the shared binding refuses leaves the previous draws evaluable.
+
+        The graphs are bound through a shared posterior from construction, so no rebind rebuilds them.
+        A rebind fails only when the posterior cannot be laid out over the bound variables.
+        That refusal writes nothing, so the previous draws stay bound.
+        """
+        model, first, _, _ = model_and_posteriors
+        common = evaluator_kwargs(self.dates)
+        reused = CounterfactualEvaluator(pymc_model=model, posterior=first, **common)
+        spend = np.ones((len(self.dates), 2, 1))
+
+        refused = xr.DataTree.from_dict({"/posterior": first.drop_vars("beta")})
+        with pytest.raises(KeyError, match="missing variables"):
+            reused.set_posterior(refused)
+
+        self._assert_same_as_fresh(
+            reused,
+            CounterfactualEvaluator(pymc_model=model, posterior=first, **common),
+            spend,
+        )
+        assert (
+            reused.evaluate_baseline(spend)["channel_contribution"].shape[0]
+            == first.sizes["draw"]
+        )
+
+    def _assert_same_as_fresh(self, reused, fresh, spend) -> None:
+        windows, scenarios = self._windows(), self._scenarios()
+        np.testing.assert_allclose(
+            reused.evaluate_baseline(spend)["channel_contribution"],
+            fresh.evaluate_baseline(spend)["channel_contribution"],
+            rtol=1e-10,
+            atol=1e-12,
+        )
+        np.testing.assert_allclose(
+            reused.evaluate_counterfactual(scenarios, windows=windows)[
+                "channel_contribution"
+            ],
+            fresh.evaluate_counterfactual(scenarios, windows=windows)[
+                "channel_contribution"
+            ],
+            rtol=1e-10,
+            atol=1e-12,
+        )
 
 
 class TestSpendMaskEquivalence:

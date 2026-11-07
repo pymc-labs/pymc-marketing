@@ -1044,11 +1044,39 @@ def hill_function(
         f(x) = 1 - \frac{\kappa^s}{\kappa^s + x^s}
 
     where:
-     - :math:`s` is the slope of the hill.
+     - :math:`s` is the slope of the hill, which sets how steeply the curve rises
+       around :math:`\kappa`.
      - :math:`\kappa` is the half-saturation point as :math:`f(\kappa) = 0.5` for any value of :math:`s`.
      - :math:`x` is the independent variable and must be non-negative.
 
     Hill function from Equation (5) in the paper [1]_.
+
+    The slope alone decides the shape of the curve. For :math:`s \le 1` it is
+    concave everywhere, with :math:`s = 1` giving the Michaelis-Menten curve. For
+    :math:`s > 1` it is S-shaped: convex at small :math:`x`, then concave, with a
+    single inflection point at
+
+    .. math::
+        x^* = \kappa \left(\frac{s - 1}{s + 1}\right)^{1/s},
+        \qquad f(x^*) = \frac{s - 1}{2s}.
+
+    The inflection point always sits below :math:`\kappa` and moves toward it as
+    :math:`s` grows. Since :math:`f` depends on :math:`x` only through
+    :math:`x / \kappa`, changing :math:`\kappa` stretches the curve horizontally
+    without changing its shape. Whether an S-shape is visible in data depends on
+    both parameters: when :math:`x^*` lies close to zero or beyond the observed
+    range of :math:`x`, the data cannot tell the curve apart from a purely concave
+    or purely convex one.
+
+    The slope is easiest to read at the half-saturation point, where the gradient
+    is :math:`f'(\kappa) = s / (4 \kappa)`. Measured in units of :math:`\kappa`,
+    the curve rises at a rate of :math:`s / 4` as it passes the halfway mark.
+    Equivalently, :math:`\operatorname{logit} f(x) = s (\log x - \log \kappa)`, so
+    :math:`s` is the constant slope of the curve on logit-log axes.
+
+    The grid below shows how the two parameters interact on the unit interval. The
+    dashed line marks :math:`\kappa` and the dot marks the inflection point
+    :math:`x^*` when it falls inside the plotted range.
 
     .. plot::
         :context: close-figs
@@ -1058,33 +1086,40 @@ def hill_function(
         import pytensor.tensor as pt
         import pytensor.xtensor as ptx
         from pymc_marketing.mmm.transformers import hill_function
-        x_np = np.linspace(0, 10, 100)
-        x = ptx.as_xtensor(pt.as_tensor_variable(x_np), dims=('x',))
-        # Varying slope
-        slopes = [0.3, 0.7, 1.2]
-        fig, axes = plt.subplots(1, 3, figsize=(12, 4), sharey=True)
+
+        x_np = np.linspace(0, 1, 200)
+        x = ptx.as_xtensor(pt.as_tensor_variable(x_np), dims=("x",))
+        slopes = [0.7, 1.5, 3]
+        kappas = [0.1, 0.5, 2]
+        fig, axes = plt.subplots(3, 3, figsize=(10, 9), sharex=True, sharey=True)
         for i, slope in enumerate(slopes):
-            plt.subplot(1, 3, i+1)
-            y = hill_function(x, slope, 2).eval()
-            plt.plot(x_np, y)
-            plt.xlabel('x')
-            plt.title(f'Slope = {slope}')
-        plt.subplot(1,3,1)
-        plt.ylabel('Hill Saturation Sigmoid')
-        plt.tight_layout()
-        plt.show()
-        # Varying kappa
-        kappas = [1, 5, 10]
-        fig, axes = plt.subplots(1, 3, figsize=(12, 4), sharey=True)
-        for i, kappa in enumerate(kappas):
-            plt.subplot(1, 3, i+1)
-            y = hill_function(x, 1, kappa).eval()
-            plt.plot(x_np, y)
-            plt.xlabel('x')
-            plt.title(f'Kappa = {kappa}')
-        plt.subplot(1,3,1)
-        plt.ylabel('Hill Saturation Sigmoid')
-        plt.tight_layout()
+            for j, kappa in enumerate(kappas):
+                ax = axes[i, j]
+                y = hill_function(x, slope, kappa).eval()
+                ax.plot(x_np, y)
+                if kappa <= 1:
+                    ax.axvline(kappa, color="gray", linestyle="--", linewidth=1)
+                if slope > 1:
+                    x_inf = kappa * ((slope - 1) / (slope + 1)) ** (1 / slope)
+                    if x_inf <= 1:
+                        y_inf = (slope - 1) / (2 * slope)
+                        ax.plot(x_inf, y_inf, "o", color="C3")
+                        ax.annotate(
+                            f"x* = {x_inf:.2f}",
+                            (x_inf, y_inf),
+                            xytext=(6, -12),
+                            textcoords="offset points",
+                            fontsize=8,
+                        )
+                ax.set_xlim(0, 1)
+                ax.set_ylim(0, 1)
+                ax.set_title(f"slope = {slope}, kappa = {kappa}", fontsize=10)
+        for ax in axes[-1]:
+            ax.set_xlabel("x")
+        for ax in axes[:, 0]:
+            ax.set_ylabel("f(x)")
+        fig.suptitle("Hill Saturation")
+        fig.tight_layout()
         plt.show()
 
     Parameters
@@ -1093,7 +1128,9 @@ def hill_function(
         The independent variable, typically representing the concentration of a
         substrate or the intensity of a stimulus.
     slope : XTensorLike
-        The slope of the hill. Must be non-negative.
+        Steepness of the curve as it passes the half-saturation point: the gradient
+        at :math:`x = \kappa` is :math:`s / (4 \kappa)`. Values above 1 give an
+        S-shaped curve. Must be non-negative.
     kappa : XTensorLike
         The half-saturation point as :math:`f(\kappa) = 0.5` for any value of :math:`s`.
 
