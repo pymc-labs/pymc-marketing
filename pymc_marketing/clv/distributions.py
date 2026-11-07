@@ -681,7 +681,12 @@ class ShiftedBetaGeometricRV(RandomVariable):
     name = "sbg"
     signature = "(),()->()"
 
-    dtype = "int64"
+    # Floats, not int64: NumPy's geometric truncates to int64 max because the
+    # support is unbounded, which distorts the tail the parameters asked for
+    # (https://github.com/pymc-labs/pymc-marketing/pull/2010#discussion_r2444116986,
+    # #2018). The support is still the positive integers, carried in float64
+    # so the tail stays intact up to inf.
+    dtype = "float64"
     _print_name = ("ShiftedBetaGeometric", "\\operatorname{ShiftedBetaGeometric}")
 
     @classmethod
@@ -696,9 +701,15 @@ class ShiftedBetaGeometricRV(RandomVariable):
 
         # prevent log(0) by clipping small p samples
         p = np.clip(p_samples, 1e-100, 1)
-        # TODO: Consider returning np.float64 types instead of np.int64
-        #       See relevant PR comment: https://github.com/pymc-labs/pymc-marketing/pull/2010#discussion_r2444116986
-        return rng.geometric(p, size=size)
+        # Inverse-transform draw on the {1, 2, ...} support. u is taken from
+        # (0, 1] so log(u) is finite: p=1 maps to 1, and a tiny p overflows to
+        # inf only where the true geometric draw would exceed float64's range
+        # (#2018). p = 1 makes log1p(-p) -inf; the ratio is a signed zero and
+        # floors to a correct first-trial success, so the divide warning is
+        # noise.
+        u = 1.0 - rng.random(size=size)
+        with np.errstate(divide="ignore"):
+            return np.floor(np.log(u) / np.log1p(-p)) + 1.0
 
 
 sbg = ShiftedBetaGeometricRV()
