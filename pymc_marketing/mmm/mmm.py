@@ -297,27 +297,6 @@ def _deserialize_cost_per_unit(json_str: str) -> pd.DataFrame:
     return df
 
 
-def _mu_effects_equal(first: MuEffect, second: MuEffect) -> bool:
-    """Compare two mu_effects by their JSON-safe serialized form.
-
-    ``model_dump()`` can hold array-like fields (e.g. a ``pd.DataFrame``),
-    whose ``==`` is elementwise and cannot be used in a boolean context.
-    Data that an effect persists outside its serialized dict is compared
-    through ``idata_groups()``.
-    """
-    if first.__class__ is not second.__class__:
-        return False
-    if serialization.is_registered(first):
-        if serialization.serialize(first) != serialization.serialize(second):
-            return False
-    elif hasattr(first, "model_dump") and first.model_dump() != second.model_dump():
-        return False
-    first_groups, second_groups = first.idata_groups(), second.idata_groups()
-    return first_groups.keys() == second_groups.keys() and all(
-        first_groups[name].equals(second_groups[name]) for name in first_groups
-    )
-
-
 class _WindowLayout(NamedTuple):
     """The three blocks an optimization model's date axis divides into.
 
@@ -828,7 +807,7 @@ class MMM(RegressionModelBuilder):
             return False
         # Length check above ensures zip lengths match, suppressing B905 warning
         for self_effect, other_effect in zip(self.mu_effects, other.mu_effects):  # noqa: B905
-            if not _mu_effects_equal(self_effect, other_effect):
+            if self_effect != other_effect:
                 return False
 
         # Causal graph

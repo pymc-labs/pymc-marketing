@@ -552,6 +552,25 @@ class MuEffect(SerializableBaseModel, ABC):
         """
         return {}
 
+    def __eq__(self, other: object) -> bool:
+        """Compare two effects by their serialized form and ``idata_groups``.
+
+        Pydantic's default ``__eq__`` compares ``model_dump()`` dicts, which
+        raises for array-like fields such as a ``pd.DataFrame`` because their
+        ``==`` is elementwise. The serialized form is JSON-safe, and data an
+        effect persists outside it is compared through ``idata_groups()``.
+        """
+        if not isinstance(other, MuEffect):
+            return NotImplemented
+        if self.__class__ is not other.__class__:
+            return False
+        if serialization.serialize(self) != serialization.serialize(other):
+            return False
+        self_groups, other_groups = self.idata_groups(), other.idata_groups()
+        return self_groups.keys() == other_groups.keys() and all(
+            self_groups[name].equals(other_groups[name]) for name in self_groups
+        )
+
 
 class DataVarMuEffect(MuEffect, ABC):
     """MuEffect that reads its data from the xarray Dataset.

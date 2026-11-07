@@ -37,7 +37,9 @@ from pymc_marketing.mmm.data_conversion import to_mmm_dataset
 from pymc_marketing.mmm.fourier import YearlyFourier
 from pymc_marketing.mmm.linear_trend import LinearTrend
 from pymc_marketing.mmm.mmm import MMM, BudgetOptimizerWrapper
-from pymc_marketing.mmm.synthetic_data import simulate_endogenous_spend_market
+from pymc_marketing.mmm.synthetic_data.endogenous_spend import (
+    simulate_endogenous_spend_market,
+)
 from pymc_marketing.mmm.time_slice_cross_validation import TimeSliceCrossValidator
 from pymc_marketing.serialization import serialization
 from pymc_marketing.special_priors import LogNormalPrior
@@ -112,7 +114,6 @@ def fitted(data, design):
     return mmm, effect
 
 
-# --------------------------------------------------------------- design helper
 class TestLiftTestDesign:
     def test_shift_and_set(self, design):
         shift, holdout = lift_test_design(
@@ -204,7 +205,6 @@ class TestLiftTestDesign:
             )
 
 
-# ------------------------------------------------------------------- building
 class TestBuild:
     def test_named_vars_and_dims(self, fitted):
         mmm, _ = fitted
@@ -345,7 +345,6 @@ class TestBuild:
         assert summary["identified_by_design"].all()
 
 
-# ----------------------------------------------- interventions and predictions
 class TestInterventions:
     def test_not_reachable_from_channel_data(self, fitted):
         mmm, _ = fitted
@@ -425,7 +424,6 @@ class TestInterventions:
         assert result.success
 
 
-# -------------------------------------------------------------- serialization
 class TestSerialization:
     def test_dict_round_trip(self, design):
         effect = BudgetModelEffect(
@@ -469,16 +467,79 @@ class TestSerialization:
             else:
                 assert getattr(restored, name) == getattr(effect, name), name
 
-    def test_save_load(self, fitted, tmp_path):
-        mmm, effect = fitted
-        path = tmp_path / "budget.nc"
+    @pytest.mark.parametrize("config", ["default", "all_options", "panel"])
+    def test_save_load(self, config, data, panel_data, design, tmp_path):
+        mmm_kwargs: dict = {"yearly_seasonality": 2}
+        if config == "default":
+            X, y = data
+            effect = BudgetModelEffect(design=design)
+        elif config == "all_options":
+            X, y = data
+            X = X.assign(cost_shock=np.random.default_rng(3).normal(size=N_WEEKS))
+            effect = BudgetModelEffect(
+                prefix="spend",
+                design=design,
+                trend=True,
+                instruments=["cost_shock"],
+                surprise_lags=2,
+                fourier_order=1,
+                surprise_out_of_sample="observed",
+                gamma_prior=Prior("Normal", mu=0, sigma=0.3, dims="spend_channel"),
+            )
+        else:
+            X, y = panel_data
+            mmm_kwargs = {"dims": ("geo",)}
+            effect = BudgetModelEffect(
+                channels=["tv"],
+                design=pd.DataFrame(
+                    {
+                        "channel": ["tv"],
+                        "geo": ["B"],
+                        "start_date": [DATES[5]],
+                        "end_date": [DATES[8]],
+                        "delta_x": [-40.0],
+                    }
+                ),
+            )
+        mmm = _make_mmm(**mmm_kwargs).add_mu_effect(effect)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            mock_fit(mmm, X, y, random_seed=1)
+
+        path = tmp_path / f"budget_{config}.nc"
         mmm.save(str(path))
         loaded = MMM.load(str(path))
+
         restored = loaded.mu_effects[0]
         assert isinstance(restored, BudgetModelEffect)
-        pd.testing.assert_frame_equal(restored.design, effect.design)
-        assert "budget_effect_contribution" in loaded.model.named_vars
+        assert restored == effect
+        assert restored is not effect
         assert loaded == mmm
+        assert set(mmm.model.named_vars) == set(loaded.model.named_vars)
+        pd.testing.assert_frame_equal(
+            restored.exogeneity_summary(loaded), effect.exogeneity_summary(mmm)
+        )
+
+        var_names = ["y", f"{effect.prefix}_effect_contribution"]
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            expected = mmm.sample_posterior_predictive(
+                X, extend_idata=False, var_names=var_names, random_seed=1
+            )
+            actual = loaded.sample_posterior_predictive(
+                X, extend_idata=False, var_names=var_names, random_seed=1
+            )
+        xr.testing.assert_allclose(actual, expected)
+
+    def test_effect_equality(self, design):
+        effect = BudgetModelEffect(design=design)
+        assert effect == BudgetModelEffect(design=design.copy())
+        assert effect != BudgetModelEffect(
+            design=design.assign(delta_x=[-10.0, np.nan])
+        )
+        assert effect != BudgetModelEffect(design=design, surprise_lags=1)
+        assert effect != BudgetModelEffect()
+        assert effect != "not an effect"
 
     def test_equality(self, design):
         first = _make_mmm().add_mu_effect(BudgetModelEffect(design=design))
@@ -507,7 +568,6 @@ class TestSerialization:
         assert float(abs(shift).sum()) == 0.0
 
 
-# ---------------------------------------------------------------- diagnostics
 class TestExogeneitySummary:
     def test_schema(self, fitted):
         mmm, effect = fitted
@@ -569,7 +629,6 @@ class TestExogeneitySummary:
             effect.exogeneity_summary(mmm)
 
 
-# ------------------------------------------------------ lift-test interaction
 def test_lift_test_design_edge_cases():
     base = {"channel": "tv", "delta_x": 1.0}
     missing_mode = pd.DataFrame(
@@ -1211,29 +1270,6 @@ def test_lift_likelihood_no_warning_for_untested_channel(data, tested):
     with warnings.catch_warnings():
         warnings.simplefilter("error", UserWarning)
         mmm.add_lift_test_measurements(df_lift)
-
-
-# ------------------------------------------------------------------- recovery
-@pytest.mark.parametrize(
-    "scenario", ["forecast", "target_chasing", "search", "observed_only"]
-)
-def test_synthetic_market(scenario):
-    market = simulate_endogenous_spend_market(scenario, random_seed=1)
-    again = simulate_endogenous_spend_market(scenario, random_seed=1)
-    pd.testing.assert_frame_equal(market.data, again.data)
-    assert len(market.data) == 120
-    assert market.lift_test["delta_x"].item() < 0
-    assert market.lift_test["delta_y"].item() < 0
-    shift, holdout = lift_test_design(
-        market.design, dates=market.data["date"], channels=["tv", "digital"]
-    )
-    assert int(holdout.sum()) == (4 if scenario == "search" else 0)
-    assert np.isclose(float(shift.sum()), 0 if scenario == "search" else -6.0)
-
-
-def test_synthetic_market_invalid_scenario():
-    with pytest.raises(ValueError, match="scenario must be one of"):
-        simulate_endogenous_spend_market("random")
 
 
 @pytest.mark.slow

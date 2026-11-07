@@ -180,7 +180,9 @@ def simulate_endogenous_spend_market(
     .. code-block:: python
 
         from pymc_marketing.mmm import MMM, BudgetModelEffect
-        from pymc_marketing.mmm.synthetic_data import simulate_endogenous_spend_market
+        from pymc_marketing.mmm.synthetic_data.endogenous_spend import (
+            simulate_endogenous_spend_market,
+        )
 
         market = simulate_endogenous_spend_market("target_chasing", random_seed=1)
         X, y = market.data.drop(columns="y"), market.data["y"]

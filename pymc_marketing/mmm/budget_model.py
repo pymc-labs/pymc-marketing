@@ -590,7 +590,6 @@ class BudgetModelEffect(MuEffect):
             value[col] = pd.to_datetime(value[col])
         return value
 
-    # ------------------------------------------------------------------ names
     @property
     def channel_dim(self) -> str:
         """Name of the coordinate indexing the modelled channels."""
@@ -621,7 +620,6 @@ class BudgetModelEffect(MuEffect):
         """
         return list(self.instruments)
 
-    # ----------------------------------------------------------- priors
     def _default_priors(self, dims: tuple[str, ...]) -> dict[str, VariableFactory]:
         ch = self.channel_dim
         return {
@@ -658,7 +656,6 @@ class BudgetModelEffect(MuEffect):
             )
         return user
 
-    # ------------------------------------------------------------- data
     def _training_data(self, mmm: Model, warn: bool = False) -> _TrainingData:
         """Derive spend, designs and standardisation from the MMM's training data.
 
@@ -916,7 +913,6 @@ class BudgetModelEffect(MuEffect):
             [np.eye(n_dates, k=-lag) for lag in range(1, self.surprise_lags + 1)]
         )
 
-    # ----------------------------------------------------------- effect
     def create_effect(self, mmm: Model) -> XTensorVariable:
         """Add the spend equations, their likelihood, and the control function.
 
@@ -1110,7 +1106,6 @@ class BudgetModelEffect(MuEffect):
         shift, holdout = self._design_for(spend)
         return self._surprise_inputs(spend, shift, holdout, data.spend_scale)
 
-    # ------------------------------------------------------------ MMM hooks
     def check_scenario_use(self, mmm: Model) -> None:
         """Warn that ``"observed"`` surprises misread scenario spend.
 
@@ -1161,7 +1156,6 @@ class BudgetModelEffect(MuEffect):
                 stacklevel=3,
             )
 
-    # ----------------------------------------------------- diagnostics
     def exogeneity_summary(
         self, mmm: FittedModel, interval_prob: float = 0.94
     ) -> pd.DataFrame:
@@ -1217,7 +1211,6 @@ class BudgetModelEffect(MuEffect):
             sd = draws.std([d for d in draws.dims if d in ("chain", "draw", "sample")])
         return sd.rename({self.lag_dim: "lag"}) if self.lag_dim in sd.dims else sd
 
-    # ---------------------------------------------------- serialization
     @classmethod
     def _prior_fields(cls) -> list[str]:
         return [name for name in cls.model_fields if name.endswith("_prior")]
