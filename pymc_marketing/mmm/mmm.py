@@ -2822,9 +2822,10 @@ class MMM(RegressionModelBuilder):
         clears ``idata``, since the prior was sampled from the old model, and
         warns when that drops a prior group.
 
-        Otherwise, the target passed here, as ``y`` or inside ``X``, replaces
-        the observed target and its scale, and the data of the model is set back
-        to the data it was built on. If that changes the target scale, the prior
+        When the data in ``X`` is the same, the target passed here, as ``y`` or
+        inside ``X``, replaces the observed target and its scale, and the data
+        of the model is set back to the data it was built on. If that changes
+        the target scale, the prior
         variables built on it, such as the ``*_original_scale`` ones, are
         dropped from the prior and prior predictive groups of ``idata`` with a
         warning. The rest of the prior is on the scaled space and is kept.
@@ -2944,6 +2945,9 @@ class MMM(RegressionModelBuilder):
                 ]
             )
             self.build_model(checked_X, checked_y)
+            self.idata = None
+            # Last, so that a warning turned into an error (`-W error`) does not
+            # leave the new model next to the idata of the old one.
             if prior_groups:
                 warnings.warn(
                     "`fit` got a new `X`, so the model was rebuilt and the "
@@ -2953,20 +2957,18 @@ class MMM(RegressionModelBuilder):
                     UserWarning,
                     stacklevel=3,
                 )
-            self.idata = None
             return
 
-        if not target_scale.equals(self.scalers["_target"]):
-            # Lift-test rows are scaled once, with the target scale at the
-            # time they are added.
-            if self._lift_test_calibrations:
-                raise ValueError(
-                    "`fit` got a `y` that changes the target scale, but lift "
-                    "tests were added with the old scale. Call `build_model` "
-                    "with this data, add the lift tests again, and then call "
-                    "`fit`."
-                )
-            self._drop_target_scale_variables_from_prior()
+        scale_changed = not target_scale.equals(self.scalers["_target"])
+        # Lift-test rows are scaled once, with the target scale at the time
+        # they are added.
+        if scale_changed and self._lift_test_calibrations:
+            raise ValueError(
+                "`fit` got a `y` that changes the target scale, but lift "
+                "tests were added with the old scale. Call `build_model` "
+                "with this data, add the lift tests again, and then call "
+                "`fit`."
+            )
 
         self.xarray_dataset["_target"] = target
         self.scalers["_target"] = target_scale
@@ -2978,6 +2980,10 @@ class MMM(RegressionModelBuilder):
         for effect in self.mu_effects:
             effect.set_data(self, self.model, restored)
         pm.set_data({"target_scale": target_scale}, model=self.model)
+        # Last, because it warns: under `-W error` the warning must not leave
+        # the prior dropped next to the old target and scale.
+        if scale_changed:
+            self._drop_target_scale_variables_from_prior()
 
     def _drop_target_scale_variables_from_prior(self) -> None:
         """Drop the prior variables built on ``target_scale`` from ``idata``.

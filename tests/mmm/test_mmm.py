@@ -9324,6 +9324,31 @@ def test_refit_that_changes_target_scale_drops_original_scale_variables(
     assert "y_original_scale" not in mmm.idata.prior
 
 
+def test_refit_whose_scale_warning_is_an_error_keeps_the_target_and_prior_together(
+    lognormal_likelihood_data, mock_pymc_sample
+):
+    # Under `-W error` the warning raises. It must come after the new target
+    # and scale are stored, not between dropping the prior variables and them.
+    X, y = lognormal_likelihood_data
+    mmm = _two_channel_mmm()
+    mmm.build_model(X, y)
+    mmm.add_original_scale_contribution_variable(var=["channel_contribution"])
+    mmm.sample_prior_predictive(X, y, samples=10, random_seed=42)
+    _fit(mmm, X, y)
+    old_scale = mmm.scalers["_target"].to_numpy().copy()
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", UserWarning)
+        with pytest.raises(UserWarning, match="channel_contribution_original_scale"):
+            _fit(mmm, X, 100 * y)
+
+    assert "channel_contribution_original_scale" not in mmm.idata.prior
+    np.testing.assert_allclose(mmm.scalers["_target"].to_numpy(), 100 * old_scale)
+    np.testing.assert_allclose(
+        mmm.model["target_scale"].eval(), mmm.scalers["_target"].to_numpy()
+    )
+
+
 def test_fit_after_prior_predictive_without_y_keeps_the_prior(
     lognormal_likelihood_data, mock_pymc_sample
 ):
@@ -9575,6 +9600,24 @@ def test_fit_on_new_X_warns_when_the_rebuild_drops_the_prior(
 
     assert "prior" not in mmm.idata.children
     assert "prior_predictive" not in mmm.idata.children
+
+
+def test_fit_on_new_X_whose_prior_warning_is_an_error_clears_idata_first(
+    lognormal_likelihood_data, mock_pymc_sample
+):
+    # Under `-W error` the warning raises after the rebuild. The instance must
+    # not be left with the new model next to the idata of the old one.
+    X, y = lognormal_likelihood_data
+    mmm = _two_channel_mmm()
+    mmm.sample_prior_predictive(X, y, samples=10, random_seed=42)
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", UserWarning)
+        with pytest.raises(UserWarning, match=r"prior.*prior_predictive"):
+            _fit(mmm, X.iloc[5:], y.iloc[5:])
+
+    assert len(mmm.model.coords["date"]) == len(X) - 5
+    assert mmm.idata is None
 
 
 def test_fit_on_new_X_without_a_prior_does_not_warn(
