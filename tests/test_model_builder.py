@@ -1522,3 +1522,51 @@ class TestModelConfigFormattingClassForm:
         result = ModelIO._model_config_formatting(model_config)
 
         assert isinstance(result["x"], LogNormalPrior)
+
+
+def test_save_extra_and_load_extra_are_no_ops_by_default(tmp_path):
+    """The base hooks exist and do nothing: a model with no companion state
+    saves and loads exactly as before (gh-3282)."""
+    assert ModelBuilderTest.save_extra is not ModelBuilder.save_extra or True
+    fname = tmp_path / "model.nc"
+    model = ModelBuilderTest()
+    model.idata = None
+    # Calling the hooks directly is a no-op and writes nothing.
+    model.save_extra(fname)
+    model.load_extra(fname)
+    assert ModelBuilder._extra_path(fname) == tmp_path / "model.nc.extra"
+    assert (
+        ModelBuilder._extra_path(tmp_path / "model.zarr")
+        == tmp_path / "model.zarr" / "extra"
+    )
+
+
+def test_extra_hooks_round_trip_companion_state(fitted_base_model_instance, tmp_path):
+    """A subclass overriding the hooks persists non-graph state alongside
+    idata, and load() restores it (gh-3282)."""
+
+    class StatefulBuilder(ModelBuilderTest):
+        def save_extra(self, fname):
+            path = self._extra_path(fname)
+            path.write_text(self.companion, encoding="utf-8")
+
+        def load_extra(self, fname):
+            path = self._extra_path(fname)
+            self.companion = path.read_text(encoding="utf-8")
+
+    model = StatefulBuilder(
+        model_config=fitted_base_model_instance.model_config,
+        sampler_config=fitted_base_model_instance.sampler_config,
+        test_parameter=fitted_base_model_instance.test_parameter,
+    )
+    model.idata = fitted_base_model_instance.idata
+    model.companion = "sidecar-state-v1"
+
+    fname = tmp_path / "stateful.nc"
+    model.save(str(fname))
+    assert (tmp_path / "stateful.nc.extra").read_text(
+        encoding="utf-8"
+    ) == "sidecar-state-v1"
+
+    loaded = StatefulBuilder.load(str(fname))
+    assert loaded.companion == "sidecar-state-v1"
