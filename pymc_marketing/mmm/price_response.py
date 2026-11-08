@@ -164,6 +164,15 @@ class ResolvedPowerPriceResponse(ResolvedPriceResponse):
     an infinite derivative at 0, and the quadratic marginal price has a pole in the region where it is not
     selected. Money is clipped at zero first, so :math:`u(s) = 0` for :math:`s < 0`, where the marginal price
     equals its value at zero and the average price is ``nan``.
+
+    With ``flat_below_reference=True``, the map is instead linear below a C1 knee around
+    :math:`s_{\text{ref}}`. Write :math:`b = 1 + 1/K`, :math:`d = (1-\gamma)b^{-\gamma}`,
+    :math:`w = 2(b-b^{1-\gamma})/(1-d)` and :math:`a = b-w`, where :math:`K` is
+    ``knee_sharpness``. In units of the reference, the blend is
+    :math:`q(x) = x - (1-d)(x-a)^2/(2w)` on :math:`[a,b]`. It joins the line at
+    :math:`a` and the power law at :math:`b` in value and slope. Its slope decreases
+    from 1 to :math:`d > 0`, so the full map is increasing and concave. The base price
+    is a floor, including through the blend; the quadratic floor at zero is not used.
     """
 
     def __init__(
@@ -174,6 +183,8 @@ class ResolvedPowerPriceResponse(ResolvedPriceResponse):
         max_slope_ratio: float,
         dims: tuple[str, ...],
         label: str,
+        flat_below_reference: bool = False,
+        knee_sharpness: float = 100.0,
     ) -> None:
         gamma = np.asarray(gamma, dtype="float64")
         reference_spend = np.asarray(reference_spend, dtype="float64")
@@ -190,18 +201,49 @@ class ResolvedPowerPriceResponse(ResolvedPriceResponse):
         self.curved = gamma > 0.0
         self.max_slope_ratio = float(max_slope_ratio)
         self.is_identity = bool(np.all(gamma == 0.0))
-        self.s_floor, self.scale, self.a, self.b = self._power_floor_coefficients(
-            gamma, reference_spend, self.max_slope_ratio
-        )
-        self._warn_wide_floor(
-            label, gamma, self.s_floor, reference_spend, self.max_slope_ratio
-        )
+        self.flat_below_reference = flat_below_reference
+        if flat_below_reference:
+            self.scale = reference_spend**gamma
+            self._initialize_knee(knee_sharpness)
+        else:
+            self.s_floor, self.scale, self.a, self.b = self._power_floor_coefficients(
+                gamma, reference_spend, self.max_slope_ratio
+            )
+            self._warn_wide_floor(
+                label, gamma, self.s_floor, reference_spend, self.max_slope_ratio
+            )
+            self._s_floor = self._constant(self.s_floor)
+            self._a = self._constant(self.a)
+            self._b = self._constant(self.b)
         self._gamma = self._constant(gamma)
         self._reference = self._constant(reference_spend)
-        self._s_floor = self._constant(self.s_floor)
         self._scale = self._constant(self.scale)
-        self._a = self._constant(self.a)
-        self._b = self._constant(self.b)
+
+    def _initialize_knee(self, sharpness: float) -> None:
+        """Join a line to the power branch with a concave quadratic, in money units."""
+        # Use a finite sentinel for gamma=0, and expm1 to avoid cancellation when
+        # gamma is small. Every branch must stay finite, including under JAX.
+        active = self.gamma > 0.0
+        gamma = np.where(active, self.gamma, 0.5)
+        log_upper = np.log1p(1.0 / sharpness)
+        upper = 1.0 + 1.0 / sharpness
+        slope_loss = -np.expm1(np.log1p(-gamma) - gamma * log_upper)
+        width = -2.0 * upper * np.expm1(-gamma * log_upper) / slope_loss
+        self.knee_lower = self.reference_spend * (upper - width)
+        self.knee_upper = self.reference_spend * upper
+        coefficient = np.where(active, slope_loss / (2.0 * width), 0.0)
+        self._knee_lower = self._constant(self.knee_lower)
+        self._knee_upper = self._constant(self.knee_upper)
+        self._knee_coefficient = self._constant(coefficient / self.reference_spend)
+
+    def _knee_branches(self, spend: XTensorVariable):
+        spend = ptx.math.maximum(spend, 0.0)
+        blend_spend = ptx.math.minimum(
+            ptx.math.maximum(spend, self._knee_lower), self._knee_upper
+        )
+        # Both branches are evaluated, even when spend is zero or the cell is flat.
+        power_spend = ptx.math.maximum(spend, self._knee_upper)
+        return spend, blend_spend, power_spend
 
     @staticmethod
     def _power_floor_coefficients(
@@ -270,6 +312,19 @@ class ResolvedPowerPriceResponse(ResolvedPriceResponse):
         self, spend: XTensorVariable, base_price: XTensorVariable | None = None
     ) -> XTensorVariable:
         """Delivered units bought with ``spend``; ``u(0) == 0`` exactly."""
+        if self.flat_below_reference:
+            spend, blend_spend, power_spend = self._knee_branches(spend)
+            blend = (
+                blend_spend
+                - self._knee_coefficient * (blend_spend - self._knee_lower) ** 2
+            )
+            power = self._scale * power_spend ** (1.0 - self._gamma)
+            units = ptx.math.where(
+                spend <= self._knee_lower,
+                spend,
+                ptx.math.where(spend < self._knee_upper, blend, power),
+            )
+            return units if base_price is None else units / base_price
         above, s_power, s_quad = self._branches(spend)
         power = self._scale * s_power ** (1.0 - self._gamma)
         quadratic = self._a * s_quad + self._b * s_quad**2
@@ -280,6 +335,18 @@ class ResolvedPowerPriceResponse(ResolvedPriceResponse):
         self, spend: XTensorVariable, base_price: XTensorVariable | None = None
     ) -> XTensorVariable:
         """Money the next delivered unit costs at ``spend``: ``p / (1 - gamma)`` above the floor."""
+        if self.flat_below_reference:
+            spend, blend_spend, power_spend = self._knee_branches(spend)
+            blend = 1.0 / (
+                1.0 - 2.0 * self._knee_coefficient * (blend_spend - self._knee_lower)
+            )
+            power = (power_spend / self._reference) ** self._gamma / (1.0 - self._gamma)
+            ratio = ptx.math.where(
+                spend <= self._knee_lower,
+                1.0,
+                ptx.math.where(spend < self._knee_upper, blend, power),
+            )
+            return ratio if base_price is None else ratio * base_price
         above, s_power, s_quad = self._branches(spend)
         # A flat cell has no floor, so s_power reaches 0 and the gradient of 0 ** 0 is nan;
         # its ratio is 1 at any spend, so it gets a base of 1 and a zero gradient.
@@ -487,6 +554,21 @@ class PowerPriceResponse(PriceResponse):
         pricing an immovable channel hands the solver its largest gradient on a variable that cannot move, which
         SLSQP tolerates on some platforms and not on others. ``allocate_budget`` warns when ``budget_bounds``
         does this.
+        Unused when ``flat_below_reference=True``, since delivery is linear at zero.
+    flat_below_reference : bool
+        Keep the unit price at ``cost_per_unit`` below the reference, with a narrow C1 blend
+        into the power law. Default ``False`` retains the symmetric power law. Use ``True``
+        when auction floors or minimum bids prevent a budget cut from buying cheaper units.
+        The delivery-units attestation is still required: the map bends above the reference.
+    knee_sharpness : float
+        Conditioning of the C1 transition when ``flat_below_reference=True``. Must be finite
+        and greater than 1; default ``100``. The power branch starts at
+        ``reference_spend * (1 + 1 / knee_sharpness)``; the lower endpoint is derived by
+        matching value and slope with a concave quadratic (see :class:`ResolvedPowerPriceResponse`).
+        At the default the blend spans approximately 99% to 101% of the reference.
+        Larger values reduce the approximation region but increase its curvature. Within
+        the blend the price can slightly exceed the unsmoothed price, including at the
+        reference; it never falls below the base price. Unused on the default variant.
     reference_spend_tolerance : float
         Largest factor by which a supplied ``reference_spend`` may differ from the derived default on any
         curved cell before it is rejected. Default ``10``. The unit error this catches is a window total
@@ -521,8 +603,9 @@ class PowerPriceResponse(PriceResponse):
     **Below the reference.** The power law is as confident below the reference as above it, so a priced channel
     bought far below its reference looks cheap and can attract budget: anchor ``reference_spend`` where you plan
     to buy (raising ``reference_spend_tolerance`` if that is far from the fitted spend) and read
-    ``implied_price`` on every channel before trusting the allocation. A variant flat below the reference is
-    #3089.
+    ``implied_price`` on every channel before trusting the allocation. Set ``flat_below_reference=True``
+    when a floor price should instead hold the base price below the reference. The elasticity remains a
+    planning assumption; compare both variants if the below-reference price behavior is uncertain.
 
     **Not a rate schedule.** One smooth curve cannot hold a committed tranche at a contracted rate while the
     increment clears at another: calibrated to that case, its marginal price keeps climbing where the true rate
@@ -624,6 +707,8 @@ class PowerPriceResponse(PriceResponse):
         ),
     )
     max_slope_ratio: float = Field(default=100.0, gt=1.0)
+    flat_below_reference: bool = False
+    knee_sharpness: float = Field(default=100.0, gt=1.0, allow_inf_nan=False)
     reference_spend_tolerance: float = Field(default=10.0, gt=1.0)
     assume_delivery_units: bool = Field(
         default=False,
@@ -664,13 +749,20 @@ class PowerPriceResponse(PriceResponse):
     @model_validator(mode="after")
     def _check_domain(self) -> Self:
         self._require_valid_elasticity(
-            self._known_elasticities(), self.max_slope_ratio, "PowerPriceResponse"
+            self._known_elasticities(),
+            self.max_slope_ratio,
+            "PowerPriceResponse",
+            flat_below_reference=self.flat_below_reference,
         )
         return self
 
     @staticmethod
     def _require_valid_elasticity(
-        values: np.ndarray, max_slope_ratio: float, label: str
+        values: np.ndarray,
+        max_slope_ratio: float,
+        label: str,
+        *,
+        flat_below_reference: bool = False,
     ) -> None:
         """Refuse an elasticity outside ``[0, 1)``, or one too steep for ``max_slope_ratio``.
 
@@ -685,7 +777,7 @@ class PowerPriceResponse(PriceResponse):
                 "its lower bound. Below 0 the price falls with volume, which makes delivery convex: a "
                 "negotiated or contract discount belongs in cost_per_unit, the base price."
             )
-        if values.size:
+        if values.size and not flat_below_reference:
             g_max = float(values.max())
             minimum = (1.0 + g_max) / (1.0 - g_max)
             if max_slope_ratio <= minimum:
@@ -752,6 +844,8 @@ class PowerPriceResponse(PriceResponse):
             max_slope_ratio=self.max_slope_ratio,
             dims=template.dims,
             label=label,
+            flat_below_reference=self.flat_below_reference,
+            knee_sharpness=self.knee_sharpness,
         )
 
     def _optimized_elasticity(
@@ -759,7 +853,12 @@ class PowerPriceResponse(PriceResponse):
     ) -> np.ndarray:
         """Elasticity per cell of ``template``; a masked cell spends exactly nothing, so it gets 0."""
         gamma = np.where(on, self._resolve_elasticity(template, date_dim, label), 0.0)
-        self._require_valid_elasticity(gamma, self.max_slope_ratio, label)
+        self._require_valid_elasticity(
+            gamma,
+            self.max_slope_ratio,
+            label,
+            flat_below_reference=self.flat_below_reference,
+        )
         return gamma
 
     def _resolve_reference(

@@ -305,6 +305,131 @@ class TestResolvedPowerPriceResponse:
             )
 
 
+class TestFlatBelowReference:
+    @pytest.fixture
+    def resolved(self):
+        return ResolvedPowerPriceResponse(
+            gamma=GAMMA,
+            reference_spend=S_REF,
+            max_slope_ratio=2.0,  # unused: there is no floor at zero
+            dims=DIMS,
+            label="test",
+            flat_below_reference=True,
+        )
+
+    def test_closed_forms_outside_the_knee(self, maps):
+        for s in (np.full(3, 20.0), np.full(3, 200.0)):
+            price = P0 * np.maximum(s / S_REF, 1.0) ** GAMMA
+            np.testing.assert_allclose(maps["u"](s), s / price, rtol=1e-12)
+            np.testing.assert_allclose(maps["p"](s), price, rtol=1e-12)
+            marginal = price if np.all(s < S_REF) else price / (1 - GAMMA)
+            np.testing.assert_allclose(maps["m"](s), marginal, rtol=1e-12)
+
+    def test_negative_and_zero_money(self, maps):
+        for s in (np.zeros(3), np.full(3, -10.0)):
+            np.testing.assert_array_equal(maps["u"](s), 0.0)
+            assert np.isnan(maps["p"](s)).all()
+            np.testing.assert_allclose(maps["m"](s), P0)
+
+    def test_zero_elasticity_is_bitwise_constant_price(self, maps, spend, base_price):
+        constant = compile_lowered(spend / base_price, spend)
+        for s in (np.full(3, 10.0), S_REF, np.full(3, 200.0)):
+            assert maps["u"](s)[0] == constant(s)[0]
+
+    def test_c1_at_both_ends_and_gradient_matches_finite_differences(
+        self, maps, resolved, spend, base_price
+    ):
+        objective = rewrite_graph(
+            resolved.to_delivery(spend, base_price).sum().values, include=LOWER
+        )
+        gradient = function([spend], pt.grad(objective, spend))
+        for knot in (resolved.knee_lower, resolved.knee_upper):
+            eps = S_REF * 1e-7
+            np.testing.assert_allclose(
+                gradient(knot - eps), gradient(knot + eps), rtol=1e-5
+            )
+            for name in ("u", "p", "m"):
+                np.testing.assert_allclose(
+                    maps[name](knot - eps), maps[name](knot + eps), rtol=1e-5
+                )
+        for s in (
+            np.zeros(3),
+            resolved.knee_lower,
+            S_REF,
+            resolved.knee_upper,
+            S_REF * 2,
+        ):
+            fd = slope(maps["u"], s, S_REF * 1e-7) if s.any() else 1 / P0
+            np.testing.assert_allclose(gradient(s), fd, rtol=1e-5)
+            np.testing.assert_allclose(maps["m"](s), 1 / gradient(s), rtol=1e-12)
+
+    @pytest.mark.parametrize("gamma", [1e-12, 0.25, 0.9, 0.99])
+    @pytest.mark.parametrize("sharpness", [2.0, 100.0, 1000.0])
+    def test_map_is_increasing_concave_and_never_cheaper_than_the_base(
+        self, gamma, sharpness
+    ):
+        r = PowerPriceResponse(
+            elasticity=gamma,
+            flat_below_reference=True,
+            knee_sharpness=sharpness,
+        ).resolve(**layout(), derived_reference=derived([100, 100, 100]))
+        s = ptx.xtensor("spend", shape=(None, 3), dims=("date", *DIMS))
+        u = compile_lowered(r.to_delivery(s), s)
+        grid = np.unique(
+            np.r_[
+                np.linspace(0, 250, 1001),
+                np.linspace(r.knee_lower[0], r.knee_upper[0], 101),
+            ]
+        )
+        money = np.repeat(grid[:, None], 3, axis=1)
+        units = u(money)
+        slopes = np.diff(units, axis=0) / np.diff(grid)[:, None]
+        assert (slopes > 0).all()
+        assert (np.diff(slopes, axis=0) <= 1e-9).all()
+        assert (units <= money + 1e-12).all()
+
+    @pytest.mark.parametrize("mode", [None, "JAX"], ids=["c", "jax"])
+    def test_delivery_and_marginal_price_gradients_are_finite_on_all_cells(
+        self, resolved, spend, base_price, mode
+    ):
+        if mode == "JAX":
+            pytest.importorskip("jax")
+        for mapped in (resolved.to_delivery, resolved.implied_marginal_price):
+            objective = rewrite_graph(
+                mapped(spend, base_price).sum().values, include=LOWER
+            )
+            grad = function([spend], pt.grad(objective, spend), mode=mode)
+            for s in (
+                np.zeros(3),
+                -S_REF,
+                resolved.knee_lower,
+                S_REF,
+                resolved.knee_upper,
+                2 * S_REF,
+            ):
+                assert np.isfinite(grad(s)).all()
+
+    @pytest.mark.parametrize("bad", [1.0, 0.0, np.inf, np.nan])
+    def test_knee_sharpness_must_be_finite_and_greater_than_one(self, bad):
+        with pytest.raises(ValidationError):
+            PowerPriceResponse(flat_below_reference=True, knee_sharpness=bad)
+
+    @pytest.mark.parametrize("elasticity", [-0.1, 1.0, np.nan, np.inf])
+    def test_flat_variant_still_validates_elasticity(self, elasticity):
+        with pytest.raises(ValueError, match="0 <= elasticity < 1"):
+            PowerPriceResponse(elasticity=elasticity, flat_below_reference=True)
+
+    def test_masked_cells_and_zero_elasticities_keep_the_identity(self):
+        response = PowerPriceResponse(elasticity={"tv": 0.5}, flat_below_reference=True)
+        on_layout = layout(mask_values=[False, True, True])
+        resolved = response.resolve(**on_layout, derived_reference=None)
+        assert resolved.is_identity
+        np.testing.assert_array_equal(
+            response.curved_cells(**on_layout), resolved.curved
+        )
+        assert response.adds_curvature and not response.attests_delivery_units
+
+
 def layout(dims=("channel",), coords=None, mask_values=None):
     """What a MediaVariable hands to resolve(): its dims, coords and mask."""
     coords = coords or {"channel": ["tv", "radio", "digital"]}

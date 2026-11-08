@@ -1072,10 +1072,16 @@ class TestPriceResponseGate:
             _on_air_reference(mmm).sel(channel=CHANNELS_3).values,
         )
 
-    def test_a_curved_response_is_refused_without_attestation(self, simple_fitted_mmm):
+    @pytest.mark.parametrize("flat_below_reference", [False, True])
+    def test_a_curved_response_is_refused_without_attestation(
+        self, simple_fitted_mmm, flat_below_reference
+    ):
         with pytest.raises(ValueError, match="a declaration, not evidence") as info:
             _optimizer(
-                simple_fitted_mmm, price_response=PowerPriceResponse(elasticity=0.3)
+                simple_fitted_mmm,
+                price_response=PowerPriceResponse(
+                    elasticity=0.3, flat_below_reference=flat_below_reference
+                ),
             )
         message = str(info.value)
         assert "assume_delivery_units=True" in message
@@ -1530,8 +1536,9 @@ class TestPriceResponseAllocation:
     TOTAL = 300.0
     PRICES = {"channel_1": 2.0, "channel_2": 3.0, "channel_3": 1.5}
 
+    @pytest.mark.parametrize("flat_below_reference", [False, True])
     def test_zero_elasticity_reproduces_the_constant_price_allocation(
-        self, simple_fitted_mmm
+        self, simple_fitted_mmm, flat_below_reference
     ):
         """The regression guard: elasticity = 0 must not move the solver, and it must
         still report prices (== p0 == 1 here) so a baseline can be tabled beside a sweep."""
@@ -1539,7 +1546,10 @@ class TestPriceResponseAllocation:
             total_budget=self.TOTAL
         )
         identity = _optimizer(
-            simple_fitted_mmm, price_response=PowerPriceResponse(elasticity=0.0)
+            simple_fitted_mmm,
+            price_response=PowerPriceResponse(
+                elasticity=0.0, flat_below_reference=flat_below_reference
+            ),
         ).allocate_budget(total_budget=self.TOTAL)
         xr.testing.assert_allclose(identity.budgets, baseline.budgets)
         np.testing.assert_allclose(
@@ -1666,7 +1676,10 @@ class TestPriceResponseAllocation:
             per_period, result.implied_delivery.isel(date=0, drop=True)
         )
 
-    def test_non_uniform_distribution_end_to_end(self, simple_fitted_mmm):
+    @pytest.mark.parametrize("flat_below_reference", [False, True])
+    def test_non_uniform_distribution_end_to_end(
+        self, simple_fitted_mmm, flat_below_reference
+    ):
         """Through allocate_budget, not only at the MediaVariable level: the money
         identity holds with a non-uniform spread including a period whose factor is
         exactly 0 (which reports a nan price), a gamma = 0 channel reports a flat p0, and
@@ -1687,7 +1700,9 @@ class TestPriceResponseAllocation:
             mmm,
             cost_per_unit=window_cpu,
             budget_distribution_over_period=distribution,
-            price_response=_curved(elasticity=gamma),
+            price_response=_curved(
+                elasticity=gamma, flat_below_reference=flat_below_reference
+            ),
         )
         result = optimizer.allocate_budget(total_budget=600.0)
         assert result.scipy_result.success, result.scipy_result.message
@@ -1709,7 +1724,15 @@ class TestPriceResponseAllocation:
         flat = price.sel(channel="channel_2")
         np.testing.assert_allclose(flat.values, self.PRICES["channel_2"])
         front_loaded = price.sel(channel="channel_1").values
-        assert np.all(np.diff(front_loaded) < 0), front_loaded
+        if flat_below_reference:
+            assert np.all(front_loaded >= self.PRICES["channel_1"]), front_loaded
+            assert np.all(np.diff(front_loaded) <= 1e-10), front_loaded
+            evaluation = optimizer.evaluate_plan(result.budgets)
+            np.testing.assert_allclose(
+                evaluation.objective, result.scipy_result.fun, rtol=1e-10
+            )
+        else:
+            assert np.all(np.diff(front_loaded) < 0), front_loaded
 
     def test_a_channel_bounded_to_zero_reports_no_price_at_all(self, simple_fitted_mmm):
         """A channel held at zero bought nothing, so its whole price row is nan and the
@@ -1846,7 +1869,73 @@ class TestPriceResponseOptimality:
     PRICES = {"channel_1": 2.0, "channel_2": 3.0, "channel_3": 1.5}
     TIGHT = {"options": {"ftol": 1e-12, "maxiter": 2000}}
 
-    def test_objective_gradient_matches_finite_differences(self, simple_fitted_mmm):
+    def test_price_floor_does_not_fund_an_uncompetitive_channel(
+        self, simple_fitted_mmm
+    ):
+        """A high base price must not turn into cheap inventory merely because the buy is small."""
+        mmm = simple_fitted_mmm
+        prices = {**self.PRICES, "channel_1": 80.0}
+        mmm.set_cost_per_unit(_full_table(mmm, prices))
+        base = _window_cpu(mmm, prices)
+        constant = _optimizer(mmm, cost_per_unit=base).allocate_budget(
+            total_budget=300.0
+        )
+        symmetric = _optimizer(
+            mmm, cost_per_unit=base, price_response=_curved(elasticity=0.5)
+        ).allocate_budget(total_budget=300.0)
+        floored = _optimizer(
+            mmm,
+            cost_per_unit=base,
+            price_response=_curved(elasticity=0.5, flat_below_reference=True),
+        ).allocate_budget(total_budget=300.0)
+        assert float(constant.budgets.sel(channel="channel_1")) == pytest.approx(
+            0.0, abs=1e-8
+        )
+        assert float(symmetric.budgets.sel(channel="channel_1")) > 0.01
+        # SLSQP can leave roundoff at a bound; compare at solver precision.
+        assert float(floored.budgets.sel(channel="channel_1")) == pytest.approx(
+            0.0, abs=1e-8
+        )
+        xr.testing.assert_allclose(floored.budgets, constant.budgets, atol=1e-5)
+
+    def test_flat_variant_equalizes_marginal_returns_with_heterogeneous_elasticity(
+        self, simple_fitted_mmm
+    ):
+        mmm = simple_fitted_mmm
+        mmm.set_cost_per_unit(_full_table(mmm, self.PRICES))
+        base = _window_cpu(mmm, self.PRICES)
+        baseline = (
+            _optimizer(mmm, cost_per_unit=base)
+            .allocate_budget(total_budget=self.TOTAL)
+            .budgets
+        )
+        optimizer = _optimizer(
+            mmm,
+            cost_per_unit=base,
+            price_response=_curved(
+                elasticity={"channel_1": 0.4, "channel_3": 0.2},
+                reference_spend=baseline / 2,
+                reference_spend_tolerance=100.0,
+                flat_below_reference=True,
+            ),
+        )
+        result = optimizer.allocate_budget(
+            total_budget=self.TOTAL, minimize_kwargs=self.TIGHT
+        )
+        assert bool(
+            ((result.budgets > 1e-3) & (result.budgets < self.TOTAL - 1e-3)).all()
+        )
+        gradient = (
+            optimizer.evaluate_plan(result.budgets)
+            .utility_gradient["channel_data"]
+            .values
+        )
+        assert _spread(gradient) < 1e-2, gradient
+
+    @pytest.mark.parametrize("flat_below_reference", [False, True])
+    def test_objective_gradient_matches_finite_differences(
+        self, simple_fitted_mmm, flat_below_reference
+    ):
         """Flat on purpose: `approx_fprime` differentiates the vector function, so this
         goes through the compiled callable rather than the labelled `evaluate_plan`
         wrapper around it (as tests/mmm/test_budget_optimizer_mmm.py does)."""
@@ -1855,7 +1944,10 @@ class TestPriceResponseOptimality:
         optimizer = _optimizer(
             mmm,
             cost_per_unit=_window_cpu(mmm, self.PRICES),
-            price_response=_curved(elasticity={"channel_1": 0.4, "channel_3": 0.2}),
+            price_response=_curved(
+                elasticity={"channel_1": 0.4, "channel_3": 0.2},
+                flat_below_reference=flat_below_reference,
+            ),
         )
         x = optimizer.optimization_variables.x0(self.TOTAL)
         _, gradient = optimizer._objective_and_grad(x)
