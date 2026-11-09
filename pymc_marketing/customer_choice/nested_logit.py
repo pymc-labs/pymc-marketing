@@ -34,6 +34,7 @@ from pymc_marketing.model_builder import (
     SamplingMethod,
 )
 from pymc_marketing.model_config import parse_model_config
+from pymc_marketing.utils import InstalledSamplers
 from pymc_marketing.version import __version__
 
 HDI_ALPHA = 0.5
@@ -1128,7 +1129,7 @@ class NestedLogit(ChoiceDataMixin, ModelBuilder):
         """
         sample_prior_predictive_kwargs = sample_prior_predictive_kwargs or {}
         fit_kwargs = fit_kwargs or {
-            "nuts_sampler": "numpyro",
+            "nuts_sampler": "numpyro" if InstalledSamplers.check().numpyro else None,
             "idata_kwargs": {"log_likelihood": True},
         }
         sample_posterior_predictive_kwargs = sample_posterior_predictive_kwargs or {}

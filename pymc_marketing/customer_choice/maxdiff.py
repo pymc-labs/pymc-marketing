@@ -37,6 +37,7 @@ from pymc_extras.prior import Prior
 
 from pymc_marketing.model_builder import ModelBuilder, SamplingMethod
 from pymc_marketing.model_config import parse_model_config
+from pymc_marketing.utils import InstalledSamplers
 from pymc_marketing.version import __version__
 
 # True negative infinity is safe as a mask sentinel: the k≥2 validation
@@ -800,7 +801,7 @@ class MaxDiffMixedLogit(ModelBuilder):
     def default_sampler_config(self) -> dict:
         """Default sampler configuration."""
         return {
-            "nuts_sampler": "numpyro",
+            "nuts_sampler": "numpyro" if InstalledSamplers.check().numpyro else None,
             "idata_kwargs": {"log_likelihood": True},
         }
 

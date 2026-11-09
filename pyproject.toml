@@ -73,7 +73,7 @@ docs = [
     "numba",
     "numpydoc",
     "numpyro",
-    "nutpie>=0.16.7",
+    "nutpie>=0.16.10",
     "pylint",
     "sphinx-autodoc-typehints",
     "sphinx-copybutton",
@@ -95,7 +95,7 @@ lint = ["mypy", "pandas-stubs", "pre-commit>=2.19.0", "ruff>=0.1.4"]
 test = [
     "blackjax<1.6",
     "fastprogress",
-    "nutpie>=0.16.7",
+    "nutpie>=0.16.10",
     "zarr>=3.0.8",
     "numpyro",
     "ipykernel",

@@ -13,12 +13,14 @@
 #   limitations under the License.
 """Utility functions for PyMC-Marketing."""
 
-import importlib.util
+import importlib.metadata
+import re
 import warnings
 from pathlib import Path
 
 import xarray as xr
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, StrictBool
+from pymc.sampling.mcmc import NUTPIE_MIN_VERSION
 
 from pymc_marketing.data.idata.io import idata_from_zarr, idata_to_zarr
 
@@ -27,7 +29,6 @@ __all__ = [
     "from_netcdf",
     "idata_from_zarr",
     "idata_to_zarr",
-    "installed_samplers",
 ]
 
 
@@ -57,26 +58,45 @@ def from_netcdf(filepath: str | Path) -> xr.DataTree:
     return xr.open_datatree(filepath)
 
 
-def _is_installed(name: str) -> bool:
-    """Return whether the top-level package ``name`` can be imported, without importing it."""
-    return importlib.util.find_spec(name) is not None
+def _installed_version(name: str) -> tuple[int, ...] | None:
+    """Return the installed version of distribution ``name``, or ``None`` if it is missing.
+
+    This reads the package metadata instead of looking the module up, so it
+    never imports the package. That matters because arviz-base registers lazy
+    placeholders for ``jax`` and ``numpyro`` in ``sys.modules``, and
+    ``importlib.util.find_spec`` would load them.
+    """
+    try:
+        version = importlib.metadata.version(name)
+    except importlib.metadata.PackageNotFoundError:
+        return None
+    # Keep the leading digits of each part, so "0.17.0rc1" becomes (0, 17, 0).
+    parts = (re.match(r"\d+", part) for part in version.split(".")[:3])
+    return tuple(int(part.group()) for part in parts if part is not None)
 
 
 class InstalledSamplers(BaseModel):
-    """Optional NUTS samplers that are installed in the current environment.
+    """Optional NUTS samplers that can be used in the current environment.
 
-    PyMC's own NUTS sampler (``nuts_sampler="pymc"``) is always available. The
-    samplers listed here are optional dependencies of PyMC-Marketing, so code
-    that wants to use one of them, such as an example notebook, can check for
-    it first and fall back to ``"pymc"``.
+    PyMC's own NUTS sampler is always available. The samplers listed here are
+    optional dependencies of PyMC-Marketing, so code that wants one of them,
+    such as an example notebook, can check for it first.
 
-    Use :meth:`check` to inspect the current environment, or the module-level
-    ``installed_samplers`` instance, which is computed once on import.
+    When a sampler is missing, fall back to ``nuts_sampler=None`` (the
+    ``pm.sample`` default) rather than ``"pymc"``: with ``None``, PyMC picks
+    nutpie when it is usable and its own sampler otherwise. Because PyMC already
+    does that for nutpie, this class is mostly useful for NumPyro and BlackJAX.
+
+    Use :meth:`check` to inspect the environment. It reads package metadata
+    only, so it is cheap, never imports the samplers, and sees packages
+    installed after PyMC-Marketing was imported (for example with ``%pip
+    install`` in a running notebook).
 
     Parameters
     ----------
     nutpie : bool
-        Whether `nutpie <https://github.com/pymc-devs/nutpie>`_ is installed.
+        Whether `nutpie <https://github.com/pymc-devs/nutpie>`_ is installed at
+        the minimum version PyMC requires.
     numpyro : bool
         Whether `NumPyro <https://num.pyro.ai>`_ is installed.
     blackjax : bool
@@ -84,45 +104,45 @@ class InstalledSamplers(BaseModel):
 
     Examples
     --------
-    Use NumPyro when it is installed and PyMC's sampler otherwise:
+    Use NumPyro when it is installed and PyMC's default choice otherwise:
 
     .. code-block:: python
 
-        from pymc_marketing.utils import installed_samplers
+        from pymc_marketing.utils import InstalledSamplers
 
+        installed_samplers = InstalledSamplers.check()
         installed_samplers
         # InstalledSamplers(nutpie=True, numpyro=False, blackjax=True)
 
         mmm.fit(
             X=X,
             y=y,
-            nuts_sampler="numpyro" if installed_samplers.numpyro else "pymc",
+            nuts_sampler="numpyro" if installed_samplers.numpyro else None,
         )
     """
 
     model_config = ConfigDict(frozen=True)
 
-    nutpie: bool
-    numpyro: bool
-    blackjax: bool
+    nutpie: StrictBool
+    numpyro: StrictBool
+    blackjax: StrictBool
 
     @classmethod
     def check(cls) -> "InstalledSamplers":
         """Check which of the optional samplers are installed.
 
-        The check looks each package up without importing it, so it is cheap
-        and does not pull in JAX.
+        The check reads package metadata and does not import the samplers, so
+        it does not load JAX. nutpie only counts as installed when its version
+        meets PyMC's minimum, since ``nuts_sampler="nutpie"`` raises otherwise.
 
         Returns
         -------
         InstalledSamplers
             The installed status of each optional sampler.
         """
+        nutpie_version = _installed_version("nutpie")
         return cls(
-            nutpie=_is_installed("nutpie"),
-            numpyro=_is_installed("numpyro"),
-            blackjax=_is_installed("blackjax"),
+            nutpie=nutpie_version is not None and nutpie_version >= NUTPIE_MIN_VERSION,
+            numpyro=_installed_version("numpyro") is not None,
+            blackjax=_installed_version("blackjax") is not None,
         )
-
-
-installed_samplers = InstalledSamplers.check()

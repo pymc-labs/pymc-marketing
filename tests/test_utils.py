@@ -11,6 +11,8 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
+import importlib.metadata
+import importlib.util
 import sys
 import warnings
 
@@ -19,7 +21,7 @@ import pytest
 import xarray as xr
 from pydantic import ValidationError
 
-from pymc_marketing.utils import InstalledSamplers, from_netcdf, installed_samplers
+from pymc_marketing.utils import InstalledSamplers, from_netcdf
 
 
 class TestFromNetcdf:
@@ -50,15 +52,41 @@ class TestFromNetcdf:
         assert "xr.open_datatree" in str(future_warnings[0].message)
 
 
+def _fake_versions(monkeypatch, **versions):
+    """Make ``importlib.metadata.version`` report ``versions`` (``None`` = missing)."""
+
+    def version(name):
+        if versions.get(name) is None:
+            raise importlib.metadata.PackageNotFoundError(name)
+        return versions[name]
+
+    monkeypatch.setattr(importlib.metadata, "version", version)
+
+
 class TestInstalledSamplers:
     @pytest.mark.parametrize("missing", ["nutpie", "numpyro", "blackjax"])
     def test_check_reports_missing_sampler(self, monkeypatch, missing):
-        # A ``None`` entry in ``sys.modules`` makes the package unimportable.
-        monkeypatch.setitem(sys.modules, missing, None)
+        versions = {"nutpie": "0.16.10", "numpyro": "0.19.0", "blackjax": "1.2.5"}
+        versions[missing] = None
+        _fake_versions(monkeypatch, **versions)
 
         result = InstalledSamplers.check()
 
-        assert getattr(result, missing) is False
+        expected = {name: name != missing for name in versions}
+        assert result.model_dump() == expected
+
+    @pytest.mark.parametrize(
+        "version, expected",
+        [
+            ("0.16.9", False),
+            ("0.16.10", True),
+            ("0.17.0rc1", True),
+        ],
+    )
+    def test_check_requires_pymc_nutpie_version(self, monkeypatch, version, expected):
+        _fake_versions(monkeypatch, nutpie=version, numpyro="0.19.0", blackjax="1.2.5")
+
+        assert InstalledSamplers.check().nutpie is expected
 
     def test_check_reports_installed_samplers(self):
         # The test extra installs all three optional samplers.
@@ -66,17 +94,25 @@ class TestInstalledSamplers:
             nutpie=True, numpyro=True, blackjax=True
         )
 
-    def test_check_does_not_import_samplers(self, monkeypatch):
-        for name in ("nutpie", "numpyro", "blackjax"):
-            monkeypatch.delitem(sys.modules, name, raising=False)
+    def test_check_does_not_materialize_lazy_modules(self, monkeypatch, tmp_path):
+        # arviz-base registers lazy placeholders for jax and numpyro in
+        # ``sys.modules``. ``check()`` must leave them unloaded.
+        pkg = tmp_path / "numpyro"
+        pkg.mkdir()
+        (pkg / "__init__.py").write_text("raise AssertionError('numpyro was imported')")
+        monkeypatch.syspath_prepend(str(tmp_path))
+        monkeypatch.delitem(sys.modules, "numpyro", raising=False)
+
+        spec = importlib.util.find_spec("numpyro")
+        loader = importlib.util.LazyLoader(spec.loader)
+        spec.loader = loader
+        module = importlib.util.module_from_spec(spec)
+        monkeypatch.setitem(sys.modules, "numpyro", module)
+        loader.exec_module(module)
 
         InstalledSamplers.check()
 
-        assert not {"nutpie", "numpyro", "blackjax"} & sys.modules.keys()
-
-    def test_module_level_instance(self):
-        assert isinstance(installed_samplers, InstalledSamplers)
-        assert installed_samplers == InstalledSamplers.check()
+        assert type(sys.modules["numpyro"]).__name__ == "_LazyModule"
 
     def test_repr(self):
         samplers = InstalledSamplers(nutpie=True, numpyro=False, blackjax=True)
@@ -86,6 +122,6 @@ class TestInstalledSamplers:
             == "InstalledSamplers(nutpie=True, numpyro=False, blackjax=True)"
         )
 
-    def test_is_frozen(self):
-        with pytest.raises(ValidationError, match="frozen"):
-            installed_samplers.numpyro = not installed_samplers.numpyro
+    def test_rejects_non_bool_values(self):
+        with pytest.raises(ValidationError):
+            InstalledSamplers(nutpie="yes", numpyro=0, blackjax="false")

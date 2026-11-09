@@ -51,6 +51,7 @@ from pymc_marketing.customer_choice._choice_helpers import (
 )
 from pymc_marketing.model_builder import ModelBuilder
 from pymc_marketing.model_config import parse_model_config
+from pymc_marketing.utils import InstalledSamplers
 from pymc_marketing.version import __version__
 
 _VALID_LIKELIHOODS = ("normal_logshare",)
@@ -609,7 +610,10 @@ class BayesianBLP(ModelBuilder):
 
     @property
     def default_sampler_config(self) -> dict:
-        """Default sampler kwargs: ``numpyro`` NUTS at ``target_accept=0.95``.
+        """Default sampler kwargs: NUTS at ``target_accept=0.95``.
+
+        Uses ``numpyro`` when it is installed. Otherwise ``nuts_sampler`` is
+        ``None`` and ``pm.sample`` picks nutpie or its own sampler.
 
         The high target-accept reflects the funnel-prone ``ξ̃_jt`` block.
         ``nutpie`` (low-rank modified mass matrix) and ``numpyro`` with
@@ -621,7 +625,7 @@ class BayesianBLP(ModelBuilder):
         for one-off changes.
         """
         return {
-            "nuts_sampler": "numpyro",
+            "nuts_sampler": "numpyro" if InstalledSamplers.check().numpyro else None,
             "target_accept": 0.95,
             "draws": 2000,
             "tune": 2000,
