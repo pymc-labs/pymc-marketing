@@ -270,6 +270,7 @@ from pymc_marketing.mmm.link import MU_ORIGINAL_SCALE, LinkFunction
 from pymc_marketing.mmm.spend_reach import (
     _PKG_PREFIX,
     CHANNEL_CONTRIBUTION,
+    LINEAR_PREDICTOR,
     SpendProbe,
     linear_predictor,
     resolve_channel_dependent_effects,
@@ -4620,6 +4621,10 @@ class Incrementality:
             probe.assert_increment_is_complete(
                 effects=effects, non_date_dims=evaluator.non_date_dims
             )
+            # The predictor is evaluated for the completeness check alone, and
+            # nothing downstream reads it, so the baseline the request keeps
+            # (shared with the probe) drops it.
+            baseline.pop(LINEAR_PREDICTOR, None)
             # The adstock kernel's own trailing lags: the floor under the measured
             # horizon, and the lower bound on the unobserved tail when the probe
             # sends every period to the full date axis.

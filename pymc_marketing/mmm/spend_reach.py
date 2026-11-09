@@ -55,7 +55,7 @@ import warnings
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, ClassVar, Literal
 
 import numpy as np
 import xarray as xr
@@ -84,6 +84,7 @@ __all__ = [
     "CHANNEL_CONTRIBUTION",
     "LINEAR_PREDICTOR",
     "ChannelDependentEffect",
+    "ProbeStatistics",
     "SpendProbe",
     "SpendReach",
     "TemporalReach",
@@ -474,6 +475,217 @@ class SpendReach:
             )
 
 
+def _sample_slices(
+    n_samples: int, *, per_sample: int, max_elements: int
+) -> list[slice]:
+    """Split ``range(n_samples)`` into runs of at most *max_elements* elements each.
+
+    Parameters
+    ----------
+    n_samples : int
+        Length of the sample axis.
+    per_sample : int
+        Elements one sample of the largest array holds.
+    max_elements : int
+        Elements one run may hold; a single sample larger than this is a run of
+        its own.
+
+    Returns
+    -------
+    list of slice
+        Consecutive runs covering every sample once.
+    """
+    size = max(1, max_elements // max(per_sample, 1))
+    return [slice(start, start + size) for start in range(0, n_samples, size)]
+
+
+@dataclass
+class ProbeStatistics:
+    """What :class:`SpendProbe` reads off one probe, kept in place of the evaluation.
+
+    Every decision the probe makes is a maximum over samples: the reach is the
+    last date some sample moves on, and the completeness check compares the
+    largest residual against a tolerance built from the largest moves and node
+    values.  So the statistics can be folded over slices of samples, one slice at
+    a time, and come out the same however the samples are sliced, while the
+    evaluation itself is dropped.
+
+    Attributes
+    ----------
+    accounted : tuple of str
+        The nodes summed against the linear predictor, ``channel_contribution``
+        first; empty when the baseline carries no predictor, and nothing is
+        folded for the completeness check then.
+    per_date_move : dict
+        Per node, the largest ``|probed - baseline|`` over samples and every
+        non-date dimension, one value per date.
+    max_expected : float
+        Largest move of the linear predictor.
+    max_accounted : float
+        Largest move of the accounted nodes' sum.
+    max_residual : float
+        Largest ``|accounted - expected|``, computed in the dtype
+        :func:`numpy.allclose` computes it in.
+    expected_dtype : np.dtype or None
+        The dtype :func:`numpy.allclose` rounds the tolerance to: the predictor
+        move's, made inexact.  ``None`` until a slice with a predictor is
+        folded.
+    node_magnitude : float
+        Largest ``|value|`` of any compared node, baseline or probed.
+    dtype : np.dtype or None
+        The result type of the compared arrays, which sets the rounding floor.
+    """
+
+    FOLD_ELEMENTS: ClassVar[int] = 4_000_000
+    """Elements one slice of the largest node may hold while it is folded."""
+
+    accounted: tuple[str, ...] = ()
+    per_date_move: dict[str, np.ndarray] = field(default_factory=dict)
+    max_expected: float = 0.0
+    max_accounted: float = 0.0
+    max_residual: float = 0.0
+    expected_dtype: np.dtype | None = None
+    node_magnitude: float = 0.0
+    dtype: np.dtype | None = None
+
+    @classmethod
+    def fold(
+        cls,
+        probed: Mapping[str, np.ndarray],
+        baseline: Mapping[str, np.ndarray],
+        *,
+        accounted: Sequence[str],
+        non_date_dims: Mapping[str, tuple[str, ...]],
+        max_elements: int | None = None,
+    ) -> ProbeStatistics:
+        """Fold one probe evaluation over slices of its samples.
+
+        Parameters
+        ----------
+        probed, baseline : mapping
+            Per node, the probe and baseline evaluations,
+            ``(n_samples, n_dates, *non_date_dims)``.
+        accounted : sequence of str
+            Nodes summed against the linear predictor, ``channel_contribution``
+            first; empty to skip the completeness statistics.
+        non_date_dims : mapping
+            Per node, its dimensions after ``sample`` and ``date``.  Read only
+            for the compared nodes.
+        max_elements : int, optional
+            Elements one slice of the largest node may hold.  Defaults to
+            :attr:`FOLD_ELEMENTS`, and is exposed so a test can force slicing.
+
+        Returns
+        -------
+        ProbeStatistics
+            The statistics of the whole evaluation.
+        """
+        stats = cls(accounted=tuple(accounted))
+        n_samples = next(iter(probed.values())).shape[0]
+        per_sample = max(int(np.prod(array.shape[1:])) for array in probed.values())
+        for samples in _sample_slices(
+            n_samples,
+            per_sample=per_sample,
+            max_elements=cls.FOLD_ELEMENTS if max_elements is None else max_elements,
+        ):
+            stats.update(
+                {name: array[samples] for name, array in probed.items()},
+                {name: baseline[name][samples] for name in probed},
+                non_date_dims=non_date_dims,
+            )
+        return stats
+
+    def update(
+        self,
+        probed: Mapping[str, np.ndarray],
+        baseline: Mapping[str, np.ndarray],
+        *,
+        non_date_dims: Mapping[str, tuple[str, ...]],
+    ) -> None:
+        """Fold one slice of samples into the statistics.
+
+        Parameters
+        ----------
+        probed, baseline : mapping
+            Per node, the probe and baseline evaluations restricted to the same
+            samples.
+        non_date_dims : mapping
+            Per node, its dimensions after ``sample`` and ``date``.
+        """
+        for name, values in probed.items():
+            moved = np.abs(values - baseline[name])
+            per_date = moved.reshape(moved.shape[0], moved.shape[1], -1).max(
+                axis=(0, 2)
+            )
+            previous = self.per_date_move.get(name)
+            self.per_date_move[name] = (
+                per_date if previous is None else np.maximum(previous, per_date)
+            )
+
+        if not self.accounted:
+            return
+
+        def moved_by(name: str) -> xr.DataArray:
+            return xr.DataArray(
+                probed[name] - baseline[name],
+                dims=("sample", "date", *non_date_dims[name]),
+            )
+
+        # channel_contribution carries a channel dimension the predictor does
+        # not: it enters mu summed over channels.
+        accounted = moved_by(CHANNEL_CONTRIBUTION).sum("channel")
+        for name in self.accounted[1:]:
+            accounted = accounted + moved_by(name)
+        expected = moved_by(LINEAR_PREDICTOR)
+        expected, accounted = xr.broadcast(expected, accounted)
+
+        self.max_expected = max(self.max_expected, float(np.abs(expected).max()))
+        self.max_accounted = max(self.max_accounted, float(np.abs(accounted).max()))
+        # The difference numpy.allclose takes, in the dtype it takes it in.
+        self.expected_dtype = np.result_type(expected.values, 1.0)
+        residual = np.abs(
+            accounted.values - expected.values.astype(self.expected_dtype)
+        ).max()
+        self.max_residual = max(self.max_residual, float(residual))
+
+        compared = [
+            array
+            for name in (LINEAR_PREDICTOR, *self.accounted)
+            for array in (baseline[name], probed[name])
+        ]
+        self.node_magnitude = max(
+            self.node_magnitude, *(float(np.abs(array).max()) for array in compared)
+        )
+        self.dtype = np.result_type(*compared)
+
+    @property
+    def scale(self) -> float:
+        """The larger of the two moves the completeness check compares."""
+        return max(self.max_expected, self.max_accounted)
+
+    def residual_within(self, atol: float) -> bool:
+        """Whether the largest residual is within *atol*, as :func:`numpy.allclose` decides it.
+
+        ``np.allclose(accounted, expected, rtol=0.0, atol=atol)`` compares each
+        ``|accounted - expected|`` against ``atol`` cast to the predictor's dtype,
+        so *atol* is rounded to that dtype first.  Both sides are then exact in
+        float64, so comparing them there decides it the same way.
+
+        Parameters
+        ----------
+        atol : float
+            Absolute tolerance.
+
+        Returns
+        -------
+        bool
+            True when no residual exceeds *atol*.
+        """
+        if self.expected_dtype is None:
+            return True
+        return self.max_residual <= float(self.expected_dtype.type(atol))
+
+
 class SpendProbe:
     """Single-date spend perturbations, and the two facts read off them.
 
@@ -514,7 +726,8 @@ class SpendProbe:
         Indices of the perturbed dates, empty if no date could be perturbed --
         see :meth:`_select_probe_indices`.
     probes : dict
-        Per probed date, the evaluation of the perturbed spend.
+        Per probed date, the :class:`ProbeStatistics` of the evaluation of the
+        perturbed spend.  The evaluation itself is not kept.
 
     Raises
     ------
@@ -567,8 +780,26 @@ class SpendProbe:
         self._counterfactual_spend_factor = counterfactual_spend_factor
         self._mixes_channels: bool | None = None
         self.probe_indices = self._select_probe_indices(baseline_array)
-        self.probes: dict[int, dict[str, np.ndarray]] = {
-            probe_index: evaluator.evaluate_baseline(
+        # The completeness check sums every node but the predictor against it,
+        # which is what the caller evaluated the probe for:
+        # assert_increment_is_complete refuses any other set of effects.
+        self._non_date_dims: Mapping[str, tuple[str, ...]] = {}
+        accounted: tuple[str, ...] = ()
+        if LINEAR_PREDICTOR in baseline:
+            self._non_date_dims = evaluator.non_date_dims
+            accounted = (
+                CHANNEL_CONTRIBUTION,
+                *(
+                    name
+                    for name in baseline
+                    if name not in (CHANNEL_CONTRIBUTION, LINEAR_PREDICTOR)
+                ),
+            )
+        # One probe evaluation alive at a time, and none once its statistics
+        # are folded: every decision below reads the statistics.
+        self.probes: dict[int, ProbeStatistics] = {}
+        for probe_index in self.probe_indices:
+            probed = evaluator.evaluate_baseline(
                 self._perturb(
                     baseline_array=baseline_array,
                     probe_index=probe_index,
@@ -576,11 +807,15 @@ class SpendProbe:
                     dtype=evaluator.channel_dtype,
                 )
             )
-            for probe_index in self.probe_indices
-        }
-        for probed in self.probes.values():
             for name, array in probed.items():
                 self._assert_finite(name, array)
+            self.probes[probe_index] = ProbeStatistics.fold(
+                probed,
+                baseline,
+                accounted=accounted,
+                non_date_dims=self._non_date_dims,
+            )
+            del probed
 
     @staticmethod
     def _assert_finite(name: str, array: np.ndarray) -> None:
@@ -961,10 +1196,8 @@ class SpendProbe:
         # channel, and the probe that does cover it is the one that saw truth.
         measured = {
             name: TemporalReach.widest(
-                self._reach_of(
-                    name, probed=probed, probe_index=probe_index, l_max=l_max
-                )
-                for probe_index, probed in self.probes.items()
+                self._reach_of(name, stats=stats, probe_index=probe_index, l_max=l_max)
+                for probe_index, stats in self.probes.items()
             )
             for name in (
                 CHANNEL_CONTRIBUTION,
@@ -1001,7 +1234,7 @@ class SpendProbe:
         self,
         name: str,
         *,
-        probed: dict[str, np.ndarray],
+        stats: ProbeStatistics,
         probe_index: int,
         l_max: int,
     ) -> TemporalReach:
@@ -1011,8 +1244,8 @@ class SpendProbe:
         ----------
         name : str
             Node to measure.
-        probed : dict
-            The probe evaluation, per node.
+        stats : ProbeStatistics
+            The probe's statistics.
         probe_index : int
             Index of the perturbed date.
         l_max : int
@@ -1023,11 +1256,10 @@ class SpendProbe:
         TemporalReach
             The node's measured reach.
         """
-        # Collapse samples and every non-date dim: the question is which dates
-        # moved, not which cells.
-        per_date = np.abs(probed[name] - self.baseline[name])
-        n_dates = per_date.shape[1]
-        per_date = per_date.reshape(per_date.shape[0], n_dates, -1).max(axis=(0, 2))
+        # Samples and every non-date dim are already collapsed: the question is
+        # which dates moved, not which cells.
+        per_date = stats.per_date_move[name]
+        n_dates = per_date.shape[0]
         largest = per_date.max()
         if largest == 0.0:
             return TemporalReach.none()
@@ -1247,14 +1479,24 @@ class SpendProbe:
             )[CHANNEL_CONTRIBUTION]
             self._assert_finite(CHANNEL_CONTRIBUTION, probed)
 
-            moved = np.abs(probed - baseline)
             # Scaled by the largest move this probe made anywhere, mirroring
             # _reach_of: the threshold is then free of the units the
-            # contribution happens to be in.
-            largest = float(moved.max())
+            # contribution happens to be in.  Both are maxima, so they are
+            # folded over slices of samples rather than held full size.
+            largest = others = 0.0
+            for samples in _sample_slices(
+                probed.shape[0],
+                per_sample=int(np.prod(probed.shape[1:])),
+                max_elements=ProbeStatistics.FOLD_ELEMENTS,
+            ):
+                moved = np.abs(probed[samples] - baseline[samples])
+                largest = max(largest, float(moved.max()))
+                others = max(
+                    others, float(np.delete(moved, channel, axis=channel_axis).max())
+                )
+            del probed
             if largest == 0.0:
                 continue
-            others = float(np.delete(moved, channel, axis=channel_axis).max())
             if others > self.REACH_TOLERANCE * largest:
                 return True
         return False
@@ -1304,34 +1546,38 @@ class SpendProbe:
         ------
         NotImplementedError
             If the accounted nodes do not reproduce the predictor's move.
+        ValueError
+            If *effects* or *non_date_dims* differ from what the probe was folded
+            for: every node of the baseline but the predictor, with the
+            evaluator's dimensions.
         """
-        if LINEAR_PREDICTOR not in self.baseline:
+        if not self.probes or not next(iter(self.probes.values())).accounted:
             return
+
+        accounted_names = (
+            CHANNEL_CONTRIBUTION,
+            *(effect.contribution_var for effect in effects),
+        )
+        stats_names = next(iter(self.probes.values())).accounted
+        compared_names = (LINEAR_PREDICTOR, *accounted_names)
+        if accounted_names != stats_names or any(
+            tuple(non_date_dims[name]) != tuple(self._non_date_dims[name])
+            for name in compared_names
+        ):
+            raise ValueError(
+                f"The probe was folded for {list(stats_names)} against "
+                f"{LINEAR_PREDICTOR!r}, with the evaluator's dimensions, so it "
+                f"cannot check {list(accounted_names)} with {dict(non_date_dims)}.  "
+                "Evaluate the baseline on exactly the nodes being checked."
+            )
 
         # Every probe has to satisfy the identity: an unattributed path from one
         # channel is visible only under a probe at a date that channel spends.
-        for probed in self.probes.values():
-
-            def moved(
-                name: str, probed: dict[str, np.ndarray] = probed
-            ) -> xr.DataArray:
-                return xr.DataArray(
-                    probed[name] - self.baseline[name],
-                    dims=("sample", "date", *non_date_dims[name]),
-                )
-
-            # channel_contribution carries a channel dimension the predictor does
-            # not: it enters mu summed over channels.
-            accounted = moved(CHANNEL_CONTRIBUTION).sum("channel")
-            for effect in effects:
-                accounted = accounted + moved(effect.contribution_var)
-
-            expected = moved(LINEAR_PREDICTOR)
-            expected, accounted = xr.broadcast(expected, accounted)
+        for stats in self.probes.values():
             # Scaled by whichever side moved more, so that a predictor which did
             # not move cannot excuse accounted nodes that did.  Taking the
             # predictor's scale alone would pass a misattribution vacuously.
-            scale = max(float(np.abs(expected).max()), float(np.abs(accounted).max()))
+            scale = stats.scale
 
             # `expected` and `accounted` are each a difference of two
             # full-magnitude evaluations, so their rounding floor is
@@ -1348,23 +1594,11 @@ class SpendProbe:
             # where cancellation inside the accounted sum sets the true floor
             # when large terms offset -- the predictor alone would understate
             # it.
-            compared_names = (
-                LINEAR_PREDICTOR,
-                CHANNEL_CONTRIBUTION,
-                *(effect.contribution_var for effect in effects),
-            )
-            compared_arrays = [
-                array
-                for name in compared_names
-                for array in (self.baseline[name], probed[name])
-            ]
-            node_magnitude = max(
-                float(np.abs(array).max()) for array in compared_arrays
-            )
+            node_magnitude = stats.node_magnitude
             # The dtype actually produced by the compared arrays, not an
             # assumption: nothing here gates on the model's floatX, and a
             # float64 model must not be loosened by a float32-sized floor.
-            eps = np.finfo(np.result_type(*compared_arrays)).eps
+            eps = np.finfo(stats.dtype).eps
             # Unavoidable tradeoff: under float32 a real unattributed path
             # smaller than roughly
             # COMPLETENESS_ACCUMULATION_SAFETY_FACTOR * eps * |node| / |move|
@@ -1375,21 +1609,14 @@ class SpendProbe:
                 self.COMPLETENESS_TOLERANCE * scale,
                 COMPLETENESS_ACCUMULATION_SAFETY_FACTOR * eps * node_magnitude,
             )
-            if scale == 0.0 or np.allclose(
-                accounted.values,
-                expected.values,
-                rtol=0.0,
-                atol=atol,
-            ):
+            if scale == 0.0 or stats.residual_within(atol):
                 continue
 
-            accounted_names = ", ".join(
-                [CHANNEL_CONTRIBUTION, *(effect.contribution_var for effect in effects)]
-            )
-            largest = float(np.abs(accounted - expected).max()) / scale
+            largest = stats.max_residual / scale
             raise NotImplementedError(
                 "Perturbing channel spend moved the linear predictor by more than "
-                f"the variables incrementality is evaluating ({accounted_names}) "
+                f"the variables incrementality is evaluating "
+                f"({', '.join(accounted_names)}) "
                 f"account for -- by {largest:.1%} of the largest move either side "
                 "makes.  Some path from spend to the response is unattributed, so "
                 "the increment would report part of it as the whole.  Every "

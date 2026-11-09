@@ -13,6 +13,9 @@
 #   limitations under the License.
 """Tests for the spend-reach probe: window length and increment completeness."""
 
+import gc
+import weakref
+
 import numpy as np
 import pytest
 
@@ -23,6 +26,7 @@ from pymc_marketing.mmm.spend_reach import (
     CHANNEL_CONTRIBUTION,
     LINEAR_PREDICTOR,
     ChannelDependentEffect,
+    ProbeStatistics,
     SpendProbe,
     SpendReach,
     TemporalReach,
@@ -43,6 +47,8 @@ class FakeEvaluator:
     """
 
     channel_dtype = "float64"
+    non_date_dims = {CHANNEL_CONTRIBUTION: ("channel",), LINEAR_PREDICTOR: ()}
+    """The dimensions after ``sample`` and ``date`` of the usual analytic nodes."""
 
     def __init__(self, **nodes):
         self.nodes = nodes
@@ -1394,4 +1400,197 @@ class TestSpendProbe:
                     CHANNEL_CONTRIBUTION: ("channel",),
                     LINEAR_PREDICTOR: (),
                 },
+            )
+
+
+EFFECT = "effect_contribution"
+
+
+class TestProbeStatistics:
+    """The probe keeps statistics folded over slices of samples, never evaluations."""
+
+    non_date_dims = {
+        CHANNEL_CONTRIBUTION: ("geo", "channel"),
+        EFFECT: ("geo",),
+        LINEAR_PREDICTOR: ("geo",),
+    }
+    accounted = (CHANNEL_CONTRIBUTION, EFFECT)
+
+    @staticmethod
+    def _evaluations(rng, dtype, n_samples=7, n_dates=11):
+        """Random baseline and probe evaluations of a channel node, an effect and mu."""
+        shapes = {
+            CHANNEL_CONTRIBUTION: (n_samples, n_dates, 3, 4),
+            EFFECT: (n_samples, n_dates, 3),
+            LINEAR_PREDICTOR: (n_samples, n_dates, 3),
+        }
+        baseline = {
+            name: (rng.normal(size=shape) * 1e3).astype(dtype)
+            for name, shape in shapes.items()
+        }
+        probed = {
+            name: (values + rng.normal(size=values.shape)).astype(dtype)
+            for name, values in baseline.items()
+        }
+        return probed, baseline
+
+    @staticmethod
+    def _assert_identical(left, right):
+        assert left.accounted == right.accounted
+        assert left.per_date_move.keys() == right.per_date_move.keys()
+        for name, per_date in left.per_date_move.items():
+            assert per_date.dtype == right.per_date_move[name].dtype
+            np.testing.assert_array_equal(per_date, right.per_date_move[name])
+        assert left.max_expected == right.max_expected
+        assert left.max_accounted == right.max_accounted
+        assert left.max_residual == right.max_residual
+        assert left.expected_dtype == right.expected_dtype
+        assert left.node_magnitude == right.node_magnitude
+        assert left.dtype == right.dtype
+
+    @pytest.mark.parametrize("dtype", ["float64", "float32"])
+    @pytest.mark.parametrize("seed", range(5))
+    def test_any_slicing_gives_bitwise_equal_statistics(self, dtype, seed):
+        """Every statistic is a maximum, so slicing and order cannot change it."""
+        rng = np.random.default_rng(seed)
+        probed, baseline = self._evaluations(rng, dtype)
+        whole = ProbeStatistics.fold(
+            probed,
+            baseline,
+            accounted=self.accounted,
+            non_date_dims=self.non_date_dims,
+        )
+
+        n_samples = baseline[LINEAR_PREDICTOR].shape[0]
+        n_cuts = int(rng.integers(1, n_samples))
+        cuts = np.sort(rng.choice(np.arange(1, n_samples), size=n_cuts, replace=False))
+        shuffled = ProbeStatistics(accounted=self.accounted)
+        for samples in np.split(rng.permutation(n_samples), cuts):
+            shuffled.update(
+                {name: values[samples] for name, values in probed.items()},
+                {name: values[samples] for name, values in baseline.items()},
+                non_date_dims=self.non_date_dims,
+            )
+        one_at_a_time = ProbeStatistics.fold(
+            probed,
+            baseline,
+            accounted=self.accounted,
+            non_date_dims=self.non_date_dims,
+            max_elements=1,
+        )
+
+        self._assert_identical(whole, shuffled)
+        self._assert_identical(whole, one_at_a_time)
+
+    def test_a_residual_at_the_rounding_of_atol_is_decided_as_allclose(self):
+        """A float32 residual within an ulp of ``atol`` gets numpy.allclose's answer.
+
+        ``allclose`` compares in the arrays' dtype, so an ``atol`` a quarter ulp
+        below the residual rounds up to it and passes.  Comparing the folded
+        residual in float64 would refuse it.
+        """
+        residual = np.float32(0.1)
+        n_dates = 3
+        baseline = {
+            CHANNEL_CONTRIBUTION: np.zeros((1, n_dates, 1), dtype="float32"),
+            LINEAR_PREDICTOR: np.zeros((1, n_dates), dtype="float32"),
+        }
+        probed = {name: values.copy() for name, values in baseline.items()}
+        probed[CHANNEL_CONTRIBUTION][0, 1, 0] = residual
+        stats = ProbeStatistics.fold(
+            probed,
+            baseline,
+            accounted=(CHANNEL_CONTRIBUTION,),
+            non_date_dims=FakeEvaluator.non_date_dims,
+        )
+        accounted = (probed[CHANNEL_CONTRIBUTION] - baseline[CHANNEL_CONTRIBUTION]).sum(
+            axis=-1
+        )
+        expected = probed[LINEAR_PREDICTOR] - baseline[LINEAR_PREDICTOR]
+
+        ulp = float(np.spacing(residual))
+        candidates = [float(residual) + k * ulp / 4 for k in range(-6, 7)]
+        reference = [
+            np.allclose(accounted, expected, rtol=0.0, atol=atol) for atol in candidates
+        ]
+
+        assert [stats.residual_within(atol) for atol in candidates] == reference
+        assert any(
+            passes and atol < float(residual)
+            for atol, passes in zip(candidates, reference, strict=True)
+        )
+
+    def test_the_probe_keeps_no_evaluation(self):
+        """Once folded, no array the evaluator returned for a probe is alive."""
+        returned = []
+
+        class RecordingEvaluator(FakeEvaluator):
+            def evaluate_baseline(self, channel_data):
+                out = super().evaluate_baseline(channel_data)
+                returned.extend(weakref.ref(array) for array in out.values())
+                return out
+
+        node = causal_filter(3)
+        evaluator = RecordingEvaluator(
+            **{
+                CHANNEL_CONTRIBUTION: node,
+                LINEAR_PREDICTOR: lambda spend: node(spend).sum(axis=-1),
+            }
+        )
+        spend = TestSpendProbe._spend()
+        baseline = evaluator.evaluate_baseline(spend)
+        n_baseline = len(returned)
+
+        probe = SpendProbe(
+            evaluator=evaluator,
+            baseline=baseline,
+            baseline_array=spend,
+            counterfactual_spend_factor=0.0,
+        )
+        probe.assert_increment_is_complete(
+            effects=(), non_date_dims=evaluator.non_date_dims
+        )
+        probe.measure(effects=(), l_max=3, trailing_lags=2)
+        probe.mixes_channels(non_date_dims=evaluator.non_date_dims)
+        gc.collect()
+
+        probe_arrays = returned[n_baseline:]
+        assert probe.probe_indices
+        assert probe_arrays
+        assert all(ref() is None for ref in probe_arrays)
+
+    def test_the_completeness_check_refuses_effects_it_was_not_folded_for(self):
+        """The fold sums every baseline node but mu; asking about others is an error."""
+        node = causal_filter(3)
+        evaluator = FakeEvaluator(
+            **{
+                CHANNEL_CONTRIBUTION: node,
+                EFFECT: lambda spend: 0.5 * node(spend).sum(axis=-1),
+                LINEAR_PREDICTOR: lambda spend: 1.5 * node(spend).sum(axis=-1),
+            }
+        )
+        evaluator.non_date_dims = {
+            **FakeEvaluator.non_date_dims,
+            EFFECT: (),
+        }
+        spend = TestSpendProbe._spend()
+        probe = SpendProbe(
+            evaluator=evaluator,
+            baseline=evaluator.evaluate_baseline(spend),
+            baseline_array=spend,
+            counterfactual_spend_factor=0.0,
+        )
+        effect = ChannelDependentEffect(
+            contribution_var=EFFECT,
+            label="effect",
+            declared_carryover_lags=None,
+            declared_evaluation_mode="auto",
+        )
+
+        probe.assert_increment_is_complete(
+            effects=(effect,), non_date_dims=evaluator.non_date_dims
+        )
+        with pytest.raises(ValueError, match="was folded for"):
+            probe.assert_increment_is_complete(
+                effects=(), non_date_dims=evaluator.non_date_dims
             )

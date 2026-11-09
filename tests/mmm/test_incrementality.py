@@ -2426,6 +2426,33 @@ class TestMediatedMuEffects:
         # bound is deliberately loose; what it rules out is the path vanishing.
         assert direct_total < 0.95 * full_total
 
+    def test_the_retained_baseline_drops_the_predictor(
+        self, funnel_log_link_fitted_mmm, monkeypatch
+    ):
+        """``mu`` is evaluated for the completeness check, then not kept.
+
+        Nothing after the check reads it, and the request holds the baseline
+        until it ends.
+        """
+        probed = []
+        probe_reach = Incrementality._probe_reach
+
+        def spy(self, *args, **kwargs):
+            result = probe_reach(self, *args, **kwargs)
+            probed.append(result)
+            return result
+
+        monkeypatch.setattr(Incrementality, "_probe_reach", spy)
+        funnel_log_link_fitted_mmm.incrementality.compute_incremental_contribution(
+            frequency="all_time"
+        )
+
+        (result,) = probed
+        stats = next(iter(result.probe.probes.values()))
+        # The predictor was there, and the probe checked against it.
+        assert stats.accounted
+        assert LINEAR_PREDICTOR not in result.baseline
+
     def test_effect_that_ignores_spend_is_left_alone(self, trend_effect_fitted_mmm):
         """A ``mu_effect`` the counterfactual cannot reach needs no opt-in.
 
