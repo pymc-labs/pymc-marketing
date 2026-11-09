@@ -1143,6 +1143,45 @@ class TestMultidimMMMEdgeCases:
                     coords={"date": pd.DatetimeIndex(X["date"]), "channel": channels},
                 )
                 mmm.build_model(X_ds)
+    @pytest.mark.parametrize(
+        "bad_value", [np.inf, -np.inf], ids=["+inf", "-inf"]
+    )
+    def test_infinite_channel_raises(
+        self, simple_mmm_data, bad_value
+    ):
+        """Reject infinite advertising channel values."""
+
+        X = simple_mmm_data["X"].copy()
+        y = simple_mmm_data["y"].copy()
+
+        # Insert an invalid value into an advertising channel
+        X.loc[X.index[1], "channel_1"] = bad_value
+
+        mmm = self._build_basic_mmm()
+
+        with pytest.raises(ValueError, match="infinite"):
+            mmm.build_model(X, y)
+
+    @pytest.mark.parametrize(
+    "bad_value", [np.inf, -np.inf], ids=["+inf", "-inf"]
+)
+    def test_infinite_control_raises(
+        self, simple_mmm_data, bad_value
+    ):
+        """Reject infinite control variable values."""
+
+        X = simple_mmm_data["X"].copy()
+        y = simple_mmm_data["y"].copy()
+
+        # Add a control variable, such as promotional activity
+        X["promotion"] = 1.0
+        X.loc[X.index[1], "promotion"] = bad_value
+
+        mmm = self._build_basic_mmm()
+        mmm.control_columns = ["promotion"]
+
+        with pytest.raises(ValueError, match="infinite"):
+            mmm.build_model(X, y)
 
     def test_nan_in_channel_is_handled_without_non_finite_scales(self, simple_mmm_data):
         X = simple_mmm_data["X"].copy()
@@ -1156,26 +1195,23 @@ class TestMultidimMMMEdgeCases:
         assert np.isfinite(np.asarray(mmm.scalers["_target"].values)).all()
 
     @pytest.mark.parametrize("inf_value", [np.inf, -np.inf], ids=["+inf", "-inf"])
-    def test_inf_in_channel_yields_finite_scaled_tensor(
+    def test_inf_in_channel_raises_value_error(
         self, simple_mmm_data, inf_value
     ):
-        """+/-inf in a channel input must be clamped to a finite scaled tensor.
+        """Infinite channel values must be rejected before scaling."""
 
-        ``max(x)`` over a column containing ``inf`` is itself ``inf``, so the
-        per-channel scaler is ``inf`` and the un-guarded ``x / inf`` would
-        produce ``0`` for finite entries and ``NaN`` for the ``inf`` entry.
-        The NaN/Inf guard in ``MMM.build_model`` clamps both, so the scaled
-        tensor remains finite end-to-end (PR #2487 review item 8).
-        """
         X = simple_mmm_data["X"].copy()
         y = simple_mmm_data["y"].copy()
+
         X.loc[X.index[0], "channel_1"] = inf_value
+
         mmm = self._build_basic_mmm()
 
-        mmm.build_model(X, y)
-
-        scaled = fast_eval(mmm.channel_data_scaled)
-        assert np.isfinite(scaled).all()
+        with pytest.raises(
+            ValueError,
+            match=r"_channel has 1 infinite value",
+        ):
+            mmm.build_model(X, y)
 
     def test_mismatched_X_y_lengths_raises_clear_error(self, simple_mmm_data):
         X = simple_mmm_data["X"].copy()

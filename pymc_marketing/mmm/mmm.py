@@ -420,6 +420,23 @@ def _reject_infinite_target(target: npt.NDArray) -> None:
         )
 
 
+
+def _reject_infinite_inputs(dataset: xr.Dataset) -> None:
+    """Reject infinite advertising channel and control values."""
+
+    for variable in ("_channel", "_control"):
+        if variable not in dataset.data_vars:
+            continue
+
+        values = dataset[variable].values
+        n_infinite = int(np.count_nonzero(np.isinf(values)))
+
+        if n_infinite:
+            raise ValueError(
+                f"{variable} has {n_infinite} infinite value(s). "
+                "Drop or replace them before fitting."
+            )
+
 COST_PER_TARGET_SPEND_GROUP = "cost_per_target_spend"
 """DataTree group holding the spend arrays of cost-per-target calibrations.
 
@@ -2908,6 +2925,7 @@ class MMM(RegressionModelBuilder):
             y=y,
         )
         self._target_is_placeholder = False
+        _reject_infinite_inputs(self.xarray_dataset)
 
         likelihood = self.model_config["likelihood"]
         if "_target" in self.xarray_dataset.data_vars:
