@@ -1426,15 +1426,38 @@ class MMM(RegressionModelBuilder):
 
         Warns when calibration was added, removed or changed since the last fit,
         because the file carries the calibration recorded at fit time.
+
+        Raises
+        ------
+        ValueError
+            When two mu_effects return the same idata group name: the old
+            write skipped the second silently, and on load one effect was
+            rebuilt from the other effect's data (gh-3291).
         """
         if self.idata is None or "posterior" not in self.idata:
             raise RuntimeError("The model hasn't been fit yet, call .fit() first")
         self._warn_if_calibration_changed_since_fit(self.idata)
 
+        group_owners: dict[str, MuEffect] = {}
+        groups_to_write: dict[str, xr.Dataset] = {}
         for effect in self.mu_effects:
             for group_name, ds in effect.idata_groups().items():
-                if not hasattr(self.idata, group_name):
-                    self.idata["/" + group_name] = ds
+                owner = group_owners.get(group_name)
+                if owner is not None:
+                    raise ValueError(
+                        f"mu_effects[{self.mu_effects.index(owner)}] "
+                        f"({type(owner).__name__}) and "
+                        f"mu_effects[{self.mu_effects.index(effect)}] "
+                        f"({type(effect).__name__}) both return idata group "
+                        f"{group_name!r}. Group names must be unique across "
+                        "mu_effects."
+                    )
+                group_owners[group_name] = effect
+                groups_to_write[group_name] = ds
+
+        for group_name, ds in groups_to_write.items():
+            if not hasattr(self.idata, group_name):
+                self.idata["/" + group_name] = ds
 
         # Persist the base names of any *_original_scale Deterministics so they
         # can be faithfully re-added by build_from_idata on load.
