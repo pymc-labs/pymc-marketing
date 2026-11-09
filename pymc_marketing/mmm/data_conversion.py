@@ -75,6 +75,7 @@ Examples
     # ds has variables _channel and _target
 """
 
+import warnings
 from functools import singledispatch
 
 import numpy as np
@@ -159,9 +160,21 @@ def to_mmm_dataset(
         or if *y* has no ``date`` coordinate for a panel ``xr.Dataset`` or
         ``xr.DataArray`` *X*.
     """
-    # 1. Coerce date column to datetime for DataFrame inputs.
+    # 1. Coerce date column to datetime for DataFrame inputs. A tz-aware
+    # column shifts its values relative to a naive y index, which silently
+    # aligned nothing and fitted an all-zero target with a zero scale (gh-3292).
     if isinstance(X, pd.DataFrame) and date_column in X.columns:
-        X = X.assign(**{date_column: pd.to_datetime(X[date_column])})
+        dates = pd.to_datetime(X[date_column])
+        if isinstance(dates.dtype, pd.DatetimeTZDtype):
+            warnings.warn(
+                f"The date column {date_column!r} is time-zone aware; its dates "
+                "are converted to naive timestamps so they align with y. Pass a "
+                "tz-naive date column to avoid this warning.",
+                UserWarning,
+                stacklevel=2,
+            )
+            dates = dates.dt.tz_localize(None)
+        X = X.assign(**{date_column: dates})
 
     # 2. Normalise X.
     ds = _to_mmm_xarray(
@@ -208,7 +221,34 @@ def to_mmm_dataset(
                 )
             ds["_target"] = y_da
 
-    return _to_canonical_layout(ds, dims)
+    ds = _to_canonical_layout(ds, dims)
+    # The alignment above is where a date mismatch turns the target NaN: a y
+    # indexed by dates that X does not carry (or a naive/tz-aware pair) fills
+    # with NaN instead of raising, and build_model would then fit zeros.
+    if "_target" in ds.data_vars:
+        _reject_all_nan_target(ds["_target"])
+    return ds
+
+
+def _reject_all_nan_target(y_da: xr.DataArray) -> None:
+    """Raise when the aligned target is entirely NaN.
+
+    An all-NaN target means the y values never matched the X date labels (a
+    time-zone difference, duplicated labels, a wrong column), and fitting
+    would silently work on zeros instead of surfacing the mismatch (gh-3292).
+    """
+    values = y_da.values
+    if (
+        values.size
+        and np.issubdtype(values.dtype, np.floating)
+        and np.isnan(values).all()
+    ):
+        raise ValueError(
+            "The target ('_target') is entirely NaN after aligning X and y, so "
+            "every value would be fitted as zero. Check that the date column "
+            "of X and the index of y carry the same values (and the same time "
+            "zone)."
+        )
 
 
 def _dataset_has_target(ds: xr.Dataset) -> bool:

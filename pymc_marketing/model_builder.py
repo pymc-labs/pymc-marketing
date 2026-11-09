@@ -20,6 +20,7 @@ from abc import ABC, abstractmethod
 from collections.abc import Callable
 from functools import cache, wraps
 from inspect import signature
+from pathlib import Path
 from typing import Any, Literal, cast
 
 import arviz as az
@@ -381,6 +382,37 @@ class ModelIO:
             save_idata(self.idata, str(fname), groups=groups, **kwargs)
         else:
             raise RuntimeError("The model hasn't been fit yet, call .fit() first")
+        self.save_extra(Path(fname))
+
+    @staticmethod
+    def _extra_path(fname: str | Path) -> Path:
+        """Companion path for :meth:`save_extra` / :meth:`load_extra` state.
+
+        A netCDF file gets a sidecar next to it (``model.nc`` ->
+        ``model.nc.extra``); a ``.zarr`` store is itself a directory, so the
+        companion state lives inside it (``model.zarr/extra/``).
+        """
+        path = Path(fname)
+        if path.suffix == ".zarr":
+            return path / "extra"
+        return path.with_suffix(path.suffix + ".extra")
+
+    def save_extra(self, fname: Path) -> None:
+        """Write companion state that does not fit in idata. Default: no-op.
+
+        Called by :meth:`save` after the inference data is written; ``fname``
+        is the same path ``save`` received. Override to persist state that
+        lives outside the PyMC graph — fitted encoders, target scales, cached
+        features, tree ensembles. :meth:`_extra_path` gives the documented
+        companion location for a netCDF file or a ``.zarr`` store.
+        """
+
+    def load_extra(self, fname: Path) -> None:
+        """Read companion state written by :meth:`save_extra`. Default: no-op.
+
+        Called by :meth:`load` after the model is rebuilt from idata; ``fname``
+        is the same path ``load`` received.
+        """
 
     @classmethod
     def _model_config_formatting(cls, model_config: dict) -> dict:
@@ -502,7 +534,7 @@ class ModelIO:
         idata = load_idata(str(fname))
 
         try:
-            return cls.load_from_idata(idata, check=check)
+            model = cls.load_from_idata(idata, check=check)
         except DifferentModelError as e:
             error_msg = (
                 f"The file '{fname}' does not contain "
@@ -510,6 +542,8 @@ class ModelIO:
                 f"or configuration as '{cls._model_type}'"
             )
             raise DifferentModelError(error_msg) from e
+        model.load_extra(Path(fname))
+        return model
 
     @classmethod
     def load_from_idata(cls, idata: xr.DataTree, check: bool = True) -> "ModelIO":
