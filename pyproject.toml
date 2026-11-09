@@ -36,17 +36,16 @@ dependencies = [
     "h5py>=3.16.0",
     "matplotlib>=3.5.1",
     "narwhals",
-    # numba<=0.66 (a hard requirement of pytensor 3.x) does not support numpy 2.5,
-    # and uv>=0.12 otherwise falls back to a numba pre-release. Lift together with
-    # the next pytensor bump that allows numba>=0.67.
-    "numpy>=2.0,<2.5",
+    # Track the newest numpy that pytensor's numba bound supports (numba 0.68:
+    # numpy<2.6); otherwise uv>=0.12 falls back to a numba pre-release.
+    "numpy>=2.0,<2.6",
     # CI runs pandas 3; 2.2+ is declared but not exercised by CI.
     "pandas>=2.2",
     "patsy",
     "preliz>=0.20.0,<1.0",
     "pydantic>=2.1.0",
-    "pymc-extras>=0.15.0,<0.16.0",
-    "pymc>=6.3.1,<6.4.0",
+    "pymc-extras>=0.16.0,<0.17.0",
+    "pymc>=6.4.0,<6.5.0",
     "pyprojroot",
     "pyyaml",
     "scikit-learn>=1.1.1",
