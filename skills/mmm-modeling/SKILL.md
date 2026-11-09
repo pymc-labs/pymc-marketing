@@ -238,8 +238,11 @@ mmm.fit(X=X, y=y, nuts_sampler="nutpie", ...)
 
 The lift test DataFrame requires columns: `channel`, `x`, `delta_x`, `delta_y`, `sigma` (plus `geo` for geo-level).
 When `time_varying_media=True`, include `date` so each lift measurement maps to the correct `media_temporal_latent_multiplier` time coordinate.
+The term is a signed `Normal` on `delta_y` by default; `likelihood=Prior("StudentT", nu=...)` or `Prior("Gamma")` are opt-in.
 
-See [references/liftest_calibration.md](references/liftest_calibration.md) for data format, calibrated vs uncalibrated comparison, geo-level patterns, and sigma estimation.
+When all you have is a ROAS or cost-per-acquisition estimate per channel, `mmm.add_cost_per_target_calibration(data=X, calibration_data=df, target_column="roas", target_per_cost=True)` calibrates the whole-period ratio instead. For a ROAS read off a lift test keep the default `Normal`: it is the experiment's sampling model. A CPA from a lift test has the same error on the ROAS scale, so invert it first (`roas = 1 / cpa`, `sigma = sigma_cpa / cpa**2`) and calibrate it the same way. Use `likelihood=Prior("LogNormal")` for a value, CPA or ROAS, reported with a relative or log-scale interval: a CPA table under the `Normal` is capped where an overstated channel goes.
+
+See [references/liftest_calibration.md](references/liftest_calibration.md) for data format, calibrated vs uncalibrated comparison, geo-level patterns, sigma estimation, the likelihood families, and cost-per-target calibration.
 
 ## Saving, Loading, and YAML Specification
 

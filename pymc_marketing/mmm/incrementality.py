@@ -234,10 +234,11 @@ import logging
 import warnings
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Iterator, Mapping, Sequence
-from contextlib import contextmanager
+from contextlib import closing, contextmanager
 from dataclasses import dataclass
 from functools import cached_property, partial
-from typing import TYPE_CHECKING, Any, Literal, cast
+from itertools import groupby
+from typing import TYPE_CHECKING, Literal, cast
 
 import numpy as np
 import pandas as pd
@@ -246,7 +247,6 @@ from pydantic import ConfigDict, validate_call
 
 from pymc_marketing.data.idata.mmm_wrapper import MMMIDataWrapper
 from pymc_marketing.data.idata.schema import Frequency
-from pymc_marketing.data.idata.utils import subsample_draws
 from pymc_marketing.mmm.components.adstock import (
     BinomialAdstock,
     DelayedAdstock,
@@ -422,6 +422,28 @@ class IncrementalReducer(ABC):
         """
         return self.per_date_increment(delta).sum(dim="date")
 
+    @abstractmethod
+    def for_samples(self, samples: slice) -> IncrementalReducer:
+        """Restrict the reducer to a block of the flat ``sample`` axis.
+
+        :class:`Incrementality` reduces the counterfactual one block of
+        posterior samples at a time, and a *delta* then carries only that
+        block's samples.  Abstract, so that every reducer decides: one
+        holding nothing per sample returns itself, and one that inherited
+        that default while holding a per-sample input would fail only on a
+        posterior large enough to be split.
+
+        Parameters
+        ----------
+        samples : slice
+            The block's positions on the ``sample`` axis.
+
+        Returns
+        -------
+        IncrementalReducer
+            A reducer whose per-sample inputs are views of the block.
+        """
+
 
 class IdentityLinkReducer(IncrementalReducer):
     r"""Increment reducer for an additive response (``link="identity"``).
@@ -451,6 +473,14 @@ class IdentityLinkReducer(IncrementalReducer):
     def per_date_increment(self, delta: xr.DataArray) -> xr.DataArray:
         """See :meth:`IncrementalReducer.per_date_increment`."""
         return delta * self.scale
+
+    def for_samples(self, samples: slice) -> IncrementalReducer:
+        """See :meth:`IncrementalReducer.for_samples`.
+
+        The scale holds nothing per sample: the identity link's mean
+        correction is ``1``, so the reducer is returned as is.
+        """
+        return self
 
 
 class LogLinkReducer(IncrementalReducer):
@@ -500,6 +530,12 @@ class LogLinkReducer(IncrementalReducer):
         """See :meth:`IncrementalReducer.per_date_increment`."""
         baseline = self.baseline_response.sel(date=delta.coords["date"])
         return baseline * np.expm1(delta)
+
+    def for_samples(self, samples: slice) -> IncrementalReducer:
+        """See :meth:`IncrementalReducer.for_samples`."""
+        return LogLinkReducer(
+            baseline_response=self.baseline_response.isel(sample=samples)
+        )
 
 
 def kernel_trailing_lags(l_max: int, mode: ConvMode) -> int:
@@ -767,6 +803,80 @@ def _transformation_parameters(
     )
 
 
+# Differs from the public subsample_draws, which the MMM curve methods still use;
+# moving them to this scheme would leave one subsampler (#3305).
+def _subsample_draws_per_chain(
+    dataset: xr.Dataset,
+    *,
+    num_samples: int | None,
+    random_state: RandomState | Generator | None = None,
+) -> xr.Dataset:
+    """Subsample draws from a Dataset with chain and draw dimensions.
+
+    Keeps the same randomly chosen draw positions in every chain, so the
+    subsample is a block of *dataset* under its own ``chain`` and ``draw``
+    labels: a result computed from it lines up with *dataset* by label.
+
+    Parameters
+    ----------
+    dataset : xr.Dataset
+        Dataset with ``chain`` and ``draw`` dimensions.
+    num_samples : int or None
+        Total number of draws to keep, rounded up to a multiple of the number
+        of chains.  If ``None``, or if that leaves no draw out, returns
+        *dataset* unchanged.
+    random_state : RandomState, Generator, or None, optional
+        Seed or random state for reproducibility.
+
+    Returns
+    -------
+    xr.Dataset
+        *dataset* unchanged when nothing is subsampled (see *num_samples*).
+        Otherwise *dataset* at ``ceil(num_samples / n_chains)`` draws per
+        chain, in their original order, with every chain kept.  A ``chain``
+        or ``draw`` dimension without coordinates gets its positions as
+        labels, so each kept draw is labeled with its position in *dataset*.
+
+    Raises
+    ------
+    ValueError
+        If *num_samples* is less than 1, or if the ``chain`` or ``draw``
+        labels repeat, so a draw cannot be found by label, as when two runs
+        are concatenated along ``draw``.
+    """
+    # Checked on the whole posterior: a subsample rarely keeps a repeat.
+    for dim in ("chain", "draw"):
+        if dim in dataset.indexes and not dataset.indexes[dim].is_unique:
+            raise ValueError(
+                f"The posterior's {dim!r} labels are not unique, so its draws "
+                "cannot be matched by label. Relabel them first, e.g. "
+                f"posterior.assign_coords({dim}=np.arange(posterior.sizes[{dim!r}]))."
+            )
+    if num_samples is None:
+        return dataset
+    if num_samples < 1:
+        raise ValueError(f"num_samples must be at least 1, got {num_samples}.")
+
+    n_chains, n_draws = dataset.sizes["chain"], dataset.sizes["draw"]
+    # Same draws in every chain: stratified by chain, so each keeps its weight.
+    per_chain = -(-num_samples // n_chains)
+
+    if per_chain >= n_draws:
+        return dataset
+
+    rng = np.random.default_rng(random_state)
+    positions = np.sort(rng.choice(n_draws, size=per_chain, replace=False))
+    # A dimension without an index would read back as 0..k-1 after isel.
+    dataset = dataset.assign_coords(
+        {
+            dim: np.arange(dataset.sizes[dim])
+            for dim in ("chain", "draw")
+            if dim not in dataset.indexes
+        }
+    )
+    return dataset.isel(draw=positions)
+
+
 def _missing_variables(
     transformation: AdstockTransformation | SaturationTransformation,
     posterior: xr.Dataset,
@@ -793,46 +903,6 @@ def _missing_variables(
         if hasattr(transformation.function_priors[parameter], "create_variable")
         and name not in posterior
     ]
-
-
-def _relabel_draws(sampled: xr.DataArray, labels: Mapping[str, Any]) -> xr.DataArray:
-    """Label a posterior-predictive sample with the draws it was computed at.
-
-    ``pm.sample_posterior_predictive`` returns the draws in the order of the
-    posterior it is given, under that posterior's ``chain`` and ``draw``
-    labels.  Those are not the pipeline's: the pipeline labels its results
-    with ``np.arange``, while :func:`~pymc_marketing.data.idata.utils.subsample_draws`
-    drops the coordinates of a subsample and a full posterior keeps whatever
-    labels it was given.  Relabeling by position is right only while the order
-    holds: nothing between the subsample and the sampling may reorder or drop
-    draws.  The sizes are checked here: a draw lost or added on the way would
-    pair draw *i* of one array with draw *j* of another, so it raises.  The
-    parity tests pin the order itself.
-
-    Parameters
-    ----------
-    sampled : xr.DataArray
-        The sample, with ``chain`` and ``draw`` dimensions.
-    labels : mapping
-        The ``chain`` and ``draw`` coordinates to give it.
-
-    Returns
-    -------
-    xr.DataArray
-        *sampled* under *labels*.
-
-    Raises
-    ------
-    ValueError
-        If the sample does not have as many chains and draws as *labels*.
-    """
-    for dim in ("chain", "draw"):
-        if sampled.sizes[dim] != len(labels[dim]):
-            raise ValueError(
-                f"The sample has {sampled.sizes[dim]} {dim}s where the posterior "
-                f"it was computed at has {len(labels[dim])}."
-            )
-    return sampled.assign_coords(chain=labels["chain"], draw=labels["draw"])
 
 
 def _adstock_terms(
@@ -1060,13 +1130,13 @@ class ClosedFormInputs:
     saturated : xr.DataArray
         :math:`\beta g(x_t) - \beta g(f x_t)` in original scale, per date and
         draw, signed like the pipeline's increments.
-    labels : dict
-        ``chain`` and ``draw`` coordinates of the pipeline's results.
+    labels : mapping
+        ``chain`` and ``draw`` coordinates of the (subsampled) posterior.
     """
 
     prepared: PreparedEvaluation
     saturated: xr.DataArray
-    labels: dict
+    labels: Mapping[str, np.ndarray]
 
 
 class Incrementality:
@@ -1349,8 +1419,12 @@ class Incrementality:
             before it for ``Before``, and on both sides for ``Overlap``.
         num_samples : int or None, optional
             Number of posterior samples to use. If None, all samples are used.
-            If less than total available (chain × draw), a random subset is
-            drawn.
+            Otherwise the same randomly chosen draws are kept in every chain,
+            ``ceil(num_samples / n_chains)`` of them (all of them if that is
+            as many as each chain has), under the posterior's ``chain`` and
+            ``draw`` labels.  Every chain keeps at least one
+            draw, so with many chains (as from ensemble samplers) the call
+            can use far more than ``num_samples`` draws.
         random_state : RandomState or Generator or None, optional
             Random state for reproducible subsampling.
             Only used when ``num_samples`` is not None.
@@ -1582,6 +1656,8 @@ class Incrementality:
             Include adstock carryover effects.
         num_samples : int or None, optional
             Number of posterior samples to use.
+            Rounded up to a multiple of the number of chains; see
+            :meth:`compute_incremental_contribution`.
         random_state : RandomState or Generator or None, optional
             Random state for reproducible subsampling.
         counterfactual_spend_factor : float, default=0.0
@@ -1723,6 +1799,8 @@ class Incrementality:
               other than ``0``.
         num_samples : int or None, optional
             Number of posterior samples to use; all of them when None.
+            Rounded up to a multiple of the number of chains; see
+            :meth:`compute_incremental_contribution`.
         random_state : RandomState or Generator or None, optional
             Seed for the subsample.
         counterfactual_spend_factor : float, default=0.0
@@ -2207,7 +2285,7 @@ class Incrementality:
         # One subset for both computations below: drawing twice from a
         # Generator would give each a different one.
         posterior_sub = self._posterior_in_data_order(
-            subsample_draws(
+            _subsample_draws_per_chain(
                 self.idata.posterior.dataset,
                 num_samples=num_samples,
                 random_state=random_state,
@@ -2461,15 +2539,11 @@ class Incrementality:
             # The identity link is one of the guards, so the reducer only rescales.
             reducer = cast(IdentityLinkReducer, prepared.reducer)
             posterior = prepared.posterior
-            labels = {
-                "chain": np.arange(posterior.sizes["chain"]),
-                "draw": np.arange(posterior.sizes["draw"]),
-            }
-            saturated = _relabel_draws(
+            labels = {dim: posterior[dim].values for dim in ("chain", "draw")}
+            saturated = (
                 self._saturated_media(posterior, counterfactual_spend_factor)
-                * reducer.scale,
-                labels,
-            )
+                * reducer.scale
+            ).sel(labels)
         finally:
             prepared.release()
         return ClosedFormInputs(prepared=prepared, saturated=saturated, labels=labels)
@@ -2580,7 +2654,7 @@ class Incrementality:
         weights = self._adstock_kernel(prepared.posterior, divides=False)
         matrix = self._closed_form_matrix(
             inputs.saturated,
-            _relabel_draws(weights, inputs.labels),
+            weights.sel(inputs.labels),
             periods=prepared.periods,
             windows=windows,
             tail_lags=probed.reach.max_lag,
@@ -3183,21 +3257,21 @@ class Incrementality:
             .rename(realization_date="date")
         )
         dates = pd.DatetimeIndex(total["date"].values)
-        # The share tests pin the allocation's columns to the contribution draw
-        # by draw, on a subsample too, so a change in the order fails them.
-        weights = _relabel_draws(
-            weights, {"chain": total["chain"].values, "draw": total["draw"].values}
-        )
         # The kernel and the spend go into the contribution's label order, the
         # one its values and the matrix's coordinates are laid out in: a labeled
         # product keeps its first operand's order, and the masks below pair
         # cells exactly.  The posterior and ``constant_data`` may store others.
+        # A draw of the contribution missing from the kernel raises a KeyError here.
         in_total_order = {dim: total[dim].values for dim in out_dims}
         weights = weights.sel(
             {
-                dim: labels
-                for dim, labels in in_total_order.items()
-                if dim in weights.dims
+                "chain": total["chain"].values,
+                "draw": total["draw"].values,
+                **{
+                    dim: labels
+                    for dim, labels in in_total_order.items()
+                    if dim in weights.dims
+                },
             }
         )
         spend = self.data.get_channel_data().sel(in_total_order)
@@ -3291,8 +3365,7 @@ class Incrementality:
         xr.DataArray
             The adstock of a unit impulse, with a ``"time since exposure"`` lag
             dimension of length ``l_max`` and the parameters' other dimensions.
-            The draws are in the posterior's order and under its labels, which
-            need not be the pipeline's; see :func:`_relabel_draws`.
+            The draws are in the posterior's order and under its labels.
 
         Raises
         ------
@@ -3369,6 +3442,8 @@ class Incrementality:
             other than ``0`` works here.
         num_samples : int or None, optional
             Number of posterior samples to use; all of them when None.
+            Rounded up to a multiple of the number of chains; see
+            :meth:`compute_incremental_contribution`.
         random_state : RandomState or Generator or None, optional
             Seed for the subsample.
         counterfactual_spend_factor : float, default=0.0
@@ -3619,9 +3694,11 @@ class Incrementality:
         # The kernel's weight within each lag, W C(m), read off one sampling of
         # the kernel.  Its last entry is the whole kernel, so the future part is
         # exactly zero for a date whose window covers it.
-        cumulative = _relabel_draws(
-            self._adstock_kernel(prepared.posterior, divides=False), inputs.labels
-        ).cumsum(LAG_DIM)
+        cumulative = (
+            self._adstock_kernel(prepared.posterior, divides=False)
+            .sel(inputs.labels)
+            .cumsum(LAG_DIM)
+        )
 
         dates = self.data.dates
         offset = prepared.freq_offset
@@ -4295,11 +4372,11 @@ class Incrementality:
 
         start_ts, end_ts = self._validate_input(start_date, end_date)
 
-        # Subsample the posterior across chain x draw, unless the caller did.
+        # Subsample the posterior's draws, unless the caller did.
         posterior_sub = self._posterior_in_data_order(
             posterior
             if posterior is not None
-            else subsample_draws(
+            else _subsample_draws_per_chain(
                 self.idata.posterior.dataset,
                 num_samples=num_samples,
                 random_state=random_state,
@@ -4620,7 +4697,7 @@ class Incrementality:
         keep_date_axis : bool, default=False
             Return each period's increment per realization date instead of
             summed over its evaluation window; see
-            :meth:`_compute_period_increments`.
+            :meth:`_finish_period`.
         validate_reach : callable, optional
             Called with the measured :class:`~pymc_marketing.mmm.spend_reach.SpendReach`
             before any period is evaluated, so that a request the reach rules
@@ -4667,8 +4744,7 @@ class Incrementality:
         # computed, and returned also when that raises.
         try:
             posterior_sub = prepared.posterior
-            n_chains = posterior_sub.sizes["chain"]
-            n_draws = posterior_sub.sizes["draw"]
+            labels = {dim: posterior_sub[dim].values for dim in ("chain", "draw")}
             reducer = prepared.reducer
             effects = prepared.effects
             freq_offset = prepared.freq_offset
@@ -4716,32 +4792,84 @@ class Incrementality:
                 estimand=scope,
             )
 
-            counterfactual = evaluator.evaluate_counterfactual(
-                scenarios, windows=windows
-            )
-            # Per node: (n_scenarios, n_samples, max_window, *non_date_dims)
+            # The counterfactual arrives one block of samples at a time, and each
+            # block is reduced before the next is evaluated, so at most one block
+            # of it is held.  Closed on the way out, so even after an error the
+            # evaluator is bound to the request's draws again, as
+            # iter_counterfactual promises.  The cache does not rely on that:
+            # _probe_reach rebinds on every hit.
+            #
+            # The evaluator computed every node in the model's label order, so
+            # the change in the linear predictor is labeled with the model's
+            # coords: the channel data the baseline was evaluated on is in that
+            # order.  Each period goes back to the order of ``constant_data``
+            # once its blocks are joined, which is the order callers see.  Both
+            # are read once per call rather than once per block.
+            custom_dims = list(self.model.dims)
+            channel_data = self._channel_data_in_model_order()
+            model_coords = {
+                dim: channel_data.coords[dim].values
+                for dim in ["channel", *custom_dims]
+            }
+            data_order = self.data.get_channel_data()
+            reported_order = {dim: data_order.coords[dim].values for dim in custom_dims}
+            # Per period, each block's (positions, result).
+            per_period: list[list[tuple[Mapping[str, slice], xr.DataArray]]] = [
+                [] for _ in windows.windows
+            ]
+            with closing(
+                evaluator.iter_counterfactual(scenarios, windows=windows)
+            ) as blocks:
+                for block in blocks:
+                    # A slice, so the baseline's share of the block is a view.
+                    samples = block.samples
+                    periods = self._compute_period_increments(
+                        windows=windows,
+                        scenarios=scenarios,
+                        baseline={
+                            name: values[samples] for name, values in baseline.items()
+                        },
+                        counterfactual=block.outputs,
+                        non_date_dims=evaluator.non_date_dims,
+                        effect_names=effect_names,
+                        counterfactual_spend_factor=counterfactual_spend_factor,
+                        labels={dim: labels[dim][s] for dim, s in block.isel.items()},
+                        reducer=reducer.for_samples(samples),
+                        scope=scope,
+                        dedicated_channel_rows=channel_axis is not None,
+                        model_coords=model_coords,
+                        keep_date_axis=keep_date_axis,
+                    )
+                    for parts, result in zip(per_period, periods, strict=True):
+                        parts.append((block.isel, result))
+                    del block, periods
 
-            # Assemble results
-            period_results = self._compute_period_increments(
-                windows=windows,
-                scenarios=scenarios,
-                baseline=baseline,
-                counterfactual=counterfactual,
-                non_date_dims=evaluator.non_date_dims,
-                effect_names=effect_names,
-                counterfactual_spend_factor=counterfactual_spend_factor,
-                n_chains=n_chains,
-                n_draws=n_draws,
-                reducer=reducer,
-                scope=scope,
-                dedicated_channel_rows=channel_axis is not None,
-                freq_offset=freq_offset,
-                # How far past a period's last spend date its carryover is known to
-                # land: the measured reach, or under full-axis evaluation the
-                # kernel's own trailing lags, which bound it from below.
-                tail_lags=reach.max_lag if reach.max_lag is not None else trailing_lags,
-                keep_date_axis=keep_date_axis,
-            )
+            # Each period's blocks are released once joined, so the joined
+            # results and the blocks are not both held in full.  What depends on
+            # the period alone is done once, on the joined result.
+            period_results = []
+            for idx, (window, parts) in enumerate(
+                zip(windows.windows, per_period, strict=True)
+            ):
+                period_results.append(
+                    self._finish_period(
+                        self._join_sample_blocks(parts),
+                        window=window,
+                        reported_order=reported_order,
+                        keep_date_axis=keep_date_axis,
+                        freq_offset=freq_offset,
+                        # How far past a period's last spend date its carryover
+                        # is known to land: the measured reach, or under
+                        # full-axis evaluation the kernel's own trailing lags,
+                        # which bound it from below.
+                        tail_lags=(
+                            reach.max_lag
+                            if reach.max_lag is not None
+                            else trailing_lags
+                        ),
+                    )
+                )
+                per_period[idx] = []
             return PeriodIncrements(
                 periods=period_results,
                 windows=windows,
@@ -4750,6 +4878,36 @@ class Incrementality:
             )
         finally:
             prepared.release()
+
+    @staticmethod
+    def _join_sample_blocks(
+        blocks: Sequence[tuple[Mapping[str, slice], xr.DataArray]],
+    ) -> xr.DataArray:
+        """Join one period's result over the sample blocks it was computed in.
+
+        Parameters
+        ----------
+        blocks : sequence of (isel, xr.DataArray)
+            Each block's positions in the posterior and its result, in the
+            chain-major order :meth:`CounterfactualEvaluator.iter_counterfactual`
+            yields them: runs of whole chains, or runs of draws within a chain.
+
+        Returns
+        -------
+        xr.DataArray
+            The blocks joined over ``draw`` within a chain, then over ``chain``.
+            Each block carries its own ``chain`` and ``draw`` labels, so the
+            result keeps the posterior's.
+        """
+        if len(blocks) == 1:
+            return blocks[0][1]
+        # Blocks are disjoint and agree on every other dim by construction.
+        join = partial(xr.concat, join="exact", coords="minimal", compat="override")
+        chains = [
+            join([result for _, result in run], dim="draw")
+            for _, run in groupby(blocks, key=lambda block: block[0]["chain"])
+        ]
+        return join(chains, dim="chain")
 
     @staticmethod
     def _stack_periods(
@@ -4986,22 +5144,22 @@ class Incrementality:
         non_date_dims: dict[str, tuple[str, ...]],
         effect_names: Sequence[str],
         counterfactual_spend_factor: float,
-        n_chains: int,
-        n_draws: int,
+        labels: Mapping[str, np.ndarray],
         reducer: IncrementalReducer,
         scope: Estimand,
         dedicated_channel_rows: bool,
-        freq_offset: BaseOffset,
-        tail_lags: int,
+        model_coords: Mapping[str, np.ndarray],
         keep_date_axis: bool = False,
     ) -> list[xr.DataArray]:
-        """Compute each period's incremental result.
+        """Compute each period's incremental result on one block of samples.
 
         For each period, forms the per-date change in the linear predictor over
         the evaluation window, hands it to *reducer* to be converted into a
         response-scale increment, applies the sign convention, and reshapes the
-        flattened sample dimension back to ``(chain, draw)``.  Laying the
-        periods out together is left to the caller.
+        flattened sample dimension back to ``(chain, draw)``.  Everything that
+        depends on the period alone, such as its date label and the order of
+        the custom dims, is left to :meth:`_finish_period`, so that it runs once
+        per period rather than once per block.
 
         Parameters
         ----------
@@ -5024,10 +5182,9 @@ class Incrementality:
             the evaluated nodes.
         counterfactual_spend_factor : float
             Multiplicative factor used for sign convention.
-        n_chains : int
-            Number of MCMC chains in the posterior.
-        n_draws : int
-            Number of draws per chain.
+        labels : mapping
+            ``chain`` and ``draw`` coordinates of the posterior the evaluator
+            was bound to, in its chain-major order.
         reducer : IncrementalReducer
             Link-specific reduction from a linear-predictor perturbation to a
             response-scale increment.  It owns the rescaling to original
@@ -5043,49 +5200,27 @@ class Incrementality:
             ``channel_contribution`` delta belongs to the perturbed channel,
             while a shared all-channels row has to be read column by column,
             since summing it would hand every channel the joint delta.
-        freq_offset : BaseOffset
-            The data's date frequency, to label the carryover dates that fall
-            past the fitted axis when *keep_date_axis* is set.
-        tail_lags : int
-            Lags after a period's last fitted spend date that its carryover is
-            known to reach: the measured
-            :attr:`~pymc_marketing.mmm.spend_reach.SpendReach.max_lag`, or under
-            full-axis evaluation the kernel's own trailing lags.  Required, so
-            that no caller gets a band without its unobserved tail by leaving it
-            out; it goes unused when *keep_date_axis* is not set.
+        model_coords : mapping
+            ``channel`` and custom-dim coordinates in the model's label order,
+            the order the evaluator computed every node in.
         keep_date_axis : bool, default=False
-            Keep the per-date increment instead of summing it over the window,
-            and extend it past the fitted axis as far as the carryover reaches;
-            see :meth:`_append_unobserved_tail`.
+            Keep the per-date increment instead of summing it over the window.
 
         Returns
         -------
         list of xr.DataArray
             One per period, in period order, in original scale.  Dims
-            ``(date, chain, draw, *out_dims)`` with ``date`` of length one, the
-            period end; ``out_dims`` is ``(channel, *custom_dims)`` for
-            ``"per_channel"`` and ``custom_dims`` for ``"joint"``.  With
-            *keep_date_axis*, ``(chain, draw, realization_date, *out_dims)``
-            over the period's evaluated dates and its unobserved tail, with a
-            boolean ``observed`` coordinate on ``realization_date``.
+            ``(chain, draw, *out_dims)``; ``out_dims`` is
+            ``(channel, *custom_dims)`` for ``"per_channel"`` and
+            ``custom_dims`` for ``"joint"``.  With *keep_date_axis*,
+            ``(chain, draw, realization_date, *out_dims)`` over the period's
+            evaluated dates.
         """
-        dates = self.data.dates
         custom_dims = list(self.model.dims)
-        # The evaluator computed every node in the model's label order, so the
-        # change in the linear predictor is labeled with the model's coords:
-        # the channel data the baseline was evaluated on is in that order.  The
-        # reducer's inputs come from ``idata`` in whatever order it stores them,
-        # and xarray pairs them with the change by label.  The result then takes
-        # its labels from the reduced increment itself, never by position, and
-        # the custom dims go back to the order of ``constant_data`` below, which
-        # is the order callers see.
-        channel_data = self._channel_data_in_model_order()
-        model_coords = {
-            dim: channel_data.coords[dim].values for dim in ["channel", *custom_dims]
-        }
+        # The reducer's inputs come from ``idata`` in whatever order it stores
+        # them, and xarray pairs them with the change by label.  The result then
+        # takes its labels from the reduced increment itself, never by position.
         channels = model_coords["channel"].tolist()
-        data_order = self.data.get_channel_data()
-        reported_order = {dim: data_order.coords[dim].values for dim in custom_dims}
         out_dims = ["channel", *custom_dims] if scope == "per_channel" else custom_dims
         results = []
 
@@ -5151,37 +5286,90 @@ class Incrementality:
             # Shape: (n_samples, [date,] *out_dims), n_samples = n_chains * n_draws
 
             # Reshape flattened sample → (chain, draw) to preserve MCMC structure
-            reshaped = increment.values.reshape(n_chains, n_draws, *increment.shape[1:])
+            reshaped = increment.values.reshape(
+                len(labels["chain"]), len(labels["draw"]), *increment.shape[1:]
+            )
 
             coords: dict = {
-                "chain": np.arange(n_chains),
-                "draw": np.arange(n_draws),
+                "chain": labels["chain"],
+                "draw": labels["draw"],
                 # A labeled product keeps its first operand's order, which may
                 # be the reducer input's, so the labels are read off the result.
                 **{dim: increment.coords[dim].values for dim in out_dims},
             }
 
             if keep_date_axis:
-                band = xr.DataArray(
-                    reshaped,
-                    dims=("chain", "draw", "realization_date", *out_dims),
-                    coords={**coords, "realization_date": window.eval_dates},
-                )
-                period_result = self._append_unobserved_tail(
-                    band,
-                    window=window,
-                    dates=dates,
-                    tail_lags=tail_lags,
-                    freq_offset=freq_offset,
+                results.append(
+                    xr.DataArray(
+                        reshaped,
+                        dims=("chain", "draw", "realization_date", *out_dims),
+                        coords={**coords, "realization_date": window.eval_dates},
+                    )
                 )
             else:
-                total = xr.DataArray(
-                    reshaped, dims=("chain", "draw", *out_dims), coords=coords
+                results.append(
+                    xr.DataArray(
+                        reshaped, dims=("chain", "draw", *out_dims), coords=coords
+                    )
                 )
-                period_result = total.assign_coords(date=window.end).expand_dims("date")
-            results.append(period_result.sel(reported_order))
 
         return results
+
+    def _finish_period(
+        self,
+        result: xr.DataArray,
+        *,
+        window: PeriodWindow,
+        reported_order: Mapping[str, np.ndarray],
+        keep_date_axis: bool,
+        freq_offset: BaseOffset,
+        tail_lags: int,
+    ) -> xr.DataArray:
+        """Label one period's result, joined over its sample blocks, as callers see it.
+
+        Parameters
+        ----------
+        result : xr.DataArray
+            The period's result from :meth:`_compute_period_increments`, joined
+            over the sample blocks.
+        window : PeriodWindow
+            The period's window.
+        reported_order : mapping
+            Custom-dim coordinates in the order of ``constant_data``, which is
+            the order callers see.
+        keep_date_axis : bool
+            Whether *result* is a per-date band rather than a period total.
+        freq_offset : BaseOffset
+            The data's date frequency, to label the carryover dates that fall
+            past the fitted axis when *keep_date_axis* is set.
+        tail_lags : int
+            Lags after a period's last fitted spend date that its carryover is
+            known to reach: the measured
+            :attr:`~pymc_marketing.mmm.spend_reach.SpendReach.max_lag`, or under
+            full-axis evaluation the kernel's own trailing lags.  Required, so
+            that no caller gets a band without its unobserved tail by leaving it
+            out; it goes unused when *keep_date_axis* is not set.
+
+        Returns
+        -------
+        xr.DataArray
+            A total gets dims ``(date, chain, draw, *out_dims)`` with ``date``
+            of length one, the period end.  A band is extended past the fitted
+            axis as far as the carryover reaches, with a boolean ``observed``
+            coordinate on ``realization_date``; see
+            :meth:`_append_unobserved_tail`.
+        """
+        if keep_date_axis:
+            result = self._append_unobserved_tail(
+                result,
+                window=window,
+                dates=self.data.dates,
+                tail_lags=tail_lags,
+                freq_offset=freq_offset,
+            )
+        else:
+            result = result.assign_coords(date=window.end).expand_dims("date")
+        return result.sel(reported_order)
 
     @staticmethod
     def _tail_dates(
@@ -5468,6 +5656,8 @@ class Incrementality:
             Include adstock carryover effects.
         num_samples : int or None, optional
             Number of posterior samples to use. If None, all samples are used.
+            Rounded up to a multiple of the number of chains; see
+            :meth:`compute_incremental_contribution`.
         random_state : RandomState or Generator or None, optional
             Random state for reproducible subsampling.
         central_tendency : {"median", "mean"}, default="median"
@@ -5560,6 +5750,8 @@ class Incrementality:
             Include adstock carryover effects.
         num_samples : int or None, optional
             Number of posterior samples to use. If None, all samples are used.
+            Rounded up to a multiple of the number of chains; see
+            :meth:`compute_incremental_contribution`.
         random_state : RandomState or Generator or None, optional
             Random state for reproducible subsampling.
         central_tendency : {"median", "mean"}, default="median"
@@ -5639,6 +5831,8 @@ class Incrementality:
             Include adstock carryover effects.
         num_samples : int or None, optional
             Number of posterior samples to use. If None, all samples are used.
+            Rounded up to a multiple of the number of chains; see
+            :meth:`compute_incremental_contribution`.
         random_state : RandomState or Generator or None, optional
             Random state for reproducible subsampling.
         spend_increase_pct : float, default=0.01
