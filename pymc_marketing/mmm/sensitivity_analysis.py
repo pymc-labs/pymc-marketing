@@ -36,6 +36,7 @@ PyTensor-compatible transformation will work the same way.
 
     import numpy as np
     import pymc as pm
+    import pymc.dims as pmd
     from pymc_marketing.mmm.sensitivity_analysis import SensitivityAnalysis
 
 
@@ -45,45 +46,46 @@ PyTensor-compatible transformation will work the same way.
 
     coords = {"date": np.arange(52), "channel": list("abcde")}
     with pm.Model(coords=coords) as m:
-        X = pm.Data(
+        X = pmd.Data(
             "channel_data",
-            np.random.Gamma(13, 12, size=(52, 5)),
+            np.random.gamma(13, 12, size=(52, 5)),
             dims=("date", "channel"),
         )
-        alpha = pm.Gamma("alpha", 1, 1, dims="channel")
-        lam = pm.Gamma("lam", 1, 1, dims="channel")
-        contrib = pm.Deterministic(
+        alpha = pmd.Gamma("alpha", 1, 1, dims="channel")
+        lam = pmd.Gamma("lam", 1, 1, dims="channel")
+        contrib = pmd.Deterministic(
             "channel_contribution", saturation(X, alpha, lam), dims=("date", "channel")
         )
-        mu = pm.Normal("intercept", 0.0, 1.0) + contrib.sum(axis=-1)
-        pm.Normal("likelihood", mu=mu, sigma=1.0, dims=("date",))
+        mu = pmd.Normal("intercept", 0.0, 1.0) + contrib.sum("channel")
+        pmd.Normal("likelihood", mu=mu, sigma=1.0, dims="date")
         idata = pm.sample(1000, tune=500, chains=2, target_accept=0.95, random_seed=42)
 
     sa = SensitivityAnalysis(m, idata)
     sweeps = np.linspace(0.2, 3.0, 8)
-    # Jacobian-based marginal effects with respect to the input; shape: (sample, sweep, channel)
+    # Response summed over `date`; shape: (sample, sweep, channel)
     result = sa.run_sweep(
         sweep_values=sweeps,
         var_input="channel_data",
         var_names="channel_contribution",
         sweep_type="multiplicative",
     )
-    # Optional (backwards-compatibility): returns `result` unchanged because `run_sweep`
-    # already yields marginal effects. Kept to avoid breaking older code.
-    me = SensitivityAnalysis.compute_marginal_effects(result, sweeps)
+    # Marginal effects: the derivative of the response with respect to the sweep
+    # grid.
+    marginal_effects = sa.compute_marginal_effects(result)
 
 Notes
 -----
 - Arbitrary models: As long as the response graph depends (directly or indirectly)
   on the `pm.Data` provided via `var_input`, and you pass the name of the
-  deterministic/response via `var_names`, the class builds the Jacobian and
-  evaluates it across sweeps automatically.
-- Multi-dimensional inputs: If `var_input` has dims like `(date, country, channel)`,
-  the output shape is `(sample, sweep, country, channel)`. You can subset with
-  `var_names_filter={"country": ["usa"], "channel": ["a", "b"]}`.
+  deterministic/response via `var_names`, the class evaluates the response graph
+  across the sweep grid automatically.
+- Multi-dimensional responses: If the response has dims like
+  `(date, country, channel)`, the output shape is
+  `(sample, sweep, country, channel)`.
 - Sweep types: `"multiplicative"`, `"additive"`, and `"absolute"` are supported.
-- To persist results, pass `extend_idata=True` to store them under
-  `idata.sensitivity_analysis`.
+- To persist results, pass `extend_idata=True` to `run_sweep` to store them under
+  `idata.sensitivity_analysis`.  `compute_marginal_effects(..., extend_idata=True)`
+  adds to that group, so it needs an earlier `run_sweep(..., extend_idata=True)`.
 """
 
 import math
@@ -91,50 +93,76 @@ import warnings
 from typing import Literal
 
 import numpy as np
-import pytensor.tensor as pt
-import pytensor.xtensor as ptx
 import xarray as xr
 from pymc import Model
 from pytensor import function
-from pytensor.xtensor.type import XTensorVariable, as_xtensor
-from pytensor.xtensor.vectorization import vectorize_graph
 from xarray import DataArray
 
-from pymc_marketing.pytensor_utils import extract_response_distribution
+from pymc_marketing.mmm.leased_cache import Lease
+from pymc_marketing.mmm.sweep_cache import SweepCache
+from pymc_marketing.mmm.sweep_graph import (
+    SWEEP_DIM,
+    SweepCacheKey,
+    SweepEntry,
+    compose_sweep,
+)
+from pymc_marketing.pytensor_utils import (
+    ModelCloneError,
+    extract_response_distribution,
+    needed_posterior_names,
+    reorder_to_model_coords,
+)
 
 
 class SensitivityAnalysis:
-    """SensitivityAnalysis class is used to perform counterfactual analysis on MMM's."""
+    """Run counterfactual sweeps over a fitted model's response.
+
+    The compiled-sweep cache belongs to the owning MMM when the instance comes
+    from :attr:`~pymc_marketing.mmm.mmm.MMM.sensitivity`: every access shares
+    one cache, one per model.
+    A separately constructed instance keeps a private cache.  The cache key
+    describes the sweep graph only; the source model is checked separately.
+    Replacing a data buffer with ``pm.set_data`` rebuilds the affected entry;
+    writing into a data buffer in place is not detected, the same as for the
+    incrementality evaluator, and neither is a change to the source model's
+    coords that leaves its buffers in place.  Rebuilding or refitting the model
+    clears the cache an :class:`~pymc_marketing.mmm.mmm.MMM` owns; a private
+    cache instead detects the new model and rebuilds its entries.
+
+    ``dims`` is accepted for backwards compatibility and ignored: the response's
+    own dims decide the output axes.
+    """
 
     def __init__(
-        self, pymc_model: Model, idata: xr.DataTree, dims: tuple[str, ...] = ()
+        self,
+        pymc_model: Model,
+        idata: xr.DataTree,
+        dims: tuple[str, ...] = (),
+        *,
+        _cache: SweepCache | None = None,
     ):
+        """Initialize the analysis.
+
+        Parameters
+        ----------
+        pymc_model : Model
+            The model whose response is swept.
+        idata : xr.DataTree
+            Fitted inference data holding the posterior draws.
+        dims : tuple of str, default ()
+            Accepted for backwards compatibility and ignored.  The response's
+            own dims decide the output axes, so passing the model's extra dims
+            here is harmless but unnecessary.
+        _cache : SweepCache, optional
+            Internal cache supplied by
+            :attr:`~pymc_marketing.mmm.mmm.MMM.sensitivity`.  Without one
+            the instance keeps a private cache, so repeated calls on the
+            instance compile once.
+        """
         self.model = pymc_model
         self.idata = idata
         self.dims = dims
-
-    def _compute_dims_order_from_varinput(self, var_input: str) -> list[str]:
-        """Compute non-date dims order directly from the model's var_input dims.
-
-        The var_input dims convention is ``(date, *dims, arbitrary_last_dim_name)``.
-        We drop any occurrence of 'date' and preserve the remaining order as-is.
-        """
-        var_dims = tuple(self.model.named_vars_to_dims.get(var_input, ()))
-        if not var_dims:
-            # Fallback: try to infer from the shared variable shape and model coords order
-            # This is a best-effort path; in practice PyMC populates named_vars_to_dims
-            return list(self.dims)
-        non_date_dims = [d for d in var_dims if d != "date"]
-        return non_date_dims
-
-    def _coord_to_index(self, dims_order: list[str]) -> dict[str, dict]:
-        """Map model coordinate labels to integer indices for all dims in order."""
-        mapping: dict[str, dict] = {}
-        for dim_name in dims_order:
-            if dim_name in self.model.coords:
-                coords = list(self.model.coords[dim_name])
-                mapping[dim_name] = {label: idx for idx, label in enumerate(coords)}
-        return mapping
+        self._cache = SweepCache() if _cache is None else _cache
 
     def _draw_indices_for_percentage(
         self, posterior_sample_fraction: float
@@ -164,13 +192,22 @@ class SensitivityAnalysis:
         return indices
 
     def _extract_response_distribution(
-        self, response_variable: str, posterior_sample_fraction: float
+        self, response_variable: str, idata: xr.DataTree
     ):
-        """Extract response distribution graph conditioned on posterior samples."""
-        draw_selection = self._draw_indices_for_percentage(posterior_sample_fraction)
+        """Extract the response graph conditioned on draws in the model's order.
+
+        :class:`~pymc_marketing.pytensor_utils.ConditionedModel` realigns every
+        posterior to the model's coords by label; the per-call path does the
+        same here so a label-permuted posterior gives the cached path's
+        numbers.  Renamed or unlabeled coords keep their given order and are
+        read by position.
+        """
+        posterior = reorder_to_model_coords(
+            idata["/posterior"].to_dataset(), self.model.coords
+        )
         return extract_response_distribution(
             pymc_model=self.model,
-            idata=self.idata.isel(draw=draw_selection),
+            idata=posterior,
             response_variable=response_variable,
         )
 
@@ -256,6 +293,220 @@ class SensitivityAnalysis:
         else:
             self.idata["/sensitivity_analysis"] = dataset
 
+    def _selected_idata(
+        self, var_names: str, posterior_sample_fraction: float
+    ) -> xr.DataTree:
+        """Return the posterior the sweep reads, narrowed to the retained draws.
+
+        A cache entry keeps the posterior it was built on, so handing it the
+        whole tree would pin every group and every variable for as long as the
+        entry lives.  Only the posterior variables the response graph reads are
+        kept, and only the ``posterior`` group: the sweep reads nothing else.
+
+        A response that reads no posterior variable -- a pure function of
+        ``pm.Data`` -- keeps the whole tree, as it did before the narrowing,
+        because an empty posterior has no ``chain`` or ``draw`` dims to select.
+        So does a posterior that lacks a variable the response reads, so the
+        conditioned model reports the missing names itself.
+        """
+        draw_selection = self._draw_indices_for_percentage(posterior_sample_fraction)
+        read_names = needed_posterior_names(self.model, [self.model[var_names]])
+        posterior = self.idata.posterior.to_dataset()
+        if not read_names or any(name not in posterior for name in read_names):
+            return self.idata.isel(draw=draw_selection)
+        # Selecting names on a DataTree raises, so narrow the dataset.
+        narrowed = xr.Dataset({name: posterior[name] for name in read_names})
+        return xr.DataTree.from_dict({"/posterior": narrowed.isel(draw=draw_selection)})
+
+    def _sweep_key(
+        self,
+        var_input: str,
+        var_names: str,
+        sweep_type: str,
+        mask_values: np.ndarray | None,
+    ) -> SweepCacheKey:
+        """Return the structure a compiled sweep is cached under."""
+        return SweepCacheKey(
+            var_input=var_input,
+            var_names=var_names,
+            sweep_type=sweep_type,
+            mask_shape=None if mask_values is None else tuple(mask_values.shape),
+        )
+
+    def _run_sweep_cached(
+        self,
+        key: SweepCacheKey,
+        idata: xr.DataTree,
+        sweep_values: np.ndarray,
+        mask_values: np.ndarray | None,
+    ) -> tuple[tuple[str, ...], np.ndarray]:
+        """Evaluate the sweep through the compiled sweep cache.
+
+        The entry is leased for the duration of the call, so concurrent callers
+        on the same key build their own instead of rebinding each other's
+        draws.  Every call rebinds the entry to this call's draws, which covers
+        ``posterior_sample_fraction`` and a replaced ``mmm.idata``.  An entry
+        that cannot be rebound is replaced by one built for this call, and the
+        entry it replaces stays out of the cache until the replacement has
+        evaluated: only then is the replacement cached and the old entry
+        dropped.  A replacement that fails is dropped while the old entry goes
+        back, so one posterior the model cannot evaluate cannot empty the
+        cache.
+
+        A model :class:`~pymc_marketing.pytensor_utils.ConditionedModel` cannot
+        clone falls back to :meth:`_run_sweep_per_call`.  Only the clone step
+        falls back, so an error that is not a layout mismatch raised while
+        binding or evaluating an entry propagates.  An entry built for this
+        call that fails to evaluate is dropped before the error propagates; a
+        cached entry that fails stays cached, because the failure is about this
+        call's arguments.
+        """
+        lease, retired = self._lease_bound_to(key, idata)
+        if lease is None:
+            return self._run_sweep_per_call(key, idata, sweep_values, mask_values)
+        try:
+            result = (
+                lease.value.output_dims,
+                lease.value.evaluate(sweep_values, mask_values),
+            )
+        except BaseException:
+            if retired is not None:
+                retired.release()
+            if not lease.cached:
+                lease.discard()
+            raise
+        else:
+            if retired is not None:
+                retired.discard()
+            return result
+        finally:
+            lease.release()
+            if retired is not None:
+                retired.release()
+
+    def _lease(
+        self, key: SweepCacheKey, idata: xr.DataTree
+    ) -> Lease[SweepEntry] | None:
+        """Lease an entry for this call, or ``None`` if the model cannot be cloned.
+
+        ``None`` means the per-call path handles the question.  The cache
+        remembers an unclonable model, so the clone is attempted once per
+        model rather than once per call.
+        """
+        try:
+            return self._cache.lease(
+                key, self.model, lambda: SweepEntry.build(self.model, idata, key)
+            )
+        except ModelCloneError:
+            return None
+
+    def _rebuild(
+        self, key: SweepCacheKey, idata: xr.DataTree
+    ) -> Lease[SweepEntry] | None:
+        """Build this call's entry, or ``None`` if the model cannot be cloned.
+
+        The entry is conditioned on ``idata`` when it is built, so it never
+        needs a rebind and whatever the cache holds in the meantime is not
+        consulted.
+        """
+        try:
+            return self._cache.rebuild(
+                key, self.model, lambda: SweepEntry.build(self.model, idata, key)
+            )
+        except ModelCloneError:
+            return None
+
+    def _lease_bound_to(
+        self, key: SweepCacheKey, idata: xr.DataTree
+    ) -> tuple[Lease[SweepEntry] | None, Lease[SweepEntry] | None]:
+        """Lease an entry whose graphs read the draws in ``idata``.
+
+        Returns the lease to evaluate and, when a cached entry had to be
+        replaced, the lease it retires.  The caller drops the retired entry once
+        the replacement has evaluated and puts it back if the replacement does
+        not, so one bad posterior cannot empty the cache.
+
+        A cached entry that cannot be rebound was built on another posterior
+        layout -- renamed or unlabeled coords, another dim set, or labels
+        reordered -- which an empty cache would accept.  This call's entry is
+        built in its place, without consulting the cache again; a rebuild that
+        raises leaves the retired entry untouched, and one that cannot clone the
+        model discards it and sends the call to the per-call path.  Both leases
+        are ``None`` when the model cannot be cloned.
+        """
+        lease = self._lease(key, idata)
+        if lease is None or not lease.cached:
+            return lease, None
+        try:
+            lease.value.set_posterior(idata)
+        except ValueError:
+            try:
+                replacement = self._rebuild(key, idata)
+            except BaseException:
+                # The rebind is atomic, so the entry is untouched and still
+                # good for the next call.
+                lease.release()
+                raise
+            if replacement is None:
+                lease.discard()
+                return None, None
+            return replacement, lease
+        except BaseException:
+            # Any other failure leaves the atomic rebind untouched, so the
+            # entry is still good for the next call.
+            lease.release()
+            raise
+        return lease, None
+
+    def _run_sweep_per_call(
+        self,
+        key: SweepCacheKey,
+        idata: xr.DataTree,
+        sweep_values: np.ndarray,
+        mask_values: np.ndarray | None,
+    ) -> tuple[tuple[str, ...], np.ndarray]:
+        """Extract, compose and compile the sweep on every call.
+
+        This is the path for models :class:`ConditionedModel` cannot clone, and
+        it reads the source model's live data, as every call did before the
+        cache existed.  The draws are realigned to the model's coords by label,
+        as the cached path does, so a permuted posterior gives the same
+        numbers; renamed or unlabeled coords are read by position.
+        """
+        response = self._extract_response_distribution(key.var_names, idata)
+        inputs, graph = compose_sweep(
+            response=response,
+            base_value=self.model[key.var_input],
+            sweep_type=key.sweep_type,
+            has_mask=mask_values is not None,
+            mask_shape=None if mask_values is None else mask_values.shape,
+        )
+        compiled = function(inputs, graph)
+        if mask_values is None:
+            return graph.dims, compiled(sweep_values)
+        return graph.dims, compiled(sweep_values, mask_values)
+
+    def _sweep_dataarray(
+        self,
+        dims: tuple[str, ...],
+        result: np.ndarray,
+        sweep_values: np.ndarray,
+    ) -> DataArray:
+        """Label the compiled output with the sweep grid and the model coords."""
+        coords = {}
+        for dim, shape in zip(dims, result.shape, strict=True):
+            if dim == SWEEP_DIM:
+                dim_coords = np.asarray(sweep_values)
+            else:
+                dim_coords = self.model.coords.get(dim)
+                if dim_coords is None:
+                    dim_coords = np.arange(shape)
+                else:
+                    dim_coords = np.asarray(dim_coords)
+            coords[dim] = dim_coords
+
+        return DataArray(result, dims=dims, coords=coords)
+
     def run_sweep(
         self,
         var_input: str,
@@ -272,6 +523,15 @@ class SensitivityAnalysis:
         """
         Run sweeps by forward-evaluating the response graph (no Jacobian).
 
+        Repeated calls on the same structure reuse a compiled sweep from this
+        instance's cache.  On an instance reached through ``mmm.sensitivity``
+        that cache belongs to the MMM and is shared by every access, one cache
+        per model; the model is not part of the key.  Only the sweep values,
+        the mask values and the posterior draws change between calls, and those
+        are a function argument or a posterior rebind, so a repeat call does not
+        compile unless the posterior layout changed, which rebuilds the entry
+        once.
+
         Parameters
         ----------
         var_input : str
@@ -280,7 +540,9 @@ class SensitivityAnalysis:
         sweep_values : np.ndarray
             Values to sweep over.
         var_names : str
-            The deterministic variable of interest.
+            The deterministic variable of interest.  It must carry named
+            dimensions, for example a ``pmd.Deterministic`` built with
+            ``dims=(...)``; a plain ``pm.Deterministic`` has none.
         sweep_type : {"multiplicative","additive","absolute"}
             Type of sweep to apply.
         posterior_sample_fraction : float
@@ -297,79 +559,62 @@ class SensitivityAnalysis:
         -------
         xarray.DataArray | None
             If extend_idata is False, returns an xarray.DataArray with shape
-            ``(sample, sweep, *dims_order)``, where ``dims_order`` are the non-date
-            dims of `var_input` in the same order as in the model. The response
-            is averaged over the `date` axis as in the draft example. If
-            extend_idata is True, stores the result under
-            `idata.sensitivity_analysis` and returns None.
+            ``(sample, sweep, *response_dims)``, where ``response_dims`` are the
+            non-date dims of ``var_names`` in model order.  The response is
+            summed over the `date` axis. If extend_idata is True, stores the
+            result under `idata.sensitivity_analysis` and returns None.
+
+        Raises
+        ------
+        KeyError
+            If ``var_names`` is not in the model, or ``idata`` lacks a posterior
+            variable the response reads.
+        ValueError
+            If ``posterior_sample_fraction`` is outside ``(0, 1]``.
+            If ``var_names`` has no named dimensions, or no ``date`` dimension.
+            If ``response_mask`` does not match the response's dimensions.
+            If the posterior cannot be evaluated by the model, for example one
+            with a different number of channels than the model has.
+        TypeError
+            If ``response_mask`` cannot be cast to boolean.
+
+        Notes
+        -----
+        The posterior in ``idata`` may be replaced between calls, for example by
+        assigning ``mmm.idata``.  A posterior stored in another order of the
+        model's own labels is realigned by label; renamed or unlabeled coords are
+        bound by position.  The number of draws may change, and values are cast
+        to the dtype the model expects.  A call answers what an empty cache
+        would answer, whether or not it reuses a compiled sweep.
         """
-        # Create symbolic input variable. We don't use numerical inputs directly,
-        # so that the same compiled function can be used with different values
-        sweep = ptx.xtensor("sweep", dims=("sweep",))
-
-        # Extract response graph (dims typically: (sample, date, *dims_order))
-        resp_graph = self._extract_response_distribution(
-            response_variable=var_names,
-            posterior_sample_fraction=posterior_sample_fraction,
-        )
-
-        if response_mask is not None:
-            # In this case our function will have a symbolic mask input as well
-            mask_array = self._prepare_response_mask(
-                response_mask,
-                self.model[var_names].dims,
-                var_names=var_names,
+        response = self.model[var_names]
+        response_dims = getattr(response, "dims", None)
+        if response_dims is None:
+            raise ValueError(
+                f"{var_names!r} has no dimensions. Sensitivity sweeps require a "
+                "response with named dimensions, for example one built with "
+                "pmd.Deterministic(..., dims=(...))."
             )
-            mask = pt.tensor("mask", shape=mask_array.shape, dtype=bool)
-
-            # We also have to broadcast the mask_tensor because we can't currently vectorize a set_subtensor with slices
-            # otherwise this would suffice: resp_graph[..., ~mask_array].set(0)
-            mask_bcast, _ = pt.broadcast_arrays(mask, resp_graph.values)
-            resp_graph = as_xtensor(
-                resp_graph.values[~mask_bcast].set(0), dims=resp_graph.dims
+        response_dims = tuple(response_dims)
+        if "date" not in response_dims:
+            raise ValueError(
+                f"{var_names!r} has no 'date' dimension. Sensitivity sweeps "
+                "require a response with a 'date' dimension, for example one "
+                "built with pmd.Deterministic(..., dims=(...))."
             )
 
-        # Broadcast response by combining base_value with sweep
-        base_value: XTensorVariable = self.model[var_input]
-
-        match sweep_type:
-            case "multiplicative":
-                sweep_combinations = sweep * base_value
-            case "additive":
-                sweep_combinations = sweep + base_value
-            case "absolute":
-                sweep_combinations = sweep.broadcast_like(base_value)
-            case _:
-                raise ValueError(f"Unknown sweep_type {sweep_type!r}")
-
-        sweep_response = vectorize_graph(
-            resp_graph, replace={base_value: sweep_combinations}
-        )
-        sweep_response_summed = sweep_response.sum(dim="date").transpose(
-            "sample", "sweep", ...
-        )
-
-        if response_mask is None:
-            result = function([sweep], sweep_response_summed)(sweep_values)
-        else:
-            result = function([sweep, mask], sweep_response_summed)(
-                sweep_values, mask_array
+        idata = self._selected_idata(var_names, posterior_sample_fraction)
+        mask_values = (
+            None
+            if response_mask is None
+            else self._prepare_response_mask(
+                response_mask, response_dims, var_names=var_names
             )
+        )
+        key = self._sweep_key(var_input, var_names, sweep_type, mask_values)
 
-        dims = sweep_response_summed.dims
-        coords = {}
-        for dim, shape in zip(dims, result.shape, strict=True):
-            if dim == "sweep":
-                dim_coords = np.asarray(sweep_values)
-            else:
-                dim_coords = self.model.coords.get(dim)
-                if dim_coords is None:
-                    dim_coords = np.arange(shape)
-                else:
-                    dim_coords = np.asarray(dim_coords)
-            coords[dim] = dim_coords
-
-        xr_result = DataArray(result, dims=dims, coords=coords)
+        dims, result = self._run_sweep_cached(key, idata, sweep_values, mask_values)
+        xr_result = self._sweep_dataarray(dims, result, sweep_values)
 
         if extend_idata:
             self._add_to_idata(xr_result)
@@ -443,13 +688,23 @@ class SensitivityAnalysis:
         ----------
         results : xr.DataArray
             The output from ``run_sweep``.
+        extend_idata : bool, default False
+            When ``True``, the effects are also stored under
+            ``idata.sensitivity_analysis["marginal_effects"]``.
 
         Returns
         -------
         xr.DataArray
-            The input ``results`` unchanged.
+            The derivative of ``results`` with respect to the ``sweep`` grid.
+
+        Raises
+        ------
+        ValueError
+            If ``extend_idata`` is ``True`` and ``idata`` has no
+            ``sensitivity_analysis`` group yet; ``run_sweep(...,
+            extend_idata=True)`` creates it.
         """
-        xr_result = results.differentiate(coord="sweep")
+        xr_result = results.differentiate(coord=SWEEP_DIM)
         if extend_idata:
             if not hasattr(self.idata, "sensitivity_analysis"):
                 raise ValueError(
