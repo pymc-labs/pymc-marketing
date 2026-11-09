@@ -206,7 +206,7 @@ model_config = {
 | `intercept` | Baseline response | `Normal(mu=0, sigma=2, dims=self.dims)` | `Normal(mu=0.2, sigma=0.05)` |
 | `saturation_beta` | Per-channel media effect | (from saturation class) | `HalfNormal(sigma=spend_shares, dims="channel")` |
 | `gamma_control` | Control coefficients | `Normal(mu=0, sigma=2, dims=(*dims, "control"))` | `Normal(0, 1, dims="control")` |
-| `gamma_fourier` | Seasonality coefficients | `Laplace(mu=0, b=1, dims=(*dims, "fourier_mode"))` | `Laplace(0, 1)` |
+| `gamma_fourier` | Seasonality coefficients | `Normal(mu=0, sigma=1, dims=(*dims, "fourier_mode"))` | `Laplace(0, 1)` |
 | `likelihood` | Observation noise | `Normal(sigma=HalfNormal(sigma=2))` | `TruncatedNormal(lower=0, sigma=HalfNormal(1))` |
 
 ## Multidimensional / Hierarchical Models
