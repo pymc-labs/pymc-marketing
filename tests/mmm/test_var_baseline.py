@@ -1744,6 +1744,34 @@ def test_null_brand_data_is_calibrated():
 
 
 @pytest.mark.slow
+def test_media_contributions_are_not_absorbed_by_the_baseline(
+    nuts_fitted_mmm, long_brand_mmm_data
+):
+    """Each channel's posterior mean contribution is within 15% of the true one.
+
+    The true contributions are the generator's 0.5 x1 and 0.3 x2, averaged over the
+    dates. The baseline does not depend on spend, so it should take nothing from
+    the channels. The comparison is with the truth rather than with the same MMM
+    without the effect: on these data that MMM lands 41% and 36% above the truth,
+    since the baseline's variation has nowhere else to go. With the effect the
+    worse channel is 9% above it, within the bound of 15%.
+    """
+    X = long_brand_mmm_data["X"]
+    idata = nuts_fitted_mmm.idata
+    target_scale = float(idata.constant_data["target_scale"])
+
+    contribution = idata.posterior["channel_contribution"].mean(
+        ("chain", "draw", "date")
+    )
+
+    np.testing.assert_allclose(
+        contribution.sel(channel=["x1", "x2"]) * target_scale,
+        [0.5 * X["x1"].mean(), 0.3 * X["x2"].mean()],
+        rtol=0.15,
+    )
+
+
+@pytest.mark.slow
 def test_uncentering_maps_var_fit_on_centered_data_onto_var_fit_on_raw_data(
     brand_mmm_data,
 ):
