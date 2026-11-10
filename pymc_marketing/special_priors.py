@@ -1730,6 +1730,10 @@ class NestedZeroSumPrior:
         is given without dims (hyperpriors allowed): a copy of it gets the dim
         ``<name>_sigma_level`` when the variable is created. The coord
         ``<name>_sigma_level`` is added if the model does not have it.
+        The scales must be positive, and, as in PyMC, this is not checked.
+        A prior that can be negative, such as a ``Normal``, gives a ``nan`` log density when centered.
+        When not centered, it gives two mirror modes, since a scale and its offset can both change sign.
+        Use a prior with positive support, such as ``HalfNormal`` or ``Gamma``.
     interactions : dict[str, Interaction or dict], optional
         Interactions, keyed by label. Each is an :class:`Interaction`; a plain
         dict with the same keys, ``{"dims": [term, ...], "centered": bool}``,
