@@ -5939,6 +5939,13 @@ class BudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
         -------
         xr.Dataset
             The posterior predictive samples based on the synthetic dataset.
+
+        Raises
+        ------
+        NotImplementedError
+            If a mu effect takes only the dates the MMM was fitted on
+            (``supports_new_dates=False``), since this samples the posterior
+            predictive on the window's dates, as prediction on any other dates is.
         """
         data = create_zero_dataset(
             model=self,

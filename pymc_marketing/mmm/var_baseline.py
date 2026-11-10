@@ -19,6 +19,7 @@ PyMC-Marketing, and the VAR baseline needs ``impulso>=0.1.4``. Install it with
 used, so PyMC-Marketing imports without it.
 """
 
+import warnings
 from collections import Counter
 from collections.abc import Iterable
 from importlib import metadata
@@ -235,12 +236,14 @@ class VARBaselineEffect(MuEffect):
     in two stages: an MMM whose time-varying intercept estimates the baseline, then a
     VAR on that estimate.
 
-    The brand data sit beside the MMM's data rather than in ``X``. Brand trackers
-    often cover other periods than the MMM, or come at another cadence, so they stay
-    out of ``X``, and the effect matches their rows to the MMM's dates. A forecast of
-    the baseline would need new brand data anyway. The brand data are therefore
-    constants in the graph, not data in the MMM's ``constant_data``. Fitting the MMM
-    stores them in an idata group of their own.
+    The brand data sit beside the MMM's data rather than in ``X``: they can cover
+    other dates than the MMM's, and they are constants of the VAR rather than
+    predictors that prediction updates. On the MMM's dates the effect needs exactly
+    one finite row per date, at the MMM's frequency, so a tracker at another cadence
+    must be resampled to the MMM's dates first. A forecast of the baseline would need
+    new brand data anyway. The brand data are therefore constants in the graph, not
+    data in the MMM's ``constant_data``. Fitting stores them in an idata group of
+    their own.
 
     The VAR runs on the baseline in the target's original units and on the brand
     columns in their own units, centered on their means over the MMM's dates. The
@@ -259,6 +262,13 @@ class VARBaselineEffect(MuEffect):
     sales the brand caused, and it sums to about zero over time. The brand's return
     comes from ``fitted_var(mmm).dynamic_multiplier(...)`` instead, see
     :meth:`fitted_var`.
+
+    The brand's long-run return from :meth:`fitted_var` is a VAR estimate on the
+    fitted baseline, so anything that moves sales, co-moves with brand spend or the
+    brand metrics, and is not in the MMM is attributed to the brand: seasonal brand
+    campaigns against seasonal sales, pricing, distribution. Give the MMM its usual
+    controls (``yearly_seasonality``, ``control_columns``) before reading the
+    multiplier, and check that its HDI moves as expected when a control is added.
 
     The baseline's innovation standard deviation, ``{prefix}::sigma_sd_0``, has a
     half-normal prior with scale U / 1.96, so it exceeds U with prior probability
@@ -370,7 +380,10 @@ class VARBaselineEffect(MuEffect):
     depend on spend, so it adds nothing to a channel's increment. The budget
     optimizer runs on any window with the default objective, which ignores the
     baseline, as it should: brand spend is an exogenous input of the VAR, not a
-    channel. An objective that includes the baseline, such as
+    channel. Its ``allocate_budget`` result holds the optimized response;
+    ``BudgetOptimizerWrapper.sample_response_distribution`` samples the posterior
+    predictive on the window's dates and is refused like any prediction on other
+    dates. An objective that includes the baseline, such as
     ``response_variable="total_response_original_scale"``, raises a
     ``NotImplementedError``. So do posterior predictive sampling and ``predict`` on
     any other set of dates, including a subset of the fitted ones or with
@@ -397,14 +410,31 @@ class VARBaselineEffect(MuEffect):
     take their scale from the target, and so does the start of the baseline's path
     unless the target does not vary.
 
+    When the brand data hold little signal about sales, the data cannot tell the
+    baseline's innovations from the likelihood's noise, so the two standard
+    deviations, ``{prefix}::sigma_sd_0`` and ``y_sigma``, trade off along a ridge.
+    Its symptoms are divergent draws, a low bulk effective sample size, R-hat above
+    1.05 and a strongly negative posterior correlation between the two. A persistent
+    baseline is distinguishable from noise, which is why ``baseline_own_lag_mean``
+    defaults to 0.8: in a calibration study on simulated data of the kind the tests
+    use, with and without a brand effect on sales, up to 13% of draws diverged with
+    an own-lag mean of 0 and at most 0.4% with 0.8, and the brand's long-run return
+    stayed calibrated. The ridge remains at 0.8, so on a minority of data sets the
+    chains still mix slowly, with R-hat up to about 1.12 in that study. Then run
+    longer chains or raise ``target_accept``, and next try a smaller
+    ``baseline_innovation_sd`` or a higher own-lag mean. With ``lags=1`` the
+    constraint that keeps the baseline stationary is a smooth truncated prior on its
+    own lag. With ``lags > 1`` it is still a hard boundary, which a persistent own
+    lag brings closer, and the sampler can diverge against it.
+
     The brand metrics' likelihood is a potential, which prior and posterior
     predictive sampling ignore, so the brand metrics are never drawn. With
     ``lags=1`` the baseline's own lag has a prior truncated to the stationary
     region, so prior-predictive baselines are stationary. For ``lags > 1`` the
     constraint that keeps the baseline stationary is a potential too, so
-    prior-predictive baselines come from the untruncated prior. With the default
-    tightness the own lag stays far inside the stationary region, so this matters
-    only for a loose ``tightness`` or an own-lag mean near 1. The size of
+    prior-predictive baselines come from the untruncated prior: at the default
+    own-lag mean and tightness, about 4% of its draws with ``lags`` of 2 or 3 fall
+    outside the stationary region, and their paths explode. The size of
     prior-predictive baselines is set by ``baseline_exog_prior_scale`` and
     ``baseline_innovation_sd``. Posterior predictive sampling warns that it ignores
     the potentials, which is harmless: it draws from the posterior, which they
@@ -425,7 +455,17 @@ class VARBaselineEffect(MuEffect):
     and two VARs over the same brand series would count those series' likelihood
     twice, so put every brand series in one VAR.
 
-    Impulso adds a positional ``time`` coordinate that no variable uses.
+    Impulso adds its coordinates to the MMM's model without the prefix: ``var``,
+    ``var1``, ``var2``, ``coeff``, ``exog``, ``var_intercept`` and ``time``, a
+    positional coordinate that no variable uses. A component of the MMM that uses
+    one of these names collides with the VAR, see
+    https://github.com/QuantClimate/Impulso/issues/396.
+
+    Exogenous inputs enter the VAR linearly, without adstock or saturation; pass a
+    transformed column for a carried-over or saturating input. Building the MMM
+    warns when a column the VAR uses is named like one of the MMM's channels or
+    controls: if it holds the same series, its effect is counted twice, once by the
+    MMM and once through the baseline.
 
     Fitting the MMM stores ``brand_data``, without its index, in the idata group
     ``supplementary_data_{prefix}_brand_data``, and saving writes it with its column
@@ -770,6 +810,12 @@ class VARBaselineEffect(MuEffect):
             ``brand_data`` cannot be matched to the MMM's dates, or if a column named
             in ``endog_names`` or ``exog_names`` has a NaN or infinite value on them
             or is constant on them.
+
+        Warns
+        -----
+        UserWarning
+            If a column named in ``endog_names`` or ``exog_names`` is named like one
+            of the MMM's ``channel_columns`` or ``control_columns``.
         """
         effects = [
             effect for effect in mmm.mu_effects if isinstance(effect, VARBaselineEffect)
@@ -806,6 +852,21 @@ class VARBaselineEffect(MuEffect):
                 "additively in the target's units, which holds only on the identity "
                 "link."
             )
+
+        mmm_inputs = {
+            "channel": mmm.channel_columns,
+            "control": mmm.control_columns or [],
+        }
+        for name in self._column_names:
+            for kind, inputs in mmm_inputs.items():
+                if name in inputs:
+                    warnings.warn(
+                        f"VARBaselineEffect {self.prefix!r}: brand_data column "
+                        f"{name!r} is also a {kind} of the MMM; if it holds the same "
+                        "series its effect is counted twice.",
+                        UserWarning,
+                        stacklevel=2,
+                    )
 
         columns, _ = self._brand_columns(mmm, self.brand_data)
         finite = np.isfinite(columns.to_numpy()).all(axis=0)

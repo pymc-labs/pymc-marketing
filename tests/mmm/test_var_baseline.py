@@ -1193,6 +1193,41 @@ def test_bad_brand_data_raises_at_build(shorter_mmm_data, date_column, arrange, 
         )
 
 
+@pytest.mark.parametrize(
+    "rename, kind",
+    [
+        pytest.param({"brand_spend": "x1"}, "channel", id="channel"),
+        pytest.param({"brand_spend": "price"}, "control", id="control"),
+    ],
+)
+def test_brand_column_named_like_an_mmm_input_warns(brand_mmm_data, rename, kind):
+    """The same series in both would count its effect twice."""
+    (name,) = rename.values()
+    effect = make_effect(
+        brand_mmm_data["brand_data"].rename(columns=rename), exog_names=[name]
+    )
+    mmm = make_mmm(effect, control_columns=["price"])
+    X = brand_mmm_data["X"].assign(price=np.linspace(1.0, 2.0, 30))
+
+    with pytest.warns(
+        UserWarning,
+        match=rf"'{PREFIX}': brand_data column '{name}' is also a {kind} of the MMM; "
+        "if it holds the same series its effect is counted twice",
+    ):
+        mmm.build_model(X, brand_mmm_data["y"])
+
+
+def test_brand_columns_named_unlike_the_mmm_inputs_do_not_warn(brand_mmm_data):
+    mmm = make_mmm(make_effect(brand_mmm_data["brand_data"]), control_columns=["price"])
+    X = brand_mmm_data["X"].assign(price=np.linspace(1.0, 2.0, 30))
+
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        mmm.build_model(X, brand_mmm_data["y"])
+
+    assert not [w for w in caught if "counted twice" in str(w.message)]
+
+
 def as_panel(data: dict, geos: tuple[str, ...] = ("north", "south")) -> dict:
     """The same data for each geo, stacked as a panel MMM takes it."""
     return {
@@ -2071,6 +2106,23 @@ def test_budget_objective_with_the_baseline_raises(
             end_date,
             response_variable="total_response_original_scale",
         )
+
+
+def test_sampling_the_response_on_a_budget_window_raises(brand_mmm_data):
+    """The wrapper samples the posterior predictive on the window's dates."""
+    mmm = fit_mmm(brand_mmm_data, make_effect(brand_mmm_data["brand_data"]))
+    mmm.add_original_scale_contribution_variable(["channel_contribution"])
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", DeprecationWarning)
+        wrapper = BudgetOptimizerWrapper(
+            model=mmm, start_date="2024-07-29", end_date="2024-09-16"
+        )
+    allocation = xr.DataArray(
+        [5.0, 5.0], dims="channel", coords={"channel": ["x1", "x2"]}
+    )
+
+    with pytest.raises(NotImplementedError, match=MEASUREMENT_ONLY):
+        wrapper.sample_response_distribution(allocation_strategy=allocation)
 
 
 def test_time_slice_cross_validation_raises_before_fitting(brand_mmm_data):
