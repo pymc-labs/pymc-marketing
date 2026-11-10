@@ -1436,6 +1436,93 @@ def test_children_select_one_parents_offsets_from_the_draws():
     assert abs(offsets.sum("brand")).max() < 1e-12  # zero-sum within the parent
 
 
+def test_the_level_order_does_not_depend_on_the_order_of_terms():
+    # stored draws of a vector on the level dim (a VarianceBudget share, a Prior sigma) are replayed by
+    # position, so priors that compare equal need the same level order
+    sigma = VarianceBudget(G, {"family": 0.5, "brand": 0.5})
+    family, brand = NEST["family"], NEST["brand"]
+    a = nzs({"family": family, "brand": brand}, sigma=sigma)
+    b = nzs({"brand": brand, "family": family}, sigma=sigma)
+    c = NestedZeroSumPrior.from_dict(yaml.safe_load(yaml.safe_dump(a.to_dict())))
+    assert a == b == c
+    orders = [list(build(p)[0].coords["beta_sigma_level"]) for p in (a, b, c)]
+    assert orders == [["brand", "family"]] * 3
+
+
+def test_the_coefficient_keeps_floatx():
+    with pytensor.config.change_flags(floatX="float32"):
+        model, _ = build(nzs(NEST))
+        dtypes = {v: model[v].dtype for v in ("beta", "beta_brand", "beta_family")}
+    assert dtypes == {
+        "beta": "float32",
+        "beta_brand": "float32",
+        "beta_family": "float32",
+    }
+
+
+@pytest.mark.parametrize(
+    ("terms", "interactions", "duplicate"),
+    [
+        ({"brand": {}}, {"brand_offset": {"dims": ["brand"]}}, "beta_brand_offset"),
+        (NEST, {"brand_raw_offset": {"dims": ["brand"]}}, "beta_brand_raw_offset"),
+    ],
+    ids=["crossed_term", "child_term"],
+)
+def test_a_non_centered_offset_name_is_checked_before_any_variable_is_created(
+    terms, interactions, duplicate
+):
+    with pm.Model(coords=COORDS) as model:
+        with pytest.raises(
+            ValueError,
+            match=re.escape(f"RV or coord names ['{duplicate}'] are generated twice"),
+        ):
+            nzs(terms, interactions).create_variable("beta", xdist=True)
+    assert not model.named_vars
+
+
+def test_a_centered_offset_creates_no_offset_name_to_collide_with():
+    model, _ = build(
+        nzs({"brand": {}}, {"brand_offset": {"dims": ["brand"]}}, centered=True)
+    )
+    assert sorted(model.named_vars) == [
+        "beta",
+        "beta_brand",
+        "beta_brand_offset",
+        "beta_mu",
+        "beta_sigma",
+        "beta_sigma_brand",
+        "beta_sigma_brand_offset",
+    ]
+
+
+INT_MAP = {
+    "0": "f0",
+    "1": "f0",
+    "2": "f1",
+    "3": "f1",
+}  # map keys are str, the coord labels are ints
+
+
+def test_children_can_return_the_labels_of_the_coord():
+    prior = nzs(
+        {"family": {}, "brand": {"within": "family", "map": INT_MAP}}, transform=None
+    )
+    with pm.Model(coords=COORDS | {"brand": [0, 1, 2, 3]}):
+        prior.create_variable("beta", xdist=True)
+        draws = pm.sample_prior_predictive(draws=5, random_seed=0).prior
+    brands = prior.children("brand", "f0", labels=draws["brand"].values)
+    assert brands == [0, 1]
+    assert draws["beta_brand"].sel(brand=brands).sizes["brand"] == 2
+
+
+def test_children_name_labels_missing_from_the_map():
+    prior = nzs({"family": {}, "brand": {"within": "family", "map": INT_MAP}})
+    with pytest.raises(
+        ValueError, match=re.escape("term brand: `map` has no labels ['9']")
+    ):
+        prior.children("brand", "f0", labels=[0, 9])
+
+
 def test_a_grouped_offset_is_distributed_as_a_zero_sum_normal_per_group():
     # the same distribution as one ZeroSumNormal per group; the variables and the graph differ
     offset, coords, codes = grouped_offset(scale=0.5)
@@ -1966,7 +2053,8 @@ GROUPED = {  # one parent term, two children within it
         (
             lambda: nzs(NEST, {"brand_raw": {"dims": ["brand"]}}),
             COORDS,
-            r"RV or coord names \['beta_brand_raw'\] are generated twice",
+            # both the raw Normal of `brand` and the non-centered interaction `brand_raw` create these
+            r"RV or coord names \['beta_brand_raw', 'beta_brand_raw_offset'\] are generated twice",
         ),
         (  # beta_sigma_brand is made inside the IndependentSigmas: pymc's own error
             lambda: nzs({"sigma_brand": {}, "brand": {}}),
@@ -2010,9 +2098,9 @@ GROUPED = {  # one parent term, two children within it
         ),
         (
             lambda: nzs(NEST, sigma=LEVEL_HN),
-            COORDS | {"beta_sigma_level": ["brand", "family"]},
-            r"coord 'beta_sigma_level' has labels \['brand', 'family'\], "
-            r"but beta needs the labels \['family', 'brand'\] \(the sigma levels",
+            COORDS | {"beta_sigma_level": ["family", "brand"]},  # not sorted
+            r"coord 'beta_sigma_level' has labels \['family', 'brand'\], "
+            r"but beta needs the labels \['brand', 'family'\] \(the sigma levels, sorted",
         ),
         (
             lambda: nzs(NEST),
@@ -2109,7 +2197,7 @@ def test_variance_budget_level_coord_is_named_per_prior():
     # a plain `level` clashed with a user `level` coord (or a second budget)
     prior = nzs(NEST, sigma=VarianceBudget(G, {"family": 0.5, "brand": 0.5}))
     model, _ = build(prior, COORDS | {"level": ["a", "b"]})
-    assert list(model.coords["beta_sigma_level"]) == ["family", "brand"]
+    assert list(model.coords["beta_sigma_level"]) == ["brand", "family"]  # sorted
     assert model.coords["level"] == ("a", "b")
 
 
@@ -2559,7 +2647,7 @@ def test_reordered_spec_gives_identical_beta_and_logp(centered):
 def test_single_variable_sigma_entry_i_scales_level_i(prior):
     # Non-centered, sigma = e_i leaves only level i in log beta, and zeroing level i's offsets removes it
     model, beta = build_full(nested(), centered=False, sigma=prior)
-    levels = ["family", "brand", "tier", "dma", "brand_dma"]
+    levels = ["brand", "brand_dma", "dma", "family", "tier"]  # sorted
     assert model.named_vars_to_dims["beta_sigma"] == ("beta_sigma_level",)
     assert list(model.coords["beta_sigma_level"]) == levels
     fn = log_beta_fn(model, beta)
@@ -2575,13 +2663,13 @@ def test_single_variable_sigma_entry_i_scales_level_i(prior):
 
 @pytest.mark.parametrize(
     "coords",
-    [COORDS, COORDS | {"beta_sigma_level": ["family", "brand"]}],
+    [COORDS, COORDS | {"beta_sigma_level": ["brand", "family"]}],
     ids=["coord_added_here", "coord_already_there"],
 )
 @pytest.mark.parametrize("centered", [True, False])
 def test_xtensor_sigma_is_unwrapped(coords, centered):
     model, beta = build(nzs(NEST, centered=centered, sigma=XScales()), coords)
-    assert list(model.coords["beta_sigma_level"]) == ["family", "brand"]
+    assert list(model.coords["beta_sigma_level"]) == ["brand", "family"]  # sorted
     assert model.named_vars_to_dims["beta_sigma"] == ("beta_sigma_level",)
     assert np.isfinite(model.compile_logp()(model.initial_point()))
     assert np.all(pm.draw(beta, 10, random_seed=1) > 0)
