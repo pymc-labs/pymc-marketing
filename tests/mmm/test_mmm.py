@@ -9132,8 +9132,8 @@ def test_refit_with_new_dates_rebuilds_model(
 def test_fit_with_frame_after_building_from_richer_dataset_keeps_model(
     lognormal_likelihood_data, mock_pymc_sample
 ):
-    # A model built from a Dataset with variables a DataFrame cannot carry is
-    # fit with the equivalent DataFrame; that must not count as a new X.
+    # A model built from a Dataset with variables the DataFrame does not carry
+    # is fit with the equivalent DataFrame; that must not count as a new X.
     from pymc_marketing.mmm.data_conversion import to_mmm_dataset
 
     X, y = lognormal_likelihood_data
@@ -9562,7 +9562,7 @@ class _RefitExtraEffect(DataVarMuEffect):
 def test_fit_on_new_X_without_the_data_a_mu_effect_reads_raises_and_keeps_the_model(
     lognormal_likelihood_data, mock_pymc_sample
 ):
-    # A DataFrame cannot carry `extra`, so the rebuild would fail inside
+    # This `X` does not carry `extra`, so the rebuild would fail inside
     # `build_model` and leave a model with no free variables in place of the
     # fitted one.
     from pymc_marketing.mmm.data_conversion import to_mmm_dataset

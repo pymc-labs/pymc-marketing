@@ -2873,8 +2873,8 @@ class MMM(RegressionModelBuilder):
         anything added to the graph after it was built.
 
         ``X`` is compared only on the variables it provides: a model built
-        from a ``Dataset`` with extra variables is fit with the equivalent
-        ``DataFrame``, which cannot carry them.
+        from a ``Dataset`` with extra variables can be fit with the equivalent
+        ``DataFrame``, which does not carry them.
         """
         # Check every input before anything changes, so a raise leaves the
         # model as it was.
@@ -2915,8 +2915,8 @@ class MMM(RegressionModelBuilder):
                     "`build_model` with this data, add them again, and then "
                     "call `fit`."
                 )
-            # The rebuild reads these from `X`, which a DataFrame cannot carry.
-            # Fail here: inside `build_model` the old model is already gone.
+            # The rebuild reads these from `X`. Fail here: inside
+            # `build_model` the old model is already gone.
             if missing := sorted(
                 {
                     name
@@ -2928,8 +2928,8 @@ class MMM(RegressionModelBuilder):
             ):
                 raise ValueError(
                     "`fit` got a new `X`, which rebuilds the model, but the mu "
-                    f"effects read {missing} and `X` does not carry them. Pass "
-                    "`X` as a Dataset with these variables."
+                    f"effects read {missing} and `X` does not carry them. Add "
+                    "them to `X` as columns or Dataset variables."
                 )
             prior_groups = (
                 []
