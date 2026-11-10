@@ -1292,6 +1292,45 @@ def build(prior, coords=COORDS):
 @pytest.mark.parametrize(
     "sigma",
     [
+        Prior("HalfNormal", sigma=[1.0, 0.01]),
+        Prior("HalfNormal", sigma=np.array([1.0, 0.01])),
+        Prior("HalfNormal", sigma=Prior("HalfNormal", sigma=[1.0, 0.01])),
+        Prior("HalfNormal", sigma=xr.DataArray([1.0, 0.01], dims="x")),
+    ],
+    ids=["list", "array", "nested_prior", "data_array"],
+)
+def test_a_positional_sigma_is_rejected(sigma):
+    # one value per level would be matched to the levels by position, i.e. by the order of `terms`
+    with pytest.raises(ValueError, match=r"one value per level.*IndependentSigmas"):
+        nzs(NEST, sigma=sigma)
+
+
+def test_the_order_of_terms_does_not_change_the_model():
+    # equality ignores the order of terms, so the order must not matter: sigma is keyed by label or exchangeable
+    sigma = IndependentSigmas({"family": G, "brand": Prior("Gamma", alpha=2, beta=2)})
+    family, brand = NEST["family"], NEST["brand"]
+    a = nzs({"family": family, "brand": brand}, sigma=sigma)
+    b = nzs({"brand": brand, "family": family}, sigma=sigma)
+    assert a == b
+    assert hash(a) == hash(b)
+    (ma, beta_a), (mb, beta_b) = build(a), build(b)
+    rng = np.random.default_rng(0)
+    point = {
+        v.name: rng.normal(size=np.shape(ma.initial_point()[v.name])) * 0.3
+        for v in ma.value_vars
+    }
+    np.testing.assert_allclose(beta_at(ma, beta_a, point), beta_at(mb, beta_b, point))
+    # yaml.safe_dump sorts the keys, so the terms come back reordered: still the same model
+    c = NestedZeroSumPrior.from_dict(yaml.safe_load(yaml.safe_dump(a.to_dict())))
+    assert list(c.terms) == ["brand", "family"]
+    assert c == a
+    mc, beta_c = build(c)
+    np.testing.assert_allclose(beta_at(ma, beta_a, point), beta_at(mc, beta_c, point))
+
+
+@pytest.mark.parametrize(
+    "sigma",
+    [
         IndependentSigmas(
             {lv: LogNormalPrior(mean=0.2, std=0.1) for lv in ("family", "brand")}
         ),

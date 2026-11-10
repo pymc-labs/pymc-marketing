@@ -1457,6 +1457,17 @@ class VarianceBudget:
         return sigma if xdist else sigma.values
 
 
+def _non_scalar_params(prior: Prior, path: str) -> list[str]:
+    """Return the parameters of ``prior``, and of the priors inside it, that hold more than one value."""
+    found = []
+    for key, value in prior.parameters.items():
+        if isinstance(value, Prior):
+            found += _non_scalar_params(value, f"{path}.{key}")
+        elif not hasattr(value, "create_variable") and np.ndim(value) > 0:
+            found.append(f"{path}.{key}")
+    return found
+
+
 def _as_dims(dims: Any) -> tuple:
     """Dims as a tuple: a str is one dim (not its characters), None is no dims."""
     return () if dims is None else (dims,) if isinstance(dims, str) else tuple(dims)
@@ -1863,6 +1874,14 @@ class NestedZeroSumPrior:
             raise ValueError(
                 f"`sigma` must be IndependentSigmas or VarianceBudget keyed by exactly {sorted(specs)}, "
                 f"or a prior with no dims, which gets the dim `<name>_sigma_level` (got dims {sigma_dims})"
+            )
+        if isinstance(self.sigma, Prior) and (
+            vector := _non_scalar_params(self.sigma, "sigma")
+        ):
+            raise ValueError(
+                f"{vector} hold more than one value: one value per level would be matched to the levels "
+                "by position, i.e. by the order of `terms`. Use scalar parameters (each level gets its own draw), "
+                "or IndependentSigmas / VarianceBudget, which are keyed by level"
             )
         parents = [t.within for t in self.terms.values() if t.within is not None]
         if shared := sorted(
