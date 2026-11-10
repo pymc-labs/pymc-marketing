@@ -552,6 +552,34 @@ class MuEffect(SerializableBaseModel, ABC):
         """
         return []
 
+    def check_scenario_use(self, mmm: Model) -> None:
+        """Warn if this effect misreads the placeholder spend of budget scenarios.
+
+        Called before the budget optimizer sets scenario data on the model.
+        The default does nothing; override it in effects whose configuration
+        suits evaluation but not scenarios.
+
+        Parameters
+        ----------
+        mmm : MMM
+            The MMM model instance.
+        """
+
+    def check_lift_tests(self, mmm: Model, df_lift_test: pd.DataFrame) -> None:
+        """Warn if lift tests added to the MMM overlap data this effect uses.
+
+        Called by :meth:`MMM.add_lift_test_measurements` before the lift
+        likelihood is added. The default does nothing; override it in effects
+        that already use the same experiments, so they are not counted twice.
+
+        Parameters
+        ----------
+        mmm : MMM
+            The MMM model instance.
+        df_lift_test : pd.DataFrame
+            The lift tests being added.
+        """
+
     def idata_groups(self) -> dict[str, xr.Dataset]:
         """Return supplementary data groups to store in DataTree.
 
@@ -568,6 +596,25 @@ class MuEffect(SerializableBaseModel, ABC):
             Group name to xarray Dataset mapping.
         """
         return {}
+
+    def __eq__(self, other: object) -> bool:
+        """Compare two effects by their serialized form and ``idata_groups``.
+
+        Pydantic's default ``__eq__`` compares ``model_dump()`` dicts, which
+        raises for array-like fields such as a ``pd.DataFrame`` because their
+        ``==`` is elementwise. The serialized form is JSON-safe, and data an
+        effect persists outside it is compared through ``idata_groups()``.
+        """
+        if not isinstance(other, MuEffect):
+            return NotImplemented
+        if self.__class__ is not other.__class__:
+            return False
+        if serialization.serialize(self) != serialization.serialize(other):
+            return False
+        self_groups, other_groups = self.idata_groups(), other.idata_groups()
+        return self_groups.keys() == other_groups.keys() and all(
+            self_groups[name].equals(other_groups[name]) for name in self_groups
+        )
 
 
 def fitted_dates_only_effects(effects: Iterable[Any]) -> list[tuple[str, Any]]:
@@ -1096,6 +1143,7 @@ class LinearTrendEffect(MuEffect):
     prefix: str
     date_dim_name: str = Field("date")
     linear_trend_first_date: Any = Field(default=None, exclude=True)
+    linear_trend_last_date: Any = Field(default=None, exclude=True)
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize to a dict. ``__type__`` is injected by the registry wrapper."""
@@ -1144,6 +1192,7 @@ class LinearTrendEffect(MuEffect):
             model.coords[self.date_dim_name], self.date_dim_name
         )
         self.linear_trend_first_date = dates[0]
+        self.linear_trend_last_date = dates.max()
         t = (dates - self.linear_trend_first_date).days.astype(float)
 
         pmd.Data(f"{self.prefix}_t", t, dims=self.date_dim_name)
@@ -1167,9 +1216,13 @@ class LinearTrendEffect(MuEffect):
         t_name = f"{self.prefix}_t"
         t = model[t_name]
 
-        t_max = t.max()
-        t = t / ptx.math.switch(t_max > 0, t_max, 1)
-        trend_effect = self.trend.apply(t)
+        # Scale by the training span, fixed when the model is built. The
+        # maximum of the data would follow ``set_data`` to the prediction
+        # dates, which must instead map past 1 so that the trend continues
+        # from the last changepoint (#1569, #3298).
+        t_max = float((self.linear_trend_last_date - self.linear_trend_first_date).days)
+        scale = t_max if t_max > 0 else 1.0
+        trend_effect = self.trend.apply(t / scale, t_max=t_max / scale)
 
         return pmd.Deterministic(
             f"{self.prefix}_effect_contribution",
