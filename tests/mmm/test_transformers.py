@@ -392,6 +392,172 @@ class TestsAdstockTransformers:
 
         np.testing.assert_array_equal(y, impulse)
 
+    def test_weibull_cdf_adstock_tail_weights_are_exact(self):
+        """Tail weights far below ``1 - F`` precision are exact, cap included (#3331).
+
+        At ``lam=1, k=6`` the weight at lag 2 is ``exp(-65) ~ 6e-29``, which
+        ``1 - F`` rounds to zero, and the log hazard of lags 6 and 7 passes
+        the cap, where the weight is zero either way.
+        """
+        l_max, lam, k = 8, 1.0, 6.0
+        impulse = np.zeros(l_max)
+        impulse[0] = 1.0
+
+        y = weibull_adstock(
+            x=as_xtensor(impulse, dims=("t",)),
+            lam=lam,
+            k=k,
+            l_max=l_max,
+            type=WeibullType.CDF,
+            dim="t",
+        ).eval()
+
+        log_survival = sp.stats.weibull_min.logsf(np.arange(1, l_max), c=k, scale=lam)
+        expected = np.exp(np.cumsum(np.concatenate([[0.0], log_survival])))
+        np.testing.assert_allclose(y, expected, rtol=1e-12, atol=0)
+
+    @pytest.mark.parametrize(
+        "lam, k", [(0.2, 5.0), (50.0, 500.0)], ids=["decreasing", "increasing"]
+    )
+    def test_weibull_pdf_adstock_where_every_density_rounds_to_zero(self, lam, k):
+        """The kernel is the min-max scaled density, not ``0 / 0`` (#3331).
+
+        Min-max scaling does not change when every density is divided by the
+        largest one, and that ratio is finite in log space.
+        """
+        l_max = 6
+        t = np.arange(l_max) + 1
+        impulse = np.zeros(l_max)
+        impulse[0] = 1.0
+        assert (sp.stats.weibull_min.pdf(t, c=k, scale=lam) == 0).all()
+
+        y = weibull_adstock(
+            x=as_xtensor(impulse, dims=("t",)),
+            lam=lam,
+            k=k,
+            l_max=l_max,
+            type=WeibullType.PDF,
+            dim="t",
+        ).eval()
+
+        log_w = sp.stats.weibull_min.logpdf(t, c=k, scale=lam)
+        w = np.exp(log_w - log_w.max())
+        np.testing.assert_allclose(y, (w - w.min()) / (w.max() - w.min()), rtol=1e-9)
+
+    @pytest.mark.parametrize("type", [WeibullType.PDF, WeibullType.CDF])
+    @pytest.mark.parametrize(
+        "lam, k", [(0.0, 1.0), (-1.0, 1.0), (1.0, 0.0), (1.0, -1.0)]
+    )
+    def test_weibull_adstock_rejects_non_positive_parameters(self, type, lam, k):
+        with pytest.raises(ParameterValueError):
+            weibull_adstock(
+                x=as_xtensor(np.ones(5), dims=("t",)),
+                lam=lam,
+                k=k,
+                l_max=3,
+                type=type,
+                dim="t",
+            ).eval()
+
+    @staticmethod
+    def _weibull_model(type: WeibullType) -> pymc.Model:
+        """Model whose only free variables are the Weibull ``lam`` and ``k``."""
+        l_max = 8
+        float_x = pytensor.config.floatX
+        impulse = np.zeros(l_max, dtype=float_x)
+        impulse[0] = 1.0
+        with pymc.Model() as model:
+            y = weibull_adstock(
+                as_xtensor(impulse, dims=("t",)),
+                lam=pymc.Flat("lam"),
+                k=pymc.Flat("k"),
+                l_max=l_max,
+                type=type,
+                normalize=True,
+                dim="t",
+            )
+            pymc.Normal(
+                "obs",
+                mu=y.values,
+                sigma=1.0,
+                observed=np.full(l_max, 0.5, dtype=float_x),
+            )
+        return model
+
+    @pytest.mark.parametrize("float_x", ["float64", "float32"])
+    @pytest.mark.parametrize(
+        "type, lam, k",
+        [
+            (WeibullType.CDF, 0.5, 2.0),
+            (WeibullType.CDF, 0.1, 2.0),
+            (WeibullType.CDF, 0.01, 14.0),
+            (WeibullType.CDF, 1e-3, 100.0),
+            (WeibullType.PDF, 0.2, 5.0),
+            (WeibullType.PDF, 50.0, 500.0),
+        ],
+        ids=[
+            "cdf-survival-rounds-to-zero",
+            "cdf-survival-rounds-to-zero-small-lam",
+            "cdf-hazard-overflows-in-float32-only",
+            "cdf-hazard-overflows-in-float64",
+            "pdf-decreasing-density-rounds-to-zero",
+            "pdf-increasing-density-rounds-to-zero",
+        ],
+    )
+    def test_weibull_adstock_dlogp_is_finite(self, float_x, type, lam, k):
+        """Weights that round to zero must not make dlogp NaN (#3331).
+
+        CDF: with ``lam`` small relative to the lags, the survival term
+        ``exp(-(t / lam) ** k)`` rounds to zero, and the gradient of a
+        cumulative product of survival terms is ``0 / 0``. For larger
+        ``k * log(t / lam)`` the hazard ``(t / lam) ** k`` itself overflows,
+        earlier in float32. PDF: where every density rounds to zero, min-max
+        scaling is ``0 / 0``.
+        """
+        with pytensor.config.change_flags(floatX=float_x):
+            model = self._weibull_model(type)
+            point = {
+                "lam": np.asarray(lam, dtype=float_x),
+                "k": np.asarray(k, dtype=float_x),
+            }
+            dlogp = model.compile_dlogp(jacobian=False)(point)
+
+        assert np.isfinite(dlogp).all(), f"dlogp is not finite at {lam=}, {k=}: {dlogp}"
+
+    @pytest.mark.parametrize(
+        "type, lam, k",
+        [
+            (WeibullType.CDF, 0.5, 2.0),
+            (WeibullType.CDF, 1.0, 6.0),
+            (WeibullType.PDF, 2.0, 3.0),
+        ],
+        ids=[
+            "cdf-survival-rounds-to-zero",
+            "cdf-log-hazard-capped",
+            "pdf",
+        ],
+    )
+    def test_weibull_adstock_dlogp_matches_finite_differences(self, type, lam, k):
+        """dlogp is the true gradient, not just a finite one (#3331).
+
+        At ``lam=1, k=6`` the log hazard of the last lags passes the cap.
+        """
+        model = self._weibull_model(type)
+        logp = model.compile_logp(jacobian=False)
+        dlogp = model.compile_dlogp(jacobian=False)
+        point = {"lam": np.array(lam), "k": np.array(k)}
+        eps = 1e-6
+        numeric = [
+            (
+                logp({**point, name: point[name] + eps})
+                - logp({**point, name: point[name] - eps})
+            )
+            / (2 * eps)
+            for name in ("lam", "k")
+        ]
+
+        np.testing.assert_allclose(dlogp(point), numeric, rtol=1e-6, atol=1e-8)
+
     @pytest.mark.parametrize(
         "type",
         [

@@ -1077,22 +1077,29 @@ def build_contributions(
     return df
 
 
-def density(dist, *, value, **params: Variable):
-    """Request density of dist at value.
+def log_density(dist, *, value, **params: Variable):
+    """Request log-density of dist at value.
 
-    This helper creates dist with dummy `params`, requests its density from `pymc.logp`
-    and then  reintroduces the original `params` values.
+    This helper creates dist with dummy `params`, requests its log-density from `pymc.logp`
+    and then reintroduces the original `params` values.
     This avoids accidental rewrite of random graphs above params when
     the logp cannot be obtained by direct dispatch
     """
     masked_params = {k: p.type() for k, p in params.items()}
     masked_dist = dist.dist(**masked_params)
-    masked_density = ptx.math.exp(logp(masked_dist, value))
     return graph_replace(
-        masked_density,
+        logp(masked_dist, value),
         tuple(zip(masked_params.values(), params.values(), strict=True)),
         strict=False,
     )
+
+
+def density(dist, *, value, **params: Variable):
+    """Request density of dist at value, the exponential of :func:`log_density`.
+
+    Prefer :func:`log_density` where the density can round to zero.
+    """
+    return ptx.math.exp(log_density(dist, value=value, **params))
 
 
 def cdf(dist, *, value, **params: Variable):

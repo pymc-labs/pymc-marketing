@@ -20,12 +20,13 @@ import numpy as np
 import pytensor.tensor as pt
 import pytensor.xtensor as ptx
 from pymc.dims import Weibull
+from pymc.distributions.dist_math import check_parameters
 from pymc.logprob.utils import CheckParameterValue
 from pytensor.xtensor import as_xtensor
 from pytensor.xtensor.type import XTensorVariable
 
 from pymc_marketing.mmm.dims import XTensorLike
-from pymc_marketing.mmm.utils import cdf, density
+from pymc_marketing.mmm.utils import log_density
 
 
 class ConvMode(StrEnum):
@@ -41,6 +42,13 @@ class WeibullType(StrEnum):
 
     PDF = "PDF"
     CDF = "CDF"
+
+
+# Cap on the log hazard ``k * log(t / lam)`` of the Weibull CDF kernel. Past it the
+# hazard is at least ``e**10 ~ 22026``, so every weight from that lag on, at most
+# ``exp(-hazard)``, is exactly zero in any float dtype and capping changes no value;
+# it stops ``exp(log_hazard)`` overflowing to ``inf``, whose gradient is ``0 * inf``.
+_WEIBULL_MAX_LOG_HAZARD = 10.0
 
 
 def _check_alpha(
@@ -513,15 +521,34 @@ def weibull_adstock(
     k = as_xtensor(k)
     if type == WeibullType.PDF:
         t = as_xtensor(pt.arange(l_max, dtype=x.dtype) + 1, dims=(kernel_dim,))
-        w = density(Weibull, value=t, alpha=k, beta=lam)
-        w = (w - w.min(dim=kernel_dim)) / (
-            w.max(dim=kernel_dim) - w.min(dim=kernel_dim)
-        )
+        log_w = log_density(Weibull, value=t, alpha=k, beta=lam)
+        # Min-max scale the density divided by its maximum, taken in log space, so
+        # that the kernel stays finite where every density rounds to zero (but not
+        # where ``(t / lam) ** k`` overflows at every lag).
+        w = ptx.math.exp(log_w - log_w.max(dim=kernel_dim))
+        w = (w - w.min(dim=kernel_dim)) / (1 - w.min(dim=kernel_dim))
     elif type == WeibullType.CDF:
+        # Weight l is the survival product prod_{s <= l} exp(-(s / lam) ** k), taken
+        # as exp(-cumsum(hazard)): the gradient of a cumulative product divides by
+        # its input, which is 0 / 0 wherever a survival term rounds to zero.
         t = as_xtensor(pt.arange(l_max - 1, dtype=x.dtype) + 1, dims=(kernel_dim,))
-        w = 1 - cdf(Weibull, value=t, alpha=k, beta=lam)
-        padded_w = ptx.concat([1, w], dim=kernel_dim)
-        w = padded_w.cumprod(dim=kernel_dim)
+        log_hazard = k * (ptx.math.log(t) - ptx.math.log(lam))
+        # Inside a model PyMC turns a failed check into a log hazard of -inf: zero
+        # hazard, so a kernel of ones, as with the previous ``1 - cdf`` kernel.
+        log_hazard = as_xtensor(
+            check_parameters(
+                log_hazard.values,
+                (lam > 0).values,
+                (k > 0).values,
+                msg="lam > 0, k > 0",
+            ),
+            dims=log_hazard.dims,
+        )
+        hazard = ptx.math.exp(ptx.math.minimum(log_hazard, _WEIBULL_MAX_LOG_HAZARD))
+        cumulative_hazard = ptx.concat([0, hazard], dim=kernel_dim).cumsum(
+            dim=kernel_dim
+        )
+        w = ptx.math.exp(-cumulative_hazard)
     else:
         raise ValueError(f"Wrong WeibullType: {type}, expected of WeibullType")
 
