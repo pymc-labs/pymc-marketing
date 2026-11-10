@@ -22,6 +22,23 @@ import pytest
 from pymc_marketing.serialization import serialization
 
 
+def _make_effect_class() -> type:
+    """Return a fresh class so registering it (which patches ``to_dict``) stays test-local."""
+
+    class MyEffect:
+        def __init__(self, a: int = 1) -> None:
+            self.a = a
+
+        def to_dict(self) -> dict[str, Any]:
+            return {"a": self.a}
+
+        @classmethod
+        def from_dict(cls, data: dict[str, Any]) -> MyEffect:
+            return cls(data["a"])
+
+    return MyEffect
+
+
 class TestSerializationError:
     def test_is_exception(self):
         from pymc_marketing.serialization import SerializationError
@@ -285,6 +302,77 @@ class TestTypeRegistry:
         with pytest.raises(TypeError, match="class must be provided"):
             reg.register("some.string.key")
 
+    def test_string_key_is_written_and_read(self):
+        """A class registered only under a string key round-trips under that key (GH-3330)."""
+        from pymc_marketing.serialization import TypeRegistry
+
+        reg = TypeRegistry()
+        MyEffect = _make_effect_class()
+        reg.register("my_package.MyEffect", MyEffect)
+        effect = MyEffect(3)
+
+        expected = {"__type__": "my_package.MyEffect", "a": 3}
+        assert reg.is_registered(effect)
+        assert reg.serialize(effect) == expected
+        assert effect.to_dict() == expected
+        restored = reg.deserialize(effect.to_dict())
+        assert isinstance(restored, MyEffect)
+        assert restored.a == 3
+
+    @pytest.mark.parametrize(
+        "primary_is_string", [True, False], ids=["string", "class"]
+    )
+    def test_first_registered_key_is_written_and_later_keys_still_load(
+        self, primary_is_string
+    ):
+        from pymc_marketing.serialization import TypeRegistry
+
+        reg = TypeRegistry()
+        MyEffect = _make_effect_class()
+        if primary_is_string:
+            primary = "my_package.MyEffect"
+            reg.register(primary, MyEffect)
+        else:
+            primary = f"{MyEffect.__module__}.{MyEffect.__qualname__}"
+            reg.register(MyEffect)
+        reg.register("old_package.MyEffect", MyEffect)
+
+        assert reg.serialize(MyEffect(3)) == {"__type__": primary, "a": 3}
+        restored = reg.deserialize({"__type__": "old_package.MyEffect", "a": 4})
+        assert isinstance(restored, MyEffect)
+        assert restored.a == 4
+
+    def test_model_config_uses_serializer_of_string_keyed_class(self):
+        from pymc_marketing.serialization import TypeRegistry
+
+        reg = TypeRegistry()
+        MyEffect = _make_effect_class()
+        reg.register(
+            "my_package.MyEffect",
+            MyEffect,
+            serializer=lambda obj: {"__type__": "my_package.MyEffect", "b": obj.a},
+        )
+
+        serialized = reg.serialize_model_config({"effect": MyEffect(3)})
+        assert serialized == {"effect": {"__type__": "my_package.MyEffect", "b": 3}}
+
+    def test_subclass_of_string_keyed_class_uses_its_own_key(self):
+        from pymc_marketing.serialization import TypeRegistry
+
+        reg = TypeRegistry()
+        MyEffect = _make_effect_class()
+        reg.register("my_package.MyEffect", MyEffect)
+
+        class SubEffect(MyEffect):
+            pass
+
+        assert not reg.is_registered(SubEffect(5))
+
+        reg.register(SubEffect)
+        data = SubEffect(5).to_dict()
+        assert data["__type__"] == f"{SubEffect.__module__}.{SubEffect.__qualname__}"
+        assert type(reg.deserialize(data)) is SubEffect
+
 
 class TestSerializableBaseModel:
     def test_auto_registration(self):
@@ -359,6 +447,23 @@ class TestSerializableBaseModel:
 
         concrete_key = f"{ConcreteEffect.__module__}.{ConcreteEffect.__qualname__}"
         assert concrete_key in serialization._registry
+
+    def test_string_key_is_written_instead_of_auto_registered_module_path(self):
+        """Auto-registration does not pin the written key; an explicit string key does (GH-3330)."""
+        from pymc_marketing.serialization import SerializableBaseModel
+
+        class StableKeyModel(SerializableBaseModel):
+            a: int = 1
+
+        module_key = f"{StableKeyModel.__module__}.{StableKeyModel.__qualname__}"
+        serialization.register("tests.serialization.StableKeyModel", StableKeyModel)
+
+        data = serialization.serialize(StableKeyModel(a=2))
+        assert data == {"__type__": "tests.serialization.StableKeyModel", "a": 2}
+        assert serialization.deserialize(data) == StableKeyModel(a=2)
+        # Dicts saved under the module path before the key was registered still load.
+        legacy = {"__type__": module_key, "a": 3}
+        assert serialization.deserialize(legacy) == StableKeyModel(a=3)
 
 
 class TestSerializeModelConfig:
