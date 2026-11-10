@@ -1268,11 +1268,11 @@ class IndependentSigmas:
         """
         dim = _level_dim(self.dims, name)
         scales = [
-            self.priors[lv].create_variable(f"{name}_{lv}")
+            self.priors[lv].create_variable(f"{name}_{lv}", xdist=True).expand_dims(dim)
             for lv in pm.modelcontext(None).coords[dim]
         ]
-        sigma = pm.Deterministic(name, pt.stack(scales), dims=dim)
-        return as_xtensor(sigma, dims=(dim,)) if xdist else sigma
+        sigma = pmd.Deterministic(name, pmd.concat(scales, dim=dim))
+        return sigma if xdist else sigma.values
 
 
 @serialization.register
@@ -1446,12 +1446,15 @@ class VarianceBudget:
         """
         dim = _level_dim(self.dims, name)
         share = [self.share[lv] for lv in pm.modelcontext(None).coords[dim]]
-        share = pm.Dirichlet(
-            f"{name}_share", a=self.concentration * np.array(share), dims=dim
+        share = pmd.Dirichlet(
+            f"{name}_share",
+            a=as_xtensor(self.concentration * np.array(share), dims=(dim,)),
+            core_dims=(dim,),
+            dims=(dim,),
         )
-        total = self.total.create_variable(f"{name}_total")
-        sigma = pm.Deterministic(name, total * pt.sqrt(share), dims=dim)
-        return as_xtensor(sigma, dims=(dim,)) if xdist else sigma
+        total = self.total.create_variable(f"{name}_total", xdist=True)
+        sigma = pmd.Deterministic(name, total * pmd.math.sqrt(share))
+        return sigma if xdist else sigma.values
 
 
 def _as_dims(dims: Any) -> tuple:
@@ -2063,26 +2066,25 @@ class NestedZeroSumPrior:
         sigma = copy.deepcopy(self.sigma)  # every sigma option: a copy on the level dim
         sigma.dims = (level_dim,)
         sigma = sigma.create_variable(f"{name}_sigma", xdist=True)
-        sigma = getattr(sigma, "values", sigma)  # XTensorVariable -> TensorVariable
-        # A factory may ignore its dims, so check the length it actually returned
-        if (shape := tuple(sigma.shape.eval().tolist())) != (len(levels),):
+        # A factory may ignore its dims; the dims it returned fix the length (the coord `level_dim`)
+        if (got := getattr(sigma.type, "dims", None)) != (level_dim,):
             raise ValueError(
-                f"`sigma` returned shape {shape}; "
-                f"expected ({len(levels)},), one scale per level {levels}"
+                f"`sigma` must return an xtensor on the dims {(level_dim,)}, "
+                f"one scale per level {levels}; got dims {got}"
             )
 
-        def zero_sum(level, rv_name, dims, n_zerosum_axes=1):
+        def zero_sum(level, rv_name, dims, core_dims):
             centered = (
                 self.centered
                 if specs[level].centered is None
                 else specs[level].centered
             )
-            scale = sigma[levels.index(level)]
-            offset = pm.ZeroSumNormal(
+            scale = sigma.isel({level_dim: levels.index(level)})
+            offset = pmd.ZeroSumNormal(
                 f"{name}_{rv_name}",
                 sigma=scale if centered else 1.0,
+                core_dims=core_dims,
                 dims=dims,
-                n_zerosum_axes=n_zerosum_axes,
             )
             return offset if centered else scale * offset
 
@@ -2095,34 +2097,38 @@ class NestedZeroSumPrior:
         for c, t in terms.items():
             if t.within is not None:
                 labels, codes = groups[c]
-                offset = pt.zeros((len(codes), *n_base))
-                for p, label in enumerate(
-                    labels
-                ):  # one zero-sum vector per parent; lone children stay 0
-                    idx = np.flatnonzero(codes == p)
-                    if len(idx) > 1:
-                        offset = pt.set_subtensor(
-                            offset[idx],
-                            zero_sum(c, f"{c}_{label}", (*base, f"{c}_{label}")).T,
-                        )
-                if t.within in terms:  # otherwise parent_effect is False (__init__)
-                    offset = (
-                        offset
-                        + zero_sum(t.within, t.within, (*base, t.within)).T[codes]
+                counts = np.bincount(codes)
+                # one zero-sum vector per parent with several children, joined along `c`; lone children are 0
+                pieces, positions = [], []
+                for p in np.flatnonzero(counts > 1):
+                    child_dim = f"{c}_{labels[p]}"
+                    piece = zero_sum(c, child_dim, (*base, child_dim), (child_dim,))
+                    pieces.append(piece.rename({child_dim: c}).transpose(*base, c))
+                    positions.append(np.flatnonzero(codes == p))
+                if len(lone := np.flatnonzero(counts[codes] == 1)):
+                    pieces.append(
+                        as_xtensor(pt.zeros((*n_base, len(lone))), dims=(*base, c))
                     )
-                eta = eta + as_xtensor(offset, dims=(c, *base))
+                    positions.append(lone)
+                # back to the coord order of `c`
+                offset = pmd.concat(pieces, dim=c).isel(
+                    {c: np.argsort(np.concatenate(positions))}
+                )
+                if t.within in terms:  # otherwise parent_effect is False (__init__)
+                    parent = zero_sum(
+                        t.within, t.within, (*base, t.within), (t.within,)
+                    )
+                    offset = offset + parent.isel({t.within: codes}).rename(
+                        {t.within: c}
+                    )
+                eta = eta + offset
             elif c not in parents:
-                eta = eta + as_xtensor(zero_sum(c, c, (*base, c)), dims=(*base, c))
+                eta = eta + zero_sum(c, c, (*base, c), (c,))
         for k, x in interactions.items():
-            dims = (*base, *x.dims)
-            eta = eta + as_xtensor(zero_sum(k, k, dims, len(x.dims)), dims=dims)
+            eta = eta + zero_sum(k, k, (*base, *x.dims), tuple(x.dims))
         beta = eta.transpose(*self.dims)
-        if (
-            self.transform is not None
-        ):  # on the tensor, the same lookup that validated it
-            beta = as_xtensor(
-                _get_transform(self.transform)(beta.values), dims=self.dims
-            )
+        if self.transform is not None:
+            beta = _get_transform(self.transform, xdist=True)(beta)
         beta = pmd.Deterministic(name, beta)
         return beta if xdist else beta.values
 

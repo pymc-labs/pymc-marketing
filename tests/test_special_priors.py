@@ -1289,6 +1289,24 @@ def build(prior, coords=COORDS):
     return model, beta
 
 
+@pytest.mark.parametrize(
+    "sigma",
+    [
+        IndependentSigmas(
+            {lv: LogNormalPrior(mean=0.2, std=0.1) for lv in ("family", "brand")}
+        ),
+        VarianceBudget(
+            LogNormalPrior(mean=0.2, std=0.1), {"family": 0.5, "brand": 0.5}
+        ),
+    ],
+    ids=["independent", "budget"],
+)
+def test_xdist_only_priors_work_inside_the_sigma_options(sigma):
+    # LogNormalPrior only supports xdist=True, so the sigma options must create their levels that way
+    model, _ = build(nzs(NEST, sigma=sigma))
+    assert np.isfinite(model.compile_logp()(model.initial_point()))
+
+
 def beta_at(model, beta, point):
     """Beta as a function of the model's value variables."""
     fn = model.compile_fn(
@@ -1595,7 +1613,8 @@ def test_base_dim_is_optional_and_need_not_be_channel(
     offsets = [
         v for v in model.free_RVs if "sigma" not in v.name and v.name != "beta_mu"
     ]
-    assert {tuple(v.shape.eval()[: len(base)]) for v in offsets} == {n_base}
+    # every offset spans the base dims, first
+    assert {model.named_vars_to_dims[v.name][: len(base)] for v in offsets} == {base}
     # every offset is zero-sum over a hierarchy dim, so the hierarchy mean of beta is mu
     mu_var = model["beta_mu"] if "beta_mu" in model.named_vars else pt.as_tensor(mu)
     beta_draw, mu_draw = pm.draw([beta.values, mu_var], random_seed=2)
@@ -1795,7 +1814,7 @@ GROUPED = {  # one parent term, two children within it
         (
             lambda: nzs(NEST, sigma=ThreeScales()),
             COORDS,
-            r"`sigma` returned shape \(3,\); expected \(2,\)",
+            r"`sigma` must return an xtensor on the dims \('beta_sigma_level',\).*got dims None",
         ),
         (
             lambda: nzs(NEST, sigma=LEVEL_HN),
@@ -2590,6 +2609,30 @@ def test_mmm_save_load_round_trip(sigma, panel, tmp_path, mock_pymc_sample):
     assert loaded_beta.dims == ("brand", "dma", "channel")  # as the MMM set them
     point = mmm.model.initial_point()
     assert loaded.model.compile_logp()(point) == mmm.model.compile_logp()(point)
+
+
+@pytest.mark.parametrize("sigma", ["independent", "budget", "prior"])
+def test_mmm_budget_optimizer_with_the_prior_on_saturation_beta(
+    sigma, panel, mock_pymc_sample
+):
+    # the optimizer replaces every free RV by an xtensor constant, so all of the prior's RVs must be xtensor RVs
+    X, y = panel
+    mmm = make_mmm(SIGMAS[sigma])
+    mmm.fit(X, y, chains=1, draws=10, tune=10, random_seed=42)
+    last = X["date"].max()
+    optimizer = mmm.budget_optimizer(
+        start_date=last + pd.Timedelta(weeks=1),
+        end_date=last + pd.Timedelta(weeks=4),
+    )
+    cells = optimizer.budgets_to_optimize.astype(float)
+    bounds = xr.concat(
+        [xr.zeros_like(cells), xr.full_like(cells, 100.0)], dim="bound"
+    ).transpose(*cells.dims, "bound")
+    optimal_budgets, result = optimizer.allocate_budget(
+        total_budget=100, budget_bounds=bounds
+    )
+    assert optimal_budgets.sum().item() == pytest.approx(100)
+    assert np.isfinite(result.fun)
 
 
 def docstring_blocks(cls, language):
