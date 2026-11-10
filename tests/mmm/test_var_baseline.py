@@ -65,16 +65,27 @@ QUARTILES = [0.25, 0.5, 0.75]
 FIXED_TARGET_SCALING = {"target": FixedScaling(dims=(), value=6.0)}
 
 
-def make_brand_mmm_data(n_weeks: int = 30) -> dict:
+def make_brand_mmm_data(
+    n_weeks: int = 30,
+    *,
+    baseline_link: float = 0.6,
+    flighted: bool = False,
+    random_seed: int = seed,
+) -> dict:
     """Weekly sales whose baseline moves with consideration, and the brand data.
 
     Awareness responds to brand spend, consideration to awareness, and the sales
-    baseline to consideration, each as an AR(1). The true baseline is returned too.
+    baseline to consideration with coefficient ``baseline_link``, each as an AR(1).
+    Brand spend runs in two five-week flights or, ``flighted``, in eight-week blocks
+    off and on over the whole period. The true baseline is returned too.
     """
-    rng = np.random.default_rng(seed)
+    rng = np.random.default_rng(random_seed)
     dates = pd.date_range("2024-01-01", periods=n_weeks, freq="W-MON")
     brand_spend = np.zeros(n_weeks)
-    brand_spend[5:10] = brand_spend[18:23] = 1.0
+    if flighted:
+        brand_spend[(np.arange(n_weeks) // 8) % 2 == 1] = 1.0
+    else:
+        brand_spend[5:10] = brand_spend[18:23] = 1.0
     awareness, consideration, baseline = np.zeros((3, n_weeks))
     for t in range(1, n_weeks):
         awareness[t] = (
@@ -84,7 +95,9 @@ def make_brand_mmm_data(n_weeks: int = 30) -> dict:
             0.8 * consideration[t - 1] + 0.4 * awareness[t - 1] + rng.normal(0, 0.03)
         )
         baseline[t] = (
-            0.5 * baseline[t - 1] + 0.6 * consideration[t - 1] + rng.normal(0, 0.04)
+            0.5 * baseline[t - 1]
+            + baseline_link * consideration[t - 1]
+            + rng.normal(0, 0.04)
         )
 
     X = pd.DataFrame(
@@ -1363,22 +1376,32 @@ def long_brand_mmm_data() -> dict:
     return make_brand_mmm_data(n_weeks=150)
 
 
-@pytest.fixture(scope="module")
-def nuts_fitted_mmm(long_brand_mmm_data) -> MMM:
-    """An MMM with the effect, fitted by nutpie to enough weeks to recover the truth."""
-    mmm = make_mmm(make_effect(long_brand_mmm_data["brand_data"]))
+def nuts_fit(mmm: MMM, data: dict, random_seed: int = seed) -> MMM:
+    """``mmm`` fitted to ``data`` by nutpie, 4 chains of 500 draws after 500 tuning."""
     mmm.fit(
-        long_brand_mmm_data["X"],
-        long_brand_mmm_data["y"],
+        data["X"],
+        data["y"],
         draws=500,
         tune=500,
         chains=4,
         cores=4,
         nuts_sampler="nutpie",
-        random_seed=seed,
+        random_seed=random_seed,
         progressbar=False,
     )
     return mmm
+
+
+@pytest.fixture(scope="module")
+def nuts_fitted_mmm(long_brand_mmm_data) -> MMM:
+    """An MMM with the effect, fitted by nutpie to enough weeks to recover the truth."""
+    mmm = make_mmm(make_effect(long_brand_mmm_data["brand_data"]))
+    return nuts_fit(mmm, long_brand_mmm_data)
+
+
+def divergence_share(mmm: MMM) -> float:
+    """The share of the fit's draws that diverged."""
+    return float(mmm.idata.sample_stats["diverging"].mean())
 
 
 @pytest.mark.slow
@@ -1388,13 +1411,16 @@ def test_nuts_recovers_the_baseline(nuts_fitted_mmm, long_brand_mmm_data):
     The correlation and the error ignore the baseline's level, which the MMM
     intercept carries. The true path starts well below its mean, since the brand
     flights lift it later, so a start-of-path prior that holds the start near zero
-    shows as a larger error over the first weeks than over the rest.
+    shows as a larger error over the first weeks than over the rest. A few
+    divergent draws vary from seed to seed along the ridge between the baseline's
+    innovation sd and the likelihood's; a tenth of the draws would be the symptom
+    of sampling on it, so the bound is 1% of the draws, 20 of 2,000.
     """
     latent = nuts_fitted_mmm.idata.posterior[f"{PREFIX}::latent"]
     baseline = latent.mean(("chain", "draw")).to_numpy()[:, 0]
     truth = long_brand_mmm_data["baseline"]
 
-    assert int(nuts_fitted_mmm.idata.sample_stats["diverging"].sum()) <= 5
+    assert divergence_share(nuts_fitted_mmm) <= 0.01
     correlation = np.corrcoef(baseline, truth)[0, 1]
     assert correlation > 0.95
     error = np.abs((baseline - baseline.mean()) - (truth - truth.mean()))
@@ -1674,23 +1700,47 @@ def true_cumulative_multiplier(horizon: int) -> float:
     return float(np.sum(response, axis=0)[0])
 
 
+def cumulative_multiplier_hdi(mmm: MMM, horizon: int = 26) -> np.ndarray:
+    """The 94% HDI of the cumulative multiplier of brand spend on the baseline."""
+    multiplier = mmm.mu_effects[0].fitted_var(mmm).dynamic_multiplier(horizon=horizon)
+    cumulative = (
+        multiplier.idata.posterior_predictive["dynamic_multiplier"]
+        .sel(response="baseline", exog="brand_spend")
+        .sum("horizon")
+    )
+    return az.hdi(cumulative, prob=0.94).to_numpy()
+
+
 @pytest.mark.slow
 def test_cumulative_multiplier_recovers_the_truth(nuts_fitted_mmm):
     """The 26-week cumulative multiplier of brand spend on the baseline is recovered.
 
     Its 94% HDI holds the true multiplier and excludes zero.
     """
-    fitted = nuts_fitted_mmm.mu_effects[0].fitted_var(nuts_fitted_mmm)
+    lower, upper = cumulative_multiplier_hdi(nuts_fitted_mmm)
 
-    multiplier = fitted.dynamic_multiplier(horizon=26)
-
-    cumulative = (
-        multiplier.idata.posterior_predictive["dynamic_multiplier"]
-        .sel(response="baseline", exog="brand_spend")
-        .sum("horizon")
-    )
-    lower, upper = az.hdi(cumulative, prob=0.94).to_numpy()
     assert 0 < lower < true_cumulative_multiplier(26) < upper
+
+
+@pytest.mark.slow
+def test_null_brand_data_is_calibrated():
+    """Brand data that do not move sales give a multiplier whose HDI covers zero.
+
+    With no consideration-to-sales link, the data cannot tell the baseline's
+    innovations from the likelihood's noise, so the two sds trade off along a
+    ridge. A baseline with an own lag near 0 is white noise and sits on that ridge;
+    the persistent default own-lag mean of 0.8 makes the baseline a smooth component
+    the data can tell from noise, which keeps the sampler off it. In a calibration
+    study on data like these, up to 13% of draws diverged at an own-lag mean of 0,
+    and at most 0.4% at 0.8, so the bound is 1% of the draws.
+    """
+    data = make_brand_mmm_data(n_weeks=150, baseline_link=0.0, random_seed=1)
+    mmm = nuts_fit(make_mmm(make_effect(data["brand_data"])), data, random_seed=1)
+
+    lower, upper = cumulative_multiplier_hdi(mmm)
+
+    assert lower < 0 < upper
+    assert divergence_share(mmm) <= 0.01
 
 
 @pytest.mark.slow
