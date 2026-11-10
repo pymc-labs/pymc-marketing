@@ -1289,6 +1289,170 @@ def build(prior, coords=COORDS):
     return model, beta
 
 
+def nested_over(n_parents, children=4, label=lambda i: f"f{i}"):
+    """A prior with a brand term within a family term, `children` brands per family, and its coords."""
+    brands = [f"b{i}" for i in range(n_parents * children)]
+    fam = {b: label(i // children) for i, b in enumerate(brands)}
+    terms = {"family": {}, "brand": {"within": "family", "map": fam}}
+    return nzs(terms), {**COORDS, "brand": brands}
+
+
+@pytest.mark.parametrize(
+    ("terms", "interactions", "message"),
+    [
+        (
+            {"a/b": {}, "c": {}},
+            None,
+            "term names ['a/b'] contain '/', which is not allowed in a variable name",
+        ),
+        (
+            {"a": {}, "c": {}},
+            {"a/x/c": {"dims": ["a", "c"]}},
+            "interaction names ['a/x/c'] contain '/', which is not allowed in a variable name",
+        ),
+    ],
+    ids=["term", "interaction"],
+)
+def test_a_slash_in_a_term_or_interaction_name_fails_at_construction(
+    terms, interactions, message
+):
+    # these names are part of the variable names; pymc only fails on them once the model is partly built
+    with pytest.raises(ValueError, match=f"^{re.escape(message)}$"):
+        nzs(terms, interactions)
+
+
+def test_parent_labels_are_not_used_in_variable_names():
+    # a '/' in a parent label (`Food/Bev`, `N/A`) is not allowed in a pymc variable name
+    prior, coords = nested_over(2, label=lambda i: ["Food/Bev", "N/A"][i])
+    model, _ = build(prior, coords)
+    assert sorted(model.named_vars) == [
+        "beta",
+        "beta_brand",
+        "beta_brand_raw",
+        "beta_brand_raw_offset",
+        "beta_family",
+        "beta_family_offset",
+        "beta_mu",
+        "beta_sigma",
+        "beta_sigma_brand",
+        "beta_sigma_family",
+    ]
+    assert model.named_vars_to_dims["beta_brand"] == ("channel", "brand")
+    # the parent labels are only labels of the `family` coord
+    assert model.coords["family"] == ("Food/Bev", "N/A")
+
+
+def test_the_number_of_free_rvs_does_not_grow_with_the_number_of_parents():
+    def n_free_rvs(n_parents):
+        model, _ = build(*nested_over(n_parents))
+        return len(model.free_RVs), len(model.coords)
+
+    # beta_mu, the two level scales, the family offset and the one Normal of the brands; the coords are the
+    # model's channel, brand and dma, the parents `family` and the level dim
+    assert n_free_rvs(5) == n_free_rvs(40) == (5, 5)
+
+
+def grouped_offset(scale=0.5, centered=True):
+    from pymc_marketing.special_priors import _GroupedZeroSumOffset
+
+    brands = [f"b{i}" for i in range(7)]
+    codes = np.array([0, 0, 0, 0, 1, 1, 2])  # parents with 4, 2 and 1 children
+    offset = _GroupedZeroSumOffset(
+        scale=scale,
+        centered=centered,
+        dims=("channel", "brand"),
+        child_dim="brand",
+        codes=codes,
+    )
+    return offset, {"channel": ["c0", "c1"], "brand": brands}, codes
+
+
+@pytest.mark.parametrize("centered", [True, False])
+def test_a_grouped_offset_is_zero_sum_in_each_group_with_the_zero_sum_scale(centered):
+    offset, coords, codes = grouped_offset(scale=0.5, centered=centered)
+    assert isinstance(offset, VariableFactory)
+    draws = sample_prior(offset, coords=coords, draws=20_000, random_seed=0)[
+        "variable"
+    ].values.squeeze(0)  # (draw, channel, brand)
+    for g in np.unique(codes):
+        assert np.abs(draws[..., codes == g].sum(-1)).max() < 1e-10
+    n = np.bincount(codes)[codes]
+    np.testing.assert_allclose(
+        draws.std(axis=(0, 1)), 0.5 * np.sqrt(1 - 1 / n), atol=0.01
+    )
+
+
+FAM_STR = {"b0": "z", "b1": "a", "b2": "a", "b3": "m"}  # str parents, one lone child
+
+
+@pytest.mark.parametrize(
+    ("terms", "term", "parent", "expected"),
+    [
+        (NEST, "brand", 0, ["b0", "b1"]),  # int parents
+        (NEST, "brand", 1, ["b2", "b3"]),
+        (
+            {"family": {}, "brand": {"within": "family", "map": FAM_STR}},
+            "brand",
+            "z",
+            ["b0"],  # a lone child
+        ),
+        (
+            {"family": {}, "brand": {"within": "family", "map": FAM_STR}},
+            "brand",
+            "a",
+            ["b1", "b2"],
+        ),
+    ],
+    ids=["int_parent_0", "int_parent_1", "lone_child", "str_parent"],
+)
+def test_children_are_the_labels_of_a_term_under_one_parent(
+    terms, term, parent, expected
+):
+    assert nzs(terms).children(term, parent) == expected
+
+
+@pytest.mark.parametrize(
+    ("term", "parent", "match"),
+    [
+        ("dma", 0, r"unknown term 'dma'; terms: \['family', 'brand'\]"),
+        ("family", 0, r"term family has no `within`, so it has no parents"),
+        ("brand", 7, r"term brand has no parent 7; parents: \[0, 1\]"),
+    ],
+    ids=["unknown_term", "term_without_parents", "unknown_parent"],
+)
+def test_children_name_the_problem(term, parent, match):
+    with pytest.raises(ValueError, match=match):
+        nzs(NEST).children(term, parent)
+
+
+def test_children_select_one_parents_offsets_from_the_draws():
+    prior = nzs(NEST, transform=None)
+    with pm.Model(coords=COORDS):
+        prior.create_variable("beta", xdist=True)
+        prior_draws = pm.sample_prior_predictive(draws=20, random_seed=0).prior
+    brands = prior.children("brand", 0)
+    offsets = prior_draws["beta_brand"].sel(brand=brands)
+    assert offsets.sizes["brand"] == len(brands) == 2
+    assert abs(offsets.sum("brand")).max() < 1e-12  # zero-sum within the parent
+
+
+def test_a_grouped_offset_is_distributed_as_a_zero_sum_normal_per_group():
+    # the same distribution as one ZeroSumNormal per group; the variables and the graph differ
+    offset, coords, codes = grouped_offset(scale=0.5)
+    draws = sample_prior(offset, coords=coords, draws=40_000, random_seed=0)[
+        "variable"
+    ].values.squeeze(0)[:, 0, :]  # (draw, child), one channel
+    for group, n in ((0, 4), (1, 2)):  # the group of one child is 0
+        reference = pm.draw(
+            pm.ZeroSumNormal.dist(sigma=0.5, shape=n), 40_000, random_seed=1
+        )
+        np.testing.assert_allclose(
+            np.cov(draws[:, codes == group].T), np.cov(reference.T), atol=0.01
+        )
+    covariance = np.cov(draws.T)  # the groups are independent
+    assert np.abs(covariance[np.ix_(codes == 0, codes == 1)]).max() < 0.01
+
+
 @pytest.mark.parametrize(
     "sigma",
     [
@@ -1800,20 +1964,9 @@ GROUPED = {  # one parent term, two children within it
             r"model coord 'tier' has labels \['t0', 't1', 't2'\], but beta needs the labels \[0, 1, 2\]",
         ),
         (
-            lambda: nzs(NEST, {"brand_0": {"dims": ["brand"]}}),
+            lambda: nzs(NEST, {"brand_raw": {"dims": ["brand"]}}),
             COORDS,
-            r"RV or coord names \['beta_brand_0'\] are generated twice",
-        ),
-        (  # the children of parent `dma` of term `beta` get the coord beta_dma, the name of the dma offset
-            lambda: nzs(
-                {
-                    "grp": {},
-                    "beta": {"within": "grp", "map": {"x0": "dma", "x1": "dma"}},
-                    "dma": {},
-                }
-            ),
-            COORDS | {"beta": ["x0", "x1"]},
-            r"RV or coord names \['beta_dma'\] are generated twice",
+            r"RV or coord names \['beta_brand_raw'\] are generated twice",
         ),
         (  # beta_sigma_brand is made inside the IndependentSigmas: pymc's own error
             lambda: nzs({"sigma_brand": {}, "brand": {}}),
@@ -1926,7 +2079,6 @@ GROUPED = {  # one parent term, two children within it
         "interaction_named_like_term",
         "parent_is_coord",
         "rv_name_collision",
-        "coord_name_collision",
         "sigma_name_collision",
         "sigma_is_not_a_prior",
         "sigma_with_the_level_dim",
@@ -2036,12 +2188,15 @@ def test_a_str_dims_of_a_mu_factory_is_one_dim():
 
 
 def test_offsets_have_named_dims():
-    # were `*_dim_0`: parents, crossed terms and interactions are on model coords, children on `<term>_<label>`
+    # were `*_dim_0`: parents, crossed terms and interactions are on model coords, children on their own coord
     model, _ = build(nzs(NEST | {"dma": {}}, {"brand_dma": {"dims": ["brand", "dma"]}}))
     assert model.named_vars_to_dims["beta_family"] == ("channel", "family")
-    assert model.named_vars_to_dims["beta_brand_0"] == ("channel", "brand_0")
+    assert model.named_vars_to_dims["beta_brand"] == ("channel", "brand")
     assert model.named_vars_to_dims["beta_brand_dma"] == ("channel", "brand", "dma")
-    assert model.coords["family"] == (0, 1) and model.coords["brand_1"] == ("b2", "b3")
+    assert model.coords["family"] == (0, 1)
+    assert not [
+        c for c in model.coords if c.startswith("brand_")
+    ]  # no coord per parent
     with model:
         idata = pm.sample_prior_predictive(draws=2, random_seed=1)
     assert all(
@@ -2135,8 +2290,15 @@ def test_equivalent_priors_are_equal_and_hash_equal(a, b):
 def test_parent_effect_false_builds_nesting_without_the_parent_term():
     terms = {"dma": {"within": "tier", "map": TIER, "parent_effect": False}}
     model, _ = build(nzs(terms))
-    assert "beta_tier" not in model.named_vars
-    assert {f"beta_dma_{p}" for p in range(3)} <= set(model.named_vars)
+    assert sorted(model.named_vars) == [
+        "beta",
+        "beta_dma",
+        "beta_dma_raw",
+        "beta_dma_raw_offset",
+        "beta_mu",
+        "beta_sigma",
+        "beta_sigma_dma",
+    ]  # no beta_tier
 
 
 # --- Properties of the built prior --------------------------------------------
@@ -2194,6 +2356,11 @@ def log_beta_fn(model, beta):
     return lambda values: fn(*(values[rv.name] for rv in model.free_RVs))
 
 
+def level_rv(level, rv_name):
+    """Whether the free RV is one of `level`'s: its offset, its raw Normal, or their standardized forms."""
+    return re.fullmatch(rf"beta_{level}(_raw)?(_offset)?", rv_name) is not None
+
+
 def term_only(model, beta, level, n=20):
     """Level `level`'s contribution to log beta alone, on n prior draws: (draw, brand, dma, channel).
 
@@ -2203,8 +2370,10 @@ def term_only(model, beta, level, n=20):
     names = [rv.name for rv in model.free_RVs]
     draws = dict(zip(names, pm.draw(model.free_RVs, n, random_seed=1), strict=True))
 
-    def keep(rv_name):  # beta_brand, beta_brand_0, beta_brand_a; not beta_brand_dma
-        return "sigma" in rv_name or re.fullmatch(rf"beta_{level}(_\w)?", rv_name)
+    def keep(
+        rv_name,
+    ):  # beta_brand, beta_brand_raw, beta_brand_raw_offset; not beta_brand_dma
+        return "sigma" in rv_name or level_rv(level, rv_name)
 
     return np.stack(
         [
@@ -2276,28 +2445,31 @@ def test_each_cell_gets_its_own_parent_and_child_offsets(
     def scale(level):
         return 1.0 if centered else v[f"beta_sigma_{level}"]
 
+    def rv(level, raw=False):  # the free RV a level's offset is made from
+        return (
+            f"beta_{level}" + ("_raw" if raw else "") + ("" if centered else "_offset")
+        )
+
     families = list(np.unique(list(fam.values())))
     tiers = list(np.unique(list(tier.values())))
+    raw_brand = scale("brand") * v[rv("brand", raw=True)]  # (channel, brand)
+    raw_dma = scale("dma") * v[rv("dma", raw=True)]  # (channel, dma)
     expected = np.zeros((len(brands), len(dmas), 3))
     for i, b in enumerate(brands):
         for j, d in enumerate(dmas):
-            # siblings, in coord order
-            sib_b = [x for x in brands if fam[x] == fam[b]]
-            sib_d = [x for x in dmas if tier[x] == tier[d]]
+            # siblings, in coord order, itself included: a child is its raw value less its siblings' mean
+            sib_b = [k for k, x in enumerate(brands) if fam[x] == fam[b]]
+            sib_d = [k for k, x in enumerate(dmas) if tier[x] == tier[d]]
             expected[i, j] = (
                 v["beta_mu"]
-                + scale("family") * v["beta_family"][:, families.index(fam[b])]
-                + scale("tier") * v["beta_tier"][:, tiers.index(tier[d])]
-                + scale("brand_dma") * v["beta_brand_dma"][:, i, j]
+                + scale("family") * v[rv("family")][:, families.index(fam[b])]
+                + scale("tier") * v[rv("tier")][:, tiers.index(tier[d])]
+                + scale("brand_dma") * v[rv("brand_dma")][:, i, j]
+                + raw_brand[:, i]
+                - raw_brand[:, sib_b].mean(axis=1)
+                + raw_dma[:, j]
+                - raw_dma[:, sib_d].mean(axis=1)
             )
-            if len(sib_b) > 1:
-                expected[i, j] += (
-                    scale("brand") * v[f"beta_brand_{fam[b]}"][:, sib_b.index(b)]
-                )
-            if len(sib_d) > 1:
-                expected[i, j] += (
-                    scale("dma") * v[f"beta_dma_{tier[d]}"][:, sib_d.index(d)]
-                )
     assert np.abs(log_beta_fn(model, beta)(v) - expected).max() < 1e-12
 
 
@@ -2397,10 +2569,7 @@ def test_single_variable_sigma_entry_i_scales_level_i(prior):
     for i, lv in enumerate(levels):
         draws["beta_sigma"] = np.eye(len(levels))[i]
         assert np.abs(fn(draws)).max() > 1e-3
-        own_zeroed = {
-            k: 0 * v if re.fullmatch(rf"beta_{lv}(_\w)?", k) else v
-            for k, v in draws.items()
-        }
+        own_zeroed = {k: 0 * v if level_rv(lv, k) else v for k, v in draws.items()}
         assert np.abs(fn(own_zeroed)).max() == 0
 
 
@@ -2610,11 +2779,27 @@ def test_mmm_builds_with_the_prior_on_saturation_beta(panel, dims):
     assert mmm.model.named_vars_to_dims["saturation_beta_sigma"] == (
         "saturation_beta_sigma_level",
     )
-    assert {"saturation_beta_family", "saturation_beta_brand_f0"} <= set(
-        mmm.model.named_vars
-    )
-    # f1 has one brand, so there is no zero-sum vector for it
-    assert "saturation_beta_brand_f1" not in mmm.model.named_vars
+    # one offset per term, whatever the number of parents, and no parent label in a name
+    assert sorted(
+        v for v in mmm.model.named_vars if v.startswith("saturation_beta")
+    ) == [
+        "saturation_beta",
+        "saturation_beta_brand",
+        "saturation_beta_brand_dma",
+        "saturation_beta_brand_dma_offset",
+        "saturation_beta_brand_raw",
+        "saturation_beta_brand_raw_offset",
+        "saturation_beta_dma",
+        "saturation_beta_dma_offset",
+        "saturation_beta_family",
+        "saturation_beta_family_offset",
+        "saturation_beta_mu",
+        "saturation_beta_sigma",
+        "saturation_beta_sigma_brand",
+        "saturation_beta_sigma_brand_dma",
+        "saturation_beta_sigma_dma",
+        "saturation_beta_sigma_family",
+    ]
     assert np.all(pm.draw(beta, 10, random_seed=1) > 0)
 
 

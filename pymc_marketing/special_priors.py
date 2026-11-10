@@ -1457,6 +1457,63 @@ class VarianceBudget:
         return sigma if xdist else sigma.values
 
 
+class _GroupedZeroSumOffset:
+    r"""An offset over ``child_dim`` that sums to zero within each group of children, one ``Normal`` in all.
+
+    A pymc_extras ``VariableFactory`` built by :class:`NestedZeroSumPrior`. Subtracting its group mean from a
+    ``Normal`` vector has the distribution of one ``ZeroSumNormal`` per group, without one variable per group:
+    the number of variables does not depend on the number of groups, and no group label becomes a name.
+    The group mean is a product with the one-hot matrix of the groups, so its size is the number of
+    children times the number of groups. A group with one child is 0.
+
+    Parameters
+    ----------
+    scale : float or XTensorVariable
+        The scale of the ``Normal`` before the group mean is removed, so an entry of a group of
+        :math:`n` children has the standard deviation :math:`scale \sqrt{1 - 1/n}`.
+    centered : bool
+        The parameterization of the ``Normal``, as in ``Prior(..., centered=...)``.
+    dims : tuple[str, ...]
+        The dims of the offset, including ``child_dim``.
+    child_dim : str
+        The dim of the children.
+    codes : array-like of int
+        The group of each child, from 0, in the order of the labels of ``child_dim``.
+    """
+
+    def __init__(
+        self,
+        scale: float | XTensorVariable,
+        centered: bool,
+        dims: tuple[str, ...],
+        child_dim: str,
+        codes: ArrayLike,
+    ) -> None:
+        self.scale, self.centered = scale, centered
+        self.dims, self.child_dim = tuple(dims), child_dim
+        self.codes = np.asarray(codes)
+
+    def create_variable(
+        self, name: str, xdist: bool = False
+    ) -> TensorVariable | XTensorVariable:
+        """Create the offset as ``name``, from the ``Normal`` ``<name>_raw``."""
+        group_dim = f"_{self.child_dim}_group"  # only in the graph, not a model coord
+        onehot = as_xtensor(
+            np.eye(self.codes.max() + 1)[self.codes], dims=(self.child_dim, group_dim)
+        )
+        raw = Prior(
+            "Normal", mu=0, sigma=self.scale, centered=self.centered, dims=self.dims
+        ).create_variable(f"{name}_raw", xdist=True)
+        group_mean = pmd.dot(raw, onehot, dim=self.child_dim) / onehot.sum(
+            self.child_dim
+        )
+        offset = pmd.Deterministic(
+            name,
+            (raw - pmd.dot(group_mean, onehot, dim=group_dim)).transpose(*self.dims),
+        )
+        return offset if xdist else offset.values
+
+
 def _non_scalar_params(prior: Prior, path: str) -> list[str]:
     """Return the parameters of ``prior``, and of the priors inside it, that hold more than one value."""
     found = []
@@ -1615,9 +1672,12 @@ class NestedZeroSumPrior:
         + \text{brand×dma}_{b,d,c},
         \qquad \beta = \exp(\eta)
 
-    Every offset is a ``ZeroSumNormal``: a child term is zero-sum inside each of
-    its parents, a parent or crossed term over its labels, and an interaction
-    over each of its dims. The zero-sum constraints remove the ridge between
+    Every offset is zero-sum: a child term inside each of its parents, a parent
+    or crossed term over its labels, and an interaction over each of its dims.
+    A parent, crossed term or interaction is a ``ZeroSumNormal``. A child term
+    is one ``Normal`` over all the children with the mean of each parent's
+    children removed, which has the distribution of one ``ZeroSumNormal`` per
+    parent, without one variable per parent. The zero-sum constraints remove the ridge between
     levels (a parent and the mean of its children cannot trade a shared shift).
     With the default ``transform="exp"``, ``exp`` is applied once, so the
     coefficient is positive without stacking positive distributions; with
@@ -1639,10 +1699,11 @@ class NestedZeroSumPrior:
         ``parent_effect``) is also accepted, as YAML and JSON configs give it.
         A term is one of three kinds:
 
-        - A model coord with ``within``: zero-sum inside each parent. Creates one
-          ``<name>_<term>_<parent label>`` per parent with at least two children,
-          on the coord ``<term>_<parent label>`` of its children (added to the
-          model); a lone child has offset 0.
+        - A model coord with ``within``: zero-sum inside each parent. Creates the
+          ``Normal`` ``<name>_<term>_raw`` and the offset ``<name>_<term>``, on
+          the coord ``<term>``: the number of variables does not depend on the
+          number of parents, and no parent label is part of a name. A lone child
+          has offset 0.
         - A model coord without ``within``: zero-sum over the coord. Creates
           ``<name>_<term>``.
         - Not a model coord: a parent, zero-sum over its labels (the values of
@@ -1652,6 +1713,8 @@ class NestedZeroSumPrior:
 
         Nesting is at most two levels per tree: a ``within`` parent cannot
         itself be ``within`` another term, so region > tier > DMA raises.
+        The labels of terms and interactions are part of variable names, so they cannot contain ``/``
+        (the parent labels, the values of a ``map``, can).
     sigma : IndependentSigmas, VarianceBudget or Prior
         The scales of the levels, the term and interaction labels. A
         single-variable factory: called as ``<name>_sigma``, it returns one
@@ -1680,6 +1743,8 @@ class NestedZeroSumPrior:
     centered : bool, default False
         Parameterization of the levels that do not set ``centered``. Centered is
         ``ZeroSumNormal(sigma)``, non-centered ``sigma * ZeroSumNormal(1)``.
+        A child term (``within``) is drawn the same way as a ``Normal``, before each parent's mean is removed.
+        Prefer the default for child terms: see the Notes.
     dims : tuple[str, ...], optional
         The dims of the coefficient, in any order: the hierarchy dims (the
         model-coord terms and the interaction dims) and at most one base dim,
@@ -1704,6 +1769,26 @@ class NestedZeroSumPrior:
     "already exists" error. A level whose offsets are all 0 (every parent has
     one child, or a parent term, a crossed term or an interaction dim has one
     label) warns that its scale is unused.
+
+    A child term (``within``) is one ``Normal`` over all of its children, with the mean of each parent's children
+    removed, not one ``ZeroSumNormal`` per parent.
+    It has the distribution of the per-parent form: the group of :math:`n` children has the covariance
+    :math:`\sigma^2 (I - \mathbf{1}\mathbf{1}^\top / n)` of a ``ZeroSumNormal``, and the groups are independent.
+    Only the variables differ, not the distribution of the offsets.
+    The number of variables does not depend on the number of parents, and no parent label is part of a variable or
+    coord name.
+    To select the offsets of one parent from the draws, use :meth:`children`.
+    The group means are a product with the one-hot matrix of the groups, which has as many entries as children times
+    parents: small for hundreds, but it grows with both.
+
+    The mean direction of each parent is not informed by the data.
+    With ``centered=True`` its prior scale is the ``sigma`` of the level, which couples it to the scale being learned.
+    In a simulation study (informative data, four seeds, NUTS), centered child terms gave the level scales
+    (``<name>_sigma``) about half the effective sample size of one ``ZeroSumNormal`` per parent.
+    The coefficient itself sampled as well or better, and there were no divergences.
+    Non-centered child terms, the default, sampled the scales as well as the per-parent form.
+    Prefer ``centered=False`` for child terms, as usual for hierarchies with little data per label.
+    The study used one model shape and informative data, and sparse data was not tested.
 
     Examples
     --------
@@ -1845,6 +1930,11 @@ class NestedZeroSumPrior:
         self.interactions: dict[str, Interaction] = {
             k: Interaction.coerce(k, t) for k, t in dict(interactions or {}).items()
         }
+        for kind, labels in (("term", self.terms), ("interaction", self.interactions)):
+            if slashed := [k for k in labels if "/" in k]:  # part of variable names
+                raise ValueError(
+                    f"{kind} names {slashed} contain '/', which is not allowed in a variable name"
+                )
         self.mu, self.sigma = _as_prior(mu), _as_prior(sigma)
         if not hasattr(
             self.mu, "create_variable"
@@ -2008,7 +2098,7 @@ class NestedZeroSumPrior:
                 f"constant mu has shape {np.shape(mu)}; expected () or {n_base}, one value per {base} label"
             )
         parents = {t.within for t in terms.values()}
-        # The coords this prior adds: the levels, each parent term's labels, and the children of each parent
+        # The coords this prior adds: the levels, and each parent term's labels
         new_coords = [
             (level_dim, levels),
             *(
@@ -2016,34 +2106,20 @@ class NestedZeroSumPrior:
                 for c, t in terms.items()
                 if t.within in terms
             ),
-            *(
-                (f"{c}_{lab}", np.asarray(coords[c])[codes == p].tolist())
-                for c, (labels, codes) in groups.items()
-                for p, lab in enumerate(labels)
-                if np.sum(codes == p) > 1
-            ),
         ]
         for k, labs in new_coords:
             if k in coords and not np.array_equal(labs, coords[k]):
                 raise ValueError(
                     f"model coord {k!r} has labels {list(coords[k])}, but {name} needs the labels {labs} "
-                    "(the sigma levels: terms, then interactions; a `within` parent's labels; or one parent's children)"
+                    "(the sigma levels: terms, then interactions; or a `within` parent's labels)"
                 )
         # The RV and coord names this prior generates, checked before any exists; names in mu and sigma are pymc's
         names = [
             name,
-            *(
-                f"{name}_{k}"
-                for k, t in specs.items()
-                if getattr(t, "within", None) is None
-            ),
+            *(f"{name}_{k}" for k in specs),
+            *(f"{name}_{c}_raw" for c in groups),
             f"{name}_sigma",
             *([f"{name}_mu"] if hasattr(mu, "create_variable") else []),
-            *(
-                f"{name}_{c}_{lab}"
-                for c, (labels, codes) in groups.items()
-                for lab in labels[np.bincount(codes) > 1]
-            ),
             *(k for k, _ in new_coords),
         ]
         if duplicates := sorted({r for r in names if names.count(r) > 1}):
@@ -2092,20 +2168,23 @@ class NestedZeroSumPrior:
                 f"one scale per level {levels}; got dims {got}"
             )
 
-        def zero_sum(level, rv_name, dims, core_dims):
+        def offset_args(level):  # the scale and the parameterization of one level
             centered = (
                 self.centered
                 if specs[level].centered is None
                 else specs[level].centered
             )
-            scale = sigma.isel({level_dim: levels.index(level)})
-            offset = pmd.ZeroSumNormal(
-                f"{name}_{rv_name}",
-                sigma=scale if centered else 1.0,
+            return sigma.isel({level_dim: levels.index(level)}), centered
+
+        def zero_sum(level, dims, core_dims):
+            scale, centered = offset_args(level)
+            return Prior(
+                "ZeroSumNormal",
+                sigma=scale,
+                centered=centered,
                 core_dims=core_dims,
                 dims=dims,
-            )
-            return offset if centered else scale * offset
+            ).create_variable(f"{name}_{level}", xdist=True)
 
         eta = as_xtensor(  # beta before the transform; a constant mu is a float or one value per base label
             mu.create_variable(f"{name}_mu", xdist=True)
@@ -2115,41 +2194,87 @@ class NestedZeroSumPrior:
         )
         for c, t in terms.items():
             if t.within is not None:
-                labels, codes = groups[c]
-                counts = np.bincount(codes)
-                # one zero-sum vector per parent with several children, joined along `c`; lone children are 0
-                pieces, positions = [], []
-                for p in np.flatnonzero(counts > 1):
-                    child_dim = f"{c}_{labels[p]}"
-                    piece = zero_sum(c, child_dim, (*base, child_dim), (child_dim,))
-                    pieces.append(piece.rename({child_dim: c}).transpose(*base, c))
-                    positions.append(np.flatnonzero(codes == p))
-                if len(lone := np.flatnonzero(counts[codes] == 1)):
-                    pieces.append(
-                        as_xtensor(pt.zeros((*n_base, len(lone))), dims=(*base, c))
-                    )
-                    positions.append(lone)
-                # back to the coord order of `c`
-                offset = pmd.concat(pieces, dim=c).isel(
-                    {c: np.argsort(np.concatenate(positions))}
-                )
+                codes = groups[c][1]
+                scale, centered = offset_args(c)
+                offset = _GroupedZeroSumOffset(
+                    scale=scale,
+                    centered=centered,
+                    dims=(*base, c),
+                    child_dim=c,
+                    codes=codes,
+                ).create_variable(f"{name}_{c}", xdist=True)
                 if t.within in terms:  # otherwise parent_effect is False (__init__)
-                    parent = zero_sum(
-                        t.within, t.within, (*base, t.within), (t.within,)
-                    )
+                    parent = zero_sum(t.within, (*base, t.within), (t.within,))
                     offset = offset + parent.isel({t.within: codes}).rename(
                         {t.within: c}
                     )
                 eta = eta + offset
             elif c not in parents:
-                eta = eta + zero_sum(c, c, (*base, c), (c,))
+                eta = eta + zero_sum(c, (*base, c), (c,))
         for k, x in interactions.items():
-            eta = eta + zero_sum(k, k, (*base, *x.dims), tuple(x.dims))
+            eta = eta + zero_sum(k, (*base, *x.dims), tuple(x.dims))
         beta = eta.transpose(*self.dims)
         if self.transform is not None:
             beta = _get_transform(self.transform, xdist=True)(beta)
         beta = pmd.Deterministic(name, beta)
         return beta if xdist else beta.values
+
+    def children(self, term: str, parent: Any) -> list[str]:
+        """Return the labels of ``term`` that are under one parent, from the ``map`` of the term.
+
+        The offsets of a child term are one variable over all of its labels, so this selects the ones of a parent.
+
+        Parameters
+        ----------
+        term : str
+            A term with ``within``.
+        parent : label
+            A parent label, a value of the ``map`` of ``term``.
+
+        Returns
+        -------
+        list[str]
+            The labels of ``term``, in the order of its ``map``. They are strings, as the keys of a ``map`` are.
+
+        Raises
+        ------
+        ValueError
+            If ``term`` is not a term, has no ``within``, or ``parent`` is not one of its parents.
+
+        Examples
+        --------
+        .. code-block:: python
+
+            beta = NestedZeroSumPrior(
+                mu=Prior("Normal", dims="channel"),
+                terms={
+                    "family": {},
+                    "brand": {
+                        "within": "family",
+                        "map": {"b0": "f0", "b1": "f0", "b2": "f1"},
+                    },
+                },
+                sigma=IndependentSigmas(
+                    {lv: Prior("HalfNormal") for lv in ("family", "brand")}
+                ),
+                dims=("brand", "channel"),
+            )
+            beta.children("brand", "f0")  # ["b0", "b1"]
+
+            # the offsets of one family, from the draws of a model that has the prior as ``beta``
+            idata.prior["beta_brand"].sel(brand=beta.children("brand", "f0"))
+        """
+        if term not in self.terms:
+            raise ValueError(f"unknown term {term!r}; terms: {list(self.terms)}")
+        spec = self.terms[term]
+        if spec.within is None or spec.map is None:
+            raise ValueError(f"term {term} has no `within`, so it has no parents")
+        if parent not in spec.map.values():
+            parents = sorted(set(spec.map.values()), key=str)
+            raise ValueError(
+                f"term {term} has no parent {parent!r}; parents: {parents}"
+            )
+        return [child for child, p in spec.map.items() if p == parent]
 
     def to_dict(self) -> dict:
         """Serialize to a dictionary of plain values (terms and interactions as plain dicts)."""
