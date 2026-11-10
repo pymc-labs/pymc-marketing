@@ -1114,6 +1114,30 @@ def test_load_mmm_replaces_a_stale_zarr_download(fitted_mmm_run, tmp_path) -> No
     assert not (stale / "leftover.txt").exists()
 
 
+@pytest.mark.parametrize(
+    "affected, artifact, artifact_uri, warns",
+    [
+        (True, "idata.zarr", "mlflow-artifacts:/1/abc/artifacts", True),
+        (True, "idata.zarr", "https://host/api/2.0/mlflow-artifacts/1/abc", True),
+        (True, "idata.zarr", "file:///tmp/mlruns/1/abc/artifacts", False),
+        (True, "idata.nc", "mlflow-artifacts:/1/abc/artifacts", False),
+        (False, "idata.zarr", "mlflow-artifacts:/1/abc/artifacts", False),
+    ],
+    ids=["proxied", "http", "local", "netcdf", "fixed-mlflow"],
+)
+def test_warns_when_zarr_download_may_drop_chunks(
+    mocker, recwarn, affected, artifact, artifact_uri, warns
+) -> None:
+    mocker.patch.object(pmm_mlflow, "_MLFLOW_PROXY_DROPS_ZARR_CHUNKS", affected)
+    get_run = mocker.patch.object(pmm_mlflow.mlflow, "get_run")
+    get_run.return_value.info.artifact_uri = artifact_uri
+
+    pmm_mlflow._warn_if_zarr_download_may_drop_chunks("run", artifact)
+
+    matching = [w for w in recwarn if "mlflow/mlflow#27189" in str(w.message)]
+    assert len(matching) == int(warns)
+
+
 @pytest.mark.parametrize("idata_format", ["netcdf", "zarr"], indirect=True)
 def test_load_mmm_from_run_accepts_a_custom_artifact_name(
     idata_format, mmm, toy_X, toy_y, tmp_path
