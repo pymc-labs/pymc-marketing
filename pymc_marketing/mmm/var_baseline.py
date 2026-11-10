@@ -1196,9 +1196,8 @@ class VARBaselineEffect(MuEffect):
                 "the MMM's idata has no brand data for this effect: was the MMM "
                 "fitted with it?"
             )
-        return _read_columns(
-            idata[self._brand_data_group], [mmm.date_column, *self._column_names]
-        )
+        group = cast(xr.DataTree, idata[self._brand_data_group])
+        return _read_columns(group, [mmm.date_column, *self._column_names])
 
     def _fitted_var_data(self, mmm: "MMM", columns: pd.DataFrame) -> "VARData":
         """Return the data of the fitted VAR, on the MMM's dates.
