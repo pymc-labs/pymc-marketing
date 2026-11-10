@@ -53,6 +53,7 @@ from pymc_marketing.mmm.additive_effect import (
     MuEffect,
 )
 from pymc_marketing.mmm.budget_optimizer import BudgetOptimizer
+from pymc_marketing.mmm.counterfactual import CounterfactualEvaluator
 from pymc_marketing.mmm.events import EventEffect, GaussianBasis, HalfGaussianBasis
 from pymc_marketing.mmm.lift_test import (
     UnalignedValuesError,
@@ -2759,12 +2760,24 @@ class _FrozenPathEffect(_FrozenZeroEffect):
         return pmd.Deterministic(self.contribution_var_name, steps.cumsum("date"))
 
 
-def test_monthly_incrementality_cuts_a_frozen_path(simple_mmm_data, mock_pymc_sample):
+@pytest.mark.parametrize(
+    "max_batch_elements",
+    [
+        pytest.param(None, id="one-block"),
+        # Every draw is over the budget, so each is a block of its own.
+        pytest.param(1, id="a-block-per-draw"),
+    ],
+)
+def test_monthly_incrementality_cuts_a_frozen_path(
+    simple_mmm_data, mock_pymc_sample, monkeypatch, max_batch_elements
+):
     """A path frozen over the fitted dates is cut to each month's window.
 
     It does not depend on spend, so it adds nothing to the increment. Without
     carryover, each channel's increment on a month is its contribution summed over
-    that month, and the check that the increment is complete still passes.
+    that month, and the check that the increment is complete still passes. The
+    same holds when the counterfactual is streamed one block of draws at a time,
+    each block cutting the path from its own draws.
     """
     X, y = simple_mmm_data["X"], simple_mmm_data["y"]
     mmm = MMM(
@@ -2775,6 +2788,10 @@ def test_monthly_incrementality_cuts_a_frozen_path(simple_mmm_data, mock_pymc_sa
         saturation=LogisticSaturation(),
     ).add_mu_effect(_FrozenPathEffect())
     mmm.fit(X, y, draws=50, chains=1, random_seed=42)
+    if max_batch_elements is not None:
+        monkeypatch.setattr(
+            CounterfactualEvaluator, "MAX_BATCH_ELEMENTS", max_batch_elements
+        )
 
     with warnings.catch_warnings():
         warnings.filterwarnings("error", message=".*completeness", category=UserWarning)

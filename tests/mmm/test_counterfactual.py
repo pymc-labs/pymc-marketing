@@ -588,6 +588,85 @@ class TestDateIndexedInputs:
                     spend[scenario, :, 0] + expected[:, 1:4],
                 )
 
+    @pytest.mark.parametrize(
+        "max_elements",
+        [
+            pytest.param(100, id="runs-of-whole-chains"),
+            pytest.param(40, id="runs-of-draws-within-a-chain"),
+        ],
+    )
+    def test_streaming_cuts_a_frozen_path_from_each_block(self, max_elements):
+        """Each block of a streamed evaluation reads its own draws of a frozen path.
+
+        Every block rebinds the evaluator to its draws, so a path cut once from
+        the posterior bound at the call would pair every draw of the path with
+        one block's draws of ``beta``.  Joined, the blocks give the eager result,
+        and the posterior bound at the call evaluates as before once they end.
+        """
+        n_dates = len(self.dates)
+        with pm.Model(coords={"date": range(n_dates), "channel": ["c"]}) as model:
+            channel_data = pmd.Data(
+                "channel_data", np.ones((n_dates, 1)), dims=("date", "channel")
+            )
+            beta = pmd.Normal("beta")
+            path = pmd.Deterministic(
+                "path", pmd.Normal("steps", dims="date").cumsum("date")
+            )
+            pmd.Deterministic("channel_contribution", beta * channel_data + path)
+        rng = np.random.default_rng(20261110)
+        posterior = xr.Dataset(
+            {
+                "beta": (("chain", "draw"), rng.normal(size=(3, 5))),
+                "path": (("chain", "draw", "date"), rng.normal(size=(3, 5, n_dates))),
+            },
+            coords={"chain": [0, 1, 2], "draw": list(range(5))},
+        )
+        evaluator = CounterfactualEvaluator(
+            pymc_model=model,
+            posterior=posterior,
+            response_vars=["channel_contribution"],
+            frozen_deterministics=["path"],
+            dates=self.dates,
+        )
+        # One draw's outputs over every scenario are 20 elements (1 channel x 4
+        # dates x 5 scenarios), so the posterior holds 300.
+        windows = self._windows(slice(0, 4), slice(2, 6), max_window=4)
+        spend = rng.normal(size=(5, 4, 1))
+        scenarios = CounterfactualScenarios(
+            spend=spend,
+            period_index=np.array([0, 0, 1, 1, 1]),
+            rows={(0, None): 1, (1, None): 4},
+        )
+
+        eager = evaluator.evaluate_counterfactual(scenarios, windows=windows)
+        blocks = list(
+            evaluator.iter_counterfactual(
+                scenarios, windows=windows, max_elements=max_elements
+            )
+        )
+        restored = evaluator.evaluate_counterfactual(scenarios, windows=windows)
+
+        beta_draws = posterior["beta"].values.reshape(-1, 1)
+        path_draws = posterior["path"].values.reshape(-1, n_dates)
+        window_starts = np.array([0, 2])[scenarios.period_index]
+        expected = np.stack(
+            [
+                beta_draws * spend[scenario, :, 0] + path_draws[:, start : start + 4]
+                for scenario, start in enumerate(window_starts)
+            ]
+        )
+        np.testing.assert_allclose(eager["channel_contribution"][..., 0], expected)
+        assert len(blocks) > 1
+        joined = np.concatenate(
+            [block.outputs["channel_contribution"] for block in blocks], axis=1
+        )
+        np.testing.assert_allclose(
+            joined, eager["channel_contribution"], rtol=1e-12, atol=1e-12
+        )
+        np.testing.assert_array_equal(
+            restored["channel_contribution"], eager["channel_contribution"]
+        )
+
 
 def build_time_index_model(n_dates):
     """A minimal model whose graph actually reads ``time_index``.
