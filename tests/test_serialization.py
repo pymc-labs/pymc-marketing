@@ -379,6 +379,50 @@ class TestTypeRegistry:
         assert data == {"__type__": "my_package.MyEffect", "a": 2}
         assert second.deserialize(data).a == 2
 
+    @pytest.mark.parametrize(
+        "register_other",
+        [
+            lambda reg, cls: reg.register("my_package.MyEffect", cls),
+            lambda reg, cls: reg.register(cls, aliases=["my_package.MyEffect"]),
+        ],
+        ids=["key", "alias"],
+    )
+    def test_key_of_another_class_raises_without_registering(self, register_other):
+        from pymc_marketing.serialization import TypeRegistry
+
+        reg = TypeRegistry()
+        MyEffect = _make_effect_class()
+        reg.register("my_package.MyEffect", MyEffect)
+
+        class OtherEffect(MyEffect):
+            pass
+
+        with pytest.raises(ValueError, match="already loads"):
+            register_other(reg, OtherEffect)
+        assert not reg.is_registered(OtherEffect(1))
+        assert reg.lookup("my_package.MyEffect") is MyEffect
+
+    def test_redefined_class_takes_over_its_key(self):
+        """Re-running a notebook cell redefines the class under the same path."""
+        from pymc_marketing.serialization import TypeRegistry
+
+        reg = TypeRegistry()
+        reg.register("my_package.MyEffect", _make_effect_class())
+        Redefined = _make_effect_class()
+        reg.register("my_package.MyEffect", Redefined)
+
+        assert type(reg.deserialize(Redefined(2).to_dict())) is Redefined
+
+    def test_serializer_under_a_key_that_is_not_written_raises(self):
+        from pymc_marketing.serialization import TypeRegistry
+
+        reg = TypeRegistry()
+        MyEffect = _make_effect_class()
+        reg.register("my_package.MyEffect", MyEffect)
+
+        with pytest.raises(ValueError, match="would never be used"):
+            reg.register(MyEffect, serializer=lambda obj: {"b": obj.a})
+
     def test_model_config_uses_serializer_of_string_keyed_class(self):
         from pymc_marketing.serialization import TypeRegistry
 

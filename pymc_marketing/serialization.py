@@ -197,6 +197,16 @@ class TypeRegistry:
         -------
         type or callable
             The registered class, or a decorator when ``cls_or_key`` is ``None``.
+
+        Raises
+        ------
+        TypeError
+            If the arguments have the wrong type.
+        ValueError
+            If a key already loads a class with a different fully-qualified class
+            path (a redefined class with the same path, for example from re-running
+            a notebook cell, takes the key over), or if ``serializer`` is given
+            under a key that is not the one ``cls`` is written under.
         """
         if isinstance(aliases, str):
             raise TypeError(
@@ -223,23 +233,44 @@ class TypeRegistry:
                 f"First argument must be a class or string, got {type(cls_or_key)}"
             )
 
-        for key in (type_key, *aliases):
-            self._add(key, actual_cls, serializer=serializer, deserializer=deserializer)
+        written_key = self._keys.get(actual_cls, type_key)
+        if serializer is not None and written_key != type_key:
+            raise ValueError(
+                f"{_class_path(actual_cls)} is written under {written_key!r}, so a "
+                f"serializer registered under {type_key!r} would never be used. "
+                f"Register the serializer under {written_key!r} instead."
+            )
+        self._add(
+            (type_key, *aliases),
+            actual_cls,
+            serializer=serializer,
+            deserializer=deserializer,
+        )
         self._keys.setdefault(actual_cls, type_key)
         return actual_cls
 
     def _add(
         self,
-        type_key: str,
+        keys: Sequence[str],
         cls: type,
         *,
         serializer: Any = None,
         deserializer: Any = None,
     ) -> None:
-        """Make ``type_key`` load ``cls`` without choosing the key ``cls`` is written under."""
-        self._registry[type_key] = _RegistryEntry(
-            cls=cls, serializer=serializer, deserializer=deserializer
-        )
+        """Make ``keys`` load ``cls`` without choosing the key ``cls`` is written under."""
+        # Keys are written, so binding one to another class would load saved
+        # data as the wrong type. Check every key before storing any.
+        for key in keys:
+            existing = self._registry.get(key)
+            if existing is not None and _class_path(existing.cls) != _class_path(cls):
+                raise ValueError(
+                    f"Key {key!r} already loads {_class_path(existing.cls)}; "
+                    f"cannot register {_class_path(cls)} under it."
+                )
+        for key in keys:
+            self._registry[key] = _RegistryEntry(
+                cls=cls, serializer=serializer, deserializer=deserializer
+            )
 
         # Inject __type__ into to_dict() unless a custom serializer handles it,
         # or the class already inherits a wrapped to_dict.
@@ -542,7 +573,7 @@ class SerializableBaseModel(BaseModel):
         if not inspect.isabstract(cls):
             # ``_add`` rather than ``register`` so that a later explicit
             # ``serialization.register`` call still picks the written key.
-            serialization._add(_class_path(cls), cls)
+            serialization._add((_class_path(cls),), cls)
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize to a dict via Pydantic model_dump. ``__type__`` is injected by the registry wrapper."""
