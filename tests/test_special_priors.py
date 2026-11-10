@@ -1300,6 +1300,41 @@ def nested_over(n_parents, children=4, label=lambda i: f"f{i}"):
 @pytest.mark.parametrize(
     ("terms", "interactions", "message"),
     [
+        (  # YAML `brand: family`
+            {"family": {}, "brand": "family"},
+            None,
+            "term brand: expected a mapping with the keys ['centered', 'within', 'map', 'parent_effect'], "
+            "got the str 'family'",
+        ),
+        (
+            {"family": {}, "brand": ["family"]},
+            None,
+            "term brand: expected a mapping with the keys ['centered', 'within', 'map', 'parent_effect'], "
+            "got the list ['family']",
+        ),
+        (
+            {"brand": {}, "dma": {}},
+            {"brand_dma": "brand"},
+            "interaction brand_dma: expected a mapping with the keys ['dims', 'centered'], got the str 'brand'",
+        ),
+    ],
+    ids=["str_term", "list_term", "str_interaction"],
+)
+def test_a_spec_that_is_not_a_mapping_is_named(terms, interactions, message):
+    # a str was read as a collection of keys, its characters
+    levels = [*terms, *(interactions or {})]
+    with pytest.raises(ValueError, match=f"^{re.escape(message)}$"):
+        NestedZeroSumPrior(
+            mu=MU,
+            terms=terms,
+            interactions=interactions,
+            sigma=IndependentSigmas({lv: G for lv in levels}),
+        )
+
+
+@pytest.mark.parametrize(
+    ("terms", "interactions", "message"),
+    [
         (
             {"a/b": {}, "c": {}},
             None,

@@ -23,7 +23,7 @@ of the same methods.
 import copy
 import warnings
 from abc import ABC, abstractmethod
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field, fields
 from typing import Any, Self
 
@@ -1545,6 +1545,12 @@ class _Spec:
             return spec
         spec = {} if spec is None else spec  # YAML `brand:` with no value
         allowed = [f.name for f in fields(cls)]
+        # e.g. YAML `brand: family`, whose characters would otherwise be read as keys
+        if not isinstance(spec, Mapping):
+            raise ValueError(
+                f"{cls.__name__.lower()} {label}: expected a mapping with the keys {allowed}, "
+                f"got the {type(spec).__name__} {spec!r}"
+            )
         if unknown := sorted(
             set(spec) - set(allowed)
         ):  # a typo would otherwise be ignored
