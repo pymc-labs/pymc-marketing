@@ -26,7 +26,6 @@ from __future__ import annotations
 
 import importlib
 import inspect
-from collections.abc import Sequence
 from dataclasses import dataclass, fields, is_dataclass
 from typing import Any, Protocol, Self, runtime_checkable
 
@@ -153,68 +152,36 @@ class TypeRegistry:
         *,
         serializer: Any = None,
         deserializer: Any = None,
-        aliases: Sequence[str] = (),
     ):
         """Register a class for serialization/deserialization.
 
         Can be used as a bare decorator, a decorator factory, or a direct call.
 
         The first key a class is registered under is the key written under
-        ``__type__`` (a custom ``serializer`` writes ``__type__`` itself; see
-        :meth:`key_for`). ``aliases``, and keys registered later, are only read.
-        A string key thus gives a class a key that survives moving its module,
-        and ``aliases`` keep previously saved dicts loadable:
+        ``__type__``; keys registered later are only read. A string key thus
+        gives a class a key that survives moving its module, and the old module
+        path can be added afterwards so that previously saved dicts still load:
 
         .. code-block:: python
 
-            serialization.register(
-                "my_package.MyEffect",
-                MyEffect,
-                aliases=["old_package.old_module.MyEffect"],
-            )
+            serialization.register("my_package.MyEffect", MyEffect)
+            serialization.register("old_package.old_module.MyEffect", MyEffect)
+
+        ``serializer`` and ``deserializer`` belong to the key they are registered
+        under: :meth:`serialize` uses the ``serializer`` of the written key (a
+        custom serializer writes ``__type__`` itself; use :meth:`key_for`), and a
+        dict is loaded with the ``deserializer`` of its ``__type__``. Registering
+        a key for another class makes it load that class, and the previous class
+        stops writing it.
 
         The automatic registration of :class:`SerializableBaseModel` subclasses
-        does not count. To keep writing the module path of such a class and also
-        load an old one, use ``serialization.register(MyEffect, aliases=[...])``:
-        registering the old path as a string key would make it the written key.
+        does not count: to add a read-only key to such a class and keep writing
+        its class path, call ``serialization.register(MyEffect)`` first.
         Subclasses do not inherit the key of a registered parent class.
-
-        Parameters
-        ----------
-        cls_or_key : type, str or None
-            Class to register under its fully-qualified class path, or the key
-            to register ``cls`` under. ``None`` returns a decorator.
-        cls : type, optional
-            Class to register, required when ``cls_or_key`` is a string.
-        serializer : callable, optional
-            Function ``obj -> dict`` used instead of ``obj.to_dict()``.
-        deserializer : callable, optional
-            Function ``(data, context) -> obj`` used instead of ``cls.from_dict``.
-        aliases : sequence of str, optional
-            Additional keys that load the class but are never written.
-
-        Returns
-        -------
-        type or callable
-            The registered class, or a decorator when ``cls_or_key`` is ``None``.
-
-        Raises
-        ------
-        TypeError
-            If the arguments have the wrong type.
-        ValueError
-            If a key already loads a class with a different fully-qualified class
-            path (a redefined class with the same path, for example from re-running
-            a notebook cell, takes the key over), or if ``serializer`` is given
-            under a key that is not the one ``cls`` is written under.
         """
-        if isinstance(aliases, str):
-            raise TypeError(
-                f"aliases must be a sequence of keys, got the string {aliases!r}."
-            )
         if cls_or_key is None:
             return lambda c: self.register(
-                c, serializer=serializer, deserializer=deserializer, aliases=aliases
+                c, serializer=serializer, deserializer=deserializer
             )
 
         if isinstance(cls_or_key, type):
@@ -233,44 +200,33 @@ class TypeRegistry:
                 f"First argument must be a class or string, got {type(cls_or_key)}"
             )
 
-        written_key = self._keys.get(actual_cls, type_key)
-        if serializer is not None and written_key != type_key:
-            raise ValueError(
-                f"{_class_path(actual_cls)} is written under {written_key!r}, so a "
-                f"serializer registered under {type_key!r} would never be used. "
-                f"Register the serializer under {written_key!r} instead."
-            )
         self._add(
-            (type_key, *aliases),
-            actual_cls,
-            serializer=serializer,
-            deserializer=deserializer,
+            type_key, actual_cls, serializer=serializer, deserializer=deserializer
         )
         self._keys.setdefault(actual_cls, type_key)
         return actual_cls
 
     def _add(
         self,
-        keys: Sequence[str],
+        type_key: str,
         cls: type,
         *,
         serializer: Any = None,
         deserializer: Any = None,
     ) -> None:
-        """Make ``keys`` load ``cls`` without choosing the key ``cls`` is written under."""
-        # Keys are written, so binding one to another class would load saved
-        # data as the wrong type. Check every key before storing any.
-        for key in keys:
-            existing = self._registry.get(key)
-            if existing is not None and _class_path(existing.cls) != _class_path(cls):
-                raise ValueError(
-                    f"Key {key!r} already loads {_class_path(existing.cls)}; "
-                    f"cannot register {_class_path(cls)} under it."
-                )
-        for key in keys:
-            self._registry[key] = _RegistryEntry(
-                cls=cls, serializer=serializer, deserializer=deserializer
-            )
+        """Make ``type_key`` load ``cls`` without choosing the key ``cls`` is written under."""
+        previous = self._registry.get(type_key)
+        if (
+            previous is not None
+            and previous.cls is not cls
+            and self._keys.get(previous.cls) == type_key
+        ):
+            # ``type_key`` now loads ``cls``; the previous class must not keep
+            # writing a key that loads another class.
+            del self._keys[previous.cls]
+        self._registry[type_key] = _RegistryEntry(
+            cls=cls, serializer=serializer, deserializer=deserializer
+        )
 
         # Inject __type__ into to_dict() unless a custom serializer handles it,
         # or the class already inherits a wrapped to_dict.
@@ -298,6 +254,7 @@ class TypeRegistry:
         -------
         str
             The first key ``cls`` was registered under with :meth:`register`,
+            unless that key has since been registered for another class;
             otherwise its fully-qualified class path.
         """
         return self._keys.get(cls, _class_path(cls))
@@ -560,8 +517,8 @@ class SerializableBaseModel(BaseModel):
     - Provides default ``to_dict()`` / ``from_dict()`` via
       ``model_dump(mode="json")`` / ``model_validate()``.
     - Auto-registers concrete subclasses in the module-level ``serialization``
-      via ``__init_subclass__`` (no decorator needed) under their module path.
-      That key is always read, but it does not pin the ``__type__`` that
+      via ``__init_subclass__`` (no decorator needed) under their fully-qualified
+      class path. That key is read, but it does not pin the ``__type__`` that
       ``to_dict()`` writes: register a stable key with
       ``serialization.register("my_package.MyModel", MyModel)`` so that saved
       dicts still load after the module moves.
@@ -573,7 +530,7 @@ class SerializableBaseModel(BaseModel):
         if not inspect.isabstract(cls):
             # ``_add`` rather than ``register`` so that a later explicit
             # ``serialization.register`` call still picks the written key.
-            serialization._add((_class_path(cls),), cls)
+            serialization._add(_class_path(cls), cls)
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize to a dict via Pydantic model_dump. ``__type__`` is injected by the registry wrapper."""

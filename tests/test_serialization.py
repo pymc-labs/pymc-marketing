@@ -302,13 +302,6 @@ class TestTypeRegistry:
         with pytest.raises(TypeError, match="class must be provided"):
             reg.register("some.string.key")
 
-    def test_register_string_aliases_raises(self):
-        from pymc_marketing.serialization import TypeRegistry
-
-        reg = TypeRegistry()
-        with pytest.raises(TypeError, match="aliases must be a sequence"):
-            reg.register(_make_effect_class(), aliases="old_package.MyEffect")
-
     def test_string_key_is_written_and_read(self):
         """A class registered only under a string key round-trips under that key (GH-3330)."""
         from pymc_marketing.serialization import TypeRegistry
@@ -349,22 +342,6 @@ class TestTypeRegistry:
         assert isinstance(restored, MyEffect)
         assert restored.a == 4
 
-    def test_aliases_load_with_the_deserializer_but_are_not_written(self):
-        from pymc_marketing.serialization import TypeRegistry
-
-        reg = TypeRegistry()
-        MyEffect = _make_effect_class()
-        reg.register(
-            aliases=["old_package.MyEffect"],
-            deserializer=lambda data, context: MyEffect(data["a"] + 100),
-        )(MyEffect)
-
-        module_key = f"{MyEffect.__module__}.{MyEffect.__qualname__}"
-        assert reg.serialize(MyEffect(3)) == {"__type__": module_key, "a": 3}
-        restored = reg.deserialize({"__type__": "old_package.MyEffect", "a": 4})
-        assert isinstance(restored, MyEffect)
-        assert restored.a == 104
-
     def test_serialize_writes_its_own_key_when_another_registry_wrapped_the_class(
         self,
     ):
@@ -379,15 +356,7 @@ class TestTypeRegistry:
         assert data == {"__type__": "my_package.MyEffect", "a": 2}
         assert second.deserialize(data).a == 2
 
-    @pytest.mark.parametrize(
-        "register_other",
-        [
-            lambda reg, cls: reg.register("my_package.MyEffect", cls),
-            lambda reg, cls: reg.register(cls, aliases=["my_package.MyEffect"]),
-        ],
-        ids=["key", "alias"],
-    )
-    def test_key_of_another_class_raises_without_registering(self, register_other):
+    def test_key_registered_for_another_class_is_no_longer_written_by_the_first(self):
         from pymc_marketing.serialization import TypeRegistry
 
         reg = TypeRegistry()
@@ -397,31 +366,14 @@ class TestTypeRegistry:
         class OtherEffect(MyEffect):
             pass
 
-        with pytest.raises(ValueError, match="already loads"):
-            register_other(reg, OtherEffect)
-        assert not reg.is_registered(OtherEffect(1))
-        assert reg.lookup("my_package.MyEffect") is MyEffect
+        reg.register("my_package.MyEffect", OtherEffect)
 
-    def test_redefined_class_takes_over_its_key(self):
-        """Re-running a notebook cell redefines the class under the same path."""
-        from pymc_marketing.serialization import TypeRegistry
-
-        reg = TypeRegistry()
-        reg.register("my_package.MyEffect", _make_effect_class())
-        Redefined = _make_effect_class()
-        reg.register("my_package.MyEffect", Redefined)
-
-        assert type(reg.deserialize(Redefined(2).to_dict())) is Redefined
-
-    def test_serializer_under_a_key_that_is_not_written_raises(self):
-        from pymc_marketing.serialization import TypeRegistry
-
-        reg = TypeRegistry()
-        MyEffect = _make_effect_class()
-        reg.register("my_package.MyEffect", MyEffect)
-
-        with pytest.raises(ValueError, match="would never be used"):
-            reg.register(MyEffect, serializer=lambda obj: {"b": obj.a})
+        assert not reg.is_registered(MyEffect(1))
+        with pytest.raises(KeyError):
+            reg.serialize(MyEffect(1))
+        data = reg.serialize(OtherEffect(2))
+        assert data == {"__type__": "my_package.MyEffect", "a": 2}
+        assert type(reg.deserialize(data)) is OtherEffect
 
     def test_model_config_uses_serializer_of_string_keyed_class(self):
         from pymc_marketing.serialization import TypeRegistry
@@ -546,21 +498,20 @@ class TestSerializableBaseModel:
         legacy = {"__type__": module_key, "a": 3}
         assert serialization.deserialize(legacy) == StableKeyModel(a=3)
 
-    def test_aliases_keep_writing_the_module_path(self):
-        """Adding an old module path through ``aliases`` does not change the written key."""
+    def test_registering_the_class_first_keeps_writing_the_module_path(self):
+        """A key registered after ``register(cls)`` only loads (GH-3330)."""
         from pymc_marketing.serialization import SerializableBaseModel
 
         class MovedModel(SerializableBaseModel):
             a: int = 1
 
         old_key = "tests.serialization.old_module.MovedModel"
-        serialization.register(MovedModel, aliases=[old_key])
+        serialization.register(MovedModel)
+        serialization.register(old_key, MovedModel)
 
         module_key = f"{MovedModel.__module__}.{MovedModel.__qualname__}"
-        assert serialization.serialize(MovedModel(a=2)) == {
-            "__type__": module_key,
-            "a": 2,
-        }
+        data = serialization.serialize(MovedModel(a=2))
+        assert data == {"__type__": module_key, "a": 2}
         assert serialization.deserialize({"__type__": old_key, "a": 3}) == MovedModel(
             a=3
         )
