@@ -443,6 +443,10 @@ class MuEffect(SerializableBaseModel, ABC):
 
     All mu_effects must inherit from this Pydantic BaseModel to ensure proper
     serialization and deserialization when saving/loading MMM models.
+    A subclass is saved under its fully-qualified class path by default;
+    register a stable key with
+    ``serialization.register("my_package.MyEffect", MyEffect)`` so that saved
+    models still load after the module defining it moves.
     """
 
     @property
