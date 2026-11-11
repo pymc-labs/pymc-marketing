@@ -16,23 +16,26 @@
 import warnings
 from collections.abc import Sequence
 from datetime import date, datetime
-from typing import Any, Literal
+from typing import Any, Literal, overload
 
 import narwhals.stable.v2 as nw
 import numpy as np
 import pandas
 import xarray
+from narwhals.stable.v2.typing import IntoFrameT
 from numpy import datetime64
 
 from pymc_marketing.clv._narwhals_utils import (
     TIME_UNIT_DAYS,
     Backend,
     _coerce_period_end,
+    _elapsed,
     _finalize,
     _period_start,
     _period_start_scalar,
     _prepare_datetime_column,
     _resolve_time_spec,
+    _validate_backend,
     _validate_input,
 )
 
@@ -50,7 +53,7 @@ __all__ = [
 _DAYS_PER_MONTH = 30.4375
 
 # Values accepted as the end of an observation, training or test period.
-PeriodEnd = str | date | datetime | pandas.Period | pandas.Timestamp
+PeriodEnd = str | date | datetime | datetime64 | pandas.Period | pandas.Timestamp
 
 # pandas 3 removed the "H" period alias ("h" replaces it) and numpy never
 # accepted "H" as a datetime unit. Normalise once at the public entry points.
@@ -778,21 +781,11 @@ _default_rfm_segment_config = {
 # Dataframe-agnostic (Narwhals) path and the dispatchers in front of it.
 # --------------------------------------------------------------------------- #
 
-# pandas period aliases accepted by the legacy path.
-_LEGACY_TIME_UNITS = frozenset({"D", "W", "M", "H", "h"})
-# Legacy aliases with an exact counterpart on the Narwhals path.
+# Legacy pandas aliases with an exact counterpart on the Narwhals path.
 _LEGACY_TO_NEW: dict[str, tuple[str, str]] = {
     "D": ("1d", "day"),
     "W": ("1w", "week"),
-}
-# ``time_scaler`` values that have a named ``time_unit`` equivalent.
-_KNOWN_TIME_SCALERS: dict[float, str] = {
-    7.0: "week",
-    30.0: "month",
-    30.4375: "month",
-    91.3125: "quarter",
-    365.0: "year",
-    365.25: "year",
+    "M": ("1mo", "month"),
 }
 _SEGMENT_METRICS = (
     ("r_quartile", "recency"),
@@ -800,44 +793,6 @@ _SEGMENT_METRICS = (
     ("m_quartile", "monetary_value"),
 )
 _QUARTILE_PROBABILITIES = (0.0, 0.25, 0.5, 0.75, 1.0)
-
-
-def _deprecation_message(param: str, value: Any) -> str:
-    """Build the ``FutureWarning`` text for a legacy parameter."""
-    base = f"'{param}' is deprecated and will be removed in pymc-marketing v2.0. "
-    if param == "time_unit":
-        if value in _LEGACY_TO_NEW:
-            granularity, unit = _LEGACY_TO_NEW[value]
-            hint = f"Use granularity={granularity!r}, time_unit={unit!r} instead."
-        else:
-            hint = (
-                "Use granularity=... / time_unit=... instead; note that 'M' and 'h' "
-                "have no exact equivalent (months become 30.4375-day floats and "
-                "hourly periods are not supported)."
-            )
-    elif param == "time_scaler":
-        named = next(
-            (
-                unit
-                for scaler, unit in _KNOWN_TIME_SCALERS.items()
-                if abs(float(value) - scaler) < 1e-6
-            ),
-            None,
-        )
-        hint = (
-            f"Use time_unit={named!r} instead."
-            if named is not None
-            else "Use granularity=... / time_unit=... instead."
-        )
-    elif param == "datetime_format":
-        hint = (
-            "Convert the column with pandas.to_datetime(..., format=...) first instead."
-        )
-    else:  # sort_transactions
-        hint = (
-            "The Narwhals-based path does not depend on row order; drop the argument."
-        )
-    return base + hint
 
 
 def _route(
@@ -857,16 +812,8 @@ def _route(
     Returns the path name and the keyword arguments resolved for it. Legacy
     parameters passed at their default values count as not passed.
     """
-    if time_unit in TIME_UNIT_DAYS:
-        named_time_unit: str | None = time_unit
-    elif time_unit in _LEGACY_TIME_UNITS:
-        named_time_unit = None
-    else:
-        raise ValueError(
-            f"Unsupported time_unit {time_unit!r}. Expected a named unit "
-            f"({sorted(TIME_UNIT_DAYS)}) or a legacy pandas alias "
-            f"({sorted(_LEGACY_TIME_UNITS)})."
-        )
+    _validate_backend(backend)
+    named_time_unit = time_unit if time_unit in TIME_UNIT_DAYS else None
 
     legacy_passed: dict[str, Any] = {}
     if named_time_unit is None and time_unit != "D":
@@ -897,10 +844,8 @@ def _route(
         )
 
     if isinstance(transactions, pandas.DataFrame) and not new_passed:
-        for name, value in legacy_passed.items():
-            warnings.warn(
-                _deprecation_message(name, value), FutureWarning, stacklevel=stacklevel
-            )
+        # Any ``time_unit`` that is not a named unit is a pandas period alias
+        # ("Q", "W-WED", "2D", ...); pandas validates it on the legacy path.
         return "legacy", {
             "time_unit": time_unit,
             "time_scaler": time_scaler,
@@ -909,8 +854,8 @@ def _route(
         }
 
     resolved: dict[str, Any] = {
-        "granularity": "1d",
-        "time_unit": "day",
+        "granularity": None,
+        "time_unit": None,
         "week_start": None,
         "backend": None,
         "extra_divisor": 1.0,
@@ -924,7 +869,8 @@ def _route(
     if time_unit not in _LEGACY_TO_NEW:
         raise TypeError(
             f"time_unit={time_unit!r} is only supported for pandas input. Use "
-            "granularity=... / time_unit=... on other dataframe libraries."
+            f"granularity=... with a named time_unit ({sorted(TIME_UNIT_DAYS)}) on "
+            "other dataframe libraries."
         )
     resolved["granularity"], resolved["time_unit"] = _LEGACY_TO_NEW[time_unit]
     if datetime_format is not None:
@@ -941,10 +887,6 @@ def _route(
             UserWarning,
             stacklevel=stacklevel,
         )
-    for name, value in legacy_passed.items():
-        warnings.warn(
-            _deprecation_message(name, value), FutureWarning, stacklevel=stacklevel
-        )
     return "nw", resolved
 
 
@@ -957,7 +899,8 @@ def _rfm_summary_frame(
     include_first_transaction: bool,
     unit: str,
     week_start_offset: int,
-    divisor: float,
+    time_unit: str,
+    extra_divisor: float,
 ) -> nw.LazyFrame[Any]:
     """Build the lazy RFM summary shared by the Narwhals implementations.
 
@@ -967,7 +910,9 @@ def _rfm_summary_frame(
     if monetary_value_col:
         columns.append(monetary_value_col)
     schema = _validate_input(frame, columns, datetime_col)
-    frame = frame.select(columns)
+    # Rows without a customer or a timestamp are dropped, as pandas does on the
+    # legacy path.
+    frame = frame.select(columns).drop_nulls([customer_id_col, datetime_col])
     frame, time_zone = _prepare_datetime_column(
         frame, datetime_col, schema[datetime_col]
     )
@@ -986,49 +931,50 @@ def _rfm_summary_frame(
         nw.col("_period") <= nw.col("_end")
     )
 
-    # One row per customer and period. Spend inside a period is summed, as the
-    # legacy path does.
-    period_aggs = [nw.col("_end").max().alias("_end")]
-    if monetary_value_col:
-        period_aggs.append(nw.col(monetary_value_col).sum().alias("_monetary"))
-    periods = frame.group_by(customer_id_col, "_period").agg(*period_aggs)
-
+    # Purchases inside one period count as a single transaction.
     customer_aggs = [
         nw.col("_period").min().alias("_first"),
         nw.col("_period").max().alias("_last"),
-        nw.len().alias("_n_periods"),
+        nw.col("_period").n_unique().alias("_n_periods"),
         nw.col("_end").max().alias("_end"),
     ]
     if monetary_value_col:
-        # Spend in the customer's first period, isolated with a window function so
-        # that no join is needed (every period row but the first contributes 0).
-        periods = periods.with_columns(
-            nw.when(nw.col("_period") == nw.col("_period").min().over(customer_id_col))
-            .then(nw.col("_monetary"))
-            .otherwise(nw.lit(0.0))
-            .alias("_first_monetary")
-        )
-        customer_aggs.extend(
-            [
-                nw.col("_monetary").sum().alias("_monetary_sum"),
-                nw.col("_first_monetary").sum().alias("_first_monetary"),
-            ]
-        )
-    customers = periods.group_by(customer_id_col).agg(*customer_aggs)
+        spend = nw.col(monetary_value_col)
+        if not include_first_transaction:
+            # Spend after the customer's first period, isolated with a window
+            # function so that neither a join nor a subtraction is needed.
+            frame = frame.with_columns(
+                nw.when(
+                    nw.col("_period") != nw.col("_period").min().over(customer_id_col)
+                )
+                .then(spend)
+                .otherwise(nw.lit(0.0))
+                .alias("_repeat_monetary")
+            )
+            spend = nw.col("_repeat_monetary")
+        customer_aggs.append(spend.sum().alias("_monetary_sum"))
+    customers = frame.group_by(customer_id_col).agg(*customer_aggs)
 
     n_periods = nw.col("_n_periods").cast(nw.Float64)
-    recency = (nw.col("_last") - nw.col("_first")).cast(nw.Float64) / divisor
-    t_value = (nw.col("_end") - nw.col("_first")).cast(nw.Float64) / divisor
+    recency = _elapsed(
+        (nw.col("_last") - nw.col("_first")).cast(nw.Float64),
+        unit,
+        time_unit,
+        extra_divisor,
+    )
+    t_value = _elapsed(
+        (nw.col("_end") - nw.col("_first")).cast(nw.Float64),
+        unit,
+        time_unit,
+        extra_divisor,
+    )
 
     if include_first_transaction:
-        frequency = n_periods
         # Segmentation definition: time since the last purchase.
-        recency = t_value - recency
-        summary = [frequency.alias("frequency"), recency.alias("recency")]
+        summary = [n_periods.alias("frequency"), (t_value - recency).alias("recency")]
     else:
-        frequency = n_periods - 1
         summary = [
-            frequency.alias("frequency"),
+            (n_periods - 1).alias("frequency"),
             recency.alias("recency"),
             t_value.alias("T"),
         ]
@@ -1039,10 +985,7 @@ def _rfm_summary_frame(
         else:
             monetary = (
                 nw.when(nw.col("_n_periods") > 1)
-                .then(
-                    (nw.col("_monetary_sum") - nw.col("_first_monetary"))
-                    / (n_periods - 1)
-                )
+                .then(nw.col("_monetary_sum") / (n_periods - 1))
                 .otherwise(nw.lit(0.0))
             )
         summary.append(monetary.cast(nw.Float64).alias("monetary_value"))
@@ -1070,7 +1013,6 @@ def _rfm_summary_nw(
     unit, time_unit, week_start_offset = _resolve_time_spec(
         granularity, time_unit, week_start
     )
-    divisor = TIME_UNIT_DAYS[time_unit] * extra_divisor
 
     frame = nw.from_native(transactions)
     eager_input = isinstance(frame, nw.DataFrame)
@@ -1083,7 +1025,8 @@ def _rfm_summary_nw(
         bool(include_first_transaction),
         unit,
         week_start_offset,
-        divisor,
+        time_unit,
+        extra_divisor,
     )
     return _finalize(summary, backend, eager_input=eager_input)
 
@@ -1111,7 +1054,6 @@ def _rfm_train_test_split_nw(
     unit, time_unit, week_start_offset = _resolve_time_spec(
         granularity, time_unit, week_start
     )
-    divisor = TIME_UNIT_DAYS[time_unit] * extra_divisor
 
     frame = nw.from_native(transactions)
     eager_input = isinstance(frame, nw.DataFrame)
@@ -1120,7 +1062,7 @@ def _rfm_train_test_split_nw(
     if monetary_value_col:
         columns.append(monetary_value_col)
     schema = _validate_input(frame, columns, datetime_col)
-    frame = frame.select(columns)
+    frame = frame.select(columns).drop_nulls([customer_id_col, datetime_col])
     frame, time_zone = _prepare_datetime_column(
         frame, datetime_col, schema[datetime_col]
     )
@@ -1128,26 +1070,20 @@ def _rfm_train_test_split_nw(
     train_end = _coerce_period_end(train_period_end, time_zone, "train_period_end")
     train_end_period = _period_start_scalar(train_end, unit, week_start_offset)
 
-    frame = frame.with_columns(
-        _period_start(nw.col(datetime_col), unit, week_start_offset).alias("_period")
-    )
     train_mask = nw.col(datetime_col) <= nw.lit(train_end)
     test_mask = nw.col(datetime_col) > nw.lit(train_end)
     if test_period_end is not None:
         test_end = _coerce_period_end(test_period_end, time_zone, "test_period_end")
         test_mask = test_mask & (nw.col(datetime_col) <= nw.lit(test_end))
 
-    if eager_input:
+    if isinstance(frame, nw.DataFrame):
         # Only an eager input can be inspected without materialising a query.
-        eager = frame  # type: ignore[assignment]
-        if eager.filter(train_mask).is_empty():  # type: ignore[union-attr]
-            raise ValueError(_NO_DATA_MESSAGE)
-        if eager.filter(test_mask).is_empty():  # type: ignore[union-attr]
+        if frame.filter(train_mask).is_empty() or frame.filter(test_mask).is_empty():
             raise ValueError(_NO_DATA_MESSAGE)
 
     lazy = frame.lazy()
     training = _rfm_summary_frame(
-        lazy.filter(train_mask).drop("_period"),
+        lazy.filter(train_mask),
         customer_id_col,
         datetime_col,
         monetary_value_col,
@@ -1155,51 +1091,55 @@ def _rfm_train_test_split_nw(
         bool(include_first_transaction),
         unit,
         week_start_offset,
-        divisor,
+        time_unit,
+        extra_divisor,
     )
 
-    test_period_aggs = []
-    if monetary_value_col:
-        test_period_aggs.append(nw.col(monetary_value_col).sum().alias("_monetary"))
-    test_periods = lazy.filter(test_mask).group_by(customer_id_col, "_period")
-    test_periods_frame = (
-        test_periods.agg(*test_period_aggs) if test_period_aggs else test_periods.agg()
+    test_rows = lazy.filter(test_mask).with_columns(
+        _period_start(nw.col(datetime_col), unit, week_start_offset).alias("_period")
     )
-    test_aggs = [
-        nw.len().alias("test_frequency"),
-        # Last period with a test transaction; its maximum over all customers is
-        # the end of the study when ``test_period_end`` is not given.
-        nw.col("_period").max().alias("_test_end"),
-    ]
+    test_aggs = [nw.col("_period").n_unique().alias("test_frequency")]
     if monetary_value_col:
-        test_aggs.append(nw.col("_monetary").mean().alias("test_monetary_value"))
+        test_aggs.append(nw.col(monetary_value_col).sum().alias("test_monetary_value"))
     test_data = (
-        test_periods_frame.group_by(customer_id_col)
+        test_rows.group_by(customer_id_col)
         .agg(*test_aggs)
         .rename({customer_id_col: "customer_id"})
     )
+    result = training.join(test_data, on="customer_id", how="left")
 
     fill_columns = ["test_frequency"]
     if monetary_value_col:
+        # Mean spend per test period, as the legacy path computes it.
+        result = result.with_columns(
+            nw.col("test_monetary_value") / nw.col("test_frequency")
+        )
         fill_columns.append("test_monetary_value")
-    result = training.join(test_data, on="customer_id", how="left").with_columns(
+    result = result.with_columns(
         *[nw.col(name).fill_null(0.0).cast(nw.Float64) for name in fill_columns]
     )
 
     if test_period_end is None:
-        # The study ends at the last transaction of the whole log, which lies in
-        # the test window whenever that window is not empty.
-        result = result.with_columns(
-            (
-                (nw.col("_test_end").max() - nw.lit(train_end_period)).cast(nw.Float64)
-                / divisor
+        # The study ends at the last transaction of the whole log, whoever made it:
+        # customers who first buy in the test window count here even though they
+        # have no row in the result.
+        study_end = test_rows.select(nw.col("_period").max().alias("_test_end"))
+        result = result.join(study_end, how="cross").with_columns(
+            _elapsed(
+                (nw.col("_test_end") - nw.lit(train_end_period)).cast(nw.Float64),
+                unit,
+                time_unit,
+                extra_divisor,
             ).alias("test_T")
         )
     else:
         test_end_period = _period_start_scalar(test_end, unit, week_start_offset)
         result = result.with_columns(
             nw.lit(
-                (test_end_period - train_end_period) / divisor, dtype=nw.Float64
+                _elapsed(
+                    test_end_period - train_end_period, unit, time_unit, extra_divisor
+                ),
+                dtype=nw.Float64,
             ).alias("test_T")
         )
 
@@ -1234,14 +1174,13 @@ def _rfm_segments_nw(
 
     The quartile edges are a one-row aggregate that has to be materialised: the
     number of distinct edges decides how many score labels exist, exactly as
-    ``pandas.qcut(duplicates="drop")`` does on the legacy path. Lazy backends
-    therefore evaluate the summary twice, once for the edges and once for the
-    final result.
+    ``pandas.qcut(duplicates="drop")`` does on the legacy path. An eager input is
+    summarised once; a lazy input evaluates the summary twice, once for the edges
+    and once for the final result.
     """
     unit, time_unit, week_start_offset = _resolve_time_spec(
         granularity, time_unit, week_start
     )
-    divisor = TIME_UNIT_DAYS[time_unit] * extra_divisor
 
     frame = nw.from_native(transactions)
     eager_input = isinstance(frame, nw.DataFrame)
@@ -1254,8 +1193,14 @@ def _rfm_segments_nw(
         True,
         unit,
         week_start_offset,
-        divisor,
+        time_unit,
+        extra_divisor,
     )
+    if eager_input:
+        # Parallel engines can return float sums that differ in their last bits
+        # between two evaluations, which moves a customer sitting on a quartile
+        # edge to another bin. Edges and bins must see the same values.
+        summary = summary.collect().lazy()
 
     edges = summary.select(
         *[
@@ -1328,6 +1273,40 @@ def _rfm_segments_nw(
     return _finalize(result, backend, eager_input=eager_input)
 
 
+@overload
+def rfm_summary(
+    transactions: IntoFrameT,
+    customer_id_col: str,
+    datetime_col: str,
+    monetary_value_col: str | None = None,
+    datetime_format: str | None = None,
+    observation_period_end: PeriodEnd | None = None,
+    time_unit: str = "D",
+    time_scaler: float | None = 1,
+    include_first_transaction: bool | None = False,
+    sort_transactions: bool | None = True,
+    *,
+    granularity: str | None = None,
+    week_start: str | None = None,
+    backend: None = None,
+) -> IntoFrameT: ...
+@overload
+def rfm_summary(
+    transactions: Any,
+    customer_id_col: str,
+    datetime_col: str,
+    monetary_value_col: str | None = None,
+    datetime_format: str | None = None,
+    observation_period_end: PeriodEnd | None = None,
+    time_unit: str = "D",
+    time_scaler: float | None = 1,
+    include_first_transaction: bool | None = False,
+    sort_transactions: bool | None = True,
+    *,
+    granularity: str | None = None,
+    week_start: str | None = None,
+    backend: Backend,
+) -> Any: ...
 def rfm_summary(
     transactions: Any,
     customer_id_col: str,
@@ -1369,7 +1348,7 @@ def rfm_summary(
     transactions : DataFrame
         A dataframe containing *customer_id_col* and *datetime_col*. On every
         library except pandas, *datetime_col* must already have a datetime (or
-        date) dtype.
+        date) dtype. Rows with a missing customer id or datetime are dropped.
     customer_id_col : string
         Column in the *transactions* DataFrame denoting the *customer_id*.
     datetime_col :  string
@@ -1379,11 +1358,8 @@ def rfm_summary(
         Optional; only needed for RFM segmentation and spend estimation models like the Gamma-Gamma model.
     datetime_format : string, optional
         A string that represents the timestamp format. Useful if Pandas doesn't recognize the provided format.
-
-        .. deprecated:: 1.4.0
-            Only supported for pandas input; removed in v2.0. Cast the column to a
-            datetime dtype before calling instead.
-    observation_period_end : Union[str, date, datetime, pandas.Period], optional
+        Only supported for pandas input.
+    observation_period_end : Union[str, date, datetime, numpy.datetime64, pandas.Period], optional
         A string or datetime to denote the final date of the study.
         Events after this date are truncated. If not given, defaults to the max 'datetime_col'.
         On the Narwhals path strings must be ISO-8601 and the time-zone awareness must
@@ -1391,21 +1367,18 @@ def rfm_summary(
     time_unit : string, optional
         Unit of *recency* and *T*. Default ``"D"``.
 
-        Named units select the Narwhals path and keep *recency* and *T* as continuous
-        floats: ``"day"``, ``"week"`` (7 days), ``"month"`` (30.4375 days),
-        ``"quarter"`` (91.3125 days) and ``"year"`` (365.25 days). The legacy pandas
-        aliases ``"D"``, ``"W"``, ``"M"`` and ``"h"`` count calendar periods on the
-        legacy path; ``"D"`` and ``"W"`` are translated for non-pandas input.
+        Named units select the Narwhals path: ``"day"``, ``"week"``, ``"month"``,
+        ``"quarter"`` and ``"year"``. Without ``granularity`` a named unit also sets
+        the calendar bucket, so ``time_unit="week"`` counts whole weeks exactly like
+        the pandas alias ``"W"``, and ``"month"`` counts whole months like ``"M"``.
 
-        .. deprecated:: 1.4.0
-            The legacy aliases are removed in v2.0. Use a named unit together with
-            ``granularity``.
+        pandas period aliases (``"D"``, ``"W"``, ``"M"``, ``"Q"``, ``"W-WED"``, ...)
+        use the pandas implementation for pandas input. ``"D"``, ``"W"`` and ``"M"``
+        are translated for other dataframe libraries.
     time_scaler : int, optional
         Default: 1. Scales *recency* & *T* to a different time granularity.
         This is useful for datasets spanning many years, and running predictions in different time scales.
-
-        .. deprecated:: 1.4.0
-            Removed in v2.0. Use ``time_unit="week"`` (and so on) instead.
+        Cannot be combined with a named ``time_unit``.
     include_first_transaction : bool, optional
         Default: *False*
         For predictive CLV modeling, this should be *False*.
@@ -1413,16 +1386,19 @@ def rfm_summary(
     sort_transactions : bool, optional
         Default: *True*
         If raw data is already sorted in chronological order, set to *False* to improve computational efficiency.
-
-        .. deprecated:: 1.4.0
-            Removed in v2.0. The Narwhals path never depends on row order.
+        Ignored on the Narwhals path, which never depends on row order.
     granularity : string, optional
         Calendar bucket that collapses repeat purchases into one transaction:
-        ``"1d"`` (default), ``"1w"``, ``"1mo"``, ``"1q"`` or ``"1y"``. Selects the
-        Narwhals path. *recency* and *T* are measured in days between the starts of
-        the first, last and final periods, then divided by the ``time_unit`` constant.
+        ``"1d"``, ``"1w"``, ``"1mo"``, ``"1q"`` or ``"1y"``. Selects the Narwhals
+        path. Defaults to the bucket of a named ``time_unit``, else ``"1d"``.
+
+        When the bucket and ``time_unit`` name the same period, *recency* and *T*
+        are whole period counts. Otherwise they are the days between the starts of
+        the first, last and final periods divided by a fixed length: 7 days per
+        week, 30.4375 per month, 91.3125 per quarter and 365.25 per year. For
+        example ``granularity="1d", time_unit="week"`` gives fractional weeks.
     week_start : string, optional
-        First day of the week for ``granularity="1w"``, e.g. ``"wednesday"``.
+        First day of the week for weekly buckets, e.g. ``"wednesday"``.
         Default ``"monday"``, which matches the legacy ``"W"`` periods.
     backend : {"pandas", "polars", "pyarrow"}, optional
         Collect the result into this library instead of returning the input's own
@@ -1441,6 +1417,44 @@ def rfm_summary(
     unchanged. Passing any of ``granularity``, ``week_start``, ``backend`` or a named
     ``time_unit``, or any non-pandas dataframe, uses the Narwhals implementation.
     Legacy and new parameters cannot be mixed in one call.
+
+    A time-zone-aware *datetime_col* is bucketed by its wall-clock time in the
+    column's own zone. DuckDB reports ``TIMESTAMPTZ`` columns in the connection's
+    session ``TimeZone``, so set that explicitly (or cast to a plain ``TIMESTAMP``)
+    to get the same buckets on every machine.
+
+    Examples
+    --------
+    Daily periods on any dataframe library:
+
+    .. code-block:: python
+
+        import polars as pl
+        from pymc_marketing.clv import rfm_summary
+
+        transactions = pl.read_csv("transactions.csv", try_parse_dates=True)
+        rfm = rfm_summary(transactions, "customer_id", "date", "spend")
+
+    Whole weeks starting on Sunday, returned as a pandas DataFrame:
+
+    .. code-block:: python
+
+        rfm = rfm_summary(
+            transactions,
+            "customer_id",
+            "date",
+            time_unit="week",
+            week_start="sunday",
+            backend="pandas",
+        )
+
+    Monthly purchase periods with *recency* and *T* in days:
+
+    .. code-block:: python
+
+        rfm = rfm_summary(
+            transactions, "customer_id", "date", granularity="1mo", time_unit="day"
+        )
 
     """
     path, resolved = _route(
@@ -1474,12 +1488,48 @@ def rfm_summary(
     )
 
 
+@overload
+def rfm_train_test_split(
+    transactions: IntoFrameT,
+    customer_id_col: str,
+    datetime_col: str,
+    train_period_end: PeriodEnd,
+    test_period_end: PeriodEnd | None = None,
+    time_unit: str = "D",
+    time_scaler: float | None = 1,
+    datetime_format: str | None = None,
+    monetary_value_col: str | None = None,
+    include_first_transaction: bool | None = False,
+    sort_transactions: bool | None = True,
+    *,
+    granularity: str | None = None,
+    week_start: str | None = None,
+    backend: None = None,
+) -> IntoFrameT: ...
+@overload
 def rfm_train_test_split(
     transactions: Any,
     customer_id_col: str,
     datetime_col: str,
-    train_period_end: float | str | datetime | datetime64 | date,
-    test_period_end: float | str | datetime | datetime64 | date | None = None,
+    train_period_end: PeriodEnd,
+    test_period_end: PeriodEnd | None = None,
+    time_unit: str = "D",
+    time_scaler: float | None = 1,
+    datetime_format: str | None = None,
+    monetary_value_col: str | None = None,
+    include_first_transaction: bool | None = False,
+    sort_transactions: bool | None = True,
+    *,
+    granularity: str | None = None,
+    week_start: str | None = None,
+    backend: Backend,
+) -> Any: ...
+def rfm_train_test_split(
+    transactions: Any,
+    customer_id_col: str,
+    datetime_col: str,
+    train_period_end: PeriodEnd,
+    test_period_end: PeriodEnd | None = None,
     time_unit: str = "D",
     time_scaler: float | None = 1,
     datetime_format: str | None = None,
@@ -1516,10 +1566,10 @@ def rfm_train_test_split(
         Column in the *transactions* DataFrame denoting the customer_id.
     datetime_col :  string
         Column in the *transactions* DataFrame denoting datetimes purchases were made.
-    train_period_end : Union[str, date, datetime, pandas.Period]
+    train_period_end : Union[str, date, datetime, numpy.datetime64, pandas.Period]
         A string or datetime to denote the final time period for the training data.
         Events after this time period are used for the test data.
-    test_period_end : Union[str, date, datetime, pandas.Period], optional
+    test_period_end : Union[str, date, datetime, numpy.datetime64, pandas.Period], optional
         A string or datetime to denote the final time period of the study.
         Events after this date are truncated. If not given, defaults to the max of *datetime_col*.
     time_unit : string, optional
@@ -1527,14 +1577,8 @@ def rfm_train_test_split(
     time_scaler : int, optional
         Default: 1. Scales *recency* & *T* to a different time granularity.
         This is useful for datasets spanning many years, and running predictions in different time scales.
-
-        .. deprecated:: 1.4.0
-            Removed in v2.0. Use a named ``time_unit`` instead.
     datetime_format : string, optional
         A string that represents the timestamp format. Useful if Pandas doesn't recognize the provided format.
-
-        .. deprecated:: 1.4.0
-            Only supported for pandas input; removed in v2.0.
     monetary_value_col : string, optional
         Column in the *transactions* DataFrame that denotes the monetary value of the transaction.
         Optional; only needed for spend estimation models like the Gamma-Gamma model.
@@ -1545,9 +1589,6 @@ def rfm_train_test_split(
     sort_transactions : bool, optional
         Default: *True*
         If raw data is already sorted in chronological order, set to *False* to improve computational efficiency.
-
-        .. deprecated:: 1.4.0
-            Removed in v2.0. The Narwhals path never depends on row order.
     granularity : string, optional
         Calendar bucket, ``"1d"`` (default) to ``"1y"``; see :func:`rfm_summary`.
     week_start : string, optional
@@ -1562,6 +1603,28 @@ def rfm_train_test_split(
         and *monetary_value* if specified. On the Narwhals path *test_frequency* is a
         float and rows are sorted by ``customer_id``.
 
+    Raises
+    ------
+    ValueError
+        If the training or the test period holds no transactions. A lazy input
+        (Polars ``LazyFrame``, DuckDB, ...) cannot be inspected without running the
+        query, so there the check is skipped: an empty training period gives an
+        empty result and an empty test period gives a null *test_T*.
+
+    Examples
+    --------
+    .. code-block:: python
+
+        from pymc_marketing.clv import rfm_train_test_split
+
+        rfm = rfm_train_test_split(
+            transactions,
+            "customer_id",
+            "date",
+            train_period_end="2015-06-30",
+            time_unit="week",
+        )
+
     """
     path, resolved = _route(
         transactions,
@@ -1574,12 +1637,13 @@ def rfm_train_test_split(
         backend=backend,
     )
     if path == "legacy":
+        # pandas.to_datetime validates the period ends on the legacy path.
         return _rfm_train_test_split_legacy(
             transactions,
             customer_id_col,
             datetime_col,
-            train_period_end,
-            test_period_end=test_period_end,
+            train_period_end,  # type: ignore[arg-type]
+            test_period_end=test_period_end,  # type: ignore[arg-type]
             monetary_value_col=monetary_value_col,
             include_first_transaction=include_first_transaction,
             **resolved,
@@ -1588,14 +1652,48 @@ def rfm_train_test_split(
         transactions,
         customer_id_col,
         datetime_col,
-        train_period_end,  # type: ignore[arg-type]
-        test_period_end=test_period_end,  # type: ignore[arg-type]
+        train_period_end,
+        test_period_end=test_period_end,
         monetary_value_col=monetary_value_col,
         include_first_transaction=include_first_transaction,
         **resolved,
     )
 
 
+@overload
+def rfm_segments(
+    transactions: IntoFrameT,
+    customer_id_col: str,
+    datetime_col: str,
+    monetary_value_col: str,
+    segment_config: dict | None = None,
+    observation_period_end: PeriodEnd | None = None,
+    datetime_format: str | None = None,
+    time_unit: str = "D",
+    time_scaler: float | None = 1,
+    sort_transactions: bool | None = True,
+    *,
+    granularity: str | None = None,
+    week_start: str | None = None,
+    backend: None = None,
+) -> IntoFrameT: ...
+@overload
+def rfm_segments(
+    transactions: Any,
+    customer_id_col: str,
+    datetime_col: str,
+    monetary_value_col: str,
+    segment_config: dict | None = None,
+    observation_period_end: PeriodEnd | None = None,
+    datetime_format: str | None = None,
+    time_unit: str = "D",
+    time_scaler: float | None = 1,
+    sort_transactions: bool | None = True,
+    *,
+    granularity: str | None = None,
+    week_start: str | None = None,
+    backend: Backend,
+) -> Any: ...
 def rfm_segments(
     transactions: Any,
     customer_id_col: str,
@@ -1656,28 +1754,19 @@ def rfm_segments(
         Dictionary containing segment names and list of RFM score assignments;
         key/value pairs should be formatted as `{"segment": ['111', '123', '321'], ...}`.
         If not provided, default segment names and definitions are applied.
-    observation_period_end : Union[str, date, datetime, pandas.Period], optional
+    observation_period_end : Union[str, date, datetime, numpy.datetime64, pandas.Period], optional
         A string or datetime to denote the final date of the study.
         Events after this date are truncated. If not given, defaults to the max of *datetime_col*.
     datetime_format : string, optional
         A string that represents the timestamp format. Useful if Pandas doesn't recognize the provided format.
-
-        .. deprecated:: 1.4.0
-            Only supported for pandas input; removed in v2.0.
     time_unit : string, optional
         Unit of *recency*; see :func:`rfm_summary`. Default ``"D"``.
     time_scaler : int, optional
         Default: 1. Scales *recency* & *T* to a different time granularity.
         This is useful for datasets spanning many years, and running predictions in different time scales.
-
-        .. deprecated:: 1.4.0
-            Removed in v2.0. Use a named ``time_unit`` instead.
     sort_transactions : bool, optional
         Default: *True*
         If raw data is already sorted in chronological order, set to *False* to improve computational efficiency.
-
-        .. deprecated:: 1.4.0
-            Removed in v2.0. The Narwhals path never depends on row order.
     granularity : string, optional
         Calendar bucket, ``"1d"`` (default) to ``"1y"``; see :func:`rfm_summary`.
     week_start : string, optional
@@ -1690,6 +1779,23 @@ def rfm_segments(
     DataFrame
         Dataframe containing summarized RFM data, RFM scores, and segment assignments.
         On the Narwhals path rows are sorted by ``customer_id``.
+
+    Notes
+    -----
+    A lazy input (Polars ``LazyFrame``, DuckDB, ...) is evaluated twice, once for the
+    quartile edges and once for the result. Engines that add floats in parallel can
+    return a *monetary_value* that differs in its last bits between the two runs, so
+    a customer sitting exactly on a quartile edge may get a different score from one
+    call to the next. Collect the transactions first (or pass an eager dataframe)
+    when the scores must be reproducible.
+
+    Examples
+    --------
+    .. code-block:: python
+
+        from pymc_marketing.clv import rfm_segments
+
+        segments = rfm_segments(transactions, "customer_id", "date", "spend")
 
     """
     path, resolved = _route(

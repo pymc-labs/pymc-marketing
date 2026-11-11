@@ -23,28 +23,14 @@ expose the calendar fields, and integer subtraction is exact everywhere.
 from __future__ import annotations
 
 import re
-from datetime import UTC, date, datetime
-from typing import Any, Literal
+from datetime import UTC, date, datetime, timedelta, timezone, tzinfo
+from typing import Any, Literal, get_args
 from zoneinfo import ZoneInfo
 
 import narwhals.stable.v2 as nw
+import numpy as np
 import pandas
-
-__all__ = [
-    "GRANULARITY_UNITS",
-    "TIME_UNIT_DAYS",
-    "WEEKDAYS",
-    "_coerce_period_end",
-    "_day_number",
-    "_days_from_civil",
-    "_finalize",
-    "_parse_granularity",
-    "_period_start",
-    "_period_start_scalar",
-    "_prepare_datetime_column",
-    "_resolve_time_spec",
-    "_validate_input",
-]
+from narwhals.stable.v2.typing import FrameT
 
 Backend = Literal["pandas", "polars", "pyarrow"]
 
@@ -57,7 +43,27 @@ TIME_UNIT_DAYS: dict[str, float] = {
     "year": 365.25,
 }
 
-GRANULARITY_UNITS = frozenset({"d", "w", "mo", "q", "y"})
+# Granularity unit a named ``time_unit`` implies when ``granularity`` is not given.
+TIME_UNIT_GRANULARITY: dict[str, str] = {
+    "day": "d",
+    "week": "w",
+    "month": "mo",
+    "quarter": "q",
+    "year": "y",
+}
+# Names of the temporary columns the RFM pipeline adds to the transactions.
+RESERVED_COLUMNS = frozenset(
+    {
+        "_period",
+        "_end",
+        "_first",
+        "_last",
+        "_n_periods",
+        "_monetary_sum",
+        "_repeat_monetary",
+        "_test_end",
+    }
+)
 WEEKDAYS = (
     "monday",
     "tuesday",
@@ -116,16 +122,19 @@ def _resolve_time_spec(
 
     Returns ``(unit, time_unit, week_start_offset)`` where ``unit`` is the
     granularity unit (``"d"``, ``"w"``, ``"mo"``, ``"q"`` or ``"y"``) and
-    ``week_start_offset`` counts days from Monday.
+    ``week_start_offset`` counts days from Monday. Without ``granularity`` the
+    bucket follows ``time_unit``, so ``time_unit="week"`` alone counts whole weeks.
     """
-    _, unit = _parse_granularity("1d" if granularity is None else granularity)
-
     time_unit = "day" if time_unit is None else time_unit
     if time_unit not in TIME_UNIT_DAYS:
         raise ValueError(
             f"Unsupported time_unit {time_unit!r}. Expected one of "
             f"{sorted(TIME_UNIT_DAYS)}."
         )
+    if granularity is None:
+        unit = TIME_UNIT_GRANULARITY[time_unit]
+    else:
+        _, unit = _parse_granularity(granularity)
 
     if week_start is None:
         offset = 0
@@ -144,6 +153,23 @@ def _resolve_time_spec(
     return unit, time_unit, offset
 
 
+def _elapsed(days: Any, unit: str, time_unit: str, extra_divisor: float = 1.0) -> Any:
+    """Express a day count between two period starts in ``time_unit``.
+
+    ``days`` is a Narwhals expression or a plain number. When ``time_unit`` names the
+    granularity itself the result is a whole number of periods, which discrete-time
+    models such as BG/BB need.
+    """
+    elapsed = days / TIME_UNIT_DAYS[time_unit]
+    if unit in ("mo", "q", "y") and TIME_UNIT_GRANULARITY[time_unit] == unit:
+        # Starts of n calendar periods are within a few days of n times the mean
+        # period length, far less than half a period, so rounding is exact.
+        elapsed = (
+            elapsed.round() if isinstance(elapsed, nw.Expr) else float(round(elapsed))
+        )
+    return elapsed / extra_divisor
+
+
 def _days_from_civil(year: Any, month: Any, day: Any) -> Any:
     """Days since 1970-01-01 of a proleptic Gregorian date.
 
@@ -151,10 +177,14 @@ def _days_from_civil(year: Any, month: Any, day: Any) -> Any:
     multiplication, floor division and modulo on non-negative operands (Howard
     Hinnant's ``days_from_civil`` algorithm).
     """
-    if isinstance(year, nw.Expr):
-        year = year.cast(nw.Int64)
-        month = month.cast(nw.Int64) if isinstance(month, nw.Expr) else month
-        day = day.cast(nw.Int64) if isinstance(day, nw.Expr) else day
+    if any(isinstance(part, nw.Expr) for part in (year, month, day)):
+        # Scalars become literals so that every comparison below is an expression.
+        year, month, day = (
+            part.cast(nw.Int64)
+            if isinstance(part, nw.Expr)
+            else nw.lit(part, dtype=nw.Int64)
+            for part in (year, month, day)
+        )
         shifted_year = nw.when(month <= 2).then(year - 1).otherwise(year)
     else:
         shifted_year = year - 1 if month <= 2 else year
@@ -215,12 +245,27 @@ def _period_start_scalar(value: datetime, unit: str, week_start_offset: int = 0)
     raise ValueError(f"Unknown granularity unit {unit!r}.")  # pragma: no cover
 
 
+def _validate_backend(backend: str | None) -> None:
+    """Reject a ``backend`` the result cannot be collected into."""
+    if backend is not None and backend not in get_args(Backend):
+        raise ValueError(
+            f"Unsupported backend {backend!r}. Expected one of 'pandas', 'polars', "
+            "'pyarrow' or None."
+        )
+
+
 def _validate_input(
     frame: nw.DataFrame[Any] | nw.LazyFrame[Any],
     required_cols: list[str],
     datetime_col: str,
 ) -> nw.Schema:
     """Check the required columns exist and ``datetime_col`` is typed as a date/datetime."""
+    reserved = sorted(RESERVED_COLUMNS.intersection(required_cols))
+    if reserved:
+        raise ValueError(
+            f"Column name(s) {reserved} are reserved for internal use; rename them "
+            "before calling."
+        )
     schema = frame.collect_schema()
     missing = [col for col in required_cols if col not in schema]
     if missing:
@@ -229,7 +274,7 @@ def _validate_input(
             f"{list(schema.names())}."
         )
     dtype = schema[datetime_col]
-    if not (isinstance(dtype, nw.Datetime) or dtype == nw.Date):
+    if not isinstance(dtype, (nw.Datetime, nw.Date)):
         raise TypeError(
             f"Column {datetime_col!r} must have a datetime or date dtype, got {dtype}. "
             "Cast it first, e.g. ``pd.to_datetime(df[col], format=...)`` for pandas, "
@@ -240,35 +285,53 @@ def _validate_input(
 
 
 def _prepare_datetime_column(
-    frame: nw.LazyFrame[Any], datetime_col: str, dtype: nw.dtypes.DType
-) -> tuple[nw.LazyFrame[Any], str | None]:
+    frame: FrameT, datetime_col: str, dtype: nw.dtypes.DType
+) -> tuple[FrameT, str | None]:
     """Normalise ``datetime_col`` to a naive datetime, returning its original time zone.
 
     A time-zone-aware column keeps its wall-clock time: periods are calendar
-    buckets in the column's own zone.
+    buckets in the column's own zone. For DuckDB ``TIMESTAMPTZ`` columns that zone
+    is the connection's session ``TimeZone``.
     """
     time_zone = getattr(dtype, "time_zone", None)
-    if dtype == nw.Date:
+    if isinstance(dtype, nw.Date):
         frame = frame.with_columns(nw.col(datetime_col).cast(nw.Datetime))
     elif time_zone is not None:
         frame = frame.with_columns(nw.col(datetime_col).dt.replace_time_zone(None))
     return frame, time_zone
 
 
+_FIXED_OFFSET_RE = re.compile(r"^(?:UTC)?([+-])(\d{2}):?(\d{2})$")
+
+
+def _zone(name: str) -> tzinfo:
+    """Time zone named by a column dtype: UTC, a fixed offset or an IANA key."""
+    if name in ("UTC", "utc"):
+        return UTC
+    # pandas reports a fixed-offset zone as e.g. "UTC+02:00", which is no IANA key.
+    match = _FIXED_OFFSET_RE.match(name)
+    if match is None:
+        return ZoneInfo(name)
+    offset = timedelta(hours=int(match.group(2)), minutes=int(match.group(3)))
+    return timezone(-offset if match.group(1) == "-" else offset)
+
+
 def _coerce_period_end(
-    value: str | date | datetime | pandas.Period | pandas.Timestamp,
+    value: str | date | datetime | np.datetime64 | pandas.Period | pandas.Timestamp,
     column_time_zone: str | None,
     name: str,
 ) -> datetime:
     """Turn a user-supplied period boundary into a naive ``datetime``.
 
-    Accepts ``datetime``, ``date``, ISO-8601 strings, ``pandas.Timestamp`` and
-    ``pandas.Period``. The time-zone awareness must match the column's: an aware
-    value is converted to the column's zone and stripped, so it lines up with the
-    wall-clock buckets of :func:`_prepare_datetime_column`.
+    Accepts ``datetime``, ``date``, ISO-8601 strings, ``numpy.datetime64``,
+    ``pandas.Timestamp`` and ``pandas.Period``. The time-zone awareness must match
+    the column's: an aware value is converted to the column's zone and stripped, so
+    it lines up with the wall-clock buckets of :func:`_prepare_datetime_column`.
     """
     if isinstance(value, pandas.Period):
         value = value.to_timestamp()
+    if isinstance(value, np.datetime64):
+        value = pandas.Timestamp(value)
     if isinstance(value, str):
         try:
             value = datetime.fromisoformat(value)
@@ -285,8 +348,8 @@ def _coerce_period_end(
         value = datetime(value.year, value.month, value.day)
     else:
         raise TypeError(
-            f"{name} must be a str, date, datetime, pandas.Timestamp or "
-            f"pandas.Period, got {type(value).__name__}."
+            f"{name} must be a str, date, datetime, numpy.datetime64, "
+            f"pandas.Timestamp or pandas.Period, got {type(value).__name__}."
         )
 
     value_is_aware = value.tzinfo is not None
@@ -301,12 +364,7 @@ def _coerce_period_end(
             f"({column_time_zone}); pass a value with tzinfo."
         )
     if value_is_aware:
-        target = (
-            UTC
-            if column_time_zone in ("UTC", "utc")
-            else ZoneInfo(str(column_time_zone))
-        )
-        value = value.astimezone(target).replace(tzinfo=None)
+        value = value.astimezone(_zone(str(column_time_zone))).replace(tzinfo=None)
     return value
 
 
@@ -319,16 +377,15 @@ def _finalize(
     """Return ``frame`` as a native object.
 
     ``backend=None`` keeps the input's own library and laziness. Otherwise the result
-    is collected into the requested eager library.
+    is collected into the requested eager library. A pandas result gets a fresh
+    ``RangeIndex``, like the legacy path.
     """
-    if backend is None:
-        result: nw.DataFrame[Any] | nw.LazyFrame[Any] = (
-            frame.collect() if eager_input else frame
-        )
-        return result.to_native()
-    if backend not in ("pandas", "polars", "pyarrow"):
-        raise ValueError(
-            f"Unsupported backend {backend!r}. Expected one of 'pandas', 'polars', "
-            "'pyarrow' or None."
-        )
-    return frame.collect(backend=backend).to_native()
+    result: nw.DataFrame[Any] | nw.LazyFrame[Any]
+    if backend is not None:
+        result = frame.collect(backend=backend)
+    else:
+        result = frame.collect() if eager_input else frame
+    native = result.to_native()
+    if isinstance(native, pandas.DataFrame):
+        native = native.reset_index(drop=True)
+    return native
