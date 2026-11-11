@@ -30,6 +30,7 @@ from pymc.exceptions import SamplingError
 from pymc.logprob.utils import ParameterValueError
 from pymc_extras.deserialize import deserialize
 from pymc_extras.prior import (
+    CUSTOM_TRANSFORMS,
     MuAlreadyExistsError,
     Prior,
     UnknownTransformError,
@@ -1882,9 +1883,15 @@ def test_invalid_arguments_raise(kwargs, match):
         nzs(terms, **kwargs)
 
 
-register_tensor_transform("nzs_test_cube", lambda x: x**3)
+@pytest.fixture
+def cube_transform():
+    """Register the transform `nzs_test_cube` for one test only, as a user registers a Prior transform."""
+    register_tensor_transform("nzs_test_cube", lambda x: x**3)
+    yield
+    CUSTOM_TRANSFORMS.pop("nzs_test_cube", None)
 
 
+@pytest.mark.usefixtures("cube_transform")
 @pytest.mark.parametrize(
     ("transform", "fn"),
     [
