@@ -4787,7 +4787,6 @@ class Incrementality:
                         reducer=reducer.for_samples(samples),
                         scope=scope,
                         dedicated_channel_rows=channel_axis is not None,
-                        model_coords=model_coords,
                         readout=readout,
                         context=context,
                     )
@@ -4796,8 +4795,10 @@ class Incrementality:
                     del block, periods
 
             # Each period's blocks are released once joined, so the joined
-            # results and the blocks are not both held in full.  What depends on
-            # the period alone is done once, on the joined result.
+            # results and the blocks are not both held in full.  What a readout
+            # does not need per block is done once, on the joined result;
+            # PeriodCurrentFuture splits each block's band, so only its two
+            # sums are held.
             period_results = []
             for idx, (window, parts) in enumerate(
                 zip(windows.windows, per_period, strict=True)
@@ -4984,7 +4985,6 @@ class Incrementality:
         reducer: IncrementalReducer,
         scope: Estimand,
         dedicated_channel_rows: bool,
-        model_coords: Mapping[str, np.ndarray],
         readout: PeriodReadout[B, R],
         context: ReadoutContext,
     ) -> list[B]:
@@ -5039,9 +5039,6 @@ class Incrementality:
             ``channel_contribution`` delta belongs to the perturbed channel,
             while a shared all-channels row has to be read column by column,
             since summing it would hand every channel the joint delta.
-        model_coords : mapping
-            ``channel`` and custom-dim coordinates in the model's label order,
-            the order the evaluator computed every node in.
         readout : PeriodReadout
             What each scenario and each period of the block is reduced to.
         context : ReadoutContext
@@ -5062,7 +5059,7 @@ class Incrementality:
         # The reducer's inputs come from ``idata`` in whatever order it stores
         # them, and xarray pairs them with the change by label.  The result then
         # takes its labels from the reduced increment itself, never by position.
-        channels = model_coords["channel"].tolist()
+        channels = delta_mu.coords["channel"].tolist()
         out_dims = ["channel", *custom_dims] if scope == "per_channel" else custom_dims
         results = []
 

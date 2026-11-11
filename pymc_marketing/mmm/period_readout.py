@@ -33,7 +33,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 import numpy as np
 import pandas as pd
@@ -428,10 +428,11 @@ class PeriodReadout[B, R](ABC):
 
     One subclass per output, so that each states what it keeps, rather than a
     flag that switches between code paths.  ``B`` is what one block of a
-    period is held as, ``R`` what a period is read out as.
+    period is held as, ``R`` what a period is read out as.  By default a row
+    keeps its per-date term and a block is held as it is; a subclass
+    overrides only the steps it changes.
     """
 
-    @abstractmethod
     def reduce_row(
         self, delta_mu: xr.DataArray, reducer: IncrementalReducer
     ) -> xr.DataArray:
@@ -449,10 +450,10 @@ class PeriodReadout[B, R](ABC):
         -------
         xr.DataArray
             The scenario's response-scale increment: summed over ``date``, or
-            per date with ``date`` renamed ``realization_date``.
+            per date with ``date`` renamed ``realization_date``, the default.
         """
+        return reducer.per_date_increment(delta_mu).rename(date="realization_date")
 
-    @abstractmethod
     def reduce_block(
         self,
         increment: xr.DataArray,
@@ -478,8 +479,10 @@ class PeriodReadout[B, R](ABC):
         Returns
         -------
         xr.DataArray or xr.Dataset
-            What is held of the block until every block is in.
+            What is held of the block until every block is in: *increment*
+            itself, by default.
         """
+        return cast("B", increment)
 
     @abstractmethod
     def finish_period(
@@ -519,18 +522,8 @@ class PeriodTotal(PeriodReadout[xr.DataArray, xr.DataArray]):
     def reduce_row(
         self, delta_mu: xr.DataArray, reducer: IncrementalReducer
     ) -> xr.DataArray:
-        """See :meth:`PeriodReadout.reduce_row`."""
+        """See :meth:`PeriodReadout.reduce_row`; a total sums over ``date``."""
         return reducer.counterfactual_minus_baseline(delta_mu)
-
-    def reduce_block(
-        self,
-        increment: xr.DataArray,
-        *,
-        window: PeriodWindow,
-        context: ReadoutContext,
-    ) -> xr.DataArray:
-        """See :meth:`PeriodReadout.reduce_block`; a total is held as is."""
-        return increment
 
     def finish_period(
         self,
@@ -558,22 +551,6 @@ class PeriodBand(PeriodReadout[xr.DataArray, xr.DataArray]):
     boolean ``observed`` coordinate on ``realization_date``; see
     :func:`append_unobserved_tail`.
     """
-
-    def reduce_row(
-        self, delta_mu: xr.DataArray, reducer: IncrementalReducer
-    ) -> xr.DataArray:
-        """See :meth:`PeriodReadout.reduce_row`."""
-        return _per_date_increment(delta_mu, reducer)
-
-    def reduce_block(
-        self,
-        increment: xr.DataArray,
-        *,
-        window: PeriodWindow,
-        context: ReadoutContext,
-    ) -> xr.DataArray:
-        """See :meth:`PeriodReadout.reduce_block`; a band is held as is."""
-        return increment
 
     def finish_period(
         self,
@@ -607,12 +584,6 @@ class PeriodCurrentFuture(
 
     lags: int
 
-    def reduce_row(
-        self, delta_mu: xr.DataArray, reducer: IncrementalReducer
-    ) -> xr.DataArray:
-        """See :meth:`PeriodReadout.reduce_row`."""
-        return _per_date_increment(delta_mu, reducer)
-
     def reduce_block(
         self,
         increment: xr.DataArray,
@@ -627,6 +598,8 @@ class PeriodCurrentFuture(
         xr.Dataset
             ``current`` and ``future``, as :func:`split_band` sums them.
         """
+        # split_band's ``complete`` is a property of the window, not of the
+        # block, so finish_period reads it once instead of carrying it.
         current, future, _ = split_band(
             _band(increment, window=window, context=context),
             start=window.start,
@@ -660,13 +633,6 @@ class PeriodCurrentFuture(
             freq_offset=context.freq_offset,
         )
         return increment["current"], increment["future"], tail.empty
-
-
-def _per_date_increment(
-    delta_mu: xr.DataArray, reducer: IncrementalReducer
-) -> xr.DataArray:
-    """Reduce one scenario per date, labelled by ``realization_date``."""
-    return reducer.per_date_increment(delta_mu).rename(date="realization_date")
 
 
 def _band(
