@@ -243,11 +243,7 @@ class TestCumulativeWeights:
         ids=lambda adstock: type(adstock).__name__,
     )
     def test_every_built_in_kernel_rises_to_one(self, adstock) -> None:
-        """Every built-in kernel, draw by draw: non-decreasing, ending at one.
-
-        Draws whose kernel is not finite give ``NaN`` and are pinned separately
-        below.
-        """
+        """Every built-in kernel, draw by draw: non-decreasing, ending at one."""
         prior = adstock.sample_prior(random_seed=1)
         finite = np.isfinite(adstock.sample_curve(prior, progressbar=False).values).all(
             axis=-1
@@ -290,10 +286,7 @@ class TestCumulativeWeights:
         )
 
     def test_a_draw_without_a_finite_kernel_has_no_share(self) -> None:
-        """The ``NaN`` of a kernel that is not finite is passed on, not turned into a number.
-
-        ``theta`` is not checked, so a ``NaN`` delay gives a ``NaN`` kernel.
-        """
+        """A ``NaN`` kernel (here from an unchecked ``NaN`` theta) gives a ``NaN`` share."""
         adstock = DelayedAdstock(l_max=6)
         prior = adstock.sample_prior(random_seed=0).copy(deep=True)
         prior["adstock_theta"].values[:] = np.nan

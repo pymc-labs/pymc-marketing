@@ -393,12 +393,7 @@ class TestsAdstockTransformers:
         np.testing.assert_array_equal(y, impulse)
 
     def test_weibull_cdf_adstock_tail_weights_are_exact(self):
-        """Tail weights far below ``1 - F`` precision are exact, cap included (#3331).
-
-        At ``lam=1, k=6`` the weight at lag 2 is ``exp(-65) ~ 6e-29``, which
-        ``1 - F`` rounds to zero, and the log hazard of lags 6 and 7 passes
-        the cap, where the weight is zero either way.
-        """
+        """CDF tail weights that ``1 - F`` rounds to zero are exact (#3331)."""
         l_max, lam, k = 8, 1.0, 6.0
         impulse = np.zeros(l_max)
         impulse[0] = 1.0
@@ -426,12 +421,7 @@ class TestsAdstockTransformers:
         ],
     )
     def test_weibull_pdf_adstock_matches_log_space_reference(self, lam, k):
-        """The kernel is the min-max scaled density, not ``0 / 0`` (#3331).
-
-        Min-max scaling does not change when every density is divided by the
-        largest one, and that ratio is finite in log space. Where the hazard
-        ``(t / lam) ** k`` overflows, the density and its weight are 0.
-        """
+        """PDF kernel matches a log-space reference where densities underflow (#3331)."""
         l_max = 6
         t = np.arange(l_max) + 1
         impulse = np.zeros(l_max)
@@ -500,16 +490,7 @@ class TestsAdstockTransformers:
         ],
     )
     def test_weibull_adstock_dlogp_is_finite(self, float_x, type, lam, k):
-        """Weights that round to zero must not make dlogp NaN (#3331).
-
-        CDF: with ``lam`` small relative to the lags, the survival term
-        ``exp(-(t / lam) ** k)`` rounds to zero, and the gradient of a
-        cumulative product of survival terms is ``0 / 0``. For larger
-        ``k * log(t / lam)`` the hazard ``(t / lam) ** k`` itself overflows,
-        earlier in float32. PDF: where every density rounds to zero, min-max
-        scaling is ``0 / 0``; where the hazard overflows at some lags, the
-        gradient of the overflowed density is ``0 * inf``.
-        """
+        """dlogp stays finite where weights underflow or the hazard overflows (#3331)."""
         with pytensor.config.change_flags(floatX=float_x):
             model = self._weibull_model(type)
             point = {
@@ -534,10 +515,7 @@ class TestsAdstockTransformers:
         ],
     )
     def test_weibull_adstock_dlogp_matches_finite_differences(self, type, lam, k):
-        """dlogp is the true gradient, not just a finite one (#3331).
-
-        At ``lam=1, k=6`` the log hazard of the last lags passes the cap.
-        """
+        """dlogp matches finite differences, including where the cap applies (#3331)."""
         model = self._weibull_model(type)
         logp = model.compile_logp(jacobian=False)
         dlogp = model.compile_dlogp(jacobian=False)

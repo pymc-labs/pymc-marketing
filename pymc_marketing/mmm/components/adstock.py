@@ -207,8 +207,7 @@ class AdstockTransformation(Transformation):
         The share is of *modelled* value.  The kernel stops at ``l_max``, so
         nothing past it is attributed, however long the real carryover.
 
-        A draw whose kernel is not finite has no share and gives ``NaN``: the
-        ``NaN`` is passed on.
+        A draw whose kernel is not finite has no share and gives ``NaN``.
 
         Parameters
         ----------

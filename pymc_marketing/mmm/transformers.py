@@ -41,13 +41,6 @@ class WeibullType(StrEnum):
     CDF = "CDF"
 
 
-# Cap on the log hazard ``k * log(t / lam)`` of the Weibull CDF kernel. Past it the
-# hazard is at least ``e**10 ~ 22026``, so every weight from that lag on, at most
-# ``exp(-hazard)``, is exactly zero in any float dtype and capping changes no value;
-# it stops ``exp(log_hazard)`` overflowing to ``inf``, whose gradient is ``0 * inf``.
-_WEIBULL_MAX_LOG_HAZARD = 10.0
-
-
 def _check_alpha(
     alpha,
     *,
@@ -519,29 +512,22 @@ def weibull_adstock(
     if type == WeibullType.PDF:
         t = as_xtensor(pt.arange(l_max, dtype=x.dtype) + 1, dims=(kernel_dim,))
         log_hazard = k * (ptx.math.log(t) - ptx.math.log(lam))
-        # The Weibull log density is log(k) + log_hazard - log(t) - hazard, and
-        # log(k), the same at every lag, cancels below. Where the hazard
-        # (t / lam) ** k overflows, the density is 0: its log is set to -inf
-        # without computing it, so the gradient there is 0 rather than 0 * inf.
+        # Weibull log density up to log(k); -inf where the hazard would overflow.
         finite = log_hazard < float(np.log(np.finfo(log_hazard.type.dtype).max))
         hazard = ptx.math.exp(ptx.where(finite, log_hazard, 0))
         log_w = ptx.where(finite, log_hazard - ptx.math.log(t) - hazard, -np.inf)
-        # Min-max scale the density divided by its maximum, taken in log space, so
-        # that the kernel stays finite where every density rounds to zero (but not
-        # where the hazard overflows at every lag).
+        # Min-max scaling in log space, finite even where every density underflows.
         w = ptx.math.exp(log_w - log_w.max(dim=kernel_dim))
         w = (w - w.min(dim=kernel_dim)) / (1 - w.min(dim=kernel_dim))
     elif type == WeibullType.CDF:
-        # Weight l is the survival product prod_{s <= l} exp(-(s / lam) ** k), taken
-        # as exp(-cumsum(hazard)): the gradient of a cumulative product divides by
-        # its input, which is 0 / 0 wherever a survival term rounds to zero.
+        # Survival product as exp(-cumsum(hazard)): cumprod's gradient is NaN at 0.
+        # Capping the log hazard at 10 changes no weight (exp(-e**10) == 0).
         t = as_xtensor(pt.arange(l_max - 1, dtype=x.dtype) + 1, dims=(kernel_dim,))
         log_hazard = k * (ptx.math.log(t) - ptx.math.log(lam))
-        hazard = ptx.math.exp(ptx.math.minimum(log_hazard, _WEIBULL_MAX_LOG_HAZARD))
-        cumulative_hazard = ptx.concat([0, hazard], dim=kernel_dim).cumsum(
-            dim=kernel_dim
+        hazard = ptx.math.exp(ptx.math.minimum(log_hazard, 10))
+        w = ptx.math.exp(
+            -ptx.concat([0, hazard], dim=kernel_dim).cumsum(dim=kernel_dim)
         )
-        w = ptx.math.exp(-cumulative_hazard)
     else:
         raise ValueError(f"Wrong WeibullType: {type}, expected of WeibullType")
 
