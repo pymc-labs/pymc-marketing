@@ -267,7 +267,16 @@ from pymc_marketing.mmm.evaluator_cache import (
     constant_data_fingerprint,
 )
 from pymc_marketing.mmm.link import MU_ORIGINAL_SCALE, LinkFunction
-from pymc_marketing.mmm.period_readout import LinearPredictorDelta
+from pymc_marketing.mmm.period_readout import (
+    LinearPredictorDelta,
+    PeriodBand,
+    PeriodCurrentFuture,
+    PeriodReadout,
+    PeriodTotal,
+    ReadoutContext,
+    current_window_end,
+    tail_dates,
+)
 from pymc_marketing.mmm.spend_reach import (
     _PKG_PREFIX,
     CHANNEL_CONTRIBUTION,
@@ -1005,24 +1014,30 @@ def _scatter_by_cohort(
 
 
 @dataclass(frozen=True)
-class PeriodIncrements:
+class PeriodIncrements[R]:
     """Every period's increment, before the periods are laid out together.
 
     What the evaluation shared by every :class:`Incrementality` method returns,
     so that each public method chooses its own layout without re-deriving what
     the evaluation established: stacked totals for
     :meth:`~Incrementality.compute_incremental_contribution`, a dense matrix for
-    :meth:`~Incrementality.split_incremental_contribution_over_time`, and one
-    band at a time for
+    :meth:`~Incrementality.split_incremental_contribution_over_time`, and
+    current and future value per period for
     :meth:`~Incrementality.split_incremental_contribution_current_future`.
 
     Parameters
     ----------
-    periods : list of xr.DataArray
-        One per period, in period order.  Either the period's total, with a
-        length-one ``date`` dimension holding the period end, or its band: the
+    periods : list
+        One per period, in period order, as the
+        :class:`~pymc_marketing.mmm.period_readout.PeriodReadout` of the call
+        read it out: the period's total, with a length-one ``date`` dimension
+        holding the period end
+        (:class:`~pymc_marketing.mmm.period_readout.PeriodTotal`); its band, the
         per-date increment on ``realization_date`` over the period's evaluated
-        dates plus its unobserved tail, with a boolean ``observed`` coordinate.
+        dates plus its unobserved tail, with a boolean ``observed`` coordinate
+        (:class:`~pymc_marketing.mmm.period_readout.PeriodBand`); or its
+        current value, future value and whether its carryover is fully
+        observed (:class:`~pymc_marketing.mmm.period_readout.PeriodCurrentFuture`).
     windows : EvaluationWindows
         The windows the periods were evaluated over, in the same order.
     reach : SpendReach
@@ -1031,7 +1046,7 @@ class PeriodIncrements:
         The data's date frequency, as resolved and validated for the evaluation.
     """
 
-    periods: list[xr.DataArray]
+    periods: list[R]
     windows: EvaluationWindows
     reach: SpendReach
     freq_offset: BaseOffset
@@ -1602,6 +1617,7 @@ class Incrementality:
             random_state=random_state,
             counterfactual_spend_factor=counterfactual_spend_factor,
             central_tendency=central_tendency,
+            readout=PeriodTotal(),
         )
         return self._stack_periods(increments, frequency)
 
@@ -1707,6 +1723,7 @@ class Incrementality:
             random_state=random_state,
             counterfactual_spend_factor=counterfactual_spend_factor,
             central_tendency=central_tendency,
+            readout=PeriodTotal(),
         )
         return self._stack_periods(increments, frequency)
 
@@ -2140,7 +2157,7 @@ class Incrementality:
             random_state=random_state,
             counterfactual_spend_factor=counterfactual_spend_factor,
             central_tendency=central_tendency,
-            keep_date_axis=True,
+            readout=PeriodBand(),
         )
 
         matrix = self._carryover_band_to_matrix(increments, frequency=frequency)
@@ -2812,7 +2829,7 @@ class Incrementality:
         sizes = tuple(saturated.sizes[dim] for dim in out_dims)
 
         tails = [
-            self._tail_dates(
+            tail_dates(
                 window=window,
                 dates=dates,
                 tail_lags=tail_lags,
@@ -3087,7 +3104,7 @@ class Incrementality:
         end_date: str | pd.Timestamp | None,
         posterior: xr.Dataset,
         central_tendency: CentralTendency,
-    ) -> PeriodIncrements:
+    ) -> PeriodIncrements[xr.DataArray]:
         """Evaluate the zero-spend counterfactual the allocation is built from.
 
         Per channel, carryover included, kept per realization date, on the
@@ -3107,7 +3124,7 @@ class Incrementality:
         -------
         PeriodIncrements
             Each period's per-date band, as :meth:`_compute_increments` with
-            ``keep_date_axis``.
+            :class:`~pymc_marketing.mmm.period_readout.PeriodBand`.
         """
         return self._compute_increments(
             scope="per_channel",
@@ -3119,7 +3136,7 @@ class Incrementality:
             random_state=None,
             counterfactual_spend_factor=0.0,
             central_tendency=central_tendency,
-            keep_date_axis=True,
+            readout=PeriodBand(),
             validate_reach=partial(
                 _refuse_unbounded_reach,
                 requirement=ALLOCATION_REQUIREMENT,
@@ -3584,25 +3601,14 @@ class Incrementality:
             random_state=random_state,
             counterfactual_spend_factor=counterfactual_spend_factor,
             central_tendency=central_tendency,
-            keep_date_axis=True,
+            readout=PeriodCurrentFuture(lags),
             # Checked as soon as the probe has measured the reach, before the
             # periods themselves are evaluated.
             validate_reach=partial(self._check_reach_supports_split, lags=lags),
         )
 
         windows = increments.windows.windows
-        current, future, complete = [], [], []
-        for window, band in zip(windows, increments.periods, strict=True):
-            period_current, period_future, period_complete = self._split_band(
-                band,
-                start=window.start,
-                end=window.end,
-                lags=lags,
-                freq_offset=increments.freq_offset,
-            )
-            current.append(period_current)
-            future.append(period_future)
-            complete.append(period_complete)
+        current, future, complete = zip(*increments.periods, strict=True)
 
         result = self._stack_current_future(
             current,
@@ -3710,7 +3716,7 @@ class Incrementality:
         row_of = _row_of_dates(dates, prepared.periods)
         current_end = pd.DatetimeIndex(
             [
-                self._current_window_end(window.end, lags=lags, freq_offset=offset)
+                current_window_end(window.end, lags=lags, freq_offset=offset)
                 for window in windows
             ]
         )
@@ -3774,31 +3780,6 @@ class Incrementality:
         result.attrs["horizon"] = lags
 
         return result
-
-    @staticmethod
-    def _current_window_end(
-        end: pd.Timestamp, *, lags: int, freq_offset: BaseOffset
-    ) -> pd.Timestamp:
-        """Return the last date a period's current window covers.
-
-        Parameters
-        ----------
-        end : pd.Timestamp
-            The period's end.
-        lags : int
-            Data periods after *end* that still count as current.
-        freq_offset : BaseOffset
-            The data's date frequency, which *lags* is counted in.
-
-        Returns
-        -------
-        pd.Timestamp
-            *end* plus *lags* data periods.
-        """
-        # Adding zero periods of an anchored offset rolls an off-anchor date
-        # forward (a month end plus 0 weeks is the next Sunday), so a zero lag
-        # leaves the period end where it is.
-        return end + lags * freq_offset if lags else end
 
     @staticmethod
     def _dates_past_the_data(
@@ -4027,58 +4008,6 @@ class Incrementality:
                 f"horizon must be in 0..{reach.max_lag} (the measured "
                 f"carryover lags), got {lags}"
             )
-
-    @staticmethod
-    def _split_band(
-        band: xr.DataArray,
-        *,
-        start: pd.Timestamp,
-        end: pd.Timestamp,
-        lags: int,
-        freq_offset: BaseOffset,
-    ) -> tuple[xr.DataArray, xr.DataArray, bool]:
-        """Reduce one period's band to its current and future value.
-
-        Current is every realization date from the period's start through its
-        end plus ``lags`` data periods, future every date after that.
-
-        Parameters
-        ----------
-        band : xr.DataArray
-            The period's per-date increment on ``realization_date``, with a
-            boolean ``observed`` coordinate on the same dimension.  Unobserved
-            dates hold ``NaN``.
-        start, end : pd.Timestamp
-            The period's bounds.
-        lags : int
-            Data periods after ``end`` that still count as current.
-        freq_offset : BaseOffset
-            The data's date frequency, which ``lags`` is counted in.
-
-        Returns
-        -------
-        current, future : xr.DataArray
-            *band* summed over each window, without ``realization_date``.
-            Neither sum skips ``NaN``: an unobserved date is carryover the model
-            has and the data cannot show, not a zero.
-        complete : bool
-            Whether every date in the band is observed.
-        """
-        current_end = Incrementality._current_window_end(
-            end, lags=lags, freq_offset=freq_offset
-        )
-        realization = band.indexes["realization_date"]
-        in_current = (realization >= start) & (realization <= current_end)
-
-        current = band.isel(realization_date=in_current).sum(
-            "realization_date", skipna=False
-        )
-        future = band.isel(realization_date=realization > current_end).sum(
-            "realization_date", skipna=False
-        )
-        complete = bool(band.coords["observed"].all())
-
-        return current, future, complete
 
     @staticmethod
     def _stack_current_future(
@@ -4651,7 +4580,7 @@ class Incrementality:
             channel_data_dims=channel_data_dims,
         )
 
-    def _compute_increments(
+    def _compute_increments[B, R](
         self,
         *,
         scope: Estimand,
@@ -4663,11 +4592,11 @@ class Incrementality:
         random_state: RandomState | Generator | None,
         counterfactual_spend_factor: float,
         central_tendency: CentralTendency,
-        keep_date_axis: bool = False,
+        readout: PeriodReadout[B, R],
         validate_reach: Callable[[SpendReach], None] | None = None,
         posterior: xr.Dataset | None = None,
         validate_dedicated_rows: Callable[[bool], None] | None = None,
-    ) -> PeriodIncrements:
+    ) -> PeriodIncrements[R]:
         """Shared machinery behind the per-channel and joint increments.
 
         Resolves which nodes the counterfactual reaches, compiles one batched
@@ -4695,10 +4624,13 @@ class Incrementality:
             Multiplicative factor applied to spend in the counterfactual.
         central_tendency : {"median", "mean"}
             Central tendency of the differenced predictions.
-        keep_date_axis : bool, default=False
-            Return each period's increment per realization date instead of
-            summed over its evaluation window; see
-            :meth:`_finish_period`.
+        readout : PeriodReadout
+            What each period is read out as: its total
+            (:class:`~pymc_marketing.mmm.period_readout.PeriodTotal`), its
+            increment per realization date
+            (:class:`~pymc_marketing.mmm.period_readout.PeriodBand`), or its
+            current and future value
+            (:class:`~pymc_marketing.mmm.period_readout.PeriodCurrentFuture`).
         validate_reach : callable, optional
             Called with the measured :class:`~pymc_marketing.mmm.spend_reach.SpendReach`
             before any period is evaluated, so that a request the reach rules
@@ -4718,8 +4650,9 @@ class Incrementality:
         Returns
         -------
         PeriodIncrements
-            Each period's increment in the original scale of the target, with
-            the windows, measured reach and date frequency they came from.
+            Each period's increment in the original scale of the target, as
+            *readout* read it out, with the windows, measured reach and date
+            frequency they came from.
 
         Raises
         ------
@@ -4804,8 +4737,8 @@ class Incrementality:
             # the change in the linear predictor is labeled with the model's
             # coords: the channel data the baseline was evaluated on is in that
             # order.  Each period goes back to the order of ``constant_data``
-            # once its blocks are joined, which is the order callers see.  Both
-            # are read once per call rather than once per block.
+            # in its readout, which is the order callers see.  Both are read
+            # once per call rather than once per block.
             custom_dims = list(self.model.dims)
             channel_data = self._channel_data_in_model_order()
             model_coords = {
@@ -4813,14 +4746,26 @@ class Incrementality:
                 for dim in ["channel", *custom_dims]
             }
             data_order = self.data.get_channel_data()
-            reported_order = {dim: data_order.coords[dim].values for dim in custom_dims}
+            context = ReadoutContext(
+                dates=self.data.dates,
+                reported_order={
+                    dim: data_order.coords[dim].values for dim in custom_dims
+                },
+                # How far past a period's last spend date its carryover is known
+                # to land: the measured reach, or under full-axis evaluation the
+                # kernel's own trailing lags, which bound it from below.
+                tail_lags=(
+                    reach.max_lag if reach.max_lag is not None else trailing_lags
+                ),
+                freq_offset=freq_offset,
+            )
             delta_mu = LinearPredictorDelta(
                 effect_names=effect_names,
                 non_date_dims=evaluator.non_date_dims,
                 coords=model_coords,
             )
-            # Per period, each block's (positions, result).
-            per_period: list[list[tuple[Mapping[str, slice], xr.DataArray]]] = [
+            # Per period, each block's (positions, what the readout keeps of it).
+            per_period: list[list[tuple[Mapping[str, slice], B]]] = [
                 [] for _ in windows.windows
             ]
             with closing(
@@ -4843,7 +4788,8 @@ class Incrementality:
                         scope=scope,
                         dedicated_channel_rows=channel_axis is not None,
                         model_coords=model_coords,
-                        keep_date_axis=keep_date_axis,
+                        readout=readout,
+                        context=context,
                     )
                     for parts, result in zip(per_period, periods, strict=True):
                         parts.append((block.isel, result))
@@ -4857,21 +4803,10 @@ class Incrementality:
                 zip(windows.windows, per_period, strict=True)
             ):
                 period_results.append(
-                    self._finish_period(
+                    readout.finish_period(
                         self._join_sample_blocks(parts),
                         window=window,
-                        reported_order=reported_order,
-                        keep_date_axis=keep_date_axis,
-                        freq_offset=freq_offset,
-                        # How far past a period's last spend date its carryover
-                        # is known to land: the measured reach, or under
-                        # full-axis evaluation the kernel's own trailing lags,
-                        # which bound it from below.
-                        tail_lags=(
-                            reach.max_lag
-                            if reach.max_lag is not None
-                            else trailing_lags
-                        ),
+                        context=context,
                     )
                 )
                 per_period[idx] = []
@@ -4885,21 +4820,21 @@ class Incrementality:
             prepared.release()
 
     @staticmethod
-    def _join_sample_blocks(
-        blocks: Sequence[tuple[Mapping[str, slice], xr.DataArray]],
-    ) -> xr.DataArray:
+    def _join_sample_blocks[B: (xr.DataArray, xr.Dataset)](
+        blocks: Sequence[tuple[Mapping[str, slice], B]],
+    ) -> B:
         """Join one period's result over the sample blocks it was computed in.
 
         Parameters
         ----------
-        blocks : sequence of (isel, xr.DataArray)
+        blocks : sequence of (isel, xr.DataArray or xr.Dataset)
             Each block's positions in the posterior and its result, in the
             chain-major order :meth:`CounterfactualEvaluator.iter_counterfactual`
             yields them: runs of whole chains, or runs of draws within a chain.
 
         Returns
         -------
-        xr.DataArray
+        xr.DataArray or xr.Dataset
             The blocks joined over ``draw`` within a chain, then over ``chain``.
             Each block carries its own ``chain`` and ``draw`` labels, so the
             result keeps the posterior's.
@@ -4916,7 +4851,7 @@ class Incrementality:
 
     @staticmethod
     def _stack_periods(
-        increments: PeriodIncrements, frequency: Frequency
+        increments: PeriodIncrements[xr.DataArray], frequency: Frequency
     ) -> xr.DataArray:
         """Stack per-period totals into one array, one ``date`` per period.
 
@@ -4924,7 +4859,7 @@ class Incrementality:
         ----------
         increments : PeriodIncrements
             Per-period totals, as returned by :meth:`_compute_increments`
-            without ``keep_date_axis``.
+            with :class:`~pymc_marketing.mmm.period_readout.PeriodTotal`.
         frequency : Frequency
             Time aggregation frequency; ``"all_time"`` drops ``date``.
 
@@ -5037,7 +4972,7 @@ class Incrementality:
             in_data_order, self.model.model.named_vars_to_dims
         )
 
-    def _compute_period_increments(
+    def _compute_period_increments[B, R](
         self,
         windows: EvaluationWindows,
         scenarios: CounterfactualScenarios,
@@ -5050,20 +4985,22 @@ class Incrementality:
         scope: Estimand,
         dedicated_channel_rows: bool,
         model_coords: Mapping[str, np.ndarray],
-        keep_date_axis: bool = False,
-    ) -> list[xr.DataArray]:
+        readout: PeriodReadout[B, R],
+        context: ReadoutContext,
+    ) -> list[B]:
         """Compute each period's incremental result on one block of samples.
 
         For each period, forms each scenario's per-date change in the linear
-        predictor over the evaluation window, hands it to *reducer* to be
-        converted into a response-scale increment, stacks the channels, applies
-        the sign convention, and reshapes the flattened sample dimension back to
-        ``(chain, draw)``.  Each scenario is reduced before the channels are
-        stacked, so a period never holds every channel's unreduced change at
-        once.  Everything that depends on the period alone, such as its date
-        label and the order of the custom dims, is left to
-        :meth:`_finish_period`, so that it runs once per period rather than once
-        per block.
+        predictor over the evaluation window, has *readout* reduce it with
+        *reducer* to a response-scale increment, stacks the channels, applies
+        the sign convention, reshapes the flattened sample dimension back to
+        ``(chain, draw)``, and has *readout* reduce the block to what it keeps.
+        Each scenario is reduced before the channels are stacked, so a period
+        never holds every channel's unreduced change at once.  Everything that
+        depends on the period alone, such as its date label and the order of
+        the custom dims, is left to the readout's
+        :meth:`~pymc_marketing.mmm.period_readout.PeriodReadout.finish_period`,
+        so that it runs once per period rather than once per block.
 
         Parameters
         ----------
@@ -5105,18 +5042,21 @@ class Incrementality:
         model_coords : mapping
             ``channel`` and custom-dim coordinates in the model's label order,
             the order the evaluator computed every node in.
-        keep_date_axis : bool, default=False
-            Keep the per-date increment instead of summing it over the window.
+        readout : PeriodReadout
+            What each scenario and each period of the block is reduced to.
+        context : ReadoutContext
+            What every period of the call is labelled with.
 
         Returns
         -------
-        list of xr.DataArray
-            One per period, in period order, in original scale.  Dims
-            ``(chain, draw, *out_dims)``; ``out_dims`` is
-            ``(channel, *custom_dims)`` for ``"per_channel"`` and
-            ``custom_dims`` for ``"joint"``.  With *keep_date_axis*,
+        list
+            One per period, in period order, in original scale: what
+            *readout* keeps of the block, from an increment with dims
+            ``(chain, draw, *out_dims)``, or
             ``(chain, draw, realization_date, *out_dims)`` over the period's
-            evaluated dates.
+            evaluated dates for a readout that keeps them.  ``out_dims`` is
+            ``(channel, *custom_dims)`` for ``"per_channel"`` and
+            ``custom_dims`` for ``"joint"``.
         """
         custom_dims = list(self.model.dims)
         # The reducer's inputs come from ``idata`` in whatever order it stores
@@ -5144,23 +5084,20 @@ class Incrementality:
             # Link-specific reduction of each scenario to a response-scale
             # difference, then the channels are stacked.  The reducers act date
             # by date, so a scenario reduced on its own gets the same per-date
-            # values, and only the reduced scenarios are held.  With
-            # keep_date_axis the per-date term is kept and ``date`` rides along
-            # by name, so the reshape below threads it like any other dim.
-            reduce = (
-                reducer.per_date_increment
-                if keep_date_axis
-                else reducer.counterfactual_minus_baseline
-            )
+            # values, and only the reduced scenarios are held.  A readout that
+            # keeps the per-date term labels it ``realization_date``, which
+            # rides along by name, so the reshape below threads it like any
+            # other dim.
             increments = [
-                reduce(
+                readout.reduce_row(
                     delta_mu(
                         counterfactual,
                         baseline,
                         row=scenarios.rows[(period_idx, key)],
                         window=window,
                         channel=channel,
-                    )
+                    ),
+                    reducer,
                 )
                 for key, channel in slices
             ]
@@ -5173,204 +5110,43 @@ class Incrementality:
             # Then the sign convention:
             # factor > 1 → Y(perturbed) - Y(actual)    (marginal)
             # factor < 1 → Y(actual) - Y(counterfactual) (total)
-            increment = increment.transpose(
-                "sample", *(["date"] if keep_date_axis else []), *out_dims
-            )
+            increment = increment.transpose("sample", ..., *out_dims)
             if counterfactual_spend_factor <= 1.0:
                 increment = -increment
-            # Shape: (n_samples, [date,] *out_dims), n_samples = n_chains * n_draws
+            # Shape: (n_samples, [realization_date,] *out_dims),
+            # n_samples = n_chains * n_draws
 
             # Reshape flattened sample → (chain, draw) to preserve MCMC structure
             reshaped = increment.values.reshape(
                 len(labels["chain"]), len(labels["draw"]), *increment.shape[1:]
             )
+            dims = increment.dims[1:]
 
             coords: dict = {
                 "chain": labels["chain"],
                 "draw": labels["draw"],
                 # A labeled product keeps its first operand's order, which may
                 # be the reducer input's, so the labels are read off the result.
-                **{dim: increment.coords[dim].values for dim in out_dims},
+                **{dim: increment.coords[dim].values for dim in dims},
             }
 
-            if keep_date_axis:
-                results.append(
+            # Reduced as soon as its rows are, so a readout that keeps less
+            # than the band never holds one past this period.
+            results.append(
+                readout.reduce_block(
                     xr.DataArray(
-                        reshaped,
-                        dims=("chain", "draw", "realization_date", *out_dims),
-                        coords={**coords, "realization_date": window.eval_dates},
-                    )
+                        reshaped, dims=("chain", "draw", *dims), coords=coords
+                    ),
+                    window=window,
+                    context=context,
                 )
-            else:
-                results.append(
-                    xr.DataArray(
-                        reshaped, dims=("chain", "draw", *out_dims), coords=coords
-                    )
-                )
+            )
 
         return results
 
-    def _finish_period(
-        self,
-        result: xr.DataArray,
-        *,
-        window: PeriodWindow,
-        reported_order: Mapping[str, np.ndarray],
-        keep_date_axis: bool,
-        freq_offset: BaseOffset,
-        tail_lags: int,
-    ) -> xr.DataArray:
-        """Label one period's result, joined over its sample blocks, as callers see it.
-
-        Parameters
-        ----------
-        result : xr.DataArray
-            The period's result from :meth:`_compute_period_increments`, joined
-            over the sample blocks.
-        window : PeriodWindow
-            The period's window.
-        reported_order : mapping
-            Custom-dim coordinates in the order of ``constant_data``, which is
-            the order callers see.
-        keep_date_axis : bool
-            Whether *result* is a per-date band rather than a period total.
-        freq_offset : BaseOffset
-            The data's date frequency, to label the carryover dates that fall
-            past the fitted axis when *keep_date_axis* is set.
-        tail_lags : int
-            Lags after a period's last fitted spend date that its carryover is
-            known to reach: the measured
-            :attr:`~pymc_marketing.mmm.spend_reach.SpendReach.max_lag`, or under
-            full-axis evaluation the kernel's own trailing lags.  Required, so
-            that no caller gets a band without its unobserved tail by leaving it
-            out; it goes unused when *keep_date_axis* is not set.
-
-        Returns
-        -------
-        xr.DataArray
-            A total gets dims ``(date, chain, draw, *out_dims)`` with ``date``
-            of length one, the period end.  A band is extended past the fitted
-            axis as far as the carryover reaches, with a boolean ``observed``
-            coordinate on ``realization_date``; see
-            :meth:`_append_unobserved_tail`.
-        """
-        if keep_date_axis:
-            result = self._append_unobserved_tail(
-                result,
-                window=window,
-                dates=self.data.dates,
-                tail_lags=tail_lags,
-                freq_offset=freq_offset,
-            )
-        else:
-            result = result.assign_coords(date=window.end).expand_dims("date")
-        return result.sel(reported_order)
-
-    @staticmethod
-    def _tail_dates(
-        *,
-        window: PeriodWindow,
-        dates: pd.DatetimeIndex,
-        tail_lags: int,
-        freq_offset: BaseOffset,
-    ) -> pd.DatetimeIndex:
-        """List the dates past the fitted axis that a period's carryover lands on.
-
-        Parameters
-        ----------
-        window : PeriodWindow
-            The period's window.
-        dates : pd.DatetimeIndex
-            The full fitted date axis.
-        tail_lags : int
-            Lags after the period's last fitted spend date that its carryover
-            is known to reach, in data periods.
-        freq_offset : BaseOffset
-            The data's date frequency.
-
-        Returns
-        -------
-        pd.DatetimeIndex
-            From the first date after the last fitted date to the period's last
-            fitted spend date plus *tail_lags*; empty for a period with no fitted
-            spend date.
-        """
-        spend = dates[(dates >= window.start) & (dates <= window.end)]
-        tail = pd.DatetimeIndex([])
-        if len(spend):
-            reach_end = spend[-1] + tail_lags * freq_offset
-            tail = pd.date_range(dates[-1], reach_end, freq=freq_offset)
-            tail = tail[tail > dates[-1]]
-        return tail
-
-    @staticmethod
-    def _append_unobserved_tail(
-        band: xr.DataArray,
-        *,
-        window: PeriodWindow,
-        dates: pd.DatetimeIndex,
-        tail_lags: int,
-        freq_offset: BaseOffset,
-    ) -> xr.DataArray:
-        """Extend a period's band past the fitted axis, as far as it reaches.
-
-        Windows are clamped to the fitted dates, so a period near the end of the
-        data is evaluated on fewer dates than its carryover lands on.  The
-        missing dates are appended as ``NaN`` with ``observed=False``: carryover
-        the model has but the data ends before, which summing as zero would
-        silently truncate.
-
-        They start at the first date after the last fitted date and run to the
-        period's last fitted spend date plus *tail_lags*.  Not to the window's
-        own bound, which sits one date past a plain adstock's kernel, and not to
-        the period's calendar end, which for a last period the data ends
-        partway through lies past any spend there is.  With a windowed
-        evaluation *tail_lags* is the reach the probe measured.  Under full-axis
-        evaluation no horizon was measured, and *tail_lags* is the kernel's own
-        trailing lags, so the appended dates are a lower bound on what the data
-        cannot show: a node that reduces over ``date``, or a mediated path, can
-        reach further.
-
-        Only the trailing side is extended.  A kernel with leading mass also
-        loses the mass that falls before the first fitted date, which no date
-        on the axis can label, so ``observed`` does not mark it.  Such a kernel
-        moves dates before the probed one, which sends the model to full-axis
-        evaluation; one whose leading weights the probe cannot see stays
-        windowed, and :meth:`split_incremental_contribution_current_future`
-        refuses every mode other than ``ConvMode.After`` regardless.
-
-        Parameters
-        ----------
-        band : xr.DataArray
-            The period's increment over its evaluated dates, dims
-            ``(chain, draw, realization_date, *out_dims)``.
-        window : PeriodWindow
-            The period's window.
-        dates : pd.DatetimeIndex
-            The full fitted date axis.
-        tail_lags : int
-            Lags after the period's last fitted spend date that its carryover
-            is known to reach, in data periods.
-        freq_offset : BaseOffset
-            The data's date frequency.
-
-        Returns
-        -------
-        xr.DataArray
-            *band* with the unobserved dates appended and a boolean
-            ``observed`` coordinate on ``realization_date``.
-        """
-        tail = Incrementality._tail_dates(
-            window=window, dates=dates, tail_lags=tail_lags, freq_offset=freq_offset
-        )
-        realization = band.indexes["realization_date"].append(tail)
-        return band.reindex(realization_date=realization).assign_coords(
-            observed=("realization_date", ~realization.isin(tail))
-        )
-
     @staticmethod
     def _carryover_band_to_matrix(
-        increments: PeriodIncrements, frequency: Frequency
+        increments: PeriodIncrements[xr.DataArray], frequency: Frequency
     ) -> xr.DataArray:
         """Lay per-period increment bands out as a spend x realization matrix.
 
@@ -5382,7 +5158,8 @@ class Incrementality:
         - on the row's band and on the fitted axis: the model's per-date
           increment;
         - on the row's band but past the fitted axis: ``NaN``, with
-          ``observed=False`` (see :meth:`_append_unobserved_tail`);
+          ``observed=False`` (see
+          :func:`~pymc_marketing.mmm.period_readout.append_unobserved_tail`);
         - off the row's band: ``0``.  With a windowed evaluation the probe
           (:class:`~pymc_marketing.mmm.spend_reach.SpendProbe`) measured the
           window to contain every date the perturbation moves, so these entries
@@ -5403,7 +5180,7 @@ class Incrementality:
         ----------
         increments : PeriodIncrements
             Per-period bands, from :meth:`_compute_increments` with
-            ``keep_date_axis``.
+            :class:`~pymc_marketing.mmm.period_readout.PeriodBand`.
         frequency : Frequency
             Aggregation frequency; ``"all_time"`` drops ``spend_date``.
 

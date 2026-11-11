@@ -66,6 +66,7 @@ from pymc_marketing.mmm.incrementality import (
     LogLinkReducer,
     kernel_trailing_lags,
 )
+from pymc_marketing.mmm.period_readout import current_window_end, split_band
 from pymc_marketing.mmm.spend_reach import (
     LINEAR_PREDICTOR,
     SpendProbe,
@@ -6524,7 +6525,7 @@ class TestSplitIncrementalContributionHelpers:
     )
     def test_current_window_end(self, lags, expected):
         """A zero lag leaves an off-anchor period end where it is."""
-        end = Incrementality._current_window_end(
+        end = current_window_end(
             pd.Timestamp("2023-01-31"), lags=lags, freq_offset=self.WEEKLY
         )
 
@@ -6559,7 +6560,7 @@ class TestSplitIncrementalContributionHelpers:
         periods = [(date, date) for date in self.WEEKS]
         current_end = pd.DatetimeIndex(
             [
-                Incrementality._current_window_end(end, lags=1, freq_offset=self.WEEKLY)
+                current_window_end(end, lags=1, freq_offset=self.WEEKLY)
                 for _, end in periods
             ]
         )
@@ -6676,7 +6677,7 @@ class TestSplitIncrementalContributionHelpers:
         """Spend on one date: current is lags ``0 .. lags``, future the rest."""
         band = _band([1.0, 2.0, 4.0, 8.0], self.WEEKS[:4])
 
-        got_current, got_future, complete = Incrementality._split_band(
+        got_current, got_future, complete = split_band(
             band,
             start=self.WEEKS[0],
             end=self.WEEKS[0],
@@ -6704,7 +6705,7 @@ class TestSplitIncrementalContributionHelpers:
         """A ``NaN`` date makes the sum it falls in ``NaN``, and the band incomplete."""
         band = _band([1.0, 2.0, 4.0, np.nan], self.WEEKS[:4])
 
-        got_current, got_future, complete = Incrementality._split_band(
+        got_current, got_future, complete = split_band(
             band,
             start=self.WEEKS[0],
             end=self.WEEKS[0],
@@ -6725,7 +6726,7 @@ class TestSplitIncrementalContributionHelpers:
         """
         band = _band([1.0, 1.0, 1.0, 1.0, 1.0, 10.0], self.WEEKS)
 
-        current, future, _ = Incrementality._split_band(
+        current, future, _ = split_band(
             band,
             start=pd.Timestamp("2023-01-01"),
             end=pd.Timestamp("2023-01-31"),
