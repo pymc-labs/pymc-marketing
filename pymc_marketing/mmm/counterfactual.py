@@ -213,6 +213,37 @@ def find_named_node(
     return found[0] if found else None
 
 
+def _contiguous_run(mask: np.ndarray) -> slice:
+    """Return the slice that selects the same positions as *mask*.
+
+    Parameters
+    ----------
+    mask : np.ndarray
+        One-dimensional boolean mask.
+
+    Returns
+    -------
+    slice
+        From the first selected position to one past the last; ``slice(0, 0)``
+        when nothing is selected.
+
+    Raises
+    ------
+    ValueError
+        If the selected positions are not one contiguous run.
+    """
+    positions = np.flatnonzero(mask)
+    if positions.size == 0:
+        return slice(0, 0)
+    start, stop = int(positions[0]), int(positions[-1]) + 1
+    if stop - start != positions.size:
+        raise ValueError(
+            "The evaluation dates are not one contiguous run of the date axis, "
+            "so they cannot be read as a slice.  The fitted dates must be sorted."
+        )
+    return slice(start, stop)
+
+
 @dataclass(frozen=True)
 class PeriodWindow:
     """The stretch of fitted dates one period is evaluated over.
@@ -221,8 +252,8 @@ class PeriodWindow:
     The *window* is what the graph is handed, wide enough on both sides that the
     perturbation's whole effect is computed correctly.  The *evaluation dates* are
     the subset whose differences are summed into the increment.  Both are recorded
-    here, in the two forms the rest of the code needs them in -- a mask over the
-    full date axis, for slicing a full-axis baseline, and the dates themselves,
+    here, in the two forms the rest of the code needs them in -- positions on the
+    full date axis, for reading a full-axis baseline, and the dates themselves,
     for labelling coordinates -- so that no caller has to recompute either from
     ``l_max`` and a frequency offset and hope it lands on the same answer.
 
@@ -240,6 +271,14 @@ class PeriodWindow:
         sum.  A subset of :attr:`in_window`, by construction.
     eval_dates : pd.DatetimeIndex
         Those dates, in order.
+    eval_slice : slice
+        The same dates as :attr:`in_eval`, as a slice of the full date axis.
+        The evaluation dates are one run of the sorted axis, and reading them
+        through a slice gives a view of a full-axis array where the mask would
+        copy it.
+    window_eval_slice : slice
+        The same dates again, as a slice of the padded window, for reading a
+        counterfactual evaluated on it; see :meth:`eval_mask`.
     """
 
     start: pd.Timestamp
@@ -248,6 +287,8 @@ class PeriodWindow:
     actual_dates: pd.DatetimeIndex
     in_eval: np.ndarray
     eval_dates: pd.DatetimeIndex
+    eval_slice: slice
+    window_eval_slice: slice
 
     @classmethod
     def build(
@@ -280,6 +321,12 @@ class PeriodWindow:
         PeriodWindow
             The window, with its evaluation subset intersected against it so the
             two cannot disagree.
+
+        Raises
+        ------
+        ValueError
+            If the evaluation dates are not one contiguous run of *dates* or of
+            the window, which happens only when *dates* is not sorted.
         """
         in_eval = in_window & (dates >= eval_start) & (dates <= eval_end)
         return cls(
@@ -289,6 +336,8 @@ class PeriodWindow:
             actual_dates=dates[in_window],
             in_eval=in_eval,
             eval_dates=dates[in_eval],
+            eval_slice=_contiguous_run(in_eval),
+            window_eval_slice=_contiguous_run(in_eval[in_window]),
         )
 
     @property

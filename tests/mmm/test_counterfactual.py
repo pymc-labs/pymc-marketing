@@ -1185,6 +1185,64 @@ class TestPeriodEdgeCases:
         )
         np.testing.assert_array_equal(window.eval_dates, self.dates[4:5])
 
+    @pytest.mark.parametrize("include_carryover", [True, False])
+    @pytest.mark.parametrize("full_axis", [False, True])
+    @pytest.mark.parametrize("mode", list(ConvMode))
+    def test_slices_select_the_same_dates_as_the_masks(
+        self, mode, full_axis, include_carryover
+    ):
+        """Each window's slices pick out its masks' dates, as views.
+
+        The periods cover the start and the end of the data, the middle, and
+        one the data never reaches.  That one sums nothing unless a full-axis
+        leading kernel reaches back into the data, and then its slices are
+        empty.
+        """
+        far_future = pd.Timestamp("2030-01-07")
+        windows = EvaluationWindows.build(
+            periods=[
+                (self.dates[0], self.dates[1]),
+                (self.dates[3], self.dates[4]),
+                (self.dates[7], self.dates[7]),
+                (far_future, far_future),
+            ],
+            dates=self.dates,
+            l_max=2,
+            freq_offset=self.freq_offset,
+            full_axis=full_axis,
+            include_carryover=include_carryover,
+            mode=mode,
+        )
+        full_axis_values = np.arange(len(self.dates))
+        window_positions = np.arange(windows.max_window)
+
+        for window in windows.windows:
+            np.testing.assert_array_equal(
+                full_axis_values[window.eval_slice],
+                full_axis_values[window.in_eval],
+            )
+            np.testing.assert_array_equal(
+                window_positions[window.window_eval_slice],
+                np.flatnonzero(window.eval_mask(windows.max_window)),
+            )
+            assert full_axis_values[window.eval_slice].base is full_axis_values
+            if not window.in_eval.any():
+                assert window.eval_slice == slice(0, 0)
+                assert window.window_eval_slice == slice(0, 0)
+
+    def test_unsorted_dates_are_refused(self):
+        """Evaluation dates that are not one run of the axis cannot be a slice."""
+        dates = self.dates[[1, 0, 2]]
+
+        with pytest.raises(ValueError, match="not one contiguous run"):
+            EvaluationWindows.build(
+                periods=[(self.dates[1], self.dates[2])],
+                dates=dates,
+                l_max=0,
+                freq_offset=self.freq_offset,
+                include_carryover=False,
+            )
+
 
 def build_observed_model(n_dates=6):
     """A minimal model with a likelihood, for exercising target validation.

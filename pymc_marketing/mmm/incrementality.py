@@ -4994,7 +4994,7 @@ class Incrementality:
     @staticmethod
     def _delta_mu(
         row: int,
-        cf_mask: np.ndarray,
+        cf_slice: slice,
         window_dates: pd.DatetimeIndex,
         baseline: dict[str, np.ndarray],
         counterfactual: dict[str, np.ndarray],
@@ -5023,9 +5023,9 @@ class Incrementality:
         row : int
             Row of the counterfactual predictions to read, from
             :attr:`CounterfactualScenarios.rows`.
-        cf_mask : np.ndarray
-            Boolean mask over the padded window selecting the evaluation dates,
-            from :meth:`~pymc_marketing.mmm.counterfactual.PeriodWindow.eval_mask`.
+        cf_slice : slice
+            Slice of the padded window selecting the evaluation dates, from
+            :attr:`~pymc_marketing.mmm.counterfactual.PeriodWindow.window_eval_slice`.
         window_dates : pd.DatetimeIndex
             The same dates as labels, from
             :attr:`~pymc_marketing.mmm.counterfactual.PeriodWindow.eval_dates`, so
@@ -5074,7 +5074,7 @@ class Incrementality:
         def delta(name: str) -> xr.DataArray:
             dims = non_date_dims[name]
             return xr.DataArray(
-                counterfactual[name][row][:, cf_mask] - baseline[name],
+                counterfactual[name][row][:, cf_slice] - baseline[name],
                 dims=("sample", "date", *dims),
                 coords={
                     "date": window_dates,
@@ -5226,12 +5226,13 @@ class Incrementality:
 
         for period_idx, window in enumerate(windows.windows):
             # The same evaluation dates on both sides of the difference, in the
-            # same order: ``in_eval`` picks them out of the full-axis baseline and
-            # ``eval_mask`` picks them out of the padded counterfactual window.
+            # same order: ``eval_slice`` picks them out of the full-axis baseline
+            # and ``window_eval_slice`` out of the padded counterfactual window.
             # Both come from the window itself, so there is no second expression
-            # to keep in step with the first.
+            # to keep in step with the first.  Slices, so both are views: a mask
+            # would copy every node, the unread ones included.
             period_baseline = {
-                name: values[:, window.in_eval] for name, values in baseline.items()
+                name: values[:, window.eval_slice] for name, values in baseline.items()
             }
 
             # (scenario key, channel column to read) per output slice.  The joint
@@ -5250,7 +5251,7 @@ class Incrementality:
             deltas = [
                 self._delta_mu(
                     row=scenarios.rows[(period_idx, key)],
-                    cf_mask=window.eval_mask(windows.max_window),
+                    cf_slice=window.window_eval_slice,
                     window_dates=window.eval_dates,
                     baseline=period_baseline,
                     counterfactual=counterfactual,
