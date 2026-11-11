@@ -267,6 +267,7 @@ from pymc_marketing.mmm.evaluator_cache import (
     constant_data_fingerprint,
 )
 from pymc_marketing.mmm.link import MU_ORIGINAL_SCALE, LinkFunction
+from pymc_marketing.mmm.period_readout import LinearPredictorDelta
 from pymc_marketing.mmm.spend_reach import (
     _PKG_PREFIX,
     CHANNEL_CONTRIBUTION,
@@ -364,8 +365,10 @@ class IncrementalReducer(ABC):
     Every subclass assumes *delta* is the **complete** change in the linear
     predictor: ``channel_contribution`` plus every channel-dependent
     ``mu_effect`` the counterfactual reaches.  Collecting those terms is the
-    caller's job (:meth:`Incrementality._delta_mu`), and that the collected
-    nodes account for the whole move is checked rather than assumed, by
+    caller's job
+    (:class:`~pymc_marketing.mmm.period_readout.LinearPredictorDelta`), and
+    that the collected nodes account for the whole move is checked rather than
+    assumed, by
     :meth:`~pymc_marketing.mmm.spend_reach.SpendProbe.assert_increment_is_complete`.
     A reducer only converts that change into a response-scale increment; it
     does not care how many nodes the change was collected from.
@@ -405,14 +408,12 @@ class IncrementalReducer(ABC):
         ----------
         delta : xr.DataArray
             :math:`\Delta_{t,m}`, the counterfactual-minus-baseline change in
-            the linear-predictor contribution.  It carries ``"sample"``,
-            ``"date"``, the model's own non-date dimensions and -- for the
-            per-channel estimand -- ``"channel"``, and **no dimension order is
-            guaranteed**: the per-channel path concatenates along ``"channel"``
-            last, which puts it first, while a panel model's own dims arrive in
-            the layout the graph produced.  Reductions here are by dimension
-            *name* for exactly that reason.  The ``date`` coordinates span the
-            evaluation window of a single period.
+            the linear-predictor contribution of one scenario.  It carries
+            ``"sample"``, ``"date"`` and the model's own non-date dimensions,
+            and **no dimension order is guaranteed**: a panel model's own dims
+            arrive in the layout the graph produced.  Reductions here are by
+            dimension *name* for exactly that reason.  The ``date`` coordinates
+            span the evaluation window of a single period.
 
         Returns
         -------
@@ -4813,6 +4814,11 @@ class Incrementality:
             }
             data_order = self.data.get_channel_data()
             reported_order = {dim: data_order.coords[dim].values for dim in custom_dims}
+            delta_mu = LinearPredictorDelta(
+                effect_names=effect_names,
+                non_date_dims=evaluator.non_date_dims,
+                coords=model_coords,
+            )
             # Per period, each block's (positions, result).
             per_period: list[list[tuple[Mapping[str, slice], xr.DataArray]]] = [
                 [] for _ in windows.windows
@@ -4830,8 +4836,7 @@ class Incrementality:
                             name: values[samples] for name, values in baseline.items()
                         },
                         counterfactual=block.outputs,
-                        non_date_dims=evaluator.non_date_dims,
-                        effect_names=effect_names,
+                        delta_mu=delta_mu,
                         counterfactual_spend_factor=counterfactual_spend_factor,
                         labels={dim: labels[dim][s] for dim, s in block.isel.items()},
                         reducer=reducer.for_samples(samples),
@@ -4991,109 +4996,6 @@ class Incrementality:
 
         return start_date_ts, end_date_ts
 
-    @staticmethod
-    def _delta_mu(
-        row: int,
-        cf_slice: slice,
-        window_dates: pd.DatetimeIndex,
-        baseline: dict[str, np.ndarray],
-        counterfactual: dict[str, np.ndarray],
-        non_date_dims: dict[str, tuple[str, ...]],
-        coords: Mapping[str, np.ndarray],
-        effect_names: Sequence[str],
-        channel: int | None,
-    ) -> xr.DataArray:
-        r"""Change in the linear predictor over one period's evaluation window.
-
-        The counterfactual reaches :math:`\mu` through ``channel_contribution``
-        and through every included effect, and :math:`\mu` is their *sum*, so
-        the perturbation is the sum of their perturbations:
-
-        .. math::
-
-            \Delta \mu_t = \Delta v_{t,m} + \sum_j \Delta e_{t,j}
-
-        This is what keeps the :class:`IncrementalReducer` hierarchy out of the
-        mediation problem entirely.  A reducer converts a change in the linear
-        predictor into a change in the response; it does not care how many nodes
-        that change was collected from.
-
-        Parameters
-        ----------
-        row : int
-            Row of the counterfactual predictions to read, from
-            :attr:`CounterfactualScenarios.rows`.
-        cf_slice : slice
-            Slice of the padded window selecting the evaluation dates, from
-            :attr:`~pymc_marketing.mmm.counterfactual.PeriodWindow.window_eval_slice`.
-        window_dates : pd.DatetimeIndex
-            The same dates as labels, from
-            :attr:`~pymc_marketing.mmm.counterfactual.PeriodWindow.eval_dates`, so
-            the reducer can align a baseline response by label.  Coming from one
-            place is what makes them the same dates: derived separately, their
-            agreement would rest on two expressions being kept in step.
-        baseline : dict
-            Per response variable, unperturbed predictions already restricted to
-            the evaluation dates, shape ``(n_samples, n_eval_dates, *non_date_dims)``.
-        counterfactual : dict
-            Per response variable, predictions per scenario, shape
-            ``(n_scenarios, n_samples, max_window, *non_date_dims)``.
-        non_date_dims : dict
-            Per response variable, its dimensions with ``date`` removed.
-        coords : mapping
-            The labels of the non-date dimensions in the order the evaluator
-            computed them, the model's.  The change carries them so that xarray
-            pairs it with each reducer input by label: the target scale,
-            ``mu_original_scale`` and the mean-scale correction are read from
-            ``idata`` in whatever order it stores them.  A dimension without an
-            entry stays unlabeled.
-        effect_names : sequence of str
-            The included effects' contribution variables.  Passed in rather than
-            read off the other arguments' keys, which also carry nodes evaluated
-            for other reasons -- the linear predictor is evaluated to check the
-            increment is complete and must not be added into it.
-        channel : int or None
-            Column of ``channel_contribution`` to read, or ``None`` to sum the
-            channel dimension away.  A column is read only when *row* is a
-            **shared** all-channels perturbation whose other columns answer for
-            other channels; that is the separable case, where the untouched
-            columns of a channel's own counterfactual are exactly unmoved and
-            summing would return the joint delta instead.  When *row* is a
-            perturbation of one channel alone -- the mediated case, and the
-            measured-mixing one -- the whole delta belongs to that channel,
-            including the movement it caused in the other columns, so the sum is
-            what the unilateral estimand asks for.
-
-        Returns
-        -------
-        xr.DataArray
-            Dimensions ``("sample", "date", *custom_dims)``, labeled with
-            *coords*.
-        """
-
-        def delta(name: str) -> xr.DataArray:
-            dims = non_date_dims[name]
-            return xr.DataArray(
-                counterfactual[name][row][:, cf_slice] - baseline[name],
-                dims=("sample", "date", *dims),
-                coords={
-                    "date": window_dates,
-                    **{dim: coords[dim] for dim in dims if dim in coords},
-                },
-            )
-
-        channel_delta = delta(CHANNEL_CONTRIBUTION)
-        delta_mu = (
-            channel_delta.sum(dim="channel")
-            if channel is None
-            else channel_delta.isel(channel=channel, drop=True)
-        )
-        for name in effect_names:
-            # xarray aligns by name, so an effect carrying only a subset of
-            # the model's dimensions broadcasts without any reshaping here.
-            delta_mu = delta_mu + delta(name)
-        return delta_mu
-
     def _channel_data_in_model_order(self) -> xr.DataArray:
         """Return the channel data with each labeled dim in the model's coord order.
 
@@ -5141,8 +5043,7 @@ class Incrementality:
         scenarios: CounterfactualScenarios,
         baseline: dict[str, np.ndarray],
         counterfactual: dict[str, np.ndarray],
-        non_date_dims: dict[str, tuple[str, ...]],
-        effect_names: Sequence[str],
+        delta_mu: LinearPredictorDelta,
         counterfactual_spend_factor: float,
         labels: Mapping[str, np.ndarray],
         reducer: IncrementalReducer,
@@ -5153,13 +5054,16 @@ class Incrementality:
     ) -> list[xr.DataArray]:
         """Compute each period's incremental result on one block of samples.
 
-        For each period, forms the per-date change in the linear predictor over
-        the evaluation window, hands it to *reducer* to be converted into a
-        response-scale increment, applies the sign convention, and reshapes the
-        flattened sample dimension back to ``(chain, draw)``.  Everything that
-        depends on the period alone, such as its date label and the order of
-        the custom dims, is left to :meth:`_finish_period`, so that it runs once
-        per period rather than once per block.
+        For each period, forms each scenario's per-date change in the linear
+        predictor over the evaluation window, hands it to *reducer* to be
+        converted into a response-scale increment, stacks the channels, applies
+        the sign convention, and reshapes the flattened sample dimension back to
+        ``(chain, draw)``.  Each scenario is reduced before the channels are
+        stacked, so a period never holds every channel's unreduced change at
+        once.  Everything that depends on the period alone, such as its date
+        label and the order of the custom dims, is left to
+        :meth:`_finish_period`, so that it runs once per period rather than once
+        per block.
 
         Parameters
         ----------
@@ -5175,11 +5079,9 @@ class Incrementality:
             axis.
         counterfactual : dict
             Per response variable, predictions per scenario.
-        non_date_dims : dict
-            Per response variable, its dimensions with ``date`` removed.
-        effect_names : sequence of str
-            Contribution variables of the included effects, which is a subset of
-            the evaluated nodes.
+        delta_mu : LinearPredictorDelta
+            Differences one scenario against *baseline*, over the nodes the
+            change in the linear predictor is collected from.
         counterfactual_spend_factor : float
             Multiplicative factor used for sign convention.
         labels : mapping
@@ -5225,21 +5127,12 @@ class Incrementality:
         results = []
 
         for period_idx, window in enumerate(windows.windows):
-            # The same evaluation dates on both sides of the difference, in the
-            # same order: ``eval_slice`` picks them out of the full-axis baseline
-            # and ``window_eval_slice`` out of the padded counterfactual window.
-            # Both come from the window itself, so there is no second expression
-            # to keep in step with the first.  Slices, so both are views: a mask
-            # would copy every node, the unread ones included.
-            period_baseline = {
-                name: values[:, window.eval_slice] for name, values in baseline.items()
-            }
-
             # (scenario key, channel column to read) per output slice.  The joint
             # estimand reads a single scenario and sums the channel dimension
             # away; the per-channel one reads its own scenario per channel, and
             # sums that too whenever the scenario perturbed that channel alone --
-            # see ``_delta_mu``'s ``channel`` for why the two cases differ.
+            # see ``LinearPredictorDelta``'s ``channel`` for why the two cases
+            # differ.
             slices: list[tuple[int | None, int | None]] = (
                 [
                     (idx, None if dedicated_channel_rows else idx)
@@ -5248,40 +5141,41 @@ class Incrementality:
                 if scope == "per_channel"
                 else [(None, None)]
             )
-            deltas = [
-                self._delta_mu(
-                    row=scenarios.rows[(period_idx, key)],
-                    cf_slice=window.window_eval_slice,
-                    window_dates=window.eval_dates,
-                    baseline=period_baseline,
-                    counterfactual=counterfactual,
-                    non_date_dims=non_date_dims,
-                    coords=model_coords,
-                    effect_names=effect_names,
-                    channel=channel,
+            # Link-specific reduction of each scenario to a response-scale
+            # difference, then the channels are stacked.  The reducers act date
+            # by date, so a scenario reduced on its own gets the same per-date
+            # values, and only the reduced scenarios are held.  With
+            # keep_date_axis the per-date term is kept and ``date`` rides along
+            # by name, so the reshape below threads it like any other dim.
+            reduce = (
+                reducer.per_date_increment
+                if keep_date_axis
+                else reducer.counterfactual_minus_baseline
+            )
+            increments = [
+                reduce(
+                    delta_mu(
+                        counterfactual,
+                        baseline,
+                        row=scenarios.rows[(period_idx, key)],
+                        window=window,
+                        channel=channel,
+                    )
                 )
                 for key, channel in slices
             ]
-            delta_mu = (
-                xr.concat(deltas, dim="channel").assign_coords(channel=channels)
+            increment = (
+                xr.concat(increments, dim="channel").assign_coords(channel=channels)
                 if scope == "per_channel"
-                else deltas[0]
+                else increments[0]
             )
 
-            # Link-specific reduction to a response-scale difference, then the
-            # sign convention:
+            # Then the sign convention:
             # factor > 1 → Y(perturbed) - Y(actual)    (marginal)
             # factor < 1 → Y(actual) - Y(counterfactual) (total)
-            # With keep_date_axis the per-date term is kept and ``date`` rides
-            # along by name, so the reshape below threads it like any other dim.
-            if keep_date_axis:
-                increment = reducer.per_date_increment(delta_mu).transpose(
-                    "sample", "date", *out_dims
-                )
-            else:
-                increment = reducer.counterfactual_minus_baseline(delta_mu).transpose(
-                    "sample", *out_dims
-                )
+            increment = increment.transpose(
+                "sample", *(["date"] if keep_date_axis else []), *out_dims
+            )
             if counterfactual_spend_factor <= 1.0:
                 increment = -increment
             # Shape: (n_samples, [date,] *out_dims), n_samples = n_chains * n_draws
