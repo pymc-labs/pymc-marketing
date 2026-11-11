@@ -1387,7 +1387,10 @@ class BudgetOptimizer(BaseModel):
     frozen_deterministics : list of str, optional
         Names of ``Deterministic`` variables to freeze at their posterior values
         instead of recomputing them from the graph. Required for models with HSGP
-        or time-varying components. Defaults to ``None``.
+        or time-varying components. One with the ``date_dim`` dimension is a path
+        over the dates the model was fitted on, which a window cannot evaluate, so
+        construction raises a ``NotImplementedError`` if ``response_variable``
+        reaches it. Defaults to ``None``.
     response_variable : str, optional
         The response variable to optimize. Default is
         ``"total_media_contribution_original_scale"``, which is built from the
@@ -1481,6 +1484,7 @@ class BudgetOptimizer(BaseModel):
             # flank effective_carryover_lags() wide; the three must add up to it.
             carry_in_periods=mmm.effective_carryover_lags(),
             adstock_periods=mmm.effective_carryover_lags(),
+            frozen_deterministics=mmm.frozen_deterministics,
             response_variable="total_media_contribution_original_scale",
         )
         optimal, result = optimizer.allocate_budget(total_budget=100_000)
@@ -2031,12 +2035,70 @@ class BudgetOptimizer(BaseModel):
                     "response variable that includes their contribution."
                 )
 
+        # 8c. A frozen path over the date dim holds its posterior draws on the
+        # fitted dates, which do not line up with the window's.
+        if reached := self._frozen_date_paths(self.response_variable):
+            paths = (
+                f"a frozen path over {self.date_dim!r} that exists"
+                if len(reached) == 1
+                else f"frozen paths over {self.date_dim!r} that exist"
+            )
+            message = (
+                f"response_variable {self.response_variable!r} includes "
+                f"{' and '.join(map(repr, reached))}, {paths} only on the dates the "
+                "model was fitted on, so it cannot be optimized on a window."
+            )
+            default = DEFAULT_RESPONSE_VARIABLE
+            if (
+                self.response_variable != default
+                and default in self._pymc_model.named_vars
+                and not self._frozen_date_paths(default)
+            ):
+                message += (
+                    f" The default objective, {default!r}, does not include "
+                    f"{'it' if len(reached) == 1 else 'them'}."
+                )
+            raise NotImplementedError(message)
+
         # 9. Compile objective & gradient
         self._compile_objective_and_grad()
 
         # 10. Build constraints
         self._constraints = {}
         self.set_constraints(constraints=self.constraints)
+
+    def _frozen_date_paths(self, response_variable: str) -> list[str]:
+        """Return the frozen deterministics over ``date_dim`` an objective reaches.
+
+        The traversal stops at every frozen deterministic, as the evaluation does
+        when it substitutes their posterior draws, so a path that enters the
+        objective only through another frozen deterministic is not reached.
+
+        Parameters
+        ----------
+        response_variable : str
+            The objective, a variable of the optimization model.
+
+        Returns
+        -------
+        list of str
+            The names, in the order of ``frozen_deterministics``.
+        """
+        model = self._pymc_model
+        frozen = {
+            name: model[name]
+            for name in self.frozen_deterministics or ()
+            if name in model.named_vars
+        }
+        upstream = set(
+            ancestors([model[response_variable]], blockers=list(frozen.values()))
+        )
+        return [
+            name
+            for name, var in frozen.items()
+            if self.date_dim in (model.named_vars_to_dims.get(name) or ())
+            and var in upstream
+        ]
 
     def __copy__(self) -> "BudgetOptimizer":
         """Return a copy that owns its posterior binding and compiled functions.
