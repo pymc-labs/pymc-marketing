@@ -2269,6 +2269,68 @@ def _channel_model(channels, n_dates=6, node="channel_data"):
     return model, prior.prior
 
 
+def _frozen_path_optimizer(response_variable: str) -> BudgetOptimizer:
+    """An optimizer on ``_channel_model``'s graph plus two frozen deterministics.
+
+    ``path`` is a random walk over ``date``, as a latent path over the fitted dates
+    is, and ``total_response_original_scale`` adds it to the media contribution.
+    ``level`` is the walk's mean over ``date``, without a ``date`` dim as an HSGP's
+    frozen mean is, and ``response_with_level`` adds that instead.
+    """
+    channels, n_dates = ["a", "b"], 6
+    with pm.Model(coords={"channel": channels}) as model:
+        model.add_coord("date", length=n_dates)
+        channel_data = pmd.Data(
+            "channel_data", np.ones((n_dates, len(channels))), dims=("date", "channel")
+        )
+        beta = pmd.Normal("beta", 1.0, 0.1, dims="channel")
+        media = pmd.Deterministic(
+            "total_media_contribution_original_scale", (channel_data * beta).sum()
+        )
+        steps = pmd.Normal("steps", sigma=0.1, dims="date")
+        path = pmd.Deterministic("path", steps.cumsum("date"))
+        level = pmd.Deterministic("level", path.mean("date"))
+        pmd.Deterministic("total_response_original_scale", media + path.sum("date"))
+        pmd.Deterministic("response_with_level", media + level)
+    prior = pm.sample_prior_predictive(draws=4, model=model, random_seed=1).prior
+    return BudgetOptimizer(
+        model=model,
+        idata=xr.DataTree.from_dict({"posterior": prior}),
+        num_periods=4,
+        adstock_periods=2,
+        frozen_deterministics=["path", "level"],
+        response_variable=response_variable,
+    )
+
+
+def test_objective_reaching_a_frozen_path_over_date_raises():
+    """The path's draws are on the fitted dates, which no window lines up with."""
+    with pytest.raises(
+        NotImplementedError,
+        match=r"^response_variable 'total_response_original_scale' includes 'path', "
+        r"a frozen path over 'date' that exists only on the dates the model was "
+        r"fitted on, so it cannot be optimized on a window\. The default objective, "
+        r"'total_media_contribution_original_scale', does not include it\.$",
+    ):
+        _frozen_path_optimizer("total_response_original_scale")
+
+
+@pytest.mark.parametrize(
+    "response_variable",
+    [
+        pytest.param("total_media_contribution_original_scale", id="clear-of-path"),
+        pytest.param("response_with_level", id="frozen-without-date"),
+    ],
+)
+def test_objective_clear_of_frozen_paths_over_date_is_optimized(response_variable):
+    """Only a frozen path over ``date`` is refused, not a frozen mean without one."""
+    optimizer = _frozen_path_optimizer(response_variable)
+
+    result = optimizer.allocate_budget(total_budget=10.0)
+
+    np.testing.assert_allclose(result.budgets.sum(), 10.0)
+
+
 def _split_json_table(prices: dict) -> str:
     """A historical cost_per_unit table as MMM stores it in ``idata.attrs``."""
     dates = pd.date_range("2025-01-05", periods=3, freq="7D")
