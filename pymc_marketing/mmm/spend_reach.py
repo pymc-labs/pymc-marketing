@@ -62,7 +62,11 @@ import xarray as xr
 from pytensor.graph.basic import Variable
 from pytensor.graph.traversal import ancestors
 
-from pymc_marketing.mmm.counterfactual import CounterfactualEvaluator, find_named_node
+from pymc_marketing.mmm.counterfactual import (
+    CounterfactualEvaluator,
+    _even_runs,
+    find_named_node,
+)
 
 if TYPE_CHECKING:
     from pymc_marketing.mmm.mmm import MMM
@@ -475,10 +479,8 @@ class SpendReach:
             )
 
 
-def _sample_slices(
-    n_samples: int, *, per_sample: int, max_elements: int
-) -> list[slice]:
-    """Split ``range(n_samples)`` into runs of at most *max_elements* elements each.
+def _sample_runs(n_samples: int, per_sample: int) -> list[slice]:
+    """Split the sample axis into runs that fit :attr:`ProbeStatistics.FOLD_ELEMENTS`.
 
     Parameters
     ----------
@@ -486,17 +488,15 @@ def _sample_slices(
         Length of the sample axis.
     per_sample : int
         Elements one sample of the largest array holds.
-    max_elements : int
-        Elements one run may hold; a single sample larger than this is a run of
-        its own.
 
     Returns
     -------
     list of slice
-        Consecutive runs covering every sample once.
+        Consecutive runs covering every sample once; a single sample larger than
+        the budget is a run of its own.
     """
-    size = max(1, max_elements // max(per_sample, 1))
-    return [slice(start, start + size) for start in range(0, n_samples, size)]
+    size = max(1, ProbeStatistics.FOLD_ELEMENTS // max(per_sample, 1))
+    return _even_runs(n_samples, size)
 
 
 @dataclass
@@ -537,7 +537,12 @@ class ProbeStatistics:
     """
 
     FOLD_ELEMENTS: ClassVar[int] = 4_000_000
-    """Elements one slice of the largest node may hold while it is folded."""
+    """Elements one slice of the largest node may hold while it is folded.
+
+    Smaller than :attr:`CounterfactualEvaluator.MAX_BATCH_ELEMENTS`, which sizes
+    a compiled call's output: here the evaluation already exists, and the slice
+    only bounds the temporaries the fold builds from it.
+    """
 
     accounted: tuple[str, ...] = ()
     per_date_move: dict[str, np.ndarray] = field(default_factory=dict)
@@ -556,7 +561,6 @@ class ProbeStatistics:
         *,
         accounted: Sequence[str],
         non_date_dims: Mapping[str, tuple[str, ...]],
-        max_elements: int | None = None,
     ) -> ProbeStatistics:
         """Fold one probe evaluation over slices of its samples.
 
@@ -571,9 +575,6 @@ class ProbeStatistics:
         non_date_dims : mapping
             Per node, its dimensions after ``sample`` and ``date``.  Read only
             for the compared nodes.
-        max_elements : int, optional
-            Elements one slice of the largest node may hold.  Defaults to
-            :attr:`FOLD_ELEMENTS`, and is exposed so a test can force slicing.
 
         Returns
         -------
@@ -583,11 +584,7 @@ class ProbeStatistics:
         stats = cls(accounted=tuple(accounted))
         n_samples = next(iter(probed.values())).shape[0]
         per_sample = max(int(np.prod(array.shape[1:])) for array in probed.values())
-        for samples in _sample_slices(
-            n_samples,
-            per_sample=per_sample,
-            max_elements=cls.FOLD_ELEMENTS if max_elements is None else max_elements,
-        ):
+        for samples in _sample_runs(n_samples, per_sample):
             stats.update(
                 {name: array[samples] for name, array in probed.items()},
                 {name: baseline[name][samples] for name in probed},
@@ -612,10 +609,20 @@ class ProbeStatistics:
         non_date_dims : mapping
             Per node, its dimensions after ``sample`` and ``date``.
         """
-        for name, values in probed.items():
-            moved = np.abs(values - baseline[name])
-            per_date = moved.reshape(moved.shape[0], moved.shape[1], -1).max(
-                axis=(0, 2)
+        # Each node's move, taken once and read by both statistics below.
+        moved = {
+            name: probed[name] - baseline[name]
+            for name in probed
+            if name != LINEAR_PREDICTOR or self.accounted
+        }
+        # The reach is measured on the accounted nodes, never on the predictor.
+        for name, values in moved.items():
+            if name == LINEAR_PREDICTOR:
+                continue
+            per_date = (
+                np.abs(values)
+                .reshape(values.shape[0], values.shape[1], -1)
+                .max(axis=(0, 2))
             )
             previous = self.per_date_move.get(name)
             self.per_date_move[name] = (
@@ -625,22 +632,21 @@ class ProbeStatistics:
         if not self.accounted:
             return
 
-        def moved_by(name: str) -> xr.DataArray:
+        def as_array(name: str) -> xr.DataArray:
             return xr.DataArray(
-                probed[name] - baseline[name],
-                dims=("sample", "date", *non_date_dims[name]),
+                moved[name], dims=("sample", "date", *non_date_dims[name])
             )
 
         # channel_contribution carries a channel dimension the predictor does
         # not: it enters mu summed over channels.
-        accounted = moved_by(CHANNEL_CONTRIBUTION).sum("channel")
+        accounted = as_array(CHANNEL_CONTRIBUTION).sum("channel")
         for name in self.accounted[1:]:
-            accounted = accounted + moved_by(name)
-        expected = moved_by(LINEAR_PREDICTOR)
-        expected, accounted = xr.broadcast(expected, accounted)
-
+            accounted = accounted + as_array(name)
+        expected = as_array(LINEAR_PREDICTOR)
+        # Broadcasting only repeats values, so the maxima are taken before it.
         self.max_expected = max(self.max_expected, float(np.abs(expected).max()))
         self.max_accounted = max(self.max_accounted, float(np.abs(accounted).max()))
+        expected, accounted = xr.broadcast(expected, accounted)
         # The difference numpy.allclose takes, in the dtype it takes it in.
         self.expected_dtype = np.result_type(expected.values, 1.0)
         residual = np.abs(
@@ -657,11 +663,6 @@ class ProbeStatistics:
             self.node_magnitude, *(float(np.abs(array).max()) for array in compared)
         )
         self.dtype = np.result_type(*compared)
-
-    @property
-    def scale(self) -> float:
-        """The larger of the two moves the completeness check compares."""
-        return max(self.max_expected, self.max_accounted)
 
     def residual_within(self, atol: float) -> bool:
         """Whether the largest residual is within *atol*, as :func:`numpy.allclose` decides it.
@@ -783,11 +784,9 @@ class SpendProbe:
         # The completeness check sums every node but the predictor against it,
         # which is what the caller evaluated the probe for:
         # assert_increment_is_complete refuses any other set of effects.
-        self._non_date_dims: Mapping[str, tuple[str, ...]] = {}
-        accounted: tuple[str, ...] = ()
+        self._accounted: tuple[str, ...] = ()
         if LINEAR_PREDICTOR in baseline:
-            self._non_date_dims = evaluator.non_date_dims
-            accounted = (
+            self._accounted = (
                 CHANNEL_CONTRIBUTION,
                 *(
                     name
@@ -812,8 +811,8 @@ class SpendProbe:
             self.probes[probe_index] = ProbeStatistics.fold(
                 probed,
                 baseline,
-                accounted=accounted,
-                non_date_dims=self._non_date_dims,
+                accounted=self._accounted,
+                non_date_dims=evaluator.non_date_dims if self._accounted else {},
             )
             del probed
 
@@ -1483,17 +1482,17 @@ class SpendProbe:
             # _reach_of: the threshold is then free of the units the
             # contribution happens to be in.  Both are maxima, so they are
             # folded over slices of samples rather than held full size.
-            largest = others = 0.0
-            for samples in _sample_slices(
-                probed.shape[0],
-                per_sample=int(np.prod(probed.shape[1:])),
-                max_elements=ProbeStatistics.FOLD_ELEMENTS,
+            other_axes = tuple(
+                axis for axis in range(probed.ndim) if axis != channel_axis
+            )
+            per_channel = np.zeros(probed.shape[channel_axis], dtype=probed.dtype)
+            for samples in _sample_runs(
+                probed.shape[0], int(np.prod(probed.shape[1:]))
             ):
                 moved = np.abs(probed[samples] - baseline[samples])
-                largest = max(largest, float(moved.max()))
-                others = max(
-                    others, float(np.delete(moved, channel, axis=channel_axis).max())
-                )
+                per_channel = np.maximum(per_channel, moved.max(axis=other_axes))
+            largest = float(per_channel.max())
+            others = float(np.delete(per_channel, channel).max())
             del probed
             if largest == 0.0:
                 continue
@@ -1551,21 +1550,20 @@ class SpendProbe:
             for: every node of the baseline but the predictor, with the
             evaluator's dimensions.
         """
-        if not self.probes or not next(iter(self.probes.values())).accounted:
+        if not self.probes or not self._accounted:
             return
 
         accounted_names = (
             CHANNEL_CONTRIBUTION,
             *(effect.contribution_var for effect in effects),
         )
-        stats_names = next(iter(self.probes.values())).accounted
-        compared_names = (LINEAR_PREDICTOR, *accounted_names)
-        if accounted_names != stats_names or any(
-            tuple(non_date_dims[name]) != tuple(self._non_date_dims[name])
-            for name in compared_names
+        folded_dims = self._evaluator.non_date_dims
+        if accounted_names != self._accounted or any(
+            tuple(non_date_dims[name]) != tuple(folded_dims[name])
+            for name in (LINEAR_PREDICTOR, *accounted_names)
         ):
             raise ValueError(
-                f"The probe was folded for {list(stats_names)} against "
+                f"The probe was folded for {list(self._accounted)} against "
                 f"{LINEAR_PREDICTOR!r}, with the evaluator's dimensions, so it "
                 f"cannot check {list(accounted_names)} with {dict(non_date_dims)}.  "
                 "Evaluate the baseline on exactly the nodes being checked."
@@ -1577,7 +1575,7 @@ class SpendProbe:
             # Scaled by whichever side moved more, so that a predictor which did
             # not move cannot excuse accounted nodes that did.  Taking the
             # predictor's scale alone would pass a misattribution vacuously.
-            scale = stats.scale
+            scale = max(stats.max_expected, stats.max_accounted)
 
             # The predictor's move and the accounted move are each a difference
             # of two full-magnitude evaluations, so their rounding floor is

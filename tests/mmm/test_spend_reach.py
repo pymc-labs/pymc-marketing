@@ -13,6 +13,7 @@
 #   limitations under the License.
 """Tests for the spend-reach probe: window length and increment completeness."""
 
+import dataclasses
 import gc
 import weakref
 
@@ -1407,18 +1408,17 @@ EFFECT = "effect_contribution"
 
 
 def assert_identical_statistics(left, right):
-    """Assert two :class:`ProbeStatistics` hold bitwise-equal values."""
-    assert left.accounted == right.accounted
-    assert left.per_date_move.keys() == right.per_date_move.keys()
-    for name, per_date in left.per_date_move.items():
-        assert per_date.dtype == right.per_date_move[name].dtype
-        np.testing.assert_array_equal(per_date, right.per_date_move[name])
-    assert left.max_expected == right.max_expected
-    assert left.max_accounted == right.max_accounted
-    assert left.max_residual == right.max_residual
-    assert left.expected_dtype == right.expected_dtype
-    assert left.node_magnitude == right.node_magnitude
-    assert left.dtype == right.dtype
+    """Assert two :class:`ProbeStatistics` hold bitwise-equal values in every field."""
+    for statistic in dataclasses.fields(ProbeStatistics):
+        left_value = getattr(left, statistic.name)
+        right_value = getattr(right, statistic.name)
+        if statistic.name == "per_date_move":
+            assert left_value.keys() == right_value.keys()
+            for name, per_date in left_value.items():
+                assert per_date.dtype == right_value[name].dtype
+                np.testing.assert_array_equal(per_date, right_value[name])
+        else:
+            assert left_value == right_value, statistic.name
 
 
 class TestProbeStatistics:
@@ -1451,7 +1451,7 @@ class TestProbeStatistics:
 
     @pytest.mark.parametrize("dtype", ["float64", "float32"])
     @pytest.mark.parametrize("seed", range(5))
-    def test_any_slicing_gives_bitwise_equal_statistics(self, dtype, seed):
+    def test_any_slicing_gives_bitwise_equal_statistics(self, dtype, seed, monkeypatch):
         """Every statistic is a maximum, so slicing and order cannot change it."""
         rng = np.random.default_rng(seed)
         probed, baseline = self._evaluations(rng, dtype)
@@ -1472,12 +1472,12 @@ class TestProbeStatistics:
                 {name: values[samples] for name, values in baseline.items()},
                 non_date_dims=self.non_date_dims,
             )
+        monkeypatch.setattr(ProbeStatistics, "FOLD_ELEMENTS", 1)
         one_at_a_time = ProbeStatistics.fold(
             probed,
             baseline,
             accounted=self.accounted,
             non_date_dims=self.non_date_dims,
-            max_elements=1,
         )
 
         assert_identical_statistics(whole, shuffled)
