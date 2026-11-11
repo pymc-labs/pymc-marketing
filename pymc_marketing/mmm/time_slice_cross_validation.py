@@ -33,6 +33,7 @@ import xarray as xr
 from pymc_extras.prior import Prior
 from tqdm.auto import tqdm
 
+from pymc_marketing.mmm.additive_effect import fitted_dates_only_effects
 from pymc_marketing.mmm.builders.yaml import build_mmm_from_yaml
 from pymc_marketing.mmm.link import LinkFunction
 from pymc_marketing.mmm.plot import MMMPlotSuite
@@ -615,7 +616,21 @@ class TimeSliceCrossValidator:
         -------
         TimeSliceCrossValidationResult
             Results container with fitted model data and predictions.
+
+        Raises
+        ------
+        NotImplementedError
+            If a mu effect of ``mmm`` takes only the dates the MMM was fitted on
+            (``supports_new_dates=False``). This is raised before fitting.
         """
+        if effects := fitted_dates_only_effects(getattr(mmm, "mu_effects", ())):
+            names = ", ".join(name for name, _ in effects)
+            raise NotImplementedError(
+                "Time-slice cross-validation predicts on each fold's test dates, but "
+                f"the contribution of {names} exists only on the dates each fold's "
+                "MMM is fitted on."
+            )
+
         # Fit the model for this fold. sampler_config can override the validator-level config.
         mmm = self._fit_mmm(mmm, X_train, y_train, sampler_config=sampler_config)
 
@@ -864,6 +879,10 @@ class TimeSliceCrossValidator:
             If neither ``yaml_path`` nor ``mmm`` is provided.
             If ``model_names`` length doesn't match the number of splits.
             If no DataTree objects are produced during CV.
+        NotImplementedError
+            If the MMM has a mu effect that takes only the dates the MMM was fitted
+            on (``supports_new_dates=False``), since each fold predicts on its test
+            dates. This is raised before the first fold is fitted.
 
         See Also
         --------
