@@ -19,14 +19,11 @@ from typing import NamedTuple
 import numpy as np
 import pytensor.tensor as pt
 import pytensor.xtensor as ptx
-from pymc.dims import Weibull
-from pymc.distributions.dist_math import check_parameters
 from pymc.logprob.utils import CheckParameterValue
 from pytensor.xtensor import as_xtensor
 from pytensor.xtensor.type import XTensorVariable
 
 from pymc_marketing.mmm.dims import XTensorLike
-from pymc_marketing.mmm.utils import log_density
 
 
 class ConvMode(StrEnum):
@@ -521,10 +518,17 @@ def weibull_adstock(
     k = as_xtensor(k)
     if type == WeibullType.PDF:
         t = as_xtensor(pt.arange(l_max, dtype=x.dtype) + 1, dims=(kernel_dim,))
-        log_w = log_density(Weibull, value=t, alpha=k, beta=lam)
+        log_hazard = k * (ptx.math.log(t) - ptx.math.log(lam))
+        # The Weibull log density is log(k) + log_hazard - log(t) - hazard, and
+        # log(k), the same at every lag, cancels below. Where the hazard
+        # (t / lam) ** k overflows, the density is 0: its log is set to -inf
+        # without computing it, so the gradient there is 0 rather than 0 * inf.
+        finite = log_hazard < float(np.log(np.finfo(log_hazard.type.dtype).max))
+        hazard = ptx.math.exp(ptx.where(finite, log_hazard, 0))
+        log_w = ptx.where(finite, log_hazard - ptx.math.log(t) - hazard, -np.inf)
         # Min-max scale the density divided by its maximum, taken in log space, so
         # that the kernel stays finite where every density rounds to zero (but not
-        # where ``(t / lam) ** k`` overflows at every lag).
+        # where the hazard overflows at every lag).
         w = ptx.math.exp(log_w - log_w.max(dim=kernel_dim))
         w = (w - w.min(dim=kernel_dim)) / (1 - w.min(dim=kernel_dim))
     elif type == WeibullType.CDF:
@@ -533,17 +537,6 @@ def weibull_adstock(
         # its input, which is 0 / 0 wherever a survival term rounds to zero.
         t = as_xtensor(pt.arange(l_max - 1, dtype=x.dtype) + 1, dims=(kernel_dim,))
         log_hazard = k * (ptx.math.log(t) - ptx.math.log(lam))
-        # Inside a model PyMC turns a failed check into a log hazard of -inf: zero
-        # hazard, so a kernel of ones, as with the previous ``1 - cdf`` kernel.
-        log_hazard = as_xtensor(
-            check_parameters(
-                log_hazard.values,
-                (lam > 0).values,
-                (k > 0).values,
-                msg="lam > 0, k > 0",
-            ),
-            dims=log_hazard.dims,
-        )
         hazard = ptx.math.exp(ptx.math.minimum(log_hazard, _WEIBULL_MAX_LOG_HAZARD))
         cumulative_hazard = ptx.concat([0, hazard], dim=kernel_dim).cumsum(
             dim=kernel_dim

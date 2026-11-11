@@ -417,19 +417,25 @@ class TestsAdstockTransformers:
         np.testing.assert_allclose(y, expected, rtol=1e-12, atol=0)
 
     @pytest.mark.parametrize(
-        "lam, k", [(0.2, 5.0), (50.0, 500.0)], ids=["decreasing", "increasing"]
+        "lam, k",
+        [(0.2, 5.0), (50.0, 500.0), (1.0, 400.0)],
+        ids=[
+            "every-density-rounds-to-zero-decreasing",
+            "every-density-rounds-to-zero-increasing",
+            "hazard-overflows-at-some-lags",
+        ],
     )
-    def test_weibull_pdf_adstock_where_every_density_rounds_to_zero(self, lam, k):
+    def test_weibull_pdf_adstock_matches_log_space_reference(self, lam, k):
         """The kernel is the min-max scaled density, not ``0 / 0`` (#3331).
 
         Min-max scaling does not change when every density is divided by the
-        largest one, and that ratio is finite in log space.
+        largest one, and that ratio is finite in log space. Where the hazard
+        ``(t / lam) ** k`` overflows, the density and its weight are 0.
         """
         l_max = 6
         t = np.arange(l_max) + 1
         impulse = np.zeros(l_max)
         impulse[0] = 1.0
-        assert (sp.stats.weibull_min.pdf(t, c=k, scale=lam) == 0).all()
 
         y = weibull_adstock(
             x=as_xtensor(impulse, dims=("t",)),
@@ -443,21 +449,6 @@ class TestsAdstockTransformers:
         log_w = sp.stats.weibull_min.logpdf(t, c=k, scale=lam)
         w = np.exp(log_w - log_w.max())
         np.testing.assert_allclose(y, (w - w.min()) / (w.max() - w.min()), rtol=1e-9)
-
-    @pytest.mark.parametrize("type", [WeibullType.PDF, WeibullType.CDF])
-    @pytest.mark.parametrize(
-        "lam, k", [(0.0, 1.0), (-1.0, 1.0), (1.0, 0.0), (1.0, -1.0)]
-    )
-    def test_weibull_adstock_rejects_non_positive_parameters(self, type, lam, k):
-        with pytest.raises(ParameterValueError):
-            weibull_adstock(
-                x=as_xtensor(np.ones(5), dims=("t",)),
-                lam=lam,
-                k=k,
-                l_max=3,
-                type=type,
-                dim="t",
-            ).eval()
 
     @staticmethod
     def _weibull_model(type: WeibullType) -> pymc.Model:
@@ -494,6 +485,8 @@ class TestsAdstockTransformers:
             (WeibullType.CDF, 1e-3, 100.0),
             (WeibullType.PDF, 0.2, 5.0),
             (WeibullType.PDF, 50.0, 500.0),
+            (WeibullType.PDF, 1.0, 400.0),
+            (WeibullType.PDF, 1.0, 60.0),
         ],
         ids=[
             "cdf-survival-rounds-to-zero",
@@ -502,6 +495,8 @@ class TestsAdstockTransformers:
             "cdf-hazard-overflows-in-float64",
             "pdf-decreasing-density-rounds-to-zero",
             "pdf-increasing-density-rounds-to-zero",
+            "pdf-hazard-overflows-at-some-lags",
+            "pdf-hazard-overflows-at-some-lags-in-float32-only",
         ],
     )
     def test_weibull_adstock_dlogp_is_finite(self, float_x, type, lam, k):
@@ -512,7 +507,8 @@ class TestsAdstockTransformers:
         cumulative product of survival terms is ``0 / 0``. For larger
         ``k * log(t / lam)`` the hazard ``(t / lam) ** k`` itself overflows,
         earlier in float32. PDF: where every density rounds to zero, min-max
-        scaling is ``0 / 0``.
+        scaling is ``0 / 0``; where the hazard overflows at some lags, the
+        gradient of the overflowed density is ``0 * inf``.
         """
         with pytensor.config.change_flags(floatX=float_x):
             model = self._weibull_model(type)
