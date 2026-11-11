@@ -1417,7 +1417,8 @@ class VarianceBudget:
         """Serialize to a dictionary."""
         return {
             "total": self.total.to_dict(),
-            "share": self.share,
+            # a copy, so editing the dict does not change the budget
+            "share": dict(self.share),
             "concentration": self.concentration,
             **({} if self.dims is None else {"dims": list(self.dims)}),
         }
@@ -1563,9 +1564,12 @@ class _Spec:
             raise ValueError(f"{cls.__name__.lower()} {label}: {err}") from None
 
     def to_dict(self) -> dict:
-        """Serialize to a plain dict, leaving out the fields at their default."""
+        """Serialize to a plain dict, leaving out the fields at their default.
+
+        The values are copies, so editing the dict does not change the spec.
+        """
         return {
-            f.name: getattr(self, f.name)
+            f.name: copy.deepcopy(getattr(self, f.name))
             for f in fields(self)
             if getattr(self, f.name) != f.default
         }
@@ -2326,7 +2330,9 @@ class NestedZeroSumPrior:
     def to_dict(self) -> dict:
         """Serialize to a dictionary of plain values (terms and interactions as plain dicts)."""
         return {
-            "mu": self.mu.to_dict() if hasattr(self.mu, "to_dict") else self.mu,
+            "mu": self.mu.to_dict()
+            if hasattr(self.mu, "to_dict")
+            else copy.deepcopy(self.mu),
             "terms": {k: t.to_dict() for k, t in self.terms.items()},
             "interactions": {k: t.to_dict() for k, t in self.interactions.items()},
             "sigma": self.sigma.to_dict()

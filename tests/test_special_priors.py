@@ -2384,6 +2384,37 @@ def test_a_str_dims_is_one_dim():  # was split into characters, also by from_dic
     assert NestedZeroSumPrior.from_dict(prior.to_dict() | {"dims": "brand"}) == prior
 
 
+@pytest.mark.parametrize(
+    "edit",
+    [
+        lambda d: d["terms"]["brand"]["map"].__setitem__("b0", 1),
+        lambda d: d["interactions"]["brand_dma"]["dims"].append("x"),
+        lambda d: d["sigma"]["share"].__setitem__("family", 0.9),
+        lambda d: d["mu"].__setitem__(0, 9.0),
+    ],
+    ids=["term_map", "interaction_dims", "variance_budget_share", "constant_mu"],
+)
+def test_to_dict_returns_copies_of_the_mutable_values(edit):
+    # editing the dict changed the prior, whose equality and hash come from to_dict
+    levels = ["family", "brand", "dma", "brand_dma"]
+    prior = NestedZeroSumPrior(
+        mu=[0.1, 0.2, 0.3],
+        terms={
+            "family": {},
+            "brand": {"within": "family", "map": dict(FAM)},
+            "dma": {},
+        },
+        interactions={"brand_dma": {"dims": ["brand", "dma"]}},
+        sigma=VarianceBudget(G, dict.fromkeys(levels, 0.25)),
+        dims=("brand", "dma", "channel"),
+    )
+    expected = copy.deepcopy(
+        prior.to_dict()
+    )  # a copy, or it would share the values too
+    edit(prior.to_dict())
+    assert prior.to_dict() == expected
+
+
 def json_round_trip(prior):
     return NestedZeroSumPrior.from_dict(json.loads(json.dumps(prior.to_dict())))
 
