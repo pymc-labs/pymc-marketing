@@ -1357,6 +1357,21 @@ def test_a_slash_in_a_term_or_interaction_name_fails_at_construction(
         nzs(terms, interactions)
 
 
+@pytest.mark.parametrize(
+    ("terms", "interactions", "kind", "label"),
+    [
+        ({1: {}, "brand": {}}, None, "term", "1"),
+        ({"brand": {}}, {1: {"dims": ["brand"]}}, "interaction", "1"),
+    ],
+    ids=["term", "interaction"],
+)
+def test_a_non_str_label_is_named(terms, interactions, kind, label):
+    # labels are part of variable names and dims, so they must be str; a YAML int key
+    # gave a TypeError from the '/' check or the sort instead of a named ValueError
+    with pytest.raises(ValueError, match=f"{kind} labels .* must be str"):
+        nzs(terms, interactions)
+
+
 def test_parent_labels_are_not_used_in_variable_names():
     # a '/' in a parent label (`Food/Bev`, `N/A`) is not allowed in a pymc variable name
     prior, coords = nested_over(2, label=lambda i: ["Food/Bev", "N/A"][i])

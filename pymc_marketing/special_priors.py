@@ -1723,7 +1723,8 @@ class NestedZeroSumPrior:
 
         Nesting is at most two levels per tree: a ``within`` parent cannot
         itself be ``within`` another term, so region > tier > DMA raises.
-        The labels of terms and interactions are part of variable names, so they cannot contain ``/``.
+        The labels of terms and interactions are part of variable names and dims,
+        so they must be str and cannot contain ``/``.
         The parent labels, the values of a ``map``, can.
     sigma : IndependentSigmas, VarianceBudget or Prior
         The scales of the levels, the term and interaction labels. A
@@ -1945,7 +1946,12 @@ class NestedZeroSumPrior:
             k: Interaction.coerce(k, t) for k, t in dict(interactions or {}).items()
         }
         for kind, labels in (("term", self.terms), ("interaction", self.interactions)):
-            if slashed := [k for k in labels if "/" in k]:  # part of variable names
+            # labels are part of variable names and dims, so only str labels can build
+            if not_str := [k for k in labels if not isinstance(k, str)]:
+                raise ValueError(
+                    f"{kind} labels {not_str} must be str: they are part of variable names and dims"
+                )
+            if slashed := [k for k in labels if "/" in k]:
                 raise ValueError(
                     f"{kind} names {slashed} contain '/', which is not allowed in a variable name"
                 )
