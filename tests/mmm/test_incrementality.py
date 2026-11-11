@@ -68,6 +68,7 @@ from pymc_marketing.mmm.incrementality import (
 )
 from pymc_marketing.mmm.spend_reach import (
     LINEAR_PREDICTOR,
+    ProbeStatistics,
     SpendProbe,
     SpendReach,
     TemporalReach,
@@ -83,6 +84,7 @@ from pymc_marketing.model_graph import deterministics_to_flat
 from pymc_marketing.pytensor_utils import ConditionedModel
 from pymc_marketing.serialization import serialization
 from tests.mmm.test_spend_reach import (
+    assert_identical_statistics,
     effective_l_max,
     measure_reach,
     measure_spend_reach,
@@ -2452,6 +2454,46 @@ class TestMediatedMuEffects:
         # The predictor was there, and the probe checked against it.
         assert stats.accounted
         assert LINEAR_PREDICTOR not in result.baseline
+
+    def test_folding_the_probe_one_sample_at_a_time_changes_nothing(
+        self, mixing_funnel_identity_fitted_mmm, monkeypatch
+    ):
+        """The probe's checks read maxima, so slicing the samples cannot move them.
+
+        The fixtures are small enough to fold in one slice, so the slicing is
+        forced here: one sample per slice, through the reach, the completeness
+        check and the channel-mixing check, on a model that mixes channels.
+        """
+        probed = []
+        probe_reach = Incrementality._probe_reach
+
+        def spy(self, *args, **kwargs):
+            result = probe_reach(self, *args, **kwargs)
+            probed.append(result)
+            return result
+
+        monkeypatch.setattr(Incrementality, "_probe_reach", spy)
+        incr = mixing_funnel_identity_fitted_mmm.incrementality
+
+        whole = incr.compute_incremental_contribution(frequency="all_time")
+        whole_mixes = probed[0].probe.mixes_channels(
+            non_date_dims=probed[0].evaluator.non_date_dims
+        )
+        monkeypatch.setattr(ProbeStatistics, "FOLD_ELEMENTS", 1)
+        sliced = incr.compute_incremental_contribution(frequency="all_time")
+        sliced_mixes = probed[1].probe.mixes_channels(
+            non_date_dims=probed[1].evaluator.non_date_dims
+        )
+
+        first, second = probed
+        assert first.probe.probes.keys() == second.probe.probes.keys()
+        for index, stats in first.probe.probes.items():
+            assert stats.accounted
+            assert_identical_statistics(stats, second.probe.probes[index])
+        assert second.reach == first.reach
+        assert whole_mixes
+        assert sliced_mixes == whole_mixes
+        xr.testing.assert_identical(sliced, whole)
 
     def test_effect_that_ignores_spend_is_left_alone(self, trend_effect_fitted_mmm):
         """A ``mu_effect`` the counterfactual cannot reach needs no opt-in.

@@ -1406,6 +1406,21 @@ class TestSpendProbe:
 EFFECT = "effect_contribution"
 
 
+def assert_identical_statistics(left, right):
+    """Assert two :class:`ProbeStatistics` hold bitwise-equal values."""
+    assert left.accounted == right.accounted
+    assert left.per_date_move.keys() == right.per_date_move.keys()
+    for name, per_date in left.per_date_move.items():
+        assert per_date.dtype == right.per_date_move[name].dtype
+        np.testing.assert_array_equal(per_date, right.per_date_move[name])
+    assert left.max_expected == right.max_expected
+    assert left.max_accounted == right.max_accounted
+    assert left.max_residual == right.max_residual
+    assert left.expected_dtype == right.expected_dtype
+    assert left.node_magnitude == right.node_magnitude
+    assert left.dtype == right.dtype
+
+
 class TestProbeStatistics:
     """The probe keeps statistics folded over slices of samples, never evaluations."""
 
@@ -1433,20 +1448,6 @@ class TestProbeStatistics:
             for name, values in baseline.items()
         }
         return probed, baseline
-
-    @staticmethod
-    def _assert_identical(left, right):
-        assert left.accounted == right.accounted
-        assert left.per_date_move.keys() == right.per_date_move.keys()
-        for name, per_date in left.per_date_move.items():
-            assert per_date.dtype == right.per_date_move[name].dtype
-            np.testing.assert_array_equal(per_date, right.per_date_move[name])
-        assert left.max_expected == right.max_expected
-        assert left.max_accounted == right.max_accounted
-        assert left.max_residual == right.max_residual
-        assert left.expected_dtype == right.expected_dtype
-        assert left.node_magnitude == right.node_magnitude
-        assert left.dtype == right.dtype
 
     @pytest.mark.parametrize("dtype", ["float64", "float32"])
     @pytest.mark.parametrize("seed", range(5))
@@ -1479,8 +1480,8 @@ class TestProbeStatistics:
             max_elements=1,
         )
 
-        self._assert_identical(whole, shuffled)
-        self._assert_identical(whole, one_at_a_time)
+        assert_identical_statistics(whole, shuffled)
+        assert_identical_statistics(whole, one_at_a_time)
 
     def test_a_residual_at_the_rounding_of_atol_is_decided_as_allclose(self):
         """A float32 residual within an ulp of ``atol`` gets numpy.allclose's answer.

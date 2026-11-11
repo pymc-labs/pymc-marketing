@@ -644,7 +644,7 @@ class ProbeStatistics:
         # The difference numpy.allclose takes, in the dtype it takes it in.
         self.expected_dtype = np.result_type(expected.values, 1.0)
         residual = np.abs(
-            accounted.values - expected.values.astype(self.expected_dtype)
+            accounted.values - expected.values.astype(self.expected_dtype, copy=False)
         ).max()
         self.max_residual = max(self.max_residual, float(residual))
 
@@ -1579,8 +1579,8 @@ class SpendProbe:
             # predictor's scale alone would pass a misattribution vacuously.
             scale = stats.scale
 
-            # `expected` and `accounted` are each a difference of two
-            # full-magnitude evaluations, so their rounding floor is
+            # The predictor's move and the accounted move are each a difference
+            # of two full-magnitude evaluations, so their rounding floor is
             # eps * |node|, not eps * |move|: two sums of the same terms
             # assembled through different chains of operations (adstock,
             # saturation, one reduction per mu_effect) round independently, and
