@@ -19,13 +19,11 @@ from typing import NamedTuple
 import numpy as np
 import pytensor.tensor as pt
 import pytensor.xtensor as ptx
-from pymc.dims import Weibull
 from pymc.logprob.utils import CheckParameterValue
 from pytensor.xtensor import as_xtensor
 from pytensor.xtensor.type import XTensorVariable
 
 from pymc_marketing.mmm.dims import XTensorLike
-from pymc_marketing.mmm.utils import cdf, density
 
 
 class ConvMode(StrEnum):
@@ -513,15 +511,23 @@ def weibull_adstock(
     k = as_xtensor(k)
     if type == WeibullType.PDF:
         t = as_xtensor(pt.arange(l_max, dtype=x.dtype) + 1, dims=(kernel_dim,))
-        w = density(Weibull, value=t, alpha=k, beta=lam)
-        w = (w - w.min(dim=kernel_dim)) / (
-            w.max(dim=kernel_dim) - w.min(dim=kernel_dim)
-        )
+        log_hazard = k * (ptx.math.log(t) - ptx.math.log(lam))
+        # Weibull log density up to log(k); -inf where the hazard would overflow.
+        finite = log_hazard < float(np.log(np.finfo(log_hazard.type.dtype).max))
+        hazard = ptx.math.exp(ptx.where(finite, log_hazard, 0))
+        log_w = ptx.where(finite, log_hazard - ptx.math.log(t) - hazard, -np.inf)
+        # Min-max scaling in log space, finite even where every density underflows.
+        w = ptx.math.exp(log_w - log_w.max(dim=kernel_dim))
+        w = (w - w.min(dim=kernel_dim)) / (1 - w.min(dim=kernel_dim))
     elif type == WeibullType.CDF:
+        # Survival product as exp(-cumsum(hazard)): cumprod's gradient is NaN at 0.
+        # Capping the log hazard at 10 changes no weight (exp(-e**10) == 0).
         t = as_xtensor(pt.arange(l_max - 1, dtype=x.dtype) + 1, dims=(kernel_dim,))
-        w = 1 - cdf(Weibull, value=t, alpha=k, beta=lam)
-        padded_w = ptx.concat([1, w], dim=kernel_dim)
-        w = padded_w.cumprod(dim=kernel_dim)
+        log_hazard = k * (ptx.math.log(t) - ptx.math.log(lam))
+        hazard = ptx.math.exp(ptx.math.minimum(log_hazard, 10))
+        w = ptx.math.exp(
+            -ptx.concat([0, hazard], dim=kernel_dim).cumsum(dim=kernel_dim)
+        )
     else:
         raise ValueError(f"Wrong WeibullType: {type}, expected of WeibullType")
 
