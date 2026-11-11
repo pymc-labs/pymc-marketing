@@ -14,6 +14,7 @@
 """Consideration Set Mixed Logit with optional random consideration intercepts."""
 
 import json
+import warnings
 from typing import TypedDict
 
 import numpy as np
@@ -94,6 +95,7 @@ class ConsiderationSetMixedLogit(MixedLogit):
         "visibility" across all alternatives. Default False.
     model_config : dict, optional
         Model configuration with Prior specifications.
+        Use ``gamma_consider_0`` for the consideration intercept prior.
     sampler_config : dict, optional
         Sampler configuration for pm.sample().
     group_id : str, optional
@@ -152,6 +154,17 @@ class ConsiderationSetMixedLogit(MixedLogit):
         self.consideration_intercept = consideration_intercept
         self.random_consideration = random_consideration
 
+        if model_config is not None and "gamma_0" in model_config:
+            warnings.warn(
+                "The model_config key 'gamma_0' for the consideration intercept "
+                "is deprecated. Use 'gamma_consider_0' instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            model_config = dict(model_config)
+            legacy_prior = model_config.pop("gamma_0")
+            model_config.setdefault("gamma_consider_0", legacy_prior)
+
         # Validate Z_tilde
         if "Z_tilde" not in consideration_instruments:
             raise ValueError(
@@ -195,7 +208,7 @@ class ConsiderationSetMixedLogit(MixedLogit):
 
         # Optional consideration intercepts (one per alternative)
         if self.consideration_intercept:
-            config["gamma_0"] = Prior("Normal", mu=0, sigma=2, dims="alts")
+            config["gamma_consider_0"] = Prior("Normal", mu=0, sigma=2, dims="alts")
 
         # Random consideration intercept priors
         if self.random_consideration:
@@ -211,7 +224,7 @@ class ConsiderationSetMixedLogit(MixedLogit):
         result = super()._serializable_model_config
         result["gamma_z"] = self.model_config["gamma_z"].to_dict()
         if self.consideration_intercept:
-            result["gamma_0"] = self.model_config["gamma_0"].to_dict()
+            result["gamma_consider_0"] = self.model_config["gamma_consider_0"].to_dict()
         if self.random_consideration:
             result["sigma_consider_eta"] = self.model_config[
                 "sigma_consider_eta"
@@ -261,8 +274,10 @@ class ConsiderationSetMixedLogit(MixedLogit):
 
         # Optional: alternative-specific consideration intercepts
         if self.consideration_intercept:
-            gamma_0 = self.model_config["gamma_0"].create_variable("gamma_0")
-            log_odds = gamma_0[None, :] + log_odds  # (N, J)
+            gamma_consider_0 = self.model_config["gamma_consider_0"].create_variable(
+                "gamma_consider_0"
+            )
+            log_odds = gamma_consider_0[None, :] + log_odds  # (N, J)
 
         # Optional: random consideration intercept per individual
         if self.random_consideration:
