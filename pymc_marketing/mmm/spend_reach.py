@@ -644,15 +644,21 @@ class ProbeStatistics:
             accounted = accounted + as_array(name)
         expected = as_array(LINEAR_PREDICTOR)
         # Broadcasting only repeats values, so the maxima are taken before it.
-        self.max_expected = max(self.max_expected, float(np.abs(expected).max()))
-        self.max_accounted = max(self.max_accounted, float(np.abs(accounted).max()))
+        # np.maximum, not max(): a NaN move has to survive the fold, as it
+        # survives the maximum over the whole evaluation.
+        self.max_expected = float(np.maximum(self.max_expected, np.abs(expected).max()))
+        self.max_accounted = float(
+            np.maximum(self.max_accounted, np.abs(accounted).max())
+        )
         expected, accounted = xr.broadcast(expected, accounted)
         # The difference numpy.allclose takes, in the dtype it takes it in.
         self.expected_dtype = np.result_type(expected.values, 1.0)
         residual = np.abs(
             accounted.values - expected.values.astype(self.expected_dtype, copy=False)
         ).max()
-        self.max_residual = max(self.max_residual, float(residual))
+        # A NaN residual stays NaN, so it is never within atol, as in
+        # numpy.allclose.
+        self.max_residual = float(np.maximum(self.max_residual, residual))
 
         compared = [
             array
