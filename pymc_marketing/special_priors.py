@@ -2336,6 +2336,24 @@ class NestedZeroSumPrior:
         """Create the prior from a dictionary created by :meth:`to_dict`."""
         return cls(**{k: v for k, v in data.items() if k != "__type__"})
 
+    def __repr__(self) -> str:
+        """Return the call that creates the prior, without the arguments at their defaults."""
+        args = [
+            f"mu={self.mu!r}",
+            f"terms={ {k: t.to_dict() for k, t in self.terms.items()}!r}",
+        ]
+        if self.interactions:
+            interactions = {k: t.to_dict() for k, t in self.interactions.items()}
+            args.append(f"interactions={interactions!r}")
+        args.append(f"sigma={self.sigma!r}")
+        if self.transform != "exp":
+            args.append(f"transform={self.transform!r}")
+        if self.centered:
+            args.append("centered=True")
+        if self.dims is not None:
+            args.append(f"dims={self.dims!r}")
+        return f"NestedZeroSumPrior({', '.join(args)})"
+
     def __eq__(self, other: object) -> bool:
         """Equal when the serialized forms are: the order of map, sigma and spec keys does not matter."""
         return (
