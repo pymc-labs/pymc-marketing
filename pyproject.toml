@@ -35,8 +35,8 @@ dependencies = [
     "h5netcdf>=1.8.1",
     "h5py>=3.16.0",
     "matplotlib>=3.5.1",
-    # clv.utils imports narwhals.stable.v2, which first shipped in 2.0.
-    "narwhals>=2.0",
+    # clv.utils needs chained when/then (2.20) and DuckDB 2.0 support (2.28).
+    "narwhals>=2.28",
     # numba<=0.66 (a hard requirement of pytensor 3.x) does not support numpy 2.5,
     # and uv>=0.12 otherwise falls back to a numba pre-release. Lift together with
     # the next pytensor bump that allows numba>=0.67.
@@ -105,8 +105,7 @@ test = [
     "graphviz>=0.20.1",
     "papermill",
     # Non-pandas backends exercised by the Narwhals-based CLV utilities.
-    # narwhals<=2.27 quotes join keys in a way DuckDB 2.0 rejects; lift once fixed upstream.
-    "duckdb>=1.0.0,<2.0",
+    "duckdb>=1.0.0",
     "polars>=2.0.0",
     "pyarrow>=15.0.0",
     "pyprojroot",
