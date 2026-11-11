@@ -1521,6 +1521,46 @@ class TestProbeStatistics:
             for atol, passes in zip(candidates, reference, strict=True)
         )
 
+    @pytest.mark.parametrize("with_predictor", [True, False])
+    def test_one_probe_evaluation_alive_at_a_time(self, with_predictor):
+        """No array of an earlier probe is alive while the next one is evaluated.
+
+        Two flighted channels never spend on the same date, so each gets its
+        own probe date.
+        """
+        returned = []
+        alive_at_each_call = []
+
+        class RecordingEvaluator(FakeEvaluator):
+            def evaluate_baseline(self, channel_data):
+                gc.collect()
+                alive_at_each_call.append(sum(ref() is not None for ref in returned))
+                out = super().evaluate_baseline(channel_data)
+                returned.extend(weakref.ref(array) for array in out.values())
+                return out
+
+        node = causal_filter(3)
+        nodes = {CHANNEL_CONTRIBUTION: node}
+        if with_predictor:
+            nodes[LINEAR_PREDICTOR] = lambda spend: node(spend).sum(axis=-1)
+        evaluator = RecordingEvaluator(**nodes)
+        spend = np.zeros((24, 2))
+        spend[1::2, 0] = 2.0
+        spend[2::2, 1] = 2.0
+        baseline = evaluator.evaluate_baseline(spend)
+        returned.clear()
+        alive_at_each_call.clear()
+
+        probe = SpendProbe(
+            evaluator=evaluator,
+            baseline=baseline,
+            baseline_array=spend,
+            counterfactual_spend_factor=0.0,
+        )
+
+        assert len(probe.probe_indices) == 2
+        assert alive_at_each_call == [0, 0]
+
     def test_the_probe_keeps_no_evaluation(self):
         """Once folded, no array the evaluator returned for a probe is alive."""
         returned = []

@@ -806,8 +806,10 @@ class SpendProbe:
                     dtype=evaluator.channel_dtype,
                 )
             )
-            for name, array in probed.items():
-                self._assert_finite(name, array)
+            # By name, so no loop variable keeps one of the arrays alive into
+            # the next probe's evaluation.
+            for name in probed:
+                self._assert_finite(name, probed[name])
             self.probes[probe_index] = ProbeStatistics.fold(
                 probed,
                 baseline,
@@ -1489,8 +1491,11 @@ class SpendProbe:
             for samples in _sample_runs(
                 probed.shape[0], int(np.prod(probed.shape[1:]))
             ):
-                moved = np.abs(probed[samples] - baseline[samples])
-                per_channel = np.maximum(per_channel, moved.max(axis=other_axes))
+                # Unnamed, so the last slice's move does not outlive the loop.
+                per_channel = np.maximum(
+                    per_channel,
+                    np.abs(probed[samples] - baseline[samples]).max(axis=other_axes),
+                )
             largest = float(per_channel.max())
             others = float(np.delete(per_channel, channel).max())
             del probed
