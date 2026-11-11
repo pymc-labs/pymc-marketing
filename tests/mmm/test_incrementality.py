@@ -14,11 +14,13 @@
 """Tests for Incrementality module - counterfactual analysis with carryover."""
 
 import copy
+import gc
 import json
 import logging
 import math
 import sys
 import warnings
+import weakref
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from types import SimpleNamespace
@@ -2443,21 +2445,35 @@ class TestMediatedMuEffects:
         return results
 
     def test_the_retained_baseline_drops_the_predictor(
-        self, funnel_log_link_fitted_mmm, probed
+        self, funnel_log_link_fitted_mmm, probed, monkeypatch
     ):
-        """``mu`` is evaluated for the completeness check, then not kept.
+        """``mu`` is evaluated for the completeness check, then freed.
 
         Nothing after the check reads it, and the request holds the baseline
-        until it ends.
+        until it ends.  The array itself is checked, not the dict key: the
+        saving relies on the probe and the request sharing one baseline dict.
         """
+        predictors = []
+        evaluate = CounterfactualEvaluator.evaluate_baseline
+
+        def spy(self, *args, **kwargs):
+            out = evaluate(self, *args, **kwargs)
+            predictors.append(weakref.ref(out[LINEAR_PREDICTOR]))
+            return out
+
+        monkeypatch.setattr(CounterfactualEvaluator, "evaluate_baseline", spy)
         funnel_log_link_fitted_mmm.incrementality.compute_incremental_contribution(
             frequency="all_time"
         )
+        gc.collect()
 
+        # Still holds the probe and the baseline.
         (result,) = probed
         stats = next(iter(result.probe.probes.values()))
         # The predictor was there, and the probe checked against it.
         assert stats.accounted
+        # The first evaluation in _probe_reach is the baseline.
+        assert predictors[0]() is None
         assert LINEAR_PREDICTOR not in result.baseline
 
     def test_folding_the_probe_one_sample_at_a_time_changes_nothing(
