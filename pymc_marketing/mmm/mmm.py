@@ -213,6 +213,7 @@ from pymc_marketing.mmm import SoftPlusHSGP
 from pymc_marketing.mmm.additive_effect import (
     EventAdditiveEffect,
     MuEffect,
+    fitted_dates_only_effects,
     safe_to_datetime,
 )
 from pymc_marketing.mmm.budget_optimizer import (
@@ -1039,13 +1040,8 @@ class MMM(RegressionModelBuilder):
             return False
         # Length check above ensures zip lengths match, suppressing B905 warning
         for self_effect, other_effect in zip(self.mu_effects, other.mu_effects):  # noqa: B905
-            if self_effect.__class__ is not other_effect.__class__:
+            if self_effect != other_effect:
                 return False
-            if hasattr(self_effect, "model_dump") and hasattr(
-                other_effect, "model_dump"
-            ):
-                if self_effect.model_dump() != other_effect.model_dump():
-                    return False
 
         # Causal graph
         if (
@@ -1426,9 +1422,35 @@ class MMM(RegressionModelBuilder):
                 stacklevel=3,
             )
 
+    def _store_effect_idata_groups(self, idata: xr.DataTree, *, replace: bool) -> None:
+        """Write each mu effect's supplementary groups, from ``idata_groups``, to idata.
+
+        Parameters
+        ----------
+        idata : xr.DataTree
+            The idata the groups are written to.
+        replace : bool
+            Whether a group already in ``idata`` is replaced. Fitting replaces an
+            earlier fit's groups. Saving writes only the missing ones, so the file
+            holds the data the effects were fitted with even if it has changed since.
+        """
+        for effect in self.mu_effects:
+            # A duck-typed effect, which the additive-effect module allows, may not
+            # define the hook.
+            for group_name, ds in getattr(effect, "idata_groups", dict)().items():
+                if group_name in idata.children:
+                    if not replace:
+                        continue
+                    del idata[group_name]
+                # A group built from an effect's frame can share its memory, and an
+                # edit of the frame in place would then change what was fitted.
+                idata[f"/{group_name}"] = ds.copy(deep=True)
+
     def save(self, fname: str, **kwargs) -> None:
         """Save the model, including supplementary idata groups from mu_effects.
 
+        The groups that fitting stored are saved as they are, so they hold the data
+        the effects were fitted with; a missing one is taken from its effect now.
         Warns when calibration was added, removed or changed since the last fit,
         because the file carries the calibration recorded at fit time.
         """
@@ -1436,10 +1458,7 @@ class MMM(RegressionModelBuilder):
             raise RuntimeError("The model hasn't been fit yet, call .fit() first")
         self._warn_if_calibration_changed_since_fit(self.idata)
 
-        for effect in self.mu_effects:
-            for group_name, ds in effect.idata_groups().items():
-                if not hasattr(self.idata, group_name):
-                    self.idata["/" + group_name] = ds
+        self._store_effect_idata_groups(self.idata, replace=False)
 
         # Persist the base names of any *_original_scale Deterministics so they
         # can be faithfully re-added by build_from_idata on load.
@@ -2146,6 +2165,9 @@ class MMM(RegressionModelBuilder):
         evaluation.  Recomputing them with a different dimension size would
         give wrong results; instead their posterior values should be
         substituted directly.
+
+        They include the names each mu effect declares through
+        :attr:`MuEffect.frozen_deterministics`.
         """
         names: list[str] = []
         if self.time_varying_intercept:
@@ -2158,6 +2180,10 @@ class MMM(RegressionModelBuilder):
                     "media_temporal_latent_multiplier"
                 )
             )
+        for effect in self.mu_effects:
+            # A duck-typed effect, which the additive-effect module allows, may not
+            # define the hook.
+            names.extend(getattr(effect, "frozen_deterministics", []))
         return names
 
     def _validate_idata_exists(self) -> None:
@@ -2242,6 +2268,7 @@ class MMM(RegressionModelBuilder):
             dims=self.dims,
             channel_columns=self.channel_columns,
             control_columns=self.control_columns,
+            extra_vars=self._effect_extra_vars(X),
             target_column=self.target_column,
         ).fillna(0)
         self.xarray_dataset = self._reindex_custom_dims(self.xarray_dataset)
@@ -2756,6 +2783,10 @@ class MMM(RegressionModelBuilder):
         the rows and options in ``idata.attrs``, and the cost-per-target spend
         in the ``cost_per_target_spend`` group, one variable per distinct spend
         array. :meth:`build_from_idata` replays them when the model is loaded.
+
+        Each mu effect's supplementary groups, from its ``idata_groups``, are stored
+        too, replacing those of an earlier fit, so the idata holds the data the
+        effects were fitted with.
         """
         # A refit replaces the posterior and can move its coordinate labels, which
         # the evaluator's shared binding would refuse; build against it from scratch.
@@ -2790,6 +2821,7 @@ class MMM(RegressionModelBuilder):
             idata[f"/{COST_PER_TARGET_SPEND_GROUP}"] = xr.Dataset(
                 self._cost_per_target_spend
             )
+        self._store_effect_idata_groups(idata, replace=True)
         if self._cost_per_unit_input is not None:
             self.set_cost_per_unit(self._cost_per_unit_input)
         return idata
@@ -3179,6 +3211,31 @@ class MMM(RegressionModelBuilder):
                 f"Either set include_last_observations=False or use input dates that don't overlap with training data."
             )
 
+    def _effect_extra_vars(
+        self, X: pd.DataFrame | xr.Dataset | xr.DataArray
+    ) -> list[str] | None:
+        """Columns of a DataFrame ``X`` that mu_effects read as data variables.
+
+        ``xr.Dataset`` inputs keep all their data variables, so this only
+        matters for DataFrames, whose extra columns are otherwise dropped.
+        """
+        if not isinstance(X, pd.DataFrame):
+            return None
+        reserved = {
+            self.date_column,
+            self.target_column,
+            *self.dims,
+            *self.channel_columns,
+            *(self.control_columns or []),
+        }
+        names = [
+            var_name
+            for effect in self.mu_effects
+            for var_name in getattr(effect, "data_vars", [])
+            if var_name in X.columns and var_name not in reserved
+        ]
+        return list(dict.fromkeys(names)) or None
+
     def _posterior_predictive_data_transformation(
         self,
         X: pd.DataFrame | xr.Dataset | xr.DataArray,
@@ -3192,6 +3249,7 @@ class MMM(RegressionModelBuilder):
             dims=self.dims,
             channel_columns=self.channel_columns,
             control_columns=self.control_columns,
+            extra_vars=self._effect_extra_vars(X),
             target_column=self.target_column,
         )
 
@@ -3515,6 +3573,12 @@ class MMM(RegressionModelBuilder):
         dates after it they are 0 unless *control_data* gives their planned
         values.
 
+        A :class:`~pymc_marketing.mmm.budget_optimizer.BudgetOptimizer` built on
+        the model should take the MMM's ``frozen_deterministics``, as
+        :meth:`budget_optimizer` passes them. It then refuses an objective that
+        reaches one over ``date``, a path that exists only on the dates the MMM
+        was fitted on.
+
         Parameters
         ----------
         start_date : str or pd.Timestamp
@@ -3589,6 +3653,7 @@ class MMM(RegressionModelBuilder):
         )
 
         for mu_effect in self.mu_effects:
+            mu_effect.check_scenario_use(self)
             mu_effect.set_data(self, pymc_model, dataset_xarray)
 
         return pymc_model
@@ -3699,6 +3764,15 @@ class MMM(RegressionModelBuilder):
         -------
         BudgetOptimizer
             A configured optimizer ready for :meth:`BudgetOptimizer.allocate_budget`.
+
+        Raises
+        ------
+        NotImplementedError
+            If the objective, ``response_variable``, reaches a frozen deterministic
+            over ``date``, a path that exists only on the dates the MMM was fitted
+            on, as ``total_response_original_scale`` does with the contribution of a
+            mu effect that freezes one. The optimizer refuses it on any window,
+            including one within the fitted dates.
         """
         from pymc_marketing.mmm.budget_optimizer import BudgetOptimizer
 
@@ -3822,6 +3896,37 @@ class MMM(RegressionModelBuilder):
         )
         return prior_predictive_samples
 
+    def _validate_mu_effects_support_dates(self, dataset: xr.Dataset) -> None:
+        """Refuse dates other than the fitted ones when a mu effect takes only those.
+
+        Parameters
+        ----------
+        dataset : xr.Dataset
+            The data to predict on, as the model will receive it.
+
+        Raises
+        ------
+        NotImplementedError
+            If the dates of ``dataset`` are not the dates the MMM was fitted on and
+            a mu effect has ``supports_new_dates=False``.
+        """
+        names = [name for name, _ in fitted_dates_only_effects(self.mu_effects)]
+        if not names:
+            return
+
+        fitted_dates = safe_to_datetime(self.model_coords["date"], "date")
+        dates = safe_to_datetime(dataset.coords["date"].values, "date")
+        if dates.equals(fitted_dates):
+            return
+
+        verb = "takes" if len(names) == 1 else "take"
+        raise NotImplementedError(
+            f"{', '.join(names)} {verb} only the {len(fitted_dates)} dates the MMM "
+            f"was fitted on, {fitted_dates[0]:%Y-%m-%d} to "
+            f"{fitted_dates[-1]:%Y-%m-%d}, so prediction on any other set of dates "
+            "is not supported."
+        )
+
     def sample_posterior_predictive(
         self,
         X: pd.DataFrame | xr.Dataset | None = None,  # type: ignore
@@ -3864,6 +3969,10 @@ class MMM(RegressionModelBuilder):
         ------
         ValueError
             If ``X`` is ``None``, or has custom-dim labels the model was not fit on.
+        NotImplementedError
+            If ``X`` is not on the dates the MMM was fitted on and a mu effect takes
+            only those dates (``supports_new_dates=False``). With
+            ``include_last_observations=True`` the dates always differ.
         """
         # Update model data with xarray
         if X is None:
@@ -3872,6 +3981,7 @@ class MMM(RegressionModelBuilder):
             X=X,
             include_last_observations=include_last_observations,
         )
+        self._validate_mu_effects_support_dates(dataset_xarray)
         if names := self.frozen_deterministics:
             # This always clone
             model = deterministics_to_flat(self.model, names=names)
@@ -4290,6 +4400,7 @@ class MMM(RegressionModelBuilder):
             pymc_model=self.model,
             idata=self.idata,
             dims=self.dims,
+            frozen_deterministics=self.frozen_deterministics,
         )
 
     @property
@@ -4601,6 +4712,9 @@ class MMM(RegressionModelBuilder):
             "name": name,
         }
         json.dumps(calibration)
+
+        for mu_effect in self.mu_effects:
+            mu_effect.check_lift_tests(self, df_lift_test)
 
         # Function to scale "delta_y", and "sigma" to same scale as target in model.
         target_transform = self._make_target_transform(df_lift_test)
@@ -5794,6 +5908,7 @@ class BudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
             model=self.model_class.model.copy(),
         )
         for mu_effect in self.model_class.mu_effects:
+            mu_effect.check_scenario_use(self.model_class)
             mu_effect.set_data(self.model_class, pymc_model, dataset_xarray)
         return pymc_model
 
@@ -5930,6 +6045,16 @@ class BudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
             Result object with ``budgets``, ``scipy_result``, ``optimized_vars``
             and ``callback_info`` attributes. Iterating it yields
             ``(budgets, scipy_result)``, so two-element unpacking keeps working.
+
+        Raises
+        ------
+        TypeError
+            If ``cost_per_unit`` is neither a DataFrame nor a DataArray.
+        NotImplementedError
+            If ``response_variable`` reaches a frozen deterministic over ``date``, a
+            path that exists only on the dates the MMM was fitted on, as
+            ``total_response_original_scale`` does with the contribution of a mu
+            effect that freezes one. The optimizer refuses it.
         """
         from pymc_marketing.mmm.budget_optimizer import BudgetOptimizer
 
@@ -5955,12 +6080,14 @@ class BudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
                 stacklevel=2,
             )
 
+        response_variable = self.model_class._resolve_response_variable(
+            response_variable
+        )
+
         allocator = BudgetOptimizer(
             num_periods=self.num_periods,
             utility_function=utility_function,
-            response_variable=self.model_class._resolve_response_variable(
-                response_variable
-            ),
+            response_variable=response_variable,
             constraints=constraints,
             budgets_to_optimize=budgets_to_optimize,
             budget_distribution_over_period=budget_distribution_over_period,
@@ -6070,6 +6197,13 @@ class BudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
         -------
         xr.Dataset
             The posterior predictive samples based on the synthetic dataset.
+
+        Raises
+        ------
+        NotImplementedError
+            If a mu effect takes only the dates the MMM was fitted on
+            (``supports_new_dates=False``), since this samples the posterior
+            predictive on the window's dates, as prediction on any other dates is.
         """
         data = create_zero_dataset(
             model=self,

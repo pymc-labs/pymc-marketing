@@ -243,11 +243,7 @@ class TestCumulativeWeights:
         ids=lambda adstock: type(adstock).__name__,
     )
     def test_every_built_in_kernel_rises_to_one(self, adstock) -> None:
-        """Every built-in kernel, draw by draw: non-decreasing, ending at one.
-
-        Draws whose kernel is not finite (a Weibull can underflow to ``0 / 0``
-        for extreme parameters) give ``NaN`` and are pinned separately below.
-        """
+        """Every built-in kernel, draw by draw: non-decreasing, ending at one."""
         prior = adstock.sample_prior(random_seed=1)
         finite = np.isfinite(adstock.sample_curve(prior, progressbar=False).values).all(
             axis=-1
@@ -290,17 +286,10 @@ class TestCumulativeWeights:
         )
 
     def test_a_draw_without_a_finite_kernel_has_no_share(self) -> None:
-        """The ``NaN`` of an underflowed kernel is passed on, not turned into a number.
-
-        With ``lam=0.2`` and ``k=5`` every lag from 1 on has
-        ``(l / lam) ** k >= 5**5 = 3125``, so the Weibull density
-        ``exp(-(l / lam) ** k)`` underflows to zero on the whole kernel and the
-        normalized kernel is ``0 / 0``.
-        """
-        adstock = WeibullPDFAdstock(l_max=6)
+        """A ``NaN`` kernel (here from an unchecked ``NaN`` theta) gives a ``NaN`` share."""
+        adstock = DelayedAdstock(l_max=6)
         prior = adstock.sample_prior(random_seed=0).copy(deep=True)
-        prior["adstock_lam"].values[:] = 0.2
-        prior["adstock_k"].values[:] = 5.0
+        prior["adstock_theta"].values[:] = np.nan
         assert np.isnan(adstock.sample_curve(prior, progressbar=False).values).all()
 
         share = adstock.cumulative_weights(prior, 2, progressbar=False)
