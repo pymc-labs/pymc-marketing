@@ -210,6 +210,7 @@ coefficients.
 """
 
 from abc import ABC, abstractmethod
+from collections.abc import Iterable
 from typing import Annotated, Any, Literal, Protocol
 
 import numpy as np
@@ -442,7 +443,25 @@ class MuEffect(SerializableBaseModel, ABC):
 
     All mu_effects must inherit from this Pydantic BaseModel to ensure proper
     serialization and deserialization when saving/loading MMM models.
+    A subclass is saved under its fully-qualified class path by default;
+    register a stable key with
+    ``serialization.register("my_package.MyEffect", MyEffect)`` so that saved
+    models still load after the module defining it moves.
     """
+
+    @property
+    def supports_new_dates(self) -> bool:
+        """Whether the effect can be evaluated on dates other than the fitted ones.
+
+        ``True`` by default. An effect whose contribution exists only on the dates
+        the MMM was fitted on overrides this property to return ``False``. Each of
+        these then raises a ``NotImplementedError`` naming the effect:
+        :meth:`MMM.sample_posterior_predictive` and :meth:`MMM.predict` on any other
+        set of dates, and time-slice cross-validation, before it fits the first
+        fold. The budget optimizer refuses an objective that reaches a frozen path
+        over ``date`` instead, see :attr:`frozen_deterministics`.
+        """
+        return True
 
     @abstractmethod
     def create_data(self, mmm: Model) -> None:
@@ -511,6 +530,60 @@ class MuEffect(SerializableBaseModel, ABC):
         """
         return None
 
+    @property
+    def frozen_deterministics(self) -> list[str]:
+        """Names of deterministics to take from the posterior rather than recompute.
+
+        :attr:`MMM.frozen_deterministics` collects them from every effect. Posterior
+        predictive sampling, incrementality, sensitivity sweeps and budget
+        optimization then substitute the posterior draws of these deterministics
+        instead of recomputing them from the graph.
+
+        The default is empty, which is right for an effect whose contribution is a
+        function of its parameters and data. Override the property for a
+        contribution that is a latent path over the fitted dates, such as a random
+        walk or a Gaussian process, which should be taken from the posterior as the
+        MMM's HSGP terms are. A frozen deterministic no longer responds to the
+        channel data, so never freeze one that depends on them.
+
+        A frozen deterministic with a ``date`` dimension is a path over the fitted
+        dates. Posterior predictive sampling and sensitivity sweeps handle it on
+        those dates, and incrementality on any window, because the counterfactual
+        evaluation cuts it to each period's window as it cuts the data. The budget
+        optimizer refuses any objective that reaches a frozen path over ``date``; an
+        effect that freezes one should also override ``supports_new_dates`` to
+        return ``False``, so that prediction on other dates is refused.
+        """
+        return []
+
+    def check_scenario_use(self, mmm: Model) -> None:
+        """Warn if this effect misreads the placeholder spend of budget scenarios.
+
+        Called before the budget optimizer sets scenario data on the model.
+        The default does nothing; override it in effects whose configuration
+        suits evaluation but not scenarios.
+
+        Parameters
+        ----------
+        mmm : MMM
+            The MMM model instance.
+        """
+
+    def check_lift_tests(self, mmm: Model, df_lift_test: pd.DataFrame) -> None:
+        """Warn if lift tests added to the MMM overlap data this effect uses.
+
+        Called by :meth:`MMM.add_lift_test_measurements` before the lift
+        likelihood is added. The default does nothing; override it in effects
+        that already use the same experiments, so they are not counted twice.
+
+        Parameters
+        ----------
+        mmm : MMM
+            The MMM model instance.
+        df_lift_test : pd.DataFrame
+            The lift tests being added.
+        """
+
     def idata_groups(self) -> dict[str, xr.Dataset]:
         """Return supplementary data groups to store in DataTree.
 
@@ -527,6 +600,52 @@ class MuEffect(SerializableBaseModel, ABC):
             Group name to xarray Dataset mapping.
         """
         return {}
+
+    def __eq__(self, other: object) -> bool:
+        """Compare two effects by their serialized form and ``idata_groups``.
+
+        Pydantic's default ``__eq__`` compares ``model_dump()`` dicts, which
+        raises for array-like fields such as a ``pd.DataFrame`` because their
+        ``==`` is elementwise. The serialized form is JSON-safe, and data an
+        effect persists outside it is compared through ``idata_groups()``.
+        """
+        if not isinstance(other, MuEffect):
+            return NotImplemented
+        if self.__class__ is not other.__class__:
+            return False
+        if serialization.serialize(self) != serialization.serialize(other):
+            return False
+        self_groups, other_groups = self.idata_groups(), other.idata_groups()
+        return self_groups.keys() == other_groups.keys() and all(
+            self_groups[name].equals(other_groups[name]) for name in self_groups
+        )
+
+
+def fitted_dates_only_effects(effects: Iterable[Any]) -> list[tuple[str, Any]]:
+    """Return the effects that take only the dates the MMM was fitted on, with names.
+
+    Such an effect sets ``supports_new_dates`` to ``False``. A duck-typed effect that
+    does not declare it takes any dates.
+
+    Parameters
+    ----------
+    effects : iterable
+        The MMM's mu effects.
+
+    Returns
+    -------
+    list of tuple of (str, object)
+        A name and the effect, for each such effect in ``effects``. The name is the
+        effect's class, followed by its ``prefix`` when it has one.
+    """
+    named = []
+    for effect in effects:
+        if getattr(effect, "supports_new_dates", True):
+            continue
+        name = type(effect).__name__
+        prefix = getattr(effect, "prefix", None)
+        named.append((name if prefix is None else f"{name} {prefix!r}", effect))
+    return named
 
 
 class DataVarMuEffect(MuEffect, ABC):
