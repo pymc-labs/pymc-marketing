@@ -13,6 +13,7 @@
 #   limitations under the License.
 """Tests for the counterfactual evaluation machinery: windows, scenarios, inputs."""
 
+import dataclasses
 import gc
 import math
 import warnings
@@ -1044,6 +1045,29 @@ class TestPeriodEdgeCases:
     machinery, which stacks periods into a rectangular array and would divide by
     zero or index an empty axis if a degenerate period were left unhandled.
     """
+
+    def test_a_window_built_from_its_six_fields_derives_its_slices(self):
+        """``PeriodWindow`` is public, and its constructor takes the same fields as before.
+
+        The slices follow the masks, also after ``dataclasses.replace``.
+        """
+        dates = pd.date_range("2023-01-01", periods=4, freq="W-SUN")
+        in_eval = np.array([False, True, True, False])
+        window = PeriodWindow(
+            start=dates[1],
+            end=dates[2],
+            in_window=np.ones(4, dtype=bool),
+            actual_dates=dates,
+            in_eval=in_eval,
+            eval_dates=dates[in_eval],
+        )
+
+        assert window.eval_slice == slice(1, 3)
+        assert window.window_eval_slice == slice(1, 3)
+        moved = dataclasses.replace(
+            window, in_eval=np.array([True, True, False, False])
+        )
+        assert moved.eval_slice == slice(0, 2)
 
     dates = pd.date_range("2023-01-02", freq="W-MON", periods=8)
     freq_offset = pd.tseries.frequencies.to_offset("W-MON")

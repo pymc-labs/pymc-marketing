@@ -64,6 +64,7 @@ from __future__ import annotations
 import math
 from collections.abc import Generator, Iterable, Mapping, Sequence
 from dataclasses import dataclass
+from functools import cached_property
 from itertools import pairwise
 from typing import Literal, NamedTuple
 
@@ -271,14 +272,6 @@ class PeriodWindow:
         sum.  A subset of :attr:`in_window`, by construction.
     eval_dates : pd.DatetimeIndex
         Those dates, in order.
-    eval_slice : slice
-        The same dates as :attr:`in_eval`, as a slice of the full date axis.
-        The evaluation dates are one run of the sorted axis, and reading them
-        through a slice gives a view of a full-axis array where the mask would
-        copy it.
-    window_eval_slice : slice
-        The same dates again, as a slice of the padded window, for reading a
-        counterfactual evaluated on it; see :meth:`eval_mask`.
     """
 
     start: pd.Timestamp
@@ -287,8 +280,6 @@ class PeriodWindow:
     actual_dates: pd.DatetimeIndex
     in_eval: np.ndarray
     eval_dates: pd.DatetimeIndex
-    eval_slice: slice
-    window_eval_slice: slice
 
     @classmethod
     def build(
@@ -329,16 +320,48 @@ class PeriodWindow:
             the window, which happens only when *dates* is not sorted.
         """
         in_eval = in_window & (dates >= eval_start) & (dates <= eval_end)
-        return cls(
+        window = cls(
             start=start,
             end=end,
             in_window=in_window,
             actual_dates=dates[in_window],
             in_eval=in_eval,
             eval_dates=dates[in_eval],
-            eval_slice=_contiguous_run(in_eval),
-            window_eval_slice=_contiguous_run(in_eval[in_window]),
         )
+        # Read once here, so unsorted dates are refused when the window is
+        # built rather than when it is first read.
+        _ = window.eval_slice, window.window_eval_slice
+        return window
+
+    @cached_property
+    def eval_slice(self) -> slice:
+        """The dates of :attr:`in_eval`, as a slice of the full date axis.
+
+        The evaluation dates are one run of the sorted axis, and reading them
+        through a slice gives a view of a full-axis array where the mask would
+        copy it.  Derived from :attr:`in_eval` rather than stored beside it, so
+        the two cannot disagree.
+
+        Raises
+        ------
+        ValueError
+            If the evaluation dates are not one contiguous run.
+        """
+        return _contiguous_run(self.in_eval)
+
+    @cached_property
+    def window_eval_slice(self) -> slice:
+        """The same dates, as a slice of the padded window.
+
+        For reading a counterfactual evaluated on the window; see
+        :meth:`eval_mask`.
+
+        Raises
+        ------
+        ValueError
+            If the evaluation dates are not one contiguous run of the window.
+        """
+        return _contiguous_run(self.in_eval[self.in_window])
 
     @property
     def n_actual(self) -> int:
