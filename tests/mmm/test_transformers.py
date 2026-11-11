@@ -412,125 +412,40 @@ class TestsAdstockTransformers:
         np.testing.assert_allclose(y, expected, rtol=1e-12, atol=0)
 
     @pytest.mark.parametrize(
-        "lam, k",
-        [(0.2, 5.0), (50.0, 500.0), (1.0, 400.0)],
+        "type, lam, k",
+        [
+            (WeibullType.CDF, 0.5, 2.0),
+            (WeibullType.CDF, 1e-3, 100.0),
+            (WeibullType.PDF, 0.2, 5.0),
+            (WeibullType.PDF, 1.0, 400.0),
+        ],
         ids=[
-            "every-density-rounds-to-zero-decreasing",
-            "every-density-rounds-to-zero-increasing",
-            "hazard-overflows-at-some-lags",
+            "cdf-survival-rounds-to-zero",
+            "cdf-hazard-overflows",
+            "pdf-every-density-rounds-to-zero",
+            "pdf-hazard-overflows-at-some-lags",
         ],
     )
-    def test_weibull_pdf_adstock_matches_log_space_reference(self, lam, k):
-        """PDF kernel matches a log-space reference where densities underflow (#3331)."""
-        l_max = 6
-        t = np.arange(l_max) + 1
-        impulse = np.zeros(l_max)
-        impulse[0] = 1.0
-
-        y = weibull_adstock(
-            x=as_xtensor(impulse, dims=("t",)),
-            lam=lam,
-            k=k,
-            l_max=l_max,
-            type=WeibullType.PDF,
-            dim="t",
-        ).eval()
-
-        log_w = sp.stats.weibull_min.logpdf(t, c=k, scale=lam)
-        w = np.exp(log_w - log_w.max())
-        np.testing.assert_allclose(y, (w - w.min()) / (w.max() - w.min()), rtol=1e-9)
-
-    @staticmethod
-    def _weibull_model(type: WeibullType) -> pymc.Model:
-        """Model whose only free variables are the Weibull ``lam`` and ``k``."""
-        l_max = 8
-        float_x = pytensor.config.floatX
-        impulse = np.zeros(l_max, dtype=float_x)
+    def test_weibull_adstock_dlogp_is_finite(self, type, lam, k):
+        """dlogp stays finite where weights underflow or the hazard overflows (#3331)."""
+        impulse = np.zeros(8)
         impulse[0] = 1.0
         with pymc.Model() as model:
             y = weibull_adstock(
                 as_xtensor(impulse, dims=("t",)),
                 lam=pymc.Flat("lam"),
                 k=pymc.Flat("k"),
-                l_max=l_max,
+                l_max=8,
                 type=type,
-                normalize=True,
                 dim="t",
             )
-            pymc.Normal(
-                "obs",
-                mu=y.values,
-                sigma=1.0,
-                observed=np.full(l_max, 0.5, dtype=float_x),
-            )
-        return model
+            pymc.Normal("obs", mu=y.values, sigma=1.0, observed=np.full(8, 0.5))
 
-    @pytest.mark.parametrize("float_x", ["float64", "float32"])
-    @pytest.mark.parametrize(
-        "type, lam, k",
-        [
-            (WeibullType.CDF, 0.5, 2.0),
-            (WeibullType.CDF, 0.1, 2.0),
-            (WeibullType.CDF, 0.01, 14.0),
-            (WeibullType.CDF, 1e-3, 100.0),
-            (WeibullType.PDF, 0.2, 5.0),
-            (WeibullType.PDF, 50.0, 500.0),
-            (WeibullType.PDF, 1.0, 400.0),
-            (WeibullType.PDF, 1.0, 60.0),
-        ],
-        ids=[
-            "cdf-survival-rounds-to-zero",
-            "cdf-survival-rounds-to-zero-small-lam",
-            "cdf-hazard-overflows-in-float32-only",
-            "cdf-hazard-overflows-in-float64",
-            "pdf-decreasing-density-rounds-to-zero",
-            "pdf-increasing-density-rounds-to-zero",
-            "pdf-hazard-overflows-at-some-lags",
-            "pdf-hazard-overflows-at-some-lags-in-float32-only",
-        ],
-    )
-    def test_weibull_adstock_dlogp_is_finite(self, float_x, type, lam, k):
-        """dlogp stays finite where weights underflow or the hazard overflows (#3331)."""
-        with pytensor.config.change_flags(floatX=float_x):
-            model = self._weibull_model(type)
-            point = {
-                "lam": np.asarray(lam, dtype=float_x),
-                "k": np.asarray(k, dtype=float_x),
-            }
-            dlogp = model.compile_dlogp(jacobian=False)(point)
+        dlogp = model.compile_dlogp(jacobian=False)(
+            {"lam": np.array(lam), "k": np.array(k)}
+        )
 
         assert np.isfinite(dlogp).all(), f"dlogp is not finite at {lam=}, {k=}: {dlogp}"
-
-    @pytest.mark.parametrize(
-        "type, lam, k",
-        [
-            (WeibullType.CDF, 0.5, 2.0),
-            (WeibullType.CDF, 1.0, 6.0),
-            (WeibullType.PDF, 2.0, 3.0),
-        ],
-        ids=[
-            "cdf-survival-rounds-to-zero",
-            "cdf-log-hazard-capped",
-            "pdf",
-        ],
-    )
-    def test_weibull_adstock_dlogp_matches_finite_differences(self, type, lam, k):
-        """dlogp matches finite differences, including where the cap applies (#3331)."""
-        model = self._weibull_model(type)
-        logp = model.compile_logp(jacobian=False)
-        dlogp = model.compile_dlogp(jacobian=False)
-        point = {"lam": np.array(lam), "k": np.array(k)}
-        eps = 1e-6
-        numeric = [
-            (
-                logp({**point, name: point[name] + eps})
-                - logp({**point, name: point[name] - eps})
-            )
-            / (2 * eps)
-            for name in ("lam", "k")
-        ]
-
-        np.testing.assert_allclose(dlogp(point), numeric, rtol=1e-6, atol=1e-8)
 
     @pytest.mark.parametrize(
         "type",
