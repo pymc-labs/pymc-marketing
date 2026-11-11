@@ -32,7 +32,8 @@ enough to carry the perturbation's whole effect.  Three pieces make that up:
 * :class:`CounterfactualScenarios` holds the perturbed spend together with the
   bookkeeping that says which row answers which question.
 * :class:`CounterfactualEvaluator` compiles the model graph once, conditioned on
-  the posterior, and evaluates the scenarios in bounded batches.
+  the posterior, and evaluates the scenarios in bounded batches, one block of
+  posterior samples at a time if the whole posterior does not fit at once.
 
 The intervention itself is expressed through :func:`pymc.do`.  The evaluator
 grafts a symbolic input onto the intervened node, and only then conditions the
@@ -60,8 +61,10 @@ in spend while the mask is linear in contribution.
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Mapping, Sequence
+import math
+from collections.abc import Generator, Iterable, Mapping, Sequence
 from dataclasses import dataclass
+from itertools import pairwise
 from typing import Literal, NamedTuple
 
 import numpy as np
@@ -74,13 +77,15 @@ from pytensor import function
 from pytensor.compile.sharedvalue import SharedVariable, shared
 from pytensor.graph.basic import Variable
 from pytensor.graph.traversal import ancestors
+from pytensor.xtensor.basic import XTensorFromTensor
 from pytensor.xtensor.type import XTensorVariable
 from pytensor.xtensor.vectorization import vectorize_graph
 
 from pymc_marketing.mmm.transformers import ConvMode
-from pymc_marketing.pytensor_utils import ConditionedModel
+from pymc_marketing.pytensor_utils import ConditionedModel, SharedPosterior
 
 __all__ = [
+    "CounterfactualBlock",
     "CounterfactualEvaluator",
     "CounterfactualScenarios",
     "DateIndexedInput",
@@ -625,22 +630,25 @@ class EvaluationWindows:
 
 
 class DateIndexedInput(NamedTuple):
-    """A date-indexed ``pm.Data`` replaced by a batched evaluator input.
+    """A date-indexed input of the graph, replaced by a batched evaluator input.
+
+    Either a ``pm.Data`` or a frozen deterministic with a ``date`` dimension.
 
     Parameters
     ----------
     name : str
-        Name of the data variable in the model.
+        Name of the variable in the model.
     values : np.ndarray
         Its fitted values, in the model's own dimension order.  Read from the
         model's own shared variable rather than from ``fit_data``, because an
         effect's data need not appear there -- the funnel example builds the
         model from an ``xr.Dataset`` carrying the mediator's inputs, then fits
-        from a frame that does not.
+        from a frame that does not.  For a frozen deterministic, its posterior
+        draws, with ``sample`` first.
     dtype : str
         Dtype the compiled evaluator expects.
     dims : tuple of str
-        Its dimensions, in the model's order.
+        Its dimensions, in the order of :attr:`values`.
     date_axis : int
         Position of ``date`` within :attr:`dims`.  Stored rather than assumed to
         be zero: an effect is free to declare its data as ``("country", "date")``,
@@ -707,6 +715,46 @@ class CounterfactualScenarios:
     rows: dict[_ScenarioKey, int]
 
 
+@dataclass(frozen=True)
+class CounterfactualBlock:
+    """Every scenario, evaluated on one block of posterior samples.
+
+    Yielded by :meth:`CounterfactualEvaluator.iter_counterfactual`.  A block is
+    a run of whole chains, or a run of draws within one chain, so its samples
+    are a contiguous slice of the bound posterior's chain-major ``sample`` axis.
+
+    Parameters
+    ----------
+    isel : mapping of str to slice
+        Positions of the block in the bound posterior, per dimension
+        (``chain`` and ``draw``), as ``posterior.isel(isel)`` takes them.
+    samples : slice
+        The same positions on the bound posterior's chain-major ``sample``
+        axis, so a caller holding per-sample arrays slices them without
+        knowing the layout.
+    outputs : dict
+        Per response variable, an array of shape
+        ``(n_scenarios, n_block_samples, max_window, *non_date_dims)``.
+    """
+
+    isel: Mapping[str, slice]
+    samples: slice
+    outputs: dict[str, np.ndarray]
+
+
+def _even_runs(n: int, size: int) -> list[slice]:
+    """Split ``range(n)`` into as few runs of at most *size* as possible.
+
+    The runs differ in length by at most one, longest first, so the largest,
+    which sets the peak, is as small as their count allows.
+    """
+    n_runs = math.ceil(n / size)
+    q, r = divmod(n, n_runs)
+    # The first r runs hold q + 1, the rest q.
+    starts = [i * q + min(i, r) for i in range(n_runs + 1)]
+    return [slice(start, stop) for start, stop in pairwise(starts)]
+
+
 class CounterfactualEvaluator:
     """Compiled batched evaluator for the nodes a counterfactual intervention reaches.
 
@@ -728,7 +776,12 @@ class CounterfactualEvaluator:
     date-indexed input in the graph has to be cut to the same window in lockstep,
     or the graph is handed a ``max_window``-long spend array and an
     ``n_dates``-long mediator array.  This class discovers those inputs from the
-    graph and cuts them itself.
+    graph and cuts them itself.  A frozen deterministic with a ``date`` dimension
+    is one of them: a path over the fitted dates, such as a latent baseline,
+    whose posterior draws are cut like data.  Its draws are read when an
+    evaluation runs, from the posterior bound then, so they follow
+    :meth:`set_posterior`, and each block of :meth:`iter_counterfactual` is cut
+    from that block's draws.
 
     Every result is transposed to ``(sample, date, *non_date_dims)`` before it
     is returned.  A node's own axis order is whatever the operations that built
@@ -743,6 +796,12 @@ class CounterfactualEvaluator:
     The sample axis is derived from the bound posterior rather than fixed at construction.
     A response the intervention has cut every random variable out of is broadcast over the live draw count.
 
+    Not thread-safe: an evaluation reads draws that :meth:`set_posterior` and
+    :meth:`iter_counterfactual` rebind in place, so share an instance between
+    threads only behind a lock, held for a whole iteration rather than around
+    each block.  :class:`~pymc_marketing.mmm.incrementality.Incrementality`'s
+    evaluator cache lends each call its own instance.
+
     Parameters
     ----------
     pymc_model : pm.Model
@@ -756,6 +815,12 @@ class CounterfactualEvaluator:
         the linear predictor under an identity link.
     frozen_deterministics : list of str
         Deterministics to hold at their posterior values instead of recomputing.
+        One with a ``date`` dimension that the response variables read is fed in
+        as a batched input, keeping its ``sample`` axis: whole for the baseline,
+        and cut to each period's window for the counterfactuals.  Its ``date``
+        dimension has to span the fitted dates.  One without a ``date``
+        dimension, such as an HSGP's ``*_f_mean``, is read from the shared
+        posterior like any other draws.
     dates : pd.DatetimeIndex
         Dates of the fitted data, used to validate the discovered inputs.
     intervention_target : str, default ``"channel_data"``
@@ -800,13 +865,14 @@ class CounterfactualEvaluator:
         If the intervention target does not exist, is a random variable, is
         frozen, is not of a floating dtype, or lacks a leading ``date``
         dimension; if no response variable depends on the target; if a
-        discovered date-indexed input does not span the fitted date axis; if a
-        response variable has no name (an anonymous node such as a raw
-        arithmetic expression, unless ``.name`` was set on it); if two response
-        variables share a name; or if a value in *expected_aux_values* -- an
-        auxiliary input, or the fabricated ``time_index`` -- disagrees with what
-        the live model or the fabrication would produce, meaning the model was
-        mutated after fitting.
+        discovered date-indexed input, data or frozen deterministic, does not
+        span the fitted date axis; if a response variable has no name (an
+        anonymous node such as a raw arithmetic expression, unless ``.name``
+        was set on it); if two response variables share a name; or if a value in
+        *expected_aux_values* -- an auxiliary input, or the fabricated
+        ``time_index`` -- disagrees with what the live model or the
+        fabrication would produce, meaning the model was mutated after
+        fitting.
     """
 
     CHANNEL_DATA = "channel_data"
@@ -814,14 +880,18 @@ class CounterfactualEvaluator:
     BATCH_DIM = "__batch__"
     """Dimension the scenario axis is carried on through the vectorized graph."""
 
-    MAX_BATCH_ELEMENTS = 32_000_000
-    """Output elements one evaluation may produce before it is split in two.
+    MAX_BATCH_ELEMENTS = 64_000_000
+    """Output elements one evaluation may produce before it is split into batches.
 
-    Roughly a quarter of a gigabyte in float64, which leaves room for the
+    Roughly half a gigabyte in float64, which leaves room for the
     intermediates a batch of that size implies while keeping the number of
     evaluations -- and so the per-call overhead -- small for everything but the
     largest runs.  Not a hard memory bound, which cannot be had without knowing
     the graph: a bound on the term that grows with the scenario count.
+
+    It also sizes the sample blocks of :meth:`iter_counterfactual`.  A caller
+    that reduces each block pays its per-block overhead once per block, so
+    halving the budget roughly doubles that overhead.
     """
 
     def __init__(
@@ -883,6 +953,8 @@ class CounterfactualEvaluator:
             frozen_deterministics=frozen_deterministics,
         )
         self._do_model = self._conditioned.model
+        # Set while an iteration is paused with a block of its own bound.
+        self._bound_to_block = False
         self._build()
         self._prepare_expected_aux_values(expected_aux_values)
         self._check_expected_aux_values()
@@ -1003,6 +1075,54 @@ class CounterfactualEvaluator:
             )
             self._aux_live[data.name] = data
             self._aux_dims[data.name] = dims
+
+        # A frozen deterministic reaches the graph as a shared variable of its
+        # posterior draws.  One with a date dim is a path over the fitted dates,
+        # and has to be cut to each window like the data above.  Its draws come
+        # from the posterior rather than from the live model, so there is no
+        # fit-time value to check them against.  They are read from the shared
+        # variable on every evaluation and every streamed block, so they follow
+        # a rebind.
+        self._frozen: list[tuple[DateIndexedInput, SharedVariable]] = []
+        frozen_paths = self._frozen_date_paths(
+            graph_ancestors,
+            self._conditioned.frozen_deterministics,
+            self._conditioned.shared_posterior,
+        )
+        for name, (frozen, source) in frozen_paths.items():
+            dims = tuple(frozen.type.dims)
+            date_axis = dims.index("date")
+            values = source.get_value(borrow=True)
+            if values.shape[date_axis] != len(self._dates):
+                raise ValueError(
+                    f"Frozen deterministic {name!r} has "
+                    f"{values.shape[date_axis]} entries along its 'date' "
+                    f"dimension but the fitted data has {len(self._dates)} dates.  "
+                    "Incrementality needs it to span the fitted date axis so it "
+                    "can be cut to a window alongside spend."
+                )
+            # Not _batched: every axis is left free, so a static date length on
+            # the draws could never contradict a window shorter than the fit.
+            batched = ptx.xtensor(
+                name=f"{name}_batched",
+                dtype=frozen.type.dtype,
+                shape=(None,) * (len(dims) + 1),
+                dims=(self.BATCH_DIM, *dims),
+            )
+            replace[frozen] = batched
+            func_inputs.append(batched)
+            self._frozen.append(
+                (
+                    DateIndexedInput(
+                        name=name,
+                        values=values,
+                        dtype=frozen.type.dtype,
+                        dims=dims,
+                        date_axis=date_axis,
+                    ),
+                    source,
+                )
+            )
 
         # Canonical output layout, so that a caller adding two nodes together
         # does not have to reconcile the axis order each of them happens to
@@ -1181,8 +1301,24 @@ class CounterfactualEvaluator:
             A tree with a ``posterior`` group, or the posterior dataset itself,
             holding every variable the graphs read.
             Each is validated against its construction layout when a graph reads it.
+
+        Raises
+        ------
+        RuntimeError
+            While an iteration of :meth:`iter_counterfactual` is paused on a
+            block of its own.
         """
+        self._refuse_while_bound_to_block()
         self._conditioned.set_posterior(idata)
+
+    def _refuse_while_bound_to_block(self) -> None:
+        """Raise if a paused iteration has a block of its own bound."""
+        if self._bound_to_block:
+            raise RuntimeError(
+                "The evaluator is bound to one block of samples of an unfinished "
+                "iter_counterfactual, so this call would read that block's draws. "
+                "Finish the iteration or close() it first."
+            )
 
     @property
     def windowed_data_vars(self) -> tuple[str, ...]:
@@ -1506,6 +1642,65 @@ class CounterfactualEvaluator:
             and "date" in pymc_model.named_vars_to_dims.get(data.name, ())
         ]
 
+    @staticmethod
+    def _frozen_date_paths(
+        graph_ancestors: set,
+        frozen_deterministics: Sequence[str],
+        shared_posterior: SharedPosterior,
+    ) -> dict[str, tuple[XTensorVariable, SharedVariable]]:
+        """Find the frozen deterministics with a ``date`` dim that the graph reads.
+
+        :class:`~pymc_marketing.pytensor_utils.ConditionedModel` binds each
+        frozen deterministic the graph reads to a shared variable of its
+        posterior draws, named after it, and the graph reads that variable
+        through an xtensor view laid out ``("sample", *dims)``.
+
+        Parameters
+        ----------
+        graph_ancestors : set
+            Ancestors of the extracted response graphs.
+        frozen_deterministics : sequence of str
+            Names of the deterministics held at their posterior values.
+        shared_posterior : SharedPosterior
+            The shared posterior the graphs read their draws from.
+
+        Returns
+        -------
+        dict of str to tuple of (XTensorVariable, SharedVariable)
+            The view the graph reads and the shared variable behind it, by
+            name, in the order of *frozen_deterministics* so that the compiled
+            signature is deterministic.
+        """
+        sources = shared_posterior.variables
+        names = {
+            sources[name]: name for name in frozen_deterministics if name in sources
+        }
+        views = {
+            names[node.owner.inputs[0]]: node
+            for node in graph_ancestors
+            if node.owner is not None
+            and isinstance(node.owner.op, XTensorFromTensor)
+            and node.owner.inputs[0] in names
+        }
+        return {
+            name: (views[name], sources[name])
+            for name in frozen_deterministics
+            if name in views and "date" in views[name].type.dims
+        }
+
+    def _frozen_inputs(self) -> list[DateIndexedInput]:
+        """Return the frozen date paths, holding the draws bound now.
+
+        Read once the draws an evaluation runs on are bound, never before:
+        :meth:`iter_counterfactual` binds each block's draws in turn, and a path
+        read earlier would carry other draws than the rest of the graph.  The
+        values borrow the shared variables' arrays, so a read copies nothing.
+        """
+        return [
+            frozen._replace(values=source.get_value(borrow=True))
+            for frozen, source in self._frozen
+        ]
+
     def evaluate_baseline(self, target_values: np.ndarray) -> dict[str, np.ndarray]:
         """Evaluate every node on one set of intervention values, over the full date axis.
 
@@ -1529,7 +1724,11 @@ class CounterfactualEvaluator:
             the source model's current state, so a ``pm.set_data`` after
             construction fails here rather than being evaluated silently.
             An in-place mutation of a borrowed buffer is not detected.
+        RuntimeError
+            While an iteration of :meth:`iter_counterfactual` is paused on a
+            block of its own.
         """
+        self._refuse_while_bound_to_block()
         self._sync_sample_markers()
         self._check_expected_aux_values()
         args: list[np.ndarray] = [target_values[np.newaxis].astype(self.target_dtype)]
@@ -1537,7 +1736,10 @@ class CounterfactualEvaluator:
             args.append(
                 np.arange(len(target_values))[np.newaxis].astype(self.time_dtype)
             )
-        args.extend(aux.values[np.newaxis].astype(aux.dtype) for aux in self._aux)
+        args.extend(
+            aux.values[np.newaxis].astype(aux.dtype)
+            for aux in (*self._aux, *self._frozen_inputs())
+        )
         return {
             name: out[0]
             for name, out in zip(
@@ -1553,6 +1755,9 @@ class CounterfactualEvaluator:
         batch_size: int | None = None,
     ) -> dict[str, np.ndarray]:
         """Evaluate every node on all counterfactual scenarios.
+
+        The eager form of :meth:`iter_counterfactual`: one block holding every
+        posterior sample, so the whole result is in memory at once.
 
         Auxiliary date-indexed inputs are cut here rather than by the caller,
         then broadcast from per-period to per-scenario through
@@ -1590,27 +1795,226 @@ class CounterfactualEvaluator:
             the source model's current state, so a ``pm.set_data`` after
             construction fails here rather than being evaluated silently.
             An in-place mutation of a borrowed buffer is not detected.
+        RuntimeError
+            While an iteration of :meth:`iter_counterfactual` is paused on a
+            block of its own.
         """
-        self._sync_sample_markers()
+        args = self._counterfactual_args(scenarios, windows)
+        if batch_size is None:
+            batch_size = self._batch_size(len(scenarios.spend), windows.max_window)
+        return self._evaluate_scenarios(
+            [*args, *self._frozen_args(scenarios, windows)], batch_size
+        )
+
+    def iter_counterfactual(
+        self,
+        scenarios: CounterfactualScenarios,
+        *,
+        windows: EvaluationWindows,
+        max_elements: int | None = None,
+    ) -> Generator[CounterfactualBlock, None, None]:
+        """Evaluate every node on all scenarios, one block of samples at a time.
+
+        Draws are independent, so a block of them gives the values it would
+        with the rest, up to rounding: the compiled graph may round differently
+        for a different number of draws.  The posterior is split only as far as
+        needed to keep a block's outputs under *max_elements*: into runs of
+        whole chains, then into runs of draws within a chain.  A single draw
+        that is still over the budget is evaluated alone, its scenarios in
+        batches as in :meth:`evaluate_counterfactual`.  The date axis is never
+        split.
+
+        Each block rebinds the evaluator to its draws through
+        :meth:`set_posterior`, and any frozen date path is cut from those draws
+        rather than from the posterior bound at the call.  That posterior is
+        restored when the iteration ends or is closed.  The generator keeps no
+        reference to a block once it is yielded, so a caller that drops each
+        block before asking for the next holds one block at a time.  While the
+        iteration is paused on a block it bound, any other call that binds or
+        evaluates draws raises, since it would read that block's.
+
+        Parameters
+        ----------
+        scenarios : CounterfactualScenarios
+            Perturbed spend and its scenario bookkeeping.
+        windows : EvaluationWindows
+            The windows the scenarios were built for.
+        max_elements : int, optional
+            Output elements one block may hold.  Defaults to
+            :attr:`MAX_BATCH_ELEMENTS`, and is exposed so a test can force a
+            split.
+
+        Returns
+        -------
+        Generator of CounterfactualBlock
+            The blocks in chain-major order; their ``isel`` tile the posterior.
+
+        Raises
+        ------
+        ValueError
+            At the call rather than at the first block, if a value in
+            *expected_aux_values* disagrees with the source model's current
+            state.
+        RuntimeError
+            At the call, while another iteration is paused on a block of its
+            own.
+        """
+        args = self._counterfactual_args(scenarios, windows)
+        if max_elements is None:
+            max_elements = self.MAX_BATCH_ELEMENTS
+        blocks = self._sample_blocks(
+            n_scenarios=len(scenarios.spend),
+            max_window=windows.max_window,
+            max_elements=max_elements,
+        )
+        # Read here, not in the generator body, so the posterior restored is the
+        # one the blocks were planned from.
+        return self._iter_blocks(
+            args,
+            blocks,
+            self._conditioned.posterior,
+            scenarios=scenarios,
+            windows=windows,
+            max_elements=max_elements,
+        )
+
+    def _iter_blocks(
+        self,
+        args: list[np.ndarray],
+        blocks: list[dict[str, slice]],
+        posterior: xr.Dataset,
+        *,
+        scenarios: CounterfactualScenarios,
+        windows: EvaluationWindows,
+        max_elements: int,
+    ) -> Generator[CounterfactualBlock, None, None]:
+        """Rebind to each block of *posterior* and evaluate it; restore *posterior* after.
+
+        *args* are the inputs that do not depend on the draws.  The frozen date
+        paths do, so they are cut for each block once its draws are bound.
+        """
+        n_draws = int(posterior.sizes["draw"])
+        rebound = False
+        try:
+            for isel in blocks:
+                # A single block is already bound, unless another posterior was
+                # bound since the call.
+                if len(blocks) > 1 or self._conditioned.posterior is not posterior:
+                    self._conditioned.set_posterior(posterior.isel(isel))
+                    rebound = self._bound_to_block = True
+                # Yielded without a local name, so the generator does not keep
+                # this block alive while the next one is evaluated.
+                chain, draw = isel["chain"], isel["draw"]
+                yield CounterfactualBlock(
+                    isel=isel,
+                    # Contiguous for the runs of whole chains, or of draws within
+                    # one chain, that _sample_blocks plans.
+                    samples=slice(
+                        chain.start * n_draws + draw.start,
+                        (chain.stop - 1) * n_draws + draw.stop,
+                    ),
+                    outputs=self._evaluate_scenarios(
+                        [*args, *self._frozen_args(scenarios, windows)],
+                        self._batch_size(
+                            len(args[0]), windows.max_window, max_elements=max_elements
+                        ),
+                    ),
+                )
+        finally:
+            if rebound:
+                self._conditioned.set_posterior(posterior)
+                self._bound_to_block = False
+
+    def _counterfactual_args(
+        self, scenarios: CounterfactualScenarios, windows: EvaluationWindows
+    ) -> list[np.ndarray]:
+        """Check the evaluator and the source model, then lay out the inputs per scenario.
+
+        The frozen date paths are left out: they are draws, which a streamed
+        evaluation binds a block at a time, so :meth:`_frozen_args` cuts them
+        once the draws an evaluation runs on are bound.  The compiled function
+        takes them last.
+        """
+        self._refuse_while_bound_to_block()
         self._check_expected_aux_values()
         args: list[np.ndarray] = [scenarios.spend]
         if self.time_dtype is not None:
             args.append(windows.time_index(self.time_dtype)[scenarios.period_index])
         args.extend(aux.cut(windows)[scenarios.period_index] for aux in self._aux)
+        return args
 
-        n_scenarios = len(scenarios.spend)
-        if batch_size is None:
-            batch_size = self._batch_size(n_scenarios, windows.max_window)
+    def _frozen_args(
+        self, scenarios: CounterfactualScenarios, windows: EvaluationWindows
+    ) -> list[np.ndarray]:
+        """Cut the frozen date paths of the bound draws, per scenario."""
+        return [
+            frozen.cut(windows)[scenarios.period_index]
+            for frozen in self._frozen_inputs()
+        ]
+
+    def _evaluate_scenarios(
+        self, args: list[np.ndarray], batch_size: int
+    ) -> dict[str, np.ndarray]:
+        """Evaluate every scenario on the bound posterior, *batch_size* at a time."""
+        self._sync_sample_markers()
+        n_scenarios = len(args[0])
         batches = [
             self._evaluator(*(arg[start : start + batch_size] for arg in args))
             for start in range(0, n_scenarios, batch_size)
         ]
+        if len(batches) == 1:
+            # Nothing to join, so no copy.
+            return dict(zip(self.response_vars, batches[0], strict=True))
         return {
             name: np.concatenate([batch[idx] for batch in batches], axis=0)
             for idx, name in enumerate(self.response_vars)
         }
 
-    def _batch_size(self, n_scenarios: int, max_window: int) -> int:
+    def _sample_blocks(
+        self, *, n_scenarios: int, max_window: int, max_elements: int
+    ) -> list[dict[str, slice]]:
+        """Split the bound posterior into blocks whose outputs fit *max_elements*.
+
+        Parameters
+        ----------
+        n_scenarios : int
+            Scenarios every block is evaluated on.
+        max_window : int
+            Padded window length, one of the factors in a draw's size.
+        max_elements : int
+            Output elements one block may hold.
+
+        Returns
+        -------
+        list of dict
+            ``isel`` positions per block, in chain-major order: one block when
+            everything fits, runs of whole chains when a chain fits, and
+            otherwise runs of draws within one chain, at least one draw each.
+            Runs are as few as fit and differ in length by at most one, see
+            :func:`_even_runs`.  Splitting within each chain keeps every block
+            a rectangle in ``(chain, draw)``, for at most one block per chain
+            more than splitting the flat ``sample`` axis would take.
+        """
+        posterior = self._conditioned.posterior
+        n_chains, n_draws = int(posterior.sizes["chain"]), int(posterior.sizes["draw"])
+        per_draw = max(self._elements_per_date * max_window * n_scenarios, 1)
+        if n_chains * n_draws * per_draw <= max_elements:
+            return [{"chain": slice(0, n_chains), "draw": slice(0, n_draws)}]
+        if n_draws * per_draw <= max_elements:
+            return [
+                {"chain": chains, "draw": slice(0, n_draws)}
+                for chains in _even_runs(n_chains, max_elements // (n_draws * per_draw))
+            ]
+        runs = _even_runs(n_draws, max(1, max_elements // per_draw))
+        return [
+            {"chain": slice(chain, chain + 1), "draw": draws}
+            for chain in range(n_chains)
+            for draws in runs
+        ]
+
+    def _batch_size(
+        self, n_scenarios: int, max_window: int, *, max_elements: int | None = None
+    ) -> int:
         """Choose how many scenarios one evaluation may cover.
 
         Parameters
@@ -1619,6 +2023,9 @@ class CounterfactualEvaluator:
             Total scenarios to evaluate; a batch never needs to exceed it.
         max_window : int
             Padded window length, one of the factors in a scenario's size.
+        max_elements : int, optional
+            Output elements one evaluation may produce; defaults to
+            :attr:`MAX_BATCH_ELEMENTS`.
 
         Returns
         -------
@@ -1627,4 +2034,6 @@ class CounterfactualEvaluator:
             attempted rather than refused.
         """
         per_scenario = max(self._elements_per_date * self._n_samples() * max_window, 1)
-        return max(1, min(n_scenarios, self.MAX_BATCH_ELEMENTS // per_scenario))
+        if max_elements is None:
+            max_elements = self.MAX_BATCH_ELEMENTS
+        return max(1, min(n_scenarios, max_elements // per_scenario))
