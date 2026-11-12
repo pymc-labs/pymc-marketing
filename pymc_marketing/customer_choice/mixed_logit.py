@@ -31,7 +31,7 @@ from pymc_marketing.customer_choice._choice_helpers import stable_softmax
 from pymc_marketing.model_builder import ModelBuilder, SamplingMethod
 from pymc_marketing.model_config import parse_model_config
 from pymc_marketing.names import Group
-from pymc_marketing.names.customer_choice import Dim, Var
+from pymc_marketing.names.customer_choice import Attr, Dim, Var
 from pymc_marketing.version import __version__
 
 HDI_ALPHA = 0.5
@@ -490,7 +490,7 @@ class MixedLogit(ModelBuilder):
 
         coords = {
             Dim.ALTS: alternatives,
-            "alts_probs": alternatives[:-1],
+            Dim.ALTS_PROBS: alternatives[:-1],
             Dim.COVARIATES: covariates,
             "normal_covariates": normal_covar_names,
             "random_covariates": random_covar_names,
@@ -590,7 +590,7 @@ class MixedLogit(ModelBuilder):
         """
         alphas_ = self.model_config["alphas_"].create_variable(name="alphas_")
         alphas = pm.Deterministic(
-            "alphas", pt.set_subtensor(alphas_[-1], 0), dims=Dim.ALTS
+            Var.ALPHAS, pt.set_subtensor(alphas_[-1], 0), dims=Dim.ALTS
         )
         return alphas
 
@@ -627,7 +627,7 @@ class MixedLogit(ModelBuilder):
             )
             # Set reference alternative coefficients to zero for identification
             betas_fixed = pm.Deterministic(
-                "betas_fixed",
+                Var.BETAS_FIXED,
                 pt.set_subtensor(betas_fixed_[-1, :], 0),
                 dims=(Dim.ALTS, Dim.FIXED_COVARIATES),
             )
@@ -952,7 +952,7 @@ class MixedLogit(ModelBuilder):
             X_data = pm.Data(Var.X, X, dims=(Dim.OBS, Dim.ALTS, Dim.COVARIATES))
             observed_data = pm.Data(Var.Y, y, dims=Dim.OBS)
             if self.grp_idx is not None:
-                grp_idx_data = pm.Data("grp_idx", self.grp_idx, dims=Dim.OBS)
+                grp_idx_data = pm.Data(Var.GRP_IDX, self.grp_idx, dims=Dim.OBS)
             else:
                 grp_idx_data = self.grp_idx
             n_obs, n_alts = X_data.shape[0], X_data.shape[1]
@@ -998,11 +998,11 @@ class MixedLogit(ModelBuilder):
             The attributes for the DataTree.
         """
         attrs = super().create_idata_attrs()
-        attrs["covariates"] = json.dumps(self.covariates)
+        attrs[Attr.COVARIATES] = json.dumps(self.covariates)
         attrs["random_covariates"] = json.dumps(self.random_covar_names)
-        attrs["depvar"] = json.dumps(self.depvar)
+        attrs[Attr.DEPVAR] = json.dumps(self.depvar)
         attrs["choice_df"] = json.dumps("Placeholder for DF")
-        attrs["utility_equations"] = json.dumps(self.utility_equations)
+        attrs[Attr.UTILITY_EQUATIONS] = json.dumps(self.utility_equations)
         attrs["group_id"] = json.dumps(self.group_id)
         attrs["instrumental_vars"] = json.dumps(
             "Placeholder for instrumental_vars" if self.instrumental_vars else None

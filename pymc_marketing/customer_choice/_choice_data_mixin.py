@@ -24,8 +24,8 @@ import pandas as pd
 import pymc as pm
 import xarray as xr
 
-from pymc_marketing.names import Attr, Group
-from pymc_marketing.names.customer_choice import Dim, Var
+from pymc_marketing.names import Group
+from pymc_marketing.names.customer_choice import Attr, Dim, Var
 
 
 class ChoiceDataMixin:
@@ -318,9 +318,9 @@ class ChoiceDataMixin:
         by :meth:`build_from_idata`.
         """
         return {
-            "utility_equations": json.loads(attrs["utility_equations"]),
-            "depvar": json.loads(attrs["depvar"]),
-            "covariates": json.loads(attrs["covariates"]),
+            "utility_equations": json.loads(attrs[Attr.UTILITY_EQUATIONS]),
+            "depvar": json.loads(attrs[Attr.DEPVAR]),
+            "covariates": json.loads(attrs[Attr.COVARIATES]),
             "model_config": cls._model_config_formatting(
                 json.loads(attrs[Attr.MODEL_CONFIG])
             ),

@@ -335,7 +335,7 @@ class ConsiderationSetMixedLogit(MixedLogit):
             observed_data = pm.Data(Var.Y, y, dims=Dim.OBS)
 
             if self.grp_idx is not None:
-                grp_idx_data = pm.Data("grp_idx", self.grp_idx, dims=Dim.OBS)
+                grp_idx_data = pm.Data(Var.GRP_IDX, self.grp_idx, dims=Dim.OBS)
             else:
                 grp_idx_data = self.grp_idx
 

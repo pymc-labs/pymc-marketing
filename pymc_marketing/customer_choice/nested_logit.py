@@ -34,7 +34,7 @@ from pymc_marketing.model_builder import (
     SamplingMethod,
 )
 from pymc_marketing.model_config import parse_model_config
-from pymc_marketing.names.customer_choice import Dim, Var
+from pymc_marketing.names.customer_choice import Attr, Dim, Var
 from pymc_marketing.version import __version__
 
 HDI_ALPHA = 0.5
@@ -467,7 +467,12 @@ class NestedLogit(ChoiceDataMixin, ModelBuilder):
 
     @staticmethod
     def _prepare_coords(
-        df, alternatives, covariates, f_covariates, nests, nest_indices
+        df: pd.DataFrame,
+        alternatives: list[str],
+        covariates: list[str],
+        f_covariates: np.ndarray,
+        nests: list[str],
+        nest_indices: dict[str, np.ndarray],
     ):
         """Prepare coordinates for PyMC nested logit model.
 
@@ -498,7 +503,7 @@ class NestedLogit(ChoiceDataMixin, ModelBuilder):
 
         coords = {
             Dim.ALTS: alternatives,
-            "alts_probs": alternatives[:-1],
+            Dim.ALTS_PROBS: alternatives[:-1],
             Dim.ALT_COVARIATES: covariates,
             Dim.FIXED_COVARIATES: f_cov,
             "nests": nests,
@@ -642,7 +647,7 @@ class NestedLogit(ChoiceDataMixin, ModelBuilder):
         """
         alphas_ = self.model_config["alphas_"].create_variable(name="alphas_")
         alphas = pm.Deterministic(
-            "alphas", pt.set_subtensor(alphas_[-1], 0), dims=Dim.ALTS
+            Var.ALPHAS, pt.set_subtensor(alphas_[-1], 0), dims=Dim.ALTS
         )
         return alphas
 
@@ -693,7 +698,7 @@ class NestedLogit(ChoiceDataMixin, ModelBuilder):
             # This creates a (n_alts, n_fixed_covariates) matrix where each
             # alternative has its own response to each fixed covariate
             betas_fixed = pm.Deterministic(
-                "betas_fixed",
+                Var.BETAS_FIXED,
                 pt.set_subtensor(betas_fixed_[-1, :], 0),
                 dims=(Dim.ALTS, Dim.FIXED_COVARIATES),
             )
@@ -926,13 +931,13 @@ class NestedLogit(ChoiceDataMixin, ModelBuilder):
 
         """
         attrs = super().create_idata_attrs()
-        attrs["covariates"] = json.dumps(self.covariates)
-        attrs["depvar"] = json.dumps(self.depvar)
+        attrs[Attr.COVARIATES] = json.dumps(self.covariates)
+        attrs[Attr.DEPVAR] = json.dumps(self.depvar)
         # The choice data is persisted in the fit_data group rather than duplicated here.
         # The base class still requires one attr per __init__ argument, so keep the key.
         attrs["choice_df"] = json.dumps(None)
         attrs["nesting_structure"] = json.dumps(self.nesting_structure)
-        attrs["utility_equations"] = json.dumps(self.utility_equations)
+        attrs[Attr.UTILITY_EQUATIONS] = json.dumps(self.utility_equations)
         attrs["alphas_nests"] = json.dumps(self.alphas_nests)
 
         return attrs
