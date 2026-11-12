@@ -1686,7 +1686,7 @@ class CounterfactualEvaluator:
         return {
             name: (views[name], sources[name])
             for name in frozen_deterministics
-            if name in views and "date" in views[name].type.dims
+            if name in views and Dim.DATE in views[name].type.dims
         }
 
     def _frozen_inputs(self) -> list[DateIndexedInput]:

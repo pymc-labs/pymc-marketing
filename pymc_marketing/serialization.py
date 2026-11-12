@@ -279,7 +279,7 @@ class TypeRegistry:
             return entry.serializer(obj)
         # The injected ``to_dict`` reads keys from the registry that first
         # wrapped the class, which need not be this one.
-        return {**obj.to_dict(), "__type__": type_key}
+        return {**obj.to_dict(), Key.TYPE: type_key}
 
     def deserialize(
         self,

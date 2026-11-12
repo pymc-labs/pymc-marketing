@@ -37,6 +37,7 @@ from pydantic import ConfigDict, Field, InstanceOf, field_validator, model_valid
 from pytensor.xtensor.type import XTensorVariable
 from scipy.stats import halfnorm
 
+from pymc_marketing.data.idata.names import Var
 from pymc_marketing.mmm.additive_effect import MuEffect, safe_to_datetime
 from pymc_marketing.mmm.link import LinkFunction
 from pymc_marketing.serialization import (
@@ -912,7 +913,7 @@ class VARBaselineEffect(MuEffect):
         centered = columns - means
         exog = centered[self.exog_names].to_numpy() if self.exog_names else None
 
-        target_scale = mmm.model["target_scale"]
+        target_scale = mmm.model[Var.TARGET_SCALE]
         target_scale_value = float(target_scale.get_value())
         if not target_scale_value > 0:
             raise ValueError(

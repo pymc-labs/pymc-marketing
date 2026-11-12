@@ -178,6 +178,7 @@ from pymc_extras.prior import Prior, VariableFactory
 from pytensor.xtensor import as_xtensor
 from pytensor.xtensor.type import XTensorVariable
 
+from pymc_marketing.data.idata.names import Dim, Var
 from pymc_marketing.mmm.additive_effect import (
     FourierEffect,
     LinearTrendEffect,
@@ -190,6 +191,7 @@ from pymc_marketing.mmm.fourier import (
     YearlyFourier,
     generate_fourier_modes,
 )
+from pymc_marketing.names import Key
 from pymc_marketing.serialization import serialization
 
 __all__ = ["BudgetModelEffect", "exogeneity_summary", "lift_test_design"]
@@ -412,7 +414,9 @@ class _TrainingData:
 
     @property
     def dims(self) -> tuple[str, ...]:
-        return tuple(str(d) for d in self.spend.dims if d not in ("date", "channel"))
+        return tuple(
+            str(d) for d in self.spend.dims if d not in (Dim.DATE, Dim.CHANNEL)
+        )
 
     @property
     def channels(self) -> list[str]:
@@ -643,7 +647,7 @@ class BudgetModelEffect(MuEffect):
         user_dims = getattr(user, "dims", None) or ()
         user_dims = (user_dims,) if isinstance(user_dims, str) else tuple(user_dims)
         extra = {
-            "spend_control": {"control"},
+            "spend_control": {Dim.CONTROL},
             "spend_fourier": {self.fourier_dim},
             "gamma_lag": {self.lag_dim},
         }
@@ -731,7 +735,7 @@ class BudgetModelEffect(MuEffect):
         dim_coords = {
             d: list(spend.coords[d].values)
             for d in spend.dims
-            if d not in ("date", "channel")
+            if d not in (Dim.DATE, Dim.CHANNEL)
         }
         shift, holdout = lift_test_design(
             self.design[keep], dates=dates, channels=channels, dim_coords=dim_coords
@@ -768,9 +772,9 @@ class BudgetModelEffect(MuEffect):
                 "column of X."
             )
         values = mmm.xarray_dataset[name]
-        if "date" not in values.dims:
+        if Dim.DATE not in values.dims:
             raise ValueError(f"Instrument {name!r} must have a 'date' dim.")
-        extra = sorted(set(values.dims) - {"date", *mmm.dims})
+        extra = sorted(set(values.dims) - {Dim.DATE, *mmm.dims})
         if extra:
             raise ValueError(
                 f"Instrument {name!r} has dims {extra} beyond the model's "
@@ -940,9 +944,9 @@ class BudgetModelEffect(MuEffect):
 
         # The spend equation's mean m_{c,t}.
         spend_mu = prior("spend_intercept", f"{p}_spend_intercept")
-        if data.control_stats is not None and "control_data" in model.named_vars:
+        if data.control_stats is not None and Var.CONTROL_DATA in model.named_vars:
             mean, std = data.control_stats
-            z = (model["control_data"] - as_xtensor(mean.values, dims=mean.dims)) / (
+            z = (model[Var.CONTROL_DATA] - as_xtensor(mean.values, dims=mean.dims)) / (
                 as_xtensor(std.values, dims=std.dims)
             )
             coef = prior("spend_control", f"{p}_spend_control_coef")
@@ -1254,7 +1258,7 @@ def _prior_from_dict(value: dict[str, Any] | None) -> VariableFactory | None:
 
     if value is None:
         return None
-    if "__type__" in value:
+    if Key.TYPE in value:
         return serialization.deserialize(value)
     return deserialize(value)
 
