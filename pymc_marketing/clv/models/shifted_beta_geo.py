@@ -185,9 +185,9 @@ class ShiftedBetaGeoModel(CLVModel):
 
     def _validate_cohorts(
         self,
-        data,
-        check_pred_data=False,
-        check_param_dims=None,
+        data: pd.DataFrame,
+        check_pred_data: bool = False,
+        check_param_dims: Sequence[str] | None = None,
     ):
         """Validate cohort parameter dims, T homogeneity, and if provided in external data."""
         if check_pred_data:
@@ -246,7 +246,7 @@ class ShiftedBetaGeoModel(CLVModel):
         return list(self.model_config.get("dropout_covariate_cols", []))
 
     @property
-    def cohorts(self):
+    def cohorts(self) -> np.ndarray:
         """Unique cohort values from data."""
         if not hasattr(self, "data") or self.data is None:
             raise AttributeError(
@@ -255,7 +255,7 @@ class ShiftedBetaGeoModel(CLVModel):
         return self.data[Col.COHORT].unique()
 
     @property
-    def cohort_idx(self):
+    def cohort_idx(self) -> np.ndarray:
         """Cohort indices for each customer."""
         if not hasattr(self, "data") or self.data is None:
             raise AttributeError(
@@ -383,7 +383,7 @@ class ShiftedBetaGeoModel(CLVModel):
             # with integer bounds (pymc-devs/pymc#8386, fixed in pymc 6.3). The cast
             # also keeps ``dropout`` float64 across pymc versions; do not remove casually.
             pm.Censored(
-                Var.DROPOUT,
+                "dropout",
                 dropout,
                 lower=None,
                 upper=self.data[Col.T].to_numpy(dtype="float64"),

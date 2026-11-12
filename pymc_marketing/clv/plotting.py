@@ -29,7 +29,7 @@ from matplotlib.lines import Line2D
 
 from pymc_marketing.clv import BetaGeoModel, ParetoNBDModel
 from pymc_marketing.clv.utils import _expected_cumulative_transactions
-from pymc_marketing.names.clv import Col, Var
+from pymc_marketing.names.clv import Col, Dim, Var
 
 __all__ = [
     "plot_customer_exposure",
@@ -573,16 +573,16 @@ def plot_expected_purchases_ppc(
 
             # obs_var must be retrieved from prior_idata if model has not been fit
             obs_freq = prior_idata.observed_data[Var.RECENCY_FREQUENCY].sel(
-                obs_var="frequency"
+                {Dim.OBS_VAR: Col.FREQUENCY}
             )
             ppc_freq = prior_idata.prior_predictive[Var.RECENCY_FREQUENCY].sel(
-                obs_var="frequency"
+                {Dim.OBS_VAR: Col.FREQUENCY}
             )
             title = "Prior Predictive Check for Customer Frequency"
             title_prefix = "Prior Predictive"
         case "posterior":
             obs_freq = model.idata.observed_data[Var.RECENCY_FREQUENCY].sel(
-                obs_var="frequency"
+                {Dim.OBS_VAR: Col.FREQUENCY}
             )
             # n_samples only takes effect for a point-estimate fit, where the posterior holds a
             # single draw; a sampled posterior already provides (chain * draw * customer) samples.
@@ -590,7 +590,7 @@ def plot_expected_purchases_ppc(
             ppc_freq = model.distribution_new_customer_recency_frequency(
                 random_seed=random_seed,
                 n_samples=_REFERENCE_DRAWS if plot_type == "ecdf" else 1,
-            ).sel(obs_var="frequency")
+            ).sel({Dim.OBS_VAR: Col.FREQUENCY})
             title = "Posterior Predictive Check for Customer Frequency"
             title_prefix = "Posterior Predictive"
         case _:

@@ -71,7 +71,7 @@ def _resolve_dims(ndim: int, dims: tuple[str, ...]) -> tuple[str, ...]:
 def to_xarray(
     customer_id,
     *arrays,
-    dim: str = Dim.CUSTOMER_ID,
+    dim: str = "customer_id",
     extra_dims: Sequence[str] | None = None,
 ):
     """Convert arrays to xarray objects sharing a common dim (default "customer_id").
@@ -377,7 +377,7 @@ def _find_first_transactions(
 
     # create a new column for flagging first transactions
     period_transactions = period_transactions.copy()
-    period_transactions["first"] = False
+    period_transactions[Col.FIRST] = False
     # find all first transactions and store as an index
     first_transactions = (
         period_transactions.groupby(customer_id_col, sort=True, as_index=False)
@@ -385,8 +385,8 @@ def _find_first_transactions(
         .index
     )
     # flag first transactions as True
-    period_transactions.loc[first_transactions, "first"] = True
-    select_columns.append("first")
+    period_transactions.loc[first_transactions, Col.FIRST] = True
+    select_columns.append(Col.FIRST)
     # reset datetime_col to period
     period_transactions[datetime_col] = period_transactions[datetime_col].dt.to_period(
         time_unit
@@ -533,7 +533,7 @@ def rfm_summary(
         if not include_first_transaction:
             # create an index of all the first purchases
             first_purchases = repeated_transactions[
-                repeated_transactions["first"]
+                repeated_transactions[Col.FIRST]
             ].index
             # by setting the monetary_value cells of all the first purchases to NaN,
             # those values will be excluded from the mean value calculation
@@ -811,7 +811,7 @@ def rfm_segments(
 
     # iteratively assign quartile labels for each row/variable
     for column_name in zip(
-        ["r_quartile", "f_quartile", "m_quartile"],
+        [Col.R_QUARTILE, Col.F_QUARTILE, Col.M_QUARTILE],
         [Col.RECENCY, Col.FREQUENCY, Col.MONETARY_VALUE],
         strict=False,
     ):
@@ -840,7 +840,7 @@ def rfm_segments(
                 )
 
     rfm_data = pandas.eval(  # type: ignore
-        "rfm_score = rfm_data.r_quartile + rfm_data.f_quartile + rfm_data.m_quartile",
+        f"{Col.RFM_SCORE} = rfm_data.{Col.R_QUARTILE} + rfm_data.{Col.F_QUARTILE} + rfm_data.{Col.M_QUARTILE}",
         target=rfm_data,
     )
 
@@ -850,13 +850,15 @@ def rfm_segments(
     segment_names = list(segment_config.keys())
 
     # create catch-all "Other" segment and assign defined segments from config
-    rfm_data["segment"] = "Other"
+    rfm_data[Col.SEGMENT] = "Other"
 
     for key in segment_names:
-        rfm_data.loc[rfm_data["rfm_score"].isin(segment_config[key]), "segment"] = key
+        rfm_data.loc[rfm_data[Col.RFM_SCORE].isin(segment_config[key]), Col.SEGMENT] = (
+            key
+        )
 
     # drop unnecessary columns
-    rfm_data = rfm_data.drop(columns=["r_quartile", "f_quartile", "m_quartile"])
+    rfm_data = rfm_data.drop(columns=[Col.R_QUARTILE, Col.F_QUARTILE, Col.M_QUARTILE])
 
     return rfm_data
 
@@ -880,7 +882,7 @@ def _rfm_quartile_labels(column_name, max_label_range):
         A list of labels for the column.
     """
     # recency labels must be reversed because lower values are more desirable
-    if column_name == "r_quartile":
+    if column_name == Col.R_QUARTILE:
         return list(range(max_label_range - 1, 0, -1))
     else:
         return range(1, max_label_range)
@@ -1010,7 +1012,7 @@ def _expected_cumulative_transactions(
     )
 
     # Mask, first transactions and repeated transactions
-    first_trans_mask = repeated_and_first_transactions["first"]
+    first_trans_mask = repeated_and_first_transactions[Col.FIRST]
     repeated_transactions = repeated_and_first_transactions[~first_trans_mask]
     first_transactions = repeated_and_first_transactions[first_trans_mask]
 

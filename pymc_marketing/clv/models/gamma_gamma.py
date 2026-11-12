@@ -24,7 +24,7 @@ from pymc_extras.prior import Prior
 from pymc_marketing.clv.models import CLVModel
 from pymc_marketing.clv.utils import customer_lifetime_value, to_xarray
 from pymc_marketing.model_config import ModelConfig
-from pymc_marketing.names.clv import Col, Dim
+from pymc_marketing.names.clv import Col, Dim, Var
 
 
 class BaseGammaGammaModel(CLVModel):
@@ -70,13 +70,13 @@ class BaseGammaGammaModel(CLVModel):
 
             # Eq 5 from [1], p.3
             nu = pm.Gamma("nu", p * x + q, v + x * z_mean, dims=(Dim.CUSTOMER_ID,))
-            pm.Deterministic("mean_spend", p / nu, dims=(Dim.CUSTOMER_ID,))
+            pm.Deterministic(Var.MEAN_SPEND, p / nu, dims=(Dim.CUSTOMER_ID,))
 
             return pm.sample_posterior_predictive(
                 self.idata,
-                var_names=["nu", "mean_spend"],
+                var_names=["nu", Var.MEAN_SPEND],
                 random_seed=random_seed,
-            ).posterior_predictive["mean_spend"]
+            ).posterior_predictive[Var.MEAN_SPEND]
 
     def expected_customer_spend(
         self,
@@ -133,20 +133,20 @@ class BaseGammaGammaModel(CLVModel):
             Optional random seed to fix sampling results.
 
         """
-        coords = {"new_customer_id": range(n)}
+        coords = {Dim.NEW_CUSTOMER_ID: range(n)}
         with pm.Model(coords=coords):
             p = pm.HalfFlat("p")
             q = pm.HalfFlat("q")
             v = pm.HalfFlat("v")
 
-            nu = pm.Gamma("nu", q, v, dims=("new_customer_id",))
-            pm.Deterministic("mean_spend", p / nu, dims=("new_customer_id",))
+            nu = pm.Gamma("nu", q, v, dims=(Dim.NEW_CUSTOMER_ID,))
+            pm.Deterministic(Var.MEAN_SPEND, p / nu, dims=(Dim.NEW_CUSTOMER_ID,))
 
             return pm.sample_posterior_predictive(
                 self.idata,
-                var_names=["nu", "mean_spend"],
+                var_names=["nu", Var.MEAN_SPEND],
                 random_seed=random_seed,
-            ).posterior_predictive["mean_spend"]
+            ).posterior_predictive[Var.MEAN_SPEND]
 
     def expected_new_customer_spend(self) -> xarray.DataArray:
         """Compute the expected mean spend value for a new customer."""
