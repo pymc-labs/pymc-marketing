@@ -9,7 +9,7 @@
 
 ## Code conventions
 
-- Library-owned names (model variables, dims, fixed DataFrame columns, InferenceData groups, `idata.attrs` keys, serialization keys such as `__type__`) are `Final` constants in the package `names.py` (`pymc_marketing/data/idata/names.py` for the MMM). Use the constant, not the string literal, and add new names there. Tests keep the literal strings.
+- Library-owned names that more than one place has to agree on (model variables, dims, fixed DataFrame columns, InferenceData groups, `idata.attrs` keys, serialization keys such as `__type__`) are `Final` constants in the `pymc_marketing/names/` package (`mmm.py`, `clv.py`, `customer_choice.py`, `bass.py`, and `__init__.py` for the shared ones). Use the constant, not the string literal, and add new names there. The `validate-names` pre-commit hook enforces this. Tests keep the literal strings, and `tests/test_names.py` pins every value.
 
 ## Skills (shared with Cursor)
 
