@@ -35,7 +35,8 @@ dependencies = [
     "h5netcdf>=1.8.1",
     "h5py>=3.16.0",
     "matplotlib>=3.5.1",
-    "narwhals",
+    # clv.utils needs chained when/then (2.20) and DuckDB 2.0 support (2.28).
+    "narwhals>=2.28",
     # Track the newest numpy that pytensor's numba bound supports (numba 0.68:
     # numpy<2.6); otherwise uv>=0.12 falls back to a numba pre-release.
     "numpy>=2.0,<2.6",
@@ -104,7 +105,10 @@ test = [
     "jax",
     "graphviz>=0.20.1",
     "papermill",
-    "polars>=1.0.0",
+    # Non-pandas backends exercised by the Narwhals-based CLV utilities.
+    "duckdb>=1.0.0",
+    "polars>=2.0.0",
+    "pyarrow>=15.0.0",
     "pyprojroot",
     "pytest-cov>=3.0.0",
     "coverage>=7.1",
