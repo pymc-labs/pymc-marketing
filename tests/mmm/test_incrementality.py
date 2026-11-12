@@ -14,11 +14,13 @@
 """Tests for Incrementality module - counterfactual analysis with carryover."""
 
 import copy
+import gc
 import json
 import logging
 import math
 import sys
 import warnings
+import weakref
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from types import SimpleNamespace
@@ -68,6 +70,7 @@ from pymc_marketing.mmm.incrementality import (
 )
 from pymc_marketing.mmm.spend_reach import (
     LINEAR_PREDICTOR,
+    ProbeStatistics,
     SpendProbe,
     SpendReach,
     TemporalReach,
@@ -83,6 +86,7 @@ from pymc_marketing.model_graph import deterministics_to_flat
 from pymc_marketing.pytensor_utils import ConditionedModel
 from pymc_marketing.serialization import serialization
 from tests.mmm.test_spend_reach import (
+    assert_identical_statistics,
     effective_l_max,
     measure_reach,
     measure_spend_reach,
@@ -2425,6 +2429,83 @@ class TestMediatedMuEffects:
         # in this fixture.  How large a share is a property of the priors, so the
         # bound is deliberately loose; what it rules out is the path vanishing.
         assert direct_total < 0.95 * full_total
+
+    @pytest.fixture
+    def probed(self, monkeypatch):
+        """Every :class:`ProbedReach` ``_probe_reach`` returns during the test."""
+        results = []
+        probe_reach = Incrementality._probe_reach
+
+        def spy(self, *args, **kwargs):
+            result = probe_reach(self, *args, **kwargs)
+            results.append(result)
+            return result
+
+        monkeypatch.setattr(Incrementality, "_probe_reach", spy)
+        return results
+
+    def test_the_retained_baseline_drops_the_predictor(
+        self, funnel_log_link_fitted_mmm, probed, monkeypatch
+    ):
+        """``mu`` is evaluated for the completeness check, then freed.
+
+        Nothing after the check reads it, and the request holds the baseline
+        until it ends.  The array itself is checked, not the dict key: the
+        saving relies on the probe and the request sharing one baseline dict.
+        """
+        predictors = []
+        evaluate = CounterfactualEvaluator.evaluate_baseline
+
+        def spy(self, *args, **kwargs):
+            out = evaluate(self, *args, **kwargs)
+            predictors.append(weakref.ref(out[LINEAR_PREDICTOR]))
+            return out
+
+        monkeypatch.setattr(CounterfactualEvaluator, "evaluate_baseline", spy)
+        funnel_log_link_fitted_mmm.incrementality.compute_incremental_contribution(
+            frequency="all_time"
+        )
+        gc.collect()
+
+        # Still holds the probe and the baseline.
+        (result,) = probed
+        stats = next(iter(result.probe.probes.values()))
+        # The predictor was there, and the probe checked against it.
+        assert stats.accounted
+        # The first evaluation in _probe_reach is the baseline.
+        assert predictors[0]() is None
+        assert LINEAR_PREDICTOR not in result.baseline
+
+    def test_folding_the_probe_one_sample_at_a_time_changes_nothing(
+        self, mixing_funnel_identity_fitted_mmm, probed, monkeypatch
+    ):
+        """The probe's checks read maxima, so slicing the samples cannot move them.
+
+        The fixtures are small enough to fold in one slice, so the slicing is
+        forced here: one sample per slice, through the reach, the completeness
+        check and the channel-mixing check, on a model that mixes channels.
+        """
+        incr = mixing_funnel_identity_fitted_mmm.incrementality
+
+        whole = incr.compute_incremental_contribution(frequency="all_time")
+        whole_mixes = probed[0].probe.mixes_channels(
+            non_date_dims=probed[0].evaluator.non_date_dims
+        )
+        monkeypatch.setattr(ProbeStatistics, "FOLD_ELEMENTS", 1)
+        sliced = incr.compute_incremental_contribution(frequency="all_time")
+        sliced_mixes = probed[1].probe.mixes_channels(
+            non_date_dims=probed[1].evaluator.non_date_dims
+        )
+
+        first, second = probed
+        assert first.probe.probes.keys() == second.probe.probes.keys()
+        for index, stats in first.probe.probes.items():
+            assert stats.accounted
+            assert_identical_statistics(stats, second.probe.probes[index])
+        assert second.reach == first.reach
+        assert whole_mixes
+        assert sliced_mixes == whole_mixes
+        xr.testing.assert_identical(sliced, whole)
 
     def test_effect_that_ignores_spend_is_left_alone(self, trend_effect_fitted_mmm):
         """A ``mu_effect`` the counterfactual cannot reach needs no opt-in.
