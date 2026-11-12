@@ -2816,6 +2816,62 @@ class TestMonetarySpendVariables:
         spent = result.budgets > 0
         assert np.all(result.implied_price.where(spent).fillna(1.0) == 1.0)
 
+    def test_every_priced_variable_reports_on_the_result(
+        self, funnel_identity_fitted_mmm
+    ):
+        """Each monetary variable's delivery report sits on the result, keyed by name,
+        with its own dims and the same money identity and nan-at-zero convention as
+        media."""
+        optimizer = self._optimizer(
+            funnel_identity_fitted_mmm,
+            spend_vars=["lf_budget"],
+            price_response={
+                "channel_data": PowerPriceResponse(elasticity=0.0),
+                "lf_budget": PowerPriceResponse(
+                    elasticity=0.2,
+                    assume_delivery_units=True,
+                    reference_spend=xr.DataArray(1.0),
+                ),
+            },
+        )
+        result = optimizer.allocate_budget(total_budget=self.TOTAL)
+        assert result.scipy_result.success, result.scipy_result.message
+
+        reports = result.delivery_reports
+        assert set(reports) == {"channel_data", "lf_budget"}
+        xr.testing.assert_equal(
+            reports["channel_data"]["implied_price"], result.implied_price
+        )
+        assert reports["lf_budget"]["implied_delivery"].dims == ("date",)
+        allocations = {
+            "channel_data": result.budgets,
+            "lf_budget": result.spend_var_allocations["lf_budget"],
+        }
+        for name, report in reports.items():
+            allocation = allocations[name]
+            spent = allocation > 1e-9 * self.TOTAL
+            money = (report["implied_delivery"] * report["implied_price"]).sum("date")
+            np.testing.assert_allclose(
+                money.where(spent),
+                (allocation * optimizer.num_periods).where(spent),
+                rtol=1e-6,
+            )
+            assert report["implied_price"].where(~spent).isnull().all()
+        ratio = (
+            reports["lf_budget"]["implied_marginal_price"]
+            / reports["lf_budget"]["implied_price"]
+        )
+        np.testing.assert_allclose(ratio, 1 / (1 - 0.2))
+
+    def test_no_price_response_means_no_delivery_reports(
+        self, funnel_identity_fitted_mmm
+    ):
+        optimizer = self._optimizer(
+            funnel_identity_fitted_mmm, spend_vars=["lf_budget"]
+        )
+        result = optimizer.allocate_budget(total_budget=self.TOTAL)
+        assert result.delivery_reports == {}
+
     def test_an_identity_spend_variable_response_needs_nothing(
         self, funnel_identity_fitted_mmm
     ):

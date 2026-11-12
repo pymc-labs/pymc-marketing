@@ -417,6 +417,16 @@ class BudgetOptimizationResult:
         ``implied_price`` is. Above the floor it is ``implied_price / (1 - elasticity)``,
         so their ratio is the whole content of a spend-dependent price: at elasticity
         0.25 the increment costs 33% more than the average unit.
+    delivery_reports : dict[str, xarray.Dataset]
+        The same three arrays for every monetary variable that has a price response,
+        keyed by variable name: ``channel_data_var`` and each ``spend_vars`` entry.
+        Each Dataset holds ``implied_delivery``, ``implied_price`` and
+        ``implied_marginal_price`` over ``(date_dim, *dims)`` of that variable, which
+        need not match the media dims. The media entry holds the same values as the
+        three fields above. For a spend variable the money identity reads
+        ``(implied_delivery * implied_price).sum(date_dim) == optimized_vars[name] * num_periods``
+        on spent cells, with the same ``nan`` convention. Empty when no
+        ``price_response`` was passed.
     """
 
     budgets: DataArray
@@ -427,6 +437,7 @@ class BudgetOptimizationResult:
     implied_delivery: DataArray | None = None
     implied_price: DataArray | None = None
     implied_marginal_price: DataArray | None = None
+    delivery_reports: dict[str, xr.Dataset] = field(default_factory=dict)
 
     @property
     def spend_var_allocations(self) -> dict[str, DataArray]:
@@ -1646,8 +1657,8 @@ class BudgetOptimizer(BaseModel):
             "historical cost_per_unit table anchors reference_spend on the channels it prices on "
             "MMM's channel_data node; a curved spend variable, custom channel_data_var or unpriced "
             "channel needs an explicit reference_spend. Results carry implied_delivery, "
-            "implied_price and implied_marginal_price for the media variable; a spend variable's "
-            "report is available through optimization_variables.variables[i].delivery_report(x_slice)."
+            "implied_price and implied_marginal_price for the media variable, and delivery_reports "
+            "holds the same arrays for every priced variable, keyed by name."
         ),
     )
 
@@ -3719,17 +3730,26 @@ class BudgetOptimizer(BaseModel):
             optimal_budgets = unpacked.pop(self.channel_data_var)
             optimal_budgets.attrs["pymc_marketing_version"] = __version__
 
-            report = self._media_variable.delivery_report(
-                result.x[self._variables.slices[self.channel_data_var]],
-                date_coords=self._decision_date_coords(),
-            )
+            reports = {
+                variable.name: variable.delivery_report(
+                    result.x[self._variables.slices[variable.name]],
+                    date_coords=self._decision_date_coords(),
+                )
+                for variable in self._variables.variables
+                if isinstance(variable, MediaVariable)
+            }
             return BudgetOptimizationResult(
                 budgets=optimal_budgets,
                 scipy_result=result,
                 optimized_vars=unpacked,
                 spend_var_names=list(self.spend_vars),
                 callback_info=callback_info if callback else None,
-                **report,
+                **reports[self.channel_data_var],
+                delivery_reports={
+                    name: xr.Dataset(report)
+                    for name, report in reports.items()
+                    if report
+                },
             )
 
         else:
