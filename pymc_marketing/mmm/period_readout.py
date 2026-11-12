@@ -16,7 +16,7 @@
 :class:`~pymc_marketing.mmm.incrementality.Incrementality` evaluates every
 scenario on a window of dates around its period, one block of posterior samples
 at a time (:mod:`~pymc_marketing.mmm.counterfactual`).  This module reads those
-evaluations out, one scenario at a time:
+evaluations out, one period of one block at a time:
 
 * :class:`LinearPredictorDelta` turns one scenario of one block into the
   period's change in the linear predictor, differenced against the baseline

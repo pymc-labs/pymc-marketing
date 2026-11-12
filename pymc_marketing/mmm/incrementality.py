@@ -5009,8 +5009,11 @@ class Incrementality:
         *reducer* to a response-scale increment, stacks the channels, applies
         the sign convention, reshapes the flattened sample dimension back to
         ``(chain, draw)``, and has *readout* reduce the block to what it keeps.
-        Each scenario is reduced before the channels are stacked, so a period
-        never holds every channel's unreduced change at once.  Everything that
+        :class:`~pymc_marketing.mmm.period_readout.PeriodTotal` sums each
+        scenario over ``date`` before the channels are stacked, so it never
+        holds every channel's per-date change at once; the other readouts
+        stack the channels first and reduce them in one call, as before the
+        readouts.  Everything that
         depends on the period alone, such as its date label and the order of
         the custom dims, is left to the readout's
         :meth:`~pymc_marketing.mmm.period_readout.PeriodReadout.finish_period`,

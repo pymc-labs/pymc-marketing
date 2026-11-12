@@ -317,7 +317,9 @@ class PeriodWindow:
         ------
         ValueError
             If the evaluation dates are not one contiguous run of *dates* or of
-            the window, which happens only when *dates* is not sorted.
+            the window, which happens only when *dates* is not monotonic.
+            Descending dates also give one run, and the slices then select
+            the same dates as the masks.
         """
         in_eval = in_window & (dates >= eval_start) & (dates <= eval_end)
         window = cls(
