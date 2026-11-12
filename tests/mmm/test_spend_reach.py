@@ -1483,6 +1483,49 @@ class TestProbeStatistics:
         assert_identical_statistics(whole, shuffled)
         assert_identical_statistics(whole, one_at_a_time)
 
+    def test_a_nan_move_survives_any_slicing(self, monkeypatch):
+        """A NaN move is in the largest move, whether its sample is folded alone or not.
+
+        Sample 0's float32 channel moves overflow and sum to ``inf - inf``;
+        sample 1 moves by 2.  A NaN-skipping maximum would drop the NaN over
+        the whole evaluation but keep it when sample 0 is a slice of its own.
+        """
+        n_dates = 6
+        channel_base = np.zeros((2, n_dates, 2), dtype="float32")
+        channel_base[0, :, 0], channel_base[0, :, 1] = -3e38, 3e38
+        channel_probed = -channel_base
+        channel_probed[1] = 1.0
+        predictor_base = np.zeros((2, n_dates), dtype="float32")
+        probed = {
+            CHANNEL_CONTRIBUTION: channel_probed,
+            LINEAR_PREDICTOR: predictor_base + 2,
+        }
+        baseline = {
+            CHANNEL_CONTRIBUTION: channel_base,
+            LINEAR_PREDICTOR: predictor_base,
+        }
+        non_date_dims = FakeEvaluator.non_date_dims
+
+        with np.errstate(over="ignore", invalid="ignore"):
+            whole = ProbeStatistics.fold(
+                probed,
+                baseline,
+                accounted=(CHANNEL_CONTRIBUTION,),
+                non_date_dims=non_date_dims,
+            )
+            monkeypatch.setattr(ProbeStatistics, "FOLD_ELEMENTS", 1)
+            one_at_a_time = ProbeStatistics.fold(
+                probed,
+                baseline,
+                accounted=(CHANNEL_CONTRIBUTION,),
+                non_date_dims=non_date_dims,
+            )
+
+        for stats in (whole, one_at_a_time):
+            assert stats.max_expected == 2.0
+            assert np.isnan(stats.max_accounted)
+            assert np.isnan(stats.max_residual)
+
     def test_a_residual_at_the_rounding_of_atol_is_decided_as_allclose(self):
         """A float32 residual within an ulp of ``atol`` gets numpy.allclose's answer.
 

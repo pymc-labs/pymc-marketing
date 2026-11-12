@@ -644,11 +644,14 @@ class ProbeStatistics:
             accounted = accounted + as_array(name)
         expected = as_array(LINEAR_PREDICTOR)
         # Broadcasting only repeats values, so the maxima are taken before it.
-        # np.maximum, not max(): a NaN move has to survive the fold, as it
-        # survives the maximum over the whole evaluation.
-        self.max_expected = float(np.maximum(self.max_expected, np.abs(expected).max()))
+        # np.maximum, not max(), and numpy maxima, not xarray's, which skip
+        # NaN: a NaN move has to survive the fold, as it survives the maximum
+        # over the whole evaluation.
+        self.max_expected = float(
+            np.maximum(self.max_expected, np.abs(expected.values).max())
+        )
         self.max_accounted = float(
-            np.maximum(self.max_accounted, np.abs(accounted).max())
+            np.maximum(self.max_accounted, np.abs(accounted.values).max())
         )
         expected, accounted = xr.broadcast(expected, accounted)
         # The difference numpy.allclose takes, in the dtype it takes it in.
