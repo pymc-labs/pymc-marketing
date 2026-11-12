@@ -863,7 +863,7 @@ def rfm_segments(
     return rfm_data
 
 
-def _rfm_quartile_labels(column_name, max_label_range):
+def _rfm_quartile_labels(column_name: str, max_label_range: int) -> list[int] | range:
     """
     Label quartiles for each variable.
 

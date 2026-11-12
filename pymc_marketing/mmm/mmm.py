@@ -4774,7 +4774,7 @@ class MMM(RegressionModelBuilder):
 
         with self.model:
             pmd.Deterministic(
-                f"{name}_model_estimated_lift_original_scale",
+                original_scale_name(f"{name}_model_estimated_lift"),
                 self.model[f"{name}_model_estimated_lift"]
                 * as_xtensor(target_scale_factor, dims=(f"_{name}_dim",)),
             )
