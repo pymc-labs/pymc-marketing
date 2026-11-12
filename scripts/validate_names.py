@@ -18,12 +18,17 @@ Three checks run over ``pymc_marketing/``:
 1. A string literal in code must not equal a value of a names module that owns
    the file, and must not end with one of its suffixes. A names module owns a
    file when the file is in its directory (see ``SCOPES``) or imports from it;
-   the shared names own every file. Docstrings, ``__all__``, ``Literal[...]``
-   options and attribute names passed to ``getattr`` / ``hasattr`` / ``setattr``
-   are exempt. Any other exception needs an entry in ``ALLOWED`` for that file.
+   the shared names own every file. Docstrings, ``__all__`` and ``Literal[...]``
+   options are exempt. So is an ``idata.attrs`` or serialization key passed to
+   ``getattr`` / ``hasattr`` / ``setattr`` as an attribute name: such a key lives
+   in a dictionary, so the string names an attribute of a Python object there.
+   Groups, variables, dims and columns get no such exemption, because xarray and
+   pandas expose them as attributes. Any other exception needs an entry in
+   ``ALLOWED`` for that file.
 2. The MMM dims in ``DEFERRED_DIMS`` may stay literal where a typo raises
    (``dims=...``, subscripts, reductions). In a position where a typo fails
-   silently (``in``, ``==``, ``.get``, set literals, ...) they follow check 1.
+   silently (``in``, ``==``, ``.get``, ``hasattr``, set literals, ...) they
+   follow check 1.
 3. A names constant must not be used inside a function without annotations,
    because ``mypy`` does not check the body of such a function.
 
@@ -180,6 +185,9 @@ ALLOWED: dict[str, dict[str, str]] = {
 }
 
 ATTRIBUTE_NAME_FUNCTIONS = {"getattr", "hasattr", "setattr", "delattr"}
+# Names classes whose values are dictionary keys and never attributes. Only their
+# values may be typed as the attribute name in ``getattr`` and the like.
+DICTIONARY_KEY_CLASSES = {"Attr", "Key"}
 SILENT_METHODS = {"get", "pop", "startswith", "endswith", "add", "discard"}
 SILENT_KEYWORDS = {"errors", "missing_dims"}
 
@@ -190,7 +198,10 @@ def _string(node: ast.AST | None) -> str | None:
     return None
 
 
-def read_names_module(path: Path) -> tuple[dict[str, str], list[str], set[str]]:
+NamesModule = tuple[dict[str, list[str]], list[str], set[str]]
+
+
+def read_names_module(path: Path) -> NamesModule:
     """Return the values, the suffixes and the public identifiers of a names module.
 
     Parameters
@@ -200,12 +211,13 @@ def read_names_module(path: Path) -> tuple[dict[str, str], list[str], set[str]]:
 
     Returns
     -------
-    tuple[dict[str, str], list[str], set[str]]
-        ``{value: "Class.ATTRIBUTE"}`` for every class attribute, the values of the
-        module-level ``*_SUFFIX`` constants, and the public names the module defines.
+    NamesModule
+        ``{value: ["Class.ATTRIBUTE", ...]}`` for every class attribute, the values
+        of the module-level ``*_SUFFIX`` constants, and the public names the module
+        defines.
     """
     tree = ast.parse(path.read_text(), filename=str(path))
-    values: dict[str, str] = {}
+    values: dict[str, list[str]] = {}
     suffixes: list[str] = []
     identifiers: set[str] = set()
 
@@ -226,7 +238,7 @@ def read_names_module(path: Path) -> tuple[dict[str, str], list[str], set[str]]:
             for attribute, expression in assignments(statement.body):
                 value = _string(expression)
                 if value is not None:
-                    values.setdefault(value, f"{statement.name}.{attribute}")
+                    values.setdefault(value, []).append(f"{statement.name}.{attribute}")
         elif isinstance(statement, ast.FunctionDef):
             identifiers.add(statement.name)
     for name, expression in assignments(tree.body):
@@ -266,14 +278,19 @@ def _exempt_nodes(tree: ast.AST) -> set[int]:
             or (isinstance(node.value, ast.Attribute) and node.value.attr == "Literal")
         ):
             exempt_subtree(node.slice)
-        elif (
-            isinstance(node, ast.Call)
-            and isinstance(node.func, ast.Name)
-            and node.func.id in ATTRIBUTE_NAME_FUNCTIONS
-            and len(node.args) > 1
-        ):
-            exempt.add(id(node.args[1]))
     return exempt
+
+
+def _attribute_names(tree: ast.AST) -> set[int]:
+    """Collect the ids of the nodes passed as the attribute name to ``getattr`` etc."""
+    return {
+        id(node.args[1])
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id in ATTRIBUTE_NAME_FUNCTIONS
+        and len(node.args) > 1
+    }
 
 
 def _is_silent(node: ast.AST, parents: dict[int, ast.AST]) -> bool:
@@ -288,6 +305,16 @@ def _is_silent(node: ast.AST, parents: dict[int, ast.AST]) -> bool:
             isinstance(operator, (ast.In, ast.NotIn, ast.Eq, ast.NotEq))
             for operator in parent.ops
         )
+    if (
+        isinstance(parent, ast.Call)
+        and isinstance(parent.func, ast.Name)
+        and len(parent.args) > 1
+        and parent.args[1] is node
+    ):
+        if parent.func.id == "hasattr":
+            return True
+        if parent.func.id == "getattr":
+            return len(parent.args) > 2  # a default hides the typo
     if isinstance(parent, ast.Call) and node in parent.args:
         if (
             isinstance(parent.func, ast.Attribute)
@@ -380,68 +407,104 @@ def _unannotated_uses(tree: ast.AST, imported: set[str]) -> Iterator[tuple[int, 
     yield from visit(tree, None)
 
 
+def read_names() -> dict[str, NamesModule]:
+    """Read the shared names module and the names module of every model package."""
+    found = sorted({path.stem for path in NAMES_DIR.glob("*.py")} - {"__init__"})
+    return {
+        SHARED: read_names_module(NAMES_DIR / "__init__.py"),
+        **{name: read_names_module(NAMES_DIR / f"{name}.py") for name in found},
+    }
+
+
+def check_source(
+    relative: str, source: str, names: dict[str, NamesModule]
+) -> tuple[list[str], set[str]]:
+    """Check the source of one file.
+
+    Parameters
+    ----------
+    relative : str
+        Path of the file relative to ``pymc_marketing/``, with forward slashes.
+    source : str
+        Source code of the file.
+    names : dict[str, NamesModule]
+        Result of :func:`read_names`.
+
+    Returns
+    -------
+    tuple[list[str], set[str]]
+        The violations, and the ``ALLOWED`` values of this file that were used.
+    """
+    violations: list[str] = []
+    used: set[str] = set()
+    location = f"pymc_marketing/{relative}"
+    tree = ast.parse(source, filename=location)
+    identifiers = set().union(*(module[2] for module in names.values()))
+    imported, imported_modules = _names_imports(tree, identifiers)
+    directory = SCOPES.get(relative.split("/")[0]) if "/" in relative else None
+    owners = [SHARED, *sorted({directory, *imported_modules} - {None})]
+    values: dict[str, list[tuple[str, str]]] = {}
+    for owner in owners:
+        for value, constants in names[owner][0].items():
+            values.setdefault(value, []).extend((owner, name) for name in constants)
+    suffixes = [suffix for owner in owners for suffix in names[owner][1]]
+    exempt = _exempt_nodes(tree)
+    attribute_names = _attribute_names(tree)
+    parents = _parents(tree)
+    allowed = ALLOWED.get(relative, {})
+
+    for node, is_fragment in _literals(tree):
+        if id(node) in exempt:
+            continue
+        text = node.value
+        if not is_fragment and text in values:
+            if id(node) in attribute_names and all(
+                constant.split(".")[0] in DICTIONARY_KEY_CLASSES
+                for _, constant in values[text]
+            ):
+                continue
+            deferred = "mmm" in owners and text in DEFERRED_DIMS
+            if deferred and not _is_silent(node, parents):
+                continue
+            if text in allowed:
+                used.add(text)
+                continue
+            position = " in a position where a typo fails silently" if deferred else ""
+            owner, constant = values[text][0]
+            violations.append(
+                f"{location}:{node.lineno}: literal {text!r}{position} is "
+                f"{constant} in the {owner} names"
+            )
+        elif any(text.endswith(suffix) for suffix in suffixes):
+            violations.append(
+                f"{location}:{node.lineno}: {text!r} spells a names suffix by hand"
+            )
+
+    for line, function in _unannotated_uses(tree, imported):
+        violations.append(
+            f"{location}:{line}: names constant inside {function}(), which has no "
+            "annotations, so mypy does not check it"
+        )
+    return violations, used
+
+
 def main() -> int:
     """Run the checks and print the violations."""
     violations: list[str] = []
-    found = {path.stem for path in NAMES_DIR.glob("*.py")} - {"__init__"}
-    for name in sorted(found ^ set(SCOPES.values())):
+    names = read_names()
+    for name in sorted((set(names) - {SHARED}) ^ set(SCOPES.values())):
         violations.append(
             f"scripts/validate_names.py: names module {name!r} and SCOPES do not match"
         )
-    modules = {
-        SHARED: read_names_module(NAMES_DIR / "__init__.py"),
-        **{name: read_names_module(NAMES_DIR / f"{name}.py") for name in sorted(found)},
-    }
-    identifiers = set().union(*(module[2] for module in modules.values()))
     used_allowances: set[tuple[str, str]] = set()
 
     for path in sorted(PACKAGE.rglob("*.py")):
         if NAMES_DIR in path.parents:
             continue
         relative = path.relative_to(PACKAGE).as_posix()
-        location = f"pymc_marketing/{relative}"
-        tree = ast.parse(path.read_text(), filename=str(path))
-        imported, imported_modules = _names_imports(tree, identifiers)
-        directory = SCOPES.get(relative.split("/")[0]) if "/" in relative else None
-        owners = [SHARED, *sorted({directory, *imported_modules} - {None})]
-        values = {
-            value: f"{constant} in the {owner} names"
-            for owner in owners
-            for value, constant in modules[owner][0].items()
-        }
-        suffixes = [suffix for owner in owners for suffix in modules[owner][1]]
-        exempt = _exempt_nodes(tree)
-        parents = _parents(tree)
-        allowed = ALLOWED.get(relative, {})
-
-        for node, is_fragment in _literals(tree):
-            if id(node) in exempt:
-                continue
-            text = node.value
-            if not is_fragment and text in values:
-                deferred = "mmm" in owners and text in DEFERRED_DIMS
-                if deferred and not _is_silent(node, parents):
-                    continue
-                if text in allowed:
-                    used_allowances.add((relative, text))
-                    continue
-                position = (
-                    " in a position where a typo fails silently" if deferred else ""
-                )
-                violations.append(
-                    f"{location}:{node.lineno}: literal {text!r}{position} is "
-                    f"{values[text]}"
-                )
-            elif any(text.endswith(suffix) for suffix in suffixes):
-                violations.append(
-                    f"{location}:{node.lineno}: {text!r} spells a names suffix by hand"
-                )
-
-        for line, function in _unannotated_uses(tree, imported):
-            violations.append(
-                f"{location}:{line}: names constant inside {function}(), which has no "
-                "annotations, so mypy does not check it"
-            )
+        found, used = check_source(relative, path.read_text(), names)
+        violations.extend(found)
+        used_allowances.update((relative, text) for text in used)
 
     every_allowance = {
         (file, text) for file, entries in ALLOWED.items() for text in entries
