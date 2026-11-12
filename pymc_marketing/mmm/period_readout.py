@@ -626,6 +626,8 @@ class PeriodCurrentFuture(
     reduced, so only the two sums are held across blocks, never a band.  Each
     sum runs along ``realization_date`` alone, so splitting block by block
     adds the same numbers in the same order as splitting the joined band.
+    What depends on the window alone, the dates past the fitted axis and the
+    order callers see, is applied once per period, in :meth:`finish_period`.
 
     Parameters
     ----------
@@ -644,21 +646,32 @@ class PeriodCurrentFuture(
     ) -> xr.Dataset:
         """See :meth:`PeriodReadout.reduce_block`.
 
+        Only the evaluated dates are summed here, in the model's label order.
+        The band's dates past the fitted axis hold ``NaN`` and come after every
+        evaluated date, so they change a sum only by making it ``NaN``, which
+        :meth:`finish_period` applies.
+
         Returns
         -------
         xr.Dataset
-            ``current`` and ``future``, as :func:`split_band` sums them.
+            ``current`` and ``future`` over the evaluated dates, summed as
+            :func:`split_band` sums them.
         """
-        # split_band's ``complete`` is a property of the window, not of the
-        # block, so finish_period reads it once instead of carrying it.
-        current, future, _ = split_band(
-            _band(increment, window=window, context=context),
-            start=window.start,
-            end=window.end,
-            lags=self.lags,
-            freq_offset=context.freq_offset,
+        current_end = current_window_end(
+            window.end, lags=self.lags, freq_offset=context.freq_offset
         )
-        return xr.Dataset({"current": current, "future": future})
+        realization = increment.indexes["realization_date"]
+        in_current = (realization >= window.start) & (realization <= current_end)
+        return xr.Dataset(
+            {
+                "current": increment.isel(realization_date=in_current).sum(
+                    "realization_date", skipna=False
+                ),
+                "future": increment.isel(
+                    realization_date=realization > current_end
+                ).sum("realization_date", skipna=False),
+            }
+        )
 
     def finish_period(
         self,
@@ -683,7 +696,18 @@ class PeriodCurrentFuture(
             tail_lags=context.tail_lags,
             freq_offset=context.freq_offset,
         )
-        return increment["current"], increment["future"], tail.empty
+        current_end = current_window_end(
+            window.end, lags=self.lags, freq_offset=context.freq_offset
+        )
+        sums = increment.sel(context.reported_order)
+        current, future = sums["current"], sums["future"]
+        # A date past the fitted axis is carryover the data cannot show, so a
+        # sum that reaches one is NaN rather than the observed part alone.
+        if ((tail >= window.start) & (tail <= current_end)).any():
+            current = xr.full_like(current, np.nan)
+        if (tail > current_end).any():
+            future = xr.full_like(future, np.nan)
+        return current, future, tail.empty
 
 
 def _band(
