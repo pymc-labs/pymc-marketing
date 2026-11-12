@@ -18,6 +18,7 @@ import gc
 import json
 import logging
 import math
+import os
 import sys
 import warnings
 import weakref
@@ -4582,6 +4583,11 @@ class TestSplitIncrementalContribution:
         BLAS runs on one thread here: with several, a batch of scenarios and
         the baseline can round differently even through the same graph.
         """
+        if sys.platform == "darwin" and os.environ.get("VECLIB_MAXIMUM_THREADS") != "1":
+            pytest.skip(
+                "threadpoolctl cannot limit Apple Accelerate; "
+                "set VECLIB_MAXIMUM_THREADS=1 to run this check on macOS."
+            )
         mmm = funnel_time_varying_media_fitted_mmm
         with threadpool_limits(limits=1):
             band = mmm.incrementality.split_incremental_contribution_over_time(
