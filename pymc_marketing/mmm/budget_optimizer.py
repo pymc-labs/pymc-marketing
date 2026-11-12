@@ -3509,7 +3509,9 @@ class BudgetOptimizer(BaseModel):
             ``multipliers`` in objective units), ``optimized_vars`` (empty for now), and
             ``callback_info`` (per-iteration diagnostics when ``callback=True``, else
             ``None``) and, when a ``price_response`` was passed, ``implied_delivery``,
-            ``implied_price`` and ``implied_marginal_price``. Iterating the result yields
+            ``implied_price`` and ``implied_marginal_price`` for media, plus
+            ``delivery_reports`` with the same arrays for every priced variable,
+            keyed by name. Iterating the result yields
             ``(budgets, scipy_result)``, so ``optimal, res = optimizer.allocate_budget(...)``
             keeps working.
 

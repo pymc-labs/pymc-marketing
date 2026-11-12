@@ -2863,6 +2863,44 @@ class TestMonetarySpendVariables:
         )
         np.testing.assert_allclose(ratio, 1 / (1 - 0.2))
 
+    def test_an_unspent_spend_variable_reports_nan_prices(
+        self, funnel_identity_fitted_mmm, monkeypatch
+    ):
+        """A spend variable held at zero bought nothing, so its report has zero
+        delivery and nan prices, the same convention as an unspent media cell."""
+        optimizer = self._optimizer(
+            funnel_identity_fitted_mmm,
+            spend_vars=["lf_budget"],
+            price_response={
+                "channel_data": PowerPriceResponse(elasticity=0.0),
+                "lf_budget": PowerPriceResponse(
+                    elasticity=0.2,
+                    assume_delivery_units=True,
+                    reference_spend=xr.DataArray(1.0),
+                ),
+            },
+        )
+        (spend,) = (
+            variable
+            for variable in optimizer.optimization_variables.variables
+            if variable.name == "lf_budget"
+        )
+        # allocate_budget takes bounds for media only; pin the spend variable here.
+        monkeypatch.setattr(
+            spend, "default_bounds", lambda total: [(0.0, 0.0)] * spend.size
+        )
+
+        result = optimizer.allocate_budget(total_budget=self.TOTAL)
+
+        assert result.scipy_result.success, result.scipy_result.message
+        np.testing.assert_allclose(
+            result.spend_var_allocations["lf_budget"], 0.0, atol=1e-9
+        )
+        report = result.delivery_reports["lf_budget"]
+        np.testing.assert_allclose(report["implied_delivery"], 0.0, atol=1e-9)
+        assert report["implied_price"].isnull().all()
+        assert report["implied_marginal_price"].isnull().all()
+
     def test_no_price_response_means_no_delivery_reports(
         self, funnel_identity_fitted_mmm
     ):
