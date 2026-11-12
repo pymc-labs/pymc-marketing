@@ -75,3 +75,59 @@ def test_mmm_dim_in_a_silent_attribute_lookup_is_reported(expression) -> None:
 
 def test_mmm_dim_in_getattr_without_default_raises_on_a_typo() -> None:
     assert problems('getattr(obj, "date")') == []
+
+
+@pytest.mark.parametrize(
+    "expression",
+    [
+        'obj.drop(columns=["date"], errors="ignore")',
+        'obj.drop(columns="date", errors="ignore")',
+        'obj.transpose(dims=("date", "channel"), missing_dims="ignore")',
+        'obj.rename(columns={"date": "ds"})',
+        'obj.rename(index={"channel": "media"})',
+        'obj.setdefault("channel", [])',
+    ],
+)
+def test_mmm_dim_where_pandas_or_a_dict_ignores_a_typo_is_reported(expression) -> None:
+    assert problems(expression)
+
+
+@pytest.mark.parametrize(
+    "expression",
+    [
+        'obj.drop(columns=["date"])',
+        'obj.rename(columns={"date": "ds"}, errors="raise")',
+        'obj.rename({"date": "ds"})',
+        'obj.sum(dim="date")',
+    ],
+)
+def test_mmm_dim_where_a_typo_raises_keeps_the_literal(expression) -> None:
+    assert problems(expression) == []
+
+
+@pytest.mark.parametrize(
+    "import_line, constant",
+    [
+        ("import pymc_marketing.names.mmm as nm", "nm.Var.MU"),
+        ("import pymc_marketing.names.mmm", "pymc_marketing.names.mmm.Var.MU"),
+        ("import pymc_marketing.names as shared", "shared.Attr.ID"),
+    ],
+)
+def test_constant_reached_through_a_module_import_needs_annotations(
+    import_line, constant
+) -> None:
+    source = f"{import_line}\n\n\ndef check(obj):\n    return {constant} in obj\n"
+    assert len(check_source("example.py", source, NAMES)[0]) == 1
+
+
+@pytest.mark.parametrize(
+    "import_line",
+    ["import pymc_marketing.names.mmm as nm", "import pymc_marketing.names.mmm"],
+)
+def test_module_import_makes_the_names_module_own_the_file(import_line) -> None:
+    source = (
+        f"{import_line}\n\n\n"
+        "def check(obj: object) -> bool:\n"
+        '    return "channel_contribution" in obj\n'
+    )
+    assert len(check_source("example.py", source, NAMES)[0]) == 1

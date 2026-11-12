@@ -27,8 +27,9 @@ Three checks run over ``pymc_marketing/``:
    ``ALLOWED`` for that file.
 2. The MMM dims in ``DEFERRED_DIMS`` may stay literal where a typo raises
    (``dims=...``, subscripts, reductions). In a position where a typo fails
-   silently (``in``, ``==``, ``.get``, ``hasattr``, set literals, ...) they
-   follow check 1.
+   silently (``in``, ``==``, ``.get``, ``.setdefault``, ``hasattr``, set
+   literals, a pandas ``rename`` mapping, a call with ``errors="ignore"``, ...)
+   they follow check 1.
 3. A names constant must not be used inside a function without annotations,
    because ``mypy`` does not check the body of such a function.
 
@@ -188,8 +189,19 @@ ATTRIBUTE_NAME_FUNCTIONS = {"getattr", "hasattr", "setattr", "delattr"}
 # Names classes whose values are dictionary keys and never attributes. Only their
 # values may be typed as the attribute name in ``getattr`` and the like.
 DICTIONARY_KEY_CLASSES = {"Attr", "Key"}
-SILENT_METHODS = {"get", "pop", "startswith", "endswith", "add", "discard"}
+SILENT_METHODS = {
+    "get",
+    "pop",
+    "setdefault",
+    "startswith",
+    "endswith",
+    "add",
+    "discard",
+}
 SILENT_KEYWORDS = {"errors", "missing_dims"}
+# pandas ``rename`` skips a key that is missing unless ``errors="raise"`` is set.
+RENAME_KEYWORDS = {"columns", "index"}
+NAMES_PACKAGE = "pymc_marketing.names"
 
 
 def _string(node: ast.AST | None) -> str | None:
@@ -293,6 +305,13 @@ def _attribute_names(tree: ast.AST) -> set[int]:
     }
 
 
+def _has_keyword(call: ast.Call, names: set[str], value: str) -> bool:
+    return any(
+        keyword.arg in names and _string(keyword.value) == value
+        for keyword in call.keywords
+    )
+
+
 def _is_silent(node: ast.AST, parents: dict[int, ast.AST]) -> bool:
     """Return whether a typo in the string ``node`` would fail without raising."""
     parent = parents.get(id(node))
@@ -304,6 +323,25 @@ def _is_silent(node: ast.AST, parents: dict[int, ast.AST]) -> bool:
         return any(
             isinstance(operator, (ast.In, ast.NotIn, ast.Eq, ast.NotEq))
             for operator in parent.ops
+        )
+    if isinstance(parent, ast.Dict):
+        # The key of ``df.rename(columns={"date": ...})``.
+        keyword = parents.get(id(parent))
+        call = parents.get(id(keyword))
+        return (
+            node in parent.keys
+            and isinstance(keyword, ast.keyword)
+            and keyword.arg in RENAME_KEYWORDS
+            and isinstance(call, ast.Call)
+            and isinstance(call.func, ast.Attribute)
+            and call.func.attr == "rename"
+            and not _has_keyword(call, {"errors"}, "raise")
+        )
+    if isinstance(parent, ast.keyword):
+        # A value passed by keyword: ``df.drop(columns=["date"], errors="ignore")``.
+        call = parents.get(id(parent))
+        return isinstance(call, ast.Call) and _has_keyword(
+            call, SILENT_KEYWORDS, "ignore"
         )
     if (
         isinstance(parent, ast.Call)
@@ -322,10 +360,7 @@ def _is_silent(node: ast.AST, parents: dict[int, ast.AST]) -> bool:
             and parent.args[0] is node
         ):
             return True
-        return any(
-            keyword.arg in SILENT_KEYWORDS and _string(keyword.value) == "ignore"
-            for keyword in parent.keywords
-        )
+        return _has_keyword(parent, SILENT_KEYWORDS, "ignore")
     return False
 
 
@@ -347,6 +382,18 @@ def _names_imports(tree: ast.AST, identifiers: set[str]) -> tuple[set[str], set[
     local_names: set[str] = set()
     modules: set[str] = set()
     for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            # ``import pymc_marketing.names.mmm as nm``
+            for alias in node.names:
+                if alias.name == NAMES_PACKAGE or alias.name.startswith(
+                    f"{NAMES_PACKAGE}."
+                ):
+                    submodule = alias.name[len(NAMES_PACKAGE) + 1 :]
+                    if submodule in SCOPES.values():
+                        modules.add(submodule)
+                    if alias.asname is not None:
+                        local_names.add(alias.asname)
+            continue
         if not isinstance(node, ast.ImportFrom) or node.module is None:
             continue
         if node.module == "pymc_marketing":
@@ -355,14 +402,14 @@ def _names_imports(tree: ast.AST, identifiers: set[str]) -> tuple[set[str], set[
                 for alias in node.names
                 if alias.name == "names"
             )
-        elif node.module == "pymc_marketing.names":
+        elif node.module == NAMES_PACKAGE:
             for alias in node.names:
                 if alias.name in SCOPES.values():
                     modules.add(alias.name)
                     local_names.add(alias.asname or alias.name)
                 elif alias.name in identifiers:
                     local_names.add(alias.asname or alias.name)
-        elif node.module.startswith("pymc_marketing.names."):
+        elif node.module.startswith(f"{NAMES_PACKAGE}."):
             modules.add(node.module.rsplit(".", 1)[-1])
             local_names.update(
                 alias.asname or alias.name
@@ -386,8 +433,25 @@ def _is_annotated(function: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
     )
 
 
+def _dotted(node: ast.AST) -> str | None:
+    """Return ``"a.b.c"`` for the attribute chain ``a.b.c``."""
+    parts: list[str] = []
+    while isinstance(node, ast.Attribute):
+        parts.append(node.attr)
+        node = node.value
+    if isinstance(node, ast.Name):
+        return ".".join([node.id, *reversed(parts)])
+    return None
+
+
 def _unannotated_uses(tree: ast.AST, imported: set[str]) -> Iterator[tuple[int, str]]:
     """Yield ``(line, function name)`` for names constants in unannotated functions."""
+
+    def reaches_names(node: ast.AST) -> bool:
+        if isinstance(node, ast.Name):
+            return node.id in imported
+        # ``import pymc_marketing.names.mmm`` without an alias
+        return isinstance(node, ast.Attribute) and _dotted(node) == NAMES_PACKAGE
 
     def visit(
         node: ast.AST, function: ast.FunctionDef | ast.AsyncFunctionDef | None
@@ -395,10 +459,7 @@ def _unannotated_uses(tree: ast.AST, imported: set[str]) -> Iterator[tuple[int, 
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
             function = node
         elif (
-            isinstance(node, ast.Name)
-            and node.id in imported
-            and function is not None
-            and not _is_annotated(function)
+            function is not None and not _is_annotated(function) and reaches_names(node)
         ):
             yield node.lineno, function.name
         for child in ast.iter_child_nodes(node):
