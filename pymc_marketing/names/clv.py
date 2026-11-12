@@ -41,10 +41,20 @@ class Col:
     N_PURCHASES: Final = "n_purchases"
     DISCOUNT_RATE: Final = "discount_rate"
     INDIVIDUAL_TRANSACTION_VALUE: Final = "individual_transaction_value"
+    FIRST: Final = "first"
+    R_QUARTILE: Final = "r_quartile"
+    F_QUARTILE: Final = "f_quartile"
+    M_QUARTILE: Final = "m_quartile"
+    RFM_SCORE: Final = "rfm_score"
+    SEGMENT: Final = "segment"
 
 
 class Dim:
-    """Dimension names of the CLV models."""
+    """Dimension names of the CLV models.
+
+    The coordinate labels of ``OBS_VAR`` are ``Col.RECENCY`` and ``Col.FREQUENCY``:
+    the two observed columns that ``Var.RECENCY_FREQUENCY`` stacks.
+    """
 
     CUSTOMER_ID: Final = "customer_id"
     OBS_VAR: Final = "obs_var"
@@ -52,14 +62,22 @@ class Dim:
     PURCHASE_COVARIATE: Final = "purchase_covariate"
     DROPOUT_COVARIATE: Final = "dropout_covariate"
     OBS: Final = "obs"
+    NEW_CUSTOMER_ID: Final = "new_customer_id"
 
 
 class Var:
-    """Model variable names that the CLV models create and read back."""
+    """Model variable names that the CLV models create and read back.
+
+    ``<symbol>_SCALE`` is the covariate-free baseline of the parameter ``<symbol>``
+    of the model that creates it, and ``*_COEFFICIENT_<symbol>`` is the covariate
+    coefficient of that parameter. The symbols themselves mean different things
+    in each model, so read these names per model.
+    """
 
     RECENCY_FREQUENCY: Final = "recency_frequency"
     DROPOUT: Final = "dropout"
     PURCHASE_RATE: Final = "purchase_rate"
+    MEAN_SPEND: Final = "mean_spend"
     ALPHA_SCALE: Final = "alpha_scale"
     BETA_SCALE: Final = "beta_scale"
     A_SCALE: Final = "a_scale"

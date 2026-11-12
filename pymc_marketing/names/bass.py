@@ -42,6 +42,7 @@ class Var:
     """Data and model variable names that the Bass model creates and reads back."""
 
     OBSERVED: Final = "observed"
+    TIME: Final = "t"
     ADOPTERS: Final = "adopters"
     INNOVATORS: Final = "innovators"
     IMITATORS: Final = "imitators"

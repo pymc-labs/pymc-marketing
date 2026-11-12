@@ -17,8 +17,9 @@ Covers :class:`~pymc_marketing.customer_choice.mnl_logit.MNLogit`,
 :class:`~pymc_marketing.customer_choice.nested_logit.NestedLogit`,
 :class:`~pymc_marketing.customer_choice.mixed_logit.MixedLogit`,
 :class:`~pymc_marketing.customer_choice.consideration_set_logit.ConsiderationSetMixedLogit`
-and their shared data mixin. Names that only one model creates and reads stay in
-that model's module.
+and their shared data mixin. A name is listed when more than one of these
+modules has to agree on it. Names that a single model creates and reads stay in
+that model's module, and so do ``model_config`` keys.
 
 Each name is a ``Final`` string attribute, so ``mypy`` reports a typo as
 ``attr-defined`` and the runtime value stays a plain ``str``. The values are
@@ -27,11 +28,14 @@ public API: saved models store them, so they must not change.
 
 from typing import Final
 
+from pymc_marketing import names
+
 
 class Dim:
     """Dimension names of the logit models."""
 
     ALTS: Final = "alts"
+    ALTS_PROBS: Final = "alts_probs"
     OBS: Final = "obs"
     ALT_COVARIATES: Final = "alt_covariates"
     FIXED_COVARIATES: Final = "fixed_covariates"
@@ -54,3 +58,18 @@ class Var:
     Y: Final = "y"
     F: Final = "F"
     W: Final = "W"
+    ALPHAS: Final = "alphas"
+    BETAS_FIXED: Final = "betas_fixed"
+    GRP_IDX: Final = "grp_idx"
+
+
+class Attr(names.Attr):
+    """``idata.attrs`` keys the logit models write and their data mixin reads back.
+
+    They copy ``__init__`` parameters. They are listed because the three model
+    modules write them and ``ChoiceDataMixin.attrs_to_init_kwargs`` reads them.
+    """
+
+    UTILITY_EQUATIONS: Final = "utility_equations"
+    DEPVAR: Final = "depvar"
+    COVARIATES: Final = "covariates"

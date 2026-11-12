@@ -30,7 +30,11 @@ from typing import Final
 
 
 class Group:
-    """InferenceData groups that :class:`~pymc_marketing.model_builder.ModelBuilder` writes."""
+    """InferenceData groups that more than one model writes.
+
+    :class:`~pymc_marketing.model_builder.ModelBuilder` and the experimental
+    ``SCM`` both store their training data in ``FIT_DATA``.
+    """
 
     FIT_DATA: Final = "fit_data"
 
@@ -52,7 +56,13 @@ class Attr:
 
 
 class Key:
-    """Keys of the dictionaries that :mod:`pymc_marketing.serialization` reads and writes."""
+    """Marker keys of the serialized dictionaries.
+
+    :mod:`pymc_marketing.serialization` writes ``TYPE`` and ``DEFERRED``, and the
+    experimental terms serializer uses ``TYPE`` for its own nodes.
+    :mod:`pymc_marketing.terms` wraps plain values under ``LITERAL``.
+    """
 
     TYPE: Final = "__type__"
     DEFERRED: Final = "__deferred__"
+    LITERAL: Final = "__literal__"
