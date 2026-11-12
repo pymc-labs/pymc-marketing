@@ -314,7 +314,6 @@ __all__ = [
     "IncrementalReducer",
     "Incrementality",
     "LogLinkReducer",
-    "PeriodIncrements",
     "kernel_trailing_lags",
 ]
 
@@ -1045,8 +1044,8 @@ class PeriodIncrements[R]:
         per-date increment on ``realization_date`` over the period's evaluated
         dates plus its unobserved tail, with a boolean ``observed`` coordinate
         (:class:`~pymc_marketing.mmm.period_readout.PeriodBand`); or its
-        current value, future value and whether its carryover is fully
-        observed (:class:`~pymc_marketing.mmm.period_readout.PeriodCurrentFuture`).
+        :class:`~pymc_marketing.mmm.period_readout.CurrentFuture`
+        (:class:`~pymc_marketing.mmm.period_readout.PeriodCurrentFuture`).
     windows : EvaluationWindows
         The windows the periods were evaluated over, in the same order.
     reach : SpendReach

@@ -33,7 +33,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, NamedTuple, cast
 
 import numpy as np
 import pandas as pd
@@ -48,6 +48,7 @@ if TYPE_CHECKING:
     from pymc_marketing.mmm.incrementality import IncrementalReducer
 
 __all__ = [
+    "CurrentFuture",
     "LinearPredictorDelta",
     "PeriodBand",
     "PeriodCurrentFuture",
@@ -570,10 +571,27 @@ class PeriodBand(PeriodReadout[xr.DataArray, xr.DataArray]):
         ).sel(context.reported_order)
 
 
+class CurrentFuture(NamedTuple):
+    """One period's current and future value, as :class:`PeriodCurrentFuture` reads it out.
+
+    Attributes
+    ----------
+    current, future : xr.DataArray
+        The period's current and future value: every realization date from its
+        start through its end plus the readout's ``lags`` data periods, and
+        every date after that.
+    complete : bool
+        Whether every date of the period's band is observed: whether none of
+        its carryover falls past the fitted axis.
+    """
+
+    current: xr.DataArray
+    future: xr.DataArray
+    complete: bool
+
+
 @dataclass(frozen=True)
-class PeriodCurrentFuture(
-    PeriodReadout[xr.Dataset, tuple[xr.DataArray, xr.DataArray, bool]]
-):
+class PeriodCurrentFuture(PeriodReadout[xr.Dataset, CurrentFuture]):
     """Each period's increment split into its current and future value.
 
     What
@@ -636,18 +654,14 @@ class PeriodCurrentFuture(
         *,
         window: PeriodWindow,
         context: ReadoutContext,
-    ) -> tuple[xr.DataArray, xr.DataArray, bool]:
+    ) -> CurrentFuture:
         """See :meth:`PeriodReadout.finish_period`.
 
         Returns
         -------
-        current, future : xr.DataArray
-            The period's current and future value: every realization date from
-            its start through its end plus :attr:`lags` data periods, and every
-            date after that.
-        complete : bool
-            Whether every date of the band is observed: whether none of the
-            period's carryover falls past the fitted axis.
+        CurrentFuture
+            The period's current and future value, and whether its carryover
+            is fully observed.
         """
         tail = tail_dates(
             window=window,
@@ -666,4 +680,4 @@ class PeriodCurrentFuture(
             current = xr.full_like(current, np.nan)
         if (tail > current_end).any():
             future = xr.full_like(future, np.nan)
-        return current, future, tail.empty
+        return CurrentFuture(current, future, tail.empty)

@@ -25,6 +25,7 @@ from pymc_marketing.mmm.incrementality import (
     LogLinkReducer,
 )
 from pymc_marketing.mmm.period_readout import (
+    CurrentFuture,
     LinearPredictorDelta,
     PeriodBand,
     PeriodCurrentFuture,
@@ -240,14 +241,13 @@ class TestPeriodReadouts:
             band, window, lags
         )
 
-        current, future, complete = self._read(
-            PeriodCurrentFuture(lags), band, window, n_blocks=n_blocks
-        )
+        result = self._read(PeriodCurrentFuture(lags), band, window, n_blocks=n_blocks)
 
-        xr.testing.assert_identical(current, expected_current.rename("current"))
-        xr.testing.assert_identical(future, expected_future.rename("future"))
-        assert complete is expected_complete
-        assert complete is (period == 0)
+        assert isinstance(result, CurrentFuture)
+        xr.testing.assert_identical(result.current, expected_current.rename("current"))
+        xr.testing.assert_identical(result.future, expected_future.rename("future"))
+        assert result.complete is expected_complete
+        assert result.complete is (period == 0)
 
     def test_the_tail_makes_a_sum_nan(self, windows):
         """An unobserved date is not summed as zero, on whichever side it falls."""
