@@ -246,7 +246,7 @@ class ShiftedBetaGeoModel(CLVModel):
         return list(self.model_config.get("dropout_covariate_cols", []))
 
     @property
-    def cohorts(self) -> np.ndarray:
+    def cohorts(self) -> np.ndarray | pd.api.extensions.ExtensionArray:
         """Unique cohort values from data."""
         if not hasattr(self, "data") or self.data is None:
             raise AttributeError(
