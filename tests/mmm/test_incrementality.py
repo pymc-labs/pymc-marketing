@@ -7383,22 +7383,6 @@ class TestEvaluatorCache:
         assert len(constructed) == 2
         xr.testing.assert_allclose(cloned, result)
 
-    @pytest.mark.parametrize(
-        ("fixture", "baseline_only"),
-        [("simple_fitted_mmm", ()), ("funnel_log_link_fitted_mmm", ("mu",))],
-    )
-    def test_only_the_baseline_evaluates_the_predictor(
-        self, request, fixture, baseline_only, constructed
-    ):
-        """The predictor, evaluated only for the spend probe, is left out of the scenarios."""
-        mmm = request.getfixturevalue(fixture)
-        # The fixture is shared, so an earlier test may have cached its evaluator.
-        mmm._clear_incrementality_evaluator_cache()
-        mmm.incrementality.compute_incremental_contribution(frequency="all_time")
-
-        assert len(constructed) == 1
-        assert constructed[0]["baseline_only"] == baseline_only
-
     def test_different_data_build_two_evaluators(self, simple_fitted_mmm, constructed):
         """Two Incrementality objects over different data each build their own evaluator."""
         mmm = simple_fitted_mmm

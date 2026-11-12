@@ -805,8 +805,7 @@ class CounterfactualBlock:
         axis, so a caller holding per-sample arrays slices them without
         knowing the layout.
     outputs : dict
-        Per scenario variable (see :attr:`CounterfactualEvaluator.scenario_vars`),
-        an array of shape
+        Per response variable, an array of shape
         ``(n_scenarios, n_block_samples, max_window, *non_date_dims)``.
     """
 
@@ -917,20 +916,12 @@ class CounterfactualEvaluator:
         An in-place mutation of the buffer itself is not detected.
         A name absent from the mapping is not verified here; a source buffer
         replaced for it is caught by :meth:`is_stale` instead.
-    baseline_only : sequence of str, default ``()``
-        Response variables only :meth:`evaluate_baseline` returns.  The
-        counterfactual scenarios are evaluated by a second compiled function
-        without them, so a node read only on the baseline costs nothing per
-        scenario.
 
     Attributes
     ----------
     non_date_dims : dict
         Per response variable, the dimensions of its result after ``sample`` and
         ``date``, which is the node's own dimension order with ``date`` removed.
-    scenario_vars : tuple of str
-        The response variables the counterfactual scenarios return: every one
-        but *baseline_only*, in order.
     windowed_data_vars : tuple of str
         Date-indexed ``pm.Data`` variables discovered in the graph and cut
         alongside the intervention values, excluding the intervention target and
@@ -949,9 +940,7 @@ class CounterfactualEvaluator:
         discovered date-indexed input, data or frozen deterministic, does not
         span the fitted date axis; if a response variable has no name (an
         anonymous node such as a raw arithmetic expression, unless ``.name``
-        was set on it); if two response variables share a name; if
-        *baseline_only* names a variable that is not a response variable, or
-        all of them; or if a value in
+        was set on it); if two response variables share a name; or if a value in
         *expected_aux_values* -- an auxiliary input, or the fabricated
         ``time_index`` -- disagrees with what the live model or the
         fabrication would produce, meaning the model was mutated after
@@ -988,7 +977,6 @@ class CounterfactualEvaluator:
         intervention_target: str = CHANNEL_DATA,
         intervention_mode: InterventionMode = "replace",
         expected_aux_values: Mapping[str, xr.DataArray] | None = None,
-        baseline_only: Sequence[str] = (),
     ) -> None:
         # Results are keyed by name whether the caller asked by name or handed
         # over the node: the linear predictor is only a registered variable
@@ -996,20 +984,6 @@ class CounterfactualEvaluator:
         self.response_vars = self._validated_response_names(
             tuple(var if isinstance(var, str) else var.name for var in response_vars)
         )
-        unknown = sorted(set(baseline_only) - set(self.response_vars))
-        if unknown:
-            raise ValueError(
-                f"baseline_only names {unknown}, which are not response variables "
-                f"{list(self.response_vars)}."
-            )
-        self.scenario_vars = tuple(
-            name for name in self.response_vars if name not in baseline_only
-        )
-        if not self.scenario_vars:
-            raise ValueError(
-                "baseline_only leaves no response variable for the "
-                "counterfactual scenarios."
-            )
         self._validate_mode(intervention_mode)
         self.intervention_target = intervention_target
         self.intervention_mode: InterventionMode = intervention_mode
@@ -1105,16 +1079,11 @@ class CounterfactualEvaluator:
             for name, graph in zip(self.response_vars, graphs, strict=True)
         }
         # Output elements one scenario costs per date of its window, summed over
-        # the nodes the scenarios return.  The live draw count is applied in
+        # the evaluated nodes.  The live draw count is applied in
         # ``_batch_size`` so a rebind cannot leave it stale.
         self._elements_per_date = sum(
-            int(
-                np.prod(
-                    [len(do_model.coords[dim]) for dim in self.non_date_dims[name]],
-                    dtype=int,
-                )
-            )
-            for name in self.scenario_vars
+            int(np.prod([len(do_model.coords[dim]) for dim in dims], dtype=int))
+            for dims in self.non_date_dims.values()
         )
 
         # The intervention values are the evaluator's first input, whatever the
@@ -1240,20 +1209,6 @@ class CounterfactualEvaluator:
             )
         ]
         self._evaluator = function(func_inputs, outputs)
-        if self.scenario_vars == self.response_vars:
-            self._scenario_evaluator = self._evaluator
-        else:
-            # The dropped nodes may be the only readers of an input, such as
-            # time_index under a time-varying intercept.
-            self._scenario_evaluator = function(
-                func_inputs,
-                [
-                    out
-                    for name, out in zip(self.response_vars, outputs, strict=True)
-                    if name in self.scenario_vars
-                ],
-                on_unused_input="ignore",
-            )
 
     def _watched_source_buffers(self, graph_ancestors: set) -> dict[str, np.ndarray]:
         """Record the source model's shared buffers the graphs read, keyed by name.
@@ -1871,7 +1826,7 @@ class CounterfactualEvaluator:
         windows: EvaluationWindows,
         batch_size: int | None = None,
     ) -> dict[str, np.ndarray]:
-        """Evaluate every scenario variable on all counterfactual scenarios.
+        """Evaluate every node on all counterfactual scenarios.
 
         The eager form of :meth:`iter_counterfactual`: one block holding every
         posterior sample, so the whole result is in memory at once.
@@ -1902,7 +1857,7 @@ class CounterfactualEvaluator:
         Returns
         -------
         dict
-            Per scenario variable, an array of shape
+            Per response variable, an array of shape
             ``(n_scenarios, n_samples, max_window, *non_date_dims)``.
 
         Raises
@@ -1930,7 +1885,7 @@ class CounterfactualEvaluator:
         windows: EvaluationWindows,
         max_elements: int | None = None,
     ) -> Generator[CounterfactualBlock, None, None]:
-        """Evaluate every scenario variable on all scenarios, one block of samples at a time.
+        """Evaluate every node on all scenarios, one block of samples at a time.
 
         Draws are independent, so a block of them gives the values it would
         with the rest, up to rounding: the compiled graph may round differently
@@ -2076,15 +2031,15 @@ class CounterfactualEvaluator:
         self._sync_sample_markers()
         n_scenarios = len(args[0])
         batches = [
-            self._scenario_evaluator(*(arg[start : start + batch_size] for arg in args))
+            self._evaluator(*(arg[start : start + batch_size] for arg in args))
             for start in range(0, n_scenarios, batch_size)
         ]
         if len(batches) == 1:
             # Nothing to join, so no copy.
-            return dict(zip(self.scenario_vars, batches[0], strict=True))
+            return dict(zip(self.response_vars, batches[0], strict=True))
         return {
             name: np.concatenate([batch[idx] for batch in batches], axis=0)
-            for idx, name in enumerate(self.scenario_vars)
+            for idx, name in enumerate(self.response_vars)
         }
 
     def _sample_blocks(
