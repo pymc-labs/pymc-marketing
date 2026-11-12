@@ -308,6 +308,52 @@ def test_linear_trend_effect(
     pd.testing.assert_index_equal(effect_predictions.date.to_index(), new_dates)
 
 
+def test_linear_trend_effect_extrapolates_out_of_sample(
+    create_mock_mmm, dates, linear_trend_model
+) -> None:
+    """Out of sample, the trend continues from the changepoints fit in sample.
+
+    Regression test for #1569 and #3298: the prediction dates must not be
+    rescaled into the training period.
+    """
+    n_changepoints = 8
+    effect = LinearTrendEffect(
+        trend=LinearTrend(n_changepoints=n_changepoints, include_intercept=True),
+        prefix="trend",
+    )
+    mmm = create_mock_mmm(dims=(), model=linear_trend_model)
+    name = "trend_effect_contribution"
+
+    with mmm.model:
+        effect.create_data(mmm)
+        effect.create_effect(mmm)
+        prior = pm.sample_prior_predictive(draws=20, random_seed=1).prior
+
+    def expected_trend(new_dates: pd.DatetimeIndex) -> xr.DataArray:
+        span = (dates.max() - dates[0]).days
+        t = xr.DataArray(
+            ((new_dates - dates[0]).days / span).to_numpy(),
+            dims="date",
+            coords={"date": new_dates},
+        )
+        s = xr.DataArray(np.linspace(0, 1, n_changepoints), dims="changepoint")
+        slopes = ((t > s) * prior["delta"] * (t - s)).sum("changepoint")
+        return (prior["k"] + slopes).transpose("chain", "draw", "date")
+
+    xr.testing.assert_allclose(prior[name], expected_trend(dates))
+
+    # Start at the last training date, so the forecast overlaps the fitted trend.
+    future_dates = pd.date_range(dates.max(), periods=12, freq="W-MON", name="date")
+    with mmm.model:
+        set_new_model_dates(future_dates)
+        effect.set_data(mmm, mmm.model, None)
+        predictions = pm.sample_posterior_predictive(
+            prior, var_names=[name], random_seed=1
+        ).posterior_predictive[name]
+
+    xr.testing.assert_allclose(predictions, expected_trend(future_dates))
+
+
 class TestMuEffectRoundtrips:
     @pytest.mark.parametrize(
         "fourier_cls_name",

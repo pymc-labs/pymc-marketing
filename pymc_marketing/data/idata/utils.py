@@ -569,6 +569,11 @@ def subsample_draws(
         When subsampling occurs, returns a new Dataset with shape
         ``(chain=1, draw=num_samples)``.
 
+    Raises
+    ------
+    ValueError
+        If *num_samples* is less than 1.
+
     Examples
     --------
     >>> sub = subsample_draws(posterior, num_samples=100, random_state=42)
@@ -577,6 +582,8 @@ def subsample_draws(
     """
     if num_samples is None:
         return dataset
+    if num_samples < 1:
+        raise ValueError(f"num_samples must be at least 1, got {num_samples}.")
 
     total_samples = dataset.sizes["chain"] * dataset.sizes["draw"]
 

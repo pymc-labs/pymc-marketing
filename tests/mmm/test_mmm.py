@@ -29,6 +29,7 @@ import xarray as xr
 from pydantic import ValidationError
 from pymc.model_graph import fast_eval
 from pymc_extras.prior import Censored, Prior
+from pytensor.graph.traversal import ancestors
 from pytensor.xtensor.type import XTensorVariable, as_xtensor
 from scipy import stats
 from scipy.optimize import OptimizeResult
@@ -42,6 +43,7 @@ from pymc_marketing.mmm import (
     LogisticSaturation,
     RootSaturation,
     SoftPlusHSGP,
+    TimeSliceCrossValidator,
 )
 from pymc_marketing.mmm.additive_effect import (
     DataVarMuEffect,
@@ -50,6 +52,8 @@ from pymc_marketing.mmm.additive_effect import (
     MediaMuEffect,
     MuEffect,
 )
+from pymc_marketing.mmm.budget_optimizer import BudgetOptimizer
+from pymc_marketing.mmm.counterfactual import CounterfactualEvaluator
 from pymc_marketing.mmm.events import EventEffect, GaussianBasis, HalfGaussianBasis
 from pymc_marketing.mmm.lift_test import (
     UnalignedValuesError,
@@ -1112,6 +1116,36 @@ class TestMultidimMMMEdgeCases:
         # Slices with a zero-target are clamped to 0 by the guard.
         zero_geo_idx = int(np.argmax(target_scaler == 0))
         np.testing.assert_array_equal(scaled_target[:, zero_geo_idx], 0.0)
+
+    @pytest.mark.parametrize("bad_value", [np.inf, -np.inf], ids=["+inf", "-inf"])
+    @pytest.mark.parametrize("source", ["y", "X column", "X Dataset"])
+    def test_infinite_target_raises(self, simple_mmm_data, bad_value, source):
+        """An infinite target is rejected rather than fitted as zeros.
+
+        The clamp in ``build_model`` turns an infinite target into 0, and
+        ``+inf`` also makes the ``max`` scale infinite, which zeroes the
+        whole target (#2973).
+        """
+        X = simple_mmm_data["X"].copy()
+        y = simple_mmm_data["y"].copy()
+        y.iloc[1] = bad_value
+        mmm = self._build_basic_mmm()
+
+        with pytest.raises(ValueError, match="1 infinite value"):
+            if source == "y":
+                mmm.build_model(X, y)
+            elif source == "X column":
+                mmm.build_model(X.assign(target=y.to_numpy()))
+            else:
+                channels = ["channel_1", "channel_2", "channel_3"]
+                X_ds = xr.Dataset(
+                    {
+                        "media": (["date", "channel"], X[channels].to_numpy()),
+                        "target": (["date"], y.to_numpy()),
+                    },
+                    coords={"date": pd.DatetimeIndex(X["date"]), "channel": channels},
+                )
+                mmm.build_model(X_ds)
 
     def test_nan_in_channel_is_handled_without_non_finite_scales(self, simple_mmm_data):
         X = simple_mmm_data["X"].copy()
@@ -2343,6 +2377,436 @@ def test_sample_posterior_predictive_clone_model(
     np.testing.assert_array_equal(
         np.asarray(mmm.model.coords["date"]), expected_dates.to_numpy()
     )
+
+
+class _ZeroEffect(MuEffect):
+    """A zero contribution on any dates, with no data of its own."""
+
+    prefix: str = "zero"
+
+    def create_data(self, mmm) -> None:
+        """No data of its own."""
+
+    def create_effect(self, mmm):
+        """Zero on every date of the model."""
+        return as_xtensor(pt.zeros(mmm.model.dim_lengths["date"]), dims=("date",))
+
+    def set_data(self, mmm, model, X) -> None:
+        """No data of its own."""
+
+
+class _FittedDatesOnlyEffect(_ZeroEffect):
+    """``_ZeroEffect``, declared to take only the dates the MMM was fitted on.
+
+    Its contribution is registered and taken from the posterior, a frozen path over
+    ``date`` as a latent baseline's is.
+    """
+
+    prefix: str = "fitted_dates_only"
+
+    @property
+    def supports_new_dates(self) -> bool:
+        """Only the fitted dates."""
+        return False
+
+    @property
+    def frozen_deterministics(self) -> list[str]:
+        """The contribution."""
+        return [self.contribution_var_name]
+
+    def create_effect(self, mmm) -> XTensorVariable:
+        """Zero on every date of the model, registered as the contribution."""
+        return pmd.Deterministic(self.contribution_var_name, super().create_effect(mmm))
+
+
+class _UnprefixedFittedDatesOnlyEffect(MuEffect):
+    """``_FittedDatesOnlyEffect`` without a prefix."""
+
+    @property
+    def supports_new_dates(self) -> bool:
+        """Only the fitted dates."""
+        return False
+
+    def create_data(self, mmm) -> None:
+        """No data of its own."""
+
+    def create_effect(self, mmm):
+        """Zero on every date of the model."""
+        return as_xtensor(pt.zeros(mmm.model.dim_lengths["date"]), dims=("date",))
+
+    def set_data(self, mmm, model, X) -> None:
+        """No data of its own."""
+
+
+class _DuckTypedZeroEffect:
+    """``_ZeroEffect`` without ``MuEffect``, as the additive-effect module allows.
+
+    It declares neither ``supports_new_dates`` nor ``frozen_deterministics``.
+    """
+
+    prefix = "duck"
+
+    def to_dict(self) -> dict:
+        """Serialize the effect, which fitting insists on."""
+        return {}
+
+    def create_data(self, mmm) -> None:
+        """No data of its own."""
+
+    def create_effect(self, mmm):
+        """Zero on every date of the model."""
+        return as_xtensor(pt.zeros(mmm.model.dim_lengths["date"]), dims=("date",))
+
+    def set_data(self, mmm, model, X) -> None:
+        """No data of its own."""
+
+
+serialization.register(
+    f"{_DuckTypedZeroEffect.__module__}.{_DuckTypedZeroEffect.__qualname__}",
+    _DuckTypedZeroEffect,
+    deserializer=lambda data: _DuckTypedZeroEffect(),
+)
+
+
+class _FrozenZeroEffect(_ZeroEffect):
+    """``_ZeroEffect`` whose contribution is taken from the posterior."""
+
+    @property
+    def frozen_deterministics(self) -> list[str]:
+        """The contribution."""
+        return [self.contribution_var_name]
+
+
+@pytest.mark.parametrize(
+    "effects, refused",
+    [
+        pytest.param(
+            [_FittedDatesOnlyEffect(), _ZeroEffect(), _DuckTypedZeroEffect()],
+            "_FittedDatesOnlyEffect 'fitted_dates_only' takes",
+            id="one-effect",
+        ),
+        pytest.param(
+            [_FittedDatesOnlyEffect(), _UnprefixedFittedDatesOnlyEffect()],
+            "_FittedDatesOnlyEffect 'fitted_dates_only', "
+            "_UnprefixedFittedDatesOnlyEffect take",
+            id="two-effects",
+        ),
+    ],
+)
+def test_sample_posterior_predictive_refuses_new_dates_for_effects_without_them(
+    single_dim_data, mock_pymc_sample, effects, refused
+):
+    """Effects with ``supports_new_dates=False`` take only the fitted dates.
+
+    The error names each of them, by class and prefix when it has one, and no
+    other effect.
+    """
+    X, y = single_dim_data
+    X_train, y_train = X.iloc[:-5], y.iloc[:-5]
+    mmm = MMM(
+        date_column="date",
+        target_column="target",
+        channel_columns=["channel_1", "channel_2", "channel_3"],
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+    )
+    for effect in effects:
+        mmm.add_mu_effect(effect)
+    mmm.fit(X_train, y_train, draws=50, chains=1, random_seed=42)
+
+    in_sample = mmm.sample_posterior_predictive(
+        X_train, extend_idata=False, random_seed=42
+    )
+
+    assert in_sample.sizes["date"] == len(X_train)
+    with pytest.raises(
+        NotImplementedError,
+        match=rf"^{refused} only the 9 dates the MMM was fitted on, 2023-01-01 to "
+        r"2023-01-09, so prediction on any other set of dates is not supported\.$",
+    ):
+        mmm.sample_posterior_predictive(X.iloc[-5:], extend_idata=False)
+
+
+def _mmm_with_effects(*effects) -> MMM:
+    mmm = MMM(
+        date_column="date",
+        target_column="target",
+        channel_columns=["channel_1", "channel_2"],
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+    )
+    for effect in effects:
+        mmm.add_mu_effect(effect)
+    return mmm
+
+
+BUDGET_ENTRY_POINTS = [
+    "budget_optimizer",
+    "optimize_budget",
+    "wrapper",
+    "create_optimization_model",
+]
+
+
+def _optimize_budget(
+    entry_point: str, mmm: MMM, start_date: str, end_date: str, **kwargs
+):
+    """Allocate a budget of 10 through any of the ways to build an optimizer.
+
+    ``"wrapper"`` and ``"create_optimization_model"`` build the ``BudgetOptimizer``
+    directly, from a ``BudgetOptimizerWrapper`` or from the optimization model and
+    the MMM's frozen deterministics.
+    """
+    if entry_point == "budget_optimizer":
+        optimizer = mmm.budget_optimizer(start_date, end_date, **kwargs)
+    elif entry_point == "create_optimization_model":
+        lags = mmm.effective_carryover_lags()
+        model = mmm.create_optimization_model(start_date, end_date)
+        optimizer = BudgetOptimizer(
+            model=model,
+            idata=mmm.idata,
+            num_periods=len(model.coords["date"]) - 2 * lags,
+            carry_in_periods=lags,
+            adstock_periods=lags,
+            frozen_deterministics=mmm.frozen_deterministics,
+            **kwargs,
+        )
+    else:
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            wrapper = BudgetOptimizerWrapper(
+                model=mmm, start_date=start_date, end_date=end_date
+            )
+        if entry_point == "optimize_budget":
+            return wrapper.optimize_budget(budget=10.0, **kwargs)
+        optimizer = BudgetOptimizer(
+            model=wrapper, num_periods=wrapper.num_periods, **kwargs
+        )
+    return optimizer.allocate_budget(total_budget=10.0)
+
+
+@pytest.mark.parametrize("entry_point", BUDGET_ENTRY_POINTS)
+@pytest.mark.parametrize(
+    "start_date, end_date",
+    [
+        pytest.param("2023-01-10", "2023-01-14", id="later-dates"),
+        pytest.param("2023-01-03", "2023-01-06", id="fitted-dates"),
+    ],
+)
+def test_budget_objective_with_an_effect_on_the_fitted_dates_only_raises(
+    single_dim_data, mock_pymc_sample, entry_point, start_date, end_date
+):
+    """The total response reaches the effect's contribution, a frozen path over dates.
+
+    The optimizer refuses the objective on any window, including one within the
+    fitted dates, however it is built.
+    """
+    X, y = single_dim_data
+    mmm = _mmm_with_effects(_FittedDatesOnlyEffect())
+    mmm.fit(X.iloc[:9], y.iloc[:9], draws=50, chains=1, random_seed=42)
+
+    with pytest.raises(
+        NotImplementedError,
+        match=r"^response_variable 'total_response_original_scale' includes "
+        r"'fitted_dates_only_effect_contribution', a frozen path over 'date' that "
+        r"exists only on the dates the model was fitted on, so it cannot be "
+        r"optimized on a window\. The default objective, "
+        r"'total_media_contribution_original_scale', does not include it\.$",
+    ):
+        _optimize_budget(
+            entry_point,
+            mmm,
+            start_date,
+            end_date,
+            response_variable="total_response_original_scale",
+        )
+
+
+@pytest.mark.parametrize("entry_point", BUDGET_ENTRY_POINTS)
+@pytest.mark.parametrize(
+    "effects, response_variable",
+    [
+        pytest.param(
+            [_FittedDatesOnlyEffect()],
+            "total_media_contribution_original_scale",
+            id="default-objective",
+        ),
+        pytest.param(
+            [_ZeroEffect()], "total_response_original_scale", id="effect-on-any-dates"
+        ),
+    ],
+)
+def test_budget_objectives_without_an_effect_on_the_fitted_dates_only(
+    single_dim_data, mock_pymc_sample, entry_point, effects, response_variable
+):
+    """Only an objective that includes an effect on the fitted dates only is refused.
+
+    The default objective is built from the channel contribution alone, and an
+    effect that takes any dates can be evaluated on the optimizer's window.
+    """
+    X, y = single_dim_data
+    mmm = _mmm_with_effects(*effects)
+    mmm.fit(X.iloc[:9], y.iloc[:9], draws=50, chains=1, random_seed=42)
+
+    result = _optimize_budget(
+        entry_point,
+        mmm,
+        "2023-01-10",
+        "2023-01-14",
+        response_variable=response_variable,
+    )
+
+    np.testing.assert_allclose(result.budgets.sum(), 10.0)
+
+
+def test_budget_objective_through_an_hsgp_intercept_is_optimized(
+    single_dim_data, mock_pymc_sample
+):
+    """The HSGP intercept's frozen mean has no ``date`` dim, so it is not refused.
+
+    The total response reaches it through ``mu``, which the zero effect makes the
+    model register, but it is one value per draw rather than a path over dates.
+    """
+    X, y = single_dim_data
+    mmm = MMM(
+        date_column="date",
+        target_column="target",
+        channel_columns=["channel_1", "channel_2"],
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+        time_varying_intercept=True,
+    ).add_mu_effect(_ZeroEffect())
+    mmm.fit(X.iloc[:9], y.iloc[:9], draws=50, chains=1, random_seed=42)
+
+    result = mmm.budget_optimizer(
+        "2023-01-10", "2023-01-14", response_variable="total_response_original_scale"
+    ).allocate_budget(total_budget=10.0)
+
+    assert mmm.frozen_deterministics == SoftPlusHSGP.deterministics_to_replace(
+        "intercept_latent_process"
+    )
+    np.testing.assert_allclose(result.budgets.sum(), 10.0)
+
+
+class _BuildPerFold:
+    """Return a built copy of an MMM for each fold, as a model factory does."""
+
+    def __init__(self, mmm: MMM) -> None:
+        self.mmm = mmm
+
+    def build_model(self, X, y) -> MMM:
+        mmm = copy.deepcopy(self.mmm)
+        mmm.build_model(X, y)
+        return mmm
+
+
+@pytest.mark.parametrize(
+    "as_passed",
+    [
+        pytest.param(lambda mmm: mmm, id="mmm"),
+        pytest.param(_BuildPerFold, id="factory"),
+    ],
+)
+def test_time_slice_cross_validation_refuses_an_effect_on_the_fitted_dates_only(
+    single_dim_data, monkeypatch, as_passed
+):
+    """Each fold predicts on its test dates, so the validator refuses before fitting."""
+    X, y = single_dim_data
+    fitted = []
+    monkeypatch.setattr(MMM, "fit", lambda self, *args, **kwargs: fitted.append(self))
+    cv = TimeSliceCrossValidator(n_init=9, forecast_horizon=2, date_column="date")
+
+    with pytest.raises(
+        NotImplementedError,
+        match=r"^Time-slice cross-validation predicts on each fold's test dates, but "
+        r"the contribution of _FittedDatesOnlyEffect 'fitted_dates_only' exists only "
+        r"on the dates each fold's MMM is fitted on\.$",
+    ):
+        cv.run(X, y, mmm=as_passed(_mmm_with_effects(_FittedDatesOnlyEffect())))
+
+    assert fitted == []
+
+
+def test_frozen_deterministics_include_the_mu_effects():
+    """An effect's names join the MMM's own, such as its HSGP intercept's."""
+    mmm = (
+        MMM(
+            date_column="date",
+            target_column="target",
+            channel_columns=["channel_1", "channel_2"],
+            adstock=GeometricAdstock(l_max=2),
+            saturation=LogisticSaturation(),
+            time_varying_intercept=True,
+        )
+        .add_mu_effect(_ZeroEffect())
+        .add_mu_effect(_DuckTypedZeroEffect())
+        .add_mu_effect(_FrozenZeroEffect(prefix="frozen"))
+    )
+
+    assert mmm.frozen_deterministics == [
+        *SoftPlusHSGP.deterministics_to_replace("intercept_latent_process"),
+        "frozen_effect_contribution",
+    ]
+
+
+class _FrozenPathEffect(_FrozenZeroEffect):
+    """A random walk over the model's dates, taken from the posterior."""
+
+    prefix: str = "path"
+
+    def create_effect(self, mmm):
+        """The walk, registered as the contribution."""
+        steps = pmd.Normal(f"{self.prefix}_steps", sigma=0.1, dims="date")
+        return pmd.Deterministic(self.contribution_var_name, steps.cumsum("date"))
+
+
+@pytest.mark.parametrize(
+    "max_batch_elements",
+    [
+        pytest.param(None, id="one-block"),
+        # Every draw is over the budget, so each is a block of its own.
+        pytest.param(1, id="a-block-per-draw"),
+    ],
+)
+def test_monthly_incrementality_cuts_a_frozen_path(
+    simple_mmm_data, mock_pymc_sample, monkeypatch, max_batch_elements
+):
+    """A path frozen over the fitted dates is cut to each month's window.
+
+    It does not depend on spend, so it adds nothing to the increment. Without
+    carryover, each channel's increment on a month is its contribution summed over
+    that month, and the check that the increment is complete still passes. The
+    same holds when the counterfactual is streamed one block of draws at a time,
+    each block cutting the path from its own draws.
+    """
+    X, y = simple_mmm_data["X"], simple_mmm_data["y"]
+    mmm = MMM(
+        date_column="date",
+        target_column="target",
+        channel_columns=["channel_1", "channel_2", "channel_3"],
+        adstock=GeometricAdstock(l_max=1),
+        saturation=LogisticSaturation(),
+    ).add_mu_effect(_FrozenPathEffect())
+    mmm.fit(X, y, draws=50, chains=1, random_seed=42)
+    if max_batch_elements is not None:
+        monkeypatch.setattr(
+            CounterfactualEvaluator, "MAX_BATCH_ELEMENTS", max_batch_elements
+        )
+
+    with warnings.catch_warnings():
+        warnings.filterwarnings("error", message=".*completeness", category=UserWarning)
+        incremental = mmm.incrementality.compute_incremental_contribution(
+            frequency="monthly"
+        )
+
+    contribution = (
+        mmm.idata.posterior["channel_contribution"]
+        * mmm.idata.constant_data["target_scale"]
+    )
+    month_ends = contribution.indexes["date"].to_period("M").end_time.normalize()
+    expected = contribution.assign_coords(date=month_ends).groupby("date").sum()
+    assert incremental.indexes["date"].equals(expected.indexes["date"])
+    np.testing.assert_allclose(incremental, expected.transpose(*incremental.dims))
 
 
 def test_sample_posterior_predictive_same_data_with_include_last_observations(
@@ -4257,10 +4721,18 @@ def test_log_link_cost_per_target_calibration_matches_incrementality(
     np.testing.assert_allclose(loglik.values, expected, rtol=1e-8)
 
 
+@pytest.mark.parametrize(
+    "likelihood", [None, Prior("LogNormal")], ids=["normal", "lognormal"]
+)
 def test_log_link_cost_per_target_calibration_registers_increment_once(
-    mock_pymc_sample, tmp_path
+    mock_pymc_sample, tmp_path, likelihood
 ) -> None:
-    """Two calibrations share one increment node, which survives save/load."""
+    """Two calibrations share one increment node, which survives save/load.
+
+    Both likelihoods depend on that registered node, the first one included:
+    the LogNormal check runs before it is registered, and the term is built
+    on it afterwards.
+    """
     mmm, X, y = _mmm_for_calibration()
     rows = _roas_rows()
     cpt_rows = rows.assign(cost_per_target=1 / rows["roas"])
@@ -4271,6 +4743,7 @@ def test_log_link_cost_per_target_calibration_registers_increment_once(
         name_prefix="roas_calibration",
         target_column="roas",
         target_per_cost=True,
+        likelihood=likelihood,
     )
     increment = mmm.model["channel_incremental_contribution"]
     mmm.add_cost_per_target_calibration(
@@ -4278,12 +4751,15 @@ def test_log_link_cost_per_target_calibration_registers_increment_once(
         calibration_data=cpt_rows,
         name_prefix="cpt_calibration",
         central_tendency="median",
+        likelihood=likelihood,
     )
 
     assert mmm.model["channel_incremental_contribution"] is increment
     assert {"roas_calibration", "cpt_calibration"} <= {
         rv.name for rv in mmm.model.observed_RVs
     }
+    for name in ("roas_calibration", "cpt_calibration"):
+        assert increment in set(ancestors([mmm.model[name]]))
 
     mmm.fit(X, y, random_seed=1)
     assert "channel_incremental_contribution" in mmm.idata.posterior
@@ -4392,6 +4868,143 @@ def test_add_cost_per_target_calibration_bad_rows_fail_before_graph_changes(
             name_prefix="roas_calibration",
             target_column="roas",
             target_per_cost=True,
+        )
+    assert set(mmm.model.named_vars) == initial_vars
+    assert mmm.model.coords == initial_coords
+
+
+@pytest.mark.parametrize("link", ["identity", "log"])
+def test_add_cost_per_target_calibration_lognormal_matches_density(
+    mock_pymc_sample, link
+) -> None:
+    """``likelihood=Prior("LogNormal")`` observes the table value in ROAS units.
+
+    The term is centred on ``log`` of the same ratio the ``Normal`` default
+    uses, with the table's ``sigma / roas`` as the log-scale width, so the
+    log likelihood is the LogNormal density of ``observed_data`` at that
+    centre.
+    """
+    mmm, X, y = _mmm_for_calibration(
+        link=link,
+        model_config=(
+            {
+                "likelihood": Prior(
+                    "LogNormal",
+                    sigma=Prior("HalfNormal", sigma=0.5, dims=("geo",)),
+                    dims=("date", "geo"),
+                )
+            }
+            if link == "log"
+            else None
+        ),
+    )
+    rows = _roas_rows()
+    mmm.add_cost_per_target_calibration(
+        data=X,
+        calibration_data=rows,
+        name_prefix="roas_calibration",
+        target_column="roas",
+        target_per_cost=True,
+        likelihood=Prior("LogNormal"),
+    )
+    mmm.fit(X, y, random_seed=1)
+
+    np.testing.assert_allclose(
+        mmm.idata.observed_data["roas_calibration"].values, rows["roas"].to_numpy()
+    )
+    loglik = pm.compute_log_likelihood(
+        mmm.idata.copy(),
+        var_names=["roas_calibration"],
+        model=mmm.model,
+        progressbar=False,
+    )["log_likelihood"]["roas_calibration"]
+    roas = mmm.incrementality.contribution_over_spend(
+        frequency="all_time", central_tendency="mean"
+    )
+    centre = roas.sel(
+        channel=xr.DataArray(rows["channel"].to_numpy(), dims="row"),
+        geo=xr.DataArray(rows["geo"].to_numpy(), dims="row"),
+    ).transpose("chain", "draw", "row")
+    observed = rows["roas"].to_numpy()
+    expected = stats.lognorm.logpdf(
+        observed, s=rows["sigma"].to_numpy() / observed, scale=centre.values
+    )
+    np.testing.assert_allclose(loglik.values, expected, rtol=1e-8)
+
+
+@pytest.mark.parametrize(
+    ("likelihood", "rows", "match"),
+    [
+        pytest.param(
+            Prior("Gamma"),
+            _roas_rows(),
+            "Gamma distribution is not supported",
+            id="gamma",
+        ),
+        pytest.param(
+            Prior("StudentT"), _roas_rows(), "requires a `nu` parameter", id="no-nu"
+        ),
+        pytest.param(
+            Prior("Normal", sigma=1.0),
+            _roas_rows(),
+            "Do not pass `sigma` in `likelihood`",
+            id="sigma-in-prior",
+        ),
+        pytest.param(
+            Prior("LogNormal"),
+            _roas_rows().assign(roas=[2.0, 0.0, 1.5]),
+            "LogNormal calibration requires positive calibration values",
+            id="lognormal-zero-target",
+        ),
+        pytest.param(
+            Prior("Normal", tau=4.0),
+            _roas_rows(),
+            "Do not pass `tau` in `likelihood`",
+            id="tau-in-prior",
+        ),
+        pytest.param(
+            Prior("StudentT", nu=4, centered=False),
+            _roas_rows(),
+            "Do not pass `centered=False` in `likelihood`",
+            id="non-centered",
+        ),
+        pytest.param(
+            Prior("StudentT", nu=Prior("Gamma", alpha=2, beta=0.1, dims="geo")),
+            _roas_rows(),
+            "Do not pass `dims` or arrays in `nu`",
+            id="nu-dims",
+        ),
+        pytest.param(
+            Prior("LogNormal"),
+            _roas_rows(),
+            "positive model-implied ratio.*initial point",
+            id="lognormal-zero-spend",
+        ),
+    ],
+)
+@pytest.mark.parametrize("link", ["identity", "log"])
+def test_add_cost_per_target_calibration_bad_likelihood_fails_before_graph_changes(
+    likelihood, rows, match, link
+) -> None:
+    """A refused likelihood leaves the model untouched, increment node included.
+
+    The zero-spend case rebuilds the model on a channel with no spend, so its
+    contribution, and with it the ROAS ratio, is zero at the initial point.
+    """
+    mmm, X, y = _mmm_for_calibration(link=link)
+    if "initial point" in match:
+        X = X.assign(C2=0.0)
+        mmm.build_model(X, y)
+    initial_vars = set(mmm.model.named_vars)
+    initial_coords = dict(mmm.model.coords)
+    with pytest.raises(ValueError, match=match):
+        mmm.add_cost_per_target_calibration(
+            data=X,
+            calibration_data=rows,
+            name_prefix="roas_calibration",
+            target_column="roas",
+            target_per_cost=True,
+            likelihood=likelihood,
         )
     assert set(mmm.model.named_vars) == initial_vars
     assert mmm.model.coords == initial_coords
@@ -5611,6 +6224,40 @@ def test_mmm_equality():
     )
 
     assert mmm18 != mmm20
+
+
+def test_mmm_equality_compares_mu_effects_with_their_own_eq():
+    """A mu effect that defines ``__eq__`` is compared with it, not ``model_dump()``."""
+
+    class CaseInsensitiveEffect(MuEffect):
+        name: str
+
+        def create_data(self, mmm):
+            pass
+
+        def create_effect(self, mmm):
+            raise NotImplementedError
+
+        def set_data(self, mmm, model, X):
+            pass
+
+        def __eq__(self, other):
+            return (
+                isinstance(other, CaseInsensitiveEffect)
+                and self.name.lower() == other.name.lower()
+            )
+
+    def mmm_with_effect(name):
+        return MMM(
+            date_column="date",
+            channel_columns=["channel_1", "channel_2"],
+            target_column="sales",
+            adstock=GeometricAdstock(l_max=8),
+            saturation=LogisticSaturation(),
+        ).add_mu_effect(CaseInsensitiveEffect(name=name))
+
+    assert mmm_with_effect("TV") == mmm_with_effect("tv")
+    assert mmm_with_effect("TV") != mmm_with_effect("radio")
 
 
 class TestPydanticValidation:
@@ -8892,7 +9539,9 @@ def _cpt_persistence_inputs(
     return mmm, X, y, spend, rows
 
 
-def _attach_cpt(mmm, spend, rows, name="external", roas=False, central="mean"):
+def _attach_cpt(
+    mmm, spend, rows, name="external", roas=False, central="mean", likelihood=None
+):
     return mmm.add_cost_per_target_calibration(
         data=spend,
         calibration_data=rows,
@@ -8900,6 +9549,7 @@ def _attach_cpt(mmm, spend, rows, name="external", roas=False, central="mean"):
         target_column="estimate",
         target_per_cost=roas,
         central_tendency=central,
+        likelihood=likelihood,
     )
 
 
@@ -9069,6 +9719,32 @@ def test_cost_per_target_persistence_roundtrip_with_controls_and_mu_effect(
     )
 
 
+@pytest.mark.parametrize(
+    "likelihood",
+    [
+        Prior("LogNormal"),
+        Prior("StudentT", nu=4),
+        Prior("StudentT", nu=Prior("Gamma", alpha=2, beta=0.1)),
+    ],
+    ids=["lognormal", "studentt", "studentt-prior-nu"],
+)
+def test_cost_per_target_persistence_roundtrip_likelihood(
+    mock_pymc_sample, tmp_path, likelihood
+):
+    """The calibration family is recorded with the model and rebuilt on load."""
+    mmm, X, y, spend, rows = _cpt_persistence_inputs()
+    _attach_cpt(mmm, spend, rows, roas=True, likelihood=likelihood)
+    mmm.fit(X, y)
+    (record,) = mmm._cost_per_target_calibrations
+    assert record["format_version"] == 2
+    assert record["likelihood"] == likelihood.to_dict()
+    if isinstance(likelihood.parameters.get("nu"), Prior):
+        assert "external_nu" in mmm.idata.posterior
+
+    loaded = _assert_cpt_roundtrip(mmm, str(tmp_path / "calibrated.nc"))
+    assert loaded._cost_per_target_calibrations == mmm._cost_per_target_calibrations
+
+
 def test_cost_per_target_persistence_owns_inputs_and_resets():
     mmm, X, y, spend, rows = _cpt_persistence_inputs()
     # Irrelevant, non-serializable values must not enter the persisted inputs.
@@ -9168,39 +9844,32 @@ def test_cost_per_target_persistence_fit_snapshot(mock_pymc_sample, tmp_path):
         MMM.load_from_idata(bad)
 
 
-_CPT_RECORD_WITHOUT_SPEND_VAR = json.dumps(
-    [
-        {
-            "format_version": 1,
-            "name_prefix": "a",
-            "target_column": "t",
-            "target_per_cost": False,
-            "central_tendency": "mean",
-            "data": "{}",
-            "dtypes": {},
-        }
-    ]
-)
-_CPT_RECORD_WITH_UNKNOWN_SPEND_VAR = json.dumps(
-    [
-        {
-            "format_version": 1,
-            "name_prefix": "a",
-            "target_column": "estimate",
-            "target_per_cost": False,
-            "central_tendency": "mean",
-            "spend_var": "ghost",
-            "data": json.dumps(
-                {
-                    "columns": ["channel", "geo", "estimate", "sigma"],
-                    "index": [0],
-                    "data": [["zeta", "001", 1.0, 0.1]],
-                }
-            ),
-            "dtypes": {},
-        }
-    ]
-)
+_ABSENT = object()
+
+
+def _cpt_record(**overrides):
+    """A valid record of the format ``add_cost_per_target_calibration`` writes, with overrides."""
+    record = {
+        "format_version": 2,
+        "name_prefix": "a",
+        "target_column": "estimate",
+        "target_per_cost": False,
+        "central_tendency": "mean",
+        "likelihood": {"dist": "Normal"},
+        "spend_var": "external",
+        "data": json.dumps(
+            {
+                "columns": ["channel", "geo", "estimate", "sigma"],
+                "index": [0],
+                "data": [["zeta", "001", 1.0, 0.1]],
+            }
+        ),
+        "dtypes": {},
+    }
+    record.update(overrides)
+    for key in [key for key, value in record.items() if value is _ABSENT]:
+        del record[key]
+    return json.dumps([record])
 
 
 @pytest.mark.parametrize(
@@ -9210,10 +9879,31 @@ _CPT_RECORD_WITH_UNKNOWN_SPEND_VAR = json.dumps(
         "[{}]",
         "[1]",
         "not json",
-        _CPT_RECORD_WITHOUT_SPEND_VAR,
-        _CPT_RECORD_WITH_UNKNOWN_SPEND_VAR,
+        _cpt_record(format_version=1, likelihood=_ABSENT),
+        _cpt_record(spend_var=_ABSENT),
+        _cpt_record(spend_var="ghost"),
+        _cpt_record(likelihood=_ABSENT),
+        _cpt_record(likelihood={"dist": "Garbage"}),
+        _cpt_record(likelihood="x"),
+        _cpt_record(likelihood={"dist": "Gamma"}),
+        _cpt_record(likelihood={"dist": "Normal", "transform": "exp"}),
+        _cpt_record(likelihood=Prior("StudentT", nu=Prior("Normal")).to_dict()),
     ],
-    ids=["dict", "empty-record", "scalar", "not-json", "no-spend-var", "ghost-spend"],
+    ids=[
+        "dict",
+        "empty-record",
+        "scalar",
+        "not-json",
+        "format-1",
+        "no-spend-var",
+        "ghost-spend",
+        "no-likelihood",
+        "unknown-likelihood",
+        "non-prior-likelihood",
+        "unsupported-likelihood",
+        "transformed-likelihood",
+        "real-line-nu",
+    ],
 )
 def test_cost_per_target_persistence_rejects_malformed_metadata(
     mock_pymc_sample, payload
@@ -9227,6 +9917,68 @@ def test_cost_per_target_persistence_rejects_malformed_metadata(
         ValueError, match="Invalid cost-per-target calibration metadata"
     ):
         MMM.load_from_idata(idata)
+
+
+_LIFT_ROW = pd.DataFrame(
+    {
+        "geo": ["001"],
+        "channel": ["zeta"],
+        "x": [1.0],
+        "delta_x": [1.0],
+        "delta_y": [0.5],
+        "sigma": [0.3],
+    }
+)
+
+
+@pytest.mark.parametrize(
+    "likelihood",
+    [
+        Prior("StudentT", nu=4, centered=False),
+        Prior("StudentT", nu=Prior("Normal", mu=5, sigma=1)),
+    ],
+    ids=["non-centered", "real-line-nu"],
+)
+def test_lift_test_persistence_names_a_refused_saved_likelihood(
+    mock_pymc_sample, likelihood
+):
+    """A saved lift record whose Prior the checks now refuse fails as metadata.
+
+    The record names the calibration and points at the attribute to repair,
+    instead of telling the caller to stop passing an argument they never
+    passed.
+    """
+    mmm, X, y, _, _ = _cpt_persistence_inputs()
+    mmm.add_lift_test_measurements(_LIFT_ROW, name="lift_external")
+    mmm.fit(X, y)
+    idata = copy.deepcopy(mmm.idata)
+    records = json.loads(idata.attrs["lift_test_calibrations"])
+    records[0]["likelihood"] = likelihood.to_dict()
+    idata.attrs["lift_test_calibrations"] = json.dumps(records)
+    with pytest.raises(
+        ValueError,
+        match=r"Invalid lift-test calibration metadata for 'lift_external'.*"
+        r"lift_test_calibrations",
+    ):
+        MMM.load_from_idata(idata)
+
+
+def test_lift_test_persistence_restores_a_transformed_likelihood(
+    mock_pymc_sample, tmp_path
+):
+    """A lift likelihood with a ``transform`` saves and loads with its density.
+
+    Files saved before the calibration likelihoods became configurable can
+    hold one; it only renames the observed variable to ``<name>_raw``.
+    """
+    mmm, X, y, _, _ = _cpt_persistence_inputs()
+    mmm.add_lift_test_measurements(
+        _LIFT_ROW, likelihood=Prior("Normal", transform="exp"), name="lift_external"
+    )
+    assert "lift_external_raw" in {rv.name for rv in mmm.model.observed_RVs}
+    mmm.fit(X, y)
+    loaded = _assert_cpt_roundtrip(mmm, str(tmp_path / "lift_transform.nc"))
+    assert "lift_external_raw" in {rv.name for rv in loaded.model.observed_RVs}
 
 
 def test_cost_per_target_persistence_missing_spend_group_warns(
