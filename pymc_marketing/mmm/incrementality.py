@@ -280,6 +280,7 @@ from pymc_marketing.mmm.period_readout import (
 from pymc_marketing.mmm.spend_reach import (
     _PKG_PREFIX,
     CHANNEL_CONTRIBUTION,
+    LINEAR_PREDICTOR,
     SpendProbe,
     linear_predictor,
     resolve_channel_dependent_effects,
@@ -1069,7 +1070,8 @@ class ProbedReach:
     lease : EvaluatorLease
         The compiled batched evaluator, held for the duration of the request.
     baseline : dict
-        The factual evaluation of every node, per node
+        The factual evaluation of every node except the linear predictor,
+        which only the probe's completeness check reads, per node
         ``(n_samples, n_dates, *non_date_dims)``.
     baseline_array : np.ndarray
         The factual spend the baseline was evaluated on.
@@ -4561,6 +4563,10 @@ class Incrementality:
             probe.assert_increment_is_complete(
                 effects=effects, non_date_dims=evaluator.non_date_dims
             )
+            # Only the completeness check above reads the predictor.  The pop
+            # frees it because ``probe.baseline`` is this same dict object: a
+            # copy without it would leave the probe holding the predictor.
+            baseline.pop(LINEAR_PREDICTOR, None)
             # The adstock kernel's own trailing lags: the floor under the measured
             # horizon, and the lower bound on the unobserved tail when the probe
             # sends every period to the full date axis.
