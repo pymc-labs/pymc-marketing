@@ -1629,6 +1629,44 @@ class TestProbeStatistics:
                     effects=(), non_date_dims=FakeEvaluator.non_date_dims
                 )
 
+    @pytest.mark.parametrize(
+        "accounted_move, complete",
+        [(3e38, True), (0.5, False)],
+        ids=["matched", "unattributed"],
+    )
+    def test_an_infinite_predictor_move_is_decided_as_allclose(
+        self, accounted_move, complete
+    ):
+        """Where mu moves by inf, numpy.allclose asks for the same inf, not |x - y| <= atol.
+
+        The accounted sum that moves by the same inf is complete.  One that
+        moves by 1 leaves a path unattributed, even though the tolerance,
+        scaled by the inf move, is inf too.
+        """
+        n_dates = 6
+        spend = np.full((n_dates, 1), 2.0)
+        channel_base = np.full((1, n_dates, 1), -accounted_move, dtype="float32")
+        predictor_probed = np.full((1, n_dates), 3e38, dtype="float32")
+
+        with np.errstate(over="ignore", invalid="ignore"):
+            probe = dtype_probe(
+                spend=spend,
+                channel_dtype="float32",
+                **{
+                    CHANNEL_CONTRIBUTION: (channel_base, -channel_base),
+                    LINEAR_PREDICTOR: (-predictor_probed, predictor_probed),
+                },
+            )
+            if complete:
+                probe.assert_increment_is_complete(
+                    effects=(), non_date_dims=FakeEvaluator.non_date_dims
+                )
+            else:
+                with pytest.raises(NotImplementedError, match="Some path from spend"):
+                    probe.assert_increment_is_complete(
+                        effects=(), non_date_dims=FakeEvaluator.non_date_dims
+                    )
+
     def test_the_completeness_check_refuses_effects_it_was_not_folded_for(self):
         """The fold sums every baseline node but mu; asking about others is an error."""
         node = causal_filter(3)

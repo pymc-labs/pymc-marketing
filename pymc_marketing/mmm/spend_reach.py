@@ -653,8 +653,14 @@ class ProbeStatistics:
         expected, accounted = xr.broadcast(expected, accounted)
         # The difference numpy.allclose takes, in the dtype it takes it in.
         self.expected_dtype = np.result_type(expected.values, 1.0)
-        residual = np.abs(
-            accounted.values - expected.values.astype(self.expected_dtype, copy=False)
+        accounted_values = accounted.values
+        expected_values = expected.values.astype(self.expected_dtype, copy=False)
+        # numpy.allclose with rtol=0: |x - y| <= atol where y is finite, x == y
+        # where it is not.  A non-finite y is 0 when matched, NaN when not.
+        residual = np.where(
+            np.isfinite(expected_values),
+            np.abs(accounted_values - expected_values),
+            np.where(accounted_values == expected_values, 0.0, np.nan),
         ).max()
         # A NaN residual stays NaN, so it is never within atol, as in
         # numpy.allclose.
