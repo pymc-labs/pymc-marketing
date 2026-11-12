@@ -542,13 +542,13 @@ class LogLinkReducer(IncrementalReducer):
         dates = delta.indexes["date"]
         # A window's evaluation dates are one contiguous run of the sorted
         # fitted axis, so a slice from the first to the last reads the same
-        # rows as selecting each date, as a view rather than a copy.
-        baseline = (
-            self.baseline_response.sel(date=slice(dates[0], dates[-1]))
-            if len(dates)
-            else self.baseline_response.sel(date=dates)
-        )
-        return baseline * np.expm1(delta)
+        # rows as selecting each date, as a view rather than a copy.  Any other
+        # dates are selected one by one, so a date off the axis still raises.
+        if len(dates):
+            window = self.baseline_response.sel(date=slice(dates[0], dates[-1]))
+            if window.indexes["date"].equals(dates):
+                return window * np.expm1(delta)
+        return self.baseline_response.sel(date=dates) * np.expm1(delta)
 
     def for_samples(self, samples: slice) -> IncrementalReducer:
         """See :meth:`IncrementalReducer.for_samples`."""

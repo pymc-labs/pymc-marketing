@@ -1691,9 +1691,13 @@ class TestIncrementalReducers:
         expected = 4.0 * np.expm1(0.5) + 8.0 * np.expm1(0.25)
         np.testing.assert_allclose(result.values, [[expected]])
 
-    @pytest.mark.parametrize("window", [slice(1, 4), slice(0, 5), slice(2, 2)])
-    def test_log_reducer_reads_the_window_through_a_view(self, window, monkeypatch):
-        """The window's rows are read as a view, with the same values as by label."""
+    @pytest.mark.parametrize(
+        "positions",
+        [[1, 2, 3], [0, 1, 2, 3, 4], [], [3, 2, 1], [0, 2, 4]],
+        ids=["contiguous", "whole-axis", "empty", "descending", "with-gaps"],
+    )
+    def test_log_reducer_weights_each_date_by_its_own_baseline(self, positions):
+        """Every date of the change is weighted by the baseline on that date, whatever their order."""
         rng = np.random.default_rng(0)
         all_dates = pd.date_range("2024-01-01", periods=5, freq="W")
         baseline = xr.DataArray(
@@ -1701,23 +1705,29 @@ class TestIncrementalReducers:
             dims=("sample", "date", "geo"),
             coords={"date": all_dates},
         )
-        dates = all_dates[window]
+        dates = all_dates[positions]
         delta = self._delta(rng.normal(size=(3, len(dates), 2)), dates)
-        reads = []
-        multiply = xr.DataArray.__mul__
 
-        def spy(self, other):
-            reads.append(self)
-            return multiply(self, other)
-
-        monkeypatch.setattr(xr.DataArray, "__mul__", spy)
         result = LogLinkReducer(baseline_response=baseline).per_date_increment(delta)
-        monkeypatch.undo()
 
         expected = baseline.sel(date=dates) * np.expm1(delta)
         xr.testing.assert_identical(result, expected)
-        if len(dates):
-            assert np.shares_memory(reads[0].values, baseline.values)
+
+    def test_log_reducer_refuses_dates_off_the_axis(self):
+        """A date past the baseline's axis raises instead of being dropped."""
+        all_dates = pd.date_range("2024-01-01", periods=5, freq="W")
+        baseline = xr.DataArray(
+            np.ones((2, 5)), dims=("sample", "date"), coords={"date": all_dates}
+        )
+        dates = all_dates[3:].append(all_dates[-1:] + pd.Timedelta(weeks=1))
+        delta = xr.DataArray(
+            np.full((2, len(dates)), 0.1),
+            dims=("sample", "date"),
+            coords={"date": dates},
+        )
+
+        with pytest.raises(KeyError):
+            LogLinkReducer(baseline_response=baseline).per_date_increment(delta)
 
     def test_log_reducer_zero_perturbation_gives_zero(self):
         """No change in the linear predictor means no incremental response."""
