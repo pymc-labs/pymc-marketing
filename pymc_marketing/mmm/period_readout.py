@@ -227,56 +227,6 @@ def current_window_end(
     return end + lags * freq_offset if lags else end
 
 
-def split_band(
-    band: xr.DataArray,
-    *,
-    start: pd.Timestamp,
-    end: pd.Timestamp,
-    lags: int,
-    freq_offset: BaseOffset,
-) -> tuple[xr.DataArray, xr.DataArray, bool]:
-    """Reduce one period's band to its current and future value.
-
-    Current is every realization date from the period's start through its
-    end plus ``lags`` data periods, future every date after that.
-
-    Parameters
-    ----------
-    band : xr.DataArray
-        The period's per-date increment on ``realization_date``, with a
-        boolean ``observed`` coordinate on the same dimension.  Unobserved
-        dates hold ``NaN``.
-    start, end : pd.Timestamp
-        The period's bounds.
-    lags : int
-        Data periods after ``end`` that still count as current.
-    freq_offset : BaseOffset
-        The data's date frequency, which ``lags`` is counted in.
-
-    Returns
-    -------
-    current, future : xr.DataArray
-        *band* summed over each window, without ``realization_date``.
-        Neither sum skips ``NaN``: an unobserved date is carryover the model
-        has and the data cannot show, not a zero.
-    complete : bool
-        Whether every date in the band is observed.
-    """
-    current_end = current_window_end(end, lags=lags, freq_offset=freq_offset)
-    realization = band.indexes["realization_date"]
-    in_current = (realization >= start) & (realization <= current_end)
-
-    current = band.isel(realization_date=in_current).sum(
-        "realization_date", skipna=False
-    )
-    future = band.isel(realization_date=realization > current_end).sum(
-        "realization_date", skipna=False
-    )
-    complete = bool(band.coords["observed"].all())
-
-    return current, future, complete
-
-
 def tail_dates(
     *,
     window: PeriodWindow,
@@ -611,7 +561,13 @@ class PeriodBand(PeriodReadout[xr.DataArray, xr.DataArray]):
         context: ReadoutContext,
     ) -> xr.DataArray:
         """See :meth:`PeriodReadout.finish_period`."""
-        return _band(increment, window=window, context=context)
+        return append_unobserved_tail(
+            increment,
+            window=window,
+            dates=context.dates,
+            tail_lags=context.tail_lags,
+            freq_offset=context.freq_offset,
+        ).sel(context.reported_order)
 
 
 @dataclass(frozen=True)
@@ -654,8 +610,9 @@ class PeriodCurrentFuture(
         Returns
         -------
         xr.Dataset
-            ``current`` and ``future`` over the evaluated dates, summed as
-            :func:`split_band` sums them.
+            ``current`` and ``future`` over the evaluated dates.  Neither sum
+            skips ``NaN``: an unobserved date is carryover the model has and
+            the data cannot show, not a zero.
         """
         current_end = current_window_end(
             window.end, lags=self.lags, freq_offset=context.freq_offset
@@ -685,7 +642,9 @@ class PeriodCurrentFuture(
         Returns
         -------
         current, future : xr.DataArray
-            As :func:`split_band` returns them.
+            The period's current and future value: every realization date from
+            its start through its end plus :attr:`lags` data periods, and every
+            date after that.
         complete : bool
             Whether every date of the band is observed: whether none of the
             period's carryover falls past the fitted axis.
@@ -708,16 +667,3 @@ class PeriodCurrentFuture(
         if (tail > current_end).any():
             future = xr.full_like(future, np.nan)
         return current, future, tail.empty
-
-
-def _band(
-    increment: xr.DataArray, *, window: PeriodWindow, context: ReadoutContext
-) -> xr.DataArray:
-    """Append a band's unobserved tail and put it in the order callers see."""
-    return append_unobserved_tail(
-        increment,
-        window=window,
-        dates=context.dates,
-        tail_lags=context.tail_lags,
-        freq_offset=context.freq_offset,
-    ).sel(context.reported_order)

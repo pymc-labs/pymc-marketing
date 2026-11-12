@@ -31,8 +31,8 @@ from pymc_marketing.mmm.period_readout import (
     PeriodTotal,
     ReadoutContext,
     append_unobserved_tail,
-    split_band,
 )
+from tests.mmm.period_readout_reference import eval_mask, split_band
 
 DATES = pd.date_range("2023-01-01", periods=6, freq="W-SUN")
 WEEKLY = pd.tseries.frequencies.to_offset("W-SUN")
@@ -129,7 +129,7 @@ class TestLinearPredictorDelta:
                     counterfactual,
                     baseline,
                     row,
-                    window.eval_mask(windows.max_window),
+                    eval_mask(window, windows.max_window),
                     window,
                     channel,
                     effects,

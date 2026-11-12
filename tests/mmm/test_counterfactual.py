@@ -36,6 +36,7 @@ from pymc_marketing.mmm.counterfactual import (
 )
 from pymc_marketing.mmm.spend_reach import linear_predictor
 from pymc_marketing.mmm.transformers import ConvMode, batched_convolution
+from tests.mmm.period_readout_reference import eval_mask
 
 
 def build_aux_dims_model(aux_dims, n_dates, n_country):
@@ -1103,7 +1104,7 @@ class TestPeriodEdgeCases:
         )
 
         # The empty period contributes a row of padding and sums to nothing.
-        assert not empty.eval_mask(windows.max_window).any()
+        assert not eval_mask(empty, windows.max_window).any()
         assert len(empty.eval_dates) == 0
         assert (scenarios.spend[scenarios.rows[(1, None)]] == 0).all()
 
@@ -1137,7 +1138,7 @@ class TestPeriodEdgeCases:
 
         # Perturbed on its own date; summed over that date and the two after.
         np.testing.assert_array_equal(
-            window.eval_mask(windows.max_window), [False, False, True, True, True]
+            eval_mask(window, windows.max_window), [False, False, True, True, True]
         )
         np.testing.assert_array_equal(window.eval_dates, self.dates[4:7])
         spend = scenarios.spend[scenarios.rows[(0, None)]]
@@ -1205,7 +1206,7 @@ class TestPeriodEdgeCases:
         (window,) = windows.windows
         assert window.n_actual == 5
         np.testing.assert_array_equal(
-            window.eval_mask(windows.max_window), [False, False, True, False, False]
+            eval_mask(window, windows.max_window), [False, False, True, False, False]
         )
         np.testing.assert_array_equal(window.eval_dates, self.dates[4:5])
 
@@ -1247,7 +1248,7 @@ class TestPeriodEdgeCases:
             )
             np.testing.assert_array_equal(
                 window_positions[window.window_eval_slice],
-                np.flatnonzero(window.eval_mask(windows.max_window)),
+                np.flatnonzero(eval_mask(window, windows.max_window)),
             )
             assert full_axis_values[window.eval_slice].base is full_axis_values
             if not window.in_eval.any():

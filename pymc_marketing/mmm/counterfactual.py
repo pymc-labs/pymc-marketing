@@ -355,8 +355,7 @@ class PeriodWindow:
     def window_eval_slice(self) -> slice:
         """The same dates, as a slice of the padded window.
 
-        For reading a counterfactual evaluated on the window; see
-        :meth:`eval_mask`.
+        For reading a counterfactual evaluated on the window.
 
         Raises
         ------
@@ -369,23 +368,6 @@ class PeriodWindow:
     def n_actual(self) -> int:
         """How many fitted dates fall in the window."""
         return len(self.actual_dates)
-
-    def eval_mask(self, max_window: int) -> np.ndarray:
-        """Positions in the padded window that enter the sum.
-
-        Parameters
-        ----------
-        max_window : int
-            Padded window length every period is stacked to.
-
-        Returns
-        -------
-        np.ndarray
-            Boolean mask of length *max_window*.
-        """
-        mask = np.zeros(max_window, dtype=bool)
-        mask[np.flatnonzero(self.in_eval[self.in_window])] = True
-        return mask
 
     def offsets_within(self, first: pd.Timestamp, last: pd.Timestamp) -> np.ndarray:
         """Positions inside the window of the dates in ``[first, last]``.

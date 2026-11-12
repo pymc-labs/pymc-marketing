@@ -68,7 +68,7 @@ from pymc_marketing.mmm.incrementality import (
     LogLinkReducer,
     kernel_trailing_lags,
 )
-from pymc_marketing.mmm.period_readout import current_window_end, split_band
+from pymc_marketing.mmm.period_readout import current_window_end
 from pymc_marketing.mmm.spend_reach import (
     LINEAR_PREDICTOR,
     ProbeStatistics,
@@ -86,6 +86,7 @@ from pymc_marketing.mmm.transformers import (
 from pymc_marketing.model_graph import deterministics_to_flat
 from pymc_marketing.pytensor_utils import ConditionedModel
 from pymc_marketing.serialization import serialization
+from tests.mmm.period_readout_reference import split_band
 from tests.mmm.test_spend_reach import (
     assert_identical_statistics,
     effective_l_max,
