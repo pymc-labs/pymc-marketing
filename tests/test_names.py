@@ -18,10 +18,31 @@ breaking change. The expected values are literals on purpose: a test that read
 the constant back would pass after a rename.
 """
 
+import pkgutil
+from typing import get_args
+
 import pytest
 
 from pymc_marketing import names
 from pymc_marketing.names import bass, clv, customer_choice, mmm
+
+MODULES = [names, mmm, clv, customer_choice, bass]
+
+# Public module-level names that are not classes.
+MODULE_LEVEL = {
+    names: set(),
+    mmm: {
+        "RESERVED_DIMS",
+        "ORIGINAL_SCALE_SUFFIX",
+        "EFFECT_CONTRIBUTION_SUFFIX",
+        "original_scale_name",
+        "effect_contribution_name",
+    },
+    clv: {"NewCustomerVar", "NEW_CUSTOMER_VARS"},
+    customer_choice: set(),
+    bass: set(),
+}
+IMPORTED = {"Final", "Literal", "names", "bass", "clv", "customer_choice", "mmm"}
 
 SHARED_ATTR = {
     "ID": "id",
@@ -211,7 +232,24 @@ def test_values_are_unique_within_a_class(module, class_name) -> None:
     assert len(values) == len(set(values))
 
 
-@pytest.mark.parametrize("module", [names, mmm, clv, customer_choice, bass])
+def test_every_names_module_is_pinned() -> None:
+    found = {module.name for module in pkgutil.iter_modules(names.__path__)}
+    assert found == {"bass", "clv", "customer_choice", "mmm"}
+
+
+@pytest.mark.parametrize("module", MODULES)
+def test_module_level_names_are_pinned(module) -> None:
+    public = {
+        name
+        for name, obj in vars(module).items()
+        if not name.startswith("_")
+        and not isinstance(obj, type)
+        and name not in IMPORTED
+    }
+    assert public == MODULE_LEVEL[module]
+
+
+@pytest.mark.parametrize("module", MODULES)
 def test_every_names_class_is_pinned(module) -> None:
     defined = {
         name
@@ -233,7 +271,9 @@ def test_mmm_module_level_names() -> None:
 
 
 def test_clv_new_customer_vars() -> None:
-    assert clv.NEW_CUSTOMER_VARS == ("dropout", "purchase_rate", "recency_frequency")
+    expected = ("dropout", "purchase_rate", "recency_frequency")
+    assert clv.NEW_CUSTOMER_VARS == expected
+    assert get_args(clv.NewCustomerVar) == expected
 
 
 def test_kept_aliases_keep_their_values() -> None:
