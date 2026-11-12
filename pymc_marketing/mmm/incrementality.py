@@ -4507,6 +4507,9 @@ class Incrementality:
                 if hasattr(self.idata, "constant_data")
                 else None
             ),
+            # Only the spend probe reads the predictor, on the baseline: every
+            # readout builds the change in mu from its parts.
+            baseline_only=(predictor.name,) if predictor is not None else (),
         )
         cache = self.model._incrementality_evaluator_cache()
         lease = cache.lease(self._evaluator_cache_key(response_vars), build_evaluator)
