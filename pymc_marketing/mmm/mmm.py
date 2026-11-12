@@ -207,6 +207,7 @@ from pymc_marketing.data.idata.names import (
     ORIGINAL_SCALE_SUFFIX,
     RESERVED_DIMS,
     Attr,
+    DatasetVar,
     Dim,
     Var,
     original_scale,
@@ -2285,13 +2286,15 @@ class MMM(RegressionModelBuilder):
         ).fillna(0)
         self.xarray_dataset = self._reindex_custom_dims(self.xarray_dataset)
 
-        self.xarray_dataset["_channel"] = self.xarray_dataset["_channel"].astype(float)
+        self.xarray_dataset[DatasetVar.CHANNEL] = self.xarray_dataset[
+            DatasetVar.CHANNEL
+        ].astype(float)
         # Integer control columns (0/1 flags) would otherwise make `control_data`
         # an int node, and later values written into it would be truncated.
-        if "_control" in self.xarray_dataset:
-            self.xarray_dataset["_control"] = self.xarray_dataset["_control"].astype(
-                float
-            )
+        if DatasetVar.CONTROL in self.xarray_dataset:
+            self.xarray_dataset[DatasetVar.CONTROL] = self.xarray_dataset[
+                DatasetVar.CONTROL
+            ].astype(float)
 
         self.model_coords = {
             dim: self.xarray_dataset.coords[dim].values
@@ -2313,7 +2316,7 @@ class MMM(RegressionModelBuilder):
         self._validate_model_was_built()
         return cast(
             npt.NDArray[np.floating],
-            self.xarray_dataset["_target"].values,
+            self.xarray_dataset[DatasetVar.TARGET].values,
         )
 
     def forward_pass(
@@ -2362,12 +2365,12 @@ class MMM(RegressionModelBuilder):
         """Compute and save scaling factors for channels and target."""
         self.scalers = xr.Dataset()
 
-        self.scalers["_channel"] = self._compute_scale_for_variable(
-            self.xarray_dataset["_channel"],
+        self.scalers[DatasetVar.CHANNEL] = self._compute_scale_for_variable(
+            self.xarray_dataset[DatasetVar.CHANNEL],
             self.scaling.channel,
         )
-        self.scalers["_target"] = self._compute_scale_for_variable(
-            self.xarray_dataset["_target"],
+        self.scalers[DatasetVar.TARGET] = self._compute_scale_for_variable(
+            self.xarray_dataset[DatasetVar.TARGET],
             self.scaling.target,
         )
 
@@ -2389,7 +2392,9 @@ class MMM(RegressionModelBuilder):
                     UserWarning,
                     stacklevel=2,
                 )
-            self.scalers["_channel"] = xr.ones_like(self.scalers["_channel"])
+            self.scalers[DatasetVar.CHANNEL] = xr.ones_like(
+                self.scalers[DatasetVar.CHANNEL]
+            )
 
     def _compute_scale_for_variable(
         self,
@@ -2954,15 +2959,19 @@ class MMM(RegressionModelBuilder):
         self._target_is_placeholder = False
 
         likelihood = self.model_config["likelihood"]
-        if "_target" in self.xarray_dataset.data_vars:
+        if DatasetVar.TARGET in self.xarray_dataset.data_vars:
             # Link-independent: every link and likelihood would fit an
             # infinite target as 0 after the clamp below.
-            _reject_infinite_target(self.xarray_dataset["_target"].values)
-            self._link_spec.validate_target(self.xarray_dataset["_target"].values)
+            _reject_infinite_target(self.xarray_dataset[DatasetVar.TARGET].values)
+            self._link_spec.validate_target(
+                self.xarray_dataset[DatasetVar.TARGET].values
+            )
             # LogNormalPrior observes the raw target on the strictly positive
             # support, which the link-level validate_target cannot know about.
             if isinstance(likelihood, LogNormalPrior):
-                likelihood.validate_observed(self.xarray_dataset["_target"].values)
+                likelihood.validate_observed(
+                    self.xarray_dataset[DatasetVar.TARGET].values
+                )
         LinkSpec.validate_likelihood_compatibility(self.link, likelihood)
 
         if self.link == LinkFunction.LOG and self.mu_effects:
@@ -3034,11 +3043,11 @@ class MMM(RegressionModelBuilder):
             # (`model_builder.py:1546`, `:1772`). It has no support to respect,
             # and failing it would break building a model in order to look at
             # its prior, so skip the check rather than reject the placeholder.
-            if np.any(self.xarray_dataset["_target"].values != 0):
+            if np.any(self.xarray_dataset[DatasetVar.TARGET].values != 0):
                 LinkSpec.validate_likelihood_support(
                     self.model_config["likelihood"],
                     target_data_scaled,
-                    target_scale=self.scalers["_target"].values,
+                    target_scale=self.scalers[DatasetVar.TARGET].values,
                 )
 
             # DataVarMuEffect inputs may be shared by several effects, but must
@@ -3281,7 +3290,7 @@ class MMM(RegressionModelBuilder):
         reject_unknown_coords(ds, model_coords, label="X")
         ds = ds.reindex(model_coords, fill_value=0)
 
-        if y is None and "_target" not in ds.data_vars:
+        if y is None and DatasetVar.TARGET not in ds.data_vars:
             target_dtype = self.xarray_dataset._target.dtype
             n_dates = ds.sizes["date"]
             shape = (n_dates, *[ds.sizes[dim] for dim in self.dims])
@@ -3292,7 +3301,7 @@ class MMM(RegressionModelBuilder):
                     if dim in ds.indexes
                     else self.xarray_dataset.coords[dim].values
                 )
-            ds["_target"] = xr.DataArray(
+            ds[DatasetVar.TARGET] = xr.DataArray(
                 np.zeros(shape, dtype=target_dtype),
                 dims=("date", *self.dims),
                 coords=coords,
@@ -3338,8 +3347,8 @@ class MMM(RegressionModelBuilder):
         coords = self.model.coords.copy()
         coords["date"] = dataset_xarray["date"].to_numpy()
 
-        if "_control" in dataset_xarray:
-            control_values = dataset_xarray["_control"].transpose(
+        if DatasetVar.CONTROL in dataset_xarray:
+            control_values = dataset_xarray[DatasetVar.CONTROL].transpose(
                 "date", *self.dims, "control"
             )
             if Var.CONTROL_DATA in model.named_vars:
@@ -3357,7 +3366,7 @@ class MMM(RegressionModelBuilder):
                 self._time_resolution,
             )
 
-        if "_target" in dataset_xarray:
+        if DatasetVar.TARGET in dataset_xarray:
             target_values = dataset_xarray._target.transpose("date", *self.dims)
             # Get the original dtype from the model's shared variable
             if Var.TARGET_DATA in model.named_vars:
@@ -3643,16 +3652,18 @@ class MMM(RegressionModelBuilder):
         )
 
         if control_data is not None:
-            if "_control" not in zero_data:
+            if DatasetVar.CONTROL not in zero_data:
                 raise ValueError(
                     "control_data was passed, but this model has no control_columns."
                 )
-            planned = self._future_control_values(control_data, zero_data["_control"])
-            zero_data["_control"].loc[{"date": planned.coords["date"].values}] = (
-                planned.values
+            planned = self._future_control_values(
+                control_data, zero_data[DatasetVar.CONTROL]
             )
-        elif "_control" in zero_data:
-            self._warn_zero_filled_future_controls(zero_data["_control"])
+            zero_data[DatasetVar.CONTROL].loc[
+                {"date": planned.coords["date"].values}
+            ] = planned.values
+        elif DatasetVar.CONTROL in zero_data:
+            self._warn_zero_filled_future_controls(zero_data[DatasetVar.CONTROL])
 
         dataset_xarray = self._posterior_predictive_data_transformation(
             X=zero_data,
@@ -5457,16 +5468,16 @@ class MMM(RegressionModelBuilder):
                 control_columns=self.control_columns,
                 target_column=self.target_column,
             )
-            if "_target" not in ds:
+            if DatasetVar.TARGET not in ds:
                 raise ValueError(
                     "y was not provided and X has no 'target' / '_target' variable"
                 )
             parts = [
-                ds["_channel"].to_dataset("channel"),
-                ds["_target"].rename(self.target_column).to_dataset(),
+                ds[DatasetVar.CHANNEL].to_dataset("channel"),
+                ds[DatasetVar.TARGET].rename(self.target_column).to_dataset(),
             ]
-            if "_control" in ds:
-                parts.append(ds["_control"].to_dataset("control"))
+            if DatasetVar.CONTROL in ds:
+                parts.append(ds[DatasetVar.CONTROL].to_dataset("control"))
             fit_data = xr.merge(parts, combine_attrs="drop")
             if self.date_column != Dim.DATE:
                 fit_data = fit_data.rename({Dim.DATE: self.date_column})
@@ -5675,7 +5686,9 @@ class MMM(RegressionModelBuilder):
                 )
             for record in records:
                 self.add_cost_per_target_calibration(
-                    data=spend_group[record["spend_var"]].to_dataset(name="_channel"),
+                    data=spend_group[record["spend_var"]].to_dataset(
+                        name=DatasetVar.CHANNEL
+                    ),
                     calibration_data=record["rows"],
                     name_prefix=record["name_prefix"],
                     target_column=record["target_column"],
@@ -6141,7 +6154,7 @@ class BudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
             _budget_distribution = budget_distribution
 
         result = data_with_noise.copy()
-        result["_channel"] = data_with_noise["_channel"] * (
+        result[DatasetVar.CHANNEL] = data_with_noise[DatasetVar.CHANNEL] * (
             _budget_distribution * self.num_periods
         )
         return result
@@ -6167,7 +6180,7 @@ class BudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
         )
 
         result = data_with_noise.copy()
-        result["_channel"] = data_with_noise["_channel"].where(
+        result[DatasetVar.CHANNEL] = data_with_noise[DatasetVar.CHANNEL].where(
             data_with_noise.coords["date"] <= cutoff_date, 0
         )
         return result
@@ -6257,7 +6270,7 @@ class BudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
                 ),
             ]
         )
-        _dataset = data_with_noise["_channel"].to_dataset(dim="channel")
+        _dataset = data_with_noise[DatasetVar.CHANNEL].to_dataset(dim="channel")
 
         var_names = [
             self.output_var,

@@ -178,7 +178,7 @@ from pymc_extras.prior import Prior, VariableFactory
 from pytensor.xtensor import as_xtensor
 from pytensor.xtensor.type import XTensorVariable
 
-from pymc_marketing.data.idata.names import Dim, Var
+from pymc_marketing.data.idata.names import DatasetVar, Dim, Var
 from pymc_marketing.mmm.additive_effect import (
     FourierEffect,
     LinearTrendEffect,
@@ -667,13 +667,13 @@ class BudgetModelEffect(MuEffect):
         built, so the warning is not repeated on every prediction.
         """
         dataset = mmm.xarray_dataset
-        all_channels = list(dataset["_channel"].coords["channel"].values)
+        all_channels = list(dataset[DatasetVar.CHANNEL].coords["channel"].values)
         channels = all_channels if self.channels is None else list(self.channels)
         unknown = sorted(set(channels) - set(all_channels))
         if unknown:
             raise ValueError(f"Unknown channels in BudgetModelEffect: {unknown}.")
         spend = (
-            dataset["_channel"]
+            dataset[DatasetVar.CHANNEL]
             .sel(channel=channels)
             .transpose("date", *mmm.dims, "channel")
             .astype(float)
@@ -682,8 +682,10 @@ class BudgetModelEffect(MuEffect):
         spend_scale = abs((spend - shift).where(~holdout, 0.0)).max("date")
 
         control_stats = None
-        if self.use_controls and "_control" in dataset:
-            control_stats = _standardise_stats(dataset["_control"], keep="control")
+        if self.use_controls and DatasetVar.CONTROL in dataset:
+            control_stats = _standardise_stats(
+                dataset[DatasetVar.CONTROL], keep="control"
+            )
         instrument_stats = {}
         for name in self.instruments:
             values = self._instrument(mmm, name)
@@ -793,7 +795,9 @@ class BudgetModelEffect(MuEffect):
                 f"design has columns {extra} the effect does not use. The design is "
                 "saved with the model, so drop them."
             )
-        mmm_channels = set(mmm.xarray_dataset["_channel"].coords["channel"].values)
+        mmm_channels = set(
+            mmm.xarray_dataset[DatasetVar.CHANNEL].coords["channel"].values
+        )
         unknown = sorted(set(self.design["channel"]) - mmm_channels)
         if unknown:
             raise ValueError(f"design has channels {unknown} the MMM does not have.")
@@ -1095,13 +1099,13 @@ class BudgetModelEffect(MuEffect):
         training: designed changes are subtracted and designed holdouts
         masked, so a test in a held-out fold is not scored as a surprise.
         """
-        if X is None or "_channel" not in X.data_vars:
+        if X is None or DatasetVar.CHANNEL not in X.data_vars:
             raise ValueError(
                 "surprise_out_of_sample='observed' reads spend on new dates from the "
                 "prediction data, but it has no channel spend."
             )
         spend = (
-            X["_channel"]
+            X[DatasetVar.CHANNEL]
             .sel(channel=data.channels)
             .reindex(date=new_dates)
             .transpose("date", *data.dims, "channel")
@@ -1341,7 +1345,7 @@ def exogeneity_summary(
         prior_sds.append(effect._prior_sd(mmm, "gamma_lag"))
     gamma = xr.concat(gammas, dim="lag")
     tail = (1 - interval_prob) / 2
-    per_unit = gamma * mmm.scalers["_target"] / data.spend_scale.rename(rename)
+    per_unit = gamma * mmm.scalers[DatasetVar.TARGET] / data.spend_scale.rename(rename)
 
     summary = xr.Dataset(
         {

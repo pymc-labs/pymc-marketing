@@ -231,7 +231,7 @@ from pydantic import (
 from pymc_extras.prior import Prior, VariableFactory
 from pytensor.xtensor.type import XTensorVariable
 
-from pymc_marketing.data.idata.names import Dim
+from pymc_marketing.data.idata.names import Dim, effect_contribution
 from pymc_marketing.mmm.events import EventEffect, days_from_reference
 from pymc_marketing.mmm.fourier import FourierBase
 from pymc_marketing.mmm.linear_trend import LinearTrend
@@ -499,7 +499,7 @@ class MuEffect(SerializableBaseModel, ABC):
             raise NotImplementedError(
                 f"{type(self).__name__} must define 'contribution_var_name'."
             )
-        return f"{prefix}_effect_contribution"
+        return effect_contribution(prefix)
 
     def incrementality_spec(self) -> IncrementalitySpec | None:
         """Opt this effect in to spend-counterfactual incrementality analysis.
@@ -825,7 +825,7 @@ class MediaMuEffect(DataVarMuEffect):
         data = mmm.model[var_name]
         effect = self.media_transformation(data, dim="date")
         return pmd.Deterministic(
-            f"{self.prefix}_effect_contribution",
+            effect_contribution(self.prefix),
             effect.sum(dim=self.channel_dim),
         )
 
@@ -898,7 +898,7 @@ class ControlMuEffect(DataVarMuEffect):
         if extra_dims:
             total = total.sum(dim=extra_dims)
         return pmd.Deterministic(
-            f"{self.prefix}_effect_contribution",
+            effect_contribution(self.prefix),
             total,
         )
 
@@ -1231,7 +1231,7 @@ class LinearTrendEffect(MuEffect):
         trend_effect = self.trend.apply(t / scale, t_max=t_max / scale)
 
         return pmd.Deterministic(
-            f"{self.prefix}_effect_contribution",
+            effect_contribution(self.prefix),
             trend_effect,
         )
 

@@ -11,7 +11,7 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
-"""Names of the MMM: dimensions, model variables, ``idata.attrs`` keys and groups.
+"""Names of the MMM: dimensions, model and dataset variables, ``idata.attrs`` keys and groups.
 
 These are the names one module of :mod:`pymc_marketing.mmm` creates and another
 module (or :mod:`pymc_marketing.data.idata`) reads back. Each is a ``Final``
@@ -83,6 +83,19 @@ class Var:
     TOTAL_ALLOCATION: Final = "total_allocation"
 
 
+class DatasetVar:
+    """Data variables of ``MMM.xarray_dataset``, which also key ``MMM.scalers``.
+
+    :func:`~pymc_marketing.mmm.data_conversion.to_mmm_dataset` names the input
+    data with them. They are not the model's data variables: the model reads
+    ``DatasetVar.CHANNEL`` into ``Var.CHANNEL_DATA``.
+    """
+
+    CHANNEL: Final = "_channel"
+    TARGET: Final = "_target"
+    CONTROL: Final = "_control"
+
+
 class Attr(names.Attr):
     """``idata.attrs`` keys the MMM writes and reads back, plus the shared ones."""
 
@@ -129,3 +142,35 @@ def original_scale(name: str) -> str:
         # 'channel_contribution_original_scale'
     """
     return f"{name}{ORIGINAL_SCALE_SUFFIX}"
+
+
+EFFECT_CONTRIBUTION_SUFFIX: Final = "_effect_contribution"
+"""Suffix of the contribution an additive effect registers, see :func:`effect_contribution`."""
+
+
+def effect_contribution(prefix: str) -> str:
+    """Return the name of the contribution variable of an additive effect.
+
+    Each additive effect registers its contribution under this name, and
+    ``MuEffect.contribution_var_name`` reads it back by default.
+
+    Parameters
+    ----------
+    prefix : str
+        Prefix of the effect.
+
+    Returns
+    -------
+    str
+        ``prefix`` followed by :data:`EFFECT_CONTRIBUTION_SUFFIX`.
+
+    Examples
+    --------
+    .. code-block:: python
+
+        from pymc_marketing.data.idata.names import effect_contribution
+
+        effect_contribution("trend")
+        # 'trend_effect_contribution'
+    """
+    return f"{prefix}{EFFECT_CONTRIBUTION_SUFFIX}"

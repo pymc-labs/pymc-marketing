@@ -26,7 +26,7 @@ from pytensor import xtensor as ptx
 from pytensor.graph.basic import Variable
 from pytensor.graph.replace import graph_replace
 
-from pymc_marketing.data.idata.names import ORIGINAL_SCALE_SUFFIX, Dim
+from pymc_marketing.data.idata.names import ORIGINAL_SCALE_SUFFIX, DatasetVar, Dim
 from pymc_marketing.mmm.optimization_variables import align_to_model_coords
 
 logger = logging.getLogger(__name__)
@@ -491,7 +491,7 @@ def create_zero_dataset(
     # at zero for the optimizer to fill.
     if len(carry_in_dates):
         channel_data[: len(carry_in_dates)] = (
-            xa["_channel"].sel(date=carry_in_dates).to_numpy()
+            xa[DatasetVar.CHANNEL].sel(date=carry_in_dates).to_numpy()
         )
 
     # ---- 4a. Inject channel_xr values -----------------------------------------
@@ -545,7 +545,7 @@ def create_zero_dataset(
 
     # ---- 5. Build _control variable -------------------------------------------
     data_vars: dict = {
-        "_channel": xr.DataArray(
+        DatasetVar.CHANNEL: xr.DataArray(
             channel_data, dims=("date", *dim_cols, "channel"), coords=chan_coords
         ),
     }
@@ -559,10 +559,12 @@ def create_zero_dataset(
         ctrl_shape.append(len(control_cols))
         ctrl_coords["control"] = control_cols
 
-        if preserve_observed and "_control" in xa:
-            data_vars["_control"] = xa["_control"].reindex(date=new_dates, fill_value=0)
+        if preserve_observed and DatasetVar.CONTROL in xa:
+            data_vars[DatasetVar.CONTROL] = xa[DatasetVar.CONTROL].reindex(
+                date=new_dates, fill_value=0
+            )
         else:
-            data_vars["_control"] = xr.DataArray(
+            data_vars[DatasetVar.CONTROL] = xr.DataArray(
                 np.zeros(ctrl_shape, dtype=float),
                 dims=("date", *dim_cols, "control"),
                 coords=ctrl_coords,
@@ -872,7 +874,7 @@ def add_noise_to_channel_allocation(
     rng = np.random.default_rng(seed)
 
     if isinstance(df, xr.Dataset):
-        da = df["_channel"]
+        da = df[DatasetVar.CHANNEL]
         non_channel_dims = tuple(d for d in da.dims if d != Dim.CHANNEL)
         ch_scale = rel_std * da.mean(dim=non_channel_dims)
         # Align by dimension name before NumPy applies positional broadcasting.
@@ -881,7 +883,7 @@ def add_noise_to_channel_allocation(
         )
         noisy = xr.where(da == 0, 0.0, da + noise).clip(min=0.0)
         result = df.copy()
-        result["_channel"] = noisy
+        result[DatasetVar.CHANNEL] = noisy
         return result
 
     scale: np.ndarray = (rel_std * df[channels].mean()).to_numpy()
