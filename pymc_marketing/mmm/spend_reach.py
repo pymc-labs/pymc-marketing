@@ -499,7 +499,7 @@ def _sample_runs(n_samples: int, per_sample: int) -> list[slice]:
     return _even_runs(n_samples, size)
 
 
-@dataclass
+@dataclass(eq=False)
 class ProbeStatistics:
     """What :class:`SpendProbe` reads off one probe, kept in place of the evaluation.
 

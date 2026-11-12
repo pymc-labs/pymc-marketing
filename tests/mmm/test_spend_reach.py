@@ -1483,6 +1483,14 @@ class TestProbeStatistics:
         assert_identical_statistics(whole, shuffled)
         assert_identical_statistics(whole, one_at_a_time)
 
+    def test_statistics_compare_by_identity(self):
+        """A generated ``__eq__`` would compare dicts of arrays and raise."""
+        left = ProbeStatistics(per_date_move={CHANNEL_CONTRIBUTION: np.zeros(3)})
+        right = ProbeStatistics(per_date_move={CHANNEL_CONTRIBUTION: np.zeros(3)})
+
+        assert left == left
+        assert left != right
+
     def test_a_nan_move_survives_any_slicing(self, monkeypatch):
         """A NaN move is in the largest move, whether its sample is folded alone or not.
 
