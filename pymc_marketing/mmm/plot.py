@@ -202,10 +202,10 @@ from matplotlib.figure import Figure
 from numpy.typing import NDArray
 
 from pymc_marketing.data.idata.mmm_wrapper import MMMIDataWrapper
-from pymc_marketing.data.idata.names import Dim, Group, Var
 from pymc_marketing.metrics import crps
 from pymc_marketing.mmm.summary.helpers import compute_residuals
 from pymc_marketing.mmm.utils import build_contributions
+from pymc_marketing.names.mmm import Dim, Group, Var
 
 __all__ = ["MMMPlotSuite"]
 

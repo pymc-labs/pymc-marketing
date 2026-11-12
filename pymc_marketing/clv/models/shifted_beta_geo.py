@@ -24,9 +24,9 @@ from scipy.special import gammaln, hyp2f1
 
 from pymc_marketing.clv.distributions import ShiftedBetaGeometric
 from pymc_marketing.clv.models import CLVModel
-from pymc_marketing.clv.names import Col, Dim, Var
 from pymc_marketing.clv.utils import to_xarray
 from pymc_marketing.model_config import ModelConfig
+from pymc_marketing.names.clv import Col, Dim, Var
 
 __all__ = ["ShiftedBetaGeoModel"]
 

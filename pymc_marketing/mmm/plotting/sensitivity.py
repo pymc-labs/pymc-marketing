@@ -76,7 +76,6 @@ from matplotlib.figure import Figure
 from numpy.typing import NDArray
 
 from pymc_marketing.data.idata import MMMIDataWrapper
-from pymc_marketing.data.idata.names import Dim, Group
 from pymc_marketing.mmm.plotting._helpers import (
     _apply_aggregation,
     _ensure_chain_draw_dims,
@@ -84,6 +83,7 @@ from pymc_marketing.mmm.plotting._helpers import (
     _process_plot_params,
     _select_dims,
 )
+from pymc_marketing.names.mmm import Dim, Group
 
 
 class SensitivityPlots:

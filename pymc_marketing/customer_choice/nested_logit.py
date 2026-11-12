@@ -29,12 +29,12 @@ from pymc.util import RandomState
 from pymc_extras.prior import Prior
 
 from pymc_marketing.customer_choice._choice_data_mixin import ChoiceDataMixin
-from pymc_marketing.customer_choice.names import Dim, Var
 from pymc_marketing.model_builder import (
     ModelBuilder,
     SamplingMethod,
 )
 from pymc_marketing.model_config import parse_model_config
+from pymc_marketing.names.customer_choice import Dim, Var
 from pymc_marketing.version import __version__
 
 HDI_ALPHA = 0.5

@@ -30,7 +30,6 @@ from typing import Any
 
 import xarray as xr
 
-from pymc_marketing.data.idata.names import Dim, Var
 from pymc_marketing.mmm.summary.helpers import (
     DataFrameType,
     OutputFormat,
@@ -42,6 +41,7 @@ from pymc_marketing.mmm.xarray_utils import (
     _ensure_chain_draw_dims,
     _select_dims,
 )
+from pymc_marketing.names.mmm import Dim, Var
 
 __all__ = [
     "BudgetSummaryFactory",

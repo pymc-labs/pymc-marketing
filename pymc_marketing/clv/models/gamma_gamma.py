@@ -22,9 +22,9 @@ from pymc.util import RandomState
 from pymc_extras.prior import Prior
 
 from pymc_marketing.clv.models import CLVModel
-from pymc_marketing.clv.names import Col, Dim
 from pymc_marketing.clv.utils import customer_lifetime_value, to_xarray
 from pymc_marketing.model_config import ModelConfig
+from pymc_marketing.names.clv import Col, Dim
 
 
 class BaseGammaGammaModel(CLVModel):

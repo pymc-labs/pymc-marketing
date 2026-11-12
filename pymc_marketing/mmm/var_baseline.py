@@ -37,9 +37,9 @@ from pydantic import ConfigDict, Field, InstanceOf, field_validator, model_valid
 from pytensor.xtensor.type import XTensorVariable
 from scipy.stats import halfnorm
 
-from pymc_marketing.data.idata.names import DatasetVar, Var, effect_contribution
 from pymc_marketing.mmm.additive_effect import MuEffect, safe_to_datetime
 from pymc_marketing.mmm.link import LinkFunction
+from pymc_marketing.names.mmm import DatasetVar, Var, effect_contribution
 from pymc_marketing.serialization import (
     DeserializationContext,
     SerializationError,

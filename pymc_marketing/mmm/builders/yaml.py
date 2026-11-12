@@ -23,7 +23,6 @@ import xarray as xr
 from pymc_extras.prior import Prior
 
 from pymc_marketing.data.idata.io import load_idata
-from pymc_marketing.data.idata.names import Dim
 from pymc_marketing.mmm.builders.factories import build, naming, resolve
 from pymc_marketing.mmm.builders.schema import CalibrationStep, MMMYamlConfig
 from pymc_marketing.mmm.data_conversion import (
@@ -33,6 +32,7 @@ from pymc_marketing.mmm.data_conversion import (
     to_mmm_dataset,
 )
 from pymc_marketing.mmm.mmm import MMM
+from pymc_marketing.names.mmm import Dim
 
 
 def _load_df(path: str | Path) -> pd.DataFrame:

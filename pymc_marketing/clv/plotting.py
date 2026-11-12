@@ -28,8 +28,8 @@ from arviz_stats.ecdf_utils import (
 from matplotlib.lines import Line2D
 
 from pymc_marketing.clv import BetaGeoModel, ParetoNBDModel
-from pymc_marketing.clv.names import Col, Var
 from pymc_marketing.clv.utils import _expected_cumulative_transactions
+from pymc_marketing.names.clv import Col, Var
 
 __all__ = [
     "plot_customer_exposure",

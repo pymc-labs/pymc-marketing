@@ -62,12 +62,12 @@ import xarray as xr
 from pytensor.graph.basic import Variable
 from pytensor.graph.traversal import ancestors
 
-from pymc_marketing.data.idata.names import Dim, Var
 from pymc_marketing.mmm.counterfactual import (
     CounterfactualEvaluator,
     _even_runs,
     find_named_node,
 )
+from pymc_marketing.names.mmm import Dim, Var
 
 if TYPE_CHECKING:
     from pymc_marketing.mmm.mmm import MMM

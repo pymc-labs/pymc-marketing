@@ -25,9 +25,9 @@ from scipy.special import betaln, expit, hyp2f1
 
 from pymc_marketing.clv.distributions import BetaGeoNBD
 from pymc_marketing.clv.models.basic import CLVModel
-from pymc_marketing.clv.names import NEW_CUSTOMER_VARS, Col, Dim, NewCustomerVar, Var
 from pymc_marketing.clv.utils import to_xarray
 from pymc_marketing.model_config import ModelConfig
+from pymc_marketing.names.clv import NEW_CUSTOMER_VARS, Col, Dim, NewCustomerVar, Var
 
 
 class BetaGeoModel(CLVModel):

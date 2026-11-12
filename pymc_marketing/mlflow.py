@@ -238,9 +238,9 @@ from pymc_marketing.data.idata.io import (
     remove_idata,
     save_idata,
 )
-from pymc_marketing.data.idata.names import Attr
 from pymc_marketing.mmm import MMM
 from pymc_marketing.mmm.evaluation import compute_summary_metrics
+from pymc_marketing.names.mmm import Attr
 from pymc_marketing.version import __version__
 
 logger = logging.getLogger(__name__)

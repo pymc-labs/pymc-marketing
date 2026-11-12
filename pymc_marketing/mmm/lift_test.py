@@ -35,8 +35,8 @@ from pytensor.graph.traversal import ancestors
 from pytensor.xtensor import as_xtensor
 from pytensor.xtensor.type import XTensorVariable
 
-from pymc_marketing.data.idata.names import Dim, Var
 from pymc_marketing.mmm.components.saturation import SaturationTransformation
+from pymc_marketing.names.mmm import Dim, Var
 
 Index = Sequence[int] | npt.NDArray[np.integer]
 Indices = dict[str, Index]

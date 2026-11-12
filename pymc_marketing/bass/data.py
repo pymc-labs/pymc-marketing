@@ -24,7 +24,7 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 
-from pymc_marketing.bass.names import Col, Dim, Var
+from pymc_marketing.names.bass import Col, Dim, Var
 
 
 @singledispatch

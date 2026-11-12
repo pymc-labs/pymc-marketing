@@ -23,7 +23,6 @@ import pandas as pd
 import xarray as xr
 from pydantic import ConfigDict, InstanceOf, validate_call
 
-from pymc_marketing.clv.names import Col
 from pymc_marketing.model_builder import DifferentModelError, ModelBuilder
 from pymc_marketing.model_config import (
     ModelConfig,
@@ -31,6 +30,7 @@ from pymc_marketing.model_config import (
     parse_model_config,
 )
 from pymc_marketing.names import Attr
+from pymc_marketing.names.clv import Col
 
 
 class CLVModel(ModelBuilder):

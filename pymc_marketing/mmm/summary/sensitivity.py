@@ -22,7 +22,6 @@ import pandas as pd
 import xarray as xr
 
 from pymc_marketing.data.idata import MMMIDataWrapper
-from pymc_marketing.data.idata.names import Group
 from pymc_marketing.mmm.summary.helpers import (
     DataFrameType,
     OutputFormat,
@@ -31,6 +30,7 @@ from pymc_marketing.mmm.summary.helpers import (
     convert_output,
     prepare_sensitivity_data,
 )
+from pymc_marketing.names.mmm import Group
 
 __all__ = [
     "sensitivity_analysis",

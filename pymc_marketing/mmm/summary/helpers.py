@@ -24,12 +24,12 @@ import pandas as pd
 import xarray as xr
 
 from pymc_marketing.data.idata import MMMIDataWrapper
-from pymc_marketing.data.idata.names import Dim
 from pymc_marketing.mmm.xarray_utils import (
     _apply_aggregation,
     _ensure_chain_draw_dims,
     _select_dims,
 )
+from pymc_marketing.names.mmm import Dim
 
 OutputFormat = Literal["pandas", "polars"]
 DataFrameType = pd.DataFrame  # Union[pd.DataFrame, pl.DataFrame] at runtime

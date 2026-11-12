@@ -35,7 +35,6 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 
-from pymc_marketing.data.idata.names import Dim, Group, Var
 from pymc_marketing.metrics import crps as _crps_score
 from pymc_marketing.mmm.summary.helpers import (
     DataFrameType,
@@ -45,6 +44,7 @@ from pymc_marketing.mmm.summary.helpers import (
     convert_output,
 )
 from pymc_marketing.mmm.xarray_utils import _select_dims
+from pymc_marketing.names.mmm import Dim, Group, Var
 
 __all__ = [
     "MMMCVSummaryFactory",

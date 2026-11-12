@@ -41,10 +41,10 @@ from pytensor.graph.basic import Variable
 from pytensor.xtensor import as_xtensor
 from pytensor.xtensor.type import XTensorVariable
 
-from pymc_marketing.data.idata.names import Dim
 from pymc_marketing.mmm.dims import XTensorLike
 from pymc_marketing.model_config import parse_model_config
 from pymc_marketing.names import Key
+from pymc_marketing.names.mmm import Dim
 from pymc_marketing.plot import (
     SelToString,
     plot_curve,

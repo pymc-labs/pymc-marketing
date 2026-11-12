@@ -81,8 +81,8 @@ from pytensor.xtensor.basic import XTensorFromTensor
 from pytensor.xtensor.type import XTensorVariable
 from pytensor.xtensor.vectorization import vectorize_graph
 
-from pymc_marketing.data.idata.names import Dim, Var
 from pymc_marketing.mmm.transformers import ConvMode
+from pymc_marketing.names.mmm import Dim, Var
 from pymc_marketing.pytensor_utils import ConditionedModel, SharedPosterior
 
 __all__ = [

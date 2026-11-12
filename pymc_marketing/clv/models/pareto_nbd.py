@@ -36,10 +36,10 @@ from xarray_einstats.stats import logsumexp as xr_logsumexp
 
 from pymc_marketing.clv.distributions import ParetoNBD
 from pymc_marketing.clv.models.basic import CLVModel
-from pymc_marketing.clv.names import NEW_CUSTOMER_VARS, Col, Dim, NewCustomerVar, Var
 from pymc_marketing.clv.utils import to_xarray
 from pymc_marketing.model_builder import SamplingMethod
 from pymc_marketing.model_config import ModelConfig
+from pymc_marketing.names.clv import NEW_CUSTOMER_VARS, Col, Dim, NewCustomerVar, Var
 
 
 @node_rewriter([Elemwise])

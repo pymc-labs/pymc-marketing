@@ -81,7 +81,7 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 
-from pymc_marketing.data.idata.names import DatasetVar, Dim
+from pymc_marketing.names.mmm import DatasetVar, Dim
 
 
 def to_mmm_dataset(

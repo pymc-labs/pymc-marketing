@@ -34,7 +34,7 @@ import pytensor.tensor as pt
 from pydantic import ConfigDict, Field, InstanceOf, validate_call
 from pymc_extras.prior import Prior
 
-from pymc_marketing.data.idata.names import Dim
+from pymc_marketing.names.mmm import Dim
 
 try:
     from dowhy import CausalModel

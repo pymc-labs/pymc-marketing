@@ -28,10 +28,10 @@ from pymc_extras.prior import Prior
 from pytensor.tensor.variable import TensorVariable
 
 from pymc_marketing.customer_choice._choice_helpers import stable_softmax
-from pymc_marketing.customer_choice.names import Dim, Var
 from pymc_marketing.model_builder import ModelBuilder, SamplingMethod
 from pymc_marketing.model_config import parse_model_config
 from pymc_marketing.names import Group
+from pymc_marketing.names.customer_choice import Dim, Var
 from pymc_marketing.version import __version__
 
 HDI_ALPHA = 0.5

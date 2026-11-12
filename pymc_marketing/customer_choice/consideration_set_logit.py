@@ -25,7 +25,7 @@ from pymc_extras.prior import Prior
 from pytensor.tensor.variable import TensorVariable
 
 from pymc_marketing.customer_choice.mixed_logit import MixedLogit
-from pymc_marketing.customer_choice.names import Dim, Var
+from pymc_marketing.names.customer_choice import Dim, Var
 
 
 class _ConsiderationInstrumentsRequired(TypedDict):

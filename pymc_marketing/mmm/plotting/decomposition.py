@@ -28,7 +28,6 @@ from matplotlib.figure import Figure
 from numpy.typing import NDArray
 
 from pymc_marketing.data.idata import MMMIDataWrapper
-from pymc_marketing.data.idata.names import Dim
 from pymc_marketing.mmm.plotting._helpers import (
     _extract_matplotlib_result,
     _plot_timeseries_channel,
@@ -36,6 +35,7 @@ from pymc_marketing.mmm.plotting._helpers import (
     _select_dims,
 )
 from pymc_marketing.mmm.summary.helpers import compute_channel_shares
+from pymc_marketing.names.mmm import Dim
 
 
 class DecompositionPlots:

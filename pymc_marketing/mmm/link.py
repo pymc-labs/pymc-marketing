@@ -36,7 +36,7 @@ from pytensor.xtensor.type import XTensorVariable
 from scipy.special import erfcx
 from scipy.stats import truncnorm
 
-from pymc_marketing.data.idata.names import Var
+from pymc_marketing.names.mmm import Var
 
 if TYPE_CHECKING:
     import pymc as pm

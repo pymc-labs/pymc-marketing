@@ -231,7 +231,6 @@ from pydantic import (
 from pymc_extras.prior import Prior, VariableFactory
 from pytensor.xtensor.type import XTensorVariable
 
-from pymc_marketing.data.idata.names import Dim, effect_contribution
 from pymc_marketing.mmm.events import EventEffect, days_from_reference
 from pymc_marketing.mmm.fourier import FourierBase
 from pymc_marketing.mmm.linear_trend import LinearTrend
@@ -242,6 +241,7 @@ from pymc_marketing.mmm.optimization_variables import (
 )
 from pymc_marketing.mmm.validating import _validate_non_numeric_dtype
 from pymc_marketing.names import Key
+from pymc_marketing.names.mmm import Dim, effect_contribution
 from pymc_marketing.serialization import SerializableBaseModel, serialization
 
 

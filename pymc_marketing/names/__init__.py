@@ -18,10 +18,12 @@ a typo as ``attr-defined`` and the runtime value stays a plain ``str`` (safe for
 PyMC, xarray, pickle and YAML). The values are part of the public API: saved
 models store them, so they must not change.
 
-Each model package keeps its own names in a ``names.py`` (the MMM's live in
-:mod:`pymc_marketing.data.idata.names`), and its ``Attr`` and ``Group`` extend
-the ones here when it adds keys of its own. This module imports nothing from
-``pymc_marketing``.
+Each model package has its own module next to this one
+(:mod:`pymc_marketing.names.mmm`, :mod:`pymc_marketing.names.clv`,
+:mod:`pymc_marketing.names.customer_choice`, :mod:`pymc_marketing.names.bass`),
+and its ``Attr`` and ``Group`` extend the ones here when it adds keys of its own.
+The package imports nothing else from ``pymc_marketing``, so any module can import
+it without a cycle.
 """
 
 from typing import Final

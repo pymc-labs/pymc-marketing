@@ -22,8 +22,8 @@ import pandas
 import xarray
 from numpy import datetime64
 
-from pymc_marketing.clv.names import Col, Dim
 from pymc_marketing.constants import DAYS_IN_MONTH, DAYS_IN_WEEK
+from pymc_marketing.names.clv import Col, Dim
 
 __all__ = [
     "customer_lifetime_value",

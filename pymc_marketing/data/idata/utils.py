@@ -24,8 +24,8 @@ import pandas as pd
 import xarray as xr
 from numpy.random import Generator, RandomState
 
-from pymc_marketing.data.idata.names import Attr, Dim
 from pymc_marketing.data.idata.schema import Frequency
+from pymc_marketing.names.mmm import Attr, Dim
 
 _MOVED_TO_IO = ("idata_to_zarr", "idata_from_zarr")
 

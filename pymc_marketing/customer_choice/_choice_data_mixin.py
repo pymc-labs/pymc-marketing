@@ -24,8 +24,8 @@ import pandas as pd
 import pymc as pm
 import xarray as xr
 
-from pymc_marketing.customer_choice.names import Dim, Var
 from pymc_marketing.names import Attr, Group
+from pymc_marketing.names.customer_choice import Dim, Var
 
 
 class ChoiceDataMixin:

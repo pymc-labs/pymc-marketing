@@ -24,7 +24,7 @@ from scipy.special import hyp2f1
 
 from pymc_marketing.clv.distributions import ModifiedBetaGeoNBD
 from pymc_marketing.clv.models import BetaGeoModel
-from pymc_marketing.clv.names import NEW_CUSTOMER_VARS, Col, Dim, NewCustomerVar, Var
+from pymc_marketing.names.clv import NEW_CUSTOMER_VARS, Col, Dim, NewCustomerVar, Var
 
 
 class ModifiedBetaGeoModel(BetaGeoModel):

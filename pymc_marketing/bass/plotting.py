@@ -35,8 +35,8 @@ import xarray as xr
 from matplotlib.axes import Axes
 from matplotlib.lines import Line2D
 
-from pymc_marketing.bass.names import Dim, Var
 from pymc_marketing.names import Group
+from pymc_marketing.names.bass import Dim, Var
 from pymc_marketing.plot import plot_curve
 
 if TYPE_CHECKING:

@@ -27,7 +27,6 @@ from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 from numpy.typing import NDArray
 
-from pymc_marketing.data.idata.names import Dim, Group, Var
 from pymc_marketing.mmm.plotting._helpers import (
     _extract_matplotlib_result,
     _process_plot_params,
@@ -41,6 +40,7 @@ from pymc_marketing.mmm.summary.cv import (
     _read_fold_meta,
     _validate_cv_results,
 )
+from pymc_marketing.names.mmm import Dim, Group, Var
 
 
 def _label_fold_ticks(pc: PlotCollection, cv_labels: list[Any]) -> None:

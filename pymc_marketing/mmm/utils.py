@@ -26,8 +26,8 @@ from pytensor import xtensor as ptx
 from pytensor.graph.basic import Variable
 from pytensor.graph.replace import graph_replace
 
-from pymc_marketing.data.idata.names import ORIGINAL_SCALE_SUFFIX, DatasetVar, Dim
 from pymc_marketing.mmm.optimization_variables import align_to_model_coords
+from pymc_marketing.names.mmm import ORIGINAL_SCALE_SUFFIX, DatasetVar, Dim
 
 logger = logging.getLogger(__name__)
 

@@ -26,8 +26,8 @@ import pandas as pd
 import xarray as xr
 from pydantic import ConfigDict, Field, field_validator, model_validator
 
-from pymc_marketing.data.idata.names import Dim
 from pymc_marketing.names import Key
+from pymc_marketing.names.mmm import Dim
 from pymc_marketing.serialization import SerializableBaseModel, serialization
 
 _FIXED_SCALING_XARRAY_KIND = "xarray.DataArray"

@@ -101,7 +101,7 @@ from pytensor.xtensor.type import XTensorVariable, as_xtensor
 from pytensor.xtensor.vectorization import vectorize_graph
 from xarray import DataArray
 
-from pymc_marketing.data.idata.names import Dim, Group, Var
+from pymc_marketing.names.mmm import Dim, Group, Var
 from pymc_marketing.pytensor_utils import extract_response_distribution
 
 

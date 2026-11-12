@@ -23,14 +23,6 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 
-from pymc_marketing.data.idata.names import (
-    ORIGINAL_SCALE_SUFFIX,
-    RESERVED_DIMS,
-    Attr,
-    Dim,
-    Var,
-    original_scale,
-)
 from pymc_marketing.data.idata.schema import Frequency
 from pymc_marketing.data.idata.utils import (
     _aggregate_over_time,
@@ -41,6 +33,14 @@ from pymc_marketing.data.idata.utils import (
     filter_idata_by_dims,
     get_posterior_predictive,
     get_prior_predictive,
+)
+from pymc_marketing.names.mmm import (
+    ORIGINAL_SCALE_SUFFIX,
+    RESERVED_DIMS,
+    Attr,
+    Dim,
+    Var,
+    original_scale,
 )
 
 if TYPE_CHECKING:

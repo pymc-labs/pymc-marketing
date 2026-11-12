@@ -178,7 +178,6 @@ from pymc_extras.prior import Prior, VariableFactory
 from pytensor.xtensor import as_xtensor
 from pytensor.xtensor.type import XTensorVariable
 
-from pymc_marketing.data.idata.names import DatasetVar, Dim, Var
 from pymc_marketing.mmm.additive_effect import (
     FourierEffect,
     LinearTrendEffect,
@@ -192,6 +191,7 @@ from pymc_marketing.mmm.fourier import (
     generate_fourier_modes,
 )
 from pymc_marketing.names import Key
+from pymc_marketing.names.mmm import DatasetVar, Dim, Var
 from pymc_marketing.serialization import serialization
 
 __all__ = ["BudgetModelEffect", "exogeneity_summary", "lift_test_design"]

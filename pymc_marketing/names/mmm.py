@@ -19,10 +19,9 @@ string attribute, so ``mypy`` reports a typo as ``attr-defined`` and the runtime
 value stays a plain ``str``. The values are public API: users type them and saved
 models store them, so they must not change.
 
-The module lives in :mod:`pymc_marketing.data.idata` rather than in
-:mod:`pymc_marketing.mmm` because :mod:`pymc_marketing.data.idata` is imported
-before :mod:`pymc_marketing.mmm` and cannot import it without a cycle. It imports
-nothing from ``pymc_marketing`` except :mod:`pymc_marketing.names`.
+The module imports nothing from ``pymc_marketing`` except
+:mod:`pymc_marketing.names`, so :mod:`pymc_marketing.data.idata` and
+:mod:`pymc_marketing.mmm` can both import it without a cycle.
 """
 
 from typing import Final
@@ -136,7 +135,7 @@ def original_scale(name: str) -> str:
     --------
     .. code-block:: python
 
-        from pymc_marketing.data.idata.names import Var, original_scale
+        from pymc_marketing.names.mmm import Var, original_scale
 
         original_scale(Var.CHANNEL_CONTRIBUTION)
         # 'channel_contribution_original_scale'
@@ -168,7 +167,7 @@ def effect_contribution(prefix: str) -> str:
     --------
     .. code-block:: python
 
-        from pymc_marketing.data.idata.names import effect_contribution
+        from pymc_marketing.names.mmm import effect_contribution
 
         effect_contribution("trend")
         # 'trend_effect_contribution'

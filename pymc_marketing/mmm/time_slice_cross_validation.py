@@ -33,7 +33,6 @@ import xarray as xr
 from pymc_extras.prior import Prior
 from tqdm.auto import tqdm
 
-from pymc_marketing.data.idata.names import Group, Var, original_scale
 from pymc_marketing.mmm.additive_effect import fitted_dates_only_effects
 from pymc_marketing.mmm.builders.yaml import build_mmm_from_yaml
 from pymc_marketing.mmm.link import LinkFunction
@@ -41,6 +40,7 @@ from pymc_marketing.mmm.plot import MMMPlotSuite
 from pymc_marketing.mmm.plotting.cv import MMMCVPlotSuite
 from pymc_marketing.mmm.summary.cv import MMMCVSummaryFactory
 from pymc_marketing.mmm.types import MMMBuilder
+from pymc_marketing.names.mmm import Group, Var, original_scale
 from pymc_marketing.serialization import serialization
 
 

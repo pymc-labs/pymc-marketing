@@ -18,7 +18,7 @@ from typing import Literal
 import xarray as xr
 from pydantic import BaseModel, Field
 
-from pymc_marketing.data.idata.names import Group, Var
+from pymc_marketing.names.mmm import Group, Var
 
 Frequency = Literal["original", "weekly", "monthly", "quarterly", "yearly", "all_time"]
 

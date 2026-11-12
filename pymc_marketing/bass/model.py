@@ -166,10 +166,10 @@ from pytensor.xtensor.type import XTensorVariable
 
 from pymc_marketing.bass import plotting
 from pymc_marketing.bass.data import to_bass_dataset
-from pymc_marketing.bass.names import Dim, Var
 from pymc_marketing.model_builder import ModelBuilder, SamplingMethod
 from pymc_marketing.model_config import parse_model_config
 from pymc_marketing.names import Group
+from pymc_marketing.names.bass import Dim, Var
 from pymc_marketing.terms import (
     ModelTerm,
     Named,

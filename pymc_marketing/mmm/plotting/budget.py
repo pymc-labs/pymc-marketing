@@ -24,7 +24,6 @@ from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 from numpy.typing import NDArray
 
-from pymc_marketing.data.idata.names import Dim, Var
 from pymc_marketing.mmm.plotting._helpers import (
     _extract_matplotlib_result,
     _plot_timeseries_channel,
@@ -35,6 +34,7 @@ from pymc_marketing.mmm.summary.budget import (
     prepare_allocation_roas,
     prepare_contribution_over_time,
 )
+from pymc_marketing.names.mmm import Dim, Var
 
 
 class BudgetPlots:

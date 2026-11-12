@@ -203,15 +203,6 @@ from pytensor.xtensor import as_xtensor
 from pytensor.xtensor.type import XTensorVariable
 
 from pymc_marketing.data.idata.mmm_wrapper import MMMIDataWrapper
-from pymc_marketing.data.idata.names import (
-    ORIGINAL_SCALE_SUFFIX,
-    RESERVED_DIMS,
-    Attr,
-    DatasetVar,
-    Dim,
-    Var,
-    original_scale,
-)
 from pymc_marketing.data.idata.schema import Frequency
 from pymc_marketing.data.idata.utils import (
     subsample_draws,
@@ -290,6 +281,15 @@ from pymc_marketing.model_builder import RegressionModelBuilder, SamplingMethod
 from pymc_marketing.model_config import parse_model_config
 from pymc_marketing.model_graph import deterministics_to_flat
 from pymc_marketing.names import Key
+from pymc_marketing.names.mmm import (
+    ORIGINAL_SCALE_SUFFIX,
+    RESERVED_DIMS,
+    Attr,
+    DatasetVar,
+    Dim,
+    Var,
+    original_scale,
+)
 from pymc_marketing.serialization import (
     DeserializationContext,
     SerializationError,

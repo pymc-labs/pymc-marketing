@@ -246,7 +246,6 @@ import xarray as xr
 from pydantic import ConfigDict, validate_call
 
 from pymc_marketing.data.idata.mmm_wrapper import MMMIDataWrapper
-from pymc_marketing.data.idata.names import Dim, Var
 from pymc_marketing.data.idata.schema import Frequency
 from pymc_marketing.mmm.components.adstock import (
     BinomialAdstock,
@@ -276,6 +275,7 @@ from pymc_marketing.mmm.spend_reach import (
 )
 from pymc_marketing.mmm.transformers import ConvMode
 from pymc_marketing.mmm.utils import infer_frequency
+from pymc_marketing.names.mmm import Dim, Var
 from pymc_marketing.pytensor_utils import (
     needed_posterior_names,
     reorder_to_model_coords,
@@ -310,7 +310,7 @@ __all__ = [
 CentralTendency = Literal["median", "mean"]
 
 LAG_DIM = Dim.TIME_SINCE_EXPOSURE
-"""Adstock lag dimension, an alias of ``Dim.TIME_SINCE_EXPOSURE`` in :mod:`pymc_marketing.data.idata.names`."""
+"""Adstock lag dimension, an alias of ``Dim.TIME_SINCE_EXPOSURE`` in :mod:`pymc_marketing.names.mmm`."""
 
 ALLOCATION_REQUIREMENT = "estimand='allocation'"
 CLOSED_FORM_REQUIREMENT = "method='closed_form'"

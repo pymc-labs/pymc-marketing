@@ -47,7 +47,6 @@ from pymc.util import RandomState
 from scipy.stats import gaussian_kde
 
 from pymc_marketing.data.idata.mmm_wrapper import MMMIDataWrapper
-from pymc_marketing.data.idata.names import Dim, Var
 from pymc_marketing.data.idata.schema import Frequency
 from pymc_marketing.data.idata.utils import _aggregate_over_time
 from pymc_marketing.mmm.incrementality import Incrementality
@@ -69,6 +68,7 @@ from pymc_marketing.mmm.summary.sensitivity import (
     sensitivity_uplift as _sensitivity_uplift,
 )
 from pymc_marketing.mmm.xarray_utils import _select_dims
+from pymc_marketing.names.mmm import Dim, Var
 
 __all__ = [
     "MMMSummaryFactory",

@@ -267,7 +267,6 @@ from pytensor.xtensor.type import XTensorVariable
 from scipy.optimize import OptimizeResult, minimize
 from xarray import DataArray, DataTree
 
-from pymc_marketing.data.idata.names import Attr, Dim, Var
 from pymc_marketing.mmm.constraints import (
     Constraint,
     build_default_sum_constraint,
@@ -283,6 +282,7 @@ from pymc_marketing.mmm.optimization_variables import (
 from pymc_marketing.mmm.price_response import PriceResponse
 from pymc_marketing.mmm.spend_reach import _PKG_PREFIX
 from pymc_marketing.mmm.utility import UtilityFunctionType, average_response
+from pymc_marketing.names.mmm import Attr, Dim, Var
 from pymc_marketing.pytensor_utils import (
     ConditionedModel,
     SharedPosterior,

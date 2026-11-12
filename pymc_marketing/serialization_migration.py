@@ -31,8 +31,8 @@ from typing import Any
 import xarray as xr
 
 from pymc_marketing.data.idata.io import load_idata, remove_idata, save_idata
-from pymc_marketing.data.idata.names import Attr
 from pymc_marketing.names import Key
+from pymc_marketing.names.mmm import Attr
 
 CURRENT_VERSION = 1
 
