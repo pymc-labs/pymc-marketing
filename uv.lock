@@ -4688,6 +4688,7 @@ dependencies = [
     { name = "matplotlib" },
     { name = "narwhals" },
     { name = "numpy" },
+    { name = "packaging" },
     { name = "pandas" },
     { name = "patsy" },
     { name = "preliz" },
@@ -4758,6 +4759,7 @@ test = [
     { name = "dowhy", version = "0.14", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.13'" },
     { name = "fastprogress" },
     { name = "graphviz" },
+    { name = "impulso" },
     { name = "ipykernel" },
     { name = "ipywidgets" },
     { name = "jax" },
@@ -4778,6 +4780,9 @@ test = [
     { name = "pytest-split" },
     { name = "watermark" },
     { name = "zarr" },
+]
+var = [
+    { name = "impulso" },
 ]
 zarr = [
     { name = "xarray" },
@@ -4808,7 +4813,9 @@ requires-dist = [
     { name = "graphviz", marker = "extra == 'test'", specifier = ">=0.20.1" },
     { name = "h5netcdf", specifier = ">=1.8.1" },
     { name = "h5py", specifier = ">=3.16.0" },
-    { name = "impulso", marker = "extra == 'docs'", specifier = ">=0.0.12" },
+    { name = "impulso", marker = "extra == 'docs'", specifier = ">=0.1.4" },
+    { name = "impulso", marker = "extra == 'test'", specifier = ">=0.1.4" },
+    { name = "impulso", marker = "extra == 'var'", specifier = ">=0.1.4" },
     { name = "ipykernel", marker = "extra == 'test'" },
     { name = "ipython", marker = "extra == 'docs'", specifier = "!=8.7.0" },
     { name = "ipywidgets", marker = "extra == 'docs'" },
@@ -4832,6 +4839,7 @@ requires-dist = [
     { name = "numpyro", marker = "extra == 'test'" },
     { name = "nutpie", marker = "extra == 'docs'", specifier = ">=0.16.7" },
     { name = "nutpie", marker = "extra == 'test'", specifier = ">=0.16.7" },
+    { name = "packaging" },
     { name = "pandas", specifier = ">=2.2" },
     { name = "pandas-stubs", marker = "extra == 'lint'" },
     { name = "papermill", marker = "extra == 'test'" },
@@ -4878,7 +4886,7 @@ requires-dist = [
     { name = "zarr", marker = "extra == 'test'", specifier = ">=3.0.8" },
     { name = "zarr", marker = "extra == 'zarr'", specifier = ">=3.0.8" },
 ]
-provides-extras = ["dag", "docs", "lint", "pie", "test", "zarr"]
+provides-extras = ["dag", "docs", "lint", "pie", "test", "var", "zarr"]
 
 [package.metadata.requires-dev]
 dev = [

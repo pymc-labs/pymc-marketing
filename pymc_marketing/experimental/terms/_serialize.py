@@ -70,10 +70,6 @@ for _graph_term in (Data, Equation, MediaTransform):
     )
 
 
-def _type_key(value: Any) -> str:
-    return f"{type(value).__module__}.{type(value).__qualname__}"
-
-
 def _node_fields(term: Any) -> dict[str, Any]:
     if isinstance(term, FourierBase):
         return {**term.model_dump(mode="json"), "prior": term.prior}
@@ -142,7 +138,10 @@ class _Writer:
                     raise SerializationError(
                         f"Cannot save {type(term).__name__}.{name}: {error}"
                     ) from error
-            self.nodes[identifier] = {"__type__": _type_key(term), "fields": encoded}
+            self.nodes[identifier] = {
+                "__type__": serialization.key_for(term.__class__),
+                "fields": encoded,
+            }
         return {"$ref": self.ids[key]}
 
     def value(self, value: Any) -> Any:
