@@ -1687,6 +1687,34 @@ class TestIncrementalReducers:
         expected = 4.0 * np.expm1(0.5) + 8.0 * np.expm1(0.25)
         np.testing.assert_allclose(result.values, [[expected]])
 
+    @pytest.mark.parametrize("window", [slice(1, 4), slice(0, 5), slice(2, 2)])
+    def test_log_reducer_reads_the_window_through_a_view(self, window, monkeypatch):
+        """The window's rows are read as a view, with the same values as by label."""
+        rng = np.random.default_rng(0)
+        all_dates = pd.date_range("2024-01-01", periods=5, freq="W")
+        baseline = xr.DataArray(
+            rng.uniform(1, 2, size=(3, 5, 2)),
+            dims=("sample", "date", "geo"),
+            coords={"date": all_dates},
+        )
+        dates = all_dates[window]
+        delta = self._delta(rng.normal(size=(3, len(dates), 2)), dates)
+        reads = []
+        multiply = xr.DataArray.__mul__
+
+        def spy(self, other):
+            reads.append(self)
+            return multiply(self, other)
+
+        monkeypatch.setattr(xr.DataArray, "__mul__", spy)
+        result = LogLinkReducer(baseline_response=baseline).per_date_increment(delta)
+        monkeypatch.undo()
+
+        expected = baseline.sel(date=dates) * np.expm1(delta)
+        xr.testing.assert_identical(result, expected)
+        if len(dates):
+            assert np.shares_memory(reads[0].values, baseline.values)
+
     def test_log_reducer_zero_perturbation_gives_zero(self):
         """No change in the linear predictor means no incremental response."""
         dates = pd.date_range("2024-01-01", periods=3, freq="W")
