@@ -31,7 +31,7 @@ evaluations out, one scenario at a time:
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, cast
 
@@ -416,9 +416,9 @@ class PeriodReadout[B, R](ABC):
     counterfactual one block of samples at a time, and the readout decides
     what is kept at each step:
 
-    1. :meth:`reduce_row` reduces one scenario's change in the linear
-       predictor to a response-scale increment, before the channels are
-       stacked.
+    1. :meth:`reduce_rows` reduces one period's scenarios, one change in the
+       linear predictor per channel, to a response-scale increment stacked
+       over ``channel``, through :meth:`reduce_row`.
     2. :meth:`reduce_block` reduces one period of one block, its scenarios
        stacked over ``channel`` and its samples laid out as
        ``(chain, draw)``, to what is held until every block is in.  The
@@ -433,16 +433,51 @@ class PeriodReadout[B, R](ABC):
     overrides only the steps it changes.
     """
 
+    def reduce_rows(
+        self,
+        rows: Iterable[xr.DataArray],
+        reducer: IncrementalReducer,
+        channels: Sequence | None,
+    ) -> xr.DataArray:
+        """Reduce one period's scenarios of one block of samples.
+
+        By default the rows are stacked over ``channel`` first and reduced in
+        one call.  The per-date reduction acts date by date and cell by cell,
+        so one call gives the same values as one call per row, without the
+        per-call overhead.
+
+        Parameters
+        ----------
+        rows : iterable of xr.DataArray
+            One change in the linear predictor per channel, in the order of
+            *channels*, from :class:`LinearPredictorDelta`.  A single row for
+            the joint estimand.
+        reducer : IncrementalReducer
+            The link's reduction, restricted to the block's samples.
+        channels : sequence or None
+            Labels to stack the rows over, or ``None`` for the joint estimand.
+
+        Returns
+        -------
+        xr.DataArray
+            The period's response-scale increment, with ``channel`` unless
+            *channels* is ``None``.
+        """
+        if channels is None:
+            return self.reduce_row(next(iter(rows)), reducer)
+        stacked = xr.concat(list(rows), dim="channel").assign_coords(channel=channels)
+        return self.reduce_row(stacked, reducer)
+
     def reduce_row(
         self, delta_mu: xr.DataArray, reducer: IncrementalReducer
     ) -> xr.DataArray:
-        """Reduce one scenario's change in the linear predictor.
+        """Reduce a change in the linear predictor to a response-scale increment.
 
         Parameters
         ----------
         delta_mu : xr.DataArray
             Dims ``("sample", "date", *custom_dims)``, from
-            :class:`LinearPredictorDelta`.
+            :class:`LinearPredictorDelta`, possibly stacked over ``channel``.
         reducer : IncrementalReducer
             The link's reduction, restricted to the block's samples.
 
@@ -466,7 +501,7 @@ class PeriodReadout[B, R](ABC):
         Parameters
         ----------
         increment : xr.DataArray
-            The period's scenarios after :meth:`reduce_row`, stacked over
+            The period's scenarios after :meth:`reduce_rows`, stacked over
             ``channel`` for the per-channel estimand, with the sign convention
             applied.  Dims ``("chain", "draw", *dims)``, where *dims* are what
             :meth:`reduce_row` kept, the block's labels on ``chain`` and
@@ -518,6 +553,22 @@ class PeriodTotal(PeriodReadout[xr.DataArray, xr.DataArray]):
     report.  A period gets dims ``(date, chain, draw, *out_dims)``, with
     ``date`` of length one, the period end.
     """
+
+    def reduce_rows(
+        self,
+        rows: Iterable[xr.DataArray],
+        reducer: IncrementalReducer,
+        channels: Sequence | None,
+    ) -> xr.DataArray:
+        """See :meth:`PeriodReadout.reduce_rows`.
+
+        Each row is summed over ``date`` as it arrives, so only the sums are
+        stacked and one row's per-date change is held at a time.
+        """
+        totals = [self.reduce_row(row, reducer) for row in rows]
+        if channels is None:
+            return totals[0]
+        return xr.concat(totals, dim="channel").assign_coords(channel=channels)
 
     def reduce_row(
         self, delta_mu: xr.DataArray, reducer: IncrementalReducer

@@ -5078,30 +5078,25 @@ class Incrementality:
                 if scope == "per_channel"
                 else [(None, None)]
             )
-            # Link-specific reduction of each scenario to a response-scale
-            # difference, then the channels are stacked.  The reducers act date
-            # by date, so a scenario reduced on its own gets the same per-date
-            # values, and only the reduced scenarios are held.  A readout that
-            # keeps the per-date term labels it ``realization_date``, which
-            # rides along by name, so the reshape below threads it like any
-            # other dim.
-            increments = [
-                readout.reduce_row(
-                    delta_mu(
-                        counterfactual,
-                        baseline,
-                        row=scenarios.rows[(period_idx, key)],
-                        window=window,
-                        channel=channel,
-                    ),
-                    reducer,
+            # Link-specific reduction of the scenarios to a response-scale
+            # difference, stacked over channels; the readout decides whether
+            # the rows are reduced one by one or stacked first.  The rows are a
+            # generator, so a readout that reduces them one by one holds one
+            # change at a time.  A readout that keeps the per-date term labels
+            # it ``realization_date``, which rides along by name, so the
+            # reshape below threads it like any other dim.
+            rows = (
+                delta_mu(
+                    counterfactual,
+                    baseline,
+                    row=scenarios.rows[(period_idx, key)],
+                    window=window,
+                    channel=channel,
                 )
                 for key, channel in slices
-            ]
-            increment = (
-                xr.concat(increments, dim="channel").assign_coords(channel=channels)
-                if scope == "per_channel"
-                else increments[0]
+            )
+            increment = readout.reduce_rows(
+                rows, reducer, channels if scope == "per_channel" else None
             )
 
             # Then the sign convention:

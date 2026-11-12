@@ -19,7 +19,11 @@ import pytest
 import xarray as xr
 
 from pymc_marketing.mmm.counterfactual import EvaluationWindows
-from pymc_marketing.mmm.incrementality import IdentityLinkReducer, Incrementality
+from pymc_marketing.mmm.incrementality import (
+    IdentityLinkReducer,
+    Incrementality,
+    LogLinkReducer,
+)
 from pymc_marketing.mmm.period_readout import (
     LinearPredictorDelta,
     PeriodBand,
@@ -311,3 +315,47 @@ class TestPeriodReadouts:
         per_date = reducer.per_date_increment(delta_mu).rename(date="realization_date")
         for readout in (PeriodBand(), PeriodCurrentFuture(0)):
             xr.testing.assert_identical(readout.reduce_row(delta_mu, reducer), per_date)
+
+    @pytest.mark.parametrize("link", ["identity", "log"])
+    def test_reduce_rows_matches_reducing_each_row(self, link):
+        """Stacking the rows before the reduction gives bitwise the same increment.
+
+        A band and a split reduce the stacked rows in one call; a total sums
+        each row over ``date`` first.  Both have to equal reducing every row on
+        its own and stacking the results.
+        """
+        rng = np.random.default_rng(0)
+        channels = ["c0", "c1", "c2"]
+        rows = [
+            xr.DataArray(
+                rng.normal(size=(4, 3, 2)),
+                dims=("sample", "date", "geo"),
+                coords={"date": DATES[:3], "geo": ["g0", "g1"]},
+            )
+            for _ in channels
+        ]
+        if link == "identity":
+            reducer = IdentityLinkReducer(
+                scale=xr.DataArray([2.0, 3.0], dims="geo", coords={"geo": ["g0", "g1"]})
+            )
+        else:
+            reducer = LogLinkReducer(
+                baseline_response=xr.DataArray(
+                    rng.uniform(1, 2, size=(4, 5, 2)),
+                    dims=("sample", "date", "geo"),
+                    coords={"date": DATES[:5], "geo": ["g0", "g1"]},
+                )
+            )
+
+        for readout in (PeriodTotal(), PeriodBand(), PeriodCurrentFuture(0)):
+            expected = xr.concat(
+                [readout.reduce_row(row, reducer) for row in rows], dim="channel"
+            ).assign_coords(channel=channels)
+            got = readout.reduce_rows(iter(rows), reducer, channels)
+            # The caller transposes to its own order, so only the values and
+            # labels have to match.
+            xr.testing.assert_identical(got.transpose(*expected.dims), expected)
+            xr.testing.assert_identical(
+                readout.reduce_rows(iter(rows[:1]), reducer, None),
+                readout.reduce_row(rows[0], reducer),
+            )
