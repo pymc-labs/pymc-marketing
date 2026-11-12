@@ -205,7 +205,7 @@ from pymc_marketing.data.idata.mmm_wrapper import MMMIDataWrapper
 from pymc_marketing.metrics import crps
 from pymc_marketing.mmm.summary.helpers import compute_residuals
 from pymc_marketing.mmm.utils import build_contributions
-from pymc_marketing.names.mmm import Dim, Group, Var
+from pymc_marketing.names.mmm import ORIGINAL_SCALE_SUFFIX, Dim, Group, Var
 
 __all__ = ["MMMPlotSuite"]
 
@@ -3815,7 +3815,7 @@ class MMMPlotSuite:
                 var = [
                     v
                     for v in posterior_vars
-                    if v.endswith("_contribution_original_scale")
+                    if v.endswith(f"_contribution{ORIGINAL_SCALE_SUFFIX}")
                     and v not in excluded_vars
                 ]
                 # If no original scale vars, fall back to regular contribution vars

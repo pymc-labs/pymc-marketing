@@ -40,7 +40,7 @@ from pymc_marketing.names.mmm import (
     Attr,
     Dim,
     Var,
-    original_scale,
+    original_scale_name,
 )
 
 if TYPE_CHECKING:
@@ -1081,9 +1081,9 @@ class MMMIDataWrapper:
         >>> original = wrapper.to_original_scale(scaled_data)
         """
         if isinstance(var, str):
-            if original_scale(var) in self.idata.posterior:
+            if original_scale_name(var) in self.idata.posterior:
                 # Corresponding _original_scale variable exists
-                return self.idata.posterior[original_scale(var)]
+                return self.idata.posterior[original_scale_name(var)]
 
             if var.endswith(ORIGINAL_SCALE_SUFFIX):
                 # Variable is already in original scale - return directly

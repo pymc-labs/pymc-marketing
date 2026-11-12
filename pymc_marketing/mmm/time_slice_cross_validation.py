@@ -40,7 +40,7 @@ from pymc_marketing.mmm.plot import MMMPlotSuite
 from pymc_marketing.mmm.plotting.cv import MMMCVPlotSuite
 from pymc_marketing.mmm.summary.cv import MMMCVSummaryFactory
 from pymc_marketing.mmm.types import MMMBuilder
-from pymc_marketing.names.mmm import Group, Var, original_scale
+from pymc_marketing.names.mmm import Group, Var, original_scale_name
 from pymc_marketing.serialization import serialization
 
 
@@ -89,7 +89,7 @@ def _add_original_scale_predictions(idata: xr.DataTree, output_var: str) -> None
     output_var : str
         Name of the observed variable (``MMM.output_var``).
     """
-    name = original_scale(output_var)
+    name = original_scale_name(output_var)
     pp = None
     target_scale = None
     if isinstance(idata, xr.DataTree):

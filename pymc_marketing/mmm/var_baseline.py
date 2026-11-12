@@ -39,7 +39,7 @@ from scipy.stats import halfnorm
 
 from pymc_marketing.mmm.additive_effect import MuEffect, safe_to_datetime
 from pymc_marketing.mmm.link import LinkFunction
-from pymc_marketing.names.mmm import DatasetVar, Var, effect_contribution
+from pymc_marketing.names.mmm import DatasetVar, Var, effect_contribution_name
 from pymc_marketing.serialization import (
     DeserializationContext,
     SerializationError,
@@ -946,7 +946,7 @@ class VARBaselineEffect(MuEffect):
 
         baseline = ptx.as_xtensor(handles.latent[:, 0], dims=("date",))
         return pmd.Deterministic(
-            effect_contribution(self.prefix), baseline / target_scale
+            effect_contribution_name(self.prefix), baseline / target_scale
         )
 
     def set_data(  # type: ignore[override]

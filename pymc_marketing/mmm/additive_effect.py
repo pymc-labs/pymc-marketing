@@ -241,7 +241,7 @@ from pymc_marketing.mmm.optimization_variables import (
 )
 from pymc_marketing.mmm.validating import _validate_non_numeric_dtype
 from pymc_marketing.names import Key
-from pymc_marketing.names.mmm import Dim, effect_contribution
+from pymc_marketing.names.mmm import Dim, effect_contribution_name
 from pymc_marketing.serialization import SerializableBaseModel, serialization
 
 
@@ -499,7 +499,7 @@ class MuEffect(SerializableBaseModel, ABC):
             raise NotImplementedError(
                 f"{type(self).__name__} must define 'contribution_var_name'."
             )
-        return effect_contribution(prefix)
+        return effect_contribution_name(prefix)
 
     def incrementality_spec(self) -> IncrementalitySpec | None:
         """Opt this effect in to spend-counterfactual incrementality analysis.
@@ -825,7 +825,7 @@ class MediaMuEffect(DataVarMuEffect):
         data = mmm.model[var_name]
         effect = self.media_transformation(data, dim="date")
         return pmd.Deterministic(
-            effect_contribution(self.prefix),
+            effect_contribution_name(self.prefix),
             effect.sum(dim=self.channel_dim),
         )
 
@@ -898,7 +898,7 @@ class ControlMuEffect(DataVarMuEffect):
         if extra_dims:
             total = total.sum(dim=extra_dims)
         return pmd.Deterministic(
-            effect_contribution(self.prefix),
+            effect_contribution_name(self.prefix),
             total,
         )
 
@@ -1231,7 +1231,7 @@ class LinearTrendEffect(MuEffect):
         trend_effect = self.trend.apply(t / scale, t_max=t_max / scale)
 
         return pmd.Deterministic(
-            effect_contribution(self.prefix),
+            effect_contribution_name(self.prefix),
             trend_effect,
         )
 

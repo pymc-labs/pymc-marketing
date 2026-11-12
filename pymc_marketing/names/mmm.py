@@ -115,10 +115,10 @@ class Group(names.Group):
 
 
 ORIGINAL_SCALE_SUFFIX: Final = "_original_scale"
-"""Suffix of the original-scale copy of a variable, see :func:`original_scale`."""
+"""Suffix of the original-scale copy of a variable, see :func:`original_scale_name`."""
 
 
-def original_scale(name: str) -> str:
+def original_scale_name(name: str) -> str:
     """Return the name of the original-scale version of a variable.
 
     Parameters
@@ -135,23 +135,24 @@ def original_scale(name: str) -> str:
     --------
     .. code-block:: python
 
-        from pymc_marketing.names.mmm import Var, original_scale
+        from pymc_marketing.names.mmm import Var, original_scale_name
 
-        original_scale(Var.CHANNEL_CONTRIBUTION)
+        original_scale_name(Var.CHANNEL_CONTRIBUTION)
         # 'channel_contribution_original_scale'
     """
     return f"{name}{ORIGINAL_SCALE_SUFFIX}"
 
 
 EFFECT_CONTRIBUTION_SUFFIX: Final = "_effect_contribution"
-"""Suffix of the contribution an additive effect registers, see :func:`effect_contribution`."""
+"""Suffix of the default contribution name of an additive effect, see :func:`effect_contribution_name`."""
 
 
-def effect_contribution(prefix: str) -> str:
-    """Return the name of the contribution variable of an additive effect.
+def effect_contribution_name(prefix: str) -> str:
+    """Return the default name of the contribution variable of an additive effect.
 
-    Each additive effect registers its contribution under this name, and
-    ``MuEffect.contribution_var_name`` reads it back by default.
+    ``MuEffect.contribution_var_name`` returns this name by default, and the
+    effects that keep the default register their contribution under it.
+    ``FourierEffect`` and ``EventAdditiveEffect`` register names of their own.
 
     Parameters
     ----------
@@ -167,9 +168,9 @@ def effect_contribution(prefix: str) -> str:
     --------
     .. code-block:: python
 
-        from pymc_marketing.names.mmm import effect_contribution
+        from pymc_marketing.names.mmm import effect_contribution_name
 
-        effect_contribution("trend")
+        effect_contribution_name("trend")
         # 'trend_effect_contribution'
     """
     return f"{prefix}{EFFECT_CONTRIBUTION_SUFFIX}"

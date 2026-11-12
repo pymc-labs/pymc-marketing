@@ -288,7 +288,7 @@ from pymc_marketing.names.mmm import (
     DatasetVar,
     Dim,
     Var,
-    original_scale,
+    original_scale_name,
 )
 from pymc_marketing.serialization import (
     DeserializationContext,
@@ -2706,7 +2706,7 @@ class MMM(RegressionModelBuilder):
         with self.model:
             for v in var:
                 self._validate_contribution_variable(v)
-                name = original_scale(v)
+                name = original_scale_name(v)
 
                 if name in self.model.named_vars:
                     warnings.warn(
@@ -5734,7 +5734,7 @@ class MMM(RegressionModelBuilder):
         vars_to_restore = [
             var
             for var in vars_to_restore
-            if f"{var}_original_scale" not in self.model.named_vars
+            if original_scale_name(var) not in self.model.named_vars
         ]
         if vars_to_restore:
             self.add_original_scale_contribution_variable(var=vars_to_restore)
