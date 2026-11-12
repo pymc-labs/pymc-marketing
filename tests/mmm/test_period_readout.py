@@ -308,13 +308,19 @@ class TestPeriodReadouts:
             coords={"date": DATES[:3]},
         )
 
-        xr.testing.assert_identical(
-            PeriodTotal().reduce_row(delta_mu, reducer),
-            reducer.counterfactual_minus_baseline(delta_mu),
+        total = PeriodTotal().reduce_row(delta_mu, reducer)
+
+        assert total.dims == ("sample",)
+        np.testing.assert_array_equal(
+            total.values, [2.0 * (0 + 1 + 2), 2.0 * (3 + 4 + 5)]
         )
-        per_date = reducer.per_date_increment(delta_mu).rename(date="realization_date")
         for readout in (PeriodBand(), PeriodCurrentFuture(0)):
-            xr.testing.assert_identical(readout.reduce_row(delta_mu, reducer), per_date)
+            per_date = readout.reduce_row(delta_mu, reducer)
+            assert per_date.dims == ("sample", "realization_date")
+            np.testing.assert_array_equal(per_date.values, 2.0 * delta_mu.values)
+            np.testing.assert_array_equal(
+                per_date.indexes["realization_date"], DATES[:3]
+            )
 
     @pytest.mark.parametrize("link", ["identity", "log"])
     def test_reduce_rows_matches_reducing_each_row(self, link):

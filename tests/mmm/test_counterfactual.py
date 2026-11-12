@@ -1250,7 +1250,10 @@ class TestPeriodEdgeCases:
                 window_positions[window.window_eval_slice],
                 np.flatnonzero(eval_mask(window, windows.max_window)),
             )
-            assert full_axis_values[window.eval_slice].base is full_axis_values
+            # Plain contiguous slices, so the reads through them are views.
+            for read in (window.eval_slice, window.window_eval_slice):
+                assert isinstance(read, slice)
+                assert read.step is None
             if not window.in_eval.any():
                 assert window.eval_slice == slice(0, 0)
                 assert window.window_eval_slice == slice(0, 0)

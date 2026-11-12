@@ -33,6 +33,7 @@ import pytest
 import xarray as xr
 from pydantic import ValidationError
 from pymc_extras.prior import Prior
+from threadpoolctl import threadpool_limits
 
 import pymc_marketing
 from pymc_marketing.data.idata.utils import subsample_draws
@@ -4568,6 +4569,30 @@ class TestSplitIncrementalContribution:
             simple_fitted_mmm.incrementality.split_incremental_contribution_current_future(
                 frequency=frequency, horizon=horizon
             )
+
+    @pytest.mark.parametrize("frequency", ["original", "monthly"])
+    def test_cells_past_the_horizon_are_exactly_zero(
+        self, funnel_time_varying_media_fitted_mmm, frequency
+    ):
+        """Spend cannot move a date its carryover does not reach, so that cell is exactly zero.
+
+        The baseline and the scenarios come from the same compiled graph, so
+        an unperturbed date differences to zero, not to rounding noise.  Time-
+        varying media is where two compiled graphs would round differently.
+        BLAS runs on one thread here: with several, a batch of scenarios and
+        the baseline can round differently even through the same graph.
+        """
+        mmm = funnel_time_varying_media_fitted_mmm
+        with threadpool_limits(limits=1):
+            band = mmm.incrementality.split_incremental_contribution_over_time(
+                frequency=frequency
+            )
+        # Weekly data: data periods between the spend and the realization date.
+        lag = (band.realization_date - band.spend_date).dt.days // 7
+        past_horizon = lag > band.attrs["effective_horizon"]
+
+        assert bool(past_horizon.any())
+        assert int(((band != 0) & past_horizon).sum()) == 0
 
 
 def _fit_with_saturation(data, saturation, **kwargs):
