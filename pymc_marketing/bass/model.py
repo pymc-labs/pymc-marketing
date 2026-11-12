@@ -884,7 +884,7 @@ class BassModel(ModelBuilder):
         """
         ds = to_bass_dataset(X)
         new_t = ds.coords[Dim.T].values
-        set_data: dict[str, Any] = {"t": new_t}
+        set_data: dict[str, Any] = {Var.TIME: new_t}
         # Refresh any covariate the recipes registered, so an out-of-sample
         # call uses the new covariate values rather than the fitted ones.
         # A covariate whose time length disagrees with the new grid is
@@ -1031,7 +1031,7 @@ class BassModel(ModelBuilder):
         self.model = pm.Model(coords=coords)
 
         with self.model:
-            t_data = pm.Data("t", t, dims=Dim.T)
+            t_data = pm.Data(Var.TIME, t, dims=Dim.T)
             if observed is not None:
                 y_obs = pm.Data(Var.Y_OBS, observed.values, dims=observed.dims)
             else:

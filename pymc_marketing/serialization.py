@@ -237,7 +237,9 @@ class TypeRegistry:
             if resolved is not None and not getattr(resolved, "_type_injected", False):
                 original_to_dict = resolved  # resolved through MRO
 
-                def _wrapped_to_dict(instance, _orig=original_to_dict):
+                def _wrapped_to_dict(
+                    instance, _orig=original_to_dict
+                ) -> dict[str, Any]:
                     type_key = self.key_for(instance.__class__)
                     return {Key.TYPE: type_key, **_orig(instance)}
 
