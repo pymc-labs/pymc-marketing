@@ -1730,6 +1730,30 @@ class TestIncrementalReducers:
         with pytest.raises(KeyError):
             LogLinkReducer(baseline_response=baseline).per_date_increment(delta)
 
+    @pytest.mark.parametrize(
+        "call",
+        [
+            lambda inc: inc.compute_incremental_contribution(frequency="all_time"),
+            lambda inc: inc.split_incremental_contribution_over_time(
+                frequency="original"
+            ),
+        ],
+        ids=["total", "band"],
+    )
+    def test_a_dim_the_reducer_brings_in_is_refused(
+        self, simple_fitted_mmm, monkeypatch, call
+    ):
+        """The increment is laid out by name, so an unexpected dim raises instead of riding along."""
+        real = IdentityLinkReducer.per_date_increment
+
+        def with_extra_dim(self, delta):
+            return real(self, delta).expand_dims(extra=2)
+
+        monkeypatch.setattr(IdentityLinkReducer, "per_date_increment", with_extra_dim)
+
+        with pytest.raises(ValueError, match="extra"):
+            call(simple_fitted_mmm.incrementality)
+
     def test_log_reducer_zero_perturbation_gives_zero(self):
         """No change in the linear predictor means no incremental response."""
         dates = pd.date_range("2024-01-01", periods=3, freq="W")

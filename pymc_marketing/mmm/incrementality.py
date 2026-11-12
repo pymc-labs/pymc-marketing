@@ -5119,7 +5119,11 @@ class Incrementality:
             # Then the sign convention:
             # factor > 1 → Y(perturbed) - Y(actual)    (marginal)
             # factor < 1 → Y(actual) - Y(counterfactual) (total)
-            increment = increment.transpose("sample", ..., *out_dims)
+            # Listed in full, so a dim the reducer brings in raises here.
+            date_dims = (
+                ("realization_date",) if "realization_date" in increment.dims else ()
+            )
+            increment = increment.transpose("sample", *date_dims, *out_dims)
             if counterfactual_spend_factor <= 1.0:
                 increment = -increment
             # Shape: (n_samples, [realization_date,] *out_dims),
