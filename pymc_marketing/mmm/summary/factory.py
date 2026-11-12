@@ -733,6 +733,7 @@ class MMMSummaryFactory:
         )
 
         spend = self.data.get_channel_spend()
+        # The value column carries the name of the idata variable it holds.
         col_name = (
             Var.CHANNEL_SPEND
             if hasattr(self.data.idata, "constant_data")

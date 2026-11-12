@@ -919,7 +919,7 @@ class MMM(RegressionModelBuilder):
         if self.yearly_seasonality is not None:
             self.yearly_fourier = YearlyFourier(
                 n_order=self.yearly_seasonality,
-                prefix="fourier_mode",
+                prefix=Dim.FOURIER_MODE,
                 prior=self.model_config["gamma_fourier"],
                 variable_name="gamma_fourier",
             )
@@ -1329,18 +1329,18 @@ class MMM(RegressionModelBuilder):
         attrs[Attr.SERIALIZATION_VERSION] = "1"
         attrs["dims"] = json.dumps(self.dims)
         attrs["date_column"] = self.date_column
-        attrs["adstock"] = json.dumps(serialization.serialize(self.adstock))
-        attrs["saturation"] = json.dumps(serialization.serialize(self.saturation))
+        attrs[Attr.ADSTOCK] = json.dumps(serialization.serialize(self.adstock))
+        attrs[Attr.SATURATION] = json.dumps(serialization.serialize(self.saturation))
         attrs["adstock_first"] = json.dumps(self.adstock_first)
         attrs["control_columns"] = json.dumps(self.control_columns)
         attrs["channel_columns"] = json.dumps(self.channel_columns)
         attrs["yearly_seasonality"] = json.dumps(self.yearly_seasonality)
-        attrs["time_varying_intercept"] = json.dumps(
+        attrs[Attr.TIME_VARYING_INTERCEPT] = json.dumps(
             serialization.serialize(self.time_varying_intercept)
             if isinstance(self.time_varying_intercept, HSGPBase)
             else self.time_varying_intercept
         )
-        attrs["time_varying_media"] = json.dumps(
+        attrs[Attr.TIME_VARYING_MEDIA] = json.dumps(
             serialization.serialize(self.time_varying_media)
             if isinstance(self.time_varying_media, HSGPBase)
             else self.time_varying_media
@@ -1520,8 +1520,8 @@ class MMM(RegressionModelBuilder):
                 return serialization.deserialize(data)
             return fallback if fallback is not None else data
 
-        tvi_raw = attrs.get("time_varying_intercept", "false")
-        tvm_raw = attrs.get("time_varying_media", "false")
+        tvi_raw = attrs.get(Attr.TIME_VARYING_INTERCEPT, "false")
+        tvm_raw = attrs.get(Attr.TIME_VARYING_MEDIA, "false")
         tvi_data = json.loads(tvi_raw)
         tvm_data = json.loads(tvm_raw)
 
@@ -1532,8 +1532,8 @@ class MMM(RegressionModelBuilder):
             "date_column": attrs["date_column"],
             "control_columns": json.loads(attrs["control_columns"]),
             "channel_columns": json.loads(attrs["channel_columns"]),
-            "adstock": _deser(attrs["adstock"]),
-            "saturation": _deser(attrs["saturation"]),
+            "adstock": _deser(attrs[Attr.ADSTOCK]),
+            "saturation": _deser(attrs[Attr.SATURATION]),
             "adstock_first": json.loads(attrs.get("adstock_first", "true")),
             "link": attrs.get(Attr.LINK, "identity"),
             "yearly_seasonality": json.loads(attrs["yearly_seasonality"]),
@@ -1879,14 +1879,14 @@ class MMM(RegressionModelBuilder):
 
         channel_da: xr.DataArray = posterior[Var.CHANNEL_CONTRIBUTION]
         for ch in channel_da.coords["channel"].values:
-            ch_comp = channel_da.sel(channel=ch).drop_vars("channel", errors="ignore")
+            ch_comp = channel_da.sel(channel=ch).drop_vars(Dim.CHANNEL, errors="ignore")
             parts[str(ch)] = counterfactual_fn(ch_comp)
 
         if Var.CONTROL_CONTRIBUTION in posterior:
             control_da: xr.DataArray = posterior[Var.CONTROL_CONTRIBUTION]
             for ctrl in control_da.coords["control"].values:
                 ctrl_comp = control_da.sel(control=ctrl).drop_vars(
-                    "control", errors="ignore"
+                    Dim.CONTROL, errors="ignore"
                 )
                 parts[str(ctrl)] = counterfactual_fn(ctrl_comp)
 
@@ -2137,10 +2137,10 @@ class MMM(RegressionModelBuilder):
             "intercept": self._link_spec.default_intercept(self.dims),
             "likelihood": self._link_spec.default_likelihood(self.dims),
             "gamma_control": Prior(
-                "Normal", mu=0, sigma=2, dims=(*self.dims, "control")
+                "Normal", mu=0, sigma=2, dims=(*self.dims, Dim.CONTROL)
             ),
             "gamma_fourier": Prior(
-                "Laplace", mu=0, b=1, dims=(*self.dims, "fourier_mode")
+                "Laplace", mu=0, b=1, dims=(*self.dims, Dim.FOURIER_MODE)
             ),
         }
 
@@ -3805,7 +3805,7 @@ class MMM(RegressionModelBuilder):
 
         # Honour a caller-supplied date_dim rather than assuming "date": this is
         # the method that feeds BudgetOptimizer's configurable date_dim field.
-        date_dim = kwargs.get("date_dim", Dim.DATE)
+        date_dim = kwargs.get("date_dim", "date")
         layout = self._window_layout(pymc_model, start_date, date_dim=date_dim)
 
         # budgets_to_optimize is intentionally passed through untouched. When it is

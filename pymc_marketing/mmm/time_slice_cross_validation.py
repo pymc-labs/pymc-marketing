@@ -365,7 +365,7 @@ class TimeSliceCrossValidator:
             meta_arr[i] = m
 
         ds_meta = xr.Dataset(
-            {"metadata": ("cv", meta_arr)},
+            {Var.METADATA: ("cv", meta_arr)},
             coords={"cv": cv_coord},
         )
 

@@ -74,7 +74,7 @@ def _read_fold_meta(
     cv_data: xr.DataTree, cv_label: str
 ) -> tuple[pd.DataFrame, pd.Series, pd.DataFrame, pd.Series]:
     """Return (X_train, y_train, X_test, y_test) for a given fold label."""
-    meta = cv_data.cv_metadata["metadata"].sel(cv=cv_label).values.item()
+    meta = cv_data.cv_metadata[Var.METADATA].sel(cv=cv_label).values.item()
     return meta["X_train"], meta["y_train"], meta["X_test"], meta["y_test"]
 
 

@@ -1486,7 +1486,7 @@ class MMMPlotSuite:
         # Identify additional dimensions (beyond chain, draw, and channel if present)
         ignored_dims = {"chain", "draw"}
         if has_channel_dim:
-            ignored_dims.add("channel")
+            ignored_dims.add(Dim.CHANNEL)
         additional_dims = [
             d for d in all_dims if d not in ignored_dims and d not in (dims or {})
         ]
@@ -4384,7 +4384,7 @@ class MMMPlotSuite:
         # Validate presence of cv metadata and posterior predictive
         if (
             not hasattr(results, Group.CV_METADATA)
-            or "metadata" not in results.cv_metadata.dataset
+            or Var.METADATA not in results.cv_metadata.dataset
         ):
             raise ValueError(
                 "Provided DataTree must include a 'cv_metadata' group with a 'metadata' DataArray."
@@ -4456,7 +4456,7 @@ class MMMPlotSuite:
             return merged["y_value"], merged["date"]
 
         # Robust wrapper to call arviz.plot_hdi from an xarray DataArray `sel`.
-        def _plot_hdi_from_sel(sel, ax, color, label):
+        def _plot_hdi_from_sel(sel, ax, color, label) -> None:
             sel2 = sel.squeeze()
             arr = getattr(sel2, "values", sel2)
             if arr.ndim == 1:
@@ -4559,7 +4559,7 @@ class MMMPlotSuite:
                     )
 
                 # Extract train/test metadata for this fold from cv_metadata
-                meta_da = results.cv_metadata["metadata"].sel(cv=cv_label)
+                meta_da = results.cv_metadata[Var.METADATA].sel(cv=cv_label)
                 try:
                     meta = meta_da.values.item()
                 except (ValueError, AttributeError):
@@ -4950,7 +4950,7 @@ class MMMPlotSuite:
             )
         if (
             Group.CV_METADATA not in results.children
-            or "metadata" not in results[f"/{Group.CV_METADATA}"].dataset.data_vars
+            or Var.METADATA not in results[f"/{Group.CV_METADATA}"].dataset.data_vars
         ):
             raise ValueError(
                 "Provided DataTree must include a 'cv_metadata' group with a 'metadata' DataArray."
@@ -5142,7 +5142,7 @@ class MMMPlotSuite:
 
             # loop over cv folds using cv_metadata
             for _cv_idx, cv_label in enumerate(cv_labels):
-                meta_da = results.cv_metadata["metadata"].sel(cv=cv_label)
+                meta_da = results.cv_metadata[Var.METADATA].sel(cv=cv_label)
                 vals = getattr(meta_da, "values", None)
                 if isinstance(vals, np.ndarray) and vals.size == 1:
                     meta = vals.item()

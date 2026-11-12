@@ -75,8 +75,8 @@ def _migrate_v0_to_v1(attrs: dict[str, Any]) -> dict[str, Any]:
     """Rewrite v0 attrs to v1 format."""
     attrs = dict(attrs)
 
-    if "adstock" in attrs:
-        adstock = json.loads(attrs["adstock"])
+    if Attr.ADSTOCK in attrs:
+        adstock = json.loads(attrs[Attr.ADSTOCK])
         if (
             isinstance(adstock, dict)
             and "lookup_name" in adstock
@@ -84,16 +84,16 @@ def _migrate_v0_to_v1(attrs: dict[str, Any]) -> dict[str, Any]:
         ):
             lookup = adstock.pop("lookup_name")
             adstock[Key.TYPE] = _ADSTOCK_TYPE_MAP.get(lookup, lookup)
-            attrs["adstock"] = json.dumps(adstock)
+            attrs[Attr.ADSTOCK] = json.dumps(adstock)
 
-    if "saturation" in attrs:
-        sat = json.loads(attrs["saturation"])
+    if Attr.SATURATION in attrs:
+        sat = json.loads(attrs[Attr.SATURATION])
         if isinstance(sat, dict) and "lookup_name" in sat and Key.TYPE not in sat:
             lookup = sat.pop("lookup_name")
             sat[Key.TYPE] = _SATURATION_TYPE_MAP.get(lookup, lookup)
-            attrs["saturation"] = json.dumps(sat)
+            attrs[Attr.SATURATION] = json.dumps(sat)
 
-    for key in ("time_varying_intercept", "time_varying_media"):
+    for key in (Attr.TIME_VARYING_INTERCEPT, Attr.TIME_VARYING_MEDIA):
         if key in attrs:
             data = json.loads(attrs[key])
             if isinstance(data, dict) and "hsgp_class" in data and Key.TYPE not in data:

@@ -684,7 +684,7 @@ class BudgetModelEffect(MuEffect):
         control_stats = None
         if self.use_controls and DatasetVar.CONTROL in dataset:
             control_stats = _standardise_stats(
-                dataset[DatasetVar.CONTROL], keep="control"
+                dataset[DatasetVar.CONTROL], keep=Dim.CONTROL
             )
         instrument_stats = {}
         for name in self.instruments:

@@ -147,7 +147,7 @@ class MMMCVPlotSuite:
         if cv_data is not None:
             _validate_cv_results(data)
 
-        if not hasattr(data, Group.CV_METADATA) or "metadata" not in data.cv_metadata:
+        if not hasattr(data, Group.CV_METADATA) or Var.METADATA not in data.cv_metadata:
             raise ValueError(
                 "cv_data must have a cv_metadata group containing a 'metadata' variable."
             )
