@@ -2726,7 +2726,7 @@ class MMM(RegressionModelBuilder):
                     )
 
                 pmd.Deterministic(
-                    name, value.transpose("date", ..., missing_dims="ignore")
+                    name, value.transpose(Dim.DATE, ..., missing_dims="ignore")
                 )
 
         return self

@@ -13,14 +13,18 @@
 #   limitations under the License.
 """Validate that the names in ``pymc_marketing/names`` are not typed by hand again.
 
-Two checks run over ``pymc_marketing/``:
+Three checks run over ``pymc_marketing/``:
 
-1. A string literal in code must not equal a value that the names module of the
-   same package defines, and must not end with one of its suffixes. Docstrings,
-   ``__all__``, ``Literal[...]`` options, attribute names passed to ``getattr`` /
-   ``hasattr`` / ``setattr`` and parameter defaults are exempt. Any other
-   exception needs an entry in ``ALLOWED`` with a reason.
-2. A names constant must not be used inside a function without annotations,
+1. A string literal in code must not equal a value of a names module that owns
+   the file, and must not end with one of its suffixes. A names module owns a
+   file when the file is in its directory (see ``SCOPES``) or imports from it;
+   the shared names own every file. Docstrings, ``__all__``, ``Literal[...]``
+   options and attribute names passed to ``getattr`` / ``hasattr`` / ``setattr``
+   are exempt. Any other exception needs an entry in ``ALLOWED`` for that file.
+2. The MMM dims in ``DEFERRED_DIMS`` may stay literal where a typo raises
+   (``dims=...``, subscripts, reductions). In a position where a typo fails
+   silently (``in``, ``==``, ``.get``, set literals, ...) they follow check 1.
+3. A names constant must not be used inside a function without annotations,
    because ``mypy`` does not check the body of such a function.
 
 The script reads the names modules with ``ast`` and imports nothing from
@@ -44,7 +48,6 @@ PACKAGE = ROOT / "pymc_marketing"
 NAMES_DIR = PACKAGE / "names"
 
 # Directories under ``pymc_marketing/`` and the names module that owns their names.
-# Files outside these directories are checked against the shared names only.
 SCOPES = {
     "mmm": "mmm",
     "data": "mmm",
@@ -55,74 +58,133 @@ SCOPES = {
 }
 SHARED = "shared"
 
-_DEFERRED_DIM = (
-    "MMM dim: the literal stays where a typo raises and where it is a DataFrame "
-    "column (follow-up of #3190)"
-)
-_INIT_KEYWORD = (
-    "also an __init__ keyword, spelled where the keyword arguments are built"
-)
-_CONFIG_KEY = "also a model_config key, which stays a literal"
-_PLOT_LABEL = "plot label"
+# MMM dims that keep the literal where a typo raises (follow-up of #3190).
+DEFERRED_DIMS = frozenset({"date", "channel", "control", "cv", "sweep"})
+
+_KEYWORD = "__init__ keyword, spelled where the keyword arguments are built"
+_CONFIG_KEY = "model_config key, which stays a literal"
+_LABEL = "plot label"
+_DEFAULT = "default of a name the caller chooses"
+_COLUMN = "DataFrame column, config key or option with the same string, not the dim"
+_PARAMETER = "name of a distribution parameter"
+_SCRATCH = "scratch variable that never reaches the model or idata"
+_COMPONENT = "prefix of the component and name of its sampled curve"
 _OWN_MODEL = "name of a model that keeps its own names"
 
-# names module -> {value: why the literal may stay in the files of that scope}.
+# File (relative to ``pymc_marketing/``) -> {value: why the literal may stay there}.
 ALLOWED: dict[str, dict[str, str]] = {
-    SHARED: {
-        "model_config": _INIT_KEYWORD,
-        "sampler_config": _INIT_KEYWORD,
-        "model_type": "name of an MLflow parameter",
-    },
-    "mmm": {
-        "date": _DEFERRED_DIM,
-        "channel": _DEFERRED_DIM,
-        "control": _DEFERRED_DIM,
-        "cv": _DEFERRED_DIM,
-        "sweep": _DEFERRED_DIM,
-        "model_config": "__init__ keyword and YAML key",
-        "sampler_config": _INIT_KEYWORD,
-        "link": "__init__ keyword and key of the Incrementality assumptions",
-        "cost_per_unit": "__init__ keyword and label in the budget optimizer",
-        "mu_effects": "removed BudgetOptimizer keyword that is still recognised",
-        "adstock": "component prefix, __init__ keyword and media transformation field",
-        "saturation": "component prefix, __init__ keyword and media transformation field",
-        "time_varying_intercept": _INIT_KEYWORD,
-        "time_varying_media": "__init__ keyword and key of the Incrementality assumptions",
-        "mu": "name of a distribution parameter",
-        "y": "scratch variable in plots and synthetic data",
-        "allocation": "estimand option of Incrementality",
-        "channel_scale": "scratch DataFrame column in plot_interactive",
-        "time_index": "label of the batched input in CounterfactualEvaluator",
-        "y_original_scale": _PLOT_LABEL,
-    },
-    "clv": {
+    "bass/plotting.py": {"T": _LABEL, "imitators": _LABEL, "innovators": _LABEL},
+    "clv/models/beta_geo.py": {
         "dropout_coefficient": _CONFIG_KEY,
         "purchase_coefficient": _CONFIG_KEY,
+    },
+    "clv/models/modified_beta_geo.py": {
+        "dropout_coefficient": _CONFIG_KEY,
+        "purchase_coefficient": _CONFIG_KEY,
+    },
+    "clv/models/pareto_nbd.py": {
+        "dropout_coefficient": _CONFIG_KEY,
+        "purchase_coefficient": _CONFIG_KEY,
+    },
+    "clv/models/shifted_beta_geo.py": {
+        "dropout_coefficient": _CONFIG_KEY,
         "dropout": "name of the sBG likelihood, a different variable from Var.DROPOUT",
-        "T": _PLOT_LABEL,
     },
-    "customer_choice": {
-        "model_config": _INIT_KEYWORD,
-        "sampler_config": _INIT_KEYWORD,
-        "utility_equations": _INIT_KEYWORD,
-        "depvar": _INIT_KEYWORD,
-        "covariates": _INIT_KEYWORD,
-        "likelihood": "model_config key, and an attrs key of the BLP model",
-        "y": _OWN_MODEL + " (MVITS)",
-        "U": _OWN_MODEL + " (MaxDiff)",
-        "X": "MaxDiff data container, attribute name and synthetic data key",
+    "clv/plotting.py": {"T": _LABEL},
+    "clv/utils.py": {"customer_id": _DEFAULT},
+    "customer_choice/_choice_data_mixin.py": {
+        "covariates": _KEYWORD,
+        "depvar": _KEYWORD,
+        "utility_equations": _KEYWORD,
+        "model_config": _KEYWORD,
+        "sampler_config": _KEYWORD,
     },
-    "bass": {
-        "T": _PLOT_LABEL,
-        "innovators": _PLOT_LABEL,
-        "imitators": _PLOT_LABEL,
+    "customer_choice/bayesian_blp.py": {"likelihood": "attrs key of the BLP model"},
+    "customer_choice/maxdiff.py": {
+        "U": _OWN_MODEL,
+        "X": _OWN_MODEL,
+        "model_config": _KEYWORD,
+        "sampler_config": _KEYWORD,
     },
+    "customer_choice/mixed_logit.py": {"likelihood": _CONFIG_KEY},
+    "customer_choice/mnl_logit.py": {
+        "X": "name of the instance attribute that holds the data",
+        "covariates": _KEYWORD,
+        "depvar": _KEYWORD,
+        "utility_equations": _KEYWORD,
+        "likelihood": _CONFIG_KEY,
+    },
+    "customer_choice/mv_its.py": {
+        "likelihood": _CONFIG_KEY,
+        "y": _OWN_MODEL,
+        "model_config": _KEYWORD,
+        "sampler_config": _KEYWORD,
+    },
+    "customer_choice/nested_logit.py": {
+        "covariates": _KEYWORD,
+        "depvar": _KEYWORD,
+        "utility_equations": _KEYWORD,
+        "likelihood": _CONFIG_KEY,
+    },
+    "customer_choice/synthetic_data.py": {"X": "key of the synthetic data dictionary"},
+    "experimental/terms/_graph.py": {"mu": _PARAMETER},
+    "mlflow.py": {"model_type": "name of an MLflow parameter"},
+    "mmm/budget_optimizer.py": {
+        "cost_per_unit": "label and tensor name of the cost table",
+        "date": _COLUMN,
+        "mu_effects": "removed keyword that is still recognised",
+    },
+    "mmm/builders/factories.py": {"model_config": "YAML key"},
+    "mmm/components/adstock.py": {"adstock": _COMPONENT},
+    "mmm/components/saturation.py": {"saturation": _COMPONENT},
+    "mmm/counterfactual.py": {"time_index": "label of the batched input tensor"},
+    "mmm/events.py": {"saturation": _COMPONENT},
+    "mmm/fourier.py": {"fourier_mode": _DEFAULT},
+    "mmm/incrementality.py": {
+        "adstock": "name of the component passed to a check",
+        "saturation": "name of the component passed to a check",
+        "allocation": "estimand option",
+        "link": "key of the reported assumptions",
+        "time_varying_media": "key of the reported assumptions",
+    },
+    "mmm/lift_test.py": {"channel": _COLUMN, "date": _COLUMN, "mu": _PARAMETER},
+    "mmm/media_transformation.py": {
+        "adstock": "field of the serialized media transformation",
+        "saturation": "field of the serialized media transformation",
+    },
+    "mmm/mmm.py": {
+        "adstock": _KEYWORD,
+        "saturation": _KEYWORD,
+        "cost_per_unit": _KEYWORD,
+        "link": _KEYWORD,
+        "model_config": _KEYWORD,
+        "sampler_config": _KEYWORD,
+        "time_varying_intercept": _KEYWORD,
+        "time_varying_media": _KEYWORD,
+        "channel": _COLUMN,
+        "date": _COLUMN,
+        "y": _DEFAULT,
+    },
+    "mmm/plot.py": {"date": _COLUMN, "y_original_scale": _LABEL},
+    "mmm/plot_interactive.py": {"channel_scale": _SCRATCH, "date": _COLUMN},
+    "mmm/plotting/decomposition.py": {"y": "matplotlib keyword a caller may not set"},
+    "mmm/plotting/diagnostics.py": {"y": _SCRATCH},
+    "mmm/plotting/transformations.py": {"y": _SCRATCH},
+    "mmm/summary/cv.py": {"cv": _COLUMN, "date": _COLUMN},
+    "mmm/summary/factory.py": {"channel": _COLUMN, "control": _COLUMN, "y": _SCRATCH},
+    "mmm/summary/sensitivity.py": {"sweep": _COLUMN},
+    "mmm/synthetic_data/endogenous_spend.py": {"y": "column of the synthetic data"},
+    "mmm/utils.py": {"adstock": "name of an MMM attribute in a check"},
+    "model_builder.py": {"model_config": _KEYWORD, "sampler_config": _KEYWORD},
+    "pie/model.py": {"model_config": _KEYWORD},
 }
 
 ATTRIBUTE_NAME_FUNCTIONS = {"getattr", "hasattr", "setattr", "delattr"}
+SILENT_METHODS = {"get", "pop", "startswith", "endswith", "add", "discard"}
+SILENT_KEYWORDS = {"errors", "missing_dims"}
 
 
-def _string(node: ast.AST) -> str | None:
+def _string(node: ast.AST | None) -> str | None:
     if isinstance(node, ast.Constant) and isinstance(node.value, str):
         return node.value
     return None
@@ -146,38 +208,41 @@ def read_names_module(path: Path) -> tuple[dict[str, str], list[str], set[str]]:
     values: dict[str, str] = {}
     suffixes: list[str] = []
     identifiers: set[str] = set()
+
+    def assignments(body: list[ast.stmt]) -> Iterator[tuple[str, ast.expr | None]]:
+        for statement in body:
+            if isinstance(statement, ast.AnnAssign) and isinstance(
+                statement.target, ast.Name
+            ):
+                yield statement.target.id, statement.value
+            elif isinstance(statement, ast.Assign):
+                for target in statement.targets:
+                    if isinstance(target, ast.Name):
+                        yield target.id, statement.value
+
     for statement in tree.body:
         if isinstance(statement, ast.ClassDef):
             identifiers.add(statement.name)
-            for item in statement.body:
-                if isinstance(item, ast.AnnAssign) and isinstance(
-                    item.target, ast.Name
-                ):
-                    value = _string(item.value) if item.value is not None else None
-                    if value is not None:
-                        values.setdefault(value, f"{statement.name}.{item.target.id}")
+            for attribute, expression in assignments(statement.body):
+                value = _string(expression)
+                if value is not None:
+                    values.setdefault(value, f"{statement.name}.{attribute}")
         elif isinstance(statement, ast.FunctionDef):
             identifiers.add(statement.name)
-        elif isinstance(statement, ast.AnnAssign) and isinstance(
-            statement.target, ast.Name
-        ):
-            identifiers.add(statement.target.id)
-            value = _string(statement.value) if statement.value is not None else None
-            if value is not None and statement.target.id.endswith("_SUFFIX"):
-                suffixes.append(value)
-        elif isinstance(statement, ast.Assign):
-            identifiers.update(
-                target.id
-                for target in statement.targets
-                if isinstance(target, ast.Name)
-            )
+    for name, expression in assignments(tree.body):
+        identifiers.add(name)
+        value = _string(expression)
+        if value is not None and name.endswith("_SUFFIX"):
+            suffixes.append(value)
     return values, suffixes, identifiers
 
 
-def scope_of(path: Path) -> str:
-    """Return the names module that owns the names of ``path``."""
-    parts = path.relative_to(PACKAGE).parts
-    return SCOPES.get(parts[0], SHARED) if len(parts) > 1 else SHARED
+def _parents(tree: ast.AST) -> dict[int, ast.AST]:
+    return {
+        id(child): node
+        for node in ast.walk(tree)
+        for child in ast.iter_child_nodes(node)
+    }
 
 
 def _exempt_nodes(tree: ast.AST) -> set[int]:
@@ -208,10 +273,33 @@ def _exempt_nodes(tree: ast.AST) -> set[int]:
             and len(node.args) > 1
         ):
             exempt.add(id(node.args[1]))
-        elif isinstance(node, ast.arguments):
-            for default in (*node.defaults, *node.kw_defaults):
-                exempt_subtree(default)
     return exempt
+
+
+def _is_silent(node: ast.AST, parents: dict[int, ast.AST]) -> bool:
+    """Return whether a typo in the string ``node`` would fail without raising."""
+    parent = parents.get(id(node))
+    if isinstance(parent, (ast.Tuple, ast.List)):
+        node, parent = parent, parents.get(id(parent))
+    if isinstance(parent, ast.Set):
+        return True
+    if isinstance(parent, ast.Compare):
+        return any(
+            isinstance(operator, (ast.In, ast.NotIn, ast.Eq, ast.NotEq))
+            for operator in parent.ops
+        )
+    if isinstance(parent, ast.Call) and node in parent.args:
+        if (
+            isinstance(parent.func, ast.Attribute)
+            and parent.func.attr in SILENT_METHODS
+            and parent.args[0] is node
+        ):
+            return True
+        return any(
+            keyword.arg in SILENT_KEYWORDS and _string(keyword.value) == "ignore"
+            for keyword in parent.keywords
+        )
+    return False
 
 
 def _literals(tree: ast.AST) -> Iterator[tuple[ast.Constant, bool]]:
@@ -223,24 +311,38 @@ def _literals(tree: ast.AST) -> Iterator[tuple[ast.Constant, bool]]:
         for part in node.values
     }
     for node in ast.walk(tree):
-        if _string(node) is not None:
-            yield node, id(node) in fragments  # type: ignore[misc]
+        if isinstance(node, ast.Constant) and isinstance(node.value, str):
+            yield node, id(node) in fragments
 
 
-def _names_imports(tree: ast.AST, identifiers: set[str]) -> set[str]:
-    """Return the local names that ``tree`` imports from the names package."""
-    imported: set[str] = set()
+def _names_imports(tree: ast.AST, identifiers: set[str]) -> tuple[set[str], set[str]]:
+    """Return the local names and the names modules that ``tree`` imports."""
+    local_names: set[str] = set()
+    modules: set[str] = set()
     for node in ast.walk(tree):
-        if isinstance(node, ast.ImportFrom) and node.module is not None:
-            if node.module == "pymc_marketing.names" or node.module.startswith(
-                "pymc_marketing.names."
-            ):
-                imported.update(
-                    alias.asname or alias.name
-                    for alias in node.names
-                    if alias.name in identifiers
-                )
-    return imported
+        if not isinstance(node, ast.ImportFrom) or node.module is None:
+            continue
+        if node.module == "pymc_marketing":
+            local_names.update(
+                alias.asname or alias.name
+                for alias in node.names
+                if alias.name == "names"
+            )
+        elif node.module == "pymc_marketing.names":
+            for alias in node.names:
+                if alias.name in SCOPES.values():
+                    modules.add(alias.name)
+                    local_names.add(alias.asname or alias.name)
+                elif alias.name in identifiers:
+                    local_names.add(alias.asname or alias.name)
+        elif node.module.startswith("pymc_marketing.names."):
+            modules.add(node.module.rsplit(".", 1)[-1])
+            local_names.update(
+                alias.asname or alias.name
+                for alias in node.names
+                if alias.name in identifiers
+            )
+    return local_names, modules
 
 
 def _is_annotated(function: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
@@ -260,7 +362,9 @@ def _is_annotated(function: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
 def _unannotated_uses(tree: ast.AST, imported: set[str]) -> Iterator[tuple[int, str]]:
     """Yield ``(line, function name)`` for names constants in unannotated functions."""
 
-    def visit(node: ast.AST, function: ast.FunctionDef | ast.AsyncFunctionDef | None):
+    def visit(
+        node: ast.AST, function: ast.FunctionDef | ast.AsyncFunctionDef | None
+    ) -> Iterator[tuple[int, str]]:
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
             function = node
         elif (
@@ -277,68 +381,81 @@ def _unannotated_uses(tree: ast.AST, imported: set[str]) -> Iterator[tuple[int, 
 
 
 def main() -> int:
-    """Run both checks and print the violations."""
+    """Run the checks and print the violations."""
+    violations: list[str] = []
+    found = {path.stem for path in NAMES_DIR.glob("*.py")} - {"__init__"}
+    for name in sorted(found ^ set(SCOPES.values())):
+        violations.append(
+            f"scripts/validate_names.py: names module {name!r} and SCOPES do not match"
+        )
     modules = {
         SHARED: read_names_module(NAMES_DIR / "__init__.py"),
-        **{
-            name: read_names_module(NAMES_DIR / f"{name}.py")
-            for name in sorted(set(SCOPES.values()))
-        },
+        **{name: read_names_module(NAMES_DIR / f"{name}.py") for name in sorted(found)},
     }
     identifiers = set().union(*(module[2] for module in modules.values()))
-    shared_values = modules[SHARED][0]
-
-    violations: list[str] = []
     used_allowances: set[tuple[str, str]] = set()
 
     for path in sorted(PACKAGE.rglob("*.py")):
         if NAMES_DIR in path.parents:
             continue
-        relative = path.relative_to(ROOT)
+        relative = path.relative_to(PACKAGE).as_posix()
+        location = f"pymc_marketing/{relative}"
         tree = ast.parse(path.read_text(), filename=str(path))
-        scope = scope_of(path)
-        values = {**shared_values, **modules[scope][0]}
-        suffixes = modules[scope][1]
+        imported, imported_modules = _names_imports(tree, identifiers)
+        directory = SCOPES.get(relative.split("/")[0]) if "/" in relative else None
+        owners = [SHARED, *sorted({directory, *imported_modules} - {None})]
+        values = {
+            value: f"{constant} in the {owner} names"
+            for owner in owners
+            for value, constant in modules[owner][0].items()
+        }
+        suffixes = [suffix for owner in owners for suffix in modules[owner][1]]
         exempt = _exempt_nodes(tree)
+        parents = _parents(tree)
+        allowed = ALLOWED.get(relative, {})
 
         for node, is_fragment in _literals(tree):
             if id(node) in exempt:
                 continue
             text = node.value
             if not is_fragment and text in values:
-                if text in ALLOWED.get(scope, {}):
-                    used_allowances.add((scope, text))
+                deferred = "mmm" in owners and text in DEFERRED_DIMS
+                if deferred and not _is_silent(node, parents):
                     continue
-                owner = scope if text in modules[scope][0] else SHARED
+                if text in allowed:
+                    used_allowances.add((relative, text))
+                    continue
+                position = (
+                    " in a position where a typo fails silently" if deferred else ""
+                )
                 violations.append(
-                    f"{relative}:{node.lineno}: literal {text!r} is "
-                    f"{values[text]} in the {owner} names module"
+                    f"{location}:{node.lineno}: literal {text!r}{position} is "
+                    f"{values[text]}"
                 )
             elif any(text.endswith(suffix) for suffix in suffixes):
                 violations.append(
-                    f"{relative}:{node.lineno}: {text!r} spells a names suffix by hand"
+                    f"{location}:{node.lineno}: {text!r} spells a names suffix by hand"
                 )
 
-        imported = _names_imports(tree, identifiers)
         for line, function in _unannotated_uses(tree, imported):
             violations.append(
-                f"{relative}:{line}: names constant inside {function}(), which has no "
+                f"{location}:{line}: names constant inside {function}(), which has no "
                 "annotations, so mypy does not check it"
             )
 
     every_allowance = {
-        (scope, text) for scope, entries in ALLOWED.items() for text in entries
+        (file, text) for file, entries in ALLOWED.items() for text in entries
     }
-    for scope, text in sorted(every_allowance - used_allowances):
+    for file, text in sorted(every_allowance - used_allowances):
         violations.append(
-            f"scripts/validate_names.py: ALLOWED[{scope!r}][{text!r}] matches nothing"
+            f"scripts/validate_names.py: ALLOWED[{file!r}][{text!r}] matches nothing"
         )
 
     if violations:
         print("\n".join(violations))
         print(
             f"\n{len(violations)} problem(s). Use the constant from pymc_marketing/names, "
-            "annotate the function, or add an ALLOWED entry with a reason."
+            "annotate the function, or add an ALLOWED entry for the file with a reason."
         )
         return 1
     return 0
