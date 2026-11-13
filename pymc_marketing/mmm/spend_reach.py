@@ -43,6 +43,14 @@ why the questions live in the same module -- and why they live apart from
 windows, spend and the link-specific reduction, and has nothing to say about any
 of them.
 
+All three are measured on evaluations conditioned on the posterior, and one
+thing cannot be measured that way.  A random variable keeps its posterior draws
+and a frozen deterministic its posterior values whatever spend is set to, so a
+path from spend to :math:`\mu` through either is missing from every evaluation,
+the baseline and the probe included, and the second check closes without it.
+:func:`refuse_blocked_spend_paths` reads that off the graph, before anything is
+evaluated.
+
 The entry points are :meth:`SpendProbe.measure`, which returns a
 :class:`SpendReach`: an evaluation-window length and whether a window is usable
 at all, and :meth:`SpendProbe.mixes_channels`, which answers the third question.
@@ -68,6 +76,7 @@ from pymc_marketing.mmm.counterfactual import (
     find_named_node,
 )
 from pymc_marketing.names.mmm import Dim, Var
+from pymc_marketing.pytensor_utils import blocked_between
 
 if TYPE_CHECKING:
     from pymc_marketing.mmm.mmm import MMM
@@ -94,6 +103,7 @@ __all__ = [
     "SpendReach",
     "TemporalReach",
     "linear_predictor",
+    "refuse_blocked_spend_paths",
     "resolve_channel_dependent_effects",
 ]
 
@@ -268,6 +278,119 @@ def resolve_channel_dependent_effects(
     return tuple(resolved)
 
 
+def refuse_blocked_spend_paths(
+    model: MMM, effects: Sequence[ChannelDependentEffect]
+) -> None:
+    """Refuse a model in which the posterior holds a spend path fixed.
+
+    The counterfactual is evaluated conditioned on the posterior: a free random
+    variable is replaced by its draws and a frozen deterministic by its posterior
+    values, and an observed variable cannot be recomputed from its parents at
+    all.  A path from ``channel_data`` to the linear predictor that passes
+    through one of them does not respond to the counterfactual.  A mediator
+    written as a structural equation with noise, ``demand ~ Normal(f(spend),
+    sigma)``, is the motivating case: spend moves ``demand`` in the model and
+    not in the evaluation.
+
+    The probe cannot see this.
+    :meth:`SpendProbe.assert_increment_is_complete` compares the move in the
+    linear predictor against the move in the evaluated nodes, and both are
+    computed with the same variables held, so the blocked path is missing from
+    both sides and the comparison closes.  The refusal is read off the graph
+    instead.
+
+    Dependence is plain graph ancestry, as it is in
+    :func:`resolve_channel_dependent_effects`, and that cuts both ways.  A
+    parameter whose prior is computed from ``channel_data`` inside the graph is
+    refused, although holding it at its draws is what its author meant: the
+    graph does not tell it from a mediator.  A variable tied to spend only
+    through a ``pm.Potential`` is not refused, because that dependence is a term
+    of the log-probability and not an edge of the graph.
+
+    The anchor is the linear predictor, so a variable that reaches the target
+    only through the likelihood, such as a scale computed from spend, is left
+    alone.  Every model :meth:`~pymc_marketing.mmm.mmm.MMM.build_model` builds
+    has a linear predictor.  In a model without one the anchor is the observed
+    variable, whose ancestors include the likelihood's own parameters, and such
+    a variable is refused as well: with nothing to tell the two routes apart,
+    refusing is the only option that cannot drop part of the increment without
+    saying so.
+
+    Parameters
+    ----------
+    model : MMM
+        The model whose graph is read.
+    effects : sequence of ChannelDependentEffect
+        The effects :func:`resolve_channel_dependent_effects` returned for it.
+
+    Raises
+    ------
+    NotImplementedError
+        If a random variable or a frozen deterministic has ``channel_data``
+        among its ancestors and is an ancestor of the linear predictor, of
+        ``channel_contribution`` or of an effect's contribution, or is itself
+        one of the last two.  The linear predictor is the node
+        :func:`linear_predictor` looks up, and a model in which there is none
+        is anchored on its observed variable in its place.  The anchor itself
+        is exempt: a frozen linear predictor leaves nothing to check against,
+        which :func:`linear_predictor` already reports.
+    ValueError
+        If the graph carries more than one node named ``mu``; see
+        :func:`linear_predictor`.
+    """
+    pymc_model = model.model
+    endpoint = _find_linear_predictor(model)
+    if endpoint is None:
+        endpoint = pymc_model.named_vars.get(model.output_var)
+    targets = [
+        pymc_model[name]
+        for name in (
+            CHANNEL_CONTRIBUTION,
+            *(effect.contribution_var for effect in effects),
+        )
+    ]
+    if endpoint is not None:
+        targets.append(endpoint)
+
+    blocked = [
+        var
+        for var in blocked_between(
+            pymc_model,
+            pymc_model[Var.CHANNEL_DATA],
+            targets,
+            frozen_deterministics=model.frozen_deterministics,
+        )
+        if var is not endpoint
+    ]
+    if not blocked:
+        return
+
+    kinds = {
+        **dict.fromkeys(pymc_model.free_RVs, "random variable"),
+        **dict.fromkeys(pymc_model.observed_RVs, "observed variable"),
+    }
+    listing = ", ".join(
+        f"{kinds.get(var, 'frozen deterministic')} {var.name!r}" for var in blocked
+    )
+    it = "it" if len(blocked) == 1 else "them"
+    raise NotImplementedError(
+        f"Spend reaches the linear predictor through {listing}.  An evaluation "
+        "conditioned on the posterior cannot carry a change in spend through "
+        f"{it}: a random variable keeps its posterior draws, a frozen "
+        "deterministic its posterior values, and an observed variable is not "
+        "recomputed from spend.  The increment would be missing that path and "
+        "would report the rest of the response as if it were the whole.  For "
+        "a structural equation with noise, such as a mediator "
+        "Normal(f(spend), sigma), write the node as a Deterministic of spend "
+        "plus a noise term that does not depend on spend, and list a "
+        "date-indexed noise term in the effect's 'frozen_deterministics' so "
+        "that it is cut to each evaluation window.  For a quantity meant to "
+        "stay fixed while spend moves, such as a prior scale or a normalizer "
+        "computed from the channel data, compute it outside the graph and "
+        "pass the value in."
+    )
+
+
 def linear_predictor(model: MMM) -> Variable | None:
     """Find the node the increment is assembled to reproduce.
 
@@ -297,12 +420,20 @@ def linear_predictor(model: MMM) -> Variable | None:
         ``named_vars`` lookup below settles it first and PyMC has already
         enforced that the name is unique.
     """
+    if Var.MU in model.model.named_vars and Var.MU in model.frozen_deterministics:
+        # Frozen at its posterior value, so it would not respond to the probe
+        # and the completeness check would compare zero to zero.
+        return None
+    return _find_linear_predictor(model)
+
+
+def _find_linear_predictor(model: MMM) -> Variable | None:
+    """Return the node named ``mu``, registered or found in the graph, frozen or not.
+
+    See :func:`linear_predictor`, which leaves a frozen one out.
+    """
     pymc_model = model.model
     if Var.MU in pymc_model.named_vars:
-        if Var.MU in model.frozen_deterministics:
-            # Frozen at its posterior value, so it would not respond to the
-            # probe and the completeness check would compare zero to zero.
-            return None
         return pymc_model[Var.MU]
 
     output_var = model.output_var

@@ -271,6 +271,7 @@ from pymc_marketing.mmm.spend_reach import (
     _PKG_PREFIX,
     SpendProbe,
     linear_predictor,
+    refuse_blocked_spend_paths,
     resolve_channel_dependent_effects,
 )
 from pymc_marketing.mmm.transformers import ConvMode
@@ -1528,6 +1529,11 @@ class Incrementality:
             If the model's link function has no :class:`IncrementalReducer`, or a
             ``mu_effect`` that depends on channel spend has not opted in via
             :meth:`~pymc_marketing.mmm.additive_effect.MuEffect.incrementality_spec`.
+            Also raised if a path from spend to the linear predictor passes
+            through a random variable or a frozen deterministic, which an
+            evaluation conditioned on the posterior holds fixed, so that the
+            path would be left out of the increment; see
+            :func:`~pymc_marketing.mmm.spend_reach.refuse_blocked_spend_paths`.
             Also raised if the accounted nodes (``channel_contribution`` plus
             the resolved effects) do not reproduce the full move in the linear
             predictor, which means some path from spend to the response is
@@ -2110,8 +2116,8 @@ class Incrementality:
         ValueError
             If an input is out of range, or the date frequency cannot be inferred.
         NotImplementedError
-            If the link has no reducer, or a channel-dependent ``mu_effect`` has
-            not opted in.
+            If the link has no reducer, a channel-dependent ``mu_effect`` has
+            not opted in, or the posterior holds a spend path fixed.
 
         Warns
         -----
@@ -4362,8 +4368,9 @@ class Incrementality:
         ValueError
             If an input is out of range, or the date frequency cannot be inferred.
         NotImplementedError
-            If the link has no reducer, or a channel-dependent ``mu_effect`` has
-            not opted in.
+            If the link has no reducer, a channel-dependent ``mu_effect`` has
+            not opted in, or a path from spend to the linear predictor passes
+            through a variable the posterior holds fixed.
         """
         if counterfactual_spend_factor < 0:
             raise ValueError(
@@ -4388,10 +4395,12 @@ class Incrementality:
         )
 
         # Resolve the link-specific reduction and the effects to include before
-        # compiling anything, so an unsupported link or an effect that has not
-        # opted in fails fast rather than after the expensive work.
+        # compiling anything, so an unsupported link, an effect that has not
+        # opted in or a spend path the posterior holds fixed fails fast rather
+        # than after the expensive work.
         reducer = self._build_reducer(posterior_sub, central_tendency)
         effects = resolve_channel_dependent_effects(self.model)
+        refuse_blocked_spend_paths(self.model, effects)
 
         periods = self._create_period_groups(start_ts, end_ts, frequency)
         freq_offset = self._data_freq_offset()
@@ -4731,8 +4740,8 @@ class Incrementality:
         ValueError
             If an input is out of range, or the date frequency cannot be inferred.
         NotImplementedError
-            If the link has no reducer, or a channel-dependent ``mu_effect`` has
-            not opted in.
+            If the link has no reducer, a channel-dependent ``mu_effect`` has
+            not opted in, or the posterior holds a spend path fixed.
         """
         prepared = self._prepare_evaluation(
             frequency=frequency,
@@ -5693,8 +5702,9 @@ class Incrementality:
             If the model's link function has no :class:`IncrementalReducer`,
             if a channel-dependent ``mu_effect`` has not opted in via
             :meth:`~pymc_marketing.mmm.additive_effect.MuEffect.incrementality_spec`,
-            or if the accounted nodes do not reproduce the full move in the
-            linear predictor.
+            if a path from spend to the linear predictor passes through a
+            variable the posterior holds fixed, or if the accounted nodes do
+            not reproduce the full move in the linear predictor.
 
         Warns
         -----
@@ -5862,9 +5872,10 @@ class Incrementality:
             cases documented on :meth:`compute_incremental_contribution`.
         NotImplementedError
             If the model's link function has no :class:`IncrementalReducer`,
-            a channel-dependent ``mu_effect`` has not opted in, or the
-            accounted nodes do not reproduce the full move in the linear
-            predictor; see :meth:`compute_incremental_contribution`.
+            a channel-dependent ``mu_effect`` has not opted in, the posterior
+            holds a spend path fixed, or the accounted nodes do not reproduce
+            the full move in the linear predictor; see
+            :meth:`compute_incremental_contribution`.
 
         Warns
         -----
