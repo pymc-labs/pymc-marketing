@@ -1400,7 +1400,8 @@ def test_the_number_of_free_rvs_does_not_grow_with_the_number_of_parents():
 
     # beta_mu, the two level scales, the family offset and the one Normal of the brands; the coords are the
     # model's channel, brand and dma, the parents `family` and the level dim
-    assert n_free_rvs(5) == n_free_rvs(40) == (5, 5)
+    # model's channel, brand and dma, the parents `family`, the level dim and the free values `beta_brand_free`
+    assert n_free_rvs(5) == n_free_rvs(40) == (5, 6)
 
 
 def grouped_offset(scale=0.5, centered=True):
@@ -1572,6 +1573,36 @@ def test_children_name_labels_missing_from_the_map():
         ValueError, match=re.escape("term brand: `map` has no labels ['9']")
     ):
         prior.children("brand", "f0", labels=[0, 9])
+
+
+def test_a_child_term_draws_one_free_value_per_child_less_one_per_parent():
+    # groups of 4, 2 and 1: 7 children, 3 parents, so 4 free values, as many as one ZeroSumNormal per parent
+    fam = {
+        "b0": "f0",
+        "b1": "f0",
+        "b2": "f0",
+        "b3": "f0",
+        "b4": "f1",
+        "b5": "f1",
+        "b6": "f2",
+    }
+    prior = nzs({"family": {}, "brand": {"within": "family", "map": fam}})
+    model, _ = build(prior, COORDS | {"brand": list(fam)})
+    assert model.named_vars_to_dims["beta_brand_raw_offset"] == (
+        "channel",
+        "beta_brand_free",
+    )
+    assert model.coords["beta_brand_free"] == (0, 1, 2, 3)
+    assert model.named_vars_to_dims["beta_brand"] == ("channel", "brand")
+
+
+def test_a_child_term_with_only_lone_children_draws_nothing():
+    fam = {"b0": "f0", "b1": "f1"}
+    prior = nzs({"family": {}, "brand": {"within": "family", "map": fam}})
+    with pytest.warns(UserWarning, match="every family has one brand"):
+        model, _ = build(prior, COORDS | {"brand": list(fam)})
+    assert "beta_brand_raw_offset" not in model.named_vars
+    assert "beta_brand_free" not in model.coords
 
 
 def test_a_grouped_offset_is_distributed_as_a_zero_sum_normal_per_group():
@@ -2628,23 +2659,28 @@ def test_each_cell_gets_its_own_parent_and_child_offsets(
 
     families = list(np.unique(list(fam.values())))
     tiers = list(np.unique(list(tier.values())))
-    raw_brand = scale("brand") * v[rv("brand", raw=True)]  # (channel, brand)
-    raw_dma = scale("dma") * v[rv("dma", raw=True)]  # (channel, dma)
+    # the child offsets at these values, from the model: (channel, brand) and (channel, dma)
+    child_offsets = pytensor.function(
+        model.free_RVs,
+        [model["beta_brand"].values, model["beta_dma"].values],
+        on_unused_input="ignore",
+    )
+    brand, dma = child_offsets(*(v[rv.name] for rv in model.free_RVs))
+    # zero-sum within each parent, whatever the free values
+    for labels, offset, parent_of in ((brands, brand, fam), (dmas, dma, tier)):
+        for p in set(parent_of.values()):
+            siblings = [k for k, x in enumerate(labels) if parent_of[x] == p]
+            assert np.abs(offset[:, siblings].sum(axis=1)).max() < 1e-12
     expected = np.zeros((len(brands), len(dmas), 3))
     for i, b in enumerate(brands):
         for j, d in enumerate(dmas):
-            # siblings, in coord order, itself included: a child is its raw value less its siblings' mean
-            sib_b = [k for k, x in enumerate(brands) if fam[x] == fam[b]]
-            sib_d = [k for k, x in enumerate(dmas) if tier[x] == tier[d]]
             expected[i, j] = (
                 v["beta_mu"]
                 + scale("family") * v[rv("family")][:, families.index(fam[b])]
                 + scale("tier") * v[rv("tier")][:, tiers.index(tier[d])]
                 + scale("brand_dma") * v[rv("brand_dma")][:, i, j]
-                + raw_brand[:, i]
-                - raw_brand[:, sib_b].mean(axis=1)
-                + raw_dma[:, j]
-                - raw_dma[:, sib_d].mean(axis=1)
+                + brand[:, i]
+                + dma[:, j]
             )
     assert np.abs(log_beta_fn(model, beta)(v) - expected).max() < 1e-12
 

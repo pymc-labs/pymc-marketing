@@ -1315,6 +1315,8 @@ class VarianceBudget:
     ``transform``, :math:`\log\beta` by default) around ``mu`` is
     :math:`\text{total}^2 \sum_l c_l \, \text{share}_l`, with :math:`c_l = 1 - 1/J`
     for each zero-sum axis of level :math:`l`.
+    For a child term (``within``), J is the number of children of the cell's parent, so :math:`c_l` differs by parent.
+    A child that is alone under its parent has :math:`c_l = 0`: its offset is 0.
 
     For example, on the saturation ``beta`` it creates ``saturation_beta_sigma_share``
     (the Dirichlet), ``saturation_beta_sigma_total`` and
@@ -1460,22 +1462,48 @@ class VarianceBudget:
         return sigma if xdist else sigma.values
 
 
+def _zero_sum_basis(codes: ArrayLike) -> np.ndarray:
+    """Return an orthonormal basis of the offsets that sum to zero within each group, children by free values.
+
+    A group of :math:`n` children gets :math:`n - 1` columns, the Helmert contrasts of its children: column
+    :math:`k` has :math:`k` equal entries, then one of :math:`-k`, scaled to unit length.
+    A group with one child gets no column, so its child is 0.
+    """
+    codes = np.asarray(codes)
+    counts = np.bincount(codes)
+    starts = np.cumsum(counts) - counts
+    # the position of each child in its group, in coord order
+    rank = np.empty_like(codes)
+    rank[np.argsort(codes, kind="stable")] = np.arange(len(codes)) - np.repeat(
+        starts, counts
+    )
+    # the free values per group
+    free = np.maximum(counts - 1, 0)
+    column_group = np.repeat(np.arange(len(counts)), free)
+    column_k = np.arange(free.sum()) - np.repeat(np.cumsum(free) - free, free) + 1
+    r, k = rank[:, None], column_k[None, :]
+    entry = np.where(r < k, 1.0, np.where(r == k, -k, 0.0)) / np.sqrt(k * (k + 1))
+    return np.where(codes[:, None] == column_group[None, :], entry, 0.0)
+
+
 class _GroupedZeroSumOffset:
     r"""An offset over ``child_dim`` that sums to zero within each group of children, one ``Normal`` in all.
 
     A pymc_extras ``VariableFactory`` built by :class:`NestedZeroSumPrior`.
-    A ``Normal`` vector less the mean of each group has the distribution of one ``ZeroSumNormal`` per group.
+    It draws :math:`n - 1` free values for a group of :math:`n` children and maps them to the group's offsets
+    with a fixed orthonormal basis whose columns sum to zero within the group.
+    This has the distribution of one ``ZeroSumNormal`` per group, with as many free values.
     The number of variables does not depend on the number of groups, and no group label becomes a name.
-    The group means are a product with the one-hot matrix of the groups, of size children times groups.
-    A group with one child is 0.
+    The basis is a dense matrix of children by free values.
+    A group with one child gets no free value, and its child is 0.
 
     Parameters
     ----------
     scale : float or XTensorVariable
-        The scale of the ``Normal`` before the group mean is removed.
-        An entry of a group of :math:`n` children then has the standard deviation :math:`scale \sqrt{1 - 1/n}`.
+        The scale of the free values.
+        An entry of a group of :math:`n` children has the standard deviation :math:`scale \sqrt{1 - 1/n}`.
     centered : bool
-        The parameterization of the ``Normal``, as in ``Prior(..., centered=...)``.
+        The parameterization of the free values, as in ``Prior(..., centered=...)``.
     dims : tuple[str, ...]
         The dims of the offset, including ``child_dim``.
     child_dim : str
@@ -1499,23 +1527,31 @@ class _GroupedZeroSumOffset:
     def create_variable(
         self, name: str, xdist: bool = False
     ) -> TensorVariable | XTensorVariable:
-        """Create the offset as ``name``, from the ``Normal`` ``<name>_raw``."""
-        group_dim = f"_{self.child_dim}_group"  # only in the graph, not a model coord
-        onehot = as_xtensor(
-            np.eye(self.codes.max() + 1, dtype=pytensor.config.floatX)[self.codes],
-            dims=(self.child_dim, group_dim),
-        )
-        raw = Prior(
-            "Normal", mu=0, sigma=self.scale, centered=self.centered, dims=self.dims
-        ).create_variable(f"{name}_raw", xdist=True)
-        group_mean = pmd.dot(raw, onehot, dim=self.child_dim) / onehot.sum(
-            self.child_dim
-        )
-        # each child's group mean, by index: no second product with the one-hot matrix
-        spread = group_mean.isel({group_dim: self.codes}).rename(
-            {group_dim: self.child_dim}
-        )
-        offset = pmd.Deterministic(name, (raw - spread).transpose(*self.dims))
+        """Create the offset as ``name``, from the free values ``<name>_raw`` on the coord ``<name>_free``."""
+        basis = _zero_sum_basis(self.codes).astype(pytensor.config.floatX)
+        model = pm.modelcontext(None)
+        # every group has one child: the offset is 0 and nothing is drawn
+        if basis.shape[1] == 0:
+            shape = tuple(len(model.coords[d]) for d in self.dims)
+            offset = as_xtensor(
+                np.zeros(shape, dtype=pytensor.config.floatX), dims=self.dims
+            )
+        else:
+            free_dim = f"{name}_free"
+            # a no-op when the prior added the coord first
+            model.add_coord(free_dim, list(range(basis.shape[1])))
+            base = tuple(d for d in self.dims if d != self.child_dim)
+            raw = Prior(
+                "Normal",
+                mu=0,
+                sigma=self.scale,
+                centered=self.centered,
+                dims=(*base, free_dim),
+            ).create_variable(f"{name}_raw", xdist=True)
+            offset = pmd.dot(
+                raw, as_xtensor(basis, dims=(self.child_dim, free_dim)), dim=free_dim
+            )
+        offset = pmd.Deterministic(name, offset.transpose(*self.dims))
         return offset if xdist else offset.values
 
 
@@ -1690,7 +1726,7 @@ class NestedZeroSumPrior:
     A child term sums to zero inside each of its parents, and a parent or crossed term over its labels.
     An interaction sums to zero over each of its dims.
     A parent, crossed term or interaction is a ``ZeroSumNormal``.
-    A child term is one ``Normal`` over all the children, less the mean of each parent's children.
+    A child term is one ``Normal`` of free values, mapped to the children so that they sum to zero within each parent.
     This has the distribution of one ``ZeroSumNormal`` per parent, without one variable per parent.
     The zero-sum constraints remove the ridge between
     levels (a parent and the mean of its children cannot trade a shared shift).
@@ -1715,7 +1751,8 @@ class NestedZeroSumPrior:
         A term is one of three kinds:
 
         - A model coord with ``within``: zero-sum inside each parent.
-          Creates the ``Normal`` ``<name>_<term>_raw`` and the offset ``<name>_<term>``, on the coord ``<term>``.
+          Creates the free values ``<name>_<term>_raw``, on the coord ``<name>_<term>_free`` (added to the model).
+          Creates the offset ``<name>_<term>``, on the coord ``<term>``.
           The number of variables does not depend on the number of parents, and no parent label is part of a name.
           A lone child has offset 0.
         - A model coord without ``within``: zero-sum over the coord. Creates
@@ -1762,8 +1799,7 @@ class NestedZeroSumPrior:
     centered : bool, default False
         Parameterization of the levels that do not set ``centered``. Centered is
         ``ZeroSumNormal(sigma)``, non-centered ``sigma * ZeroSumNormal(1)``.
-        A child term (``within``) is drawn the same way as a ``Normal``, before each parent's mean is removed.
-        Prefer the default for child terms: see the Notes.
+        A child term (``within``) draws its free values the same way, as a ``Normal``.
     dims : tuple[str, ...], optional
         The dims of the coefficient, in any order: the hierarchy dims (the
         model-coord terms and the interaction dims) and at most one base dim,
@@ -1789,25 +1825,17 @@ class NestedZeroSumPrior:
     one child, or a parent term, a crossed term or an interaction dim has one
     label) warns that its scale is unused.
 
-    A child term (``within``) is one ``Normal`` over all of its children, less the mean of each parent's children.
-    It is not one ``ZeroSumNormal`` per parent, but it has the same distribution.
+    A child term (``within``) is one ``Normal`` of :math:`n - 1` free values for each parent of :math:`n` children.
+    A fixed orthonormal basis, whose columns sum to zero within each parent, maps them to the children.
+    It is not one ``ZeroSumNormal`` per parent, but it has the same distribution and as many free values.
     The group of :math:`n` children has the covariance :math:`\sigma^2 (I - \mathbf{1}\mathbf{1}^\top / n)`.
     That is the covariance of a ``ZeroSumNormal``, and the groups are independent.
-    Only the variables differ, not the distribution of the offsets.
     The number of variables does not depend on the number of parents.
     No parent label is part of a variable or coord name.
+    The free values are not one per child, so to look at the children use ``<name>_<term>``.
     To select the offsets of one parent from the draws, use :meth:`children`.
-    The group means are a product with the one-hot matrix of the groups, of size children times parents.
-    That is small for hundreds of labels, but it grows with both.
-
-    The mean direction of each parent is not informed by the data.
-    With ``centered=True`` its prior scale is the ``sigma`` of the level, which couples it to the scale being learned.
-    In a simulation study (informative data, four seeds, NUTS), centered child terms sampled the level scales worse.
-    Their effective sample size (``<name>_sigma``) was about half that of one ``ZeroSumNormal`` per parent.
-    The coefficient itself sampled as well or better, and there were no divergences.
-    Non-centered child terms, the default, sampled the scales as well as the per-parent form.
-    Prefer ``centered=False`` for child terms, as usual for hierarchies with little data per label.
-    The study used one model shape and informative data, and sparse data was not tested.
+    A parent with one child has no free value, and its child is 0.
+    The basis is a dense matrix of children by free values: small for hundreds of labels, but it grows with both.
 
     Examples
     --------
@@ -2124,13 +2152,18 @@ class NestedZeroSumPrior:
                 f"constant mu has shape {np.shape(mu)}; expected () or {n_base}, one value per {base} label"
             )
         parents = {t.within for t in terms.values()}
-        # The coords this prior adds: the levels, and each parent term's labels
+        # The coords this prior adds: the levels, each parent term's labels, and the free values of each child term
         new_coords = [
             (level_dim, levels),
             *(
                 (t.within, groups[c][0].tolist())
                 for c, t in terms.items()
                 if t.within in terms
+            ),
+            *(
+                (f"{name}_{c}_free", list(range(len(codes) - len(labels))))
+                for c, (labels, codes) in groups.items()
+                if len(codes) > len(labels)  # not when every parent has one child
             ),
         ]
         for k, labs in new_coords:
