@@ -2936,6 +2936,8 @@ class TestMonetarySpendVariables:
         )
         result = optimizer.allocate_budget(total_budget=self.TOTAL)
         assert result.delivery_reports == {}
+        plan = {"channel_data": result.budgets, **result.spend_var_allocations}
+        assert optimizer.delivery_reports(plan) == {}
 
     def test_an_identity_spend_variable_response_needs_nothing(
         self, funnel_identity_fitted_mmm
