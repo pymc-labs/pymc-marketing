@@ -2379,6 +2379,43 @@ class BudgetOptimizer(BaseModel):
             constraint_residuals=residuals,
         )
 
+    def delivery_reports(
+        self, plan: DataArray | Mapping[str, DataArray]
+    ) -> dict[str, xr.Dataset]:
+        """Delivery reports at a labelled plan, one per priced decision variable.
+
+        The same reports :meth:`allocate_budget` puts on
+        :attr:`BudgetOptimizationResult.delivery_reports`, at a plan the caller
+        names rather than at the solution. Kept out of :meth:`evaluate_plan`,
+        which is used in sweeps: a report costs far more than the objective.
+
+        Parameters
+        ----------
+        plan : xarray.DataArray or Mapping[str, xarray.DataArray]
+            The plan, labelled, in the same form :meth:`evaluate_plan` takes.
+
+        Returns
+        -------
+        dict[str, xarray.Dataset]
+            Keyed by variable name in decision-vector order: ``channel_data_var``
+            and every ``spend_vars`` name when a ``price_response`` was passed,
+            empty otherwise. Each report is as described on
+            :attr:`BudgetOptimizationResult.delivery_reports`.
+
+        Raises
+        ------
+        TypeError
+            If ``plan`` is not labelled at all.
+        ValueError
+            If a supplied ``DataArray`` has a dim carrying no coordinates, or
+            if ``plan`` omits a decision variable, omits an optimized cell, or
+            carries coordinates the model does not have.
+        """
+        self._require_labelled_plan(plan, "delivery_reports")
+        return self._variables.delivery_reports(
+            self._pack_decision_vector(plan), date_coords=self._decision_date_coords()
+        )
+
     def set_constraints(self, constraints: Sequence[Constraint]) -> None:
         """Set constraints for the optimizer.
 

@@ -2898,6 +2898,36 @@ class TestMonetarySpendVariables:
         assert report["implied_price"].isnull().all()
         assert report["implied_marginal_price"].isnull().all()
 
+    def test_delivery_reports_at_a_plan_match_the_result_at_its_solution(
+        self, funnel_identity_fitted_mmm
+    ):
+        """Reports at a labelled plan come from the same code as the result's, so at
+        the solution they agree; a positional plan is refused as in evaluate_plan."""
+        optimizer = self._optimizer(
+            funnel_identity_fitted_mmm,
+            spend_vars=["lf_budget"],
+            price_response={
+                "channel_data": PowerPriceResponse(elasticity=0.0),
+                "lf_budget": PowerPriceResponse(
+                    elasticity=0.2,
+                    assume_delivery_units=True,
+                    reference_spend=xr.DataArray(1.0),
+                ),
+            },
+        )
+        result = optimizer.allocate_budget(total_budget=self.TOTAL)
+        assert result.scipy_result.success, result.scipy_result.message
+
+        reports = optimizer.delivery_reports(
+            {"channel_data": result.budgets, **result.spend_var_allocations}
+        )
+
+        assert list(reports) == list(result.delivery_reports)
+        for name, report in reports.items():
+            xr.testing.assert_allclose(report, result.delivery_reports[name])
+        with pytest.raises(TypeError, match="delivery_reports takes a labelled plan"):
+            optimizer.delivery_reports(result.scipy_result.x)
+
     def test_no_price_response_means_no_delivery_reports(
         self, funnel_identity_fitted_mmm
     ):

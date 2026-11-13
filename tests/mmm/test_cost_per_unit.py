@@ -2039,8 +2039,7 @@ class TestPriceResponseOptimality:
             "fixture drifted: the test needs s / s_ref below 0.6 ** 2.5"
         )
 
-        media = aware.optimization_variables.variables[0]
-        report = media.delivery_report(aware.optimization_variables.pack(baseline))
+        report = aware.delivery_reports(baseline)["channel_data"]
         price = float(report["implied_price"].sel(channel="channel_2").mean("date"))
         marginal = float(
             report["implied_marginal_price"].sel(channel="channel_2").mean("date")
