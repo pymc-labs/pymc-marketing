@@ -813,7 +813,11 @@ class SharedPosterior:
         var = self._variables[name]
         # astype always allocates, so the shared variable owns the array and
         # borrow=True cannot alias the caller's data.
-        return aligned.values.astype(var.type.dtype)
+        # The C order matches the layout _get_or_create binds: the numba
+        # linker keys its signatures on the array layout, so an axis reordering
+        # in the rebind path would otherwise hand over a Fortran-ordered array
+        # and the first rebind would compile a second version of the graph.
+        return aligned.values.astype(var.type.dtype, order="C")
 
     def _get_or_create(self, posterior_da: xr.DataArray, *, name: str, dtype: str):
         """Return the xtensor view of ``name``'s shared variable, creating it if needed.
@@ -833,7 +837,12 @@ class SharedPosterior:
                         f"Posterior variable {name!r} has duplicated {dim} labels: "
                         f"{index[index.duplicated()].unique().tolist()}."
                     )
-            self._variables[name] = shared(posterior_da.values.astype(dtype), name=name)
+            # Store the draws C-contiguous: _aligned_values lays a rebind out
+            # the same way, so the numba linker sees one layout and does not
+            # compile a second signature on the first set_posterior.
+            self._variables[name] = shared(
+                posterior_da.values.astype(dtype, order="C"), name=name
+            )
             self._layouts[name] = layout
             dims = ("sample", *layout.dims)
         else:
