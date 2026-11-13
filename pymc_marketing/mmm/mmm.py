@@ -3286,12 +3286,16 @@ class MMM(RegressionModelBuilder):
             effect_data = effect_data.rename({Dim.DATE: self.date_column})
         date = self.date_column
         if date in effect_data.sizes and date in fit_data.sizes:
-            # The built model holds converted dates, X can hold them as strings.
+            # Either side can hold the dates as strings: match them as dates
+            # and keep the labels of fit_data.
             labels = fit_data.indexes[date]
             as_dates = pd.to_datetime(labels, errors="coerce")
-            if set(as_dates) == set(effect_data.indexes[date]):
-                effect_data = effect_data.sel({date: as_dates}).assign_coords(
-                    {date: labels}
+            effect_dates = pd.to_datetime(effect_data.indexes[date], errors="coerce")
+            if set(as_dates) == set(effect_dates):
+                effect_data = (
+                    effect_data.assign_coords({date: effect_dates})
+                    .sel({date: as_dates})
+                    .assign_coords({date: labels})
                 )
         for dim in set(effect_data.sizes) & set(fit_data.sizes):
             if set(effect_data.indexes[dim]) != set(fit_data.indexes[dim]):
@@ -5577,7 +5581,9 @@ class MMM(RegressionModelBuilder):
             ]
             if DatasetVar.CONTROL in ds:
                 parts.append(ds[DatasetVar.CONTROL].to_dataset("control"))
-            # mu_effect data in X wins, as in the DataFrame branch.
+            # mu_effect data in X wins, as in the DataFrame branch. It is stored
+            # as given, NaN included, while data taken from the built model went
+            # through fillna(0); load fills NaN with 0 either way.
             parts.append(ds[[n for n in self._effect_data_vars() if n in ds]])
             fit_data = xr.merge(parts, combine_attrs="drop")
             if self.date_column != Dim.DATE:
