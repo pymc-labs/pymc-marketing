@@ -42,7 +42,8 @@ from __future__ import annotations
 
 import warnings
 from abc import ABC, abstractmethod
-from collections.abc import Mapping
+from collections.abc import Iterator, Mapping
+from contextlib import contextmanager
 from typing import Self
 
 import numpy as np
@@ -94,11 +95,16 @@ class ResolvedPriceResponse(ABC):
     ``base_price``, the optimizer's ``cost_per_unit`` tensor over the same dims or ``None`` for a base price of 1.
     A family implements :meth:`to_delivery` and :meth:`implied_marginal_price`; :meth:`implied_price` follows.
 
-    Contract: :meth:`to_delivery` is non-decreasing and concave in money with ``u(0) = 0``, and it and
-    :meth:`implied_marginal_price` are finite, in value and gradient, on every cell including those outside the
-    mask and those the map leaves unbent. ``where`` evaluates both of its branches, so a ``nan`` or ``inf`` in a
+    Contract: :meth:`to_delivery` is non-decreasing in money with ``u(0) = 0``, and concave wherever a solve can
+    reach: a family whose map has a convex part refuses, in :meth:`conditioned_on`, a solve whose bounds contain it.
+    It and :meth:`implied_marginal_price` are finite, in value and gradient, on every cell including those outside
+    the mask and those the map leaves unbent. ``where`` evaluates both of its branches, so a ``nan`` or ``inf`` in a
     branch that is not selected is harmless on the C backend and poisons the gradient under JAX.
     :meth:`implied_price` is reported only, never differentiated, and is ``nan`` where nothing is delivered.
+
+    Three methods with defaults tell the optimizer about breakpoints, points where the slope of the map in
+    money changes: :meth:`bind_period_weights`, :meth:`conditioned_on` and :meth:`linear_piece`. A family
+    without breakpoints keeps the defaults.
     """
 
     dims: tuple[str, ...]
@@ -131,6 +137,44 @@ class ResolvedPriceResponse(ABC):
         self, spend: XTensorVariable, base_price: XTensorVariable | None = None
     ) -> XTensorVariable:
         """Money the *next* delivered unit costs at ``spend``: the reciprocal slope of ``to_delivery``."""
+
+    def bind_period_weights(self, weights: XTensorVariable | None) -> None:
+        """Receive the money each period gets per unit of budget, before any graph is built.
+
+        Called once by :class:`~pymc_marketing.mmm.optimization_variables.MediaVariable` after
+        :meth:`PriceResponse.resolve`. ``weights`` is a symbolic tensor over ``(date_dim, *dims)``: ``num_periods``
+        times the ``budget_distribution_over_period`` factor of each period, zero outside the mask; ``None``
+        under the uniform spread, where it is 1. A family whose breakpoints are in budget units uses it to place
+        the breakpoint of each period at ``breakpoint * weight``. The default ignores it.
+        """
+        return None
+
+    @contextmanager
+    def conditioned_on(self, low: np.ndarray, high: np.ndarray) -> Iterator[bool]:
+        """Condition the map for one solve over the box ``[low, high]``, and restore it on exit.
+
+        ``low`` and ``high`` are per cell over ``dims``, in budget units, infinite where unbounded and ``nan``
+        outside the mask. Inside the block the map may differ from the declared one in ways a solver needs, for
+        example a breakpoint blended where the bounds let the solver cross it. Yields whether the map differs
+        from the declared one. A family whose map has a convex part raises here when the bounds contain it. The
+        default yields ``False``.
+        """
+        yield False
+
+    def linear_piece(
+        self,
+        budgets: np.ndarray,
+        low: np.ndarray,
+        high: np.ndarray,
+        from_below: np.ndarray | None = None,
+    ) -> tuple[np.ndarray, np.ndarray]:
+        """Per cell, the largest interval around ``budgets`` inside ``[low, high]`` with no breakpoint strictly inside.
+
+        The map is affine in the budget on that interval. A cell on a breakpoint gets the interval above it, or
+        the one below where ``from_below`` is set. All arrays are per cell over ``dims``, in budget units. The
+        default, for a map with no breakpoints, is ``(low, high)``.
+        """
+        return low, high
 
 
 class ResolvedPowerPriceResponse(ResolvedPriceResponse):
@@ -291,16 +335,19 @@ class ResolvedPowerPriceResponse(ResolvedPriceResponse):
 
 
 class PriceResponse(BaseModel, ABC):
-    """A non-decreasing, concave map from per-period money to delivered units, declared once and bound per variable.
+    """A non-decreasing map from per-period money to delivered units, declared once and bound per variable.
 
     The declaration is reusable across models and windows; :meth:`resolve` binds it to one decision variable's
     cell layout and returns the object the optimizer's graph uses. Subclasses ship a closed, invertible
     parametric family so the implied delivery and clearing prices can be reported alongside the allocation.
 
-    Every map a family resolves to must be non-decreasing and concave in money with ``u(0) = 0`` (see
-    :class:`ResolvedPriceResponse`): a convex map, such as a volume discount, makes the allocation non-convex. A
-    family refuses a declaration that would break this when it is constructed, as :class:`PowerPriceResponse`
-    refuses ``elasticity < 0``.
+    Every map a family resolves to must be non-decreasing in money with ``u(0) = 0``, and concave wherever a solve
+    can reach (see :class:`ResolvedPriceResponse`): a convex map, such as a volume discount, makes the allocation
+    non-convex. A family refuses what would break this, either when it is constructed, as
+    :class:`PowerPriceResponse` refuses ``elasticity < 0``, or in :meth:`ResolvedPriceResponse.conditioned_on`, as
+    :class:`TieredPriceResponse` refuses a solve whose bounds contain a breakpoint where the rate falls. Such a map
+    is still useful outside a solve: :meth:`~pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.evaluate_plan`
+    scores any plan.
 
     The optimizer asks three things of a family before resolving it, and keys on the answers rather than on the
     concrete type: where the map *bends* money (:attr:`adds_curvature`, :meth:`curved_cells`), whether the user
@@ -316,12 +363,15 @@ class PriceResponse(BaseModel, ABC):
     @property
     @abstractmethod
     def adds_curvature(self) -> bool:
-        """True when the map bends money on some cell.
+        """True when the map bends money on some cell, in a way the fitted model may already contain.
 
         This is what the attestation requirement keys on. Writing the composed second derivative as
         :math:`f''(u) u'^2 + f'(u) u''`, it is the :math:`f'(u) u''` term that double-counts a saturation
-        curve fitted on nominal spend, so a map with a non-zero ``u''`` needs the fit to be in delivery units
-        and a map piecewise linear in money does not: it rescales the axis without bending it.
+        curve fitted on nominal spend. It double-counts when the price-volume relation the map describes was
+        already in the fitted history, because the saturation curve absorbed it: a power law in the bid-up of an
+        auction is such a relation. A schedule of rates that are new relative to the fit, such as a committed
+        rate and a rate for incremental money, describes prices the history did not contain, so a family of
+        such schedules answers ``False`` even though its slope changes at each breakpoint.
         """
 
     def curved_cells(
@@ -437,6 +487,37 @@ class PriceResponse(BaseModel, ABC):
             template.coords[dim].values.tolist()[int(i)]
             for dim, i in zip(template.dims, index, strict=True)
         )
+
+    @staticmethod
+    def _string_keys(value: object, who: str) -> object:
+        """Key a dict by the string form of each label, refusing two keys with one string form.
+
+        Channel labels need not be strings (``channel=[1, 2]``), JSON object keys are strings, and the gate
+        compares the fitted ``cost_per_unit`` table's columns by their string form; matching on ``str`` serves
+        all three. ``who`` names the field in the message. Anything that is not a mapping passes through.
+        """
+        if not isinstance(value, Mapping):
+            return value
+        keyed = {str(key): v for key, v in value.items()}
+        if len(keyed) != len(value):
+            raise ValueError(
+                f"{who} keys {list(value)} name the same label more than once: "
+                "keys are matched to coordinate labels by their string form."
+            )
+        return keyed
+
+    @staticmethod
+    def _owner_dim(keys: set[str], template: DataArray, label: str, what: str) -> str:
+        """Return the one budget dim of ``template`` whose labels, as strings, include every key."""
+        labels = {d: template.coords[d].values.tolist() for d in template.dims}
+        owners = [d for d in template.dims if keys <= {str(lbl) for lbl in labels[d]}]
+        if len(owners) != 1:
+            where = "none matches" if not owners else f"they match {owners}"
+            raise ValueError(
+                f"{label}: {what} keys {sorted(map(str, keys))} must all be labels of exactly one "
+                f"budget dim; {where}. Available labels: {labels}."
+            )
+        return str(owners[0])
 
 
 class PowerPriceResponse(PriceResponse):
@@ -653,15 +734,7 @@ class PowerPriceResponse(PriceResponse):
         compares the fitted ``cost_per_unit`` table's columns by their string form; matching on ``str`` serves
         all three.
         """
-        if not isinstance(value, Mapping):
-            return value
-        keyed = {str(key): v for key, v in value.items()}
-        if len(keyed) != len(value):
-            raise ValueError(
-                f"PowerPriceResponse: elasticity keys {list(value)} name the same label more than once: "
-                "keys are matched to coordinate labels by their string form."
-            )
-        return keyed
+        return cls._string_keys(value, "PowerPriceResponse: elasticity")
 
     @model_validator(mode="after")
     def _check_domain(self) -> Self:
@@ -886,16 +959,8 @@ class PowerPriceResponse(PriceResponse):
         dims = template.dims
         if not e:
             return template.copy()
-        keys = set(e)
+        dim = PriceResponse._owner_dim(set(e), template, label, "elasticity")
         labels = {d: template.coords[d].values.tolist() for d in dims}
-        owners = [d for d in dims if keys <= {str(lbl) for lbl in labels[d]}]
-        if len(owners) != 1:
-            where = "none matches" if not owners else f"they match {owners}"
-            raise ValueError(
-                f"{label}: elasticity keys {sorted(map(str, keys))} must all be labels of exactly one "
-                f"budget dim; {where}. Available labels: {labels}."
-            )
-        dim = owners[0]
         values = DataArray(
             [float(e.get(str(lbl), 0.0)) for lbl in labels[dim]],
             dims=(dim,),

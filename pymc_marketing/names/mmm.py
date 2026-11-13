@@ -34,8 +34,10 @@ class Dim:
 
     ``DATE``, ``CHANNEL``, ``CONTROL`` and ``FOURIER_MODE`` are the dims of the
     model (see :data:`RESERVED_DIMS`). ``TIME_SINCE_EXPOSURE`` is the lag dim of a
-    sampled adstock curve, ``CV`` the fold dim of the cross-validation results and
-    ``SWEEP`` the dim of a sensitivity sweep.
+    sampled adstock curve, ``CV`` the fold dim of the cross-validation results,
+    ``SWEEP`` the dim of a sensitivity sweep and ``BRACKET`` the dim of a
+    :class:`~pymc_marketing.mmm.price_response.TieredPriceResponse` schedule given
+    as a ``DataArray``.
     """
 
     DATE: Final = "date"
@@ -45,6 +47,7 @@ class Dim:
     TIME_SINCE_EXPOSURE: Final = "time since exposure"
     CV: Final = "cv"
     SWEEP: Final = "sweep"
+    BRACKET: Final = "bracket"
 
 
 RESERVED_DIMS: Final = frozenset({Dim.DATE, Dim.CHANNEL, Dim.CONTROL, Dim.FOURIER_MODE})

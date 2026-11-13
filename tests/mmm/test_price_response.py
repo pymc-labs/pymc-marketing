@@ -750,3 +750,28 @@ class TestPriceResponseContract:
         ).resolve(**layout(), derived_reference=None)
         np.testing.assert_array_equal(resolved.money_scale, resolved.reference_spend)
         np.testing.assert_array_equal(resolved.curved, resolved.gamma > 0.0)
+
+    def test_a_family_without_breakpoints_gets_neutral_solve_hooks(self, spend):
+        """The optimizer conditions every map for a solve and asks it for linear pieces.
+        A map with no breakpoints is affine on its whole box, so its piece is the box,
+        conditioning changes nothing, and period weights do not reach its graph."""
+        resolved = PowerPriceResponse(
+            elasticity=0.2, reference_spend=derived([10.0, 20.0, 30.0])
+        ).resolve(**layout(), derived_reference=None)
+        before = compile_lowered(resolved.to_delivery(spend), spend)(
+            np.array([5.0, 15.0, 40.0])
+        )
+        low, high = np.array([0.0, 1.0, 2.0]), np.array([10.0, np.inf, 30.0])
+        piece_low, piece_high = resolved.linear_piece(
+            np.array([3.0, 4.0, 5.0]), low, high
+        )
+        np.testing.assert_array_equal(piece_low, low)
+        np.testing.assert_array_equal(piece_high, high)
+        with resolved.conditioned_on(low, high) as differs:
+            assert differs is False
+        weights = as_xtensor(pt.constant(np.ones((4, 3))), dims=("date", "channel"))
+        assert resolved.bind_period_weights(weights) is None
+        after = compile_lowered(resolved.to_delivery(spend), spend)(
+            np.array([5.0, 15.0, 40.0])
+        )
+        np.testing.assert_array_equal(after, before)
