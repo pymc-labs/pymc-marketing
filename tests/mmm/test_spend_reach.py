@@ -1882,3 +1882,187 @@ class TestProbeStatistics:
             probe.assert_increment_is_complete(
                 effects=(), non_date_dims=evaluator.non_date_dims
             )
+
+
+HUB = "funnel_hub"
+
+
+def predictor_of(*nodes):
+    """A linear predictor that is the sum of *nodes*, each summed over its channels."""
+
+    def node(spend):
+        total = 0.0
+        for term in nodes:
+            value = term(spend)
+            total = total + (value.sum(axis=-1) if value.ndim == 3 else value)
+        return total
+
+    return node
+
+
+class TestMediatorNodes:
+    """Nodes the probe is asked to measure without counting them in the predictor.
+
+    A request that reports a mediator evaluates it next to the accounted terms.
+    The mediator is not a term of the linear predictor, so it stays out of the
+    completeness check, and its reach sizes the window like any other node's.
+    """
+
+    l_max = 3
+
+    def _probe(self, *, baseline_nodes=None, mediators=(HUB,), **extra):
+        """A probe over a causal contribution, its predictor and a slower hub."""
+        contribution = causal_filter(self.l_max)
+        nodes = {
+            CHANNEL_CONTRIBUTION: contribution,
+            LINEAR_PREDICTOR: predictor_of(contribution),
+            HUB: single_channel_filter(self.l_max + 3, channel=0),
+            **extra,
+        }
+        evaluator = FakeEvaluator(**nodes)
+        evaluator.non_date_dims = {**FakeEvaluator.non_date_dims, HUB: ()}
+        spend = TestSpendProbe._spend()
+        baseline = evaluator.evaluate_baseline(spend)
+        if baseline_nodes is not None:
+            baseline = {name: baseline[name] for name in baseline_nodes}
+        probe = SpendProbe(
+            evaluator=evaluator,
+            baseline=baseline,
+            baseline_array=spend,
+            counterfactual_spend_factor=0.0,
+            mediators=mediators,
+        )
+        return probe, evaluator
+
+    def test_a_mediator_stays_out_of_the_accounting(self):
+        """Summed into the accounted move, the hub would read as an unattributed path."""
+        probe, evaluator = self._probe()
+
+        compared = probe.assert_increment_is_complete(
+            effects=(), non_date_dims=evaluator.non_date_dims
+        )
+
+        assert compared
+
+    def test_a_node_that_is_not_named_as_a_mediator_is_accounted(self):
+        """The same graph without the declaration fails, which is what the check is for."""
+        probe, evaluator = self._probe(mediators=())
+        hub_as_effect = ChannelDependentEffect(
+            contribution_var=HUB,
+            label="hub",
+            declared_carryover_lags=None,
+            declared_evaluation_mode="auto",
+        )
+
+        with pytest.raises(NotImplementedError, match="Some path from spend"):
+            probe.assert_increment_is_complete(
+                effects=(hub_as_effect,), non_date_dims=evaluator.non_date_dims
+            )
+
+    def test_a_mediator_that_outlives_the_contribution_widens_the_window(self):
+        """Its movement is summed on the same window, so the window has to hold it."""
+        probe, _ = self._probe()
+
+        reach = probe.measure(
+            effects=(), l_max=self.l_max, trailing_lags=self.l_max - 1
+        )
+
+        # Six dates are five lags, three of which the model's own window carries.
+        assert reach.measured[HUB].max_lag == self.l_max + 2
+        assert reach.max_lag == self.l_max + 2
+        assert reach.effective_l_max == self.l_max + 2
+        assert reach.measured[CHANNEL_CONTRIBUTION].max_lag == self.l_max - 1
+
+    def test_a_node_the_request_does_not_read_is_left_alone(self):
+        """One mediator the model cannot evaluate does not take down a request on another.
+
+        The evaluator computes every readable mediator of the model.  A request
+        hands the probe the nodes it reads, and the probe looks at no other:
+        here a node that is not finite, which would otherwise be refused.
+        """
+
+        def broken(spend):
+            return np.full((1, len(spend)), np.nan)
+
+        probe, evaluator = self._probe(
+            baseline_nodes=(CHANNEL_CONTRIBUTION, LINEAR_PREDICTOR, HUB), broken=broken
+        )
+
+        assert probe.assert_increment_is_complete(
+            effects=(), non_date_dims=evaluator.non_date_dims
+        )
+        reach = probe.measure(
+            effects=(), l_max=self.l_max, trailing_lags=self.l_max - 1
+        )
+        assert set(reach.measured) == {CHANNEL_CONTRIBUTION, HUB}
+
+
+class TestCompletenessReport:
+    """What the completeness check says about itself, and the tolerance it shares."""
+
+    def test_nothing_was_compared_without_a_predictor(self):
+        """A baseline with no linear predictor leaves the check with nothing to do."""
+        evaluator = FakeEvaluator(**{CHANNEL_CONTRIBUTION: causal_filter(2)})
+        spend = TestSpendProbe._spend()
+        probe = SpendProbe(
+            evaluator=evaluator,
+            baseline=evaluator.evaluate_baseline(spend),
+            baseline_array=spend,
+            counterfactual_spend_factor=0.0,
+        )
+
+        assert not probe.assert_increment_is_complete(
+            effects=(), non_date_dims=evaluator.non_date_dims
+        )
+
+    def test_nothing_was_compared_without_a_probe(self):
+        """Spend on the first date alone cannot be perturbed at an interior date."""
+        contribution = causal_filter(2)
+        evaluator = FakeEvaluator(
+            **{
+                CHANNEL_CONTRIBUTION: contribution,
+                LINEAR_PREDICTOR: predictor_of(contribution),
+            }
+        )
+        spend = np.zeros((12, 2))
+        spend[0] = 1.0
+        probe = SpendProbe(
+            evaluator=evaluator,
+            baseline=evaluator.evaluate_baseline(spend),
+            baseline_array=spend,
+            counterfactual_spend_factor=0.0,
+        )
+
+        assert probe.probe_indices == []
+        assert not probe.assert_increment_is_complete(
+            effects=(), non_date_dims=evaluator.non_date_dims
+        )
+
+    @pytest.mark.parametrize(
+        "predictor_move, gap",
+        [
+            pytest.param(2.0, None, id="the terms account for the whole move"),
+            pytest.param(3.0, 1.0 / 3.0, id="a third of the move is unaccounted"),
+            pytest.param(0.0, 1.0, id="the terms move and the predictor does not"),
+        ],
+    )
+    def test_the_gap_is_a_share_of_the_larger_move(self, predictor_move, gap):
+        """One tolerance, for the probe and for a request's own rows."""
+        stats = ProbeStatistics(accounted=(CHANNEL_CONTRIBUTION,))
+        stats.update(
+            {
+                CHANNEL_CONTRIBUTION: np.ones((2, 4, 2)),
+                LINEAR_PREDICTOR: np.full((2, 4), predictor_move),
+            },
+            {
+                CHANNEL_CONTRIBUTION: np.zeros((2, 4, 2)),
+                LINEAR_PREDICTOR: np.zeros((2, 4)),
+            },
+            non_date_dims={CHANNEL_CONTRIBUTION: ("channel",), LINEAR_PREDICTOR: ()},
+        )
+
+        assert stats.accounting_gap() == (None if gap is None else pytest.approx(gap))
+
+    def test_statistics_with_nothing_folded_report_no_gap(self):
+        """Nothing was compared, so nothing can be missing."""
+        assert ProbeStatistics().accounting_gap() is None
