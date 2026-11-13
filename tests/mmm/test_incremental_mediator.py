@@ -681,6 +681,42 @@ class TestInducedSpend:
         for name in parts.data_vars:
             assert EstimandLabel.read(parts[name]).frequency == "monthly"
 
+    def test_a_period_without_a_fitted_date_is_answered(
+        self, funnel_log_link_fitted_mmm
+    ):
+        """A range that starts between two fitted dates leaves its first period empty.
+
+        No spend is moved in such a period.  The decomposition reports a spend
+        change of zero for it, and a ratio leaves it out, as it does without
+        induced spend.
+        """
+        incr = funnel_log_link_fitted_mmm.incrementality
+        request = {"frequency": "monthly", "start_date": "2023-01-31"}
+
+        parts = incr.decompose_incremental_contribution(
+            **request, induced_spend=[LF_SPEND]
+        )
+        with_induced = incr.contribution_over_spend(**request, induced_spend=[LF_SPEND])
+        marginal = incr.marginal_contribution_over_spend(
+            **request, induced_spend=[LF_SPEND]
+        )
+        plain = incr.contribution_over_spend(**request)
+
+        assert parts.sizes["date"] == plain.sizes["date"] + 1
+        empty = parts.isel(date=0)
+        assert float(np.abs(empty["spend_change"]).max()) == 0.0
+        assert float(np.abs(empty["total"]).max()) == 0.0
+        for ratio in (with_induced, marginal):
+            assert ratio.indexes["date"].equals(plain.indexes["date"])
+            assert ratio["complete"].dims == ("date",)
+        assert_matches(
+            with_induced,
+            (parts["total"] / (parts["spend_change"] + parts["induced_spend"])).sel(
+                date=plain["date"]
+            ),
+            rtol=1e-9,
+        )
+
     def test_a_denominator_that_is_not_positive_is_not_divided_by(
         self, funnel_mmm_data
     ):
@@ -741,3 +777,19 @@ class TestMediatorsTable:
 
         assert len(table) == 0
         assert "readable" in table.columns
+
+
+def test_the_paths_of_a_panel_model_match_holding_its_hubs(panel_hubs_fitted_mmm):
+    """A hub per country and a national one are both held, each in its own dimensions."""
+    mmm = panel_hubs_fitted_mmm
+
+    parts = mmm.incrementality.decompose_incremental_contribution(frequency="all_time")
+
+    expected = oracle(mmm, frequency="all_time", held=["local_hub", "national_hub"])
+    assert EstimandLabel.read(parts["direct"]).held == (
+        "local_effect_contribution",
+        "national_effect_contribution",
+    )
+    for path in ("total", "direct", "mediated"):
+        assert_matches(parts[path], expected[path])
+    assert float(np.abs(parts["mediated"]).max()) > 0

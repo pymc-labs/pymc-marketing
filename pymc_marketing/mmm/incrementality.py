@@ -6068,6 +6068,10 @@ class Incrementality:
         spend = self._aggregate_spend(frequency, start_date, end_date)
         if scope == "joint":
             spend = spend.sum("channel")
+        # A period that holds no fitted date is missing from the aggregate, and
+        # no spend is moved in it.
+        if Dim.DATE in spend.dims:
+            spend = spend.reindex({Dim.DATE: like[Dim.DATE].values}, fill_value=0.0)
         # In the label order of the results it stands next to, so that putting
         # them in one Dataset reorders none of them.
         spend = spend.sel({dim: like[dim].values for dim in spend.dims})
@@ -7539,8 +7543,13 @@ class Incrementality:
 
         spend = self._aggregate_spend(frequency, start_date, end_date)
         if results.mediators:
-            ratio = incremental / self._spend_with_induced(spend, results, frequency)
-            return self._mark_complete(ratio, results.complete, frequency), results
+            # Marked before the division.  A period that holds no fitted date
+            # has no spend to divide by, and leaves the ratio with its mark.
+            marked = self._mark_complete(incremental, results.complete, frequency)
+            return (
+                marked / self._spend_with_induced(spend, results, frequency),
+                results,
+            )
         spend_safe = xr.where(spend == 0, np.nan, spend)
 
         return incremental / spend_safe, results
@@ -7776,11 +7785,8 @@ class Incrementality:
         incremental_spend = spend_increase_pct * spend
         if results.mediators:
             ratio = self._mark_complete(
-                marginal_contribution
-                / self._spend_with_induced(incremental_spend, results, frequency),
-                results.complete,
-                frequency,
-            )
+                marginal_contribution, results.complete, frequency
+            ) / self._spend_with_induced(incremental_spend, results, frequency)
         else:
             incremental_spend_safe = xr.where(
                 incremental_spend == 0, np.nan, incremental_spend
