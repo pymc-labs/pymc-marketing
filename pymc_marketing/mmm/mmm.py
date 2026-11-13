@@ -3298,7 +3298,8 @@ class MMM(RegressionModelBuilder):
                     f"{dim!r} labels of the built model differ from those of "
                     "the data passed to fit, so MMM.load cannot rebuild the model.",
                     UserWarning,
-                    stacklevel=3,
+                    # MMM.fit -> ModelBuilder.fit -> create_fit_data -> here
+                    stacklevel=5,
                 )
                 return fit_data
         return xr.merge([fit_data, effect_data], join="left")

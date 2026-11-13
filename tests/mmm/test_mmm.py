@@ -962,10 +962,15 @@ class TestFitWithXarrayInput:
         mmm.build_model(ds)
         df = self._fit_frame(ds, "date").query("geo == 'north'")
 
-        with pytest.warns(UserWarning, match=r"'geo' labels of the built model"):
+        with pytest.warns(
+            UserWarning, match=r"'geo' labels of the built model"
+        ) as record:
             mmm.fit(df.drop(columns="y"), df["y"])
 
         assert "promo" not in mmm.idata.fit_data
+        # The warning points at the caller of fit, not at library code.
+        (warning,) = [w for w in record if "mu_effect data" in str(w.message)]
+        assert warning.filename == __file__
 
 
 def test_fit_with_dataframe_embedded_target_column(simple_mmm_data, mock_pymc_sample):
