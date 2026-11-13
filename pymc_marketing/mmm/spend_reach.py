@@ -952,8 +952,7 @@ class SpendProbe:
         the intervention target, in ``"replace"`` mode -- since the probe's
         perturbations are spend arrays.
     baseline : dict
-        Unperturbed evaluation on the full date axis, per node.  The probe
-        looks at these nodes and at no other the evaluator may compute.
+        Unperturbed evaluation on the full date axis, per node.
     baseline_array : np.ndarray
         Actual spend, ``(n_dates, *extra_shape)``.
     counterfactual_spend_factor : float
@@ -1045,7 +1044,7 @@ class SpendProbe:
         # are folded: every decision below reads the statistics.
         self.probes: dict[int, ProbeStatistics] = {}
         for probe_index in self.probe_indices:
-            evaluated = evaluator.evaluate_baseline(
+            probed = evaluator.evaluate_baseline(
                 self._perturb(
                     baseline_array=baseline_array,
                     probe_index=probe_index,
@@ -1053,10 +1052,6 @@ class SpendProbe:
                     dtype=evaluator.channel_dtype,
                 )
             )
-            # Cut to the nodes of the baseline: the evaluator may compute nodes
-            # this request does not read, and they are not this probe's to judge.
-            probed = {name: evaluated[name] for name in baseline}
-            del evaluated
             # By name, so no loop variable keeps one of the arrays alive into
             # the next probe's evaluation.
             for name in probed:

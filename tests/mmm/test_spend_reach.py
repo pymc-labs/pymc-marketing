@@ -1910,21 +1910,18 @@ class TestMediatorNodes:
 
     l_max = 3
 
-    def _probe(self, *, baseline_nodes=None, mediators=(HUB,), **extra):
+    def _probe(self, *, mediators=(HUB,)):
         """A probe over a causal contribution, its predictor and a slower hub."""
         contribution = causal_filter(self.l_max)
         nodes = {
             CHANNEL_CONTRIBUTION: contribution,
             LINEAR_PREDICTOR: predictor_of(contribution),
             HUB: single_channel_filter(self.l_max + 3, channel=0),
-            **extra,
         }
         evaluator = FakeEvaluator(**nodes)
         evaluator.non_date_dims = {**FakeEvaluator.non_date_dims, HUB: ()}
         spend = TestSpendProbe._spend()
         baseline = evaluator.evaluate_baseline(spend)
-        if baseline_nodes is not None:
-            baseline = {name: baseline[name] for name in baseline_nodes}
         probe = SpendProbe(
             evaluator=evaluator,
             baseline=baseline,
@@ -1972,29 +1969,6 @@ class TestMediatorNodes:
         assert reach.max_lag == self.l_max + 2
         assert reach.effective_l_max == self.l_max + 2
         assert reach.measured[CHANNEL_CONTRIBUTION].max_lag == self.l_max - 1
-
-    def test_a_node_the_request_does_not_read_is_left_alone(self):
-        """One mediator the model cannot evaluate does not take down a request on another.
-
-        The evaluator computes every readable mediator of the model.  A request
-        hands the probe the nodes it reads, and the probe looks at no other:
-        here a node that is not finite, which would otherwise be refused.
-        """
-
-        def broken(spend):
-            return np.full((1, len(spend)), np.nan)
-
-        probe, evaluator = self._probe(
-            baseline_nodes=(CHANNEL_CONTRIBUTION, LINEAR_PREDICTOR, HUB), broken=broken
-        )
-
-        assert probe.assert_increment_is_complete(
-            effects=(), non_date_dims=evaluator.non_date_dims
-        )
-        reach = probe.measure(
-            effects=(), l_max=self.l_max, trailing_lags=self.l_max - 1
-        )
-        assert set(reach.measured) == {CHANNEL_CONTRIBUTION, HUB}
 
 
 class TestCompletenessReport:

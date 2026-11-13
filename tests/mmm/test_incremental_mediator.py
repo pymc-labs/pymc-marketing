@@ -183,6 +183,42 @@ class FullAxisMemoryNodeFunnelEffect(MemoryNodeFunnelEffect):
         )
 
 
+class IndexedHubEffect(MuEffect):
+    """A hub, and a second node that scales it by a series written into the graph.
+
+    The series is a constant as long as the date axis and not ``pm.Data``, so
+    the node cannot be evaluated on a window.
+    """
+
+    prefix: str
+
+    def create_data(self, mmm) -> None:
+        """No data of its own."""
+
+    def set_data(self, mmm, model, X) -> None:
+        """No data of its own."""
+
+    def incrementality_spec(self) -> IncrementalitySpec:
+        """Declare the hub and the node built on it."""
+        return IncrementalitySpec(
+            role="mediator",
+            mediators=(
+                MediatorSpec(name="hub", variable=f"{self.prefix}_hub"),
+                MediatorSpec(name="index", variable=f"{self.prefix}_index"),
+            ),
+        )
+
+    def create_effect(self, mmm):
+        """Add ``beta * hub`` and register the hub times the constant series."""
+        spend = mmm.channel_data_scaled.sum(dim="channel")
+        hub = pmd.Deterministic(f"{self.prefix}_hub", pmd.math.tanh(spend))
+        n_dates = len(mmm.model.coords["date"])
+        series = pmd.as_xtensor(1.0 + 0.1 * np.arange(n_dates), dims=("date",))
+        pmd.Deterministic(f"{self.prefix}_index", hub * series)
+        beta = pmd.HalfNormal(f"{self.prefix}_beta", sigma=1.0)
+        return pmd.Deterministic(f"{self.prefix}_effect_contribution", beta * hub)
+
+
 def movement_oracle(
     mmm, variable, *, frequency, factor=0.0, scope="per_channel", scale=1.0
 ) -> xr.DataArray:
@@ -472,6 +508,21 @@ class TestIncrementalMediator:
         assert moved[LF_SPEND]["complete"].values.tolist() == expected_complete(
             mmm, "monthly", FUNNEL_L_MAX - 1
         )
+
+    def test_a_request_evaluates_only_the_nodes_it_reads(self, funnel_mmm_data):
+        """A node the request does not name cannot fail it.
+
+        The other node of this effect cannot be evaluated on a window at all.
+        """
+        mmm = _build_simple_effect_mmm(
+            funnel_mmm_data, IndexedHubEffect(prefix="i"), link="log"
+        )
+
+        moved = mmm.incrementality.compute_incremental_mediator(
+            frequency="monthly", mediators=["hub"]
+        )
+
+        assert_matches(moved["hub"], movement_oracle(mmm, "i_hub", frequency="monthly"))
 
     def test_a_node_that_cannot_be_reported_is_named(self, two_hubs_fitted_mmm):
         """Left out of the default with a warning, and refused when asked for."""

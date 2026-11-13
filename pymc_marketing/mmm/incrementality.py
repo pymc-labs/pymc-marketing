@@ -5116,7 +5116,6 @@ class Incrementality:
         # them: a total consults nothing here that it did not consult before.
         held_terms: tuple[str, ...] = ()
         mediators: tuple[ResolvedMediator, ...] = ()
-        mediator_responses: tuple[str, ...] = ()
         if reads.is_path or reads.reads_mediators:
             registry = resolve_mediators(self.model, effects)
         if reads.is_path:
@@ -5135,12 +5134,6 @@ class Incrementality:
                 )
         if reads.reads_mediators:
             mediators = self._mediators_to_read(registry, reads)
-            # One evaluator for every request that reads a mediator, whichever
-            # it reads, so the cache holds one more entry per model and not one
-            # per combination of names.
-            mediator_responses = tuple(
-                sorted(entry.variable for entry in registry if entry.readable)
-            )
 
         periods = self._create_period_groups(start_ts, end_ts, frequency)
         freq_offset = self._data_freq_offset()
@@ -5150,8 +5143,10 @@ class Incrementality:
             effects=effects,
             counterfactual_spend_factor=counterfactual_spend_factor,
             validate_reach=validate_reach,
-            mediator_responses=mediator_responses,
-            mediators_read=tuple(mediator.variable for mediator in mediators),
+            # The evaluator computes the nodes the request reads and no other,
+            # so a declared node outside the request cannot fail it.  Sorted,
+            # so that the order of the names does not make a new evaluator.
+            mediators=tuple(sorted(mediator.variable for mediator in mediators)),
             checks_rows=reads.is_path,
         )
 
@@ -5240,8 +5235,7 @@ class Incrementality:
         effects: Sequence[ChannelDependentEffect],
         counterfactual_spend_factor: float,
         validate_reach: Callable[[SpendReach], None] | None,
-        mediator_responses: Sequence[str] = (),
-        mediators_read: Sequence[str] = (),
+        mediators: Sequence[str] = (),
         checks_rows: bool = False,
     ) -> ProbedReach:
         """Compile the batched evaluator, evaluate the baseline and probe the reach.
@@ -5262,12 +5256,9 @@ class Incrementality:
             Called with the measured
             :class:`~pymc_marketing.mmm.spend_reach.SpendReach`, so that a request
             the reach rules out fails before anything else is evaluated.
-        mediator_responses : sequence of str, default ()
-            Mediator variables the evaluator computes besides the accounted
-            terms: every readable one the model declares, whichever the request
-            reads, so that one compiled evaluator serves every such request.
-        mediators_read : sequence of str, default ()
-            Those among them this request reads.  Only they enter the
+        mediators : sequence of str, default ()
+            Variables of the mediator nodes the request reads.  The evaluator
+            computes them next to the accounted terms, and they enter the
             baseline, the probe and the window.
         checks_rows : bool, default=False
             Whether the request checks its accounting on its own rows, which
@@ -5323,7 +5314,7 @@ class Incrementality:
             Var.CHANNEL_CONTRIBUTION,
             *effect_names,
             *([predictor] if predictor is not None else []),
-            *mediator_responses,
+            *mediators,
         ]
         # Reuse the compiled evaluator for this graph shape and dataset.  The
         # evaluator is leased for the whole request: it leaves the cache here and
@@ -5375,19 +5366,6 @@ class Incrementality:
             baseline_array = channel_data.values
             baseline = evaluator.evaluate_baseline(baseline_array)
             # Per node: (n_samples, n_dates, *non_date_dims)
-            if mediator_responses:
-                # The request looks at the mediators it reads and at no other,
-                # so that one the model cannot evaluate, or one that reaches
-                # further, does not weigh on a request for another.
-                read = {
-                    Var.CHANNEL_CONTRIBUTION,
-                    *effect_names,
-                    Var.MU,
-                    *mediators_read,
-                }
-                baseline = {
-                    name: values for name, values in baseline.items() if name in read
-                }
 
             # What the window is allowed to assume, measured on the compiled graph
             # rather than declared.  Unconditional: a mediated path that outlives the
@@ -5400,7 +5378,7 @@ class Incrementality:
                 baseline=baseline,
                 baseline_array=baseline_array,
                 counterfactual_spend_factor=counterfactual_spend_factor,
-                mediators=mediators_read,
+                mediators=mediators,
             )
             compared = probe.assert_increment_is_complete(
                 effects=effects, non_date_dims=evaluator.non_date_dims
