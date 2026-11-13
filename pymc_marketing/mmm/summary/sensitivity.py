@@ -30,7 +30,7 @@ from pymc_marketing.mmm.summary.helpers import (
     convert_output,
     prepare_sensitivity_data,
 )
-from pymc_marketing.names.mmm import Group
+from pymc_marketing.names.mmm import Dim, Group
 
 __all__ = [
     "sensitivity_analysis",
@@ -51,9 +51,9 @@ def _add_sweep_x_column(
         if "sweep" in df.columns:
             mapping = {
                 float(s): float(sweep_x.sel(sweep=s).item())
-                for s in sweep_x.coords["sweep"].values
+                for s in sweep_x.coords[Dim.SWEEP].values
             }
-            df["sweep_x"] = df["sweep"].map(mapping)
+            df["sweep_x"] = df[Dim.SWEEP].map(mapping)
         return df
 
     sweep_x_df = sweep_x.to_dataframe(name="sweep_x").reset_index()
