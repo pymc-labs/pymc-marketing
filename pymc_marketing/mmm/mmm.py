@@ -2764,7 +2764,8 @@ class MMM(RegressionModelBuilder):
 
             ``idata.fit_data`` holds one variable per column of ``X`` (per channel
             and control for xarray input) plus the target under
-            ``target_column``, on ``(date_column, *dims)``. See
+            ``target_column``, on ``(date_column, *dims)``. The data that
+            mu_effects read is stored with its own dims, which can differ. See
             :meth:`create_fit_data`.
         y : pd.Series or xr.DataArray or np.ndarray or None
             Target values. Required unless ``X`` carries the target.
