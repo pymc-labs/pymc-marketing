@@ -860,7 +860,10 @@ class TestFitWithXarrayInput:
         df = self._fit_frame(ds, date_column).merge(
             promo.rename(columns={"date": date_column}), on=[date_column, "geo"]
         )
-        mmm.fit(df.drop(columns="y"), df["y"])
+        # X holds the same promo as the built model, so nothing warns.
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", UserWarning)
+            mmm.fit(df.drop(columns="y"), df["y"])
 
         assert mmm.idata.fit_data["promo"].dims == (date_column, "geo")
 
@@ -979,7 +982,8 @@ class TestFitWithXarrayInput:
         """``fit_data`` stores the mu_effect data of the Dataset passed to fit.
 
         The model is built from one Dataset and fit on another with the same
-        labels, as the DataFrame branch prefers the columns of X.
+        labels, as the DataFrame branch prefers the columns of X. The posterior
+        is fit on the built data, so this warns.
         """
         ds_build = self._dataset_with_promo(("date", "geo", "segment"))
         ds_fit = ds_build.assign(promo=ds_build["promo"] * 2)
@@ -987,7 +991,8 @@ class TestFitWithXarrayInput:
         mmm.add_mu_effect(_SegmentEffect(data_vars=["promo"], prefix="promo"))
         mmm.build_model(ds_build)
 
-        mmm.fit(ds_fit)
+        with pytest.warns(UserWarning, match=r"\['promo'\] passed to fit differs"):
+            mmm.fit(ds_fit)
 
         xr.testing.assert_allclose(
             mmm.idata.fit_data.to_dataset()["promo"],

@@ -3273,6 +3273,7 @@ class MMM(RegressionModelBuilder):
         built = getattr(self, "xarray_dataset", None)
         if built is None:
             return fit_data
+        self._warn_if_effect_data_differs(fit_data, built)
         names = [
             name
             for name in self._effect_data_vars()
@@ -3304,6 +3305,53 @@ class MMM(RegressionModelBuilder):
                 )
                 return fit_data
         return xr.merge([fit_data, effect_data], join="left")
+
+    def _warn_if_effect_data_differs(
+        self, fit_data: xr.Dataset, built: xr.Dataset
+    ) -> None:
+        """Warn when X holds mu_effect data that differs from the built model's.
+
+        ``fit`` does not write ``X`` into a model that is already built, so the
+        posterior is fit on the built data, while ``fit_data`` stores ``X``.
+        """
+        differ = []
+        for name in self._effect_data_vars():
+            if name not in built or name not in fit_data:
+                continue
+            stored = fit_data[name]
+            if self.date_column != Dim.DATE and self.date_column in stored.dims:
+                stored = stored.rename({self.date_column: Dim.DATE})
+            stored, ref = (
+                da.assign_coords(
+                    {Dim.DATE: pd.to_datetime(da.indexes[Dim.DATE], errors="coerce")}
+                )
+                if Dim.DATE in da.dims
+                else da
+                for da in (stored, built[name])
+            )
+            same_labels = set(stored.dims) == set(ref.dims) and all(
+                set(stored.indexes[dim]) == set(ref.indexes[dim])
+                for dim in ref.dims
+                if dim in ref.indexes
+            )
+            # The built data went through fillna(0), X did not.
+            if not same_labels or not np.allclose(
+                stored.fillna(0).transpose(*ref.dims).reindex_like(ref).values,
+                ref.values,
+            ):
+                differ.append(name)
+        if differ:
+            warnings.warn(
+                f"mu_effect data {differ} passed to fit differs from the data the "
+                "model was built on. fit does not rebuild a built model, so the "
+                "posterior is fit on the built data, while fit_data stores the "
+                "data passed to fit. The model that MMM.load rebuilds can differ "
+                "from the fitted one.",
+                UserWarning,
+                # MMM.fit -> ModelBuilder.fit -> create_fit_data ->
+                # _add_effect_data -> here
+                stacklevel=6,
+            )
 
     def _posterior_predictive_data_transformation(
         self,
