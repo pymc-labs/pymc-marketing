@@ -216,24 +216,27 @@ def create_m_and_L_recommendations(
     X : np.ndarray
         The data.
     X_mid : float
-        The mean of the data.
+        The center of the data, usually its mean.
     ls_lower : float
         Lower bound for the lengthscale. Default is 1.0.
     ls_upper : float, optional
-        Upper bound for the lengthscale. Default is None.
+        Upper bound for the lengthscale. Default is None, which uses the range
+        of the data, ``2 * S`` with ``S = max(abs(X - X_mid))``.
     cov_func : CovFunc
         The covariance function. Default is CovFunc.ExpQuad.
 
     Returns
     -------
     tuple[int, float]
-        The number of basis functions and the boundary of the approximation.
+        The number of basis functions and the boundary of the approximation,
+        ``L = c * S`` around ``X_mid``. Both depend only on the data relative
+        to ``X_mid``, so shifting ``X`` and ``X_mid`` together leaves them
+        unchanged.
 
     """
+    S = float(np.max(np.abs(np.asarray(X) - X_mid)))
     if ls_upper is None:
-        ls_upper = 2 * X_mid
-    else:
-        ls_upper = ls_upper
+        ls_upper = 2 * S
 
     m, c = approx_hsgp_hyperparams(
         X,
@@ -241,7 +244,7 @@ def create_m_and_L_recommendations(
         lengthscale_range=(ls_lower, ls_upper),
         cov_func=cast(Literal["expquad", "matern32", "matern52"], cov_func),
     )
-    L = c * X_mid
+    L = c * S
 
     return m, L
 

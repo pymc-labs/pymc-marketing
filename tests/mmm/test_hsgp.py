@@ -36,6 +36,7 @@ from pymc_marketing.mmm.hsgp import (
     SoftPlusHSGP,
     approx_hsgp_hyperparams,
     create_complexity_penalizing_prior,
+    create_m_and_L_recommendations,
 )
 from pymc_marketing.model_graph import deterministics_to_flat
 from pymc_marketing.serialization import DeferredFactory, serialization
@@ -126,6 +127,31 @@ def test_unsupported_cov_func_raises() -> None:
             lengthscale_range=(1, 2),
             cov_func="unsupported",
         )
+
+
+@pytest.mark.parametrize(
+    "ls_upper", [None, 30.0], ids=["default_ls_upper", "given_ls_upper"]
+)
+@pytest.mark.parametrize("shift", [100.0, 1000.0, -50.0])
+def test_m_and_L_recommendations_do_not_depend_on_where_X_starts(
+    shift, ls_upper
+) -> None:
+    X = np.arange(156.0)
+    m, L = create_m_and_L_recommendations(X, X.mean(), ls_lower=2.0, ls_upper=ls_upper)
+    m_shifted, L_shifted = create_m_and_L_recommendations(
+        X + shift, X.mean() + shift, ls_lower=2.0, ls_upper=ls_upper
+    )
+    assert m_shifted == m
+    np.testing.assert_allclose(L_shifted, L)
+
+
+def test_m_and_L_recommendations_unchanged_for_X_starting_at_zero() -> None:
+    # Here X_mid equals the half-range S, so the boundary L = c * S is the same
+    # as before L was computed from S instead of X_mid.
+    X = np.arange(156.0)
+    m, L = create_m_and_L_recommendations(X, X.mean(), ls_lower=2.0)
+    assert m == 434
+    np.testing.assert_allclose(L, 6.4 * 77.5)
 
 
 def test_X_at_init_stores_as_tensor_variable() -> None:
