@@ -19,6 +19,7 @@ from pymc_marketing.mmm.additive_effect import (
     DataVarMuEffect,
     IncrementalitySpec,
     MediaMuEffect,
+    MediatorSpec,
 )
 from pymc_marketing.mmm.budget_model import BudgetModelEffect, lift_test_design
 from pymc_marketing.mmm.budget_optimizer import (
@@ -50,6 +51,7 @@ from pymc_marketing.mmm.components.saturation import (
     TanhSaturation,
     TanhSaturationBaselined,
 )
+from pymc_marketing.mmm.estimand_label import EstimandLabel
 from pymc_marketing.mmm.fourier import MonthlyFourier, WeeklyFourier, YearlyFourier
 from pymc_marketing.mmm.hsgp import (
     HSGP,
@@ -114,6 +116,7 @@ __all__ = [
     "DataDerivedScaling",
     "DataVarMuEffect",
     "DelayedAdstock",
+    "EstimandLabel",
     "FancyLinearRegression",
     "FixedScaling",
     "GeometricAdstock",
@@ -132,6 +135,7 @@ __all__ = [
     "MediaConfigList",
     "MediaMuEffect",
     "MediaTransformation",
+    "MediatorSpec",
     "MichaelisMentenSaturation",
     "MonthlyFourier",
     "NoAdstock",

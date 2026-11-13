@@ -31,6 +31,7 @@ from pymc_marketing.mmm.additive_effect import (
     DataVarMuEffect,
     IncrementalitySpec,
     LinearTrendEffect,
+    MediatorSpec,
     MuEffect,
 )
 from pymc_marketing.mmm.components.adstock import WeibullCDFAdstock
@@ -679,9 +680,27 @@ class FunnelEffect(DataVarMuEffect):
         }
 
     def incrementality_spec(self) -> IncrementalitySpec:
-        """Opt in, declaring the second adstock's reach."""
+        """Opt in as a mediator, declaring the second adstock's reach and both nodes.
+
+        Demand and the lower-funnel spend it induces are the two registered
+        nodes between spend and the term.  Either one cuts every route, so
+        either one would do for a path request; both are declared so that both
+        can be reported.
+        """
         return IncrementalitySpec(
-            additional_carryover_lags=self.demand_transform.adstock.l_max
+            additional_carryover_lags=self.demand_transform.adstock.l_max,
+            role="mediator",
+            mediators=(
+                MediatorSpec(
+                    name=f"{self.prefix}_demand", variable=f"{self.prefix}_demand"
+                ),
+                MediatorSpec(
+                    name=f"{self.prefix}_lf_spend",
+                    variable=f"{self.prefix}_lf_spend",
+                    units="USD",
+                    is_spend=True,
+                ),
+            ),
         )
 
     def create_effect(self, mmm):
