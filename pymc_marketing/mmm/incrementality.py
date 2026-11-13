@@ -266,17 +266,17 @@ from pymc_marketing.mmm.evaluator_cache import (
     EvaluatorLease,
     constant_data_fingerprint,
 )
-from pymc_marketing.mmm.link import MU_ORIGINAL_SCALE, LinkFunction
+from pymc_marketing.mmm.link import LinkFunction
 from pymc_marketing.mmm.spend_reach import (
     _PKG_PREFIX,
-    CHANNEL_CONTRIBUTION,
-    LINEAR_PREDICTOR,
     SpendProbe,
     linear_predictor,
+    refuse_blocked_spend_paths,
     resolve_channel_dependent_effects,
 )
 from pymc_marketing.mmm.transformers import ConvMode
 from pymc_marketing.mmm.utils import infer_frequency
+from pymc_marketing.names.mmm import Dim, Var
 from pymc_marketing.pytensor_utils import (
     needed_posterior_names,
     reorder_to_model_coords,
@@ -310,7 +310,8 @@ __all__ = [
 
 CentralTendency = Literal["median", "mean"]
 
-LAG_DIM = "time since exposure"
+LAG_DIM = Dim.TIME_SINCE_EXPOSURE
+"""Adstock lag dimension, an alias of ``Dim.TIME_SINCE_EXPOSURE`` in :mod:`pymc_marketing.names.mmm`."""
 
 ALLOCATION_REQUIREMENT = "estimand='allocation'"
 CLOSED_FORM_REQUIREMENT = "method='closed_form'"
@@ -929,8 +930,8 @@ def _adstock_terms(
         One lag's term, ``weights``'s dims less the lag, broadcast with
         ``spend``'s.
     """
-    for lag in range(weights.sizes[LAG_DIM]):
-        yield weights.isel({LAG_DIM: lag}, drop=True) * spend.shift(
+    for lag in range(weights.sizes[Dim.TIME_SINCE_EXPOSURE]):
+        yield weights.isel({Dim.TIME_SINCE_EXPOSURE: lag}, drop=True) * spend.shift(
             date=lag, fill_value=0.0
         )
 
@@ -1324,16 +1325,16 @@ class Incrementality:
         ValueError
             If the deterministic is absent from the posterior.
         """
-        if MU_ORIGINAL_SCALE not in posterior:
+        if Var.MU_ORIGINAL_SCALE not in posterior:
             raise ValueError(
                 f"Incrementality under link='{self.model.link}' needs the baseline "
-                f"response-scale prediction '{MU_ORIGINAL_SCALE}', which is not in "
+                f"response-scale prediction '{Var.MU_ORIGINAL_SCALE}', which is not in "
                 "the posterior. It is registered automatically when a log-link "
                 "model is built, so this posterior was most likely sampled with a "
                 "restricted 'var_names'. Refit without filtering it out."
             )
 
-        return self._stack_samples(posterior[MU_ORIGINAL_SCALE])
+        return self._stack_samples(posterior[Var.MU_ORIGINAL_SCALE])
 
     def _build_reducer(
         self,
@@ -1528,6 +1529,11 @@ class Incrementality:
             If the model's link function has no :class:`IncrementalReducer`, or a
             ``mu_effect`` that depends on channel spend has not opted in via
             :meth:`~pymc_marketing.mmm.additive_effect.MuEffect.incrementality_spec`.
+            Also raised if a path from spend to the linear predictor passes
+            through a random variable or a frozen deterministic, which an
+            evaluation conditioned on the posterior holds fixed, so that the
+            path would be left out of the increment; see
+            :func:`~pymc_marketing.mmm.spend_reach.refuse_blocked_spend_paths`.
             Also raised if the accounted nodes (``channel_contribution`` plus
             the resolved effects) do not reproduce the full move in the linear
             predictor, which means some path from spend to the response is
@@ -2110,8 +2116,8 @@ class Incrementality:
         ValueError
             If an input is out of range, or the date frequency cannot be inferred.
         NotImplementedError
-            If the link has no reducer, or a channel-dependent ``mu_effect`` has
-            not opted in.
+            If the link has no reducer, a channel-dependent ``mu_effect`` has
+            not opted in, or the posterior holds a spend path fixed.
 
         Warns
         -----
@@ -2807,7 +2813,7 @@ class Incrementality:
 
         dates = self.data.dates
         out_dims = tuple(
-            str(dim) for dim in saturated.dims if dim not in ("chain", "draw", "date")
+            str(dim) for dim in saturated.dims if dim not in ("chain", "draw", Dim.DATE)
         )
         n_chains, n_draws = saturated.sizes["chain"], saturated.sizes["draw"]
         sizes = tuple(saturated.sizes[dim] for dim in out_dims)
@@ -3699,14 +3705,14 @@ class Incrementality:
         cumulative = (
             self._adstock_kernel(prepared.posterior, divides=False)
             .sel(inputs.labels)
-            .cumsum(LAG_DIM)
+            .cumsum(Dim.TIME_SINCE_EXPOSURE)
         )
 
         dates = self.data.dates
         offset = prepared.freq_offset
         saturated = inputs.saturated
         out_dims = tuple(
-            str(dim) for dim in saturated.dims if dim not in ("chain", "draw", "date")
+            str(dim) for dim in saturated.dims if dim not in ("chain", "draw", Dim.DATE)
         )
         row_of = _row_of_dates(dates, prepared.periods)
         current_end = pd.DatetimeIndex(
@@ -3725,9 +3731,11 @@ class Incrementality:
         )
 
         cohorts = saturated.isel(date=spent)
-        within = cumulative.isel({LAG_DIM: xr.DataArray(counted, dims="date")})
+        within = cumulative.isel(
+            {Dim.TIME_SINCE_EXPOSURE: xr.DataArray(counted, dims="date")}
+        )
         within = within.assign_coords(date=cohorts["date"].values)
-        whole = cumulative.isel({LAG_DIM: -1}, drop=True)
+        whole = cumulative.isel({Dim.TIME_SINCE_EXPOSURE: -1}, drop=True)
         order = ("chain", "draw", "date", *out_dims)
         rows = row_of[spent]
 
@@ -4309,7 +4317,7 @@ class Incrementality:
             )
         return EvaluatorCacheKey(
             response_vars=cast(tuple[str, ...], names),
-            intervention_target=CounterfactualEvaluator.CHANNEL_DATA,
+            intervention_target=Var.CHANNEL_DATA,
             intervention_mode="replace",
             frozen_deterministics=tuple(self.model.frozen_deterministics),
             dates=tuple(self.data.dates),
@@ -4360,8 +4368,9 @@ class Incrementality:
         ValueError
             If an input is out of range, or the date frequency cannot be inferred.
         NotImplementedError
-            If the link has no reducer, or a channel-dependent ``mu_effect`` has
-            not opted in.
+            If the link has no reducer, a channel-dependent ``mu_effect`` has
+            not opted in, or a path from spend to the linear predictor passes
+            through a variable the posterior holds fixed.
         """
         if counterfactual_spend_factor < 0:
             raise ValueError(
@@ -4386,10 +4395,12 @@ class Incrementality:
         )
 
         # Resolve the link-specific reduction and the effects to include before
-        # compiling anything, so an unsupported link or an effect that has not
-        # opted in fails fast rather than after the expensive work.
+        # compiling anything, so an unsupported link, an effect that has not
+        # opted in or a spend path the posterior holds fixed fails fast rather
+        # than after the expensive work.
         reducer = self._build_reducer(posterior_sub, central_tendency)
         effects = resolve_channel_dependent_effects(self.model)
+        refuse_blocked_spend_paths(self.model, effects)
 
         periods = self._create_period_groups(start_ts, end_ts, frequency)
         freq_offset = self._data_freq_offset()
@@ -4550,7 +4561,7 @@ class Incrementality:
         # constant_data is missing only for idata built before this group was
         # recorded, and the evaluator falls back to the live snapshot then.
         response_vars: list[str | Variable] = [
-            CHANNEL_CONTRIBUTION,
+            Var.CHANNEL_CONTRIBUTION,
             *effect_names,
             *([predictor] if predictor is not None else []),
         ]
@@ -4588,9 +4599,7 @@ class Incrementality:
             # since panel models lay channel_data out as (date, *custom_dims,
             # channel).
             channel_data_dims = list(
-                posterior_predictive_model.named_vars_to_dims.get(
-                    CounterfactualEvaluator.CHANNEL_DATA, ()
-                )
+                posterior_predictive_model.named_vars_to_dims.get(Var.CHANNEL_DATA, ())
             )
 
             # Evaluate baseline on full dataset (once).  Comparable to the windowed
@@ -4625,7 +4634,7 @@ class Incrementality:
             # Only the completeness check above reads the predictor.  The pop
             # frees it because ``probe.baseline`` is this same dict object: a
             # copy without it would leave the probe holding the predictor.
-            baseline.pop(LINEAR_PREDICTOR, None)
+            baseline.pop(Var.MU, None)
             # The adstock kernel's own trailing lags: the floor under the measured
             # horizon, and the lower bound on the unobserved tail when the probe
             # sends every period to the full date axis.
@@ -4731,8 +4740,8 @@ class Incrementality:
         ValueError
             If an input is out of range, or the date frequency cannot be inferred.
         NotImplementedError
-            If the link has no reducer, or a channel-dependent ``mu_effect`` has
-            not opted in.
+            If the link has no reducer, a channel-dependent ``mu_effect`` has
+            not opted in, or the posterior holds a spend path fixed.
         """
         prepared = self._prepare_evaluation(
             frequency=frequency,
@@ -4785,7 +4794,7 @@ class Incrementality:
             # in per-channel mode, and it is not always axis 0.
             channel_axis = None
             if needs_dedicated_rows:
-                channel_axis = [d for d in channel_data_dims if d != "date"].index(
+                channel_axis = [d for d in channel_data_dims if d != Dim.DATE].index(
                     "channel"
                 )
 
@@ -5088,7 +5097,7 @@ class Incrementality:
                 },
             )
 
-        channel_delta = delta(CHANNEL_CONTRIBUTION)
+        channel_delta = delta(Var.CHANNEL_CONTRIBUTION)
         delta_mu = (
             channel_delta.sum(dim="channel")
             if channel is None
@@ -5109,7 +5118,7 @@ class Incrementality:
         positions pair with the draws'.
         """
         channel_data = self.data.get_channel_data()
-        name = channel_data.name or "channel_data"
+        name = channel_data.name or Var.CHANNEL_DATA
         ordered = reorder_to_model_coords(
             channel_data.to_dataset(name=name), self.model.model.coords
         )
@@ -5134,7 +5143,7 @@ class Incrementality:
             {
                 str(dim): channel_data.coords[dim].values
                 for dim in channel_data.dims
-                if dim != "date" and dim in channel_data.coords
+                if dim != Dim.DATE and dim in channel_data.coords
             },
         )
         return transpose_to_model_dims(
@@ -5693,8 +5702,9 @@ class Incrementality:
             If the model's link function has no :class:`IncrementalReducer`,
             if a channel-dependent ``mu_effect`` has not opted in via
             :meth:`~pymc_marketing.mmm.additive_effect.MuEffect.incrementality_spec`,
-            or if the accounted nodes do not reproduce the full move in the
-            linear predictor.
+            if a path from spend to the linear predictor passes through a
+            variable the posterior holds fixed, or if the accounted nodes do
+            not reproduce the full move in the linear predictor.
 
         Warns
         -----
@@ -5862,9 +5872,10 @@ class Incrementality:
             cases documented on :meth:`compute_incremental_contribution`.
         NotImplementedError
             If the model's link function has no :class:`IncrementalReducer`,
-            a channel-dependent ``mu_effect`` has not opted in, or the
-            accounted nodes do not reproduce the full move in the linear
-            predictor; see :meth:`compute_incremental_contribution`.
+            a channel-dependent ``mu_effect`` has not opted in, the posterior
+            holds a spend path fixed, or the accounted nodes do not reproduce
+            the full move in the linear predictor; see
+            :meth:`compute_incremental_contribution`.
 
         Warns
         -----

@@ -48,6 +48,13 @@ repos:
         language_version: python3.12
         pass_filenames: false
         files: ^(docs/source/api/index\.md|pymc_marketing/.*\.py)$
+      - id: validate-names
+        name: Validate that names constants are not typed by hand
+        entry: python scripts/validate_names.py
+        language: python
+        language_version: python3.12
+        pass_filenames: false
+        files: ^(pymc_marketing/.*\.py|scripts/validate_names\.py)$
       - id: validate-watermark
         name: Validate notebooks have watermark in last cell
         entry: python scripts/validate_notebook_watermark.py
