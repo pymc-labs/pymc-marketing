@@ -541,8 +541,8 @@ class IncrementalReducer(ABC):
             dimension is dropped; every other dimension is preserved.
         """
         if base is None:
-            return self.per_date_increment(delta).sum(dim="date")
-        return self.per_date_increment(delta, base=base).sum(dim="date")
+            return self.per_date_increment(delta).sum(dim=Dim.DATE)
+        return self.per_date_increment(delta, base=base).sum(dim=Dim.DATE)
 
     @abstractmethod
     def for_samples(self, samples: slice) -> IncrementalReducer:
@@ -663,7 +663,7 @@ class LogLinkReducer(IncrementalReducer):
         this way, and not as the total less the direct part, which loses
         digits when the two are close.
         """
-        baseline = self.baseline_response.sel(date=delta.coords["date"])
+        baseline = self.baseline_response.sel(date=delta.coords[Dim.DATE])
         if base is not None:
             baseline = baseline * np.exp(base)
         return baseline * np.expm1(delta)
@@ -1340,7 +1340,7 @@ class PeriodReduction:
     @property
     def channels(self) -> list:
         """The channel labels, in the order the evaluator computed them."""
-        return self.model_coords["channel"].tolist()
+        return self.model_coords[Dim.CHANNEL].tolist()
 
     @property
     def out_dims(self) -> list[str]:
@@ -3030,7 +3030,7 @@ class Incrementality:
                 )
             notes.append(note + ".")
 
-        dim_order = ["chain", "draw", "spend_date", "realization_date", "channel"]
+        dim_order = ["chain", "draw", "spend_date", "realization_date", Dim.CHANNEL]
         if frequency == "all_time":
             dim_order.remove("spend_date")
 
@@ -3246,7 +3246,7 @@ class Incrementality:
                 "value."
             )
 
-        dim_order = ["chain", "draw", "spend_date", "realization_date", "channel"]
+        dim_order = ["chain", "draw", "spend_date", "realization_date", Dim.CHANNEL]
 
         if frequency == "all_time":
             dim_order.remove("spend_date")
@@ -3568,7 +3568,7 @@ class Incrementality:
                 np.stack([spend.values, counterfactual_spend_factor * spend.values]),
                 dims=("spend_level", *map(str, spend.dims)),
                 coords=coords,
-                core_dim="date",
+                core_dim=Dim.DATE,
                 progressbar=False,
             )
 
@@ -3654,7 +3654,7 @@ class Incrementality:
         for lag, term in enumerate(_adstock_terms(weights, saturated)):
             _scatter_by_cohort(
                 values,
-                term.transpose("chain", "draw", "date", *out_dims).values,
+                term.transpose("chain", "draw", Dim.DATE, *out_dims).values,
                 row_of=row_of,
                 lag=lag,
                 columns=columns,
@@ -4076,9 +4076,9 @@ class Incrementality:
         total = (
             contribution.isel(realization_date=contribution["observed"].values)
             .drop_vars("observed")
-            .rename(realization_date="date")
+            .rename(realization_date=Dim.DATE)
         )
-        dates = pd.DatetimeIndex(total["date"].values)
+        dates = pd.DatetimeIndex(total[Dim.DATE].values)
         # The kernel and the spend go into the contribution's label order, the
         # one its values and the matrix's coordinates are laid out in: a labeled
         # product keeps its first operand's order, and the masks below pair
@@ -4120,7 +4120,7 @@ class Incrementality:
             landed = per_unit * term
             _scatter_by_cohort(
                 values,
-                landed.transpose("chain", "draw", "date", *out_dims).values,
+                landed.transpose("chain", "draw", Dim.DATE, *out_dims).values,
                 row_of=row_of,
                 lag=lag,
             )
@@ -4546,11 +4546,11 @@ class Incrementality:
 
         cohorts = saturated.isel(date=spent)
         within = cumulative.isel(
-            {Dim.TIME_SINCE_EXPOSURE: xr.DataArray(counted, dims="date")}
+            {Dim.TIME_SINCE_EXPOSURE: xr.DataArray(counted, dims=Dim.DATE)}
         )
-        within = within.assign_coords(date=cohorts["date"].values)
+        within = within.assign_coords(date=cohorts[Dim.DATE].values)
         whole = cumulative.isel({Dim.TIME_SINCE_EXPOSURE: -1}, drop=True)
-        order = ("chain", "draw", "date", *out_dims)
+        order = ("chain", "draw", Dim.DATE, *out_dims)
         rows = row_of[spent]
 
         current = self._sum_by_period(
@@ -4998,7 +4998,7 @@ class Incrementality:
             complete=("spend_date", list(complete)),
         )
 
-        dim_order = ["chain", "draw", "spend_date", "channel", *custom_dims]
+        dim_order = ["chain", "draw", "spend_date", Dim.CHANNEL, *custom_dims]
         if frequency == "all_time":
             result = result.squeeze("spend_date", drop=False)
             dim_order.remove("spend_date")
@@ -6341,7 +6341,7 @@ class Incrementality:
         """
         spend = self._aggregate_spend(frequency, start_date, end_date)
         if scope == "joint":
-            spend = spend.sum("channel")
+            spend = spend.sum(Dim.CHANNEL)
         # A period that holds no fitted date is missing from the aggregate, and
         # no spend is moved in it.
         if Dim.DATE in spend.dims:
@@ -6440,7 +6440,7 @@ class Incrementality:
                 {IncrementalityResult.COMPLETE: bool(complete[0])}
             )
         return result.assign_coords(
-            {IncrementalityResult.COMPLETE: ("date", list(complete))}
+            {IncrementalityResult.COMPLETE: (Dim.DATE, list(complete))}
         )
 
     def _induced_movement(
@@ -6534,9 +6534,9 @@ class Incrementality:
         """
         if frequency == "all_time":
             # Single period, no date dimension
-            result = periods[0].squeeze("date", drop=True)
+            result = periods[0].squeeze(Dim.DATE, drop=True)
         else:
-            result = xr.concat(periods, dim="date")
+            result = xr.concat(periods, dim=Dim.DATE)
         # Already on the original (response) scale: the reducer applied the
         # link's inverse transform and target_scale per draw, before summing.
         return result.transpose("chain", "draw", ...)
@@ -6687,16 +6687,16 @@ class Incrementality:
             dims = non_date_dims[name]
             return xr.DataArray(
                 counterfactual[name][row][:, cf_mask] - baseline[name],
-                dims=("sample", "date", *dims),
+                dims=("sample", Dim.DATE, *dims),
                 coords={
-                    "date": window_dates,
+                    Dim.DATE: window_dates,
                     **{dim: coords[dim] for dim in dims if dim in coords},
                 },
             )
 
         channel_delta = delta(Var.CHANNEL_CONTRIBUTION)
         kept = (
-            channel_delta.sum(dim="channel")
+            channel_delta.sum(dim=Dim.CHANNEL)
             if channel is None
             else channel_delta.isel(channel=channel, drop=True)
         )
@@ -6974,7 +6974,7 @@ class Incrementality:
         passed = {} if base is None else {"base": base}
         if reduction.keep_date_axis:
             increment = reducer.per_date_increment(delta, **passed).transpose(
-                "sample", "date", *reduction.out_dims
+                "sample", Dim.DATE, *reduction.out_dims
             )
         else:
             increment = reducer.counterfactual_minus_baseline(
@@ -7142,9 +7142,9 @@ class Incrementality:
                 xr.DataArray(
                     counterfactual[mediator.variable][row][:, cf_mask]
                     - baseline[mediator.variable],
-                    dims=("sample", "date", *dims),
+                    dims=("sample", Dim.DATE, *dims),
                     coords=coords,
-                ).sum("date")
+                ).sum(Dim.DATE)
                 for row in rows
             ],
             reduction,
@@ -7426,7 +7426,7 @@ class Incrementality:
                 freq_offset=freq_offset,
             )
         else:
-            result = result.assign_coords(date=window.end).expand_dims("date")
+            result = result.assign_coords(date=window.end).expand_dims(Dim.DATE)
         # A mediator may carry fewer dimensions than the model.
         return result.sel(
             {dim: order for dim, order in reported_order.items() if dim in result.dims}

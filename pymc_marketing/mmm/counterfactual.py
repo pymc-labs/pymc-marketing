@@ -1076,7 +1076,7 @@ class CounterfactualEvaluator:
         ):
             values = np.asarray(data.eval())
             dims = tuple(do_model.named_vars_to_dims[data.name])
-            date_axis = dims.index("date")
+            date_axis = dims.index(Dim.DATE)
             if values.shape[date_axis] != len(self._dates):
                 raise ValueError(
                     f"Date-indexed data variable {data.name!r} has "
@@ -1115,7 +1115,7 @@ class CounterfactualEvaluator:
         )
         for name, (frozen, source) in frozen_paths.items():
             dims = tuple(frozen.type.dims)
-            date_axis = dims.index("date")
+            date_axis = dims.index(Dim.DATE)
             values = source.get_value(borrow=True)
             if values.shape[date_axis] != len(self._dates):
                 raise ValueError(
@@ -1173,7 +1173,7 @@ class CounterfactualEvaluator:
         # carry.  Transposing inside the graph rather than on the results keeps
         # it a view where the backend can make it one.
         outputs = [
-            out.transpose(self.BATCH_DIM, "sample", "date", *self.non_date_dims[name])
+            out.transpose(self.BATCH_DIM, "sample", Dim.DATE, *self.non_date_dims[name])
             for name, out in zip(
                 self.response_vars,
                 vectorize_graph(graphs, replace=replace),
