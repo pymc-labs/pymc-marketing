@@ -821,6 +821,45 @@ class TestFitWithXarrayInput:
         )
         xr.testing.assert_allclose(got, ds["promo"].transpose(*dims).reindex_like(got))
 
+    @pytest.mark.parametrize("fit_from", ["dataset", "dataframe"])
+    def test_loaded_model_predicts_like_the_saved_one_with_mu_effect_data(
+        self, fit_from, tmp_path, mock_pymc_sample
+    ):
+        """A loaded model predicts on new mu_effect data like the saved one (#2938).
+
+        ``promo`` has an extra ``segment`` dim, so ``load`` must restore it with
+        that dim for ``set_data`` to write the new values. The new data has fewer
+        dates than the training data, so stale ``promo`` values would not fit.
+        """
+        ds = self._dataset_with_promo(("date", "geo", "segment"))
+        mmm = self._mmm(("geo",), self.CONTROLS)
+        mmm.add_mu_effect(_SegmentEffect(data_vars=["promo"], prefix="promo"))
+        if fit_from == "dataset":
+            mmm.fit(ds)
+        else:
+            mmm.build_model(ds)
+            df = self._fit_frame(ds, "date")
+            mmm.fit(df.drop(columns="y"), df["y"])
+        file = str(tmp_path / "predict_after_load.nc")
+        mmm.save(file)
+        loaded = MMM.load(file)
+
+        # Four dates after the training data, with new values.
+        new_dates = pd.date_range(ds["date"].values[-1], periods=5, freq="W-MON")[1:]
+        X_new = ds[["media", "_control", "promo"]].isel(date=slice(4)) * 2
+        X_new = X_new.assign_coords(date=new_dates)
+        kwargs = {
+            "var_names": ["promo_contribution", "y"],
+            "extend_idata": False,
+            "progressbar": False,
+            "random_seed": 0,
+        }
+        expected = mmm.sample_posterior_predictive(X_new, **kwargs)
+        got = loaded.sample_posterior_predictive(X_new, **kwargs)
+
+        assert got.sizes["date"] == 4
+        xr.testing.assert_allclose(got, expected)
+
     def test_fit_warns_when_mu_effect_data_labels_differ(self, mock_pymc_sample):
         """``fit_data`` skips mu_effect data whose labels differ from the fit data."""
         ds = self._dataset_with_promo(("date", "geo", "segment"))
