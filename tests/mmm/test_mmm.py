@@ -787,6 +787,41 @@ class TestFitWithXarrayInput:
         )
         xr.testing.assert_allclose(got, ds["promo"].transpose(*dims).reindex_like(got))
 
+    @pytest.mark.parametrize(
+        "promo_dims, effect",
+        [
+            (("date",), ControlMuEffect(data_vars=["promo"], prefix="promo")),
+            (
+                ("date", "geo", "segment"),
+                _SegmentEffect(data_vars=["promo"], prefix="promo"),
+            ),
+        ],
+        ids=["date-only", "extra-dim"],
+    )
+    def test_save_load_keeps_mu_effect_data_with_string_dates(
+        self, promo_dims, effect, tmp_path, mock_pymc_sample
+    ):
+        """mu_effect data loads with its values when the ``date`` labels are strings.
+
+        Effect data off the ``(date, *dims)`` layout used to be restored as all
+        NaN, because its string dates did not match the converted dates.
+        """
+        ds = self._dataset_with_promo(promo_dims)
+        ds = ds.assign_coords(
+            date=ds.indexes["date"].strftime("%Y-%m-%d").to_numpy(dtype=object)
+        )
+        mmm = self._mmm(("geo",), self.CONTROLS)
+        mmm.add_mu_effect(effect)
+        mmm.fit(ds)
+
+        file = str(tmp_path / "string_dates.nc")
+        mmm.save(file)
+        loaded = MMM.load(file)
+
+        got = loaded.model["promo"].eval()
+        assert not np.isnan(got).any()
+        np.testing.assert_allclose(got, mmm.model["promo"].eval())
+
     @pytest.mark.parametrize("date_column", ["date", "week"])
     def test_save_load_keeps_mu_effect_data_from_fit_frame(
         self, date_column, tmp_path, mock_pymc_sample

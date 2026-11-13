@@ -913,9 +913,6 @@ class MMM(RegressionModelBuilder):
         # Label order of custom dims that `build_from_idata` imposes on the
         # rebuilt data, so that the model matches the loaded posterior by label.
         self._custom_dim_order: dict[str, pd.Index] = {}
-        # mu_effect data that `build_from_idata` cannot pass through the
-        # DataFrame it rebuilds from (for example a variable with an extra dim).
-        self._restored_effect_data: xr.Dataset | None = None
 
         super().__init__(model_config=model_config, sampler_config=sampler_config)
 
@@ -2287,10 +2284,6 @@ class MMM(RegressionModelBuilder):
             extra_vars=self._effect_extra_vars(X),
             target_column=self.target_column,
         ).fillna(0)
-        if self._restored_effect_data is not None:
-            self.xarray_dataset = xr.merge(
-                [self.xarray_dataset, self._restored_effect_data], join="left"
-            )
         self.xarray_dataset = self._reindex_custom_dims(self.xarray_dataset)
 
         self.xarray_dataset[DatasetVar.CHANNEL] = self.xarray_dataset[
@@ -5628,10 +5621,10 @@ class MMM(RegressionModelBuilder):
         - The custom dimensions of the rebuilt model follow the label order of
             the posterior. Posterior draws are matched to the model by position,
             and a model fit from an ``xr.Dataset`` keeps the Dataset's order,
-            while the DataFrame built from ``fit_data`` is sorted.
-        - mu_effect data whose dims differ from ``(self.date_column, *dims)``,
-            such as a variable with an extra dim, skips the DataFrame and is
-            merged into ``xarray_dataset`` with its own dims.
+            while the ``fit_data`` of a DataFrame fit is sorted.
+        - The model is rebuilt from an ``xr.Dataset`` made from ``fit_data``, so
+            mu_effect data keeps its own dims, such as an extra dim. Dates are
+            converted with ``pd.to_datetime`` for every variable.
         - Restores lift-test calibration from ``idata.attrs`` and
             cost-per-target/ROAS calibration from ``idata.attrs`` plus the
             ``cost_per_target_spend`` group. Files written before these records
@@ -5654,37 +5647,30 @@ class MMM(RegressionModelBuilder):
                 for effect_data in mu_effects_data
             ]
 
+        # Rebuild from a Dataset, the inverse of the xarray branch of
+        # create_fit_data, so mu_effect data keeps its own dims. Dates are
+        # converted once, for every variable, as the DataFrame path does.
         fit_data = idata.fit_data.dataset
-        # A long frame cannot hold mu_effect data whose dims are not the frame
-        # index, so that data skips the frame and is merged back in build_model.
-        frame_dims = {
-            self.date_column,
-            *(dim for dim in self.dims if dim in fit_data.sizes),
+        if self.date_column != Dim.DATE:
+            fit_data = fit_data.rename({self.date_column: Dim.DATE})
+        fit_data = fit_data.assign_coords(
+            {Dim.DATE: pd.to_datetime(fit_data.indexes[Dim.DATE])}
+        )
+        controls = list(self.control_columns or [])
+        data = {
+            DatasetVar.CHANNEL: fit_data[self.channel_columns].to_dataarray(
+                Dim.CHANNEL
+            ),
+            DatasetVar.TARGET: fit_data[self.target_column],
+            **{
+                name: fit_data[name]
+                for name in self._effect_data_vars()
+                if name in fit_data
+            },
         }
-        native = [
-            name
-            for name in self._effect_data_vars()
-            if name in fit_data and set(fit_data[name].dims) != frame_dims
-        ]
-        restored = None
-        if native:
-            restored = fit_data[native]
-            if self.date_column in restored.sizes and self.date_column != Dim.DATE:
-                restored = restored.rename({self.date_column: Dim.DATE})
-            # Selecting by name also drops the dims only the native data used.
-            fit_data = fit_data[
-                [name for name in fit_data.data_vars if name not in native]
-            ]
-
-        dataset = fit_data.to_dataframe()
-
-        if isinstance(dataset.index, pd.MultiIndex) or isinstance(
-            dataset.index, pd.DatetimeIndex
-        ):
-            dataset = dataset.reset_index()
-        # type: ignore
-        X = dataset.drop(columns=[self.target_column])
-        y = dataset[self.target_column]
+        if controls:
+            data[DatasetVar.CONTROL] = fit_data[controls].to_dataarray(Dim.CONTROL)
+        X = xr.Dataset(data)
 
         if "posterior" in idata.children:
             self._custom_dim_order = {
@@ -5692,12 +5678,10 @@ class MMM(RegressionModelBuilder):
                 for dim in self.dims
                 if dim in idata.posterior.indexes
             }
-        self._restored_effect_data = restored
         try:
-            self.build_model(X, y)  # type: ignore
+            self.build_model(X)  # type: ignore
         finally:
             self._custom_dim_order = {}
-            self._restored_effect_data = None
 
         # Lift-test rows are model inputs, rather than part of fit_data. Restore
         # them after rebuilding the base MMM so their likelihood and posterior
