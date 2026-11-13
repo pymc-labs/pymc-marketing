@@ -1161,6 +1161,14 @@ def test_delivery_reports_are_keyed_by_variable_and_keep_their_own_dims():
     assert at_zero.implied_marginal_price.isnull().all()
 
 
+def test_delivery_reports_refuse_a_vector_of_the_wrong_length():
+    variables = OptimizationVariables(
+        [_priced_variable(elasticity=0.4), _priced_spend()]
+    )
+    with pytest.raises(ValueError, match=r"expected shape \(4,\), got \(3,\)"):
+        variables.delivery_reports(np.ones(3))
+
+
 def test_delivery_report_compiles_with_the_optimizer_compile_kwargs():
     """Everything else in the optimizer compiles through compile_kwargs; the report must
     not silently land on the default backend when the user asked for another."""
