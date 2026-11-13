@@ -37,12 +37,13 @@ labels and ``complete`` coordinate together with the label's own fields.
     label.definition  # "Y(x) - Y(x', M(x))"
 
 **Read a label before cutting a result.**  :meth:`EstimandLabel.read` verifies
-the digest, so it accepts the array the module returned, a copy, a transpose, a
-rename and the same array read back from a file, and refuses anything derived
-from it: a selection, a sort, arithmetic, a reduction, a concatenation.  What
-xarray does with attributes under those operations differs between versions, so
-a derived array may still carry the attribute.  It then says what the array was
-computed from, and ``read`` refuses it.  Drop the attributes of anything derived
+the digest, so it accepts the array the module returned, a copy, a transpose,
+the array under another name and the same array read back from a file.  It
+refuses anything derived from it: a selection, a sort, a renamed dimension,
+arithmetic, a reduction, a concatenation.  What xarray does with attributes
+under those operations differs between versions, so a derived array may still
+carry the attribute.  It then says what the array was computed from, and
+``read`` refuses it.  Drop the attributes of anything derived
 (``result.drop_attrs()``).
 
 In the ``definition``, :math:`x` is actual spend, :math:`x'` the counterfactual
@@ -443,10 +444,10 @@ class EstimandLabel(BaseModel):
         if stored_digest != cls.DIGESTS[version](result, payload):
             raise ValueError(
                 "The array and its label do not belong together: a value, a "
-                "coordinate label or the 'complete' mark differs from the result "
-                "the label was issued for, or the label was edited.  Read a "
-                "label before selecting from, reordering or computing with a "
-                "result."
+                "dimension name, a coordinate label or the 'complete' mark "
+                "differs from the result the label was issued for, or the label "
+                "was edited.  Read a label before selecting from, reordering, "
+                "renaming the dimensions of or computing with a result."
             )
         for step in range(version, cls.SCHEMA_VERSION):
             if step not in cls.MIGRATIONS:
