@@ -58,6 +58,7 @@ from pymc_marketing.experimental.terms._optimizer_terms import (
     _tensor_date_axis,
 )
 from pymc_marketing.experimental.terms._scm import SCM
+from pymc_marketing.names.mmm import Dim
 from pymc_marketing.terms import ModelTerm, Product, Sum
 
 type _Term = ModelTerm | Product | Sum
@@ -513,7 +514,7 @@ def _construction_data(
                 dims=dims,
                 coords={dim: context.model.coords[dim] for dim in dims},
             )
-        if "date" in value.dims:
+        if Dim.DATE in value.dims:
             value = value.isel(date=np.arange(len(dates)) % value.sizes["date"])
             value = value.assign_coords(date=dates)
         arrays[name] = BuildContext._canonical_input(value, name, copy=True)
@@ -540,14 +541,14 @@ class _CallbackEvaluator:
         for value in decisions.values():
             self._register(value, "decided")
         for name, value in parameters.items():
-            if "date" in value.dims:
+            if Dim.DATE in value.dims:
                 size = parameter_templates[name].sizes["date"]
                 self._register(
                     value, "decided" if size == self._decided_length else "scored"
                 )
 
     def _register(self, value: XTensorVariable, window: str) -> None:
-        if "date" in value.dims:
+        if Dim.DATE in value.dims:
             self._date_windows[value] = window
 
     def check_dates(self, value: Variable) -> frozenset[str]:
@@ -563,7 +564,7 @@ class _CallbackEvaluator:
         def windows(node: Variable) -> frozenset[str]:
             if node in self._date_windows:
                 return frozenset({self._date_windows[node]})
-            if isinstance(node, XTensorVariable) and "date" not in node.dims:
+            if isinstance(node, XTensorVariable) and Dim.DATE not in node.dims:
                 return frozenset()
             owner = node.owner
             if (
@@ -618,7 +619,7 @@ class _CallbackEvaluator:
 
     def constant(self, value: xr.DataArray) -> Any:
         result = self._evaluator.constant(value)
-        if "date" in value.dims:
+        if Dim.DATE in value.dims:
             self._register(
                 result,
                 "decided" if value.sizes["date"] == self._decided_length else "scored",
@@ -820,7 +821,7 @@ class Problem:
                 raise TypeError("Parameter names must be nonempty strings.")
             if isinstance(value, xr.DataArray):
                 reference = self._evaluator.coords
-                if "date" in value.dims and value.sizes["date"] != len(
+                if Dim.DATE in value.dims and value.sizes["date"] != len(
                     reference["date"]
                 ):
                     reference = self._evaluator.output_coords
@@ -837,7 +838,9 @@ class Problem:
         try:
             self._compile(objective, constraints)
         except ValueError as error:
-            if len(self._evaluator.output_coords.get("date", ())) != len(dates) and any(
+            if len(self._evaluator.output_coords.get(Dim.DATE, ())) != len(
+                dates
+            ) and any(
                 word in str(error).lower()
                 for word in ("shape", "dimension", "broadcast", "incompatible")
             ):

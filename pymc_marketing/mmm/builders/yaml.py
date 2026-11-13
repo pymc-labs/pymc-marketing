@@ -32,6 +32,7 @@ from pymc_marketing.mmm.data_conversion import (
     to_mmm_dataset,
 )
 from pymc_marketing.mmm.mmm import MMM
+from pymc_marketing.names.mmm import Dim
 
 
 def _load_df(path: str | Path) -> pd.DataFrame:
@@ -160,7 +161,7 @@ def build_mmm_from_yaml(
                 f"Date column '{date_column}' specified in config not found "
                 f"in either X or y data."
             )
-    elif isinstance(X, xr.Dataset) and date_column and "date" not in X.coords:
+    elif isinstance(X, xr.Dataset) and date_column and Dim.DATE not in X.coords:
         raise ValueError(
             f"Date column '{date_column}' specified in config but Dataset "
             f"input is missing a 'date' coordinate."
