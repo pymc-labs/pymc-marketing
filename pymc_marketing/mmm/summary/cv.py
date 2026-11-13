@@ -296,7 +296,7 @@ class MMMCVSummaryFactory:
             *[
                 d
                 for d in observed_df.columns
-                if d not in {"cv", "date", "observed"}
+                if d not in {Dim.CV, Dim.DATE, "observed"}
             ],
         ]
         df = df.merge(observed_df, on=merge_keys, how="left")

@@ -48,7 +48,7 @@ def _add_sweep_x_column(
 ) -> pd.DataFrame:
     """Add sweep_x column aligned with summary rows."""
     if x_sweep_axis == "relative" or sweep_x.ndim == 1:
-        if "sweep" in df.columns:
+        if Dim.SWEEP in df.columns:
             mapping = {
                 float(s): float(sweep_x.sel(sweep=s).item())
                 for s in sweep_x.coords[Dim.SWEEP].values

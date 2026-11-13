@@ -732,8 +732,8 @@ class MMMPlotlyFactory:
         x = plotly_kwargs.get("x")
         color = plotly_kwargs.get("color")
 
-        if "date" in nw_df.columns and len(nw_df[Dim.DATE].unique()) > 1:
-            if "date" not in [x, color]:
+        if Dim.DATE in nw_df.columns and len(nw_df[Dim.DATE].unique()) > 1:
+            if Dim.DATE not in [x, color]:
                 raise ValueError("choose either x='date' or color='date'")
 
         if required_column not in [x, color]:
@@ -1033,7 +1033,7 @@ class MMMPlotlyFactory:
         nw_df = nw.from_native(df)
 
         # Validate required columns
-        required_cols = {"date", "mean", "observed"}
+        required_cols = {Dim.DATE, "mean", "observed"}
         if not required_cols.issubset(set(nw_df.columns)):
             raise ValueError(
                 f"DataFrame missing required columns: {required_cols - set(nw_df.columns)}"
