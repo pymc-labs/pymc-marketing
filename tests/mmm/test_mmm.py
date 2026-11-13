@@ -923,6 +923,37 @@ class TestFitWithXarrayInput:
         assert not np.isnan(got).any()
         np.testing.assert_allclose(got, mmm.model["promo"].eval())
 
+    def test_fit_data_takes_mu_effect_data_from_dataset_x(self, mock_pymc_sample):
+        """``fit_data`` stores the mu_effect data of the Dataset passed to fit.
+
+        The model is built from one Dataset and fit on another with the same
+        labels, as the DataFrame branch prefers the columns of X.
+        """
+        ds_build = self._dataset_with_promo(("date", "geo", "segment"))
+        ds_fit = ds_build.assign(promo=ds_build["promo"] * 2)
+        mmm = self._mmm(("geo",), self.CONTROLS)
+        mmm.add_mu_effect(_SegmentEffect(data_vars=["promo"], prefix="promo"))
+        mmm.build_model(ds_build)
+
+        mmm.fit(ds_fit)
+
+        xr.testing.assert_allclose(
+            mmm.idata.fit_data.to_dataset()["promo"],
+            ds_fit["promo"].transpose("date", "geo", "segment"),
+        )
+
+    def test_create_fit_data_keeps_mu_effect_data_without_a_built_model(self):
+        """``create_fit_data`` stores the mu_effect data of X before the model is built."""
+        ds = self._dataset_with_promo(("date", "geo", "segment"))
+        mmm = self._mmm(("geo",), self.CONTROLS)
+        mmm.add_mu_effect(_SegmentEffect(data_vars=["promo"], prefix="promo"))
+
+        fit_data = mmm.create_fit_data(ds)
+
+        xr.testing.assert_allclose(
+            fit_data["promo"], ds["promo"].transpose("date", "geo", "segment")
+        )
+
     def test_fit_warns_when_mu_effect_data_labels_differ(self, mock_pymc_sample):
         """``fit_data`` skips mu_effect data whose labels differ from the fit data."""
         ds = self._dataset_with_promo(("date", "geo", "segment"))

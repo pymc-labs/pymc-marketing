@@ -5527,11 +5527,15 @@ class MMM(RegressionModelBuilder):
             ]
             if DatasetVar.CONTROL in ds:
                 parts.append(ds[DatasetVar.CONTROL].to_dataset("control"))
+            # mu_effect data in X wins, as in the DataFrame branch.
+            parts.append(ds[[n for n in self._effect_data_vars() if n in ds]])
             fit_data = xr.merge(parts, combine_attrs="drop")
             if self.date_column != Dim.DATE:
                 fit_data = fit_data.rename({Dim.DATE: self.date_column})
             return self._add_effect_data(
-                fit_data.transpose(self.date_column, *self.dims, missing_dims="ignore")
+                fit_data.transpose(
+                    self.date_column, *self.dims, ..., missing_dims="ignore"
+                )
             )
 
         X_df = X.copy()
