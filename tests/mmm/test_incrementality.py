@@ -2574,6 +2574,114 @@ class TestMediatedMuEffects:
         with pytest.raises(NotImplementedError, match="Some path from spend"):
             incr.compute_incremental_contribution(frequency="all_time")
 
+    @pytest.mark.parametrize(
+        "model_fixture, blocked",
+        [
+            pytest.param("latent_demand_fitted_mmm", "latent_demand", id="opted in"),
+            pytest.param(
+                "two_route_latent_demand_fitted_mmm",
+                "latent_demand",
+                id="also reads spend directly",
+            ),
+            pytest.param(
+                "misnamed_latent_demand_fitted_mmm",
+                "latent_demand",
+                id="contribution under another name",
+            ),
+            pytest.param(
+                "duck_typed_latent_demand_fitted_mmm", "duck_demand", id="duck typed"
+            ),
+        ],
+    )
+    def test_a_spend_path_through_a_random_variable_is_refused(
+        self, request, model_fixture, blocked
+    ):
+        """A mediator the posterior holds fixed is named, not left out of the increment.
+
+        ``demand ~ Normal(f(spend), sigma)`` keeps its posterior draws whatever
+        spend is, so the path from spend through it to the target is cut.  The
+        opt-in check is satisfied by the effect's spec, or never sees the effect,
+        and the completeness check compares a predictor and accounted nodes that
+        both fail to move through ``demand``.  Before the structural guard the
+        first case failed with an error about a ``__batch__`` dimension, and the
+        other three returned the rest of the effect of spend as the total.
+        """
+        incr = request.getfixturevalue(model_fixture).incrementality
+
+        with pytest.raises(NotImplementedError, match=blocked):
+            incr.compute_joint_incremental_contribution(frequency="all_time")
+
+    @pytest.mark.parametrize(
+        "request_increment",
+        [
+            pytest.param(
+                lambda incr: incr.contribution_over_spend(frequency="all_time"),
+                id="ratio",
+            ),
+            pytest.param(
+                lambda incr: incr.split_incremental_contribution_over_time(
+                    frequency="monthly"
+                ),
+                id="split on windows",
+            ),
+            pytest.param(
+                lambda incr: incr.split_incremental_contribution_over_time(
+                    frequency="monthly", estimand="allocation"
+                ),
+                id="allocation",
+            ),
+        ],
+    )
+    def test_every_route_refuses_a_blocked_spend_path(
+        self, misnamed_latent_demand_fitted_mmm, request_increment
+    ):
+        """Every public route reads the model through the same door.
+
+        The allocation has structural guards of its own, but they look for a
+        channel-dependent effect, and an effect that was never resolved is not
+        one.  On windows the same model used to fail on the shape of
+        ``demand``'s draws, which span the fitted dates and not the window.
+        """
+        incr = misnamed_latent_demand_fitted_mmm.incrementality
+
+        with pytest.raises(NotImplementedError, match="latent_demand"):
+            request_increment(incr)
+
+    @pytest.mark.parametrize("frequency", ["all_time", "monthly"])
+    @pytest.mark.parametrize(
+        "fixture_name",
+        [
+            pytest.param(
+                "measured_hub_fitted_mmm",
+                id="a likelihood on an indicator of the mediator",
+            ),
+            pytest.param(
+                "non_centered_demand_fitted_mmm",
+                id="demand as a function of spend plus a shock",
+            ),
+        ],
+    )
+    def test_a_mediator_the_counterfactual_moves_matches_the_oracle(
+        self, request, fixture_name, frequency
+    ):
+        """The two ways of writing a mediator that propagates are answered in full.
+
+        A likelihood on an indicator is downstream of spend and feeds nothing,
+        so it is not on a path.  The second model is what the refusal tells an
+        author to write: its random variable does not depend on spend, and the
+        shock built from it is frozen, which is what cuts it to a window.
+        """
+        mmm = request.getfixturevalue(fixture_name)
+
+        result = mmm.incrementality.compute_incremental_contribution(
+            frequency=frequency
+        )
+        expected = compute_log_link_ground_truth_by_period(
+            mmm, frequency=frequency, l_max=effective_l_max(mmm)
+        )
+
+        xr.testing.assert_allclose(result, expected, rtol=1e-6)
+
     def test_a_second_node_named_mu_leaves_the_increment_unchanged(
         self, funnel_identity_fitted_mmm, shadow_named_node
     ):

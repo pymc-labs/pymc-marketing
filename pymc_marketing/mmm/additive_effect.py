@@ -521,6 +521,15 @@ class MuEffect(SerializableBaseModel, ABC):
         the spec's fields are overrides for quantities that are otherwise
         measured from the graph.
 
+        Opting in does not make a path propagate.  The counterfactual is
+        evaluated conditioned on the posterior, where a random variable keeps
+        its draws whatever spend is, so a mediator written as
+        ``Normal(f(spend), sigma)`` cuts the path that runs through it, and
+        incrementality refuses the model by naming the variable.  Write such a
+        mediator as a deterministic function of spend plus a noise term that
+        does not depend on spend, and list a date-indexed noise term in
+        :attr:`frozen_deterministics`.
+
         Returns
         -------
         IncrementalitySpec or None
@@ -546,7 +555,8 @@ class MuEffect(SerializableBaseModel, ABC):
         contribution that is a latent path over the fitted dates, such as a random
         walk or a Gaussian process, which should be taken from the posterior as the
         MMM's HSGP terms are. A frozen deterministic no longer responds to the
-        channel data, so never freeze one that depends on them.
+        channel data, so never freeze one that depends on them: incrementality
+        refuses a model in which one stands between spend and the linear predictor.
 
         A frozen deterministic with a ``date`` dimension is a path over the fitted
         dates. Posterior predictive sampling and sensitivity sweeps handle it on
