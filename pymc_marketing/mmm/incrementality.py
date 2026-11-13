@@ -1186,7 +1186,7 @@ class PathDeltas:
 
 @dataclass(frozen=True)
 class PathReads:
-    """What a request reads from one evaluation, besides today's total.
+    """What a request reads from one evaluation.
 
     Parameters
     ----------
@@ -2241,8 +2241,8 @@ class Incrementality:
         start_date, end_date : str or pd.Timestamp, optional
             Date range for computation.
         include_carryover : bool, default=True
-            Include the movement that spend inside a period causes after it,
-            and the movement inside a period caused by the spend before it.
+            Include the movement a period's spend causes on the dates outside
+            the period, as in :meth:`compute_incremental_contribution`.
         num_samples : int or None, optional
             Number of posterior samples to use; see
             :meth:`compute_incremental_contribution`.
@@ -2382,24 +2382,27 @@ class Incrementality:
         registry = resolve_mediators(
             self.model, resolve_channel_dependent_effects(self.model)
         )
-        columns = [
-            "name",
-            "variable",
-            "effects",
-            "units",
-            "scale",
-            "is_spend",
-            "feeds_term",
-            "readable",
-            "problem",
-            "unreadable",
-        ]
+        # The text columns are objects, so that a missing value is None in
+        # every pandas version, with or without text beside it.
+        dtypes: dict[str, type] = {
+            "name": object,
+            "variable": object,
+            "effects": object,
+            "units": object,
+            "scale": float,
+            "is_spend": bool,
+            "feeds_term": bool,
+            "readable": bool,
+            "problem": object,
+            "unreadable": object,
+        }
         return pd.DataFrame(
-            [
-                {column: getattr(entry, column) for column in columns}
-                for entry in registry
-            ],
-            columns=columns,
+            {
+                column: pd.Series(
+                    [getattr(entry, column) for entry in registry], dtype=dtype
+                )
+                for column, dtype in dtypes.items()
+            }
         )
 
     def split_incremental_contribution_over_time(
@@ -5043,7 +5046,7 @@ class Incrementality:
         posterior : xr.Dataset, optional
             An already subsampled posterior, used as is.
         reads : PathReads, optional
-            What the request reads besides today's total.
+            The paths to reduce and the mediators to read.
 
         Returns
         -------
@@ -5553,9 +5556,9 @@ class Incrementality:
         reduced to the wanted paths and to the movement of the mediators read,
         so all of them come from the same draws and the same rows.
 
-        A total (``reads`` left at its default) adds the same terms in the same
-        order as it always has and is checked by the probe.  A request for the
-        direct or the mediated path also evaluates actual spend on each
+        A total (``reads`` left at its default) adds every term in one sum, in
+        the order of the effects, and is checked by the probe.  A request for
+        the direct or the mediated path also evaluates actual spend on each
         period's window and checks its accounting on its own rows; see
         :meth:`_check_rows`.
 
@@ -5629,8 +5632,8 @@ class Incrementality:
             # are already being built.
             #
             # A mediator has no column per channel to read at all, so its
-            # per-channel movement needs each channel's own counterfactual
-            # whatever the model looks like.
+            # per-channel movement needs each channel's own counterfactual in
+            # every model, separable or not.
             needs_dedicated_rows = bool(effects) or (
                 scope == "per_channel"
                 and (
@@ -5653,7 +5656,7 @@ class Incrementality:
             # the same window.  A model without mu_effects evaluates no
             # predictor, and has nothing to compare: spend reaches its mean
             # through channel_contribution alone.  A mediator is compared with
-            # itself in the same way, whatever the model evaluates.
+            # itself in the same way, in a model with a predictor or without.
             check_rows = reads.is_path and probed.has_predictor
             scenarios = windows.build_scenarios(
                 baseline_array=baseline_array,
@@ -6483,8 +6486,8 @@ class Incrementality:
             ``("sample", "date", *custom_dims)`` and labeled with *coords*.
             ``released`` is the sum of the held effects' perturbations, or
             ``None`` when nothing is held.  With nothing held ``kept`` adds
-            every term in the order of *effect_names*, as a total always has:
-            regrouping the terms changes the last bits of the sum.
+            every term in the order of *effect_names*.  The order is part of
+            the result: regrouping the terms changes the last bits of the sum.
         """
 
         def delta(name: str) -> xr.DataArray:
@@ -7375,7 +7378,7 @@ class Incrementality:
         paths : {"total", "direct", "mediated"}, default="total"
             Which paths from spend to the response the numerator follows, as in
             :meth:`compute_incremental_contribution`.  The denominator is the
-            channel's spend whatever the path.
+            channel's spend for every path.
         induced_spend : sequence of str, optional
             Names of declared mediators with ``is_spend=True``.  Their movement
             under the counterfactual is added to the denominator, so the ratio

@@ -553,12 +553,12 @@ class TestNothingToHold:
 
 
 class TestDefaultTotal:
-    """A request that names no path is today's total, with a label on it."""
+    """A request that names no path returns the total, with a label on it."""
 
     def test_the_values_are_the_core_s_and_the_label_is_the_only_attribute(
         self, funnel_log_link_fitted_mmm
     ):
-        """Nothing about the numbers changes: the label is attached to them."""
+        """The label is attached to the numbers the core computes, unchanged."""
         incr = funnel_log_link_fitted_mmm.incrementality
         request = {
             "frequency": "monthly",
@@ -588,8 +588,8 @@ class TestDefaultTotal:
         """A spec that only a path request would read is never asked for.
 
         The effect does not read spend, so a total skips it without calling
-        ``incrementality_spec``, as it always has.  The requests that list
-        mediator nodes do call it, and its error is theirs.
+        ``incrementality_spec``.  The requests that list mediator nodes do call
+        it, and its error is theirs.
         """
 
         class Unreadable(CentredControlEffect):
@@ -656,7 +656,7 @@ class TestAccountingOnRows:
         assert_matches(direct, expected["direct"])
 
     def test_an_accounted_term_that_differs_on_a_window_is_named(self, funnel_mmm_data):
-        """Its move on a window is not its move, and the refusal says which term.
+        """On a window the term moves without spend moving, and the refusal names it.
 
         The fix it names works: declared as needing the full axis, the same
         effect is answered, and matches the intervention.
@@ -749,7 +749,7 @@ class TestAccountingOnRows:
 
 
 class TestTheDecomposition:
-    """One call, one pass, one set of draws, and the spend that goes with them."""
+    """The three paths and the spend change, from one evaluation on one set of draws."""
 
     def test_every_variable_is_computed_on_the_same_draws(
         self, funnel_log_link_fitted_mmm

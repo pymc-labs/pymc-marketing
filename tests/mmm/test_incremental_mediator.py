@@ -720,6 +720,9 @@ class TestMediatorsTable:
         ]
         assert table["name"].tolist() == [DEMAND, LF_SPEND]
         assert table["is_spend"].tolist() == [False, True]
+        # Missing text is None in every column, with or without text beside it.
+        assert table["units"].tolist() == [None, "USD"]
+        assert table["problem"].tolist() == [None, None]
         assert table["readable"].all()
         assert table["effects"].tolist() == [("FunnelEffect",)] * 2
 
