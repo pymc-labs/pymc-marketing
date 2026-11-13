@@ -740,12 +740,13 @@ class TestFitWithXarrayInput:
         [
             (("date", "geo"), ControlMuEffect(data_vars=["promo"], prefix="promo")),
             (("date",), ControlMuEffect(data_vars=["promo"], prefix="promo")),
+            (("geo",), ControlMuEffect(data_vars=["promo"], prefix="promo")),
             (
                 ("date", "geo", "segment"),
                 _SegmentEffect(data_vars=["promo"], prefix="promo"),
             ),
         ],
-        ids=["date-geo", "date-only", "extra-dim"],
+        ids=["date-geo", "date-only", "geo-only", "extra-dim"],
     )
     def test_save_load_keeps_mu_effect_data(
         self, promo_dims, effect, fit_from, date_column, tmp_path, mock_pymc_sample

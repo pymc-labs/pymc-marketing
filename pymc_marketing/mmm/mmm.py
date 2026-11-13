@@ -3287,7 +3287,7 @@ class MMM(RegressionModelBuilder):
         if not names:
             return fit_data
         effect_data = built[names]
-        if self.date_column != Dim.DATE:
+        if self.date_column != Dim.DATE and Dim.DATE in effect_data.sizes:
             effect_data = effect_data.rename({Dim.DATE: self.date_column})
         for dim in set(effect_data.sizes) & set(fit_data.sizes):
             if set(effect_data.indexes[dim]) != set(fit_data.indexes[dim]):
@@ -5485,6 +5485,7 @@ class MMM(RegressionModelBuilder):
         xr.Dataset
             Dataset indexed by ``(self.date_column, *dims present in X)`` with the
             feature variables and a target variable named ``self.target_column``.
+            mu_effect data keeps its own dims, which can differ from these.
 
         Raises
         ------
@@ -5670,11 +5671,10 @@ class MMM(RegressionModelBuilder):
             restored = fit_data[native]
             if self.date_column in restored.sizes and self.date_column != Dim.DATE:
                 restored = restored.rename({self.date_column: Dim.DATE})
-            fit_data = fit_data.drop_vars(native)
-            used = {dim for var in fit_data.data_vars.values() for dim in var.dims}
-            fit_data = fit_data.drop_dims(
-                [dim for dim in fit_data.sizes if dim not in frame_dims | used]
-            )
+            # Selecting by name also drops the dims only the native data used.
+            fit_data = fit_data[
+                [name for name in fit_data.data_vars if name not in native]
+            ]
 
         dataset = fit_data.to_dataframe()
 
