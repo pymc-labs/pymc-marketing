@@ -1548,6 +1548,7 @@ class TestPriceResponseAllocation:
 
         assert baseline.implied_delivery is None and baseline.implied_price is None
         assert baseline.implied_marginal_price is None
+        assert baseline.delivery_reports == {}
         spent = identity.budgets > 0
         assert np.all(identity.implied_price.where(spent).fillna(1.0) == 1.0)
         assert np.all(identity.implied_marginal_price.where(spent).fillna(1.0) == 1.0)

@@ -297,6 +297,30 @@ class OptimizationVariable(ABC):
         """
         return None
 
+    def delivery_report(
+        self, x: np.ndarray, date_coords: Sequence | None = None
+    ) -> Dataset | None:
+        """Delivery and clearing prices at a solution slice, for a variable whose money buys units.
+
+        Returns None by default, for a variable with no price response: a lever is
+        not bought, and a monetary variable optimized without a ``price_response``
+        reports nothing. :class:`OptimizationVariables` keys the reports it gets
+        back by variable name, so a variable joins the result by overriding this.
+
+        Parameters
+        ----------
+        x : np.ndarray
+            This variable's slice of the flat decision vector.
+        date_coords : Sequence or None
+            Labels for the date dim of the report.
+
+        Returns
+        -------
+        xarray.Dataset or None
+            The report, or None when the variable has none.
+        """
+        return None
+
 
 class MediaVariable(OptimizationVariable):
     """The media-budget decision variable.
@@ -665,7 +689,7 @@ class MediaVariable(OptimizationVariable):
 
     def delivery_report(
         self, x: np.ndarray, date_coords: Sequence | None = None
-    ) -> dict[str, DataArray]:
+    ) -> Dataset | None:
         """Implied delivery and clearing prices at a flat solution slice.
 
         Evaluated from the same symbolic maps :meth:`to_model` used, on the same
@@ -681,17 +705,18 @@ class MediaVariable(OptimizationVariable):
 
         Returns
         -------
-        dict[str, DataArray]
-            Empty when the variable has no price response. Otherwise three arrays
-            over ``(date_dim, *dims)``: ``implied_delivery``, the units bought
-            (before ``channel_scales``; ``0.0`` at zero money), and
+        xarray.Dataset or None
+            None when the variable has no price response. Otherwise four arrays
+            over ``(date_dim, *dims)``: ``spend``, the money spent per period and
+            cell (``0.0`` outside the mask); ``implied_delivery``, the units it
+            buys (before ``channel_scales``; ``0.0`` at zero money); and
             ``implied_price`` / ``implied_marginal_price`` in money per unit,
             ``nan`` wherever no money was spent. On spent cells
             ``(implied_delivery * implied_price).sum(date_dim)`` equals
-            ``budgets * num_periods``.
+            ``spend.sum(date_dim)``, which is ``unpack(x) * num_periods``.
         """
         if self.price_response is None:
-            return {}
+            return None
         x = np.asarray(x, dtype="float64")
         if x.shape != (self.size,):
             raise ValueError(
@@ -713,11 +738,15 @@ class MediaVariable(OptimizationVariable):
         coords: dict = dict(self.coords)
         if date_coords is not None:
             coords[self.date_dim] = list(date_coords)
-        return {
-            "implied_delivery": DataArray(delivery, dims=dims, coords=coords),
-            "implied_price": DataArray(price, dims=dims, coords=coords),
-            "implied_marginal_price": DataArray(marginal, dims=dims, coords=coords),
-        }
+        return Dataset(
+            {
+                "spend": (dims, money),
+                "implied_delivery": (dims, delivery),
+                "implied_price": (dims, price),
+                "implied_marginal_price": (dims, marginal),
+            },
+            coords=coords,
+        )
 
     def _compile_delivery_report(
         self, response: ResolvedPriceResponse
@@ -1113,6 +1142,39 @@ class OptimizationVariables:
             variable.name: variable.unpack(x[self.slices[variable.name]])
             for variable in self.variables
         }
+
+    def delivery_reports(
+        self, x: np.ndarray, date_coords: Sequence | None = None
+    ) -> dict[str, Dataset]:
+        """Split a flat solution into one delivery report per priced variable.
+
+        Parameters
+        ----------
+        x : np.ndarray
+            The flat decision vector, of length :attr:`size`.
+        date_coords : Sequence or None
+            Labels for the date dim of every report; the variables share the
+            window, so one set of labels serves them all.
+
+        Returns
+        -------
+        dict[str, xarray.Dataset]
+            Keyed by variable name, in flat-vector order, for every variable whose
+            :meth:`OptimizationVariable.delivery_report` is not None. Each report
+            keeps its own variable's dims: they are not stacked, because
+            variables differ in dims and a stack would broadcast or pad them.
+        """
+        x = np.asarray(x)
+        if x.shape != (self.size,):
+            raise ValueError(f"expected shape ({self.size},), got {x.shape}")
+        reports = {}
+        for variable in self.variables:
+            report = variable.delivery_report(
+                x[self.slices[variable.name]], date_coords=date_coords
+            )
+            if report is not None:
+                reports[variable.name] = report
+        return reports
 
     def spending_variables(self) -> list[OptimizationVariable]:
         """Return the variables that draw from the shared budget.

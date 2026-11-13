@@ -418,6 +418,22 @@ class BudgetOptimizationResult:
         ``implied_price`` is. Above the floor it is ``implied_price / (1 - elasticity)``,
         so their ratio is the whole content of a spend-dependent price: at elasticity
         0.25 the increment costs 33% more than the average unit.
+    delivery_reports : dict[str, xarray.Dataset]
+        One report per priced decision variable, keyed by name in decision-vector order:
+        ``channel_data_var`` and every ``spend_vars`` name when a ``price_response`` was
+        passed, empty otherwise. Each is over that variable's own ``(date_dim, *dims)``
+        (a spend variable decided over date alone is over ``(date_dim,)``) and holds
+        ``spend``, the money spent per period and cell (``0.0`` outside the mask), beside
+        ``implied_delivery``, ``implied_price`` and ``implied_marginal_price`` with the
+        meanings and the ``nan``-at-zero-money convention above; ``implied_delivery`` is
+        before that variable's scales (``channel_scales`` or ``spend_var_scales``). Per
+        report, masking the ``nan`` cells, ``(r.implied_delivery * r.implied_price).sum(date_dim)``
+        equals ``r.spend.sum(date_dim)``, which is the variable's allocation times
+        ``num_periods``. Kept per variable rather than stacked because variables differ in
+        dims. A spend variable takes no ``cost_per_unit`` and no
+        ``budget_distribution_over_period``: its base price is 1 at its ``reference_spend``
+        and its money is spread evenly over the window. The ``channel_data_var`` entry
+        holds the arrays of the three fields above.
     """
 
     budgets: DataArray
@@ -428,6 +444,7 @@ class BudgetOptimizationResult:
     implied_delivery: DataArray | None = None
     implied_price: DataArray | None = None
     implied_marginal_price: DataArray | None = None
+    delivery_reports: dict[str, xr.Dataset] = field(default_factory=dict)
 
     @property
     def spend_var_allocations(self) -> dict[str, DataArray]:
@@ -1446,8 +1463,9 @@ class BudgetOptimizer(BaseModel):
         unscaled per-period money before ``channel_scales``. See
         :class:`~pymc_marketing.mmm.price_response.PowerPriceResponse` for the
         precondition (the model must be fitted on delivery units), the
-        attestation it requires, and the three reporting fields it
-        adds to the result. With ``spend_vars`` declared, pass a dict keyed by
+        attestation it requires, the three media reporting fields it
+        adds to the result, and ``delivery_reports``, the same report for every
+        priced variable keyed by name. With ``spend_vars`` declared, pass a dict keyed by
         decision-variable name that names every monetary variable
         (``channel_data_var`` and each spend variable); say constant with
         ``PowerPriceResponse(elasticity=0.0)``.
@@ -1647,8 +1665,9 @@ class BudgetOptimizer(BaseModel):
             "historical cost_per_unit table anchors reference_spend on the channels it prices on "
             "MMM's channel_data node; a curved spend variable, custom channel_data_var or unpriced "
             "channel needs an explicit reference_spend. Results carry implied_delivery, "
-            "implied_price and implied_marginal_price for the media variable; a spend variable's "
-            "report is available through optimization_variables.variables[i].delivery_report(x_slice)."
+            "implied_price and implied_marginal_price for the media variable, and delivery_reports "
+            "holds the same arrays, with the per-period spend, for every priced variable, keyed "
+            "by name."
         ),
     )
 
@@ -3496,10 +3515,14 @@ class BudgetOptimizer(BaseModel):
             Result object with ``budgets`` (the optimized allocation across
             channels, monetary units), ``scipy_result`` (the raw scipy
             optimization result, with ``fun``, ``jac`` and, from SciPy 1.16,
-            ``multipliers`` in objective units), ``optimized_vars`` (empty for now), and
+            ``multipliers`` in objective units), ``optimized_vars`` (every
+            ``spend_vars`` and ``optimizable_vars`` allocation by name, empty when
+            neither is declared), and
             ``callback_info`` (per-iteration diagnostics when ``callback=True``, else
             ``None``) and, when a ``price_response`` was passed, ``implied_delivery``,
-            ``implied_price`` and ``implied_marginal_price``. Iterating the result yields
+            ``implied_price`` and ``implied_marginal_price`` for media, plus
+            ``delivery_reports`` with the same arrays and the per-period ``spend``
+            for every priced variable, keyed by name. Iterating the result yields
             ``(budgets, scipy_result)``, so ``optimal, res = optimizer.allocate_budget(...)``
             keeps working.
 
@@ -3720,17 +3743,22 @@ class BudgetOptimizer(BaseModel):
             optimal_budgets = unpacked.pop(self.channel_data_var)
             optimal_budgets.attrs["pymc_marketing_version"] = __version__
 
-            report = self._media_variable.delivery_report(
-                result.x[self._variables.slices[self.channel_data_var]],
-                date_coords=self._decision_date_coords(),
+            reports = self._variables.delivery_reports(
+                result.x, date_coords=self._decision_date_coords()
             )
+            media = reports.get(self.channel_data_var)
             return BudgetOptimizationResult(
                 budgets=optimal_budgets,
                 scipy_result=result,
                 optimized_vars=unpacked,
                 spend_var_names=list(self.spend_vars),
                 callback_info=callback_info if callback else None,
-                **report,
+                implied_delivery=None if media is None else media["implied_delivery"],
+                implied_price=None if media is None else media["implied_price"],
+                implied_marginal_price=None
+                if media is None
+                else media["implied_marginal_price"],
+                delivery_reports=reports,
             )
 
         else:
